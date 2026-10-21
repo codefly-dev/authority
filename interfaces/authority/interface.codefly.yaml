@@ -14,7 +14,7 @@ description: What a module or solution calls on the host that runs it to be issu
 version: 0.1.0
 type: connect
 protobuf:
-    package: saas.accounts.v1
+    package: obin.authority.v1
     services:
         - name: WorkContextService
           methods:

@@ -28,13 +28,18 @@ copied here.
 
 **Order of work.**
 
-1. Declare the interface from the host's existing messages (this commit).
-2. Build the mini gateway against it.
-3. Move the authority proto, verifier and conformance kit out of `codefly-dev/core`
-   into this repository, field numbers unchanged, fixtures proving identical bytes.
+1. Declare the interface and give it its proto, taken from core (the Work Context
+   types) and from the host (the two services), with every message, field and
+   field number unchanged; only the package is `obin.authority.v1`. Done; `buf
+   build` passes under `interfaces/authority/proto`.
+2. Build the mini gateway against it, with the conformance kit as a required test.
+3. Point the host and the SDKs at this package and delete the copies in
+   `codefly-dev/core` and the host, in that order, the fixtures proving identical
+   bytes at each step. Nine Go modules import core's authority packages today;
+   none moves before the mini gateway proves the interface.
 
-Never the third step first: nine Go modules import core's authority packages today
-and a move before the interface is one more round of version skew.
+Known lint debt: the four module-authority messages carry no doc comments, as they
+did not in the host; `buf lint` says so and the next change writes them here.
 
 **Where the thinking is.** The Platform Authority Primer (decisions 6 and 7) and the
 handbook proposal that will carry them. Run it with `codefly run` from the module.
