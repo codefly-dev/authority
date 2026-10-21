@@ -1,12 +1,13 @@
 {
   "swagger": "2.0",
   "info": {
-    "title": "api.proto",
+    "title": "obin/authority/v1/module_authority.proto",
+    "description": "Extracted from the host (codefly-dev/module-saas-starter,\nsaas/accounts/v1/module_registration.proto and module_capabilities.proto) on\n2026-10-21 with messages, fields and field numbers unchanged. The host serves\nthese two operations on its ModuleCapabilitiesService beside operations a\nmodule never calls; the interface carries only what a module relies on, under\na service of its own.",
     "version": "version not set"
   },
   "tags": [
     {
-      "name": "GatewayService"
+      "name": "ModuleAuthorityService"
     }
   ],
   "consumes": [
@@ -15,39 +16,8 @@
   "produces": [
     "application/json"
   ],
-  "paths": {
-    "/version": {
-      "get": {
-        "operationId": "GatewayService_Version",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/apiVersionResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpcStatus"
-            }
-          }
-        },
-        "tags": [
-          "GatewayService"
-        ]
-      }
-    }
-  },
+  "paths": {},
   "definitions": {
-    "apiVersionResponse": {
-      "type": "object",
-      "properties": {
-        "version": {
-          "type": "string"
-        }
-      }
-    },
     "protobufAny": {
       "type": "object",
       "properties": {

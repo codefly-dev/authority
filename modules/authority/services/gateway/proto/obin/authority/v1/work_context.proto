@@ -6,7 +6,7 @@ syntax = "proto3";
 // beside the V1, never a field reinterpreted.
 package obin.authority.v1;
 
-option go_package = "github.com/obin-ai/authority/gen/go/obin/authority/v1;authorityv1";
+option go_package = "gateway/pkg/gen/obin/authority/v1;authorityv1";
 
 import "buf/validate/validate.proto";
 

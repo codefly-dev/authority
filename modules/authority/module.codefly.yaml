@@ -2,3 +2,13 @@ kind: module
 name: authority
 services:
     - name: gateway
+# The gateway's grpc endpoint serves the host authority interface declared in
+# interfaces/authority/interface.codefly.yaml. The host's accounts service
+# implements the same identity; a consumer depends on the interface, never on
+# either service.
+interface:
+    endpoints:
+        - service: gateway
+          endpoint: grpc
+          implements:
+              - obin.ai/authority@0.1.0
