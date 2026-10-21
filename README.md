@@ -38,6 +38,14 @@ copied here.
    bytes at each step. Nine Go modules import core's authority packages today;
    none moves before the mini gateway proves the interface.
 
+**Agent gap (2026-10-21).** The go-grpc agent (0.1.58) generates its adapters for
+the single service in `proto/api.proto`; the interface's services in
+`proto/obin/authority/v1` get bindings from `codefly generate proto` but no adapter,
+so the gateway does not yet serve them. Wiring them by hand in `pkg/adapters` would
+be the local pipeline the development contract forbids. The fix is in the agent:
+generate adapters for every service under `proto/`, or for what the module's
+`interface.implements` names. Filed against the agent when the owner says so.
+
 Known lint debt: the four module-authority messages carry no doc comments, as they
 did not in the host; `buf lint` says so and the next change writes them here.
 
