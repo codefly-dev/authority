@@ -1,0 +1,4 @@
+kind: module
+name: authority
+services:
+    - name: gateway

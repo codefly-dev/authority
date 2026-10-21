@@ -1,0 +1,30 @@
+# The host authority interface: what a module or solution calls on the host that
+# runs it. Two implementations exist and must stay provably the same contract:
+# accounts, in the host (codefly-dev/module-saas-starter), and the mini gateway,
+# in this repository. A module depends on this interface, never on either service.
+#
+# Version 0.1.0 is the declaration only. The services and methods below name the
+# operations as the host spells them today; the proto package is extracted from
+# the host's protos in the next change, field numbers unchanged, and the
+# conformance kit proves the bytes did not move. Nothing is renamed first.
+kind: interface
+publisher: obin.ai
+name: authority
+description: What a module or solution calls on the host that runs it to be issued, exchanged, renewed and checked authority, and what the host calls back.
+version: 0.1.0
+type: connect
+protobuf:
+    package: saas.accounts.v1
+    services:
+        - name: WorkContextService
+          methods:
+              - StartTask
+              - StartInstallationTask
+              - ExchangeAudience
+              - StartChildSession
+              - RenewWorkContext
+              - CheckAuthorizationRevision
+        - name: ModuleAuthorityService
+          methods:
+              - MintModuleOperationContext
+              - GetCurrentInstallation

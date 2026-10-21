@@ -1,0 +1,19 @@
+# codefly
+codefly.local.yaml
+configurations/**/*.secret.env
+**/.codefly/cache/
+**/.cache/
+go.work.sum
+
+# builds, deps, editors
+dist/
+build/
+node_modules/
+.DS_Store
+.idea/
+.vscode/
+*.log
+*.pem
+*.key
+.env
+.env.*

@@ -1,0 +1,4 @@
+name: authority
+layout: modules
+modules:
+    - name: authority
