@@ -51,3 +51,45 @@ did not in the host; `buf lint` says so and the next change writes them here.
 
 **Where the thinking is.** The Platform Authority Primer (decisions 6 and 7) and the
 handbook proposal that will carry them. Run it with `codefly run` from the module.
+
+## What the mini gateway must serve, read from the callers (2026-10-21)
+
+Inventory taken from the code that calls the host today: the module SDK
+(`saas-sdk-go/moduleauthority`), the solution runtime (`solution-runtime-go`), the
+CLI's delivery (`cli/pkg/gitops`), the host frontend and the gateway's own routes.
+Paths are the host's spellings; the interface grows from this list, not from a
+design.
+
+**Phase 1, a module alone**
+
+| Need | Host surface today |
+|---|---|
+| A fixture person signs in | `POST /v1/auth/authenticate` with `fixture_token` (accounts `auth/dev` validator); `/v1/auth/refresh` |
+| Verify what the host issued | `GET /v1/auth/.well-known/jwks.json` (also `/jwks`, `/.well-known/openid-configuration`) |
+| The composition reaches the host | `POST /platform/_delivery/manifest` (one signed manifest per module instance) |
+| What a module may hold | derived from the manifest; today `GET`/`PUT /v1/platform/module-envelope`, which the mini gateway does not serve |
+| The module's workload becomes a principal and gets Work Contexts | gateway workload endpoint: `POST /modules/_work-context` (for a person), `/modules/_operation-context` (the module's own binding), `/modules/_source-operation-context` (a source delegation) |
+| The module calls the host as itself | Connect proxy at `/modules/_authority` → `ModuleCapabilitiesService`: `ExchangeDelegatedOperationAudience`, `EmitAuditEvent`, `DeclareAuditEventTypes`, `AuthorizeExecutableArtifact` / `ApproveExecutableArtifact`, `NotifyUser` / `NotifyOrgAdmins` |
+| Person-owned authority | `WorkContextService`: `StartTask`, `ExchangeAudience`, `StartChildSession`, `RenewWorkContext`, `CheckAuthorizationRevision`, `StartInstallationTask`, `AuthorizeEvidenceRead`, `ConsumeSingleUse` |
+| A module route carries a viewer | `/v1/<alias>/*` through ext_authz, stamped `x-user-id`, `x-org-id`, `x-org-role`, `x-platform-role`, `x-scoped-roles`; the viewer Work Context per module call is decision 4 of the primer |
+
+**Phase 2, a solution**
+
+| Need | Host surface today |
+|---|---|
+| The solution registers its backend and page | `/modules/_register`, `/modules/_registration-token` (gateway `gateway_module_routes.go`); `/.well-known/solution.json` and `/.well-known/capabilities` served by the runtime and proxied |
+| Routes to the solution | `/solutions/<id>/*` (gateway), `/api/solutions/<id>/proxy/*` (frontend), module-federation assets, the registry snapshot, the 120 s lease |
+| Who may use it | `ListSolutionEntitlements` (gateway `handleSolutionEntitlements`); `InstallationService`: `InstallSolution`, `GrantInstallationToTeam`, `ListInstallations`; installations come from the fixture file |
+| The solution is installed | host → solution `POST /_codefly/installations` with a Work Context, retried until acknowledged |
+| The solution acts for a viewer against a module | `StartTask` under resource and installation confinement (`x-codefly-resource`, installation header) |
+
+**Phase 3, when wanted**
+
+| Need | Host surface today |
+|---|---|
+| An MCP client or another solution's robin calls the solution's tools | OAuth authorize and token endpoints with RFC 8707 resource, `/.well-known/oauth-protected-resource`, registered clients |
+| Sources, notifications, approvals | `DatasourceService` (`PruneSourceOperationReceipts` and friends), the notification and approval RPCs above |
+
+Not served, ever: the module envelope endpoints (the ceiling is the manifest), the
+pod and container review, the trust-anchor files, any identity provider but the
+fixture one.
