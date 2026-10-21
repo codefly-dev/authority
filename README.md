@@ -93,3 +93,37 @@ design.
 Not served, ever: the module envelope endpoints (the ceiling is the manifest), the
 pod and container review, the trust-anchor files, any identity provider but the
 fixture one.
+
+## Which of these are real (2026-10-21)
+
+A host must do six things for a unit, no more: know who the person is; issue a
+Work Context for an owner shape, an audience and scopes, and let the callee
+verify and re-check it; know the composition; know what is installed and who may
+use it; call the solution's install step once; be the one entrance a browser
+talks to. Against that:
+
+- **Accidental, host:** the twelve issue-shaped operations (one `Issue` with a
+  request shape; renew, child and exchange are "issue from parent"); the envelope
+  endpoints (ceiling = manifest; narrowing is an admin operation, never a delivered
+  file); solution self-registration and registration secrets (a solution identifies
+  like any module instance, with its workload credential); two route families per
+  solution; the registry snapshot and the lease (replication plumbing); the five
+  identity headers and the confinement headers (one Work Context per module call
+  makes them vanish); three key-set paths.
+- **Misfiled:** audit, notifications, approvals and sources on the capabilities
+  service. Host services a module uses, each a small interface of its own, a log
+  locally. Not authority.
+- **Accidental, elsewhere:** the CLI's anchors, policies and envelope writing; the
+  solution runtime's build seal and gateway-header reading; eleven audience
+  spellings in compositions.
+- **Never:** pod and container review, trust-anchor files, a non-fixture identity
+  provider locally.
+- **Needed:** fixture sign-in, the key set, manifest delivery (a file on a laptop,
+  an endpoint on a cell), installations with the install step, module routes.
+
+**What remains is the interface.** Authority: `Issue`, `Check`, `Keys`.
+Composition: `ApplyManifest`. Installation: `Install`, `GrantToTeam`, `List`, and
+the install step callback. Sign-in at the browser edge only. Routing is the data
+plane, not a contract. 0.1.0 mirrors today's spellings so the mini gateway serves
+the SDKs as they are; the reduced shape is 0.2.0, a host contract change through a
+handbook proposal, after which the SDKs move once.
