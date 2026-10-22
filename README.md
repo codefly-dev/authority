@@ -212,4 +212,26 @@ Each rung proves one claim; nothing is deleted before the rung above it is green
 
 Exit for the deletions (core's authority packages, the CLI's cluster path and host
 knowledge, solution-runtime-go, the audience spellings): rungs 1–5 green and
-staging validated. Start with rung 1 and the three CLI/agent gaps.
+staging validated.
+
+**Rung 1 first; it is the one that matters (owner, 2026-10-21).** The loop:
+
+1. Cut a branch in module-saas-starter. accounts declares in its module
+   interface that it implements `obin.ai/authority@0.1.0`, `obin.ai/composition@0.1.0`,
+   `obin.ai/installation@0.1.0` and `obin.ai/session@0.1.0`, takes this repo's
+   protos (bindings via `codefly generate proto`), and serves the four services as
+   adapters over what it already has: `Issue` → StartTask / StartInstallationTask /
+   the module broker's mint / StartChildSession-ExchangeAudience-Renew by owner
+   shape; `Check` → its verifier plus the live revision; `Keys` → its key set;
+   `ApplyManifest` → manifest delivery with the ceiling read from the manifest
+   (the envelope path is not consulted); the installation operations → its
+   installation service and team grants; `SignIn` → its fixture validator. No
+   behaviour is rewritten on that branch; the adapters are the contract's spelling
+   of what accounts does.
+2. saas CI on that branch runs `pkg/conformance` against accounts with the saas
+   fixture (the same Acme people). Red is the gap list; green is the claim.
+3. Run a solution against the branch: platform-core overridden to the saas branch
+   checkout, `codefly run workspace`, the wiki, Maya signs in, the eight steps
+   through the UI. The gaps that surface are filed against the branch.
+4. Only then: documents takes the generated client (rung 2), the wiki drops the
+   runtime (rung 3), and the deletions.
