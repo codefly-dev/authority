@@ -290,3 +290,8 @@ copies, the envelope, the audience keys and the CLI's cluster path deleted); 5 t
 clean-up (core loses its authority packages, solution-runtime-go deleted).
 Deletions only in 4 and 5, each behind a green suite and staging. The full table
 is the handbook's `design/host-authority-interface.md`.
+
+**Corrections of 2026-10-22 (`0403966`).** The suite accepts pending or active from
+Install. The mini gateway attests core's native launcher credential against the
+launcher's anchor; nothing of its own. The person shape is the caller's bearer;
+`PersonSession` is empty. See the handbook's audit sidecar for the reasoning.
