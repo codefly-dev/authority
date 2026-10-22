@@ -43,7 +43,7 @@ func (p *Plugin) Install(ctx context.Context, req *installationv1.InstallRequest
 
 // GrantToTeam exposes an installation to a team.
 func (p *Plugin) GrantToTeam(ctx context.Context, req *installationv1.GrantToTeamRequest) (*installationv1.Installation, error) {
-	inst, err := p.State.GrantToTeam(ctx, req.GetInstallationId(), req.GetTeamId())
+	inst, err := p.State.GrantToTeam(ctx, req.GetOrganizationId(), req.GetInstallationId(), req.GetTeamId())
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}

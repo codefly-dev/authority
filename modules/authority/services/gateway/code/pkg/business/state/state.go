@@ -191,7 +191,7 @@ func (s *State) LoadFixture(ctx context.Context, data []byte) error {
 			return err
 		}
 		for _, team := range i.Teams {
-			if _, err := s.GrantToTeam(ctx, inst.ID, team); err != nil {
+			if _, err := s.GrantToTeam(ctx, i.Organization, inst.ID, team); err != nil {
 				return err
 			}
 		}
@@ -363,12 +363,17 @@ func (s *State) Acknowledge(id string) (Installation, error) {
 }
 
 // GrantToTeam exposes an installation to a team; the authorization revision moves.
-func (s *State) GrantToTeam(_ context.Context, id, team string) (Installation, error) {
+// org, when given, must be the installation's own: a grant names the
+// organisation it is made in, as an administrator's act does.
+func (s *State) GrantToTeam(_ context.Context, org, id, team string) (Installation, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	inst, ok := s.installations[id]
 	if !ok || inst.Status == Revoked {
 		return Installation{}, fmt.Errorf("%w: installation %q", ErrUnknown, id)
+	}
+	if org != "" && org != inst.Organization {
+		return Installation{}, fmt.Errorf("%w: installation %s is not at organization %q", ErrForbidden, id, org)
 	}
 	for _, t := range inst.Teams {
 		if t == team {

@@ -181,13 +181,17 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, f Fixture) {
 		if err != nil || inst.GetStatus() != installationv1.Installation_STATUS_ACTIVE {
 			t.Fatalf("install: %v %v", err, inst)
 		}
-		granted, err := installs.GrantToTeam(ctx, &installationv1.GrantToTeamRequest{InstallationId: inst.GetId(), TeamId: "finance"})
+		granted, err := installs.GrantToTeam(ctx, &installationv1.GrantToTeamRequest{OrganizationId: f.Organization, InstallationId: inst.GetId(), TeamId: "finance"})
 		if err != nil || len(granted.GetTeamIds()) != 1 || granted.GetRevision() != inst.GetRevision()+1 {
 			t.Fatalf("grant: %v %v", err, granted)
 		}
 		_, err = installs.Install(ctx, &installationv1.InstallRequest{OrganizationId: f.Organization, Target: "conformance-solution", Role: "viewer", OwnerPersonId: admin.GetPersonId()})
 		if status.Code(err) != codes.PermissionDenied {
 			t.Fatalf("installing twice: %v", err)
+		}
+		_, err = installs.GrantToTeam(ctx, &installationv1.GrantToTeamRequest{OrganizationId: "another-organisation", InstallationId: inst.GetId(), TeamId: "finance"})
+		if status.Code(err) != codes.PermissionDenied {
+			t.Fatalf("a grant naming another organisation: %v", err)
 		}
 	})
 }

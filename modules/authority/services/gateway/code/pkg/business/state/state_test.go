@@ -38,7 +38,7 @@ func TestEntitlementIsTheNavigation(t *testing.T) {
 	if got := k.State.Entitled("remi"); len(got) != 0 {
 		t.Fatalf("remi (engineering) sees %+v", got)
 	}
-	if _, err := k.State.GrantToTeam(context.Background(), "acme/wiki", "engineering"); err != nil {
+	if _, err := k.State.GrantToTeam(context.Background(), "acme", "acme/wiki", "engineering"); err != nil {
 		t.Fatal(err)
 	}
 	if got := k.State.Entitled("remi"); len(got) != 1 {
@@ -140,7 +140,7 @@ func TestTheAuthorizationRevisionMovesOnEveryGrantChange(t *testing.T) {
 	k := testkit.New(t)
 	ctx := context.Background()
 	before, _ := k.State.AuthorizationRevision(ctx, "acme")
-	if _, err := k.State.GrantToTeam(ctx, "acme/wiki", "engineering"); err != nil {
+	if _, err := k.State.GrantToTeam(ctx, "acme", "acme/wiki", "engineering"); err != nil {
 		t.Fatal(err)
 	}
 	after, _ := k.State.AuthorizationRevision(ctx, "acme")

@@ -42,6 +42,10 @@ message GrantToTeamRequest {
   string installation_id = 1;
   // The team granted the installation's role at its root.
   string team_id = 2;
+  // The organisation the installation belongs to; a grant is an organisation
+  // administrator's act, and the host checks the actor against it before it
+  // reads the installation. Learned from the second implementation (the host).
+  string organization_id = 3;
 }
 
 // ListRequest asks for one organisation's installations.

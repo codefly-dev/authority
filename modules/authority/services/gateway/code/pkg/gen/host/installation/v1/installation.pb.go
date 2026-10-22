@@ -162,9 +162,13 @@ type GrantToTeamRequest struct {
 	// The installation.
 	InstallationId string `protobuf:"bytes,1,opt,name=installation_id,json=installationId,proto3" json:"installation_id,omitempty"`
 	// The team granted the installation's role at its root.
-	TeamId        string `protobuf:"bytes,2,opt,name=team_id,json=teamId,proto3" json:"team_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	TeamId string `protobuf:"bytes,2,opt,name=team_id,json=teamId,proto3" json:"team_id,omitempty"`
+	// The organisation the installation belongs to; a grant is an organisation
+	// administrator's act, and the host checks the actor against it before it
+	// reads the installation. Learned from the second implementation (the host).
+	OrganizationId string `protobuf:"bytes,3,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *GrantToTeamRequest) Reset() {
@@ -207,6 +211,13 @@ func (x *GrantToTeamRequest) GetInstallationId() string {
 func (x *GrantToTeamRequest) GetTeamId() string {
 	if x != nil {
 		return x.TeamId
+	}
+	return ""
+}
+
+func (x *GrantToTeamRequest) GetOrganizationId() string {
+	if x != nil {
+		return x.OrganizationId
 	}
 	return ""
 }
@@ -504,10 +515,11 @@ const file_host_installation_v1_installation_proto_rawDesc = "" +
 	"\x0forganization_id\x18\x01 \x01(\tR\x0eorganizationId\x12\x16\n" +
 	"\x06target\x18\x02 \x01(\tR\x06target\x12\x12\n" +
 	"\x04role\x18\x03 \x01(\tR\x04role\x12&\n" +
-	"\x0fowner_person_id\x18\x04 \x01(\tR\rownerPersonId\"V\n" +
+	"\x0fowner_person_id\x18\x04 \x01(\tR\rownerPersonId\"\x7f\n" +
 	"\x12GrantToTeamRequest\x12'\n" +
 	"\x0finstallation_id\x18\x01 \x01(\tR\x0einstallationId\x12\x17\n" +
-	"\ateam_id\x18\x02 \x01(\tR\x06teamId\"6\n" +
+	"\ateam_id\x18\x02 \x01(\tR\x06teamId\x12'\n" +
+	"\x0forganization_id\x18\x03 \x01(\tR\x0eorganizationId\"6\n" +
 	"\vListRequest\x12'\n" +
 	"\x0forganization_id\x18\x01 \x01(\tR\x0eorganizationId\"X\n" +
 	"\fListResponse\x12H\n" +
