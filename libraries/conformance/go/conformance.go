@@ -1,0 +1,357 @@
+// Package conformance is the suite every implementation of the host interfaces
+// must pass: the mini gateway and the host's accounts alike. It links no
+// generated Go package, because an implementation links its own and a second
+// registration of the same proto file panics; it drives the interfaces from
+// their published descriptors (the contract.binpb codefly generate writes) with
+// dynamic messages over any gRPC connection.
+package conformance
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"testing"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protodesc"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/reflect/protoregistry"
+	"google.golang.org/protobuf/types/descriptorpb"
+	"google.golang.org/protobuf/types/dynamicpb"
+)
+
+// Fixture is what the suite assumes the implementation seeded.
+type Fixture struct {
+	Organization       string // the one organisation the people belong to
+	ViewerToken        string // signs in a person who may read ReadKind at Audience and nothing more
+	AdminToken         string // signs in an organisation administrator
+	Audience           string // a composed module the viewer holds "read" on
+	ReadKind           string // the resource kind the viewer may read at Audience
+	WorkloadCredential string // the launcher's credential for a composed module declaring Binding → BindingAudience
+	Binding            string
+	BindingAudience    string
+	InstalledSolution  string // an active installation the viewer is entitled to
+}
+
+// Run drives the suite over one connection, from the published descriptors.
+func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixture) {
+	t.Helper()
+	c, err := newClient(conn, descriptors)
+	if err != nil {
+		t.Fatalf("conformance: %v", err)
+	}
+	ctx := context.Background()
+
+	t.Run("keys name one Ed25519 key and an issuer", func(t *testing.T) {
+		keys := c.must(t, ctx, "host.authority.v1.AuthorityService", "Keys", map[string]any{})
+		if str(keys, "issuer") == "" || count(keys, "keys") == 0 || str(listMsgs(keys, "keys")[0], "algorithm") != "Ed25519" {
+			t.Fatalf("keys: %v", keys)
+		}
+	})
+	t.Run("a fixture person signs in and an unknown token is refused", func(t *testing.T) {
+		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
+		if str(sess, "session_id") == "" || str(sess, "organization_id") != f.Organization {
+			t.Fatalf("sign in: %v", sess)
+		}
+		_, err := c.call(ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": "not-a-person"})
+		if status.Code(err) != codes.NotFound {
+			t.Fatalf("unknown token: %v", err)
+		}
+	})
+	t.Run("a person is issued, checked, and refused elsewhere", func(t *testing.T) {
+		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
+		asViewer := as(ctx, sess)
+		out := c.must(t, asViewer, "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.Audience})
+		wc := msg(out, "context")
+		if str(wc, "owner_principal_id") != str(sess, "person_id") || str(wc, "audience") != f.Audience || str(wc, "tenant_id") != f.Organization {
+			t.Fatalf("context = %v", wc)
+		}
+		c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(out, "token"), "audience": f.Audience})
+		_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(out, "token"), "audience": f.BindingAudience})
+		if status.Code(err) != codes.Unauthenticated {
+			t.Fatalf("check at another audience: %v", err)
+		}
+		_, err = c.call(asViewer, "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.Audience,
+			"scopes": []any{map[string]any{"resource_kind": f.ReadKind, "actions": []any{"read", "write", "ingest", "admin"}}}})
+		if status.Code(err) != codes.PermissionDenied {
+			t.Fatalf("beyond the role must be PermissionDenied, got %v", err)
+		}
+	})
+	t.Run("every refusal reaches the caller with a reason", func(t *testing.T) {
+		_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.Audience})
+		if code := status.Code(err); code != codes.PermissionDenied && code != codes.Unauthenticated {
+			t.Fatalf("a person-owned issue with no bearer: %v", err)
+		}
+		forged := metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer no-such-session")
+		_, err = c.call(forged, "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.Audience})
+		if code := status.Code(err); code != codes.NotFound && code != codes.Unauthenticated {
+			t.Fatalf("a bearer no sign-in opened: %v", err)
+		}
+		_, err = c.call(forged, "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": "not-composed"})
+		if status.Code(err) != codes.NotFound || !strings.Contains(err.Error(), "not-composed") {
+			t.Fatalf("an uncomposed audience is named: %v", err)
+		}
+		_, err = c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": "garbage", "audience": f.Audience})
+		if status.Code(err) != codes.Unauthenticated {
+			t.Fatalf("garbage token: %v", err)
+		}
+	})
+	t.Run("a workload is issued its own binding and nothing it did not declare", func(t *testing.T) {
+		workload := map[string]any{"workload": map[string]any{"credential": f.WorkloadCredential}, "audience": f.BindingAudience, "organization_id": f.Organization}
+		req := clone(workload)
+		req["operation_binding_id"] = f.Binding
+		out := c.must(t, ctx, "host.authority.v1.AuthorityService", "Issue", req)
+		wc := msg(out, "context")
+		if str(wc, "owner_principal_kind") != "service" || str(msg(wc, "operation_binding"), "binding_id") == "" {
+			t.Fatalf("workload context = %v", wc)
+		}
+		c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(out, "token"), "audience": f.BindingAudience})
+		req = clone(workload)
+		req["operation_binding_id"] = "undeclared"
+		_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Issue", req)
+		if status.Code(err) != codes.NotFound || !strings.Contains(err.Error(), "undeclared") {
+			t.Fatalf("an undeclared binding is refused by name: %v", err)
+		}
+		req = clone(workload)
+		req["workload"] = map[string]any{"credential": "forged.credential"}
+		req["operation_binding_id"] = f.Binding
+		_, err = c.call(ctx, "host.authority.v1.AuthorityService", "Issue", req)
+		if status.Code(err) != codes.PermissionDenied {
+			t.Fatalf("a forged credential: %v", err)
+		}
+	})
+	t.Run("an installation acts for itself", func(t *testing.T) {
+		list := c.must(t, ctx, "host.installation.v1.InstallationService", "List", map[string]any{"organization_id": f.Organization})
+		var wiki protoreflect.Message
+		for _, i := range listMsgs(list, "installations") {
+			if str(i, "id") == f.InstalledSolution {
+				wiki = i
+			}
+		}
+		if wiki == nil || enumName(wiki, "status") != "STATUS_ACTIVE" || str(wiki, "agent_principal_id") == "" {
+			t.Fatalf("installed solution = %v", wiki)
+		}
+		out := c.must(t, ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"installation": map[string]any{"installation_id": str(wiki, "id")}, "audience": f.Audience})
+		if str(msg(out, "context"), "owner_principal_id") != str(wiki, "agent_principal_id") {
+			t.Fatalf("installation issue: %v", out)
+		}
+	})
+	t.Run("a child hop attenuates and names its actor", func(t *testing.T) {
+		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
+		parent := c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.Audience})
+		child := c.must(t, ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"parent_token": str(parent, "token"),
+			"actor": map[string]any{"credential": f.WorkloadCredential}, "audience": f.Audience})
+		if len(listMsgs(msg(child, "context"), "actor_chain")) != 1 {
+			t.Fatalf("child: %v", child)
+		}
+		_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"parent_token": str(parent, "token"),
+			"actor": map[string]any{"credential": f.WorkloadCredential}, "audience": f.Audience,
+			"scopes": []any{map[string]any{"resource_kind": f.ReadKind, "actions": []any{"admin"}}}})
+		if status.Code(err) != codes.PermissionDenied {
+			t.Fatalf("widening: %v", err)
+		}
+	})
+	t.Run("a manifest moves only forward and a lower generation is refused by name", func(t *testing.T) {
+		m := map[string]any{"module": "conformance-probe", "principal": "conformance-probe", "kind": "module", "generation": uint64(2),
+			"resource_kinds": []any{map[string]any{"kind": "probe", "actions": []any{"read"}}}}
+		c.must(t, ctx, "host.composition.v1.CompositionService", "ApplyManifest", map[string]any{"manifest": m})
+		m["generation"] = uint64(1)
+		_, err := c.call(ctx, "host.composition.v1.CompositionService", "ApplyManifest", map[string]any{"manifest": m})
+		if status.Code(err) != codes.FailedPrecondition {
+			t.Fatalf("lower generation: %v", err)
+		}
+	})
+	t.Run("install is pending until acknowledged, then exposed to a team", func(t *testing.T) {
+		admin := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.AdminToken})
+		c.must(t, ctx, "host.composition.v1.CompositionService", "ApplyManifest", map[string]any{"manifest": map[string]any{"module": "conformance-solution", "principal": "conformance-solution", "kind": "solution", "generation": uint64(1)}})
+		install := map[string]any{"organization_id": f.Organization, "target": "conformance-solution", "role": "viewer", "owner_person_id": str(admin, "person_id")}
+		inst := c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "Install", install)
+		if st := enumName(inst, "status"); st != "STATUS_PENDING" && st != "STATUS_ACTIVE" {
+			t.Fatalf("install status = %s", st)
+		}
+		granted := c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "GrantToTeam", map[string]any{"organization_id": f.Organization, "installation_id": str(inst, "id"), "team_id": "finance"})
+		if count(granted, "team_ids") != 1 || u64(granted, "revision") != u64(inst, "revision")+1 {
+			t.Fatalf("grant: %v", granted)
+		}
+		_, err := c.call(as(ctx, admin), "host.installation.v1.InstallationService", "Install", install)
+		if status.Code(err) != codes.PermissionDenied {
+			t.Fatalf("installing twice: %v", err)
+		}
+		_, err = c.call(as(ctx, admin), "host.installation.v1.InstallationService", "GrantToTeam", map[string]any{"organization_id": "another-organisation", "installation_id": str(inst, "id"), "team_id": "finance"})
+		if status.Code(err) != codes.PermissionDenied {
+			t.Fatalf("a grant naming another organisation: %v", err)
+		}
+	})
+}
+
+// --- the dynamic client -----------------------------------------------------
+
+type client struct {
+	conn  grpc.ClientConnInterface
+	files *protoregistry.Files
+}
+
+func newClient(conn grpc.ClientConnInterface, descriptors []byte) (*client, error) {
+	var set descriptorpb.FileDescriptorSet
+	if err := proto.Unmarshal(descriptors, &set); err != nil {
+		return nil, fmt.Errorf("descriptor set: %w", err)
+	}
+	files, err := protodesc.NewFiles(&set)
+	if err != nil {
+		return nil, fmt.Errorf("descriptor set: %w", err)
+	}
+	return &client{conn: conn, files: files}, nil
+}
+
+func (c *client) method(service, method string) (protoreflect.MethodDescriptor, error) {
+	d, err := c.files.FindDescriptorByName(protoreflect.FullName(service))
+	if err != nil {
+		return nil, fmt.Errorf("service %s: %w", service, err)
+	}
+	sd, ok := d.(protoreflect.ServiceDescriptor)
+	if !ok {
+		return nil, fmt.Errorf("%s is not a service", service)
+	}
+	md := sd.Methods().ByName(protoreflect.Name(method))
+	if md == nil {
+		return nil, fmt.Errorf("%s has no method %s", service, method)
+	}
+	return md, nil
+}
+
+func (c *client) call(ctx context.Context, service, method string, fields map[string]any) (protoreflect.Message, error) {
+	md, err := c.method(service, method)
+	if err != nil {
+		return nil, err
+	}
+	req := dynamicpb.NewMessage(md.Input())
+	if err := fill(req, fields); err != nil {
+		return nil, err
+	}
+	resp := dynamicpb.NewMessage(md.Output())
+	if err := c.conn.Invoke(ctx, "/"+service+"/"+method, req, resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (c *client) must(t *testing.T, ctx context.Context, service, method string, fields map[string]any) protoreflect.Message {
+	t.Helper()
+	out, err := c.call(ctx, service, method, fields)
+	if err != nil {
+		t.Fatalf("%s/%s: %v", service, method, err)
+	}
+	return out
+}
+
+func fill(m *dynamicpb.Message, fields map[string]any) error {
+	for name, value := range fields {
+		fd := m.Descriptor().Fields().ByName(protoreflect.Name(name))
+		if fd == nil {
+			return fmt.Errorf("%s has no field %s", m.Descriptor().FullName(), name)
+		}
+		v, err := toValue(m, fd, value)
+		if err != nil {
+			return err
+		}
+		m.Set(fd, v)
+	}
+	return nil
+}
+
+func toValue(m *dynamicpb.Message, fd protoreflect.FieldDescriptor, value any) (protoreflect.Value, error) {
+	if fd.IsList() {
+		items, ok := value.([]any)
+		if !ok {
+			return protoreflect.Value{}, fmt.Errorf("%s is a list", fd.FullName())
+		}
+		l := m.NewField(fd).List()
+		for _, item := range items {
+			v, err := scalar(fd, item, l.NewElement)
+			if err != nil {
+				return protoreflect.Value{}, err
+			}
+			l.Append(v)
+		}
+		return protoreflect.ValueOfList(l), nil
+	}
+	return scalar(fd, value, func() protoreflect.Value { return m.NewField(fd) })
+}
+
+func scalar(fd protoreflect.FieldDescriptor, value any, fresh func() protoreflect.Value) (protoreflect.Value, error) {
+	switch fd.Kind() {
+	case protoreflect.MessageKind:
+		sub, ok := value.(map[string]any)
+		if !ok {
+			return protoreflect.Value{}, fmt.Errorf("%s is a message", fd.FullName())
+		}
+		v := fresh()
+		if err := fill(v.Message().(*dynamicpb.Message), sub); err != nil {
+			return protoreflect.Value{}, err
+		}
+		return v, nil
+	case protoreflect.StringKind:
+		return protoreflect.ValueOfString(value.(string)), nil
+	case protoreflect.Uint64Kind:
+		return protoreflect.ValueOfUint64(value.(uint64)), nil
+	case protoreflect.Int64Kind:
+		return protoreflect.ValueOfInt64(value.(int64)), nil
+	case protoreflect.Int32Kind:
+		return protoreflect.ValueOfInt32(value.(int32)), nil
+	case protoreflect.BoolKind:
+		return protoreflect.ValueOfBool(value.(bool)), nil
+	}
+	return protoreflect.Value{}, fmt.Errorf("%s: unsupported kind %s", fd.FullName(), fd.Kind())
+}
+
+func field(m protoreflect.Message, name string) protoreflect.Value {
+	fd := m.Descriptor().Fields().ByName(protoreflect.Name(name))
+	if fd == nil {
+		return protoreflect.Value{}
+	}
+	return m.Get(fd)
+}
+func str(m protoreflect.Message, name string) string {
+	v := field(m, name)
+	if !v.IsValid() {
+		return ""
+	}
+	return v.String()
+}
+func u64(m protoreflect.Message, name string) uint64 { return field(m, name).Uint() }
+func msg(m protoreflect.Message, name string) protoreflect.Message {
+	return field(m, name).Message()
+}
+func enumName(m protoreflect.Message, name string) string {
+	fd := m.Descriptor().Fields().ByName(protoreflect.Name(name))
+	return string(fd.Enum().Values().ByNumber(m.Get(fd).Enum()).Name())
+}
+
+// count is the length of a repeated field, of messages or scalars alike.
+func count(m protoreflect.Message, name string) int { return field(m, name).List().Len() }
+
+// listMsgs are the messages of a repeated message field.
+func listMsgs(m protoreflect.Message, name string) []protoreflect.Message {
+	l := field(m, name).List()
+	out := make([]protoreflect.Message, 0, l.Len())
+	for i := 0; i < l.Len(); i++ {
+		out = append(out, l.Get(i).Message())
+	}
+	return out
+}
+
+func clone(m map[string]any) map[string]any {
+	out := map[string]any{}
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}
+
+func as(ctx context.Context, session protoreflect.Message) context.Context {
+	return metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+str(session, "session_id"))
+}

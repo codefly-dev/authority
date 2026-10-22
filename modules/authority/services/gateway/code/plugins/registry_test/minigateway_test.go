@@ -5,6 +5,9 @@ package registry_test
 import (
 	"context"
 	"net"
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"google.golang.org/grpc"
@@ -12,12 +15,12 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	"gateway/pkg/business/testkit"
-	"gateway/pkg/conformance"
 	"gateway/pkg/framework"
 	"gateway/plugins/authority"
 	"gateway/plugins/composition"
 	"gateway/plugins/installation"
 	"gateway/plugins/session"
+	conformance "github.com/codefly-dev/authority/libraries/conformance/go"
 )
 
 func TestTheMiniGatewayPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
@@ -40,7 +43,12 @@ func TestTheMiniGatewayPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = conn.Close() })
-	conformance.Run(t, conn, conformance.Fixture{
+	_, file, _, _ := runtime.Caller(0)
+	descriptors, err := os.ReadFile(filepath.Join(filepath.Dir(file), "..", "..", "..", "..", "..", "..", "libraries", "authority-client", "contract", "contract.binpb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	conformance.Run(t, conn, descriptors, conformance.Fixture{
 		Organization: "acme", ViewerToken: "fixture-maya", AdminToken: "fixture-alex",
 		Audience: "documents", ReadKind: "documents",
 		WorkloadCredential: k.Credential(t, "documents"), Binding: "model", BindingAudience: "model",

@@ -1,0 +1,12 @@
+# Declared like the generated authority-client library (codefly add library's
+# prompt cannot run non-interactively; reported). The suite every implementation
+# of the host interfaces must pass, importable by the host without importing
+# the mini gateway.
+kind: library
+name: conformance
+version: 0.0.0
+languages:
+    - name: go
+      path: go/
+      exports:
+        - github.com/codefly-dev/authority/libraries/conformance/go
