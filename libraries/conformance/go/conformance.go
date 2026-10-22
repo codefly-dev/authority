@@ -91,7 +91,10 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		if code := status.Code(err); code != codes.NotFound && code != codes.Unauthenticated {
 			t.Fatalf("a bearer no sign-in opened: %v", err)
 		}
-		_, err = c.call(forged, "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": "not-composed"})
+		// An uncomposed audience is refused by name, for a caller who is otherwise
+		// in order: an implementation may refuse an unauthenticated caller first.
+		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
+		_, err = c.call(as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": "not-composed"})
 		if status.Code(err) != codes.NotFound || !strings.Contains(err.Error(), "not-composed") {
 			t.Fatalf("an uncomposed audience is named: %v", err)
 		}
