@@ -258,14 +258,9 @@ not run yet, because of what the branch found:
 | 4 | ApplyManifest is signed delivery, not an RPC | `/platform/_delivery/manifest` |
 | 5 | Install/GrantToTeam need resolvers: target name → target id + agent identifier; role name → role id | installation service |
 | 6 | no exposure audit event is registered | `business/audit_registry.go` |
-| 7 | **the host's naming gate refuses the publisher name `obin` in 733 places** (the copied protos and everything generated from them) | `tools/naming-gate.mjs check` |
+| 7 | ~~the host's naming gate refused the publisher name in 733 places~~ **closed 2026-10-22**: the interfaces carry the host's names (publisher `codefly.dev`, packages `host.*.v1`); the gate is at its main baseline on the branch | `tools/naming-gate.mjs check` |
 
-Gap 7 is a decision, not a fix: a host repository that may not carry a consumer's
-name cannot carry an interface published under a consumer's name with packages
-`obin.*.v1`. Either this interface is published under a neutral, host-owned
-namespace (and this repository publishes it so), or the host consumes it only as
-a render-time dependency and never carries the protos. The owner decides; nothing
-is allowlisted meanwhile.
+Gap 7 was a decision, taken on 2026-10-22: the interface carries the host's names, see "The namespace, settled" below.
 
 ## The namespace, settled (2026-10-22)
 
