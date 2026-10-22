@@ -185,7 +185,7 @@ browser's bearer); `Contract` and the contract artifacts; `FieldMask`/`Apply`;
 
 | Runtime part | Lines (approx.) | Where it belongs |
 |---|---|---|
-| execution credential, broker, scoped credential, mint errors | 2,400 | the `obin.ai/authority` interface, generated client |
+| execution credential, broker, scoped credential, mint errors | 2,400 | the `codefly.dev/authority` interface, generated client |
 | passthrough, transcode, stream, protowire | 5,000 with tests | nowhere: when a module route carries the viewer's Work Context (primer decision 4) the page calls the module through the gateway and nothing passes through |
 | contract, operations, interface artifacts | 1,200 | the CLI (`codefly generate contracts`, cli#1094) |
 | listener, health, CORS, assets, config | in `solution.go` | the service agent, as for every service |
