@@ -196,3 +196,20 @@ Python clients. Order: `pkg/conformance` passes on accounts; decision 4 lands on
 the gateway; `codefly generate client` works for Go and Python (gap above); the
 six solutions move; solution-runtime-go is deleted, not fenced. Until then, pinned
 at v0.0.15.
+
+## Validation ladder (proposed 2026-10-21)
+
+Each rung proves one claim; nothing is deleted before the rung above it is green.
+
+| Rung | Claim | How | Pass | Owner |
+|---|---|---|---|---|
+| 0 | the mini gateway holds | 47 tests here: byte identity, core's kit, scenario, `pkg/conformance` over gRPC | green (done) | this repo |
+| 1 | one contract, two implementations | accounts implements the four interfaces as adapters over what it does; saas CI runs `pkg/conformance` against it with the saas fixture | same codes, same reasons on both | module-saas-starter |
+| 2 | a module cannot tell which answered | documents takes the generated authority client and requires the interface, not a service; runs against the mini gateway and against accounts | identical tests, playground and refusals; the render picks the implementation | module-document-store, saas-sdk-go |
+| 3 | a solution needs no runtime | the wiki as an agent-scaffolded service on the generated clients; wiki + documents + mini gateway, then the full host locally, then obin-staging; the eight steps through the UI | the scenario passes end to end; no envelope, anchor or audience key anywhere | core-solutions |
+| 4 | the laptop refuses where the cell refuses | recorded request vectors replayed against both, compared field by field; property tests on the four ways a token widens; replay, expiry, revocation, forgery; one independent security review | zero divergence, zero widening, findings closed | this repo + reviewer |
+| 5 | it is fast | clean clone → Maya sees the wiki, one command, timed; a grep gate against envelope files and audience keys | the owner's number; gate green fleet-wide | cli, handbook |
+
+Exit for the deletions (core's authority packages, the CLI's cluster path and host
+knowledge, solution-runtime-go, the audience spellings): rungs 1–5 green and
+staging validated. Start with rung 1 and the three CLI/agent gaps.
