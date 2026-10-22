@@ -50,8 +50,10 @@ func TestTheMiniGatewayPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
 	}
 	conformance.Run(t, conn, descriptors, conformance.Fixture{
 		Organization: "acme", ViewerToken: "fixture-maya", AdminToken: "fixture-alex",
-		Audience: "documents", ReadKind: "documents",
-		WorkloadCredential: k.Credential(t, "documents"), Binding: "model", BindingAudience: "model",
+		// Maya reads records; the directory page hops on her context through its
+		// records binding; a context at records is refused at model.
+		Audience: "records", ReadKind: "records.record",
+		WorkloadCredential: k.Credential(t, "org-directory"), Binding: "records", BindingAudience: "records", Elsewhere: "model",
 		InstalledSolution: "acme/wiki",
 	})
 }

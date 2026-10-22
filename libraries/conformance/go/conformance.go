@@ -31,9 +31,10 @@ type Fixture struct {
 	AdminToken         string // signs in an organisation administrator
 	Audience           string // a composed module the viewer holds "read" on
 	ReadKind           string // the resource kind the viewer may read at Audience
-	WorkloadCredential string // the launcher's credential for a composed module declaring Binding → BindingAudience
-	Binding            string
-	BindingAudience    string
+	WorkloadCredential string // the credential of a composed module's workload; the module declares Binding, addressed to BindingAudience
+	Binding            string // the workload module's operation binding whose invoke scopes cover "read" on ReadKind
+	BindingAudience    string // the audience Binding is addressed to; a hop exercising Binding is addressed here
+	Elsewhere          string // a composed audience the viewer's context at Audience is not addressed to
 	InstalledSolution  string // an active installation the viewer is entitled to
 }
 
@@ -72,7 +73,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			t.Fatalf("context = %v", wc)
 		}
 		c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(out, "token"), "audience": f.Audience})
-		_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(out, "token"), "audience": f.BindingAudience})
+		_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(out, "token"), "audience": f.Elsewhere})
 		if status.Code(err) != codes.Unauthenticated {
 			t.Fatalf("check at another audience: %v", err)
 		}
@@ -157,14 +158,23 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
 		read := []any{map[string]any{"resource_kind": f.ReadKind, "actions": []any{"read"}}}
 		parent := c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.Audience, "scopes": read})
-		child := c.must(t, ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"parent_token": str(parent, "token"),
-			"actor": map[string]any{"credential": f.WorkloadCredential}, "audience": f.Audience, "scopes": read})
+		// A hop on a person's context names no binding today: core keeps the
+		// owner's seal installation on a hop and requires a named binding to be
+		// granted within it, and a module's binding is granted within the module's
+		// own installation. Whether a cross-module hop names its binding, and in
+		// which installation that binding is held, is an open decision on core
+		// (authority README, "Open decisions"); until it is taken the hop carries
+		// its parent's binding, which for a person's session is none.
+		hop := map[string]any{"parent_token": str(parent, "token"), "actor": map[string]any{"credential": f.WorkloadCredential}, "audience": f.Audience}
+		req := clone(hop)
+		req["scopes"] = read
+		child := c.must(t, ctx, "host.authority.v1.AuthorityService", "Issue", req)
 		if len(listMsgs(msg(child, "context"), "actor_chain")) != 1 {
 			t.Fatalf("child: %v", child)
 		}
-		_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"parent_token": str(parent, "token"),
-			"actor": map[string]any{"credential": f.WorkloadCredential}, "audience": f.Audience,
-			"scopes": []any{map[string]any{"resource_kind": f.ReadKind, "actions": []any{"admin"}}}})
+		req = clone(hop)
+		req["scopes"] = []any{map[string]any{"resource_kind": f.ReadKind, "actions": []any{"admin"}}}
+		_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Issue", req)
 		if status.Code(err) != codes.PermissionDenied {
 			t.Fatalf("widening: %v", err)
 		}

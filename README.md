@@ -320,3 +320,15 @@ the Work Context messages import (reported on codefly-dev/cli#1107).
   full manifest as a proto message beside `ModuleManifestV1`, the digest check on
   the host's copied protos, the differential corpus, the decision-4 gateway design,
   and an independent security review before rung 1 is called green.
+
+## Open decisions
+
+- **A cross-module hop and its binding (2026-10-22).** Core keeps the owner's
+  seal installation on a hop and requires a binding named on that hop to be
+  granted within the same installation; a module's binding is granted within the
+  module's own installation. So a module taking a hop on a person's context
+  cannot name the binding it exercises, and the suite does not ask it to. The
+  host today carries the hop's binding out of band, in the revision check's
+  request. Either core lets a hop name a binding held in the exercising
+  principal's installation, or bindings are recorded within the audience's
+  installation; the suite states the hop's binding once one of these is taken.

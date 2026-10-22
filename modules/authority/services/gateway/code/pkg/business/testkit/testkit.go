@@ -82,10 +82,16 @@ func Records(generation uint64) state.Manifest {
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("records.record", "read", "write"), Scope("records.type", "read")}}
 }
 
-// OrgDirectory is a module with a page and no bindings; it reads records for the viewer.
+// OrgDirectory is a module with a page; it reads records for the viewer through
+// its one binding, records, which is the binding its hop on the viewer's context
+// names.
 func OrgDirectory(generation uint64) state.Manifest {
 	return state.Manifest{Module: "org-directory", Principal: "org-directory", Kind: "module", Generation: generation,
-		ResourceKinds: []*basev0.WorkScopeV1{Scope("directory.entry", "read", "write")}}
+		ResourceKinds: []*basev0.WorkScopeV1{Scope("directory.entry", "read", "write")},
+		Bindings: map[string]state.Binding{
+			"records": {ID: "records", Audience: "records",
+				InvokeScopes: []*basev0.WorkScopeV1{Scope("records.record", "read"), Scope("records.type", "read")}, HeadlessScopes: []*basev0.WorkScopeV1{Scope("records.type", "read")}},
+		}}
 }
 
 // Wiki is a solution.
