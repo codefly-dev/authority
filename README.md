@@ -306,3 +306,17 @@ consumer's organisation in an import path). GitHub redirects the old location.
 `github.com/codefly-dev/authority/libraries/authority-client/go`. The Python
 library did not generate: the client generator lacks the protovalidate dependency
 the Work Context messages import (reported on codefly-dev/cli#1107).
+
+## Rules of change (owner, 2026-10-22)
+
+- **Additive until phase 4.** A field, a message, a service, a test or a check is
+  added beside what exists; nothing is cut, renamed in place or moved. Field
+  numbers never change. Deletions belong to phases 4 and 5 of the transition,
+  behind a green suite and staging.
+- **A suite change is a contract change.** Reviewed as one; never loosened so an
+  implementation passes. A red line is fixed in the implementation or argued in
+  the contract, in the open.
+- **Phase 1 now also carries:** the agent and CLI gaps (#192, #193, #1107), core's
+  full manifest as a proto message beside `ModuleManifestV1`, the digest check on
+  the host's copied protos, the differential corpus, the decision-4 gateway design,
+  and an independent security review before rung 1 is called green.
