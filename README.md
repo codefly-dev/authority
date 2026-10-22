@@ -252,15 +252,17 @@ not run yet, because of what the branch found:
 
 | # | Gap in the host | Where |
 |---|---|---|
-| 1 | the service catalog assumes one proto package; four interfaces are four packages | `business/service_catalog.go:56-60,253` |
-| 2 | Connect bindings are keyed by short service name; `InstallationService` collides | `adapters/connect_bindings.yaml`, `cmd/connect-registration` |
+| 1 | ~~the service catalog assumes one proto package~~ **closed 2026-10-22**: the catalog carries the implemented `interface_packages` beside its `api_package`; frontend catalog, route aliases and mesh gates read the API package only | `business/service_catalog.go`, `catalog.proto` field 9 |
+| 2 | ~~Connect bindings are keyed by short service name~~ **closed 2026-10-22**: bindings resolve by full service name first; the generator imports each implemented package under derived aliases | `cataloggen/connect_registration.go`, `connect_bindings.yaml` |
 | 3 | workload-owned Issue is minted on the gateway's workload endpoint, not an accounts RPC | `/modules/_operation-context` |
 | 4 | ApplyManifest is signed delivery, not an RPC | `/platform/_delivery/manifest` |
 | 5 | Install/GrantToTeam need resolvers: target name → target id + agent identifier; role name → role id | installation service |
 | 6 | no exposure audit event is registered | `business/audit_registry.go` |
 | 7 | ~~the host's naming gate refused the publisher name in 733 places~~ **closed 2026-10-22**: the interfaces carry the host's names (publisher `codefly.dev`, packages `host.*.v1`); the gate is at its main baseline on the branch | `tools/naming-gate.mjs check` |
 
-Gap 7 was a decision, taken on 2026-10-22: the interface carries the host's names, see "The namespace, settled" below.
+Gap 7 was a decision, taken on 2026-10-22: the interface carries the host's names, see "The namespace, settled" below. Gaps 1 and 2 closed the same day on the host branch; a ninth surfaced and closed with them: the generated service catalog crossed the host's naming-gate scan cap (512 KiB) at 40 services, and the gate now skips that generated file for the reason it skips descriptors.
+
+**What the second implementation taught the interface.** `GrantToTeamRequest` gained `organization_id`: the host checks an administrator against the organisation before it reads the installation, so the request must name it; the mini gateway now refuses a grant naming another organisation than the installation's, and the suite asserts it. That is what a second implementation is for.
 
 ## The namespace, settled (2026-10-22)
 
