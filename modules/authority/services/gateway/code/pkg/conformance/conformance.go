@@ -13,10 +13,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	authorityv1 "gateway/pkg/gen/obin/authority/v1"
-	compositionv1 "gateway/pkg/gen/obin/composition/v1"
-	installationv1 "gateway/pkg/gen/obin/installation/v1"
-	sessionv1 "gateway/pkg/gen/obin/session/v1"
+	authorityv1 "gateway/pkg/gen/host/authority/v1"
+	compositionv1 "gateway/pkg/gen/host/composition/v1"
+	installationv1 "gateway/pkg/gen/host/installation/v1"
+	sessionv1 "gateway/pkg/gen/host/session/v1"
 )
 
 // Fixture is what the suite assumes the implementation seeded.

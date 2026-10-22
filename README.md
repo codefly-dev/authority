@@ -36,7 +36,7 @@ that satisfies them on a laptop, fixture included.
 **Order of work.**
 
 1. Declare the interfaces and give them their protos, reduced to the six duties
-   (done; `interfaces/`, `modules/authority/services/gateway/proto/obin/*/v1`).
+   (done; `interfaces/`, `modules/authority/services/gateway/proto/host/*/v1`).
 2. Build the mini gateway against them with the suite every implementation must
    pass (done; `pkg/conformance`, run over gRPC in `plugins/registry_test`).
 3. Point the host and the SDKs at these packages; run `pkg/conformance` against
@@ -220,8 +220,8 @@ staging validated.
 **Rung 1 first; it is the one that matters (owner, 2026-10-21).** The loop:
 
 1. Cut a branch in module-saas-starter. accounts declares in its module
-   interface that it implements `obin.ai/authority@0.1.0`, `obin.ai/composition@0.1.0`,
-   `obin.ai/installation@0.1.0` and `obin.ai/session@0.1.0`, takes this repo's
+   interface that it implements `codefly.dev/authority@0.1.0`, `codefly.dev/composition@0.1.0`,
+   `codefly.dev/installation@0.1.0` and `codefly.dev/session@0.1.0`, takes this repo's
    protos (bindings via `codefly generate proto`), and serves the four services as
    adapters over what it already has: `Issue` → StartTask / StartInstallationTask /
    the module broker's mint / StartChildSession-ExchangeAudience-Renew by owner
@@ -261,8 +261,20 @@ not run yet, because of what the branch found:
 | 7 | **the host's naming gate refuses the publisher name `obin` in 733 places** (the copied protos and everything generated from them) | `tools/naming-gate.mjs check` |
 
 Gap 7 is a decision, not a fix: a host repository that may not carry a consumer's
-name cannot carry an interface published as `obin.ai/...` with packages
+name cannot carry an interface published under a consumer's name with packages
 `obin.*.v1`. Either this interface is published under a neutral, host-owned
 namespace (and this repository publishes it so), or the host consumes it only as
 a render-time dependency and never carries the protos. The owner decides; nothing
 is allowlisted meanwhile.
+
+## The namespace, settled (2026-10-22)
+
+The interfaces are the host's contract, so they carry the host's names: publisher
+`codefly.dev` (ids `codefly.dev/authority@0.1.0`, `composition`, `installation`,
+`installable`, `session`) and protobuf packages `host.authority.v1`,
+`host.composition.v1`, `host.installation.v1`, `host.session.v1` under `proto/host/`.
+Not `codefly.*`: the host's buf configuration excludes a `codefly/` proto directory
+for its vendored core files, and ours would vanish into it. Message bytes are
+unchanged (field numbers are); only RPC paths and import paths moved, and nobody
+called them yet. The repository may stay in the consumer's organisation: a gate
+scans files, not URLs. This closes gap 7 of rung 1.

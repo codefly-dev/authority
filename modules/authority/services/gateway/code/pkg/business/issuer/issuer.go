@@ -17,7 +17,7 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 
-	authorityv1 "gateway/pkg/gen/obin/authority/v1"
+	authorityv1 "gateway/pkg/gen/host/authority/v1"
 	"gateway/pkg/business/state"
 )
 

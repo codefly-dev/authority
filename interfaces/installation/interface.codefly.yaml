@@ -1,11 +1,11 @@
 kind: interface
-publisher: obin.ai
+publisher: codefly.dev
 name: installation
 description: What is installed at an organisation and who may use it.
 version: 0.1.0
 type: connect
 protobuf:
-    package: obin.installation.v1
+    package: host.installation.v1
     services:
         - name: InstallationService
           methods: [Install, GrantToTeam, List]

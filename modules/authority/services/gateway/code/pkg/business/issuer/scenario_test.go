@@ -16,7 +16,7 @@ import (
 	"gateway/pkg/business/issuer"
 	"gateway/pkg/business/state"
 	"gateway/pkg/business/testkit"
-	authorityv1 "gateway/pkg/gen/obin/authority/v1"
+	authorityv1 "gateway/pkg/gen/host/authority/v1"
 )
 
 func TestTheScenarioOneHopAtATime(t *testing.T) {

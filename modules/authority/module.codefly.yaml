@@ -8,9 +8,9 @@ interface:
         - service: gateway
           endpoint: grpc
           implements:
-              - obin.ai/authority@0.1.0
-              - obin.ai/composition@0.1.0
-              - obin.ai/installation@0.1.0
-              - obin.ai/session@0.1.0
+              - codefly.dev/authority@0.1.0
+              - codefly.dev/composition@0.1.0
+              - codefly.dev/installation@0.1.0
+              - codefly.dev/session@0.1.0
 services:
     - name: gateway

@@ -1,4 +1,4 @@
-// Package authority serves obin.ai/authority: Issue, Check, Keys.
+// Package authority serves codefly.dev/authority: Issue, Check, Keys.
 package authority
 
 import (
@@ -13,7 +13,7 @@ import (
 
 	"gateway/pkg/business/issuer"
 	"gateway/pkg/business/state"
-	authorityv1 "gateway/pkg/gen/obin/authority/v1"
+	authorityv1 "gateway/pkg/gen/host/authority/v1"
 )
 
 // Plugin registers the authority service.

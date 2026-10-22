@@ -1,4 +1,4 @@
-// Package installation serves obin.ai/installation: Install, GrantToTeam, List.
+// Package installation serves codefly.dev/installation: Install, GrantToTeam, List.
 package installation
 
 import (
@@ -8,7 +8,7 @@ import (
 	"google.golang.org/grpc"
 
 	"gateway/pkg/business/state"
-	installationv1 "gateway/pkg/gen/obin/installation/v1"
+	installationv1 "gateway/pkg/gen/host/installation/v1"
 	authorityplugin "gateway/plugins/authority"
 )
 

@@ -1,4 +1,4 @@
-// Package composition serves obin.ai/composition: ApplyManifest.
+// Package composition serves codefly.dev/composition: ApplyManifest.
 package composition
 
 import (
@@ -11,7 +11,7 @@ import (
 
 	"gateway/pkg/business/issuer"
 	"gateway/pkg/business/state"
-	compositionv1 "gateway/pkg/gen/obin/composition/v1"
+	compositionv1 "gateway/pkg/gen/host/composition/v1"
 	authorityplugin "gateway/plugins/authority"
 )
 

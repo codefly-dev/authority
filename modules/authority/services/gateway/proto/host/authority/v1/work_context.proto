@@ -1,0 +1,298 @@
+syntax = "proto3";
+// Moved from codefly-dev/core proto/codefly/base/v0/work_context.proto on 2026-10-21.
+// Every message, field name and field number is unchanged, so the deterministic
+// bytes a verifier reads are identical; only the package and the Go import path
+// differ. The conformance fixtures prove it. A change in meaning is a V2 message
+// beside the V1, never a field reinterpreted.
+package host.authority.v1;
+
+option go_package = "gateway/pkg/gen/host/authority/v1;authorityv1";
+
+import "buf/validate/validate.proto";
+
+// WorkContextV1 is the product-neutral identity and authority capability for
+// one Task/Session hop. The signed wire representation is owned by Codefly
+// SDKs; applications must never serialize this message into a bearer token or
+// construct the transport header themselves.
+//
+// Task identity is the tuple (tenant_id, owner_principal_id, task_id).
+// Starting a child agent keeps that tuple and exchanges the parent capability
+// for a new child session capability. It never mutates an existing capability.
+message WorkContextV1 {
+  // typ is fixed to "codefly.work-context/v1".
+  string typ = 1 [(buf.validate.field).string.const = "codefly.work-context/v1"];
+  // algorithm is fixed to "Ed25519".
+  string algorithm = 2 [(buf.validate.field).string.const = "Ed25519"];
+  // key_id selects one public verification key during rotation.
+  string key_id = 3 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 128];
+  // issuer is the authority that verified identity and minted this context.
+  string issuer = 4 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 512];
+  // audience is the exact service or trust boundary allowed to consume it.
+  string audience = 5 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 512];
+  // not_before_unix is the earliest instant a verifier may accept this
+  // capability.
+  int64 not_before_unix = 6;
+  // issued_at_unix is when the issuer minted it.
+  int64 issued_at_unix = 7;
+  // expires_at_unix is the instant it stops being accepted. Exchanging a
+  // parent capability for a child one never extends it.
+  int64 expires_at_unix = 8;
+  // nonce identifies the capability. Replay behavior is separately explicit.
+  string nonce = 9 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 512];
+  // authorization_revision is the issuer's current membership/policy revision.
+  uint64 authorization_revision = 10;
+  // replay_policy is "idempotent" or "single-use". A verifier still needs a
+  // durable replay store to enforce single-use consumption.
+  string replay_policy = 11 [(buf.validate.field).string.in = "idempotent", (buf.validate.field).string.in = "single-use"];
+
+  // tenant_id is the first element of the task identity tuple and is carried
+  // unchanged across every hop.
+  string tenant_id = 12 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 512];
+  // owner_principal_id is the principal on whose authority the task runs. It
+  // is the delegating owner, not necessarily the current actor.
+  string owner_principal_id = 13 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 512];
+  // task_id completes the task identity tuple and survives child agents.
+  string task_id = 14 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 512];
+  // session_id identifies this hop. Starting a child agent mints a new one
+  // rather than mutating this capability.
+  string session_id = 15 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 512];
+  // parent_session_id is the session this one was exchanged from; absent on
+  // the first session of a task.
+  optional string parent_session_id = 16 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 512];
+
+  // authority_scopes are the maximum scopes the owner delegated into this
+  // Work Context. Each actor hop's granted_scopes must be a subset of the
+  // preceding effective scopes.
+  repeated WorkScopeV1 authority_scopes = 17;
+  // actor_chain is ordered from the first delegated actor to the current actor.
+  // The owner is not duplicated here merely to make a direct call look uniform.
+  // Every hop attenuates the one before it, except the final hop of a
+  // capability carrying grant_hop.
+  repeated WorkActorV1 actor_chain = 18;
+  // attribution_team_ids is an immutable verified attribution snapshot. It
+  // explains ownership; current authorization is still evaluated separately.
+  repeated string attribution_team_ids = 19;
+  // workspace_id is the workspace the task runs against, when the task is
+  // scoped to one.
+  optional string workspace_id = 20 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 512];
+  // project_id narrows workspace_id to a single project, when the task is
+  // scoped that far.
+  optional string project_id = 21 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 512];
+
+  // owner_principal_kind distinguishes the sort of principal the owner is, so
+  // a verifier can present the owner without resolving it against a directory.
+  // Optional on the wire: a capability minted before this field existed is
+  // still a valid capability, and an archived receipt embedding one still
+  // verifies. Deriving an identity from a capability that omits it is the
+  // error, raised where the identity is built.
+  optional string owner_principal_kind = 22 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 128];
+  // owner_agent_id is the owner's agent manifest identity. Required when
+  // owner_principal_kind is "agent" and absent otherwise.
+  optional string owner_agent_id = 23 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 512];
+  // organization_id is the organization the task runs in. It is not the
+  // tenant: a tenant may hold several organizations, and authorization is
+  // scoped per organization. An actor hop may name a different one.
+  optional string organization_id = 25 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 512];
+  // grant_hop is the approval grant this capability was minted under. It is
+  // the one audited exception to the attenuation rule: the final actor hop
+  // holds exactly granted_scope, which the preceding hop need not contain.
+  // Present only on a single-use child capability minted for one approved
+  // call; absent on every ordinary session.
+  optional WorkGrantHopV1 grant_hop = 24;
+  // seal binds this capability to one installation and one execution: the
+  // principal's epoch, the installation and revision it was minted for, and
+  // the build incarnation it was minted on. A verifier compares every field
+  // against the live value and refuses on any mismatch, which is what stops a
+  // capability outliving the installation or the build it was issued against.
+  //
+  // REQUIRED. An earlier version of this field was optional, with the stated
+  // reason that a schema rule would invalidate every archived capability and
+  // every receipt embedding one, so the requirement belonged in the verifier.
+  // Two independent reviews named that for what it is: a backward-compatibility
+  // hedge, which the rules in force forbid. It also meant every reader other
+  // than the verifier saw a capability's binding to its installation as
+  // optional, so the strongest check in the model was the easiest one for a
+  // consumer to not notice.
+  //
+  // Archived capabilities and receipts are historical DATA. If they must be
+  // read after this, they get a snapshot type of their own rather than keeping
+  // the live credential permanently weaker than it should be.
+  WorkSealV1 seal = 26 [(buf.validate.field).required = true];
+  // operation_binding is the unit of authority this capability exercises,
+  // sealed by its id, revision and incarnation. Present on an operation
+  // context and absent on a session that exercises none.
+  //
+  // The id is what a verifier looks the binding up by, exactly. Nothing
+  // searches the bindings for one that contains the capability's scopes: a
+  // search is a predicate someone wrote, and a predicate one case too
+  // generous grants authority nobody reviewed.
+  optional WorkOperationBindingV1 operation_binding = 27;
+}
+
+// WorkSealV1 binds a capability to one installation and one execution. Its
+// principal_epoch is the TASK OWNER'S; an actor hop carries its own in
+// WorkActorV1.principal_epoch, because an actor's authority is narrowed
+// independently of the owner's. Every
+// field is a value the issuer holds live and the verifier compares exactly, so
+// a capability minted before an installation was revised, a principal's
+// authority was reset, or a build was replaced stops verifying at that moment
+// rather than at its own expiry.
+message WorkSealV1 {
+  // principal_epoch is the principal's current epoch. Advancing it
+  // invalidates every capability minted for that principal, which is how a
+  // compromised principal is cut off without waiting for expiry.
+  uint64 principal_epoch = 1 [(buf.validate.field).uint64.gte = 1];
+  // installation_id identifies one organization's installation of one module.
+  // Authority is held through an installation, so a capability that names none
+  // is bound to nothing.
+  string installation_id = 2 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 512];
+  // installation_revision is the installation's revision at mint time. A
+  // verifier holding a different revision refuses: the scope of an
+  // installation changes with its revision, so a capability sealed to an
+  // earlier one asks for authority under terms that no longer apply.
+  uint64 installation_revision = 3 [(buf.validate.field).uint64.gte = 1];
+  // Fields 4 and 5 carried a per-capability build seal (build_incarnation,
+  // image_digest). Removed: a workload's build is checked where it mints, and
+  // a change of approved builds revokes through the principal's epoch and the
+  // installation's revision.
+  reserved 4, 5;
+  reserved "build_incarnation", "image_digest";
+}
+
+// WorkOperationBindingV1 is the unit of authority an operation context
+// exercises, sealed so that a verifier resolves exactly one binding and
+// compares it rather than deciding which binding the capability's scopes fit.
+message WorkOperationBindingV1 {
+  // binding_id is the host's identifier for the binding. The verifier looks it
+  // up EXACTLY: nothing searches the bindings for one that fits a capability's
+  // scopes, because a search is a predicate somebody wrote and a predicate one
+  // case too generous grants authority nobody reviewed.
+  //
+  // This comment used to say the id "is never derived from the binding's
+  // contents, because a derived id is one a caller can compute for a binding
+  // it was never granted". I refuted a review finding against that sentence by
+  // reading it in isolation and judging it correct. The reviewer was right and
+  // I was wrong: solutionhost/authority.go says the opposite in the package
+  // that owns the id — deriving it deterministically is delivery's business
+  // and better than random, and "predictability costs nothing here: an id is
+  // neither a secret nor a capability".
+  //
+  // Predictability costs nothing because ENTITLEMENT is what refuses a binding
+  // a caller does not hold, not obscurity: the verifier requires the resolved
+  // binding to be granted to the exercising principal within the installation
+  // the capability is sealed to. Guessing an id gets you a refusal. Resting
+  // the rule on unguessability was the retracted reasoning, and leaving it
+  // here contradicted the package it describes.
+  string binding_id = 1 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 512];
+  // revision is the binding's revision at mint time. A verifier holding a
+  // different revision refuses.
+  uint64 revision = 2 [(buf.validate.field).uint64.gte = 1];
+  // incarnation is the binding's incarnation at mint time, which changes when
+  // the binding is re-established rather than merely revised.
+  uint64 incarnation = 3 [(buf.validate.field).uint64.gte = 1];
+}
+
+// WorkScopeV1 is a structured, product-neutral capability scope. Empty
+// resource_ids means every resource of resource_kind; a child may narrow that
+// wildcard to explicit IDs but may never widen an explicit parent set.
+message WorkScopeV1 {
+  // resource_kind is the class of resource the scope grants against.
+  string resource_kind = 1 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 128];
+  // actions are the operations permitted on that kind.
+  repeated string actions = 2;
+  // resource_ids narrows the scope to specific resources. Empty means every
+  // resource of resource_kind.
+  repeated string resource_ids = 3;
+}
+
+// WorkActorV1 is one verified delegated actor. granted_scopes are the actor's
+// effective scopes and must monotonically attenuate the previous hop.
+message WorkActorV1 {
+  // principal_id identifies the actor this hop delegated to.
+  string principal_id = 1 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 512];
+  // principal_kind distinguishes the sort of principal, so a human and an
+  // agent bearing the same id are not conflated.
+  string principal_kind = 2 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 128];
+  // delegation_id identifies the delegation that produced this hop, so the
+  // chain stays auditable back to its grant.
+  string delegation_id = 3 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 512];
+  // granted_scopes are this actor's effective scopes, a subset of the
+  // preceding hop's.
+  repeated WorkScopeV1 granted_scopes = 4;
+  // agent_id is the actor's agent manifest identity. Required when
+  // principal_kind is "agent" and absent otherwise.
+  optional string agent_id = 5 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 512];
+  // organization_id is the organization this actor belongs to, when it is not
+  // the one the task runs in. An org-bridge agent acts in an organization the
+  // owner does not belong to, and authorization is scoped to the actor's own.
+  optional string organization_id = 6 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 512];
+  // principal_epoch is THIS actor's epoch, distinct from the owner's epoch in
+  // the seal. Advancing it invalidates every capability in which this
+  // principal is an actor, without touching the owner's.
+  //
+  // It exists because the seal's epoch is the task owner's, and an actor's
+  // authority can be narrowed independently of the owner's: a delegated
+  // operation context may have a person as its owner and a service principal
+  // as its actor, and narrowing that service principal must reach the
+  // capabilities it acts in. Without this field the only lever for a
+  // compromised actor is the tenant's authorization_revision, which cuts off
+  // every capability of the tenant.
+  //
+  // REQUIRED, for the reason seal gives. A hop with no epoch is a principal
+  // nothing can revoke, and leaving that expressible on the wire made it a
+  // shape a consumer could mint without noticing.
+  uint64 principal_epoch = 7 [(buf.validate.field).uint64.gte = 1, (buf.validate.field).required = true];
+  // Fields 8 and 9 carried this hop's build seal; removed with the seal's.
+  reserved 8, 9;
+  reserved "image_digest", "build_incarnation";
+}
+
+// WorkGrantHopV1 records the approval that justifies a capability holding
+// authority its delegating owner never held. It is minted only as a new child
+// capability bound to one tool, one subject and one call, so the authority it
+// adds is unusable anywhere else and expires with the grant window.
+message WorkGrantHopV1 {
+  // grant_id identifies the approval grant, so revoking the grant and
+  // auditing the call both reach the same record.
+  string grant_id = 1 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 512];
+  // approvers are the principals whose decision produced the grant, every one
+  // of an N-of-M quorum, so the audit record is complete.
+  repeated WorkApproverV1 approvers = 2 [(buf.validate.field).repeated.min_items = 1, (buf.validate.field).repeated.max_items = 64];
+  // granted_scope is exactly what the approval added: one resource_kind, one
+  // action and one resource_id. A grant never widens beyond that triple.
+  WorkScopeV1 granted_scope = 3 [(buf.validate.field).required = true];
+  // subject is what the grant is pinned to, in the approvals engine's own
+  // vocabulary, so a grant approved for one subject cannot be spent on another.
+  string subject = 4 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 512];
+  // request_digest binds the grant to the exact call the approver saw.
+  string request_digest = 5 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 512];
+}
+
+// WorkApproverV1 is one principal whose decision produced a grant. It carries
+// the kind as well as the id: a policy that requires a human approver cannot
+// be written against bare identifiers.
+message WorkApproverV1 {
+  // principal_id identifies the approver.
+  string principal_id = 1 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 512];
+  // principal_kind distinguishes the sort of principal the approver is.
+  string principal_kind = 2 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 128];
+}
+
+// ApprovalRequiredV1 is the signal a policy decision point returns instead of
+// a denial when the call is approvable: the authority is not held, but an
+// approver may grant it. It names exactly what a WorkGrantHopV1 would have to
+// carry, so a decision and the capability that satisfies it are the same shape.
+// It is carried as a typed error detail on a FailedPrecondition status.
+message ApprovalRequiredV1 {
+  // request_id identifies the approval request the engine created, which the
+  // caller waits on and the resulting grant refers back to.
+  string request_id = 1 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 512];
+  // requested_scope is the authority the call needs and the principal lacks.
+  WorkScopeV1 requested_scope = 2 [(buf.validate.field).required = true];
+  // subject is what a grant would be pinned to.
+  string subject = 3 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 512];
+  // request_digest is the exact call put to the approver.
+  string request_digest = 4 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 512];
+  // audience is the tool a granted capability must be minted for.
+  string audience = 5 [(buf.validate.field).string.min_len = 1, (buf.validate.field).string.max_len = 512];
+}

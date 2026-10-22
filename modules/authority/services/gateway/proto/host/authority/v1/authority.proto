@@ -1,0 +1,116 @@
+syntax = "proto3";
+// The authority interface: what a module or solution calls on its host to be
+// issued a Work Context, to have one checked, and to learn the keys it was
+// signed with. Three operations. Every former spelling (start task, start
+// installation task, exchange audience, start child, renew, the module broker's
+// mints) is Issue with a different `as`.
+package host.authority.v1;
+
+option go_package = "gateway/pkg/gen/host/authority/v1;authorityv1";
+
+import "host/authority/v1/work_context.proto";
+
+// AuthorityService is implemented by the host (accounts) and by the mini gateway.
+service AuthorityService {
+  // Issue signs a Work Context for one owner shape, one audience and the scopes
+  // asked for, bounded by what the owner holds and what the audience declared.
+  rpc Issue(IssueRequest) returns (IssueResponse);
+  // Check verifies a presented Work Context for the audience the caller is,
+  // re-checking the authorization revision and the seal live.
+  rpc Check(CheckRequest) returns (CheckResponse);
+  // Keys returns the issuer and the public keys a verifier pins.
+  rpc Keys(KeysRequest) returns (KeysResponse);
+}
+
+// IssueRequest names on whose behalf the capability is issued.
+message IssueRequest {
+  // Who the capability is for; exactly one.
+  oneof as {
+    // A signed-in person, by the session the host opened for them.
+    PersonSession person = 1;
+    // A module's own workload, proving which module it is.
+    WorkloadCredential workload = 2;
+    // An installation acting for itself, with the scope the organisation consented to.
+    InstallationRef installation = 3;
+    // One more hop from an existing capability: a child, an exchange or a renewal.
+    string parent_token = 4;
+  }
+  // The module principal that may consume the capability.
+  string audience = 5;
+  // The scopes asked for; empty means everything the owner holds at the audience.
+  repeated WorkScopeV1 scopes = 6;
+  // Requested lifetime in seconds; clamped to the issuer's ceiling.
+  int64 ttl_seconds = 7;
+  // The declared binding this capability exercises, when the owner is a workload
+  // or a child acts through one.
+  string operation_binding_id = 8;
+  // The organisation the work runs in, for an owner shape that does not carry one.
+  string organization_id = 9;
+  // The actor a child hop delegates to, as a workload credential; required with parent_token.
+  WorkloadCredential actor = 10;
+}
+
+// PersonSession identifies a signed-in person by their session.
+message PersonSession {
+  // The session id the host returned at sign-in.
+  string session_id = 1;
+}
+
+// WorkloadCredential proves which module a running process is.
+message WorkloadCredential {
+  // The credential the launcher signed for this process.
+  string credential = 1;
+}
+
+// InstallationRef names an installation acting for itself.
+message InstallationRef {
+  // The installation id.
+  string installation_id = 1;
+}
+
+// IssueResponse carries the signed capability and its decoded form.
+message IssueResponse {
+  // The signed capability, as a caller presents it.
+  string token = 1;
+  // When the capability expires.
+  int64 expires_at_unix = 2;
+  // The decoded capability, for the holder to read its own claims.
+  WorkContextV1 context = 3;
+}
+
+// CheckRequest presents a capability for verification.
+message CheckRequest {
+  // The capability presented.
+  string token = 1;
+  // The audience the caller is; a capability addressed elsewhere is refused.
+  string audience = 2;
+}
+
+// CheckResponse is the verified capability.
+message CheckResponse {
+  // The verified capability.
+  WorkContextV1 context = 1;
+  // The owner's authorization revision as of this check.
+  uint64 authorization_revision = 2;
+}
+
+// KeysRequest asks for the verification keys.
+message KeysRequest {}
+
+// KeysResponse is the issuer and its keys.
+message KeysResponse {
+  // The issuer every capability names.
+  string issuer = 1;
+  // The public keys by key id.
+  repeated PublicKey keys = 2;
+}
+
+// PublicKey is one verification key.
+message PublicKey {
+  // The key id a capability names.
+  string key_id = 1;
+  // The signature algorithm; Ed25519.
+  string algorithm = 2;
+  // The raw public key bytes.
+  bytes public_key = 3;
+}

@@ -1,4 +1,4 @@
-// Package session serves obin.ai/session: SignIn, for fixture people.
+// Package session serves codefly.dev/session: SignIn, for fixture people.
 package session
 
 import (
@@ -8,7 +8,7 @@ import (
 	"google.golang.org/grpc"
 
 	"gateway/pkg/business/state"
-	sessionv1 "gateway/pkg/gen/obin/session/v1"
+	sessionv1 "gateway/pkg/gen/host/session/v1"
 	authorityplugin "gateway/plugins/authority"
 )
 

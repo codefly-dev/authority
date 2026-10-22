@@ -1,0 +1,98 @@
+syntax = "proto3";
+// The installation interface: what is installed at an organisation and who may
+// use it. Three operations on the host, and one the solution implements, the
+// install step the host calls once per installation.
+package host.installation.v1;
+
+option go_package = "gateway/pkg/gen/host/installation/v1;installationv1";
+
+// InstallationService is implemented by the host and by the mini gateway.
+service InstallationService {
+  // Install composes an installation: its agent principal, its root scope and
+  // the row, pending until the target acknowledges its install step.
+  rpc Install(InstallRequest) returns (Installation);
+  // GrantToTeam exposes an installation to a team under the installation's role.
+  rpc GrantToTeam(GrantToTeamRequest) returns (Installation);
+  // List answers what one organisation has installed.
+  rpc List(ListRequest) returns (ListResponse);
+}
+
+// InstallableService is implemented by a solution; the host calls it once per
+// installation and retries until it is acknowledged.
+service InstallableService {
+  // Install sets up the solution for one installation; it must converge.
+  rpc Install(InstallationNotice) returns (InstallationAck);
+}
+
+// InstallRequest asks to install one target at one organisation.
+message InstallRequest {
+  // The organisation installing.
+  string organization_id = 1;
+  // The solution or module installed, by its name in the composition.
+  string target = 2;
+  // The role the installation holds; the least privilege it needs.
+  string role = 3;
+  // The accountable person; an administrator of the organisation.
+  string owner_person_id = 4;
+}
+
+// GrantToTeamRequest exposes an installation to a team.
+message GrantToTeamRequest {
+  // The installation.
+  string installation_id = 1;
+  // The team granted the installation's role at its root.
+  string team_id = 2;
+}
+
+// ListRequest asks for one organisation's installations.
+message ListRequest {
+  // The organisation.
+  string organization_id = 1;
+}
+
+// ListResponse lists installations.
+message ListResponse {
+  // The installations.
+  repeated Installation installations = 1;
+}
+
+// Installation is one organisation's installation of one target.
+message Installation {
+  // The installation id.
+  string id = 1;
+  // The organisation.
+  string organization_id = 2;
+  // The target installed.
+  string target = 3;
+  // Where the installation stands.
+  Status status = 4;
+  // Bumped on every change that narrows or widens the installation.
+  uint64 revision = 5;
+  // The role the installation holds.
+  string role = 6;
+  // The teams granted it.
+  repeated string team_ids = 7;
+  // The principal the installation acts as for itself.
+  string agent_principal_id = 8;
+
+  // Status is the installation's lifecycle.
+  enum Status {
+    // Unset.
+    STATUS_UNSPECIFIED = 0;
+    // Installed; the install step has not been acknowledged.
+    STATUS_PENDING = 1;
+    // Usable.
+    STATUS_ACTIVE = 2;
+    // Uninstalled; every capability sealed to it is refused.
+    STATUS_REVOKED = 3;
+  }
+}
+
+// InstallationNotice is what the host hands the solution's install step.
+message InstallationNotice {
+  // The installation being set up.
+  Installation installation = 1;
+}
+
+// InstallationAck acknowledges the install step.
+message InstallationAck {}
