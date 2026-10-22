@@ -13,7 +13,9 @@ service InstallationService {
   rpc Install(InstallRequest) returns (Installation);
   // GrantToTeam exposes an installation to a team under the installation's role.
   rpc GrantToTeam(GrantToTeamRequest) returns (Installation);
-  // List answers what one organisation has installed.
+  // List answers what one organisation has installed: an administrator's read. A
+  // member's view, which installed solutions they may use, is their navigation and
+  // belongs to the entitlement read, not here.
   rpc List(ListRequest) returns (ListResponse);
 }
 

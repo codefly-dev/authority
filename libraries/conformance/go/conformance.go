@@ -65,7 +65,8 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 	t.Run("a person is issued, checked, and refused elsewhere", func(t *testing.T) {
 		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
 		asViewer := as(ctx, sess)
-		out := c.must(t, asViewer, "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.Audience})
+		read := []any{map[string]any{"resource_kind": f.ReadKind, "actions": []any{"read"}}}
+		out := c.must(t, asViewer, "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.Audience, "scopes": read})
 		wc := msg(out, "context")
 		if str(wc, "owner_principal_id") != str(sess, "person_id") || str(wc, "audience") != f.Audience || str(wc, "tenant_id") != f.Organization {
 			t.Fatalf("context = %v", wc)
@@ -79,6 +80,13 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			"scopes": []any{map[string]any{"resource_kind": f.ReadKind, "actions": []any{"read", "write", "ingest", "admin"}}}})
 		if status.Code(err) != codes.PermissionDenied {
 			t.Fatalf("beyond the role must be PermissionDenied, got %v", err)
+		}
+	})
+	t.Run("an empty ask means everything the owner holds at the audience", func(t *testing.T) {
+		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
+		out := c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.Audience})
+		if count(msg(out, "context"), "authority_scopes") == 0 {
+			t.Fatalf("an empty ask was issued nothing: %v", out)
 		}
 	})
 	t.Run("every refusal reaches the caller with a reason", func(t *testing.T) {
@@ -128,8 +136,8 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		}
 	})
 	t.Run("an installation acts for itself", func(t *testing.T) {
-		viewer := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
-		list := c.must(t, as(ctx, viewer), "host.installation.v1.InstallationService", "List", map[string]any{"organization_id": f.Organization})
+		admin := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.AdminToken})
+		list := c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "List", map[string]any{"organization_id": f.Organization})
 		var wiki protoreflect.Message
 		for _, i := range listMsgs(list, "installations") {
 			if str(i, "id") == f.InstalledSolution {
@@ -146,9 +154,10 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 	})
 	t.Run("a child hop attenuates and names its actor", func(t *testing.T) {
 		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
-		parent := c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.Audience})
+		read := []any{map[string]any{"resource_kind": f.ReadKind, "actions": []any{"read"}}}
+		parent := c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.Audience, "scopes": read})
 		child := c.must(t, ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"parent_token": str(parent, "token"),
-			"actor": map[string]any{"credential": f.WorkloadCredential}, "audience": f.Audience})
+			"actor": map[string]any{"credential": f.WorkloadCredential}, "audience": f.Audience, "scopes": read})
 		if len(listMsgs(msg(child, "context"), "actor_chain")) != 1 {
 			t.Fatalf("child: %v", child)
 		}
