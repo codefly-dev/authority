@@ -84,7 +84,11 @@ type Session struct {
 	// The roles held in it.
 	Roles []string `protobuf:"bytes,4,rep,name=roles,proto3" json:"roles,omitempty"`
 	// The teams belonged to.
-	TeamIds       []string `protobuf:"bytes,5,rep,name=team_ids,json=teamIds,proto3" json:"team_ids,omitempty"`
+	TeamIds []string `protobuf:"bytes,5,rep,name=team_ids,json=teamIds,proto3" json:"team_ids,omitempty"`
+	// The credential the person presents on every call as `authorization: Bearer
+	// <bearer>`; whatever this implementation authenticates a person by. The mini
+	// gateway hands back the session id; the host hands back its access token.
+	Bearer        string `protobuf:"bytes,6,opt,name=bearer,proto3" json:"bearer,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -154,20 +158,28 @@ func (x *Session) GetTeamIds() []string {
 	return nil
 }
 
+func (x *Session) GetBearer() string {
+	if x != nil {
+		return x.Bearer
+	}
+	return ""
+}
+
 var File_host_session_v1_session_proto protoreflect.FileDescriptor
 
 const file_host_session_v1_session_proto_rawDesc = "" +
 	"\n" +
 	"\x1dhost/session/v1/session.proto\x12\x0fhost.session.v1\"4\n" +
 	"\rSignInRequest\x12#\n" +
-	"\rfixture_token\x18\x01 \x01(\tR\ffixtureToken\"\x9f\x01\n" +
+	"\rfixture_token\x18\x01 \x01(\tR\ffixtureToken\"\xb7\x01\n" +
 	"\aSession\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1b\n" +
 	"\tperson_id\x18\x02 \x01(\tR\bpersonId\x12'\n" +
 	"\x0forganization_id\x18\x03 \x01(\tR\x0eorganizationId\x12\x14\n" +
 	"\x05roles\x18\x04 \x03(\tR\x05roles\x12\x19\n" +
-	"\bteam_ids\x18\x05 \x03(\tR\ateamIds2T\n" +
+	"\bteam_ids\x18\x05 \x03(\tR\ateamIds\x12\x16\n" +
+	"\x06bearer\x18\x06 \x01(\tR\x06bearer2T\n" +
 	"\x0eSessionService\x12B\n" +
 	"\x06SignIn\x12\x1e.host.session.v1.SignInRequest\x1a\x18.host.session.v1.SessionB\xcf\x01\n" +
 	"\x13com.host.session.v1B\fSessionProtoP\x01ZLgithub.com/codefly-dev/cli/pkg/builder/clients/api/host/session/v1;sessionv1\xa2\x02\x03HSX\xaa\x02\x0fHost.Session.V1\xca\x02\x0fHost\\Session\\V1\xe2\x02\x1bHost\\Session\\V1\\GPBMetadata\xea\x02\x11Host::Session::V1b\x06proto3"
