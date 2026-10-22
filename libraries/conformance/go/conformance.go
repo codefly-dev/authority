@@ -54,7 +54,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 	})
 	t.Run("a fixture person signs in and an unknown token is refused", func(t *testing.T) {
 		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
-		if str(sess, "session_id") == "" || str(sess, "organization_id") != f.Organization {
+		if str(sess, "session_id") == "" || str(sess, "bearer") == "" || str(sess, "organization_id") != f.Organization {
 			t.Fatalf("sign in: %v", sess)
 		}
 		_, err := c.call(ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": "not-a-person"})
@@ -128,7 +128,8 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		}
 	})
 	t.Run("an installation acts for itself", func(t *testing.T) {
-		list := c.must(t, ctx, "host.installation.v1.InstallationService", "List", map[string]any{"organization_id": f.Organization})
+		viewer := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
+		list := c.must(t, as(ctx, viewer), "host.installation.v1.InstallationService", "List", map[string]any{"organization_id": f.Organization})
 		var wiki protoreflect.Message
 		for _, i := range listMsgs(list, "installations") {
 			if str(i, "id") == f.InstalledSolution {
@@ -356,5 +357,5 @@ func clone(m map[string]any) map[string]any {
 }
 
 func as(ctx context.Context, session protoreflect.Message) context.Context {
-	return metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+str(session, "session_id"))
+	return metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+str(session, "bearer"))
 }

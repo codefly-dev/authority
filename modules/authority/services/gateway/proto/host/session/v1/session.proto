@@ -30,4 +30,8 @@ message Session {
   repeated string roles = 4;
   // The teams belonged to.
   repeated string team_ids = 5;
+  // The credential the person presents on every call as `authorization: Bearer
+  // <bearer>`; whatever this implementation authenticates a person by. The mini
+  // gateway hands back the session id; the host hands back its access token.
+  string bearer = 6;
 }
