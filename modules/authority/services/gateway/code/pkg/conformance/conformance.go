@@ -11,6 +11,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	authorityv1 "gateway/pkg/gen/host/authority/v1"
@@ -37,6 +38,11 @@ type Fixture struct {
 	Binding, BindingAudience string
 	// InstalledSolution is an active installation the viewer is entitled to.
 	InstalledSolution string
+}
+
+// as returns a context carrying a person's bearer, as a client sends it.
+func as(ctx context.Context, session *sessionv1.Session) context.Context {
+	return metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+session.GetSessionId())
 }
 
 // Run drives the suite over one connection.
@@ -66,7 +72,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, f Fixture) {
 	})
 	t.Run("a person is issued, checked, and refused elsewhere", func(t *testing.T) {
 		sess, _ := sessions.SignIn(ctx, &sessionv1.SignInRequest{FixtureToken: f.ViewerToken})
-		out, err := auth.Issue(ctx, &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{SessionId: sess.GetSessionId()}}, Audience: f.Audience})
+		out, err := auth.Issue(as(ctx, sess), &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: f.Audience})
 		if err != nil {
 			t.Fatalf("issue: %v", err)
 		}
@@ -80,18 +86,23 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, f Fixture) {
 		if _, err := auth.Check(ctx, &authorityv1.CheckRequest{Token: out.GetToken(), Audience: f.BindingAudience}); status.Code(err) != codes.Unauthenticated {
 			t.Fatalf("check at another audience: %v", err)
 		}
-		_, err = auth.Issue(ctx, &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{SessionId: sess.GetSessionId()}}, Audience: f.Audience,
+		_, err = auth.Issue(as(ctx, sess), &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: f.Audience,
 			Scopes: []*authorityv1.WorkScopeV1{{ResourceKind: f.ReadKind, Actions: []string{"read", "write", "ingest", "admin"}}}})
 		if status.Code(err) != codes.PermissionDenied {
 			t.Fatalf("beyond the role must be PermissionDenied, got %v", err)
 		}
 	})
 	t.Run("every refusal reaches the caller with a reason", func(t *testing.T) {
-		_, err := auth.Issue(ctx, &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{SessionId: "no-such-session"}}, Audience: f.Audience})
-		if status.Code(err) != codes.NotFound || !strings.Contains(err.Error(), "session") {
-			t.Fatalf("unknown session: %v", err)
+		_, err := auth.Issue(ctx, &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: f.Audience})
+		if code := status.Code(err); code != codes.PermissionDenied && code != codes.Unauthenticated {
+			t.Fatalf("a person-owned issue with no bearer: %v", err)
 		}
-		_, err = auth.Issue(ctx, &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{SessionId: "x"}}, Audience: "not-composed"})
+		forged := metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer no-such-session")
+		_, err = auth.Issue(forged, &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: f.Audience})
+		if code := status.Code(err); code != codes.NotFound && code != codes.Unauthenticated {
+			t.Fatalf("a bearer no sign-in opened: %v", err)
+		}
+		_, err = auth.Issue(forged, &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "not-composed"})
 		if status.Code(err) != codes.NotFound || !strings.Contains(err.Error(), "not-composed") {
 			t.Fatalf("an uncomposed audience is named: %v", err)
 		}
@@ -144,7 +155,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, f Fixture) {
 	})
 	t.Run("a child hop attenuates and names its actor", func(t *testing.T) {
 		sess, _ := sessions.SignIn(ctx, &sessionv1.SignInRequest{FixtureToken: f.ViewerToken})
-		parent, err := auth.Issue(ctx, &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{SessionId: sess.GetSessionId()}}, Audience: f.Audience})
+		parent, err := auth.Issue(as(ctx, sess), &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: f.Audience})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -178,8 +189,13 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, f Fixture) {
 			t.Fatal(err)
 		}
 		inst, err := installs.Install(ctx, &installationv1.InstallRequest{OrganizationId: f.Organization, Target: "conformance-solution", Role: "viewer", OwnerPersonId: admin.GetPersonId()})
-		if err != nil || inst.GetStatus() != installationv1.Installation_STATUS_ACTIVE {
-			t.Fatalf("install: %v %v", err, inst)
+		if err != nil {
+			t.Fatalf("install: %v", err)
+		}
+		// Pending until the install step is acknowledged, or active if the
+		// implementation acknowledged it within the call: both are the contract.
+		if st := inst.GetStatus(); st != installationv1.Installation_STATUS_PENDING && st != installationv1.Installation_STATUS_ACTIVE {
+			t.Fatalf("install status = %v", st)
 		}
 		granted, err := installs.GrantToTeam(ctx, &installationv1.GrantToTeamRequest{OrganizationId: f.Organization, InstallationId: inst.GetId(), TeamId: "finance"})
 		if err != nil || len(granted.GetTeamIds()) != 1 || granted.GetRevision() != inst.GetRevision()+1 {

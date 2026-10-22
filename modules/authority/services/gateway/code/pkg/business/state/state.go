@@ -6,8 +6,6 @@ package state
 
 import (
 	"context"
-	"crypto/ed25519"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"sort"
@@ -16,6 +14,7 @@ import (
 
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"github.com/codefly-dev/core/workcontext"
+	"github.com/codefly-dev/core/workloadidentity/native"
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 )
@@ -133,18 +132,26 @@ type State struct {
 	installations map[string]Installation
 	sessions      map[string]Session
 	revisions     map[string]uint64
-	launcher      ed25519.PublicKey
+	attester      *native.Attester
+	audience      string
 	installStep   InstallStep
 }
 
-// New returns an empty state trusting one launcher key for workload credentials.
-func New(launcher ed25519.PublicKey) *State {
+// New returns an empty state that attests workloads against one launcher anchor:
+// core's native anchor, the issuer name, its public key and the subjects it
+// declared, handed to the host as configuration. audience is the name the
+// launcher issues credentials to, this host.
+func New(anchor native.Anchor, audience string) (*State, error) {
+	attester, err := native.NewAttester(anchor)
+	if err != nil {
+		return nil, fmt.Errorf("launcher anchor: %w", err)
+	}
 	return &State{
 		orgs: map[string]string{}, people: map[string]Person{}, byToken: map[string]string{},
 		roles: map[string]Role{}, modules: map[string]Manifest{}, principals: map[string]string{},
 		installations: map[string]Installation{}, sessions: map[string]Session{}, revisions: map[string]uint64{},
-		launcher: launcher,
-	}
+		attester: attester, audience: audience,
+	}, nil
 }
 
 // OnInstall sets the install step the host runs for a solution installation.
@@ -463,39 +470,20 @@ func (s *State) RoleScopes(org, role string) []*basev0.WorkScopeV1 {
 	return Normalize(out)
 }
 
-// WorkloadCredential is what the launcher signs for one process: the module's
-// name, signed with the one launcher key the host was handed at boot.
-func WorkloadCredential(key ed25519.PrivateKey, module string) string {
-	payload := []byte("workload:" + module)
-	return base64.RawURLEncoding.EncodeToString(payload) + "." + base64.RawURLEncoding.EncodeToString(ed25519.Sign(key, payload))
-}
-
-// VerifyWorkload resolves a credential to a composed module.
-func (s *State) VerifyWorkload(credential string) (Manifest, error) {
+// VerifyWorkload attests a native launcher credential with core's attester and
+// resolves the module it names to a composed module. The credential format, the
+// signature check, the audience and the window are core's, the same the host
+// runs; this state adds only "is that module composed here".
+func (s *State) VerifyWorkload(ctx context.Context, credential string) (Manifest, error) {
+	attestation, err := s.attester.Attest(ctx, credential, s.audience)
+	if err != nil {
+		return Manifest{}, fmt.Errorf("%w: workload credential: %v", ErrForbidden, err)
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if s.launcher == nil {
-		return Manifest{}, fmt.Errorf("%w: no launcher key configured", ErrForbidden)
-	}
-	parts := strings.SplitN(credential, ".", 2)
-	if len(parts) != 2 {
-		return Manifest{}, fmt.Errorf("%w: workload credential shape", ErrForbidden)
-	}
-	payload, err := base64.RawURLEncoding.DecodeString(parts[0])
-	if err != nil {
-		return Manifest{}, fmt.Errorf("%w: workload credential payload", ErrForbidden)
-	}
-	sig, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil || !ed25519.Verify(s.launcher, payload, sig) {
-		return Manifest{}, fmt.Errorf("%w: workload credential is not the launcher's", ErrForbidden)
-	}
-	name, ok := strings.CutPrefix(string(payload), "workload:")
+	m, ok := s.modules[attestation.Workload.Module]
 	if !ok {
-		return Manifest{}, fmt.Errorf("%w: workload credential payload", ErrForbidden)
-	}
-	m, ok := s.modules[name]
-	if !ok {
-		return Manifest{}, fmt.Errorf("%w: module %q is not composed", ErrUnknown, name)
+		return Manifest{}, fmt.Errorf("%w: module %q is not composed", ErrUnknown, attestation.Workload.Module)
 	}
 	return m, nil
 }

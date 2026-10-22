@@ -62,7 +62,9 @@ func TestEveryCoreFixturePayloadIsByteIdenticalThroughOurMessage(t *testing.T) {
 }
 
 func TestOurDescriptorsNameTheSameFieldsAndNumbersAsCore(t *testing.T) {
-	pairs := []struct{ ours, theirs protoreflect.MessageDescriptor }{
+	pairs := []struct {
+		ours, theirs protoreflect.MessageDescriptor
+	}{
 		{(&authorityv1.WorkContextV1{}).ProtoReflect().Descriptor(), (&basev0.WorkContextV1{}).ProtoReflect().Descriptor()},
 		{(&authorityv1.WorkSealV1{}).ProtoReflect().Descriptor(), (&basev0.WorkSealV1{}).ProtoReflect().Descriptor()},
 		{(&authorityv1.WorkOperationBindingV1{}).ProtoReflect().Descriptor(), (&basev0.WorkOperationBindingV1{}).ProtoReflect().Descriptor()},
@@ -105,13 +107,15 @@ func TestCoreConformanceKitPassesThroughCheckShapedVerification(t *testing.T) {
 
 // --- the shapes ------------------------------------------------------------------
 
-func person(t *testing.T, k *testkit.Kit, token string) string {
+// person signs a fixture person in and returns a context carrying their session,
+// as the transport does from the bearer on a call.
+func person(t *testing.T, k *testkit.Kit, token string) context.Context {
 	t.Helper()
 	sess, err := k.State.SignIn(token)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return sess.ID
+	return issuer.WithSession(context.Background(), sess.ID)
 }
 
 func scopes(sc ...*basev0.WorkScopeV1) []*authorityv1.WorkScopeV1 {
@@ -124,10 +128,9 @@ func scopes(sc ...*basev0.WorkScopeV1) []*authorityv1.WorkScopeV1 {
 
 func TestAPersonIsIssuedWhatHerRolesHoldAtTheAudienceAndNoMore(t *testing.T) {
 	k := testkit.New(t)
-	ctx := context.Background()
 	maya := person(t, k, "fixture-maya")
-	out, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{SessionId: maya}}, Audience: "documents",
+	out, err := k.Issuer.Issue(maya, &authorityv1.IssueRequest{
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -146,8 +149,8 @@ func TestAPersonIsIssuedWhatHerRolesHoldAtTheAudienceAndNoMore(t *testing.T) {
 		t.Fatalf("teams = %v", wc.GetAttributionTeamIds())
 	}
 	// Asking beyond the role is refused, not narrowed silently.
-	_, err = k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{SessionId: maya}}, Audience: "documents",
+	_, err = k.Issuer.Issue(maya, &authorityv1.IssueRequest{
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents",
 		Scopes: scopes(testkit.Scope("documents", "write")),
 	})
 	if !errors.Is(err, issuer.ErrRefused) {
@@ -155,8 +158,8 @@ func TestAPersonIsIssuedWhatHerRolesHoldAtTheAudienceAndNoMore(t *testing.T) {
 	}
 	// Asking a subset is honoured.
 	remi := person(t, k, "fixture-remi")
-	out, err = k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{SessionId: remi}}, Audience: "documents",
+	out, err = k.Issuer.Issue(remi, &authorityv1.IssueRequest{
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents",
 		Scopes: scopes(testkit.Scope("documents", "read")),
 	})
 	if err != nil || strings.Join(out.GetContext().GetAuthorityScopes()[0].GetActions(), ",") != "read" {
@@ -167,8 +170,8 @@ func TestAPersonIsIssuedWhatHerRolesHoldAtTheAudienceAndNoMore(t *testing.T) {
 func TestAPersonHoldsNothingAtAModuleHerRolesDoNotName(t *testing.T) {
 	k := testkit.New(t)
 	maya := person(t, k, "fixture-maya")
-	_, err := k.Issuer.Issue(context.Background(), &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{SessionId: maya}}, Audience: "model",
+	_, err := k.Issuer.Issue(maya, &authorityv1.IssueRequest{
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "model",
 	})
 	if !errors.Is(err, issuer.ErrRefused) {
 		t.Fatalf("model: %v", err)
@@ -178,8 +181,8 @@ func TestAPersonHoldsNothingAtAModuleHerRolesDoNotName(t *testing.T) {
 func TestAnUncomposedAudienceIsRefusedByName(t *testing.T) {
 	k := testkit.New(t)
 	maya := person(t, k, "fixture-maya")
-	_, err := k.Issuer.Issue(context.Background(), &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{SessionId: maya}}, Audience: "modelservice",
+	_, err := k.Issuer.Issue(maya, &authorityv1.IssueRequest{
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "modelservice",
 	})
 	if !errors.Is(err, state.ErrUnknown) || !strings.Contains(err.Error(), `"modelservice" is not composed`) {
 		t.Fatalf("the audience typo of this week: %v", err)
@@ -190,7 +193,8 @@ func TestCheckAcceptsForTheAudienceAndRefusesForAnother(t *testing.T) {
 	k := testkit.New(t)
 	ctx := context.Background()
 	maya := person(t, k, "fixture-maya")
-	out, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{SessionId: maya}}, Audience: "documents"})
+	out, err := k.Issuer.Issue(maya, &authorityv1.IssueRequest{
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -275,9 +279,9 @@ func TestAPendingInstallationIsIssuedNothing(t *testing.T) {
 func TestAWorkloadIsIssuedItsBindingsHeadlessScopesForTheBindingsAudience(t *testing.T) {
 	k := testkit.New(t)
 	ctx := context.Background()
-	cred := state.WorkloadCredential(k.Launcher, "documents")
+	cred := k.Credential(t, "documents")
 	out, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Workload{Workload: &authorityv1.WorkloadCredential{Credential: cred}},
+		As:       &authorityv1.IssueRequest_Workload{Workload: &authorityv1.WorkloadCredential{Credential: cred}},
 		Audience: "model", OrganizationId: "acme", OperationBindingId: "model",
 	})
 	if err != nil {
@@ -318,11 +322,12 @@ func TestAChildHopAttenuatesAndNamesItsActor(t *testing.T) {
 	k := testkit.New(t)
 	ctx := context.Background()
 	remi := person(t, k, "fixture-remi")
-	parent, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{SessionId: remi}}, Audience: "documents"})
+	parent, err := k.Issuer.Issue(remi, &authorityv1.IssueRequest{
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	documents := &authorityv1.WorkloadCredential{Credential: state.WorkloadCredential(k.Launcher, "documents")}
+	documents := &authorityv1.WorkloadCredential{Credential: k.Credential(t, "documents")}
 	child, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
 		As: &authorityv1.IssueRequest_ParentToken{ParentToken: parent.GetToken()}, Actor: documents,
 		Audience: "documents", Scopes: scopes(testkit.Scope("documents", "read")),
@@ -358,7 +363,8 @@ func TestKeysLetAnIndependentVerifierCheckWhatWasIssued(t *testing.T) {
 		t.Fatalf("keys = %v", keys)
 	}
 	maya := person(t, k, "fixture-maya")
-	out, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{SessionId: maya}}, Audience: "documents"})
+	out, err := k.Issuer.Issue(maya, &authorityv1.IssueRequest{
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -376,8 +382,8 @@ func TestKeysLetAnIndependentVerifierCheckWhatWasIssued(t *testing.T) {
 func TestTTLIsClampedToTheCeiling(t *testing.T) {
 	k := testkit.New(t)
 	maya := person(t, k, "fixture-maya")
-	out, err := k.Issuer.Issue(context.Background(), &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{SessionId: maya}}, Audience: "documents", TtlSeconds: 3600,
+	out, err := k.Issuer.Issue(maya, &authorityv1.IssueRequest{
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents", TtlSeconds: 3600,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -392,7 +398,7 @@ func TestAnIssueNamesWhomItIsForAndItsAudience(t *testing.T) {
 	if _, err := k.Issuer.Issue(context.Background(), &authorityv1.IssueRequest{Audience: "documents"}); !errors.Is(err, issuer.ErrRefused) {
 		t.Fatalf("no owner: %v", err)
 	}
-	if _, err := k.Issuer.Issue(context.Background(), &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{SessionId: "x"}}}); !errors.Is(err, issuer.ErrRefused) {
+	if _, err := k.Issuer.Issue(context.Background(), &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}}); !errors.Is(err, issuer.ErrRefused) {
 		t.Fatalf("no audience: %v", err)
 	}
 }

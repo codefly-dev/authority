@@ -7,6 +7,7 @@ import (
 
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"github.com/codefly-dev/core/workcontext"
+	"github.com/codefly-dev/core/workloadidentity/native"
 
 	"gateway/pkg/business/state"
 	"gateway/pkg/business/testkit"
@@ -193,21 +194,26 @@ func TestInstallRefusesAnUnknownRoleAndAForeignOwner(t *testing.T) {
 	}
 }
 
-func TestWorkloadCredentialIsTheLaunchersWordAndNothingElse(t *testing.T) {
+func TestWorkloadCredentialIsTheLaunchersNativeOneAndNothingElse(t *testing.T) {
 	k := testkit.New(t)
-	good := state.WorkloadCredential(k.Launcher, "documents")
-	if m, err := k.State.VerifyWorkload(good); err != nil || m.Module != "documents" {
-		t.Fatalf("good credential: %v %+v", err, m)
+	ctx := context.Background()
+	if m, err := k.State.VerifyWorkload(ctx, k.Credential(t, "documents")); err != nil || m.Module != "documents" {
+		t.Fatalf("the launcher's credential for documents: %v %+v", err, m)
 	}
-	if _, err := k.State.VerifyWorkload(state.WorkloadCredential(k.Launcher, "ghost")); !errors.Is(err, state.ErrUnknown) {
-		t.Fatalf("uncomposed module: %v", err)
+	// A module the launcher never declared is refused by core's attester: the
+	// anchor vouches for declared subjects only.
+	if _, err := k.Launcher.Issue(native.Subject{Workload: testkit.Workload("ghost"), Container: "ghost"}, testkit.Audience); err == nil {
+		t.Fatal("the launcher issued for a process it never declared")
 	}
 	other := testkit.New(t)
-	if _, err := k.State.VerifyWorkload(state.WorkloadCredential(other.Launcher, "documents")); !errors.Is(err, state.ErrForbidden) {
-		t.Fatalf("another launcher's key: %v", err)
+	if _, err := k.State.VerifyWorkload(ctx, other.Credential(t, "documents")); !errors.Is(err, state.ErrForbidden) {
+		t.Fatalf("another launcher's credential: %v", err)
 	}
-	if _, err := k.State.VerifyWorkload("garbage"); !errors.Is(err, state.ErrForbidden) {
+	if _, err := k.State.VerifyWorkload(ctx, "garbage"); !errors.Is(err, state.ErrForbidden) {
 		t.Fatalf("garbage: %v", err)
+	}
+	if _, err := k.State.VerifyWorkload(ctx, k.Credential(t, "wiki")); err != nil {
+		t.Fatalf("a declared, composed solution process: %v", err)
 	}
 }
 

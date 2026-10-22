@@ -13,6 +13,8 @@ import (
 	"time"
 
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	"github.com/codefly-dev/core/workloadidentity"
+	"github.com/codefly-dev/core/workloadidentity/native"
 
 	"gateway/pkg/business/issuer"
 	"gateway/pkg/business/state"
@@ -22,8 +24,26 @@ import (
 type Kit struct {
 	State    *state.State
 	Issuer   *issuer.Issuer
-	Launcher ed25519.PrivateKey
+	Launcher *native.Issuer // the run's launcher, as the CLI is one
 	Now      time.Time
+}
+
+// Audience is the name the launcher issues credentials to: this host.
+const Audience = "https://authority.local.test"
+
+// Workload is the process the launcher started for a module, as it declares it.
+func Workload(module string) workloadidentity.Workload {
+	return workloadidentity.Workload{TrustDomain: "local.test", Module: module, Service: module, Instance: module + "-1"}
+}
+
+// Credential is what the launcher signed for one module's process.
+func (k *Kit) Credential(t *testing.T, module string) string {
+	t.Helper()
+	token, err := k.Launcher.Issue(native.Subject{Workload: Workload(module), Container: module}, Audience)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return token
 }
 
 // Scope builds one scope.
@@ -83,16 +103,24 @@ func FixturePath() string {
 // New composes documents, model and the fixture, then installs the wiki from it.
 func New(t *testing.T) *Kit {
 	t.Helper()
-	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	launcher, err := native.NewIssuer()
 	if err != nil {
 		t.Fatal(err)
+	}
+	// The launcher declares the processes it starts, one per module; its anchor
+	// vouches for exactly those.
+	for _, module := range []string{"model", "runtime", "records", "org-directory", "documents", "wiki"} {
+		launcher.Declare(Workload(module))
 	}
 	_, signing, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
 	now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
-	st := state.New(pub)
+	st, err := state.New(launcher.Anchor(), Audience)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, m := range []state.Manifest{Model(1), Runtime(1), Records(1), OrgDirectory(1), Documents(1), Wiki(1)} {
 		if _, err := st.ApplyManifest(m); err != nil {
 			t.Fatal(err)
@@ -107,6 +135,6 @@ func New(t *testing.T) *Kit {
 	if err := st.LoadFixture(context.Background(), data); err != nil {
 		t.Fatal(err)
 	}
-	return &Kit{State: st, Launcher: priv, Now: now,
-		Issuer: issuer.New(st, "https://authority.local.test", "local-1", signing, func() time.Time { return now })}
+	return &Kit{State: st, Launcher: launcher, Now: now,
+		Issuer: issuer.New(st, Audience, "local-1", signing, func() time.Time { return now })}
 }

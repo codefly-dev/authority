@@ -11,7 +11,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 
-	"gateway/pkg/business/state"
 	"gateway/pkg/business/testkit"
 	"gateway/pkg/conformance"
 	"gateway/pkg/framework"
@@ -44,7 +43,7 @@ func TestTheMiniGatewayPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
 	conformance.Run(t, conn, conformance.Fixture{
 		Organization: "acme", ViewerToken: "fixture-maya", AdminToken: "fixture-alex",
 		Audience: "documents", ReadKind: "documents",
-		WorkloadCredential: state.WorkloadCredential(k.Launcher, "documents"), Binding: "model", BindingAudience: "model",
+		WorkloadCredential: k.Credential(t, "documents"), Binding: "model", BindingAudience: "model",
 		InstalledSolution: "acme/wiki",
 	})
 }

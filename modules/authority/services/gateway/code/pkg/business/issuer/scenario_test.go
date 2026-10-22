@@ -22,8 +22,9 @@ import (
 func TestTheScenarioOneHopAtATime(t *testing.T) {
 	k := testkit.New(t)
 	ctx := context.Background()
-	documents := &authorityv1.WorkloadCredential{Credential: state.WorkloadCredential(k.Launcher, "documents")}
+	documents := &authorityv1.WorkloadCredential{Credential: k.Credential(t, "documents")}
 	var maya state.Session
+	var asMaya context.Context
 	var mayaAtDocuments string
 
 	t.Run("1 Maya signs in", func(t *testing.T) {
@@ -32,6 +33,7 @@ func TestTheScenarioOneHopAtATime(t *testing.T) {
 		if err != nil || maya.Organization != "acme" || maya.Teams[0] != "finance" {
 			t.Fatalf("Maya's session: %v %+v", err, maya)
 		}
+		asMaya = issuer.WithSession(ctx, maya.ID) // the bearer every call of hers carries
 		// Her session says who she is, not what she may do in documents.
 		if len(maya.Roles) != 1 || maya.Roles[0] != "viewer" {
 			t.Fatalf("roles = %v", maya.Roles)
@@ -50,8 +52,8 @@ func TestTheScenarioOneHopAtATime(t *testing.T) {
 	})
 
 	t.Run("3 the wiki reads a page body from documents on Maya's behalf", func(t *testing.T) {
-		out, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
-			As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{SessionId: maya.ID}},
+		out, err := k.Issuer.Issue(asMaya, &authorityv1.IssueRequest{
+			As:       &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}},
 			Audience: "documents", Scopes: scopes(testkit.Scope("documents", "read")),
 		})
 		if err != nil {
@@ -69,8 +71,8 @@ func TestTheScenarioOneHopAtATime(t *testing.T) {
 		mayaAtDocuments = out.GetToken()
 		// Refuses today: a role the solution cannot declare. Here the viewer role
 		// is declared in the fixture and write is refused by name.
-		_, err = k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
-			As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{SessionId: maya.ID}},
+		_, err = k.Issuer.Issue(asMaya, &authorityv1.IssueRequest{
+			As:       &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}},
 			Audience: "documents", Scopes: scopes(testkit.Scope("documents", "write")),
 		})
 		if !errors.Is(err, issuer.ErrRefused) {
@@ -162,8 +164,8 @@ func TestTheScenarioOneHopAtATime(t *testing.T) {
 		// Today a module page has no path to a records-audience token. Here the
 		// page is a module, Maya holds records read through her role, and the
 		// page asks for Maya at records: the module-for-a-person shape.
-		out, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
-			As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{SessionId: maya.ID}}, Audience: "records",
+		out, err := k.Issuer.Issue(asMaya, &authorityv1.IssueRequest{
+			As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "records",
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -178,8 +180,8 @@ func TestTheScenarioOneHopAtATime(t *testing.T) {
 		}
 		// Rémi, an editor, is also issued write on records; the UI follows the token.
 		remi, _ := k.State.SignIn("fixture-remi")
-		out, err = k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
-			As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{SessionId: remi.ID}}, Audience: "records",
+		out, err = k.Issuer.Issue(issuer.WithSession(ctx, remi.ID), &authorityv1.IssueRequest{
+			As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "records",
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -199,7 +201,7 @@ func TestTheScenarioOneHopAtATime(t *testing.T) {
 		if keys.GetIssuer() == "" || len(keys.GetKeys()) != 1 {
 			t.Fatalf("keys = %v", keys)
 		}
-		if _, err := k.State.VerifyWorkload(documents.GetCredential()); err != nil {
+		if _, err := k.State.VerifyWorkload(ctx, documents.GetCredential()); err != nil {
 			t.Fatalf("the launcher's word for documents: %v", err)
 		}
 		if _, err := k.Issuer.Check(ctx, workcontext.FixtureForeignToken(), "documents"); err == nil {

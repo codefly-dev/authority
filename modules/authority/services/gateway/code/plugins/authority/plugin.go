@@ -4,11 +4,13 @@ package authority
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/codefly-dev/core/workcontext"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"gateway/pkg/business/issuer"
@@ -36,8 +38,17 @@ func (p *Plugin) RegisterREST(context.Context, *runtime.ServeMux, string, []grpc
 // Migrations: none; the mini gateway holds state in memory.
 func (p *Plugin) Migrations() []string { return nil }
 
-// Issue signs for one owner shape.
+// Issue signs for one owner shape. A person-owned issue is the caller's own: the
+// bearer on the call is the session SignIn opened, and nothing in the request
+// names a person.
 func (p *Plugin) Issue(ctx context.Context, req *authorityv1.IssueRequest) (*authorityv1.IssueResponse, error) {
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		for _, value := range md.Get("authorization") {
+			if token, found := strings.CutPrefix(value, "Bearer "); found && token != "" {
+				ctx = issuer.WithSession(ctx, token)
+			}
+		}
+	}
 	out, err := p.Issuer.Issue(ctx, req)
 	return out, Status(err)
 }

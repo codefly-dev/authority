@@ -17,12 +17,26 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 
-	authorityv1 "gateway/pkg/gen/host/authority/v1"
 	"gateway/pkg/business/state"
+	authorityv1 "gateway/pkg/gen/host/authority/v1"
 )
 
 // MaxTTL is the ceiling every capability is clamped to.
 const MaxTTL = 15 * time.Minute
+
+type sessionKey struct{}
+
+// WithSession records the caller's own session on the context, as the transport
+// layer resolved it from the bearer the call carried. A person-owned Issue reads
+// nothing else about who is asking.
+func WithSession(ctx context.Context, sessionID string) context.Context {
+	return context.WithValue(ctx, sessionKey{}, sessionID)
+}
+
+func sessionOf(ctx context.Context) (string, bool) {
+	id, ok := ctx.Value(sessionKey{}).(string)
+	return id, ok && id != ""
+}
 
 // ErrRefused is the umbrella for a refusal the caller can do nothing about.
 var ErrRefused = errors.New("issuer: refused")
@@ -57,7 +71,7 @@ func (i *Issuer) Keys() *authorityv1.KeysResponse {
 func (i *Issuer) verifier(audience string) *workcontext.Verifier {
 	return &workcontext.Verifier{
 		Issuer: i.authority.Issuer, Audience: audience,
-		Keys: map[string]ed25519.PublicKey{i.authority.KeyID: i.public},
+		Keys:      map[string]ed25519.PublicKey{i.authority.KeyID: i.public},
 		Revisions: i.state, Replay: i.replay, Seals: i.state, Grants: i.state, Now: i.authority.Now,
 	}
 }
@@ -100,7 +114,11 @@ func (i *Issuer) Issue(ctx context.Context, req *authorityv1.IssueRequest) (*aut
 	var wc *basev0.WorkContextV1
 	switch as := req.GetAs().(type) {
 	case *authorityv1.IssueRequest_Person:
-		token, wc, err = i.forPerson(ctx, as.Person.GetSessionId(), audience, asked, ttl)
+		sessionID, ok := sessionOf(ctx)
+		if !ok {
+			return nil, fmt.Errorf("%w: a person-owned issue is made by a signed-in person; the call carries no session", ErrRefused)
+		}
+		token, wc, err = i.forPerson(ctx, sessionID, audience, asked, ttl)
 	case *authorityv1.IssueRequest_Workload:
 		token, wc, err = i.forWorkload(ctx, as.Workload.GetCredential(), req.GetOrganizationId(), req.GetOperationBindingId(), audience, asked, ttl)
 	case *authorityv1.IssueRequest_Installation:
@@ -147,7 +165,7 @@ func (i *Issuer) forPerson(ctx context.Context, sessionID string, audience state
 // forWorkload: owner = actor = the module; scopes = the binding's headless
 // scopes ∩ asked; the binding names the audience, so the request's must agree.
 func (i *Issuer) forWorkload(ctx context.Context, credential, org, bindingID string, audience state.Manifest, asked []*basev0.WorkScopeV1, ttl time.Duration) (string, *basev0.WorkContextV1, error) {
-	module, err := i.state.VerifyWorkload(credential)
+	module, err := i.state.VerifyWorkload(ctx, credential)
 	if err != nil {
 		return "", nil, err
 	}
@@ -208,7 +226,7 @@ func (i *Issuer) child(ctx context.Context, parent, actorCredential, bindingID s
 	if err != nil {
 		return "", nil, err
 	}
-	actor, err := i.state.VerifyWorkload(actorCredential)
+	actor, err := i.state.VerifyWorkload(ctx, actorCredential)
 	if err != nil {
 		return "", nil, fmt.Errorf("a child hop names the module acting: %w", err)
 	}

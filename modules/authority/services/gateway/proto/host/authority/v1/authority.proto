@@ -26,7 +26,8 @@ service AuthorityService {
 message IssueRequest {
   // Who the capability is for; exactly one.
   oneof as {
-    // A signed-in person, by the session the host opened for them.
+    // The signed-in person making this call, identified by the bearer the call
+    // carries; the host opened that session at sign-in.
     PersonSession person = 1;
     // A module's own workload, proving which module it is.
     WorkloadCredential workload = 2;
@@ -50,15 +51,19 @@ message IssueRequest {
   WorkloadCredential actor = 10;
 }
 
-// PersonSession identifies a signed-in person by their session.
+// PersonSession names the caller's own session. It carries no field: the person
+// is whoever the bearer on the call authenticates as, so a caller cannot ask for
+// another person's authority by naming a session.
 message PersonSession {
-  // The session id the host returned at sign-in.
-  string session_id = 1;
+  reserved 1;
+  reserved "session_id";
 }
 
-// WorkloadCredential proves which module a running process is.
+// WorkloadCredential proves which module a running process is: the native
+// launcher credential core's workloadidentity defines, signed by the one launcher
+// the host was handed an anchor for.
 message WorkloadCredential {
-  // The credential the launcher signed for this process.
+  // The launcher-signed credential, as core's native issuer writes it.
   string credential = 1;
 }
 

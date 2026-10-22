@@ -177,7 +177,8 @@ type isIssueRequest_As interface {
 }
 
 type IssueRequest_Person struct {
-	// A signed-in person, by the session the host opened for them.
+	// The signed-in person making this call, identified by the bearer the call
+	// carries; the host opened that session at sign-in.
 	Person *PersonSession `protobuf:"bytes,1,opt,name=person,proto3,oneof"`
 }
 
@@ -204,11 +205,11 @@ func (*IssueRequest_Installation) isIssueRequest_As() {}
 
 func (*IssueRequest_ParentToken) isIssueRequest_As() {}
 
-// PersonSession identifies a signed-in person by their session.
+// PersonSession names the caller's own session. It carries no field: the person
+// is whoever the bearer on the call authenticates as, so a caller cannot ask for
+// another person's authority by naming a session.
 type PersonSession struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// The session id the host returned at sign-in.
-	SessionId     string `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -243,17 +244,12 @@ func (*PersonSession) Descriptor() ([]byte, []int) {
 	return file_host_authority_v1_authority_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *PersonSession) GetSessionId() string {
-	if x != nil {
-		return x.SessionId
-	}
-	return ""
-}
-
-// WorkloadCredential proves which module a running process is.
+// WorkloadCredential proves which module a running process is: the native
+// launcher credential core's workloadidentity defines, signed by the one launcher
+// the host was handed an anchor for.
 type WorkloadCredential struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The credential the launcher signed for this process.
+	// The launcher-signed credential, as core's native issuer writes it.
 	Credential    string `protobuf:"bytes,1,opt,name=credential,proto3" json:"credential,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -690,10 +686,9 @@ const file_host_authority_v1_authority_proto_rawDesc = "" +
 	"\x0forganization_id\x18\t \x01(\tR\x0eorganizationId\x12;\n" +
 	"\x05actor\x18\n" +
 	" \x01(\v2%.host.authority.v1.WorkloadCredentialR\x05actorB\x04\n" +
-	"\x02as\".\n" +
-	"\rPersonSession\x12\x1d\n" +
-	"\n" +
-	"session_id\x18\x01 \x01(\tR\tsessionId\"4\n" +
+	"\x02as\"!\n" +
+	"\rPersonSessionJ\x04\b\x01\x10\x02R\n" +
+	"session_id\"4\n" +
 	"\x12WorkloadCredential\x12\x1e\n" +
 	"\n" +
 	"credential\x18\x01 \x01(\tR\n" +
