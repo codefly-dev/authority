@@ -1,8 +1,11 @@
 # authority
 
-**What we are doing.** Making it certain that the small gateway a developer runs
-on a laptop and the real gateway in the host implement the same authority
-contract, so a laptop refuses exactly where a cell refuses.
+**What we are doing.** Making the interface the mapping between local development
+and deployment. The small gateway a developer runs on a laptop and the host's
+accounts service implement the same declared contract, checked by the render and
+proven by one suite, so what passes on the laptop is what runs on the cell and
+what refuses on the laptop is what refuses on the cell. Without the interface
+that mapping is a hope; with it, it is a test.
 
 This repository holds two things, and only these two:
 
