@@ -295,3 +295,14 @@ is the handbook's `design/host-authority-interface.md`.
 Install. The mini gateway attests core's native launcher credential against the
 launcher's anchor; nothing of its own. The person shape is the caller's bearer;
 `PersonSession` is empty. See the handbook's audit sidecar for the reasoning.
+
+## Moved to codefly-dev (2026-10-22)
+
+The repository is `codefly-dev/authority`: the interface is the host's, published as
+`codefly.dev`, and the host may import from here (its naming gate refuses a
+consumer's organisation in an import path). GitHub redirects the old location.
+`libraries/authority-client/go` is the generated Go bindings library
+(`codefly generate client --no-facade`), importable as
+`github.com/codefly-dev/authority/libraries/authority-client/go`. The Python
+library did not generate: the client generator lacks the protovalidate dependency
+the Work Context messages import (reported on codefly-dev/cli#1107).

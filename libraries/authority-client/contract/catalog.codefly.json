@@ -1,0 +1,25 @@
+{
+  "schema": "codefly/module-api-contracts/v1",
+  "package": "local",
+  "version": "0.0.0",
+  "endpoints": [
+    {
+      "service": "gateway",
+      "endpoint": "grpc",
+      "api": "grpc",
+      "kind": "protobuf",
+      "package": "api",
+      "path": "contract.binpb",
+      "digest": "sha256:a2b9dfd3a8bc5214838efd07bdc332de37430d34848e366f00efaebda7a3fe30",
+      "services": [
+        {
+          "name": "GatewayService",
+          "fullName": "api.GatewayService",
+          "procedures": [
+            "/api.GatewayService/Version"
+          ]
+        }
+      ]
+    }
+  ]
+}

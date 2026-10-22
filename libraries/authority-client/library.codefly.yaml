@@ -1,0 +1,21 @@
+kind: library
+name: authority-client
+version: 0.0.0
+languages:
+    - name: go
+      path: go/
+      exports:
+        - github.com/codefly-dev/authority/libraries/authority-client/go
+sources:
+    - package: local
+      version: 0.0.0
+      module: authority
+      service: gateway
+      endpoint: grpc
+      contract-digest: sha256:a2b9dfd3a8bc5214838efd07bdc332de37430d34848e366f00efaebda7a3fe30
+      services:
+        - GatewayService
+generated-by:
+    codefly: 0.1.199
+    companion: ghcr.io/codefly-dev/proto:0.0.16
+    facade: false
