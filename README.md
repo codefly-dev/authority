@@ -238,3 +238,31 @@ staging validated.
    through the UI. The gaps that surface are filed against the branch.
 4. Only then: documents takes the generated client (rung 2), the wiki drops the
    runtime (rung 3), and the deletions.
+
+## Rung 1 status (2026-10-22)
+
+Branch `authority-interface` in the host repository, draft PR
+codefly-dev/module-saas-starter#1217. accounts declares `implements` for the four
+interfaces, carries the protos, states its own method policies for them in a
+sidecar (`business.InterfaceMethodPolicies`, read when a descriptor carries no
+host option), and serves Keys, Check, Issue by owner shape, List and SignIn as
+adapters over existing paths; workload Issue, ApplyManifest, Install and
+GrantToTeam refuse by name. `go build` and the policy tests pass. The suite has
+not run yet, because of what the branch found:
+
+| # | Gap in the host | Where |
+|---|---|---|
+| 1 | the service catalog assumes one proto package; four interfaces are four packages | `business/service_catalog.go:56-60,253` |
+| 2 | Connect bindings are keyed by short service name; `InstallationService` collides | `adapters/connect_bindings.yaml`, `cmd/connect-registration` |
+| 3 | workload-owned Issue is minted on the gateway's workload endpoint, not an accounts RPC | `/modules/_operation-context` |
+| 4 | ApplyManifest is signed delivery, not an RPC | `/platform/_delivery/manifest` |
+| 5 | Install/GrantToTeam need resolvers: target name → target id + agent identifier; role name → role id | installation service |
+| 6 | no exposure audit event is registered | `business/audit_registry.go` |
+| 7 | **the host's naming gate refuses the publisher name `obin` in 733 places** (the copied protos and everything generated from them) | `tools/naming-gate.mjs check` |
+
+Gap 7 is a decision, not a fix: a host repository that may not carry a consumer's
+name cannot carry an interface published as `obin.ai/...` with packages
+`obin.*.v1`. Either this interface is published under a neutral, host-owned
+namespace (and this repository publishes it so), or the host consumes it only as
+a render-time dependency and never carries the protos. The owner decides; nothing
+is allowlisted meanwhile.
