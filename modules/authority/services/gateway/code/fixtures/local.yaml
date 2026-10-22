@@ -7,11 +7,17 @@ roles:
     name: viewer
     scopes:
       - {kind: documents, actions: [read]}
+      - {kind: records.record, actions: [read]}
+      - {kind: records.type, actions: [read]}
+      - {kind: directory.entry, actions: [read]}
   - organization: acme
     name: editor
     scopes:
       - {kind: documents, actions: [read, write]}
       - {kind: documents.collection, actions: [read]}
+      - {kind: records.record, actions: [read, write]}
+      - {kind: records.type, actions: [read]}
+      - {kind: directory.entry, actions: [read, write]}
   - organization: acme
     name: admin
     scopes:

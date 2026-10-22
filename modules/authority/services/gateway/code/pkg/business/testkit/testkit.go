@@ -35,8 +35,12 @@ func Scope(kind string, actions ...string) *basev0.WorkScopeV1 {
 func Documents(generation uint64) state.Manifest {
 	return state.Manifest{Module: "documents", Principal: "documents", Kind: "module", Generation: generation,
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("documents", "read", "write", "ingest"), Scope("documents.collection", "read", "transfer", "admin")},
-		Bindings: map[string]state.Binding{"model": {ID: "model", Audience: "model",
-			InvokeScopes: []*basev0.WorkScopeV1{Scope("modelservice.profiles", "invoke", "read")}, HeadlessScopes: []*basev0.WorkScopeV1{Scope("modelservice.profiles", "invoke", "read")}}},
+		Bindings: map[string]state.Binding{
+			"model": {ID: "model", Audience: "model",
+				InvokeScopes: []*basev0.WorkScopeV1{Scope("modelservice.profiles", "invoke", "read")}, HeadlessScopes: []*basev0.WorkScopeV1{Scope("modelservice.profiles", "invoke", "read")}},
+			"runtime-admission": {ID: "runtime-admission", Audience: "runtime",
+				InvokeScopes: []*basev0.WorkScopeV1{Scope("runtime.task", "admit", "read")}, HeadlessScopes: []*basev0.WorkScopeV1{Scope("runtime.task", "read")}},
+		},
 	}
 }
 
@@ -44,6 +48,24 @@ func Documents(generation uint64) state.Manifest {
 func Model(generation uint64) state.Manifest {
 	return state.Manifest{Module: "model", Principal: "model", Kind: "module", Generation: generation,
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("modelservice.profiles", "invoke", "read", "admin")}}
+}
+
+// Runtime is the module documents fans work out through.
+func Runtime(generation uint64) state.Manifest {
+	return state.Manifest{Module: "runtime", Principal: "runtime", Kind: "module", Generation: generation,
+		ResourceKinds: []*basev0.WorkScopeV1{Scope("runtime.task", "admit", "read")}}
+}
+
+// Records is the module the directory page reads.
+func Records(generation uint64) state.Manifest {
+	return state.Manifest{Module: "records", Principal: "records", Kind: "module", Generation: generation,
+		ResourceKinds: []*basev0.WorkScopeV1{Scope("records.record", "read", "write"), Scope("records.type", "read")}}
+}
+
+// OrgDirectory is a module with a page and no bindings; it reads records for the viewer.
+func OrgDirectory(generation uint64) state.Manifest {
+	return state.Manifest{Module: "org-directory", Principal: "org-directory", Kind: "module", Generation: generation,
+		ResourceKinds: []*basev0.WorkScopeV1{Scope("directory.entry", "read", "write")}}
 }
 
 // Wiki is a solution.
@@ -71,7 +93,7 @@ func New(t *testing.T) *Kit {
 	}
 	now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
 	st := state.New(pub)
-	for _, m := range []state.Manifest{Model(1), Documents(1), Wiki(1)} {
+	for _, m := range []state.Manifest{Model(1), Runtime(1), Records(1), OrgDirectory(1), Documents(1), Wiki(1)} {
 		if _, err := st.ApplyManifest(m); err != nil {
 			t.Fatal(err)
 		}

@@ -83,8 +83,8 @@ func TestAManifestWithSomeBindingsIsNotAllOrNothing(t *testing.T) {
 	// granted and nothing else still gets its principal and that binding.
 	k := testkit.New(t)
 	m := testkit.Documents(2)
-	m.Bindings["runtime-admission"] = state.Binding{ID: "runtime-admission", Audience: "runtime",
-		InvokeScopes: []*basev0.WorkScopeV1{testkit.Scope("runtime.task", "admit")}}
+	m.Bindings["tracing"] = state.Binding{ID: "tracing", Audience: "tracing",
+		InvokeScopes: []*basev0.WorkScopeV1{testkit.Scope("trace.span", "write")}}
 	if _, err := k.State.ApplyManifest(m); err != nil {
 		t.Fatal(err)
 	}

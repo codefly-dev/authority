@@ -43,7 +43,22 @@ that satisfies them on a laptop, fixture included.
    2026-10-21: nothing of authority left in core, nothing of the host's model
    left in the CLI's launcher.
 
-**Tests (38, `go test ./...` under the service's `code/`).**
+**Tests (47, `go test ./...` under the service's `code/`).** They use the
+primer's cast and its cases, nothing invented: Acme; Maya on Finance, a viewer;
+Rémi the engineer, an editor; Alex the administrator; the wiki; documents, model,
+runtime, records and the org-directory page.
+
+- `pkg/business/issuer/scenario_test.go`: the primer's section 4, one hop at a
+  time. 1 Maya signs in. 2 The wiki is her navigation and not Rémi's. 3 The wiki
+  reads documents for her: owner = actor = Maya, scopes = roles ∩ ceiling, sealed
+  to documents at Acme, write refused by name. 4 documents embeds through model
+  for itself under its binding; `modelservice` is refused as not composed; the
+  second binding the envelope forgot this week is simply there. 5 A 60-second
+  child for the runtime, actor documents, nothing widened. 6 The wiki reconciles
+  overnight as its installation; uninstalled at 10:00, its 09:58 token is refused.
+  7 Maya opens the directory page and is issued records read; Rémi gets write; the
+  UI follows the token. 8 All of it ran with no accounts service, no store, no
+  envelope, no anchor.
 
 - `pkg/business/issuer`: every core conformance fixture round-trips through our
   `WorkContextV1` byte for byte and every descriptor names the same fields and
@@ -67,12 +82,16 @@ that satisfies them on a laptop, fixture included.
   clients, asserting gRPC codes and that every refusal names its reason. The host
   runs the same suite against accounts in step 3.
 
-**Agent gaps (2026-10-21), to file.** The go-grpc agent (0.1.58) generates
-adapters for `proto/api.proto`'s service only, and its plugin registry template
-always returns nil, so `plugins/plugins.yaml` is declared but not rendered. The
-four plugins implement the agent's own `framework.Plugin` and are wired in the
-tests; serving them from the agent's server is the agent's work, not a hand edit
-of `registry_gen.go`.
+**CLI and agent gaps (2026-10-21), to file.** The go-grpc agent (0.1.58)
+generates adapters for `proto/api.proto`'s service only, and its plugin registry
+template always returns nil, so `plugins/plugins.yaml` is declared but not
+rendered; the four plugins implement the agent's own `framework.Plugin` and are
+wired in the tests, and serving them from the agent's server is the agent's work,
+not a hand edit of `registry_gen.go`. `codefly generate client --from
+authority/gateway/grpc --language go,python` writes two Go packages (`api` from
+the scaffold's proto, `authority` from ours) into one facade directory and fails
+its own build; the Go and Python clients that would replace the solution SDK wait
+on that fix.
 
 **Where the thinking is.** The Platform Authority Primer (decisions 6 and 7) and the
 handbook proposal that will carry them. Run it with `codefly run` from the module.

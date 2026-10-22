@@ -300,7 +300,7 @@ func TestAWorkloadIsIssuedItsBindingsHeadlessScopesForTheBindingsAudience(t *tes
 		want error
 		text string
 	}{
-		{"undeclared binding", &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Workload{Workload: &authorityv1.WorkloadCredential{Credential: cred}}, Audience: "model", OrganizationId: "acme", OperationBindingId: "runtime-admission"}, workcontext.ErrNoBinding, `no binding "runtime-admission"`},
+		{"undeclared binding", &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Workload{Workload: &authorityv1.WorkloadCredential{Credential: cred}}, Audience: "model", OrganizationId: "acme", OperationBindingId: "tracing"}, workcontext.ErrNoBinding, `no binding "tracing"`},
 		{"binding addressed elsewhere", &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Workload{Workload: &authorityv1.WorkloadCredential{Credential: cred}}, Audience: "documents", OrganizationId: "acme", OperationBindingId: "model"}, issuer.ErrRefused, "addressed to model"},
 		{"beyond headless", &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Workload{Workload: &authorityv1.WorkloadCredential{Credential: cred}}, Audience: "model", OrganizationId: "acme", OperationBindingId: "model", Scopes: scopes(testkit.Scope("modelservice.profiles", "admin"))}, issuer.ErrRefused, "beyond"},
 		{"no organisation", &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Workload{Workload: &authorityv1.WorkloadCredential{Credential: cred}}, Audience: "model", OperationBindingId: "model"}, issuer.ErrRefused, "organization"},
