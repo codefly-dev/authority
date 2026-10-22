@@ -1,0 +1,44 @@
+# The mini gateway's fixture: who exists, what they hold, what is installed.
+organizations:
+  - id: acme
+    name: Acme
+roles:
+  - organization: acme
+    name: viewer
+    scopes:
+      - {kind: documents, actions: [read]}
+  - organization: acme
+    name: editor
+    scopes:
+      - {kind: documents, actions: [read, write]}
+      - {kind: documents.collection, actions: [read]}
+  - organization: acme
+    name: admin
+    scopes:
+      - {kind: documents, actions: [read, write, ingest]}
+      - {kind: documents.collection, actions: [read, transfer, admin]}
+people:
+  - id: maya
+    email: maya@acme.test
+    fixture_token: fixture-maya
+    organization: acme
+    roles: [viewer]
+    teams: [finance]
+  - id: remi
+    email: remi@acme.test
+    fixture_token: fixture-remi
+    organization: acme
+    roles: [editor]
+    teams: [engineering]
+  - id: alex
+    email: alex@acme.test
+    fixture_token: fixture-alex
+    organization: acme
+    roles: [admin]
+    teams: [finance, engineering]
+installations:
+  - organization: acme
+    target: wiki
+    role: viewer
+    owner: alex
+    teams: [finance]

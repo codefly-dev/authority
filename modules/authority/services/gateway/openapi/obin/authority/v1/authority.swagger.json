@@ -1,0 +1,50 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "obin/authority/v1/authority.proto",
+    "description": "The authority interface: what a module or solution calls on its host to be\nissued a Work Context, to have one checked, and to learn the keys it was\nsigned with. Three operations. Every former spelling (start task, start\ninstallation task, exchange audience, start child, renew, the module broker's\nmints) is Issue with a different `as`.",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "AuthorityService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {},
+  "definitions": {
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    }
+  }
+}

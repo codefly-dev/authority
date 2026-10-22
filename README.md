@@ -26,28 +26,53 @@ It is a profile of the host, not a reimplementation. If a package of `accounts`
 cannot be linked without its store, the package is split in the host; nothing is
 copied here.
 
+**What this repo is, in one line.** The interfaces the host's saas component
+MUST satisfy, with the suite that proves it, and the development implementation
+that satisfies them on a laptop, fixture included.
+
 **Order of work.**
 
-1. Declare the interface and give it its proto, taken from core (the Work Context
-   types) and from the host (the two services), with every message, field and
-   field number unchanged; only the package is `obin.authority.v1`. Done; `buf
-   build` passes under `interfaces/authority/proto`.
-2. Build the mini gateway against it, with the conformance kit as a required test.
-3. Point the host and the SDKs at this package and delete the copies in
-   `codefly-dev/core` and the host, in that order, the fixtures proving identical
-   bytes at each step. Nine Go modules import core's authority packages today;
-   none moves before the mini gateway proves the interface.
+1. Declare the interfaces and give them their protos, reduced to the six duties
+   (done; `interfaces/`, `modules/authority/services/gateway/proto/obin/*/v1`).
+2. Build the mini gateway against them with the suite every implementation must
+   pass (done; `pkg/conformance`, run over gRPC in `plugins/registry_test`).
+3. Point the host and the SDKs at these packages; run `pkg/conformance` against
+   accounts; delete the copies in `codefly-dev/core` and the host, fixtures proving
+   identical bytes at each step.
+4. Then the major clean-up of `codefly-dev/core` and the CLI the owner named on
+   2026-10-21: nothing of authority left in core, nothing of the host's model
+   left in the CLI's launcher.
 
-**Agent gap (2026-10-21).** The go-grpc agent (0.1.58) generates its adapters for
-the single service in `proto/api.proto`; the interface's services in
-`proto/obin/authority/v1` get bindings from `codefly generate proto` but no adapter,
-so the gateway does not yet serve them. Wiring them by hand in `pkg/adapters` would
-be the local pipeline the development contract forbids. The fix is in the agent:
-generate adapters for every service under `proto/`, or for what the module's
-`interface.implements` names. Filed against the agent when the owner says so.
+**Tests (38, `go test ./...` under the service's `code/`).**
 
-Known lint debt: the four module-authority messages carry no doc comments, as they
-did not in the host; `buf lint` says so and the next change writes them here.
+- `pkg/business/issuer`: every core conformance fixture round-trips through our
+  `WorkContextV1` byte for byte and every descriptor names the same fields and
+  numbers; core's conformance kit passes through the verifier `Check` is built
+  on; a person is issued what her roles hold and no more; an uncomposed audience
+  is refused by name (this week's `modelservice` typo); a check refuses another
+  audience and a tampered token; an uninstall refuses an outstanding token on the
+  next check; an installation acts for itself within its role; a pending
+  installation is issued nothing; a workload is issued its binding's headless
+  scopes and refused an undeclared binding, a binding addressed elsewhere, a
+  widened scope, a forged credential; a child hop attenuates and names its actor;
+  `Keys` lets an independent core verifier check what was issued; TTL clamps.
+- `pkg/business/state`: the fixture installs through the real path; entitlement
+  is the navigation; module installations exist per organisation without a click;
+  a manifest moves only forward; a manifest with some bindings is NOT all or
+  nothing; headless may not exceed invoke; one principal per module; the seal
+  answers only for an active installation and a known principal; the revision
+  moves on every grant change; the install step runs and stays pending until it
+  converges; workload credentials are the launcher's word and nothing else.
+- `pkg/conformance`: the interface-level suite, driven only through the generated
+  clients, asserting gRPC codes and that every refusal names its reason. The host
+  runs the same suite against accounts in step 3.
+
+**Agent gaps (2026-10-21), to file.** The go-grpc agent (0.1.58) generates
+adapters for `proto/api.proto`'s service only, and its plugin registry template
+always returns nil, so `plugins/plugins.yaml` is declared but not rendered. The
+four plugins implement the agent's own `framework.Plugin` and are wired in the
+tests; serving them from the agent's server is the agent's work, not a hand edit
+of `registry_gen.go`.
 
 **Where the thinking is.** The Platform Authority Primer (decisions 6 and 7) and the
 handbook proposal that will carry them. Run it with `codefly run` from the module.

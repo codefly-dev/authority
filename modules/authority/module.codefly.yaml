@@ -1,10 +1,16 @@
 kind: module
 name: authority
+# The gateway's grpc endpoint serves the four host interfaces declared under
+# interfaces/. accounts in the host implements the same identities; a consumer
+# depends on an interface, never on either service.
 interface:
     endpoints:
         - service: gateway
           endpoint: grpc
           implements:
-            - obin.ai/authority@0.1.0
+              - obin.ai/authority@0.1.0
+              - obin.ai/composition@0.1.0
+              - obin.ai/installation@0.1.0
+              - obin.ai/session@0.1.0
 services:
     - name: gateway

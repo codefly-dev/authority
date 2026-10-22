@@ -1,0 +1,11 @@
+kind: interface
+publisher: obin.ai
+name: installable
+description: What a solution implements so the host can run its install step once per installation.
+version: 0.1.0
+type: connect
+protobuf:
+    package: obin.installation.v1
+    services:
+        - name: InstallableService
+          methods: [Install]

@@ -28,5 +28,6 @@ https://github.com/obin-ai/handbook/blob/main/getting-started/development.md:
    `interfaces/`) is proposed in the handbook first.
 5. Prove reuse before you build; the simplest thing that works; ~500 hand-written
    lines per change, stop and ask past 2,000.
-6. The conformance kit is a required test. A change that passes here and fails
+6. `pkg/conformance` is the suite every implementation must pass, and core's
+   conformance kit is a required test. A change that passes here and fails
    against `accounts` is a bug here.

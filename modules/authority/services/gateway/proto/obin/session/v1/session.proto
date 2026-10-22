@@ -1,0 +1,33 @@
+syntax = "proto3";
+// The session interface, at the browser edge only: a person signs in and the
+// host opens a session. The mini gateway signs in fixture people; the host signs
+// in real ones. A module never calls this.
+package obin.session.v1;
+
+option go_package = "gateway/pkg/gen/obin/session/v1;sessionv1";
+
+// SessionService opens sessions.
+service SessionService {
+  // SignIn opens a session for a fixture person by their fixture token.
+  rpc SignIn(SignInRequest) returns (Session);
+}
+
+// SignInRequest presents a fixture token.
+message SignInRequest {
+  // The person's fixture token.
+  string fixture_token = 1;
+}
+
+// Session is an open session.
+message Session {
+  // The session id a person-owned Issue names.
+  string session_id = 1;
+  // The person.
+  string person_id = 2;
+  // The organisation signed into.
+  string organization_id = 3;
+  // The roles held in it.
+  repeated string roles = 4;
+  // The teams belonged to.
+  repeated string team_ids = 5;
+}
