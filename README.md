@@ -275,3 +275,18 @@ for its vendored core files, and ours would vanish into it. Message bytes are
 unchanged (field numbers are); only RPC paths and import paths moved, and nobody
 called them yet. The repository may stay in the consumer's organisation: a gate
 scans files, not URLs. This closes gap 7 of rung 1.
+
+## The transition, mapped (2026-10-22)
+
+**Invariant:** one declared interface and one suite on both sides from phase 0 on,
+so local development to deployment is correct by construction. Phases: 0 now
+(interfaces, mini gateway, host adapters on a branch; protos and policy exist
+twice, knowingly); 1 rung 1 done (suite green against accounts, refusing adapters
+made real, suite and credential and person shape corrected, digest check on the
+copied protos); 2 the wiki against the branch; 3 rungs 2 and 3 (agent and CLI
+gaps closed, documents on the generated client, the wiki without the runtime);
+4 one source (CLI generates from the published interface; one policy source; the
+copies, the envelope, the audience keys and the CLI's cluster path deleted); 5 the
+clean-up (core loses its authority packages, solution-runtime-go deleted).
+Deletions only in 4 and 5, each behind a green suite and staging. The full table
+is the handbook's `design/host-authority-interface.md`.
