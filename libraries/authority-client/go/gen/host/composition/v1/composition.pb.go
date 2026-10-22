@@ -31,8 +31,20 @@ const (
 // ApplyManifestRequest carries the manifest.
 type ApplyManifestRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The manifest the render produced.
-	Manifest      *ModuleManifestV1 `protobuf:"bytes,1,opt,name=manifest,proto3" json:"manifest,omitempty"`
+	// The sketch of a manifest, kept through the transition. An implementation
+	// that verifies deliveries ignores it when a carrier is present.
+	Manifest *ModuleManifestV1 `protobuf:"bytes,1,opt,name=manifest,proto3" json:"manifest,omitempty"`
+	// The delivery as Codefly signs it: core's module manifest and the DSSE
+	// envelope over it. An implementation verifies the envelope against the release
+	// keys it pins and reads the manifest from the verified document, never from
+	// the request, so what composes a module is the same signed document on the
+	// mini gateway and on the host.
+	Carrier *SignedManifestV1 `protobuf:"bytes,2,opt,name=carrier,proto3" json:"carrier,omitempty"`
+	// The credential of the workload delivering the manifest, as that
+	// implementation attests workloads: the launcher's on the mini gateway, the
+	// delivery service account's on the host. A manifest is delivered by its own
+	// module's delivery workload and by nothing else.
+	Credential    string `protobuf:"bytes,3,opt,name=credential,proto3" json:"credential,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -74,6 +86,74 @@ func (x *ApplyManifestRequest) GetManifest() *ModuleManifestV1 {
 	return nil
 }
 
+func (x *ApplyManifestRequest) GetCarrier() *SignedManifestV1 {
+	if x != nil {
+		return x.Carrier
+	}
+	return nil
+}
+
+func (x *ApplyManifestRequest) GetCredential() string {
+	if x != nil {
+		return x.Credential
+	}
+	return ""
+}
+
+// SignedManifestV1 is core's signed carrier: the manifest document (JSON) and
+// the DSSE envelope whose payload is that document.
+type SignedManifestV1 struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Document      []byte                 `protobuf:"bytes,1,opt,name=document,proto3" json:"document,omitempty"`
+	Envelope      []byte                 `protobuf:"bytes,2,opt,name=envelope,proto3" json:"envelope,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SignedManifestV1) Reset() {
+	*x = SignedManifestV1{}
+	mi := &file_host_composition_v1_composition_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SignedManifestV1) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SignedManifestV1) ProtoMessage() {}
+
+func (x *SignedManifestV1) ProtoReflect() protoreflect.Message {
+	mi := &file_host_composition_v1_composition_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SignedManifestV1.ProtoReflect.Descriptor instead.
+func (*SignedManifestV1) Descriptor() ([]byte, []int) {
+	return file_host_composition_v1_composition_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *SignedManifestV1) GetDocument() []byte {
+	if x != nil {
+		return x.Document
+	}
+	return nil
+}
+
+func (x *SignedManifestV1) GetEnvelope() []byte {
+	if x != nil {
+		return x.Envelope
+	}
+	return nil
+}
+
 // ApplyManifestResponse says what the host derived.
 type ApplyManifestResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -89,7 +169,7 @@ type ApplyManifestResponse struct {
 
 func (x *ApplyManifestResponse) Reset() {
 	*x = ApplyManifestResponse{}
-	mi := &file_host_composition_v1_composition_proto_msgTypes[1]
+	mi := &file_host_composition_v1_composition_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -101,7 +181,7 @@ func (x *ApplyManifestResponse) String() string {
 func (*ApplyManifestResponse) ProtoMessage() {}
 
 func (x *ApplyManifestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_host_composition_v1_composition_proto_msgTypes[1]
+	mi := &file_host_composition_v1_composition_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -114,7 +194,7 @@ func (x *ApplyManifestResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyManifestResponse.ProtoReflect.Descriptor instead.
 func (*ApplyManifestResponse) Descriptor() ([]byte, []int) {
-	return file_host_composition_v1_composition_proto_rawDescGZIP(), []int{1}
+	return file_host_composition_v1_composition_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ApplyManifestResponse) GetPrincipal() string {
@@ -161,7 +241,7 @@ type ModuleManifestV1 struct {
 
 func (x *ModuleManifestV1) Reset() {
 	*x = ModuleManifestV1{}
-	mi := &file_host_composition_v1_composition_proto_msgTypes[2]
+	mi := &file_host_composition_v1_composition_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -173,7 +253,7 @@ func (x *ModuleManifestV1) String() string {
 func (*ModuleManifestV1) ProtoMessage() {}
 
 func (x *ModuleManifestV1) ProtoReflect() protoreflect.Message {
-	mi := &file_host_composition_v1_composition_proto_msgTypes[2]
+	mi := &file_host_composition_v1_composition_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -186,7 +266,7 @@ func (x *ModuleManifestV1) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ModuleManifestV1.ProtoReflect.Descriptor instead.
 func (*ModuleManifestV1) Descriptor() ([]byte, []int) {
-	return file_host_composition_v1_composition_proto_rawDescGZIP(), []int{2}
+	return file_host_composition_v1_composition_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ModuleManifestV1) GetModule() string {
@@ -255,7 +335,7 @@ type BindingV1 struct {
 
 func (x *BindingV1) Reset() {
 	*x = BindingV1{}
-	mi := &file_host_composition_v1_composition_proto_msgTypes[3]
+	mi := &file_host_composition_v1_composition_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -267,7 +347,7 @@ func (x *BindingV1) String() string {
 func (*BindingV1) ProtoMessage() {}
 
 func (x *BindingV1) ProtoReflect() protoreflect.Message {
-	mi := &file_host_composition_v1_composition_proto_msgTypes[3]
+	mi := &file_host_composition_v1_composition_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -280,7 +360,7 @@ func (x *BindingV1) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BindingV1.ProtoReflect.Descriptor instead.
 func (*BindingV1) Descriptor() ([]byte, []int) {
-	return file_host_composition_v1_composition_proto_rawDescGZIP(), []int{3}
+	return file_host_composition_v1_composition_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *BindingV1) GetId() string {
@@ -324,7 +404,7 @@ type ResourceKindV1 struct {
 
 func (x *ResourceKindV1) Reset() {
 	*x = ResourceKindV1{}
-	mi := &file_host_composition_v1_composition_proto_msgTypes[4]
+	mi := &file_host_composition_v1_composition_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -336,7 +416,7 @@ func (x *ResourceKindV1) String() string {
 func (*ResourceKindV1) ProtoMessage() {}
 
 func (x *ResourceKindV1) ProtoReflect() protoreflect.Message {
-	mi := &file_host_composition_v1_composition_proto_msgTypes[4]
+	mi := &file_host_composition_v1_composition_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -349,7 +429,7 @@ func (x *ResourceKindV1) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResourceKindV1.ProtoReflect.Descriptor instead.
 func (*ResourceKindV1) Descriptor() ([]byte, []int) {
-	return file_host_composition_v1_composition_proto_rawDescGZIP(), []int{4}
+	return file_host_composition_v1_composition_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ResourceKindV1) GetKind() string {
@@ -379,7 +459,7 @@ type PageV1 struct {
 
 func (x *PageV1) Reset() {
 	*x = PageV1{}
-	mi := &file_host_composition_v1_composition_proto_msgTypes[5]
+	mi := &file_host_composition_v1_composition_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -391,7 +471,7 @@ func (x *PageV1) String() string {
 func (*PageV1) ProtoMessage() {}
 
 func (x *PageV1) ProtoReflect() protoreflect.Message {
-	mi := &file_host_composition_v1_composition_proto_msgTypes[5]
+	mi := &file_host_composition_v1_composition_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -404,7 +484,7 @@ func (x *PageV1) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PageV1.ProtoReflect.Descriptor instead.
 func (*PageV1) Descriptor() ([]byte, []int) {
-	return file_host_composition_v1_composition_proto_rawDescGZIP(), []int{5}
+	return file_host_composition_v1_composition_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *PageV1) GetTitle() string {
@@ -425,9 +505,16 @@ var File_host_composition_v1_composition_proto protoreflect.FileDescriptor
 
 const file_host_composition_v1_composition_proto_rawDesc = "" +
 	"\n" +
-	"%host/composition/v1/composition.proto\x12\x13host.composition.v1\x1a$host/authority/v1/work_context.proto\"Y\n" +
+	"%host/composition/v1/composition.proto\x12\x13host.composition.v1\x1a$host/authority/v1/work_context.proto\"\xba\x01\n" +
 	"\x14ApplyManifestRequest\x12A\n" +
-	"\bmanifest\x18\x01 \x01(\v2%.host.composition.v1.ModuleManifestV1R\bmanifest\"\x80\x01\n" +
+	"\bmanifest\x18\x01 \x01(\v2%.host.composition.v1.ModuleManifestV1R\bmanifest\x12?\n" +
+	"\acarrier\x18\x02 \x01(\v2%.host.composition.v1.SignedManifestV1R\acarrier\x12\x1e\n" +
+	"\n" +
+	"credential\x18\x03 \x01(\tR\n" +
+	"credential\"J\n" +
+	"\x10SignedManifestV1\x12\x1a\n" +
+	"\bdocument\x18\x01 \x01(\fR\bdocument\x12\x1a\n" +
+	"\benvelope\x18\x02 \x01(\fR\benvelope\"\x80\x01\n" +
 	"\x15ApplyManifestResponse\x12\x1c\n" +
 	"\tprincipal\x18\x01 \x01(\tR\tprincipal\x12\x1e\n" +
 	"\n" +
@@ -471,30 +558,32 @@ func file_host_composition_v1_composition_proto_rawDescGZIP() []byte {
 	return file_host_composition_v1_composition_proto_rawDescData
 }
 
-var file_host_composition_v1_composition_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_host_composition_v1_composition_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_host_composition_v1_composition_proto_goTypes = []any{
 	(*ApplyManifestRequest)(nil),  // 0: host.composition.v1.ApplyManifestRequest
-	(*ApplyManifestResponse)(nil), // 1: host.composition.v1.ApplyManifestResponse
-	(*ModuleManifestV1)(nil),      // 2: host.composition.v1.ModuleManifestV1
-	(*BindingV1)(nil),             // 3: host.composition.v1.BindingV1
-	(*ResourceKindV1)(nil),        // 4: host.composition.v1.ResourceKindV1
-	(*PageV1)(nil),                // 5: host.composition.v1.PageV1
-	(*v1.WorkScopeV1)(nil),        // 6: host.authority.v1.WorkScopeV1
+	(*SignedManifestV1)(nil),      // 1: host.composition.v1.SignedManifestV1
+	(*ApplyManifestResponse)(nil), // 2: host.composition.v1.ApplyManifestResponse
+	(*ModuleManifestV1)(nil),      // 3: host.composition.v1.ModuleManifestV1
+	(*BindingV1)(nil),             // 4: host.composition.v1.BindingV1
+	(*ResourceKindV1)(nil),        // 5: host.composition.v1.ResourceKindV1
+	(*PageV1)(nil),                // 6: host.composition.v1.PageV1
+	(*v1.WorkScopeV1)(nil),        // 7: host.authority.v1.WorkScopeV1
 }
 var file_host_composition_v1_composition_proto_depIdxs = []int32{
-	2, // 0: host.composition.v1.ApplyManifestRequest.manifest:type_name -> host.composition.v1.ModuleManifestV1
-	3, // 1: host.composition.v1.ModuleManifestV1.bindings:type_name -> host.composition.v1.BindingV1
-	4, // 2: host.composition.v1.ModuleManifestV1.resource_kinds:type_name -> host.composition.v1.ResourceKindV1
-	5, // 3: host.composition.v1.ModuleManifestV1.page:type_name -> host.composition.v1.PageV1
-	6, // 4: host.composition.v1.BindingV1.invoke_scopes:type_name -> host.authority.v1.WorkScopeV1
-	6, // 5: host.composition.v1.BindingV1.headless_scopes:type_name -> host.authority.v1.WorkScopeV1
-	0, // 6: host.composition.v1.CompositionService.ApplyManifest:input_type -> host.composition.v1.ApplyManifestRequest
-	1, // 7: host.composition.v1.CompositionService.ApplyManifest:output_type -> host.composition.v1.ApplyManifestResponse
-	7, // [7:8] is the sub-list for method output_type
-	6, // [6:7] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	3, // 0: host.composition.v1.ApplyManifestRequest.manifest:type_name -> host.composition.v1.ModuleManifestV1
+	1, // 1: host.composition.v1.ApplyManifestRequest.carrier:type_name -> host.composition.v1.SignedManifestV1
+	4, // 2: host.composition.v1.ModuleManifestV1.bindings:type_name -> host.composition.v1.BindingV1
+	5, // 3: host.composition.v1.ModuleManifestV1.resource_kinds:type_name -> host.composition.v1.ResourceKindV1
+	6, // 4: host.composition.v1.ModuleManifestV1.page:type_name -> host.composition.v1.PageV1
+	7, // 5: host.composition.v1.BindingV1.invoke_scopes:type_name -> host.authority.v1.WorkScopeV1
+	7, // 6: host.composition.v1.BindingV1.headless_scopes:type_name -> host.authority.v1.WorkScopeV1
+	0, // 7: host.composition.v1.CompositionService.ApplyManifest:input_type -> host.composition.v1.ApplyManifestRequest
+	2, // 8: host.composition.v1.CompositionService.ApplyManifest:output_type -> host.composition.v1.ApplyManifestResponse
+	8, // [8:9] is the sub-list for method output_type
+	7, // [7:8] is the sub-list for method input_type
+	7, // [7:7] is the sub-list for extension type_name
+	7, // [7:7] is the sub-list for extension extendee
+	0, // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_host_composition_v1_composition_proto_init() }
@@ -508,7 +597,7 @@ func file_host_composition_v1_composition_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_host_composition_v1_composition_proto_rawDesc), len(file_host_composition_v1_composition_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

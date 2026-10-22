@@ -609,6 +609,10 @@ func Normalize(in []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 {
 }
 
 // Intersect keeps, per kind, the actions present in both.
+// AnyAction, on a module's declared resource kind, serves whatever actions the
+// roles grant on that kind: core's manifest names kinds and not actions.
+const AnyAction = "*"
+
 func Intersect(a, b []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 {
 	allowed := map[string]map[string]bool{}
 	for _, sc := range Normalize(b) {
@@ -621,7 +625,7 @@ func Intersect(a, b []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 {
 	for _, sc := range Normalize(a) {
 		var actions []string
 		for _, act := range sc.GetActions() {
-			if allowed[sc.GetResourceKind()][act] {
+			if allowed[sc.GetResourceKind()][act] || allowed[sc.GetResourceKind()][AnyAction] {
 				actions = append(actions, act)
 			}
 		}

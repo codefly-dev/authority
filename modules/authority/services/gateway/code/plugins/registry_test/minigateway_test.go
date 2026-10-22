@@ -26,7 +26,8 @@ import (
 func TestTheMiniGatewayPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
 	k := testkit.New(t)
 	plugins := []framework.Plugin{
-		&authority.Plugin{Issuer: k.Issuer}, &composition.Plugin{State: k.State},
+		&authority.Plugin{Issuer: k.Issuer},
+		&composition.Plugin{State: k.State, Verifier: testkit.ReleaseVerifier(t, "local"), Carrier: k.CarrierAuthority},
 		&installation.Plugin{State: k.State}, &session.Plugin{State: k.State},
 	}
 	server := grpc.NewServer()
@@ -55,5 +56,10 @@ func TestTheMiniGatewayPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
 		Audience: "records", ReadKind: "records.record",
 		WorkloadCredential: k.Credential(t, "org-directory"), Binding: "records", BindingAudience: "records", Elsewhere: "model",
 		InstalledSolution: "acme/wiki",
+		// Deliveries are signed with the kit's release key and carried by the
+		// module's own workload under the launcher.
+		HostCoordinate: "local", HostDomain: "local",
+		SignManifest:       testkit.SignDocument,
+		DeliveryCredential: func(module string) string { return k.Credential(t, module) },
 	})
 }

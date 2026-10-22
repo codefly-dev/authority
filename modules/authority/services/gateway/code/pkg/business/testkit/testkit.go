@@ -6,6 +6,10 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/pem"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -13,6 +17,7 @@ import (
 	"time"
 
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	"github.com/codefly-dev/core/solutionhost"
 	"github.com/codefly-dev/core/workloadidentity"
 	"github.com/codefly-dev/core/workloadidentity/native"
 
@@ -100,6 +105,63 @@ func Wiki(generation uint64) state.Manifest {
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("wiki.page", "read", "write")}}
 }
 
+// ReleaseKeyID names the release key the kit pins; its seed is fixed so a run
+// reproduces its signatures, and no deployed anchor ever pins it.
+const ReleaseKeyID = "mini-gateway-release"
+
+func releaseSigner() *solutionhost.InMemorySigner {
+	seed := sha256.Sum256([]byte("mini gateway release key: " + ReleaseKeyID))
+	signer, err := solutionhost.NewInMemorySigner(ReleaseKeyID, ed25519.NewKeyFromSeed(seed[:]))
+	if err != nil {
+		panic(err)
+	}
+	return signer
+}
+
+// ReleaseVerifier pins the kit's release key for the host domain.
+func ReleaseVerifier(t *testing.T, domain string) *solutionhost.Verifier {
+	t.Helper()
+	der, err := x509.MarshalPKIXPublicKey(releaseSigner().Public())
+	if err != nil {
+		t.Fatal(err)
+	}
+	pem := string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der}))
+	keys, err := solutionhost.NewPinnedKeySet(solutionhost.PinnedKey{KeyID: ReleaseKeyID, PublicKeyPEM: pem, Kind: solutionhost.KeyKindRelease, OwnershipDomains: []string{domain}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifier, err := solutionhost.NewVerifier(keys)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return verifier
+}
+
+// SignDocument signs a manifest document with the kit's release key: the DSSE
+// envelope a carrier pairs with the document.
+func SignDocument(document []byte) ([]byte, error) {
+	return solutionhost.SignEnvelope(document, releaseSigner())
+}
+
+// CarrierAuthority admits a credential as the named module's own workload under
+// the launcher: on a native run the module's process delivers its own manifest.
+// A module's first manifest arrives before it is composed, so the credential is
+// attested by the anchor alone and not by the composition.
+func (k *Kit) CarrierAuthority(ctx context.Context, credential, module string) error {
+	attester, err := native.NewAttester(k.Launcher.Anchor())
+	if err != nil {
+		return err
+	}
+	attested, err := attester.Attest(ctx, credential, Audience)
+	if err != nil {
+		return err
+	}
+	if attested.Workload.Module != module {
+		return fmt.Errorf("the carrier is %s, not %s", attested.Workload.Module, module)
+	}
+	return nil
+}
+
 // FixturePath is the committed fixture.
 func FixturePath() string {
 	_, file, _, _ := runtime.Caller(0)
@@ -115,7 +177,9 @@ func New(t *testing.T) *Kit {
 	}
 	// The launcher declares the processes it starts, one per module; its anchor
 	// vouches for exactly those.
-	for _, module := range []string{"model", "runtime", "records", "org-directory", "documents", "wiki"} {
+	// The two conformance modules are declared too: the suite delivers their
+	// manifests from their own workloads.
+	for _, module := range []string{"model", "runtime", "records", "org-directory", "documents", "wiki", "conformance-probe", "conformance-solution"} {
 		launcher.Declare(Workload(module))
 	}
 	_, signing, err := ed25519.GenerateKey(rand.Reader)

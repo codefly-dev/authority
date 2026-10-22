@@ -17,8 +17,27 @@ service CompositionService {
 
 // ApplyManifestRequest carries the manifest.
 message ApplyManifestRequest {
-  // The manifest the render produced.
+  // The sketch of a manifest, kept through the transition. An implementation
+  // that verifies deliveries ignores it when a carrier is present.
   ModuleManifestV1 manifest = 1;
+  // The delivery as Codefly signs it: core's module manifest and the DSSE
+  // envelope over it. An implementation verifies the envelope against the release
+  // keys it pins and reads the manifest from the verified document, never from
+  // the request, so what composes a module is the same signed document on the
+  // mini gateway and on the host.
+  SignedManifestV1 carrier = 2;
+  // The credential of the workload delivering the manifest, as that
+  // implementation attests workloads: the launcher's on the mini gateway, the
+  // delivery service account's on the host. A manifest is delivered by its own
+  // module's delivery workload and by nothing else.
+  string credential = 3;
+}
+
+// SignedManifestV1 is core's signed carrier: the manifest document (JSON) and
+// the DSSE envelope whose payload is that document.
+message SignedManifestV1 {
+  bytes document = 1;
+  bytes envelope = 2;
 }
 
 // ApplyManifestResponse says what the host derived.

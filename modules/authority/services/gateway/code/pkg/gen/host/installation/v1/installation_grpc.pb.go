@@ -40,7 +40,9 @@ type InstallationServiceClient interface {
 	Install(ctx context.Context, in *InstallRequest, opts ...grpc.CallOption) (*Installation, error)
 	// GrantToTeam exposes an installation to a team under the installation's role.
 	GrantToTeam(ctx context.Context, in *GrantToTeamRequest, opts ...grpc.CallOption) (*Installation, error)
-	// List answers what one organisation has installed.
+	// List answers what one organisation has installed: an administrator's read. A
+	// member's view, which installed solutions they may use, is their navigation and
+	// belongs to the entitlement read, not here.
 	List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error)
 }
 
@@ -93,7 +95,9 @@ type InstallationServiceServer interface {
 	Install(context.Context, *InstallRequest) (*Installation, error)
 	// GrantToTeam exposes an installation to a team under the installation's role.
 	GrantToTeam(context.Context, *GrantToTeamRequest) (*Installation, error)
-	// List answers what one organisation has installed.
+	// List answers what one organisation has installed: an administrator's read. A
+	// member's view, which installed solutions they may use, is their navigation and
+	// belongs to the entitlement read, not here.
 	List(context.Context, *ListRequest) (*ListResponse, error)
 	mustEmbedUnimplementedInstallationServiceServer()
 }

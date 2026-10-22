@@ -9,6 +9,7 @@ package conformance
 import (
 	"context"
 	"fmt"
+	"github.com/codefly-dev/core/solutionhost"
 	"strings"
 	"testing"
 
@@ -36,6 +37,45 @@ type Fixture struct {
 	BindingAudience    string // the audience Binding is addressed to; a hop exercising Binding is addressed here
 	Elsewhere          string // a composed audience the viewer's context at Audience is not addressed to
 	InstalledSolution  string // an active installation the viewer is entitled to
+
+	// A delivery, as Codefly signs it. When SignManifest is set the suite applies
+	// manifests as signed carriers: core's module manifest for HostCoordinate and
+	// HostDomain, signed by SignManifest, carried by DeliveryCredential(module).
+	// Nil applies the sketch, which the transition still allows.
+	HostCoordinate     string
+	HostDomain         string
+	SignManifest       func(document []byte) (envelope []byte, err error)
+	DeliveryCredential func(module string) string
+}
+
+// applyManifest composes one module at one generation, as a signed carrier when
+// the fixture signs, as the sketch otherwise.
+func (c *client) applyManifest(ctx context.Context, f Fixture, alias, kind string, generation uint64, kinds []string) (protoreflect.Message, error) {
+	if f.SignManifest == nil {
+		var rks []any
+		for _, k := range kinds {
+			rks = append(rks, map[string]any{"kind": k, "actions": []any{"read"}})
+		}
+		return c.call(ctx, "host.composition.v1.CompositionService", "ApplyManifest", map[string]any{"manifest": map[string]any{
+			"module": alias, "principal": alias, "kind": kind, "generation": generation, "resource_kinds": rks}})
+	}
+	manifest := &solutionhost.ModuleManifest{
+		Schema: solutionhost.SchemaModuleManifestV1, Binding: alias, Alias: alias, Kind: solutionhost.Kind(kind), Generation: generation,
+		Host:      solutionhost.HostTarget{Coordinate: f.HostCoordinate, Domain: f.HostDomain},
+		Release:   solutionhost.Release{Publisher: "conformance", Name: alias, Version: "0.1.0"},
+		Workloads: []solutionhost.Workload{{Service: "api", Container: "app"}},
+		Authority: &solutionhost.Authority{Principal: alias, ResourceKinds: kinds},
+	}
+	document, err := solutionhost.SignedPayload(manifest)
+	if err != nil {
+		return nil, err
+	}
+	envelope, err := f.SignManifest(document)
+	if err != nil {
+		return nil, err
+	}
+	return c.call(ctx, "host.composition.v1.CompositionService", "ApplyManifest", map[string]any{
+		"carrier": map[string]any{"document": document, "envelope": envelope}, "credential": f.DeliveryCredential(alias)})
 }
 
 // Run drives the suite over one connection, from the published descriptors.
@@ -180,18 +220,19 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		}
 	})
 	t.Run("a manifest moves only forward and a lower generation is refused by name", func(t *testing.T) {
-		m := map[string]any{"module": "conformance-probe", "principal": "conformance-probe", "kind": "module", "generation": uint64(2),
-			"resource_kinds": []any{map[string]any{"kind": "probe", "actions": []any{"read"}}}}
-		c.must(t, ctx, "host.composition.v1.CompositionService", "ApplyManifest", map[string]any{"manifest": m})
-		m["generation"] = uint64(1)
-		_, err := c.call(ctx, "host.composition.v1.CompositionService", "ApplyManifest", map[string]any{"manifest": m})
+		if _, err := c.applyManifest(ctx, f, "conformance-probe", "module", 2, []string{"probe"}); err != nil {
+			t.Fatalf("apply: %v", err)
+		}
+		_, err := c.applyManifest(ctx, f, "conformance-probe", "module", 1, []string{"probe"})
 		if status.Code(err) != codes.FailedPrecondition {
 			t.Fatalf("lower generation: %v", err)
 		}
 	})
 	t.Run("install is pending until acknowledged, then exposed to a team", func(t *testing.T) {
 		admin := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.AdminToken})
-		c.must(t, ctx, "host.composition.v1.CompositionService", "ApplyManifest", map[string]any{"manifest": map[string]any{"module": "conformance-solution", "principal": "conformance-solution", "kind": "solution", "generation": uint64(1)}})
+		if _, err := c.applyManifest(ctx, f, "conformance-solution", "solution", 1, []string{"conformance.page"}); err != nil {
+			t.Fatalf("apply solution: %v", err)
+		}
 		install := map[string]any{"organization_id": f.Organization, "target": "conformance-solution", "role": "viewer", "owner_person_id": str(admin, "person_id")}
 		inst := c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "Install", install)
 		if st := enumName(inst, "status"); st != "STATUS_PENDING" && st != "STATUS_ACTIVE" {
@@ -320,6 +361,8 @@ func scalar(fd protoreflect.FieldDescriptor, value any, fresh func() protoreflec
 		return v, nil
 	case protoreflect.StringKind:
 		return protoreflect.ValueOfString(value.(string)), nil
+	case protoreflect.BytesKind:
+		return protoreflect.ValueOfBytes(value.([]byte)), nil
 	case protoreflect.Uint64Kind:
 		return protoreflect.ValueOfUint64(value.(uint64)), nil
 	case protoreflect.Int64Kind:

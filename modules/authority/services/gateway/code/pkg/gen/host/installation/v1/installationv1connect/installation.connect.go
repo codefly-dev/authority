@@ -60,7 +60,9 @@ type InstallationServiceClient interface {
 	Install(context.Context, *connect.Request[v1.InstallRequest]) (*connect.Response[v1.Installation], error)
 	// GrantToTeam exposes an installation to a team under the installation's role.
 	GrantToTeam(context.Context, *connect.Request[v1.GrantToTeamRequest]) (*connect.Response[v1.Installation], error)
-	// List answers what one organisation has installed.
+	// List answers what one organisation has installed: an administrator's read. A
+	// member's view, which installed solutions they may use, is their navigation and
+	// belongs to the entitlement read, not here.
 	List(context.Context, *connect.Request[v1.ListRequest]) (*connect.Response[v1.ListResponse], error)
 }
 
@@ -126,7 +128,9 @@ type InstallationServiceHandler interface {
 	Install(context.Context, *connect.Request[v1.InstallRequest]) (*connect.Response[v1.Installation], error)
 	// GrantToTeam exposes an installation to a team under the installation's role.
 	GrantToTeam(context.Context, *connect.Request[v1.GrantToTeamRequest]) (*connect.Response[v1.Installation], error)
-	// List answers what one organisation has installed.
+	// List answers what one organisation has installed: an administrator's read. A
+	// member's view, which installed solutions they may use, is their navigation and
+	// belongs to the entitlement read, not here.
 	List(context.Context, *connect.Request[v1.ListRequest]) (*connect.Response[v1.ListResponse], error)
 }
 

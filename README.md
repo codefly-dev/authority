@@ -332,3 +332,12 @@ the Work Context messages import (reported on codefly-dev/cli#1107).
   request. Either core lets a hop name a binding held in the exercising
   principal's installation, or bindings are recorded within the audience's
   installation; the suite states the hop's binding once one of these is taken.
+- **What ApplyManifest carries (decided 2026-10-22).** The signed carrier:
+  core's module manifest and the DSSE envelope over it, plus the delivering
+  workload's credential (`SignedManifestV1`, `ApplyManifestRequest.carrier` and
+  `.credential`). Each implementation verifies the envelope against the release
+  keys it pins and reads the manifest from the verified document. The mini
+  gateway pins the kit's release key and attests the carrier by the launcher's
+  anchor; the host pins its release keys and attests the delivery service
+  account. The sketch (`manifest`) stays through the transition and is ignored
+  when a carrier is present. Not yet done: the host adapter behind it.
