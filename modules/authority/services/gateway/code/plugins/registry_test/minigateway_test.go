@@ -44,7 +44,7 @@ func TestTheMiniGatewayPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = conn.Close() })
 	_, file, _, _ := runtime.Caller(0)
-	descriptors, err := os.ReadFile(filepath.Join(filepath.Dir(file), "..", "..", "..", "..", "..", "..", "libraries", "authority-client", "contract", "contract.binpb"))
+	descriptors, err := os.ReadFile(filepath.Join(filepath.Dir(file), "..", "..", "..", "..", "..", "..", "..", "libraries", "authority-client", "contract", "contract.binpb"))
 	if err != nil {
 		t.Fatal(err)
 	}
