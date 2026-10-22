@@ -171,3 +171,28 @@ the install step callback. Sign-in at the browser edge only. Routing is the data
 plane, not a contract. 0.1.0 mirrors today's spellings so the mini gateway serves
 the SDKs as they are; the reduced shape is 0.2.0, a host contract change through a
 handbook proposal, after which the SDKs move once.
+
+## Audit: is solution-runtime-go still needed? (2026-10-21, v0.0.15)
+
+8,342 non-test lines; the six solutions in core-solutions use: `Consumes`,
+`ConsumedModule`, `ConsumedMethod`, `Transcoded` (passthrough of module operations
+to the page with the viewer's Work Context, because a module route refuses the
+browser's bearer); `Contract` and the contract artifacts; `FieldMask`/`Apply`;
+`Handle`/`Serve`; `OrgID`; `ClientError`; `ForModule` twice.
+
+| Runtime part | Lines (approx.) | Where it belongs |
+|---|---|---|
+| execution credential, broker, scoped credential, mint errors | 2,400 | the `obin.ai/authority` interface, generated client |
+| passthrough, transcode, stream, protowire | 5,000 with tests | nowhere: when a module route carries the viewer's Work Context (primer decision 4) the page calls the module through the gateway and nothing passes through |
+| contract, operations, interface artifacts | 1,200 | the CLI (`codefly generate contracts`, cli#1094) |
+| listener, health, CORS, assets, config | in `solution.go` | the service agent, as for every service |
+| install step | 300 | the generated `installable` server |
+| MCP server + protected-resource metadata | 1,500 | the MCP library plus one middleware: stamped viewer → `Issue` |
+| field masks, viewer-from-request, client errors | a few hundred | a small library, or the generated client's facade |
+
+**Verdict: not as a runtime.** A solution becomes an agent-scaffolded service that
+depends on the authority and installation interfaces through generated Go or
+Python clients. Order: `pkg/conformance` passes on accounts; decision 4 lands on
+the gateway; `codefly generate client` works for Go and Python (gap above); the
+six solutions move; solution-runtime-go is deleted, not fenced. Until then, pinned
+at v0.0.15.
