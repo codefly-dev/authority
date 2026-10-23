@@ -5,17 +5,23 @@ syntax = "proto3";
 // module never calls this: it is called through the hop.
 package host.session.v1;
 
+import "google/api/annotations.proto";
+
 option go_package = "gateway/pkg/gen/host/session/v1;sessionv1";
 
 // SessionService opens sessions.
 service SessionService {
   // SignIn opens a session for a fixture person by their fixture token.
-  rpc SignIn(SignInRequest) returns (Session);
+  rpc SignIn(SignInRequest) returns (Session) {
+    option (google.api.http) = {post: "/v1/session:sign-in" body: "*"};
+  }
   // Current answers the session the caller's bearer (`authorization: Bearer
   // <bearer>`) belongs to: who a page's request is for, decided by the host,
   // never read from a header the request wrote. The bearer itself is not
   // handed back. An unknown or ended session is unauthenticated.
-  rpc Current(CurrentRequest) returns (Session);
+  rpc Current(CurrentRequest) returns (Session) {
+    option (google.api.http) = {get: "/v1/session"};
+  }
 }
 
 // CurrentRequest asks for the caller's own session; the bearer is the call's.

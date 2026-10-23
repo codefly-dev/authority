@@ -33,8 +33,11 @@ func (p *Plugin) Name() string { return "session" }
 func (p *Plugin) RegisterGRPC(s *grpc.Server) { sessionv1.RegisterSessionServiceServer(s, p) }
 
 // RegisterREST registers nothing.
-func (p *Plugin) RegisterREST(context.Context, *runtime.ServeMux, string, []grpc.DialOption) error {
-	return nil
+// RegisterREST serves the session interface over HTTP too, for the browser
+// edge (a page's dev server signs a fixture person in): the same methods,
+// transcoded to the gRPC service.
+func (p *Plugin) RegisterREST(ctx context.Context, mux *runtime.ServeMux, endpoint string, opts []grpc.DialOption) error {
+	return sessionv1.RegisterSessionServiceHandlerFromEndpoint(ctx, mux, endpoint, opts)
 }
 
 // Migrations: none.

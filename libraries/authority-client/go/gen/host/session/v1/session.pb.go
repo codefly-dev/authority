@@ -16,6 +16,7 @@ import (
 	sync "sync"
 	unsafe "unsafe"
 
+	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
@@ -207,7 +208,7 @@ var File_host_session_v1_session_proto protoreflect.FileDescriptor
 
 const file_host_session_v1_session_proto_rawDesc = "" +
 	"\n" +
-	"\x1dhost/session/v1/session.proto\x12\x0fhost.session.v1\"\x10\n" +
+	"\x1dhost/session/v1/session.proto\x12\x0fhost.session.v1\x1a\x1cgoogle/api/annotations.proto\"\x10\n" +
 	"\x0eCurrentRequest\"4\n" +
 	"\rSignInRequest\x12#\n" +
 	"\rfixture_token\x18\x01 \x01(\tR\ffixtureToken\"\xb7\x01\n" +
@@ -218,10 +219,10 @@ const file_host_session_v1_session_proto_rawDesc = "" +
 	"\x0forganization_id\x18\x03 \x01(\tR\x0eorganizationId\x12\x14\n" +
 	"\x05roles\x18\x04 \x03(\tR\x05roles\x12\x19\n" +
 	"\bteam_ids\x18\x05 \x03(\tR\ateamIds\x12\x16\n" +
-	"\x06bearer\x18\x06 \x01(\tR\x06bearer2\x9a\x01\n" +
-	"\x0eSessionService\x12B\n" +
-	"\x06SignIn\x12\x1e.host.session.v1.SignInRequest\x1a\x18.host.session.v1.Session\x12D\n" +
-	"\aCurrent\x12\x1f.host.session.v1.CurrentRequest\x1a\x18.host.session.v1.SessionB\xcf\x01\n" +
+	"\x06bearer\x18\x06 \x01(\tR\x06bearer2\xcf\x01\n" +
+	"\x0eSessionService\x12b\n" +
+	"\x06SignIn\x12\x1e.host.session.v1.SignInRequest\x1a\x18.host.session.v1.Session\"\x1e\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/v1/session:sign-in\x12Y\n" +
+	"\aCurrent\x12\x1f.host.session.v1.CurrentRequest\x1a\x18.host.session.v1.Session\"\x13\x82\xd3\xe4\x93\x02\r\x12\v/v1/sessionB\xcf\x01\n" +
 	"\x13com.host.session.v1B\fSessionProtoP\x01ZLgithub.com/codefly-dev/cli/pkg/builder/clients/api/host/session/v1;sessionv1\xa2\x02\x03HSX\xaa\x02\x0fHost.Session.V1\xca\x02\x0fHost\\Session\\V1\xe2\x02\x1bHost\\Session\\V1\\GPBMetadata\xea\x02\x11Host::Session::V1b\x06proto3"
 
 var (
