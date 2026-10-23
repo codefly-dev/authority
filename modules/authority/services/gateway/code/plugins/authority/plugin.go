@@ -83,6 +83,12 @@ func (p *Plugin) Migrations() []string { return nil }
 // bearer on the call is the session SignIn opened, and nothing in the request
 // names a person.
 func (p *Plugin) Issue(ctx context.Context, req *authorityv1.IssueRequest) (*authorityv1.IssueResponse, error) {
+	out, err := p.Issuer.Issue(withBearer(ctx), req)
+	return out, Status(err)
+}
+
+// withBearer carries the caller's bearer as the session it names.
+func withBearer(ctx context.Context) context.Context {
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		for _, value := range md.Get("authorization") {
 			if token, found := strings.CutPrefix(value, "Bearer "); found && token != "" {
@@ -90,8 +96,33 @@ func (p *Plugin) Issue(ctx context.Context, req *authorityv1.IssueRequest) (*aut
 			}
 		}
 	}
-	out, err := p.Issuer.Issue(ctx, req)
-	return out, Status(err)
+	return ctx
+}
+
+// Delegate records the signed-in person's grant to a module.
+func (p *Plugin) Delegate(ctx context.Context, req *authorityv1.DelegateRequest) (*authorityv1.Delegation, error) {
+	d, err := p.Issuer.Delegate(withBearer(ctx), req.GetModule(), issuer.FromWire(req.GetScopes()), req.GetPurpose())
+	if err != nil {
+		return nil, Status(err)
+	}
+	return delegationOf(d), nil
+}
+
+// RevokeDelegation ends one of the signed-in person's delegations.
+func (p *Plugin) RevokeDelegation(ctx context.Context, req *authorityv1.RevokeDelegationRequest) (*authorityv1.RevokeDelegationResponse, error) {
+	d, err := p.Issuer.RevokeDelegation(withBearer(ctx), req.GetDelegationId())
+	if err != nil {
+		return nil, Status(err)
+	}
+	return &authorityv1.RevokeDelegationResponse{Delegation: delegationOf(d)}, nil
+}
+
+func delegationOf(d state.Delegation) *authorityv1.Delegation {
+	out := &authorityv1.Delegation{DelegationId: d.ID, OrganizationId: d.Organization, Grantor: d.Grantor, Module: d.Module, Purpose: d.Purpose, Active: !d.Revoked}
+	for _, sc := range d.Scopes {
+		out.Scopes = append(out.Scopes, &authorityv1.WorkScopeV1{ResourceKind: sc.Kind, Actions: sc.Actions})
+	}
+	return out
 }
 
 // Check verifies for the audience the caller is.

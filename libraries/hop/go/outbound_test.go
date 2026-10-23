@@ -42,6 +42,12 @@ func TestACallOutActsForTheCallerOrTheModuleThroughABinding(t *testing.T) {
 	if _, err := o.ForParent(context.Background(), "parent-token", "model"); err != nil || a.asked.GetParentToken() != "parent-token" || a.asked.GetOperationBindingId() != "model" {
 		t.Fatalf("for a parent the module read itself: %v %v", a.asked, err)
 	}
+	if _, err := o.ForParent(context.Background(), "parent-token", "model", Lookup()); err != nil || a.asked.GetOperation() != "lookup" {
+		t.Fatalf("a lookup: %v %v", a.asked, err)
+	}
+	if _, err := o.ForDelegation(context.Background(), "dlg_1", "documents"); err != nil || a.asked.GetDelegation().GetDelegationId() != "dlg_1" || a.asked.GetActor().GetCredential() != "workload-credential" {
+		t.Fatalf("from a delegation: %v %v", a.asked, err)
+	}
 	if _, err := o.ForParent(context.Background(), "", "model"); !errors.Is(err, ErrNoCaller) {
 		t.Fatalf("no parent: %v", err)
 	}

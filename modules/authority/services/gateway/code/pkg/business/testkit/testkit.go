@@ -103,7 +103,8 @@ func OrgDirectory(generation uint64) state.Manifest {
 				InvokeScopes: []*basev0.WorkScopeV1{Scope("records.records", "read"), Scope("records.types", "read")}, HeadlessScopes: []*basev0.WorkScopeV1{Scope("records.types", "read")}},
 			// The page asks documents for a person: the first hop of a delegate chain.
 			"documents": {ID: "documents", Audience: "documents",
-				InvokeScopes: []*basev0.WorkScopeV1{Scope("documents", "read")}, HeadlessScopes: []*basev0.WorkScopeV1{Scope("documents", "read")}},
+				InvokeScopes: []*basev0.WorkScopeV1{Scope("documents", "read", "write")}, HeadlessScopes: []*basev0.WorkScopeV1{Scope("documents", "read")},
+				LookupScopes: []*basev0.WorkScopeV1{Scope("documents", "read")}},
 		}}
 }
 

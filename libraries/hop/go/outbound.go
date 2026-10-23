@@ -31,12 +31,19 @@ type Outbound struct {
 	Credential func() (string, error)
 }
 
+// Option shapes one issue: Lookup asks for the binding's lookup scopes alone.
+type Option func(*authorityv1.IssueRequest)
+
+// Lookup issues for reading a receipt back: the binding's lookup scopes only,
+// never the authority to repeat the effect.
+func Lookup() Option { return func(r *authorityv1.IssueRequest) { r.Operation = "lookup" } }
+
 // ErrNoCaller is ForCaller on a call that did not arrive through the hop.
 var ErrNoCaller = errors.New("hop: no caller to act for: the call carries no checked Work Context")
 
 // ForCaller returns ctx carrying a child of the caller's Work Context, issued
 // through binding.
-func (o Outbound) ForCaller(ctx context.Context, binding string) (context.Context, error) {
+func (o Outbound) ForCaller(ctx context.Context, binding string, opts ...Option) (context.Context, error) {
 	caller, ok := FromContext(ctx)
 	if !ok || caller.Context == "" {
 		return nil, ErrNoCaller
@@ -49,12 +56,12 @@ func (o Outbound) ForCaller(ctx context.Context, binding string) (context.Contex
 		As:                 &authorityv1.IssueRequest_ParentToken{ParentToken: caller.Context},
 		Actor:              &authorityv1.WorkloadCredential{Credential: credential},
 		OperationBindingId: binding,
-	})
+	}, opts...)
 }
 
 // ForParent is ForCaller for a module that reads the stamp itself: parent is
 // the caller's checked Work Context, the one the stamp's digest binds.
-func (o Outbound) ForParent(ctx context.Context, parent, binding string) (context.Context, error) {
+func (o Outbound) ForParent(ctx context.Context, parent, binding string, opts ...Option) (context.Context, error) {
 	if parent == "" {
 		return nil, ErrNoCaller
 	}
@@ -66,12 +73,28 @@ func (o Outbound) ForParent(ctx context.Context, parent, binding string) (contex
 		As:                 &authorityv1.IssueRequest_ParentToken{ParentToken: parent},
 		Actor:              &authorityv1.WorkloadCredential{Credential: credential},
 		OperationBindingId: binding,
-	})
+	}, opts...)
+}
+
+// ForDelegation returns ctx carrying a Work Context issued from a delegation a
+// person granted this module: owned by that person, with this module as actor.
+// No live capability is presented; the authority re-checks the delegation and
+// what its grantor holds, and renewing is calling again.
+func (o Outbound) ForDelegation(ctx context.Context, delegation, binding string, opts ...Option) (context.Context, error) {
+	credential, err := o.Credential()
+	if err != nil {
+		return nil, err
+	}
+	return o.issue(ctx, binding, &authorityv1.IssueRequest{
+		As:                 &authorityv1.IssueRequest_Delegation{Delegation: &authorityv1.DelegationRef{DelegationId: delegation}},
+		Actor:              &authorityv1.WorkloadCredential{Credential: credential},
+		OperationBindingId: binding,
+	}, opts...)
 }
 
 // ForModule returns ctx carrying a Work Context for this module's own work,
 // issued through binding.
-func (o Outbound) ForModule(ctx context.Context, binding string) (context.Context, error) {
+func (o Outbound) ForModule(ctx context.Context, binding string, opts ...Option) (context.Context, error) {
 	credential, err := o.Credential()
 	if err != nil {
 		return nil, err
@@ -79,10 +102,13 @@ func (o Outbound) ForModule(ctx context.Context, binding string) (context.Contex
 	return o.issue(ctx, binding, &authorityv1.IssueRequest{
 		As:                 &authorityv1.IssueRequest_Workload{Workload: &authorityv1.WorkloadCredential{Credential: credential}},
 		OperationBindingId: binding,
-	})
+	}, opts...)
 }
 
-func (o Outbound) issue(ctx context.Context, binding string, req *authorityv1.IssueRequest) (context.Context, error) {
+func (o Outbound) issue(ctx context.Context, binding string, req *authorityv1.IssueRequest, opts ...Option) (context.Context, error) {
+	for _, opt := range opts {
+		opt(req)
+	}
 	issued, err := o.Authority.Issue(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("hop: the authority refused to issue through binding %q: %w", binding, err)

@@ -26,10 +26,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AuthorityService_Issue_FullMethodName         = "/host.authority.v1.AuthorityService/Issue"
-	AuthorityService_Check_FullMethodName         = "/host.authority.v1.AuthorityService/Check"
-	AuthorityService_Keys_FullMethodName          = "/host.authority.v1.AuthorityService/Keys"
-	AuthorityService_ListResources_FullMethodName = "/host.authority.v1.AuthorityService/ListResources"
+	AuthorityService_Issue_FullMethodName            = "/host.authority.v1.AuthorityService/Issue"
+	AuthorityService_Check_FullMethodName            = "/host.authority.v1.AuthorityService/Check"
+	AuthorityService_Keys_FullMethodName             = "/host.authority.v1.AuthorityService/Keys"
+	AuthorityService_ListResources_FullMethodName    = "/host.authority.v1.AuthorityService/ListResources"
+	AuthorityService_Delegate_FullMethodName         = "/host.authority.v1.AuthorityService/Delegate"
+	AuthorityService_RevokeDelegation_FullMethodName = "/host.authority.v1.AuthorityService/RevokeDelegation"
 )
 
 // AuthorityServiceClient is the client API for AuthorityService service.
@@ -51,6 +53,11 @@ type AuthorityServiceClient interface {
 	// rather than carried in the capability. A module maps the answer onto its
 	// own resources; the authority knows them only by id.
 	ListResources(ctx context.Context, in *ListResourcesRequest, opts ...grpc.CallOption) (*ListResourcesResponse, error)
+	// Delegate records a signed-in person's grant to a module (the caller's
+	// bearer is the person); Issue with a delegation acts on it.
+	Delegate(ctx context.Context, in *DelegateRequest, opts ...grpc.CallOption) (*Delegation, error)
+	// RevokeDelegation ends a delegation; the next Issue from it is refused.
+	RevokeDelegation(ctx context.Context, in *RevokeDelegationRequest, opts ...grpc.CallOption) (*RevokeDelegationResponse, error)
 }
 
 type authorityServiceClient struct {
@@ -101,6 +108,26 @@ func (c *authorityServiceClient) ListResources(ctx context.Context, in *ListReso
 	return out, nil
 }
 
+func (c *authorityServiceClient) Delegate(ctx context.Context, in *DelegateRequest, opts ...grpc.CallOption) (*Delegation, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Delegation)
+	err := c.cc.Invoke(ctx, AuthorityService_Delegate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authorityServiceClient) RevokeDelegation(ctx context.Context, in *RevokeDelegationRequest, opts ...grpc.CallOption) (*RevokeDelegationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RevokeDelegationResponse)
+	err := c.cc.Invoke(ctx, AuthorityService_RevokeDelegation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AuthorityServiceServer is the server API for AuthorityService service.
 // All implementations must embed UnimplementedAuthorityServiceServer
 // for forward compatibility.
@@ -120,6 +147,11 @@ type AuthorityServiceServer interface {
 	// rather than carried in the capability. A module maps the answer onto its
 	// own resources; the authority knows them only by id.
 	ListResources(context.Context, *ListResourcesRequest) (*ListResourcesResponse, error)
+	// Delegate records a signed-in person's grant to a module (the caller's
+	// bearer is the person); Issue with a delegation acts on it.
+	Delegate(context.Context, *DelegateRequest) (*Delegation, error)
+	// RevokeDelegation ends a delegation; the next Issue from it is refused.
+	RevokeDelegation(context.Context, *RevokeDelegationRequest) (*RevokeDelegationResponse, error)
 	mustEmbedUnimplementedAuthorityServiceServer()
 }
 
@@ -141,6 +173,12 @@ func (UnimplementedAuthorityServiceServer) Keys(context.Context, *KeysRequest) (
 }
 func (UnimplementedAuthorityServiceServer) ListResources(context.Context, *ListResourcesRequest) (*ListResourcesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListResources not implemented")
+}
+func (UnimplementedAuthorityServiceServer) Delegate(context.Context, *DelegateRequest) (*Delegation, error) {
+	return nil, status.Error(codes.Unimplemented, "method Delegate not implemented")
+}
+func (UnimplementedAuthorityServiceServer) RevokeDelegation(context.Context, *RevokeDelegationRequest) (*RevokeDelegationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RevokeDelegation not implemented")
 }
 func (UnimplementedAuthorityServiceServer) mustEmbedUnimplementedAuthorityServiceServer() {}
 func (UnimplementedAuthorityServiceServer) testEmbeddedByValue()                          {}
@@ -235,6 +273,42 @@ func _AuthorityService_ListResources_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthorityService_Delegate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DelegateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthorityServiceServer).Delegate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthorityService_Delegate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthorityServiceServer).Delegate(ctx, req.(*DelegateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthorityService_RevokeDelegation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeDelegationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthorityServiceServer).RevokeDelegation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthorityService_RevokeDelegation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthorityServiceServer).RevokeDelegation(ctx, req.(*RevokeDelegationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AuthorityService_ServiceDesc is the grpc.ServiceDesc for AuthorityService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -257,6 +331,14 @@ var AuthorityService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListResources",
 			Handler:    _AuthorityService_ListResources_Handler,
+		},
+		{
+			MethodName: "Delegate",
+			Handler:    _AuthorityService_Delegate_Handler,
+		},
+		{
+			MethodName: "RevokeDelegation",
+			Handler:    _AuthorityService_RevokeDelegation_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

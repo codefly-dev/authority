@@ -86,7 +86,7 @@ func Manifest(in *compositionv1.ModuleManifestV1) state.Manifest {
 	}
 	m.ResourceKinds = state.Normalize(m.ResourceKinds)
 	for _, b := range in.GetBindings() {
-		m.Bindings[b.GetId()] = state.Binding{ID: b.GetId(), Audience: b.GetAudience(), InvokeScopes: issuer.FromWire(b.GetInvokeScopes()), HeadlessScopes: issuer.FromWire(b.GetHeadlessScopes())}
+		m.Bindings[b.GetId()] = state.Binding{ID: b.GetId(), Audience: b.GetAudience(), InvokeScopes: issuer.FromWire(b.GetInvokeScopes()), HeadlessScopes: issuer.FromWire(b.GetHeadlessScopes()), LookupScopes: issuer.FromWire(b.GetLookupScopes())}
 	}
 	for _, r := range in.GetRoles() {
 		if m.Roles == nil {
@@ -172,7 +172,8 @@ func FromCore(in *solutionhost.ModuleManifest) state.Manifest {
 	for _, b := range in.Authority.Bindings {
 		invoke := scopesOf(b.Operations["invoke"])
 		headless := scopesOf(b.Operations["headless"])
-		m.Bindings[b.ID] = state.Binding{ID: b.ID, Audience: b.Audience, InvokeScopes: invoke, HeadlessScopes: headless}
+		lookup := scopesOf(b.Operations["lookup"])
+		m.Bindings[b.ID] = state.Binding{ID: b.ID, Audience: b.Audience, InvokeScopes: invoke, HeadlessScopes: headless, LookupScopes: lookup}
 	}
 	return m
 }

@@ -2,7 +2,7 @@
   "swagger": "2.0",
   "info": {
     "title": "host/authority/v1/authority.proto",
-    "description": "The authority interface: what a module or solution calls on its host to be\nissued a Work Context, to have one checked, and to learn the keys it was\nsigned with. Three operations. Every former spelling (start task, start\ninstallation task, exchange audience, start child, renew, the module broker's\nmints) is Issue with a different `as`.",
+    "description": "The authority interface: what a module or solution calls on its host to be\nissued a Work Context, to have one checked, and to learn the keys it was\nsigned with, and to ask which resources of a kind it covers. Every former spelling (start task, start\ninstallation task, exchange audience, start child, renew, the module broker's\nmints) is Issue with a different `as`.",
     "version": "version not set"
   },
   "tags": [

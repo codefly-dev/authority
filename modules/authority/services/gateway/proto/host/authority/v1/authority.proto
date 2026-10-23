@@ -25,6 +25,11 @@ service AuthorityService {
   // rather than carried in the capability. A module maps the answer onto its
   // own resources; the authority knows them only by id.
   rpc ListResources(ListResourcesRequest) returns (ListResourcesResponse);
+  // Delegate records a signed-in person's grant to a module (the caller's
+  // bearer is the person); Issue with a delegation acts on it.
+  rpc Delegate(DelegateRequest) returns (Delegation);
+  // RevokeDelegation ends a delegation; the next Issue from it is refused.
+  rpc RevokeDelegation(RevokeDelegationRequest) returns (RevokeDelegationResponse);
 }
 
 // IssueRequest names on whose behalf the capability is issued.
@@ -40,6 +45,12 @@ message IssueRequest {
     InstallationRef installation = 3;
     // One more hop from an existing capability: a child, an exchange or a renewal.
     string parent_token = 4;
+    // A delegation a person granted the module acting (actor): the capability
+    // is owned by that person and carries the delegation on the module's hop.
+    // No live capability is presented: the authority re-checks the delegation
+    // and what its grantor holds now, so a revoked delegation or a lost role
+    // stops the next issue, and renewing is issuing again.
+    DelegationRef delegation = 11;
   }
   // The module principal that may consume the capability.
   string audience = 5;
@@ -52,8 +63,55 @@ message IssueRequest {
   string operation_binding_id = 8;
   // The organisation the work runs in, for an owner shape that does not carry one.
   string organization_id = 9;
-  // The actor a child hop delegates to, as a workload credential; required with parent_token.
+  // The actor a child hop delegates to, as a workload credential; required with
+  // parent_token and with delegation.
   WorkloadCredential actor = 10;
+  // Which of the binding's operations the capability is for: "invoke" (the
+  // default for a person, a child or a delegation), "headless" (the default for
+  // a workload) or "lookup": the binding's lookup scopes alone, to read a
+  // receipt without the authority to repeat the effect.
+  string operation = 12;
+}
+
+// DelegationRef names one delegation.
+message DelegationRef {
+  // The delegation's id, as Delegate answered it.
+  string delegation_id = 1;
+}
+
+// DelegateRequest is a signed-in person granting a module the right to act for
+// them beyond any session: on scopes they hold, through the module's bindings.
+message DelegateRequest {
+  // The module granted, by principal.
+  string module = 1;
+  // What the module may do for the person; within what the person holds.
+  repeated WorkScopeV1 scopes = 2;
+  // Why, as the person was told (a connected source, a scheduled job).
+  string purpose = 3;
+}
+
+// Delegation is one grant from a person to a module.
+message Delegation {
+  string delegation_id = 1;
+  string organization_id = 2;
+  // The person who granted it, and whom every capability issued from it is for.
+  string grantor = 3;
+  // The module granted.
+  string module = 4;
+  repeated WorkScopeV1 scopes = 5;
+  string purpose = 6;
+  // False once revoked; a revoked delegation issues nothing.
+  bool active = 7;
+}
+
+// RevokeDelegationRequest ends a delegation; only its grantor may.
+message RevokeDelegationRequest {
+  string delegation_id = 1;
+}
+
+// RevokeDelegationResponse is the delegation as it now stands.
+message RevokeDelegationResponse {
+  Delegation delegation = 1;
 }
 
 // PersonSession names the caller's own session. It carries no field: the person

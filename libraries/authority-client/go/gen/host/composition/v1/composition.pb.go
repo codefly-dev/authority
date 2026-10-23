@@ -547,8 +547,11 @@ type BindingV1 struct {
 	// binding declares any, and standing alone for a binding that exists only for
 	// the module's own work.
 	HeadlessScopes []*v1.WorkScopeV1 `protobuf:"bytes,4,rep,name=headless_scopes,json=headlessScopes,proto3" json:"headless_scopes,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// What a receipt lookup through the binding may read; within invoke_scopes
+	// when the binding declares any, else within headless_scopes.
+	LookupScopes  []*v1.WorkScopeV1 `protobuf:"bytes,5,rep,name=lookup_scopes,json=lookupScopes,proto3" json:"lookup_scopes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *BindingV1) Reset() {
@@ -605,6 +608,13 @@ func (x *BindingV1) GetInvokeScopes() []*v1.WorkScopeV1 {
 func (x *BindingV1) GetHeadlessScopes() []*v1.WorkScopeV1 {
 	if x != nil {
 		return x.HeadlessScopes
+	}
+	return nil
+}
+
+func (x *BindingV1) GetLookupScopes() []*v1.WorkScopeV1 {
+	if x != nil {
+		return x.LookupScopes
 	}
 	return nil
 }
@@ -764,12 +774,13 @@ const file_host_composition_v1_composition_proto_rawDesc = "" +
 	"\x05roles\x18\b \x03(\v2\x1b.host.composition.v1.RoleV1R\x05roles\"T\n" +
 	"\x06RoleV1\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x126\n" +
-	"\x06scopes\x18\x02 \x03(\v2\x1e.host.authority.v1.WorkScopeV1R\x06scopes\"\xc5\x01\n" +
+	"\x06scopes\x18\x02 \x03(\v2\x1e.host.authority.v1.WorkScopeV1R\x06scopes\"\x8a\x02\n" +
 	"\tBindingV1\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
 	"\baudience\x18\x02 \x01(\tR\baudience\x12C\n" +
 	"\rinvoke_scopes\x18\x03 \x03(\v2\x1e.host.authority.v1.WorkScopeV1R\finvokeScopes\x12G\n" +
-	"\x0fheadless_scopes\x18\x04 \x03(\v2\x1e.host.authority.v1.WorkScopeV1R\x0eheadlessScopes\">\n" +
+	"\x0fheadless_scopes\x18\x04 \x03(\v2\x1e.host.authority.v1.WorkScopeV1R\x0eheadlessScopes\x12C\n" +
+	"\rlookup_scopes\x18\x05 \x03(\v2\x1e.host.authority.v1.WorkScopeV1R\flookupScopes\">\n" +
 	"\x0eResourceKindV1\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x18\n" +
 	"\aactions\x18\x02 \x03(\tR\aactions\"4\n" +
@@ -819,13 +830,14 @@ var file_host_composition_v1_composition_proto_depIdxs = []int32{
 	10, // 9: host.composition.v1.RoleV1.scopes:type_name -> host.authority.v1.WorkScopeV1
 	10, // 10: host.composition.v1.BindingV1.invoke_scopes:type_name -> host.authority.v1.WorkScopeV1
 	10, // 11: host.composition.v1.BindingV1.headless_scopes:type_name -> host.authority.v1.WorkScopeV1
-	0,  // 12: host.composition.v1.CompositionService.ApplyManifest:input_type -> host.composition.v1.ApplyManifestRequest
-	4,  // 13: host.composition.v1.CompositionService.ApplyManifest:output_type -> host.composition.v1.ApplyManifestResponse
-	13, // [13:14] is the sub-list for method output_type
-	12, // [12:13] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	10, // 12: host.composition.v1.BindingV1.lookup_scopes:type_name -> host.authority.v1.WorkScopeV1
+	0,  // 13: host.composition.v1.CompositionService.ApplyManifest:input_type -> host.composition.v1.ApplyManifestRequest
+	4,  // 14: host.composition.v1.CompositionService.ApplyManifest:output_type -> host.composition.v1.ApplyManifestResponse
+	14, // [14:15] is the sub-list for method output_type
+	13, // [13:14] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_host_composition_v1_composition_proto_init() }

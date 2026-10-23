@@ -65,6 +65,12 @@ func TestTheMiniGatewayPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
 		Matrix:             testkit.Matrix(),
 		// Maya reads the directory's collections and every shared one, and
 		// administers none: the authority's answer, not her token's.
+		// The page may write documents for Rémi, and a lookup through it reads.
+		Lookup: &conformance.LookupCase{Token: "fixture-remi", Start: "org-directory", Credential: k.Credential(t, "org-directory"),
+			Binding: "documents", Audience: "documents", Kind: "documents", Invoke: "write", Lookup: "read"},
+		// Rémi lets the page write documents for him; Maya, a viewer, cannot.
+		Delegation: &conformance.DelegationCase{Token: "fixture-remi", Outsider: "fixture-maya", Module: "org-directory",
+			Credential: k.Credential(t, "org-directory"), Binding: "documents", Audience: "documents", Kind: "documents", Action: "write"},
 		Resources: &conformance.ResourceCase{
 			Token: "fixture-maya", Audience: "documents", Kind: "documents.collection", Action: "read",
 			Covered: []string{"directory/2026", "shared-finance"}, Uncovered: []string{"finance", "shared-Finance"}, Unheld: "admin",

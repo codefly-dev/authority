@@ -55,6 +55,11 @@ type Fixture struct {
 	DeliveryCredential func(module string) string
 	// Resources is what a person's context covers on one kind, or nil to skip.
 	Resources *ResourceCase
+	// Lookup is a binding whose lookup scopes are narrower than its invoke
+	// scopes, or nil to skip.
+	Lookup *LookupCase
+	// Delegation is a grant a person makes to a module, or nil to skip.
+	Delegation *DelegationCase
 	// SignAuthority signs the authority's own document delivered with a manifest,
 	// with the key SignManifest signs with. Nil skips the method-policy line.
 	SignAuthority func(document []byte) (envelope []byte, err error)
@@ -103,6 +108,20 @@ type ResourceCase struct {
 	Covered   []string
 	Uncovered []string
 	Unheld    string
+}
+
+// LookupCase: a person (Token) issued at Start; the module there (Credential)
+// hops through Binding to Audience, where invoking may Invoke on Kind and a
+// lookup may only Lookup.
+type LookupCase struct {
+	Token, Start, Credential, Binding, Audience, Kind, Invoke, Lookup string
+}
+
+// DelegationCase: a person (Token) delegates Action on Kind to Module, whose
+// workload (Credential) issues from it through Binding to Audience; Outsider
+// signs in a person who does not hold Action and so cannot delegate it.
+type DelegationCase struct {
+	Token, Outsider, Module, Credential, Binding, Audience, Kind, Action string
 }
 
 // Expectation is one cell of the permission matrix.
@@ -544,6 +563,61 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			}
 		}
 	})
+	t.Run("a lookup through a binding carries only the binding's lookup scopes", func(t *testing.T) {
+		lc := f.Lookup
+		if lc == nil {
+			t.Skip("the fixture states no lookup case")
+		}
+		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": lc.Token})
+		parent := str(c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": lc.Start}), "token")
+		hop := func(operation string) string {
+			out := c.must(t, ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{
+				"parent_token": parent, "audience": lc.Audience, "actor": map[string]any{"credential": lc.Credential},
+				"operation_binding_id": lc.Binding, "operation": operation})
+			return scopeActions(msg(out, "context"), lc.Kind)
+		}
+		if got := hop("invoke"); !strings.Contains(got, lc.Invoke) {
+			t.Fatalf("invoke carries %q, want %s", got, lc.Invoke)
+		}
+		if got := hop("lookup"); got != lc.Lookup {
+			t.Fatalf("lookup carries %q, want only %s", got, lc.Lookup)
+		}
+	})
+	t.Run("a delegation issues as its grantor through its module, until revoked", func(t *testing.T) {
+		dc := f.Delegation
+		if dc == nil {
+			t.Skip("the fixture states no delegation case")
+		}
+		scopes := []any{map[string]any{"resource_kind": dc.Kind, "actions": []any{dc.Action}}}
+		grantor := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": dc.Token})
+		outsider := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": dc.Outsider})
+		if _, err := c.call(as(ctx, outsider), "host.authority.v1.AuthorityService", "Delegate", map[string]any{"module": dc.Module, "scopes": scopes, "purpose": "conformance"}); status.Code(err) != codes.PermissionDenied {
+			t.Fatalf("a person delegates what they do not hold: %v", err)
+		}
+		d := c.must(t, as(ctx, grantor), "host.authority.v1.AuthorityService", "Delegate", map[string]any{"module": dc.Module, "scopes": scopes, "purpose": "conformance"})
+		id := str(d, "delegation_id")
+		issue := func() (protoreflect.Message, error) {
+			return c.call(ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{
+				"delegation": map[string]any{"delegation_id": id}, "audience": dc.Audience,
+				"actor": map[string]any{"credential": dc.Credential}, "operation_binding_id": dc.Binding})
+		}
+		out, err := issue()
+		if err != nil {
+			t.Fatalf("issue from the delegation: %v", err)
+		}
+		wc := msg(out, "context")
+		if str(wc, "owner_principal_id") != str(grantor, "person_id") || !strings.Contains(scopeActions(wc, dc.Kind), dc.Action) {
+			t.Fatalf("issued for %q with %q", str(wc, "owner_principal_id"), scopeActions(wc, dc.Kind))
+		}
+		chain := field(wc, "actor_chain").List()
+		if chain.Len() != 1 || str(chain.Get(0).Message(), "delegation_id") != id || str(chain.Get(0).Message(), "principal_id") != dc.Module {
+			t.Fatalf("the module acts under the delegation: %v", wc)
+		}
+		c.must(t, as(ctx, grantor), "host.authority.v1.AuthorityService", "RevokeDelegation", map[string]any{"delegation_id": id})
+		if _, err := issue(); status.Code(err) != codes.PermissionDenied {
+			t.Fatalf("a revoked delegation issues: %v", err)
+		}
+	})
 	t.Run("a manifest moves only forward and a lower generation is refused by name", func(t *testing.T) {
 		if _, err := c.applyManifest(ctx, f, "conformance-probe", "module", 2, []string{"probe"}); err != nil {
 			t.Fatalf("apply: %v", err)
@@ -576,6 +650,24 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			t.Fatalf("a grant naming another organisation: %v", err)
 		}
 	})
+}
+
+// scopeActions is a context's actions on kind, comma-joined.
+func scopeActions(wc protoreflect.Message, kind string) string {
+	list := field(wc, "authority_scopes").List()
+	for i := 0; i < list.Len(); i++ {
+		sc := list.Get(i).Message()
+		if str(sc, "resource_kind") != kind {
+			continue
+		}
+		var out []string
+		actions := field(sc, "actions").List()
+		for j := 0; j < actions.Len(); j++ {
+			out = append(out, actions.Get(j).String())
+		}
+		return strings.Join(out, ",")
+	}
+	return ""
 }
 
 // grantsOf reads a ListResourcesResponse's grants as the shared library's.

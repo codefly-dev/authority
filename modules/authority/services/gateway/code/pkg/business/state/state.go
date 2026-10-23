@@ -6,6 +6,8 @@ package state
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	resources "github.com/codefly-dev/authority/libraries/resources/go"
@@ -74,6 +76,30 @@ type Binding struct {
 	Audience       string
 	InvokeScopes   []*basev0.WorkScopeV1
 	HeadlessScopes []*basev0.WorkScopeV1
+	// LookupScopes are what a receipt lookup through the binding may read.
+	LookupScopes []*basev0.WorkScopeV1
+}
+
+// Delegation is a person's grant to a module to act for them beyond any
+// session, on scopes they hold. Every capability issued from it is the
+// grantor's, re-checked against what the grantor holds at the time.
+type Delegation struct {
+	ID           string  `yaml:"id"`
+	Organization string  `yaml:"organization"`
+	Grantor      string  `yaml:"grantor"`
+	Module       string  `yaml:"module"`
+	Purpose      string  `yaml:"purpose"`
+	Scopes       []Scope `yaml:"scopes"`
+	Revoked      bool    `yaml:"-"`
+}
+
+// WorkScopes is the delegation's scopes as core spells them.
+func (d Delegation) WorkScopes() []*basev0.WorkScopeV1 {
+	var out []*basev0.WorkScopeV1
+	for _, sc := range d.Scopes {
+		out = append(out, &basev0.WorkScopeV1{ResourceKind: sc.Kind, Actions: append([]string(nil), sc.Actions...)})
+	}
+	return Normalize(out)
 }
 
 // Manifest is what the render delivered for one module instance.
@@ -226,6 +252,8 @@ type fixtureFile struct {
 	// so they can be an audience. A delivered manifest of the same module
 	// supersedes it; one already composed is left as delivered.
 	Modules []FixtureModule `yaml:"modules"`
+	// Delegations a fixture person has already granted.
+	Delegations []Delegation `yaml:"delegations"`
 }
 
 // FixtureModule is one module the fixture composes: its name, which is its
@@ -255,6 +283,7 @@ type State struct {
 	modules       map[string]Manifest
 	principals    map[string]string // principal → module
 	installations map[string]Installation
+	delegations   map[string]Delegation
 	sessions      map[string]Session
 	revisions     map[string]uint64
 	attester      *native.Attester
@@ -277,7 +306,7 @@ func New(anchor native.Anchor, audience string) (*State, error) {
 	return &State{
 		orgs: map[string]string{}, people: map[string]Person{}, byToken: map[string]string{},
 		roles: map[string]Role{}, modules: map[string]Manifest{}, principals: map[string]string{},
-		installations: map[string]Installation{}, sessions: map[string]Session{}, revisions: map[string]uint64{},
+		installations: map[string]Installation{}, delegations: map[string]Delegation{}, sessions: map[string]Session{}, revisions: map[string]uint64{},
 		attester: attester, audience: audience,
 	}, nil
 }
@@ -315,6 +344,12 @@ func (s *State) LoadFixture(ctx context.Context, data []byte) error {
 		s.roles[r.Organization+"/"+r.Name] = r
 	}
 	var fixtureModules []Manifest
+	for _, d := range f.Delegations {
+		if d.ID == "" || d.Grantor == "" || d.Module == "" || d.Organization == "" {
+			return fmt.Errorf("delegation %q names no id, grantor, module or organization", d.ID)
+		}
+		s.delegations[d.ID] = d
+	}
 	for _, fm := range f.Modules {
 		if _, composed := s.modules[fm.Module]; composed {
 			continue
@@ -437,6 +472,79 @@ func (s *State) PersonScopes(person, audience string) ([]*basev0.WorkScopeV1, er
 	return Intersect(Normalize(held), m.ResourceKinds), nil
 }
 
+// Delegate records person's grant to module of scopes, each of which the
+// person must hold at the module or at an audience one of its bindings
+// addresses.
+func (s *State) Delegate(person, module string, scopes []*basev0.WorkScopeV1, purpose string) (Delegation, error) {
+	s.mu.RLock()
+	p, ok := s.people[person]
+	m, err := s.moduleByPrincipal(module)
+	s.mu.RUnlock()
+	if !ok {
+		return Delegation{}, fmt.Errorf("%w: person", ErrUnknown)
+	}
+	if err != nil {
+		return Delegation{}, err
+	}
+	if len(scopes) == 0 {
+		return Delegation{}, fmt.Errorf("%w: a delegation names what it grants", ErrForbidden)
+	}
+	audiences := []string{m.Principal}
+	for _, b := range m.Bindings {
+		audiences = append(audiences, b.Audience)
+	}
+	var holds []*basev0.WorkScopeV1
+	for _, audience := range audiences {
+		if there, err := s.PersonScopes(person, audience); err == nil {
+			holds = append(holds, there...)
+		}
+	}
+	if !Attenuates(scopes, holds) {
+		return Delegation{}, fmt.Errorf("%w: %s delegates what they do not hold", ErrForbidden, person)
+	}
+	d := Delegation{ID: newDelegationID(), Organization: p.Organization, Grantor: person, Module: m.Module, Purpose: purpose}
+	for _, sc := range Normalize(scopes) {
+		d.Scopes = append(d.Scopes, Scope{Kind: sc.GetResourceKind(), Actions: sc.GetActions()})
+	}
+	s.mu.Lock()
+	s.delegations[d.ID] = d
+	s.mu.Unlock()
+	return d, nil
+}
+
+// RevokeDelegation ends a delegation; only its grantor may.
+func (s *State) RevokeDelegation(person, id string) (Delegation, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	d, ok := s.delegations[id]
+	if !ok {
+		return Delegation{}, fmt.Errorf("%w: delegation %q", ErrUnknown, id)
+	}
+	if d.Grantor != person {
+		return Delegation{}, fmt.Errorf("%w: only the grantor of %s may revoke it", ErrForbidden, id)
+	}
+	d.Revoked = true
+	s.delegations[id] = d
+	return d, nil
+}
+
+// DelegationByID answers a delegation as it stands.
+func (s *State) DelegationByID(id string) (Delegation, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	d, ok := s.delegations[id]
+	if !ok {
+		return Delegation{}, fmt.Errorf("%w: delegation %q", ErrUnknown, id)
+	}
+	return d, nil
+}
+
+func newDelegationID() string {
+	var b [12]byte
+	_, _ = rand.Read(b[:])
+	return "dlg_" + hex.EncodeToString(b[:])
+}
+
 // ResourceGrants answers which resources of kind a person may act on with
 // action at audience: the resource grants of every role scope that holds the
 // action on the kind, and every resource for a scope that names none. A person
@@ -497,6 +605,13 @@ func (s *State) ApplyManifest(m Manifest) ([]string, error) {
 		return nil, fmt.Errorf("%w: principal %q already belongs to %s", ErrForbidden, m.Principal, other)
 	}
 	for id, b := range m.Bindings {
+		lookupCeiling := b.InvokeScopes
+		if len(lookupCeiling) == 0 {
+			lookupCeiling = b.HeadlessScopes
+		}
+		if len(b.LookupScopes) > 0 && !Attenuates(b.LookupScopes, lookupCeiling) {
+			return nil, fmt.Errorf("%w: binding %s: lookup scopes exceed what the binding may do", ErrForbidden, id)
+		}
 		// A binding that acts for a person (invoke scopes) may do no more for the
 		// module itself than it may for that person. A binding that exists only
 		// for the module's own work (a store exporting its traces) declares no

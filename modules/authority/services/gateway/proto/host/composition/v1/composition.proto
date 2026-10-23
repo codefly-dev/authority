@@ -120,6 +120,9 @@ message BindingV1 {
   // binding declares any, and standing alone for a binding that exists only for
   // the module's own work.
   repeated host.authority.v1.WorkScopeV1 headless_scopes = 4;
+  // What a receipt lookup through the binding may read; within invoke_scopes
+  // when the binding declares any, else within headless_scopes.
+  repeated host.authority.v1.WorkScopeV1 lookup_scopes = 5;
 }
 
 // ResourceKindV1 is one kind the module governs and the actions on it.

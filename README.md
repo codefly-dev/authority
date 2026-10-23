@@ -512,6 +512,29 @@ file fetch) report themselves unwired and idle, and ingest is off because no
 runtime is composed. The fixture's collection grants do not yet use the store's
 real namespace spelling.
 
+## Every saas module-authority feature, and where it lives now (2026-10-23)
+
+A module's saas client (`saas-sdk-go/moduleauthority`) is replaced by this
+interface and the hop. Nothing is dropped silently: each feature is either on
+the interface, with a suite line, or named as belonging elsewhere.
+
+| Saas feature | Where it lives now | Proven by |
+|---|---|---|
+| The module's own Work Context (`MintModuleWorkContext`) | `Issue` as the workload, through a binding | suite: a workload is issued its own binding |
+| The module's operation context for one binding (`MintModuleOperationContext`) | the same `Issue` | the same line; the document store's embedder and trace export use it |
+| A child of a caller's token (`ExchangeOperation` with a parent) | `Issue` with the parent token and the module as actor (`hop.Outbound.ForParent`) | suite: a child hop; a delegate chain |
+| A lookup child (`ExchangeOperation` with `Lookup`) | `Issue` with `operation: lookup`: the binding's lookup scopes alone (`hop.Lookup()`) | suite: a lookup through a binding carries only its lookup scopes |
+| A source's operation context (`MintSourceOperationContext`) and a child by delegation id (`ExchangeOperation` with `DelegationID`) | `Delegate` and `RevokeDelegation`, and `Issue` from a delegation (`hop.Outbound.ForDelegation`): owned by the grantor, the module as actor, re-checked on every issue, renewed by issuing again | suite: a delegation issues as its grantor through its module, until revoked |
+| Live seal and revision answers for a module verifying a token (`WorkContextSources`) | the hop asks `Check`; modules verify nothing | suite: a callee refuses what does not verify; the hop's tests |
+| Which collections or resources a caller reads (saas `ListReadableSourceCollections`) | `ListResources`, by id, prefix or pattern | suite: the authority answers which resources a context covers |
+| Executable artifact approvals (`Approve`, `Authorize`, `RevokeExecutableArtifact`) | not authority: the signed release (handbook#146) | open |
+| Audit (`EmitAuditEvent`, `DeclareAuditEventTypes`) | not authority: an optional audit interface; with none injected, the module logs each event | the record store |
+| Notifications and the current installation (`NotifyUser`, `NotifyOrgAdmins`, `GetCurrentInstallation`) | not authority: host services, optional interfaces | open |
+
+The authority gateway implements every line. Accounts implements none of the
+last four additions yet (lookup, delegations, `ListResources`, method policy);
+each suite line skips for a fixture that states no case.
+
 ## Open decisions
 
 - **Decided 2026-10-23, the hop rule.** A module hops only on a person's token

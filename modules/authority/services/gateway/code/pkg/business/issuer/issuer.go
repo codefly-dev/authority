@@ -193,11 +193,13 @@ func (i *Issuer) Issue(ctx context.Context, req *authorityv1.IssueRequest) (*aut
 		}
 		token, wc, err = i.forPerson(ctx, sessionID, audience, req.GetOperationBindingId(), asked, ttl)
 	case *authorityv1.IssueRequest_Workload:
-		token, wc, err = i.forWorkload(ctx, as.Workload.GetCredential(), req.GetOrganizationId(), req.GetOperationBindingId(), audience, asked, ttl)
+		token, wc, err = i.forWorkload(ctx, as.Workload.GetCredential(), req.GetOrganizationId(), req.GetOperationBindingId(), req.GetOperation(), audience, asked, ttl)
 	case *authorityv1.IssueRequest_Installation:
 		token, wc, err = i.forInstallation(ctx, as.Installation.GetInstallationId(), audience, asked, ttl)
 	case *authorityv1.IssueRequest_ParentToken:
-		token, wc, err = i.child(ctx, as.ParentToken, req.GetActor().GetCredential(), req.GetOperationBindingId(), audience, asked, ttl)
+		token, wc, err = i.child(ctx, as.ParentToken, req.GetActor().GetCredential(), req.GetOperationBindingId(), req.GetOperation(), audience, asked, ttl)
+	case *authorityv1.IssueRequest_Delegation:
+		token, wc, err = i.forDelegation(ctx, as.Delegation.GetDelegationId(), req.GetActor().GetCredential(), req.GetOperationBindingId(), req.GetOperation(), audience, asked, ttl)
 	default:
 		return nil, fmt.Errorf("%w: an issue names whom it is for", ErrRefused)
 	}
@@ -255,7 +257,7 @@ func (i *Issuer) forPerson(ctx context.Context, sessionID string, audience state
 
 // forWorkload: owner = actor = the module; scopes = the binding's headless
 // scopes ∩ asked; the binding names the audience, so the request's must agree.
-func (i *Issuer) forWorkload(ctx context.Context, credential, org, bindingID string, audience state.Manifest, asked []*basev0.WorkScopeV1, ttl time.Duration) (string, *basev0.WorkContextV1, error) {
+func (i *Issuer) forWorkload(ctx context.Context, credential, org, bindingID, operation string, audience state.Manifest, asked []*basev0.WorkScopeV1, ttl time.Duration) (string, *basev0.WorkContextV1, error) {
 	module, err := i.state.VerifyWorkload(ctx, credential)
 	if err != nil {
 		return "", nil, err
@@ -271,7 +273,11 @@ func (i *Issuer) forWorkload(ctx context.Context, credential, org, bindingID str
 	if binding.Audience != audience.Principal {
 		return "", nil, fmt.Errorf("%w: binding %s is addressed to %s, not %s", ErrRefused, bindingID, binding.Audience, audience.Principal)
 	}
-	scopes, err := grant(asked, binding.HeadlessScopes)
+	through, err := scopesFor(binding, operation, "headless")
+	if err != nil {
+		return "", nil, err
+	}
+	scopes, err := grant(asked, through)
 	if err != nil {
 		return "", nil, err
 	}
@@ -315,7 +321,7 @@ func (i *Issuer) forInstallation(ctx context.Context, id string, audience state.
 // audience through the binding. An ask narrows the ceiling. The second half is
 // what lets a delegate chain cross audiences: a module holds nothing of its own,
 // it inherits who it acts for.
-func (i *Issuer) child(ctx context.Context, parent, actorCredential, bindingID string, audience state.Manifest, asked []*basev0.WorkScopeV1, ttl time.Duration) (string, *basev0.WorkContextV1, error) {
+func (i *Issuer) child(ctx context.Context, parent, actorCredential, bindingID, operation string, audience state.Manifest, asked []*basev0.WorkScopeV1, ttl time.Duration) (string, *basev0.WorkContextV1, error) {
 	decoded, err := workcontext.Decode(parent)
 	if err != nil {
 		return "", nil, err
@@ -346,7 +352,16 @@ func (i *Issuer) child(ctx context.Context, parent, actorCredential, bindingID s
 	if err != nil {
 		return "", nil, err
 	}
-	ceiling := state.Normalize(append(append([]*basev0.WorkScopeV1(nil), verified.EffectiveScopes()...), state.Intersect(held, binding.InvokeScopes)...))
+	through, err := scopesFor(binding, operation, "invoke")
+	if err != nil {
+		return "", nil, err
+	}
+	ceiling := state.Normalize(append(append([]*basev0.WorkScopeV1(nil), verified.EffectiveScopes()...), state.Intersect(held, through)...))
+	if operation == "lookup" {
+		// A lookup reads a receipt: never more than the binding's lookup scopes,
+		// whatever the parent carried.
+		ceiling = state.Intersect(ceiling, through)
+	}
 	if len(ceiling) == 0 {
 		return "", nil, fmt.Errorf("%w: %s holds nothing at %s through binding %q", ErrRefused, claims.GetOwnerPrincipalId(), audience.Module, bindingID)
 	}
@@ -401,6 +416,119 @@ func (i *Issuer) child(ctx context.Context, parent, actorCredential, bindingID s
 		}
 	}
 	return "", nil, fmt.Errorf("%w: no hop was derived", ErrRefused)
+}
+
+// scopesFor is what a binding may do for one operation: invoke, headless or
+// lookup, or def when the request names none.
+func scopesFor(b state.Binding, operation, def string) ([]*basev0.WorkScopeV1, error) {
+	if operation == "" {
+		operation = def
+	}
+	switch operation {
+	case "invoke":
+		return b.InvokeScopes, nil
+	case "headless":
+		return b.HeadlessScopes, nil
+	case "lookup":
+		return b.LookupScopes, nil
+	}
+	return nil, fmt.Errorf("%w: operation %q is none of invoke, headless and lookup", ErrRefused, operation)
+}
+
+// forDelegation issues for a delegation's grantor through the module it was
+// granted to. No live capability is presented: the delegation must stand, the
+// actor must be its module, and the scopes are what was delegated, cut to what
+// the grantor holds at the audience now and to the binding. The capability is
+// the grantor's, with the module as actor and the delegation on its hop.
+func (i *Issuer) forDelegation(ctx context.Context, id, actorCredential, bindingID, operation string, audience state.Manifest, asked []*basev0.WorkScopeV1, ttl time.Duration) (string, *basev0.WorkContextV1, error) {
+	d, err := i.state.DelegationByID(id)
+	if err != nil {
+		return "", nil, err
+	}
+	if d.Revoked {
+		return "", nil, fmt.Errorf("%w: delegation %s is revoked", ErrRefused, id)
+	}
+	actor, err := i.state.VerifyWorkload(ctx, actorCredential)
+	if err != nil {
+		return "", nil, fmt.Errorf("an issue from a delegation names the module acting: %w", err)
+	}
+	if actor.Module != d.Module {
+		return "", nil, fmt.Errorf("%w: delegation %s is granted to %s, not %s", ErrRefused, id, d.Module, actor.Module)
+	}
+	if bindingID == "" {
+		return "", nil, fmt.Errorf("%w: an issue from a delegation names the binding it exercises", ErrRefused)
+	}
+	binding, declared := actor.Bindings[bindingID]
+	if !declared {
+		return "", nil, fmt.Errorf("%w: operation binding %q is not one %s declares", state.ErrUnknown, bindingID, actor.Module)
+	}
+	if binding.Audience != audience.Principal {
+		return "", nil, fmt.Errorf("%w: binding %q is addressed to %s, not %s", ErrRefused, bindingID, binding.Audience, audience.Principal)
+	}
+	through, err := scopesFor(binding, operation, "invoke")
+	if err != nil {
+		return "", nil, err
+	}
+	held, err := i.state.PersonScopes(d.Grantor, audience.Principal)
+	if err != nil {
+		return "", nil, err
+	}
+	ceiling := state.Intersect(state.Intersect(d.WorkScopes(), held), through)
+	if len(ceiling) == 0 {
+		return "", nil, fmt.Errorf("%w: delegation %s grants nothing %s still holds at %s through binding %q", ErrRefused, id, d.Grantor, audience.Module, bindingID)
+	}
+	scopes, err := grant(asked, ceiling)
+	if err != nil {
+		return "", nil, err
+	}
+	token, _, err := i.authority.Start(ctx, workcontext.StartInput{
+		TenantID: d.Organization, OrganizationID: d.Organization,
+		OwnerPrincipalID: d.Grantor, OwnerPrincipalKind: "human",
+		TaskID: uuid.NewString(), Audience: audience.Principal, AuthorityScopes: scopes,
+		InstallationID: d.Organization + "/" + actor.Module, TTL: ttl, ReplayPolicy: workcontext.ReplayIdempotent,
+	})
+	if err != nil {
+		return "", nil, err
+	}
+	current, err := i.verifier(audience.Principal).Verify(ctx, token)
+	if err != nil {
+		return "", nil, fmt.Errorf("verify the capability a delegation's hop is derived from: %w", err)
+	}
+	return i.authority.Child(ctx, current, workcontext.ChildInput{
+		PrincipalID: actor.Principal, PrincipalKind: "service", DelegationID: d.ID,
+		GrantedScopes: scopes, Audience: audience.Principal, TTL: ttl, ReplayPolicy: workcontext.ReplayIdempotent,
+		OperationBindingID: d.Organization + "/" + actor.Module + "/" + bindingID,
+	})
+}
+
+// Delegate records the signed-in person's grant to a module.
+func (i *Issuer) Delegate(ctx context.Context, module string, scopes []*basev0.WorkScopeV1, purpose string) (state.Delegation, error) {
+	person, err := i.signedIn(ctx)
+	if err != nil {
+		return state.Delegation{}, err
+	}
+	return i.state.Delegate(person, module, scopes, purpose)
+}
+
+// RevokeDelegation ends one of the signed-in person's delegations.
+func (i *Issuer) RevokeDelegation(ctx context.Context, id string) (state.Delegation, error) {
+	person, err := i.signedIn(ctx)
+	if err != nil {
+		return state.Delegation{}, err
+	}
+	return i.state.RevokeDelegation(person, id)
+}
+
+func (i *Issuer) signedIn(ctx context.Context) (string, error) {
+	sessionID, ok := sessionOf(ctx)
+	if !ok {
+		return "", fmt.Errorf("%w: a delegation is made by a signed-in person; the call carries no session", ErrRefused)
+	}
+	sess, err := i.state.Session(sessionID)
+	if err != nil {
+		return "", err
+	}
+	return sess.Person, nil
 }
 
 // ownerHolds is what the owner of a verified context holds at the audience now:
@@ -471,7 +599,7 @@ func (i *Issuer) audienceOfBinding(ctx context.Context, req *authorityv1.IssueRe
 	switch as := req.GetAs().(type) {
 	case *authorityv1.IssueRequest_Workload:
 		credential = as.Workload.GetCredential()
-	case *authorityv1.IssueRequest_ParentToken:
+	case *authorityv1.IssueRequest_ParentToken, *authorityv1.IssueRequest_Delegation:
 		credential = req.GetActor().GetCredential()
 	default:
 		return "", fmt.Errorf("%w: only a workload or a hop names a binding in place of an audience", ErrRefused)
