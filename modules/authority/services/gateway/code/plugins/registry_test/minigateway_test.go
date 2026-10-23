@@ -54,7 +54,7 @@ func TestTheMiniGatewayPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
 		// Maya reads records; the directory page hops on her context through its
 		// records binding; a context at records is refused at model.
 		Audience: "records", ReadKind: "records.record",
-		WorkloadCredential: k.Credential(t, "org-directory"), Binding: "records", BindingAudience: "records", Elsewhere: "model",
+		WorkloadModule: "org-directory", WorkloadCredential: k.Credential(t, "org-directory"), Binding: "records", BindingAudience: "records", Elsewhere: "model",
 		InstalledSolution: "acme/wiki",
 		// Deliveries are signed with the kit's release key and carried by the
 		// module's own workload under the launcher.

@@ -32,6 +32,7 @@ type Fixture struct {
 	AdminToken         string // signs in an organisation administrator
 	Audience           string // a composed module the viewer holds "read" on
 	ReadKind           string // the resource kind the viewer may read at Audience
+	WorkloadModule     string // the principal of the module WorkloadCredential names; a person's token for its hop is addressed here
 	WorkloadCredential string // the credential of a composed module's workload; the module declares Binding, addressed to BindingAudience
 	Binding            string // the workload module's operation binding whose invoke scopes cover "read" on ReadKind
 	BindingAudience    string // the audience Binding is addressed to; a hop exercising Binding is addressed here
@@ -244,29 +245,41 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			t.Fatalf("installation issue: %v", out)
 		}
 	})
-	t.Run("a child hop attenuates and names its actor", func(t *testing.T) {
+	t.Run("a child hop attenuates and names its actor and its binding", func(t *testing.T) {
+		// The hop rule: a module hops only on a token addressed to it, and the hop
+		// names the binding it exercises, so the child is sealed within the
+		// module's installation and carries exactly the binding's scopes the
+		// person holds. The person's token therefore names the binding too.
 		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
+		parent := c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.WorkloadModule, "operation_binding_id": f.Binding})
 		read := []any{map[string]any{"resource_kind": f.ReadKind, "actions": []any{"read"}}}
-		parent := c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.Audience, "scopes": read})
-		// A hop on a person's context names no binding today: core keeps the
-		// owner's seal installation on a hop and requires a named binding to be
-		// granted within it, and a module's binding is granted within the module's
-		// own installation. Whether a cross-module hop names its binding, and in
-		// which installation that binding is held, is an open decision on core
-		// (authority README, "Open decisions"); until it is taken the hop carries
-		// its parent's binding, which for a person's session is none.
-		hop := map[string]any{"parent_token": str(parent, "token"), "actor": map[string]any{"credential": f.WorkloadCredential}, "audience": f.Audience}
+		hop := map[string]any{"parent_token": str(parent, "token"), "actor": map[string]any{"credential": f.WorkloadCredential},
+			"audience": f.BindingAudience, "operation_binding_id": f.Binding}
 		req := clone(hop)
 		req["scopes"] = read
 		child := c.must(t, ctx, "host.authority.v1.AuthorityService", "Issue", req)
-		if len(listMsgs(msg(child, "context"), "actor_chain")) != 1 {
+		wc := msg(child, "context")
+		if len(listMsgs(wc, "actor_chain")) != 1 || str(msg(wc, "operation_binding"), "binding_id") == "" || str(wc, "audience") != f.BindingAudience {
 			t.Fatalf("child: %v", child)
 		}
+		c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(child, "token"), "audience": f.BindingAudience})
 		req = clone(hop)
 		req["scopes"] = []any{map[string]any{"resource_kind": f.ReadKind, "actions": []any{"admin"}}}
-		_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Issue", req)
-		if status.Code(err) != codes.PermissionDenied {
+		if _, err := c.call(ctx, "host.authority.v1.AuthorityService", "Issue", req); status.Code(err) != codes.PermissionDenied {
 			t.Fatalf("widening: %v", err)
+		}
+		req = clone(hop)
+		req["operation_binding_id"] = "undeclared"
+		req["scopes"] = read
+		if _, err := c.call(ctx, "host.authority.v1.AuthorityService", "Issue", req); status.Code(err) != codes.NotFound || !strings.Contains(err.Error(), "undeclared") {
+			t.Fatalf("an undeclared binding on a hop is refused by name: %v", err)
+		}
+		elsewhere := c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.Audience, "scopes": read})
+		req = clone(hop)
+		req["parent_token"] = str(elsewhere, "token")
+		req["scopes"] = read
+		if _, err := c.call(ctx, "host.authority.v1.AuthorityService", "Issue", req); status.Code(err) != codes.PermissionDenied {
+			t.Fatalf("a module hops only on a token addressed to it: %v", err)
 		}
 	})
 	t.Run("a manifest moves only forward and a lower generation is refused by name", func(t *testing.T) {

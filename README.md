@@ -344,7 +344,12 @@ through the sketch until it does.
 
 ## Open decisions
 
-- **A cross-module hop and its binding (2026-10-22; candidate answer 2026-10-23).**
+- **Decided 2026-10-23, the hop rule.** A module hops only on a person's token
+  addressed to it, the hop names the binding it exercises, and the person's token
+  names that binding too, so the child carries exactly what the person holds
+  through the binding at its audience. Core stands unchanged. The mini gateway
+  and the suite state it; the host's `childHop` and its person issue follow
+  (saas #1219 is the person half there). History:
   The host's `module_actor` mode (saas #1215) requires the person's parent to be
   sealed to the acting module's installation: the parent is addressed to the
   module acting for the person, and the module's hop names its binding to the

@@ -118,7 +118,7 @@ func (i *Issuer) Issue(ctx context.Context, req *authorityv1.IssueRequest) (*aut
 		if !ok {
 			return nil, fmt.Errorf("%w: a person-owned issue is made by a signed-in person; the call carries no session", ErrRefused)
 		}
-		token, wc, err = i.forPerson(ctx, sessionID, audience, asked, ttl)
+		token, wc, err = i.forPerson(ctx, sessionID, audience, req.GetOperationBindingId(), asked, ttl)
 	case *authorityv1.IssueRequest_Workload:
 		token, wc, err = i.forWorkload(ctx, as.Workload.GetCredential(), req.GetOrganizationId(), req.GetOperationBindingId(), audience, asked, ttl)
 	case *authorityv1.IssueRequest_Installation:
@@ -140,7 +140,7 @@ func (i *Issuer) Issue(ctx context.Context, req *authorityv1.IssueRequest) (*aut
 
 // forPerson: owner = actor = the person; scopes = asked ∩ what their roles hold
 // at the audience; sealed to the audience module's installation at their organisation.
-func (i *Issuer) forPerson(ctx context.Context, sessionID string, audience state.Manifest, asked []*basev0.WorkScopeV1, ttl time.Duration) (string, *basev0.WorkContextV1, error) {
+func (i *Issuer) forPerson(ctx context.Context, sessionID string, audience state.Manifest, bindingID string, asked []*basev0.WorkScopeV1, ttl time.Duration) (string, *basev0.WorkContextV1, error) {
 	sess, err := i.state.Session(sessionID)
 	if err != nil {
 		return "", nil, err
@@ -148,6 +148,24 @@ func (i *Issuer) forPerson(ctx context.Context, sessionID string, audience state
 	held, err := i.state.PersonScopes(sess.Person, audience.Principal)
 	if err != nil {
 		return "", nil, err
+	}
+	if bindingID != "" {
+		// The person's token names a binding of the audience module, so the
+		// module's hop through that binding carries exactly what the person
+		// holds at the binding's audience, and nothing is typed per organisation.
+		binding, declared := audience.Bindings[bindingID]
+		if !declared {
+			return "", nil, fmt.Errorf("%w: operation binding %q is not one %s declares", state.ErrUnknown, bindingID, audience.Module)
+		}
+		there, err := i.state.PersonScopes(sess.Person, binding.Audience)
+		if err != nil {
+			return "", nil, err
+		}
+		through := state.Intersect(there, binding.InvokeScopes)
+		if len(through) == 0 {
+			return "", nil, fmt.Errorf("%w: %s holds nothing under operation binding %q", ErrRefused, sess.Person, bindingID)
+		}
+		held = state.Normalize(append(held, through...))
 	}
 	scopes, err := grant(asked, held)
 	if err != nil {
@@ -230,6 +248,22 @@ func (i *Issuer) child(ctx context.Context, parent, actorCredential, bindingID s
 	if err != nil {
 		return "", nil, fmt.Errorf("a child hop names the module acting: %w", err)
 	}
+	// A module hops only on a token addressed to it, and names the binding it
+	// exercises: the hop is then sealed within the module's own installation and
+	// a verifier resolves exactly one binding.
+	if verified.Context().GetAudience() != actor.Principal {
+		return "", nil, fmt.Errorf("%w: %s hops only on a token addressed to it; this one is addressed to %s", ErrRefused, actor.Module, verified.Context().GetAudience())
+	}
+	if bindingID == "" {
+		return "", nil, fmt.Errorf("%w: a module's hop names the binding it exercises", ErrRefused)
+	}
+	binding, declared := actor.Bindings[bindingID]
+	if !declared {
+		return "", nil, fmt.Errorf("%w: operation binding %q is not one %s declares", state.ErrUnknown, bindingID, actor.Module)
+	}
+	if binding.Audience != audience.Principal {
+		return "", nil, fmt.Errorf("%w: binding %q is addressed to %s, not %s", ErrRefused, bindingID, binding.Audience, audience.Principal)
+	}
 	scopes := asked
 	if len(scopes) == 0 {
 		scopes = verified.EffectiveScopes()
@@ -242,9 +276,7 @@ func (i *Issuer) child(ctx context.Context, parent, actorCredential, bindingID s
 		DelegationID: verified.Context().GetSessionId(), GrantedScopes: state.Normalize(scopes),
 		Audience: audience.Principal, TTL: ttl,
 	}
-	if bindingID != "" {
-		in.OperationBindingID = verified.Context().GetTenantId() + "/" + actor.Module + "/" + bindingID
-	}
+	in.OperationBindingID = verified.Context().GetTenantId() + "/" + actor.Module + "/" + bindingID
 	return i.authority.Child(ctx, verified, in)
 }
 

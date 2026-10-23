@@ -318,38 +318,57 @@ func TestAWorkloadIsIssuedItsBindingsHeadlessScopesForTheBindingsAudience(t *tes
 	}
 }
 
-func TestAChildHopAttenuatesAndNamesItsActor(t *testing.T) {
+// The hop rule: a module hops only on a person's token addressed to it, names
+// the binding it exercises, and the child carries what the person holds through
+// that binding at its audience, no more.
+func TestAChildHopAttenuatesAndNamesItsActorAndItsBinding(t *testing.T) {
 	k := testkit.New(t)
 	ctx := context.Background()
-	remi := person(t, k, "fixture-remi")
-	parent, err := k.Issuer.Issue(remi, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents"})
+	maya := person(t, k, "fixture-maya")
+	parent, err := k.Issuer.Issue(maya, &authorityv1.IssueRequest{
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "org-directory", OperationBindingId: "records"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	documents := &authorityv1.WorkloadCredential{Credential: k.Credential(t, "documents")}
+	page := &authorityv1.WorkloadCredential{Credential: k.Credential(t, "org-directory")}
 	child, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_ParentToken{ParentToken: parent.GetToken()}, Actor: documents,
-		Audience: "documents", Scopes: scopes(testkit.Scope("documents", "read")),
+		As: &authorityv1.IssueRequest_ParentToken{ParentToken: parent.GetToken()}, Actor: page,
+		Audience: "records", OperationBindingId: "records", Scopes: scopes(testkit.Scope("records.record", "read")),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	wc := child.GetContext()
-	if wc.GetOwnerPrincipalId() != "remi" || len(wc.GetActorChain()) != 1 || wc.GetActorChain()[0].GetPrincipalId() != "documents" {
-		t.Fatalf("child = owner %s actors %v", wc.GetOwnerPrincipalId(), wc.GetActorChain())
+	if wc.GetOwnerPrincipalId() != "maya" || len(wc.GetActorChain()) != 1 || wc.GetActorChain()[0].GetPrincipalId() != "org-directory" || wc.GetOperationBinding().GetBindingId() != "acme/org-directory/records" {
+		t.Fatalf("child = owner %s actors %v binding %v", wc.GetOwnerPrincipalId(), wc.GetActorChain(), wc.GetOperationBinding())
 	}
-	if _, err := k.Issuer.Check(ctx, child.GetToken(), "documents"); err != nil {
+	if _, err := k.Issuer.Check(ctx, child.GetToken(), "records"); err != nil {
 		t.Fatalf("child check: %v", err)
 	}
 	if _, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_ParentToken{ParentToken: parent.GetToken()}, Actor: documents,
-		Audience: "documents", Scopes: scopes(testkit.Scope("documents", "ingest")),
+		As: &authorityv1.IssueRequest_ParentToken{ParentToken: parent.GetToken()}, Actor: page,
+		Audience: "records", OperationBindingId: "records", Scopes: scopes(testkit.Scope("records.record", "write")),
 	}); !errors.Is(err, issuer.ErrRefused) {
 		t.Fatalf("widening: %v", err)
 	}
 	if _, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_ParentToken{ParentToken: parent.GetToken()}, Audience: "documents",
+		As: &authorityv1.IssueRequest_ParentToken{ParentToken: parent.GetToken()}, Actor: page, Audience: "records",
+	}); !errors.Is(err, issuer.ErrRefused) {
+		t.Fatalf("a hop that names no binding: %v", err)
+	}
+	elsewhere, err := k.Issuer.Issue(maya, &authorityv1.IssueRequest{
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
+		As: &authorityv1.IssueRequest_ParentToken{ParentToken: elsewhere.GetToken()}, Actor: page,
+		Audience: "records", OperationBindingId: "records", Scopes: scopes(testkit.Scope("records.record", "read")),
+	}); !errors.Is(err, issuer.ErrRefused) {
+		t.Fatalf("a module hops only on a token addressed to it: %v", err)
+	}
+	if _, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
+		As: &authorityv1.IssueRequest_ParentToken{ParentToken: parent.GetToken()}, Audience: "records",
 	}); err == nil {
 		t.Fatal("a child without an actor")
 	}
