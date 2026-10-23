@@ -10,6 +10,7 @@ import (
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
 	"github.com/codefly-dev/authority/libraries/hop/go"
+	"github.com/codefly-dev/core/workcontext"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -21,34 +22,57 @@ type Checker interface {
 	Check(ctx context.Context, in *authorityv1.CheckRequest, opts ...grpc.CallOption) (*authorityv1.CheckResponse, error)
 }
 
-// Decider decides for one module: Audience is the module's principal, the
-// audience a Work Context must be addressed to for the hop to let it through.
-// What each method of the module requires is the authority's to apply: it holds
-// the policy the module's delivery declared, and Check names the method.
+// Decider decides for the modules a hop stands in front of. A caller addresses
+// its Work Context to the module it calls, so the hop reads the module from the
+// context's audience, unverified, and the authority's Check verifies that
+// audience and that the module serves the method. A context addressed to a
+// module the hop does not front is refused before the authority is asked.
 type Decider struct {
 	Authority Checker
-	Audience  string
+	Modules   map[string]bool
+	// AudienceOf reads the module a token is addressed to; nil decodes it with
+	// core, unverified, which is all the hop needs before the authority checks.
+	AudienceOf func(token string) (string, error)
 }
 
-// Decide returns who a call to method is for, or the refusal.
-func (d Decider) Decide(ctx context.Context, method string, md metadata.MD) (hop.Identity, error) {
+func coreAudience(token string) (string, error) {
+	decoded, err := workcontext.Decode(token)
+	if err != nil {
+		return "", err
+	}
+	return decoded.Context().GetAudience(), nil
+}
+
+// Decide returns the module a call is for and who it acts for, or the refusal.
+func (d Decider) Decide(ctx context.Context, method string, md metadata.MD) (string, hop.Identity, error) {
 	tokens := md.Get(hop.WorkContextKey)
 	switch len(tokens) {
 	case 0:
-		return hop.Identity{}, status.Errorf(codes.Unauthenticated, "the call to %s carries no Work Context; the hop lets through only a call the authority checked", d.Audience)
+		return "", hop.Identity{}, status.Errorf(codes.Unauthenticated, "the call to %s carries no Work Context; the hop lets through only a call the authority checked", method)
 	case 1:
 	default:
-		return hop.Identity{}, status.Errorf(codes.InvalidArgument, "the call to %s carries %d Work Contexts; exactly one says who it is for", d.Audience, len(tokens))
+		return "", hop.Identity{}, status.Errorf(codes.InvalidArgument, "the call to %s carries %d Work Contexts; exactly one says who it is for", method, len(tokens))
 	}
-	checked, err := d.Authority.Check(ctx, &authorityv1.CheckRequest{Token: tokens[0], Audience: d.Audience, Method: method})
+	audienceOf := d.AudienceOf
+	if audienceOf == nil {
+		audienceOf = coreAudience
+	}
+	module, err := audienceOf(tokens[0])
+	if err != nil {
+		return "", hop.Identity{}, status.Errorf(codes.Unauthenticated, "the call to %s carries a Work Context that does not decode: %v", method, err)
+	}
+	if !d.Modules[module] {
+		return "", hop.Identity{}, status.Errorf(codes.PermissionDenied, "the call to %s is addressed to %q, a module this hop does not stand in front of", method, module)
+	}
+	checked, err := d.Authority.Check(ctx, &authorityv1.CheckRequest{Token: tokens[0], Audience: module, Method: method})
 	if err != nil {
 		refusal := status.Convert(err)
 		if refusal.Code() == codes.Unavailable || refusal.Code() == codes.DeadlineExceeded {
-			return hop.Identity{}, status.Errorf(codes.Unavailable, "the hop could not reach the authority to check the call to %s: %s", d.Audience, refusal.Message())
+			return "", hop.Identity{}, status.Errorf(codes.Unavailable, "the hop could not reach the authority to check the call to %s: %s", module, refusal.Message())
 		}
-		return hop.Identity{}, status.Errorf(refusal.Code(), "the authority refused the call to %s: %s", d.Audience, refusal.Message())
+		return "", hop.Identity{}, status.Errorf(refusal.Code(), "the authority refused the call to %s: %s", module, refusal.Message())
 	}
-	return IdentityOf(checked.GetContext()), nil
+	return module, IdentityOf(checked.GetContext()), nil
 }
 
 // IdentityOf reads who a checked Work Context is for. Its scopes are the

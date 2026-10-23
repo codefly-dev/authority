@@ -18,14 +18,15 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// Decide is the hop's decision for one call to method.
-type Decide func(ctx context.Context, method string, md metadata.MD) (hop.Identity, error)
+// Decide is the hop's decision for one call to method: the module it is for and
+// who it acts for.
+type Decide func(ctx context.Context, method string, md metadata.MD) (string, hop.Identity, error)
 
-// Proxy forwards a decided call to Upstream, the module's own connection.
+// Proxy forwards a decided call to the module's own connection.
 type Proxy struct {
-	Decide   Decide
-	Upstream *grpc.ClientConn
-	Proof    string
+	Decide    Decide
+	Upstreams map[string]*grpc.ClientConn
+	Proof     string
 	// Refused is told every refusal, so the hop's log names it.
 	Refused func(method string, err error)
 }
@@ -45,7 +46,7 @@ func DialOptions() []grpc.DialOption {
 func (p *Proxy) handle(_ any, in grpc.ServerStream) error {
 	method, _ := grpc.MethodFromServerStream(in)
 	md, _ := metadata.FromIncomingContext(in.Context())
-	id, err := p.Decide(in.Context(), method, md)
+	module, id, err := p.Decide(in.Context(), method, md)
 	if err != nil {
 		if p.Refused != nil {
 			p.Refused(method, err)
@@ -61,7 +62,11 @@ func (p *Proxy) handle(_ any, in grpc.ServerStream) error {
 	hop.Stamp(out, id, p.Proof)
 	ctx, cancel := context.WithCancel(metadata.NewOutgoingContext(in.Context(), out))
 	defer cancel()
-	up, err := p.Upstream.NewStream(ctx, &grpc.StreamDesc{ServerStreams: true, ClientStreams: true}, method)
+	upstream, ok := p.Upstreams[module]
+	if !ok {
+		return status.Errorf(codes.Internal, "the hop has no connection to %s", module)
+	}
+	up, err := upstream.NewStream(ctx, &grpc.StreamDesc{ServerStreams: true, ClientStreams: true}, method)
 	if err != nil {
 		return err
 	}

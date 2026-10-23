@@ -444,11 +444,14 @@ cannot import one module's option into another. A test fails when the copy
 drifts.
 
 Not yet:
-- **A hop in front of every module.** The composition names the module a hop
-  stands in front of, in the `hop` group: `MODULE` (its principal) and
-  `UPSTREAM` (a `${endpoint:…}` reference the CLI resolves). This repository's
-  `configurations/local/hop.env` names the console. Composing a hop in front of
-  each module is the composition's job.
+- **A hop in front of every module.** One hop stands in front of the modules
+  the composition lists in the `hop` group: `MODULES` (their principals) and,
+  for each, `UPSTREAM_<MODULE>` (a `${endpoint:…}` reference the CLI resolves).
+  A call goes to the module its Work Context is addressed to; a context for a
+  module the hop does not front is refused before the authority is asked, and
+  the authority refuses a method that module does not serve. This repository's
+  `configurations/local/hop.env` lists the console. Composing hops is the
+  composition's job.
 - **The interface, not the provider.** The SDK resolves an endpoint by its
   provider, so the hop names the authority gateway. An accessor by interface is
   an SDK change.

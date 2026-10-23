@@ -34,34 +34,44 @@ func standInFront(ctx context.Context, config *adapters.Configuration) (Clean, e
 	if err != nil {
 		return nil, err
 	}
-	// The module this hop stands in front of is the composition's to name: its
-	// principal (the audience a Work Context must be addressed to) and its
-	// endpoint, as a ${endpoint:<module>/<service>/<endpoint>} reference the
-	// CLI resolves. Codefly composing a hop in front of every module replaces
-	// both.
-	fronted, err := codefly.For(ctx).WorkspaceConfiguration("hop", "MODULE")
-	if err != nil || fronted == "" {
-		return nil, fmt.Errorf("hop: the composition names no module to stand in front of (hop/MODULE): %v", err)
+	// The modules this hop stands in front of are the composition's to name:
+	// MODULES lists their principals, and UPSTREAM_<MODULE> is each one's
+	// endpoint, a ${endpoint:<module>/<service>/<endpoint>} reference the CLI
+	// resolves. Codefly composing a hop in front of every module replaces both.
+	listed, err := codefly.For(ctx).WorkspaceConfiguration("hop", "MODULES")
+	if err != nil || listed == "" {
+		return nil, fmt.Errorf("hop: the composition names no module to stand in front of (hop/MODULES): %v", err)
 	}
-	upstream, err := codefly.For(ctx).WorkspaceConfiguration("hop", "UPSTREAM")
-	if err != nil || upstream == "" {
-		return nil, fmt.Errorf("hop: the composition names no endpoint for %s (hop/UPSTREAM): %v", fronted, err)
-	}
-	module, err := grpc.NewClient(address(upstream), append(proxy.DialOptions(), grpc.WithTransportCredentials(insecure.NewCredentials()))...)
-	if err != nil {
-		return nil, err
+	modules, upstreams := map[string]bool{}, map[string]*grpc.ClientConn{}
+	for _, name := range strings.Split(listed, ",") {
+		name = strings.TrimSpace(name)
+		key := "UPSTREAM_" + strings.ToUpper(strings.ReplaceAll(name, "-", "_"))
+		endpoint, err := codefly.For(ctx).WorkspaceConfiguration("hop", key)
+		if err != nil || endpoint == "" {
+			return nil, fmt.Errorf("hop: the composition names no endpoint for %s (hop/%s): %v", name, key, err)
+		}
+		conn, err := grpc.NewClient(address(endpoint), append(proxy.DialOptions(), grpc.WithTransportCredentials(insecure.NewCredentials()))...)
+		if err != nil {
+			return nil, err
+		}
+		modules[name], upstreams[name] = true, conn
 	}
 	p := &proxy.Proxy{
-		Decide:   decide.Decider{Authority: authorityv1.NewAuthorityServiceClient(authority), Audience: fronted}.Decide,
-		Upstream: module,
-		Proof:    proof,
+		Decide:    decide.Decider{Authority: authorityv1.NewAuthorityServiceClient(authority), Modules: modules}.Decide,
+		Upstreams: upstreams,
+		Proof:     proof,
 		Refused: func(method string, err error) {
-			w.Warn("refused", wool.Field("module", fronted), wool.Field("method", method), wool.Field("reason", err.Error()))
+			w.Warn("refused", wool.Field("method", method), wool.Field("reason", err.Error()))
 		},
 	}
 	config.GRPCServerOptions = append(config.GRPCServerOptions, p.ServerOptions()...)
-	w.Info("standing in front of a module", wool.Field("module", fronted))
-	return func() { _ = authority.Close(); _ = module.Close() }, nil
+	w.Info("standing in front of modules", wool.Field("modules", listed))
+	return func() {
+		_ = authority.Close()
+		for _, conn := range upstreams {
+			_ = conn.Close()
+		}
+	}, nil
 }
 
 // address is a resolved endpoint reference as gRPC dials it.

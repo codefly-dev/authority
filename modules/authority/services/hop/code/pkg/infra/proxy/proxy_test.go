@@ -91,10 +91,15 @@ func setup(t *testing.T) (through gen.HopServiceClient, direct gen.HopServiceCli
 	go func() { _ = moduleServer.Serve(moduleListener) }()
 	t.Cleanup(moduleServer.Stop)
 	p := &proxy.Proxy{
-		Decide:   decide.Decider{Authority: a, Audience: "console"}.Decide,
-		Upstream: dial(t, moduleListener, proxy.DialOptions()...),
-		Proof:    proof,
-		Refused:  func(method string, err error) { *refused = append(*refused, method+": "+err.Error()) },
+		Decide: decide.Decider{Authority: a, Modules: map[string]bool{"console": true}, AudienceOf: func(token string) (string, error) {
+			if token == "for-records" {
+				return "records", nil
+			}
+			return "console", nil
+		}}.Decide,
+		Upstreams: map[string]*grpc.ClientConn{"console": dial(t, moduleListener, proxy.DialOptions()...)},
+		Proof:     proof,
+		Refused:   func(method string, err error) { *refused = append(*refused, method+": "+err.Error()) },
 	}
 	hopConn := serve(t, p.ServerOptions(), func(*grpc.Server) {})
 	return gen.NewHopServiceClient(hopConn), gen.NewHopServiceClient(dial(t, moduleListener)), m, a, refused
@@ -172,5 +177,17 @@ func TestTheHopHandsTheMethodToTheAuthorityAndPassesItsRefusalOn(t *testing.T) {
 	}
 	if m.reached != 1 || len(*refused) != 1 || strings.Join(a.methods, ",") != "/api.HopService/Version,/api.HopService/Version" {
 		t.Fatalf("reached %d refused %v methods %v", m.reached, *refused, a.methods)
+	}
+}
+
+func TestAContextForAModuleTheHopDoesNotFrontIsRefusedBeforeTheAuthority(t *testing.T) {
+	through, _, m, a, _ := setup(t)
+	ctx := metadata.AppendToOutgoingContext(context.Background(), hop.WorkContextKey, "for-records")
+	_, err := through.Version(ctx, &gen.VersionRequest{})
+	if status.Code(err) != codes.PermissionDenied || !strings.Contains(err.Error(), `addressed to "records", a module this hop does not stand in front of`) {
+		t.Fatalf("another module: %v", err)
+	}
+	if m.reached != 0 || len(a.asked) != 0 {
+		t.Fatalf("reached %d asked %v", m.reached, a.asked)
 	}
 }
