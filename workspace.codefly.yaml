@@ -2,3 +2,16 @@ name: authority
 layout: modules
 modules:
     - name: authority
+environments:
+    - name: local
+      description: The mini gateway on a laptop, the authority of its own run
+      fixture: local
+      # The run's host is the mini gateway itself: the launcher vouches for every
+      # composed workload against this anchor, and delivers manifests to it.
+      host:
+          coordinate: codefly/local/authority
+          component: authority
+          domain: local
+          audience: https://authority.local.test
+          trust_domain: authority.local
+          delivery: authority/gateway/grpc

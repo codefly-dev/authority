@@ -3,6 +3,8 @@ package composition
 
 import (
 	"context"
+	"gateway/pkg/framework"
+	"gateway/pkg/wiring"
 
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"github.com/codefly-dev/core/solutionhost"
@@ -128,3 +130,6 @@ func FromCore(in *solutionhost.ModuleManifest) state.Manifest {
 	}
 	return m
 }
+
+// New is the registry's constructor: the plugin over what Configure wired.
+func New() framework.Plugin { return &Plugin{State: wiring.State()} }

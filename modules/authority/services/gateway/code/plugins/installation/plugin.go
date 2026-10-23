@@ -3,6 +3,8 @@ package installation
 
 import (
 	"context"
+	"gateway/pkg/framework"
+	"gateway/pkg/wiring"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
@@ -66,3 +68,6 @@ func Wire(i state.Installation) *installationv1.Installation {
 	}[i.Status]
 	return &installationv1.Installation{Id: i.ID, OrganizationId: i.Organization, Target: i.Target, Status: st, Revision: i.Revision, Role: i.Role, TeamIds: i.Teams, AgentPrincipalId: i.AgentPrincipal()}
 }
+
+// New is the registry's constructor: the plugin over what Configure wired.
+func New() framework.Plugin { return &Plugin{State: wiring.State()} }

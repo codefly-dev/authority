@@ -3,6 +3,8 @@ package session
 
 import (
 	"context"
+	"gateway/pkg/framework"
+	"gateway/pkg/wiring"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
@@ -40,3 +42,6 @@ func (p *Plugin) SignIn(_ context.Context, req *sessionv1.SignInRequest) (*sessi
 	}
 	return &sessionv1.Session{SessionId: sess.ID, PersonId: sess.Person, OrganizationId: sess.Organization, Roles: sess.Roles, TeamIds: sess.Teams, Bearer: sess.ID}, nil
 }
+
+// New is the registry's constructor: the plugin over what Configure wired.
+func New() framework.Plugin { return &Plugin{State: wiring.State()} }

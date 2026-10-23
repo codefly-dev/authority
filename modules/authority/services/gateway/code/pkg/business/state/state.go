@@ -124,15 +124,19 @@ type fixtureFile struct {
 		ID   string `yaml:"id"`
 		Name string `yaml:"name"`
 	} `yaml:"organizations"`
-	Roles         []Role   `yaml:"roles"`
-	People        []Person `yaml:"people"`
-	Installations []struct {
-		Organization string   `yaml:"organization"`
-		Target       string   `yaml:"target"`
-		Role         string   `yaml:"role"`
-		Owner        string   `yaml:"owner"`
-		Teams        []string `yaml:"teams"`
-	} `yaml:"installations"`
+	Roles         []Role                `yaml:"roles"`
+	People        []Person              `yaml:"people"`
+	Installations []FixtureInstallation `yaml:"installations"`
+}
+
+// FixtureInstallation is one installation the fixture performs through the real
+// install path, once its target is composed.
+type FixtureInstallation struct {
+	Organization string   `yaml:"organization"`
+	Target       string   `yaml:"target"`
+	Role         string   `yaml:"role"`
+	Owner        string   `yaml:"owner"`
+	Teams        []string `yaml:"teams"`
 }
 
 // State holds everything; every method is safe for concurrent use.
@@ -150,6 +154,9 @@ type State struct {
 	attester      *native.Attester
 	audience      string
 	installStep   InstallStep
+	// pendingInstalls are fixture installations whose target was not composed
+	// when the fixture loaded; each is performed when its target's manifest applies.
+	pendingInstalls []FixtureInstallation
 }
 
 // New returns an empty state that attests workloads against one launcher anchor:
@@ -208,6 +215,12 @@ func (s *State) LoadFixture(ctx context.Context, data []byte) error {
 	}
 	s.mu.Unlock()
 	for _, i := range f.Installations {
+		if _, composed := s.modules[i.Target]; !composed {
+			// On a running service composition arrives by delivery after the
+			// fixture loads; the installation waits for its target's manifest.
+			s.pendingInstalls = append(s.pendingInstalls, i)
+			continue
+		}
 		inst, err := s.Install(ctx, i.Organization, i.Target, i.Role, i.Owner)
 		if err != nil {
 			return err
@@ -313,7 +326,47 @@ func (s *State) ApplyManifest(m Manifest) ([]string, error) {
 	m.ResourceKinds = Normalize(m.ResourceKinds)
 	s.modules[m.Module] = m
 	s.principals[m.Principal] = m.Module
-	return s.ensureModuleInstallations(m), nil
+	ids := s.ensureModuleInstallations(m)
+	pending := s.takePendingInstalls(m.Module)
+	s.mu.Unlock()
+	defer s.mu.Lock()
+	if err := s.performPendingInstalls(pending); err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+// takePendingInstalls removes and returns the fixture installations waiting for
+// this target; the caller holds the lock.
+func (s *State) takePendingInstalls(target string) []FixtureInstallation {
+	var mine, keep []FixtureInstallation
+	for _, i := range s.pendingInstalls {
+		if i.Target == target {
+			mine = append(mine, i)
+		} else {
+			keep = append(keep, i)
+		}
+	}
+	s.pendingInstalls = keep
+	return mine
+}
+
+// performPendingInstalls installs what the fixture asked for a target that has
+// just composed, through the real install path and its team grants; the caller
+// holds no lock.
+func (s *State) performPendingInstalls(pending []FixtureInstallation) error {
+	for _, i := range pending {
+		inst, err := s.Install(context.Background(), i.Organization, i.Target, i.Role, i.Owner)
+		if err != nil {
+			return fmt.Errorf("fixture installation of %s at %s: %w", i.Target, i.Organization, err)
+		}
+		for _, team := range i.Teams {
+			if _, err := s.GrantToTeam(context.Background(), i.Organization, inst.ID, team); err != nil {
+				return fmt.Errorf("fixture grant of %s to %s: %w", inst.ID, team, err)
+			}
+		}
+	}
+	return nil
 }
 
 // ensureModuleInstallations holds a module installation at every organisation;

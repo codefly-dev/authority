@@ -4,6 +4,8 @@ package authority
 import (
 	"context"
 	"errors"
+	"gateway/pkg/framework"
+	"gateway/pkg/wiring"
 	"strings"
 
 	"github.com/codefly-dev/core/workcontext"
@@ -83,3 +85,6 @@ func Status(err error) error {
 		return status.Error(codes.Internal, err.Error())
 	}
 }
+
+// New is the registry's constructor: the plugin over what Configure wired.
+func New() framework.Plugin { return &Plugin{Issuer: wiring.Issuer()} }
