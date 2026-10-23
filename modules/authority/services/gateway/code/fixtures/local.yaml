@@ -29,6 +29,12 @@ roles:
     name: admin
     scopes:
       - {kind: documents, actions: [read, write]}
+  # The local developer: every action on every kind each composed module serves,
+  # in Acme. A playground signs its person in as dev.
+  - organization: acme
+    name: developer
+    scopes:
+      - {kind: "*", actions: ["*"]}
 people:
   - id: maya
     email: maya@acme.test
@@ -60,6 +66,12 @@ people:
     organization: globex
     roles: []
     teams: [ops]
+  - id: dev
+    email: dev@acme.test
+    fixture_token: fixture-dev
+    organization: acme
+    roles: [developer]
+    teams: [engineering]
 installations:
   - organization: acme
     target: wiki
@@ -71,3 +83,10 @@ installations:
     role: editor
     owner: zoe
     teams: [ops]
+
+# A model a local run supervises itself (a playground's bridge to its model
+# provider) is an audience like any composed module.
+modules:
+  - module: model
+    kinds:
+      - {kind: modelservice.profiles, actions: [read, invoke]}

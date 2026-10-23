@@ -449,3 +449,34 @@ func TestABindingNamingIssueMayLeaveItsAudienceToTheBinding(t *testing.T) {
 		t.Fatalf("a person's issue still names its audience: %v", err)
 	}
 }
+
+// The local developer's role names no module: it holds every action on every
+// kind the audience serves. At a module whose manifest names kinds and not
+// actions, an explicit ask is granted as asked and an empty ask is refused by
+// name, since "everything" would put no concrete action in the token.
+func TestTheDeveloperRoleHoldsWhatEachComposedModuleServes(t *testing.T) {
+	k := testkit.New(t)
+	held, err := k.State.PersonScopes("dev", "records")
+	if err != nil || len(held) != 2 {
+		t.Fatalf("dev at records: %v %v", held, err)
+	}
+	if _, err := k.State.ApplyManifest(state.Manifest{Module: "probe", Principal: "probe", Kind: "module", Generation: 1,
+		ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope("probe.items", state.AnyAction)}}); err != nil {
+		t.Fatal(err)
+	}
+	dev := person(t, k, "fixture-dev")
+	out, err := k.Issuer.Issue(dev, &authorityv1.IssueRequest{
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "probe", Scopes: scopes(testkit.Scope("probe.items", "run"))})
+	if err != nil || out.GetContext().GetAuthorityScopes()[0].GetActions()[0] != "run" {
+		t.Fatalf("an explicit ask at a kinds-only module: %v %v", out.GetContext().GetAuthorityScopes(), err)
+	}
+	if _, err := k.Issuer.Issue(dev, &authorityv1.IssueRequest{
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "probe"}); !errors.Is(err, issuer.ErrRefused) {
+		t.Fatalf("an empty ask over undeclared actions: %v", err)
+	}
+	maya := person(t, k, "fixture-maya")
+	if _, err := k.Issuer.Issue(maya, &authorityv1.IssueRequest{
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "probe", Scopes: scopes(testkit.Scope("probe.items", "run"))}); err == nil {
+		t.Fatal("a viewer holds nothing at a module her roles do not name")
+	}
+}

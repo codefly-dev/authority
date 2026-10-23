@@ -10,6 +10,7 @@ import (
 	"crypto/ed25519"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
@@ -297,6 +298,11 @@ func grant(asked, held []*basev0.WorkScopeV1) ([]*basev0.WorkScopeV1, error) {
 	if len(asked) == 0 {
 		if len(held) == 0 {
 			return nil, fmt.Errorf("%w: the owner holds nothing at this audience", ErrRefused)
+		}
+		for _, sc := range held {
+			if slices.Contains(sc.GetActions(), state.AnyAction) {
+				return nil, fmt.Errorf("%w: the audience declares %s without its actions; ask for the scopes you need", ErrRefused, sc.GetResourceKind())
+			}
 		}
 		return held, nil
 	}

@@ -127,6 +127,18 @@ type fixtureFile struct {
 	Roles         []Role                `yaml:"roles"`
 	People        []Person              `yaml:"people"`
 	Installations []FixtureInstallation `yaml:"installations"`
+	// Modules are modules a local run supervises itself rather than composing
+	// them through Codefly (a bridge process a playground starts, say), declared
+	// so they can be an audience. A delivered manifest of the same module
+	// supersedes it; one already composed is left as delivered.
+	Modules []FixtureModule `yaml:"modules"`
+}
+
+// FixtureModule is one module the fixture composes: its name, which is its
+// principal, and the kinds and actions it serves.
+type FixtureModule struct {
+	Module string  `yaml:"module"`
+	Kinds  []Scope `yaml:"kinds"`
 }
 
 // FixtureInstallation is one installation the fixture performs through the real
@@ -199,6 +211,17 @@ func (s *State) LoadFixture(ctx context.Context, data []byte) error {
 	for _, r := range f.Roles {
 		s.roles[r.Organization+"/"+r.Name] = r
 	}
+	var fixtureModules []Manifest
+	for _, fm := range f.Modules {
+		if _, composed := s.modules[fm.Module]; composed {
+			continue
+		}
+		m := Manifest{Module: fm.Module, Principal: fm.Module, Kind: "module", Generation: 1, Bindings: map[string]Binding{}}
+		for _, k := range fm.Kinds {
+			m.ResourceKinds = append(m.ResourceKinds, &basev0.WorkScopeV1{ResourceKind: k.Kind, Actions: append([]string(nil), k.Actions...)})
+		}
+		fixtureModules = append(fixtureModules, m)
+	}
 	for _, p := range f.People {
 		if _, ok := s.orgs[p.Organization]; !ok {
 			s.mu.Unlock()
@@ -229,6 +252,11 @@ func (s *State) LoadFixture(ctx context.Context, data []byte) error {
 			if _, err := s.GrantToTeam(ctx, i.Organization, inst.ID, team); err != nil {
 				return err
 			}
+		}
+	}
+	for _, m := range fixtureModules {
+		if _, err := s.ApplyManifest(m); err != nil {
+			return fmt.Errorf("fixture module %s: %w", m.Module, err)
 		}
 	}
 	return nil
@@ -294,6 +322,12 @@ func (s *State) PersonScopes(person, audience string) ([]*basev0.WorkScopeV1, er
 	}
 	for _, name := range p.Roles {
 		for _, sc := range s.roles[p.Organization+"/"+name].Scopes {
+			if sc.Kind == AnyKind {
+				for _, kind := range m.ResourceKinds {
+					held = append(held, &basev0.WorkScopeV1{ResourceKind: kind.GetResourceKind(), Actions: append([]string(nil), sc.Actions...)})
+				}
+				continue
+			}
 			held = append(held, &basev0.WorkScopeV1{ResourceKind: sc.Kind, Actions: append([]string(nil), sc.Actions...)})
 		}
 	}
@@ -714,8 +748,13 @@ func Normalize(in []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 {
 
 // Intersect keeps, per kind, the actions present in both.
 // AnyAction, on a module's declared resource kind, serves whatever actions the
-// roles grant on that kind: core's manifest names kinds and not actions.
+// roles grant on that kind: core's manifest names kinds and not actions. On a
+// role's scope it grants every action the audience serves on that kind.
 const AnyAction = "*"
+
+// AnyKind, on a role's scope, grants its actions on every kind the audience
+// module serves: a local developer's role, written without naming any module.
+const AnyKind = "*"
 
 func Intersect(a, b []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 {
 	allowed := map[string]map[string]bool{}
@@ -731,6 +770,11 @@ func Intersect(a, b []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 {
 		for _, act := range sc.GetActions() {
 			if allowed[sc.GetResourceKind()][act] || allowed[sc.GetResourceKind()][AnyAction] {
 				actions = append(actions, act)
+			} else if act == AnyAction {
+				// a role granting every action holds what the audience serves
+				for served := range allowed[sc.GetResourceKind()] {
+					actions = append(actions, served)
+				}
 			}
 		}
 		if len(actions) > 0 {
