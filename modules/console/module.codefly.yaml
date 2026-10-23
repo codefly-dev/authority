@@ -1,0 +1,10 @@
+kind: module
+name: console
+services:
+    - name: api
+# The console's API is what a person's page calls; exported so the composition
+# routes it and the package manifest names it.
+interface:
+    endpoints:
+        - service: api
+          endpoint: grpc

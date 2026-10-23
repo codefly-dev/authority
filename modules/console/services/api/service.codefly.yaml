@@ -1,0 +1,35 @@
+name: api
+version: 0.0.0
+agent:
+    kind: codefly:service
+    name: go-grpc
+    version: 0.1.59
+    publisher: codefly.dev
+endpoints:
+    - name: grpc
+    - name: rest
+spec:
+    Settings:
+        GoAgentSettings:
+            debug-symbols: false
+            hot-reload: true
+            race-condition-detection-run: false
+            source-dir: ""
+            with-cgo: false
+            with-workspace: false
+    connect-endpoint: false
+    cors: {}
+    docker-image: ""
+    health:
+        mode: grpc
+    protocol-output-dirs: []
+    protocol-source-dir: ""
+    rest-endpoint: true
+    runtime-assets: []
+# The console reaches the authority through the interface it depends on, never a
+# service: the composition resolves which implementation answers.
+service-dependencies:
+    - interface: codefly.dev/authority@0.1.0
+# The console acts as a workload of its own: the run vouches for it and delivers
+# its manifest to the authority.
+module-identity: true

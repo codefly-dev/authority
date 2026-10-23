@@ -10,9 +10,11 @@ import (
 	"os"
 	"time"
 
+	"github.com/codefly-dev/core/workloadidentity"
 	"github.com/codefly-dev/core/workloadidentity/native"
 
 	"gateway/pkg/adapters"
+	"gateway/pkg/business/delivery"
 	"gateway/pkg/business/issuer"
 	"gateway/pkg/business/state"
 	"gateway/pkg/wiring"
@@ -74,5 +76,28 @@ func configureMiniGateway(ctx context.Context, _ *adapters.Configuration) (Clean
 		return nil, err
 	}
 	wiring.Set(st, issuer.New(st, issuerName, "run-"+time.Now().UTC().Format("20060102T150405Z"), signing, time.Now))
+	// A delivery is verified against the policy the run wrote for its host, and
+	// carried only by the module's own delivery workload, attested by the
+	// anchor. With no policy the carrier path refuses by name and says so.
+	if dir := os.Getenv(delivery.TrustAnchorEnvironment); dir != "" {
+		verifier, err := delivery.VerifierFromDirectory(dir)
+		if err != nil {
+			return nil, fmt.Errorf("delivery trust: %w", err)
+		}
+		attester, err := native.NewAttester(anchor)
+		if err != nil {
+			return nil, err
+		}
+		wiring.SetDelivery(verifier, func(ctx context.Context, credential, module string) error {
+			attested, err := attester.Attest(ctx, credential, Audience)
+			if err != nil {
+				return err
+			}
+			if attested.Workload.Module != module || attested.Workload.Service != workloadidentity.DeliveryService {
+				return fmt.Errorf("the carrier is %s/%s, not %s's delivery workload", attested.Workload.Module, attested.Workload.Service, module)
+			}
+			return nil
+		})
+	}
 	return nil, nil
 }

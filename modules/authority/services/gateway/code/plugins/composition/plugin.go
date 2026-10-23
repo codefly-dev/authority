@@ -132,4 +132,6 @@ func FromCore(in *solutionhost.ModuleManifest) state.Manifest {
 }
 
 // New is the registry's constructor: the plugin over what Configure wired.
-func New() framework.Plugin { return &Plugin{State: wiring.State()} }
+func New() framework.Plugin {
+	return &Plugin{State: wiring.State(), Verifier: wiring.Verifier(), Carrier: wiring.Carrier()}
+}

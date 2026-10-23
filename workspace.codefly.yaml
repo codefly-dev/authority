@@ -2,6 +2,7 @@ name: authority
 layout: modules
 modules:
     - name: authority
+    - name: console
 environments:
     - name: local
       description: The authority gateway on a laptop, the authority of its own run

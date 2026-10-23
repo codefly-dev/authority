@@ -1,0 +1,25 @@
+{
+  "schema": "codefly/module-api-contracts/v1",
+  "package": "codefly/console",
+  "version": "0.1.0",
+  "endpoints": [
+    {
+      "service": "api",
+      "endpoint": "grpc",
+      "api": "grpc",
+      "kind": "protobuf",
+      "package": "api",
+      "path": "contracts/api/api/grpc/contract.binpb",
+      "digest": "sha256:7de26e58ccf0562ec5ded5ac3167545b92578bcb3bbc1a4587b26947e1d15955",
+      "services": [
+        {
+          "name": "ApiService",
+          "fullName": "api.ApiService",
+          "procedures": [
+            "/api.ApiService/Version"
+          ]
+        }
+      ]
+    }
+  ]
+}

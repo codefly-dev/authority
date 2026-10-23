@@ -1,0 +1,22 @@
+# The console's package identity: what a run delivers as its release. The id is
+# the identity codefly generate contracts derives (codefly/<module>); the version
+# is the package's and moves when what it publishes moves.
+schema: codefly/module-package/v2
+kind: module-package
+id: codefly/console
+version: 0.1.0
+minimum-codefly-version: ">=0.3.32 <1.0.0"
+artifact-roots:
+  - contracts
+  - services
+services:
+  - name: api
+    endpoints: [grpc]
+    api-contracts:
+      - endpoint: grpc
+        kind: protobuf
+        package: api
+        path: contracts/api/api/grpc/contract.binpb
+        digest: sha256:7de26e58ccf0562ec5ded5ac3167545b92578bcb3bbc1a4587b26947e1d15955
+contracts:
+  composition: ">=2.0.0 <3.0.0"

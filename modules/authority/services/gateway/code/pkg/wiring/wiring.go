@@ -4,6 +4,10 @@
 package wiring
 
 import (
+	"context"
+
+	"github.com/codefly-dev/core/solutionhost"
+
 	"gateway/pkg/business/issuer"
 	"gateway/pkg/business/state"
 )
@@ -22,3 +26,19 @@ func State() *state.State { return configuredState }
 
 // Issuer is the configured issuer.
 func Issuer() *issuer.Issuer { return configuredIssuer }
+
+var (
+	configuredVerifier *solutionhost.Verifier
+	configuredCarrier  func(ctx context.Context, credential, module string) error
+)
+
+// SetDelivery records how a delivered manifest is verified and who may carry it.
+func SetDelivery(verifier *solutionhost.Verifier, carrier func(ctx context.Context, credential, module string) error) {
+	configuredVerifier, configuredCarrier = verifier, carrier
+}
+
+// Verifier pins the release keys a run admits; nil verifies nothing.
+func Verifier() *solutionhost.Verifier { return configuredVerifier }
+
+// Carrier admits a delivery credential as the module's delivery workload.
+func Carrier() func(ctx context.Context, credential, module string) error { return configuredCarrier }
