@@ -14,10 +14,37 @@ message VersionResponse {
     string version = 1;
 }
 
+// WhoAmIRequest asks who the call is for.
+message WhoAmIRequest {
+}
+
+// WhoAmIResponse is who the call is for, as the hop in front of the console
+// stamped it after the authority checked the caller's Work Context. The console
+// verifies no token: it answers from the stamp alone.
+message WhoAmIResponse {
+    // The person, installation or workload the call acts for.
+    string owner = 1;
+    // What kind of principal the owner is.
+    string owner_kind = 2;
+    // The organisation the call runs in.
+    string tenant = 3;
+    // The modules acting for the owner, in order.
+    repeated string actors = 4;
+    // What the call may do, each "<resource kind>:<action>".
+    repeated string scopes = 5;
+}
+
 service ApiService {
     rpc Version(VersionRequest) returns (VersionResponse) {
         option (google.api.http) = {
             get: "/version"
+        };
+    }
+    // WhoAmI answers who the call is for. A call that did not come through the
+    // hop is refused before it reaches this method.
+    rpc WhoAmI(WhoAmIRequest) returns (WhoAmIResponse) {
+        option (google.api.http) = {
+            get: "/whoami"
         };
     }
 }

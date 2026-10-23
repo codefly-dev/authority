@@ -6,6 +6,7 @@ require (
 	buf.build/go/protovalidate v1.4.0
 	connectrpc.com/connect v1.21.0
 	connectrpc.com/vanguard v0.4.0
+	github.com/codefly-dev/authority/libraries/hop/go v0.0.0
 	github.com/codefly-dev/core v0.19.5
 	github.com/codefly-dev/sdk-go v0.4.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.31.0
@@ -54,3 +55,5 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260928230214-8a89bd6388cc // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/codefly-dev/authority/libraries/hop/go => ../../../../../libraries/hop/go

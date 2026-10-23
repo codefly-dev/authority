@@ -1,0 +1,12 @@
+# What the console asks the authority for. Its principal is its name, and so the
+# audience a person's Work Context for the console is addressed to. It serves one
+# resource kind: a person reads who they are through it.
+schema: codefly/module-contract/v1
+principal: console
+namespaces: []
+queues: []
+scope_ceilings:
+    - resource_kind: console.identity
+      actions: [read]
+bindings: []
+destinations: []

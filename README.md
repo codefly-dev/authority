@@ -356,6 +356,59 @@ access, or changing the solution's role, revokes every delegate on the next call
 The suite proves it with a chain of three modules where the last hop gets a read
 the person's first token never carried.
 
+## The hop: one door in front of a module (2026-10-23)
+
+The hop is the authority module's second service. It stands in front of a module
+and lets through only a call the authority checked. For each call it reads the
+caller's Work Context, asks the interface's `Check` with the module's principal
+as the audience, removes any stamp the caller sent, writes its own stamp, and
+forwards the call as opaque frames. It knows no method of the module.
+
+The module behind it carries one interceptor from `libraries/hop/go` and no
+other authority code. The interceptor gives each call the identity the hop
+stamped, and refuses a call that did not come through the hop. It verifies no
+token and asks no authority. The stamp is believed only with the run's proof,
+which Codefly generates and delivers to the hop and the module alone. In a cell
+the mesh plays that part.
+
+This run's hop fronts the console, whose one operation answers who the call is
+for. Run it from the repository root:
+
+```bash
+codefly config generate hop PROOF
+codefly run service authority/hop --local-agents
+```
+
+Then sign a fixture person in, issue a Work Context for the console, and call
+the console's `WhoAmI` through the hop's gRPC endpoint with it in
+`x-codefly-work-context`. Proven live on 2026-10-23 with the CLI of
+codefly-dev/cli#1128:
+
+| Call | Answer |
+|---|---|
+| Maya's Work Context, through the hop | `maya`, `human`, `acme`, `console.identity:read` |
+| No Work Context, through the hop | refused: carries no Work Context |
+| Maya's Work Context, straight to the console | refused: did not come through the hop |
+| A forged stamp, straight to the console | refused: did not come through the hop |
+| Maya's Work Context with a forged stamp, through the hop | Maya, as the authority answered; the forged stamp is gone |
+| A Work Context for another module, through the hop | refused by the authority: minted for another audience |
+| Omar, who holds no role, asks for the console | refused at issue: holds nothing at this audience |
+
+Every refusal through the hop is also in the hop's log, naming the module, the
+method and the reason.
+
+Not yet:
+
+- **Each operation's policy.** The hop admits any call the authority checked. The
+  module's declared policy per operation is the next step, generated from its
+  proto.
+- **A hop in front of every module.** This run's hop is told its module.
+  Composing one in front of each module is the composition's job.
+- **The interface, not the provider.** The SDK resolves an endpoint by its
+  provider, so the hop names the authority gateway. An accessor by interface is
+  an SDK change.
+- **The cell face.** The same decision, called by the mesh's authorization step.
+
 ## Open decisions
 
 - **Decided 2026-10-23, the hop rule.** A module hops only on a person's token

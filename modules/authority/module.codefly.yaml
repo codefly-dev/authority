@@ -14,3 +14,7 @@ interface:
               - codefly.dev/session@0.1.0
 services:
     - name: gateway
+    # The hop stands in front of a module and lets through only a call the
+    # authority checked, stamped with who it is for. Not exported: nobody calls
+    # the hop by name; the composition puts it in a module's path.
+    - name: hop

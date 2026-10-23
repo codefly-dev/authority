@@ -1,0 +1,40 @@
+name: hop
+version: 0.0.0
+agent:
+    kind: codefly:service
+    name: go-grpc
+    version: 0.1.59
+    publisher: codefly.dev
+endpoints:
+    - name: grpc
+    - name: rest
+spec:
+    Settings:
+        GoAgentSettings:
+            debug-symbols: false
+            hot-reload: true
+            race-condition-detection-run: false
+            source-dir: ""
+            with-cgo: false
+            with-workspace: false
+    connect-endpoint: false
+    cors: {}
+    docker-image: ""
+    health:
+        mode: grpc
+    protocol-output-dirs: []
+    protocol-source-dir: ""
+    rest-endpoint: true
+    runtime-assets: []
+# The hop asks the authority through the interface, never a service: on a
+# laptop the authority gateway answers, in a cell the host does.
+service-dependencies:
+    - interface: codefly.dev/authority@0.1.0
+    # The module this hop stands in front of. In this repository's run it is the
+    # console; composing a hop in front of every module is the composition's job.
+    - name: api
+      module: console
+# The run's proof: the hop writes it on every stamp, so the module behind it
+# believes only stamps from this run's hop.
+workspace-configuration-dependencies:
+    - hop

@@ -36,11 +36,16 @@ const (
 const (
 	// ApiServiceVersionProcedure is the fully-qualified name of the ApiService's Version RPC.
 	ApiServiceVersionProcedure = "/api.ApiService/Version"
+	// ApiServiceWhoAmIProcedure is the fully-qualified name of the ApiService's WhoAmI RPC.
+	ApiServiceWhoAmIProcedure = "/api.ApiService/WhoAmI"
 )
 
 // ApiServiceClient is a client for the api.ApiService service.
 type ApiServiceClient interface {
 	Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error)
+	// WhoAmI answers who the call is for. A call that did not come through the
+	// hop is refused before it reaches this method.
+	WhoAmI(context.Context, *connect.Request[gen.WhoAmIRequest]) (*connect.Response[gen.WhoAmIResponse], error)
 }
 
 // NewApiServiceClient constructs a client for the api.ApiService service. By default, it uses the
@@ -60,12 +65,19 @@ func NewApiServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 			connect.WithSchema(apiServiceMethods.ByName("Version")),
 			connect.WithClientOptions(opts...),
 		),
+		whoAmI: connect.NewClient[gen.WhoAmIRequest, gen.WhoAmIResponse](
+			httpClient,
+			baseURL+ApiServiceWhoAmIProcedure,
+			connect.WithSchema(apiServiceMethods.ByName("WhoAmI")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // apiServiceClient implements ApiServiceClient.
 type apiServiceClient struct {
 	version *connect.Client[gen.VersionRequest, gen.VersionResponse]
+	whoAmI  *connect.Client[gen.WhoAmIRequest, gen.WhoAmIResponse]
 }
 
 // Version calls api.ApiService.Version.
@@ -73,9 +85,17 @@ func (c *apiServiceClient) Version(ctx context.Context, req *connect.Request[gen
 	return c.version.CallUnary(ctx, req)
 }
 
+// WhoAmI calls api.ApiService.WhoAmI.
+func (c *apiServiceClient) WhoAmI(ctx context.Context, req *connect.Request[gen.WhoAmIRequest]) (*connect.Response[gen.WhoAmIResponse], error) {
+	return c.whoAmI.CallUnary(ctx, req)
+}
+
 // ApiServiceHandler is an implementation of the api.ApiService service.
 type ApiServiceHandler interface {
 	Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error)
+	// WhoAmI answers who the call is for. A call that did not come through the
+	// hop is refused before it reaches this method.
+	WhoAmI(context.Context, *connect.Request[gen.WhoAmIRequest]) (*connect.Response[gen.WhoAmIResponse], error)
 }
 
 // NewApiServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -91,10 +111,18 @@ func NewApiServiceHandler(svc ApiServiceHandler, opts ...connect.HandlerOption) 
 		connect.WithSchema(apiServiceMethods.ByName("Version")),
 		connect.WithHandlerOptions(opts...),
 	)
+	apiServiceWhoAmIHandler := connect.NewUnaryHandler(
+		ApiServiceWhoAmIProcedure,
+		svc.WhoAmI,
+		connect.WithSchema(apiServiceMethods.ByName("WhoAmI")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/api.ApiService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ApiServiceVersionProcedure:
 			apiServiceVersionHandler.ServeHTTP(w, r)
+		case ApiServiceWhoAmIProcedure:
+			apiServiceWhoAmIHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -106,4 +134,8 @@ type UnimplementedApiServiceHandler struct{}
 
 func (UnimplementedApiServiceHandler) Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.ApiService.Version is not implemented"))
+}
+
+func (UnimplementedApiServiceHandler) WhoAmI(context.Context, *connect.Request[gen.WhoAmIRequest]) (*connect.Response[gen.WhoAmIResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.ApiService.WhoAmI is not implemented"))
 }

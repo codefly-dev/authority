@@ -33,3 +33,7 @@ service-dependencies:
 # The console acts as a workload of its own: the run vouches for it and delivers
 # its manifest to the authority.
 module-identity: true
+# The run's proof the hop writes on every stamp; the console believes a stamp
+# only when it carries it.
+workspace-configuration-dependencies:
+    - hop
