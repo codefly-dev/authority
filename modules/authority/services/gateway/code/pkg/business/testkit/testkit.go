@@ -234,6 +234,7 @@ func New(t *testing.T) *Kit {
 		t.Fatal(err)
 	}
 	now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+	started := time.Now()
 	st, err := state.New(launcher.Anchor(), Audience)
 	if err != nil {
 		t.Fatal(err)
@@ -253,5 +254,7 @@ func New(t *testing.T) *Kit {
 		t.Fatal(err)
 	}
 	return &Kit{State: st, Launcher: launcher, Now: now,
-		Issuer: issuer.New(st, Audience, "local-1", signing, func() time.Time { return now })}
+		// The clock starts at a fixed instant, for readable timestamps, and
+		// advances with the wall clock, so a window closes as it would on a laptop.
+		Issuer: issuer.New(st, Audience, "local-1", signing, func() time.Time { return now.Add(time.Since(started)) })}
 }

@@ -122,7 +122,7 @@ func TestTheScenarioOneHopAtATime(t *testing.T) {
 		}
 		wc := child.GetContext()
 		if wc.GetOwnerPrincipalId() != "maya" || len(wc.GetActorChain()) != 1 || wc.GetActorChain()[0].GetPrincipalId() != "documents" ||
-			wc.GetAudience() != "runtime" || wc.GetExpiresAtUnix()-k.Now.Unix() != 60 {
+			wc.GetAudience() != "runtime" || wc.GetExpiresAtUnix()-k.Now.Unix() < 60 || wc.GetExpiresAtUnix()-k.Now.Unix() > 62 {
 			t.Fatalf("step 5 child = %v", wc)
 		}
 		if _, err := k.Issuer.Check(ctx, child.GetToken(), "runtime"); err != nil {

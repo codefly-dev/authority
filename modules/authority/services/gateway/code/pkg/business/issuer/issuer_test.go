@@ -407,7 +407,7 @@ func TestTTLIsClampedToTheCeiling(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := time.Unix(out.GetExpiresAtUnix(), 0).Sub(k.Now); got != issuer.MaxTTL {
+	if got := time.Unix(out.GetExpiresAtUnix(), 0).Sub(k.Now); got < issuer.MaxTTL || got > issuer.MaxTTL+2*time.Second {
 		t.Fatalf("ttl = %s", got)
 	}
 }

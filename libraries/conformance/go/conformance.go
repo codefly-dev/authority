@@ -10,8 +10,10 @@ import (
 	"context"
 	"fmt"
 	"github.com/codefly-dev/core/solutionhost"
+	"github.com/codefly-dev/core/workcontext"
 	"strings"
 	"testing"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -47,6 +49,10 @@ type Fixture struct {
 	HostDomain         string
 	SignManifest       func(document []byte) (envelope []byte, err error)
 	DeliveryCredential func(module string) string
+
+	// SlowChecks runs the lines that must wait on the clock, such as a token
+	// expiring past core's skew; off by default.
+	SlowChecks bool
 
 	// Matrix is the permission matrix the fixture states: for each person, at
 	// each audience, each kind and action is allowed or refused. The suite asks
@@ -179,6 +185,49 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			case !e.Allowed && status.Code(err) != codes.PermissionDenied:
 				t.Errorf("%s at %s: %s %s must be refused as PermissionDenied, got %v", e.Token, e.Audience, e.Kind, e.Action, err)
 			}
+		}
+	})
+	t.Run("a callee refuses what does not verify, by name", func(t *testing.T) {
+		// The callee contract, as the hop will enforce it: a token is accepted only
+		// when its signature holds, its window is open, it is addressed to this
+		// audience, and the authority it was sealed to still stands. Each failure
+		// is refused with a code the caller can act on, never a silent pass.
+		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
+		read := []any{map[string]any{"resource_kind": f.ReadKind, "actions": []any{"read"}}}
+		out := c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.Audience, "scopes": read})
+		token := str(out, "token")
+		tampered := token[:len(token)-4] + map[bool]string{true: "AAAA", false: "BBBB"}[!strings.HasSuffix(token, "AAAA")]
+		if _, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": tampered, "audience": f.Audience}); status.Code(err) != codes.Unauthenticated {
+			t.Fatalf("a tampered token is Unauthenticated: %v", err)
+		}
+		if _, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": "not.a.token", "audience": f.Audience}); status.Code(err) != codes.Unauthenticated {
+			t.Fatalf("a token that is not a token is Unauthenticated: %v", err)
+		}
+		if _, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": token, "audience": "not-composed"}); err == nil {
+			t.Fatal("a check at an audience that is not composed is refused")
+		}
+		// A window is honoured with core's clock skew: a token is refused once it
+		// is past its expiry by more than DefaultSkew (30 s). Waiting that long is
+		// opt-in (SlowChecks); the fast check asserts the window the token states.
+		short := c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.Audience, "scopes": read, "ttl_seconds": int64(1)})
+		if u64(msg(short, "context"), "expires_at_unix")-u64(msg(short, "context"), "issued_at_unix") > 1 {
+			t.Fatalf("a one-second window is issued as asked: %v", msg(short, "context"))
+		}
+		if f.SlowChecks {
+			time.Sleep(workcontext.DefaultSkew + 2*time.Second)
+			if _, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(short, "token"), "audience": f.Audience}); status.Code(err) != codes.Unauthenticated {
+				t.Fatalf("an expired token is Unauthenticated: %v", err)
+			}
+		}
+		if f.InstalledSolution == "" {
+			t.Skip("staleness needs an installation whose grant can move")
+		}
+		admin := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.AdminToken})
+		before := c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": token, "audience": f.Audience})
+		c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "GrantToTeam", map[string]any{"organization_id": f.Organization, "installation_id": f.InstalledSolution, "team_id": "callee-probe-" + str(before, "authorization_revision")})
+		_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": token, "audience": f.Audience})
+		if status.Code(err) != codes.PermissionDenied {
+			t.Fatalf("a token sealed before the organisation's authority moved is stale, refused as PermissionDenied: %v", err)
 		}
 	})
 	t.Run("every refusal reaches the caller with a reason", func(t *testing.T) {
