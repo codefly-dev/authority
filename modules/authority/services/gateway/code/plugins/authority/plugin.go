@@ -37,7 +37,7 @@ func (p *Plugin) RegisterREST(context.Context, *runtime.ServeMux, string, []grpc
 	return nil
 }
 
-// Migrations: none; the mini gateway holds state in memory.
+// Migrations: none; the authority gateway holds state in memory.
 func (p *Plugin) Migrations() []string { return nil }
 
 // Issue signs for one owner shape. A person-owned issue is the caller's own: the

@@ -35,7 +35,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// AuthorityService is implemented by the host (accounts) and by the mini gateway.
+// AuthorityService is implemented by the host (accounts) and by the authority gateway.
 type AuthorityServiceClient interface {
 	// Issue signs a Work Context for one owner shape, one audience and the scopes
 	// asked for, bounded by what the owner holds and what the audience declared.
@@ -89,7 +89,7 @@ func (c *authorityServiceClient) Keys(ctx context.Context, in *KeysRequest, opts
 // All implementations must embed UnimplementedAuthorityServiceServer
 // for forward compatibility.
 //
-// AuthorityService is implemented by the host (accounts) and by the mini gateway.
+// AuthorityService is implemented by the host (accounts) and by the authority gateway.
 type AuthorityServiceServer interface {
 	// Issue signs a Work Context for one owner shape, one audience and the scopes
 	// asked for, bounded by what the owner holds and what the audience declared.

@@ -107,7 +107,7 @@ func (p *Plugin) verified(ctx context.Context, carrier *compositionv1.SignedMani
 // sketch carries them through the transition). The manifest is the ceiling here: a resource kind declared with no actions serves whatever the
 // roles grant on it, a binding's invoke scopes are its operations, and a module
 // acting alone holds what it may invoke. The host narrows each of these by its
-// release-signed envelope; the mini gateway has no second document.
+// release-signed envelope; the authority gateway has no second document.
 func FromCore(in *solutionhost.ModuleManifest) state.Manifest {
 	m := state.Manifest{Module: in.Alias, Principal: in.Alias, Kind: string(in.Kind), Generation: in.Generation, Bindings: map[string]state.Binding{}}
 	if in.Authority == nil {

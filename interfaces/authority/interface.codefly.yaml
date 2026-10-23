@@ -1,7 +1,7 @@
 kind: interface
 publisher: codefly.dev
 name: authority
-description: What a module or solution calls on its host to be issued, checked and verified authority. Implemented by accounts and by the mini gateway.
+description: What a module or solution calls on its host to be issued, checked and verified authority. Implemented by accounts and by the authority gateway.
 version: 0.1.0
 type: connect
 protobuf:

@@ -1,4 +1,4 @@
-# The mini gateway's fixture: who exists, what they hold, what is installed.
+# The authority gateway's fixture: who exists, what they hold, what is installed.
 organizations:
   - id: acme
     name: Acme

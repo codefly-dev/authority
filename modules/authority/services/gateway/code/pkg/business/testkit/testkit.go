@@ -1,4 +1,4 @@
-// Package testkit composes a mini gateway for tests: the fixture, a launcher
+// Package testkit composes a authority gateway for tests: the fixture, a launcher
 // key, two modules and a solution, as a local run would deliver them.
 package testkit
 
@@ -27,7 +27,7 @@ import (
 	"gateway/pkg/business/state"
 )
 
-// Kit is a composed mini gateway.
+// Kit is a composed authority gateway.
 type Kit struct {
 	State    *state.State
 	Issuer   *issuer.Issuer
@@ -117,7 +117,7 @@ func Wiki(generation uint64) state.Manifest {
 const ReleaseKeyID = "mini-gateway-release"
 
 func releaseSigner() *solutionhost.InMemorySigner {
-	seed := sha256.Sum256([]byte("mini gateway release key: " + ReleaseKeyID))
+	seed := sha256.Sum256([]byte("authority gateway release key: " + ReleaseKeyID))
 	signer, err := solutionhost.NewInMemorySigner(ReleaseKeyID, ed25519.NewKeyFromSeed(seed[:]))
 	if err != nil {
 		panic(err)

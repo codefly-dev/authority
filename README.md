@@ -15,14 +15,14 @@ This repository holds two things, and only these two:
    binding; re-address, derive a child, renew; check a revision live; the current
    installation. The host's `accounts` service implements it in full. A module
    depends on the interface, never on a service.
-2. **The mini gateway** (`modules/authority/services/gateway`): the development
+2. **The authority gateway** (`modules/authority/services/gateway`): the development
    implementation. One process that signs in fixture people with their roles,
    issues and verifies Work Contexts, knows the composition from the rendered
    manifests, and holds the fixture installations in memory. No accounts
    service, no stores, no platform frontend. Running a solution locally is the
    solution, the modules it consumes, and this.
 
-**What keeps the mini gateway from being a second authority.** It links the same
+**What keeps the authority gateway from being a second authority.** It links the same
 packages `accounts` uses to sign in, mint and derive a module's grant from its
 manifest, and the conformance kit runs against both implementations in one test.
 It is a profile of the host, not a reimplementation. If a package of `accounts`
@@ -37,7 +37,7 @@ that satisfies them on a laptop, fixture included.
 
 1. Declare the interfaces and give them their protos, reduced to the six duties
    (done; `interfaces/`, `modules/authority/services/gateway/proto/host/*/v1`).
-2. Build the mini gateway against them with the suite every implementation must
+2. Build the authority gateway against them with the suite every implementation must
    pass (done; `pkg/conformance`, run over gRPC in `plugins/registry_test`).
 3. Point the host and the SDKs at these packages; run `pkg/conformance` against
    accounts; delete the copies in `codefly-dev/core` and the host, fixtures proving
@@ -99,7 +99,7 @@ on that fix.
 **Where the thinking is.** The Platform Authority Primer (decisions 6 and 7) and the
 handbook proposal that will carry them. Run it with `codefly run` from the module.
 
-## What the mini gateway must serve, read from the callers (2026-10-21)
+## What the authority gateway must serve, read from the callers (2026-10-21)
 
 Inventory taken from the code that calls the host today: the module SDK
 (`saas-sdk-go/moduleauthority`), the solution runtime (`solution-runtime-go`), the
@@ -114,7 +114,7 @@ design.
 | A fixture person signs in | `POST /v1/auth/authenticate` with `fixture_token` (accounts `auth/dev` validator); `/v1/auth/refresh` |
 | Verify what the host issued | `GET /v1/auth/.well-known/jwks.json` (also `/jwks`, `/.well-known/openid-configuration`) |
 | The composition reaches the host | `POST /platform/_delivery/manifest` (one signed manifest per module instance) |
-| What a module may hold | derived from the manifest; today `GET`/`PUT /v1/platform/module-envelope`, which the mini gateway does not serve |
+| What a module may hold | derived from the manifest; today `GET`/`PUT /v1/platform/module-envelope`, which the authority gateway does not serve |
 | The module's workload becomes a principal and gets Work Contexts | gateway workload endpoint: `POST /modules/_work-context` (for a person), `/modules/_operation-context` (the module's own binding), `/modules/_source-operation-context` (a source delegation) |
 | The module calls the host as itself | Connect proxy at `/modules/_authority` → `ModuleCapabilitiesService`: `ExchangeDelegatedOperationAudience`, `EmitAuditEvent`, `DeclareAuditEventTypes`, `AuthorizeExecutableArtifact` / `ApproveExecutableArtifact`, `NotifyUser` / `NotifyOrgAdmins` |
 | Person-owned authority | `WorkContextService`: `StartTask`, `ExchangeAudience`, `StartChildSession`, `RenewWorkContext`, `CheckAuthorizationRevision`, `StartInstallationTask`, `AuthorizeEvidenceRead`, `ConsumeSingleUse` |
@@ -171,7 +171,7 @@ talks to. Against that:
 **What remains is the interface.** Authority: `Issue`, `Check`, `Keys`.
 Composition: `ApplyManifest`. Installation: `Install`, `GrantToTeam`, `List`, and
 the install step callback. Sign-in at the browser edge only. Routing is the data
-plane, not a contract. 0.1.0 mirrors today's spellings so the mini gateway serves
+plane, not a contract. 0.1.0 mirrors today's spellings so the authority gateway serves
 the SDKs as they are; the reduced shape is 0.2.0, a host contract change through a
 handbook proposal, after which the SDKs move once.
 
@@ -206,10 +206,10 @@ Each rung proves one claim; nothing is deleted before the rung above it is green
 
 | Rung | Claim | How | Pass | Owner |
 |---|---|---|---|---|
-| 0 | the mini gateway holds | 47 tests here: byte identity, core's kit, scenario, `pkg/conformance` over gRPC | green (done) | this repo |
+| 0 | the authority gateway holds | 47 tests here: byte identity, core's kit, scenario, `pkg/conformance` over gRPC | green (done) | this repo |
 | 1 | one contract, two implementations | accounts implements the four interfaces as adapters over what it does; saas CI runs `pkg/conformance` against it with the saas fixture | same codes, same reasons on both | module-saas-starter |
-| 2 | a module cannot tell which answered | documents takes the generated authority client and requires the interface, not a service; runs against the mini gateway and against accounts | identical tests, playground and refusals; the render picks the implementation | module-document-store, saas-sdk-go |
-| 3 | a solution needs no runtime | the wiki as an agent-scaffolded service on the generated clients; wiki + documents + mini gateway, then the full host locally, then obin-staging; the eight steps through the UI | the scenario passes end to end; no envelope, anchor or audience key anywhere | core-solutions |
+| 2 | a module cannot tell which answered | documents takes the generated authority client and requires the interface, not a service; runs against the authority gateway and against accounts | identical tests, playground and refusals; the render picks the implementation | module-document-store, saas-sdk-go |
+| 3 | a solution needs no runtime | the wiki as an agent-scaffolded service on the generated clients; wiki + documents + authority gateway, then the full host locally, then obin-staging; the eight steps through the UI | the scenario passes end to end; no envelope, anchor or audience key anywhere | core-solutions |
 | 4 | the laptop refuses where the cell refuses | recorded request vectors replayed against both, compared field by field; property tests on the four ways a token widens; replay, expiry, revocation, forgery; one independent security review | zero divergence, zero widening, findings closed | this repo + reviewer |
 | 5 | it is fast | clean clone → Maya sees the wiki, one command, timed; a grep gate against envelope files and audience keys | the owner's number; gate green fleet-wide | cli, handbook |
 
@@ -262,7 +262,7 @@ not run yet, because of what the branch found:
 
 Gap 7 was a decision, taken on 2026-10-22: the interface carries the host's names, see "The namespace, settled" below. Gaps 1 and 2 closed the same day on the host branch; a ninth surfaced and closed with them: the generated service catalog crossed the host's naming-gate scan cap (512 KiB) at 40 services, and the gate now skips that generated file for the reason it skips descriptors.
 
-**What the second implementation taught the interface.** `GrantToTeamRequest` gained `organization_id`: the host checks an administrator against the organisation before it reads the installation, so the request must name it; the mini gateway now refuses a grant naming another organisation than the installation's, and the suite asserts it. That is what a second implementation is for.
+**What the second implementation taught the interface.** `GrantToTeamRequest` gained `organization_id`: the host checks an administrator against the organisation before it reads the installation, so the request must name it; the authority gateway now refuses a grant naming another organisation than the installation's, and the suite asserts it. That is what a second implementation is for.
 
 ## The namespace, settled (2026-10-22)
 
@@ -280,7 +280,7 @@ scans files, not URLs. This closes gap 7 of rung 1.
 
 **Invariant:** one declared interface and one suite on both sides from phase 0 on,
 so local development to deployment is correct by construction. Phases: 0 now
-(interfaces, mini gateway, host adapters on a branch; protos and policy exist
+(interfaces, authority gateway, host adapters on a branch; protos and policy exist
 twice, knowingly); 1 rung 1 done (suite green against accounts, refusing adapters
 made real, suite and credential and person shape corrected, digest check on the
 copied protos); 2 the wiki against the branch; 3 rungs 2 and 3 (agent and CLI
@@ -292,7 +292,7 @@ Deletions only in 4 and 5, each behind a green suite and staging. The full table
 is the handbook's `design/host-authority-interface.md`.
 
 **Corrections of 2026-10-22 (`0403966`).** The suite accepts pending or active from
-Install. The mini gateway attests core's native launcher credential against the
+Install. The authority gateway attests core's native launcher credential against the
 launcher's anchor; nothing of its own. The person shape is the caller's bearer;
 `PersonSession` is empty. See the handbook's audit sidecar for the reasoning.
 
@@ -336,7 +336,7 @@ the contract and its evaluation, never a product's roles.
 
 The suite proves it as a matrix: the fixture states, for each person at each
 audience, which kind and action is allowed and which refused, and the suite asks
-for exactly that scope and expects the answer. The mini gateway's fixture carries
+for exactly that scope and expects the answer. The authority gateway's fixture carries
 two organisations, five people, three organisation roles, one solution with three
 roles installed twice, and 24 cells. The host supplies its own matrix from its
 own fixture. Core's manifest carries no roles yet, so a solution is composed
@@ -347,7 +347,7 @@ through the sketch until it does.
 - **Decided 2026-10-23, the hop rule.** A module hops only on a person's token
   addressed to it, the hop names the binding it exercises, and the person's token
   names that binding too, so the child carries exactly what the person holds
-  through the binding at its audience. Core stands unchanged. The mini gateway
+  through the binding at its audience. Core stands unchanged. The authority gateway
   and the suite state it; the host's `childHop` and its person issue follow
   (saas #1219 is the person half there). History:
   The host's `module_actor` mode (saas #1215) requires the person's parent to be

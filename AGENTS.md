@@ -1,15 +1,15 @@
 # authority — agent instructions
 
 This repo is the **host authority interface** and its development implementation,
-the **mini gateway**. One sentence of responsibility: declare what a module or
+the **authority gateway**. One sentence of responsibility: declare what a module or
 solution calls on its host to be issued and checked authority, and provide the one
 small process that implements it on a laptop. If a change makes that sentence need
 another clause, it does not belong here.
 
-- **Owns:** the interface declaration; the mini gateway service; later, the
+- **Owns:** the interface declaration; the authority gateway service; later, the
   authority proto, verifier and conformance kit moved from core.
 - **Never contains:** a second implementation of sign-in, minting or grant
-  derivation (the mini gateway links the host's packages); a store the host does
+  derivation (the authority gateway links the host's packages); a store the host does
   not also use; any solution, customer or business-line name; a route of the
   product frontend; anything the CLI should do (rendering, per-process launcher
   credentials).

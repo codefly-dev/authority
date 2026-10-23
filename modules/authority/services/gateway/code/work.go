@@ -27,7 +27,7 @@ var fixtures embed.FS
 // Audience is what the launcher's workload credentials are attested for.
 const Audience = "https://authority.local.test"
 
-// issuerName is the `iss` of every token this mini gateway signs: an identifier,
+// issuerName is the `iss` of every token this authority gateway signs: an identifier,
 // not an address. A consumer verifies against Keys, never against this string.
 const issuerName = "codefly.dev/authority/mini-gateway"
 

@@ -33,7 +33,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// InstallationService is implemented by the host and by the mini gateway.
+// InstallationService is implemented by the host and by the authority gateway.
 type InstallationServiceClient interface {
 	// Install composes an installation: its agent principal, its root scope and
 	// the row, pending until the target acknowledges its install step.
@@ -88,7 +88,7 @@ func (c *installationServiceClient) List(ctx context.Context, in *ListRequest, o
 // All implementations must embed UnimplementedInstallationServiceServer
 // for forward compatibility.
 //
-// InstallationService is implemented by the host and by the mini gateway.
+// InstallationService is implemented by the host and by the authority gateway.
 type InstallationServiceServer interface {
 	// Install composes an installation: its agent principal, its root scope and
 	// the row, pending until the target acknowledges its install step.

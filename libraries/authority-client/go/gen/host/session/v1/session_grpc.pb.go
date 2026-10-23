@@ -5,7 +5,7 @@
 // source: host/session/v1/session.proto
 
 // The session interface, at the browser edge only: a person signs in and the
-// host opens a session. The mini gateway signs in fixture people; the host signs
+// host opens a session. The authority gateway signs in fixture people; the host signs
 // in real ones. A module never calls this.
 
 package sessionv1

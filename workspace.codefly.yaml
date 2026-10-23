@@ -4,9 +4,9 @@ modules:
     - name: authority
 environments:
     - name: local
-      description: The mini gateway on a laptop, the authority of its own run
+      description: The authority gateway on a laptop, the authority of its own run
       fixture: local
-      # The run's host is the mini gateway itself: the launcher vouches for every
+      # The run's host is the authority gateway itself: the launcher vouches for every
       # composed workload against this anchor, and delivers manifests to it.
       host:
           coordinate: codefly/local/authority

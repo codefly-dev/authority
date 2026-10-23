@@ -1,4 +1,4 @@
-// Package state is the mini gateway's whole memory: the fixture people and
+// Package state is the authority gateway's whole memory: the fixture people and
 // roles, the composition as delivered by manifests, the installations and the
 // open sessions. It is the seal and revision source core's issuer and verifier
 // read, so one struct answers every "is this still true" the authority asks.
@@ -657,10 +657,10 @@ func (s *State) OperationBinding(_ context.Context, bindingID string) (workconte
 	}, nil
 }
 
-// Grant answers core's grant source: the mini gateway issues no approval grants,
+// Grant answers core's grant source: the authority gateway issues no approval grants,
 // so every grant capability is refused by name rather than skipped.
 func (s *State) Grant(_ context.Context, grantID string) (*workcontext.Grant, error) {
-	return nil, fmt.Errorf("%w: grant %q (the mini gateway issues no approval grants)", ErrUnknown, grantID)
+	return nil, fmt.Errorf("%w: grant %q (the authority gateway issues no approval grants)", ErrUnknown, grantID)
 }
 
 // AuthorizationRevision is per organisation and moves on every grant change.

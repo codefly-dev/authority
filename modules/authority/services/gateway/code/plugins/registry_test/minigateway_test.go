@@ -1,4 +1,4 @@
-// The mini gateway, end to end: every plugin registered on one gRPC server over
+// The authority gateway, end to end: every plugin registered on one gRPC server over
 // an in-memory connection, driven by the suite every implementation must pass.
 package registry_test
 
