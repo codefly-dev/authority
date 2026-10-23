@@ -50,6 +50,12 @@ type Fixture struct {
 	SignManifest       func(document []byte) (envelope []byte, err error)
 	DeliveryCredential func(module string) string
 
+	// Chain is a delegate chain the fixture states, or nil: a person signs in,
+	// is issued at Start, and each hop is taken by its module on the previous
+	// token, through its binding. The last hop asks for something the first
+	// token never carried, so it holds only if each hop inherits from the owner.
+	Chain *Chain
+
 	// SlowChecks runs the lines that must wait on the clock, such as a token
 	// expiring past core's skew; off by default.
 	SlowChecks bool
@@ -59,6 +65,22 @@ type Fixture struct {
 	// for exactly that scope and expects the answer, so every role a fixture
 	// declares is proven allow and deny.
 	Matrix []Expectation
+}
+
+// Chain is one delegate chain: who, where it starts, and each hop.
+type Chain struct {
+	Token string // the person's fixture token
+	Start string // the audience of the person's token, the first module acting
+	Hops  []Hop
+}
+
+// Hop is one module acting on the previous token.
+type Hop struct {
+	Credential string // the acting module's workload credential
+	Binding    string // its binding, addressed to Audience
+	Audience   string
+	AskKind    string // what this hop asks for at Audience
+	AskAction  string
 }
 
 // Expectation is one cell of the permission matrix.
@@ -329,6 +351,31 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		req["scopes"] = read
 		if _, err := c.call(ctx, "host.authority.v1.AuthorityService", "Issue", req); status.Code(err) != codes.PermissionDenied {
 			t.Fatalf("a module hops only on a token addressed to it: %v", err)
+		}
+	})
+	t.Run("a delegate chain inherits the owner's authority at each audience", func(t *testing.T) {
+		if f.Chain == nil || len(f.Chain.Hops) < 2 {
+			t.Skip("the fixture states no delegate chain")
+		}
+		ch := f.Chain
+		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": ch.Token})
+		token := str(c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": ch.Start}), "token")
+		for n, h := range ch.Hops {
+			out := c.must(t, ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"parent_token": token,
+				"actor": map[string]any{"credential": h.Credential}, "operation_binding_id": h.Binding, "audience": h.Audience,
+				"scopes": []any{map[string]any{"resource_kind": h.AskKind, "actions": []any{h.AskAction}}}})
+			wc := msg(out, "context")
+			if str(wc, "owner_principal_id") != str(sess, "person_id") || len(listMsgs(wc, "actor_chain")) != n+1 || str(wc, "audience") != h.Audience {
+				t.Fatalf("hop %d: owner, actors and audience: %v", n+1, wc)
+			}
+			c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(out, "token"), "audience": h.Audience})
+			token = str(out, "token")
+		}
+		last := ch.Hops[len(ch.Hops)-1]
+		_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"parent_token": token,
+			"actor": map[string]any{"credential": last.Credential}, "operation_binding_id": last.Binding, "audience": last.Audience})
+		if status.Code(err) != codes.PermissionDenied {
+			t.Fatalf("a module hops only on a token addressed to it, also down a chain: %v", err)
 		}
 	})
 	t.Run("a manifest moves only forward and a lower generation is refused by name", func(t *testing.T) {

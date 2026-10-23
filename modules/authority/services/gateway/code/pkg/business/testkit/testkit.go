@@ -98,6 +98,9 @@ func OrgDirectory(generation uint64) state.Manifest {
 		Bindings: map[string]state.Binding{
 			"records": {ID: "records", Audience: "records",
 				InvokeScopes: []*basev0.WorkScopeV1{Scope("records.record", "read"), Scope("records.type", "read")}, HeadlessScopes: []*basev0.WorkScopeV1{Scope("records.type", "read")}},
+			// The page asks documents for a person: the first hop of a delegate chain.
+			"documents": {ID: "documents", Audience: "documents",
+				InvokeScopes: []*basev0.WorkScopeV1{Scope("documents", "read")}, HeadlessScopes: []*basev0.WorkScopeV1{Scope("documents", "read")}},
 		}}
 }
 

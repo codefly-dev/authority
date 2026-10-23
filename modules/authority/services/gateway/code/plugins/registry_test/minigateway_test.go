@@ -62,5 +62,11 @@ func TestTheMiniGatewayPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
 		SignManifest:       testkit.SignDocument,
 		DeliveryCredential: func(module string) string { return k.Credential(t, module) },
 		Matrix:             testkit.Matrix(),
+		// Rémi at the page; the page asks documents; documents asks the model,
+		// for a read Rémi holds at the model and his first token never carried.
+		Chain: &conformance.Chain{Token: "fixture-remi", Start: "org-directory", Hops: []conformance.Hop{
+			{Credential: k.Credential(t, "org-directory"), Binding: "documents", Audience: "documents", AskKind: "documents", AskAction: "read"},
+			{Credential: k.Credential(t, "documents"), Binding: "model", Audience: "model", AskKind: "modelservice.profiles", AskAction: "read"},
+		}},
 	})
 }

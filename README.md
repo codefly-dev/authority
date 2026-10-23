@@ -342,6 +342,20 @@ roles installed twice, and 24 cells. The host supplies its own matrix from its
 own fixture. Core's manifest carries no roles yet, so a solution is composed
 through the sketch until it does.
 
+## Delegate chains: a module inherits who it acts for
+
+Owner's rule of 2026-10-23, generic to every module that acts for someone (robin
+and runtime first): a module holds no standing authority over anyone's data. Its
+hop on a person's or an installation's token is owned by that principal, adds
+the module to the actor chain, and has as its ceiling the owner's authority twice
+over: what was already delegated down the chain (the parent's scopes) and what
+the owner holds now at the hop's audience through the module's binding. An ask
+narrows the ceiling; the child never outlives its parent. A module hops only on a
+token addressed to it and names the binding it exercises. Revoking the person's
+access, or changing the solution's role, revokes every delegate on the next call.
+The suite proves it with a chain of three modules where the last hop gets a read
+the person's first token never carried.
+
 ## Open decisions
 
 - **Decided 2026-10-23, the hop rule.** A module hops only on a person's token

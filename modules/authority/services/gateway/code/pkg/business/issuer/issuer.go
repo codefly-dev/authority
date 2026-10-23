@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
@@ -246,8 +247,15 @@ func (i *Issuer) forInstallation(ctx context.Context, id string, audience state.
 	})
 }
 
-// child: one more hop. The parent is verified for its own audience; the actor
-// is a module proving itself; the scopes must attenuate the parent's.
+// child: one more hop, inherited from the owner. The parent is verified for its
+// own audience and must be addressed to the module acting; the actor proves itself
+// and names the binding it exercises, addressed to the hop's audience. The child
+// is owned by the parent's owner and carries the parent's actors and then this
+// one. Its ceiling is the owner's authority twice over: what was already delegated
+// down the chain (the parent's scopes), and what the owner holds now at the hop's
+// audience through the binding. An ask narrows the ceiling. The second half is
+// what lets a delegate chain cross audiences: a module holds nothing of its own,
+// it inherits who it acts for.
 func (i *Issuer) child(ctx context.Context, parent, actorCredential, bindingID string, audience state.Manifest, asked []*basev0.WorkScopeV1, ttl time.Duration) (string, *basev0.WorkContextV1, error) {
 	decoded, err := workcontext.Decode(parent)
 	if err != nil {
@@ -257,15 +265,13 @@ func (i *Issuer) child(ctx context.Context, parent, actorCredential, bindingID s
 	if err != nil {
 		return "", nil, err
 	}
+	claims := verified.Context()
 	actor, err := i.state.VerifyWorkload(ctx, actorCredential)
 	if err != nil {
 		return "", nil, fmt.Errorf("a child hop names the module acting: %w", err)
 	}
-	// A module hops only on a token addressed to it, and names the binding it
-	// exercises: the hop is then sealed within the module's own installation and
-	// a verifier resolves exactly one binding.
-	if verified.Context().GetAudience() != actor.Principal {
-		return "", nil, fmt.Errorf("%w: %s hops only on a token addressed to it; this one is addressed to %s", ErrRefused, actor.Module, verified.Context().GetAudience())
+	if claims.GetAudience() != actor.Principal {
+		return "", nil, fmt.Errorf("%w: %s hops only on a token addressed to it; this one is addressed to %s", ErrRefused, actor.Module, claims.GetAudience())
 	}
 	if bindingID == "" {
 		return "", nil, fmt.Errorf("%w: a module's hop names the binding it exercises", ErrRefused)
@@ -277,20 +283,85 @@ func (i *Issuer) child(ctx context.Context, parent, actorCredential, bindingID s
 	if binding.Audience != audience.Principal {
 		return "", nil, fmt.Errorf("%w: binding %q is addressed to %s, not %s", ErrRefused, bindingID, binding.Audience, audience.Principal)
 	}
-	scopes := asked
-	if len(scopes) == 0 {
-		scopes = verified.EffectiveScopes()
+	held, err := i.ownerHolds(claims, audience)
+	if err != nil {
+		return "", nil, err
 	}
-	if !state.Attenuates(scopes, verified.EffectiveScopes()) {
-		return "", nil, fmt.Errorf("%w: a child widens its parent", ErrRefused)
+	ceiling := state.Normalize(append(append([]*basev0.WorkScopeV1(nil), verified.EffectiveScopes()...), state.Intersect(held, binding.InvokeScopes)...))
+	if len(ceiling) == 0 {
+		return "", nil, fmt.Errorf("%w: %s holds nothing at %s through binding %q", ErrRefused, claims.GetOwnerPrincipalId(), audience.Module, bindingID)
 	}
-	in := workcontext.ChildInput{
-		PrincipalID: actor.Principal, PrincipalKind: "service",
-		DelegationID: verified.Context().GetSessionId(), GrantedScopes: state.Normalize(scopes),
-		Audience: audience.Principal, TTL: ttl,
+	scopes := ceiling
+	if len(asked) > 0 {
+		if !state.Attenuates(asked, ceiling) {
+			return "", nil, fmt.Errorf("%w: a child widens what its owner holds through binding %q", ErrRefused, bindingID)
+		}
+		scopes = state.Normalize(asked)
 	}
-	in.OperationBindingID = verified.Context().GetTenantId() + "/" + actor.Module + "/" + bindingID
-	return i.authority.Child(ctx, verified, in)
+	// The child never outlives its parent, on the authority's own clock.
+	now := time.Now()
+	if i.authority.Now != nil {
+		now = i.authority.Now()
+	}
+	if remaining := time.Unix(claims.GetExpiresAtUnix(), 0).Sub(now); remaining < ttl {
+		ttl = remaining
+	}
+	if ttl <= 0 {
+		return "", nil, fmt.Errorf("%w: the parent has expired", ErrRefused)
+	}
+	tenant := claims.GetTenantId()
+	token, _, err := i.authority.Start(ctx, workcontext.StartInput{
+		TenantID: tenant, OrganizationID: claims.GetOrganizationId(),
+		OwnerPrincipalID: claims.GetOwnerPrincipalId(), OwnerPrincipalKind: claims.GetOwnerPrincipalKind(), OwnerAgentID: claims.GetOwnerAgentId(),
+		TaskID: claims.GetTaskId(), Audience: audience.Principal, AuthorityScopes: scopes, AttributionTeamIDs: claims.GetAttributionTeamIds(),
+		InstallationID: tenant + "/" + actor.Module, TTL: ttl, ReplayPolicy: workcontext.ReplayIdempotent,
+	})
+	if err != nil {
+		return "", nil, err
+	}
+	hops := append([]*basev0.WorkActorV1(nil), claims.GetActorChain()...)
+	for n := 0; n <= len(hops); n++ {
+		current, err := i.verifier(audience.Principal).Verify(ctx, token)
+		if err != nil {
+			return "", nil, fmt.Errorf("verify the hop a child is derived from: %w", err)
+		}
+		in := workcontext.ChildInput{GrantedScopes: scopes, Audience: audience.Principal, TTL: ttl, ReplayPolicy: workcontext.ReplayIdempotent}
+		if n < len(hops) {
+			in.PrincipalID, in.PrincipalKind, in.DelegationID = hops[n].GetPrincipalId(), hops[n].GetPrincipalKind(), hops[n].GetDelegationId()
+		} else {
+			in.PrincipalID, in.PrincipalKind, in.DelegationID = actor.Principal, "service", claims.GetSessionId()
+			in.OperationBindingID = tenant + "/" + actor.Module + "/" + bindingID
+		}
+		var signed *basev0.WorkContextV1
+		token, signed, err = i.authority.Child(ctx, current, in)
+		if err != nil {
+			return "", nil, err
+		}
+		if n == len(hops) {
+			return token, signed, nil
+		}
+	}
+	return "", nil, fmt.Errorf("%w: no hop was derived", ErrRefused)
+}
+
+// ownerHolds is what the owner of a verified context holds at the audience now:
+// a person's roles, or an installation's role, each within what the audience
+// serves.
+func (i *Issuer) ownerHolds(claims *basev0.WorkContextV1, audience state.Manifest) ([]*basev0.WorkScopeV1, error) {
+	owner := claims.GetOwnerPrincipalId()
+	switch claims.GetOwnerPrincipalKind() {
+	case "human":
+		return i.state.PersonScopes(owner, audience.Principal)
+	case "agent":
+		inst, ok := i.state.Installation(strings.TrimSuffix(owner, "/agent"))
+		if !ok || inst.Status != state.Active {
+			return nil, fmt.Errorf("%w: the installation that owns this context is not active", workcontext.ErrNoSeal)
+		}
+		return state.Intersect(i.state.RoleScopes(inst.Organization, inst.Role), audience.ResourceKinds), nil
+	}
+	// A module's own context inherits nothing more at the next audience: its
+	// child carries what it was already delegated.
+	return nil, nil
 }
 
 // grant is asked ∩ held, or held when nothing was asked; asking beyond held is refused.

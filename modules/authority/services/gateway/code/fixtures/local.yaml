@@ -20,6 +20,7 @@ roles:
       - {kind: records.record, actions: [read, write]}
       - {kind: records.type, actions: [read]}
       - {kind: directory.entry, actions: [read, write]}
+      - {kind: modelservice.profiles, actions: [read]}
   - organization: acme
     name: admin
     scopes:
