@@ -2,7 +2,7 @@
   "swagger": "2.0",
   "info": {
     "title": "host/session/v1/session.proto",
-    "description": "The session interface, at the browser edge only: a person signs in and the\nhost opens a session. The mini gateway signs in fixture people; the host signs\nin real ones. A module never calls this.",
+    "description": "The session interface, at the browser edge only: a person signs in and the\nhost opens a session. The authority gateway signs in fixture people; the host signs\nin real ones. A module never calls this.",
     "version": "version not set"
   },
   "tags": [

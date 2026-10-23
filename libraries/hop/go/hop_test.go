@@ -45,10 +45,11 @@ func TestTheModuleRefusesACallThatBypassedTheHop(t *testing.T) {
 	if got, err := call(md, "/api.ApiService/WhoAmI"); err != nil || got != "maya" {
 		t.Fatalf("stamped: %v %v", got, err)
 	}
-	for _, open := range []string{"/grpc.health.v1.Health/Check", "/grpc.reflection.v1.ServerReflection/ServerReflectionInfo"} {
-		if _, err := call(metadata.MD{}, open); err != nil {
-			t.Fatalf("%s reads no data and passes unstamped: %v", open, err)
-		}
+	if _, err := call(metadata.MD{}, "/grpc.health.v1.Health/Check"); err != nil {
+		t.Fatalf("the run probes health directly: %v", err)
+	}
+	if _, err := call(metadata.MD{}, "/grpc.reflection.v1.ServerReflection/ServerReflectionInfo"); status.Code(err) != codes.Unauthenticated {
+		t.Fatalf("nothing but health passes unstamped: %v", err)
 	}
 	if _, err := call(metadata.MD{}, "/grpc.health.v1.HealthX/Check"); status.Code(err) != codes.Unauthenticated {
 		t.Fatalf("only the named services pass: %v", err)

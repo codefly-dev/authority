@@ -6,7 +6,7 @@ package host.installation.v1;
 
 option go_package = "gateway/pkg/gen/host/installation/v1;installationv1";
 
-// InstallationService is implemented by the host and by the mini gateway.
+// InstallationService is implemented by the host and by the authority gateway.
 service InstallationService {
   // Install composes an installation: its agent principal, its root scope and
   // the row, pending until the target acknowledges its install step.

@@ -9,7 +9,7 @@ option go_package = "gateway/pkg/gen/host/composition/v1;compositionv1";
 
 import "host/authority/v1/work_context.proto";
 
-// CompositionService is implemented by the host and by the mini gateway.
+// CompositionService is implemented by the host and by the authority gateway.
 service CompositionService {
   // ApplyManifest delivers one module instance's manifest at one generation.
   rpc ApplyManifest(ApplyManifestRequest) returns (ApplyManifestResponse);
@@ -24,13 +24,43 @@ message ApplyManifestRequest {
   // envelope over it. An implementation verifies the envelope against the release
   // keys it pins and reads the manifest from the verified document, never from
   // the request, so what composes a module is the same signed document on the
-  // mini gateway and on the host.
+  // authority gateway and on the host.
   SignedManifestV1 carrier = 2;
   // The credential of the workload delivering the manifest, as that
-  // implementation attests workloads: the launcher's on the mini gateway, the
+  // implementation attests workloads: the launcher's on the authority gateway, the
   // delivery service account's on the host. A manifest is delivered by its own
   // module's delivery workload and by nothing else.
   string credential = 3;
+  // The authority's own document for this delivery, an AuthorityManifestV1:
+  // what the module declares that the authority enforces and core's manifest
+  // does not carry. Signed in the same envelope format by the same key as
+  // carrier, and naming carrier's digest. Absent means the module declares no
+  // method policy, and every Check that names one of its methods is refused.
+  SignedManifestV1 authority = 4;
+}
+
+// AuthorityManifestV1 is the authority's document for one delivery.
+message AuthorityManifestV1 {
+  // The module, as the core manifest it travels with names it.
+  string module = 1;
+  // The generation, equal to that core manifest's.
+  uint64 generation = 2;
+  // "sha256:<hex>" of the core manifest document delivered with it.
+  string core_manifest_digest = 3;
+  // Every method the module's published contracts serve, with what each
+  // declares. A method that declares nothing is listed with neither field set.
+  repeated MethodPolicyV1 methods = 4;
+}
+
+// MethodPolicyV1 is what a call to one method must hold, as the module's
+// contract declares it with the authority.hop.v1.policy option.
+message MethodPolicyV1 {
+  // The method, "/package.Service/Method".
+  string method = 1;
+  // Each action on each kind the call must hold.
+  repeated host.authority.v1.WorkScopeV1 requires = 2;
+  // The method asks nothing beyond a Work Context the authority checked.
+  bool any_checked_caller = 3;
 }
 
 // SignedManifestV1 is core's signed carrier: the manifest document (JSON) and

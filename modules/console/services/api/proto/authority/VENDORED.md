@@ -6,6 +6,6 @@ console's proto can mark its methods with the option.
 
 This is a stopgap. No Codefly library exports a proto yet, so a module cannot
 import another's option through the CLI, and every module in the fleet copies
-the option protos it uses by hand. The real fix is the CLI importing a proto a
-library exports. Until then `code/vendored_test.go` fails when this copy
-drifts from its source.
+the option protos it uses by hand. The real fix, codefly-dev/cli#1130, is the
+CLI importing a proto a library exports. Until then `code/vendored_test.go`
+fails when this copy drifts from its source.

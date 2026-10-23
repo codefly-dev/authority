@@ -15,8 +15,6 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 
-	hopv1 "github.com/codefly-dev/authority/libraries/hop/go/gen/authority/hop/v1"
-
 	"hop/pkg/business/decide"
 	gen "hop/pkg/gen"
 	"hop/pkg/infra/proxy"
@@ -26,29 +24,23 @@ const proof = "run-proof"
 
 var human = "human"
 
-// declared answers each method's policy as a module would declare it.
-type declared map[string]*hopv1.Policy
-
-func (d declared) Policy(_ context.Context, method string) (*hopv1.Policy, error) {
-	policy, ok := d[method]
-	if !ok {
-		return nil, decide.ErrNoMethod
-	}
-	return policy, nil
-}
-
-var requires = func(kind string, actions ...string) *hopv1.Policy {
-	return &hopv1.Policy{Requires: []*hopv1.Requirement{{ResourceKind: kind, Actions: actions}}}
-}
-
 // authority answers Check the way the interface does: maya's token is
-// addressed to the module, anything else is refused.
-type authority struct{ asked []string }
+// addressed to the module, anything else is refused; a method in refuse is
+// refused as the module's delivered policy would have it.
+type authority struct {
+	asked   []string
+	methods []string
+	refuse  map[string]string
+}
 
 func (a *authority) Check(_ context.Context, in *authorityv1.CheckRequest, _ ...grpc.CallOption) (*authorityv1.CheckResponse, error) {
 	a.asked = append(a.asked, in.GetAudience())
+	a.methods = append(a.methods, in.GetMethod())
 	if in.GetToken() != "maya-at-module" {
 		return nil, status.Error(codes.PermissionDenied, "work context: revoked: maya no longer holds the role")
+	}
+	if reason, refused := a.refuse[in.GetMethod()]; refused {
+		return nil, status.Error(codes.PermissionDenied, reason)
 	}
 	return &authorityv1.CheckResponse{Context: &authorityv1.WorkContextV1{
 		OwnerPrincipalId: "maya", OwnerPrincipalKind: &human, TenantId: "acme",
@@ -91,7 +83,7 @@ func dial(t *testing.T, listener *bufconn.Listener, opts ...grpc.DialOption) *gr
 	return conn
 }
 
-func setup(t *testing.T, policies declared) (through gen.HopServiceClient, direct gen.HopServiceClient, m *module, a *authority, refused *[]string) {
+func setup(t *testing.T) (through gen.HopServiceClient, direct gen.HopServiceClient, m *module, a *authority, refused *[]string) {
 	m, a, refused = &module{}, &authority{}, &[]string{}
 	moduleListener := bufconn.Listen(1 << 20)
 	moduleServer := grpc.NewServer(grpc.UnaryInterceptor(hop.UnaryServerInterceptor(proof)))
@@ -99,7 +91,7 @@ func setup(t *testing.T, policies declared) (through gen.HopServiceClient, direc
 	go func() { _ = moduleServer.Serve(moduleListener) }()
 	t.Cleanup(moduleServer.Stop)
 	p := &proxy.Proxy{
-		Decide:   decide.Decider{Authority: a, Audience: "console", Policies: policies}.Decide,
+		Decide:   decide.Decider{Authority: a, Audience: "console"}.Decide,
 		Upstream: dial(t, moduleListener, proxy.DialOptions()...),
 		Proof:    proof,
 		Refused:  func(method string, err error) { *refused = append(*refused, method+": "+err.Error()) },
@@ -109,7 +101,7 @@ func setup(t *testing.T, policies declared) (through gen.HopServiceClient, direc
 }
 
 func TestTheHopLetsThroughOnlyACallTheAuthorityChecked(t *testing.T) {
-	through, _, m, a, refused := setup(t, declared{"/api.HopService/Version": requires("console.identity", "read")})
+	through, _, m, a, refused := setup(t)
 	ctx := metadata.AppendToOutgoingContext(context.Background(), hop.WorkContextKey, "maya-at-module",
 		hop.OwnerKey, "mallory", hop.ScopesKey, "console.identity:admin") // a forged stamp, stripped
 	got, err := through.Version(ctx, &gen.VersionRequest{})
@@ -125,7 +117,7 @@ func TestTheHopLetsThroughOnlyACallTheAuthorityChecked(t *testing.T) {
 }
 
 func TestTheHopRefusesByNameAndTheModuleIsNeverReached(t *testing.T) {
-	through, _, m, _, refused := setup(t, declared{"/api.HopService/Version": requires("console.identity", "read")})
+	through, _, m, _, refused := setup(t)
 	_, err := through.Version(context.Background(), &gen.VersionRequest{})
 	if status.Code(err) != codes.Unauthenticated || !strings.Contains(err.Error(), "carries no Work Context") {
 		t.Fatalf("no token: %v", err)
@@ -141,7 +133,7 @@ func TestTheHopRefusesByNameAndTheModuleIsNeverReached(t *testing.T) {
 }
 
 func TestACallAroundTheHopIsRefusedByTheModule(t *testing.T) {
-	_, direct, m, _, _ := setup(t, declared{"/api.HopService/Version": requires("console.identity", "read")})
+	_, direct, m, _, _ := setup(t)
 	ctx := metadata.AppendToOutgoingContext(context.Background(), hop.WorkContextKey, "maya-at-module",
 		hop.OwnerKey, "maya", hop.TenantKey, "acme", hop.ProofKey, "a-guess")
 	_, err := direct.Version(ctx, &gen.VersionRequest{})
@@ -167,36 +159,18 @@ func TestEffectiveScopesAreTheOwnersNarrowedByEveryActor(t *testing.T) {
 	}
 }
 
-func TestTheHopAppliesEachMethodsDeclaredPolicy(t *testing.T) {
+func TestTheHopHandsTheMethodToTheAuthorityAndPassesItsRefusalOn(t *testing.T) {
+	through, _, m, a, refused := setup(t)
 	ctx := metadata.AppendToOutgoingContext(context.Background(), hop.WorkContextKey, "maya-at-module")
-	for _, c := range []struct {
-		name     string
-		policy   *hopv1.Policy
-		code     codes.Code
-		contains string
-	}{
-		{"held", requires("console.identity", "read"), codes.OK, ""},
-		{"any checked caller", &hopv1.Policy{AnyCheckedCaller: true}, codes.OK, ""},
-		{"not held", requires("console.identity", "read", "admin"), codes.PermissionDenied,
-			"console refuses /api.HopService/Version for maya: it requires console.identity:admin, which the call does not hold (it holds console.identity:read)"},
-		{"declares nothing", nil, codes.PermissionDenied, "the method declares no policy"},
-		{"not served", &hopv1.Policy{AnyCheckedCaller: true}, codes.Unimplemented, "console serves no method /api.HopService/Version"},
-		{"says nothing is required without saying so", &hopv1.Policy{}, codes.PermissionDenied, "requires nothing and does not say so"},
-		{"both", &hopv1.Policy{AnyCheckedCaller: true, Requires: requires("console.identity", "read").GetRequires()}, codes.PermissionDenied, "both requires scopes and requires none"},
-	} {
-		t.Run(c.name, func(t *testing.T) {
-			policies := declared{"/api.HopService/Version": c.policy}
-			if c.name == "not served" {
-				policies = declared{}
-			}
-			through, _, m, _, _ := setup(t, policies)
-			_, err := through.Version(ctx, &gen.VersionRequest{})
-			if status.Code(err) != c.code || !strings.Contains(status.Convert(err).Message(), c.contains) {
-				t.Fatalf("got %v, want %v containing %q", err, c.code, c.contains)
-			}
-			if reached := m.reached == 1; reached != (c.code == codes.OK) {
-				t.Fatalf("module reached %d times", m.reached)
-			}
-		})
+	if _, err := through.Version(ctx, &gen.VersionRequest{}); err != nil || m.reached != 1 {
+		t.Fatalf("allowed: %v reached %d", err, m.reached)
+	}
+	a.refuse = map[string]string{"/api.HopService/Version": "issuer: forbidden: console requires console.identity:admin for /api.HopService/Version, which the call does not hold (it holds console.identity:read)"}
+	_, err := through.Version(ctx, &gen.VersionRequest{})
+	if status.Code(err) != codes.PermissionDenied || !strings.Contains(status.Convert(err).Message(), "the authority refused the call to console: issuer: forbidden: console requires console.identity:admin") {
+		t.Fatalf("refused by the method's policy: %v", err)
+	}
+	if m.reached != 1 || len(*refused) != 1 || strings.Join(a.methods, ",") != "/api.HopService/Version,/api.HopService/Version" {
+		t.Fatalf("reached %d refused %v methods %v", m.reached, *refused, a.methods)
 	}
 }

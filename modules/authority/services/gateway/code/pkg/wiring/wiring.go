@@ -5,6 +5,7 @@ package wiring
 
 import (
 	"context"
+	"crypto"
 
 	"github.com/codefly-dev/core/solutionhost"
 
@@ -33,9 +34,14 @@ var (
 )
 
 // SetDelivery records how a delivered manifest is verified and who may carry it.
-func SetDelivery(verifier *solutionhost.Verifier, carrier func(ctx context.Context, credential, module string) error) {
-	configuredVerifier, configuredCarrier = verifier, carrier
+func SetDelivery(verifier *solutionhost.Verifier, keys map[string]crypto.PublicKey, carrier func(ctx context.Context, credential, module string) error) {
+	configuredVerifier, configuredKeys, configuredCarrier = verifier, keys, carrier
 }
+
+var configuredKeys map[string]crypto.PublicKey
+
+// Keys are the pinned release keys by id, for the authority's own document.
+func Keys() map[string]crypto.PublicKey { return configuredKeys }
 
 // Verifier pins the release keys a run admits; nil verifies nothing.
 func Verifier() *solutionhost.Verifier { return configuredVerifier }

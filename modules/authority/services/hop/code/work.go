@@ -13,7 +13,6 @@ import (
 
 	"hop/pkg/adapters"
 	"hop/pkg/business/decide"
-	"hop/pkg/infra/policy"
 	"hop/pkg/infra/proxy"
 )
 
@@ -45,11 +44,7 @@ func standInFront(ctx context.Context, config *adapters.Configuration) (Clean, e
 		return nil, err
 	}
 	p := &proxy.Proxy{
-		Decide: decide.Decider{
-			Authority: authorityv1.NewAuthorityServiceClient(authority),
-			Audience:  fronted,
-			Policies:  &policy.Reader{Module: module},
-		}.Decide,
+		Decide:   decide.Decider{Authority: authorityv1.NewAuthorityServiceClient(authority), Audience: fronted}.Decide,
 		Upstream: module,
 		Proof:    proof,
 		Refused: func(method string, err error) {

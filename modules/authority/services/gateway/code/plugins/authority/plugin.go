@@ -96,7 +96,7 @@ func (p *Plugin) Issue(ctx context.Context, req *authorityv1.IssueRequest) (*aut
 
 // Check verifies for the audience the caller is.
 func (p *Plugin) Check(ctx context.Context, req *authorityv1.CheckRequest) (*authorityv1.CheckResponse, error) {
-	out, err := p.Issuer.Check(ctx, req.GetToken(), req.GetAudience())
+	out, err := p.Issuer.Check(ctx, req.GetToken(), req.GetAudience(), req.GetMethod())
 	return out, Status(err)
 }
 

@@ -198,17 +198,17 @@ func TestCheckAcceptsForTheAudienceAndRefusesForAnother(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	checked, err := k.Issuer.Check(ctx, out.GetToken(), "documents")
+	checked, err := k.Issuer.Check(ctx, out.GetToken(), "documents", "")
 	if err != nil || checked.GetContext().GetOwnerPrincipalId() != "maya" || checked.GetAuthorizationRevision() == 0 {
 		t.Fatalf("check: %v %v", err, checked)
 	}
-	if _, err := k.Issuer.Check(ctx, out.GetToken(), "model"); !errors.Is(err, workcontext.ErrInvalid) {
+	if _, err := k.Issuer.Check(ctx, out.GetToken(), "model", ""); !errors.Is(err, workcontext.ErrInvalid) {
 		t.Fatalf("another audience: %v", err)
 	}
-	if _, err := k.Issuer.Check(ctx, out.GetToken()+"x", "documents"); err == nil {
+	if _, err := k.Issuer.Check(ctx, out.GetToken()+"x", "documents", ""); err == nil {
 		t.Fatal("a tampered token verified")
 	}
-	if _, err := k.Issuer.Check(ctx, out.GetToken(), ""); !errors.Is(err, issuer.ErrRefused) {
+	if _, err := k.Issuer.Check(ctx, out.GetToken(), "", ""); !errors.Is(err, issuer.ErrRefused) {
 		t.Fatalf("a check without an audience: %v", err)
 	}
 }
@@ -223,13 +223,13 @@ func TestAnUninstallRefusesAnOutstandingTokenOnTheNextCheck(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := k.Issuer.Check(ctx, out.GetToken(), "documents"); err != nil {
+	if _, err := k.Issuer.Check(ctx, out.GetToken(), "documents", ""); err != nil {
 		t.Fatalf("before: %v", err)
 	}
 	if err := k.State.Revoke(wiki.ID); err != nil {
 		t.Fatal(err)
 	}
-	_, err = k.Issuer.Check(ctx, out.GetToken(), "documents")
+	_, err = k.Issuer.Check(ctx, out.GetToken(), "documents", "")
 	if err == nil || !(errors.Is(err, workcontext.ErrRevoked) || errors.Is(err, workcontext.ErrNoSeal)) {
 		t.Fatalf("after the uninstall: %v", err)
 	}
@@ -294,7 +294,7 @@ func TestAWorkloadIsIssuedItsBindingsHeadlessScopesForTheBindingsAudience(t *tes
 	if wc.GetOperationBinding().GetBindingId() != "acme/documents/model" {
 		t.Fatalf("binding = %v", wc.GetOperationBinding())
 	}
-	if _, err := k.Issuer.Check(ctx, out.GetToken(), "model"); err != nil {
+	if _, err := k.Issuer.Check(ctx, out.GetToken(), "model", ""); err != nil {
 		t.Fatalf("model refuses documents' own context: %v", err)
 	}
 	// The refusals a module hits today, each by name.
@@ -342,7 +342,7 @@ func TestAChildHopAttenuatesAndNamesItsActorAndItsBinding(t *testing.T) {
 	if wc.GetOwnerPrincipalId() != "maya" || len(wc.GetActorChain()) != 1 || wc.GetActorChain()[0].GetPrincipalId() != "org-directory" || wc.GetOperationBinding().GetBindingId() != "acme/org-directory/records" {
 		t.Fatalf("child = owner %s actors %v binding %v", wc.GetOwnerPrincipalId(), wc.GetActorChain(), wc.GetOperationBinding())
 	}
-	if _, err := k.Issuer.Check(ctx, child.GetToken(), "records"); err != nil {
+	if _, err := k.Issuer.Check(ctx, child.GetToken(), "records", ""); err != nil {
 		t.Fatalf("child check: %v", err)
 	}
 	if _, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{

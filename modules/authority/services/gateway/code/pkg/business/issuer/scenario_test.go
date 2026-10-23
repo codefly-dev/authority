@@ -65,7 +65,7 @@ func TestTheScenarioOneHopAtATime(t *testing.T) {
 			wc.GetSeal().GetInstallationId() != "acme/documents" || strings.Join(wc.GetAuthorityScopes()[0].GetActions(), ",") != "read" {
 			t.Fatalf("step 3 token = %v", wc)
 		}
-		if _, err := k.Issuer.Check(ctx, out.GetToken(), "documents"); err != nil {
+		if _, err := k.Issuer.Check(ctx, out.GetToken(), "documents", ""); err != nil {
 			t.Fatalf("documents checks it: %v", err)
 		}
 		mayaAtDocuments = out.GetToken()
@@ -92,7 +92,7 @@ func TestTheScenarioOneHopAtATime(t *testing.T) {
 			wc.GetOperationBinding().GetBindingId() != "acme/documents/model" || wc.GetSeal().GetInstallationId() != "acme/documents" {
 			t.Fatalf("step 4 token = %v", wc)
 		}
-		if _, err := k.Issuer.Check(ctx, out.GetToken(), "model"); err != nil {
+		if _, err := k.Issuer.Check(ctx, out.GetToken(), "model", ""); err != nil {
 			t.Fatalf("model checks it: %v", err)
 		}
 		// Refuses today, the audience: the composition typed modelservice in a second key.
@@ -125,7 +125,7 @@ func TestTheScenarioOneHopAtATime(t *testing.T) {
 			wc.GetAudience() != "runtime" || wc.GetExpiresAtUnix()-k.Now.Unix() < 60 || wc.GetExpiresAtUnix()-k.Now.Unix() > 62 {
 			t.Fatalf("step 5 child = %v", wc)
 		}
-		if _, err := k.Issuer.Check(ctx, child.GetToken(), "runtime"); err != nil {
+		if _, err := k.Issuer.Check(ctx, child.GetToken(), "runtime", ""); err != nil {
 			t.Fatalf("the runtime checks the child: %v", err)
 		}
 		// Nothing widened: the child cannot carry more than Maya's read.
@@ -155,7 +155,7 @@ func TestTheScenarioOneHopAtATime(t *testing.T) {
 		if err := k.State.Revoke("acme/wiki"); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := k.Issuer.Check(ctx, out.GetToken(), "documents"); err == nil {
+		if _, err := k.Issuer.Check(ctx, out.GetToken(), "documents", ""); err == nil {
 			t.Fatal("an uninstalled wiki still acted")
 		}
 	})
@@ -204,7 +204,7 @@ func TestTheScenarioOneHopAtATime(t *testing.T) {
 		if _, err := k.State.VerifyWorkload(ctx, documents.GetCredential()); err != nil {
 			t.Fatalf("the launcher's word for documents: %v", err)
 		}
-		if _, err := k.Issuer.Check(ctx, workcontext.FixtureForeignToken(), "documents"); err == nil {
+		if _, err := k.Issuer.Check(ctx, workcontext.FixtureForeignToken(), "documents", ""); err == nil {
 			t.Fatal("a token that is not ours verified")
 		}
 	})

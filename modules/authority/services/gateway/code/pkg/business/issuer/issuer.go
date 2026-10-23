@@ -78,14 +78,20 @@ func (i *Issuer) verifier(audience string) *workcontext.Verifier {
 	}
 }
 
-// Check verifies a capability for the audience the caller is.
-func (i *Issuer) Check(ctx context.Context, token, audience string) (*authorityv1.CheckResponse, error) {
+// Check verifies a capability for the audience the caller is and, when method
+// is named, applies what the audience module's delivery declares for it.
+func (i *Issuer) Check(ctx context.Context, token, audience, method string) (*authorityv1.CheckResponse, error) {
 	if audience == "" {
 		return nil, fmt.Errorf("%w: a check names the audience the caller is", ErrRefused)
 	}
 	verified, err := i.verifier(audience).Verify(ctx, token)
 	if err != nil {
 		return nil, err
+	}
+	if method != "" {
+		if err := i.state.AdmitMethod(audience, method, verified.EffectiveScopes()); err != nil {
+			return nil, err
+		}
 	}
 	wc, err := ToWire(verified.Context())
 	if err != nil {

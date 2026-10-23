@@ -71,6 +71,82 @@ type Manifest struct {
 	// InstallerRole; a module declares none, since a module is installed by
 	// composition and a person's access to it is the organisation's roles.
 	Roles map[string][]*basev0.WorkScopeV1
+	// Methods are what each method the module serves declares a call must hold,
+	// from the authority's signed document delivered with the manifest. Nil
+	// means the delivery declared no method policy: every check naming one of
+	// the module's methods is then refused.
+	Methods map[string]MethodPolicy
+}
+
+// MethodPolicy is one method's declaration: exactly one of its fields is set.
+type MethodPolicy struct {
+	Requires         []*basev0.WorkScopeV1
+	AnyCheckedCaller bool
+}
+
+// AdmitMethod applies what the module at audience declares for method to the
+// scopes a checked call holds. A method that declares nothing, or both that it
+// requires something and nothing, is refused: an absent or ambiguous
+// declaration is never read as permission.
+func (s *State) AdmitMethod(audience, method string, held []*basev0.WorkScopeV1) error {
+	s.mu.RLock()
+	m, err := s.moduleByPrincipal(audience)
+	s.mu.RUnlock()
+	if err != nil {
+		return err
+	}
+	if m.Methods == nil {
+		return fmt.Errorf("%w: %s's delivery declares no method policy, so %s is refused", ErrForbidden, audience, method)
+	}
+	p, ok := m.Methods[method]
+	switch {
+	case !ok:
+		return fmt.Errorf("%w: %s serves no method %s", ErrUnknown, audience, method)
+	case p.AnyCheckedCaller && len(p.Requires) > 0:
+		return fmt.Errorf("%w: %s declares for %s both that it requires scopes and that it requires none", ErrForbidden, audience, method)
+	case p.AnyCheckedCaller:
+		return nil
+	case len(p.Requires) == 0:
+		return fmt.Errorf("%w: %s declares no policy for %s", ErrForbidden, audience, method)
+	}
+	var missing []string
+	for _, r := range p.Requires {
+		for _, action := range r.GetActions() {
+			if !holdsAction(held, r.GetResourceKind(), action) {
+				missing = append(missing, r.GetResourceKind()+":"+action)
+			}
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("%w: %s requires %s for %s, which the call does not hold (it holds %s)",
+			ErrForbidden, audience, strings.Join(missing, ", "), method, describe(held))
+	}
+	return nil
+}
+
+// holdsAction is whether held carries action on kind. A method's requirement is
+// on the kind; which resources of it the call may touch is the module's own
+// check, against the context it is handed.
+func holdsAction(held []*basev0.WorkScopeV1, kind, action string) bool {
+	for _, h := range held {
+		if h.GetResourceKind() == kind && (slices.Contains(h.GetActions(), action) || slices.Contains(h.GetActions(), AnyAction)) {
+			return true
+		}
+	}
+	return false
+}
+
+func describe(held []*basev0.WorkScopeV1) string {
+	var out []string
+	for _, h := range held {
+		for _, a := range h.GetActions() {
+			out = append(out, h.GetResourceKind()+":"+a)
+		}
+	}
+	if len(out) == 0 {
+		return "nothing"
+	}
+	return strings.Join(out, ", ")
 }
 
 // InstallerRole is the role every solution declares: whoever installs it holds

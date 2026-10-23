@@ -3,6 +3,8 @@
 package testkit
 
 import (
+	"crypto"
+
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -10,6 +12,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	delivery "github.com/codefly-dev/authority/libraries/delivery/go"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -153,6 +156,17 @@ func SignDocument(document []byte) ([]byte, error) {
 	return solutionhost.SignEnvelope(document, releaseSigner())
 }
 
+// SignAuthority signs the authority's own document with the same release key.
+func SignAuthority(document []byte) ([]byte, error) {
+	signer := releaseSigner()
+	return delivery.Sign(document, signer.KeyID(), signer.Sign)
+}
+
+// ReleaseKeys pins the kit's release key by id, for the authority's document.
+func ReleaseKeys() map[string]crypto.PublicKey {
+	return map[string]crypto.PublicKey{ReleaseKeyID: releaseSigner().Public()}
+}
+
 // CarrierAuthority admits a credential as the named module's own workload under
 // the launcher: on a native run the module's process delivers its own manifest.
 // A module's first manifest arrives before it is composed, so the credential is
@@ -227,9 +241,9 @@ func New(t *testing.T) *Kit {
 	}
 	// The launcher declares the processes it starts, one per module; its anchor
 	// vouches for exactly those.
-	// The two conformance modules are declared too: the suite delivers their
+	// The suite's own modules are declared too: the suite delivers their
 	// manifests from their own workloads.
-	for _, module := range []string{"model", "runtime", "records", "org-directory", "documents", "wiki", "conformance-probe", "conformance-solution"} {
+	for _, module := range []string{"model", "runtime", "records", "org-directory", "documents", "wiki", "conformance-probe", "conformance-solution", "conformance-methods"} {
 		launcher.Declare(Workload(module))
 	}
 	_, signing, err := ed25519.GenerateKey(rand.Reader)

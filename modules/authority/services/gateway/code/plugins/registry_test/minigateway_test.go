@@ -27,7 +27,7 @@ func TestTheMiniGatewayPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
 	k := testkit.New(t)
 	plugins := []framework.Plugin{
 		&authority.Plugin{Issuer: k.Issuer},
-		&composition.Plugin{State: k.State, Verifier: testkit.ReleaseVerifier(t, "local"), Carrier: k.CarrierAuthority},
+		&composition.Plugin{State: k.State, Verifier: testkit.ReleaseVerifier(t, "local"), Carrier: k.CarrierAuthority, Keys: testkit.ReleaseKeys()},
 		&installation.Plugin{State: k.State}, &session.Plugin{State: k.State},
 	}
 	server := grpc.NewServer()
@@ -60,6 +60,7 @@ func TestTheMiniGatewayPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
 		// module's own workload under the launcher.
 		HostCoordinate: "local", HostDomain: "local",
 		SignManifest:       testkit.SignDocument,
+		SignAuthority:      testkit.SignAuthority,
 		DeliveryCredential: func(module string) string { return k.Credential(t, module) },
 		Matrix:             testkit.Matrix(),
 		// Rémi at the page; the page asks documents; documents asks the model,

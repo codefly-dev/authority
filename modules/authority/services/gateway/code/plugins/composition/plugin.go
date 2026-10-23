@@ -3,14 +3,17 @@ package composition
 
 import (
 	"context"
+	"crypto"
 	"gateway/pkg/framework"
 	"gateway/pkg/wiring"
 	"strings"
 
+	delivery "github.com/codefly-dev/authority/libraries/delivery/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"github.com/codefly-dev/core/solutionhost"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
@@ -29,6 +32,9 @@ type Plugin struct {
 	Verifier *solutionhost.Verifier
 	// Carrier admits a delivery credential as the named module's delivery workload.
 	Carrier func(ctx context.Context, credential, module string) error
+	// Keys are the same pinned release keys, by key id, for the authority's own
+	// document delivered with the manifest.
+	Keys map[string]crypto.PublicKey
 }
 
 // Name is the plugin's identifier.
@@ -49,12 +55,20 @@ func (p *Plugin) Migrations() []string { return nil }
 func (p *Plugin) ApplyManifest(ctx context.Context, req *compositionv1.ApplyManifestRequest) (*compositionv1.ApplyManifestResponse, error) {
 	var m state.Manifest
 	if req.GetCarrier() != nil {
-		delivered, err := p.verified(ctx, req.GetCarrier(), req.GetCredential())
+		delivered, signer, err := p.verified(ctx, req.GetCarrier(), req.GetCredential())
 		if err != nil {
 			return nil, err
 		}
 		m = FromCore(delivered)
+		if req.GetAuthority() != nil {
+			if m.Methods, err = p.methods(req.GetAuthority(), req.GetCarrier(), delivered, signer); err != nil {
+				return nil, err
+			}
+		}
 	} else {
+		if req.GetAuthority() != nil {
+			return nil, status.Error(codes.InvalidArgument, "the authority's document travels only with a signed carrier")
+		}
 		m = Manifest(req.GetManifest())
 	}
 	ids, err := p.State.ApplyManifest(m)
@@ -85,22 +99,56 @@ func Manifest(in *compositionv1.ModuleManifestV1) state.Manifest {
 
 // verified reads the manifest from the carrier's verified document and admits
 // the delivery only from the module's own delivery workload.
-func (p *Plugin) verified(ctx context.Context, carrier *compositionv1.SignedManifestV1, credential string) (*solutionhost.ModuleManifest, error) {
+func (p *Plugin) verified(ctx context.Context, carrier *compositionv1.SignedManifestV1, credential string) (*solutionhost.ModuleManifest, string, error) {
 	if p.Verifier == nil || p.Carrier == nil {
-		return nil, status.Error(codes.FailedPrecondition, "this implementation verifies no delivery: no release keys are pinned")
+		return nil, "", status.Error(codes.FailedPrecondition, "this implementation verifies no delivery: no release keys are pinned")
 	}
 	delivered, err := solutionhost.VerifyDelivered(ctx, &solutionhost.Signed{Document: carrier.GetDocument(), Envelope: carrier.GetEnvelope()}, p.Verifier)
 	if err != nil {
-		return nil, status.Errorf(codes.PermissionDenied, "the delivery does not verify: %v", err)
+		return nil, "", status.Errorf(codes.PermissionDenied, "the delivery does not verify: %v", err)
 	}
 	manifest, err := delivered.Manifest()
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "the delivered manifest does not read: %v", err)
+		return nil, "", status.Errorf(codes.InvalidArgument, "the delivered manifest does not read: %v", err)
 	}
 	if err := p.Carrier(ctx, credential, manifest.Alias); err != nil {
-		return nil, status.Errorf(codes.PermissionDenied, "the delivery is not carried by %s's delivery workload: %v", manifest.Alias, err)
+		return nil, "", status.Errorf(codes.PermissionDenied, "the delivery is not carried by %s's delivery workload: %v", manifest.Alias, err)
 	}
-	return manifest, nil
+	return manifest, delivered.Signer().KeyID, nil
+}
+
+// methods reads the authority's document delivered with a verified carrier:
+// signed by the key that signed the carrier, for the same module and
+// generation, naming the carrier's digest. Anything else is refused, so a
+// delivery cannot pair one release's manifest with another's method policy.
+func (p *Plugin) methods(signed, carrier *compositionv1.SignedManifestV1, core *solutionhost.ModuleManifest, signer string) (map[string]state.MethodPolicy, error) {
+	keyID, err := delivery.Verify(signed.GetDocument(), signed.GetEnvelope(), p.Keys)
+	if err != nil {
+		return nil, status.Errorf(codes.PermissionDenied, "the authority's document does not verify: %v", err)
+	}
+	if keyID != signer {
+		return nil, status.Errorf(codes.PermissionDenied, "the authority's document is signed by %q and the manifest by %q", keyID, signer)
+	}
+	var doc compositionv1.AuthorityManifestV1
+	if err := proto.Unmarshal(signed.GetDocument(), &doc); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "the authority's document does not read: %v", err)
+	}
+	switch {
+	case doc.GetModule() != core.Alias:
+		return nil, status.Errorf(codes.PermissionDenied, "the authority's document is for %q, the manifest for %q", doc.GetModule(), core.Alias)
+	case doc.GetGeneration() != core.Generation:
+		return nil, status.Errorf(codes.PermissionDenied, "the authority's document is at generation %d, the manifest at %d", doc.GetGeneration(), core.Generation)
+	case doc.GetCoreManifestDigest() != delivery.Digest(carrier.GetDocument()):
+		return nil, status.Errorf(codes.PermissionDenied, "the authority's document names another manifest than the one delivered with it")
+	}
+	methods := make(map[string]state.MethodPolicy, len(doc.GetMethods()))
+	for _, method := range doc.GetMethods() {
+		if _, twice := methods[method.GetMethod()]; twice || method.GetMethod() == "" {
+			return nil, status.Errorf(codes.InvalidArgument, "the authority's document lists method %q twice or unnamed", method.GetMethod())
+		}
+		methods[method.GetMethod()] = state.MethodPolicy{Requires: issuer.FromWire(method.GetRequires()), AnyCheckedCaller: method.GetAnyCheckedCaller()}
+	}
+	return methods, nil
 }
 
 // FromCore reads core's module manifest as the state's. Core's manifest carries
@@ -154,5 +202,5 @@ func scopesOf(entries []string) []*basev0.WorkScopeV1 {
 
 // New is the registry's constructor: the plugin over what Configure wired.
 func New() framework.Plugin {
-	return &Plugin{State: wiring.State(), Verifier: wiring.Verifier(), Carrier: wiring.Carrier()}
+	return &Plugin{State: wiring.State(), Verifier: wiring.Verifier(), Carrier: wiring.Carrier(), Keys: wiring.Keys()}
 }

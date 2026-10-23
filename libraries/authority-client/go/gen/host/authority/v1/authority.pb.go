@@ -408,7 +408,12 @@ type CheckRequest struct {
 	// The capability presented.
 	Token string `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	// The audience the caller is; a capability addressed elsewhere is refused.
-	Audience      string `protobuf:"bytes,2,opt,name=audience,proto3" json:"audience,omitempty"`
+	Audience string `protobuf:"bytes,2,opt,name=audience,proto3" json:"audience,omitempty"`
+	// The method the capability is presented to, "/package.Service/Method". When
+	// set, the check also applies what the audience module's delivery declares
+	// for that method, and refuses by name a call that does not hold it, a method
+	// that declares nothing, and a method the module does not serve.
+	Method        string `protobuf:"bytes,3,opt,name=method,proto3" json:"method,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -453,6 +458,13 @@ func (x *CheckRequest) GetToken() string {
 func (x *CheckRequest) GetAudience() string {
 	if x != nil {
 		return x.Audience
+	}
+	return ""
+}
+
+func (x *CheckRequest) GetMethod() string {
+	if x != nil {
+		return x.Method
 	}
 	return ""
 }
@@ -698,10 +710,11 @@ const file_host_authority_v1_authority_proto_rawDesc = "" +
 	"\rIssueResponse\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12&\n" +
 	"\x0fexpires_at_unix\x18\x02 \x01(\x03R\rexpiresAtUnix\x12:\n" +
-	"\acontext\x18\x03 \x01(\v2 .host.authority.v1.WorkContextV1R\acontext\"@\n" +
+	"\acontext\x18\x03 \x01(\v2 .host.authority.v1.WorkContextV1R\acontext\"X\n" +
 	"\fCheckRequest\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12\x1a\n" +
-	"\baudience\x18\x02 \x01(\tR\baudience\"\x82\x01\n" +
+	"\baudience\x18\x02 \x01(\tR\baudience\x12\x16\n" +
+	"\x06method\x18\x03 \x01(\tR\x06method\"\x82\x01\n" +
 	"\rCheckResponse\x12:\n" +
 	"\acontext\x18\x01 \x01(\v2 .host.authority.v1.WorkContextV1R\acontext\x125\n" +
 	"\x16authorization_revision\x18\x02 \x01(\x04R\x15authorizationRevision\"\r\n" +

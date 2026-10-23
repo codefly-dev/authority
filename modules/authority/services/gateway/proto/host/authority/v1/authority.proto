@@ -10,7 +10,7 @@ option go_package = "gateway/pkg/gen/host/authority/v1;authorityv1";
 
 import "host/authority/v1/work_context.proto";
 
-// AuthorityService is implemented by the host (accounts) and by the mini gateway.
+// AuthorityService is implemented by the host (accounts) and by the authority gateway.
 service AuthorityService {
   // Issue signs a Work Context for one owner shape, one audience and the scopes
   // asked for, bounded by what the owner holds and what the audience declared.
@@ -89,6 +89,11 @@ message CheckRequest {
   string token = 1;
   // The audience the caller is; a capability addressed elsewhere is refused.
   string audience = 2;
+  // The method the capability is presented to, "/package.Service/Method". When
+  // set, the check also applies what the audience module's delivery declares
+  // for that method, and refuses by name a call that does not hold it, a method
+  // that declares nothing, and a method the module does not serve.
+  string method = 3;
 }
 
 // CheckResponse is the verified capability.

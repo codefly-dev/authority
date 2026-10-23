@@ -8,6 +8,8 @@ package conformance
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"github.com/codefly-dev/core/solutionhost"
 	"github.com/codefly-dev/core/workcontext"
@@ -49,6 +51,9 @@ type Fixture struct {
 	HostDomain         string
 	SignManifest       func(document []byte) (envelope []byte, err error)
 	DeliveryCredential func(module string) string
+	// SignAuthority signs the authority's own document delivered with a manifest,
+	// with the key SignManifest signs with. Nil skips the method-policy line.
+	SignAuthority func(document []byte) (envelope []byte, err error)
 
 	// Chain is a delegate chain the fixture states, or nil: a person signs in,
 	// is issued at Start, and each hop is taken by its module on the previous
@@ -134,6 +139,48 @@ func (c *client) applyManifest(ctx context.Context, f Fixture, alias, kind strin
 	}
 	return c.call(ctx, "host.composition.v1.CompositionService", "ApplyManifest", map[string]any{
 		"carrier": map[string]any{"document": document, "envelope": envelope}, "credential": f.DeliveryCredential(alias)})
+}
+
+// deliverWithMethods delivers a signed manifest with the authority's document
+// listing methods. skew offsets the document's generation from the manifest's,
+// to prove a mismatched pair is refused.
+func (c *client) deliverWithMethods(ctx context.Context, f Fixture, alias string, generation uint64, kinds []string, methods []any, skew uint64) (protoreflect.Message, error) {
+	manifest := &solutionhost.ModuleManifest{
+		Schema: solutionhost.SchemaModuleManifestV1, Binding: alias, Alias: alias, Kind: solutionhost.KindModule, Generation: generation,
+		Host:      solutionhost.HostTarget{Coordinate: f.HostCoordinate, Domain: f.HostDomain},
+		Release:   solutionhost.Release{Publisher: "conformance", Name: alias, Version: "0.1.0"},
+		Workloads: []solutionhost.Workload{{Service: "api", Container: "app"}},
+		Authority: &solutionhost.Authority{Principal: alias, ResourceKinds: kinds},
+	}
+	document, err := solutionhost.SignedPayload(manifest)
+	if err != nil {
+		return nil, err
+	}
+	envelope, err := f.SignManifest(document)
+	if err != nil {
+		return nil, err
+	}
+	d, err := c.files.FindDescriptorByName("host.composition.v1.AuthorityManifestV1")
+	if err != nil {
+		return nil, err
+	}
+	doc := dynamicpb.NewMessage(d.(protoreflect.MessageDescriptor))
+	sum := sha256.Sum256(document)
+	if err := fill(doc, map[string]any{"module": alias, "generation": generation + skew, "core_manifest_digest": "sha256:" + hex.EncodeToString(sum[:]), "methods": methods}); err != nil {
+		return nil, err
+	}
+	authority, err := proto.Marshal(doc)
+	if err != nil {
+		return nil, err
+	}
+	signed, err := f.SignAuthority(authority)
+	if err != nil {
+		return nil, err
+	}
+	return c.call(ctx, "host.composition.v1.CompositionService", "ApplyManifest", map[string]any{
+		"carrier":    map[string]any{"document": document, "envelope": envelope},
+		"authority":  map[string]any{"document": authority, "envelope": signed},
+		"credential": f.DeliveryCredential(alias)})
 }
 
 // Run drives the suite over one connection, from the published descriptors.
@@ -376,6 +423,58 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			"actor": map[string]any{"credential": last.Credential}, "operation_binding_id": last.Binding, "audience": last.Audience})
 		if status.Code(err) != codes.PermissionDenied {
 			t.Fatalf("a module hops only on a token addressed to it, also down a chain: %v", err)
+		}
+	})
+	t.Run("a check naming a method applies what the module's delivery declares", func(t *testing.T) {
+		if f.SignManifest == nil || f.SignAuthority == nil {
+			t.Skip("the fixture signs no authority document")
+		}
+		const module = "conformance-methods"
+		read := []any{map[string]any{"resource_kind": f.ReadKind, "actions": []any{"read"}}}
+		write := []any{map[string]any{"resource_kind": f.ReadKind, "actions": []any{"write"}}}
+		methods := []any{
+			map[string]any{"method": "/conformance.Service/Read", "requires": read},
+			map[string]any{"method": "/conformance.Service/Write", "requires": write},
+			map[string]any{"method": "/conformance.Service/Open", "any_checked_caller": true},
+			map[string]any{"method": "/conformance.Service/Unmarked"},
+		}
+		if _, err := c.deliverWithMethods(ctx, f, module, 1, []string{f.ReadKind}, methods, 0); err != nil {
+			t.Fatalf("deliver with the authority's document: %v", err)
+		}
+		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
+		token := str(c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": module}), "token")
+		check := func(method string) error {
+			_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": token, "audience": module, "method": method})
+			return err
+		}
+		for method, want := range map[string]codes.Code{
+			"": codes.OK, "/conformance.Service/Read": codes.OK, "/conformance.Service/Open": codes.OK,
+			"/conformance.Service/Write": codes.PermissionDenied, "/conformance.Service/Unmarked": codes.PermissionDenied,
+			"/conformance.Service/Missing": codes.NotFound,
+		} {
+			err := check(method)
+			if status.Code(err) != want {
+				t.Fatalf("check naming %q: want %v, got %v", method, want, err)
+			}
+			if err != nil && !strings.Contains(status.Convert(err).Message(), strings.TrimPrefix(method, "/conformance.Service/")) {
+				t.Fatalf("a refusal names the method: %v", err)
+			}
+		}
+		// A document that does not match the manifest it travels with is refused,
+		// and the module keeps the policy it had.
+		if _, err := c.deliverWithMethods(ctx, f, module, 2, []string{f.ReadKind}, []any{map[string]any{"method": "/conformance.Service/Write", "any_checked_caller": true}}, 1); status.Code(err) != codes.PermissionDenied {
+			t.Fatalf("an authority document for another generation: %v", err)
+		}
+		if status.Code(check("/conformance.Service/Write")) != codes.PermissionDenied {
+			t.Fatal("a refused delivery must not loosen the module's policy")
+		}
+		// A delivery without the document leaves no method policy: fail closed.
+		if _, err := c.applyManifest(ctx, f, module, "module", 3, []string{f.ReadKind}); err != nil {
+			t.Fatalf("deliver without the document: %v", err)
+		}
+		token = str(c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": module}), "token")
+		if status.Code(check("/conformance.Service/Read")) != codes.PermissionDenied || check("") != nil {
+			t.Fatal("with no document delivered, a check naming a method is refused and one naming none is not")
 		}
 	})
 	t.Run("a manifest moves only forward and a lower generation is refused by name", func(t *testing.T) {

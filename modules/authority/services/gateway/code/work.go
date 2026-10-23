@@ -80,7 +80,7 @@ func configureMiniGateway(ctx context.Context, _ *adapters.Configuration) (Clean
 	// carried only by the module's own delivery workload, attested by the
 	// anchor. With no policy the carrier path refuses by name and says so.
 	if dir := os.Getenv(delivery.TrustAnchorEnvironment); dir != "" {
-		verifier, err := delivery.VerifierFromDirectory(dir)
+		verifier, keys, err := delivery.VerifierFromDirectory(dir)
 		if err != nil {
 			return nil, fmt.Errorf("delivery trust: %w", err)
 		}
@@ -88,7 +88,7 @@ func configureMiniGateway(ctx context.Context, _ *adapters.Configuration) (Clean
 		if err != nil {
 			return nil, err
 		}
-		wiring.SetDelivery(verifier, func(ctx context.Context, credential, module string) error {
+		wiring.SetDelivery(verifier, keys, func(ctx context.Context, credential, module string) error {
 			attested, err := attester.Attest(ctx, credential, Audience)
 			if err != nil {
 				return err
