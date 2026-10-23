@@ -1,5 +1,7 @@
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.12-20260825204119-511051f7f437.2 h1:NbnlmV26O7oZ1iM5tsCI+GEx+3ZSdrhvnKQ/eWSrLiY=
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.12-20260825204119-511051f7f437.2/go.mod h1:TCt1lluMFnctISJXvkIQ4x3ABrPuUKCWKyjKdkJNBpw=
+github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0-20261023211856-fa3b88d4c449 h1:vNrIGctNFBf8zCSlVorRl4l4hMg+16NCYIMjAidacsY=
+github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0-20261023211856-fa3b88d4c449/go.mod h1:wxXASIpNKX7bzQzd0ZB17Xj2CFlO1ALRHqDaEoER+is=
 github.com/golang/protobuf v1.5.4 h1:i7eJL8qZTpSEXOPTxNKhASYpMn+8e5Q6AdndVa1dWek=
 github.com/golang/protobuf v1.5.4/go.mod h1:lnTiLA8Wa4RWRcIUkrtSVa5nRhsEGBg48fD6rSs7xps=
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
