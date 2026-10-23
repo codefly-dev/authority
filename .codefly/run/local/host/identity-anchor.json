@@ -1,1 +1,0 @@
-{"issuer":"codefly-native/63e2c02c804e1d49366dd430d9fb46d0","public_key":"8jxTn2HrU2KALiRhi-gThI2QADbWq-ZaG28FCSJAFT0","subjects":[{"trust_domain":"authority.local","module":"solution-host","service":"applied-observer"},{"trust_domain":"authority.local","module":"console","service":"api"},{"trust_domain":"authority.local","module":"console","service":"delivery"}]}

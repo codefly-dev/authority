@@ -17,3 +17,7 @@ node_modules/
 *.key
 .env
 .env.*
+
+# A run's state is machine-local: its anchor, delivery record and launcher
+# credentials are written per run and never tracked.
+.codefly/run/
