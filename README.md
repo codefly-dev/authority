@@ -423,6 +423,13 @@ The marks reach the authority in the delivery, and the authority decides:
 3. **The hop** asks `Check` with the method and passes the answer on. It holds
    no policy, reads nothing from the module, and polls nothing.
 
+Proven live on 2026-10-23 with the CLI of codefly-dev/cli#1128 at 13f7a3e3: the
+console's delivery carries its signed document; Maya's `WhoAmI` and `Version`
+pass through the hop on the delivered policy; `Check` answers an unserved
+console method `NotFound`; and a check naming a method at a module whose
+delivery carried no document is refused, while the same token with no method
+named is checked as before.
+
 The authority gateway passes the suite line that proves it ("a check naming a
 method applies what the module's delivery declares"), which fails when `Check`
 ignores the method. Accounts implements neither the document nor the method
