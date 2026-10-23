@@ -52,6 +52,23 @@ func (o Outbound) ForCaller(ctx context.Context, binding string) (context.Contex
 	})
 }
 
+// ForParent is ForCaller for a module that reads the stamp itself: parent is
+// the caller's checked Work Context, the one the stamp's digest binds.
+func (o Outbound) ForParent(ctx context.Context, parent, binding string) (context.Context, error) {
+	if parent == "" {
+		return nil, ErrNoCaller
+	}
+	credential, err := o.Credential()
+	if err != nil {
+		return nil, err
+	}
+	return o.issue(ctx, binding, &authorityv1.IssueRequest{
+		As:                 &authorityv1.IssueRequest_ParentToken{ParentToken: parent},
+		Actor:              &authorityv1.WorkloadCredential{Credential: credential},
+		OperationBindingId: binding,
+	})
+}
+
 // ForModule returns ctx carrying a Work Context for this module's own work,
 // issued through binding.
 func (o Outbound) ForModule(ctx context.Context, binding string) (context.Context, error) {

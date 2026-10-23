@@ -39,6 +39,12 @@ func TestACallOutActsForTheCallerOrTheModuleThroughABinding(t *testing.T) {
 	if _, err := o.ForModule(context.Background(), "tracing"); err != nil || a.asked.GetWorkload().GetCredential() != "workload-credential" || a.asked.GetOperationBindingId() != "tracing" {
 		t.Fatalf("for the module: %v %v", a.asked, err)
 	}
+	if _, err := o.ForParent(context.Background(), "parent-token", "model"); err != nil || a.asked.GetParentToken() != "parent-token" || a.asked.GetOperationBindingId() != "model" {
+		t.Fatalf("for a parent the module read itself: %v %v", a.asked, err)
+	}
+	if _, err := o.ForParent(context.Background(), "", "model"); !errors.Is(err, ErrNoCaller) {
+		t.Fatalf("no parent: %v", err)
+	}
 	if _, err := o.ForCaller(context.Background(), "runtime-admission"); !errors.Is(err, ErrNoCaller) {
 		t.Fatalf("no caller: %v", err)
 	}
