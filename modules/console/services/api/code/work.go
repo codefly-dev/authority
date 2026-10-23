@@ -29,6 +29,11 @@ func answerFromTheStamp(ctx context.Context, config *adapters.Configuration) (Cl
 	config.GRPCServerOptions = append(config.GRPCServerOptions,
 		grpc.ChainUnaryInterceptor(hop.UnaryServerInterceptor(proof)),
 		grpc.ChainStreamInterceptor(hop.StreamServerInterceptor(proof)))
+	// The REST face translates each call into gRPC and sends it through the
+	// hop, so a REST call is decided and stamped like any other.
+	if endpoint, err := codefly.For(ctx).WorkspaceConfiguration("hop", "ENDPOINT"); err == nil && endpoint != "" {
+		config.GatewayDialOptions = append(config.GatewayDialOptions, hop.RESTThroughHop(endpoint))
+	}
 	config.Service = &console{}
 	return nil, nil
 }

@@ -17,9 +17,14 @@ interface:
         - service: gateway
           endpoint: rest
           visibility: internal
+        # The hop's gRPC face: a module's REST gateway sends its translated
+        # calls here (libraries/hop RESTThroughHop), so it must be reachable.
+        - service: hop
+          endpoint: grpc
+          visibility: internal
 services:
     - name: gateway
     # The hop stands in front of a module and lets through only a call the
-    # authority checked, stamped with who it is for. Not exported: nobody calls
-    # the hop by name; the composition puts it in a module's path.
+    # authority checked, stamped with who it is for. Its gRPC face is exported
+    # for the modules' REST gateways; the composition puts it in their path.
     - name: hop
