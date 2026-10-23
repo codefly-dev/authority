@@ -210,7 +210,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		// is past its expiry by more than DefaultSkew (30 s). Waiting that long is
 		// opt-in (SlowChecks); the fast check asserts the window the token states.
 		short := c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.Audience, "scopes": read, "ttl_seconds": int64(1)})
-		if u64(msg(short, "context"), "expires_at_unix")-u64(msg(short, "context"), "issued_at_unix") > 1 {
+		if i64(msg(short, "context"), "expires_at_unix")-i64(msg(short, "context"), "issued_at_unix") > 1 {
 			t.Fatalf("a one-second window is issued as asked: %v", msg(short, "context"))
 		}
 		if f.SlowChecks {
@@ -502,6 +502,7 @@ func str(m protoreflect.Message, name string) string {
 	return v.String()
 }
 func u64(m protoreflect.Message, name string) uint64 { return field(m, name).Uint() }
+func i64(m protoreflect.Message, name string) int64  { return field(m, name).Int() }
 func msg(m protoreflect.Message, name string) protoreflect.Message {
 	return field(m, name).Message()
 }
