@@ -3,9 +3,9 @@ package composition
 
 import (
 	"context"
-	"strings"
 	"gateway/pkg/framework"
 	"gateway/pkg/wiring"
+	"strings"
 
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"github.com/codefly-dev/core/solutionhost"
