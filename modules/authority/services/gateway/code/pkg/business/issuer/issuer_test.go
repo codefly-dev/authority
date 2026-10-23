@@ -421,3 +421,31 @@ func TestAnIssueNamesWhomItIsForAndItsAudience(t *testing.T) {
 		t.Fatalf("no audience: %v", err)
 	}
 }
+
+// A caller that names the binding it exercises need not know where it points:
+// the audience is the binding's, for a workload and for a hop.
+func TestABindingNamingIssueMayLeaveItsAudienceToTheBinding(t *testing.T) {
+	k := testkit.New(t)
+	ctx := context.Background()
+	page := &authorityv1.WorkloadCredential{Credential: k.Credential(t, "org-directory")}
+	own, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
+		As: &authorityv1.IssueRequest_Workload{Workload: page}, OrganizationId: "acme", OperationBindingId: "records"})
+	if err != nil || own.GetContext().GetAudience() != "records" {
+		t.Fatalf("a workload's issue took its audience from the binding: %v %v", own.GetContext().GetAudience(), err)
+	}
+	maya := person(t, k, "fixture-maya")
+	parent, err := k.Issuer.Issue(maya, &authorityv1.IssueRequest{
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "org-directory", OperationBindingId: "records"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	child, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
+		As: &authorityv1.IssueRequest_ParentToken{ParentToken: parent.GetToken()}, Actor: page,
+		OperationBindingId: "records", Scopes: scopes(testkit.Scope("records.record", "read"))})
+	if err != nil || child.GetContext().GetAudience() != "records" {
+		t.Fatalf("a hop took its audience from the binding: %v %v", child.GetContext().GetAudience(), err)
+	}
+	if _, err := k.Issuer.Issue(maya, &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}}); !errors.Is(err, issuer.ErrRefused) {
+		t.Fatalf("a person's issue still names its audience: %v", err)
+	}
+}

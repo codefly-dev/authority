@@ -98,8 +98,20 @@ func (i *Issuer) Check(ctx context.Context, token, audience string) (*authorityv
 
 // Issue signs a capability for one owner shape.
 func (i *Issuer) Issue(ctx context.Context, req *authorityv1.IssueRequest) (*authorityv1.IssueResponse, error) {
+	audienceName := req.GetAudience()
+	if audienceName == "" && req.GetOperationBindingId() != "" {
+		// A caller that names the binding it exercises need not know where the
+		// binding points: the audience is the binding's. Resolved from the
+		// module acting, a workload by its credential or a hop's actor.
+		derived, err := i.audienceOfBinding(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		audienceName = derived
+		req.Audience = audienceName
+	}
 	if req.GetAudience() == "" {
-		return nil, fmt.Errorf("%w: an issue names its audience", ErrRefused)
+		return nil, fmt.Errorf("%w: an issue names its audience, or the binding whose audience it is", ErrRefused)
 	}
 	audience, err := i.state.ModuleByPrincipal(req.GetAudience())
 	if err != nil {
@@ -314,4 +326,27 @@ func FromWire(in []*authorityv1.WorkScopeV1) []*basev0.WorkScopeV1 {
 		out = append(out, c)
 	}
 	return out
+}
+
+// audienceOfBinding answers the audience of the binding a workload or a hop
+// names, from the module its credential attests.
+func (i *Issuer) audienceOfBinding(ctx context.Context, req *authorityv1.IssueRequest) (string, error) {
+	var credential string
+	switch as := req.GetAs().(type) {
+	case *authorityv1.IssueRequest_Workload:
+		credential = as.Workload.GetCredential()
+	case *authorityv1.IssueRequest_ParentToken:
+		credential = req.GetActor().GetCredential()
+	default:
+		return "", fmt.Errorf("%w: only a workload or a hop names a binding in place of an audience", ErrRefused)
+	}
+	module, err := i.state.VerifyWorkload(ctx, credential)
+	if err != nil {
+		return "", err
+	}
+	binding, declared := module.Bindings[req.GetOperationBindingId()]
+	if !declared {
+		return "", fmt.Errorf("%w: operation binding %q is not one %s declares", state.ErrUnknown, req.GetOperationBindingId(), module.Module)
+	}
+	return binding.Audience, nil
 }
