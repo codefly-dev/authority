@@ -11,7 +11,9 @@ package hop
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/hex"
 	"errors"
 	"strings"
 
@@ -36,6 +38,10 @@ const (
 	ActorsKey    = StampPrefix + "actors"
 	ScopesKey    = StampPrefix + "scopes"
 	BindingKey   = StampPrefix + "binding"
+	// ContextKey binds the stamp to the one Work Context the authority checked:
+	// the digest of the forwarded token. A module reading that token's claims
+	// reads exactly what was checked, and nothing a caller swapped in after.
+	ContextKey = StampPrefix + "context"
 )
 
 // Identity is who a call is for, as the hop established it.
@@ -49,6 +55,10 @@ type Identity struct {
 	Scopes []string
 	// Binding is the operation binding the last actor exercises, when it names one.
 	Binding string
+	// Context is the Work Context the authority checked, as forwarded. A module
+	// that needs its full claims decodes them from it without verifying again:
+	// the stamp's proof and digest are what vouch for it.
+	Context string
 }
 
 // Has reports whether the identity may do action on kind.
@@ -87,6 +97,9 @@ func Stamp(md metadata.MD, id Identity, proof string) {
 	if id.Binding != "" {
 		md.Set(BindingKey, id.Binding)
 	}
+	if token := first(md, WorkContextKey); token != "" {
+		md.Set(ContextKey, digest(token))
+	}
 }
 
 // Read returns the identity the hop stamped, or ErrNoStamp when md does not
@@ -103,7 +116,19 @@ func Read(md metadata.MD, proof string) (Identity, error) {
 	}
 	id.Actors = split(first(md, ActorsKey))
 	id.Scopes = split(first(md, ScopesKey))
+	if bound := first(md, ContextKey); bound != "" {
+		tokens := md.Get(WorkContextKey)
+		if len(tokens) != 1 || subtle.ConstantTimeCompare([]byte(digest(tokens[0])), []byte(bound)) != 1 {
+			return Identity{}, ErrNoStamp
+		}
+		id.Context = tokens[0]
+	}
 	return id, nil
+}
+
+func digest(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
 }
 
 type identityKey struct{}

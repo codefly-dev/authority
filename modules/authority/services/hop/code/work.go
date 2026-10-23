@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/codefly-dev/core/wool"
 	codefly "github.com/codefly-dev/sdk-go"
@@ -15,12 +16,6 @@ import (
 	"hop/pkg/business/decide"
 	"hop/pkg/infra/proxy"
 )
-
-// The module this hop stands in front of. Its principal is its name, and so the
-// audience a Work Context must be addressed to. Composing a hop in front of
-// every module, and handing each its module, is the composition's job; until it
-// is, this run's hop fronts the console.
-const fronted = "console"
 
 func init() {
 	WithConfigure(standInFront)
@@ -39,7 +34,20 @@ func standInFront(ctx context.Context, config *adapters.Configuration) (Clean, e
 	if err != nil {
 		return nil, err
 	}
-	module, err := dial(ctx, fronted, "api", proxy.DialOptions()...)
+	// The module this hop stands in front of is the composition's to name: its
+	// principal (the audience a Work Context must be addressed to) and its
+	// endpoint, as a ${endpoint:<module>/<service>/<endpoint>} reference the
+	// CLI resolves. Codefly composing a hop in front of every module replaces
+	// both.
+	fronted, err := codefly.For(ctx).WorkspaceConfiguration("hop", "MODULE")
+	if err != nil || fronted == "" {
+		return nil, fmt.Errorf("hop: the composition names no module to stand in front of (hop/MODULE): %v", err)
+	}
+	upstream, err := codefly.For(ctx).WorkspaceConfiguration("hop", "UPSTREAM")
+	if err != nil || upstream == "" {
+		return nil, fmt.Errorf("hop: the composition names no endpoint for %s (hop/UPSTREAM): %v", fronted, err)
+	}
+	module, err := grpc.NewClient(address(upstream), append(proxy.DialOptions(), grpc.WithTransportCredentials(insecure.NewCredentials()))...)
 	if err != nil {
 		return nil, err
 	}
@@ -54,6 +62,14 @@ func standInFront(ctx context.Context, config *adapters.Configuration) (Clean, e
 	config.GRPCServerOptions = append(config.GRPCServerOptions, p.ServerOptions()...)
 	w.Info("standing in front of a module", wool.Field("module", fronted))
 	return func() { _ = authority.Close(); _ = module.Close() }, nil
+}
+
+// address is a resolved endpoint reference as gRPC dials it.
+func address(endpoint string) string {
+	for _, scheme := range []string{"grpc://", "http://", "tcp://"} {
+		endpoint = strings.TrimPrefix(endpoint, scheme)
+	}
+	return endpoint
 }
 
 func dial(ctx context.Context, module, service string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {

@@ -55,3 +55,20 @@ func TestTheModuleRefusesACallThatBypassedTheHop(t *testing.T) {
 		t.Fatalf("only the named services pass: %v", err)
 	}
 }
+
+func TestTheStampBindsTheWorkContextTheAuthorityChecked(t *testing.T) {
+	md := metadata.Pairs(WorkContextKey, "checked-token")
+	Stamp(md, Identity{Owner: "maya", Tenant: "acme"}, "run-proof")
+	id, err := Read(md, "run-proof")
+	if err != nil || id.Context != "checked-token" {
+		t.Fatalf("bound: %+v %v", id, err)
+	}
+	md.Set(WorkContextKey, "swapped-token")
+	if _, err := Read(md, "run-proof"); err != ErrNoStamp {
+		t.Fatalf("a token swapped after the check: %v", err)
+	}
+	md.Append(WorkContextKey, "checked-token")
+	if _, err := Read(md, "run-proof"); err != ErrNoStamp {
+		t.Fatalf("two tokens: %v", err)
+	}
+}

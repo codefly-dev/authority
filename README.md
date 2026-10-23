@@ -365,7 +365,9 @@ as the audience, removes any stamp the caller sent, writes its own stamp, and
 forwards the call as opaque frames. It knows no method of the module.
 
 The module behind it carries one interceptor from `libraries/hop/go` and no
-other authority code. The interceptor gives each call the identity the hop
+other authority code. The stamp binds the digest of the Work Context the hop
+checked, so a module that needs the full claims decodes that exact token
+without verifying it again. The interceptor gives each call the identity the hop
 stamped, and refuses a call that did not come through the hop. It verifies no
 token and asks no authority. The stamp is believed only with the run's proof,
 which Codefly generates and delivers to the hop and the module alone. In a cell
@@ -376,7 +378,7 @@ for. Run it from the repository root:
 
 ```bash
 codefly config generate hop PROOF
-codefly run service authority/hop --local-agents
+codefly run service console/api authority/hop --local-agents
 ```
 
 Then sign a fixture person in, issue a Work Context for the console, and call
@@ -442,8 +444,11 @@ cannot import one module's option into another. A test fails when the copy
 drifts.
 
 Not yet:
-- **A hop in front of every module.** This run's hop is told its module.
-  Composing one in front of each module is the composition's job.
+- **A hop in front of every module.** The composition names the module a hop
+  stands in front of, in the `hop` group: `MODULE` (its principal) and
+  `UPSTREAM` (a `${endpoint:…}` reference the CLI resolves). This repository's
+  `configurations/local/hop.env` names the console. Composing a hop in front of
+  each module is the composition's job.
 - **The interface, not the provider.** The SDK resolves an endpoint by its
   provider, so the hop names the authority gateway. An accessor by interface is
   an SDK change.
