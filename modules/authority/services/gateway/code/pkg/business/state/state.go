@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	"slices"
 	"sort"
 	"strings"
@@ -27,10 +28,27 @@ var (
 	ErrStale     = errors.New("state: generation is not newer")
 )
 
-// Scope is one (kind, actions) pair as the fixture spells it.
+// Scope is one (kind, actions) pair as the fixture spells it, optionally
+// narrowed to named resources. With no resources it covers every resource of
+// the kind.
 type Scope struct {
-	Kind    string   `yaml:"kind"`
-	Actions []string `yaml:"actions"`
+	Kind      string          `yaml:"kind"`
+	Actions   []string        `yaml:"actions"`
+	Resources []ResourceMatch `yaml:"resources"`
+}
+
+// ResourceMatch is one resource grant as the fixture spells it: exactly one of
+// every resource, one id, an id prefix or a pattern (libraries/resources).
+type ResourceMatch struct {
+	All     bool   `yaml:"all"`
+	ID      string `yaml:"id"`
+	Prefix  string `yaml:"prefix"`
+	Pattern string `yaml:"pattern"`
+}
+
+// Grant is the match as the shared library evaluates it.
+func (r ResourceMatch) Grant() resources.Grant {
+	return resources.Grant{All: r.All, ID: r.ID, Prefix: r.Prefix, Pattern: r.Pattern}
 }
 
 // Person is a fixture person.
@@ -285,6 +303,15 @@ func (s *State) LoadFixture(ctx context.Context, data []byte) error {
 		s.ensureModuleInstallations(m)
 	}
 	for _, r := range f.Roles {
+		for _, sc := range r.Scopes {
+			grants := make([]resources.Grant, 0, len(sc.Resources))
+			for _, m := range sc.Resources {
+				grants = append(grants, m.Grant())
+			}
+			if _, err := resources.Compile(grants); err != nil {
+				return fmt.Errorf("role %s/%s scope %s: %w", r.Organization, r.Name, sc.Kind, err)
+			}
+		}
 		s.roles[r.Organization+"/"+r.Name] = r
 	}
 	var fixtureModules []Manifest
@@ -408,6 +435,47 @@ func (s *State) PersonScopes(person, audience string) ([]*basev0.WorkScopeV1, er
 		}
 	}
 	return Intersect(Normalize(held), m.ResourceKinds), nil
+}
+
+// ResourceGrants answers which resources of kind a person may act on with
+// action at audience: the resource grants of every role scope that holds the
+// action on the kind, and every resource for a scope that names none. A person
+// whose roles hold no such scope is answered with no grant.
+func (s *State) ResourceGrants(person, audience, kind, action string) ([]resources.Grant, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	p, ok := s.people[person]
+	if !ok {
+		return nil, fmt.Errorf("%w: person", ErrUnknown)
+	}
+	m, err := s.moduleByPrincipal(audience)
+	if err != nil {
+		return nil, err
+	}
+	served := false
+	for _, k := range m.ResourceKinds {
+		if k.GetResourceKind() == kind {
+			served = true
+		}
+	}
+	if !served {
+		return nil, fmt.Errorf("%w: %s serves no resource kind %q", ErrUnknown, audience, kind)
+	}
+	var grants []resources.Grant
+	for _, name := range p.Roles {
+		for _, sc := range s.roles[p.Organization+"/"+name].Scopes {
+			if (sc.Kind != kind && sc.Kind != AnyKind) || (!slices.Contains(sc.Actions, action) && !slices.Contains(sc.Actions, AnyAction)) {
+				continue
+			}
+			if len(sc.Resources) == 0 {
+				return []resources.Grant{{All: true}}, nil
+			}
+			for _, r := range sc.Resources {
+				grants = append(grants, r.Grant())
+			}
+		}
+	}
+	return grants, nil
 }
 
 // ApplyManifest records one module instance at a newer generation and holds a
@@ -796,38 +864,10 @@ func (s *State) isMember(p, org string) bool {
 
 // --- scope algebra ------------------------------------------------------------
 
-// Normalize merges duplicate kinds and sorts actions, the shape core requires.
-func Normalize(in []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 {
-	byKind := map[string]map[string]bool{}
-	for _, sc := range in {
-		if sc == nil || sc.GetResourceKind() == "" {
-			continue
-		}
-		if byKind[sc.GetResourceKind()] == nil {
-			byKind[sc.GetResourceKind()] = map[string]bool{}
-		}
-		for _, a := range sc.GetActions() {
-			byKind[sc.GetResourceKind()][a] = true
-		}
-	}
-	kinds := make([]string, 0, len(byKind))
-	for k := range byKind {
-		kinds = append(kinds, k)
-	}
-	sort.Strings(kinds)
-	out := make([]*basev0.WorkScopeV1, 0, len(kinds))
-	for _, k := range kinds {
-		actions := make([]string, 0, len(byKind[k]))
-		for a := range byKind[k] {
-			actions = append(actions, a)
-		}
-		sort.Strings(actions)
-		out = append(out, &basev0.WorkScopeV1{ResourceKind: k, Actions: actions})
-	}
-	return out
-}
+// A scope covers either the whole of a kind (no resource ids) or the resources
+// it names. Every operation below keeps that distinction: an id-limited scope
+// is never widened to its kind, and an intersection keeps the narrower side.
 
-// Intersect keeps, per kind, the actions present in both.
 // AnyAction, on a module's declared resource kind, serves whatever actions the
 // roles grant on that kind: core's manifest names kinds and not actions. On a
 // role's scope it grants every action the audience serves on that kind.
@@ -837,46 +877,153 @@ const AnyAction = "*"
 // module serves: a local developer's role, written without naming any module.
 const AnyKind = "*"
 
-func Intersect(a, b []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 {
-	allowed := map[string]map[string]bool{}
-	for _, sc := range Normalize(b) {
-		allowed[sc.GetResourceKind()] = map[string]bool{}
-		for _, act := range sc.GetActions() {
-			allowed[sc.GetResourceKind()][act] = true
+// coverage is kind -> action -> ids, where a nil set is the whole kind.
+type coverage map[string]map[string]map[string]bool
+
+func coverageOf(in []*basev0.WorkScopeV1) coverage {
+	c := coverage{}
+	for _, sc := range in {
+		if sc == nil || sc.GetResourceKind() == "" {
+			continue
 		}
-	}
-	var out []*basev0.WorkScopeV1
-	for _, sc := range Normalize(a) {
-		var actions []string
+		kind := sc.GetResourceKind()
+		if c[kind] == nil {
+			c[kind] = map[string]map[string]bool{}
+		}
 		for _, act := range sc.GetActions() {
-			if allowed[sc.GetResourceKind()][act] || allowed[sc.GetResourceKind()][AnyAction] {
-				actions = append(actions, act)
-			} else if act == AnyAction {
-				// a role granting every action holds what the audience serves
-				for served := range allowed[sc.GetResourceKind()] {
-					actions = append(actions, served)
+			current, seen := c[kind][act]
+			switch {
+			case len(sc.GetResourceIds()) == 0:
+				c[kind][act] = nil
+			case seen && current == nil:
+				// already the whole kind
+			default:
+				if current == nil {
+					current = map[string]bool{}
 				}
+				for _, id := range sc.GetResourceIds() {
+					current[id] = true
+				}
+				c[kind][act] = current
 			}
 		}
-		if len(actions) > 0 {
-			out = append(out, &basev0.WorkScopeV1{ResourceKind: sc.GetResourceKind(), Actions: actions})
+	}
+	return c
+}
+
+// scopes renders coverage in the shape core requires: kinds sorted, actions
+// sorted, one scope per kind and id set.
+func (c coverage) scopes() []*basev0.WorkScopeV1 {
+	kinds := make([]string, 0, len(c))
+	for k := range c {
+		kinds = append(kinds, k)
+	}
+	sort.Strings(kinds)
+	var out []*basev0.WorkScopeV1
+	for _, kind := range kinds {
+		bySet := map[string][]string{}
+		sets := map[string][]string{}
+		for act, ids := range c[kind] {
+			key := ""
+			var list []string
+			if ids != nil {
+				for id := range ids {
+					list = append(list, id)
+				}
+				sort.Strings(list)
+				key = "\x00" + strings.Join(list, "\x00")
+			}
+			bySet[key] = append(bySet[key], act)
+			sets[key] = list
+		}
+		keys := make([]string, 0, len(bySet))
+		for k := range bySet {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			actions := bySet[k]
+			sort.Strings(actions)
+			out = append(out, &basev0.WorkScopeV1{ResourceKind: kind, Actions: actions, ResourceIds: sets[k]})
 		}
 	}
 	return out
 }
 
+// Normalize merges duplicate kinds and sorts actions, the shape core requires.
+func Normalize(in []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 {
+	return coverageOf(in).scopes()
+}
+
+// Intersect keeps what a holds that b allows, the narrower side winning: a
+// whole kind meets named ids as those ids, and two id sets meet as their
+// common ids. AnyAction in b allows every action of a's kind; AnyAction in a
+// takes every action b allows on that kind.
+func Intersect(a, b []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 {
+	allowed := coverageOf(b)
+	asked := coverageOf(a)
+	out := coverage{}
+	put := func(kind, act string, ids map[string]bool) {
+		if ids != nil && len(ids) == 0 {
+			return
+		}
+		if out[kind] == nil {
+			out[kind] = map[string]map[string]bool{}
+		}
+		out[kind][act] = ids
+	}
+	for kind, acts := range asked {
+		for act, ids := range acts {
+			if act == AnyAction {
+				for served, allowedIDs := range allowed[kind] {
+					put(kind, served, meet(ids, allowedIDs))
+				}
+				continue
+			}
+			allowedIDs, ok := allowed[kind][act]
+			if !ok {
+				allowedIDs, ok = allowed[kind][AnyAction]
+			}
+			if ok {
+				put(kind, act, meet(ids, allowedIDs))
+			}
+		}
+	}
+	return out.scopes()
+}
+
+// meet is two coverages of one kind and action: nil is the whole kind.
+func meet(a, b map[string]bool) map[string]bool {
+	switch {
+	case a == nil && b == nil:
+		return nil
+	case a == nil:
+		return b
+	case b == nil:
+		return a
+	}
+	common := map[string]bool{}
+	for id := range a {
+		if b[id] {
+			common[id] = true
+		}
+	}
+	return common
+}
+
 // Attenuates reports whether every scope in narrow is within wide.
 func Attenuates(narrow, wide []*basev0.WorkScopeV1) bool {
 	n := Normalize(narrow)
-	return len(Intersect(n, wide)) == len(n) && sameActions(Intersect(n, wide), n)
+	return sameScopes(Intersect(n, wide), n)
 }
 
-func sameActions(a, b []*basev0.WorkScopeV1) bool {
+func sameScopes(a, b []*basev0.WorkScopeV1) bool {
 	if len(a) != len(b) {
 		return false
 	}
 	for i := range a {
-		if a[i].GetResourceKind() != b[i].GetResourceKind() || strings.Join(a[i].GetActions(), ",") != strings.Join(b[i].GetActions(), ",") {
+		if a[i].GetResourceKind() != b[i].GetResourceKind() || strings.Join(a[i].GetActions(), ",") != strings.Join(b[i].GetActions(), ",") ||
+			strings.Join(a[i].GetResourceIds(), "\x00") != strings.Join(b[i].GetResourceIds(), "\x00") {
 			return false
 		}
 	}

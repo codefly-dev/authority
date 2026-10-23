@@ -53,7 +53,7 @@ func TestTheMiniGatewayPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
 		Organization: "acme", ViewerToken: "fixture-maya", AdminToken: "fixture-alex",
 		// Maya reads records; the directory page hops on her context through its
 		// records binding; a context at records is refused at model.
-		Audience: "records", ReadKind: "records.record",
+		Audience: "records", ReadKind: "records.records",
 		WorkloadModule: "org-directory", WorkloadCredential: k.Credential(t, "org-directory"), Binding: "records", BindingAudience: "records", Elsewhere: "model",
 		InstalledSolution: "acme/wiki",
 		// Deliveries are signed with the kit's release key and carried by the
@@ -63,6 +63,12 @@ func TestTheMiniGatewayPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
 		SignAuthority:      testkit.SignAuthority,
 		DeliveryCredential: func(module string) string { return k.Credential(t, module) },
 		Matrix:             testkit.Matrix(),
+		// Maya reads the directory's collections and every shared one, and
+		// administers none: the authority's answer, not her token's.
+		Resources: &conformance.ResourceCase{
+			Token: "fixture-maya", Audience: "documents", Kind: "documents.collection", Action: "read",
+			Covered: []string{"directory/2026", "shared-finance"}, Uncovered: []string{"finance", "shared-Finance"}, Unheld: "admin",
+		},
 		// Rémi at the page; the page asks documents; documents asks the model,
 		// for a read Rémi holds at the model and his first token never carried.
 		Chain: &conformance.Chain{Token: "fixture-remi", Start: "org-directory", Hops: []conformance.Hop{

@@ -8,9 +8,11 @@ package conformance
 
 import (
 	"context"
+
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	"github.com/codefly-dev/core/solutionhost"
 	"github.com/codefly-dev/core/workcontext"
 	"strings"
@@ -51,6 +53,8 @@ type Fixture struct {
 	HostDomain         string
 	SignManifest       func(document []byte) (envelope []byte, err error)
 	DeliveryCredential func(module string) string
+	// Resources is what a person's context covers on one kind, or nil to skip.
+	Resources *ResourceCase
 	// SignAuthority signs the authority's own document delivered with a manifest,
 	// with the key SignManifest signs with. Nil skips the method-policy line.
 	SignAuthority func(document []byte) (envelope []byte, err error)
@@ -86,6 +90,19 @@ type Hop struct {
 	Audience   string
 	AskKind    string // what this hop asks for at Audience
 	AskAction  string
+}
+
+// ResourceCase is one ListResources expectation: a person signed in with Token
+// and issued at Audience covers each id of Covered and none of Uncovered for
+// Action on Kind, and does not hold Unheld on Kind at all.
+type ResourceCase struct {
+	Token     string
+	Audience  string
+	Kind      string
+	Action    string
+	Covered   []string
+	Uncovered []string
+	Unheld    string
 }
 
 // Expectation is one cell of the permission matrix.
@@ -477,6 +494,56 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			t.Fatal("with no document delivered, a check naming a method is refused and one naming none is not")
 		}
 	})
+	t.Run("the authority answers which resources a context covers, by grant", func(t *testing.T) {
+		rc := f.Resources
+		if rc == nil {
+			t.Skip("the fixture states no resource case")
+		}
+		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": rc.Token})
+		issue := func(scopes []any) string {
+			fields := map[string]any{"person": map[string]any{}, "audience": rc.Audience}
+			if scopes != nil {
+				fields["scopes"] = scopes
+			}
+			return str(c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", fields), "token")
+		}
+		list := func(token, action string) (*resources.Matcher, error) {
+			out, err := c.call(ctx, "host.authority.v1.AuthorityService", "ListResources", map[string]any{
+				"token": token, "audience": rc.Audience, "resource_kind": rc.Kind, "action": action})
+			if err != nil {
+				return nil, err
+			}
+			return resources.Compile(grantsOf(out))
+		}
+		covered, err := list(issue(nil), rc.Action)
+		if err != nil {
+			t.Fatalf("list %s:%s: %v", rc.Kind, rc.Action, err)
+		}
+		for _, id := range rc.Covered {
+			if !covered.Matches(id) {
+				t.Errorf("%s is not covered", id)
+			}
+		}
+		for _, id := range rc.Uncovered {
+			if covered.Matches(id) {
+				t.Errorf("%s is covered", id)
+			}
+		}
+		if _, err := list(issue(nil), rc.Unheld); status.Code(err) != codes.PermissionDenied {
+			t.Fatalf("an action the context does not hold: %v", err)
+		}
+		if len(rc.Covered) > 0 && len(rc.Uncovered) > 0 {
+			// A context narrowed to two ids covers the one the person holds.
+			narrowed, err := list(issue([]any{map[string]any{"resource_kind": rc.Kind, "actions": []any{rc.Action},
+				"resource_ids": []any{rc.Covered[0], rc.Uncovered[0]}}}), rc.Action)
+			if err != nil {
+				t.Fatalf("narrowed: %v", err)
+			}
+			if !narrowed.Matches(rc.Covered[0]) || narrowed.Matches(rc.Uncovered[0]) || narrowed.All() {
+				t.Fatalf("a narrowed context covers exactly the held id it names")
+			}
+		}
+	})
 	t.Run("a manifest moves only forward and a lower generation is refused by name", func(t *testing.T) {
 		if _, err := c.applyManifest(ctx, f, "conformance-probe", "module", 2, []string{"probe"}); err != nil {
 			t.Fatalf("apply: %v", err)
@@ -509,6 +576,19 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			t.Fatalf("a grant naming another organisation: %v", err)
 		}
 	})
+}
+
+// grantsOf reads a ListResourcesResponse's grants as the shared library's.
+func grantsOf(m protoreflect.Message) []resources.Grant {
+	var out []resources.Grant
+	list := field(m, "grants").List()
+	for i := 0; i < list.Len(); i++ {
+		g := list.Get(i).Message()
+		out = append(out, resources.Grant{
+			All: g.Get(g.Descriptor().Fields().ByName("all")).Bool(), ID: str(g, "id"), Prefix: str(g, "prefix"), Pattern: str(g, "pattern"),
+		})
+	}
+	return out
 }
 
 // --- the dynamic client -----------------------------------------------------

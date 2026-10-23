@@ -89,7 +89,7 @@ func Runtime(generation uint64) state.Manifest {
 // Records is the module the directory page reads.
 func Records(generation uint64) state.Manifest {
 	return state.Manifest{Module: "records", Principal: "records", Kind: "module", Generation: generation,
-		ResourceKinds: []*basev0.WorkScopeV1{Scope("records.record", "read", "write"), Scope("records.type", "read")}}
+		ResourceKinds: []*basev0.WorkScopeV1{Scope("records.records", "read", "write"), Scope("records.types", "read")}}
 }
 
 // OrgDirectory is a module with a page; it reads records for the viewer through
@@ -100,7 +100,7 @@ func OrgDirectory(generation uint64) state.Manifest {
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("directory.entry", "read", "write")},
 		Bindings: map[string]state.Binding{
 			"records": {ID: "records", Audience: "records",
-				InvokeScopes: []*basev0.WorkScopeV1{Scope("records.record", "read"), Scope("records.type", "read")}, HeadlessScopes: []*basev0.WorkScopeV1{Scope("records.type", "read")}},
+				InvokeScopes: []*basev0.WorkScopeV1{Scope("records.records", "read"), Scope("records.types", "read")}, HeadlessScopes: []*basev0.WorkScopeV1{Scope("records.types", "read")}},
 			// The page asks documents for a person: the first hop of a delegate chain.
 			"documents": {ID: "documents", Audience: "documents",
 				InvokeScopes: []*basev0.WorkScopeV1{Scope("documents", "read")}, HeadlessScopes: []*basev0.WorkScopeV1{Scope("documents", "read")}},
@@ -212,8 +212,8 @@ func Matrix() []conformance.Expectation {
 		allow("fixture-remi", "documents", "documents", "write"), deny("fixture-remi", "documents", "documents", "ingest"),
 		allow("fixture-alex", "documents", "documents", "ingest"), allow("fixture-alex", "documents", "documents.collection", "admin"),
 		deny("fixture-alex", "documents", "documents.collection", "share"),
-		allow("fixture-maya", "records", "records.record", "read"), deny("fixture-maya", "records", "records.record", "write"),
-		allow("fixture-remi", "records", "records.record", "write"), deny("fixture-remi", "records", "records.type", "write"),
+		allow("fixture-maya", "records", "records.records", "read"), deny("fixture-maya", "records", "records.records", "write"),
+		allow("fixture-remi", "records", "records.records", "write"), deny("fixture-remi", "records", "records.types", "write"),
 		// A module no role names: nothing.
 		deny("fixture-maya", "model", "modelservice.profiles", "read"),
 		// The wiki: the installation's roles, not the organisation's.

@@ -9,6 +9,7 @@ require (
 	connectrpc.com/vanguard v0.4.0
 	github.com/codefly-dev/authority/libraries/conformance/go v0.0.0
 	github.com/codefly-dev/authority/libraries/delivery/go v0.0.0
+	github.com/codefly-dev/authority/libraries/resources/go v0.0.0
 	github.com/codefly-dev/core v0.19.6-0.20261018051341-b81d92e6feda
 	github.com/codefly-dev/sdk-go v0.4.0
 	github.com/google/uuid v1.6.0
@@ -64,3 +65,5 @@ require (
 replace github.com/codefly-dev/authority/libraries/conformance/go => ../../../../../libraries/conformance/go
 
 replace github.com/codefly-dev/authority/libraries/delivery/go => ../../../../../libraries/delivery/go
+
+replace github.com/codefly-dev/authority/libraries/resources/go => ../../../../../libraries/resources/go

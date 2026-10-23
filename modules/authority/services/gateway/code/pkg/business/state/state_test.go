@@ -219,7 +219,7 @@ func TestASolutionDeclaresAnInstallerAndRolesWithinWhatItServes(t *testing.T) {
 		t.Fatalf("a role beyond what the solution serves: %v", err)
 	}
 	module := testkit.Records(2)
-	module.Roles = map[string][]*basev0.WorkScopeV1{"viewer": {testkit.Scope("records.record", "read")}}
+	module.Roles = map[string][]*basev0.WorkScopeV1{"viewer": {testkit.Scope("records.records", "read")}}
 	if _, err := k.State.ApplyManifest(module); !errors.Is(err, state.ErrForbidden) {
 		t.Fatalf("a module declaring roles: %v", err)
 	}

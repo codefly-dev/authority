@@ -26,9 +26,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AuthorityService_Issue_FullMethodName = "/host.authority.v1.AuthorityService/Issue"
-	AuthorityService_Check_FullMethodName = "/host.authority.v1.AuthorityService/Check"
-	AuthorityService_Keys_FullMethodName  = "/host.authority.v1.AuthorityService/Keys"
+	AuthorityService_Issue_FullMethodName         = "/host.authority.v1.AuthorityService/Issue"
+	AuthorityService_Check_FullMethodName         = "/host.authority.v1.AuthorityService/Check"
+	AuthorityService_Keys_FullMethodName          = "/host.authority.v1.AuthorityService/Keys"
+	AuthorityService_ListResources_FullMethodName = "/host.authority.v1.AuthorityService/ListResources"
 )
 
 // AuthorityServiceClient is the client API for AuthorityService service.
@@ -45,6 +46,11 @@ type AuthorityServiceClient interface {
 	Check(ctx context.Context, in *CheckRequest, opts ...grpc.CallOption) (*CheckResponse, error)
 	// Keys returns the issuer and the public keys a verifier pins.
 	Keys(ctx context.Context, in *KeysRequest, opts ...grpc.CallOption) (*KeysResponse, error)
+	// ListResources answers which resources of one kind a checked capability may
+	// act on with one action, decided by the authority at the time of the call
+	// rather than carried in the capability. A module maps the answer onto its
+	// own resources; the authority knows them only by id.
+	ListResources(ctx context.Context, in *ListResourcesRequest, opts ...grpc.CallOption) (*ListResourcesResponse, error)
 }
 
 type authorityServiceClient struct {
@@ -85,6 +91,16 @@ func (c *authorityServiceClient) Keys(ctx context.Context, in *KeysRequest, opts
 	return out, nil
 }
 
+func (c *authorityServiceClient) ListResources(ctx context.Context, in *ListResourcesRequest, opts ...grpc.CallOption) (*ListResourcesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListResourcesResponse)
+	err := c.cc.Invoke(ctx, AuthorityService_ListResources_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AuthorityServiceServer is the server API for AuthorityService service.
 // All implementations must embed UnimplementedAuthorityServiceServer
 // for forward compatibility.
@@ -99,6 +115,11 @@ type AuthorityServiceServer interface {
 	Check(context.Context, *CheckRequest) (*CheckResponse, error)
 	// Keys returns the issuer and the public keys a verifier pins.
 	Keys(context.Context, *KeysRequest) (*KeysResponse, error)
+	// ListResources answers which resources of one kind a checked capability may
+	// act on with one action, decided by the authority at the time of the call
+	// rather than carried in the capability. A module maps the answer onto its
+	// own resources; the authority knows them only by id.
+	ListResources(context.Context, *ListResourcesRequest) (*ListResourcesResponse, error)
 	mustEmbedUnimplementedAuthorityServiceServer()
 }
 
@@ -117,6 +138,9 @@ func (UnimplementedAuthorityServiceServer) Check(context.Context, *CheckRequest)
 }
 func (UnimplementedAuthorityServiceServer) Keys(context.Context, *KeysRequest) (*KeysResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Keys not implemented")
+}
+func (UnimplementedAuthorityServiceServer) ListResources(context.Context, *ListResourcesRequest) (*ListResourcesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListResources not implemented")
 }
 func (UnimplementedAuthorityServiceServer) mustEmbedUnimplementedAuthorityServiceServer() {}
 func (UnimplementedAuthorityServiceServer) testEmbeddedByValue()                          {}
@@ -193,6 +217,24 @@ func _AuthorityService_Keys_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthorityService_ListResources_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListResourcesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthorityServiceServer).ListResources(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthorityService_ListResources_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthorityServiceServer).ListResources(ctx, req.(*ListResourcesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AuthorityService_ServiceDesc is the grpc.ServiceDesc for AuthorityService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -211,6 +253,10 @@ var AuthorityService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Keys",
 			Handler:    _AuthorityService_Keys_Handler,
+		},
+		{
+			MethodName: "ListResources",
+			Handler:    _AuthorityService_ListResources_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

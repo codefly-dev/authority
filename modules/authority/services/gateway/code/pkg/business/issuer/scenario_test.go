@@ -175,7 +175,7 @@ func TestTheScenarioOneHopAtATime(t *testing.T) {
 		for _, sc := range wc.GetAuthorityScopes() {
 			kinds[sc.GetResourceKind()] = strings.Join(sc.GetActions(), ",")
 		}
-		if kinds["records.record"] != "read" || kinds["records.type"] != "read" || wc.GetSeal().GetInstallationId() != "acme/records" {
+		if kinds["records.records"] != "read" || kinds["records.types"] != "read" || wc.GetSeal().GetInstallationId() != "acme/records" {
 			t.Fatalf("step 7 token = %v", wc)
 		}
 		// Rémi, an editor, is also issued write on records; the UI follows the token.
@@ -187,7 +187,7 @@ func TestTheScenarioOneHopAtATime(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, sc := range out.GetContext().GetAuthorityScopes() {
-			if sc.GetResourceKind() == "records.record" && strings.Join(sc.GetActions(), ",") != "read,write" {
+			if sc.GetResourceKind() == "records.records" && strings.Join(sc.GetActions(), ",") != "read,write" {
 				t.Fatalf("Rémi at records = %v", sc)
 			}
 		}

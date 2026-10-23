@@ -139,7 +139,16 @@ func TestAPersonIsIssuedWhatHerRolesHoldAtTheAudienceAndNoMore(t *testing.T) {
 	if wc.GetOwnerPrincipalId() != "maya" || wc.GetTenantId() != "acme" || wc.GetAudience() != "documents" {
 		t.Fatalf("context = %v", wc)
 	}
-	if len(wc.GetAuthorityScopes()) != 1 || wc.GetAuthorityScopes()[0].GetResourceKind() != "documents" || strings.Join(wc.GetAuthorityScopes()[0].GetActions(), ",") != "read" {
+	// The viewer reads documents, and reads collections at the kind: which
+	// collections is the authority's answer to ListResources, not the token's.
+	got := map[string]string{}
+	for _, sc := range wc.GetAuthorityScopes() {
+		got[sc.GetResourceKind()] = strings.Join(sc.GetActions(), ",")
+		if len(sc.GetResourceIds()) != 0 {
+			t.Fatalf("the token names no resource: %v", sc)
+		}
+	}
+	if len(got) != 2 || got["documents"] != "read" || got["documents.collection"] != "read" {
 		t.Fatalf("viewer scopes = %v", wc.GetAuthorityScopes())
 	}
 	if wc.GetSeal().GetInstallationId() != "acme/documents" {
@@ -333,7 +342,7 @@ func TestAChildHopAttenuatesAndNamesItsActorAndItsBinding(t *testing.T) {
 	page := &authorityv1.WorkloadCredential{Credential: k.Credential(t, "org-directory")}
 	child, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
 		As: &authorityv1.IssueRequest_ParentToken{ParentToken: parent.GetToken()}, Actor: page,
-		Audience: "records", OperationBindingId: "records", Scopes: scopes(testkit.Scope("records.record", "read")),
+		Audience: "records", OperationBindingId: "records", Scopes: scopes(testkit.Scope("records.records", "read")),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -347,7 +356,7 @@ func TestAChildHopAttenuatesAndNamesItsActorAndItsBinding(t *testing.T) {
 	}
 	if _, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
 		As: &authorityv1.IssueRequest_ParentToken{ParentToken: parent.GetToken()}, Actor: page,
-		Audience: "records", OperationBindingId: "records", Scopes: scopes(testkit.Scope("records.record", "write")),
+		Audience: "records", OperationBindingId: "records", Scopes: scopes(testkit.Scope("records.records", "write")),
 	}); !errors.Is(err, issuer.ErrRefused) {
 		t.Fatalf("widening: %v", err)
 	}
@@ -363,7 +372,7 @@ func TestAChildHopAttenuatesAndNamesItsActorAndItsBinding(t *testing.T) {
 	}
 	if _, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
 		As: &authorityv1.IssueRequest_ParentToken{ParentToken: elsewhere.GetToken()}, Actor: page,
-		Audience: "records", OperationBindingId: "records", Scopes: scopes(testkit.Scope("records.record", "read")),
+		Audience: "records", OperationBindingId: "records", Scopes: scopes(testkit.Scope("records.records", "read")),
 	}); !errors.Is(err, issuer.ErrRefused) {
 		t.Fatalf("a module hops only on a token addressed to it: %v", err)
 	}
@@ -441,7 +450,7 @@ func TestABindingNamingIssueMayLeaveItsAudienceToTheBinding(t *testing.T) {
 	}
 	child, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
 		As: &authorityv1.IssueRequest_ParentToken{ParentToken: parent.GetToken()}, Actor: page,
-		OperationBindingId: "records", Scopes: scopes(testkit.Scope("records.record", "read"))})
+		OperationBindingId: "records", Scopes: scopes(testkit.Scope("records.records", "read"))})
 	if err != nil || child.GetContext().GetAudience() != "records" {
 		t.Fatalf("a hop took its audience from the binding: %v %v", child.GetContext().GetAudience(), err)
 	}

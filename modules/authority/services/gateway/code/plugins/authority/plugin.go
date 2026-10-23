@@ -100,6 +100,30 @@ func (p *Plugin) Check(ctx context.Context, req *authorityv1.CheckRequest) (*aut
 	return out, Status(err)
 }
 
+// ListResources answers which resources of a kind a capability covers.
+func (p *Plugin) ListResources(ctx context.Context, req *authorityv1.ListResourcesRequest) (*authorityv1.ListResourcesResponse, error) {
+	grants, err := p.Issuer.ListResources(ctx, req.GetToken(), req.GetAudience(), req.GetResourceKind(), req.GetAction())
+	if err != nil {
+		return nil, Status(err)
+	}
+	out := &authorityv1.ListResourcesResponse{}
+	for _, g := range grants {
+		grant := &authorityv1.ResourceGrant{}
+		switch {
+		case g.All:
+			grant.Match = &authorityv1.ResourceGrant_All{All: true}
+		case g.ID != "":
+			grant.Match = &authorityv1.ResourceGrant_Id{Id: g.ID}
+		case g.Prefix != "":
+			grant.Match = &authorityv1.ResourceGrant_Prefix{Prefix: g.Prefix}
+		default:
+			grant.Match = &authorityv1.ResourceGrant_Pattern{Pattern: g.Pattern}
+		}
+		out.Grants = append(out.Grants, grant)
+	}
+	return out, nil
+}
+
 // Keys returns the issuer and its keys.
 func (p *Plugin) Keys(context.Context, *authorityv1.KeysRequest) (*authorityv1.KeysResponse, error) {
 	return p.Issuer.Keys(), nil

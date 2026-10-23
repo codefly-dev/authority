@@ -3,6 +3,7 @@ module github.com/codefly-dev/authority/libraries/conformance/go
 go 1.27.0
 
 require (
+	github.com/codefly-dev/authority/libraries/resources/go v0.0.0
 	github.com/codefly-dev/core v0.19.6-0.20261018051341-b81d92e6feda
 	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12
@@ -53,3 +54,5 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260928230214-8a89bd6388cc // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/codefly-dev/authority/libraries/resources/go => ../../resources/go

@@ -33,7 +33,7 @@ func TestARunningMiniGatewayPassesTheSuite(t *testing.T) {
 	}
 	conformance.Run(t, conn, descriptors, conformance.Fixture{
 		Organization: "acme", ViewerToken: "fixture-maya", AdminToken: "fixture-alex",
-		Audience: "records", ReadKind: "records.record", Elsewhere: "model",
+		Audience: "records", ReadKind: "records.records", Elsewhere: "model",
 		WorkloadModule: "org-directory", Binding: "records", BindingAudience: "records",
 		InstalledSolution: "acme/wiki",
 	})

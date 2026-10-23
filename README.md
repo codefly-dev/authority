@@ -457,6 +457,38 @@ Not yet:
   an SDK change.
 - **The cell face.** The same decision, called by the mesh's authorization step.
 
+## Which resources a context covers (2026-10-23)
+
+`Check` answers for one call. Which resources of a kind a caller may touch,
+such as the document collections a person reads, is the authority's other
+question: `ListResources(token, audience, kind, action)`. It is decided at the
+time of the call, from the owner's live grants, rather than carried in the
+token, so tokens stay small and a new grant takes effect at once.
+
+The answer is a list of grants. Each one covers every resource of the kind, one
+id, an id prefix, or a whole-id RE2 pattern of at most 256 bytes. A resource is
+covered when any grant matches its id. `libraries/resources/go` is the one
+evaluation of grants, used by the authority gateway to validate its roles, by
+the suite, and by any module deciding which of its own resources a caller sees.
+The authority knows resources by id only; each module maps ids onto its own.
+
+On the authority gateway a role's scope may carry `resources`. A scope with
+none covers the whole kind. A person's answer is what her roles grant. A
+module's or an installation's own work is bounded by its capability alone. A
+capability narrowed to named ids covers only the ones the owner's grants also
+cover. A capability that does not hold the action is refused.
+
+The suite line "the authority answers which resources a context covers, by
+grant" holds an implementation to a fixture's covered and uncovered ids, an
+unheld action, and a narrowed capability. It fails on an implementation that
+answers every resource.
+
+Building it exposed an attenuation bug: the gateway's scope operations dropped
+resource ids, so a capability asked for two named resources was issued for the
+whole kind. They now keep ids, and an intersection keeps the narrower side
+(`pkg/business/state`, with unit tests). The fixture's record kinds are now the
+record store's own, `records.records` and `records.types`.
+
 ## Open decisions
 
 - **Decided 2026-10-23, the hop rule.** A module hops only on a person's token

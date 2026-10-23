@@ -10,6 +10,7 @@ import (
 	"crypto/ed25519"
 	"errors"
 	"fmt"
+	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	"slices"
 	"strings"
 	"time"
@@ -76,6 +77,58 @@ func (i *Issuer) verifier(audience string) *workcontext.Verifier {
 		Keys:      map[string]ed25519.PublicKey{i.authority.KeyID: i.public},
 		Revisions: i.state, Replay: i.replay, Seals: i.state, Grants: i.state, Now: i.authority.Now,
 	}
+}
+
+// ListResources answers which resources of kind a checked capability may act
+// on with action, decided now rather than carried in the capability. The
+// capability must hold the action on the kind. A person's answer is what her
+// roles grant; a module's or an installation's own work is bounded by the
+// capability alone. When the capability's chain names resource ids, only those
+// the owner's grants cover remain.
+func (i *Issuer) ListResources(ctx context.Context, token, audience, kind, action string) ([]resources.Grant, error) {
+	if audience == "" || kind == "" || action == "" {
+		return nil, fmt.Errorf("%w: a resource question names the audience, a kind and an action", ErrRefused)
+	}
+	verified, err := i.verifier(audience).Verify(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+	held, whole := false, false
+	var ids []string
+	for _, sc := range verified.EffectiveScopes() {
+		if sc.GetResourceKind() != kind || (!slices.Contains(sc.GetActions(), action) && !slices.Contains(sc.GetActions(), state.AnyAction)) {
+			continue
+		}
+		held = true
+		if len(sc.GetResourceIds()) == 0 {
+			whole = true
+		}
+		ids = append(ids, sc.GetResourceIds()...)
+	}
+	if !held {
+		return nil, fmt.Errorf("%w: the capability holds no %s:%s", ErrRefused, kind, action)
+	}
+	wc := verified.Context()
+	grants := []resources.Grant{{All: true}}
+	if wc.GetOwnerPrincipalKind() == "human" {
+		if grants, err = i.state.ResourceGrants(wc.GetOwnerPrincipalId(), audience, kind, action); err != nil {
+			return nil, err
+		}
+	}
+	if whole {
+		return grants, nil
+	}
+	covered, err := resources.Compile(grants)
+	if err != nil {
+		return nil, err
+	}
+	narrowed := []resources.Grant{}
+	for _, id := range ids {
+		if covered.Matches(id) {
+			narrowed = append(narrowed, resources.Grant{ID: id})
+		}
+	}
+	return narrowed, nil
 }
 
 // Check verifies a capability for the audience the caller is and, when method

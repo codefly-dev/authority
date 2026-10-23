@@ -45,6 +45,9 @@ const (
 	AuthorityServiceCheckProcedure = "/host.authority.v1.AuthorityService/Check"
 	// AuthorityServiceKeysProcedure is the fully-qualified name of the AuthorityService's Keys RPC.
 	AuthorityServiceKeysProcedure = "/host.authority.v1.AuthorityService/Keys"
+	// AuthorityServiceListResourcesProcedure is the fully-qualified name of the AuthorityService's
+	// ListResources RPC.
+	AuthorityServiceListResourcesProcedure = "/host.authority.v1.AuthorityService/ListResources"
 )
 
 // AuthorityServiceClient is a client for the host.authority.v1.AuthorityService service.
@@ -57,6 +60,11 @@ type AuthorityServiceClient interface {
 	Check(context.Context, *connect.Request[v1.CheckRequest]) (*connect.Response[v1.CheckResponse], error)
 	// Keys returns the issuer and the public keys a verifier pins.
 	Keys(context.Context, *connect.Request[v1.KeysRequest]) (*connect.Response[v1.KeysResponse], error)
+	// ListResources answers which resources of one kind a checked capability may
+	// act on with one action, decided by the authority at the time of the call
+	// rather than carried in the capability. A module maps the answer onto its
+	// own resources; the authority knows them only by id.
+	ListResources(context.Context, *connect.Request[v1.ListResourcesRequest]) (*connect.Response[v1.ListResourcesResponse], error)
 }
 
 // NewAuthorityServiceClient constructs a client for the host.authority.v1.AuthorityService service.
@@ -88,14 +96,21 @@ func NewAuthorityServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(authorityServiceMethods.ByName("Keys")),
 			connect.WithClientOptions(opts...),
 		),
+		listResources: connect.NewClient[v1.ListResourcesRequest, v1.ListResourcesResponse](
+			httpClient,
+			baseURL+AuthorityServiceListResourcesProcedure,
+			connect.WithSchema(authorityServiceMethods.ByName("ListResources")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // authorityServiceClient implements AuthorityServiceClient.
 type authorityServiceClient struct {
-	issue *connect.Client[v1.IssueRequest, v1.IssueResponse]
-	check *connect.Client[v1.CheckRequest, v1.CheckResponse]
-	keys  *connect.Client[v1.KeysRequest, v1.KeysResponse]
+	issue         *connect.Client[v1.IssueRequest, v1.IssueResponse]
+	check         *connect.Client[v1.CheckRequest, v1.CheckResponse]
+	keys          *connect.Client[v1.KeysRequest, v1.KeysResponse]
+	listResources *connect.Client[v1.ListResourcesRequest, v1.ListResourcesResponse]
 }
 
 // Issue calls host.authority.v1.AuthorityService.Issue.
@@ -113,6 +128,11 @@ func (c *authorityServiceClient) Keys(ctx context.Context, req *connect.Request[
 	return c.keys.CallUnary(ctx, req)
 }
 
+// ListResources calls host.authority.v1.AuthorityService.ListResources.
+func (c *authorityServiceClient) ListResources(ctx context.Context, req *connect.Request[v1.ListResourcesRequest]) (*connect.Response[v1.ListResourcesResponse], error) {
+	return c.listResources.CallUnary(ctx, req)
+}
+
 // AuthorityServiceHandler is an implementation of the host.authority.v1.AuthorityService service.
 type AuthorityServiceHandler interface {
 	// Issue signs a Work Context for one owner shape, one audience and the scopes
@@ -123,6 +143,11 @@ type AuthorityServiceHandler interface {
 	Check(context.Context, *connect.Request[v1.CheckRequest]) (*connect.Response[v1.CheckResponse], error)
 	// Keys returns the issuer and the public keys a verifier pins.
 	Keys(context.Context, *connect.Request[v1.KeysRequest]) (*connect.Response[v1.KeysResponse], error)
+	// ListResources answers which resources of one kind a checked capability may
+	// act on with one action, decided by the authority at the time of the call
+	// rather than carried in the capability. A module maps the answer onto its
+	// own resources; the authority knows them only by id.
+	ListResources(context.Context, *connect.Request[v1.ListResourcesRequest]) (*connect.Response[v1.ListResourcesResponse], error)
 }
 
 // NewAuthorityServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -150,6 +175,12 @@ func NewAuthorityServiceHandler(svc AuthorityServiceHandler, opts ...connect.Han
 		connect.WithSchema(authorityServiceMethods.ByName("Keys")),
 		connect.WithHandlerOptions(opts...),
 	)
+	authorityServiceListResourcesHandler := connect.NewUnaryHandler(
+		AuthorityServiceListResourcesProcedure,
+		svc.ListResources,
+		connect.WithSchema(authorityServiceMethods.ByName("ListResources")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/host.authority.v1.AuthorityService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AuthorityServiceIssueProcedure:
@@ -158,6 +189,8 @@ func NewAuthorityServiceHandler(svc AuthorityServiceHandler, opts ...connect.Han
 			authorityServiceCheckHandler.ServeHTTP(w, r)
 		case AuthorityServiceKeysProcedure:
 			authorityServiceKeysHandler.ServeHTTP(w, r)
+		case AuthorityServiceListResourcesProcedure:
+			authorityServiceListResourcesHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -177,4 +210,8 @@ func (UnimplementedAuthorityServiceHandler) Check(context.Context, *connect.Requ
 
 func (UnimplementedAuthorityServiceHandler) Keys(context.Context, *connect.Request[v1.KeysRequest]) (*connect.Response[v1.KeysResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.authority.v1.AuthorityService.Keys is not implemented"))
+}
+
+func (UnimplementedAuthorityServiceHandler) ListResources(context.Context, *connect.Request[v1.ListResourcesRequest]) (*connect.Response[v1.ListResourcesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.authority.v1.AuthorityService.ListResources is not implemented"))
 }
