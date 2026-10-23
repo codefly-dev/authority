@@ -71,6 +71,12 @@ func Manifest(in *compositionv1.ModuleManifestV1) state.Manifest {
 	for _, b := range in.GetBindings() {
 		m.Bindings[b.GetId()] = state.Binding{ID: b.GetId(), Audience: b.GetAudience(), InvokeScopes: issuer.FromWire(b.GetInvokeScopes()), HeadlessScopes: issuer.FromWire(b.GetHeadlessScopes())}
 	}
+	for _, r := range in.GetRoles() {
+		if m.Roles == nil {
+			m.Roles = map[string][]*basev0.WorkScopeV1{}
+		}
+		m.Roles[r.GetName()] = state.Normalize(issuer.FromWire(r.GetScopes()))
+	}
 	return m
 }
 
@@ -94,8 +100,9 @@ func (p *Plugin) verified(ctx context.Context, carrier *compositionv1.SignedMani
 	return manifest, nil
 }
 
-// FromCore reads core's module manifest as the state's. The manifest is the
-// ceiling here: a resource kind declared with no actions serves whatever the
+// FromCore reads core's module manifest as the state's. Core's manifest carries
+// no roles, so a solution delivered as a carrier is refused until it does (the
+// sketch carries them through the transition). The manifest is the ceiling here: a resource kind declared with no actions serves whatever the
 // roles grant on it, a binding's invoke scopes are its operations, and a module
 // acting alone holds what it may invoke. The host narrows each of these by its
 // release-signed envelope; the mini gateway has no second document.

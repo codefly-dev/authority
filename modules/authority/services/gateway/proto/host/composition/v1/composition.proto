@@ -66,6 +66,16 @@ message ModuleManifestV1 {
   repeated ResourceKindV1 resource_kinds = 6;
   // The page the module contributes, if any.
   PageV1 page = 7;
+  // The roles a solution declares a person may hold on an installation of it,
+  // each within what the solution serves; one is named installer, held by
+  // whoever installs it. A module declares none.
+  repeated RoleV1 roles = 8;
+}
+
+// RoleV1 is one role a solution declares.
+message RoleV1 {
+  string name = 1;
+  repeated host.authority.v1.WorkScopeV1 scopes = 2;
 }
 
 // BindingV1 is one declared call towards another module.

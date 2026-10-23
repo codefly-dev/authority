@@ -3,6 +3,7 @@ package state_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
@@ -167,7 +168,7 @@ func TestInstallRunsTheTargetsInstallStepAndStaysPendingUntilItConverges(t *test
 		}
 		return nil
 	})
-	if _, err := k.State.ApplyManifest(state.Manifest{Module: "proposals", Principal: "proposals", Kind: "solution", Generation: 1}); err != nil {
+	if _, err := k.State.ApplyManifest(testkit.Proposals(1)); err != nil {
 		t.Fatal(err)
 	}
 	inst, err := k.State.Install(ctx, "acme", "proposals", "viewer", "alex")
@@ -186,11 +187,69 @@ func TestInstallRunsTheTargetsInstallStepAndStaysPendingUntilItConverges(t *test
 func TestInstallRefusesAnUnknownRoleAndAForeignOwner(t *testing.T) {
 	k := testkit.New(t)
 	ctx := context.Background()
-	if _, err := k.State.Install(ctx, "acme", "x", "nope", "alex"); !errors.Is(err, state.ErrUnknown) {
-		t.Fatalf("unknown role: %v", err)
+	if _, err := k.State.Install(ctx, "acme", "wiki", "nope", "alex"); !errors.Is(err, state.ErrUnknown) {
+		t.Fatalf("a role the solution does not declare: %v", err)
 	}
-	if _, err := k.State.Install(ctx, "acme", "x", "viewer", "stranger"); !errors.Is(err, state.ErrForbidden) {
+	if _, err := k.State.Install(ctx, "acme", "wiki", "viewer", "stranger"); !errors.Is(err, state.ErrForbidden) {
 		t.Fatalf("foreign owner: %v", err)
+	}
+	if _, err := k.State.Install(ctx, "acme", "documents", "viewer", "alex"); !errors.Is(err, state.ErrUnknown) {
+		t.Fatalf("a module is installed by composition, never by a click: %v", err)
+	}
+}
+
+// A solution declares its roles: an installer always, each within what it serves;
+// a module declares none.
+func TestASolutionDeclaresAnInstallerAndRolesWithinWhatItServes(t *testing.T) {
+	k := testkit.New(t)
+	noInstaller := testkit.Proposals(1)
+	delete(noInstaller.Roles, state.InstallerRole)
+	if _, err := k.State.ApplyManifest(noInstaller); !errors.Is(err, state.ErrNoInstallerRole) {
+		t.Fatalf("no installer: %v", err)
+	}
+	beyond := testkit.Proposals(1)
+	beyond.Roles["auditor"] = []*basev0.WorkScopeV1{testkit.Scope("proposals.item", "read", "delete")}
+	if _, err := k.State.ApplyManifest(beyond); !errors.Is(err, state.ErrForbidden) {
+		t.Fatalf("a role beyond what the solution serves: %v", err)
+	}
+	module := testkit.Records(2)
+	module.Roles = map[string][]*basev0.WorkScopeV1{"viewer": {testkit.Scope("records.record", "read")}}
+	if _, err := k.State.ApplyManifest(module); !errors.Is(err, state.ErrForbidden) {
+		t.Fatalf("a module declaring roles: %v", err)
+	}
+}
+
+// A person's access to a solution is the role its installation grants her and
+// nothing from the organisation's roles: the owner holds the installer role, a
+// granted team holds the installation's role, everyone else holds nothing, and
+// another organisation's installation grants nothing here.
+func TestAccessToASolutionIsTheInstallationsRole(t *testing.T) {
+	k := testkit.New(t)
+	hold := func(person string) string {
+		scopes, err := k.State.PersonScopes(person, "wiki")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []string
+		for _, sc := range scopes {
+			out = append(out, sc.GetResourceKind()+":"+strings.Join(sc.GetActions(), ","))
+		}
+		return strings.Join(out, " ")
+	}
+	if got := hold("alex"); got != "wiki.page:publish,read,write" {
+		t.Fatalf("the owner holds the installer role, got %q", got)
+	}
+	if got := hold("maya"); got != "wiki.page:read" {
+		t.Fatalf("finance holds the viewer role, got %q", got)
+	}
+	if got := hold("remi"); got != "" {
+		t.Fatalf("an editor of documents holds nothing at the wiki, got %q", got)
+	}
+	if got := hold("zoe"); got != "wiki.page:publish,read,write" {
+		t.Fatalf("globex's owner holds its installer role, got %q", got)
+	}
+	if got := hold("omar"); got != "wiki.page:read,write" {
+		t.Fatalf("ops holds globex's editor role, got %q", got)
 	}
 }
 

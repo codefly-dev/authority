@@ -321,9 +321,37 @@ the Work Context messages import (reported on codefly-dev/cli#1107).
   the host's copied protos, the differential corpus, the decision-4 gateway design,
   and an independent security review before rung 1 is called green.
 
+## Roles and the permission matrix
+
+A solution declares its roles in its manifest, each within what the solution
+serves, and one of them is `installer`: whoever installs the solution holds it on
+that installation, which is the install-and-configure surface. A module declares
+no roles; a person's access to a module is the organisation's roles intersected
+with what the module serves. A person's access to a solution is the role its
+installation grants her, the installer role as its owner or the installation's
+role through a granted team, and nothing from the organisation's roles. Another
+organisation's installation grants nothing. The values of real roles belong to
+each solution's manifest and arrive through the carrier; this repository holds
+the contract and its evaluation, never a product's roles.
+
+The suite proves it as a matrix: the fixture states, for each person at each
+audience, which kind and action is allowed and which refused, and the suite asks
+for exactly that scope and expects the answer. The mini gateway's fixture carries
+two organisations, five people, three organisation roles, one solution with three
+roles installed twice, and 24 cells. The host supplies its own matrix from its
+own fixture. Core's manifest carries no roles yet, so a solution is composed
+through the sketch until it does.
+
 ## Open decisions
 
-- **A cross-module hop and its binding (2026-10-22).** Core keeps the owner's
+- **A cross-module hop and its binding (2026-10-22; candidate answer 2026-10-23).**
+  The host's `module_actor` mode (saas #1215) requires the person's parent to be
+  sealed to the acting module's installation: the parent is addressed to the
+  module acting for the person, and the module's hop names its binding to the
+  audience it calls. That satisfies core as it stands. Recommended: adopt it as
+  the hop rule here; the suite's hop then takes the parent at the acting module
+  and names the binding, `issuer.child` checks the parent's audience is the
+  actor's module, and the host's `childHop` does the same. Original note: Core keeps the owner's
   seal installation on a hop and requires a binding named on that hop to be
   granted within the same installation; a module's binding is granted within the
   module's own installation. So a module taking a hop on a person's context

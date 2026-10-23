@@ -61,5 +61,6 @@ func TestTheMiniGatewayPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
 		HostCoordinate: "local", HostDomain: "local",
 		SignManifest:       testkit.SignDocument,
 		DeliveryCredential: func(module string) string { return k.Credential(t, module) },
+		Matrix:             testkit.Matrix(),
 	})
 }

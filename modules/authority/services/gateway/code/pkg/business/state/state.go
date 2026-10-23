@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -65,7 +66,19 @@ type Manifest struct {
 	Generation    uint64
 	Bindings      map[string]Binding
 	ResourceKinds []*basev0.WorkScopeV1
+	// Roles are what a solution declares a person may hold on an installation of
+	// it, each within what the solution serves. A solution always declares
+	// InstallerRole; a module declares none, since a module is installed by
+	// composition and a person's access to it is the organisation's roles.
+	Roles map[string][]*basev0.WorkScopeV1
 }
+
+// InstallerRole is the role every solution declares: whoever installs it holds
+// it on that installation, which is the install-and-configure surface.
+const InstallerRole = "installer"
+
+// ErrNoInstallerRole refuses a solution that declares no installer role.
+var ErrNoInstallerRole = fmt.Errorf("%w: a solution declares an installer role", ErrForbidden)
 
 // Status is an installation's lifecycle.
 type Status string
@@ -84,9 +97,11 @@ type Installation struct {
 	Target       string
 	Status       Status
 	Revision     uint64
-	Role         string
-	Teams        []string
-	Owner        string
+	// Role is the target's role the granted teams hold on this installation.
+	Role  string
+	Teams []string
+	// Owner installed it and holds the target's installer role on it.
+	Owner string
 }
 
 // AgentPrincipal is the principal an installation acts as for itself.
@@ -245,6 +260,25 @@ func (s *State) PersonScopes(person, audience string) ([]*basev0.WorkScopeV1, er
 		return nil, err
 	}
 	var held []*basev0.WorkScopeV1
+	if m.Kind == "solution" {
+		// A person's access to a solution is the role its installation grants
+		// her: the installer role as its owner, the installation's role through
+		// a granted team. Nothing from the organisation's roles.
+		for _, i := range s.entitled(p) {
+			if i.Target != m.Module {
+				continue
+			}
+			if i.Owner == person {
+				held = append(held, m.Roles[InstallerRole]...)
+			}
+			for _, t := range i.Teams {
+				if slices.Contains(p.Teams, t) {
+					held = append(held, m.Roles[i.Role]...)
+				}
+			}
+		}
+		return Intersect(Normalize(held), m.ResourceKinds), nil
+	}
 	for _, name := range p.Roles {
 		for _, sc := range s.roles[p.Organization+"/"+name].Scopes {
 			held = append(held, &basev0.WorkScopeV1{ResourceKind: sc.Kind, Actions: append([]string(nil), sc.Actions...)})
@@ -257,6 +291,9 @@ func (s *State) PersonScopes(person, audience string) ([]*basev0.WorkScopeV1, er
 // module installation at every organisation, so a module is usable without a
 // click. A lower or equal generation is refused.
 func (s *State) ApplyManifest(m Manifest) ([]string, error) {
+	if err := validateRoles(m); err != nil {
+		return nil, err
+	}
 	if m.Module == "" || m.Principal == "" || m.Generation == 0 {
 		return nil, fmt.Errorf("%w: a manifest names its module, its principal and a generation", ErrForbidden)
 	}
@@ -327,9 +364,14 @@ func (s *State) Install(ctx context.Context, org, target, role, owner string) (I
 		s.mu.Unlock()
 		return Installation{}, fmt.Errorf("%w: organization %q", ErrUnknown, org)
 	}
-	if _, ok := s.roles[org+"/"+role]; !ok {
+	target_, ok := s.modules[target]
+	if !ok || target_.Kind != "solution" {
 		s.mu.Unlock()
-		return Installation{}, fmt.Errorf("%w: role %q at %s", ErrUnknown, role, org)
+		return Installation{}, fmt.Errorf("%w: %q is not a composed solution; a module is installed by composition", ErrUnknown, target)
+	}
+	if _, ok := target_.Roles[role]; !ok {
+		s.mu.Unlock()
+		return Installation{}, fmt.Errorf("%w: role %q is not one %s declares", ErrUnknown, role, target)
 	}
 	if p, ok := s.people[owner]; !ok || p.Organization != org {
 		s.mu.Unlock()
@@ -440,9 +482,18 @@ func (s *State) Entitled(person string) []Installation {
 	if !ok {
 		return nil
 	}
+	return s.entitled(p)
+}
+
+func (s *State) entitled(p Person) []Installation {
+	person := p.ID
 	var out []Installation
 	for _, i := range s.installations {
 		if i.Organization != p.Organization || i.Status != Active || i.Role == "" {
+			continue
+		}
+		if i.Owner == person {
+			out = append(out, i)
 			continue
 		}
 		for _, t := range i.Teams {
@@ -652,4 +703,28 @@ func sameActions(a, b []*basev0.WorkScopeV1) bool {
 		}
 	}
 	return true
+}
+
+// validateRoles holds a solution to its role contract: it declares an installer
+// role, and every role stays within what the solution serves. A module declares
+// no roles.
+func validateRoles(m Manifest) error {
+	if m.Kind != "solution" {
+		if len(m.Roles) > 0 {
+			return fmt.Errorf("%w: module %q declares roles; a module's access is the organisation's roles", ErrForbidden, m.Module)
+		}
+		return nil
+	}
+	if _, ok := m.Roles[InstallerRole]; !ok {
+		return fmt.Errorf("%w: %s declares %d role(s) and none is %q", ErrNoInstallerRole, m.Module, len(m.Roles), InstallerRole)
+	}
+	for name, scopes := range m.Roles {
+		if len(scopes) == 0 {
+			return fmt.Errorf("%w: role %q of %s grants nothing", ErrForbidden, name, m.Module)
+		}
+		if !Attenuates(scopes, m.ResourceKinds) {
+			return fmt.Errorf("%w: role %q of %s grants beyond what %s serves", ErrForbidden, name, m.Module, m.Module)
+		}
+	}
+	return nil
 }

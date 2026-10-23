@@ -2,6 +2,8 @@
 organizations:
   - id: acme
     name: Acme
+  - id: globex
+    name: Globex
 roles:
   - organization: acme
     name: viewer
@@ -23,6 +25,10 @@ roles:
     scopes:
       - {kind: documents, actions: [read, write, ingest]}
       - {kind: documents.collection, actions: [read, transfer, admin]}
+  - organization: globex
+    name: admin
+    scopes:
+      - {kind: documents, actions: [read, write]}
 people:
   - id: maya
     email: maya@acme.test
@@ -42,9 +48,26 @@ people:
     organization: acme
     roles: [admin]
     teams: [finance, engineering]
+  - id: zoe
+    email: zoe@globex.test
+    fixture_token: fixture-zoe
+    organization: globex
+    roles: [admin]
+    teams: [ops]
+  - id: omar
+    email: omar@globex.test
+    fixture_token: fixture-omar
+    organization: globex
+    roles: []
+    teams: [ops]
 installations:
   - organization: acme
     target: wiki
     role: viewer
     owner: alex
     teams: [finance]
+  - organization: globex
+    target: wiki
+    role: editor
+    owner: zoe
+    teams: [ops]

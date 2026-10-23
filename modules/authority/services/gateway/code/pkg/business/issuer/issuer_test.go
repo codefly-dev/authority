@@ -262,7 +262,7 @@ func TestAPendingInstallationIsIssuedNothing(t *testing.T) {
 	k := testkit.New(t)
 	ctx := context.Background()
 	k.State.OnInstall(func(context.Context, state.Installation) error { return errors.New("not yet") })
-	if _, err := k.State.ApplyManifest(state.Manifest{Module: "proposals", Principal: "proposals", Kind: "solution", Generation: 1}); err != nil {
+	if _, err := k.State.ApplyManifest(testkit.Proposals(1)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := k.State.Install(ctx, "acme", "proposals", "viewer", "alex"); err == nil {

@@ -21,6 +21,8 @@ import (
 	"github.com/codefly-dev/core/workloadidentity"
 	"github.com/codefly-dev/core/workloadidentity/native"
 
+	conformance "github.com/codefly-dev/authority/libraries/conformance/go"
+
 	"gateway/pkg/business/issuer"
 	"gateway/pkg/business/state"
 )
@@ -102,7 +104,12 @@ func OrgDirectory(generation uint64) state.Manifest {
 // Wiki is a solution.
 func Wiki(generation uint64) state.Manifest {
 	return state.Manifest{Module: "wiki", Principal: "wiki", Kind: "solution", Generation: generation,
-		ResourceKinds: []*basev0.WorkScopeV1{Scope("wiki.page", "read", "write")}}
+		ResourceKinds: []*basev0.WorkScopeV1{Scope("wiki.page", "read", "write", "publish")},
+		Roles: map[string][]*basev0.WorkScopeV1{
+			state.InstallerRole: {Scope("wiki.page", "read", "write", "publish")},
+			"editor":            {Scope("wiki.page", "read", "write")},
+			"viewer":            {Scope("wiki.page", "read")},
+		}}
 }
 
 // ReleaseKeyID names the release key the kit pins; its seed is fixed so a run
@@ -160,6 +167,46 @@ func (k *Kit) CarrierAuthority(ctx context.Context, credential, module string) e
 		return fmt.Errorf("the carrier is %s, not %s", attested.Workload.Module, module)
 	}
 	return nil
+}
+
+// Proposals is a second solution, composed by tests that install one.
+func Proposals(generation uint64) state.Manifest {
+	return state.Manifest{Module: "proposals", Principal: "proposals", Kind: "solution", Generation: generation,
+		ResourceKinds: []*basev0.WorkScopeV1{Scope("proposals.item", "read", "write")},
+		Roles: map[string][]*basev0.WorkScopeV1{
+			state.InstallerRole: {Scope("proposals.item", "read", "write")},
+			"viewer":            {Scope("proposals.item", "read")},
+		}}
+}
+
+// Matrix states what the fixture grants, allow and deny: the organisation's roles
+// at module audiences, the installation's roles at the wiki, and nothing across
+// organisations.
+func Matrix() []conformance.Expectation {
+	allow := func(token, audience, kind, action string) conformance.Expectation {
+		return conformance.Expectation{Token: token, Audience: audience, Kind: kind, Action: action, Allowed: true}
+	}
+	deny := func(token, audience, kind, action string) conformance.Expectation {
+		return conformance.Expectation{Token: token, Audience: audience, Kind: kind, Action: action}
+	}
+	return []conformance.Expectation{
+		// Acme's organisation roles at documents and records.
+		allow("fixture-maya", "documents", "documents", "read"), deny("fixture-maya", "documents", "documents", "write"),
+		allow("fixture-remi", "documents", "documents", "write"), deny("fixture-remi", "documents", "documents", "ingest"),
+		allow("fixture-alex", "documents", "documents", "ingest"), allow("fixture-alex", "documents", "documents.collection", "admin"),
+		deny("fixture-alex", "documents", "documents.collection", "share"),
+		allow("fixture-maya", "records", "records.record", "read"), deny("fixture-maya", "records", "records.record", "write"),
+		allow("fixture-remi", "records", "records.record", "write"), deny("fixture-remi", "records", "records.type", "write"),
+		// A module no role names: nothing.
+		deny("fixture-maya", "model", "modelservice.profiles", "read"),
+		// The wiki: the installation's roles, not the organisation's.
+		allow("fixture-alex", "wiki", "wiki.page", "publish"), allow("fixture-maya", "wiki", "wiki.page", "read"),
+		deny("fixture-maya", "wiki", "wiki.page", "write"), deny("fixture-remi", "wiki", "wiki.page", "read"),
+		// Globex: its own installation of the wiki, and a documents role of its own.
+		allow("fixture-zoe", "wiki", "wiki.page", "publish"), allow("fixture-omar", "wiki", "wiki.page", "write"),
+		deny("fixture-omar", "wiki", "wiki.page", "publish"), allow("fixture-zoe", "documents", "documents", "write"),
+		deny("fixture-omar", "documents", "documents", "read"),
+	}
 }
 
 // FixturePath is the committed fixture.

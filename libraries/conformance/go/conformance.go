@@ -46,18 +46,47 @@ type Fixture struct {
 	HostDomain         string
 	SignManifest       func(document []byte) (envelope []byte, err error)
 	DeliveryCredential func(module string) string
+
+	// Matrix is the permission matrix the fixture states: for each person, at
+	// each audience, each kind and action is allowed or refused. The suite asks
+	// for exactly that scope and expects the answer, so every role a fixture
+	// declares is proven allow and deny.
+	Matrix []Expectation
+}
+
+// Expectation is one cell of the permission matrix.
+type Expectation struct {
+	Token    string // the person's fixture token
+	Audience string
+	Kind     string
+	Action   string
+	Allowed  bool
 }
 
 // applyManifest composes one module at one generation, as a signed carrier when
 // the fixture signs, as the sketch otherwise.
 func (c *client) applyManifest(ctx context.Context, f Fixture, alias, kind string, generation uint64, kinds []string) (protoreflect.Message, error) {
-	if f.SignManifest == nil {
+	// Core's manifest carries no roles yet, so a solution is composed through the
+	// sketch, declaring its installer and viewer roles over what it serves.
+	if f.SignManifest == nil || kind == "solution" {
+		var roles []any
+		if kind == "solution" {
+			var all, reads []any
+			for _, k := range kinds {
+				all = append(all, map[string]any{"resource_kind": k, "actions": []any{"read", "write"}})
+				reads = append(reads, map[string]any{"resource_kind": k, "actions": []any{"read"}})
+			}
+			roles = []any{map[string]any{"name": "installer", "scopes": all}, map[string]any{"name": "viewer", "scopes": reads}}
+		}
 		var rks []any
 		for _, k := range kinds {
-			rks = append(rks, map[string]any{"kind": k, "actions": []any{"read"}})
+			rks = append(rks, map[string]any{"kind": k, "actions": []any{"read", "write"}})
 		}
-		return c.call(ctx, "host.composition.v1.CompositionService", "ApplyManifest", map[string]any{"manifest": map[string]any{
-			"module": alias, "principal": alias, "kind": kind, "generation": generation, "resource_kinds": rks}})
+		manifest := map[string]any{"module": alias, "principal": alias, "kind": kind, "generation": generation, "resource_kinds": rks}
+		if roles != nil {
+			manifest["roles"] = roles
+		}
+		return c.call(ctx, "host.composition.v1.CompositionService", "ApplyManifest", map[string]any{"manifest": manifest})
 	}
 	manifest := &solutionhost.ModuleManifest{
 		Schema: solutionhost.SchemaModuleManifestV1, Binding: alias, Alias: alias, Kind: solutionhost.Kind(kind), Generation: generation,
@@ -128,6 +157,27 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		out := c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.Audience})
 		if count(msg(out, "context"), "authority_scopes") == 0 {
 			t.Fatalf("an empty ask was issued nothing: %v", out)
+		}
+	})
+	t.Run("the permission matrix holds, allow and deny", func(t *testing.T) {
+		if len(f.Matrix) == 0 {
+			t.Skip("the fixture states no matrix")
+		}
+		sessions := map[string]protoreflect.Message{}
+		for _, e := range f.Matrix {
+			sess, ok := sessions[e.Token]
+			if !ok {
+				sess = c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": e.Token})
+				sessions[e.Token] = sess
+			}
+			_, err := c.call(as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": e.Audience,
+				"scopes": []any{map[string]any{"resource_kind": e.Kind, "actions": []any{e.Action}}}})
+			switch {
+			case e.Allowed && err != nil:
+				t.Errorf("%s at %s: %s %s must be allowed: %v", e.Token, e.Audience, e.Kind, e.Action, err)
+			case !e.Allowed && status.Code(err) != codes.PermissionDenied:
+				t.Errorf("%s at %s: %s %s must be refused as PermissionDenied, got %v", e.Token, e.Audience, e.Kind, e.Action, err)
+			}
 		}
 	})
 	t.Run("every refusal reaches the caller with a reason", func(t *testing.T) {
