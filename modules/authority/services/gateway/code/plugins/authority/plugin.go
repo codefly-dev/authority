@@ -3,9 +3,12 @@ package authority
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"gateway/pkg/framework"
 	"gateway/pkg/wiring"
+	"net/http"
 	"strings"
 
 	"github.com/codefly-dev/core/workcontext"
@@ -33,8 +36,44 @@ func (p *Plugin) Name() string { return "authority" }
 func (p *Plugin) RegisterGRPC(s *grpc.Server) { authorityv1.RegisterAuthorityServiceServer(s, p) }
 
 // RegisterREST registers nothing; the interface is Connect/gRPC.
-func (p *Plugin) RegisterREST(context.Context, *runtime.ServeMux, string, []grpc.DialOption) error {
-	return nil
+func (p *Plugin) RegisterREST(_ context.Context, mux *runtime.ServeMux, _ string, _ []grpc.DialOption) error {
+	return mux.HandlePath(http.MethodGet, KeySetPath, func(w http.ResponseWriter, _ *http.Request, _ map[string]string) {
+		body, err := KeySet(p.Issuer.Keys())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	})
+}
+
+// KeySetPath is where Keys is published as a JSON Web Key Set, for a consumer
+// that reads an authority's keys over HTTP (a work-context group's
+// authority-jwks-url). The same keys as Keys, in the standard format.
+const KeySetPath = "/.well-known/jwks.json"
+
+// KeySet renders Keys as a JSON Web Key Set: Ed25519 keys as OKP, by key id.
+func KeySet(keys *authorityv1.KeysResponse) ([]byte, error) {
+	type jwk struct {
+		KeyType string `json:"kty"`
+		Curve   string `json:"crv"`
+		KeyID   string `json:"kid"`
+		X       string `json:"x"`
+		Use     string `json:"use"`
+		Alg     string `json:"alg"`
+	}
+	set := struct {
+		Keys []jwk `json:"keys"`
+	}{Keys: []jwk{}}
+	for _, k := range keys.GetKeys() {
+		if k.GetAlgorithm() != workcontext.Algorithm {
+			continue
+		}
+		set.Keys = append(set.Keys, jwk{KeyType: "OKP", Curve: "Ed25519", KeyID: k.GetKeyId(),
+			X: base64.RawURLEncoding.EncodeToString(k.GetPublicKey()), Use: "sig", Alg: "EdDSA"})
+	}
+	return json.Marshal(set)
 }
 
 // Migrations: none; the authority gateway holds state in memory.
