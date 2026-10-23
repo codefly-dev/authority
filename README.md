@@ -489,6 +489,29 @@ whole kind. They now keep ids, and an intersection keeps the narrower side
 (`pkg/business/state`, with unit tests). The fixture's record kinds are now the
 record store's own, `records.records` and `records.types`.
 
+## The document store on the authority gateway, no saas (2026-10-23)
+
+Proven live, with the document store from obin-ai/module-document-store's
+`authority/behind-the-hop` branch (4e295b1) and the record store from its
+branch (d506000), composed in this workspace with the authority gateway as host,
+the hop in front of both, and no saas module:
+
+| Call | Answer |
+|---|---|
+| Rémi (editor) creates `directory/people.csv` through the hop | created |
+| Rémi lists the collection through the hop | his document: the store asked the authority which collections he covers |
+| Maya (viewer) creates a document | refused at the hop: `CreateDocument` requires `documents:write`, she holds `documents:read, documents.collection:read` |
+| Maya lists | nothing: the authority answers `directory/` and `shared-*`, and the store's namespace for this collection matches neither |
+| Rémi lists over REST, at the store's REST face | HTTP 200: the face sends the call through the hop |
+| The same REST call with no token | HTTP 401 from the hop, naming the gRPC method |
+| Rémi's token straight to the store's gRPC port | refused: no stamp |
+
+Every manifest reached the authority gateway through the composition interface.
+The store's host services (jobs, notifications, approvals, record placement,
+file fetch) report themselves unwired and idle, and ingest is off because no
+runtime is composed. The fixture's collection grants do not yet use the store's
+real namespace spelling.
+
 ## Open decisions
 
 - **Decided 2026-10-23, the hop rule.** A module hops only on a person's token
