@@ -116,7 +116,9 @@ message BindingV1 {
   string audience = 2;
   // What the binding may do for a person.
   repeated host.authority.v1.WorkScopeV1 invoke_scopes = 3;
-  // What the binding may do for the module itself; a subset of invoke_scopes.
+  // What the binding may do for the module itself: within invoke_scopes when the
+  // binding declares any, and standing alone for a binding that exists only for
+  // the module's own work.
   repeated host.authority.v1.WorkScopeV1 headless_scopes = 4;
 }
 

@@ -1,8 +1,24 @@
 name: authority
 layout: modules
+# The stores resolve from their git tags, unverified by declaration, as the
+# platform composes them; a local run selects a checkout through the overlay.
+module-resolution:
+    documents: git
+    records: git
 modules:
     - name: authority
     - name: console
+    # The platform's stores, composed behind the hop to prove a module runs on
+    # the authority gateway with no saas. Released identities; a local run
+    # selects a checkout through the gitignored overlay.
+    - name: documents
+      source: obin-ai/module-document-store
+      module: modules/documents
+      version: "0.1.13"
+    - name: records
+      source: obin-ai/module-record-store
+      module: modules/record-store
+      version: "0.5.0"
 environments:
     - name: local
       description: The authority gateway on a laptop, the authority of its own run

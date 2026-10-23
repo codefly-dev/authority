@@ -107,6 +107,12 @@ func TestHeadlessScopesMayNotExceedInvokeScopes(t *testing.T) {
 	if _, err := k.State.ApplyManifest(m); !errors.Is(err, state.ErrForbidden) {
 		t.Fatalf("widening headless: %v", err)
 	}
+	// A binding only for the module's own work declares no invoke scopes.
+	m = testkit.Documents(3)
+	m.Bindings["tracing"] = state.Binding{ID: "tracing", Audience: "tracing", HeadlessScopes: []*basev0.WorkScopeV1{testkit.Scope("tracing.spans", "export")}}
+	if _, err := k.State.ApplyManifest(m); err != nil {
+		t.Fatalf("a headless-only binding stands alone: %v", err)
+	}
 }
 
 func TestOnePrincipalBelongsToOneModule(t *testing.T) {

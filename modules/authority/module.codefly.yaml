@@ -12,6 +12,11 @@ interface:
               - codefly.dev/composition@0.1.0
               - codefly.dev/installation@0.1.0
               - codefly.dev/session@0.1.0
+        # The REST face publishes the authority's keys as a JSON Web Key Set
+        # (/.well-known/jwks.json), for a module that reads them by URL.
+        - service: gateway
+          endpoint: rest
+          visibility: internal
 services:
     - name: gateway
     # The hop stands in front of a module and lets through only a call the

@@ -429,7 +429,12 @@ func (s *State) ApplyManifest(m Manifest) ([]string, error) {
 		return nil, fmt.Errorf("%w: principal %q already belongs to %s", ErrForbidden, m.Principal, other)
 	}
 	for id, b := range m.Bindings {
-		if !Attenuates(b.HeadlessScopes, b.InvokeScopes) {
+		// A binding that acts for a person (invoke scopes) may do no more for the
+		// module itself than it may for that person. A binding that exists only
+		// for the module's own work (a store exporting its traces) declares no
+		// invoke scopes and stands alone: there is no person-facing ceiling to
+		// stay within.
+		if len(b.InvokeScopes) > 0 && !Attenuates(b.HeadlessScopes, b.InvokeScopes) {
 			return nil, fmt.Errorf("%w: binding %s: headless scopes exceed invoke scopes", ErrForbidden, id)
 		}
 	}

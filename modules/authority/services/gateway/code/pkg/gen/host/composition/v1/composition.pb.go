@@ -543,7 +543,9 @@ type BindingV1 struct {
 	Audience string `protobuf:"bytes,2,opt,name=audience,proto3" json:"audience,omitempty"`
 	// What the binding may do for a person.
 	InvokeScopes []*v1.WorkScopeV1 `protobuf:"bytes,3,rep,name=invoke_scopes,json=invokeScopes,proto3" json:"invoke_scopes,omitempty"`
-	// What the binding may do for the module itself; a subset of invoke_scopes.
+	// What the binding may do for the module itself: within invoke_scopes when the
+	// binding declares any, and standing alone for a binding that exists only for
+	// the module's own work.
 	HeadlessScopes []*v1.WorkScopeV1 `protobuf:"bytes,4,rep,name=headless_scopes,json=headlessScopes,proto3" json:"headless_scopes,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
