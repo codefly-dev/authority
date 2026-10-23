@@ -3,6 +3,7 @@ package composition
 
 import (
 	"context"
+	"strings"
 	"gateway/pkg/framework"
 	"gateway/pkg/wiring"
 
@@ -121,14 +122,34 @@ func FromCore(in *solutionhost.ModuleManifest) state.Manifest {
 	}
 	m.ResourceKinds = state.Normalize(m.ResourceKinds)
 	for _, b := range in.Authority.Bindings {
-		var invoke []*basev0.WorkScopeV1
-		for kind, actions := range b.Operations {
-			invoke = append(invoke, &basev0.WorkScopeV1{ResourceKind: kind, Actions: actions})
-		}
-		invoke = state.Normalize(invoke)
-		m.Bindings[b.ID] = state.Binding{ID: b.ID, Audience: b.Audience, InvokeScopes: invoke, HeadlessScopes: invoke}
+		invoke := scopesOf(b.Operations["invoke"])
+		headless := scopesOf(b.Operations["headless"])
+		m.Bindings[b.ID] = state.Binding{ID: b.ID, Audience: b.Audience, InvokeScopes: invoke, HeadlessScopes: headless}
 	}
 	return m
+}
+
+// scopesOf reads one operation's requested scopes, each "<resource kind>:<action>"
+// as core's manifest writes them, into scopes grouped by kind. An entry without
+// a colon names nothing and is skipped; the manifest's own validation refuses it.
+func scopesOf(entries []string) []*basev0.WorkScopeV1 {
+	byKind := map[string][]string{}
+	var kinds []string
+	for _, entry := range entries {
+		kind, action, ok := strings.Cut(entry, ":")
+		if !ok || kind == "" || action == "" {
+			continue
+		}
+		if _, seen := byKind[kind]; !seen {
+			kinds = append(kinds, kind)
+		}
+		byKind[kind] = append(byKind[kind], action)
+	}
+	var out []*basev0.WorkScopeV1
+	for _, kind := range kinds {
+		out = append(out, &basev0.WorkScopeV1{ResourceKind: kind, Actions: byKind[kind]})
+	}
+	return state.Normalize(out)
 }
 
 // New is the registry's constructor: the plugin over what Configure wired.
