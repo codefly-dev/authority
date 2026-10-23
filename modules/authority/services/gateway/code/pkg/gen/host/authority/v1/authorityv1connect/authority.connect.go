@@ -54,6 +54,9 @@ const (
 	// AuthorityServiceRevokeDelegationProcedure is the fully-qualified name of the AuthorityService's
 	// RevokeDelegation RPC.
 	AuthorityServiceRevokeDelegationProcedure = "/host.authority.v1.AuthorityService/RevokeDelegation"
+	// AuthorityServiceGetDelegationProcedure is the fully-qualified name of the AuthorityService's
+	// GetDelegation RPC.
+	AuthorityServiceGetDelegationProcedure = "/host.authority.v1.AuthorityService/GetDelegation"
 )
 
 // AuthorityServiceClient is a client for the host.authority.v1.AuthorityService service.
@@ -76,6 +79,11 @@ type AuthorityServiceClient interface {
 	Delegate(context.Context, *connect.Request[v1.DelegateRequest]) (*connect.Response[v1.Delegation], error)
 	// RevokeDelegation ends a delegation; the next Issue from it is refused.
 	RevokeDelegation(context.Context, *connect.Request[v1.RevokeDelegationRequest]) (*connect.Response[v1.RevokeDelegationResponse], error)
+	// GetDelegation reads one delegation for the module it is granted to (by its
+	// workload credential) or for its grantor (by the caller's bearer): whether it
+	// still stands. Work that outlives the capability that started it asks this
+	// between issues, so a revoke stops it even when it calls no other module.
+	GetDelegation(context.Context, *connect.Request[v1.GetDelegationRequest]) (*connect.Response[v1.Delegation], error)
 }
 
 // NewAuthorityServiceClient constructs a client for the host.authority.v1.AuthorityService service.
@@ -125,6 +133,12 @@ func NewAuthorityServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(authorityServiceMethods.ByName("RevokeDelegation")),
 			connect.WithClientOptions(opts...),
 		),
+		getDelegation: connect.NewClient[v1.GetDelegationRequest, v1.Delegation](
+			httpClient,
+			baseURL+AuthorityServiceGetDelegationProcedure,
+			connect.WithSchema(authorityServiceMethods.ByName("GetDelegation")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -136,6 +150,7 @@ type authorityServiceClient struct {
 	listResources    *connect.Client[v1.ListResourcesRequest, v1.ListResourcesResponse]
 	delegate         *connect.Client[v1.DelegateRequest, v1.Delegation]
 	revokeDelegation *connect.Client[v1.RevokeDelegationRequest, v1.RevokeDelegationResponse]
+	getDelegation    *connect.Client[v1.GetDelegationRequest, v1.Delegation]
 }
 
 // Issue calls host.authority.v1.AuthorityService.Issue.
@@ -168,6 +183,11 @@ func (c *authorityServiceClient) RevokeDelegation(ctx context.Context, req *conn
 	return c.revokeDelegation.CallUnary(ctx, req)
 }
 
+// GetDelegation calls host.authority.v1.AuthorityService.GetDelegation.
+func (c *authorityServiceClient) GetDelegation(ctx context.Context, req *connect.Request[v1.GetDelegationRequest]) (*connect.Response[v1.Delegation], error) {
+	return c.getDelegation.CallUnary(ctx, req)
+}
+
 // AuthorityServiceHandler is an implementation of the host.authority.v1.AuthorityService service.
 type AuthorityServiceHandler interface {
 	// Issue signs a Work Context for one owner shape, one audience and the scopes
@@ -188,6 +208,11 @@ type AuthorityServiceHandler interface {
 	Delegate(context.Context, *connect.Request[v1.DelegateRequest]) (*connect.Response[v1.Delegation], error)
 	// RevokeDelegation ends a delegation; the next Issue from it is refused.
 	RevokeDelegation(context.Context, *connect.Request[v1.RevokeDelegationRequest]) (*connect.Response[v1.RevokeDelegationResponse], error)
+	// GetDelegation reads one delegation for the module it is granted to (by its
+	// workload credential) or for its grantor (by the caller's bearer): whether it
+	// still stands. Work that outlives the capability that started it asks this
+	// between issues, so a revoke stops it even when it calls no other module.
+	GetDelegation(context.Context, *connect.Request[v1.GetDelegationRequest]) (*connect.Response[v1.Delegation], error)
 }
 
 // NewAuthorityServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -233,6 +258,12 @@ func NewAuthorityServiceHandler(svc AuthorityServiceHandler, opts ...connect.Han
 		connect.WithSchema(authorityServiceMethods.ByName("RevokeDelegation")),
 		connect.WithHandlerOptions(opts...),
 	)
+	authorityServiceGetDelegationHandler := connect.NewUnaryHandler(
+		AuthorityServiceGetDelegationProcedure,
+		svc.GetDelegation,
+		connect.WithSchema(authorityServiceMethods.ByName("GetDelegation")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/host.authority.v1.AuthorityService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AuthorityServiceIssueProcedure:
@@ -247,6 +278,8 @@ func NewAuthorityServiceHandler(svc AuthorityServiceHandler, opts ...connect.Han
 			authorityServiceDelegateHandler.ServeHTTP(w, r)
 		case AuthorityServiceRevokeDelegationProcedure:
 			authorityServiceRevokeDelegationHandler.ServeHTTP(w, r)
+		case AuthorityServiceGetDelegationProcedure:
+			authorityServiceGetDelegationHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -278,4 +311,8 @@ func (UnimplementedAuthorityServiceHandler) Delegate(context.Context, *connect.R
 
 func (UnimplementedAuthorityServiceHandler) RevokeDelegation(context.Context, *connect.Request[v1.RevokeDelegationRequest]) (*connect.Response[v1.RevokeDelegationResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.authority.v1.AuthorityService.RevokeDelegation is not implemented"))
+}
+
+func (UnimplementedAuthorityServiceHandler) GetDelegation(context.Context, *connect.Request[v1.GetDelegationRequest]) (*connect.Response[v1.Delegation], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.authority.v1.AuthorityService.GetDelegation is not implemented"))
 }

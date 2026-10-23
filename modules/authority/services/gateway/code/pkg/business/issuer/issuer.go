@@ -510,6 +510,23 @@ func (i *Issuer) Delegate(ctx context.Context, module string, scopes []*basev0.W
 	return i.state.Delegate(person, module, scopes, purpose)
 }
 
+// GetDelegation reads a delegation for the module it is granted to or for its
+// grantor. Anyone else learns nothing, not even that it exists.
+func (i *Issuer) GetDelegation(ctx context.Context, id, actorCredential string) (state.Delegation, error) {
+	d, err := i.state.DelegationByID(id)
+	if err != nil {
+		return state.Delegation{}, err
+	}
+	if actorCredential != "" {
+		if actor, err := i.state.VerifyWorkload(ctx, actorCredential); err == nil && actor.Module == d.Module {
+			return d, nil
+		}
+	} else if person, err := i.signedIn(ctx); err == nil && person == d.Grantor {
+		return d, nil
+	}
+	return state.Delegation{}, fmt.Errorf("%w: delegation %q", state.ErrUnknown, id)
+}
+
 // RevokeDelegation ends one of the signed-in person's delegations.
 func (i *Issuer) RevokeDelegation(ctx context.Context, id string) (state.Delegation, error) {
 	person, err := i.signedIn(ctx)

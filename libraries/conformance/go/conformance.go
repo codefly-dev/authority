@@ -613,9 +613,30 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		if chain.Len() != 1 || str(chain.Get(0).Message(), "delegation_id") != id || str(chain.Get(0).Message(), "principal_id") != dc.Module {
 			t.Fatalf("the module acts under the delegation: %v", wc)
 		}
+		read := func(caller context.Context, actor string) (protoreflect.Message, error) {
+			req := map[string]any{"delegation_id": id}
+			if actor != "" {
+				req["actor"] = map[string]any{"credential": actor}
+			}
+			return c.call(caller, "host.authority.v1.AuthorityService", "GetDelegation", req)
+		}
+		for name, caller := range map[string]struct {
+			ctx   context.Context
+			actor string
+		}{"its module": {ctx, dc.Credential}, "its grantor": {as(ctx, grantor), ""}} {
+			if got, err := read(caller.ctx, caller.actor); err != nil || !field(got, "active").Bool() {
+				t.Fatalf("%s reads the delegation as not standing: %v", name, err)
+			}
+		}
+		if _, err := read(as(ctx, outsider), ""); status.Code(err) != codes.NotFound {
+			t.Fatalf("anyone else learns the delegation exists: %v", err)
+		}
 		c.must(t, as(ctx, grantor), "host.authority.v1.AuthorityService", "RevokeDelegation", map[string]any{"delegation_id": id})
 		if _, err := issue(); status.Code(err) != codes.PermissionDenied {
 			t.Fatalf("a revoked delegation issues: %v", err)
+		}
+		if got, err := read(ctx, dc.Credential); err != nil || field(got, "active").Bool() {
+			t.Fatalf("its module reads a revoked delegation as standing: %v", err)
 		}
 	})
 	t.Run("a manifest moves only forward and a lower generation is refused by name", func(t *testing.T) {

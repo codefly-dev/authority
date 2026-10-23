@@ -525,6 +525,7 @@ the interface, with a suite line, or named as belonging elsewhere.
 | A child of a caller's token (`ExchangeOperation` with a parent) | `Issue` with the parent token and the module as actor (`hop.Outbound.ForParent`) | suite: a child hop; a delegate chain |
 | A lookup child (`ExchangeOperation` with `Lookup`) | `Issue` with `operation: lookup`: the binding's lookup scopes alone (`hop.Lookup()`) | suite: a lookup through a binding carries only its lookup scopes |
 | A source's operation context (`MintSourceOperationContext`) and a child by delegation id (`ExchangeOperation` with `DelegationID`) | `Delegate` and `RevokeDelegation`, and `Issue` from a delegation (`hop.Outbound.ForDelegation`): owned by the grantor, the module as actor, re-checked on every issue, renewed by issuing again | suite: a delegation issues as its grantor through its module, until revoked |
+| The live revision check that keeps delegation-backed work honest after its token expires (`CheckAuthorizationRevision` with the delegation's binding) | `GetDelegation`, read by the delegation's module (workload credential) or its grantor; anyone else is told it does not exist | suite: the same delegation line reads it standing, then revoked |
 | Live seal and revision answers for a module verifying a token (`WorkContextSources`) | the hop asks `Check`; modules verify nothing | suite: a callee refuses what does not verify; the hop's tests |
 | Which collections or resources a caller reads (saas `ListReadableSourceCollections`) | `ListResources`, by id, prefix or pattern | suite: the authority answers which resources a context covers |
 | Executable artifact approvals (`Approve`, `Authorize`, `RevokeExecutableArtifact`) | not authority: the signed release (handbook#146) | open |
@@ -532,7 +533,8 @@ the interface, with a suite line, or named as belonging elsewhere.
 | Notifications and the current installation (`NotifyUser`, `NotifyOrgAdmins`, `GetCurrentInstallation`) | not authority: host services, optional interfaces | open |
 
 The authority gateway implements every line. Accounts implements none of the
-last four additions yet (lookup, delegations, `ListResources`, method policy);
+last five additions yet (lookup, delegations and their read, `ListResources`,
+method policy);
 each suite line skips for a fixture that states no case.
 
 ## Open decisions

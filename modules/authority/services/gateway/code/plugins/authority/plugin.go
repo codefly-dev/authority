@@ -117,6 +117,15 @@ func (p *Plugin) RevokeDelegation(ctx context.Context, req *authorityv1.RevokeDe
 	return &authorityv1.RevokeDelegationResponse{Delegation: delegationOf(d)}, nil
 }
 
+// GetDelegation reads one delegation for its module or its grantor.
+func (p *Plugin) GetDelegation(ctx context.Context, req *authorityv1.GetDelegationRequest) (*authorityv1.Delegation, error) {
+	d, err := p.Issuer.GetDelegation(withBearer(ctx), req.GetDelegationId(), req.GetActor().GetCredential())
+	if err != nil {
+		return nil, Status(err)
+	}
+	return delegationOf(d), nil
+}
+
 func delegationOf(d state.Delegation) *authorityv1.Delegation {
 	out := &authorityv1.Delegation{DelegationId: d.ID, OrganizationId: d.Organization, Grantor: d.Grantor, Module: d.Module, Purpose: d.Purpose, Active: !d.Revoked}
 	for _, sc := range d.Scopes {

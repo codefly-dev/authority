@@ -539,10 +539,14 @@ func (s *State) DelegationByID(id string) (Delegation, error) {
 	return d, nil
 }
 
+// newDelegationID is a random UUID, the shape the host issues a delegation
+// under: a module that holds one as a grant reference checks that shape.
 func newDelegationID() string {
-	var b [12]byte
+	var b [16]byte
 	_, _ = rand.Read(b[:])
-	return "dlg_" + hex.EncodeToString(b[:])
+	b[6], b[8] = b[6]&0x0f|0x40, b[8]&0x3f|0x80
+	h := hex.EncodeToString(b[:])
+	return h[:8] + "-" + h[8:12] + "-" + h[12:16] + "-" + h[16:20] + "-" + h[20:]
 }
 
 // ResourceGrants answers which resources of kind a person may act on with

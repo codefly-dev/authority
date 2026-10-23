@@ -32,6 +32,7 @@ const (
 	AuthorityService_ListResources_FullMethodName    = "/host.authority.v1.AuthorityService/ListResources"
 	AuthorityService_Delegate_FullMethodName         = "/host.authority.v1.AuthorityService/Delegate"
 	AuthorityService_RevokeDelegation_FullMethodName = "/host.authority.v1.AuthorityService/RevokeDelegation"
+	AuthorityService_GetDelegation_FullMethodName    = "/host.authority.v1.AuthorityService/GetDelegation"
 )
 
 // AuthorityServiceClient is the client API for AuthorityService service.
@@ -58,6 +59,11 @@ type AuthorityServiceClient interface {
 	Delegate(ctx context.Context, in *DelegateRequest, opts ...grpc.CallOption) (*Delegation, error)
 	// RevokeDelegation ends a delegation; the next Issue from it is refused.
 	RevokeDelegation(ctx context.Context, in *RevokeDelegationRequest, opts ...grpc.CallOption) (*RevokeDelegationResponse, error)
+	// GetDelegation reads one delegation for the module it is granted to (by its
+	// workload credential) or for its grantor (by the caller's bearer): whether it
+	// still stands. Work that outlives the capability that started it asks this
+	// between issues, so a revoke stops it even when it calls no other module.
+	GetDelegation(ctx context.Context, in *GetDelegationRequest, opts ...grpc.CallOption) (*Delegation, error)
 }
 
 type authorityServiceClient struct {
@@ -128,6 +134,16 @@ func (c *authorityServiceClient) RevokeDelegation(ctx context.Context, in *Revok
 	return out, nil
 }
 
+func (c *authorityServiceClient) GetDelegation(ctx context.Context, in *GetDelegationRequest, opts ...grpc.CallOption) (*Delegation, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Delegation)
+	err := c.cc.Invoke(ctx, AuthorityService_GetDelegation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AuthorityServiceServer is the server API for AuthorityService service.
 // All implementations must embed UnimplementedAuthorityServiceServer
 // for forward compatibility.
@@ -152,6 +168,11 @@ type AuthorityServiceServer interface {
 	Delegate(context.Context, *DelegateRequest) (*Delegation, error)
 	// RevokeDelegation ends a delegation; the next Issue from it is refused.
 	RevokeDelegation(context.Context, *RevokeDelegationRequest) (*RevokeDelegationResponse, error)
+	// GetDelegation reads one delegation for the module it is granted to (by its
+	// workload credential) or for its grantor (by the caller's bearer): whether it
+	// still stands. Work that outlives the capability that started it asks this
+	// between issues, so a revoke stops it even when it calls no other module.
+	GetDelegation(context.Context, *GetDelegationRequest) (*Delegation, error)
 	mustEmbedUnimplementedAuthorityServiceServer()
 }
 
@@ -179,6 +200,9 @@ func (UnimplementedAuthorityServiceServer) Delegate(context.Context, *DelegateRe
 }
 func (UnimplementedAuthorityServiceServer) RevokeDelegation(context.Context, *RevokeDelegationRequest) (*RevokeDelegationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RevokeDelegation not implemented")
+}
+func (UnimplementedAuthorityServiceServer) GetDelegation(context.Context, *GetDelegationRequest) (*Delegation, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetDelegation not implemented")
 }
 func (UnimplementedAuthorityServiceServer) mustEmbedUnimplementedAuthorityServiceServer() {}
 func (UnimplementedAuthorityServiceServer) testEmbeddedByValue()                          {}
@@ -309,6 +333,24 @@ func _AuthorityService_RevokeDelegation_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthorityService_GetDelegation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetDelegationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthorityServiceServer).GetDelegation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthorityService_GetDelegation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthorityServiceServer).GetDelegation(ctx, req.(*GetDelegationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AuthorityService_ServiceDesc is the grpc.ServiceDesc for AuthorityService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -339,6 +381,10 @@ var AuthorityService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RevokeDelegation",
 			Handler:    _AuthorityService_RevokeDelegation_Handler,
+		},
+		{
+			MethodName: "GetDelegation",
+			Handler:    _AuthorityService_GetDelegation_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

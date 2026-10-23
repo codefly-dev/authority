@@ -30,6 +30,11 @@ service AuthorityService {
   rpc Delegate(DelegateRequest) returns (Delegation);
   // RevokeDelegation ends a delegation; the next Issue from it is refused.
   rpc RevokeDelegation(RevokeDelegationRequest) returns (RevokeDelegationResponse);
+  // GetDelegation reads one delegation for the module it is granted to (by its
+  // workload credential) or for its grantor (by the caller's bearer): whether it
+  // still stands. Work that outlives the capability that started it asks this
+  // between issues, so a revoke stops it even when it calls no other module.
+  rpc GetDelegation(GetDelegationRequest) returns (Delegation);
 }
 
 // IssueRequest names on whose behalf the capability is issued.
@@ -102,6 +107,14 @@ message Delegation {
   string purpose = 6;
   // False once revoked; a revoked delegation issues nothing.
   bool active = 7;
+}
+
+// GetDelegationRequest names the delegation read; anyone but its module or its
+// grantor is told it does not exist.
+message GetDelegationRequest {
+  string delegation_id = 1;
+  // The module asking, proving which module it is; absent when the grantor asks.
+  WorkloadCredential actor = 2;
 }
 
 // RevokeDelegationRequest ends a delegation; only its grantor may.
