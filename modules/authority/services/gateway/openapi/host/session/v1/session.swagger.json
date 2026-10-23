@@ -2,7 +2,7 @@
   "swagger": "2.0",
   "info": {
     "title": "host/session/v1/session.proto",
-    "description": "The session interface, at the browser edge only: a person signs in and the\nhost opens a session. The authority gateway signs in fixture people; the host signs\nin real ones. A module never calls this.",
+    "description": "The session interface, at the browser edge: a person signs in and the host\nopens a session, and a page's runtime asks who the bearer a request carries is.\nThe authority gateway signs in fixture people; the host signs in real ones. A\nmodule never calls this: it is called through the hop.",
     "version": "version not set"
   },
   "tags": [

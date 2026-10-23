@@ -2,9 +2,10 @@
 //
 // Source: host/session/v1/session.proto
 
-// The session interface, at the browser edge only: a person signs in and the
-// host opens a session. The authority gateway signs in fixture people; the host signs
-// in real ones. A module never calls this.
+// The session interface, at the browser edge: a person signs in and the host
+// opens a session, and a page's runtime asks who the bearer a request carries is.
+// The authority gateway signs in fixture people; the host signs in real ones. A
+// module never calls this: it is called through the hop.
 package sessionv1connect
 
 import (
@@ -39,12 +40,19 @@ const (
 const (
 	// SessionServiceSignInProcedure is the fully-qualified name of the SessionService's SignIn RPC.
 	SessionServiceSignInProcedure = "/host.session.v1.SessionService/SignIn"
+	// SessionServiceCurrentProcedure is the fully-qualified name of the SessionService's Current RPC.
+	SessionServiceCurrentProcedure = "/host.session.v1.SessionService/Current"
 )
 
 // SessionServiceClient is a client for the host.session.v1.SessionService service.
 type SessionServiceClient interface {
 	// SignIn opens a session for a fixture person by their fixture token.
 	SignIn(context.Context, *connect.Request[v1.SignInRequest]) (*connect.Response[v1.Session], error)
+	// Current answers the session the caller's bearer (`authorization: Bearer
+	// <bearer>`) belongs to: who a page's request is for, decided by the host,
+	// never read from a header the request wrote. The bearer itself is not
+	// handed back. An unknown or ended session is unauthenticated.
+	Current(context.Context, *connect.Request[v1.CurrentRequest]) (*connect.Response[v1.Session], error)
 }
 
 // NewSessionServiceClient constructs a client for the host.session.v1.SessionService service. By
@@ -64,12 +72,19 @@ func NewSessionServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(sessionServiceMethods.ByName("SignIn")),
 			connect.WithClientOptions(opts...),
 		),
+		current: connect.NewClient[v1.CurrentRequest, v1.Session](
+			httpClient,
+			baseURL+SessionServiceCurrentProcedure,
+			connect.WithSchema(sessionServiceMethods.ByName("Current")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // sessionServiceClient implements SessionServiceClient.
 type sessionServiceClient struct {
-	signIn *connect.Client[v1.SignInRequest, v1.Session]
+	signIn  *connect.Client[v1.SignInRequest, v1.Session]
+	current *connect.Client[v1.CurrentRequest, v1.Session]
 }
 
 // SignIn calls host.session.v1.SessionService.SignIn.
@@ -77,10 +92,20 @@ func (c *sessionServiceClient) SignIn(ctx context.Context, req *connect.Request[
 	return c.signIn.CallUnary(ctx, req)
 }
 
+// Current calls host.session.v1.SessionService.Current.
+func (c *sessionServiceClient) Current(ctx context.Context, req *connect.Request[v1.CurrentRequest]) (*connect.Response[v1.Session], error) {
+	return c.current.CallUnary(ctx, req)
+}
+
 // SessionServiceHandler is an implementation of the host.session.v1.SessionService service.
 type SessionServiceHandler interface {
 	// SignIn opens a session for a fixture person by their fixture token.
 	SignIn(context.Context, *connect.Request[v1.SignInRequest]) (*connect.Response[v1.Session], error)
+	// Current answers the session the caller's bearer (`authorization: Bearer
+	// <bearer>`) belongs to: who a page's request is for, decided by the host,
+	// never read from a header the request wrote. The bearer itself is not
+	// handed back. An unknown or ended session is unauthenticated.
+	Current(context.Context, *connect.Request[v1.CurrentRequest]) (*connect.Response[v1.Session], error)
 }
 
 // NewSessionServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -96,10 +121,18 @@ func NewSessionServiceHandler(svc SessionServiceHandler, opts ...connect.Handler
 		connect.WithSchema(sessionServiceMethods.ByName("SignIn")),
 		connect.WithHandlerOptions(opts...),
 	)
+	sessionServiceCurrentHandler := connect.NewUnaryHandler(
+		SessionServiceCurrentProcedure,
+		svc.Current,
+		connect.WithSchema(sessionServiceMethods.ByName("Current")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/host.session.v1.SessionService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SessionServiceSignInProcedure:
 			sessionServiceSignInHandler.ServeHTTP(w, r)
+		case SessionServiceCurrentProcedure:
+			sessionServiceCurrentHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -111,4 +144,8 @@ type UnimplementedSessionServiceHandler struct{}
 
 func (UnimplementedSessionServiceHandler) SignIn(context.Context, *connect.Request[v1.SignInRequest]) (*connect.Response[v1.Session], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.session.v1.SessionService.SignIn is not implemented"))
+}
+
+func (UnimplementedSessionServiceHandler) Current(context.Context, *connect.Request[v1.CurrentRequest]) (*connect.Response[v1.Session], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.session.v1.SessionService.Current is not implemented"))
 }

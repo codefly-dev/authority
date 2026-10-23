@@ -4,9 +4,10 @@
 // 	protoc        (unknown)
 // source: host/session/v1/session.proto
 
-// The session interface, at the browser edge only: a person signs in and the
-// host opens a session. The authority gateway signs in fixture people; the host signs
-// in real ones. A module never calls this.
+// The session interface, at the browser edge: a person signs in and the host
+// opens a session, and a page's runtime asks who the bearer a request carries is.
+// The authority gateway signs in fixture people; the host signs in real ones. A
+// module never calls this: it is called through the hop.
 
 package sessionv1
 
@@ -26,6 +27,43 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// CurrentRequest asks for the caller's own session; the bearer is the call's.
+type CurrentRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CurrentRequest) Reset() {
+	*x = CurrentRequest{}
+	mi := &file_host_session_v1_session_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CurrentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CurrentRequest) ProtoMessage() {}
+
+func (x *CurrentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_host_session_v1_session_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CurrentRequest.ProtoReflect.Descriptor instead.
+func (*CurrentRequest) Descriptor() ([]byte, []int) {
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{0}
+}
+
 // SignInRequest presents a fixture token.
 type SignInRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -37,7 +75,7 @@ type SignInRequest struct {
 
 func (x *SignInRequest) Reset() {
 	*x = SignInRequest{}
-	mi := &file_host_session_v1_session_proto_msgTypes[0]
+	mi := &file_host_session_v1_session_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -49,7 +87,7 @@ func (x *SignInRequest) String() string {
 func (*SignInRequest) ProtoMessage() {}
 
 func (x *SignInRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_host_session_v1_session_proto_msgTypes[0]
+	mi := &file_host_session_v1_session_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62,7 +100,7 @@ func (x *SignInRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SignInRequest.ProtoReflect.Descriptor instead.
 func (*SignInRequest) Descriptor() ([]byte, []int) {
-	return file_host_session_v1_session_proto_rawDescGZIP(), []int{0}
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *SignInRequest) GetFixtureToken() string {
@@ -95,7 +133,7 @@ type Session struct {
 
 func (x *Session) Reset() {
 	*x = Session{}
-	mi := &file_host_session_v1_session_proto_msgTypes[1]
+	mi := &file_host_session_v1_session_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -107,7 +145,7 @@ func (x *Session) String() string {
 func (*Session) ProtoMessage() {}
 
 func (x *Session) ProtoReflect() protoreflect.Message {
-	mi := &file_host_session_v1_session_proto_msgTypes[1]
+	mi := &file_host_session_v1_session_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -120,7 +158,7 @@ func (x *Session) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Session.ProtoReflect.Descriptor instead.
 func (*Session) Descriptor() ([]byte, []int) {
-	return file_host_session_v1_session_proto_rawDescGZIP(), []int{1}
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *Session) GetSessionId() string {
@@ -169,7 +207,8 @@ var File_host_session_v1_session_proto protoreflect.FileDescriptor
 
 const file_host_session_v1_session_proto_rawDesc = "" +
 	"\n" +
-	"\x1dhost/session/v1/session.proto\x12\x0fhost.session.v1\"4\n" +
+	"\x1dhost/session/v1/session.proto\x12\x0fhost.session.v1\"\x10\n" +
+	"\x0eCurrentRequest\"4\n" +
 	"\rSignInRequest\x12#\n" +
 	"\rfixture_token\x18\x01 \x01(\tR\ffixtureToken\"\xb7\x01\n" +
 	"\aSession\x12\x1d\n" +
@@ -179,9 +218,10 @@ const file_host_session_v1_session_proto_rawDesc = "" +
 	"\x0forganization_id\x18\x03 \x01(\tR\x0eorganizationId\x12\x14\n" +
 	"\x05roles\x18\x04 \x03(\tR\x05roles\x12\x19\n" +
 	"\bteam_ids\x18\x05 \x03(\tR\ateamIds\x12\x16\n" +
-	"\x06bearer\x18\x06 \x01(\tR\x06bearer2T\n" +
+	"\x06bearer\x18\x06 \x01(\tR\x06bearer2\x9a\x01\n" +
 	"\x0eSessionService\x12B\n" +
-	"\x06SignIn\x12\x1e.host.session.v1.SignInRequest\x1a\x18.host.session.v1.SessionB+Z)gateway/pkg/gen/host/session/v1;sessionv1b\x06proto3"
+	"\x06SignIn\x12\x1e.host.session.v1.SignInRequest\x1a\x18.host.session.v1.Session\x12D\n" +
+	"\aCurrent\x12\x1f.host.session.v1.CurrentRequest\x1a\x18.host.session.v1.SessionB+Z)gateway/pkg/gen/host/session/v1;sessionv1b\x06proto3"
 
 var (
 	file_host_session_v1_session_proto_rawDescOnce sync.Once
@@ -195,16 +235,19 @@ func file_host_session_v1_session_proto_rawDescGZIP() []byte {
 	return file_host_session_v1_session_proto_rawDescData
 }
 
-var file_host_session_v1_session_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_host_session_v1_session_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_host_session_v1_session_proto_goTypes = []any{
-	(*SignInRequest)(nil), // 0: host.session.v1.SignInRequest
-	(*Session)(nil),       // 1: host.session.v1.Session
+	(*CurrentRequest)(nil), // 0: host.session.v1.CurrentRequest
+	(*SignInRequest)(nil),  // 1: host.session.v1.SignInRequest
+	(*Session)(nil),        // 2: host.session.v1.Session
 }
 var file_host_session_v1_session_proto_depIdxs = []int32{
-	0, // 0: host.session.v1.SessionService.SignIn:input_type -> host.session.v1.SignInRequest
-	1, // 1: host.session.v1.SessionService.SignIn:output_type -> host.session.v1.Session
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
+	1, // 0: host.session.v1.SessionService.SignIn:input_type -> host.session.v1.SignInRequest
+	0, // 1: host.session.v1.SessionService.Current:input_type -> host.session.v1.CurrentRequest
+	2, // 2: host.session.v1.SessionService.SignIn:output_type -> host.session.v1.Session
+	2, // 3: host.session.v1.SessionService.Current:output_type -> host.session.v1.Session
+	2, // [2:4] is the sub-list for method output_type
+	0, // [0:2] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -221,7 +264,7 @@ func file_host_session_v1_session_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_host_session_v1_session_proto_rawDesc), len(file_host_session_v1_session_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

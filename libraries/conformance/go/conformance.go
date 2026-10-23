@@ -244,6 +244,21 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			t.Fatalf("unknown token: %v", err)
 		}
 	})
+	t.Run("a page asks who its bearer is, and a bearer naming no session is refused", func(t *testing.T) {
+		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
+		current := c.must(t, as(ctx, sess), "host.session.v1.SessionService", "Current", map[string]any{})
+		if str(current, "session_id") != str(sess, "session_id") || str(current, "person_id") != str(sess, "person_id") || str(current, "organization_id") != f.Organization || str(current, "bearer") != "" {
+			t.Fatalf("current: %v", current)
+		}
+		for name, caller := range map[string]context.Context{
+			"no bearer":       ctx,
+			"a forged bearer": metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer not-a-session"),
+		} {
+			if _, err := c.call(caller, "host.session.v1.SessionService", "Current", map[string]any{}); status.Code(err) != codes.Unauthenticated {
+				t.Fatalf("%s: %v", name, err)
+			}
+		}
+	})
 	t.Run("a person is issued, checked, and refused elsewhere", func(t *testing.T) {
 		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
 		asViewer := as(ctx, sess)

@@ -12,7 +12,7 @@ sources:
       module: authority
       service: gateway
       endpoint: grpc
-      contract-digest: sha256:3909b101c4020e1dab198fbe2a686a98341d842af71e4b1995c2bf24b4ba73fe
+      contract-digest: sha256:335861e82420515af38cf34dd8f3429c5313ea7709896c91fd623fc99827055f
       services:
         - GatewayService
 generated-by:

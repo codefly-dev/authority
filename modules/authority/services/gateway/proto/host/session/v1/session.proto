@@ -1,7 +1,8 @@
 syntax = "proto3";
-// The session interface, at the browser edge only: a person signs in and the
-// host opens a session. The authority gateway signs in fixture people; the host signs
-// in real ones. A module never calls this.
+// The session interface, at the browser edge: a person signs in and the host
+// opens a session, and a page's runtime asks who the bearer a request carries is.
+// The authority gateway signs in fixture people; the host signs in real ones. A
+// module never calls this: it is called through the hop.
 package host.session.v1;
 
 option go_package = "gateway/pkg/gen/host/session/v1;sessionv1";
@@ -10,7 +11,15 @@ option go_package = "gateway/pkg/gen/host/session/v1;sessionv1";
 service SessionService {
   // SignIn opens a session for a fixture person by their fixture token.
   rpc SignIn(SignInRequest) returns (Session);
+  // Current answers the session the caller's bearer (`authorization: Bearer
+  // <bearer>`) belongs to: who a page's request is for, decided by the host,
+  // never read from a header the request wrote. The bearer itself is not
+  // handed back. An unknown or ended session is unauthenticated.
+  rpc Current(CurrentRequest) returns (Session);
 }
+
+// CurrentRequest asks for the caller's own session; the bearer is the call's.
+message CurrentRequest {}
 
 // SignInRequest presents a fixture token.
 message SignInRequest {
