@@ -30,7 +30,8 @@ const (
 type ApiServiceClient interface {
 	Version(ctx context.Context, in *VersionRequest, opts ...grpc.CallOption) (*VersionResponse, error)
 	// WhoAmI answers who the call is for. A call that did not come through the
-	// hop is refused before it reaches this method.
+	// hop is refused before it reaches this method, and the hop lets through
+	// only a caller who holds console.identity read.
 	WhoAmI(ctx context.Context, in *WhoAmIRequest, opts ...grpc.CallOption) (*WhoAmIResponse, error)
 }
 
@@ -68,7 +69,8 @@ func (c *apiServiceClient) WhoAmI(ctx context.Context, in *WhoAmIRequest, opts .
 type ApiServiceServer interface {
 	Version(context.Context, *VersionRequest) (*VersionResponse, error)
 	// WhoAmI answers who the call is for. A call that did not come through the
-	// hop is refused before it reaches this method.
+	// hop is refused before it reaches this method, and the hop lets through
+	// only a caller who holds console.identity read.
 	WhoAmI(context.Context, *WhoAmIRequest) (*WhoAmIResponse, error)
 	mustEmbedUnimplementedApiServiceServer()
 }

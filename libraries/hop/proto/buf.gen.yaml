@@ -1,0 +1,8 @@
+version: v1
+managed:
+  enabled: false
+plugins:
+  - name: go
+    path: protoc-gen-go
+    out: ../go/gen
+    opt: paths=source_relative

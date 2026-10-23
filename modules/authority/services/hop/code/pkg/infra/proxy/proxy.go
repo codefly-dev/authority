@@ -18,8 +18,8 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// Decide is the hop's decision for one call.
-type Decide func(ctx context.Context, md metadata.MD) (hop.Identity, error)
+// Decide is the hop's decision for one call to method.
+type Decide func(ctx context.Context, method string, md metadata.MD) (hop.Identity, error)
 
 // Proxy forwards a decided call to Upstream, the module's own connection.
 type Proxy struct {
@@ -45,7 +45,7 @@ func DialOptions() []grpc.DialOption {
 func (p *Proxy) handle(_ any, in grpc.ServerStream) error {
 	method, _ := grpc.MethodFromServerStream(in)
 	md, _ := metadata.FromIncomingContext(in.Context())
-	id, err := p.Decide(in.Context(), md)
+	id, err := p.Decide(in.Context(), method, md)
 	if err != nil {
 		if p.Refused != nil {
 			p.Refused(method, err)

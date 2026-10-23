@@ -11,6 +11,7 @@ import (
 	sync "sync"
 	unsafe "unsafe"
 
+	_ "github.com/codefly-dev/authority/libraries/hop/go/gen/authority/hop/v1"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -228,7 +229,7 @@ var File_api_proto protoreflect.FileDescriptor
 
 const file_api_proto_rawDesc = "" +
 	"\n" +
-	"\tapi.proto\x12\x03api\x1a\x1cgoogle/api/annotations.proto\"\x10\n" +
+	"\tapi.proto\x12\x03api\x1a\x1dauthority/hop/v1/policy.proto\x1a\x1cgoogle/api/annotations.proto\"\x10\n" +
 	"\x0eVersionRequest\"+\n" +
 	"\x0fVersionResponse\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\"\x0f\n" +
@@ -239,12 +240,14 @@ const file_api_proto_rawDesc = "" +
 	"owner_kind\x18\x02 \x01(\tR\townerKind\x12\x16\n" +
 	"\x06tenant\x18\x03 \x01(\tR\x06tenant\x12\x16\n" +
 	"\x06actors\x18\x04 \x03(\tR\x06actors\x12\x16\n" +
-	"\x06scopes\x18\x05 \x03(\tR\x06scopes2\x98\x01\n" +
+	"\x06scopes\x18\x05 \x03(\tR\x06scopes2\xbc\x01\n" +
 	"\n" +
-	"ApiService\x12F\n" +
-	"\aVersion\x12\x13.api.VersionRequest\x1a\x14.api.VersionResponse\"\x10\x82\xd3\xe4\x93\x02\n" +
-	"\x12\b/version\x12B\n" +
-	"\x06WhoAmI\x12\x12.api.WhoAmIRequest\x1a\x13.api.WhoAmIResponse\"\x0f\x82\xd3\xe4\x93\x02\t\x12\a/whoamiB\x11Z\x0fapi/pkg/gen;genb\x06proto3"
+	"ApiService\x12L\n" +
+	"\aVersion\x12\x13.api.VersionRequest\x1a\x14.api.VersionResponse\"\x16\xe2\xf9\x18\x02\x10\x01\x82\xd3\xe4\x93\x02\n" +
+	"\x12\b/version\x12`\n" +
+	"\x06WhoAmI\x12\x12.api.WhoAmIRequest\x1a\x13.api.WhoAmIResponse\"-\xe2\xf9\x18\x1a\n" +
+	"\x18\n" +
+	"\x10console.identity\x12\x04read\x82\xd3\xe4\x93\x02\t\x12\a/whoamiB\x11Z\x0fapi/pkg/gen;genb\x06proto3"
 
 var (
 	file_api_proto_rawDescOnce sync.Once

@@ -5,10 +5,14 @@ package decide
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"slices"
+	"strings"
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
 	"github.com/codefly-dev/authority/libraries/hop/go"
+	hopv1 "github.com/codefly-dev/authority/libraries/hop/go/gen/authority/hop/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -20,15 +24,26 @@ type Checker interface {
 	Check(ctx context.Context, in *authorityv1.CheckRequest, opts ...grpc.CallOption) (*authorityv1.CheckResponse, error)
 }
 
+// ErrNoMethod is a method the module does not serve.
+var ErrNoMethod = errors.New("the module serves no such method")
+
+// Policies answers what a method of the module declares; nil when it declares
+// nothing, an error when the declarations cannot be read.
+type Policies interface {
+	Policy(ctx context.Context, method string) (*hopv1.Policy, error)
+}
+
 // Decider decides for one module: Audience is the module's principal, the
-// audience a Work Context must be addressed to for the hop to let it through.
+// audience a Work Context must be addressed to for the hop to let it through,
+// and Policies are what each of its methods declares.
 type Decider struct {
 	Authority Checker
 	Audience  string
+	Policies  Policies
 }
 
-// Decide returns who the call is for, or the refusal.
-func (d Decider) Decide(ctx context.Context, md metadata.MD) (hop.Identity, error) {
+// Decide returns who a call to method is for, or the refusal.
+func (d Decider) Decide(ctx context.Context, method string, md metadata.MD) (hop.Identity, error) {
 	tokens := md.Get(hop.WorkContextKey)
 	switch len(tokens) {
 	case 0:
@@ -45,7 +60,57 @@ func (d Decider) Decide(ctx context.Context, md metadata.MD) (hop.Identity, erro
 		}
 		return hop.Identity{}, status.Errorf(refusal.Code(), "the authority refused the call to %s: %s", d.Audience, refusal.Message())
 	}
-	return IdentityOf(checked.GetContext()), nil
+	id := IdentityOf(checked.GetContext())
+	policy, err := d.Policies.Policy(ctx, method)
+	if errors.Is(err, ErrNoMethod) {
+		return hop.Identity{}, status.Errorf(codes.Unimplemented, "%s serves no method %s", d.Audience, method)
+	}
+	if err != nil {
+		return hop.Identity{}, status.Errorf(codes.Unavailable, "the hop cannot read what %s declares for %s: %v", d.Audience, method, err)
+	}
+	if err := Admits(policy, id); err != nil {
+		return hop.Identity{}, status.Errorf(codes.PermissionDenied, "%s refuses %s for %s: %v", d.Audience, method, id.Owner, err)
+	}
+	return id, nil
+}
+
+// Admits applies one method's declaration to who the call is for. A method
+// that declares nothing, or declares both that it requires something and that
+// it requires nothing, is refused: the hop never reads an absent or ambiguous
+// declaration as permission.
+func Admits(policy *hopv1.Policy, id hop.Identity) error {
+	switch {
+	case policy == nil:
+		return errors.New("the method declares no policy")
+	case policy.GetAnyCheckedCaller() && len(policy.GetRequires()) > 0:
+		return errors.New("the method's policy both requires scopes and requires none")
+	case policy.GetAnyCheckedCaller():
+		return nil
+	case len(policy.GetRequires()) == 0:
+		return errors.New("the method's policy requires nothing and does not say so")
+	}
+	var missing []string
+	for _, r := range policy.GetRequires() {
+		if r.GetResourceKind() == "" || len(r.GetActions()) == 0 {
+			return errors.New("the method's policy names a requirement with no kind or no action")
+		}
+		for _, action := range r.GetActions() {
+			if !id.Has(r.GetResourceKind(), action) {
+				missing = append(missing, r.GetResourceKind()+":"+action)
+			}
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("it requires %s, which the call does not hold (it holds %s)", strings.Join(missing, ", "), holds(id.Scopes))
+	}
+	return nil
+}
+
+func holds(scopes []string) string {
+	if len(scopes) == 0 {
+		return "nothing"
+	}
+	return strings.Join(scopes, ", ")
 }
 
 // IdentityOf reads who a checked Work Context is for. Its scopes are the

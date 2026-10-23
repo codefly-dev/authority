@@ -115,8 +115,10 @@ func FromContext(ctx context.Context) (Identity, bool) {
 }
 
 // UnaryServerInterceptor gives each call the identity the hop stamped, and
-// refuses a call that bypassed the hop. Health checks pass: the run probes the
-// module directly.
+// refuses a call that bypassed the hop. Two kinds of call pass unstamped,
+// because they read no data: health checks, which the run makes directly, and
+// reflection, which describes the module's published contract and is how the
+// hop reads what each method declares.
 func UnaryServerInterceptor(proof string) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		ctx, err := admit(ctx, info.FullMethod, proof)
@@ -139,8 +141,10 @@ func StreamServerInterceptor(proof string) grpc.StreamServerInterceptor {
 }
 
 func admit(ctx context.Context, method, proof string) (context.Context, error) {
-	if strings.HasPrefix(method, "/grpc.health.v1.Health/") {
-		return ctx, nil
+	for _, open := range unstamped {
+		if strings.HasPrefix(method, open) {
+			return ctx, nil
+		}
 	}
 	md, _ := metadata.FromIncomingContext(ctx)
 	id, err := Read(md, proof)
@@ -148,6 +152,13 @@ func admit(ctx context.Context, method, proof string) (context.Context, error) {
 		return nil, status.Error(codes.Unauthenticated, err.Error())
 	}
 	return context.WithValue(ctx, identityKey{}, id), nil
+}
+
+// unstamped are the services that pass the interceptor without a stamp.
+var unstamped = []string{
+	"/grpc.health.v1.Health/",
+	"/grpc.reflection.v1.ServerReflection/",
+	"/grpc.reflection.v1alpha.ServerReflection/",
 }
 
 type stamped struct {

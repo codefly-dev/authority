@@ -44,7 +44,8 @@ const (
 type ApiServiceClient interface {
 	Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error)
 	// WhoAmI answers who the call is for. A call that did not come through the
-	// hop is refused before it reaches this method.
+	// hop is refused before it reaches this method, and the hop lets through
+	// only a caller who holds console.identity read.
 	WhoAmI(context.Context, *connect.Request[gen.WhoAmIRequest]) (*connect.Response[gen.WhoAmIResponse], error)
 }
 
@@ -94,7 +95,8 @@ func (c *apiServiceClient) WhoAmI(ctx context.Context, req *connect.Request[gen.
 type ApiServiceHandler interface {
 	Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error)
 	// WhoAmI answers who the call is for. A call that did not come through the
-	// hop is refused before it reaches this method.
+	// hop is refused before it reaches this method, and the hop lets through
+	// only a caller who holds console.identity read.
 	WhoAmI(context.Context, *connect.Request[gen.WhoAmIRequest]) (*connect.Response[gen.WhoAmIResponse], error)
 }
 

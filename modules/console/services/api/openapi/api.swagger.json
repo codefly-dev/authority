@@ -40,7 +40,7 @@
     },
     "/whoami": {
       "get": {
-        "summary": "WhoAmI answers who the call is for. A call that did not come through the\nhop is refused before it reaches this method.",
+        "summary": "WhoAmI answers who the call is for. A call that did not come through the\nhop is refused before it reaches this method, and the hop lets through\nonly a caller who holds console.identity read.",
         "operationId": "ApiService_WhoAmI",
         "responses": {
           "200": {
