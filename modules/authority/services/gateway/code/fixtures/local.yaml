@@ -15,6 +15,8 @@ roles:
       - {kind: console.identity, actions: [read]}
       # Robin: a viewer reads the conversations they own, and runs no turn.
       - {kind: robin.conversations, actions: [read]}
+      # Tracing: a viewer lists the organisation's agent runs, never their text.
+      - {kind: tracing.trace, actions: [list_completed, read]}
       # A viewer reads only some document collections: the directory's, and
       # every shared one. The authority answers this when asked
       # (ListResources); the token carries the kind alone. A collection's id
@@ -41,6 +43,9 @@ roles:
       - {kind: robin.runs, actions: [read, start, cancel]}
       - {kind: robin.conversations, actions: [read, write, share, delete]}
       - {kind: robin.intents, actions: [read, run]}
+      # Tracing: an editor reads their organisation's agent runs, text
+      # included where the composition keeps it.
+      - {kind: tracing.trace, actions: [list_completed, read, read_content]}
   - organization: acme
     name: admin
     scopes:
