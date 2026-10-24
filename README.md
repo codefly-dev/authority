@@ -461,10 +461,15 @@ Not yet:
 
 The edge is the authority module's third service. It is the auth gateway's
 role in a run without saas: the one origin a browser talks to, so a page or a
-playground works the way a frontend does in a cell. A person signs in at
-`/auth/sign-in` with a fixture token (a `?fixture=` redirect or a JSON
-`fixtureToken`). The edge asks the session interface and keeps the bearer in an
-`HttpOnly`, `SameSite=Lax` cookie. The page holds no token.
+playground works the way a frontend does in a cell. A frontend sends a browser
+with no session to `/auth/sign-in?return=<path>`, the host's sign-in page. It
+lists the people the authority's fixture defines (the session interface's
+`ListFixturePeople`; a host with a real identity provider lists none), and the
+chosen one is signed in and returned to the path. The edge keeps the bearer in
+an `HttpOnly`, `SameSite=Lax` cookie, so the page holds no token. Signing in
+and signing out are writes: each must come from this origin, a return to
+another site lands on the root, and a non-browser caller signs in with a JSON
+`fixtureToken`.
 
 Each call is routed by its path: `/v1/<module>/…` to the module's REST face,
 `/<package.Service>/…` to its Connect face, and every other path to the

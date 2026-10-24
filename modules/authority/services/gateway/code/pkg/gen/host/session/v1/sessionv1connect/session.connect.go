@@ -42,6 +42,9 @@ const (
 	SessionServiceSignInProcedure = "/host.session.v1.SessionService/SignIn"
 	// SessionServiceCurrentProcedure is the fully-qualified name of the SessionService's Current RPC.
 	SessionServiceCurrentProcedure = "/host.session.v1.SessionService/Current"
+	// SessionServiceListFixturePeopleProcedure is the fully-qualified name of the SessionService's
+	// ListFixturePeople RPC.
+	SessionServiceListFixturePeopleProcedure = "/host.session.v1.SessionService/ListFixturePeople"
 )
 
 // SessionServiceClient is a client for the host.session.v1.SessionService service.
@@ -53,6 +56,11 @@ type SessionServiceClient interface {
 	// never read from a header the request wrote. The bearer itself is not
 	// handed back. An unknown or ended session is unauthenticated.
 	Current(context.Context, *connect.Request[v1.CurrentRequest]) (*connect.Response[v1.Session], error)
+	// ListFixturePeople answers who this authority signs in by fixture token, for
+	// the browser edge's sign-in page: the people are defined once, in the
+	// authority's fixture. A host that signs real people in through its identity
+	// provider has no fixture people and answers none.
+	ListFixturePeople(context.Context, *connect.Request[v1.ListFixturePeopleRequest]) (*connect.Response[v1.ListFixturePeopleResponse], error)
 }
 
 // NewSessionServiceClient constructs a client for the host.session.v1.SessionService service. By
@@ -78,13 +86,20 @@ func NewSessionServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(sessionServiceMethods.ByName("Current")),
 			connect.WithClientOptions(opts...),
 		),
+		listFixturePeople: connect.NewClient[v1.ListFixturePeopleRequest, v1.ListFixturePeopleResponse](
+			httpClient,
+			baseURL+SessionServiceListFixturePeopleProcedure,
+			connect.WithSchema(sessionServiceMethods.ByName("ListFixturePeople")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // sessionServiceClient implements SessionServiceClient.
 type sessionServiceClient struct {
-	signIn  *connect.Client[v1.SignInRequest, v1.Session]
-	current *connect.Client[v1.CurrentRequest, v1.Session]
+	signIn            *connect.Client[v1.SignInRequest, v1.Session]
+	current           *connect.Client[v1.CurrentRequest, v1.Session]
+	listFixturePeople *connect.Client[v1.ListFixturePeopleRequest, v1.ListFixturePeopleResponse]
 }
 
 // SignIn calls host.session.v1.SessionService.SignIn.
@@ -97,6 +112,11 @@ func (c *sessionServiceClient) Current(ctx context.Context, req *connect.Request
 	return c.current.CallUnary(ctx, req)
 }
 
+// ListFixturePeople calls host.session.v1.SessionService.ListFixturePeople.
+func (c *sessionServiceClient) ListFixturePeople(ctx context.Context, req *connect.Request[v1.ListFixturePeopleRequest]) (*connect.Response[v1.ListFixturePeopleResponse], error) {
+	return c.listFixturePeople.CallUnary(ctx, req)
+}
+
 // SessionServiceHandler is an implementation of the host.session.v1.SessionService service.
 type SessionServiceHandler interface {
 	// SignIn opens a session for a fixture person by their fixture token.
@@ -106,6 +126,11 @@ type SessionServiceHandler interface {
 	// never read from a header the request wrote. The bearer itself is not
 	// handed back. An unknown or ended session is unauthenticated.
 	Current(context.Context, *connect.Request[v1.CurrentRequest]) (*connect.Response[v1.Session], error)
+	// ListFixturePeople answers who this authority signs in by fixture token, for
+	// the browser edge's sign-in page: the people are defined once, in the
+	// authority's fixture. A host that signs real people in through its identity
+	// provider has no fixture people and answers none.
+	ListFixturePeople(context.Context, *connect.Request[v1.ListFixturePeopleRequest]) (*connect.Response[v1.ListFixturePeopleResponse], error)
 }
 
 // NewSessionServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -127,12 +152,20 @@ func NewSessionServiceHandler(svc SessionServiceHandler, opts ...connect.Handler
 		connect.WithSchema(sessionServiceMethods.ByName("Current")),
 		connect.WithHandlerOptions(opts...),
 	)
+	sessionServiceListFixturePeopleHandler := connect.NewUnaryHandler(
+		SessionServiceListFixturePeopleProcedure,
+		svc.ListFixturePeople,
+		connect.WithSchema(sessionServiceMethods.ByName("ListFixturePeople")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/host.session.v1.SessionService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SessionServiceSignInProcedure:
 			sessionServiceSignInHandler.ServeHTTP(w, r)
 		case SessionServiceCurrentProcedure:
 			sessionServiceCurrentHandler.ServeHTTP(w, r)
+		case SessionServiceListFixturePeopleProcedure:
+			sessionServiceListFixturePeopleHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -148,4 +181,8 @@ func (UnimplementedSessionServiceHandler) SignIn(context.Context, *connect.Reque
 
 func (UnimplementedSessionServiceHandler) Current(context.Context, *connect.Request[v1.CurrentRequest]) (*connect.Response[v1.Session], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.session.v1.SessionService.Current is not implemented"))
+}
+
+func (UnimplementedSessionServiceHandler) ListFixturePeople(context.Context, *connect.Request[v1.ListFixturePeopleRequest]) (*connect.Response[v1.ListFixturePeopleResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.session.v1.SessionService.ListFixturePeople is not implemented"))
 }

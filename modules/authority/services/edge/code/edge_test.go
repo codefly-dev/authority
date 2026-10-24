@@ -48,6 +48,10 @@ func (s *standIn) Current(ctx context.Context, _ *sessionv1.CurrentRequest, _ ..
 	return &sessionv1.Session{SessionId: "s1", PersonId: "remi", OrganizationId: "acme"}, nil
 }
 
+func (s *standIn) ListFixturePeople(context.Context, *sessionv1.ListFixturePeopleRequest, ...grpc.CallOption) (*sessionv1.ListFixturePeopleResponse, error) {
+	return &sessionv1.ListFixturePeopleResponse{People: []*sessionv1.FixturePerson{{PersonId: "remi", Email: "remi@acme.test", OrganizationId: "acme", Roles: []string{"editor"}, FixtureToken: "fixture-remi"}}}, nil
+}
+
 func (s *standIn) Issue(ctx context.Context, in *authorityv1.IssueRequest, _ ...grpc.CallOption) (*authorityv1.IssueResponse, error) {
 	if bearerIn(ctx) != "remi-session" || in.GetPerson() == nil {
 		return nil, status.Error(codes.Unauthenticated, "no session")
@@ -117,7 +121,12 @@ func newFixture(t *testing.T) fixture {
 
 func (f fixture) do(t *testing.T, method, path string, header http.Header) (*http.Response, string) {
 	t.Helper()
-	req, err := http.NewRequest(method, f.edge.URL+path, strings.NewReader("{}"))
+	return f.send(t, method, path, header, "{}")
+}
+
+func (f fixture) send(t *testing.T, method, path string, header http.Header, payload string) (*http.Response, string) {
+	t.Helper()
+	req, err := http.NewRequest(method, f.edge.URL+path, strings.NewReader(payload))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,8 +152,8 @@ func (f fixture) do(t *testing.T, method, path string, header http.Header) (*htt
 
 func (f fixture) signIn(t *testing.T) *http.Cookie {
 	t.Helper()
-	res, body := f.do(t, http.MethodGet, "/auth/sign-in?fixture=fixture-remi", nil)
-	if res.StatusCode != http.StatusSeeOther {
+	res, body := f.signInAs(t, "fixture-remi", "/records", f.edge.URL)
+	if res.StatusCode != http.StatusSeeOther || res.Header.Get("Location") != "/records" {
 		t.Fatalf("sign-in answered %d: %s", res.StatusCode, body)
 	}
 	for _, c := range res.Cookies() {
@@ -159,6 +168,13 @@ func (f fixture) signIn(t *testing.T) *http.Cookie {
 	return nil
 }
 
+// signInAs posts the sign-in page's form.
+func (f fixture) signInAs(t *testing.T, token, back, origin string) (*http.Response, string) {
+	t.Helper()
+	form := url.Values{"fixtureToken": {token}, "return": {back}}
+	return f.send(t, http.MethodPost, "/auth/sign-in", http.Header{"Content-Type": {"application/x-www-form-urlencoded"}, "Origin": {origin}}, form.Encode())
+}
+
 // A person signs in at the edge and holds a session cookie the frontend cannot
 // read; the edge answers who is signed in.
 func TestAPersonSignsInAtTheEdge(t *testing.T) {
@@ -170,8 +186,44 @@ func TestAPersonSignsInAtTheEdge(t *testing.T) {
 	if res.StatusCode != http.StatusOK || who["personId"] != "remi" || who["organizationId"] != "acme" {
 		t.Fatalf("session answered %d: %s", res.StatusCode, body)
 	}
-	if res, _ := f.do(t, http.MethodGet, "/auth/sign-in?fixture=nobody", nil); res.StatusCode != http.StatusUnauthorized {
+	if res, _ := f.signInAs(t, "nobody", "/", f.edge.URL); res.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("an unknown fixture signed in: %d", res.StatusCode)
+	}
+}
+
+// The sign-in page lists the authority's fixture people, each signing in and
+// returning where the browser came from; a return to another site lands on
+// this origin's root.
+func TestTheSignInPageListsTheAuthoritysPeople(t *testing.T) {
+	f := newFixture(t)
+	res, body := f.do(t, http.MethodGet, "/auth/sign-in?return=/records%3Ftab%3Dschemas", nil)
+	if res.StatusCode != http.StatusOK || !strings.Contains(body, "remi@acme.test") || !strings.Contains(body, `value="fixture-remi"`) || !strings.Contains(body, `value="/records?tab=schemas"`) {
+		t.Fatalf("the page answered %d: %s", res.StatusCode, body)
+	}
+	for _, elsewhere := range []string{"https://elsewhere.test/", "//elsewhere.test/", "/\\elsewhere.test/", "records"} {
+		if res, _ := f.signInAs(t, "fixture-remi", elsewhere, f.edge.URL); res.Header.Get("Location") != "/" {
+			t.Errorf("a return to %q went to %q", elsewhere, res.Header.Get("Location"))
+		}
+	}
+}
+
+// Signing a browser in or out is a write: another site cannot do either, and
+// a page reads the session only through the edge.
+func TestSignInAndSignOutComeFromThisOrigin(t *testing.T) {
+	f := newFixture(t)
+	if res, body := f.signInAs(t, "fixture-remi", "/", "http://elsewhere.test"); res.StatusCode != http.StatusForbidden || !strings.Contains(body, "this origin") {
+		t.Fatalf("another site signed the browser in: %d %s", res.StatusCode, body)
+	}
+	cookie := f.signIn(t)
+	if res, _ := f.do(t, http.MethodGet, "/auth/sign-out", http.Header{"Cookie": {cookie.String()}}); res.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("a GET signed out: %d", res.StatusCode)
+	}
+	if res, _ := f.do(t, http.MethodPost, "/auth/sign-out", http.Header{"Cookie": {cookie.String()}, "Origin": {"http://elsewhere.test"}}); res.StatusCode != http.StatusForbidden {
+		t.Fatalf("another site signed the browser out: %d", res.StatusCode)
+	}
+	res, _ := f.do(t, http.MethodPost, "/auth/sign-out", http.Header{"Cookie": {cookie.String()}, "Origin": {f.edge.URL}})
+	if res.StatusCode != http.StatusNoContent || len(res.Cookies()) != 1 || res.Cookies()[0].MaxAge >= 0 {
+		t.Fatalf("sign-out answered %d with %v", res.StatusCode, res.Cookies())
 	}
 }
 

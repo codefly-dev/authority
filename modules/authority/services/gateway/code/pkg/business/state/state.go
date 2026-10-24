@@ -293,6 +293,7 @@ type State struct {
 	mu            sync.RWMutex
 	orgs          map[string]string
 	people        map[string]Person
+	order         []string // people's ids, in the fixture's order
 	byToken       map[string]string
 	roles         map[string]Role // org/name
 	modules       map[string]Manifest
@@ -386,6 +387,9 @@ func (s *State) LoadFixture(ctx context.Context, data []byte) error {
 				return fmt.Errorf("fixture: person %q holds unknown role %q", p.ID, role)
 			}
 		}
+		if _, seen := s.people[p.ID]; !seen {
+			s.order = append(s.order, p.ID)
+		}
 		s.people[p.ID] = p
 		s.byToken[p.FixtureToken] = p.ID
 	}
@@ -427,6 +431,17 @@ func (s *State) SignIn(token string) (Session, error) {
 	sess := Session{ID: uuid.NewString(), Person: p.ID, Organization: p.Organization, Roles: append([]string(nil), p.Roles...), Teams: append([]string(nil), p.Teams...)}
 	s.sessions[sess.ID] = sess
 	return sess, nil
+}
+
+// FixturePeople is every fixture person, in the fixture's order.
+func (s *State) FixturePeople() []Person {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]Person, 0, len(s.order))
+	for _, id := range s.order {
+		out = append(out, s.people[id])
+	}
+	return out
 }
 
 // Session resolves an open session.

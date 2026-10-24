@@ -28,6 +28,180 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// ListFixturePeopleRequest asks for every fixture person.
+type ListFixturePeopleRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListFixturePeopleRequest) Reset() {
+	*x = ListFixturePeopleRequest{}
+	mi := &file_host_session_v1_session_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListFixturePeopleRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListFixturePeopleRequest) ProtoMessage() {}
+
+func (x *ListFixturePeopleRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_host_session_v1_session_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListFixturePeopleRequest.ProtoReflect.Descriptor instead.
+func (*ListFixturePeopleRequest) Descriptor() ([]byte, []int) {
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{0}
+}
+
+// ListFixturePeopleResponse is every fixture person, in the fixture's order.
+type ListFixturePeopleResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The people.
+	People        []*FixturePerson `protobuf:"bytes,1,rep,name=people,proto3" json:"people,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListFixturePeopleResponse) Reset() {
+	*x = ListFixturePeopleResponse{}
+	mi := &file_host_session_v1_session_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListFixturePeopleResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListFixturePeopleResponse) ProtoMessage() {}
+
+func (x *ListFixturePeopleResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_host_session_v1_session_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListFixturePeopleResponse.ProtoReflect.Descriptor instead.
+func (*ListFixturePeopleResponse) Descriptor() ([]byte, []int) {
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *ListFixturePeopleResponse) GetPeople() []*FixturePerson {
+	if x != nil {
+		return x.People
+	}
+	return nil
+}
+
+// FixturePerson is one person a fixture run signs in.
+type FixturePerson struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The person.
+	PersonId string `protobuf:"bytes,1,opt,name=person_id,json=personId,proto3" json:"person_id,omitempty"`
+	// Their email.
+	Email string `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
+	// The organisation they sign into.
+	OrganizationId string `protobuf:"bytes,3,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"`
+	// The roles they hold in it.
+	Roles []string `protobuf:"bytes,4,rep,name=roles,proto3" json:"roles,omitempty"`
+	// The teams they belong to.
+	TeamIds []string `protobuf:"bytes,5,rep,name=team_ids,json=teamIds,proto3" json:"team_ids,omitempty"`
+	// The token SignIn takes for them.
+	FixtureToken  string `protobuf:"bytes,6,opt,name=fixture_token,json=fixtureToken,proto3" json:"fixture_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FixturePerson) Reset() {
+	*x = FixturePerson{}
+	mi := &file_host_session_v1_session_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FixturePerson) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FixturePerson) ProtoMessage() {}
+
+func (x *FixturePerson) ProtoReflect() protoreflect.Message {
+	mi := &file_host_session_v1_session_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FixturePerson.ProtoReflect.Descriptor instead.
+func (*FixturePerson) Descriptor() ([]byte, []int) {
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *FixturePerson) GetPersonId() string {
+	if x != nil {
+		return x.PersonId
+	}
+	return ""
+}
+
+func (x *FixturePerson) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *FixturePerson) GetOrganizationId() string {
+	if x != nil {
+		return x.OrganizationId
+	}
+	return ""
+}
+
+func (x *FixturePerson) GetRoles() []string {
+	if x != nil {
+		return x.Roles
+	}
+	return nil
+}
+
+func (x *FixturePerson) GetTeamIds() []string {
+	if x != nil {
+		return x.TeamIds
+	}
+	return nil
+}
+
+func (x *FixturePerson) GetFixtureToken() string {
+	if x != nil {
+		return x.FixtureToken
+	}
+	return ""
+}
+
 // CurrentRequest asks for the caller's own session; the bearer is the call's.
 type CurrentRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -37,7 +211,7 @@ type CurrentRequest struct {
 
 func (x *CurrentRequest) Reset() {
 	*x = CurrentRequest{}
-	mi := &file_host_session_v1_session_proto_msgTypes[0]
+	mi := &file_host_session_v1_session_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -49,7 +223,7 @@ func (x *CurrentRequest) String() string {
 func (*CurrentRequest) ProtoMessage() {}
 
 func (x *CurrentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_host_session_v1_session_proto_msgTypes[0]
+	mi := &file_host_session_v1_session_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62,7 +236,7 @@ func (x *CurrentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CurrentRequest.ProtoReflect.Descriptor instead.
 func (*CurrentRequest) Descriptor() ([]byte, []int) {
-	return file_host_session_v1_session_proto_rawDescGZIP(), []int{0}
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{3}
 }
 
 // SignInRequest presents a fixture token.
@@ -76,7 +250,7 @@ type SignInRequest struct {
 
 func (x *SignInRequest) Reset() {
 	*x = SignInRequest{}
-	mi := &file_host_session_v1_session_proto_msgTypes[1]
+	mi := &file_host_session_v1_session_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -88,7 +262,7 @@ func (x *SignInRequest) String() string {
 func (*SignInRequest) ProtoMessage() {}
 
 func (x *SignInRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_host_session_v1_session_proto_msgTypes[1]
+	mi := &file_host_session_v1_session_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -101,7 +275,7 @@ func (x *SignInRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SignInRequest.ProtoReflect.Descriptor instead.
 func (*SignInRequest) Descriptor() ([]byte, []int) {
-	return file_host_session_v1_session_proto_rawDescGZIP(), []int{1}
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *SignInRequest) GetFixtureToken() string {
@@ -134,7 +308,7 @@ type Session struct {
 
 func (x *Session) Reset() {
 	*x = Session{}
-	mi := &file_host_session_v1_session_proto_msgTypes[2]
+	mi := &file_host_session_v1_session_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -146,7 +320,7 @@ func (x *Session) String() string {
 func (*Session) ProtoMessage() {}
 
 func (x *Session) ProtoReflect() protoreflect.Message {
-	mi := &file_host_session_v1_session_proto_msgTypes[2]
+	mi := &file_host_session_v1_session_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -159,7 +333,7 @@ func (x *Session) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Session.ProtoReflect.Descriptor instead.
 func (*Session) Descriptor() ([]byte, []int) {
-	return file_host_session_v1_session_proto_rawDescGZIP(), []int{2}
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *Session) GetSessionId() string {
@@ -208,7 +382,17 @@ var File_host_session_v1_session_proto protoreflect.FileDescriptor
 
 const file_host_session_v1_session_proto_rawDesc = "" +
 	"\n" +
-	"\x1dhost/session/v1/session.proto\x12\x0fhost.session.v1\x1a\x1cgoogle/api/annotations.proto\"\x10\n" +
+	"\x1dhost/session/v1/session.proto\x12\x0fhost.session.v1\x1a\x1cgoogle/api/annotations.proto\"\x1a\n" +
+	"\x18ListFixturePeopleRequest\"S\n" +
+	"\x19ListFixturePeopleResponse\x126\n" +
+	"\x06people\x18\x01 \x03(\v2\x1e.host.session.v1.FixturePersonR\x06people\"\xc1\x01\n" +
+	"\rFixturePerson\x12\x1b\n" +
+	"\tperson_id\x18\x01 \x01(\tR\bpersonId\x12\x14\n" +
+	"\x05email\x18\x02 \x01(\tR\x05email\x12'\n" +
+	"\x0forganization_id\x18\x03 \x01(\tR\x0eorganizationId\x12\x14\n" +
+	"\x05roles\x18\x04 \x03(\tR\x05roles\x12\x19\n" +
+	"\bteam_ids\x18\x05 \x03(\tR\ateamIds\x12#\n" +
+	"\rfixture_token\x18\x06 \x01(\tR\ffixtureToken\"\x10\n" +
 	"\x0eCurrentRequest\"4\n" +
 	"\rSignInRequest\x12#\n" +
 	"\rfixture_token\x18\x01 \x01(\tR\ffixtureToken\"\xb7\x01\n" +
@@ -219,10 +403,11 @@ const file_host_session_v1_session_proto_rawDesc = "" +
 	"\x0forganization_id\x18\x03 \x01(\tR\x0eorganizationId\x12\x14\n" +
 	"\x05roles\x18\x04 \x03(\tR\x05roles\x12\x19\n" +
 	"\bteam_ids\x18\x05 \x03(\tR\ateamIds\x12\x16\n" +
-	"\x06bearer\x18\x06 \x01(\tR\x06bearer2\xcf\x01\n" +
+	"\x06bearer\x18\x06 \x01(\tR\x06bearer2\xe0\x02\n" +
 	"\x0eSessionService\x12b\n" +
 	"\x06SignIn\x12\x1e.host.session.v1.SignInRequest\x1a\x18.host.session.v1.Session\"\x1e\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/v1/session:sign-in\x12Y\n" +
-	"\aCurrent\x12\x1f.host.session.v1.CurrentRequest\x1a\x18.host.session.v1.Session\"\x13\x82\xd3\xe4\x93\x02\r\x12\v/v1/sessionB\xcf\x01\n" +
+	"\aCurrent\x12\x1f.host.session.v1.CurrentRequest\x1a\x18.host.session.v1.Session\"\x13\x82\xd3\xe4\x93\x02\r\x12\v/v1/session\x12\x8e\x01\n" +
+	"\x11ListFixturePeople\x12).host.session.v1.ListFixturePeopleRequest\x1a*.host.session.v1.ListFixturePeopleResponse\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/v1/session/fixture-peopleB\xcf\x01\n" +
 	"\x13com.host.session.v1B\fSessionProtoP\x01ZLgithub.com/codefly-dev/cli/pkg/builder/clients/api/host/session/v1;sessionv1\xa2\x02\x03HSX\xaa\x02\x0fHost.Session.V1\xca\x02\x0fHost\\Session\\V1\xe2\x02\x1bHost\\Session\\V1\\GPBMetadata\xea\x02\x11Host::Session::V1b\x06proto3"
 
 var (
@@ -237,22 +422,28 @@ func file_host_session_v1_session_proto_rawDescGZIP() []byte {
 	return file_host_session_v1_session_proto_rawDescData
 }
 
-var file_host_session_v1_session_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_host_session_v1_session_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_host_session_v1_session_proto_goTypes = []any{
-	(*CurrentRequest)(nil), // 0: host.session.v1.CurrentRequest
-	(*SignInRequest)(nil),  // 1: host.session.v1.SignInRequest
-	(*Session)(nil),        // 2: host.session.v1.Session
+	(*ListFixturePeopleRequest)(nil),  // 0: host.session.v1.ListFixturePeopleRequest
+	(*ListFixturePeopleResponse)(nil), // 1: host.session.v1.ListFixturePeopleResponse
+	(*FixturePerson)(nil),             // 2: host.session.v1.FixturePerson
+	(*CurrentRequest)(nil),            // 3: host.session.v1.CurrentRequest
+	(*SignInRequest)(nil),             // 4: host.session.v1.SignInRequest
+	(*Session)(nil),                   // 5: host.session.v1.Session
 }
 var file_host_session_v1_session_proto_depIdxs = []int32{
-	1, // 0: host.session.v1.SessionService.SignIn:input_type -> host.session.v1.SignInRequest
-	0, // 1: host.session.v1.SessionService.Current:input_type -> host.session.v1.CurrentRequest
-	2, // 2: host.session.v1.SessionService.SignIn:output_type -> host.session.v1.Session
-	2, // 3: host.session.v1.SessionService.Current:output_type -> host.session.v1.Session
-	2, // [2:4] is the sub-list for method output_type
-	0, // [0:2] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	2, // 0: host.session.v1.ListFixturePeopleResponse.people:type_name -> host.session.v1.FixturePerson
+	4, // 1: host.session.v1.SessionService.SignIn:input_type -> host.session.v1.SignInRequest
+	3, // 2: host.session.v1.SessionService.Current:input_type -> host.session.v1.CurrentRequest
+	0, // 3: host.session.v1.SessionService.ListFixturePeople:input_type -> host.session.v1.ListFixturePeopleRequest
+	5, // 4: host.session.v1.SessionService.SignIn:output_type -> host.session.v1.Session
+	5, // 5: host.session.v1.SessionService.Current:output_type -> host.session.v1.Session
+	1, // 6: host.session.v1.SessionService.ListFixturePeople:output_type -> host.session.v1.ListFixturePeopleResponse
+	4, // [4:7] is the sub-list for method output_type
+	1, // [1:4] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_host_session_v1_session_proto_init() }
@@ -266,7 +457,7 @@ func file_host_session_v1_session_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_host_session_v1_session_proto_rawDesc), len(file_host_session_v1_session_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -22,6 +22,38 @@ service SessionService {
   rpc Current(CurrentRequest) returns (Session) {
     option (google.api.http) = {get: "/v1/session"};
   }
+  // ListFixturePeople answers who this authority signs in by fixture token, for
+  // the browser edge's sign-in page: the people are defined once, in the
+  // authority's fixture. A host that signs real people in through its identity
+  // provider has no fixture people and answers none.
+  rpc ListFixturePeople(ListFixturePeopleRequest) returns (ListFixturePeopleResponse) {
+    option (google.api.http) = {get: "/v1/session/fixture-people"};
+  }
+}
+
+// ListFixturePeopleRequest asks for every fixture person.
+message ListFixturePeopleRequest {}
+
+// ListFixturePeopleResponse is every fixture person, in the fixture's order.
+message ListFixturePeopleResponse {
+  // The people.
+  repeated FixturePerson people = 1;
+}
+
+// FixturePerson is one person a fixture run signs in.
+message FixturePerson {
+  // The person.
+  string person_id = 1;
+  // Their email.
+  string email = 2;
+  // The organisation they sign into.
+  string organization_id = 3;
+  // The roles they hold in it.
+  repeated string roles = 4;
+  // The teams they belong to.
+  repeated string team_ids = 5;
+  // The token SignIn takes for them.
+  string fixture_token = 6;
 }
 
 // CurrentRequest asks for the caller's own session; the bearer is the call's.

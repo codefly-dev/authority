@@ -244,6 +244,16 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			t.Fatalf("unknown token: %v", err)
 		}
 	})
+	t.Run("every fixture person listed signs in as that person", func(t *testing.T) {
+		// A host that signs real people in lists none, and the line holds.
+		listed := c.must(t, ctx, "host.session.v1.SessionService", "ListFixturePeople", map[string]any{})
+		for _, person := range listMsgs(listed, "people") {
+			sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": str(person, "fixture_token")})
+			if str(sess, "person_id") != str(person, "person_id") || str(sess, "organization_id") != str(person, "organization_id") {
+				t.Fatalf("listed %v signed in as %v", person, sess)
+			}
+		}
+	})
 	t.Run("a page asks who its bearer is, and a bearer naming no session is refused", func(t *testing.T) {
 		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
 		current := c.must(t, as(ctx, sess), "host.session.v1.SessionService", "Current", map[string]any{})

@@ -40,6 +40,29 @@
         ]
       }
     },
+    "/v1/session/fixture-people": {
+      "get": {
+        "summary": "ListFixturePeople answers who this authority signs in by fixture token, for\nthe browser edge's sign-in page: the people are defined once, in the\nauthority's fixture. A host that signs real people in through its identity\nprovider has no fixture people and answers none.",
+        "operationId": "SessionService_ListFixturePeople",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListFixturePeopleResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "SessionService"
+        ]
+      }
+    },
     "/v1/session:sign-in": {
       "post": {
         "summary": "SignIn opens a session for a fixture person by their fixture token.",
@@ -103,6 +126,56 @@
           }
         }
       }
+    },
+    "v1FixturePerson": {
+      "type": "object",
+      "properties": {
+        "personId": {
+          "type": "string",
+          "description": "The person."
+        },
+        "email": {
+          "type": "string",
+          "description": "Their email."
+        },
+        "organizationId": {
+          "type": "string",
+          "description": "The organisation they sign into."
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The roles they hold in it."
+        },
+        "teamIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The teams they belong to."
+        },
+        "fixtureToken": {
+          "type": "string",
+          "description": "The token SignIn takes for them."
+        }
+      },
+      "description": "FixturePerson is one person a fixture run signs in."
+    },
+    "v1ListFixturePeopleResponse": {
+      "type": "object",
+      "properties": {
+        "people": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1FixturePerson"
+          },
+          "description": "The people."
+        }
+      },
+      "description": "ListFixturePeopleResponse is every fixture person, in the fixture's order."
     },
     "v1Session": {
       "type": "object",

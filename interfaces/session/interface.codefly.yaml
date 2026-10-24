@@ -8,4 +8,4 @@ protobuf:
     package: host.session.v1
     services:
         - name: SessionService
-          methods: [SignIn, Current]
+          methods: [SignIn, Current, ListFixturePeople]

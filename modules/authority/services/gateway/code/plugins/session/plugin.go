@@ -1,4 +1,5 @@
-// Package session serves codefly.dev/session: SignIn, for fixture people.
+// Package session serves codefly.dev/session for fixture people: who they are,
+// SignIn, and Current.
 package session
 
 import (
@@ -65,6 +66,15 @@ func (p *Plugin) Current(ctx context.Context, _ *sessionv1.CurrentRequest) (*ses
 		return nil, status.Error(codes.Unauthenticated, "the bearer names no open session")
 	}
 	return &sessionv1.Session{SessionId: sess.ID, PersonId: sess.Person, OrganizationId: sess.Organization, Roles: sess.Roles, TeamIds: sess.Teams}, nil
+}
+
+// ListFixturePeople answers every fixture person, for the edge's sign-in page.
+func (p *Plugin) ListFixturePeople(context.Context, *sessionv1.ListFixturePeopleRequest) (*sessionv1.ListFixturePeopleResponse, error) {
+	out := &sessionv1.ListFixturePeopleResponse{}
+	for _, person := range p.State.FixturePeople() {
+		out.People = append(out.People, &sessionv1.FixturePerson{PersonId: person.ID, Email: person.Email, OrganizationId: person.Organization, Roles: person.Roles, TeamIds: person.Teams, FixtureToken: person.FixtureToken})
+	}
+	return out, nil
 }
 
 // bearerOf is the call's `authorization: Bearer <bearer>`, or "".

@@ -25,8 +25,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	SessionService_SignIn_FullMethodName  = "/host.session.v1.SessionService/SignIn"
-	SessionService_Current_FullMethodName = "/host.session.v1.SessionService/Current"
+	SessionService_SignIn_FullMethodName            = "/host.session.v1.SessionService/SignIn"
+	SessionService_Current_FullMethodName           = "/host.session.v1.SessionService/Current"
+	SessionService_ListFixturePeople_FullMethodName = "/host.session.v1.SessionService/ListFixturePeople"
 )
 
 // SessionServiceClient is the client API for SessionService service.
@@ -42,6 +43,11 @@ type SessionServiceClient interface {
 	// never read from a header the request wrote. The bearer itself is not
 	// handed back. An unknown or ended session is unauthenticated.
 	Current(ctx context.Context, in *CurrentRequest, opts ...grpc.CallOption) (*Session, error)
+	// ListFixturePeople answers who this authority signs in by fixture token, for
+	// the browser edge's sign-in page: the people are defined once, in the
+	// authority's fixture. A host that signs real people in through its identity
+	// provider has no fixture people and answers none.
+	ListFixturePeople(ctx context.Context, in *ListFixturePeopleRequest, opts ...grpc.CallOption) (*ListFixturePeopleResponse, error)
 }
 
 type sessionServiceClient struct {
@@ -72,6 +78,16 @@ func (c *sessionServiceClient) Current(ctx context.Context, in *CurrentRequest, 
 	return out, nil
 }
 
+func (c *sessionServiceClient) ListFixturePeople(ctx context.Context, in *ListFixturePeopleRequest, opts ...grpc.CallOption) (*ListFixturePeopleResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListFixturePeopleResponse)
+	err := c.cc.Invoke(ctx, SessionService_ListFixturePeople_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SessionServiceServer is the server API for SessionService service.
 // All implementations must embed UnimplementedSessionServiceServer
 // for forward compatibility.
@@ -85,6 +101,11 @@ type SessionServiceServer interface {
 	// never read from a header the request wrote. The bearer itself is not
 	// handed back. An unknown or ended session is unauthenticated.
 	Current(context.Context, *CurrentRequest) (*Session, error)
+	// ListFixturePeople answers who this authority signs in by fixture token, for
+	// the browser edge's sign-in page: the people are defined once, in the
+	// authority's fixture. A host that signs real people in through its identity
+	// provider has no fixture people and answers none.
+	ListFixturePeople(context.Context, *ListFixturePeopleRequest) (*ListFixturePeopleResponse, error)
 	mustEmbedUnimplementedSessionServiceServer()
 }
 
@@ -100,6 +121,9 @@ func (UnimplementedSessionServiceServer) SignIn(context.Context, *SignInRequest)
 }
 func (UnimplementedSessionServiceServer) Current(context.Context, *CurrentRequest) (*Session, error) {
 	return nil, status.Error(codes.Unimplemented, "method Current not implemented")
+}
+func (UnimplementedSessionServiceServer) ListFixturePeople(context.Context, *ListFixturePeopleRequest) (*ListFixturePeopleResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListFixturePeople not implemented")
 }
 func (UnimplementedSessionServiceServer) mustEmbedUnimplementedSessionServiceServer() {}
 func (UnimplementedSessionServiceServer) testEmbeddedByValue()                        {}
@@ -158,6 +182,24 @@ func _SessionService_Current_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SessionService_ListFixturePeople_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListFixturePeopleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).ListFixturePeople(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_ListFixturePeople_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).ListFixturePeople(ctx, req.(*ListFixturePeopleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SessionService_ServiceDesc is the grpc.ServiceDesc for SessionService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -172,6 +214,10 @@ var SessionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Current",
 			Handler:    _SessionService_Current_Handler,
+		},
+		{
+			MethodName: "ListFixturePeople",
+			Handler:    _SessionService_ListFixturePeople_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

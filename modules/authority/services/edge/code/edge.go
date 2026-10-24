@@ -37,6 +37,7 @@ const WorkContextKey = "x-codefly-work-context"
 type Sessions interface {
 	SignIn(ctx context.Context, in *sessionv1.SignInRequest, opts ...grpc.CallOption) (*sessionv1.Session, error)
 	Current(ctx context.Context, in *sessionv1.CurrentRequest, opts ...grpc.CallOption) (*sessionv1.Session, error)
+	ListFixturePeople(ctx context.Context, in *sessionv1.ListFixturePeopleRequest, opts ...grpc.CallOption) (*sessionv1.ListFixturePeopleResponse, error)
 }
 
 // Issuer is the authority interface's Issue.
@@ -87,8 +88,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		e.session(w, r)
 		return
 	case "/auth/sign-out":
-		http.SetCookie(w, &http.Cookie{Name: SessionKey, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode})
-		w.WriteHeader(http.StatusNoContent)
+		e.signOut(w, r)
 		return
 	}
 	if module, target, ok := e.route(r.URL.Path); ok {
@@ -186,8 +186,30 @@ func (e *Edge) workContext(ctx context.Context, bearer, module string) (string, 
 }
 
 func (e *Edge) signIn(w http.ResponseWriter, r *http.Request) {
-	fixture := r.URL.Query().Get("fixture")
-	if r.Method == http.MethodPost {
+	if r.Method == http.MethodGet {
+		e.signInPage(w, r)
+		return
+	}
+	if r.Method != http.MethodPost {
+		refuse(w, http.StatusMethodNotAllowed, "sign in with GET for the page or POST for a session")
+		return
+	}
+	// Signing a browser in is a write: another site must not sign it in as
+	// someone else.
+	if !sameOrigin(r) {
+		refuse(w, http.StatusForbidden, "a sign-in must come from this origin")
+		return
+	}
+	form := !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json")
+	var fixture, back string
+	if form {
+		r.Body = http.MaxBytesReader(w, r.Body, 4096)
+		if err := r.ParseForm(); err != nil {
+			refuse(w, http.StatusBadRequest, "a sign-in names a fixture token")
+			return
+		}
+		fixture, back = r.PostForm.Get("fixtureToken"), r.PostForm.Get("return")
+	} else {
 		var in struct {
 			FixtureToken string `json:"fixtureToken"`
 		}
@@ -207,11 +229,35 @@ func (e *Edge) signIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.SetCookie(w, &http.Cookie{Name: SessionKey, Value: sess.GetBearer(), Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode})
-	if r.Method != http.MethodPost {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+	if form {
+		http.Redirect(w, r, localPath(back), http.StatusSeeOther)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"personId": sess.GetPersonId(), "organizationId": sess.GetOrganizationId()})
+}
+
+// signOut ends the browser's session here; it is a write, so it must come
+// from this origin.
+func (e *Edge) signOut(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		refuse(w, http.StatusMethodNotAllowed, "sign out with POST")
+		return
+	}
+	if !sameOrigin(r) {
+		refuse(w, http.StatusForbidden, "a sign-out must come from this origin")
+		return
+	}
+	http.SetCookie(w, &http.Cookie{Name: SessionKey, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode})
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// localPath is where a sign-in returns the browser: a path on this origin,
+// never another site; anything else returns to the root.
+func localPath(back string) string {
+	if !strings.HasPrefix(back, "/") || strings.HasPrefix(back, "//") || strings.HasPrefix(back, "/\\") {
+		return "/"
+	}
+	return back
 }
 
 func (e *Edge) session(w http.ResponseWriter, r *http.Request) {
