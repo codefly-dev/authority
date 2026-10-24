@@ -6,6 +6,10 @@ languages:
       path: go/
       exports:
         - github.com/codefly-dev/authority/libraries/authority-client/go
+    - name: python
+      path: python/
+      exports:
+        - authority_client
 sources:
     - package: local
       version: 0.0.0
@@ -17,5 +21,5 @@ sources:
         - GatewayService
 generated-by:
     codefly: development
-    companion: ghcr.io/codefly-dev/proto:0.0.16
+    companion: ghcr.io/codefly-dev/proto:0.0.17
     facade: false
