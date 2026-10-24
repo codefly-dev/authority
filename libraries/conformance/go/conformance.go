@@ -447,6 +447,11 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		if want := f.Organization + "/" + f.WorkloadModule + "/" + f.Binding; str(msg(wc, "operation_binding"), "binding_id") != want {
 			t.Fatalf("the child exercises %q, want %q", str(msg(wc, "operation_binding"), "binding_id"), want)
 		}
+		// And it descends from the context it was asked from: its parent session
+		// is that context's own, which a caller holding the parent checks.
+		if got, want := str(wc, "parent_session_id"), str(msg(parent, "context"), "session_id"); got == "" || got != want {
+			t.Fatalf("the child descends from session %q, want the parent's %q", got, want)
+		}
 		c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(child, "token"), "audience": f.BindingAudience})
 		req = clone(hop)
 		req["scopes"] = []any{map[string]any{"resource_kind": f.ReadKind, "actions": []any{"admin"}}}

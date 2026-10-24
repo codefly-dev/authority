@@ -384,16 +384,25 @@ func (i *Issuer) child(ctx context.Context, parent, actorCredential, bindingID, 
 		return "", nil, fmt.Errorf("%w: the parent has expired", ErrRefused)
 	}
 	tenant := claims.GetTenantId()
+	hops := append([]*basev0.WorkActorV1(nil), claims.GetActorChain()...)
+	// The chain is rebuilt for the new audience, and the token the final hop is
+	// derived from carries the parent's own session, so the child descends from
+	// the context it was asked from (its parent_session_id is that session), as
+	// a caller holding the parent checks.
+	parentSession := claims.GetSessionId()
+	rootSession := ""
+	if len(hops) == 0 {
+		rootSession = parentSession
+	}
 	token, _, err := i.authority.Start(ctx, workcontext.StartInput{
 		TenantID: tenant, OrganizationID: claims.GetOrganizationId(),
 		OwnerPrincipalID: claims.GetOwnerPrincipalId(), OwnerPrincipalKind: claims.GetOwnerPrincipalKind(), OwnerAgentID: claims.GetOwnerAgentId(),
 		TaskID: claims.GetTaskId(), Audience: audience.Principal, AuthorityScopes: scopes, AttributionTeamIDs: claims.GetAttributionTeamIds(),
-		InstallationID: tenant + "/" + actor.Module, TTL: ttl, ReplayPolicy: workcontext.ReplayIdempotent,
+		InstallationID: tenant + "/" + actor.Module, SessionID: rootSession, TTL: ttl, ReplayPolicy: workcontext.ReplayIdempotent,
 	})
 	if err != nil {
 		return "", nil, err
 	}
-	hops := append([]*basev0.WorkActorV1(nil), claims.GetActorChain()...)
 	for n := 0; n <= len(hops); n++ {
 		current, err := i.verifier(audience.Principal).Verify(ctx, token)
 		if err != nil {
@@ -402,6 +411,9 @@ func (i *Issuer) child(ctx context.Context, parent, actorCredential, bindingID, 
 		in := workcontext.ChildInput{GrantedScopes: scopes, Audience: audience.Principal, TTL: ttl, ReplayPolicy: workcontext.ReplayIdempotent}
 		if n < len(hops) {
 			in.PrincipalID, in.PrincipalKind, in.DelegationID = hops[n].GetPrincipalId(), hops[n].GetPrincipalKind(), hops[n].GetDelegationId()
+			if n == len(hops)-1 {
+				in.SessionID = parentSession
+			}
 		} else {
 			in.PrincipalID, in.PrincipalKind, in.DelegationID = actor.Principal, "service", claims.GetSessionId()
 			in.OperationBindingID = tenant + "/" + actor.Module + "/" + bindingID
