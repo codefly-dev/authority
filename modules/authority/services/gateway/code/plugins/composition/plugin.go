@@ -61,7 +61,14 @@ func (p *Plugin) ApplyManifest(ctx context.Context, req *compositionv1.ApplyMani
 		}
 		m = FromCore(delivered)
 		if req.GetAuthority() != nil {
-			if m.Methods, err = p.methods(req.GetAuthority(), req.GetCarrier(), delivered, signer); err != nil {
+			doc, err := p.document(req.GetAuthority(), req.GetCarrier(), delivered, signer)
+			if err != nil {
+				return nil, err
+			}
+			if m.Methods, err = methodsOf(doc); err != nil {
+				return nil, err
+			}
+			if m, err = ceiled(m, issuer.FromWire(doc.GetScopeCeilings())); err != nil {
 				return nil, err
 			}
 		}
@@ -117,11 +124,11 @@ func (p *Plugin) verified(ctx context.Context, carrier *compositionv1.SignedMani
 	return manifest, delivered.Signer().KeyID, nil
 }
 
-// methods reads the authority's document delivered with a verified carrier:
+// document reads the authority's document delivered with a verified carrier:
 // signed by the key that signed the carrier, for the same module and
 // generation, naming the carrier's digest. Anything else is refused, so a
 // delivery cannot pair one release's manifest with another's method policy.
-func (p *Plugin) methods(signed, carrier *compositionv1.SignedManifestV1, core *solutionhost.ModuleManifest, signer string) (map[string]state.MethodPolicy, error) {
+func (p *Plugin) document(signed, carrier *compositionv1.SignedManifestV1, core *solutionhost.ModuleManifest, signer string) (*compositionv1.AuthorityManifestV1, error) {
 	keyID, err := delivery.Verify(signed.GetDocument(), signed.GetEnvelope(), p.Keys)
 	if err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "the authority's document does not verify: %v", err)
@@ -141,6 +148,11 @@ func (p *Plugin) methods(signed, carrier *compositionv1.SignedManifestV1, core *
 	case doc.GetCoreManifestDigest() != delivery.Digest(carrier.GetDocument()):
 		return nil, status.Errorf(codes.PermissionDenied, "the authority's document names another manifest than the one delivered with it")
 	}
+	return &doc, nil
+}
+
+// methodsOf reads what each method declares.
+func methodsOf(doc *compositionv1.AuthorityManifestV1) (map[string]state.MethodPolicy, error) {
 	methods := make(map[string]state.MethodPolicy, len(doc.GetMethods()))
 	for _, method := range doc.GetMethods() {
 		if _, twice := methods[method.GetMethod()]; twice || method.GetMethod() == "" {
@@ -149,6 +161,38 @@ func (p *Plugin) methods(signed, carrier *compositionv1.SignedManifestV1, core *
 		methods[method.GetMethod()] = state.MethodPolicy{Requires: issuer.FromWire(method.GetRequires()), AnyCheckedCaller: method.GetAnyCheckedCaller()}
 	}
 	return methods, nil
+}
+
+// ceiled gives each of the module's own kinds the actions its contract declares
+// on it, in place of the any-action kind core's manifest leaves it with. A
+// ceiling naming a kind core's manifest does not declare is refused: the
+// authority's document narrows what core's manifest composes, never adds to it.
+func ceiled(m state.Manifest, ceilings []*basev0.WorkScopeV1) (state.Manifest, error) {
+	if len(ceilings) == 0 {
+		return m, nil
+	}
+	declared := map[string]bool{}
+	for _, kind := range m.ResourceKinds {
+		declared[kind.GetResourceKind()] = true
+	}
+	ceiled := map[string]bool{}
+	for _, ceiling := range ceilings {
+		if !declared[ceiling.GetResourceKind()] {
+			return m, status.Errorf(codes.InvalidArgument, "the authority's document ceils %s, which %s's manifest does not declare", ceiling.GetResourceKind(), m.Module)
+		}
+		if len(ceiling.GetActions()) == 0 {
+			return m, status.Errorf(codes.InvalidArgument, "the authority's document ceils %s with no action", ceiling.GetResourceKind())
+		}
+		ceiled[ceiling.GetResourceKind()] = true
+	}
+	kinds := append([]*basev0.WorkScopeV1(nil), ceilings...)
+	for _, kind := range m.ResourceKinds {
+		if !ceiled[kind.GetResourceKind()] {
+			kinds = append(kinds, kind)
+		}
+	}
+	m.ResourceKinds = state.Normalize(kinds)
+	return m, nil
 }
 
 // FromCore reads core's module manifest as the state's. Core's manifest carries
