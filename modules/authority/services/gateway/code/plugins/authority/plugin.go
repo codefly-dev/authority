@@ -36,7 +36,12 @@ func (p *Plugin) Name() string { return "authority" }
 func (p *Plugin) RegisterGRPC(s *grpc.Server) { authorityv1.RegisterAuthorityServiceServer(s, p) }
 
 // RegisterREST registers nothing; the interface is Connect/gRPC.
-func (p *Plugin) RegisterREST(_ context.Context, mux *runtime.ServeMux, _ string, _ []grpc.DialOption) error {
+func (p *Plugin) RegisterREST(ctx context.Context, mux *runtime.ServeMux, endpoint string, opts []grpc.DialOption) error {
+	// Issue over HTTP, transcoded to the gRPC service, for a server tier that
+	// is not Go; the bearer travels in Authorization as on gRPC.
+	if err := authorityv1.RegisterAuthorityServiceHandlerFromEndpoint(ctx, mux, endpoint, opts); err != nil {
+		return err
+	}
 	return mux.HandlePath(http.MethodGet, KeySetPath, func(w http.ResponseWriter, _ *http.Request, _ map[string]string) {
 		body, err := KeySet(p.Issuer.Keys())
 		if err != nil {

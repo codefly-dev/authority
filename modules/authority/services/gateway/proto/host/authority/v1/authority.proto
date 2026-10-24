@@ -8,13 +8,18 @@ package host.authority.v1;
 
 option go_package = "gateway/pkg/gen/host/authority/v1;authorityv1";
 
+import "google/api/annotations.proto";
 import "host/authority/v1/work_context.proto";
 
 // AuthorityService is implemented by the host (accounts) and by the authority gateway.
 service AuthorityService {
   // Issue signs a Work Context for one owner shape, one audience and the scopes
   // asked for, bounded by what the owner holds and what the audience declared.
-  rpc Issue(IssueRequest) returns (IssueResponse);
+  // Over HTTP too (POST /v1/issue), for a server tier that is not Go — a
+  // playground's — with the person's bearer in Authorization.
+  rpc Issue(IssueRequest) returns (IssueResponse) {
+    option (google.api.http) = {post: "/v1/issue" body: "*"};
+  }
   // Check verifies a presented Work Context for the audience the caller is,
   // re-checking the authorization revision and the seal live.
   rpc Check(CheckRequest) returns (CheckResponse);
