@@ -36,7 +36,14 @@ func (p *Plugin) Name() string { return "authority" }
 func (p *Plugin) RegisterGRPC(s *grpc.Server) { authorityv1.RegisterAuthorityServiceServer(s, p) }
 
 // RegisterREST registers nothing; the interface is Connect/gRPC.
-func (p *Plugin) RegisterREST(_ context.Context, mux *runtime.ServeMux, _ string, _ []grpc.DialOption) error {
+// RegisterREST serves the key set, and Issue and Check over HTTP for a module
+// with no generated client of its own (a Python service): the same methods,
+// transcoded to the gRPC service, the caller's Authorization header carried as
+// the bearer.
+func (p *Plugin) RegisterREST(ctx context.Context, mux *runtime.ServeMux, endpoint string, opts []grpc.DialOption) error {
+	if err := authorityv1.RegisterAuthorityServiceHandlerFromEndpoint(ctx, mux, endpoint, opts); err != nil {
+		return err
+	}
 	return mux.HandlePath(http.MethodGet, KeySetPath, func(w http.ResponseWriter, _ *http.Request, _ map[string]string) {
 		body, err := KeySet(p.Issuer.Keys())
 		if err != nil {
