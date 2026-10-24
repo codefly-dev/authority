@@ -61,6 +61,13 @@ func Scope(kind string, actions ...string) *basev0.WorkScopeV1 {
 	return &basev0.WorkScopeV1{ResourceKind: kind, Actions: actions}
 }
 
+// Evaluation is the module whose kinds the fixture's evaluation grants name.
+func Evaluation(generation uint64) state.Manifest {
+	return state.Manifest{Module: "evaluation", Principal: "evaluation", Kind: "module", Generation: generation,
+		ResourceKinds: []*basev0.WorkScopeV1{Scope("evaluation.runs", "read", "write"), Scope("evaluation.online", "read"), Scope("evaluation.definitions", "publish"),
+			Scope("evaluation.datasets", "write"), Scope("evaluation.labels", "write", "approve", "admin")}}
+}
+
 // Documents is a module with one binding towards model.
 func Documents(generation uint64) state.Manifest {
 	return state.Manifest{Module: "documents", Principal: "documents", Kind: "module", Generation: generation,
@@ -215,6 +222,15 @@ func Matrix() []conformance.Expectation {
 		deny("fixture-alex", "documents", "documents.collection", "share"),
 		allow("fixture-maya", "records", "records.records", "read"), deny("fixture-maya", "records", "records.records", "write"),
 		allow("fixture-remi", "records", "records.records", "write"), deny("fixture-remi", "records", "records.types", "write"),
+		// Evaluation (a module the kit composes for this matrix): a viewer reads
+		// runs and scores, an editor runs an evaluation, an admin publishes and
+		// approves, and nobody but the developer approves what they wrote and
+		// runs it too.
+		allow("fixture-maya", "evaluation", "evaluation.runs", "read"), deny("fixture-maya", "evaluation", "evaluation.runs", "write"),
+		allow("fixture-remi", "evaluation", "evaluation.runs", "write"), allow("fixture-remi", "evaluation", "evaluation.online", "read"),
+		deny("fixture-remi", "evaluation", "evaluation.labels", "approve"), allow("fixture-alex", "evaluation", "evaluation.labels", "approve"),
+		allow("fixture-alex", "evaluation", "evaluation.definitions", "publish"), deny("fixture-alex", "evaluation", "evaluation.runs", "write"),
+		allow("fixture-dev", "evaluation", "evaluation.labels", "approve"), allow("fixture-dev", "evaluation", "evaluation.runs", "write"),
 		// A module no role names: nothing.
 		deny("fixture-maya", "model", "modelservice.profiles", "read"),
 		// The wiki: the installation's roles, not the organisation's.
@@ -246,7 +262,7 @@ func New(t *testing.T) *Kit {
 	// manifests from their own workloads.
 	// robin and assistant are declared for the artifact tests, which compose
 	// them themselves.
-	for _, module := range []string{"model", "runtime", "records", "org-directory", "documents", "wiki", "conformance-probe", "conformance-solution", "conformance-methods", "robin", "assistant"} {
+	for _, module := range []string{"model", "runtime", "records", "org-directory", "documents", "wiki", "conformance-probe", "conformance-solution", "conformance-methods", "robin", "assistant", "evaluation"} {
 		launcher.Declare(Workload(module))
 	}
 	_, signing, err := ed25519.GenerateKey(rand.Reader)
@@ -259,7 +275,7 @@ func New(t *testing.T) *Kit {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, m := range []state.Manifest{Model(1), Runtime(1), Records(1), OrgDirectory(1), Documents(1), Wiki(1)} {
+	for _, m := range []state.Manifest{Model(1), Runtime(1), Records(1), OrgDirectory(1), Documents(1), Wiki(1), Evaluation(1)} {
 		if _, err := st.ApplyManifest(m); err != nil {
 			t.Fatal(err)
 		}

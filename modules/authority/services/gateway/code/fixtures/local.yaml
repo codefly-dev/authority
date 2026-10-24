@@ -17,6 +17,9 @@ roles:
       - {kind: robin.conversations, actions: [read]}
       # Tracing: a viewer lists the organisation's agent runs, never their text.
       - {kind: tracing.trace, actions: [list_completed, read]}
+      # Evaluation: a viewer reads the runs and the online scores.
+      - {kind: evaluation.runs, actions: [read]}
+      - {kind: evaluation.online, actions: [read]}
       # A viewer reads only some document collections: the directory's, and
       # every shared one. The authority answers this when asked
       # (ListResources); the token carries the kind alone. A collection's id
@@ -47,6 +50,10 @@ roles:
       # Tracing: an editor reads their organisation's agent runs, text
       # included where the composition keeps it.
       - {kind: tracing.trace, actions: [list_completed, read, read_content]}
+      # Evaluation: an editor runs an evaluation (creates a run, submits its
+      # outputs, completes it) and reads the scores.
+      - {kind: evaluation.runs, actions: [read, write]}
+      - {kind: evaluation.online, actions: [read]}
   - organization: acme
     name: admin
     scopes:
@@ -54,6 +61,14 @@ roles:
       - {kind: documents.collection, actions: [read, transfer, admin]}
       # Robin: an administrator sees and changes what the intent store holds.
       - {kind: robin.intents, actions: [read, read_config, import, configure, activate]}
+      # Evaluation: an administrator publishes definitions, registers and
+      # freezes datasets, labels them and approves labels (a reviewer who is
+      # not the author); the developer, who writes them, holds everything.
+      - {kind: evaluation.definitions, actions: [publish]}
+      - {kind: evaluation.datasets, actions: [write]}
+      - {kind: evaluation.labels, actions: [write, approve, admin]}
+      - {kind: evaluation.runs, actions: [read]}
+      - {kind: evaluation.online, actions: [read]}
   - organization: globex
     name: admin
     scopes:
