@@ -3,7 +3,7 @@ module edge
 go 1.27.2
 
 require (
-	github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0
+	github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0-20261024163421-423f79d08aa1
 	github.com/codefly-dev/core v0.19.1
 	github.com/codefly-dev/sdk-go v0.4.0
 	google.golang.org/grpc v1.84.0

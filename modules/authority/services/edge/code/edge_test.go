@@ -75,7 +75,7 @@ func (s *standIn) List(ctx context.Context, in *installationv1.ListRequest, _ ..
 		return nil, status.Error(codes.PermissionDenied, "not acme")
 	}
 	return &installationv1.ListResponse{Installations: []*installationv1.Installation{
-		{Id: "4f0c5b1e-0000-5000-8000-000000000001", OrganizationId: "acme", Target: "robin", Status: installationv1.Installation_STATUS_ACTIVE},
+		{Id: "4f0c5b1e-0000-5000-8000-000000000001", OrganizationId: "acme", Target: "robin", Status: installationv1.Installation_STATUS_ACTIVE, Namespace: "acme.robin"},
 		{Id: "4f0c5b1e-0000-5000-8000-000000000002", OrganizationId: "acme", Target: "proposals", Status: installationv1.Installation_STATUS_PENDING},
 	}}, nil
 }
@@ -207,7 +207,7 @@ func TestAPersonSignsInAtTheEdge(t *testing.T) {
 	if len(installed) != 1 {
 		t.Fatalf("installations = %v", who["installations"])
 	}
-	if robin, _ := installed[0].(map[string]any); robin["target"] != "robin" || robin["id"] != "4f0c5b1e-0000-5000-8000-000000000001" {
+	if robin, _ := installed[0].(map[string]any); robin["target"] != "robin" || robin["id"] != "4f0c5b1e-0000-5000-8000-000000000001" || robin["namespace"] != "acme.robin" {
 		t.Fatalf("installation = %v", robin)
 	}
 	if res, _ := f.signInAs(t, "nobody", "/", f.edge.URL); res.StatusCode != http.StatusUnauthorized {

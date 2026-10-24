@@ -289,7 +289,7 @@ func (e *Edge) session(w http.ResponseWriter, r *http.Request) {
 		var active []installation
 		for _, i := range listed.GetInstallations() {
 			if i.GetStatus() == installationv1.Installation_STATUS_ACTIVE {
-				active = append(active, installation{ID: i.GetId(), Target: i.GetTarget()})
+				active = append(active, installation{ID: i.GetId(), Target: i.GetTarget(), Namespace: i.GetNamespace()})
 			}
 		}
 		if active != nil {
@@ -299,11 +299,13 @@ func (e *Edge) session(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, answer)
 }
 
-// installation is one installation a frontend may bind a call to: its id and
-// the module or solution installed.
+// installation is one installation a frontend may bind a call to: its id, the
+// module or solution installed, and the namespace its authored content belongs
+// to (an agent's source).
 type installation struct {
-	ID     string `json:"id"`
-	Target string `json:"target"`
+	ID        string `json:"id"`
+	Target    string `json:"target"`
+	Namespace string `json:"namespace,omitempty"`
 }
 
 // bearerOf is the session the request presents: its cookie, or a bearer a
