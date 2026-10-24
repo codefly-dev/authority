@@ -374,12 +374,22 @@ which Codefly generates and delivers to the hop and the module alone. In a cell
 the mesh plays that part.
 
 This run's hop fronts the console, whose one operation answers who the call is
-for. Run it from the repository root:
+for. Run it from the playground workspace, `playground/`, which composes this
+repository's modules with the platform's stores and the directory's page:
 
 ```bash
+cd playground
 codefly config generate hop PROOF
+codefly config generate internal-auth CODEFLY_INTERNAL_TOKEN
 codefly run service console/api authority/hop --local-agents
 ```
+
+The repository root is the authority module's own workspace and carries no run
+configuration. A module's checkout root provides its configuration groups to
+every workspace that composes it, so a root holding this run's groups forced
+them on every composer: a workspace composing the authority could not name its
+own edge routes or the modules its hop fronts. Each composer owns those groups
+whole, as `playground/configurations/` does here.
 
 Then sign a fixture person in, issue a Work Context for the console, and call
 the console's `WhoAmI` through the hop's gRPC endpoint with it in
@@ -450,7 +460,7 @@ Not yet:
   A call goes to the module its Work Context is addressed to; a context for a
   module the hop does not front is refused before the authority is asked, and
   the authority refuses a method that module does not serve. This repository's
-  `configurations/local/hop.env` lists the console. Composing hops is the
+  `playground/configurations/local/hop.env` lists the console. Composing hops is the
   composition's job.
 - **The interface, not the provider.** The SDK resolves an endpoint by its
   provider, so the hop names the authority gateway. An accessor by interface is
@@ -481,7 +491,7 @@ shortly before it expires. It strips `Authorization`, `Cookie` and every
 module's faces dial the hop, which checks the method. A write authenticated by
 the cookie must carry this origin in `Origin`. Each refusal names its reason.
 
-The routes come from the composition (`configurations/local/edge.env`) until
+The routes come from the composition (`playground/configurations/local/edge.env`) until
 the authority's registry of composed modules serves them. The edge declares no
 dependency on the modules it routes, so the run delivers their addresses as
 `${endpoint:…}` references, never through an SDK query.

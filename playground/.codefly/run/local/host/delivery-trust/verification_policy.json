@@ -1,0 +1,16 @@
+{
+  "local": {
+    "nativeAnchorSha256": "2f1b29e53166cb741c3fab13cc9a5a4f730e9e2409b1bd254120d892ad363a4d"
+  },
+  "signers": [
+    {
+      "name": "dev-696dda4a277a7d5b",
+      "kind": "person",
+      "keyId": "dev-696dda4a277a7d5b",
+      "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAODJlbYhCpWDp+EmcISGTdMaPnhDAL3K8yOcCM2QwgRw=\n-----END PUBLIC KEY-----\n",
+      "domains": [
+        "local"
+      ]
+    }
+  ]
+}

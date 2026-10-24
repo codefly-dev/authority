@@ -1,0 +1,44 @@
+name: authority-playground
+layout: modules
+# The authority playground: the authority module, its console, the platform's
+# stores and the directory's page, run with no saas.
+# The stores resolve from their git tags, unverified by declaration, as the
+# platform composes them; a local run selects a checkout through the overlay.
+module-resolution:
+    documents: git
+    records: git
+    org-directory: git
+modules:
+    - name: authority
+      path: ../modules/authority
+    - name: console
+      path: ../modules/console
+    # The platform's stores, composed behind the hop to prove a module runs on
+    # the authority gateway with no saas. Released identities; a local run
+    # selects a checkout through the gitignored overlay.
+    - name: documents
+      source: obin-ai/module-document-store
+      module: modules/documents
+      version: "0.1.13"
+    - name: records
+      source: obin-ai/module-record-store
+      module: modules/record-store
+      version: "0.5.0"
+    # The directory's module page, the first page run against the authority.
+    - name: org-directory
+      source: obin-ai/module-directory
+      module: modules/org-directory
+      version: "0.0.0"
+environments:
+    - name: local
+      description: The authority gateway on a laptop, the authority of its own run
+      fixture: local
+      # The run's host is the authority gateway itself: the launcher vouches for every
+      # composed workload against this anchor, and delivers manifests to it.
+      host:
+          coordinate: codefly/local/authority
+          component: authority
+          domain: local
+          audience: https://authority.local.test
+          trust_domain: authority.local
+          delivery: authority/gateway/grpc

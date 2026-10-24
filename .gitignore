@@ -1,6 +1,6 @@
 # codefly
 codefly.local.yaml
-configurations/**/*.secret.env
+**/configurations/**/*.secret.env
 **/.codefly/cache/
 **/.cache/
 go.work.sum

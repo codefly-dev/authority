@@ -1,0 +1,16 @@
+{
+  "entries": {
+    "authority-playground.local.console": {
+      "generation": 1,
+      "content": "2368b797d6f49d3e07be0e641a35c85dfd1ff0079c3377738a6b9800b306b8b4"
+    },
+    "authority-playground.local.documents": {
+      "generation": 1,
+      "content": "c358ed02ad3e6f28125050024d2f3ffa69a002535706b6310b0c07f6cb673154"
+    },
+    "authority-playground.local.records": {
+      "generation": 1,
+      "content": "74f7f3678dcb4fd8bf60efbc8a52b650c7a17fe534a372ca012ce108baa51241"
+    }
+  }
+}
