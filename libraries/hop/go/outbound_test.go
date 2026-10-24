@@ -36,8 +36,12 @@ func TestACallOutActsForTheCallerOrTheModuleThroughABinding(t *testing.T) {
 	if got, _ := metadata.FromOutgoingContext(out); got.Get(WorkContextKey)[0] != "issued" {
 		t.Fatalf("the call carries what was issued: %v", got)
 	}
-	if _, err := o.ForModule(context.Background(), "tracing"); err != nil || a.asked.GetWorkload().GetCredential() != "workload-credential" || a.asked.GetOperationBindingId() != "tracing" {
+	if _, err := o.ForModule(context.Background(), "acme", "tracing"); err != nil || a.asked.GetWorkload().GetCredential() != "workload-credential" || a.asked.GetOperationBindingId() != "tracing" || a.asked.GetOrganizationId() != "acme" {
 		t.Fatalf("for the module: %v %v", a.asked, err)
+	}
+	a.asked = nil
+	if _, err := o.ForModule(context.Background(), " ", "tracing"); !errors.Is(err, ErrNoOrganization) || a.asked != nil {
+		t.Fatalf("a module's own context names its organisation before anything is asked: %v %v", a.asked, err)
 	}
 	if _, err := o.ForParent(context.Background(), "parent-token", "model"); err != nil || a.asked.GetParentToken() != "parent-token" || a.asked.GetOperationBindingId() != "model" {
 		t.Fatalf("for a parent the module read itself: %v %v", a.asked, err)

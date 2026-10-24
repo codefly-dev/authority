@@ -23,7 +23,8 @@ type Issuer interface {
 // ForCaller acts for whoever called this module: a child of the caller's
 // checked context, through one of this module's declared bindings, so the
 // callee sees the caller's authority narrowed by the binding. ForModule acts
-// for the module itself, through a binding that declares headless scopes.
+// for the module itself in one organisation, through a binding that declares
+// headless scopes.
 type Outbound struct {
 	Authority Issuer
 	// Credential returns this workload's credential as the run attests it, read
@@ -40,6 +41,10 @@ func Lookup() Option { return func(r *authorityv1.IssueRequest) { r.Operation = 
 
 // ErrNoCaller is ForCaller on a call that did not arrive through the hop.
 var ErrNoCaller = errors.New("hop: no caller to act for: the call carries no checked Work Context")
+
+// ErrNoOrganization is ForModule naming no organisation: a module's own work
+// runs in one, and the authority issues for none other.
+var ErrNoOrganization = errors.New("hop: a module's own Work Context names the organisation its work runs in")
 
 // ForCaller returns ctx carrying a child of the caller's Work Context, issued
 // through binding.
@@ -92,15 +97,20 @@ func (o Outbound) ForDelegation(ctx context.Context, delegation, binding string,
 	}, opts...)
 }
 
-// ForModule returns ctx carrying a Work Context for this module's own work,
-// issued through binding.
-func (o Outbound) ForModule(ctx context.Context, binding string, opts ...Option) (context.Context, error) {
+// ForModule returns ctx carrying a Work Context for this module's own work in
+// organization, issued through binding. A module working for several
+// organisations asks once for each: a context attests one.
+func (o Outbound) ForModule(ctx context.Context, organization, binding string, opts ...Option) (context.Context, error) {
+	if strings.TrimSpace(organization) == "" {
+		return nil, ErrNoOrganization
+	}
 	credential, err := o.Credential()
 	if err != nil {
 		return nil, err
 	}
 	return o.issue(ctx, binding, &authorityv1.IssueRequest{
 		As:                 &authorityv1.IssueRequest_Workload{Workload: &authorityv1.WorkloadCredential{Credential: credential}},
+		OrganizationId:     organization,
 		OperationBindingId: binding,
 	}, opts...)
 }
