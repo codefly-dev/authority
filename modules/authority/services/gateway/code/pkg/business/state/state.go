@@ -306,6 +306,19 @@ type Installation struct {
 	Owner string
 }
 
+// installationNamespace names installations: InstallationID's UUIDs are
+// version-5 names under it.
+var installationNamespace = uuid.MustParse("6f1c2b0e-3a52-5d7c-9a1e-0c0de0a07b1a")
+
+// InstallationID is the id of org's installation of target: a canonical UUID,
+// as the host issues, so a module keys installations the same under either.
+// It is named by organisation and target rather than drawn, so a module's
+// stored rows (robin's conversations, its intent store) still name the
+// installation after the authority restarts with its fixture.
+func InstallationID(org, target string) string {
+	return uuid.NewSHA1(installationNamespace, []byte(org+"\x00"+target)).String()
+}
+
 // AgentPrincipal is the principal an installation acts as for itself.
 func (i Installation) AgentPrincipal() string { return i.ID + "/agent" }
 
@@ -778,7 +791,7 @@ func (s *State) ensureModuleInstallations(m Manifest) []string {
 	}
 	var ids []string
 	for org := range s.orgs {
-		id := org + "/" + m.Module
+		id := InstallationID(org, m.Module)
 		if _, ok := s.installations[id]; !ok {
 			s.installations[id] = Installation{ID: id, Organization: org, Target: m.Module, Status: Active, Revision: 1}
 		}
@@ -831,7 +844,7 @@ func (s *State) Install(ctx context.Context, org, target, role, owner string) (I
 		s.mu.Unlock()
 		return Installation{}, fmt.Errorf("%w: owner %q is not a member of %s", ErrForbidden, owner, org)
 	}
-	id := org + "/" + target
+	id := InstallationID(org, target)
 	if existing, ok := s.installations[id]; ok && existing.Status != Revoked {
 		s.mu.Unlock()
 		return Installation{}, fmt.Errorf("%w: %s is already installed at %s", ErrForbidden, target, org)
@@ -1048,7 +1061,7 @@ func (s *State) OperationBinding(_ context.Context, bindingID string) (workconte
 	if _, ok := m.Bindings[parts[2]]; !ok {
 		return workcontext.OperationBinding{}, workcontext.ErrNoBinding
 	}
-	inst, ok := s.installations[parts[0]+"/"+parts[1]]
+	inst, ok := s.installations[InstallationID(parts[0], parts[1])]
 	if !ok {
 		return workcontext.OperationBinding{}, workcontext.ErrNoBinding
 	}

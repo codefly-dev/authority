@@ -151,7 +151,7 @@ func TestAPersonIsIssuedWhatHerRolesHoldAtTheAudienceAndNoMore(t *testing.T) {
 	if len(got) != 2 || got["documents"] != "read" || got["documents.collection"] != "read" {
 		t.Fatalf("viewer scopes = %v", wc.GetAuthorityScopes())
 	}
-	if wc.GetSeal().GetInstallationId() != "acme/documents" {
+	if wc.GetSeal().GetInstallationId() != state.InstallationID("acme", "documents") {
 		t.Fatalf("sealed to %q", wc.GetSeal().GetInstallationId())
 	}
 	if wc.GetAttributionTeamIds()[0] != "finance" {
@@ -225,7 +225,7 @@ func TestCheckAcceptsForTheAudienceAndRefusesForAnother(t *testing.T) {
 func TestAnUninstallRefusesAnOutstandingTokenOnTheNextCheck(t *testing.T) {
 	k := testkit.New(t)
 	ctx := context.Background()
-	wiki, _ := k.State.Installation("acme/wiki")
+	wiki, _ := k.State.Installation(state.InstallationID("acme", "wiki"))
 	out, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
 		As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: wiki.ID}}, Audience: "documents",
 	})
@@ -248,20 +248,20 @@ func TestAnInstallationActsForItselfWithinItsRoleAndTheAudiencesCeiling(t *testi
 	k := testkit.New(t)
 	ctx := context.Background()
 	out, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: "acme/wiki"}}, Audience: "documents",
+		As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: state.InstallationID("acme", "wiki")}}, Audience: "documents",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	wc := out.GetContext()
-	if wc.GetOwnerPrincipalId() != "acme/wiki/agent" || wc.GetOwnerPrincipalKind() != "agent" || wc.GetOwnerAgentId() != "wiki" {
+	if wc.GetOwnerPrincipalId() != state.InstallationID("acme", "wiki")+"/agent" || wc.GetOwnerPrincipalKind() != "agent" || wc.GetOwnerAgentId() != "wiki" {
 		t.Fatalf("owner = %s/%s/%s", wc.GetOwnerPrincipalId(), wc.GetOwnerPrincipalKind(), wc.GetOwnerAgentId())
 	}
 	if strings.Join(wc.GetAuthorityScopes()[0].GetActions(), ",") != "read" {
 		t.Fatalf("viewer role at documents = %v", wc.GetAuthorityScopes())
 	}
 	if _, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: "acme/nothing"}}, Audience: "documents",
+		As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: state.InstallationID("acme", "nothing")}}, Audience: "documents",
 	}); !errors.Is(err, state.ErrUnknown) {
 		t.Fatalf("unknown installation: %v", err)
 	}
@@ -278,7 +278,7 @@ func TestAPendingInstallationIsIssuedNothing(t *testing.T) {
 		t.Fatal("the install step failed; Install must say so")
 	}
 	_, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: "acme/proposals"}}, Audience: "documents",
+		As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: state.InstallationID("acme", "proposals")}}, Audience: "documents",
 	})
 	if !errors.Is(err, workcontext.ErrNoSeal) || !strings.Contains(err.Error(), "pending") {
 		t.Fatalf("pending installation: %v", err)

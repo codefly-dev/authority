@@ -481,6 +481,13 @@ and signing out are writes: each must come from this origin, a return to
 another site lands on the root, and a non-browser caller signs in with a JSON
 `fixtureToken`.
 
+`/auth/session` answers who is signed in (`personId`, `organizationId`,
+`roles`) and the organisation's active `installations`, each `{id, target}`:
+the host's navigation read, which a frontend binds its calls to (a robin
+conversation names its installation). An installation id is a canonical UUID,
+as the host issues, named by organisation and target so it is the same on
+every start: a module's stored rows keep naming it.
+
 Each call is routed by its path: `/v1/<module>/…` to the module's REST face,
 `/<package.Service>/…` to its Connect face, and every other path to the
 frontend. For a module call the edge issues a Work Context for the person at the

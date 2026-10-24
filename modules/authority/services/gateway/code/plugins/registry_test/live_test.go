@@ -10,6 +10,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	conformance "github.com/codefly-dev/authority/libraries/conformance/go"
+
+	"gateway/pkg/business/state"
 )
 
 // TestARunningMiniGatewayPassesTheSuite drives the suite against a authority gateway
@@ -35,6 +37,6 @@ func TestARunningMiniGatewayPassesTheSuite(t *testing.T) {
 		Organization: "acme", ViewerToken: "fixture-maya", AdminToken: "fixture-alex",
 		Audience: "records", ReadKind: "records.records", Elsewhere: "model",
 		WorkloadModule: "org-directory", Binding: "records", BindingAudience: "records",
-		InstalledSolution: "acme/wiki",
+		InstalledSolution: state.InstallationID("acme", "wiki"),
 	})
 }

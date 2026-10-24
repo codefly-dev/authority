@@ -251,7 +251,7 @@ func (i *Issuer) forPerson(ctx context.Context, sessionID string, audience state
 		OwnerPrincipalID: sess.Person, OwnerPrincipalKind: "human",
 		TaskID: uuid.NewString(), SessionID: sess.ID,
 		Audience: audience.Principal, AuthorityScopes: scopes, AttributionTeamIDs: sess.Teams,
-		InstallationID: sess.Organization + "/" + audience.Module, TTL: ttl,
+		InstallationID: state.InstallationID(sess.Organization, audience.Module), TTL: ttl,
 	})
 }
 
@@ -285,7 +285,7 @@ func (i *Issuer) forWorkload(ctx context.Context, credential, org, bindingID, op
 		TenantID: org, OrganizationID: org,
 		OwnerPrincipalID: module.Principal, OwnerPrincipalKind: "service",
 		TaskID: uuid.NewString(), Audience: audience.Principal, AuthorityScopes: scopes,
-		InstallationID: org + "/" + module.Module, OperationBindingID: fullID, TTL: ttl,
+		InstallationID: state.InstallationID(org, module.Module), OperationBindingID: fullID, TTL: ttl,
 	})
 }
 
@@ -398,7 +398,7 @@ func (i *Issuer) child(ctx context.Context, parent, actorCredential, bindingID, 
 		TenantID: tenant, OrganizationID: claims.GetOrganizationId(),
 		OwnerPrincipalID: claims.GetOwnerPrincipalId(), OwnerPrincipalKind: claims.GetOwnerPrincipalKind(), OwnerAgentID: claims.GetOwnerAgentId(),
 		TaskID: claims.GetTaskId(), Audience: audience.Principal, AuthorityScopes: scopes, AttributionTeamIDs: claims.GetAttributionTeamIds(),
-		InstallationID: tenant + "/" + actor.Module, SessionID: rootSession, TTL: ttl, ReplayPolicy: workcontext.ReplayIdempotent,
+		InstallationID: state.InstallationID(tenant, actor.Module), SessionID: rootSession, TTL: ttl, ReplayPolicy: workcontext.ReplayIdempotent,
 	})
 	if err != nil {
 		return "", nil, err
@@ -497,7 +497,7 @@ func (i *Issuer) forDelegation(ctx context.Context, id, actorCredential, binding
 		TenantID: d.Organization, OrganizationID: d.Organization,
 		OwnerPrincipalID: d.Grantor, OwnerPrincipalKind: "human",
 		TaskID: uuid.NewString(), Audience: audience.Principal, AuthorityScopes: scopes,
-		InstallationID: d.Organization + "/" + actor.Module, TTL: ttl, ReplayPolicy: workcontext.ReplayIdempotent,
+		InstallationID: state.InstallationID(d.Organization, actor.Module), TTL: ttl, ReplayPolicy: workcontext.ReplayIdempotent,
 	})
 	if err != nil {
 		return "", nil, err

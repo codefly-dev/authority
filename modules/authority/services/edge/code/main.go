@@ -14,6 +14,7 @@ import (
 	"time"
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
+	installationv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/installation/v1"
 	sessionv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/session/v1"
 	"github.com/codefly-dev/core/resources"
 	codefly "github.com/codefly-dev/sdk-go"
@@ -69,7 +70,7 @@ func compose(ctx context.Context) (*Edge, int, func(), error) {
 	if err != nil {
 		return nil, 0, nil, err
 	}
-	edge := &Edge{Sessions: sessionv1.NewSessionServiceClient(conn), Authority: authorityv1.NewAuthorityServiceClient(conn), Modules: map[string]Module{}}
+	edge := &Edge{Sessions: sessionv1.NewSessionServiceClient(conn), Authority: authorityv1.NewAuthorityServiceClient(conn), Installations: installationv1.NewInstallationServiceClient(conn), Modules: map[string]Module{}}
 	value := func(key string) string {
 		v, _ := codefly.For(ctx).WorkspaceConfiguration("edge", key)
 		return strings.TrimSpace(v)

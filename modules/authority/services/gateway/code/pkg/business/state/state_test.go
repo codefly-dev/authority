@@ -3,6 +3,7 @@ package state_test
 import (
 	"context"
 	"errors"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -26,7 +27,7 @@ func TestFixtureSeedsPeopleRolesAndInstallsThroughTheRealPath(t *testing.T) {
 	if _, err := k.State.SignIn("nobody"); !errors.Is(err, state.ErrUnknown) {
 		t.Fatalf("unknown token: %v", err)
 	}
-	wiki, ok := k.State.Installation("acme/wiki")
+	wiki, ok := k.State.Installation(state.InstallationID("acme", "wiki"))
 	if !ok || wiki.Status != state.Active || wiki.Role != "viewer" || len(wiki.Teams) != 1 || wiki.Teams[0] != "finance" {
 		t.Fatalf("wiki installation = %+v", wiki)
 	}
@@ -40,7 +41,7 @@ func TestEntitlementIsTheNavigation(t *testing.T) {
 	if got := k.State.Entitled("remi"); len(got) != 0 {
 		t.Fatalf("remi (engineering) sees %+v", got)
 	}
-	if _, err := k.State.GrantToTeam(context.Background(), "acme", "acme/wiki", "engineering"); err != nil {
+	if _, err := k.State.GrantToTeam(context.Background(), "acme", state.InstallationID("acme", "wiki"), "engineering"); err != nil {
 		t.Fatal(err)
 	}
 	if got := k.State.Entitled("remi"); len(got) != 1 {
@@ -50,7 +51,7 @@ func TestEntitlementIsTheNavigation(t *testing.T) {
 
 func TestAModuleInstallationExistsPerOrganisationWithoutAClick(t *testing.T) {
 	k := testkit.New(t)
-	for _, id := range []string{"acme/documents", "acme/model"} {
+	for _, id := range []string{state.InstallationID("acme", "documents"), state.InstallationID("acme", "model")} {
 		inst, ok := k.State.Installation(id)
 		if !ok || inst.Status != state.Active {
 			t.Fatalf("%s = %+v", id, inst)
@@ -127,19 +128,19 @@ func TestOnePrincipalBelongsToOneModule(t *testing.T) {
 func TestSealAnswersOnlyForAnActiveInstallationAndAKnownPrincipal(t *testing.T) {
 	k := testkit.New(t)
 	ctx := context.Background()
-	if s, err := k.State.Seal(ctx, "maya", "acme/documents"); err != nil || s.InstallationRevision != 1 {
+	if s, err := k.State.Seal(ctx, "maya", state.InstallationID("acme", "documents")); err != nil || s.InstallationRevision != 1 {
 		t.Fatalf("member at module installation: %v %+v", err, s)
 	}
-	if _, err := k.State.Seal(ctx, "stranger", "acme/documents"); !errors.Is(err, workcontext.ErrNoSeal) {
+	if _, err := k.State.Seal(ctx, "stranger", state.InstallationID("acme", "documents")); !errors.Is(err, workcontext.ErrNoSeal) {
 		t.Fatalf("stranger: %v", err)
 	}
-	if _, err := k.State.Seal(ctx, "acme/wiki/agent", "acme/wiki"); err != nil {
+	if _, err := k.State.Seal(ctx, state.InstallationID("acme", "wiki")+"/agent", state.InstallationID("acme", "wiki")); err != nil {
 		t.Fatalf("the installation's own agent: %v", err)
 	}
-	if err := k.State.Revoke("acme/wiki"); err != nil {
+	if err := k.State.Revoke(state.InstallationID("acme", "wiki")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := k.State.Seal(ctx, "maya", "acme/wiki"); !errors.Is(err, workcontext.ErrNoSeal) {
+	if _, err := k.State.Seal(ctx, "maya", state.InstallationID("acme", "wiki")); !errors.Is(err, workcontext.ErrNoSeal) {
 		t.Fatalf("revoked installation: %v", err)
 	}
 }
@@ -148,7 +149,7 @@ func TestTheAuthorizationRevisionMovesOnEveryGrantChange(t *testing.T) {
 	k := testkit.New(t)
 	ctx := context.Background()
 	before, _ := k.State.AuthorizationRevision(ctx, "acme")
-	if _, err := k.State.GrantToTeam(ctx, "acme", "acme/wiki", "engineering"); err != nil {
+	if _, err := k.State.GrantToTeam(ctx, "acme", state.InstallationID("acme", "wiki"), "engineering"); err != nil {
 		t.Fatal(err)
 	}
 	after, _ := k.State.AuthorizationRevision(ctx, "acme")
@@ -184,7 +185,7 @@ func TestInstallRunsTheTargetsInstallStepAndStaysPendingUntilItConverges(t *test
 	if _, err := k.State.Install(ctx, "acme", "proposals", "viewer", "alex"); err == nil {
 		t.Fatal("a pending installation is not installed twice")
 	}
-	inst, err = k.State.Acknowledge("acme/proposals")
+	inst, err = k.State.Acknowledge(state.InstallationID("acme", "proposals"))
 	if err != nil || inst.Status != state.Active {
 		t.Fatalf("after acknowledgement: %v %+v", err, inst)
 	}
@@ -297,5 +298,29 @@ func TestScopeAlgebra(t *testing.T) {
 	}
 	if !state.Attenuates(nil, ceiling) {
 		t.Fatal("nothing attenuates everything")
+	}
+}
+
+// TestAnInstallationIsNamedByACanonicalUUID pins what a module keys its rows
+// by: a lower-case hyphenated UUID, as the host issues, the same for one
+// organisation's installation of one target on every start, and another for
+// any other pair.
+func TestAnInstallationIsNamedByACanonicalUUID(t *testing.T) {
+	id := state.InstallationID("acme", "robin")
+	canonical := regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+	if !canonical.MatchString(id) {
+		t.Fatalf("installation id %q is not a canonical UUID", id)
+	}
+	if again := state.InstallationID("acme", "robin"); again != id {
+		t.Fatalf("named %q, then %q", id, again)
+	}
+	for _, other := range []string{state.InstallationID("globex", "robin"), state.InstallationID("acme", "documents"), state.InstallationID("acme/robin", ""), state.InstallationID("acme", "/robin")} {
+		if other == id {
+			t.Fatalf("two installations share %q", id)
+		}
+	}
+	k := testkit.New(t)
+	if _, ok := k.State.Installation(state.InstallationID("acme", "documents")); !ok {
+		t.Fatal("the composed module's installation is not named by InstallationID")
 	}
 }

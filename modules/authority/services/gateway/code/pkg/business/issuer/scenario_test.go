@@ -62,7 +62,7 @@ func TestTheScenarioOneHopAtATime(t *testing.T) {
 		wc := out.GetContext()
 		// owner = actor = Maya; audience documents; scopes = roles ∩ ceiling; sealed to documents at Acme.
 		if wc.GetOwnerPrincipalId() != "maya" || len(wc.GetActorChain()) != 0 || wc.GetAudience() != "documents" ||
-			wc.GetSeal().GetInstallationId() != "acme/documents" || strings.Join(wc.GetAuthorityScopes()[0].GetActions(), ",") != "read" {
+			wc.GetSeal().GetInstallationId() != state.InstallationID("acme", "documents") || strings.Join(wc.GetAuthorityScopes()[0].GetActions(), ",") != "read" {
 			t.Fatalf("step 3 token = %v", wc)
 		}
 		if _, err := k.Issuer.Check(ctx, out.GetToken(), "documents", ""); err != nil {
@@ -89,7 +89,7 @@ func TestTheScenarioOneHopAtATime(t *testing.T) {
 		}
 		wc := out.GetContext()
 		if wc.GetOwnerPrincipalId() != "documents" || wc.GetOwnerPrincipalKind() != "service" || wc.GetAudience() != "model" ||
-			wc.GetOperationBinding().GetBindingId() != "acme/documents/model" || wc.GetSeal().GetInstallationId() != "acme/documents" {
+			wc.GetOperationBinding().GetBindingId() != "acme/documents/model" || wc.GetSeal().GetInstallationId() != state.InstallationID("acme", "documents") {
 			t.Fatalf("step 4 token = %v", wc)
 		}
 		if _, err := k.Issuer.Check(ctx, out.GetToken(), "model", ""); err != nil {
@@ -140,19 +140,19 @@ func TestTheScenarioOneHopAtATime(t *testing.T) {
 
 	t.Run("6 overnight, the wiki reconciles, as itself", func(t *testing.T) {
 		out, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
-			As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: "acme/wiki"}}, Audience: "documents",
+			As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: state.InstallationID("acme", "wiki")}}, Audience: "documents",
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
 		wc := out.GetContext()
 		// owner = actor = the wiki at Acme; scopes = what Acme consented to at install (viewer) ∩ documents' ceiling.
-		if wc.GetOwnerPrincipalId() != "acme/wiki/agent" || wc.GetOwnerAgentId() != "wiki" || wc.GetSeal().GetInstallationId() != "acme/wiki" ||
+		if wc.GetOwnerPrincipalId() != state.InstallationID("acme", "wiki")+"/agent" || wc.GetOwnerAgentId() != "wiki" || wc.GetSeal().GetInstallationId() != state.InstallationID("acme", "wiki") ||
 			strings.Join(wc.GetAuthorityScopes()[0].GetActions(), ",") != "read" {
 			t.Fatalf("step 6 token = %v", wc)
 		}
 		// Acme's administrator uninstalls the wiki at 10:00; the 09:58 token is refused at 10:00:01.
-		if err := k.State.Revoke("acme/wiki"); err != nil {
+		if err := k.State.Revoke(state.InstallationID("acme", "wiki")); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := k.Issuer.Check(ctx, out.GetToken(), "documents", ""); err == nil {
@@ -175,7 +175,7 @@ func TestTheScenarioOneHopAtATime(t *testing.T) {
 		for _, sc := range wc.GetAuthorityScopes() {
 			kinds[sc.GetResourceKind()] = strings.Join(sc.GetActions(), ",")
 		}
-		if kinds["records.records"] != "read" || kinds["records.types"] != "read" || wc.GetSeal().GetInstallationId() != "acme/records" {
+		if kinds["records.records"] != "read" || kinds["records.types"] != "read" || wc.GetSeal().GetInstallationId() != state.InstallationID("acme", "records") {
 			t.Fatalf("step 7 token = %v", wc)
 		}
 		// Rémi, an editor, is also issued write on records; the UI follows the token.

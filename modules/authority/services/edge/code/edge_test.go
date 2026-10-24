@@ -12,6 +12,7 @@ import (
 	"time"
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
+	installationv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/installation/v1"
 	sessionv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/session/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -65,6 +66,20 @@ func (s *standIn) Issue(ctx context.Context, in *authorityv1.IssueRequest, _ ...
 	return &authorityv1.IssueResponse{Token: "wc-" + in.GetAudience(), ExpiresAtUnix: time.Now().Add(5 * time.Minute).Unix()}, nil
 }
 
+// List answers Acme's installations: robin active, a solution still pending.
+func (s *standIn) List(ctx context.Context, in *installationv1.ListRequest, _ ...grpc.CallOption) (*installationv1.ListResponse, error) {
+	if bearerIn(ctx) != "remi-session" {
+		return nil, status.Error(codes.Unauthenticated, "no session")
+	}
+	if in.GetOrganizationId() != "acme" {
+		return nil, status.Error(codes.PermissionDenied, "not acme")
+	}
+	return &installationv1.ListResponse{Installations: []*installationv1.Installation{
+		{Id: "4f0c5b1e-0000-5000-8000-000000000001", OrganizationId: "acme", Target: "robin", Status: installationv1.Installation_STATUS_ACTIVE},
+		{Id: "4f0c5b1e-0000-5000-8000-000000000002", OrganizationId: "acme", Target: "proposals", Status: installationv1.Installation_STATUS_PENDING},
+	}}, nil
+}
+
 // upstream records what each call arrived with.
 type upstream struct {
 	*httptest.Server
@@ -110,7 +125,7 @@ type fixture struct {
 
 func newFixture(t *testing.T) fixture {
 	f := fixture{authority: &standIn{}, rest: newUpstream(t), connect: newUpstream(t), frontend: newUpstream(t), secrets: newUpstream(t)}
-	e := &Edge{Sessions: f.authority, Authority: f.authority, Frontend: mustURL(t, f.frontend.URL), Modules: map[string]Module{
+	e := &Edge{Sessions: f.authority, Authority: f.authority, Installations: f.authority, Frontend: mustURL(t, f.frontend.URL), Modules: map[string]Module{
 		"records": {Name: "records", REST: mustURL(t, f.rest.URL), Connect: mustURL(t, f.connect.URL), Services: []string{"records.v1.RecordsService"}},
 		"secrets": {Name: "secrets", REST: mustURL(t, f.secrets.URL)},
 	}}
@@ -185,6 +200,15 @@ func TestAPersonSignsInAtTheEdge(t *testing.T) {
 	_ = json.Unmarshal([]byte(body), &who)
 	if res.StatusCode != http.StatusOK || who["personId"] != "remi" || who["organizationId"] != "acme" {
 		t.Fatalf("session answered %d: %s", res.StatusCode, body)
+	}
+	// What the person's organisation has installed and active, which the
+	// frontend binds its calls to; a pending installation is not usable yet.
+	installed, _ := who["installations"].([]any)
+	if len(installed) != 1 {
+		t.Fatalf("installations = %v", who["installations"])
+	}
+	if robin, _ := installed[0].(map[string]any); robin["target"] != "robin" || robin["id"] != "4f0c5b1e-0000-5000-8000-000000000001" {
+		t.Fatalf("installation = %v", robin)
 	}
 	if res, _ := f.signInAs(t, "nobody", "/", f.edge.URL); res.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("an unknown fixture signed in: %d", res.StatusCode)

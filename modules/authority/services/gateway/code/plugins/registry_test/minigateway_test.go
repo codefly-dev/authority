@@ -20,7 +20,10 @@ import (
 	"gateway/plugins/composition"
 	"gateway/plugins/installation"
 	"gateway/plugins/session"
+
 	conformance "github.com/codefly-dev/authority/libraries/conformance/go"
+
+	"gateway/pkg/business/state"
 )
 
 func TestTheMiniGatewayPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
@@ -55,7 +58,7 @@ func TestTheMiniGatewayPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
 		// records binding; a context at records is refused at model.
 		Audience: "records", ReadKind: "records.records",
 		WorkloadModule: "org-directory", WorkloadCredential: k.Credential(t, "org-directory"), Binding: "records", BindingAudience: "records", Elsewhere: "model",
-		InstalledSolution: "acme/wiki",
+		InstalledSolution: state.InstallationID("acme", "wiki"),
 		// Deliveries are signed with the kit's release key and carried by the
 		// module's own workload under the launcher.
 		HostCoordinate: "local", HostDomain: "local",

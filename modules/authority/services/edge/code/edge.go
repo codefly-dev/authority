@@ -12,6 +12,7 @@ import (
 	"time"
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
+	installationv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/installation/v1"
 	sessionv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/session/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -40,6 +41,12 @@ type Sessions interface {
 	ListFixturePeople(ctx context.Context, in *sessionv1.ListFixturePeopleRequest, opts ...grpc.CallOption) (*sessionv1.ListFixturePeopleResponse, error)
 }
 
+// Installations is the installation interface's List: what the person's
+// organisation has installed, which a frontend binds its calls to.
+type Installations interface {
+	List(ctx context.Context, in *installationv1.ListRequest, opts ...grpc.CallOption) (*installationv1.ListResponse, error)
+}
+
 // Issuer is the authority interface's Issue.
 type Issuer interface {
 	Issue(ctx context.Context, in *authorityv1.IssueRequest, opts ...grpc.CallOption) (*authorityv1.IssueResponse, error)
@@ -56,9 +63,10 @@ type Module struct {
 
 // Edge serves the browser.
 type Edge struct {
-	Sessions  Sessions
-	Authority Issuer
-	Modules   map[string]Module
+	Sessions      Sessions
+	Authority     Issuer
+	Installations Installations
+	Modules       map[string]Module
 	// Frontend serves every path no module claims; nil serves none.
 	Frontend *url.URL
 	Now      func() time.Time
@@ -271,7 +279,31 @@ func (e *Edge) session(w http.ResponseWriter, r *http.Request) {
 		refuse(w, http.StatusUnauthorized, "the authority knows no session for this bearer")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"personId": sess.GetPersonId(), "organizationId": sess.GetOrganizationId(), "roles": sess.GetRoles()})
+	answer := map[string]any{"personId": sess.GetPersonId(), "organizationId": sess.GetOrganizationId(), "roles": sess.GetRoles(), "installations": []installation{}}
+	if e.Installations != nil {
+		listed, err := e.Installations.List(metadata.AppendToOutgoingContext(r.Context(), "authorization", "Bearer "+bearer), &installationv1.ListRequest{OrganizationId: sess.GetOrganizationId()})
+		if err != nil {
+			refuse(w, http.StatusBadGateway, "the authority did not list "+sess.GetOrganizationId()+"'s installations: "+status.Convert(err).Message())
+			return
+		}
+		var active []installation
+		for _, i := range listed.GetInstallations() {
+			if i.GetStatus() == installationv1.Installation_STATUS_ACTIVE {
+				active = append(active, installation{ID: i.GetId(), Target: i.GetTarget()})
+			}
+		}
+		if active != nil {
+			answer["installations"] = active
+		}
+	}
+	writeJSON(w, http.StatusOK, answer)
+}
+
+// installation is one installation a frontend may bind a call to: its id and
+// the module or solution installed.
+type installation struct {
+	ID     string `json:"id"`
+	Target string `json:"target"`
 }
 
 // bearerOf is the session the request presents: its cookie, or a bearer a
