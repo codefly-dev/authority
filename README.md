@@ -495,8 +495,13 @@ implements that consent as a fifth interface, `host.artifact.v1.ArtifactService`
   `acme.robin/field-naturalist` and no module chooses which source an
   installation may run.
 
-Approvals live in the gateway's memory, as its sessions do; accounts keeps its
-own in its store when it implements the interface. The fixture grants an Acme
+Approvals persist in the module's own store (`modules/authority/services/store`,
+the `approvals` table), as accounts keeps its own in its store when it implements
+the interface: consent is runtime state a person created, not fixture, and a
+restart that forgot it refused every run of the approved artifact while the
+consuming module kept its installation. A run that composes no store keeps
+them in memory, and the gateway says which at boot
+([the module page](modules/authority/README.md)). The fixture grants an Acme
 admin `robin.intents:activate` and an editor `robin.intents:run`.
 
 ## The edge: the browser's origin (2026-10-23)

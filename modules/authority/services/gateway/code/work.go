@@ -8,15 +8,20 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/codefly-dev/core/wool"
 	"github.com/codefly-dev/core/workloadidentity"
 	"github.com/codefly-dev/core/workloadidentity/native"
+	codefly "github.com/codefly-dev/sdk-go"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"gateway/pkg/adapters"
 	"gateway/pkg/business/delivery"
 	"gateway/pkg/business/issuer"
 	"gateway/pkg/business/state"
+	"gateway/pkg/infra/postgres"
 	"gateway/pkg/wiring"
 )
 
@@ -71,6 +76,10 @@ func configureMiniGateway(ctx context.Context, _ *adapters.Configuration) (Clean
 	if err := st.LoadFixture(ctx, data); err != nil {
 		return nil, fmt.Errorf("fixture %q: %w", name, err)
 	}
+	clean, err := approvalsFor(ctx, st)
+	if err != nil {
+		return nil, err
+	}
 	_, signing, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		return nil, err
@@ -99,5 +108,33 @@ func configureMiniGateway(ctx context.Context, _ *adapters.Configuration) (Clean
 			return nil
 		})
 	}
-	return nil, nil
+	return clean, nil
+}
+
+// approvalsFor chooses where consent lives. The store is a declared dependency
+// (service.codefly.yaml), so a run that composes it starts it first and
+// delivers its read-write connection: approvals then persist there, and a
+// restart still answers a run. A run that composes no store — `go test`
+// through the testkit, a run selecting the gateway alone — delivers no
+// connection and keeps them in memory. The boot line says which. A delivered
+// connection that does not answer is refused, not fallen back from: the store
+// was composed, so a gateway forgetting consent would be the wrong gateway.
+func approvalsFor(ctx context.Context, st *state.State) (Clean, error) {
+	w := wool.Get(ctx).In("gateway")
+	connection, err := codefly.For(ctx).Service("store").Secret("postgres", "read-write-connection")
+	if err != nil || strings.TrimSpace(connection) == "" {
+		w.Info("approvals live in memory: this run composes no store, so a restart forgets consent")
+		return nil, nil
+	}
+	pool, err := pgxpool.New(ctx, connection)
+	if err != nil {
+		return nil, fmt.Errorf("the store's read-write connection: %w", err)
+	}
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("the store is composed but does not answer: %w", err)
+	}
+	st.Approvals = postgres.NewApprovals(pool)
+	w.Info("approvals persist in the authority's store")
+	return pool.Close, nil
 }

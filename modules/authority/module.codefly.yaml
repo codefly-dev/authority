@@ -41,3 +41,7 @@ services:
     # person in and routes each call to the module's own HTTP face with the
     # person's Work Context; the hop checks it there.
     - name: edge
+    # The authority's own Postgres: what a person created at runtime and a
+    # restart must not forget — approvals today. The gateway depends on it and
+    # reads its read-write connection; who exists stays the fixture.
+    - name: store

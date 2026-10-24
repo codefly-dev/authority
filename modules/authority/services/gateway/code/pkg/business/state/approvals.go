@@ -1,6 +1,7 @@
 package state
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -24,11 +25,31 @@ type Approval struct {
 // QualifiedName is the approval's name as a module cites it.
 func (a Approval) QualifiedName() string { return "host/approved-artifacts/" + a.ID }
 
-// Approvals keeps the gateway's approvals, in memory like its sessions.
-type Approvals struct {
+// Approvals is where the gateway keeps consent. A person created it at
+// runtime, so it is state, not fixture: a run that composes the module's store
+// keeps it there (pkg/infra/postgres) and a restart remembers it; a test, or a
+// run that composes no store, keeps it in the process (MemoryApprovals). Both
+// answer the same way, which approvalstest.Contract holds them to.
+type Approvals interface {
+	// Approve records consent, or answers the approval already standing for
+	// the same artifact; a revoked one is refused with ErrForbidden.
+	Approve(ctx context.Context, installation, policy, digest string, revision int64) (Approval, error)
+	// Standing answers the approval of the artifact for a run, or refuses with
+	// ErrForbidden when none stands or it was revoked.
+	Standing(ctx context.Context, installation, policy, digest string) (Approval, error)
+	// Revoke withdraws an approval, permanently. An id that is not one of the
+	// installation's under the policy is ErrUnknown.
+	Revoke(ctx context.Context, installation, policy, id string) (Approval, error)
+}
+
+// MemoryApprovals keeps approvals in the process, like the gateway's sessions:
+// what a test composes, and what a run gets when no store is composed.
+type MemoryApprovals struct {
 	mu   sync.Mutex
 	byID map[string]Approval
 }
+
+var _ Approvals = (*MemoryApprovals)(nil)
 
 func approvalKey(installation, policy, digest string) string {
 	return installation + "\x00" + policy + "\x00" + digest
@@ -36,7 +57,7 @@ func approvalKey(installation, policy, digest string) string {
 
 // Approve records consent, or answers the approval already standing; a revoked
 // one is refused.
-func (s *Approvals) Approve(installation, policy, digest string, revision int64) (Approval, error) {
+func (s *MemoryApprovals) Approve(_ context.Context, installation, policy, digest string, revision int64) (Approval, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.byID == nil {
@@ -54,7 +75,7 @@ func (s *Approvals) Approve(installation, policy, digest string, revision int64)
 }
 
 // Standing answers the approval of the artifact for a run, or refuses.
-func (s *Approvals) Standing(installation, policy, digest string) (Approval, error) {
+func (s *MemoryApprovals) Standing(_ context.Context, installation, policy, digest string) (Approval, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	a, ok := s.find(installation, policy, digest)
@@ -65,7 +86,7 @@ func (s *Approvals) Standing(installation, policy, digest string) (Approval, err
 }
 
 // Revoke withdraws an approval, permanently.
-func (s *Approvals) Revoke(installation, policy, id string) (Approval, error) {
+func (s *MemoryApprovals) Revoke(_ context.Context, installation, policy, id string) (Approval, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	a, ok := s.byID[id]
@@ -77,7 +98,7 @@ func (s *Approvals) Revoke(installation, policy, id string) (Approval, error) {
 	return a, nil
 }
 
-func (s *Approvals) find(installation, policy, digest string) (Approval, bool) {
+func (s *MemoryApprovals) find(installation, policy, digest string) (Approval, bool) {
 	for _, a := range s.byID {
 		if approvalKey(a.Installation, a.Policy, a.Digest) == approvalKey(installation, policy, digest) {
 			return a, true

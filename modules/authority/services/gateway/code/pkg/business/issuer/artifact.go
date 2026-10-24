@@ -19,6 +19,8 @@ import (
 // by the person present; a run needs its `run` action, which a delegated
 // context may carry. What a person may approve is therefore what their roles
 // grant at the module, and the authority keeps no second permission table.
+// Consent is durable: state.Approvals keeps it in the module's store when one
+// is composed, so a restart of this process still answers a run.
 
 // Artifact answers Approve or Authorize (action "activate" or "run").
 func (i *Issuer) Artifact(ctx context.Context, action string, req *artifactv1.ArtifactRequest) (*artifactv1.Approval, error) {
@@ -35,9 +37,9 @@ func (i *Issuer) Artifact(ctx context.Context, action string, req *artifactv1.Ar
 	}
 	var approval state.Approval
 	if action == "activate" {
-		approval, err = i.state.Approvals.Approve(inst.ID, req.GetPolicy(), digest, req.GetIdentity().GetExpectedRevision())
+		approval, err = i.state.Approvals.Approve(ctx, inst.ID, req.GetPolicy(), digest, req.GetIdentity().GetExpectedRevision())
 	} else {
-		approval, err = i.state.Approvals.Standing(inst.ID, req.GetPolicy(), digest)
+		approval, err = i.state.Approvals.Standing(ctx, inst.ID, req.GetPolicy(), digest)
 	}
 	if err != nil {
 		return nil, err
@@ -51,7 +53,7 @@ func (i *Issuer) RevokeArtifact(ctx context.Context, req *artifactv1.RevokeReque
 	if err != nil {
 		return nil, err
 	}
-	approval, err := i.state.Approvals.Revoke(inst.ID, req.GetPolicy(), req.GetApprovalId())
+	approval, err := i.state.Approvals.Revoke(ctx, inst.ID, req.GetPolicy(), req.GetApprovalId())
 	if err != nil {
 		return nil, err
 	}

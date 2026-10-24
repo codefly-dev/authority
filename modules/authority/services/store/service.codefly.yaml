@@ -1,0 +1,48 @@
+name: store
+version: 0.0.0
+description: |
+  The authority's own Postgres: what a person created at runtime and the
+  gateway must still know after a restart. Today that is approvals, a person's
+  consent to one exact authored artifact for one installation (the artifact
+  interface); the gateway reads and writes them through the runtime read-write
+  connection this service exports. Who exists and what they hold stays the
+  fixture; sessions, installations and delegations stay in the gateway's memory
+  until each earns a table here.
+agent:
+    kind: codefly:service
+    name: postgres
+    version: 0.0.144
+    publisher: codefly.dev
+endpoints:
+    - name: tcp
+      # Only this module's gateway reaches the store, and the module interface
+      # does not export it. In-system (no `location`): the run allocates its
+      # address.
+      visibility: private
+spec:
+    auth-mode: ""
+    database-name: authority
+    docker-image: ""
+    docker-image-platforms: []
+    extensions: []
+    external-instances: {}
+    hot-reload: true
+    keep-running: false
+    log-level: ""
+    migration-sources: []
+    no-migration: false
+    runtime-logins: []
+    # The agent reconciles its managed read-write principal into this role on
+    # every boot; migrations/1_approvals.up.sql creates it and grants exactly
+    # what the gateway does: read, insert and revoke (update), never delete.
+    runtime-read-write-roles:
+        - app_authority
+    runtime-schemas: []
+    timeouts:
+        bootstrap-job-seconds: 0
+        bootstrap-readiness-seconds: 0
+        connect-seconds: 0
+        migration-lock-seconds: 0
+        migration-statement-seconds: 0
+        readiness-seconds: 0
+    without-ssl: false

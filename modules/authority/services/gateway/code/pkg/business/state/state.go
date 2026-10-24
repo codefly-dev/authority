@@ -413,7 +413,9 @@ type State struct {
 	// pendingInstalls are fixture installations whose target was not composed
 	// when the fixture loaded; each is performed when its target's manifest applies.
 	pendingInstalls []FixtureInstallation
-	// Approvals are the artifacts people have consented to (the artifact interface).
+	// Approvals are the artifacts people have consented to (the artifact
+	// interface): in memory until the run that composes the store swaps in its
+	// Postgres (work.go approvalsFor), before any listener starts.
 	Approvals Approvals
 }
 
@@ -430,7 +432,7 @@ func New(anchor native.Anchor, audience string) (*State, error) {
 		orgs: map[string]string{}, people: map[string]Person{}, byToken: map[string]string{},
 		roles: map[string]Role{}, modules: map[string]Manifest{}, principals: map[string]string{},
 		installations: map[string]Installation{}, delegations: map[string]Delegation{}, sessions: map[string]Session{}, revisions: map[string]uint64{},
-		attester: attester, audience: audience,
+		attester: attester, audience: audience, Approvals: &MemoryApprovals{},
 	}, nil
 }
 

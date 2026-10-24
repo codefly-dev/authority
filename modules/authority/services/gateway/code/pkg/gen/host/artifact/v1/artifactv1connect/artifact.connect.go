@@ -55,7 +55,9 @@ type ArtifactServiceClient interface {
 	// under the policy. The person is present: the parent is theirs, addressed
 	// to the asking module, with no module acting between, and holds the policy
 	// kind's activate action there. An identity already approved answers the
-	// same approval; one whose approval was revoked is refused.
+	// same approval; one whose approval was revoked is refused. Consent is
+	// durable: the host keeps it in its store, so it outlives the process that
+	// recorded it and answers every run until it is revoked.
 	Approve(context.Context, *connect.Request[v1.ArtifactRequest]) (*connect.Response[v1.Approval], error)
 	// Authorize answers the standing approval of the identity, for a run: the
 	// parent may be delegated and holds the policy kind's run action. It never
@@ -126,7 +128,9 @@ type ArtifactServiceHandler interface {
 	// under the policy. The person is present: the parent is theirs, addressed
 	// to the asking module, with no module acting between, and holds the policy
 	// kind's activate action there. An identity already approved answers the
-	// same approval; one whose approval was revoked is refused.
+	// same approval; one whose approval was revoked is refused. Consent is
+	// durable: the host keeps it in its store, so it outlives the process that
+	// recorded it and answers every run until it is revoked.
 	Approve(context.Context, *connect.Request[v1.ArtifactRequest]) (*connect.Response[v1.Approval], error)
 	// Authorize answers the standing approval of the identity, for a run: the
 	// parent may be delegated and holds the policy kind's run action. It never
