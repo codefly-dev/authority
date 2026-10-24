@@ -318,3 +318,19 @@ func TestTheEdgeRefusesWithItsReason(t *testing.T) {
 		t.Fatalf("a bearer-presenting write answered %d: %s", res.StatusCode, body)
 	}
 }
+
+// A caller that is not a browser (a CLI applying an agent bundle) signs in with
+// JSON and is handed its bearer back, which it then presents on each call; the
+// cookie carries the same value for a browser.
+func TestAJSONSignInHandsTheBearerBack(t *testing.T) {
+	f := newFixture(t)
+	res, body := f.send(t, http.MethodPost, "/auth/sign-in", http.Header{"Content-Type": {"application/json"}, "Origin": {f.edge.URL}}, `{"fixtureToken":"fixture-remi"}`)
+	var answer map[string]string
+	_ = json.Unmarshal([]byte(body), &answer)
+	if res.StatusCode != http.StatusOK || answer["bearer"] != "remi-session" || answer["personId"] != "remi" {
+		t.Fatalf("sign-in answered %d: %s", res.StatusCode, body)
+	}
+	if res, _ := f.do(t, http.MethodGet, "/v1/records/types", http.Header{"Authorization": {"Bearer " + answer["bearer"]}}); res.StatusCode != http.StatusOK {
+		t.Fatalf("the bearer handed back does not sign a call: %d", res.StatusCode)
+	}
+}

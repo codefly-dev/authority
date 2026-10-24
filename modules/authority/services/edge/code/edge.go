@@ -241,7 +241,10 @@ func (e *Edge) signIn(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, localPath(back), http.StatusSeeOther)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"personId": sess.GetPersonId(), "organizationId": sess.GetOrganizationId()})
+	// A caller that is not a browser (a CLI applying an agent bundle) presents
+	// the bearer itself on each call, so the JSON answer hands it back as the
+	// session interface does; the cookie above carries the same value.
+	writeJSON(w, http.StatusOK, map[string]string{"personId": sess.GetPersonId(), "organizationId": sess.GetOrganizationId(), "bearer": sess.GetBearer()})
 }
 
 // signOut ends the browser's session here; it is a write, so it must come
