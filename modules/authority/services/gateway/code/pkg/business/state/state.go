@@ -223,11 +223,19 @@ func routeOf(methods map[string]MethodPolicy, request string) (MethodPolicy, boo
 }
 
 // routeMatches is whether path is an instance of template, segment by segment;
-// a last segment "{name=**}" takes the rest of the path, at least one segment.
+// a last segment holding "{name=**}" takes the rest of the path, at least one
+// character of at least one segment, between the literal text around it (a
+// custom verb such as ":settle" after it).
 func routeMatches(template, path string) bool {
 	want, got := strings.Split(template, "/"), strings.Split(path, "/")
-	if last := want[len(want)-1]; strings.HasPrefix(last, "{") && strings.HasSuffix(last, "=**}") {
-		if len(got) < len(want) || got[len(want)-1] == "" {
+	if last := want[len(want)-1]; strings.Contains(last, "=**}") {
+		if len(got) < len(want) {
+			return false
+		}
+		open := strings.Index(last, "{")
+		prefix, suffix := last[:open], last[strings.Index(last, "=**}")+4:]
+		rest := strings.Join(got[len(want)-1:], "/")
+		if !strings.HasPrefix(rest, prefix) || !strings.HasSuffix(rest, suffix) || len(rest) <= len(prefix)+len(suffix) {
 			return false
 		}
 		want, got = want[:len(want)-1], got[:len(want)-1]
