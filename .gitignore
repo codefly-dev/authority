@@ -25,3 +25,6 @@ node_modules/
 # a run's own state
 .codefly/run/
 .codefly/selection-artifacts/
+
+# The go agent builds a service binary beside its source during a native run.
+modules/authority/services/edge/code/edge
