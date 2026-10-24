@@ -28,3 +28,8 @@ node_modules/
 
 # The go agent builds a service binary beside its source during a native run.
 modules/authority/services/edge/code/edge
+
+# python
+__pycache__/
+.venv/
+.pytest_cache/
