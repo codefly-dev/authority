@@ -21,3 +21,7 @@ node_modules/
 # A run's state is machine-local: its anchor, delivery record and launcher
 # credentials are written per run and never tracked.
 .codefly/run/
+
+# a run's own state
+.codefly/run/
+.codefly/selection-artifacts/
