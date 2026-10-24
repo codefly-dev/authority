@@ -55,6 +55,12 @@ message AuthorityManifestV1 {
   // these a kind serves any action and a person's ask for everything they hold
   // there cannot be enumerated. Each names a kind core's manifest declares.
   repeated host.authority.v1.WorkScopeV1 scope_ceilings = 5;
+  // The roles a solution declares a person may hold on an installation of it,
+  // as ModuleManifestV1.roles declares them through the sketch: each within
+  // the solution's own kinds (its scope ceilings), one of them installer.
+  // Core's manifest carries no roles, so they travel here until it does. A
+  // module declares none; a module's delivery listing any is refused.
+  repeated RoleV1 roles = 6;
 }
 
 // MethodPolicyV1 is what a call to one method must hold, as the module's

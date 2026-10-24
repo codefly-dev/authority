@@ -25,7 +25,7 @@ _sym_db = _symbol_database.Default()
 from authority_client._gen.host.authority.v1 import work_context_pb2 as host_dot_authority_dot_v1_dot_work__context__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n%host/composition/v1/composition.proto\x12\x13host.composition.v1\x1a$host/authority/v1/work_context.proto\"\xff\x01\n\x14\x41pplyManifestRequest\x12\x41\n\x08manifest\x18\x01 \x01(\x0b\x32%.host.composition.v1.ModuleManifestV1R\x08manifest\x12?\n\x07\x63\x61rrier\x18\x02 \x01(\x0b\x32%.host.composition.v1.SignedManifestV1R\x07\x63\x61rrier\x12\x1e\n\ncredential\x18\x03 \x01(\tR\ncredential\x12\x43\n\tauthority\x18\x04 \x01(\x0b\x32%.host.composition.v1.SignedManifestV1R\tauthority\"\x85\x02\n\x13\x41uthorityManifestV1\x12\x16\n\x06module\x18\x01 \x01(\tR\x06module\x12\x1e\n\ngeneration\x18\x02 \x01(\x04R\ngeneration\x12\x30\n\x14\x63ore_manifest_digest\x18\x03 \x01(\tR\x12\x63oreManifestDigest\x12=\n\x07methods\x18\x04 \x03(\x0b\x32#.host.composition.v1.MethodPolicyV1R\x07methods\x12\x45\n\x0escope_ceilings\x18\x05 \x03(\x0b\x32\x1e.host.authority.v1.WorkScopeV1R\rscopeCeilings\"\x92\x01\n\x0eMethodPolicyV1\x12\x16\n\x06method\x18\x01 \x01(\tR\x06method\x12:\n\x08requires\x18\x02 \x03(\x0b\x32\x1e.host.authority.v1.WorkScopeV1R\x08requires\x12,\n\x12\x61ny_checked_caller\x18\x03 \x01(\x08R\x10\x61nyCheckedCaller\"J\n\x10SignedManifestV1\x12\x1a\n\x08\x64ocument\x18\x01 \x01(\x0cR\x08\x64ocument\x12\x1a\n\x08\x65nvelope\x18\x02 \x01(\x0cR\x08\x65nvelope\"\x80\x01\n\x15\x41pplyManifestResponse\x12\x1c\n\tprincipal\x18\x01 \x01(\tR\tprincipal\x12\x1e\n\ngeneration\x18\x02 \x01(\x04R\ngeneration\x12)\n\x10installation_ids\x18\x03 \x03(\tR\x0finstallationIds\"\xe8\x02\n\x10ModuleManifestV1\x12\x16\n\x06module\x18\x01 \x01(\tR\x06module\x12\x1c\n\tprincipal\x18\x02 \x01(\tR\tprincipal\x12\x12\n\x04kind\x18\x03 \x01(\tR\x04kind\x12\x1e\n\ngeneration\x18\x04 \x01(\x04R\ngeneration\x12:\n\x08\x62indings\x18\x05 \x03(\x0b\x32\x1e.host.composition.v1.BindingV1R\x08\x62indings\x12J\n\x0eresource_kinds\x18\x06 \x03(\x0b\x32#.host.composition.v1.ResourceKindV1R\rresourceKinds\x12/\n\x04page\x18\x07 \x01(\x0b\x32\x1b.host.composition.v1.PageV1R\x04page\x12\x31\n\x05roles\x18\x08 \x03(\x0b\x32\x1b.host.composition.v1.RoleV1R\x05roles\"T\n\x06RoleV1\x12\x12\n\x04name\x18\x01 \x01(\tR\x04name\x12\x36\n\x06scopes\x18\x02 \x03(\x0b\x32\x1e.host.authority.v1.WorkScopeV1R\x06scopes\"\x8a\x02\n\tBindingV1\x12\x0e\n\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n\x08\x61udience\x18\x02 \x01(\tR\x08\x61udience\x12\x43\n\rinvoke_scopes\x18\x03 \x03(\x0b\x32\x1e.host.authority.v1.WorkScopeV1R\x0cinvokeScopes\x12G\n\x0fheadless_scopes\x18\x04 \x03(\x0b\x32\x1e.host.authority.v1.WorkScopeV1R\x0eheadlessScopes\x12\x43\n\rlookup_scopes\x18\x05 \x03(\x0b\x32\x1e.host.authority.v1.WorkScopeV1R\x0clookupScopes\">\n\x0eResourceKindV1\x12\x12\n\x04kind\x18\x01 \x01(\tR\x04kind\x12\x18\n\x07\x61\x63tions\x18\x02 \x03(\tR\x07\x61\x63tions\"4\n\x06PageV1\x12\x14\n\x05title\x18\x01 \x01(\tR\x05title\x12\x14\n\x05order\x18\x02 \x01(\x05R\x05order2|\n\x12\x43ompositionService\x12\x66\n\rApplyManifest\x12).host.composition.v1.ApplyManifestRequest\x1a*.host.composition.v1.ApplyManifestResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n%host/composition/v1/composition.proto\x12\x13host.composition.v1\x1a$host/authority/v1/work_context.proto\"\xff\x01\n\x14\x41pplyManifestRequest\x12\x41\n\x08manifest\x18\x01 \x01(\x0b\x32%.host.composition.v1.ModuleManifestV1R\x08manifest\x12?\n\x07\x63\x61rrier\x18\x02 \x01(\x0b\x32%.host.composition.v1.SignedManifestV1R\x07\x63\x61rrier\x12\x1e\n\ncredential\x18\x03 \x01(\tR\ncredential\x12\x43\n\tauthority\x18\x04 \x01(\x0b\x32%.host.composition.v1.SignedManifestV1R\tauthority\"\xb8\x02\n\x13\x41uthorityManifestV1\x12\x16\n\x06module\x18\x01 \x01(\tR\x06module\x12\x1e\n\ngeneration\x18\x02 \x01(\x04R\ngeneration\x12\x30\n\x14\x63ore_manifest_digest\x18\x03 \x01(\tR\x12\x63oreManifestDigest\x12=\n\x07methods\x18\x04 \x03(\x0b\x32#.host.composition.v1.MethodPolicyV1R\x07methods\x12\x45\n\x0escope_ceilings\x18\x05 \x03(\x0b\x32\x1e.host.authority.v1.WorkScopeV1R\rscopeCeilings\x12\x31\n\x05roles\x18\x06 \x03(\x0b\x32\x1b.host.composition.v1.RoleV1R\x05roles\"\x92\x01\n\x0eMethodPolicyV1\x12\x16\n\x06method\x18\x01 \x01(\tR\x06method\x12:\n\x08requires\x18\x02 \x03(\x0b\x32\x1e.host.authority.v1.WorkScopeV1R\x08requires\x12,\n\x12\x61ny_checked_caller\x18\x03 \x01(\x08R\x10\x61nyCheckedCaller\"J\n\x10SignedManifestV1\x12\x1a\n\x08\x64ocument\x18\x01 \x01(\x0cR\x08\x64ocument\x12\x1a\n\x08\x65nvelope\x18\x02 \x01(\x0cR\x08\x65nvelope\"\x80\x01\n\x15\x41pplyManifestResponse\x12\x1c\n\tprincipal\x18\x01 \x01(\tR\tprincipal\x12\x1e\n\ngeneration\x18\x02 \x01(\x04R\ngeneration\x12)\n\x10installation_ids\x18\x03 \x03(\tR\x0finstallationIds\"\xe8\x02\n\x10ModuleManifestV1\x12\x16\n\x06module\x18\x01 \x01(\tR\x06module\x12\x1c\n\tprincipal\x18\x02 \x01(\tR\tprincipal\x12\x12\n\x04kind\x18\x03 \x01(\tR\x04kind\x12\x1e\n\ngeneration\x18\x04 \x01(\x04R\ngeneration\x12:\n\x08\x62indings\x18\x05 \x03(\x0b\x32\x1e.host.composition.v1.BindingV1R\x08\x62indings\x12J\n\x0eresource_kinds\x18\x06 \x03(\x0b\x32#.host.composition.v1.ResourceKindV1R\rresourceKinds\x12/\n\x04page\x18\x07 \x01(\x0b\x32\x1b.host.composition.v1.PageV1R\x04page\x12\x31\n\x05roles\x18\x08 \x03(\x0b\x32\x1b.host.composition.v1.RoleV1R\x05roles\"T\n\x06RoleV1\x12\x12\n\x04name\x18\x01 \x01(\tR\x04name\x12\x36\n\x06scopes\x18\x02 \x03(\x0b\x32\x1e.host.authority.v1.WorkScopeV1R\x06scopes\"\x8a\x02\n\tBindingV1\x12\x0e\n\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n\x08\x61udience\x18\x02 \x01(\tR\x08\x61udience\x12\x43\n\rinvoke_scopes\x18\x03 \x03(\x0b\x32\x1e.host.authority.v1.WorkScopeV1R\x0cinvokeScopes\x12G\n\x0fheadless_scopes\x18\x04 \x03(\x0b\x32\x1e.host.authority.v1.WorkScopeV1R\x0eheadlessScopes\x12\x43\n\rlookup_scopes\x18\x05 \x03(\x0b\x32\x1e.host.authority.v1.WorkScopeV1R\x0clookupScopes\">\n\x0eResourceKindV1\x12\x12\n\x04kind\x18\x01 \x01(\tR\x04kind\x12\x18\n\x07\x61\x63tions\x18\x02 \x03(\tR\x07\x61\x63tions\"4\n\x06PageV1\x12\x14\n\x05title\x18\x01 \x01(\tR\x05title\x12\x14\n\x05order\x18\x02 \x01(\x05R\x05order2|\n\x12\x43ompositionService\x12\x66\n\rApplyManifest\x12).host.composition.v1.ApplyManifestRequest\x1a*.host.composition.v1.ApplyManifestResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -35,23 +35,23 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_APPLYMANIFESTREQUEST']._serialized_start=101
   _globals['_APPLYMANIFESTREQUEST']._serialized_end=356
   _globals['_AUTHORITYMANIFESTV1']._serialized_start=359
-  _globals['_AUTHORITYMANIFESTV1']._serialized_end=620
-  _globals['_METHODPOLICYV1']._serialized_start=623
-  _globals['_METHODPOLICYV1']._serialized_end=769
-  _globals['_SIGNEDMANIFESTV1']._serialized_start=771
-  _globals['_SIGNEDMANIFESTV1']._serialized_end=845
-  _globals['_APPLYMANIFESTRESPONSE']._serialized_start=848
-  _globals['_APPLYMANIFESTRESPONSE']._serialized_end=976
-  _globals['_MODULEMANIFESTV1']._serialized_start=979
-  _globals['_MODULEMANIFESTV1']._serialized_end=1339
-  _globals['_ROLEV1']._serialized_start=1341
-  _globals['_ROLEV1']._serialized_end=1425
-  _globals['_BINDINGV1']._serialized_start=1428
-  _globals['_BINDINGV1']._serialized_end=1694
-  _globals['_RESOURCEKINDV1']._serialized_start=1696
-  _globals['_RESOURCEKINDV1']._serialized_end=1758
-  _globals['_PAGEV1']._serialized_start=1760
-  _globals['_PAGEV1']._serialized_end=1812
-  _globals['_COMPOSITIONSERVICE']._serialized_start=1814
-  _globals['_COMPOSITIONSERVICE']._serialized_end=1938
+  _globals['_AUTHORITYMANIFESTV1']._serialized_end=671
+  _globals['_METHODPOLICYV1']._serialized_start=674
+  _globals['_METHODPOLICYV1']._serialized_end=820
+  _globals['_SIGNEDMANIFESTV1']._serialized_start=822
+  _globals['_SIGNEDMANIFESTV1']._serialized_end=896
+  _globals['_APPLYMANIFESTRESPONSE']._serialized_start=899
+  _globals['_APPLYMANIFESTRESPONSE']._serialized_end=1027
+  _globals['_MODULEMANIFESTV1']._serialized_start=1030
+  _globals['_MODULEMANIFESTV1']._serialized_end=1390
+  _globals['_ROLEV1']._serialized_start=1392
+  _globals['_ROLEV1']._serialized_end=1476
+  _globals['_BINDINGV1']._serialized_start=1479
+  _globals['_BINDINGV1']._serialized_end=1745
+  _globals['_RESOURCEKINDV1']._serialized_start=1747
+  _globals['_RESOURCEKINDV1']._serialized_end=1809
+  _globals['_PAGEV1']._serialized_start=1811
+  _globals['_PAGEV1']._serialized_end=1863
+  _globals['_COMPOSITIONSERVICE']._serialized_start=1865
+  _globals['_COMPOSITIONSERVICE']._serialized_end=1989
 # @@protoc_insertion_point(module_scope)

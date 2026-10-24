@@ -233,9 +233,11 @@ func Matrix() []conformance.Expectation {
 		allow("fixture-dev", "evaluation", "evaluation.labels", "approve"), allow("fixture-dev", "evaluation", "evaluation.runs", "write"),
 		// A module no role names: nothing.
 		deny("fixture-maya", "model", "modelservice.profiles", "read"),
-		// The wiki: the installation's roles, not the organisation's.
+		// The wiki: the installation's roles, not the organisation's. Rémi, an
+		// editor of documents, is a viewer at the wiki like Maya.
 		allow("fixture-alex", "wiki", "wiki.page", "publish"), allow("fixture-maya", "wiki", "wiki.page", "read"),
-		deny("fixture-maya", "wiki", "wiki.page", "write"), deny("fixture-remi", "wiki", "wiki.page", "read"),
+		deny("fixture-maya", "wiki", "wiki.page", "write"), allow("fixture-remi", "wiki", "wiki.page", "read"),
+		deny("fixture-remi", "wiki", "wiki.page", "write"),
 		// Globex: its own installation of the wiki, and a documents role of its own.
 		allow("fixture-zoe", "wiki", "wiki.page", "publish"), allow("fixture-omar", "wiki", "wiki.page", "write"),
 		deny("fixture-omar", "wiki", "wiki.page", "publish"), allow("fixture-zoe", "documents", "documents", "write"),

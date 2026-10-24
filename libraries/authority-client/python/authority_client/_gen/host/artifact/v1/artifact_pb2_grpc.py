@@ -61,7 +61,9 @@ class ArtifactServiceServicer(object):
         under the policy. The person is present: the parent is theirs, addressed
         to the asking module, with no module acting between, and holds the policy
         kind's activate action there. An identity already approved answers the
-        same approval; one whose approval was revoked is refused.
+        same approval; one whose approval was revoked is refused. Consent is
+        durable: the host keeps it in its store, so it outlives the process that
+        recorded it and answers every run until it is revoked.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')

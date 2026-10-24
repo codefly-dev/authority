@@ -66,8 +66,8 @@ func TestTheMiniGatewayPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
 		SignAuthority:      testkit.SignAuthority,
 		DeliveryCredential: func(module string) string { return k.Credential(t, module) },
 		Matrix:             testkit.Matrix(),
-		// Maya reads the directory's collections and every shared one, and
-		// administers none: the authority's answer, not her token's.
+		// Maya reads the directory's and the wiki's collections and every shared
+		// one, and administers none: the authority's answer, not her token's.
 		// The page may write documents for Rémi, and a lookup through it reads.
 		Lookup: &conformance.LookupCase{Token: "fixture-remi", Start: "org-directory", Credential: k.Credential(t, "org-directory"),
 			Binding: "documents", Audience: "documents", Kind: "documents", Invoke: "write", Lookup: "read"},
@@ -76,7 +76,7 @@ func TestTheMiniGatewayPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
 			Credential: k.Credential(t, "org-directory"), Binding: "documents", Audience: "documents", Kind: "documents", Action: "write"},
 		Resources: &conformance.ResourceCase{
 			Token: "fixture-maya", Audience: "documents", Kind: "documents.collection", Action: "read",
-			Covered: []string{"derived\x1fdirectory", "shared-finance"}, Uncovered: []string{"finance", "shared-Finance"}, Unheld: "admin",
+			Covered: []string{"derived\x1fdirectory", "derived\x1fwiki", "shared-finance"}, Uncovered: []string{"finance", "shared-Finance"}, Unheld: "admin",
 		},
 		// Rémi at the page; the page asks documents; documents asks the model,
 		// for a read Rémi holds at the model and his first token never carried.

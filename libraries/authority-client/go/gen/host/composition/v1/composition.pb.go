@@ -130,6 +130,12 @@ type AuthorityManifestV1 struct {
 	// these a kind serves any action and a person's ask for everything they hold
 	// there cannot be enumerated. Each names a kind core's manifest declares.
 	ScopeCeilings []*v1.WorkScopeV1 `protobuf:"bytes,5,rep,name=scope_ceilings,json=scopeCeilings,proto3" json:"scope_ceilings,omitempty"`
+	// The roles a solution declares a person may hold on an installation of it,
+	// as ModuleManifestV1.roles declares them through the sketch: each within
+	// the solution's own kinds (its scope ceilings), one of them installer.
+	// Core's manifest carries no roles, so they travel here until it does. A
+	// module declares none; a module's delivery listing any is refused.
+	Roles         []*RoleV1 `protobuf:"bytes,6,rep,name=roles,proto3" json:"roles,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -195,6 +201,13 @@ func (x *AuthorityManifestV1) GetMethods() []*MethodPolicyV1 {
 func (x *AuthorityManifestV1) GetScopeCeilings() []*v1.WorkScopeV1 {
 	if x != nil {
 		return x.ScopeCeilings
+	}
+	return nil
+}
+
+func (x *AuthorityManifestV1) GetRoles() []*RoleV1 {
+	if x != nil {
+		return x.Roles
 	}
 	return nil
 }
@@ -754,7 +767,7 @@ const file_host_composition_v1_composition_proto_rawDesc = "" +
 	"\n" +
 	"credential\x18\x03 \x01(\tR\n" +
 	"credential\x12C\n" +
-	"\tauthority\x18\x04 \x01(\v2%.host.composition.v1.SignedManifestV1R\tauthority\"\x85\x02\n" +
+	"\tauthority\x18\x04 \x01(\v2%.host.composition.v1.SignedManifestV1R\tauthority\"\xb8\x02\n" +
 	"\x13AuthorityManifestV1\x12\x16\n" +
 	"\x06module\x18\x01 \x01(\tR\x06module\x12\x1e\n" +
 	"\n" +
@@ -762,7 +775,8 @@ const file_host_composition_v1_composition_proto_rawDesc = "" +
 	"generation\x120\n" +
 	"\x14core_manifest_digest\x18\x03 \x01(\tR\x12coreManifestDigest\x12=\n" +
 	"\amethods\x18\x04 \x03(\v2#.host.composition.v1.MethodPolicyV1R\amethods\x12E\n" +
-	"\x0escope_ceilings\x18\x05 \x03(\v2\x1e.host.authority.v1.WorkScopeV1R\rscopeCeilings\"\x92\x01\n" +
+	"\x0escope_ceilings\x18\x05 \x03(\v2\x1e.host.authority.v1.WorkScopeV1R\rscopeCeilings\x121\n" +
+	"\x05roles\x18\x06 \x03(\v2\x1b.host.composition.v1.RoleV1R\x05roles\"\x92\x01\n" +
 	"\x0eMethodPolicyV1\x12\x16\n" +
 	"\x06method\x18\x01 \x01(\tR\x06method\x12:\n" +
 	"\brequires\x18\x02 \x03(\v2\x1e.host.authority.v1.WorkScopeV1R\brequires\x12,\n" +
@@ -838,22 +852,23 @@ var file_host_composition_v1_composition_proto_depIdxs = []int32{
 	3,  // 2: host.composition.v1.ApplyManifestRequest.authority:type_name -> host.composition.v1.SignedManifestV1
 	2,  // 3: host.composition.v1.AuthorityManifestV1.methods:type_name -> host.composition.v1.MethodPolicyV1
 	10, // 4: host.composition.v1.AuthorityManifestV1.scope_ceilings:type_name -> host.authority.v1.WorkScopeV1
-	10, // 5: host.composition.v1.MethodPolicyV1.requires:type_name -> host.authority.v1.WorkScopeV1
-	7,  // 6: host.composition.v1.ModuleManifestV1.bindings:type_name -> host.composition.v1.BindingV1
-	8,  // 7: host.composition.v1.ModuleManifestV1.resource_kinds:type_name -> host.composition.v1.ResourceKindV1
-	9,  // 8: host.composition.v1.ModuleManifestV1.page:type_name -> host.composition.v1.PageV1
-	6,  // 9: host.composition.v1.ModuleManifestV1.roles:type_name -> host.composition.v1.RoleV1
-	10, // 10: host.composition.v1.RoleV1.scopes:type_name -> host.authority.v1.WorkScopeV1
-	10, // 11: host.composition.v1.BindingV1.invoke_scopes:type_name -> host.authority.v1.WorkScopeV1
-	10, // 12: host.composition.v1.BindingV1.headless_scopes:type_name -> host.authority.v1.WorkScopeV1
-	10, // 13: host.composition.v1.BindingV1.lookup_scopes:type_name -> host.authority.v1.WorkScopeV1
-	0,  // 14: host.composition.v1.CompositionService.ApplyManifest:input_type -> host.composition.v1.ApplyManifestRequest
-	4,  // 15: host.composition.v1.CompositionService.ApplyManifest:output_type -> host.composition.v1.ApplyManifestResponse
-	15, // [15:16] is the sub-list for method output_type
-	14, // [14:15] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	6,  // 5: host.composition.v1.AuthorityManifestV1.roles:type_name -> host.composition.v1.RoleV1
+	10, // 6: host.composition.v1.MethodPolicyV1.requires:type_name -> host.authority.v1.WorkScopeV1
+	7,  // 7: host.composition.v1.ModuleManifestV1.bindings:type_name -> host.composition.v1.BindingV1
+	8,  // 8: host.composition.v1.ModuleManifestV1.resource_kinds:type_name -> host.composition.v1.ResourceKindV1
+	9,  // 9: host.composition.v1.ModuleManifestV1.page:type_name -> host.composition.v1.PageV1
+	6,  // 10: host.composition.v1.ModuleManifestV1.roles:type_name -> host.composition.v1.RoleV1
+	10, // 11: host.composition.v1.RoleV1.scopes:type_name -> host.authority.v1.WorkScopeV1
+	10, // 12: host.composition.v1.BindingV1.invoke_scopes:type_name -> host.authority.v1.WorkScopeV1
+	10, // 13: host.composition.v1.BindingV1.headless_scopes:type_name -> host.authority.v1.WorkScopeV1
+	10, // 14: host.composition.v1.BindingV1.lookup_scopes:type_name -> host.authority.v1.WorkScopeV1
+	0,  // 15: host.composition.v1.CompositionService.ApplyManifest:input_type -> host.composition.v1.ApplyManifestRequest
+	4,  // 16: host.composition.v1.CompositionService.ApplyManifest:output_type -> host.composition.v1.ApplyManifestResponse
+	16, // [16:17] is the sub-list for method output_type
+	15, // [15:16] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_host_composition_v1_composition_proto_init() }

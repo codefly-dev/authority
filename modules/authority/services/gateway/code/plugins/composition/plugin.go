@@ -71,6 +71,9 @@ func (p *Plugin) ApplyManifest(ctx context.Context, req *compositionv1.ApplyMani
 			if m, err = ceiled(m, issuer.FromWire(doc.GetScopeCeilings())); err != nil {
 				return nil, err
 			}
+			if m.Roles, err = rolesOf(doc); err != nil {
+				return nil, err
+			}
 		}
 	} else {
 		if req.GetAuthority() != nil {
@@ -163,6 +166,24 @@ func methodsOf(doc *compositionv1.AuthorityManifestV1) (map[string]state.MethodP
 	return methods, nil
 }
 
+// rolesOf reads the roles a solution declares, by name. The state holds them to
+// the role contract: a solution declares an installer and every role stays
+// within what it serves (its ceiled kinds), and a module declares none, so a
+// module's delivery listing any is refused there by name.
+func rolesOf(doc *compositionv1.AuthorityManifestV1) (map[string][]*basev0.WorkScopeV1, error) {
+	if len(doc.GetRoles()) == 0 {
+		return nil, nil
+	}
+	roles := make(map[string][]*basev0.WorkScopeV1, len(doc.GetRoles()))
+	for _, role := range doc.GetRoles() {
+		if _, twice := roles[role.GetName()]; twice || role.GetName() == "" {
+			return nil, status.Errorf(codes.InvalidArgument, "the authority's document lists role %q twice or unnamed", role.GetName())
+		}
+		roles[role.GetName()] = state.Normalize(issuer.FromWire(role.GetScopes()))
+	}
+	return roles, nil
+}
+
 // ceiled gives each of the module's own kinds the actions its contract declares
 // on it, in place of the any-action kind core's manifest leaves it with. A
 // ceiling naming a kind core's manifest does not declare is refused: the
@@ -196,11 +217,13 @@ func ceiled(m state.Manifest, ceilings []*basev0.WorkScopeV1) (state.Manifest, e
 }
 
 // FromCore reads core's module manifest as the state's. Core's manifest carries
-// no roles, so a solution delivered as a carrier is refused until it does (the
-// sketch carries them through the transition). The manifest is the ceiling here: a resource kind declared with no actions serves whatever the
-// roles grant on it, a binding's invoke scopes are its operations, and a module
-// acting alone holds what it may invoke. The host narrows each of these by its
-// release-signed envelope; the authority gateway has no second document.
+// no roles; a solution's arrive in the authority's document delivered with it
+// (rolesOf), so a solution delivered as a carrier with none is refused. The
+// manifest is the ceiling here: a resource kind declared with no actions serves
+// whatever the roles grant on it, a binding's invoke scopes are its operations,
+// and a module acting alone holds what it may invoke. The host narrows each of
+// these by its release-signed envelope; the authority gateway has no second
+// document.
 func FromCore(in *solutionhost.ModuleManifest) state.Manifest {
 	m := state.Manifest{Module: in.Alias, Principal: in.Alias, Kind: string(in.Kind), Generation: in.Generation, Bindings: map[string]state.Binding{}}
 	if in.Authority == nil {

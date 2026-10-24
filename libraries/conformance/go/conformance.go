@@ -134,20 +134,21 @@ type Expectation struct {
 }
 
 // applyManifest composes one module at one generation, as a signed carrier when
-// the fixture signs, as the sketch otherwise.
+// the fixture signs, as the sketch otherwise. A solution declares its installer
+// and viewer roles over what it serves: in the authority's document when it is
+// carried, in the sketch otherwise, since core's manifest carries no roles.
 func (c *client) applyManifest(ctx context.Context, f Fixture, alias, kind string, generation uint64, kinds []string) (protoreflect.Message, error) {
-	// Core's manifest carries no roles yet, so a solution is composed through the
-	// sketch, declaring its installer and viewer roles over what it serves.
-	if f.SignManifest == nil || kind == "solution" {
-		var roles []any
-		if kind == "solution" {
-			var all, reads []any
-			for _, k := range kinds {
-				all = append(all, map[string]any{"resource_kind": k, "actions": []any{"read", "write"}})
-				reads = append(reads, map[string]any{"resource_kind": k, "actions": []any{"read"}})
-			}
-			roles = []any{map[string]any{"name": "installer", "scopes": all}, map[string]any{"name": "viewer", "scopes": reads}}
+	var roles, ceilings []any
+	if kind == "solution" {
+		var all, reads []any
+		for _, k := range kinds {
+			all = append(all, map[string]any{"resource_kind": k, "actions": []any{"read", "write"}})
+			reads = append(reads, map[string]any{"resource_kind": k, "actions": []any{"read"}})
 		}
+		roles = []any{map[string]any{"name": "installer", "scopes": all}, map[string]any{"name": "viewer", "scopes": reads}}
+		ceilings = all
+	}
+	if f.SignManifest == nil {
 		var rks []any
 		for _, k := range kinds {
 			rks = append(rks, map[string]any{"kind": k, "actions": []any{"read", "write"}})
@@ -158,6 +159,24 @@ func (c *client) applyManifest(ctx context.Context, f Fixture, alias, kind strin
 		}
 		return c.call(ctx, "host.composition.v1.CompositionService", "ApplyManifest", map[string]any{"manifest": manifest})
 	}
+	if roles == nil {
+		return c.deliver(ctx, f, alias, kind, generation, kinds, nil, 0)
+	}
+	return c.deliver(ctx, f, alias, kind, generation, kinds, map[string]any{"scope_ceilings": ceilings, "roles": roles}, 0)
+}
+
+// deliverWithMethods delivers a signed module manifest with the authority's
+// document listing methods. skew offsets the document's generation from the
+// manifest's, to prove a mismatched pair is refused.
+func (c *client) deliverWithMethods(ctx context.Context, f Fixture, alias string, generation uint64, kinds []string, methods []any, skew uint64) (protoreflect.Message, error) {
+	return c.deliver(ctx, f, alias, "module", generation, kinds, map[string]any{"methods": methods}, skew)
+}
+
+// deliver delivers a signed manifest as the CLI does: core's manifest under the
+// fixture's release key, carried by the module's own delivery credential, and,
+// when document names any field, the authority's own document signed by the same
+// key and bound to the manifest by module, generation and digest.
+func (c *client) deliver(ctx context.Context, f Fixture, alias, kind string, generation uint64, kinds []string, document map[string]any, skew uint64) (protoreflect.Message, error) {
 	manifest := &solutionhost.ModuleManifest{
 		Schema: solutionhost.SchemaModuleManifestV1, Binding: alias, Alias: alias, Kind: solutionhost.Kind(kind), Generation: generation,
 		Host:      solutionhost.HostTarget{Coordinate: f.HostCoordinate, Domain: f.HostDomain},
@@ -165,44 +184,30 @@ func (c *client) applyManifest(ctx context.Context, f Fixture, alias, kind strin
 		Workloads: []solutionhost.Workload{{Service: "api", Container: "app"}},
 		Authority: &solutionhost.Authority{Principal: alias, ResourceKinds: kinds},
 	}
-	document, err := solutionhost.SignedPayload(manifest)
+	carrier, err := solutionhost.SignedPayload(manifest)
 	if err != nil {
 		return nil, err
 	}
-	envelope, err := f.SignManifest(document)
+	envelope, err := f.SignManifest(carrier)
 	if err != nil {
 		return nil, err
 	}
-	return c.call(ctx, "host.composition.v1.CompositionService", "ApplyManifest", map[string]any{
-		"carrier": map[string]any{"document": document, "envelope": envelope}, "credential": f.DeliveryCredential(alias)})
-}
-
-// deliverWithMethods delivers a signed manifest with the authority's document
-// listing methods. skew offsets the document's generation from the manifest's,
-// to prove a mismatched pair is refused.
-func (c *client) deliverWithMethods(ctx context.Context, f Fixture, alias string, generation uint64, kinds []string, methods []any, skew uint64) (protoreflect.Message, error) {
-	manifest := &solutionhost.ModuleManifest{
-		Schema: solutionhost.SchemaModuleManifestV1, Binding: alias, Alias: alias, Kind: solutionhost.KindModule, Generation: generation,
-		Host:      solutionhost.HostTarget{Coordinate: f.HostCoordinate, Domain: f.HostDomain},
-		Release:   solutionhost.Release{Publisher: "conformance", Name: alias, Version: "0.1.0"},
-		Workloads: []solutionhost.Workload{{Service: "api", Container: "app"}},
-		Authority: &solutionhost.Authority{Principal: alias, ResourceKinds: kinds},
-	}
-	document, err := solutionhost.SignedPayload(manifest)
-	if err != nil {
-		return nil, err
-	}
-	envelope, err := f.SignManifest(document)
-	if err != nil {
-		return nil, err
+	request := map[string]any{
+		"carrier": map[string]any{"document": carrier, "envelope": envelope}, "credential": f.DeliveryCredential(alias)}
+	if document == nil {
+		return c.call(ctx, "host.composition.v1.CompositionService", "ApplyManifest", request)
 	}
 	d, err := c.files.FindDescriptorByName("host.composition.v1.AuthorityManifestV1")
 	if err != nil {
 		return nil, err
 	}
 	doc := dynamicpb.NewMessage(d.(protoreflect.MessageDescriptor))
-	sum := sha256.Sum256(document)
-	if err := fill(doc, map[string]any{"module": alias, "generation": generation + skew, "core_manifest_digest": "sha256:" + hex.EncodeToString(sum[:]), "methods": methods}); err != nil {
+	sum := sha256.Sum256(carrier)
+	fields := map[string]any{"module": alias, "generation": generation + skew, "core_manifest_digest": "sha256:" + hex.EncodeToString(sum[:])}
+	for name, value := range document {
+		fields[name] = value
+	}
+	if err := fill(doc, fields); err != nil {
 		return nil, err
 	}
 	authority, err := proto.Marshal(doc)
@@ -213,10 +218,8 @@ func (c *client) deliverWithMethods(ctx context.Context, f Fixture, alias string
 	if err != nil {
 		return nil, err
 	}
-	return c.call(ctx, "host.composition.v1.CompositionService", "ApplyManifest", map[string]any{
-		"carrier":    map[string]any{"document": document, "envelope": envelope},
-		"authority":  map[string]any{"document": authority, "envelope": signed},
-		"credential": f.DeliveryCredential(alias)})
+	request["authority"] = map[string]any{"document": authority, "envelope": signed}
+	return c.call(ctx, "host.composition.v1.CompositionService", "ApplyManifest", request)
 }
 
 // Run drives the suite over one connection, from the published descriptors.

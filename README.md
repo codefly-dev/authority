@@ -331,16 +331,20 @@ with what the module serves. A person's access to a solution is the role its
 installation grants her, the installer role as its owner or the installation's
 role through a granted team, and nothing from the organisation's roles. Another
 organisation's installation grants nothing. The values of real roles belong to
-each solution's manifest and arrive through the carrier; this repository holds
+each solution's manifest and arrive through the carrier: core's manifest carries
+no roles, so they travel in the authority's own document delivered with it
+(`AuthorityManifestV1.roles`, as the sketch's `ModuleManifestV1.roles`), each
+within the solution's scope ceilings in the same document. This repository holds
 the contract and its evaluation, never a product's roles.
 
 The suite proves it as a matrix: the fixture states, for each person at each
 audience, which kind and action is allowed and which refused, and the suite asks
 for exactly that scope and expects the answer. The authority gateway's fixture carries
 two organisations, five people, three organisation roles, one solution with three
-roles installed twice, and 24 cells. The host supplies its own matrix from its
-own fixture. Core's manifest carries no roles yet, so a solution is composed
-through the sketch until it does.
+roles installed twice, and 25 cells. The host supplies its own matrix from its
+own fixture. When the fixture signs, the suite composes its solution as a carrier
+with the authority's document carrying its roles; the sketch remains for a
+fixture that does not sign.
 
 ## Delegate chains: a module inherits who it acts for
 

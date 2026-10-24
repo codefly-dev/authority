@@ -43,6 +43,9 @@ const (
 type AuthorityServiceClient interface {
 	// Issue signs a Work Context for one owner shape, one audience and the scopes
 	// asked for, bounded by what the owner holds and what the audience declared.
+	// Served over REST too (POST /v1/authority:issue), for a module with no
+	// generated client of its own, as a Python service: the same request and
+	// answer, in JSON.
 	Issue(ctx context.Context, in *IssueRequest, opts ...grpc.CallOption) (*IssueResponse, error)
 	// Check verifies a presented Work Context for the audience the caller is,
 	// re-checking the authorization revision and the seal live.
@@ -152,6 +155,9 @@ func (c *authorityServiceClient) GetDelegation(ctx context.Context, in *GetDeleg
 type AuthorityServiceServer interface {
 	// Issue signs a Work Context for one owner shape, one audience and the scopes
 	// asked for, bounded by what the owner holds and what the audience declared.
+	// Served over REST too (POST /v1/authority:issue), for a module with no
+	// generated client of its own, as a Python service: the same request and
+	// answer, in JSON.
 	Issue(context.Context, *IssueRequest) (*IssueResponse, error)
 	// Check verifies a presented Work Context for the audience the caller is,
 	// re-checking the authorization revision and the seal live.

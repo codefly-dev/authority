@@ -79,6 +79,9 @@ class AuthorityServiceServicer(object):
     def Issue(self, request, context):
         """Issue signs a Work Context for one owner shape, one audience and the scopes
         asked for, bounded by what the owner holds and what the audience declared.
+        Served over REST too (POST /v1/authority:issue), for a module with no
+        generated client of its own, as a Python service: the same request and
+        answer, in JSON.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')

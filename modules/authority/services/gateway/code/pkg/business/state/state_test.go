@@ -28,20 +28,25 @@ func TestFixtureSeedsPeopleRolesAndInstallsThroughTheRealPath(t *testing.T) {
 		t.Fatalf("unknown token: %v", err)
 	}
 	wiki, ok := k.State.Installation(state.InstallationID("acme", "wiki"))
-	if !ok || wiki.Status != state.Active || wiki.Role != "viewer" || len(wiki.Teams) != 1 || wiki.Teams[0] != "finance" {
+	if !ok || wiki.Status != state.Active || wiki.Role != "viewer" || strings.Join(wiki.Teams, ",") != "finance,engineering" {
 		t.Fatalf("wiki installation = %+v", wiki)
 	}
 }
 
 func TestEntitlementIsTheNavigation(t *testing.T) {
 	k := testkit.New(t)
-	if got := k.State.Entitled("maya"); len(got) != 1 || got[0].Target != "wiki" {
-		t.Fatalf("maya (finance) sees %+v", got)
+	// The fixture grants Acme's wiki to finance and engineering: Maya and Rémi
+	// each see it, once; Omar (Globex, ops) sees Globex's own installation.
+	for person, target := range map[string]string{"maya": "wiki", "remi": "wiki", "omar": "wiki"} {
+		if got := k.State.Entitled(person); len(got) != 1 || got[0].Target != target {
+			t.Fatalf("%s sees %+v", person, got)
+		}
 	}
-	if got := k.State.Entitled("remi"); len(got) != 0 {
-		t.Fatalf("remi (engineering) sees %+v", got)
+	if got := k.State.Entitled("omar"); got[0].Organization != "globex" {
+		t.Fatalf("omar sees another organisation's installation: %+v", got)
 	}
-	if _, err := k.State.GrantToTeam(context.Background(), "acme", state.InstallationID("acme", "wiki"), "engineering"); err != nil {
+	// A grant to a team nobody in Acme is on changes nobody's navigation.
+	if _, err := k.State.GrantToTeam(context.Background(), "acme", state.InstallationID("acme", "wiki"), "ops"); err != nil {
 		t.Fatal(err)
 	}
 	if got := k.State.Entitled("remi"); len(got) != 1 {
@@ -149,7 +154,15 @@ func TestTheAuthorizationRevisionMovesOnEveryGrantChange(t *testing.T) {
 	k := testkit.New(t)
 	ctx := context.Background()
 	before, _ := k.State.AuthorizationRevision(ctx, "acme")
+	// Engineering is granted by the fixture already: granting it again changes
+	// nothing and moves nothing; a team not yet granted moves the revision.
 	if _, err := k.State.GrantToTeam(ctx, "acme", state.InstallationID("acme", "wiki"), "engineering"); err != nil {
+		t.Fatal(err)
+	}
+	if same, _ := k.State.AuthorizationRevision(ctx, "acme"); same != before {
+		t.Fatalf("a grant that changes nothing moved the revision %d → %d", before, same)
+	}
+	if _, err := k.State.GrantToTeam(ctx, "acme", state.InstallationID("acme", "wiki"), "ops"); err != nil {
 		t.Fatal(err)
 	}
 	after, _ := k.State.AuthorizationRevision(ctx, "acme")
@@ -249,8 +262,8 @@ func TestAccessToASolutionIsTheInstallationsRole(t *testing.T) {
 	if got := hold("maya"); got != "wiki.page:read" {
 		t.Fatalf("finance holds the viewer role, got %q", got)
 	}
-	if got := hold("remi"); got != "" {
-		t.Fatalf("an editor of documents holds nothing at the wiki, got %q", got)
+	if got := hold("remi"); got != "wiki.page:read" {
+		t.Fatalf("an editor of documents holds the installation's viewer role at the wiki, not his organisation role, got %q", got)
 	}
 	if got := hold("zoe"); got != "wiki.page:publish,read,write" {
 		t.Fatalf("globex's owner holds its installer role, got %q", got)

@@ -45,8 +45,8 @@ func TestTheScenarioOneHopAtATime(t *testing.T) {
 		if len(nav) != 1 || nav[0].Target != "wiki" {
 			t.Fatalf("Maya's navigation = %+v", nav)
 		}
-		// Rémi on engineering is not on Finance and sees nothing.
-		if nav := k.State.Entitled("remi"); len(nav) != 0 {
+		// Rémi on engineering sees it too: the installation reaches both teams.
+		if nav := k.State.Entitled("remi"); len(nav) != 1 || nav[0].Target != "wiki" {
 			t.Fatalf("Rémi's navigation = %+v", nav)
 		}
 	})
