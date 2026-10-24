@@ -438,8 +438,14 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		req["scopes"] = read
 		child := c.must(t, ctx, "host.authority.v1.AuthorityService", "Issue", req)
 		wc := msg(child, "context")
-		if len(listMsgs(wc, "actor_chain")) != 1 || str(msg(wc, "operation_binding"), "binding_id") == "" || str(wc, "audience") != f.BindingAudience {
+		if len(listMsgs(wc, "actor_chain")) != 1 || str(wc, "audience") != f.BindingAudience {
 			t.Fatalf("child: %v", child)
+		}
+		// The binding it exercises is named within the organisation and the
+		// module acting, since a binding's id is that module's own: a caller
+		// holds a child to the binding it asked for by this name.
+		if want := f.Organization + "/" + f.WorkloadModule + "/" + f.Binding; str(msg(wc, "operation_binding"), "binding_id") != want {
+			t.Fatalf("the child exercises %q, want %q", str(msg(wc, "operation_binding"), "binding_id"), want)
 		}
 		c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(child, "token"), "audience": f.BindingAudience})
 		req = clone(hop)
