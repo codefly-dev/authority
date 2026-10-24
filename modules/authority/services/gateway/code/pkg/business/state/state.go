@@ -104,10 +104,13 @@ func (d Delegation) WorkScopes() []*basev0.WorkScopeV1 {
 
 // Manifest is what the render delivered for one module instance.
 type Manifest struct {
-	Module        string
-	Principal     string
-	Kind          string
-	Generation    uint64
+	Module     string
+	Principal  string
+	Kind       string
+	Generation uint64
+	// StandIn marks a module the fixture declares for a run that supervises it
+	// itself: what it serves, until the module's own delivery replaces it.
+	StandIn       bool
 	Bindings      map[string]Binding
 	ResourceKinds []*basev0.WorkScopeV1
 	// Roles are what a solution declares a person may hold on an installation of
@@ -434,7 +437,7 @@ func (s *State) LoadFixture(ctx context.Context, data []byte) error {
 		if _, composed := s.modules[fm.Module]; composed {
 			continue
 		}
-		m := Manifest{Module: fm.Module, Principal: fm.Module, Kind: "module", Generation: 1, Bindings: map[string]Binding{}}
+		m := Manifest{Module: fm.Module, Principal: fm.Module, Kind: "module", Generation: 1, Bindings: map[string]Binding{}, StandIn: true}
 		for _, k := range fm.Kinds {
 			m.ResourceKinds = append(m.ResourceKinds, &basev0.WorkScopeV1{ResourceKind: k.Kind, Actions: append([]string(nil), k.Actions...)})
 		}
@@ -696,7 +699,9 @@ func (s *State) ApplyManifest(m Manifest) ([]string, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if prev, ok := s.modules[m.Module]; ok && prev.Generation >= m.Generation {
+	// A fixture's stand-in (a module a local run supervises itself) is replaced
+	// by the module's own delivery, whatever generation that carries.
+	if prev, ok := s.modules[m.Module]; ok && !prev.StandIn && prev.Generation >= m.Generation {
 		return nil, fmt.Errorf("%w: %s is at %d, got %d", ErrStale, m.Module, prev.Generation, m.Generation)
 	}
 	if other, ok := s.principals[m.Principal]; ok && other != m.Module {

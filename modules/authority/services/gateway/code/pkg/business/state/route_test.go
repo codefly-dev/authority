@@ -47,3 +47,22 @@ func TestAnHTTPRequestIsAdmittedUnderTheRouteItsPathMatches(t *testing.T) {
 		}
 	}
 }
+
+// A module the fixture stands in for (one a local run supervises itself) is
+// replaced by the module's own delivery, whatever generation the delivery
+// carries; a delivered module is not replaced by a stale one.
+func TestADeliveryReplacesTheFixturesStandIn(t *testing.T) {
+	k := testkit.New(t)
+	standIn := state.Manifest{Module: "gauge", Principal: "gauge", Kind: "module", Generation: 1, Bindings: map[string]state.Binding{}, StandIn: true}
+	if _, err := k.State.ApplyManifest(standIn); err != nil {
+		t.Fatal(err)
+	}
+	delivered := state.Manifest{Module: "gauge", Principal: "gauge", Kind: "module", Generation: 1, Bindings: map[string]state.Binding{},
+		Methods: map[string]state.MethodPolicy{"GET /v1/gauge/profiles": reads("gauge.profiles")}}
+	if _, err := k.State.ApplyManifest(delivered); err != nil {
+		t.Fatalf("the module's own delivery did not replace the stand-in: %v", err)
+	}
+	if _, err := k.State.ApplyManifest(delivered); !errors.Is(err, state.ErrStale) {
+		t.Fatalf("a delivered module took a manifest of the same generation: %v", err)
+	}
+}
