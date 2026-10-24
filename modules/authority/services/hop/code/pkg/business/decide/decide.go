@@ -84,6 +84,8 @@ func IdentityOf(wc *authorityv1.WorkContextV1) hop.Identity {
 		OwnerKind: wc.GetOwnerPrincipalKind(),
 		Tenant:    wc.GetTenantId(),
 		Binding:   wc.GetOperationBinding().GetBindingId(),
+		Task:      wc.GetTaskId(),
+		Expires:   wc.GetExpiresAtUnix(),
 	}
 	scopes := flatten(wc.GetAuthorityScopes())
 	for _, actor := range wc.GetActorChain() {

@@ -3,10 +3,12 @@
     "x-codefly-hop-actors": "robin",
     "x-codefly-hop-binding": "acme/robin/model",
     "x-codefly-hop-context": "cde194a7f3368961e48f1937c63fc67e058b2717d9c0581ac0eb08874ca8b714",
+    "x-codefly-hop-expires": "1792818000",
     "x-codefly-hop-owner": "remi",
     "x-codefly-hop-owner-kind": "human",
     "x-codefly-hop-proof": "fixture-proof",
     "x-codefly-hop-scopes": "modelservice.profiles:read,modelservice.profiles:invoke",
+    "x-codefly-hop-task": "task-7",
     "x-codefly-hop-tenant": "acme",
     "x-codefly-work-context": "eyJ3YyI6ImZpeHR1cmUifQ.c2lnbmF0dXJl"
   },

@@ -3,7 +3,15 @@ from pathlib import Path
 
 import pytest
 
-from codefly_hop import CONTEXT_KEY, PROOF_KEY, TENANT_KEY, WORK_CONTEXT_KEY, NoStamp, read
+from codefly_hop import (
+    CONTEXT_KEY,
+    EXPIRES_KEY,
+    PROOF_KEY,
+    TENANT_KEY,
+    WORK_CONTEXT_KEY,
+    NoStamp,
+    read,
+)
 
 FIXTURE = json.loads((Path(__file__).parents[2] / "testdata" / "stamped.json").read_text())
 
@@ -23,6 +31,7 @@ def test_the_stamp_the_hop_writes_reads_back_as_its_identity():
     assert (identity.owner, identity.owner_kind, identity.tenant) == ("remi", "human", "acme")
     assert identity.actors == ("robin",)
     assert identity.binding == "acme/robin/model"
+    assert (identity.task, identity.expires) == ("task-7", 1792818000)
     assert identity.context == FIXTURE["headers"][WORK_CONTEXT_KEY]
     assert identity.has("modelservice.profiles", "invoke")
     assert not identity.has("modelservice.profiles", "admin")
@@ -45,6 +54,7 @@ def test_header_names_are_case_insensitive_and_repeats_are_kept():
         (stamped(**{TENANT_KEY: None}), "fixture-proof"),  # a stamp naming no tenant
         (stamped(**{WORK_CONTEXT_KEY: "swapped-after-the-check"}), "fixture-proof"),
         (stamped(**{CONTEXT_KEY: "0" * 64}), "fixture-proof"),
+        (stamped(**{EXPIRES_KEY: "soon"}), "fixture-proof"),
     ],
 )
 def test_a_call_without_this_runs_stamp_acts_for_no_one(headers, proof):

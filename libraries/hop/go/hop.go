@@ -15,6 +15,7 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"errors"
+	"strconv"
 	"strings"
 
 	"google.golang.org/grpc"
@@ -38,6 +39,11 @@ const (
 	ActorsKey    = StampPrefix + "actors"
 	ScopesKey    = StampPrefix + "scopes"
 	BindingKey   = StampPrefix + "binding"
+	// TaskKey and ExpiresKey are the checked context's task and the instant it
+	// expires (unix seconds): what a module keeps state under, and what it must
+	// not hold a session past.
+	TaskKey    = StampPrefix + "task"
+	ExpiresKey = StampPrefix + "expires"
 	// ContextKey binds the stamp to the one Work Context the authority checked:
 	// the digest of the forwarded token. A module reading that token's claims
 	// reads exactly what was checked, and nothing a caller swapped in after.
@@ -55,6 +61,10 @@ type Identity struct {
 	Scopes []string
 	// Binding is the operation binding the last actor exercises, when it names one.
 	Binding string
+	// Task is the checked context's task, and Expires the instant it expires
+	// (unix seconds), when the hop stamped them.
+	Task    string
+	Expires int64
 	// Context is the Work Context the authority checked, as forwarded. A module
 	// that needs its full claims decodes them from it without verifying again:
 	// the stamp's proof and digest are what vouch for it.
@@ -97,6 +107,12 @@ func Stamp(md metadata.MD, id Identity, proof string) {
 	if id.Binding != "" {
 		md.Set(BindingKey, id.Binding)
 	}
+	if id.Task != "" {
+		md.Set(TaskKey, id.Task)
+	}
+	if id.Expires > 0 {
+		md.Set(ExpiresKey, strconv.FormatInt(id.Expires, 10))
+	}
 	if token := first(md, WorkContextKey); token != "" {
 		md.Set(ContextKey, digest(token))
 	}
@@ -110,9 +126,16 @@ func Read(md metadata.MD, proof string) (Identity, error) {
 	if proof == "" || got == "" || subtle.ConstantTimeCompare([]byte(got), []byte(proof)) != 1 {
 		return Identity{}, ErrNoStamp
 	}
-	id := Identity{Owner: first(md, OwnerKey), OwnerKind: first(md, OwnerKindKey), Tenant: first(md, TenantKey), Binding: first(md, BindingKey)}
+	id := Identity{Owner: first(md, OwnerKey), OwnerKind: first(md, OwnerKindKey), Tenant: first(md, TenantKey), Binding: first(md, BindingKey), Task: first(md, TaskKey)}
 	if id.Owner == "" || id.Tenant == "" {
 		return Identity{}, ErrNoStamp
+	}
+	if expires := first(md, ExpiresKey); expires != "" {
+		at, err := strconv.ParseInt(expires, 10, 64)
+		if err != nil || at <= 0 {
+			return Identity{}, ErrNoStamp
+		}
+		id.Expires = at
 	}
 	id.Actors = split(first(md, ActorsKey))
 	id.Scopes = split(first(md, ScopesKey))

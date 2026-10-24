@@ -25,6 +25,10 @@ TENANT_KEY = STAMP_PREFIX + "tenant"
 ACTORS_KEY = STAMP_PREFIX + "actors"
 SCOPES_KEY = STAMP_PREFIX + "scopes"
 BINDING_KEY = STAMP_PREFIX + "binding"
+# The checked context's task, and the instant it expires (unix seconds): what a
+# module keeps state under, and what it must not hold a session past.
+TASK_KEY = STAMP_PREFIX + "task"
+EXPIRES_KEY = STAMP_PREFIX + "expires"
 CONTEXT_KEY = STAMP_PREFIX + "context"
 
 
@@ -49,6 +53,9 @@ class Identity:
     scopes: tuple[str, ...] = ()
     # The operation binding the last actor exercises, when it names one.
     binding: str = ""
+    # The checked context's task, and when it expires (unix seconds; 0 when unstamped).
+    task: str = ""
+    expires: int = 0
     # The Work Context the authority checked, as forwarded.
     context: str = field(default="", repr=False)
 
@@ -68,6 +75,11 @@ def read(headers: Mapping[str, str] | Iterable[tuple[str, str]], proof: str) -> 
     owner, tenant = _first(values, OWNER_KEY), _first(values, TENANT_KEY)
     if not owner or not tenant:
         raise NoStamp()
+    expires = 0
+    if raw := _first(values, EXPIRES_KEY):
+        if not raw.isdigit() or int(raw) <= 0:
+            raise NoStamp()
+        expires = int(raw)
     context = ""
     bound = _first(values, CONTEXT_KEY)
     if bound:
@@ -82,6 +94,8 @@ def read(headers: Mapping[str, str] | Iterable[tuple[str, str]], proof: str) -> 
         actors=_split(_first(values, ACTORS_KEY)),
         scopes=_split(_first(values, SCOPES_KEY)),
         binding=_first(values, BINDING_KEY),
+        task=_first(values, TASK_KEY),
+        expires=expires,
         context=context,
     )
 

@@ -17,7 +17,7 @@ var updateFixture = flag.Bool("update-fixture", false, "rewrite ../testdata/stam
 // (../python) reads back in its own tests.
 func TestTheStampFixtureIsWhatTheHopWrites(t *testing.T) {
 	md := metadata.Pairs(WorkContextKey, "eyJ3YyI6ImZpeHR1cmUifQ.c2lnbmF0dXJl")
-	Stamp(md, Identity{Owner: "remi", OwnerKind: "human", Tenant: "acme", Actors: []string{"robin"}, Scopes: []string{"modelservice.profiles:read", "modelservice.profiles:invoke"}, Binding: "acme/robin/model"}, "fixture-proof")
+	Stamp(md, Identity{Owner: "remi", OwnerKind: "human", Tenant: "acme", Actors: []string{"robin"}, Scopes: []string{"modelservice.profiles:read", "modelservice.profiles:invoke"}, Binding: "acme/robin/model", Task: "task-7", Expires: 1792818000}, "fixture-proof")
 	headers := map[string]string{}
 	for key, values := range md {
 		headers[key] = values[0]
