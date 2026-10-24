@@ -795,10 +795,12 @@ type CheckRequest struct {
 	Token string `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	// The audience the caller is; a capability addressed elsewhere is refused.
 	Audience string `protobuf:"bytes,2,opt,name=audience,proto3" json:"audience,omitempty"`
-	// The method the capability is presented to, "/package.Service/Method". When
-	// set, the check also applies what the audience module's delivery declares
-	// for that method, and refuses by name a call that does not hold it, a method
-	// that declares nothing, and a method the module does not serve.
+	// The method the capability is presented to: "/package.Service/Method" for a
+	// gRPC call, "<VERB> <path>" for an HTTP request (GET /v1/model/profiles),
+	// matched against the routes the module declares. When set, the check also
+	// applies what the audience module's delivery declares for that method, and
+	// refuses by name a call that does not hold it, a method that declares
+	// nothing, and a method the module does not serve.
 	Method        string `protobuf:"bytes,3,opt,name=method,proto3" json:"method,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

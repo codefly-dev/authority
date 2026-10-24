@@ -60,7 +60,9 @@ message AuthorityManifestV1 {
 // MethodPolicyV1 is what a call to one method must hold, as the module's
 // contract declares it with the authority.hop.v1.policy option.
 message MethodPolicyV1 {
-  // The method, "/package.Service/Method".
+  // The method: "/package.Service/Method" for a gRPC method, or an HTTP route
+  // "<VERB> <template>" (GET /v1/model/profiles/{ref}), each "{name}" standing
+  // for one path segment's text.
   string method = 1;
   // Each action on each kind the call must hold.
   repeated host.authority.v1.WorkScopeV1 requires = 2;

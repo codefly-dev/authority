@@ -3,8 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/http"
+	"net/url"
 	"strings"
+	"time"
 
+	"github.com/codefly-dev/core/standards"
 	"github.com/codefly-dev/core/wool"
 	codefly "github.com/codefly-dev/sdk-go"
 	"google.golang.org/grpc"
@@ -35,42 +40,79 @@ func standInFront(ctx context.Context, config *adapters.Configuration) (Clean, e
 		return nil, err
 	}
 	// The modules this hop stands in front of are the composition's to name:
-	// MODULES lists their principals, and UPSTREAM_<MODULE> is each one's
-	// endpoint, a ${endpoint:<module>/<service>/<endpoint>} reference the CLI
-	// resolves. Codefly composing a hop in front of every module replaces both.
+	// MODULES lists their principals, and each one's endpoint is
+	// UPSTREAM_<MODULE> for a module serving gRPC, HTTP_UPSTREAM_<MODULE> for
+	// one serving HTTP, or both: a ${endpoint:<module>/<service>/<endpoint>}
+	// reference the CLI resolves. Codefly composing a hop in front of every
+	// module replaces them.
 	listed, err := codefly.For(ctx).WorkspaceConfiguration("hop", "MODULES")
 	if err != nil || listed == "" {
 		return nil, fmt.Errorf("hop: the composition names no module to stand in front of (hop/MODULES): %v", err)
 	}
-	modules, upstreams := map[string]bool{}, map[string]*grpc.ClientConn{}
+	modules, upstreams, webs := map[string]bool{}, map[string]*grpc.ClientConn{}, map[string]*url.URL{}
 	for _, name := range strings.Split(listed, ",") {
 		name = strings.TrimSpace(name)
-		key := "UPSTREAM_" + strings.ToUpper(strings.ReplaceAll(name, "-", "_"))
-		endpoint, err := codefly.For(ctx).WorkspaceConfiguration("hop", key)
-		if err != nil || endpoint == "" {
-			return nil, fmt.Errorf("hop: the composition names no endpoint for %s (hop/%s): %v", name, key, err)
+		suffix := strings.ToUpper(strings.ReplaceAll(name, "-", "_"))
+		grpcEndpoint, _ := codefly.For(ctx).WorkspaceConfiguration("hop", "UPSTREAM_"+suffix)
+		httpEndpoint, _ := codefly.For(ctx).WorkspaceConfiguration("hop", "HTTP_UPSTREAM_"+suffix)
+		if grpcEndpoint == "" && httpEndpoint == "" {
+			return nil, fmt.Errorf("hop: the composition names no endpoint for %s (hop/UPSTREAM_%s or hop/HTTP_UPSTREAM_%s)", name, suffix, suffix)
 		}
-		conn, err := grpc.NewClient(address(endpoint), append(proxy.DialOptions(), grpc.WithTransportCredentials(insecure.NewCredentials()))...)
-		if err != nil {
+		if grpcEndpoint != "" {
+			conn, err := grpc.NewClient(address(grpcEndpoint), append(proxy.DialOptions(), grpc.WithTransportCredentials(insecure.NewCredentials()))...)
+			if err != nil {
+				return nil, err
+			}
+			upstreams[name] = conn
+		}
+		if httpEndpoint != "" {
+			target, err := url.Parse(httpEndpoint)
+			if err != nil || target.Scheme == "" || target.Host == "" {
+				return nil, fmt.Errorf("hop: hop/HTTP_UPSTREAM_%s is not an absolute URL: %q", suffix, httpEndpoint)
+			}
+			webs[name] = target
+		}
+		modules[name] = true
+	}
+	decision := decide.Decider{Authority: authorityv1.NewAuthorityServiceClient(authority), Modules: modules}.Decide
+	refused := func(method string, err error) {
+		w.Warn("refused", wool.Field("method", method), wool.Field("reason", err.Error()))
+	}
+	p := &proxy.Proxy{Decide: decision, Upstreams: upstreams, Proof: proof, Refused: refused}
+	config.GRPCServerOptions = append(config.GRPCServerOptions, p.ServerOptions()...)
+	stopWeb := func() {}
+	if len(webs) > 0 {
+		if stopWeb, err = serveHTTP(ctx, &proxy.HTTP{Decide: decision, Upstreams: webs, Proof: proof, Refused: refused}); err != nil {
 			return nil, err
 		}
-		modules[name], upstreams[name] = true, conn
 	}
-	p := &proxy.Proxy{
-		Decide:    decide.Decider{Authority: authorityv1.NewAuthorityServiceClient(authority), Modules: modules}.Decide,
-		Upstreams: upstreams,
-		Proof:     proof,
-		Refused: func(method string, err error) {
-			w.Warn("refused", wool.Field("method", method), wool.Field("reason", err.Error()))
-		},
-	}
-	config.GRPCServerOptions = append(config.GRPCServerOptions, p.ServerOptions()...)
 	w.Info("standing in front of modules", wool.Field("modules", listed))
 	return func() {
+		stopWeb()
 		_ = authority.Close()
 		for _, conn := range upstreams {
 			_ = conn.Close()
 		}
+	}, nil
+}
+
+// serveHTTP listens on the hop's http endpoint, as the run allocated it, with
+// the hop's HTTP face.
+func serveHTTP(ctx context.Context, face http.Handler) (func(), error) {
+	instance, err := codefly.For(ctx).API(standards.HTTP).ResolveNetworkInstance()
+	if err != nil {
+		return nil, fmt.Errorf("hop: the hop's http endpoint does not resolve: %w", err)
+	}
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", instance.Port))
+	if err != nil {
+		return nil, fmt.Errorf("hop: listen on the hop's http endpoint: %w", err)
+	}
+	server := &http.Server{Handler: face, ReadHeaderTimeout: 10 * time.Second}
+	go func() { _ = server.Serve(listener) }()
+	return func() {
+		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = server.Shutdown(shutdown)
 	}, nil
 }
 

@@ -165,10 +165,12 @@ message CheckRequest {
   string token = 1;
   // The audience the caller is; a capability addressed elsewhere is refused.
   string audience = 2;
-  // The method the capability is presented to, "/package.Service/Method". When
-  // set, the check also applies what the audience module's delivery declares
-  // for that method, and refuses by name a call that does not hold it, a method
-  // that declares nothing, and a method the module does not serve.
+  // The method the capability is presented to: "/package.Service/Method" for a
+  // gRPC call, "<VERB> <path>" for an HTTP request (GET /v1/model/profiles),
+  // matched against the routes the module declares. When set, the check also
+  // applies what the audience module's delivery declares for that method, and
+  // refuses by name a call that does not hold it, a method that declares
+  // nothing, and a method the module does not serve.
   string method = 3;
 }
 

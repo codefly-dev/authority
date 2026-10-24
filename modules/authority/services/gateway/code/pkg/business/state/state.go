@@ -158,6 +158,11 @@ func (s *State) AdmitMethod(audience, method string, held []*basev0.WorkScopeV1)
 		return fmt.Errorf("%w: %s's delivery declares no method policy, so %s is refused", ErrForbidden, audience, method)
 	}
 	p, ok := m.Methods[method]
+	if !ok {
+		if p, ok, err = routeOf(m.Methods, method); err != nil {
+			return fmt.Errorf("%w: %s: %w", ErrForbidden, audience, err)
+		}
+	}
 	switch {
 	case !ok:
 		return fmt.Errorf("%w: %s serves no method %s", ErrUnknown, audience, method)
@@ -181,6 +186,65 @@ func (s *State) AdmitMethod(audience, method string, held []*basev0.WorkScopeV1)
 			ErrForbidden, audience, strings.Join(missing, ", "), method, describe(held))
 	}
 	return nil
+}
+
+// routeOf is the route a module declares that an HTTP request "<VERB> <path>"
+// is for: a declared "<VERB> <template>" whose template matches the path, a
+// "{name}" in it standing for one path segment's text. Two templates matching
+// one path is an ambiguous declaration, refused rather than guessed between.
+func routeOf(methods map[string]MethodPolicy, request string) (MethodPolicy, bool, error) {
+	verb, path, ok := strings.Cut(request, " ")
+	if !ok || !strings.HasPrefix(path, "/") {
+		return MethodPolicy{}, false, nil
+	}
+	var found []string
+	for declared := range methods {
+		if v, template, ok := strings.Cut(declared, " "); ok && v == verb && routeMatches(template, path) {
+			found = append(found, declared)
+		}
+	}
+	switch len(found) {
+	case 0:
+		return MethodPolicy{}, false, nil
+	case 1:
+		return methods[found[0]], true, nil
+	}
+	slices.Sort(found)
+	return MethodPolicy{}, false, fmt.Errorf("%s matches more than one declared route (%s)", request, strings.Join(found, ", "))
+}
+
+// routeMatches is whether path is an instance of template, segment by segment.
+func routeMatches(template, path string) bool {
+	want, got := strings.Split(template, "/"), strings.Split(path, "/")
+	if len(want) != len(got) {
+		return false
+	}
+	for i, segment := range want {
+		if !segmentMatches(segment, got[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// segmentMatches matches one segment: literal text, with each "{name}" standing
+// for at least one character of the segment, such as "{match_id}:settle".
+func segmentMatches(template, segment string) bool {
+	open := strings.IndexByte(template, '{')
+	if open < 0 {
+		return template == segment
+	}
+	end := strings.IndexByte(template[open:], '}')
+	if end < 0 || !strings.HasPrefix(segment, template[:open]) {
+		return false
+	}
+	rest, tail := segment[open:], template[open+end+1:]
+	for i := 1; i <= len(rest); i++ {
+		if segmentMatches(tail, rest[i:]) {
+			return true
+		}
+	}
+	return false
 }
 
 // holdsAction is whether held carries action on kind. A method's requirement is

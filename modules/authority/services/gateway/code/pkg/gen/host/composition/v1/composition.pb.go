@@ -203,7 +203,9 @@ func (x *AuthorityManifestV1) GetScopeCeilings() []*v1.WorkScopeV1 {
 // contract declares it with the authority.hop.v1.policy option.
 type MethodPolicyV1 struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The method, "/package.Service/Method".
+	// The method: "/package.Service/Method" for a gRPC method, or an HTTP route
+	// "<VERB> <template>" (GET /v1/model/profiles/{ref}), each "{name}" standing
+	// for one path segment's text.
 	Method string `protobuf:"bytes,1,opt,name=method,proto3" json:"method,omitempty"`
 	// Each action on each kind the call must hold.
 	Requires []*v1.WorkScopeV1 `protobuf:"bytes,2,rep,name=requires,proto3" json:"requires,omitempty"`

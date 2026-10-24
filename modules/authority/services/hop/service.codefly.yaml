@@ -8,6 +8,10 @@ agent:
 endpoints:
     - name: grpc
     - name: rest
+    # The hop's face for a module that serves HTTP: each request decided for
+    # "<VERB> <path>" and sent on to the module's HTTP_UPSTREAM (code/work.go).
+    - name: http
+      api: http
 spec:
     Settings:
         GoAgentSettings:
