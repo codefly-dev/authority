@@ -4,6 +4,8 @@ package plugins
 import (
 	"gateway/pkg/framework"
 
+	artifact "gateway/plugins/artifact"
+
 	authority "gateway/plugins/authority"
 
 	composition "gateway/plugins/composition"
@@ -19,6 +21,7 @@ import (
 // This file is regenerated from plugins.yaml by the codefly agent during Sync.
 func All() []framework.Plugin {
 	return []framework.Plugin{
+		artifact.New(),
 		authority.New(),
 		composition.New(),
 		installation.New(),

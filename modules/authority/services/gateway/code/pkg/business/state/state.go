@@ -319,6 +319,10 @@ func InstallationID(org, target string) string {
 	return uuid.NewSHA1(installationNamespace, []byte(org+"\x00"+target)).String()
 }
 
+// Namespace is the source the installation's own authored content belongs
+// to, named by the host so a module never chooses it: "<organization>.<target>".
+func (i Installation) Namespace() string { return i.Organization + "." + i.Target }
+
 // AgentPrincipal is the principal an installation acts as for itself.
 func (i Installation) AgentPrincipal() string { return i.ID + "/agent" }
 
@@ -388,6 +392,8 @@ type State struct {
 	// pendingInstalls are fixture installations whose target was not composed
 	// when the fixture loaded; each is performed when its target's manifest applies.
 	pendingInstalls []FixtureInstallation
+	// Approvals are the artifacts people have consented to (the artifact interface).
+	Approvals Approvals
 }
 
 // New returns an empty state that attests workloads against one launcher anchor:

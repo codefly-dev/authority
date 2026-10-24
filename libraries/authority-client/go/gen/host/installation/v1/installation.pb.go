@@ -333,8 +333,13 @@ type Installation struct {
 	TeamIds []string `protobuf:"bytes,7,rep,name=team_ids,json=teamIds,proto3" json:"team_ids,omitempty"`
 	// The principal the installation acts as for itself.
 	AgentPrincipalId string `protobuf:"bytes,8,opt,name=agent_principal_id,json=agentPrincipalId,proto3" json:"agent_principal_id,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// The namespace the installation's own authored content belongs to (an
+	// agent's source): the host names it, so a module never chooses which source
+	// an installation may run. A module installed by composition is
+	// "<organization>.<target>".
+	Namespace     string `protobuf:"bytes,9,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Installation) Reset() {
@@ -419,6 +424,13 @@ func (x *Installation) GetTeamIds() []string {
 func (x *Installation) GetAgentPrincipalId() string {
 	if x != nil {
 		return x.AgentPrincipalId
+	}
+	return ""
+}
+
+func (x *Installation) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
 	}
 	return ""
 }
@@ -523,7 +535,7 @@ const file_host_installation_v1_installation_proto_rawDesc = "" +
 	"\vListRequest\x12'\n" +
 	"\x0forganization_id\x18\x01 \x01(\tR\x0eorganizationId\"X\n" +
 	"\fListResponse\x12H\n" +
-	"\rinstallations\x18\x01 \x03(\v2\".host.installation.v1.InstallationR\rinstallations\"\xf8\x02\n" +
+	"\rinstallations\x18\x01 \x03(\v2\".host.installation.v1.InstallationR\rinstallations\"\x96\x03\n" +
 	"\fInstallation\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12'\n" +
 	"\x0forganization_id\x18\x02 \x01(\tR\x0eorganizationId\x12\x16\n" +
@@ -532,7 +544,8 @@ const file_host_installation_v1_installation_proto_rawDesc = "" +
 	"\brevision\x18\x05 \x01(\x04R\brevision\x12\x12\n" +
 	"\x04role\x18\x06 \x01(\tR\x04role\x12\x19\n" +
 	"\bteam_ids\x18\a \x03(\tR\ateamIds\x12,\n" +
-	"\x12agent_principal_id\x18\b \x01(\tR\x10agentPrincipalId\"[\n" +
+	"\x12agent_principal_id\x18\b \x01(\tR\x10agentPrincipalId\x12\x1c\n" +
+	"\tnamespace\x18\t \x01(\tR\tnamespace\"[\n" +
 	"\x06Status\x12\x16\n" +
 	"\x12STATUS_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eSTATUS_PENDING\x10\x01\x12\x11\n" +

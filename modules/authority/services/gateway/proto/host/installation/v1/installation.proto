@@ -80,6 +80,11 @@ message Installation {
   repeated string team_ids = 7;
   // The principal the installation acts as for itself.
   string agent_principal_id = 8;
+  // The namespace the installation's own authored content belongs to (an
+  // agent's source): the host names it, so a module never chooses which source
+  // an installation may run. A module installed by composition is
+  // "<organization>.<target>".
+  string namespace = 9;
 
   // Status is the installation's lifecycle.
   enum Status {

@@ -467,6 +467,38 @@ Not yet:
   an SDK change.
 - **The cell face.** The same decision, called by the mesh's authorization step.
 
+## The artifact interface: a person's consent to what a module runs (2026-10-24)
+
+Robin runs an authored agent (a folder compiled to a configuration, a source's
+imported bundle version) only after its host approved the exact artifact for
+the installation, in person, and re-authorized it at each run; it asked the saas
+host through accounts' module capabilities, and on the authority it refused to
+start with either of its two artifact policies named. The authority now
+implements that consent as a fifth interface, `host.artifact.v1.ArtifactService`
+(proposal: handbook `proposals/2026-10-24-the-authority-approves-authored-artifacts.md`):
+
+- `Approve(installation, policy, identity)` records the person's consent;
+  `Authorize` answers the standing approval for a run; `Revoke` withdraws it for
+  good. An identity is the module compiler's canonical export (schema, source,
+  subject bytes, contracts, expected revision); the approval's digest is
+  `sha256:` of its deterministic encoding, its name `host/approved-artifacts/<uuid>`.
+- **A policy is a resource kind at the module**, nothing more: approving and
+  revoking need its `activate` action, held by a person present (a human owner
+  with no module acting between, in a context addressed to the asking module);
+  a run needs its `run` action, which a delegated context may carry. What a
+  person may approve is what their roles grant at the module, which the
+  authority already decides, so there is no policy document and no second
+  permission table. Robin's two policies both name `robin.intents`.
+- **An installation names its namespace** (`Installation.namespace`, from the
+  installation interface's `List`): `<organization>.<target>` for a module
+  installed by composition, so a bound conversation's intent is
+  `acme.robin/field-naturalist` and no module chooses which source an
+  installation may run.
+
+Approvals live in the gateway's memory, as its sessions do; accounts keeps its
+own in its store when it implements the interface. The fixture grants an Acme
+admin `robin.intents:activate` and an editor `robin.intents:run`.
+
 ## The edge: the browser's origin (2026-10-23)
 
 The edge is the authority module's third service. It is the auth gateway's

@@ -66,7 +66,7 @@ func Wire(i state.Installation) *installationv1.Installation {
 	st := map[state.Status]installationv1.Installation_Status{
 		state.Pending: installationv1.Installation_STATUS_PENDING, state.Active: installationv1.Installation_STATUS_ACTIVE, state.Revoked: installationv1.Installation_STATUS_REVOKED,
 	}[i.Status]
-	return &installationv1.Installation{Id: i.ID, OrganizationId: i.Organization, Target: i.Target, Status: st, Revision: i.Revision, Role: i.Role, TeamIds: i.Teams, AgentPrincipalId: i.AgentPrincipal()}
+	return &installationv1.Installation{Id: i.ID, OrganizationId: i.Organization, Target: i.Target, Status: st, Revision: i.Revision, Role: i.Role, TeamIds: i.Teams, AgentPrincipalId: i.AgentPrincipal(), Namespace: i.Namespace()}
 }
 
 // New is the registry's constructor: the plugin over what Configure wired.
