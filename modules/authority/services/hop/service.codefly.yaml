@@ -9,7 +9,8 @@ endpoints:
     - name: grpc
     - name: rest
     # The hop's face for a module that serves HTTP: each request decided for
-    # "<VERB> <path>" and sent on to the module's HTTP_UPSTREAM (code/work.go).
+    # "<VERB> <path>" and sent on to the module's HTTP_UPSTREAM, or, a Connect
+    # call, for its gRPC method and on to its CONNECT_UPSTREAM (code/work.go).
     - name: http
       api: http
 spec:

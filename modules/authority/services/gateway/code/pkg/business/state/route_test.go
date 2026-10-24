@@ -27,19 +27,25 @@ func TestAnHTTPRequestIsAdmittedUnderTheRouteItsPathMatches(t *testing.T) {
 			"POST /v1/gauge/matches/{match_id}:settle": {Requires: []*basev0.WorkScopeV1{{ResourceKind: "gauge.profiles", Actions: []string{"write"}}}},
 			"GET /v1/gauge/{a}/x":                      {AnyCheckedCaller: true},
 			"GET /v1/gauge/{b}/x":                      {AnyCheckedCaller: true},
+			"GET /v1/gauge/sources/{repo=**}":          reads("gauge.profiles"),
+			"/gauge.v1.GaugeService/ListProfiles":      reads("gauge.profiles"),
 		}}
 	if _, err := k.State.ApplyManifest(m); err != nil {
 		t.Fatal(err)
 	}
 	read := []*basev0.WorkScopeV1{{ResourceKind: "gauge.profiles", Actions: []string{"read"}}}
 	for request, want := range map[string]error{
-		"GET /v1/gauge/profiles":             nil,
-		"GET /v1/gauge/profiles/pro-1":       nil,
-		"POST /v1/gauge/matches/m-1:settle":  state.ErrForbidden, // matched, but write is not held
-		"GET /v1/gauge/profiles/pro-1/extra": state.ErrUnknown,
-		"DELETE /v1/gauge/profiles/pro-1":    state.ErrUnknown,
-		"POST /v1/gauge/matches/:settle":     state.ErrUnknown, // a {name} is never empty
-		"GET /v1/gauge/ambiguous/x":          state.ErrForbidden,
+		"GET /v1/gauge/profiles":                     nil,
+		"GET /v1/gauge/profiles/pro-1":               nil,
+		"POST /v1/gauge/matches/m-1:settle":          state.ErrForbidden, // matched, but write is not held
+		"GET /v1/gauge/profiles/pro-1/extra":         state.ErrUnknown,
+		"DELETE /v1/gauge/profiles/pro-1":            state.ErrUnknown,
+		"POST /v1/gauge/matches/:settle":             state.ErrUnknown, // a {name} is never empty
+		"GET /v1/gauge/ambiguous/x":                  state.ErrForbidden,
+		"GET /v1/gauge/sources/github.com/acme/repo": nil, // {repo=**} takes the rest of the path
+		"GET /v1/gauge/sources/":                     state.ErrUnknown,
+		"POST /gauge.v1.GaugeService/ListProfiles":   nil, // a Connect call is its method
+		"GET /gauge.v1.GaugeService/ListProfiles":    state.ErrUnknown,
 	} {
 		err := k.State.AdmitMethod("gauge", request, read)
 		if (want == nil) != (err == nil) || (want != nil && !errors.Is(err, want)) {

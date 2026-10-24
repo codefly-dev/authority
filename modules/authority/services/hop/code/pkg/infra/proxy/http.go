@@ -15,13 +15,17 @@ import (
 
 // HTTP is the hop's face for a module that serves HTTP rather than gRPC. The
 // decision is the gRPC face's, for the method "<VERB> <path>": the authority
-// matches the path against the routes the module declares. A decided request
-// goes on to the module unchanged, its caller's stamp stripped and the hop's
-// written as headers, the same keys a gRPC module reads as metadata.
+// matches the path against the routes the module declares, and a Connect call
+// (a POST to the gRPC method's full name) against that method. A decided
+// request goes on to the module unchanged, its caller's stamp stripped and the
+// hop's written as headers, the same keys a gRPC module reads as metadata.
 type HTTP struct {
 	Decide    Decide
 	Upstreams map[string]*url.URL
-	Proof     string
+	// Connect is where a module serves the Connect protocol when it is not
+	// Upstreams: a call whose path is a gRPC method name goes there.
+	Connect map[string]*url.URL
+	Proof   string
 	// Refused is told every refusal, so the hop's log names it.
 	Refused func(method string, err error)
 }
@@ -41,6 +45,9 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	target, ok := h.Upstreams[module]
+	if connect, served := h.Connect[module]; served && isMethodPath(r.URL.Path) {
+		target, ok = connect, true
+	}
 	if !ok {
 		refuse(w, status.Errorf(codes.Internal, "the hop has no HTTP connection to %s", module))
 		return
@@ -67,6 +74,13 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			refuse(w, status.Errorf(codes.Unavailable, "the module did not answer: %v", err))
 		},
 	}).ServeHTTP(w, r)
+}
+
+// isMethodPath is whether path is a gRPC method's full name, "/<package.Service>/
+// <Method>", the path a Connect call takes.
+func isMethodPath(path string) bool {
+	service, method, ok := strings.Cut(strings.TrimPrefix(path, "/"), "/")
+	return ok && strings.Contains(service, ".") && method != "" && !strings.Contains(method, "/")
 }
 
 // refuse answers a refusal in HTTP's words, its reason the decision's own.

@@ -193,12 +193,18 @@ func (s *State) AdmitMethod(audience, method string, held []*basev0.WorkScopeV1)
 
 // routeOf is the route a module declares that an HTTP request "<VERB> <path>"
 // is for: a declared "<VERB> <template>" whose template matches the path, a
-// "{name}" in it standing for one path segment's text. Two templates matching
-// one path is an ambiguous declaration, refused rather than guessed between.
+// "{name}" in it standing for one path segment's text and a "{name=**}" ending
+// it for the rest of the path. Two templates matching one path is an ambiguous
+// declaration, refused rather than guessed between. A Connect call is an HTTP
+// POST whose path is the gRPC method's full name: it is admitted under that
+// method.
 func routeOf(methods map[string]MethodPolicy, request string) (MethodPolicy, bool, error) {
 	verb, path, ok := strings.Cut(request, " ")
 	if !ok || !strings.HasPrefix(path, "/") {
 		return MethodPolicy{}, false, nil
+	}
+	if p, ok := methods[path]; ok && verb == "POST" {
+		return p, true, nil
 	}
 	var found []string
 	for declared := range methods {
@@ -216,9 +222,16 @@ func routeOf(methods map[string]MethodPolicy, request string) (MethodPolicy, boo
 	return MethodPolicy{}, false, fmt.Errorf("%s matches more than one declared route (%s)", request, strings.Join(found, ", "))
 }
 
-// routeMatches is whether path is an instance of template, segment by segment.
+// routeMatches is whether path is an instance of template, segment by segment;
+// a last segment "{name=**}" takes the rest of the path, at least one segment.
 func routeMatches(template, path string) bool {
 	want, got := strings.Split(template, "/"), strings.Split(path, "/")
+	if last := want[len(want)-1]; strings.HasPrefix(last, "{") && strings.HasSuffix(last, "=**}") {
+		if len(got) < len(want) || got[len(want)-1] == "" {
+			return false
+		}
+		want, got = want[:len(want)-1], got[:len(want)-1]
+	}
 	if len(want) != len(got) {
 		return false
 	}
