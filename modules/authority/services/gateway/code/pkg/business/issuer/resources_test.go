@@ -43,7 +43,7 @@ func TestTheAuthorityAnswersWhichResourcesAContextCovers(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := covered(t, maya)
-	for id, want := range map[string]bool{"directory/2026": true, "shared-finance": true, "finance": false, "shared-Finance": false} {
+	for id, want := range map[string]bool{"derived\x1fdirectory": true, "shared-finance": true, "finance": false, "shared-Finance": false} {
 		if m.Matches(id) != want {
 			t.Errorf("maya %q: want %v", id, want)
 		}
@@ -65,13 +65,13 @@ func TestTheAuthorityAnswersWhichResourcesAContextCovers(t *testing.T) {
 func TestANarrowedContextCoversOnlyTheIDsItNamesThatTheOwnerHolds(t *testing.T) {
 	k := testkit.New(t)
 	token := issued(t, k, "fixture-maya", []*authorityv1.WorkScopeV1{
-		{ResourceKind: "documents.collection", Actions: []string{"read"}, ResourceIds: []string{"directory/a", "secret"}},
+		{ResourceKind: "documents.collection", Actions: []string{"read"}, ResourceIds: []string{"derived\x1fdirectory", "secret"}},
 	})
 	grants, err := k.Issuer.ListResources(context.Background(), token, "documents", "documents.collection", "read")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(grants) != 1 || grants[0].ID != "directory/a" {
+	if len(grants) != 1 || grants[0].ID != "derived\x1fdirectory" {
 		t.Fatalf("narrowed: %v", grants)
 	}
 }
