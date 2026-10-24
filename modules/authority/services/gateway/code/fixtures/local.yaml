@@ -35,10 +35,11 @@ roles:
       - {kind: records.records, actions: [read, write]}
       - {kind: records.types, actions: [read]}
       - {kind: directory.entry, actions: [read, write]}
-      - {kind: modelservice.profiles, actions: [read]}
-      # Robin: an editor runs turns and keeps their conversations. Robin's
-      # model child is the authority's to grant from what the editor holds at
-      # the model, which is reading its profiles and not invoking one.
+      # An editor invokes the model: robin's model child is the authority's to
+      # grant from what the editor holds at the model, and a turn the editor
+      # runs calls a profile.
+      - {kind: modelservice.profiles, actions: [read, invoke]}
+      # Robin: an editor runs turns and keeps their conversations.
       - {kind: robin.tasks, actions: [execute, read]}
       - {kind: robin.runs, actions: [read, start, cancel]}
       - {kind: robin.conversations, actions: [read, write, share, delete]}
