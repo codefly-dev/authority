@@ -15,11 +15,13 @@ roles:
       - {kind: console.identity, actions: [read]}
       # A viewer reads only some document collections: the directory's, and
       # every shared one. The authority answers this when asked
-      # (ListResources); the token carries the kind alone.
+      # (ListResources); the token carries the kind alone. A collection's id
+      # is the store's namespace, "derived" and its producer joined by a unit
+      # separator (\x1f).
       - kind: documents.collection
         actions: [read]
         resources:
-          - {prefix: "directory/"}
+          - {prefix: "derived\x1fdirectory"}
           - {pattern: "shared-[a-z]+"}
   - organization: acme
     name: editor

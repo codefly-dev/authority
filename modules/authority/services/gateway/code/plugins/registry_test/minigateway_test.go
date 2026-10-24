@@ -73,7 +73,7 @@ func TestTheMiniGatewayPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
 			Credential: k.Credential(t, "org-directory"), Binding: "documents", Audience: "documents", Kind: "documents", Action: "write"},
 		Resources: &conformance.ResourceCase{
 			Token: "fixture-maya", Audience: "documents", Kind: "documents.collection", Action: "read",
-			Covered: []string{"directory/2026", "shared-finance"}, Uncovered: []string{"finance", "shared-Finance"}, Unheld: "admin",
+			Covered: []string{"derived\x1fdirectory", "shared-finance"}, Uncovered: []string{"finance", "shared-Finance"}, Unheld: "admin",
 		},
 		// Rémi at the page; the page asks documents; documents asks the model,
 		// for a read Rémi holds at the model and his first token never carried.
