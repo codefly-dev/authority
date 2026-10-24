@@ -22,6 +22,11 @@ interface:
         - service: hop
           endpoint: grpc
           visibility: internal
+        # The hop's HTTP face: a module that serves HTTP (the model gateway) is
+        # reached through it, by the edge and by the modules calling it.
+        - service: hop
+          endpoint: http
+          visibility: internal
         # The edge is the browser's origin, so it is reachable from outside.
         - service: edge
           endpoint: http
