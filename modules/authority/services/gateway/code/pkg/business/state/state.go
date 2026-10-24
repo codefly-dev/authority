@@ -80,24 +80,53 @@ type Binding struct {
 	LookupScopes []*basev0.WorkScopeV1
 }
 
+// DelegationScope preserves the exact resource ceiling of a WorkScope.
+// Role matchers are a separate contract; a delegation names IDs, not patterns.
+type DelegationScope struct {
+	Kind        string   `yaml:"kind"`
+	Actions     []string `yaml:"actions"`
+	ResourceIDs []string `yaml:"resource_ids,omitempty"`
+}
+
+// Refuse role-matcher syntax instead of silently decoding a restricted grant
+// as an unrestricted one. Fixture decoding otherwise permits unknown fields.
+func (s *DelegationScope) UnmarshalYAML(node *yaml.Node) error {
+	type plain DelegationScope
+	var decoded struct {
+		plain     `yaml:",inline"`
+		Resources yaml.Node `yaml:"resources"`
+	}
+	if err := node.Decode(&decoded); err != nil {
+		return err
+	}
+	if decoded.Resources.Kind != 0 {
+		return errors.New("delegation scopes use resource_ids, not role resources matchers")
+	}
+	*s = DelegationScope(decoded.plain)
+	return nil
+}
+
 // Delegation is a person's grant to a module to act for them beyond any
 // session, on scopes they hold. Every capability issued from it is the
 // grantor's, re-checked against what the grantor holds at the time.
 type Delegation struct {
-	ID           string  `yaml:"id"`
-	Organization string  `yaml:"organization"`
-	Grantor      string  `yaml:"grantor"`
-	Module       string  `yaml:"module"`
-	Purpose      string  `yaml:"purpose"`
-	Scopes       []Scope `yaml:"scopes"`
-	Revoked      bool    `yaml:"-"`
+	ID           string            `yaml:"id"`
+	Organization string            `yaml:"organization"`
+	Grantor      string            `yaml:"grantor"`
+	Module       string            `yaml:"module"`
+	Purpose      string            `yaml:"purpose"`
+	Scopes       []DelegationScope `yaml:"scopes"`
+	Revoked      bool              `yaml:"-"`
 }
 
 // WorkScopes is the delegation's scopes as core spells them.
 func (d Delegation) WorkScopes() []*basev0.WorkScopeV1 {
 	var out []*basev0.WorkScopeV1
 	for _, sc := range d.Scopes {
-		out = append(out, &basev0.WorkScopeV1{ResourceKind: sc.Kind, Actions: append([]string(nil), sc.Actions...)})
+		out = append(out, &basev0.WorkScopeV1{
+			ResourceKind: sc.Kind, Actions: append([]string(nil), sc.Actions...),
+			ResourceIds: append([]string(nil), sc.ResourceIDs...),
+		})
 	}
 	return Normalize(out)
 }
@@ -643,7 +672,10 @@ func (s *State) Delegate(person, module string, scopes []*basev0.WorkScopeV1, pu
 	}
 	d := Delegation{ID: newDelegationID(), Organization: p.Organization, Grantor: person, Module: m.Module, Purpose: purpose}
 	for _, sc := range Normalize(scopes) {
-		d.Scopes = append(d.Scopes, Scope{Kind: sc.GetResourceKind(), Actions: sc.GetActions()})
+		d.Scopes = append(d.Scopes, DelegationScope{
+			Kind: sc.GetResourceKind(), Actions: append([]string(nil), sc.GetActions()...),
+			ResourceIDs: append([]string(nil), sc.GetResourceIds()...),
+		})
 	}
 	s.mu.Lock()
 	s.delegations[d.ID] = d
@@ -662,8 +694,14 @@ func (s *State) RevokeDelegation(person, id string) (Delegation, error) {
 	if d.Grantor != person {
 		return Delegation{}, fmt.Errorf("%w: only the grantor of %s may revoke it", ErrForbidden, id)
 	}
+	if d.Revoked {
+		return d, nil
+	}
 	d.Revoked = true
 	s.delegations[id] = d
+	// Core checks this revision on every effect-time verification. Revoking
+	// the grant must also invalidate capabilities already issued from it.
+	s.revisions[d.Organization]++
 	return d, nil
 }
 

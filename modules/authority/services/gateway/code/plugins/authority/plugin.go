@@ -135,8 +135,10 @@ func (p *Plugin) GetDelegation(ctx context.Context, req *authorityv1.GetDelegati
 
 func delegationOf(d state.Delegation) *authorityv1.Delegation {
 	out := &authorityv1.Delegation{DelegationId: d.ID, OrganizationId: d.Organization, Grantor: d.Grantor, Module: d.Module, Purpose: d.Purpose, Active: !d.Revoked}
-	for _, sc := range d.Scopes {
-		out.Scopes = append(out.Scopes, &authorityv1.WorkScopeV1{ResourceKind: sc.Kind, Actions: sc.Actions})
+	for _, sc := range d.WorkScopes() {
+		out.Scopes = append(out.Scopes, &authorityv1.WorkScopeV1{
+			ResourceKind: sc.GetResourceKind(), Actions: sc.GetActions(), ResourceIds: sc.GetResourceIds(),
+		})
 	}
 	return out
 }

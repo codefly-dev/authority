@@ -671,6 +671,9 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			t.Fatalf("anyone else learns the delegation exists: %v", err)
 		}
 		c.must(t, as(ctx, grantor), "host.authority.v1.AuthorityService", "RevokeDelegation", map[string]any{"delegation_id": id})
+		if _, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(out, "token"), "audience": dc.Audience}); status.Code(err) != codes.PermissionDenied {
+			t.Fatalf("authority issued before delegation revocation still checks: %v", err)
+		}
 		if _, err := issue(); status.Code(err) != codes.PermissionDenied {
 			t.Fatalf("a revoked delegation issues: %v", err)
 		}

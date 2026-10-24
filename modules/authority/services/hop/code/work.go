@@ -89,11 +89,12 @@ func standInFront(ctx context.Context, config *adapters.Configuration) (Clean, e
 	}
 	p := &proxy.Proxy{Decide: decision, Upstreams: upstreams, Proof: proof, Refused: refused}
 	config.GRPCServerOptions = append(config.GRPCServerOptions, p.ServerOptions()...)
-	stopWeb := func() {}
-	if len(webs)+len(connects) > 0 {
-		if stopWeb, err = serveHTTP(ctx, &proxy.HTTP{Decide: decision, Upstreams: webs, Connect: connects, Proof: proof, Refused: refused}); err != nil {
-			return nil, err
-		}
+	// The service declares this endpoint even when every upstream uses gRPC.
+	// Keep it listening so the declared readiness contract holds; the proxy
+	// still refuses requests for which no authorized HTTP route exists.
+	stopWeb, err := serveHTTP(ctx, &proxy.HTTP{Decide: decision, Upstreams: webs, Connect: connects, Proof: proof, Refused: refused})
+	if err != nil {
+		return nil, err
 	}
 	w.Info("standing in front of modules", wool.Field("modules", listed))
 	return func() {

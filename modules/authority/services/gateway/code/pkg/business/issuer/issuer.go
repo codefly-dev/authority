@@ -424,6 +424,11 @@ func (i *Issuer) child(ctx context.Context, parent, actorCredential, bindingID, 
 			return "", nil, err
 		}
 		if n == len(hops) {
+			// Reconstruction must not refresh a parent across revocation. Check
+			// the original capability after the final child has been signed.
+			if err := i.verifier(claims.GetAudience()).Recheck(ctx, verified); err != nil {
+				return "", nil, err
+			}
 			return token, signed, nil
 		}
 	}
@@ -506,11 +511,25 @@ func (i *Issuer) forDelegation(ctx context.Context, id, actorCredential, binding
 	if err != nil {
 		return "", nil, fmt.Errorf("verify the capability a delegation's hop is derived from: %w", err)
 	}
-	return i.authority.Child(ctx, current, workcontext.ChildInput{
+	token, signed, err := i.authority.Child(ctx, current, workcontext.ChildInput{
 		PrincipalID: actor.Principal, PrincipalKind: "service", DelegationID: d.ID,
 		GrantedScopes: scopes, Audience: audience.Principal, TTL: ttl, ReplayPolicy: workcontext.ReplayIdempotent,
 		OperationBindingID: d.Organization + "/" + actor.Module + "/" + bindingID,
 	})
+	if err != nil {
+		return "", nil, err
+	}
+	// Start may have observed a newer revision than the initial delegation
+	// read. Recheck after signing so that revocation cannot be laundered into
+	// a fresh capability; a later revocation invalidates its signed revision.
+	d, err = i.state.DelegationByID(id)
+	if err != nil {
+		return "", nil, err
+	}
+	if d.Revoked {
+		return "", nil, fmt.Errorf("%w: delegation %s is revoked", ErrRefused, id)
+	}
+	return token, signed, nil
 }
 
 // Delegate records the signed-in person's grant to a module.

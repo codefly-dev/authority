@@ -368,6 +368,11 @@ caller's Work Context, asks the interface's `Check` with the module's principal
 as the audience, removes any stamp the caller sent, writes its own stamp, and
 forwards the call as opaque frames. It knows no method of the module.
 
+The hop always listens on its declared HTTP endpoint, including in a
+gRPC-only composition. An empty HTTP routing table does not remove that
+endpoint from Codefly's readiness checks. Requests still pass through the
+authority decision and are refused when no corresponding HTTP upstream exists.
+
 The module behind it carries one interceptor from `libraries/hop/go` and no
 other authority code. The stamp binds the digest of the Work Context the hop
 checked, so a module that needs the full claims decodes that exact token
@@ -615,6 +620,36 @@ The store's host services (jobs, notifications, approvals, record placement,
 file fetch) report themselves unwired and idle, and ingest is off because no
 runtime is composed. The fixture's collection grants do not yet use the store's
 real namespace spelling.
+
+## Delegated resource restrictions
+
+A delegation preserves the exact resource IDs supplied in its WorkScopes.
+Omitted IDs grant the whole kind, while named IDs remain a ceiling even when
+the grantor and operation binding hold broader authority. Delegate,
+GetDelegation, Issue and RevokeDelegation preserve that ceiling; requesting an
+ID outside it is refused.
+
+Development fixtures use `resource_ids` on delegation scopes. The
+`resources` matchers used by roles (IDs, prefixes and patterns) are a separate
+contract and are rejected on delegation scopes rather than silently ignored.
+The generated gRPC client regression covers the complete delegation lifecycle;
+the fixture regression checks exact IDs and matcher-syntax refusal. These are
+hermetic gateway checks, not full consumer or SaaS-provider qualification.
+
+Revoking a delegation advances the organization's authorization revision in the
+same state update. Previously issued capabilities, including descendants, then
+fail the ordinary core verifier. This is deliberately conservative: outstanding
+capabilities throughout that organization are invalidated, while other
+organizations are unaffected. Ordinary authorized callers recover by requesting
+fresh authority; the revoked delegation cannot issue again. Repeated, unknown
+or unauthorized revocations do not advance the revision.
+
+Issuance rereads the delegation after signing, and parent exchanges recheck the
+original parent after signing, to prevent concurrent revocation from being
+refreshed into new authority. Regressions cover existing-token checks, resource
+discovery, descendants, tenant isolation and deterministic issuance interleavings.
+This does not qualify the separate cross-audience attenuation or durable custody
+contracts.
 
 ## Every saas module-authority feature, and where it lives now (2026-10-23)
 
