@@ -8,3 +8,5 @@ interface:
     endpoints:
         - service: api
           endpoint: grpc
+        - service: api
+          endpoint: connect

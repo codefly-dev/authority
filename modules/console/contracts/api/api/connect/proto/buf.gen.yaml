@@ -1,0 +1,26 @@
+# The service's own bindings: api.proto alone, named as the one input so the
+# agent's sync and `codefly generate proto` write the same files; the hop's
+# policy option (authority/hop/v1, vendored to compile) is an import whose
+# bindings the hop library publishes. go and go-grpc serve both the `grpc`
+# listener and the `connect` face, which transcodes onto the gRPC server; a
+# client is `codefly generate client` from the module's contract.
+#
+# Go package identity is explicit in api.proto. Managed rewriting couples Go
+# package names to protobuf namespaces and breaks versioned wire packages.
+version: v2
+managed:
+  enabled: false
+inputs:
+  - directory: .
+    paths:
+      - api.proto
+plugins:
+  - local: protoc-gen-go
+    out: ../code/pkg/gen
+    opt: paths=source_relative
+  - local: protoc-gen-go-grpc
+    out: ../code/pkg/gen
+    opt: paths=source_relative
+  - local: protoc-gen-connect-go
+    out: ../code/pkg/gen
+    opt: paths=source_relative

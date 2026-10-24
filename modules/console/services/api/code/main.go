@@ -82,8 +82,8 @@ func main() {
 	config := &adapters.Configuration{
 		EndpointGrpcPort: grpcInstance.Port,
 	}
-	if net := codefly.For(ctx).API(standards.REST).NetworkInstance(); net != nil {
-		config.EndpointHttpPort = shared.Pointer(net.Port)
+	if net := codefly.For(ctx).API(standards.CONNECT).NetworkInstance(); net != nil {
+		config.EndpointConnectPort = shared.Pointer(net.Port)
 	}
 	if configure != nil {
 		clean, err := configure(ctx, config)

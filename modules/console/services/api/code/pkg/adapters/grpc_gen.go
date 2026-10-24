@@ -14,7 +14,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"net/http"
 
 	"buf.build/go/protovalidate"
 
@@ -25,10 +24,9 @@ import (
 
 	"google.golang.org/grpc/reflection"
 
-	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
-
 	codefly "github.com/codefly-dev/sdk-go"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
@@ -70,42 +68,10 @@ type Configuration struct {
 	// Service replaces the generated Version-only implementation when the
 	// service owns substantive RPCs with constructor-injected dependencies.
 	Service gen.ApiServiceServer
-	// ServeMuxOptions are appended to the REST gateway mux's generated options.
-	// A runtime.ServeMuxOption reaches a mux at construction only, and the
-	// plugins.RegisterREST seam receives the mux already built, so this is the
-	// one way in: a WithForwardResponseOption carrying an ETag and a
-	// Cache-Control for one RPC, a header matcher, a marshaler.
-	//
-	// They are applied after the generated options, which decides what happens
-	// to a conflict. An option that sets one value (WithErrorHandler, either
-	// header matcher, WithMarshalerOption for a MIME type already registered)
-	// replaces the generated default. An option that accumulates (WithMetadata,
-	// WithForwardResponseOption) runs in addition to it, after it.
-	ServeMuxOptions []runtime.ServeMuxOption
-	// Routes are HTTP handlers served on the REST listener ahead of the gateway,
-	// matched by path prefix, inside the CORS and logging wrappers. For a
-	// protocol the gateway cannot carry — a Connect handler for a second
-	// protobuf service, say, whose every method would otherwise need its own
-	// gwMux.HandlePath template. First match wins, and a route is consulted
-	// before every gateway path, /healthz included.
-	//
-	// What a mounted handler gets is this listener: HTTP/1.1, so a Connect or
-	// gRPC-Web caller is served and a gRPC-over-h2c one is not — that is the
-	// Connect listener connect-endpoint declares.
-	Routes []Route
-	// Middleware wrap the listener's handler chain, the first entry outermost,
-	// inside the CORS policy and ahead of the routes and the gateway. For policy
-	// that must see a request before anything reads its body: a request-body
-	// bound (http.MaxBytesReader, or a 413 on a declared over-cap
-	// Content-Length), a tracing span, a rate limit.
-	//
-	// Inside CORS so that what a middleware answers still carries the CORS
-	// headers a browser needs to read it, and inside the generated request
-	// logging so that it is recorded like any other outcome.
-	Middleware []func(http.Handler) http.Handler
-	// GatewayDialOptions are appended to the options the REST listener dials the
-	// gRPC server with, for the gateway's hop and the health probe's client.
-	// Where a service raises gRPC's 4 MiB default call bounds:
+	// GatewayDialOptions are appended to the options the HTTP faces dial the
+	// gRPC server with: the REST listener's gateway and health probe, and the
+	// Connect listener's transcoder. Where a service raises gRPC's 4 MiB
+	// default call bounds:
 	// grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(n), grpc.MaxCallSendMsgSize(n)).
 	// A bound set only on the server leaves the proxy refusing the message the
 	// server would have accepted.
@@ -160,4 +126,15 @@ func (s *GrpcServer) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to serve: %s", err)
 	}
 	return nil
+}
+
+// gatewayDialOptions is how an HTTP face (the REST listener's gateway and
+// health probe, the Connect listener's transcoder) reaches the gRPC server,
+// with extra appended to the generated options. The hop carries whatever an
+// RPC carries, so a service whose messages exceed gRPC's 4 MiB default call
+// bounds raises them here with grpc.WithDefaultCallOptions rather than losing
+// the hop at the proxy.
+func gatewayDialOptions(extra ...grpc.DialOption) []grpc.DialOption {
+	options := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
+	return append(options, extra...)
 }

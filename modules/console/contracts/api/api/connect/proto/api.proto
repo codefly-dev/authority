@@ -1,0 +1,56 @@
+syntax = "proto3";
+package api;
+
+// Keep the Go import path stable while the protobuf package remains free to
+// evolve into a versioned wire namespace (for example coordination.v1).
+option go_package = "api/pkg/gen;gen";
+
+import "authority/hop/v1/policy.proto";
+import "google/api/annotations.proto";
+
+message VersionRequest {
+}
+
+message VersionResponse {
+    string version = 1;
+}
+
+// WhoAmIRequest asks who the call is for.
+message WhoAmIRequest {
+}
+
+// WhoAmIResponse is who the call is for, as the hop in front of the console
+// stamped it after the authority checked the caller's Work Context. The console
+// verifies no token: it answers from the stamp alone.
+message WhoAmIResponse {
+    // The person, installation or workload the call acts for.
+    string owner = 1;
+    // What kind of principal the owner is.
+    string owner_kind = 2;
+    // The organisation the call runs in.
+    string tenant = 3;
+    // The modules acting for the owner, in order.
+    repeated string actors = 4;
+    // What the call may do, each "<resource kind>:<action>".
+    repeated string scopes = 5;
+}
+
+service ApiService {
+    rpc Version(VersionRequest) returns (VersionResponse) {
+        option (authority.hop.v1.policy) = {any_checked_caller: true};
+        option (google.api.http) = {
+            get: "/version"
+        };
+    }
+    // WhoAmI answers who the call is for. A call that did not come through the
+    // hop is refused before it reaches this method, and the hop lets through
+    // only a caller who holds console.identity read.
+    rpc WhoAmI(WhoAmIRequest) returns (WhoAmIResponse) {
+        option (authority.hop.v1.policy) = {
+            requires: [{resource_kind: "console.identity", actions: ["read"]}]
+        };
+        option (google.api.http) = {
+            get: "/whoami"
+        };
+    }
+}

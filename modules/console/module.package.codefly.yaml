@@ -11,12 +11,17 @@ artifact-roots:
   - services
 services:
   - name: api
-    endpoints: [grpc]
+    endpoints: [grpc, connect]
     api-contracts:
       - endpoint: grpc
         kind: protobuf
         package: api
         path: contracts/api/api/grpc/contract.binpb
+        digest: sha256:c35de6868957850522d16a6b7f7d6116e4baae6f56455b706cb6bdac2edc1d10
+      - endpoint: connect
+        kind: protobuf
+        package: api
+        path: contracts/api/api/connect/contract.binpb
         digest: sha256:c35de6868957850522d16a6b7f7d6116e4baae6f56455b706cb6bdac2edc1d10
 contracts:
   composition: ">=2.0.0 <3.0.0"

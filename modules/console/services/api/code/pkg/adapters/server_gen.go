@@ -16,7 +16,6 @@ import (
 
 type Server struct {
 	grpc    *GrpcServer
-	rest    *RestServer
 	connect *ConnectServer
 }
 
@@ -32,14 +31,6 @@ func NewServer(config *Configuration) (*Server, error) {
 		p.RegisterGRPC(grpc.gRPC)
 	}
 
-	var rest *RestServer
-	if config.EndpointHttpPort != nil {
-		rest, err = NewRestServer(config)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	// Built last on purpose: the Connect listener transcodes to this same gRPC
 	// server, and routes the services registered on it by now — the scaffolded
 	// service and every plugin above.
@@ -53,20 +44,11 @@ func NewServer(config *Configuration) (*Server, error) {
 
 	return &Server{
 		grpc:    grpc,
-		rest:    rest,
 		connect: conn,
 	}, nil
 }
 
 func (server *Server) Start(ctx context.Context) error {
-	if server.rest != nil {
-		go func() {
-			err := server.rest.Run(ctx)
-			if err != nil {
-				panic(err)
-			}
-		}()
-	}
 	if server.connect != nil {
 		go func() {
 			err := server.connect.Run(ctx)
@@ -80,13 +62,6 @@ func (server *Server) Start(ctx context.Context) error {
 
 func (server *Server) Stop() {
 	fmt.Println("Stopping server...")
-	if server.rest != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		if err := server.rest.Shutdown(ctx); err != nil {
-			fmt.Printf("failed to stop REST server: %v\n", err)
-		}
-		cancel()
-	}
 	if server.connect != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		if err := server.connect.Shutdown(ctx); err != nil {

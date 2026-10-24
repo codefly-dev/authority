@@ -5,6 +5,25 @@
   "endpoints": [
     {
       "service": "api",
+      "endpoint": "connect",
+      "api": "connect",
+      "kind": "protobuf",
+      "package": "api",
+      "path": "contracts/api/api/connect/contract.binpb",
+      "digest": "sha256:c35de6868957850522d16a6b7f7d6116e4baae6f56455b706cb6bdac2edc1d10",
+      "services": [
+        {
+          "name": "ApiService",
+          "fullName": "api.ApiService",
+          "procedures": [
+            "/api.ApiService/Version",
+            "/api.ApiService/WhoAmI"
+          ]
+        }
+      ]
+    },
+    {
+      "service": "api",
       "endpoint": "grpc",
       "api": "grpc",
       "kind": "protobuf",

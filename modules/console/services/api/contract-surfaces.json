@@ -1,0 +1,22 @@
+{
+  "connect": [
+    {
+      "name": "ApiService",
+      "fullName": "api.ApiService",
+      "procedures": [
+        "/api.ApiService/Version",
+        "/api.ApiService/WhoAmI"
+      ]
+    }
+  ],
+  "grpc": [
+    {
+      "name": "ApiService",
+      "fullName": "api.ApiService",
+      "procedures": [
+        "/api.ApiService/Version",
+        "/api.ApiService/WhoAmI"
+      ]
+    }
+  ]
+}

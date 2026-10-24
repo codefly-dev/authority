@@ -1,0 +1,7 @@
+# Publication configuration for `codefly generate contracts`: the console's api
+# service exports two protobuf endpoints, so the catalog carries what each
+# listener serves — the one ApiService on both, the Connect face transcoding
+# onto the gRPC server.
+schema: codefly/module-contracts-config/v1
+surfaces:
+    api: contract-surfaces.json

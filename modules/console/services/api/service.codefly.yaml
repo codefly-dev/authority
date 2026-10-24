@@ -3,11 +3,14 @@ version: 0.0.0
 agent:
     kind: codefly:service
     name: go-grpc
-    version: 0.1.59
+    version: 0.1.60
     publisher: codefly.dev
 endpoints:
     - name: grpc
-    - name: rest
+    # The one face a page reaches: Connect, gRPC-Web and gRPC on one listener,
+    # fronted by the hop's HTTP face.
+    - name: connect
+      api: connect
 spec:
     Settings:
         GoAgentSettings:
@@ -17,14 +20,14 @@ spec:
             source-dir: ""
             with-cgo: false
             with-workspace: false
-    connect-endpoint: false
+    connect-endpoint: true
     cors: {}
     docker-image: ""
     health:
         mode: grpc
     protocol-output-dirs: []
     protocol-source-dir: ""
-    rest-endpoint: true
+    rest-endpoint: false
     runtime-assets: []
 # The console reaches the authority through the interface it depends on, never a
 # service: the composition resolves which implementation answers.
