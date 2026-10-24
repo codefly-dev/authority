@@ -63,8 +63,6 @@ const (
 type AuthorityServiceClient interface {
 	// Issue signs a Work Context for one owner shape, one audience and the scopes
 	// asked for, bounded by what the owner holds and what the audience declared.
-	// Over HTTP too (POST /v1/issue), for a server tier that is not Go — a
-	// playground's — with the person's bearer in Authorization.
 	Issue(context.Context, *connect.Request[v1.IssueRequest]) (*connect.Response[v1.IssueResponse], error)
 	// Check verifies a presented Work Context for the audience the caller is,
 	// re-checking the authorization revision and the seal live.
@@ -194,8 +192,6 @@ func (c *authorityServiceClient) GetDelegation(ctx context.Context, req *connect
 type AuthorityServiceHandler interface {
 	// Issue signs a Work Context for one owner shape, one audience and the scopes
 	// asked for, bounded by what the owner holds and what the audience declared.
-	// Over HTTP too (POST /v1/issue), for a server tier that is not Go — a
-	// playground's — with the person's bearer in Authorization.
 	Issue(context.Context, *connect.Request[v1.IssueRequest]) (*connect.Response[v1.IssueResponse], error)
 	// Check verifies a presented Work Context for the audience the caller is,
 	// re-checking the authorization revision and the seal live.
