@@ -13,6 +13,8 @@ roles:
       - {kind: records.types, actions: [read]}
       - {kind: directory.entry, actions: [read]}
       - {kind: console.identity, actions: [read]}
+      # Robin: a viewer reads the conversations they own, and runs no turn.
+      - {kind: robin.conversations, actions: [read]}
       # A viewer reads only some document collections: the directory's, and
       # every shared one. The authority answers this when asked
       # (ListResources); the token carries the kind alone. A collection's id
@@ -32,11 +34,20 @@ roles:
       - {kind: records.types, actions: [read]}
       - {kind: directory.entry, actions: [read, write]}
       - {kind: modelservice.profiles, actions: [read]}
+      # Robin: an editor runs turns and keeps their conversations. Robin's
+      # model child is the authority's to grant from what the editor holds at
+      # the model, which is reading its profiles and not invoking one.
+      - {kind: robin.tasks, actions: [execute, read]}
+      - {kind: robin.runs, actions: [read, start, cancel]}
+      - {kind: robin.conversations, actions: [read, write, share, delete]}
+      - {kind: robin.intents, actions: [read, run]}
   - organization: acme
     name: admin
     scopes:
       - {kind: documents, actions: [read, write, ingest]}
       - {kind: documents.collection, actions: [read, transfer, admin]}
+      # Robin: an administrator sees and changes what the intent store holds.
+      - {kind: robin.intents, actions: [read, read_config, import, configure, activate]}
   - organization: globex
     name: admin
     scopes:
