@@ -22,9 +22,17 @@ interface:
         - service: hop
           endpoint: grpc
           visibility: internal
+        # The edge is the browser's origin, so it is reachable from outside.
+        - service: edge
+          endpoint: http
+          visibility: public
 services:
     - name: gateway
     # The hop stands in front of a module and lets through only a call the
     # authority checked, stamped with who it is for. Its gRPC face is exported
     # for the modules' REST gateways; the composition puts it in their path.
     - name: hop
+    # The auth gateway's role: the one origin a browser talks to. It signs a
+    # person in and routes each call to the module's own HTTP face with the
+    # person's Work Context; the hop checks it there.
+    - name: edge

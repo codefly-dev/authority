@@ -457,6 +457,47 @@ Not yet:
   an SDK change.
 - **The cell face.** The same decision, called by the mesh's authorization step.
 
+## The edge: the browser's origin (2026-10-23)
+
+The edge is the authority module's third service. It is the auth gateway's
+role in a run without saas: the one origin a browser talks to, so a page or a
+playground works the way a frontend does in a cell. A person signs in at
+`/auth/sign-in` with a fixture token (a `?fixture=` redirect or a JSON
+`fixtureToken`). The edge asks the session interface and keeps the bearer in an
+`HttpOnly`, `SameSite=Lax` cookie. The page holds no token.
+
+Each call is routed by its path: `/v1/<module>/…` to the module's REST face,
+`/<package.Service>/…` to its Connect face, and every other path to the
+frontend. For a module call the edge issues a Work Context for the person at the
+module (`Issue` with the module as the audience and no scopes, so the token
+carries what the person's roles grant there). It caches the context until
+shortly before it expires. It strips `Authorization`, `Cookie` and every
+`x-codefly-*` header the browser sent, then sets `x-codefly-work-context`. The
+module's faces dial the hop, which checks the method. A write authenticated by
+the cookie must carry this origin in `Origin`. Each refusal names its reason.
+
+The routes come from the composition (`configurations/local/edge.env`) until
+the authority's registry of composed modules serves them. The edge declares no
+dependency on the modules it routes, so the run delivers their addresses as
+`${endpoint:…}` references, never through an SDK query.
+
+Proven live on 2026-10-23 with the records and document stores behind the hop:
+
+| Call through the edge | Answer |
+|---|---|
+| No session | 401: sign in at `/auth/sign-in` |
+| Remi signs in, lists record types over REST | 200 |
+| Remi lists record types over Connect | 200 |
+| The same Connect call with a foreign `Origin` | 403: a write must come from this origin |
+| Omar, who holds no role, asks for records | 403: the authority refused this person at records |
+| Maya (viewer) defines a record type | 403 from the hop: requires `records.types:define` |
+| Maya sends a forged `x-codefly-hop-person: remi` | stripped; answered as Maya |
+
+The document store's Connect face still transcodes in process at go-grpc agent
+0.1.58, so a Connect call to it reaches the store without the hop's stamp and
+is refused as unauthenticated: it fails closed, and works once the store is
+synced to the agent whose Connect face dials the hop, as the record store is.
+
 ## Which resources a context covers (2026-10-23)
 
 `Check` answers for one call. Which resources of a kind a caller may touch,
