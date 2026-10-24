@@ -128,6 +128,21 @@ type MethodPolicy struct {
 	AnyCheckedCaller bool
 }
 
+// servedByMethods is every (kind, action) a module's methods require of a call:
+// what the module serves, read from its own method declarations rather than
+// from any summary of them. A person's or an installation's grant at the module
+// is cut to what it serves, so a kind a method requires is never one nobody can
+// be granted.
+func servedByMethods(methods map[string]MethodPolicy) []*basev0.WorkScopeV1 {
+	var served []*basev0.WorkScopeV1
+	for _, policy := range methods {
+		for _, required := range policy.Requires {
+			served = append(served, &basev0.WorkScopeV1{ResourceKind: required.GetResourceKind(), Actions: append([]string(nil), required.GetActions()...)})
+		}
+	}
+	return served
+}
+
 // AdmitMethod applies what the module at audience declares for method to the
 // scopes a checked call holds. A method that declares nothing, or both that it
 // requires something and nothing, is refused: an absent or ambiguous
@@ -625,7 +640,7 @@ func (s *State) ApplyManifest(m Manifest) ([]string, error) {
 			return nil, fmt.Errorf("%w: binding %s: headless scopes exceed invoke scopes", ErrForbidden, id)
 		}
 	}
-	m.ResourceKinds = Normalize(m.ResourceKinds)
+	m.ResourceKinds = Normalize(append(m.ResourceKinds, servedByMethods(m.Methods)...))
 	s.modules[m.Module] = m
 	s.principals[m.Principal] = m.Module
 	ids := s.ensureModuleInstallations(m)
