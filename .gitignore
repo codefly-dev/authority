@@ -19,11 +19,11 @@ node_modules/
 .env.*
 
 # A run's state is machine-local: its anchor, delivery record and launcher
-# credentials are written per run and never tracked.
-.codefly/run/
+# credentials are written per run and never tracked, in any workspace of this
+# repository (playground/ included).
+**/.codefly/run/
 
 # a run's own state
-.codefly/run/
 .codefly/selection-artifacts/
 
 # The go agent builds a service binary beside its source during a native run.
