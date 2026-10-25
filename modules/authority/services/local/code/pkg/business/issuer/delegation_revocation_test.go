@@ -17,10 +17,11 @@ import (
 
 func TestDelegationRevocationInvalidatesExistingUsesAndPreservesOtherTenants(t *testing.T) {
 	k := testkit.New(t)
+	declareDelegationChain(t, k)
 	ctx := context.Background()
 	grantor := person(t, k, "fixture-remi")
 	d, err := k.Issuer.Delegate(grantor, "org-directory",
-		testkit.OrgDirectory(1).Bindings["documents"].InvokeScopes, "bounded work")
+		append(testkit.OrgDirectory(1).Bindings["documents"].InvokeScopes, testkit.Documents(1).Bindings["model"].InvokeScopes...), "bounded work")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,6 +105,7 @@ func TestRevocationDuringIssuanceCannotRefreshAuthority(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			run := func(t *testing.T, revokeAt int) int {
 				k := testkit.New(t)
+				declareDelegationChain(t, k)
 				_, key, err := ed25519.GenerateKey(rand.Reader)
 				if err != nil {
 					t.Fatal(err)
@@ -122,7 +124,7 @@ func TestRevocationDuringIssuanceCannotRefreshAuthority(t *testing.T) {
 					}
 					return k.Now
 				})
-				d, err := k.Issuer.Delegate(grantor, "org-directory", testkit.OrgDirectory(1).Bindings["documents"].InvokeScopes, "race test")
+				d, err := k.Issuer.Delegate(grantor, "org-directory", append(testkit.OrgDirectory(1).Bindings["documents"].InvokeScopes, testkit.Documents(1).Bindings["model"].InvokeScopes...), "race test")
 				if err != nil {
 					t.Fatal(err)
 				}

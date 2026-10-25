@@ -74,6 +74,9 @@ type Fixture struct {
 	// token, through its binding. The last hop asks for something the first
 	// token never carried, so it holds only if each hop inherits from the owner.
 	Chain *Chain
+	// ChildScopes distinguishes target-local binding projection from a stored
+	// delegation's enduring action/resource ceiling. Nil leaves this line unproven.
+	ChildScopes *ChildScopesCase
 
 	// SlowChecks runs the lines that must wait on the clock, such as a token
 	// expiring past core's skew; off by default.
@@ -536,6 +539,12 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		if status.Code(err) != codes.PermissionDenied {
 			t.Fatalf("a module hops only on a token addressed to it, also down a chain: %v", err)
 		}
+	})
+	t.Run("child target projection preserves explicit delegation restrictions", func(t *testing.T) {
+		if f.ChildScopes == nil {
+			t.Skip("the fixture states no child-scope case")
+		}
+		c.childScopes(t, ctx, *f.ChildScopes)
 	})
 	t.Run("a check naming a method applies what the module's delivery declares", func(t *testing.T) {
 		if f.SignManifest == nil || f.SignAuthority == nil {

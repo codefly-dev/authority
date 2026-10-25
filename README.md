@@ -57,7 +57,9 @@ runtime, records and the org-directory page.
   to documents at Acme, write refused by name. 4 documents embeds through model
   for itself under its binding; `modelservice` is refused as not composed; the
   second binding the envelope forgot this week is simply there. 5 A 60-second
-  child for the runtime, actor documents, nothing widened. 6 The wiki reconciles
+  child for Runtime is refused for Maya, who has no Runtime grant; the entitled
+  developer succeeds with actor documents and only the Runtime binding's scopes.
+  6 The wiki reconciles
   overnight as its installation; uninstalled at 10:00, its 09:58 token is refused.
   7 Maya opens the directory page and is issued records read; Rémi gets write; the
   UI follows the token. 8 All of it ran with no accounts service, no store, no
@@ -375,7 +377,7 @@ children, delegation admission and use, and resource reads. Every solution in th
 verified actor chain continues to bound later module calls; a later module cannot
 recover a permission that the solution role withheld. A target solution also
 requires the person's entitlement there. Independent person-to-module work still
-uses organisation roles; module-only child derivation is unchanged.
+uses organisation roles; child derivation follows the target rule below.
 
 Solution roles preserve exact resource IDs and whole-kind grants through issuance
 and resource listing. Restricted grants still do not satisfy a method policy
@@ -425,17 +427,31 @@ for the distinction between static coverage and runtime authorization.
 
 ## Delegate chains: a module inherits who it acts for
 
-Owner's rule of 2026-10-23, generic to every module that acts for someone (robin
+Owner's rule A of 2026-10-25, generic to every module that acts for someone (robin
 and runtime first): a module holds no standing authority over anyone's data. Its
 hop on a person's or an installation's token is owned by that principal, adds
-the module to the actor chain, and has as its ceiling the owner's authority twice
-over: what was already delegated down the chain (the parent's scopes) and what
-the owner holds now at the hop's audience through the module's binding. An ask
-narrows the ceiling; the child never outlives its parent. A module hops only on a
+the module to the actor chain, and derives its scopes for each target from the
+owner's current grants intersected with the selected binding. It does not carry
+unrelated scopes from the previous audience. A service-owned context has no
+person role to recover: it retains only its existing scopes through that binding.
+An explicit stored `Delegate` grant is a lasting ceiling across these projections:
+dropped actions, absent kinds and named resource IDs cannot return on a later hop.
+Every matching stored delegation in the verified actor chain must stand and
+authorize that owner and actor. A binding's projection, and a per-`Issue` scopes
+ask, constrain that issue; they do not create a new stored delegation.
+The child never outlives its parent. A module hops only on a
 token addressed to it and names the binding it exercises. Revoking the person's
 access, or changing the solution's role, revokes every delegate on the next call.
 The suite proves it with a chain of three modules where the last hop gets a read
 the person's first token never carried.
+
+The shared `conformance.Fixture.ChildScopes` case proves exact empty-ask target
+scopes, exclusion of unrelated parent scopes, a two-target stored delegation,
+resource discovery, refusal to restore actions/IDs, and descendant revocation.
+Each host must populate this fixture: a skipped case does not prove parity.
+Local issuer tests also exercise a later third hop, binding-local narrowing,
+service-owned attenuation, and revocation interleavings. SaaS must run this same
+suite against its own real adapters before cross-host qualification is claimed.
 
 ## The hop: one door in front of a module (2026-10-23)
 
@@ -734,8 +750,10 @@ real namespace spelling.
 A delegation preserves the exact resource IDs supplied in its WorkScopes.
 Omitted IDs grant the whole kind, while named IDs remain a ceiling even when
 the grantor and operation binding hold broader authority. Delegate,
-GetDelegation, Issue and RevokeDelegation preserve that ceiling; requesting an
-ID outside it is refused.
+GetDelegation, Issue, downstream children and RevokeDelegation preserve that
+stored ceiling; requesting an ID outside it is refused. The child reconstructs
+the target projection from the stored grant, not from the narrower previous
+audience's projection.
 
 Development fixtures use `resource_ids` on delegation scopes. The
 `resources` matchers used by roles (IDs, prefixes and patterns) are a separate

@@ -397,11 +397,10 @@ func (i *Issuer) startAtRevision(ctx context.Context, revision uint64, in workco
 // own audience and must be addressed to the module acting; the actor proves itself
 // and names the binding it exercises, addressed to the hop's audience. The child
 // is owned by the parent's owner and carries the parent's actors and then this
-// one. Its ceiling is the owner's authority twice over: what was already delegated
-// down the chain (the parent's scopes), and what the owner holds now at the hop's
-// audience through the binding. An ask narrows the ceiling. The second half is
-// what lets a delegate chain cross audiences: a module holds nothing of its own,
-// it inherits who it acts for.
+// one. Human and installation owners supply current target authority through the
+// binding. A service owner carries only its existing authority. Explicit stored
+// delegations remain ceilings across target projections; a previous binding's
+// projection is not a grant for the next audience. An ask narrows this issue.
 func (i *Issuer) child(ctx context.Context, parent, actorCredential, bindingID, operation string, audience state.Manifest, asked []*basev0.WorkScopeV1, ttl time.Duration) (string, *basev0.WorkContextV1, error) {
 	decoded, err := workcontext.Decode(parent)
 	if err != nil {
@@ -435,6 +434,9 @@ func (i *Issuer) child(ctx context.Context, parent, actorCredential, bindingID, 
 		held, sourceCeiling, sourceBounded, err = i.personThroughSolutions(claims.GetOwnerPrincipalId(), audience, solutionPrincipals(claims, actor.Principal))
 	} else {
 		held, err = i.ownerHolds(claims, audience)
+		if claims.GetOwnerPrincipalKind() != "agent" {
+			held = verified.EffectiveScopes()
+		}
 	}
 	if err != nil {
 		return "", nil, err
@@ -443,20 +445,13 @@ func (i *Issuer) child(ctx context.Context, parent, actorCredential, bindingID, 
 	if err != nil {
 		return "", nil, err
 	}
-	ceiling := state.Normalize(append(append([]*basev0.WorkScopeV1(nil), verified.EffectiveScopes()...), state.Intersect(held, through)...))
+	ceiling := state.Intersect(held, through)
 	if sourceBounded {
 		ceiling = state.Intersect(ceiling, sourceCeiling)
 	}
-	// A target solution admits the person through its own installation role.
-	// Carried scopes from a module are not a substitute for that entitlement.
-	if audience.Kind == "solution" && claims.GetOwnerPrincipalKind() == "human" {
-		ceiling = state.Intersect(ceiling, state.Intersect(held, through))
-	}
-
-	if operation == "lookup" {
-		// A lookup reads a receipt: never more than the binding's lookup scopes,
-		// whatever the parent carried.
-		ceiling = state.Intersect(ceiling, through)
+	ceiling, err = i.delegationCeiling(claims, ceiling)
+	if err != nil {
+		return "", nil, err
 	}
 	if len(ceiling) == 0 {
 		return "", nil, fmt.Errorf("%w: %s holds nothing at %s through binding %q", ErrRefused, claims.GetOwnerPrincipalId(), audience.Module, bindingID)

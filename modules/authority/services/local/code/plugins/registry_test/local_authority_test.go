@@ -29,6 +29,13 @@ import (
 func TestTheLocalAuthorityPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
 	k := testkit.New(t)
 	testkit.SolutionTools(t, k)
+	// The explicit two-target delegation must name a target the granting module
+	// declares, even when the live call reaches it through another module.
+	directory := testkit.OrgDirectory(2)
+	directory.Bindings["model"] = testkit.Documents(1).Bindings["model"]
+	if _, err := k.State.ApplyManifest(directory); err != nil {
+		t.Fatal(err)
+	}
 	plugins := []framework.Plugin{
 		&authority.Plugin{Issuer: k.Issuer},
 		&composition.Plugin{State: k.State, Coordinate: "local", Verifier: testkit.ReleaseVerifier(t, "local"), Carrier: k.CarrierAuthority, Keys: testkit.ReleaseKeys()},
@@ -53,6 +60,10 @@ func TestTheLocalAuthorityPassesTheSuiteEveryImplementationMustPass(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
+	chain := conformance.Chain{Token: "fixture-remi", Start: "org-directory", Hops: []conformance.Hop{
+		{Credential: k.Credential(t, "org-directory"), Binding: "documents", Audience: "documents", AskKind: "documents", AskAction: "read"},
+		{Credential: k.Credential(t, "documents"), Binding: "model", Audience: "model", AskKind: "modelservice.profiles", AskAction: "read"},
+	}}
 	conformance.Run(t, conn, descriptors, conformance.Fixture{
 		Organization: "acme", ViewerToken: "fixture-maya", AdminToken: "fixture-alex",
 		// Maya reads records; the directory page hops on her context through its
@@ -68,6 +79,8 @@ func TestTheLocalAuthorityPassesTheSuiteEveryImplementationMustPass(t *testing.T
 		SignAuthority:      testkit.SignAuthority,
 		DeliveryCredential: func(module string) string { return k.Credential(t, module) },
 		Matrix:             testkit.Matrix(),
+		ChildScopes: &conformance.ChildScopesCase{Chain: chain, FirstActions: []string{"read", "write"}, NextActions: []string{"read", "invoke"},
+			OutsideKind: "directory.entry", OutsideAction: "read", ResourceID: "a", OtherResourceID: "b", DroppedAction: "invoke"},
 		// Maya reads the directory's and the wiki's collections and every shared
 		// one, and administers none: the authority's answer, not her token's.
 		// The page may write documents for Rémi, and a lookup through it reads.
@@ -82,9 +95,6 @@ func TestTheLocalAuthorityPassesTheSuiteEveryImplementationMustPass(t *testing.T
 		},
 		// Rémi at the page; the page asks documents; documents asks the model,
 		// for a read Rémi holds at the model and his first token never carried.
-		Chain: &conformance.Chain{Token: "fixture-remi", Start: "org-directory", Hops: []conformance.Hop{
-			{Credential: k.Credential(t, "org-directory"), Binding: "documents", Audience: "documents", AskKind: "documents", AskAction: "read"},
-			{Credential: k.Credential(t, "documents"), Binding: "model", Audience: "model", AskKind: "modelservice.profiles", AskAction: "read"},
-		}},
+		Chain: &chain,
 	})
 }

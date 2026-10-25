@@ -111,27 +111,43 @@ func TestTheScenarioOneHopAtATime(t *testing.T) {
 		}
 	})
 
-	t.Run("5 Maya starts a sync; documents fans it out through the runtime", func(t *testing.T) {
-		// A per-call child: owner Maya, actor documents, audience runtime, scopes ⊆ the parent's, short.
-		child, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
+	t.Run("5 documents fans out only for a runtime-entitled person", func(t *testing.T) {
+		// Maya has no runtime grant. Her documents read must not stand in for it.
+		_, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
 			As: &authorityv1.IssueRequest_ParentToken{ParentToken: mayaAtDocuments}, Actor: documents,
+			Audience: "runtime", OperationBindingId: "runtime-admission", TtlSeconds: 60,
+		})
+		if !errors.Is(err, issuer.ErrRefused) {
+			t.Fatalf("Maya's absent runtime authority: %v", err)
+		}
+		parent, err := k.Issuer.Issue(person(t, k, "fixture-dev"), &authorityv1.IssueRequest{
+			As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		child, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
+			As: &authorityv1.IssueRequest_ParentToken{ParentToken: parent.Token}, Actor: documents,
 			Audience: "runtime", OperationBindingId: "runtime-admission", TtlSeconds: 60,
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
 		wc := child.GetContext()
-		if wc.GetOwnerPrincipalId() != "maya" || len(wc.GetActorChain()) != 1 || wc.GetActorChain()[0].GetPrincipalId() != "documents" ||
+		if wc.GetOwnerPrincipalId() != "dev" || len(wc.GetActorChain()) != 1 || wc.GetActorChain()[0].GetPrincipalId() != "documents" ||
 			wc.GetAudience() != "runtime" || wc.GetExpiresAtUnix()-k.Now.Unix() < 60 || wc.GetExpiresAtUnix()-k.Now.Unix() > 62 {
 			t.Fatalf("step 5 child = %v", wc)
 		}
 		if _, err := k.Issuer.Check(ctx, child.GetToken(), "runtime", ""); err != nil {
 			t.Fatalf("the runtime checks the child: %v", err)
 		}
-		// Nothing widened: the child cannot carry more than Maya's read.
+		if len(wc.AuthorityScopes) != 1 || actions(wc, "runtime.task") != "admit,read" {
+			t.Fatalf("runtime child carries scopes outside its binding: %v", wc.AuthorityScopes)
+		}
+		// Even the developer cannot carry documents scope through this binding.
 		_, err = k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
-			As: &authorityv1.IssueRequest_ParentToken{ParentToken: mayaAtDocuments}, Actor: documents,
-			Audience: "runtime", Scopes: scopes(testkit.Scope("documents", "write")),
+			As: &authorityv1.IssueRequest_ParentToken{ParentToken: parent.Token}, Actor: documents,
+			Audience: "runtime", OperationBindingId: "runtime-admission", Scopes: scopes(testkit.Scope("documents", "write")),
 		})
 		if !errors.Is(err, issuer.ErrRefused) {
 			t.Fatalf("widening through the runtime: %v", err)
