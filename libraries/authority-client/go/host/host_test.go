@@ -2,12 +2,15 @@ package host
 
 import (
 	"errors"
+	"github.com/codefly-dev/core/resources"
+	"strings"
 	"testing"
 )
 
 // The host is where authority/endpoint says, over the transport its scheme
 // names; with none, the composed local authority's address.
 func TestHostTargetReadsTheConfiguredEndpoint(t *testing.T) {
+	t.Setenv(resources.EnvironmentPrefix, resources.LocalEnvironment().Name)
 	local := func() (string, error) { return "localhost:7000", nil }
 	for _, tc := range []struct {
 		endpoint, target, protocol string
@@ -41,6 +44,7 @@ func TestHostTargetRefusesWhatIsNotAnOrigin(t *testing.T) {
 }
 
 func TestNonLocalPlaintextIsRefused(t *testing.T) {
+	t.Setenv(resources.EnvironmentPrefix, resources.LocalEnvironment().Name)
 	for _, target := range []string{"remote.test:8080", "http://remote.test", "grpc://10.0.0.2:443", "tcp://[2001:db8::1]:8080"} {
 		if _, _, err := Target(target, nil); err == nil {
 			t.Fatalf("accepted plaintext %s", target)
@@ -53,5 +57,38 @@ func TestNonLocalPlaintextIsRefused(t *testing.T) {
 		if _, _, err := Target(target, nil); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+func TestMeshProtectedHostUsesCompositionTransport(t *testing.T) {
+	t.Setenv(resources.EnvironmentPrefix, "production")
+	for _, assertion := range []string{"", "false", "true", "TRUE", " true", "true "} {
+		t.Run("assertion="+assertion, func(t *testing.T) {
+			t.Setenv(resources.WorkspaceConfigurationPrefix+"__INTERNAL_TRANSPORT__MESH_PROTECTED", assertion)
+			for _, name := range []string{"accounts.platform.svc", "accounts.platform.svc.cluster.local", "accounts.platform.svc.cluster.local.", "10.0.0.2", "remote.test", "localhost", "accounts.platform.svc.evil.test", "accounts..svc", "-accounts.platform.svc", "accounts.plat_form.svc"} {
+				validName := name == "accounts.platform.svc" || name == "accounts.platform.svc.cluster.local" || name == "accounts.platform.svc.cluster.local."
+				for _, endpoint := range []string{"http://" + name + ":8080", ""} {
+					target, transport, err := Target(endpoint, func() (string, error) { return name + ":8080", nil })
+					allowed := assertion == "true" && validName
+					if (err == nil) != allowed {
+						t.Fatalf("assertion %q host %s fallback %v: %v", assertion, name, endpoint == "", err)
+					}
+					if allowed && (target != name+":8080" || transport.Info().SecurityProtocol != "insecure") {
+						t.Fatalf("unexpected mesh transport %s %v", target, transport)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestMeshAssertionReadFailureAndMisspellingRefuse(t *testing.T) {
+	_, err := meshProtected(func(string, string) (string, bool, error) { return "true", true, errors.New("sensitive-value") })
+	if err == nil || strings.Contains(err.Error(), "sensitive-value") {
+		t.Fatalf("unreadable assertion: %v", err)
+	}
+	t.Setenv(resources.WorkspaceConfigurationPrefix+"__INTERNAL_TRANSPORT__MESH_PROTECTED", "TRUE")
+	if _, _, err := Target("https://accounts.example.test", nil); err == nil {
+		t.Fatal("TLS hid invalid mesh assertion")
 	}
 }

@@ -52,4 +52,7 @@ reaches Documents when its destination is unresolved.
 
 `ENFORCEMENT=warn` is accepted only when the SDK reports a local environment.
 Unknown enforcement modes and warn in other environments are refused by name.
-The shared authority client dialer requires TLS for every non-loopback host.
+The shared authority client dialer uses verified TLS, or accepts an in-cluster
+Service address under `internal-transport/mesh-protected=true`. Plaintext
+loopback is local-only. It refuses missing or invalid mesh assertions for
+in-cluster plaintext, including SDK-resolved fallback addresses.

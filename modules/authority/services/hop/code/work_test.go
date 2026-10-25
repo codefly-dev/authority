@@ -13,6 +13,7 @@ import (
 // Startup reads the same SDK carriers as a composed process. grpc.NewClient
 // is lazy: these refusals neither contact an authority nor start a proxy.
 func TestHopStartupRequiresGeneratedRoutes(t *testing.T) {
+	t.Setenv(resources.EnvironmentPrefix, resources.LocalEnvironment().Name)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)

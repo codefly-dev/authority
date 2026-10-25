@@ -40,4 +40,9 @@ Handwritten code lives outside `gen/`, the directory Codefly replaces. The root
 module scaffold is preserved by `codefly generate client`.
 
 The shared `host.Dial` resolves the authority for edge and hop. Remote endpoints
-require HTTPS/TLS; plaintext is limited to loopback, including resolved fallbacks.
+use verified HTTPS/TLS unless the composition asserts
+`internal-transport/mesh-protected=true` and the target is an in-cluster Service
+DNS name. Plaintext loopback is accepted only in a local Codefly environment.
+Configured endpoints and SDK-resolved fallbacks use the same rule. Unreadable or
+misspelled mesh assertions refuse before dialing; the shared host client owns
+this check for edge and hop, without reviving the retired SDK verifier.
