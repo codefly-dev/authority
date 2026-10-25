@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/proto"
 )
 
 func (c *client) bindingRefusals(t *testing.T, ctx context.Context, f Fixture) {
@@ -27,7 +28,7 @@ func (c *client) bindingRefusals(t *testing.T, ctx context.Context, f Fixture) {
 }
 
 func (c *client) resourceMethod(t *testing.T, ctx context.Context, f Fixture) {
-	t.Run("a resource limited scope cannot authorize a whole kind method", func(t *testing.T) {
+	t.Run("a resource limited scope passes method admission without becoming kind wide", func(t *testing.T) {
 		if f.Resources == nil || len(f.Resources.Covered) == 0 || f.SignManifest == nil || f.SignAuthority == nil {
 			t.Fatal("required conformance fixture missing: resources and signed method policy")
 		}
@@ -39,7 +40,9 @@ func (c *client) resourceMethod(t *testing.T, ctx context.Context, f Fixture) {
 		}
 		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": r.Token})
 		out := c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": target, "scopes": []any{scopeAsk(r.Kind, []string{r.Action}, []string{r.Covered[0]})}})
-		_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(out, "token"), "audience": target, "method": method})
-		refused(t, err, codes.PermissionDenied, "requires")
+		checked := c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(out, "token"), "audience": target, "method": method})
+		if !proto.Equal(msg(out, "context").Interface(), msg(checked, "context").Interface()) {
+			t.Fatal("method admission changed the resource-limited authority")
+		}
 	})
 }

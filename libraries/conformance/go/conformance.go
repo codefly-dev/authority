@@ -48,9 +48,8 @@ type Fixture struct {
 	InstalledCredential string // workload credential of InstalledAudience, required for installation-owned Issue
 	InstalledAudience   string // the installed solution principal; distinct from the organisation-role module Audience
 
-	// WorkloadOrganizations is required: omitted organization resolves only to a
-	// delivered tenant or the sole active installing organization, never any tenant.
-	WorkloadOrganizations *WorkloadOrganizationsCase
+	// LocalAdvisory enables the local-only advisory Check contract.
+	LocalAdvisory bool
 
 	// SolutionRoles proves a delivered solution role, independently of organization grants.
 	SolutionRoles *SolutionRoleCase
@@ -424,12 +423,6 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			t.Fatalf("garbage token: %v", err)
 		}
 	})
-	t.Run("workload organization is inferred only when unambiguous", func(t *testing.T) {
-		if f.WorkloadOrganizations == nil {
-			t.Fatal("fixture must supply single, ambiguous and absent workload organization cases")
-		}
-		c.workloadOrganizations(t, ctx, *f.WorkloadOrganizations)
-	})
 	t.Run("a workload is issued its own binding and nothing it did not declare", func(t *testing.T) {
 		workload := map[string]any{"workload": map[string]any{"credential": f.WorkloadCredential}, "audience": f.BindingAudience, "organization_id": f.Organization}
 		req := clone(workload)
@@ -629,20 +622,23 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 				refused(t, err, want, reason)
 			})
 		}
-		t.Run("advisory preserves the checked context and exact policy refusal", func(t *testing.T) {
-			method := "/conformance.Service/Write"
-			denied := check(method)
-			refused(t, denied, codes.PermissionDenied, "requires")
-			request := map[string]any{"token": token, "audience": module, "method": method, "advisory": true}
-			advised := c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", request)
-			plain := c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": token, "audience": module})
-			if str(advised, "refusal") != status.Convert(denied).Message() || !proto.Equal(msg(advised, "context").Interface(), msg(plain, "context").Interface()) || str(advised, "authorization_revision") != str(plain, "authorization_revision") {
-				t.Fatal("advisory changed verified authority or lost the exact refusal")
-			}
-			request["token"] = "invalid-token"
-			_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", request)
-			refused(t, err, codes.Unauthenticated, "")
-		})
+		if f.LocalAdvisory {
+			t.Run("advisory preserves the checked context and exact policy refusal", func(t *testing.T) {
+				method := "/conformance.Service/Write"
+				denied := check(method)
+				refused(t, denied, codes.PermissionDenied, "requires")
+				request := map[string]any{"token": token, "audience": module, "method": method, "advisory": true}
+				advised := c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", request)
+				plain := c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": token, "audience": module})
+				if str(advised, "refusal") != status.Convert(denied).Message() || !proto.Equal(msg(advised, "context").Interface(), msg(plain, "context").Interface()) || str(advised, "authorization_revision") != str(plain, "authorization_revision") {
+					t.Fatal("advisory changed verified authority or lost the exact refusal")
+				}
+				request["token"] = "invalid-token"
+				_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", request)
+				refused(t, err, codes.Unauthenticated, "")
+			})
+		}
+
 		// A document that does not match the manifest it travels with is refused,
 		// and the module keeps the policy it had.
 		if _, err := c.deliverWithMethods(ctx, f, module, 2, []string{f.ReadKind}, []any{map[string]any{"method": "/conformance.Service/Write", "any_checked_caller": true}}, 1); status.Code(err) != codes.PermissionDenied {

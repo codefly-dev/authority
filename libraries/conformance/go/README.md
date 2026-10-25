@@ -25,12 +25,11 @@ providing different labels does not remove an obligation.
 | Delivered solution roles at their own audience, binding roots and children; no-role refusals; ceiling enforcement | `SolutionRoles`: a signed wiki viewer role grants Maya documents write, which she lacks independently. Replayed deliveries use deterministic authority-document bytes. |
 | Rule A: current owner grants intersected with each target binding; canonical `<org>/<module>/<binding>` identity; named hop refusals | `Chain`, `ChildScopes`, and the individual binding-refusal cases |
 | Enduring narrowing through two hops | `ChildScopes` and `ParentLimits`: stored delegations retain complete ceilings; parent action/resource limits and entirely dropped kinds remain capped across target changes. Multiple action/resource rows must not become a cross product. |
-| Workload tenant inference, ambiguity and no installation | `WorkloadOrganizations`; a pinned tenant or sole active installing organization, never an arbitrary organization |
 | Installation identity, installed caller, explicit organization, pending, active and revoked states | `InstalledSolution`, `InstalledCredential`, `Lifecycle` |
 | Absent installation versus no entitlement | `FailedPrecondition` with the absent-installation reason versus `PermissionDenied` with the holds-nothing reason |
 | Inventory access | Admin and owner allowed; ordinary member, anonymous and foreign-organization reads refused |
-| Resource discovery and whole-kind policy admission | `Resources`, plus a resource-ID-limited context refused by a whole-kind method |
-| Delivered method policies and advisory | Signed methods cover required scopes, any checked caller, unmarked and missing methods; advisory returns the same checked context/revision and the exact refusal, and still rejects an invalid capability. |
+| Resource discovery and whole-kind policy admission | `Resources`, plus resource-limited method admission without widening resource authority |
+| Delivered method policies and advisory | Signed methods cover required scopes, any checked caller, unmarked and missing methods; local-only `LocalAdvisory` returns the same checked context/revision and the exact refusal, and still rejects an invalid capability. |
 | Solution route policy | Signed GET/POST routes distinguish `requires` from `any_checked_caller`, including template paths and an unknown route. |
 | Delivery and installation lifecycle | Manifest/role ceilings, forward generation, mismatched signed documents, blocked acknowledgement, then team exposure |
 | Session identity and display names | Current verifies person and organization; display names are pending until `Session.person_display_name = 7` and `Session.organization_display_name = 8` exist. No proto was added by this change. |

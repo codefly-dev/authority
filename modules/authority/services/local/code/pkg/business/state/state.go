@@ -215,18 +215,12 @@ func admitMethod(m Manifest, audience, method string, held []*basev0.WorkScopeV1
 	case len(p.Requires) == 0:
 		return fmt.Errorf("%w: %s declares no policy for %s", ErrForbidden, audience, method)
 	}
-	// Method requirements name whole kinds, not selected resources. Keep the
-	// existing action matcher, but only whole-kind holdings can satisfy it.
-	var wholeKindHeld []*basev0.WorkScopeV1
-	for _, scope := range held {
-		if len(scope.GetResourceIds()) == 0 {
-			wholeKindHeld = append(wholeKindHeld, scope)
-		}
-	}
+	// Method admission checks the kind and action. The module must still check
+	// each requested resource against the unchanged resource-limited scopes.
 	var missing []string
 	for _, r := range p.Requires {
 		for _, action := range r.GetActions() {
-			if !holdsAction(wholeKindHeld, r.GetResourceKind(), action) {
+			if !holdsAction(held, r.GetResourceKind(), action) {
 				missing = append(missing, r.GetResourceKind()+":"+action)
 			}
 		}

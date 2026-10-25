@@ -108,3 +108,10 @@ A pending installation cannot be granted to a team: its install step must first
 acknowledge it. Shared conformance observes the pending state while that step is
 blocked, then verifies exposure after acknowledgement and refusal after revocation.
 See `libraries/conformance/go/README.md` for the complete host comparison contract.
+
+Workloads name the organization of the work item. The local convenience of
+omitting it works only for a sole active installing organization; it is not a
+shared host requirement. Method admission checks kind/action while preserving
+resource limits for the module's resource check. The hop refuses `ENFORCEMENT=warn`
+unless the SDK identifies the environment as local; advisory conformance is
+explicitly enabled only by the local runner.

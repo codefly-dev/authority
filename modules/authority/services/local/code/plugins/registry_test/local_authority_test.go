@@ -106,30 +106,10 @@ people:
 		{Credential: k.Credential(t, "org-directory"), Binding: "documents", Audience: "documents", AskKind: "documents", AskAction: "read"},
 		{Credential: k.Credential(t, "documents"), Binding: "model", Audience: "model", AskKind: "modelservice.profiles", AskAction: "read"},
 	}}
-	// Workloads already declared by the launcher preserve the main fixture's
-	// multi-organization checks. The probe is advanced to generation 2 later.
-	organizationCase := func(name string, generation uint64, revoked ...string) conformance.WorkloadOrganizationCase {
-		module := testkit.Documents(generation)
-		module.Module, module.Principal = name, name
-		if _, err := k.State.ApplyManifest(module); err != nil {
-			t.Fatal(err)
-		}
-		for _, org := range revoked {
-			if err := k.State.Revoke(state.InstallationID(org, name)); err != nil {
-				t.Fatal(err)
-			}
-		}
-		return conformance.WorkloadOrganizationCase{Credential: k.Credential(t, name), Module: name, Binding: "model", Audience: "model", Organization: "acme"}
-	}
-	workloadOrganizations := &conformance.WorkloadOrganizationsCase{
-		Single:    organizationCase("conformance-probe", 1, "globex"),
-		Ambiguous: conformance.WorkloadOrganizationCase{Credential: k.Credential(t, "org-directory"), Module: "org-directory", Binding: "records", Audience: "records"},
-		None:      organizationCase("runtime", 2, "acme", "globex"),
-	}
 	conformance.Run(t, conn, descriptors, conformance.Fixture{
-		WorkloadOrganizations: workloadOrganizations,
-		OwnerToken:            "fixture-owner",
-		SlowChecks:            true,
+		LocalAdvisory: true,
+		OwnerToken:    "fixture-owner",
+		SlowChecks:    true,
 		SolutionRoles: &conformance.SolutionRoleCase{
 			Solution: "wiki", Credential: k.Credential(t, "wiki"), Token: "fixture-maya", Outsider: "fixture-no-roles",
 			OwnKind: "wiki.page", OwnActions: []string{"read", "write", "publish"},

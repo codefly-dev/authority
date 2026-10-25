@@ -1,17 +1,11 @@
 # Go hop library
 
-`Outbound.ForModule(ctx, "", binding)` asks the authority for a Work Context
-through the module's declared binding without supplying an organization. The
-authority resolves the authenticated module's delivered tenant pin or its sole
-active installing organization. The local authority has no tenant pin, so zero
-or multiple active installing organizations are refused with a named reason.
-The helper preserves that refusal and identifies the binding.
-
-Pass an organization explicitly when the work already identifies one; it is
-forwarded unchanged for the authority to check. The helper does not select a
-tenant. `ErrNoOrganization` was removed because an empty organization is a valid
-request to the authority. Successful calls carry the issued token in outgoing
-gRPC metadata and preserve other outgoing metadata.
+`Outbound.ForModule(ctx, organization, binding)` names the organization of the
+work item. The local authority accepts an empty organization only when exactly
+one organization has an active installation of the calling module. Zero or
+multiple installing organizations are refused with a reason telling the caller
+to name the organization of the work item. There is no delivered tenant pin.
+The helper forwards the request and preserves the authority's refusal.
 
 `IssueForParent` and `IssueForModule` are `ForParent`'s and `ForModule`'s issue
 returned rather than carried, as an `Issued`: the token, when it expires, and
@@ -29,5 +23,5 @@ Version note (2026-10-25): `Issued`, `IssueForParent`, `IssueForModule`,
 unchanged. Consumers pin this library by commit until it is tagged.
 
 Validate this library with `go test -race ./...` and `go vet ./...` from this
-directory. Issuer and shared conformance tests in the local authority exercise
+directory. Issuer unit tests in the local authority exercise
 the actual installation-based tenant resolution.

@@ -26,15 +26,16 @@ func TestMethodAdmissionNeverWidensResourceRestrictedScopes(t *testing.T) {
 		held         []*basev0.WorkScopeV1
 		allow        bool
 	}{
-		{"one resource", "List", []*basev0.WorkScopeV1{scope("gauge.items", []string{"one"}, "read")}, false},
-		{"several resource scopes", "List", []*basev0.WorkScopeV1{scope("gauge.items", []string{"one"}, "read"), scope("gauge.items", []string{"two"}, "read")}, false},
-		{"restricted wildcard", "List", []*basev0.WorkScopeV1{scope("gauge.items", []string{"one"}, state.AnyAction)}, false},
+		{"one resource", "List", []*basev0.WorkScopeV1{scope("gauge.items", []string{"one"}, "read")}, true},
+		{"several resource scopes", "List", []*basev0.WorkScopeV1{scope("gauge.items", []string{"one"}, "read"), scope("gauge.items", []string{"two"}, "read")}, true},
+		{"restricted wildcard", "List", []*basev0.WorkScopeV1{scope("gauge.items", []string{"one"}, state.AnyAction)}, true},
 		{"whole kind", "List", []*basev0.WorkScopeV1{scope("gauge.items", nil, "read")}, true},
 		{"whole wildcard", "Edit", []*basev0.WorkScopeV1{scope("gauge.items", nil, state.AnyAction)}, true},
 		{"whole wildcard alongside restricted action", "List", []*basev0.WorkScopeV1{scope("gauge.items", nil, state.AnyAction), scope("gauge.items", []string{"one"}, "read")}, true},
-		{"whole read restricted write", "Edit", []*basev0.WorkScopeV1{scope("gauge.items", nil, "read"), scope("gauge.items", []string{"one"}, "write")}, false},
+		{"whole read restricted write", "Edit", []*basev0.WorkScopeV1{scope("gauge.items", nil, "read"), scope("gauge.items", []string{"one"}, "write")}, true},
 		{"whole grant alongside restricted", "List", []*basev0.WorkScopeV1{scope("gauge.items", []string{"one"}, "read"), scope("gauge.items", nil, "read")}, true},
 		{"checked caller", "Ping", []*basev0.WorkScopeV1{scope("gauge.items", []string{"one"}, "read")}, true},
+		{"missing write", "Edit", []*basev0.WorkScopeV1{scope("gauge.items", []string{"one"}, "read")}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := k.State.AdmitMethod("gauge", "/gauge.Service/"+tc.method, tc.held)

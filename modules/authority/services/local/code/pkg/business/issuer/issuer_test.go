@@ -352,7 +352,7 @@ func TestAWorkloadInfersOnlyOneActiveInstallingOrganization(t *testing.T) {
 				OperationBindingId: "model",
 			})
 			if tc.reason != "" {
-				if !errors.Is(err, issuer.ErrRefused) || !strings.Contains(err.Error(), tc.reason) || !strings.Contains(err.Error(), "must name one organization") {
+				if !errors.Is(err, issuer.ErrRefused) || !strings.Contains(err.Error(), tc.reason) || !strings.Contains(err.Error(), "must name the organization of the work item") {
 					t.Fatalf("want named %s refusal, got %v", tc.reason, err)
 				}
 				return

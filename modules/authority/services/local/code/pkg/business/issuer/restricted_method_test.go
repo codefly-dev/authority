@@ -2,7 +2,6 @@ package issuer_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"gateway/pkg/business/state"
@@ -11,7 +10,7 @@ import (
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
-func TestRestrictedCapabilityIsRefusedForKindWideMethodAndAdvisedWithoutWidening(t *testing.T) {
+func TestRestrictedCapabilityPassesMethodWithoutWidening(t *testing.T) {
 	k := testkit.New(t)
 	m := testkit.Documents(2)
 	method := "/documents.Service/ListCollections"
@@ -21,15 +20,15 @@ func TestRestrictedCapabilityIsRefusedForKindWideMethodAndAdvisedWithoutWidening
 	}
 	token := issued(t, k, "fixture-remi", []*authorityv1.WorkScopeV1{{ResourceKind: "documents.collection", Actions: []string{"read"}, ResourceIds: []string{"one"}}})
 	ctx := context.Background()
-	if _, err := k.Issuer.Check(ctx, token, "documents", method); !errors.Is(err, state.ErrForbidden) {
-		t.Fatalf("resource-limited capability admitted kind-wide: %v", err)
+	if _, err := k.Issuer.Check(ctx, token, "documents", method); err != nil {
+		t.Fatalf("resource-limited capability refused at method: %v", err)
 	}
 	advice, err := k.Issuer.Advise(ctx, token, "documents", method)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if advice.GetRefusal() == "" {
-		t.Fatal("warn mode lost the method refusal")
+	if advice.GetRefusal() != "" {
+		t.Fatal("advisory unexpectedly refused the method")
 	}
 	if len(effectiveScopes(advice.GetContext())) != 1 || len(effectiveScopes(advice.GetContext())[0].GetResourceIds()) != 1 || effectiveScopes(advice.GetContext())[0].GetResourceIds()[0] != "one" {
 		t.Fatalf("warn mode widened the signed capability: %v", advice.GetContext())
