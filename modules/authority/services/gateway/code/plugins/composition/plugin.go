@@ -195,7 +195,8 @@ func methodsOf(doc *compositionv1.AuthorityManifestV1) (map[string]state.MethodP
 
 // rolesOf reads the roles a solution declares, by name. The state holds them to
 // the role contract: a solution declares an installer and every role stays
-// within what it serves (its ceiled kinds), and a module declares none, so a
+// within what it serves or explicitly consumes through invoke/lookup bindings,
+// and a module declares none, so a
 // module's delivery listing any is refused there by name.
 func rolesOf(doc *compositionv1.AuthorityManifestV1) (map[string][]*basev0.WorkScopeV1, error) {
 	if len(doc.GetRoles()) == 0 {

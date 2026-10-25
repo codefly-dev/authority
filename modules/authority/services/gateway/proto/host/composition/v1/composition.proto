@@ -57,7 +57,8 @@ message AuthorityManifestV1 {
   repeated host.authority.v1.WorkScopeV1 scope_ceilings = 5;
   // The roles a solution declares a person may hold on an installation of it,
   // as ModuleManifestV1.roles declares them through the sketch: each within
-  // the solution's own kinds (its scope ceilings), one of them installer.
+  // the solution's own scope ceilings or explicit invoke/lookup binding scopes,
+  // one of them installer. Headless-only scopes cannot supply a role grant.
   // Core's manifest carries no roles, so they travel here until it does. A
   // module declares none; a module's delivery listing any is refused.
   repeated RoleV1 roles = 6;
@@ -110,8 +111,9 @@ message ModuleManifestV1 {
   // The page the module contributes, if any.
   PageV1 page = 7;
   // The roles a solution declares a person may hold on an installation of it,
-  // each within what the solution serves; one is named installer, held by
-  // whoever installs it. A module declares none.
+  // each within what the solution serves or explicitly consumes through
+  // invoke/lookup bindings; one is named installer, held by whoever installs it.
+  // Headless-only scopes cannot supply a role grant. A module declares none.
   repeated RoleV1 roles = 8;
 }
 

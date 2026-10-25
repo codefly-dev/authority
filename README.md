@@ -339,8 +339,10 @@ unable to build.
 
 ## Roles and the permission matrix
 
-A solution declares its roles in its manifest, each within what the solution
-serves, and one of them is `installer`: whoever installs the solution holds it on
+A solution declares its roles in its canonical `module.contract.codefly.yaml`,
+each within what the solution serves or explicitly consumes through its invoke
+and lookup bindings. Headless-only permissions cannot supply a role grant.
+One role is `installer`: whoever installs the solution holds it on
 that installation, which is the install-and-configure surface. A module declares
 no roles; a person's access to a module is the organisation's roles intersected
 with what the module serves. A person's access to a solution is the role its
@@ -349,16 +351,22 @@ role through a granted team, and nothing from the organisation's roles. Another
 organisation's installation grants nothing. The values of real roles belong to
 each solution's manifest and arrive through the carrier: core's manifest carries
 no roles, so they travel in the authority's own document delivered with it
-(`AuthorityManifestV1.roles`, as the sketch's `ModuleManifestV1.roles`), each
-within the solution's scope ceilings in the same document. This repository holds
+(`AuthorityManifestV1.roles`, as the sketch's `ModuleManifestV1.roles`), bounded
+by the solution's own scope ceilings and the invoke/lookup scopes in the paired
+Core manifest. Consumed kinds do not become kinds the solution serves. This repository holds
 the contract and its evaluation, never a product's roles.
 
 An installation acting for itself resolves its selected role in that installed
 solution's manifest, using the same role source as installation validation.
 An organisation role with the same label supplies no authority to it. The
 requested audience still intersects that role with what it serves; a binding
-alone does not grant downstream module access. Downstream standing grants and
-host parity remain separate qualification work.
+alone does not grant downstream module access. A role may explicitly grant a
+consumed permission within those bindings, allowing the installation's agent to
+issue at that module or carry it on a child call. Resource restrictions survive
+that intersection. This does not change person-owned child calls: they still
+resolve the person's organisation roles at a module audience. Whether solution
+roles additionally bound those calls is a separate decision; host parity remains
+separate qualification work.
 
 Delivering a narrower or removed selected role, or narrowing the installer's
 role, advances active installation seals and the affected organisations'

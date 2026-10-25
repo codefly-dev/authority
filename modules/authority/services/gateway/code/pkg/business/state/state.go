@@ -145,7 +145,8 @@ type Manifest struct {
 	Bindings      map[string]Binding
 	ResourceKinds []*basev0.WorkScopeV1
 	// Roles are what a solution declares a person may hold on an installation of
-	// it, each within what the solution serves. A solution always declares
+	// it, each within what the solution serves or explicitly consumes through
+	// invoke/lookup bindings. A solution always declares
 	// InstallerRole; a module declares none, since a module is installed by
 	// composition and a person's access to it is the organisation's roles.
 	Roles map[string][]*basev0.WorkScopeV1
@@ -1485,8 +1486,9 @@ func sameScopes(a, b []*basev0.WorkScopeV1) bool {
 }
 
 // validateRoles holds a solution to its role contract: it declares an installer
-// role, and every role stays within what the solution serves. A module declares
-// no roles.
+// role, and every role stays within what the solution serves or explicitly
+// consumes through invoke/lookup bindings. Headless authority belongs to the
+// workload and cannot supply a role grant. A module declares no roles.
 func validateRoles(m Manifest) error {
 	if m.Kind != "solution" {
 		if len(m.Roles) > 0 {
@@ -1497,12 +1499,17 @@ func validateRoles(m Manifest) error {
 	if _, ok := m.Roles[InstallerRole]; !ok {
 		return fmt.Errorf("%w: %s declares %d role(s) and none is %q", ErrNoInstallerRole, m.Module, len(m.Roles), InstallerRole)
 	}
+	grantable := slices.Clone(m.ResourceKinds)
+	for _, binding := range m.Bindings {
+		grantable = append(grantable, binding.InvokeScopes...)
+		grantable = append(grantable, binding.LookupScopes...)
+	}
 	for name, scopes := range m.Roles {
 		if len(scopes) == 0 {
 			return fmt.Errorf("%w: role %q of %s grants nothing", ErrForbidden, name, m.Module)
 		}
-		if !Attenuates(scopes, m.ResourceKinds) {
-			return fmt.Errorf("%w: role %q of %s grants beyond what %s serves", ErrForbidden, name, m.Module, m.Module)
+		if !Attenuates(scopes, grantable) {
+			return fmt.Errorf("%w: role %q of %s grants beyond what %s serves or explicitly consumes through invoke/lookup bindings", ErrForbidden, name, m.Module, m.Module)
 		}
 	}
 	return nil

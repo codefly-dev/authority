@@ -21,7 +21,7 @@ import (
 // carrier is one delivery as the CLI makes it: core's manifest signed with the
 // release key, the authority's document signed by the same key and naming it,
 // and the module's own delivery credential under the kit's launcher.
-func carrier(t *testing.T, k *testkit.Kit, alias string, kind solutionhost.Kind, generation uint64, kinds []string, authority *compositionv1.AuthorityManifestV1) *compositionv1.ApplyManifestRequest {
+func carrier(t *testing.T, k *testkit.Kit, alias string, kind solutionhost.Kind, generation uint64, kinds []string, authority *compositionv1.AuthorityManifestV1, configure ...func(*solutionhost.ModuleManifest)) *compositionv1.ApplyManifestRequest {
 	t.Helper()
 	manifest := &solutionhost.ModuleManifest{
 		Schema: solutionhost.SchemaModuleManifestV1, Binding: alias, Alias: alias, Kind: kind, Generation: generation,
@@ -29,6 +29,9 @@ func carrier(t *testing.T, k *testkit.Kit, alias string, kind solutionhost.Kind,
 		Release:   solutionhost.Release{Publisher: "test", Name: alias, Version: "0.1.0"},
 		Workloads: []solutionhost.Workload{{Service: "api", Container: "app"}},
 		Authority: &solutionhost.Authority{Principal: alias, ResourceKinds: kinds},
+	}
+	for _, change := range configure {
+		change(manifest)
 	}
 	document, err := solutionhost.SignedPayload(manifest)
 	if err != nil {

@@ -121,7 +121,8 @@ export type AuthorityManifestV1 = Message<"host.composition.v1.AuthorityManifest
   /**
    * The roles a solution declares a person may hold on an installation of it,
    * as ModuleManifestV1.roles declares them through the sketch: each within
-   * the solution's own kinds (its scope ceilings), one of them installer.
+   * the solution's own scope ceilings or explicit invoke/lookup binding scopes,
+   * one of them installer. Headless-only scopes cannot supply a role grant.
    * Core's manifest carries no roles, so they travel here until it does. A
    * module declares none; a module's delivery listing any is refused.
    *
@@ -292,8 +293,9 @@ export type ModuleManifestV1 = Message<"host.composition.v1.ModuleManifestV1"> &
 
   /**
    * The roles a solution declares a person may hold on an installation of it,
-   * each within what the solution serves; one is named installer, held by
-   * whoever installs it. A module declares none.
+   * each within what the solution serves or explicitly consumes through
+   * invoke/lookup bindings; one is named installer, held by whoever installs it.
+   * Headless-only scopes cannot supply a role grant. A module declares none.
    *
    * @generated from field: repeated host.composition.v1.RoleV1 roles = 8;
    */
