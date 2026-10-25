@@ -145,6 +145,10 @@ func delegationOf(d state.Delegation) *authorityv1.Delegation {
 
 // Check verifies for the audience the caller is.
 func (p *Plugin) Check(ctx context.Context, req *authorityv1.CheckRequest) (*authorityv1.CheckResponse, error) {
+	if req.GetAdvisory() {
+		out, err := p.Issuer.Advise(ctx, req.GetToken(), req.GetAudience(), req.GetMethod())
+		return out, Status(err)
+	}
 	out, err := p.Issuer.Check(ctx, req.GetToken(), req.GetAudience(), req.GetMethod())
 	return out, Status(err)
 }

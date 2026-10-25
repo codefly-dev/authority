@@ -83,9 +83,22 @@ func standInFront(ctx context.Context, config *adapters.Configuration) (Clean, e
 		}
 		modules[name] = true
 	}
-	decision := decide.Decider{Authority: authorityv1.NewAuthorityServiceClient(authority), Modules: modules}.Decide
 	refused := func(method string, err error) {
 		w.Warn("refused", wool.Field("method", method), wool.Field("reason", err.Error()))
+	}
+	// hop/ENFORCEMENT: enforce (the default) refuses what the authority
+	// refuses; warn lets every call through stamped and logs what would have
+	// been refused — a composition's choice for a developer's run, never a
+	// cell's.
+	enforcement, _ := codefly.For(ctx).WorkspaceConfiguration("hop", "ENFORCEMENT")
+	permissive := strings.EqualFold(strings.TrimSpace(enforcement), "warn")
+	decider := decide.Decider{Authority: authorityv1.NewAuthorityServiceClient(authority), Modules: modules, Permissive: permissive,
+		Warned: func(method string, err error) {
+			w.Warn("PERMISSIVE: let through a call the authority refused", wool.Field("method", method), wool.Field("reason", err.Error()))
+		}}
+	decision := decider.Decide
+	if permissive {
+		w.Warn("hop/ENFORCEMENT=warn: the hop lets every call through and logs what it would have refused")
 	}
 	p := &proxy.Proxy{Decide: decision, Upstreams: upstreams, Proof: proof, Refused: refused}
 	config.GRPCServerOptions = append(config.GRPCServerOptions, p.ServerOptions()...)

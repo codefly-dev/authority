@@ -180,6 +180,12 @@ message CheckRequest {
   // refuses by name a call that does not hold it, a method that declares
   // nothing, and a method the module does not serve.
   string method = 3;
+  // Advisory asks for the policy decision without its refusal: the capability
+  // is still verified and refused when it is not sound, but what the method
+  // declares is only reported, in CheckResponse.refusal, and the verified
+  // capability is answered. A hop in a composition that runs permissive
+  // (hop/ENFORCEMENT=warn) asks this way and logs the refusal it did not make.
+  bool advisory = 4;
 }
 
 // CheckResponse is the verified capability.
@@ -188,6 +194,9 @@ message CheckResponse {
   WorkContextV1 context = 1;
   // The owner's authorization revision as of this check.
   uint64 authorization_revision = 2;
+  // Refusal is what the method's policy would have refused, verbatim, when the
+  // check was advisory and the policy did not hold; empty when it held.
+  string refusal = 3;
 }
 
 // KeysRequest asks for the verification keys.

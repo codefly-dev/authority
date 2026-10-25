@@ -129,6 +129,10 @@
         "method": {
           "type": "string",
           "description": "The method the capability is presented to: \"/package.Service/Method\" for a\ngRPC call, \"\u003cVERB\u003e \u003cpath\u003e\" for an HTTP request (GET /v1/model/profiles),\nmatched against the routes the module declares. When set, the check also\napplies what the audience module's delivery declares for that method, and\nrefuses by name a call that does not hold it, a method that declares\nnothing, and a method the module does not serve."
+        },
+        "advisory": {
+          "type": "boolean",
+          "description": "Advisory asks for the policy decision without its refusal: the capability\nis still verified and refused when it is not sound, but what the method\ndeclares is only reported, in CheckResponse.refusal, and the verified\ncapability is answered. A hop in a composition that runs permissive\n(hop/ENFORCEMENT=warn) asks this way and logs the refusal it did not make."
         }
       },
       "description": "CheckRequest presents a capability for verification."
@@ -144,6 +148,10 @@
           "type": "string",
           "format": "uint64",
           "description": "The owner's authorization revision as of this check."
+        },
+        "refusal": {
+          "type": "string",
+          "description": "Refusal is what the method's policy would have refused, verbatim, when the\ncheck was advisory and the policy did not hold; empty when it held."
         }
       },
       "description": "CheckResponse is the verified capability."

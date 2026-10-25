@@ -30,6 +30,14 @@ type Checker interface {
 type Decider struct {
 	Authority Checker
 	Modules   map[string]bool
+	// Permissive is hop/ENFORCEMENT=warn: the authority is still asked, and
+	// whatever it answers the call goes through, stamped with who the token
+	// says it is (a developer identity when there is none) and with the
+	// refusal the hop did not make, which it also logs. The composition says
+	// so; a cell never does.
+	Permissive bool
+	// Warned is told each refusal the permissive hop let through.
+	Warned func(method string, err error)
 	// AudienceOf reads the module a token is addressed to; nil decodes it with
 	// core, unverified, which is all the hop needs before the authority checks.
 	AudienceOf func(token string) (string, error)
@@ -45,6 +53,58 @@ func coreAudience(token string) (string, error) {
 
 // Decide returns the module a call is for and who it acts for, or the refusal.
 func (d Decider) Decide(ctx context.Context, method string, md metadata.MD) (string, hop.Identity, error) {
+	module, id, err := d.decide(ctx, method, md)
+	if err == nil || !d.Permissive {
+		return module, id, err
+	}
+	if d.Warned != nil {
+		d.Warned(method, err)
+	}
+	return d.permit(method, md, err)
+}
+
+// permit is the permissive hop's answer to a refusal: the module the call
+// names (or the first one it fronts), the identity the token claims unverified
+// (or a developer's), and the refusal carried as the stamp's advisory.
+func (d Decider) permit(method string, md metadata.MD, refusal error) (string, hop.Identity, error) {
+	id := hop.Identity{Owner: "developer", OwnerKind: "human", Tenant: "local", Advisory: refusal.Error()}
+	module := ""
+	if tokens := md.Get(hop.WorkContextKey); len(tokens) == 1 {
+		if decoded, err := workcontext.Decode(tokens[0]); err == nil {
+			wc := decoded.Context()
+			id = hop.Identity{Owner: wc.GetOwnerPrincipalId(), OwnerKind: wc.GetOwnerPrincipalKind(), Tenant: wc.GetTenantId(),
+				Task: wc.GetTaskId(), Expires: wc.GetExpiresAtUnix(), Advisory: refusal.Error()}
+			for _, scope := range wc.GetAuthorityScopes() {
+				for _, action := range scope.GetActions() {
+					id.Scopes = append(id.Scopes, scope.GetResourceKind()+":"+action)
+				}
+			}
+			for _, actor := range wc.GetActorChain() {
+				id.Actors = append(id.Actors, actor.GetPrincipalId())
+			}
+			if d.Modules[wc.GetAudience()] {
+				module = wc.GetAudience()
+			}
+		}
+	}
+	if module == "" {
+		names := make([]string, 0, len(d.Modules))
+		for name := range d.Modules {
+			names = append(names, name)
+		}
+		slices.Sort(names)
+		if len(names) == 0 {
+			return "", hop.Identity{}, status.Errorf(codes.Internal, "the hop fronts no module")
+		}
+		module = names[0]
+	}
+	if id.Owner == "" || id.Tenant == "" {
+		id.Owner, id.OwnerKind, id.Tenant = "developer", "human", "local"
+	}
+	return module, id, nil
+}
+
+func (d Decider) decide(ctx context.Context, method string, md metadata.MD) (string, hop.Identity, error) {
 	tokens := md.Get(hop.WorkContextKey)
 	switch len(tokens) {
 	case 0:

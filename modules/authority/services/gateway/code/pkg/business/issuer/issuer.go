@@ -134,6 +134,18 @@ func (i *Issuer) ListResources(ctx context.Context, token, audience, kind, actio
 // Check verifies a capability for the audience the caller is and, when method
 // is named, applies what the audience module's delivery declares for it.
 func (i *Issuer) Check(ctx context.Context, token, audience, method string) (*authorityv1.CheckResponse, error) {
+	return i.check(ctx, token, audience, method, false)
+}
+
+// Advise is Check with the method's policy decided but not enforced: the
+// capability is verified and refused when unsound; what the policy would have
+// refused is answered in CheckResponse.Refusal beside the verified capability.
+// A hop running permissive asks this way and logs the refusal it did not make.
+func (i *Issuer) Advise(ctx context.Context, token, audience, method string) (*authorityv1.CheckResponse, error) {
+	return i.check(ctx, token, audience, method, true)
+}
+
+func (i *Issuer) check(ctx context.Context, token, audience, method string, advisory bool) (*authorityv1.CheckResponse, error) {
 	if audience == "" {
 		return nil, fmt.Errorf("%w: a check names the audience the caller is", ErrRefused)
 	}
@@ -141,9 +153,13 @@ func (i *Issuer) Check(ctx context.Context, token, audience, method string) (*au
 	if err != nil {
 		return nil, err
 	}
+	refusal := ""
 	if method != "" {
 		if err := i.state.AdmitMethod(audience, method, verified.EffectiveScopes()); err != nil {
-			return nil, err
+			if !advisory {
+				return nil, err
+			}
+			refusal = err.Error()
 		}
 	}
 	wc, err := ToWire(verified.Context())
@@ -154,7 +170,7 @@ func (i *Issuer) Check(ctx context.Context, token, audience, method string) (*au
 	if err != nil {
 		return nil, err
 	}
-	return &authorityv1.CheckResponse{Context: wc, AuthorizationRevision: revision}, nil
+	return &authorityv1.CheckResponse{Context: wc, AuthorizationRevision: revision, Refusal: refusal}, nil
 }
 
 // Issue signs a capability for one owner shape.
