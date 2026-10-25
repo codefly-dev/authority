@@ -14,7 +14,6 @@ import (
 	"github.com/codefly-dev/core/wool"
 	codefly "github.com/codefly-dev/sdk-go"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
 	"github.com/codefly-dev/authority/libraries/hop/go/routing"
@@ -63,10 +62,7 @@ func standInFront(ctx context.Context, config *adapters.Configuration) (Clean, e
 		}
 	}()
 	rawRoutes, routesErr := codefly.For(ctx).WorkspaceConfiguration("hop-routes", "ROUTES")
-	if routesErr != nil || rawRoutes == "" {
-		return nil, fmt.Errorf("hop: generated hop-routes/ROUTES is required; use a Codefly CLI that derives published service routes: %v", routesErr)
-	}
-	routes, err := routing.DecodeRouting(rawRoutes)
+	routes, err := requiredRoutes(rawRoutes, routesErr)
 	if err != nil {
 		return nil, err
 	}
@@ -78,6 +74,10 @@ func standInFront(ctx context.Context, config *adapters.Configuration) (Clean, e
 		if !modules[route.Audience] {
 			return nil, fmt.Errorf("hop routes: undeclared audience %s", route.Audience)
 		}
+		dialTarget, transport, transportErr := host.Endpoint(ctx, route.Address)
+		if transportErr != nil {
+			return nil, fmt.Errorf("hop routes: %s/%s: %w", route.Audience, route.Service, transportErr)
+		}
 		covered[route.Audience] = true
 		switch route.Transport {
 		case "grpc":
@@ -87,7 +87,7 @@ func standInFront(ctx context.Context, config *adapters.Configuration) (Clean, e
 			if upstreams[route.Address] != nil {
 				continue
 			}
-			conn, dialErr := grpc.NewClient(address(route.Address), append(proxy.DialOptions(), grpc.WithTransportCredentials(insecure.NewCredentials()))...)
+			conn, dialErr := grpc.NewClient(dialTarget, append(proxy.DialOptions(), grpc.WithTransportCredentials(transport))...)
 			if dialErr != nil {
 				return nil, dialErr
 			}
@@ -166,12 +166,19 @@ func serveHTTP(ctx context.Context, face http.Handler) (func(), error) {
 	}, nil
 }
 
-// address is a resolved endpoint reference as gRPC dials it.
-func address(endpoint string) string {
-	for _, scheme := range []string{"grpc://", "http://", "tcp://"} {
-		endpoint = strings.TrimPrefix(endpoint, scheme)
+// RouteProducerVersion is the first producer revision; no released version is
+// claimed until CLI #1158 ships it. That PR must merge with or before this hop.
+const RouteProducerVersion = "Codefly CLI eee37c1117 (hop-routes/v1 producer), shipping via codefly-dev/cli#1158, or a successor containing that producer"
+
+func requiredRoutes(raw string, readErr error) (*routing.Routing, error) {
+	if readErr != nil {
+		return nil, fmt.Errorf("hop: generated hop-routes/ROUTES requires %s: %w", RouteProducerVersion, readErr)
 	}
-	return endpoint
+	routes, err := routing.DecodeRouting(raw)
+	if err != nil {
+		return nil, fmt.Errorf("hop: generated hop-routes/ROUTES requires %s: %w", RouteProducerVersion, err)
+	}
+	return routes, nil
 }
 
 // enforcementMode refuses configuration mistakes and permits advice only locally.

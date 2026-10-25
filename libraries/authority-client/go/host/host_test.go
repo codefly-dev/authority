@@ -1,6 +1,7 @@
 package host
 
 import (
+	"context"
 	"errors"
 	"github.com/codefly-dev/core/resources"
 	"strings"
@@ -90,5 +91,19 @@ func TestMeshAssertionReadFailureAndMisspellingRefuse(t *testing.T) {
 	t.Setenv(resources.WorkspaceConfigurationPrefix+"__INTERNAL_TRANSPORT__MESH_PROTECTED", "TRUE")
 	if _, _, err := Target("https://accounts.example.test", nil); err == nil {
 		t.Fatal("TLS hid invalid mesh assertion")
+	}
+}
+
+func TestUpstreamEndpointUsesTheSharedTransportGate(t *testing.T) {
+	t.Setenv(resources.EnvironmentPrefix, resources.LocalEnvironment().Name)
+	for _, address := range []string{"http://arbitrary.example:8080", "grpc://192.0.2.1:8080", "", "http://localhost:8080/rewritten"} {
+		if _, _, err := Endpoint(context.Background(), address); err == nil {
+			t.Fatalf("accepted upstream %q", address)
+		}
+	}
+	for _, address := range []string{"http://127.0.0.1:8080", "https://upstream.example"} {
+		if _, _, err := Endpoint(context.Background(), address); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

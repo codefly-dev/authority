@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestEnforcementRequiresLocalEnvironment(t *testing.T) {
 	for _, local := range []bool{false, true} {
@@ -10,6 +13,14 @@ func TestEnforcementRequiresLocalEnvironment(t *testing.T) {
 			if (err != nil) != denied || warn != (mode == "warn" && local) {
 				t.Fatalf("mode %q local %v: warn %v, error %v", mode, local, warn, err)
 			}
+		}
+	}
+}
+
+func TestMissingRoutingNamesTheRequiredCLIProducer(t *testing.T) {
+	for _, raw := range []string{"", "{}", `{"schema":"older"}`} {
+		if _, err := requiredRoutes(raw, nil); err == nil || !strings.Contains(err.Error(), RouteProducerVersion) {
+			t.Fatalf("missing CLI requirement: %v", err)
 		}
 	}
 }

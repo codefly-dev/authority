@@ -25,7 +25,7 @@ func TestHopStartupRequiresGeneratedRoutes(t *testing.T) {
 	// Legacy values must not make an absent or invalid generated view acceptable.
 	t.Setenv(resources.WorkspaceConfigurationPrefix+"__HOP__UPSTREAM_EXAMPLE", listener.Addr().String())
 	for _, tc := range []struct{ name, raw, want string }{
-		{"empty", "", "generated hop-routes/ROUTES is required"},
+		{"empty", "", RouteProducerVersion},
 		{"malformed", "{", "hop routes:"},
 		{"unknown-schema", `{"schema":"other","endpoints":[]}`, "hop routes:"},
 		{"empty-inventory", `{"schema":"codefly.dev/hop-routes/v1","endpoints":[]}`, "hop routes:"},

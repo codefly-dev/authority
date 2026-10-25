@@ -46,6 +46,12 @@ func Target(endpoint string, fallback func() (string, error)) (string, credentia
 	return targetFor(context.Background(), endpoint, fallback)
 }
 
+// Endpoint validates an explicit upstream with the same transport rule as Dial.
+// It carries the caller's SDK context so mesh/local decisions have one source.
+func Endpoint(ctx context.Context, endpoint string) (string, credentials.TransportCredentials, error) {
+	return targetFor(ctx, endpoint, nil)
+}
+
 func targetFor(ctx context.Context, endpoint string, fallback func() (string, error)) (string, credentials.TransportCredentials, error) {
 	mesh, err := meshProtected(codefly.For(ctx).WorkspaceValueIfSet)
 	if err != nil {
@@ -54,6 +60,9 @@ func targetFor(ctx context.Context, endpoint string, fallback func() (string, er
 
 	endpoint = strings.TrimSpace(endpoint)
 	if endpoint == "" {
+		if fallback == nil {
+			return "", nil, fmt.Errorf("transport endpoint is empty; supply a resolved endpoint")
+		}
 		target, err := fallback()
 		if err != nil {
 			return "", nil, err
