@@ -1,28 +1,77 @@
-"""Non-verifying projection of the Work Context already bound by a hop stamp.
+"""Authenticate the Work Context the hop forwarded to a module, then project it.
 
-Pass the incoming headers and this run's delivered hop proof to ``read_claims``.
-This is a reader, not Core's structural validator or a verifier: it checks neither
-signature, liveness, revocation nor delegation. In warning mode the hop may have
-forwarded a refused context; its advisory remains diagnostic, never a grant.
+``authenticate`` is the Go library's ``workcontext.Authenticate``, check for
+check: the stamp binds exactly one token to this run's hop proof by its digest,
+and the token itself must carry a valid Ed25519 signature under the authority's
+published key, name the pinned issuer, be addressed to this module and be inside
+its window, judged in Core's order (decode, issuer, signature, audience, window).
+
+Core's structural and attenuation rules are not reproduced: they constrain what
+the authority signs, and the signature is what makes these claims the
+authority's. The SaaS Python SDK's verifier was not reused because it refuses
+tokens Core accepts (several scope rows of one kind, Core's own grant fixture).
+Nothing here asks the authority or consumes a nonce: liveness is the
+authority's Check the hop made, which the digest binds to this call.
 """
 
 from __future__ import annotations
 
 import base64
-from dataclasses import dataclass
-from collections.abc import Iterable, Mapping
-from codefly_hop import read, NoStamp
+import hashlib
+import hmac
+from collections.abc import Callable, Iterable, Mapping
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from google.protobuf.message import DecodeError
 
 from ._gen.host.authority.v1.work_context_pb2 import WorkContextV1
 
-# The existing Core and Python SDK envelope bound, before decoding allocates.
+WORK_CONTEXT_KEY = "x-codefly-work-context"
+PROOF_KEY = "x-codefly-hop-proof"
+CONTEXT_KEY = "x-codefly-hop-context"
+ALGORITHM = "Ed25519"
+# Core's bounds: MaxTokenSize, DefaultSkew and MaxTTLCeiling.
 MAX_TOKEN_BYTES = 32 * 1024
+SKEW = timedelta(seconds=30)
+MAX_LIFETIME = timedelta(hours=24)
 
 
-class UnreadableContext(ValueError):
-    """The forwarded token cannot be projected through the published wire type."""
+class Unauthenticated(ValueError):
+    """The forwarded Work Context must not be believed; the message names why."""
+
+
+class Trust:
+    """The authority a module believes: the issuer every capability must name and
+    its published verification keys by key id, as the authority interface's Keys
+    answers them. Build it with ``from_keys``; never type a key in."""
+
+    def __init__(self, issuer: str, keys: Mapping[str, bytes], *, now: Callable[[], datetime] | None = None) -> None:
+        if not issuer:
+            raise Unauthenticated("the authority names no issuer")
+        if not keys:
+            raise Unauthenticated("the authority publishes no verification key")
+        self.issuer = issuer
+        self.now = now or (lambda: datetime.now(timezone.utc))
+        try:
+            self.keys = {key_id: Ed25519PublicKey.from_public_bytes(bytes(raw)) for key_id, raw in keys.items()}
+        except ValueError as error:
+            raise Unauthenticated(f"the authority's keys are unusable: {error}") from error
+
+    @classmethod
+    def from_keys(cls, response, *, now: Callable[[], datetime] | None = None) -> "Trust":
+        """Trust built from the authority interface's KeysResponse. Only Ed25519
+        keys are kept; an empty or repeated key id is refused."""
+        keys: dict[str, bytes] = {}
+        for key in response.keys:
+            if key.algorithm != ALGORITHM:
+                continue
+            if not key.key_id or key.key_id in keys:
+                raise Unauthenticated("the authority publishes an unnamed or repeated key id")
+            keys[key.key_id] = bytes(key.public_key)
+        return cls(response.issuer, keys, now=now)
 
 
 @dataclass(frozen=True)
@@ -37,13 +86,15 @@ class Claims:
     audience: str
     # Core's effective scopes: the last actor's grants, or the owner's if no actor.
     scopes: tuple[Scope, ...]
+    # The authenticated claims, whole.
+    context: WorkContextV1 | None = field(default=None, compare=False, repr=False)
 
     def allows(self, kind: str, action: str, resource_id: str = "") -> bool:
         """One exact action on one resource; empty ID asks for the whole kind.
 
         Each grant is considered independently. Actions are literal, as in Core's
-        scope containment and the Python SDK; no admin implication or wildcard
-        expansion happens here. A kind-wide grant includes any named resource.
+        scope containment; no admin implication or wildcard expansion happens
+        here. A kind-wide grant includes any named resource.
         """
         if not kind or not action:
             return False
@@ -55,47 +106,84 @@ class Claims:
         )
 
 
-def read_claims(headers: Mapping[str, str] | Iterable[tuple[str, str]], proof: str) -> Claims:
-    """Read an already hop-bound context without another verification/replay call.
-
-    Uses the published generated protobuf type. The canonical-envelope/payload
-    checks follow the existing Python SDK's algorithm, maintained here during
-    migration rather than imported from its private helpers. Unknown fields are
-    refused rather than silently losing a restriction. Consumers still check audience and resolve the
-    exact domain resource; this projection alone is never proof of authority.
-    """
-    try:
-        token = read(headers, proof).context
-    except (NoStamp, TypeError, ValueError) as error:
-        raise UnreadableContext("context requires this run's hop proof and matching stamp") from error
-    if not token:
-        raise UnreadableContext("context requires a token bound by the hop stamp")
-    if not token.isascii() or len(token) > MAX_TOKEN_BYTES or token.count(".") != 1:
-        raise UnreadableContext("expected a bounded <payload>.<signature> context")
+def authenticate(
+    headers: Mapping[str, str] | Iterable[tuple[str, str]], proof: str, audience: str, trust: Trust
+) -> Claims:
+    """The claims of the Work Context the hop forwarded with headers to this module
+    (audience), or ``Unauthenticated`` naming why it must not be believed."""
+    if not audience:
+        raise Unauthenticated("no audience: a module authenticates a context for itself")
+    token = bound_token(headers, proof)
+    if len(token) > MAX_TOKEN_BYTES or not token.isascii() or token.count(".") != 1:
+        raise Unauthenticated("expected a bounded <payload>.<signature> context")
     payload_segment, signature_segment = token.split(".")
-    payload = _decode_segment(payload_segment)
-    if len(_decode_segment(signature_segment)) != 64:
-        raise UnreadableContext("expected a 64-byte signature")
+    payload, signature = _canonical(payload_segment), _canonical(signature_segment)
     context = WorkContextV1()
     try:
         context.ParseFromString(payload)
     except DecodeError as error:
-        raise UnreadableContext("payload is not a WorkContextV1") from error
+        raise Unauthenticated("payload is not a WorkContextV1") from error
     context.DiscardUnknownFields()
-    if context.SerializeToString(deterministic=True) != payload or not context.audience:
-        raise UnreadableContext("payload is noncanonical, has unknown fields or names no audience")
+    if context.SerializeToString(deterministic=True) != payload:
+        raise Unauthenticated("payload is noncanonical or carries a field this reader does not know")
+    if context.algorithm != ALGORITHM:
+        raise Unauthenticated(f"algorithm {context.algorithm!r} is not {ALGORITHM}")
+    if context.issuer != trust.issuer:
+        raise Unauthenticated(f"issued by {context.issuer!r}, not {trust.issuer!r}")
+    key = trust.keys.get(context.key_id)
+    if key is None:
+        raise Unauthenticated(f"no verification key {context.key_id!r}; the authority does not publish it")
+    try:
+        key.verify(signature, payload)
+    except InvalidSignature:
+        raise Unauthenticated("signature does not verify under the authority's published key") from None
+    if context.audience != audience:
+        raise Unauthenticated(f"minted for audience {context.audience!r}, presented to {audience!r}")
+    now = trust.now().timestamp()
+    if context.expires_at_unix - context.not_before_unix > MAX_LIFETIME.total_seconds():
+        raise Unauthenticated(f"lifetime exceeds {MAX_LIFETIME}")
+    if now + SKEW.total_seconds() < context.not_before_unix:
+        raise Unauthenticated("not valid before its not-before instant")
+    if not now - SKEW.total_seconds() < context.expires_at_unix:
+        raise Unauthenticated("expired")
     scopes = context.actor_chain[-1].granted_scopes if context.actor_chain else context.authority_scopes
     return Claims(
         audience=context.audience,
         scopes=tuple(Scope(s.resource_kind, tuple(s.actions), tuple(s.resource_ids)) for s in scopes),
+        context=context,
     )
 
 
-def _decode_segment(segment: str) -> bytes:
+def bound_token(headers: Mapping[str, str] | Iterable[tuple[str, str]], proof: str) -> str:
+    """The one token the stamp's digest binds under this run's proof. Bound, not
+    authenticated: whoever holds the proof can write both."""
+    values = collect(headers)
+    proofs, tokens, digests = values.get(PROOF_KEY, []), values.get(WORK_CONTEXT_KEY, []), values.get(CONTEXT_KEY, [])
+    if not proof or len(proofs) != 1 or not hmac.compare_digest(proofs[0].encode(), proof.encode()):
+        raise Unauthenticated("the call did not come through the hop: it carries no stamp with this run's proof")
+    if len(tokens) != 1 or not tokens[0] or len(digests) != 1:
+        raise Unauthenticated("the stamp binds no single Work Context")
+    digest = hashlib.sha256(tokens[0].encode(errors="surrogatepass")).hexdigest()
+    if not hmac.compare_digest(digest.encode(), digests[0].encode()):
+        raise Unauthenticated("the Work Context is not the one the hop's stamp binds")
+    return tokens[0]
+
+
+def collect(headers: Mapping[str, str] | Iterable[tuple[str, str]]) -> dict[str, list[str]]:
+    """Headers by lower-cased name, repeats kept: a single-value mapping cannot
+    show a second token a caller appended."""
+    pairs = headers.items() if isinstance(headers, Mapping) else headers
+    values: dict[str, list[str]] = {}
+    for key, value in pairs:
+        values.setdefault(key.lower(), []).append(value)
+    return values
+
+
+def _canonical(segment: str) -> bytes:
     try:
         decoded = base64.urlsafe_b64decode(segment + "=" * (-len(segment) % 4))
     except ValueError as error:
-        raise UnreadableContext("context segment is not base64url") from error
+        raise Unauthenticated("context segment is not base64url") from error
     if base64.urlsafe_b64encode(decoded).rstrip(b"=").decode("ascii") != segment:
-        raise UnreadableContext("context segment is not canonical base64url")
+        raise Unauthenticated("context segment is not canonical base64url")
     return decoded

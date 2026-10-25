@@ -1,37 +1,26 @@
 # Authority TypeScript client
 
 Codefly generates the RPC bindings exported by `@codefly-dev/authority-client`.
-The handwritten, non-verifying claims reader has a separate public export:
+The handwritten module-side check has a separate public export:
 
 ```ts
-import { readClaims } from '@codefly-dev/authority-client/work-context';
+import { authenticateClaims, trustFromKeys } from '@codefly-dev/authority-client/work-context';
 
-const claims = readClaims(requestHeaders, proof);
-// Compare claims.audience to the delivered module audience.
+const trust = trustFromKeys(await authority.keys({}));   // the interface's published keys
+const claims = authenticateClaims(requestHeaders, proof, audience, trust); // throws Unauthenticated
 const allowed = claims.allows(resourceKind, action, exactResourceID);
 ```
 
-The server-side Node reader takes header pairs (preserving repeats) or a header
-map and the run-delivered proof. It requires exactly one proof, token and digest,
-checks the proof and SHA-256 binding, then projects. Do not send the proof to a
-browser. Readable claims alone are not proof of authentication. The
-projection verifies neither signatures, current time, live revisions nor replay.
-A warning-mode hop can bind a context the authority refused. Preserve the
-integration's authentication and the module's audience, installed-definition,
-ownership and live resource-visibility checks.
+It requires exactly one proof, token and digest and checks the SHA-256 binding,
+then, in Core's order: canonical decode, issuer, the Ed25519 signature under the
+published key the token names, the audience is this module, and not-before and
+expiry within Core's 30-second skew. Core's structural and attenuation rules are
+not reproduced; they constrain what the authority signs. Re-fetch the keys when a
+token names a key id the trust does not hold. Do not send the proof to a browser.
 
 `claims.scopes` contains frozen copies of the final actor's grants, or the owner's
-when no actor exists. Empty final grants stay empty. Each scope is evaluated
-independently. An omitted/empty resource ID asks for the whole kind; a restricted
-grant cannot satisfy it. Whole-kind grants include named IDs. No wildcard or
-admin implication, prefix/pattern match or cross-scope action/ID merging occurs.
-
-`UnreadableContext` names malformed/oversized envelopes, noncanonical base64url,
-wrong signature length, unreadable protobuf, absent audience, unknown fields and
-noncanonical protobuf bytes. This is a projection through the generated schema,
-not Core's structural validator. Go also applies Core Decode's stronger schema
-and attenuation checks. Shared Core-produced fixtures prove equal audience,
-effective scope and exact-resource answers across the three language readers.
+when no actor exists. Each scope is evaluated independently; an omitted resource
+ID asks for the whole kind; no wildcard or admin implication occurs.
 
 Run `npm ci --ignore-scripts` and `npm test`. Tests import the built public package
 exports, including the generated schema. No running SaaS, service or provider is

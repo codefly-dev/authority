@@ -1,40 +1,39 @@
 # Authority Go client
 
-Codefly generates the RPC bindings in `gen/`. The `workcontext` package adds a
-non-verifying projection using Core's maintained decoder and scope containment:
+Codefly generates the RPC bindings in `gen/`. The `workcontext` package
+authenticates the Work Context the hop forwarded and projects its claims:
 
 ```go
 import claims "github.com/codefly-dev/authority/libraries/authority-client/go/workcontext"
 
-// The reader requires incoming metadata and the run-delivered hop proof.
 md, _ := metadata.FromIncomingContext(ctx)
-c, err := claims.ReadClaims(md, proof)
-// Handle err, compare c.Audience() to this module's delivered audience, then:
+c, err := claims.Authenticate(md, proof, audience, trust)
+// err wraps claims.ErrUnauthenticated and names the reason.
 allowed := c.Allows(resourceKind, action, exactResourceID)
 ```
+
+A module does not call this directly: `hop.Verifier`
+(`libraries/hop/go`) resolves `trust` from the authority's published keys and
+runs it on every call. `Authenticate` is the generated-code-free check it rests
+on, which the shared conformance suite also drives against both hosts.
+
+It checks, in order: this run's hop proof, exactly one token and the stamp's
+SHA-256 digest of it (`stamp.Context`); then Core's `Inspector`: canonical
+decode, the issuer pin, the Ed25519 signature under the published key the token
+names, the audience is this module, not-before and expiry within Core's skew,
+and structure and attenuation. It consumes nothing and asks the authority
+nothing: liveness is the authority's Check the hop made, bound to this call by
+the digest. Proof and digest alone authenticate nothing; the signature does.
 
 `Scopes()` returns deep copies of the final actor's grants, or the owner's grants
 when there is no actor. An empty final actor grants nothing. `Allows` evaluates
 each candidate independently. An empty requested resource ID asks for the entire
 kind; a restricted grant cannot satisfy it. Kind-wide grants cover named IDs.
-Actions are literal: no admin implication, wildcard expansion, prefix matching
-or union of one grant's actions with another's resources.
-
-The reader checks a bounded canonical envelope and 64-byte signature shape, then
-uses Core Decode. Go deliberately retains Core's stronger structural/schema and
-attenuation checks; the Python and TypeScript readers only project readable
-claims. All three agree on the shared Core-produced fixtures. None verifies a
-signature, current time, live revisions or replay. Even a digest-bound context
-may have been refused in warning mode. These claims alone never prove authority.
-Keep audience, installed-definition, ownership, resource and live-visibility
-checks at their existing owners. The exposed protobuf scopes are Core's current
-public types during the authority migration; do not mutate returned copies and
-expect to change the claims snapshot.
+Actions are literal. `Context()` is a deep copy of the authenticated claims.
 
 From this directory, run `GOWORK=off go test -race ./...` and `go vet ./...`.
-The tests consume `../testdata/claims.json`, whose gateway-side oracle verifies
-Core-minted tokens at a fixed fixture clock. Synthetic mutated tokens in unit
-tests exercise parsing only and are not valid credentials.
+The tests re-sign the bodies of `../testdata/claims.json` with a test key of
+their own (Core refuses its public fixture key outside its kit).
 
 Handwritten code lives outside `gen/`, the directory Codefly replaces. The root
 module scaffold is preserved by `codefly generate client`.
