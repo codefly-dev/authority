@@ -1,9 +1,9 @@
 [project]
 name = "codefly-hop"
-version = "0.1.0"
-description = "The authority hop's stamp, read by a module served in Python: who a call is for, as the hop established it."
+version = "0.2.0"
+description = "The authority hop's stamp, authenticated by a module served in Python: who a call is for, read from the verified Work Context."
 requires-python = ">=3.11"
-dependencies = []
+dependencies = ["authority-client @ git+https://github.com/codefly-dev/authority@ead918ed860c5b56160f61b85dbd4cc44701feb4#subdirectory=libraries/authority-client/python"]
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
@@ -11,6 +11,9 @@ test = ["pytest>=8"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/codefly_hop"]

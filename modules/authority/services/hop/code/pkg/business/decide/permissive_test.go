@@ -106,8 +106,8 @@ func TestPermissivePolicyUsesTheAuthorityAdvisoryIdentity(t *testing.T) {
 		t.Fatalf("lost advisory or effective scopes: %+v", id)
 	}
 	hop.Stamp(stamp, id, "proof")
-	if read, err := hop.Read(stamp, "proof"); err != nil || read.Advisory != id.Advisory {
-		t.Fatalf("the advisory rides the stamp: %+v %v", read, err)
+	if got := stamp.Get(hop.AdvisoryKey); len(got) != 1 || got[0] != id.Advisory {
+		t.Fatalf("the advisory rides the stamp: %v", got)
 	}
 
 	strict := Decider{Routes: testRoutes("documents", "POST /documents/write"), Authority: advisoryChecker{}, Modules: map[string]bool{"documents": true}, AudienceOf: func(string) (string, error) { return "documents", nil }}

@@ -27,12 +27,8 @@ func (a *authority) Issue(_ context.Context, in *authorityv1.IssueRequest, _ ...
 func TestACallOutActsForTheCallerOrTheModuleThroughABinding(t *testing.T) {
 	a := &authority{}
 	o := Outbound{Authority: a, Credential: func() (string, error) { return "workload-credential", nil }}
-	md := metadata.Pairs(WorkContextKey, "caller-token")
-	Stamp(md, Identity{Owner: "maya", Tenant: "acme"}, "proof")
-	in, err := admit(metadata.NewIncomingContext(context.Background(), md), "/m.S/Do", "proof")
-	if err != nil {
-		t.Fatal(err)
-	}
+	// The identity the module's Verifier authenticated (hop_test.go proves that path).
+	in := context.WithValue(context.Background(), identityKey{}, Identity{Owner: "maya", Tenant: "acme", Context: "caller-token"})
 	out, err := o.ForCaller(in, "runtime-admission")
 	if err != nil {
 		t.Fatal(err)
