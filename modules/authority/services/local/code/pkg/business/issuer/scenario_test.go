@@ -140,7 +140,7 @@ func TestTheScenarioOneHopAtATime(t *testing.T) {
 
 	t.Run("6 overnight, the wiki reconciles, as itself", func(t *testing.T) {
 		out, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
-			As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: state.InstallationID("acme", "wiki")}}, Audience: "wiki",
+			As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: state.InstallationID("acme", "wiki")}}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, "wiki")}, Audience: "wiki",
 		})
 		if err != nil {
 			t.Fatal(err)

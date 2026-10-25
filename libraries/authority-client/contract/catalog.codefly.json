@@ -10,7 +10,7 @@
       "kind": "protobuf",
       "package": "api",
       "path": "contract.binpb",
-      "digest": "sha256:f990dcc0155b4181f986a30fa2093478964784ce4d76ee70bb4e4d3fcf2b3471",
+      "digest": "sha256:1356e42093cdfbe36cff8f84fb07f6a5bf74e1e9f06dc808b5a8f0fbf426ef1a",
       "services": [
         {
           "name": "GatewayService",

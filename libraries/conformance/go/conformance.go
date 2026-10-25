@@ -33,18 +33,22 @@ import (
 
 // Fixture is what the suite assumes the implementation seeded.
 type Fixture struct {
-	Organization       string // the one organisation the people belong to
-	ViewerToken        string // signs in a person who may read ReadKind at Audience and nothing more
-	AdminToken         string // signs in an organisation administrator
-	Audience           string // a composed module the viewer holds "read" on
-	ReadKind           string // the resource kind the viewer may read at Audience
-	WorkloadModule     string // the principal of the module WorkloadCredential names; a person's token for its hop is addressed here
-	WorkloadCredential string // the credential of a composed module's workload; the module declares Binding, addressed to BindingAudience
-	Binding            string // the workload module's operation binding whose invoke scopes cover "read" on ReadKind
-	BindingAudience    string // the audience Binding is addressed to; a hop exercising Binding is addressed here
-	Elsewhere          string // a composed audience the viewer's context at Audience is not addressed to
-	InstalledSolution  string // an active installation the viewer is entitled to
-	InstalledAudience  string // the installed solution principal; distinct from the organisation-role module Audience
+	Organization        string // the one organisation the people belong to
+	ViewerToken         string // signs in a person who may read ReadKind at Audience and nothing more
+	AdminToken          string // signs in an organisation administrator
+	Audience            string // a composed module the viewer holds "read" on
+	ReadKind            string // the resource kind the viewer may read at Audience
+	WorkloadModule      string // the principal of the module WorkloadCredential names; a person's token for its hop is addressed here
+	WorkloadCredential  string // the credential of a composed module's workload; the module declares Binding, addressed to BindingAudience
+	Binding             string // the workload module's operation binding whose invoke scopes cover "read" on ReadKind
+	BindingAudience     string // the audience Binding is addressed to; a hop exercising Binding is addressed here
+	Elsewhere           string // a composed audience the viewer's context at Audience is not addressed to
+	InstalledSolution   string // an active installation the viewer is entitled to
+	InstalledCredential string // workload credential of InstalledAudience, required for installation-owned Issue
+	InstalledAudience   string // the installed solution principal; distinct from the organisation-role module Audience
+
+	// SolutionTools exercises a module binding to a solution with distinct person entitlements.
+	SolutionTools *SolutionToolsCase
 
 	// A delivery, as Codefly signs it. When SignManifest is set the suite applies
 	// manifests as signed carriers: core's module manifest for HostCoordinate and
@@ -412,6 +416,9 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		}
 	})
 	t.Run("an installation acts for itself", func(t *testing.T) {
+		if f.InstalledCredential == "" {
+			t.Fatal("fixture must supply the installed solution workload credential")
+		}
 		if f.InstalledAudience == "" {
 			t.Fatal("fixture must name the installed solution audience")
 		}
@@ -426,7 +433,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		if installation == nil || enumName(installation, "status") != "STATUS_ACTIVE" || str(installation, "agent_principal_id") == "" {
 			t.Fatalf("installed solution = %v", installation)
 		}
-		out := c.must(t, ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"installation": map[string]any{"installation_id": str(installation, "id")}, "audience": f.InstalledAudience})
+		out := c.must(t, ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"installation": map[string]any{"installation_id": str(installation, "id")}, "audience": f.InstalledAudience, "actor": map[string]any{"credential": f.InstalledCredential}})
 		if str(msg(out, "context"), "owner_principal_id") != str(installation, "agent_principal_id") {
 			t.Fatalf("installation issue: %v", out)
 		}
@@ -434,11 +441,28 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		// The independent organisation role catalogue cannot grant this installation
 		// authority at an unrelated module merely because a role label matches.
 		if f.InstalledAudience != f.Audience {
-			_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"installation": map[string]any{"installation_id": str(installation, "id")}, "audience": f.Audience})
+			_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"installation": map[string]any{"installation_id": str(installation, "id")}, "audience": f.Audience, "actor": map[string]any{"credential": f.InstalledCredential}})
 			if status.Code(err) != codes.PermissionDenied {
 				t.Fatalf("installation acquired unrelated organisation-role authority: %v", err)
 			}
 		}
+	})
+	t.Run("an installation issue authenticates its own solution workload", func(t *testing.T) {
+		for _, credential := range []string{"", "forged-workload", f.WorkloadCredential} {
+			if credential != "" && credential == f.InstalledCredential {
+				t.Fatal("fixture must provide a different module workload")
+			}
+			_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"installation": map[string]any{"installation_id": f.InstalledSolution}, "audience": f.InstalledAudience, "actor": map[string]any{"credential": credential}})
+			if status.Code(err) != codes.PermissionDenied && status.Code(err) != codes.Unauthenticated {
+				t.Fatalf("unproven installation caller: %v", err)
+			}
+		}
+	})
+	t.Run("a module tool binding carries the person's solution role", func(t *testing.T) {
+		if f.SolutionTools == nil {
+			t.Skip("fixture supplies no module-to-solution tool case")
+		}
+		c.solutionTools(t, ctx, *f.SolutionTools)
 	})
 	t.Run("a child hop attenuates and names its actor and its binding", func(t *testing.T) {
 		// The hop rule: a module hops only on a token addressed to it, and the hop

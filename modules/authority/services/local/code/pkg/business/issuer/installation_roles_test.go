@@ -26,7 +26,7 @@ func TestInstallationRoleComesFromItsSolutionNotTheOrganization(t *testing.T) {
 		t.Run(role, func(t *testing.T) {
 			k := testkit.New(t)
 			ctx := context.Background()
-			for _, target := range []struct{ name, action string }{{"surface-a", "read"}, {"surface-b", "write"}} {
+			for _, target := range []struct{ name, action string }{{"conformance-solution", "read"}, {"assistant", "write"}} {
 				if _, err := k.State.ApplyManifest(installationManifest(target.name, role, 1, target.action)); err != nil {
 					t.Fatal(err)
 				}
@@ -34,7 +34,7 @@ func TestInstallationRoleComesFromItsSolutionNotTheOrganization(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				request := &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: inst.ID}}, Audience: target.name}
+				request := &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: inst.ID}}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, inst.Target)}, Audience: target.name}
 				out, err := k.Issuer.Issue(ctx, request)
 				if err != nil {
 					t.Fatalf("declared solution role cannot issue: %v", err)
@@ -72,7 +72,7 @@ func TestSolutionRoleNarrowingRevokesExistingRootsAndChildren(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			request := &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: inst.ID}}, Audience: manifest.Principal, Scopes: scopes(testkit.Scope("conformance-solution.item", "write"))}
+			request := &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: inst.ID}}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, inst.Target)}, Audience: manifest.Principal, Scopes: scopes(testkit.Scope("conformance-solution.item", "write"))}
 			root, err := k.Issuer.Issue(ctx, request)
 			if err != nil {
 				t.Fatal(err)
@@ -127,7 +127,7 @@ func TestInstallerNarrowingRevokesTheOwnerButRoleExpansionKeepsExistingAuthority
 	if err != nil {
 		t.Fatal(err)
 	}
-	agent, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: inst.ID}}, Audience: m.Principal})
+	agent, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: inst.ID}}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, inst.Target)}, Audience: m.Principal})
 	if err != nil {
 		t.Fatal(err)
 	}

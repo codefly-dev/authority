@@ -189,7 +189,7 @@
         },
         "installation": {
           "$ref": "#/definitions/v1InstallationRef",
-          "description": "An installation acting for itself, with the scope the organisation consented to."
+          "description": "An installation acting for itself, with the scope the organisation consented to.\nactor must authenticate a workload of that installation's solution."
         },
         "parentToken": {
           "type": "string",
@@ -226,7 +226,7 @@
         },
         "actor": {
           "$ref": "#/definitions/v1WorkloadCredential",
-          "description": "The actor a child hop delegates to, as a workload credential; required with\nparent_token and with delegation."
+          "description": "The acting workload credential; required with parent_token, delegation,\nand installation. For installation it must name the installed solution."
         },
         "operation": {
           "type": "string",

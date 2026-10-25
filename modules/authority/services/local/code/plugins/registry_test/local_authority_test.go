@@ -28,6 +28,7 @@ import (
 
 func TestTheLocalAuthorityPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
 	k := testkit.New(t)
+	testkit.SolutionTools(t, k)
 	plugins := []framework.Plugin{
 		&authority.Plugin{Issuer: k.Issuer},
 		&composition.Plugin{State: k.State, Coordinate: "local", Verifier: testkit.ReleaseVerifier(t, "local"), Carrier: k.CarrierAuthority, Keys: testkit.ReleaseKeys()},
@@ -58,7 +59,8 @@ func TestTheLocalAuthorityPassesTheSuiteEveryImplementationMustPass(t *testing.T
 		// records binding; a context at records is refused at model.
 		Audience: "records", ReadKind: "records.records",
 		WorkloadModule: "org-directory", WorkloadCredential: k.Credential(t, "org-directory"), Binding: "records", BindingAudience: "records", Elsewhere: "model",
-		InstalledSolution: state.InstallationID("acme", "wiki"), InstalledAudience: "wiki",
+		InstalledSolution: state.InstallationID("acme", "wiki"), InstalledAudience: "wiki", InstalledCredential: k.Credential(t, "wiki"),
+		SolutionTools: &conformance.SolutionToolsCase{Token: "fixture-maya", Outsider: "fixture-remi", Module: "robin", Credential: k.Credential(t, "robin"), Binding: "tools", Audience: "proposals", Kind: "proposals.item", Action: "read", Method: "/tools.Solution/Read"},
 		// Deliveries are signed with the kit's release key and carried by the
 		// module's own workload under the launcher.
 		HostCoordinate: "local", HostDomain: "local",

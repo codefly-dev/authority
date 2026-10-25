@@ -70,7 +70,7 @@ func TestRoleNarrowingBetweenResolutionAndMint(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				req := &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: inst.ID}}, Audience: old.Principal, Scopes: scopes(testkit.Scope(old.Module+".item", "write"))}
+				req := &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: inst.ID}}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, inst.Target)}, Audience: old.Principal, Scopes: scopes(testkit.Scope(old.Module+".item", "write"))}
 				next := installationManifest(old.Module, "task_operator", 2, "read")
 				if owner == "person" {
 					ctx = person(t, k, "fixture-alex")

@@ -228,7 +228,7 @@ func TestAnUninstallRefusesAnOutstandingTokenOnTheNextCheck(t *testing.T) {
 	ctx := context.Background()
 	wiki, _ := k.State.Installation(state.InstallationID("acme", "wiki"))
 	out, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: wiki.ID}}, Audience: "wiki",
+		As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: wiki.ID}}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, wiki.Target)}, Audience: "wiki",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -249,7 +249,7 @@ func TestAnInstallationActsForItselfWithinItsRoleAndTheAudiencesCeiling(t *testi
 	k := testkit.New(t)
 	ctx := context.Background()
 	out, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: state.InstallationID("acme", "wiki")}}, Audience: "wiki",
+		As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: state.InstallationID("acme", "wiki")}}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, "wiki")}, Audience: "wiki",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -262,7 +262,7 @@ func TestAnInstallationActsForItselfWithinItsRoleAndTheAudiencesCeiling(t *testi
 		t.Fatalf("viewer role at its solution = %v", wc.GetAuthorityScopes())
 	}
 	if _, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: state.InstallationID("acme", "nothing")}}, Audience: "documents",
+		As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: state.InstallationID("acme", "nothing")}}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, "wiki")}, Audience: "documents",
 	}); !errors.Is(err, state.ErrUnknown) {
 		t.Fatalf("unknown installation: %v", err)
 	}
@@ -279,7 +279,7 @@ func TestAPendingInstallationIsIssuedNothing(t *testing.T) {
 		t.Fatal("the install step failed; Install must say so")
 	}
 	_, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: state.InstallationID("acme", "proposals")}}, Audience: "documents",
+		As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: state.InstallationID("acme", "proposals")}}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, "proposals")}, Audience: "documents",
 	})
 	if !errors.Is(err, workcontext.ErrNoSeal) || !strings.Contains(err.Error(), "pending") {
 		t.Fatalf("pending installation: %v", err)

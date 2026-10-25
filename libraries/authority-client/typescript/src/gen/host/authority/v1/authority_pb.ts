@@ -52,6 +52,7 @@ export type IssueRequest = Message<"host.authority.v1.IssueRequest"> & {
   } | {
     /**
      * An installation acting for itself, with the scope the organisation consented to.
+     * actor must authenticate a workload of that installation's solution.
      *
      * @generated from field: host.authority.v1.InstallationRef installation = 3;
      */
@@ -116,8 +117,8 @@ export type IssueRequest = Message<"host.authority.v1.IssueRequest"> & {
   organizationId: string;
 
   /**
-   * The actor a child hop delegates to, as a workload credential; required with
-   * parent_token and with delegation.
+   * The acting workload credential; required with parent_token, delegation,
+   * and installation. For installation it must name the installed solution.
    *
    * @generated from field: host.authority.v1.WorkloadCredential actor = 10;
    */

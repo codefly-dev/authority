@@ -802,3 +802,31 @@ remain stable; they do not select the implementation in a composition.
 The local issuer is `codefly.dev/authority/local`; compositions pinning an
 expected issuer (including Runtime) must update that configuration alongside the
 endpoint selectors. SaaS compositions keep their own issuer and host selection.
+
+## Tool-call authority tests (2026-10-25)
+
+An installation-owned `Issue` requires `actor.credential` from that installed
+solution's workload. The host verifies it through the same workload verifier used
+for ordinary module issuance, then checks that the authenticated module is the
+installation's target solution. An installation ID or a signed-in person's
+session alone grants nothing. Existing callers must supply the credential; the
+shared conformance fixture now requires `InstalledCredential` as well.
+
+The issuer tests and shared gRPC conformance suite exercise a module's binding to
+an installed solution: the entitled person's root carries the binding scope,
+the child preserves the person as owner and the module as actor, and a real
+method-policy check succeeds. A person without the target entitlement cannot
+obtain that permission, including when the child asks for its default scopes.
+A solution target bounds the whole child by its person role and binding; ordinary
+module-to-module derivation is unchanged. Hosts supply `SolutionTools` to run this
+additional shared scenario; a missing scenario is reported as skipped.
+
+Target-solution consent for installation-owned tool calls is **not implemented**.
+The executable regression is deliberately behind the `pending` build tag:
+`go test -tags pending ./pkg/business/issuer -run
+TestInstallationToolRequiresTargetSolutionConsent` from the local service's
+`code/` directory. It currently fails for direct issuance based on the source
+solution's role alone; the two-hop case also fails because its refusal comes from
+an unrelated installation seal. Neither result proves target consent. The
+positive consent relationship and its revocation remain an authority contract
+and implementation gap; no extra grant or weaker seal was added to hide it.

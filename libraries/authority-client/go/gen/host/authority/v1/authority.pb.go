@@ -53,8 +53,8 @@ type IssueRequest struct {
 	OperationBindingId string `protobuf:"bytes,8,opt,name=operation_binding_id,json=operationBindingId,proto3" json:"operation_binding_id,omitempty"`
 	// The organisation the work runs in, for an owner shape that does not carry one.
 	OrganizationId string `protobuf:"bytes,9,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"`
-	// The actor a child hop delegates to, as a workload credential; required with
-	// parent_token and with delegation.
+	// The acting workload credential; required with parent_token, delegation,
+	// and installation. For installation it must name the installed solution.
 	Actor *WorkloadCredential `protobuf:"bytes,10,opt,name=actor,proto3" json:"actor,omitempty"`
 	// Which of the binding's operations the capability is for: "invoke" (the
 	// default for a person, a child or a delegation), "headless" (the default for
@@ -213,6 +213,7 @@ type IssueRequest_Workload struct {
 
 type IssueRequest_Installation struct {
 	// An installation acting for itself, with the scope the organisation consented to.
+	// actor must authenticate a workload of that installation's solution.
 	Installation *InstallationRef `protobuf:"bytes,3,opt,name=installation,proto3,oneof"`
 }
 

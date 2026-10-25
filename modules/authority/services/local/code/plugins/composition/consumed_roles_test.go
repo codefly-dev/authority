@@ -101,7 +101,7 @@ func TestConsumedInstallationRoleIssuesAndRevokesAcrossAudiences(t *testing.T) {
 			if got := held(t, k, "maya", "documents"); got != "documents:read documents.collection:read" {
 				t.Fatalf("installation changed organisation grants: %s", got)
 			}
-			request := &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: inst.ID}}, Audience: "conformance-solution"}
+			request := &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: inst.ID}}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, inst.Target)}, Audience: "conformance-solution"}
 			root, err := k.Issuer.Issue(ctx, request)
 			if err != nil {
 				t.Fatal(err)
