@@ -8,8 +8,8 @@ interface:
         - service: local
           endpoint: grpc
           implements:
-              - codefly.dev/authority@0.2.0
-              - codefly.dev/composition@0.1.0
+              - codefly.dev/authority@0.3.0
+              - codefly.dev/composition@0.2.0
               - codefly.dev/installation@0.1.0
               - codefly.dev/session@0.2.0
         # The REST face publishes the authority's keys as a JSON Web Key Set

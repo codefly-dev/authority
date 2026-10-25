@@ -33,6 +33,18 @@ service AuthorityService {
   // rather than carried in the capability. A module maps the answer onto its
   // own resources; the authority knows them only by id.
   rpc ListResources(ListResourcesRequest) returns (ListResourcesResponse);
+  // AttachResource records that one resource was created or attached through
+  // an installation, so a role scope its solution declares installation-owned
+  // (RoleV1.installation_owned_scopes) covers it. The caller is the module that
+  // serves the kind, proving itself with its workload credential, and presents
+  // the capability the creating call carried, addressed to it and holding an
+  // action on the kind. The owning installation is read from that capability's
+  // verified provenance and never named by the caller: the installation itself
+  // when it is the owner, otherwise the one solution in its actor chain. A
+  // capability issued through no installation, or through two, is refused.
+  // Attaching only widens what an installation-owned scope covers, so it moves
+  // no authorization revision; a reinstalled installation owns nothing.
+  rpc AttachResource(AttachResourceRequest) returns (AttachResourceResponse);
   // Delegate records a signed-in person's grant to a module (the caller's
   // bearer is the person); Issue with a delegation acts on it.
   rpc Delegate(DelegateRequest) returns (Delegation);
@@ -242,6 +254,24 @@ message ListResourcesRequest {
 // none. A capability that does not hold the action at all is refused instead.
 message ListResourcesResponse {
   repeated ResourceGrant grants = 1;
+}
+
+// AttachResourceRequest names one resource and the capability it was created under.
+message AttachResourceRequest {
+  // The capability the creating call carried, addressed to the caller.
+  string token = 1;
+  // The module serving resource_kind, proving which module it is.
+  WorkloadCredential actor = 2;
+  // The resource kind, as the caller serves it.
+  string resource_kind = 3;
+  // The resource id, as the caller knows it.
+  string resource_id = 4;
+}
+
+// AttachResourceResponse names the installation that now owns the resource.
+message AttachResourceResponse {
+  // The owning installation, read from the capability's provenance.
+  string installation_id = 1;
 }
 
 // ResourceGrant is one way of naming covered resources. Exactly one is set.

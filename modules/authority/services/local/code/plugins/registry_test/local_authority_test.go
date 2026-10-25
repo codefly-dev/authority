@@ -25,6 +25,7 @@ import (
 	conformance "github.com/codefly-dev/authority/libraries/conformance/go"
 
 	"gateway/pkg/business/state"
+	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
 func TestTheLocalAuthorityPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
@@ -118,7 +119,33 @@ people:
 			t.Fatal(err)
 		}
 	}
+	// Two installed solutions for installation-owned role scopes: Alex installed
+	// both, and Maya's finance team holds A's viewer role and nothing of B's.
+	owned := map[string]string{}
+	for _, solution := range []string{"conformance-owner-a", "conformance-owner-b"} {
+		note := testkit.Scope("conformance.owned-note", "read")
+		m := state.Manifest{Module: solution, Principal: solution, Kind: "solution", Generation: 1, ResourceKinds: []*basev0.WorkScopeV1{note},
+			Roles: map[string][]*basev0.WorkScopeV1{state.InstallerRole: {note}, "viewer": {note}}}
+		if _, err := k.State.ApplyManifest(m); err != nil {
+			t.Fatal(err)
+		}
+		inst, err := k.State.Install(context.Background(), "acme", solution, "viewer", "alex")
+		if err != nil {
+			t.Fatal(err)
+		}
+		owned[solution] = inst.ID
+	}
+	if _, err := k.State.GrantToTeam(context.Background(), "acme", owned["conformance-owner-a"], "finance"); err != nil {
+		t.Fatal(err)
+	}
 	conformance.Run(t, conn, descriptors, conformance.Fixture{
+		InstallationResources: &conformance.InstallationResourcesCase{
+			Owner: "fixture-alex", Viewer: "fixture-maya", Generation: 2,
+			A:     conformance.OwnedInstallation{Solution: "conformance-owner-a", Credential: k.Credential(t, "conformance-owner-a"), Installation: owned["conformance-owner-a"]},
+			B:     conformance.OwnedInstallation{Solution: "conformance-owner-b", Credential: k.Credential(t, "conformance-owner-b"), Installation: owned["conformance-owner-b"]},
+			Store: "conformance-store", StoreCredential: k.Credential(t, "conformance-store"), Kind: "conformance.collection",
+			ResourceA: "collection-a", ResourceA2: "collection-a2", ResourceB: "collection-b",
+		},
 		WorkloadOrganizations: &conformance.WorkloadOrganizationsCase{
 			Ambiguous: conformance.WorkloadOrganizationCase{Credential: k.Credential(t, "org-directory"), Module: "org-directory", Binding: "records", Audience: "records"},
 			None:      conformance.WorkloadOrganizationCase{Credential: k.Credential(t, "runtime"), Module: "runtime", Binding: "model", Audience: "model"},

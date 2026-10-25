@@ -184,6 +184,16 @@ func (p *Plugin) ListResources(ctx context.Context, req *authorityv1.ListResourc
 	return out, nil
 }
 
+// AttachResource records a resource created through the installation the
+// presented capability was issued through.
+func (p *Plugin) AttachResource(ctx context.Context, req *authorityv1.AttachResourceRequest) (*authorityv1.AttachResourceResponse, error) {
+	id, err := p.Issuer.AttachResource(ctx, req.GetToken(), req.GetActor().GetCredential(), req.GetResourceKind(), req.GetResourceId())
+	if err != nil {
+		return nil, Status(err)
+	}
+	return &authorityv1.AttachResourceResponse{InstallationId: id}, nil
+}
+
 // Keys returns the issuer and its keys.
 func (p *Plugin) Keys(context.Context, *authorityv1.KeysRequest) (*authorityv1.KeysResponse, error) {
 	return p.Issuer.Keys(), nil

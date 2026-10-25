@@ -121,6 +121,14 @@ message ModuleManifestV1 {
 message RoleV1 {
   string name = 1;
   repeated host.authority.v1.WorkScopeV1 scopes = 2;
+  // Scopes the role grants only on the resources the installation owns: those
+  // created or attached through it (AuthorityService.AttachResource). Each
+  // names a kind and actions and no resource ids, since ids are per
+  // installation, and is held to the same ceiling as scopes. The authority
+  // resolves each, for the installation the role is held on, into the same
+  // scope limited to the ids that installation owns of the kind; a kind it owns
+  // nothing of grants nothing, and never the whole kind.
+  repeated host.authority.v1.WorkScopeV1 installation_owned_scopes = 3;
 }
 
 // BindingV1 is one declared call towards another module.

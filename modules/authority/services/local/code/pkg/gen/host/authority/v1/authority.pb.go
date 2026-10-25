@@ -1217,6 +1217,125 @@ func (x *ListResourcesResponse) GetGrants() []*ResourceGrant {
 	return nil
 }
 
+// AttachResourceRequest names one resource and the capability it was created under.
+type AttachResourceRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The capability the creating call carried, addressed to the caller.
+	Token string `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	// The module serving resource_kind, proving which module it is.
+	Actor *WorkloadCredential `protobuf:"bytes,2,opt,name=actor,proto3" json:"actor,omitempty"`
+	// The resource kind, as the caller serves it.
+	ResourceKind string `protobuf:"bytes,3,opt,name=resource_kind,json=resourceKind,proto3" json:"resource_kind,omitempty"`
+	// The resource id, as the caller knows it.
+	ResourceId    string `protobuf:"bytes,4,opt,name=resource_id,json=resourceId,proto3" json:"resource_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AttachResourceRequest) Reset() {
+	*x = AttachResourceRequest{}
+	mi := &file_host_authority_v1_authority_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AttachResourceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AttachResourceRequest) ProtoMessage() {}
+
+func (x *AttachResourceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_host_authority_v1_authority_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AttachResourceRequest.ProtoReflect.Descriptor instead.
+func (*AttachResourceRequest) Descriptor() ([]byte, []int) {
+	return file_host_authority_v1_authority_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *AttachResourceRequest) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
+}
+
+func (x *AttachResourceRequest) GetActor() *WorkloadCredential {
+	if x != nil {
+		return x.Actor
+	}
+	return nil
+}
+
+func (x *AttachResourceRequest) GetResourceKind() string {
+	if x != nil {
+		return x.ResourceKind
+	}
+	return ""
+}
+
+func (x *AttachResourceRequest) GetResourceId() string {
+	if x != nil {
+		return x.ResourceId
+	}
+	return ""
+}
+
+// AttachResourceResponse names the installation that now owns the resource.
+type AttachResourceResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The owning installation, read from the capability's provenance.
+	InstallationId string `protobuf:"bytes,1,opt,name=installation_id,json=installationId,proto3" json:"installation_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *AttachResourceResponse) Reset() {
+	*x = AttachResourceResponse{}
+	mi := &file_host_authority_v1_authority_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AttachResourceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AttachResourceResponse) ProtoMessage() {}
+
+func (x *AttachResourceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_host_authority_v1_authority_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AttachResourceResponse.ProtoReflect.Descriptor instead.
+func (*AttachResourceResponse) Descriptor() ([]byte, []int) {
+	return file_host_authority_v1_authority_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *AttachResourceResponse) GetInstallationId() string {
+	if x != nil {
+		return x.InstallationId
+	}
+	return ""
+}
+
 // ResourceGrant is one way of naming covered resources. Exactly one is set.
 type ResourceGrant struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1233,7 +1352,7 @@ type ResourceGrant struct {
 
 func (x *ResourceGrant) Reset() {
 	*x = ResourceGrant{}
-	mi := &file_host_authority_v1_authority_proto_msgTypes[18]
+	mi := &file_host_authority_v1_authority_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1245,7 +1364,7 @@ func (x *ResourceGrant) String() string {
 func (*ResourceGrant) ProtoMessage() {}
 
 func (x *ResourceGrant) ProtoReflect() protoreflect.Message {
-	mi := &file_host_authority_v1_authority_proto_msgTypes[18]
+	mi := &file_host_authority_v1_authority_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1258,7 +1377,7 @@ func (x *ResourceGrant) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResourceGrant.ProtoReflect.Descriptor instead.
 func (*ResourceGrant) Descriptor() ([]byte, []int) {
-	return file_host_authority_v1_authority_proto_rawDescGZIP(), []int{18}
+	return file_host_authority_v1_authority_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ResourceGrant) GetMatch() isResourceGrant_Match {
@@ -1420,18 +1539,27 @@ const file_host_authority_v1_authority_proto_rawDesc = "" +
 	"\rresource_kind\x18\x03 \x01(\tR\fresourceKind\x12\x16\n" +
 	"\x06action\x18\x04 \x01(\tR\x06action\"Q\n" +
 	"\x15ListResourcesResponse\x128\n" +
-	"\x06grants\x18\x01 \x03(\v2 .host.authority.v1.ResourceGrantR\x06grants\"t\n" +
+	"\x06grants\x18\x01 \x03(\v2 .host.authority.v1.ResourceGrantR\x06grants\"\xb0\x01\n" +
+	"\x15AttachResourceRequest\x12\x14\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\x12;\n" +
+	"\x05actor\x18\x02 \x01(\v2%.host.authority.v1.WorkloadCredentialR\x05actor\x12#\n" +
+	"\rresource_kind\x18\x03 \x01(\tR\fresourceKind\x12\x1f\n" +
+	"\vresource_id\x18\x04 \x01(\tR\n" +
+	"resourceId\"A\n" +
+	"\x16AttachResourceResponse\x12'\n" +
+	"\x0finstallation_id\x18\x01 \x01(\tR\x0einstallationId\"t\n" +
 	"\rResourceGrant\x12\x12\n" +
 	"\x03all\x18\x01 \x01(\bH\x00R\x03all\x12\x10\n" +
 	"\x02id\x18\x02 \x01(\tH\x00R\x02id\x12\x18\n" +
 	"\x06prefix\x18\x03 \x01(\tH\x00R\x06prefix\x12\x1a\n" +
 	"\apattern\x18\x04 \x01(\tH\x00R\apatternB\a\n" +
-	"\x05match2\xac\x05\n" +
+	"\x05match2\x93\x06\n" +
 	"\x10AuthorityService\x12j\n" +
 	"\x05Issue\x12\x1f.host.authority.v1.IssueRequest\x1a .host.authority.v1.IssueResponse\"\x1e\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/v1/authority:issue\x12j\n" +
 	"\x05Check\x12\x1f.host.authority.v1.CheckRequest\x1a .host.authority.v1.CheckResponse\"\x1e\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/v1/authority:check\x12G\n" +
 	"\x04Keys\x12\x1e.host.authority.v1.KeysRequest\x1a\x1f.host.authority.v1.KeysResponse\x12b\n" +
-	"\rListResources\x12'.host.authority.v1.ListResourcesRequest\x1a(.host.authority.v1.ListResourcesResponse\x12M\n" +
+	"\rListResources\x12'.host.authority.v1.ListResourcesRequest\x1a(.host.authority.v1.ListResourcesResponse\x12e\n" +
+	"\x0eAttachResource\x12(.host.authority.v1.AttachResourceRequest\x1a).host.authority.v1.AttachResourceResponse\x12M\n" +
 	"\bDelegate\x12\".host.authority.v1.DelegateRequest\x1a\x1d.host.authority.v1.Delegation\x12k\n" +
 	"\x10RevokeDelegation\x12*.host.authority.v1.RevokeDelegationRequest\x1a+.host.authority.v1.RevokeDelegationResponse\x12W\n" +
 	"\rGetDelegation\x12'.host.authority.v1.GetDelegationRequest\x1a\x1d.host.authority.v1.DelegationB/Z-gateway/pkg/gen/host/authority/v1;authorityv1b\x06proto3"
@@ -1448,7 +1576,7 @@ func file_host_authority_v1_authority_proto_rawDescGZIP() []byte {
 	return file_host_authority_v1_authority_proto_rawDescData
 }
 
-var file_host_authority_v1_authority_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_host_authority_v1_authority_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_host_authority_v1_authority_proto_goTypes = []any{
 	(*IssueRequest)(nil),             // 0: host.authority.v1.IssueRequest
 	(*DelegationRef)(nil),            // 1: host.authority.v1.DelegationRef
@@ -1468,44 +1596,49 @@ var file_host_authority_v1_authority_proto_goTypes = []any{
 	(*PublicKey)(nil),                // 15: host.authority.v1.PublicKey
 	(*ListResourcesRequest)(nil),     // 16: host.authority.v1.ListResourcesRequest
 	(*ListResourcesResponse)(nil),    // 17: host.authority.v1.ListResourcesResponse
-	(*ResourceGrant)(nil),            // 18: host.authority.v1.ResourceGrant
-	(*WorkScopeV1)(nil),              // 19: host.authority.v1.WorkScopeV1
-	(*WorkContextV1)(nil),            // 20: host.authority.v1.WorkContextV1
+	(*AttachResourceRequest)(nil),    // 18: host.authority.v1.AttachResourceRequest
+	(*AttachResourceResponse)(nil),   // 19: host.authority.v1.AttachResourceResponse
+	(*ResourceGrant)(nil),            // 20: host.authority.v1.ResourceGrant
+	(*WorkScopeV1)(nil),              // 21: host.authority.v1.WorkScopeV1
+	(*WorkContextV1)(nil),            // 22: host.authority.v1.WorkContextV1
 }
 var file_host_authority_v1_authority_proto_depIdxs = []int32{
 	7,  // 0: host.authority.v1.IssueRequest.person:type_name -> host.authority.v1.PersonSession
 	8,  // 1: host.authority.v1.IssueRequest.workload:type_name -> host.authority.v1.WorkloadCredential
 	9,  // 2: host.authority.v1.IssueRequest.installation:type_name -> host.authority.v1.InstallationRef
 	1,  // 3: host.authority.v1.IssueRequest.delegation:type_name -> host.authority.v1.DelegationRef
-	19, // 4: host.authority.v1.IssueRequest.scopes:type_name -> host.authority.v1.WorkScopeV1
+	21, // 4: host.authority.v1.IssueRequest.scopes:type_name -> host.authority.v1.WorkScopeV1
 	8,  // 5: host.authority.v1.IssueRequest.actor:type_name -> host.authority.v1.WorkloadCredential
-	19, // 6: host.authority.v1.DelegateRequest.scopes:type_name -> host.authority.v1.WorkScopeV1
-	19, // 7: host.authority.v1.Delegation.scopes:type_name -> host.authority.v1.WorkScopeV1
+	21, // 6: host.authority.v1.DelegateRequest.scopes:type_name -> host.authority.v1.WorkScopeV1
+	21, // 7: host.authority.v1.Delegation.scopes:type_name -> host.authority.v1.WorkScopeV1
 	8,  // 8: host.authority.v1.GetDelegationRequest.actor:type_name -> host.authority.v1.WorkloadCredential
 	3,  // 9: host.authority.v1.RevokeDelegationResponse.delegation:type_name -> host.authority.v1.Delegation
-	20, // 10: host.authority.v1.IssueResponse.context:type_name -> host.authority.v1.WorkContextV1
-	20, // 11: host.authority.v1.CheckResponse.context:type_name -> host.authority.v1.WorkContextV1
+	22, // 10: host.authority.v1.IssueResponse.context:type_name -> host.authority.v1.WorkContextV1
+	22, // 11: host.authority.v1.CheckResponse.context:type_name -> host.authority.v1.WorkContextV1
 	15, // 12: host.authority.v1.KeysResponse.keys:type_name -> host.authority.v1.PublicKey
-	18, // 13: host.authority.v1.ListResourcesResponse.grants:type_name -> host.authority.v1.ResourceGrant
-	0,  // 14: host.authority.v1.AuthorityService.Issue:input_type -> host.authority.v1.IssueRequest
-	11, // 15: host.authority.v1.AuthorityService.Check:input_type -> host.authority.v1.CheckRequest
-	13, // 16: host.authority.v1.AuthorityService.Keys:input_type -> host.authority.v1.KeysRequest
-	16, // 17: host.authority.v1.AuthorityService.ListResources:input_type -> host.authority.v1.ListResourcesRequest
-	2,  // 18: host.authority.v1.AuthorityService.Delegate:input_type -> host.authority.v1.DelegateRequest
-	5,  // 19: host.authority.v1.AuthorityService.RevokeDelegation:input_type -> host.authority.v1.RevokeDelegationRequest
-	4,  // 20: host.authority.v1.AuthorityService.GetDelegation:input_type -> host.authority.v1.GetDelegationRequest
-	10, // 21: host.authority.v1.AuthorityService.Issue:output_type -> host.authority.v1.IssueResponse
-	12, // 22: host.authority.v1.AuthorityService.Check:output_type -> host.authority.v1.CheckResponse
-	14, // 23: host.authority.v1.AuthorityService.Keys:output_type -> host.authority.v1.KeysResponse
-	17, // 24: host.authority.v1.AuthorityService.ListResources:output_type -> host.authority.v1.ListResourcesResponse
-	3,  // 25: host.authority.v1.AuthorityService.Delegate:output_type -> host.authority.v1.Delegation
-	6,  // 26: host.authority.v1.AuthorityService.RevokeDelegation:output_type -> host.authority.v1.RevokeDelegationResponse
-	3,  // 27: host.authority.v1.AuthorityService.GetDelegation:output_type -> host.authority.v1.Delegation
-	21, // [21:28] is the sub-list for method output_type
-	14, // [14:21] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	20, // 13: host.authority.v1.ListResourcesResponse.grants:type_name -> host.authority.v1.ResourceGrant
+	8,  // 14: host.authority.v1.AttachResourceRequest.actor:type_name -> host.authority.v1.WorkloadCredential
+	0,  // 15: host.authority.v1.AuthorityService.Issue:input_type -> host.authority.v1.IssueRequest
+	11, // 16: host.authority.v1.AuthorityService.Check:input_type -> host.authority.v1.CheckRequest
+	13, // 17: host.authority.v1.AuthorityService.Keys:input_type -> host.authority.v1.KeysRequest
+	16, // 18: host.authority.v1.AuthorityService.ListResources:input_type -> host.authority.v1.ListResourcesRequest
+	18, // 19: host.authority.v1.AuthorityService.AttachResource:input_type -> host.authority.v1.AttachResourceRequest
+	2,  // 20: host.authority.v1.AuthorityService.Delegate:input_type -> host.authority.v1.DelegateRequest
+	5,  // 21: host.authority.v1.AuthorityService.RevokeDelegation:input_type -> host.authority.v1.RevokeDelegationRequest
+	4,  // 22: host.authority.v1.AuthorityService.GetDelegation:input_type -> host.authority.v1.GetDelegationRequest
+	10, // 23: host.authority.v1.AuthorityService.Issue:output_type -> host.authority.v1.IssueResponse
+	12, // 24: host.authority.v1.AuthorityService.Check:output_type -> host.authority.v1.CheckResponse
+	14, // 25: host.authority.v1.AuthorityService.Keys:output_type -> host.authority.v1.KeysResponse
+	17, // 26: host.authority.v1.AuthorityService.ListResources:output_type -> host.authority.v1.ListResourcesResponse
+	19, // 27: host.authority.v1.AuthorityService.AttachResource:output_type -> host.authority.v1.AttachResourceResponse
+	3,  // 28: host.authority.v1.AuthorityService.Delegate:output_type -> host.authority.v1.Delegation
+	6,  // 29: host.authority.v1.AuthorityService.RevokeDelegation:output_type -> host.authority.v1.RevokeDelegationResponse
+	3,  // 30: host.authority.v1.AuthorityService.GetDelegation:output_type -> host.authority.v1.Delegation
+	23, // [23:31] is the sub-list for method output_type
+	15, // [15:23] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_host_authority_v1_authority_proto_init() }
@@ -1521,7 +1654,7 @@ func file_host_authority_v1_authority_proto_init() {
 		(*IssueRequest_ParentToken)(nil),
 		(*IssueRequest_Delegation)(nil),
 	}
-	file_host_authority_v1_authority_proto_msgTypes[18].OneofWrappers = []any{
+	file_host_authority_v1_authority_proto_msgTypes[20].OneofWrappers = []any{
 		(*ResourceGrant_All)(nil),
 		(*ResourceGrant_Id)(nil),
 		(*ResourceGrant_Prefix)(nil),
@@ -1533,7 +1666,7 @@ func file_host_authority_v1_authority_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_host_authority_v1_authority_proto_rawDesc), len(file_host_authority_v1_authority_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   19,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

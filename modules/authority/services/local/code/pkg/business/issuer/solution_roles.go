@@ -1,10 +1,14 @@
 package issuer
 
 import (
+	"context"
+	"fmt"
+	"slices"
+	"strings"
+
 	"gateway/pkg/business/state"
 	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
-	"slices"
 )
 
 // solutionPrincipals reads provenance already verified by Core. A module hop
@@ -87,4 +91,55 @@ func roleResources(scopes []*basev0.WorkScopeV1, kind, action string) []resource
 		}
 	}
 	return grants
+}
+
+// AttachResource records that the module serving kind created or attached id
+// under token, a capability addressed to that module and holding an action on
+// kind. The owning installation is read from the capability's verified
+// provenance, never named by the caller: an installation owning it, and the
+// installation of each solution in its actor chain. The state requires one.
+func (i *Issuer) AttachResource(ctx context.Context, token, credential, kind, id string) (string, error) {
+	if kind == "" || id == "" {
+		return "", fmt.Errorf("%w: an attachment names a resource kind and a resource id", ErrRefused)
+	}
+	actor, err := i.state.VerifyWorkload(ctx, credential)
+	if err != nil {
+		return "", err
+	}
+	if !holdsKind(actor.ResourceKinds, kind) {
+		return "", fmt.Errorf("%w: %s does not serve %s, so it attaches none of its resources", ErrRefused, actor.Module, kind)
+	}
+	verified, err := i.verifier(actor.Principal).Verify(ctx, token)
+	if err != nil {
+		return "", err
+	}
+	if !holdsKind(verified.EffectiveScopes(), kind) {
+		return "", fmt.Errorf("%w: the capability holds no action on %s, so nothing of it was created under it", ErrRefused, kind)
+	}
+	wc := verified.Context()
+	var candidates []string
+	if wc.GetOwnerPrincipalKind() == "agent" {
+		candidates = append(candidates, strings.TrimSuffix(wc.GetOwnerPrincipalId(), "/agent"))
+	}
+	for _, hop := range wc.GetActorChain() {
+		if hop.GetPrincipalKind() != "service" {
+			continue
+		}
+		m, err := i.state.ModuleByPrincipal(hop.GetPrincipalId())
+		if err != nil {
+			return "", err
+		}
+		if m.Kind == "solution" {
+			candidates = append(candidates, state.InstallationID(wc.GetTenantId(), m.Module))
+		}
+	}
+	return i.state.AttachResource(wc.GetTenantId(), candidates, kind, id)
+}
+
+// holdsKind reports whether any scope grants an action on kind; a zero-action
+// row is a denial, not a grant.
+func holdsKind(scopes []*basev0.WorkScopeV1, kind string) bool {
+	return slices.ContainsFunc(scopes, func(scope *basev0.WorkScopeV1) bool {
+		return scope.GetResourceKind() == kind && len(scope.GetActions()) > 0
+	})
 }

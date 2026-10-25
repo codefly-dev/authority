@@ -154,6 +154,10 @@ type Manifest struct {
 	// InstallerRole; a module declares none, since a module is installed by
 	// composition and a person's access to it is the organisation's roles.
 	Roles map[string][]*basev0.WorkScopeV1
+	// OwnedRoles are, per declared role, the scopes it grants only on the
+	// resources an installation owns (Installation.Owned): each a kind and
+	// actions naming no ids, resolved per installation by roleGrants.
+	OwnedRoles map[string][]*basev0.WorkScopeV1
 	// Methods are what each method the module serves declares a call must hold,
 	// from the authority's signed document delivered with the manifest. Nil
 	// means the delivery declared no method policy: every check naming one of
@@ -318,6 +322,10 @@ type Installation struct {
 	Teams []string
 	// Owner installed it and holds the target's installer role on it.
 	Owner string
+	// Owned is what was created or attached through the installation, kind ->
+	// sorted ids (AttachResource). Copied on write, never mutated in place, so
+	// a copy read outside the lock stays consistent; a reinstall starts empty.
+	Owned map[string][]string
 }
 
 // installationNamespace names installations: InstallationID's UUIDs are
@@ -858,7 +866,9 @@ func (s *State) invalidateNarrowedAuthority(next Manifest) {
 		}
 		rolesNarrowed := previous.Kind == "solution" &&
 			(!Attenuates(previous.Roles[inst.Role], next.Roles[inst.Role]) ||
-				!Attenuates(previous.Roles[InstallerRole], next.Roles[InstallerRole]))
+				!Attenuates(previous.Roles[InstallerRole], next.Roles[InstallerRole]) ||
+				!Attenuates(previous.OwnedRoles[inst.Role], next.OwnedRoles[inst.Role]) ||
+				!Attenuates(previous.OwnedRoles[InstallerRole], next.OwnedRoles[InstallerRole]))
 		if !bindingsNarrowed && !rolesNarrowed {
 			continue
 		}
@@ -1115,15 +1125,14 @@ func (s *State) InstallationScopes(id, audience string) (Installation, []*basev0
 	if !ok || target.Kind != "solution" {
 		return Installation{}, nil, 0, fmt.Errorf("%w: installation target is not a delivered solution", ErrUnknown)
 	}
-	held, ok := target.Roles[inst.Role]
-	if !ok {
+	if _, ok := target.Roles[inst.Role]; !ok {
 		return Installation{}, nil, 0, fmt.Errorf("%w: role %q is no longer declared by %s", ErrUnknown, inst.Role, inst.Target)
 	}
 	served, err := s.moduleByPrincipal(audience)
 	if err != nil {
 		return Installation{}, nil, 0, err
 	}
-	return inst, Intersect(held, served.ResourceKinds), s.revisions[inst.Organization] + 1, nil
+	return inst, Intersect(roleGrants(target, inst.Role, inst), served.ResourceKinds), s.revisions[inst.Organization] + 1, nil
 }
 
 // List answers what one organisation has installed, sorted by id.
@@ -1499,7 +1508,7 @@ func sameScopes(a, b []*basev0.WorkScopeV1) bool {
 // workload and cannot supply a role grant. A module declares no roles.
 func validateRoles(m Manifest) error {
 	if m.Kind != "solution" {
-		if len(m.Roles) > 0 {
+		if len(m.Roles) > 0 || len(m.OwnedRoles) > 0 {
 			return fmt.Errorf("%w: module %q declares roles; a module's access is the organisation's roles", ErrForbidden, m.Module)
 		}
 		return nil
@@ -1512,11 +1521,22 @@ func validateRoles(m Manifest) error {
 		grantable = append(grantable, binding.InvokeScopes...)
 		grantable = append(grantable, binding.LookupScopes...)
 	}
+	for name, owned := range m.OwnedRoles {
+		if _, declared := m.Roles[name]; !declared {
+			return fmt.Errorf("%w: %s declares installation-owned scopes for undeclared role %q", ErrForbidden, m.Module, name)
+		}
+		for _, scope := range owned {
+			if len(scope.GetResourceIds()) > 0 {
+				return fmt.Errorf("%w: role %q of %s names resource ids on an installation-owned scope; its ids are each installation's own", ErrForbidden, name, m.Module)
+			}
+		}
+	}
 	for name, scopes := range m.Roles {
-		if len(scopes) == 0 {
+		owned := m.OwnedRoles[name]
+		if len(scopes)+len(owned) == 0 {
 			return fmt.Errorf("%w: role %q of %s grants nothing", ErrForbidden, name, m.Module)
 		}
-		if !Attenuates(scopes, grantable) {
+		if !Attenuates(scopes, grantable) || !Attenuates(owned, grantable) {
 			return fmt.Errorf("%w: role %q of %s grants beyond what %s serves or explicitly consumes through invoke/lookup bindings", ErrForbidden, name, m.Module, m.Module)
 		}
 	}

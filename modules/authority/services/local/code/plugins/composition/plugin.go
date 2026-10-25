@@ -89,7 +89,7 @@ func (p *Plugin) ApplyManifest(ctx context.Context, req *compositionv1.ApplyMani
 			if m, err = ceiled(m, issuer.FromWire(doc.GetScopeCeilings())); err != nil {
 				return nil, err
 			}
-			if m.Roles, err = rolesOf(doc); err != nil {
+			if m.Roles, m.OwnedRoles, err = rolesOf(doc.GetRoles()); err != nil {
 				return nil, err
 			}
 		}
@@ -127,9 +127,12 @@ func Manifest(in *compositionv1.ModuleManifestV1) state.Manifest {
 	}
 	for _, r := range in.GetRoles() {
 		if m.Roles == nil {
-			m.Roles = map[string][]*basev0.WorkScopeV1{}
+			m.Roles, m.OwnedRoles = map[string][]*basev0.WorkScopeV1{}, map[string][]*basev0.WorkScopeV1{}
 		}
 		m.Roles[r.GetName()] = state.Normalize(issuer.FromWire(r.GetScopes()))
+		if owned := r.GetInstallationOwnedScopes(); len(owned) > 0 {
+			m.OwnedRoles[r.GetName()] = issuer.FromWire(owned)
+		}
 	}
 	return m
 }
@@ -198,18 +201,23 @@ func methodsOf(doc *compositionv1.AuthorityManifestV1) (map[string]state.MethodP
 // within what it serves or explicitly consumes through invoke/lookup bindings,
 // and a module declares none, so a
 // module's delivery listing any is refused there by name.
-func rolesOf(doc *compositionv1.AuthorityManifestV1) (map[string][]*basev0.WorkScopeV1, error) {
-	if len(doc.GetRoles()) == 0 {
-		return nil, nil
+// Installation-owned scopes are kept as declared, ids and all, so the state
+// refuses one naming ids by name rather than a merge hiding it.
+func rolesOf(declared []*compositionv1.RoleV1) (roles, owned map[string][]*basev0.WorkScopeV1, err error) {
+	if len(declared) == 0 {
+		return nil, nil, nil
 	}
-	roles := make(map[string][]*basev0.WorkScopeV1, len(doc.GetRoles()))
-	for _, role := range doc.GetRoles() {
+	roles, owned = make(map[string][]*basev0.WorkScopeV1, len(declared)), map[string][]*basev0.WorkScopeV1{}
+	for _, role := range declared {
 		if _, twice := roles[role.GetName()]; twice || role.GetName() == "" {
-			return nil, status.Errorf(codes.InvalidArgument, "the authority's document lists role %q twice or unnamed", role.GetName())
+			return nil, nil, status.Errorf(codes.InvalidArgument, "the authority's document lists role %q twice or unnamed", role.GetName())
 		}
 		roles[role.GetName()] = state.Normalize(issuer.FromWire(role.GetScopes()))
+		if scopes := role.GetInstallationOwnedScopes(); len(scopes) > 0 {
+			owned[role.GetName()] = issuer.FromWire(scopes)
+		}
 	}
-	return roles, nil
+	return roles, owned, nil
 }
 
 // ceiled gives each of the module's own kinds the actions its contract declares

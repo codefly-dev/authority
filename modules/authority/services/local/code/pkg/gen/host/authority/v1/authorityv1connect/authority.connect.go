@@ -48,6 +48,9 @@ const (
 	// AuthorityServiceListResourcesProcedure is the fully-qualified name of the AuthorityService's
 	// ListResources RPC.
 	AuthorityServiceListResourcesProcedure = "/host.authority.v1.AuthorityService/ListResources"
+	// AuthorityServiceAttachResourceProcedure is the fully-qualified name of the AuthorityService's
+	// AttachResource RPC.
+	AuthorityServiceAttachResourceProcedure = "/host.authority.v1.AuthorityService/AttachResource"
 	// AuthorityServiceDelegateProcedure is the fully-qualified name of the AuthorityService's Delegate
 	// RPC.
 	AuthorityServiceDelegateProcedure = "/host.authority.v1.AuthorityService/Delegate"
@@ -77,6 +80,18 @@ type AuthorityServiceClient interface {
 	// rather than carried in the capability. A module maps the answer onto its
 	// own resources; the authority knows them only by id.
 	ListResources(context.Context, *connect.Request[v1.ListResourcesRequest]) (*connect.Response[v1.ListResourcesResponse], error)
+	// AttachResource records that one resource was created or attached through
+	// an installation, so a role scope its solution declares installation-owned
+	// (RoleV1.installation_owned_scopes) covers it. The caller is the module that
+	// serves the kind, proving itself with its workload credential, and presents
+	// the capability the creating call carried, addressed to it and holding an
+	// action on the kind. The owning installation is read from that capability's
+	// verified provenance and never named by the caller: the installation itself
+	// when it is the owner, otherwise the one solution in its actor chain. A
+	// capability issued through no installation, or through two, is refused.
+	// Attaching only widens what an installation-owned scope covers, so it moves
+	// no authorization revision; a reinstalled installation owns nothing.
+	AttachResource(context.Context, *connect.Request[v1.AttachResourceRequest]) (*connect.Response[v1.AttachResourceResponse], error)
 	// Delegate records a signed-in person's grant to a module (the caller's
 	// bearer is the person); Issue with a delegation acts on it.
 	Delegate(context.Context, *connect.Request[v1.DelegateRequest]) (*connect.Response[v1.Delegation], error)
@@ -124,6 +139,12 @@ func NewAuthorityServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(authorityServiceMethods.ByName("ListResources")),
 			connect.WithClientOptions(opts...),
 		),
+		attachResource: connect.NewClient[v1.AttachResourceRequest, v1.AttachResourceResponse](
+			httpClient,
+			baseURL+AuthorityServiceAttachResourceProcedure,
+			connect.WithSchema(authorityServiceMethods.ByName("AttachResource")),
+			connect.WithClientOptions(opts...),
+		),
 		delegate: connect.NewClient[v1.DelegateRequest, v1.Delegation](
 			httpClient,
 			baseURL+AuthorityServiceDelegateProcedure,
@@ -151,6 +172,7 @@ type authorityServiceClient struct {
 	check            *connect.Client[v1.CheckRequest, v1.CheckResponse]
 	keys             *connect.Client[v1.KeysRequest, v1.KeysResponse]
 	listResources    *connect.Client[v1.ListResourcesRequest, v1.ListResourcesResponse]
+	attachResource   *connect.Client[v1.AttachResourceRequest, v1.AttachResourceResponse]
 	delegate         *connect.Client[v1.DelegateRequest, v1.Delegation]
 	revokeDelegation *connect.Client[v1.RevokeDelegationRequest, v1.RevokeDelegationResponse]
 	getDelegation    *connect.Client[v1.GetDelegationRequest, v1.Delegation]
@@ -174,6 +196,11 @@ func (c *authorityServiceClient) Keys(ctx context.Context, req *connect.Request[
 // ListResources calls host.authority.v1.AuthorityService.ListResources.
 func (c *authorityServiceClient) ListResources(ctx context.Context, req *connect.Request[v1.ListResourcesRequest]) (*connect.Response[v1.ListResourcesResponse], error) {
 	return c.listResources.CallUnary(ctx, req)
+}
+
+// AttachResource calls host.authority.v1.AuthorityService.AttachResource.
+func (c *authorityServiceClient) AttachResource(ctx context.Context, req *connect.Request[v1.AttachResourceRequest]) (*connect.Response[v1.AttachResourceResponse], error) {
+	return c.attachResource.CallUnary(ctx, req)
 }
 
 // Delegate calls host.authority.v1.AuthorityService.Delegate.
@@ -209,6 +236,18 @@ type AuthorityServiceHandler interface {
 	// rather than carried in the capability. A module maps the answer onto its
 	// own resources; the authority knows them only by id.
 	ListResources(context.Context, *connect.Request[v1.ListResourcesRequest]) (*connect.Response[v1.ListResourcesResponse], error)
+	// AttachResource records that one resource was created or attached through
+	// an installation, so a role scope its solution declares installation-owned
+	// (RoleV1.installation_owned_scopes) covers it. The caller is the module that
+	// serves the kind, proving itself with its workload credential, and presents
+	// the capability the creating call carried, addressed to it and holding an
+	// action on the kind. The owning installation is read from that capability's
+	// verified provenance and never named by the caller: the installation itself
+	// when it is the owner, otherwise the one solution in its actor chain. A
+	// capability issued through no installation, or through two, is refused.
+	// Attaching only widens what an installation-owned scope covers, so it moves
+	// no authorization revision; a reinstalled installation owns nothing.
+	AttachResource(context.Context, *connect.Request[v1.AttachResourceRequest]) (*connect.Response[v1.AttachResourceResponse], error)
 	// Delegate records a signed-in person's grant to a module (the caller's
 	// bearer is the person); Issue with a delegation acts on it.
 	Delegate(context.Context, *connect.Request[v1.DelegateRequest]) (*connect.Response[v1.Delegation], error)
@@ -252,6 +291,12 @@ func NewAuthorityServiceHandler(svc AuthorityServiceHandler, opts ...connect.Han
 		connect.WithSchema(authorityServiceMethods.ByName("ListResources")),
 		connect.WithHandlerOptions(opts...),
 	)
+	authorityServiceAttachResourceHandler := connect.NewUnaryHandler(
+		AuthorityServiceAttachResourceProcedure,
+		svc.AttachResource,
+		connect.WithSchema(authorityServiceMethods.ByName("AttachResource")),
+		connect.WithHandlerOptions(opts...),
+	)
 	authorityServiceDelegateHandler := connect.NewUnaryHandler(
 		AuthorityServiceDelegateProcedure,
 		svc.Delegate,
@@ -280,6 +325,8 @@ func NewAuthorityServiceHandler(svc AuthorityServiceHandler, opts ...connect.Han
 			authorityServiceKeysHandler.ServeHTTP(w, r)
 		case AuthorityServiceListResourcesProcedure:
 			authorityServiceListResourcesHandler.ServeHTTP(w, r)
+		case AuthorityServiceAttachResourceProcedure:
+			authorityServiceAttachResourceHandler.ServeHTTP(w, r)
 		case AuthorityServiceDelegateProcedure:
 			authorityServiceDelegateHandler.ServeHTTP(w, r)
 		case AuthorityServiceRevokeDelegationProcedure:
@@ -309,6 +356,10 @@ func (UnimplementedAuthorityServiceHandler) Keys(context.Context, *connect.Reque
 
 func (UnimplementedAuthorityServiceHandler) ListResources(context.Context, *connect.Request[v1.ListResourcesRequest]) (*connect.Response[v1.ListResourcesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.authority.v1.AuthorityService.ListResources is not implemented"))
+}
+
+func (UnimplementedAuthorityServiceHandler) AttachResource(context.Context, *connect.Request[v1.AttachResourceRequest]) (*connect.Response[v1.AttachResourceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.authority.v1.AuthorityService.AttachResource is not implemented"))
 }
 
 func (UnimplementedAuthorityServiceHandler) Delegate(context.Context, *connect.Request[v1.DelegateRequest]) (*connect.Response[v1.Delegation], error) {

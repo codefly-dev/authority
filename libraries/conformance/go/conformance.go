@@ -92,6 +92,10 @@ type Fixture struct {
 	ChildScopes *ChildScopesCase
 	// ParentLimits proves persistent per-kind limits, including entirely dropped kinds.
 	ParentLimits *ParentLimitsCase
+	// InstallationResources proves role scopes a solution declares
+	// installation-owned: resolved to what each installation owns, never the
+	// whole kind, and never widened by a child. Omission fails conformance.
+	InstallationResources *InstallationResourcesCase
 	// InstallationChain exercises successive module actors under one installed
 	// solution's role. Omission fails conformance.
 	InstallationChain *InstallationChainCase
@@ -588,6 +592,9 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			t.Fatal("required conformance fixture missing: the fixture states no installation-owned chain")
 		}
 		c.installationChain(t, ctx, *f.InstallationChain)
+	})
+	t.Run("installation-owned role scopes cover only what the installation owns", func(t *testing.T) {
+		c.installationResources(t, ctx, f)
 	})
 	t.Run("a check naming a method applies what the module's delivery declares", func(t *testing.T) {
 		if f.SignManifest == nil || f.SignAuthority == nil {

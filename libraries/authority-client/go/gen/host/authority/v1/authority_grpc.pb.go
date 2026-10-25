@@ -30,6 +30,7 @@ const (
 	AuthorityService_Check_FullMethodName            = "/host.authority.v1.AuthorityService/Check"
 	AuthorityService_Keys_FullMethodName             = "/host.authority.v1.AuthorityService/Keys"
 	AuthorityService_ListResources_FullMethodName    = "/host.authority.v1.AuthorityService/ListResources"
+	AuthorityService_AttachResource_FullMethodName   = "/host.authority.v1.AuthorityService/AttachResource"
 	AuthorityService_Delegate_FullMethodName         = "/host.authority.v1.AuthorityService/Delegate"
 	AuthorityService_RevokeDelegation_FullMethodName = "/host.authority.v1.AuthorityService/RevokeDelegation"
 	AuthorityService_GetDelegation_FullMethodName    = "/host.authority.v1.AuthorityService/GetDelegation"
@@ -57,6 +58,18 @@ type AuthorityServiceClient interface {
 	// rather than carried in the capability. A module maps the answer onto its
 	// own resources; the authority knows them only by id.
 	ListResources(ctx context.Context, in *ListResourcesRequest, opts ...grpc.CallOption) (*ListResourcesResponse, error)
+	// AttachResource records that one resource was created or attached through
+	// an installation, so a role scope its solution declares installation-owned
+	// (RoleV1.installation_owned_scopes) covers it. The caller is the module that
+	// serves the kind, proving itself with its workload credential, and presents
+	// the capability the creating call carried, addressed to it and holding an
+	// action on the kind. The owning installation is read from that capability's
+	// verified provenance and never named by the caller: the installation itself
+	// when it is the owner, otherwise the one solution in its actor chain. A
+	// capability issued through no installation, or through two, is refused.
+	// Attaching only widens what an installation-owned scope covers, so it moves
+	// no authorization revision; a reinstalled installation owns nothing.
+	AttachResource(ctx context.Context, in *AttachResourceRequest, opts ...grpc.CallOption) (*AttachResourceResponse, error)
 	// Delegate records a signed-in person's grant to a module (the caller's
 	// bearer is the person); Issue with a delegation acts on it.
 	Delegate(ctx context.Context, in *DelegateRequest, opts ...grpc.CallOption) (*Delegation, error)
@@ -117,6 +130,16 @@ func (c *authorityServiceClient) ListResources(ctx context.Context, in *ListReso
 	return out, nil
 }
 
+func (c *authorityServiceClient) AttachResource(ctx context.Context, in *AttachResourceRequest, opts ...grpc.CallOption) (*AttachResourceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AttachResourceResponse)
+	err := c.cc.Invoke(ctx, AuthorityService_AttachResource_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authorityServiceClient) Delegate(ctx context.Context, in *DelegateRequest, opts ...grpc.CallOption) (*Delegation, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Delegation)
@@ -169,6 +192,18 @@ type AuthorityServiceServer interface {
 	// rather than carried in the capability. A module maps the answer onto its
 	// own resources; the authority knows them only by id.
 	ListResources(context.Context, *ListResourcesRequest) (*ListResourcesResponse, error)
+	// AttachResource records that one resource was created or attached through
+	// an installation, so a role scope its solution declares installation-owned
+	// (RoleV1.installation_owned_scopes) covers it. The caller is the module that
+	// serves the kind, proving itself with its workload credential, and presents
+	// the capability the creating call carried, addressed to it and holding an
+	// action on the kind. The owning installation is read from that capability's
+	// verified provenance and never named by the caller: the installation itself
+	// when it is the owner, otherwise the one solution in its actor chain. A
+	// capability issued through no installation, or through two, is refused.
+	// Attaching only widens what an installation-owned scope covers, so it moves
+	// no authorization revision; a reinstalled installation owns nothing.
+	AttachResource(context.Context, *AttachResourceRequest) (*AttachResourceResponse, error)
 	// Delegate records a signed-in person's grant to a module (the caller's
 	// bearer is the person); Issue with a delegation acts on it.
 	Delegate(context.Context, *DelegateRequest) (*Delegation, error)
@@ -200,6 +235,9 @@ func (UnimplementedAuthorityServiceServer) Keys(context.Context, *KeysRequest) (
 }
 func (UnimplementedAuthorityServiceServer) ListResources(context.Context, *ListResourcesRequest) (*ListResourcesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListResources not implemented")
+}
+func (UnimplementedAuthorityServiceServer) AttachResource(context.Context, *AttachResourceRequest) (*AttachResourceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AttachResource not implemented")
 }
 func (UnimplementedAuthorityServiceServer) Delegate(context.Context, *DelegateRequest) (*Delegation, error) {
 	return nil, status.Error(codes.Unimplemented, "method Delegate not implemented")
@@ -303,6 +341,24 @@ func _AuthorityService_ListResources_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthorityService_AttachResource_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AttachResourceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthorityServiceServer).AttachResource(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthorityService_AttachResource_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthorityServiceServer).AttachResource(ctx, req.(*AttachResourceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthorityService_Delegate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DelegateRequest)
 	if err := dec(in); err != nil {
@@ -379,6 +435,10 @@ var AuthorityService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListResources",
 			Handler:    _AuthorityService_ListResources_Handler,
+		},
+		{
+			MethodName: "AttachResource",
+			Handler:    _AuthorityService_AttachResource_Handler,
 		},
 		{
 			MethodName: "Delegate",
