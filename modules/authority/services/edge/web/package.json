@@ -6,7 +6,8 @@
   "description": "The edge's sign-in page, built from the platform's UI kit into code/signin/out for go:embed.",
   "scripts": {
     "build": "tsc --noEmit && vite build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check:bundle": "sh scripts/check-bundle.sh"
   },
   "dependencies": {
     "@codefly-dev/ui": "0.13.2",

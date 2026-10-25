@@ -17,3 +17,7 @@ Session discovery asks routed modules concurrently. A failed module is listed in
 `refused` with its authority reason; other modules and the session still answer.
 Cached Work Contexts are removed on expiry and sign-out, which also fences
 in-flight cache writes. Remote authority endpoints require TLS.
+
+Run `npm ci` then `npm run check:bundle` in `web/` to rebuild the embedded sign-in
+bundle and fail on changed, removed or newly generated assets. Supply the package
+read credential through `NODE_AUTH_TOKEN` as configured in `.npmrc`.
