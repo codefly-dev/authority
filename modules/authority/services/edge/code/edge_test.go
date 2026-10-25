@@ -503,3 +503,34 @@ func TestSignOutFencesAnInflightCacheWrite(t *testing.T) {
 		t.Fatal("inflight issue restored signed-out cache")
 	}
 }
+
+type failingCurrent struct {
+	*standIn
+	failure error
+}
+
+func (s failingCurrent) Current(context.Context, *sessionv1.CurrentRequest, ...grpc.CallOption) (*sessionv1.Session, error) {
+	return nil, s.failure
+}
+func TestSessionOutagePreservesCacheAndReportsTheActualReason(t *testing.T) {
+	for _, code := range []codes.Code{codes.Unavailable, codes.DeadlineExceeded, codes.Internal, codes.Unauthenticated} {
+		t.Run(code.String(), func(t *testing.T) {
+			s := &standIn{}
+			e := &Edge{Authority: s, Sessions: failingCurrent{s, status.Error(code, "Current failed: test reason")}}
+			if _, err := e.workContext(context.Background(), "remi-session", "records"); err != nil {
+				t.Fatal(err)
+			}
+			r := httptest.NewRequest(http.MethodGet, "/auth/session", nil)
+			r.Header.Set("Authorization", "Bearer remi-session")
+			w := httptest.NewRecorder()
+			e.ServeHTTP(w, r)
+			want, cached := http.StatusServiceUnavailable, 1
+			if code == codes.Unauthenticated {
+				want, cached = http.StatusUnauthorized, 0
+			}
+			if w.Code != want || len(e.held) != cached || !strings.Contains(w.Body.String(), "Current failed: test reason") {
+				t.Fatalf("code=%d cache=%d reason=%s", w.Code, len(e.held), w.Body)
+			}
+		})
+	}
+}

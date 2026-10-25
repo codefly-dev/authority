@@ -302,8 +302,12 @@ func (e *Edge) session(w http.ResponseWriter, r *http.Request) {
 	}
 	sess, err := e.Sessions.Current(metadata.AppendToOutgoingContext(r.Context(), "authorization", "Bearer "+bearer), &sessionv1.CurrentRequest{})
 	if err != nil {
-		e.evict(bearer)
-		refuse(w, http.StatusUnauthorized, "the authority knows no session for this bearer")
+		if status.Code(err) == codes.Unauthenticated {
+			e.evict(bearer)
+			refuse(w, http.StatusUnauthorized, status.Convert(err).Message())
+		} else {
+			refuse(w, http.StatusServiceUnavailable, "the authority could not answer Current: "+status.Convert(err).Message())
+		}
 		return
 	}
 	usable, refused := e.usable(r.Context(), bearer)

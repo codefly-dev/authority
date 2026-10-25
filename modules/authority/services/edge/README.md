@@ -23,3 +23,13 @@ plaintext loopback is local-only.
 Run `npm ci` then `npm run check:bundle` in `web/` to rebuild the embedded sign-in
 bundle and fail on changed, removed or newly generated assets. Supply the package
 read credential through `NODE_AUTH_TOKEN` as configured in `.npmrc`.
+
+A Current outage returns 503 with the authority's reason and preserves cached
+contexts. Only Unauthenticated evicts the session's cached contexts and returns
+401. Other Current failures also remain service failures, not evidence of sign-out.
+
+Known interface gap: `host.session.v1` has no SignOut RPC. Browser sign-out clears
+the local cookie and edge cache; it does not revoke a copied bearer at the host.
+Host-wide termination requires a proposed Session.SignOut interface addition,
+its host implementations, and the edge call before browser sign-out can promise
+revocation. This change does not invent a second session revocation mechanism.
