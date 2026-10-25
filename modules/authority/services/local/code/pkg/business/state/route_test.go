@@ -8,6 +8,7 @@ import (
 
 	"gateway/pkg/business/state"
 	"gateway/pkg/business/testkit"
+	"github.com/codefly-dev/authority/libraries/hop/go/routing"
 )
 
 func reads(kind string) state.MethodPolicy {
@@ -47,7 +48,8 @@ func TestAnHTTPRequestIsAdmittedUnderTheRouteItsPathMatches(t *testing.T) {
 		"GET /v1/gauge/sources/":                             state.ErrUnknown,
 		"POST /v1/gauge/sources/github.com/acme/repo:settle": nil, // the verb after the rest of the path
 		"POST /v1/gauge/sources/:settle":                     state.ErrUnknown,
-		"POST /gauge.v1.GaugeService/ListProfiles":           nil, // a Connect call is its method
+		"POST /gauge.v1.GaugeService/ListProfiles":           state.ErrUnknown, // HTTP never borrows a protobuf policy
+		"/gauge.v1.GaugeService/ListProfiles":                nil,              // published Connect uses the procedure
 		"GET /gauge.v1.GaugeService/ListProfiles":            state.ErrUnknown,
 	} {
 		err := k.State.AdmitMethod("gauge", request, read)
@@ -73,5 +75,32 @@ func TestADeliveryReplacesTheFixturesStandIn(t *testing.T) {
 	}
 	if _, err := k.State.ApplyManifest(delivered); !errors.Is(err, state.ErrStale) {
 		t.Fatalf("a delivered module took a manifest of the same generation: %v", err)
+	}
+}
+
+func TestConcreteInventorySelectionPreservesManifestPolicy(t *testing.T) {
+	k := testkit.New(t)
+	m := state.Manifest{Module: "gauge", Principal: "gauge", Kind: "module", Generation: 1, Methods: map[string]state.MethodPolicy{
+		"GET /things/{id}":            {AnyCheckedCaller: true},
+		"GET /things/export":          {Requires: []*basev0.WorkScopeV1{{ResourceKind: "gauge.items", Actions: []string{"write"}}}},
+		"GET /things/{name}":          {AnyCheckedCaller: true},
+		"/gauge.Service/Call":         {AnyCheckedCaller: true},
+		"POST /{service}/{operation}": {Requires: []*basev0.WorkScopeV1{{ResourceKind: "gauge.items", Actions: []string{"write"}}}},
+	}}
+	if _, err := k.State.ApplyManifest(m); err != nil {
+		t.Fatal(err)
+	}
+	r := routing.Routing{Endpoints: []routing.RouteEndpoint{{Audience: "gauge", Transport: "http", Methods: []string{"GET /things/{id}", "POST /{service}/{operation}"}}}}
+	for _, request := range []string{"GET /things/export", "GET /things/item", "POST /gauge.Service/Call"} {
+		_, method, err := r.Resolve("gauge", "http", request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if method != request {
+			t.Fatal("inventory substituted policy")
+		}
+		if err := k.State.AdmitMethod("gauge", method, nil); !errors.Is(err, state.ErrForbidden) {
+			t.Fatalf("%s bypassed manifest: %v", request, err)
+		}
 	}
 }

@@ -115,3 +115,7 @@ shared host requirement. Method admission checks kind/action while preserving
 resource limits for the module's resource check. The hop refuses `ENFORCEMENT=warn`
 unless the SDK identifies the environment as local; advisory conformance is
 explicitly enabled only by the local runner.
+
+HTTP Check uses the concrete verb and canonical path, with literal precedence
+and ambiguity refusal over the delivered manifest. Published Connect calls use
+the protobuf procedure spelling; a dotted HTTP URL cannot borrow gRPC policy.

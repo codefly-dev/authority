@@ -238,16 +238,12 @@ func admitMethod(m Manifest, audience, method string, held []*basev0.WorkScopeV1
 // is for: a declared "<VERB> <template>" whose template matches the path, a
 // "{name}" in it standing for one path segment's text and a "{name=**}" ending
 // it for the rest of the path. Two templates matching one path is an ambiguous
-// declaration, refused rather than guessed between. A Connect call is an HTTP
-// POST whose path is the gRPC method's full name: it is admitted under that
-// method.
+// declaration, refused rather than guessed between. Published Connect calls
+// arrive as their protobuf method name; an HTTP path never borrows gRPC policy.
 func routeOf(methods map[string]MethodPolicy, request string) (MethodPolicy, bool, error) {
 	verb, path, ok := strings.Cut(request, " ")
 	if !ok || !strings.HasPrefix(path, "/") {
 		return MethodPolicy{}, false, nil
-	}
-	if p, ok := methods[path]; ok && verb == "POST" {
-		return p, true, nil
 	}
 	var found []string
 	for declared := range methods {
