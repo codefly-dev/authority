@@ -88,36 +88,42 @@ people:
     roles: []
     teams: []
   - id: maya
+    name: Maya
     email: maya@acme.test
     fixture_token: fixture-maya
     organization: acme
     roles: [viewer]
     teams: [finance]
   - id: remi
+    name: Rémi
     email: remi@acme.test
     fixture_token: fixture-remi
     organization: acme
     roles: [editor]
     teams: [engineering]
   - id: alex
+    name: Alex
     email: alex@acme.test
     fixture_token: fixture-alex
     organization: acme
     roles: [admin]
     teams: [finance, engineering]
   - id: zoe
+    name: Zoë
     email: zoe@globex.test
     fixture_token: fixture-zoe
     organization: globex
     roles: [admin]
     teams: [ops]
   - id: omar
+    name: Omar
     email: omar@globex.test
     fixture_token: fixture-omar
     organization: globex
     roles: []
     teams: [ops]
   - id: dev
+    name: Developer
     email: dev@acme.test
     fixture_token: fixture-dev
     organization: acme

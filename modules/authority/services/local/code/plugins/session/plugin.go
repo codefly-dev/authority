@@ -48,7 +48,7 @@ func (p *Plugin) SignIn(_ context.Context, req *sessionv1.SignInRequest) (*sessi
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}
-	return &sessionv1.Session{SessionId: sess.ID, PersonId: sess.Person, OrganizationId: sess.Organization, Roles: sess.Roles, TeamIds: sess.Teams, Bearer: sess.ID}, nil
+	return &sessionv1.Session{PersonDisplayName: sess.PersonDisplayName, OrganizationDisplayName: sess.OrganizationDisplayName, SessionId: sess.ID, PersonId: sess.Person, OrganizationId: sess.Organization, Roles: sess.Roles, TeamIds: sess.Teams, Bearer: sess.ID}, nil
 }
 
 // New is the registry's constructor: the plugin over what Configure wired.
@@ -63,7 +63,7 @@ func (p *Plugin) Current(ctx context.Context, _ *sessionv1.CurrentRequest) (*ses
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "the bearer names no open session")
 	}
-	return &sessionv1.Session{SessionId: sess.ID, PersonId: sess.Person, OrganizationId: sess.Organization, Roles: sess.Roles, TeamIds: sess.Teams}, nil
+	return &sessionv1.Session{PersonDisplayName: sess.PersonDisplayName, OrganizationDisplayName: sess.OrganizationDisplayName, SessionId: sess.ID, PersonId: sess.Person, OrganizationId: sess.Organization, Roles: sess.Roles, TeamIds: sess.Teams}, nil
 }
 
 // ListFixturePeople answers every fixture person, for the edge's sign-in page.

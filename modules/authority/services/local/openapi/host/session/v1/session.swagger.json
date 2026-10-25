@@ -209,6 +209,14 @@
         "bearer": {
           "type": "string",
           "description": "The credential the person presents on every call as `authorization: Bearer\n\u003cbearer\u003e`; whatever this implementation authenticates a person by. The local\nauthority hands back the session id; the host hands back its access token."
+        },
+        "personDisplayName": {
+          "type": "string",
+          "description": "The person's display name, for the browser session surface."
+        },
+        "organizationDisplayName": {
+          "type": "string",
+          "description": "The signed-in organisation's display name."
         }
       },
       "description": "Session is an open session."

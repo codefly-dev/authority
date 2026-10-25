@@ -224,8 +224,8 @@ staging validated.
 **Rung 1 first; it is the one that matters (owner, 2026-10-21).** The loop:
 
 1. Cut a branch in module-saas-starter. accounts declares in its module
-   interface that it implements `codefly.dev/authority@0.1.0`, `codefly.dev/composition@0.1.0`,
-   `codefly.dev/installation@0.1.0` and `codefly.dev/session@0.1.0`, takes this repo's
+   interface that it implements `codefly.dev/authority@0.2.0`, `codefly.dev/composition@0.1.0`,
+   `codefly.dev/installation@0.1.0` and `codefly.dev/session@0.2.0`, takes this repo's
    protos (bindings via `codefly generate proto`), and serves the four services as
    adapters over what it already has: `Issue` → StartTask / StartInstallationTask /
    the module broker's mint / StartChildSession-ExchangeAudience-Renew by owner
@@ -271,7 +271,7 @@ Gap 7 was a decision, taken on 2026-10-22: the interface carries the host's name
 ## The namespace, settled (2026-10-22)
 
 The interfaces are the host's contract, so they carry the host's names: publisher
-`codefly.dev` (ids `codefly.dev/authority@0.1.0`, `composition`, `installation`,
+`codefly.dev` (ids `codefly.dev/authority@0.2.0`, `composition`, `installation`,
 `installable`, `session`) and protobuf packages `host.authority.v1`,
 `host.composition.v1`, `host.installation.v1`, `host.session.v1` under `proto/host/`.
 Not `codefly.*`: the host's buf configuration excludes a `codefly/` proto directory
@@ -919,3 +919,21 @@ Neither result proves target consent. The
 positive consent relationship and its revocation remain an authority contract
 and implementation gap. No target-consent grant was invented, and Core's
 binding verification was not bypassed to hide it.
+
+## Interface evolution, 2026-10-25
+
+`codefly.dev/authority@0.2.0` is the breaking successor to 0.1.0. Core's
+interface evolution rules require a minor bump below 1.0. Installation Issue
+requires its installed caller's workload credential; an installation ID alone
+is never authority. Workloads name the work item's organization; the local
+sole-installation convenience is not required of other hosts. Advisory Check
+is a local development extension, and the hop rejects warn outside local runs.
+
+`codefly.dev/session@0.2.0` adds person and organization display names to Current
+and SignIn (fields 7 and 8). Missing fields fail conformance. These implement the
+[host interface use cases](https://github.com/obin-ai/handbook/blob/main/design/host-authority-interface/use-cases.md)
+under the existing
+[host interface proposal](https://github.com/obin-ai/handbook/blob/main/proposals/2026-10-22-the-host-authority-interface-and-the-local-authority.md).
+All consumers and implementations must select the updated interface versions;
+this repository updates its module, edge, hop and console declarations. SaaS
+must adopt the version and fields before claiming this contract.

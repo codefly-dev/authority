@@ -110,7 +110,10 @@ export type IssueRequest = Message<"host.authority.v1.IssueRequest"> & {
   operationBindingId: string;
 
   /**
-   * The organisation the work runs in, for an owner shape that does not carry one.
+   * The organisation the work runs in. A workload may leave this empty when
+   * exactly one organisation has an active installation of its module.
+   * Otherwise it must name the organisation of the work item;
+   * absent or ambiguous installation authority is refused with a reason.
    *
    * @generated from field: string organization_id = 9;
    */
@@ -453,6 +456,7 @@ export type CheckRequest = Message<"host.authority.v1.CheckRequest"> & {
    * declares is only reported, in CheckResponse.refusal, and the verified
    * capability is answered. A hop in a composition that runs permissive
    * (hop/ENFORCEMENT=warn) asks this way and logs the refusal it did not make.
+   * Hosts may refuse advisory outside local development runs.
    *
    * @generated from field: bool advisory = 4;
    */

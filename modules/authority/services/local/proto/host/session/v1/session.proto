@@ -81,4 +81,8 @@ message Session {
   // <bearer>`; whatever this implementation authenticates a person by. The local
   // authority hands back the session id; the host hands back its access token.
   string bearer = 6;
+  // The person's display name, for the browser session surface.
+  string person_display_name = 7;
+  // The signed-in organisation's display name.
+  string organization_display_name = 8;
 }

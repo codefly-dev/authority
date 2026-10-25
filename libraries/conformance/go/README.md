@@ -6,8 +6,7 @@ link its own generated package. Both the local authority and Accounts must run
 the same suite against their actual providers.
 
 Required fixture omissions fail. They are fixture failures, not evidence that a
-host implements the behaviour. A skipped interface addition is pending, not a
-pass. Expiry always waits past Core's clock skew; `SlowChecks` remains only for
+host implements the behaviour. Missing interface fields fail, just like missing fixtures. Expiry always waits past Core's clock skew; `SlowChecks` remains only for
 source compatibility. Refusal assertions check the public code and named
 reason; the comparison records the complete returned reason, including any
 implementation prefix.
@@ -32,7 +31,7 @@ providing different labels does not remove an obligation.
 | Delivered method policies and advisory | Signed methods cover required scopes, any checked caller, unmarked and missing methods; local-only `LocalAdvisory` returns the same checked context/revision and the exact refusal, and still rejects an invalid capability. |
 | Solution route policy | Signed GET/POST routes distinguish `requires` from `any_checked_caller`, including template paths and an unknown route. |
 | Delivery and installation lifecycle | Manifest/role ceilings, forward generation, mismatched signed documents, blocked acknowledgement, then team exposure |
-| Session identity and display names | Current verifies person and organization; display names are pending until `Session.person_display_name = 7` and `Session.organization_display_name = 8` exist. No proto was added by this change. |
+| Session identity and display names | Current requires person and organization IDs plus nonempty `Session.person_display_name = 7` and `Session.organization_display_name = 8`. |
 | Revocation and expiry | Revoked delegations and installations stop existing and fresh work; expired capabilities fail after skew. |
 
 `Lifecycle.PauseInstall` pauses the host's real install step, and returns an

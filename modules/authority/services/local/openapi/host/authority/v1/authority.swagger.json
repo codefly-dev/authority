@@ -132,7 +132,7 @@
         },
         "advisory": {
           "type": "boolean",
-          "description": "Advisory asks for the policy decision without its refusal: the capability\nis still verified and refused when it is not sound, but what the method\ndeclares is only reported, in CheckResponse.refusal, and the verified\ncapability is answered. A hop in a composition that runs permissive\n(hop/ENFORCEMENT=warn) asks this way and logs the refusal it did not make."
+          "description": "Advisory asks for the policy decision without its refusal: the capability\nis still verified and refused when it is not sound, but what the method\ndeclares is only reported, in CheckResponse.refusal, and the verified\ncapability is answered. A hop in a composition that runs permissive\n(hop/ENFORCEMENT=warn) asks this way and logs the refusal it did not make.\nHosts may refuse advisory outside local development runs."
         }
       },
       "description": "CheckRequest presents a capability for verification."
@@ -222,7 +222,7 @@
         },
         "organizationId": {
           "type": "string",
-          "description": "The organisation the work runs in. A workload may leave this empty when\nits delivered principal pins a tenant or exactly one organisation has an\nactive installation of its module. Otherwise it must name one organisation;\nabsent or ambiguous installation authority is refused with a reason."
+          "description": "The organisation the work runs in. A workload may leave this empty when\nexactly one organisation has an active installation of its module.\nOtherwise it must name the organisation of the work item;\nabsent or ambiguous installation authority is refused with a reason."
         },
         "actor": {
           "$ref": "#/definitions/v1WorkloadCredential",

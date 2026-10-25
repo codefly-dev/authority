@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1dhost/session/v1/session.proto\x12\x0fhost.session.v1\"\x1a\n\x18ListFixturePeopleRequest\"S\n\x19ListFixturePeopleResponse\x12\x36\n\x06people\x18\x01 \x03(\x0b\x32\x1e.host.session.v1.FixturePersonR\x06people\"\xc1\x01\n\rFixturePerson\x12\x1b\n\tperson_id\x18\x01 \x01(\tR\x08personId\x12\x14\n\x05\x65mail\x18\x02 \x01(\tR\x05\x65mail\x12\'\n\x0forganization_id\x18\x03 \x01(\tR\x0eorganizationId\x12\x14\n\x05roles\x18\x04 \x03(\tR\x05roles\x12\x19\n\x08team_ids\x18\x05 \x03(\tR\x07teamIds\x12#\n\rfixture_token\x18\x06 \x01(\tR\x0c\x66ixtureToken\"\x10\n\x0e\x43urrentRequest\"4\n\rSignInRequest\x12#\n\rfixture_token\x18\x01 \x01(\tR\x0c\x66ixtureToken\"\xb7\x01\n\x07Session\x12\x1d\n\nsession_id\x18\x01 \x01(\tR\tsessionId\x12\x1b\n\tperson_id\x18\x02 \x01(\tR\x08personId\x12\'\n\x0forganization_id\x18\x03 \x01(\tR\x0eorganizationId\x12\x14\n\x05roles\x18\x04 \x03(\tR\x05roles\x12\x19\n\x08team_ids\x18\x05 \x03(\tR\x07teamIds\x12\x16\n\x06\x62\x65\x61rer\x18\x06 \x01(\tR\x06\x62\x65\x61rer2\x86\x02\n\x0eSessionService\x12\x42\n\x06SignIn\x12\x1e.host.session.v1.SignInRequest\x1a\x18.host.session.v1.Session\x12\x44\n\x07\x43urrent\x12\x1f.host.session.v1.CurrentRequest\x1a\x18.host.session.v1.Session\x12j\n\x11ListFixturePeople\x12).host.session.v1.ListFixturePeopleRequest\x1a*.host.session.v1.ListFixturePeopleResponseB+Z)gateway/pkg/gen/host/session/v1;sessionv1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1dhost/session/v1/session.proto\x12\x0fhost.session.v1\"\x1a\n\x18ListFixturePeopleRequest\"S\n\x19ListFixturePeopleResponse\x12\x36\n\x06people\x18\x01 \x03(\x0b\x32\x1e.host.session.v1.FixturePersonR\x06people\"\xc1\x01\n\rFixturePerson\x12\x1b\n\tperson_id\x18\x01 \x01(\tR\x08personId\x12\x14\n\x05\x65mail\x18\x02 \x01(\tR\x05\x65mail\x12\'\n\x0forganization_id\x18\x03 \x01(\tR\x0eorganizationId\x12\x14\n\x05roles\x18\x04 \x03(\tR\x05roles\x12\x19\n\x08team_ids\x18\x05 \x03(\tR\x07teamIds\x12#\n\rfixture_token\x18\x06 \x01(\tR\x0c\x66ixtureToken\"\x10\n\x0e\x43urrentRequest\"4\n\rSignInRequest\x12#\n\rfixture_token\x18\x01 \x01(\tR\x0c\x66ixtureToken\"\xa3\x02\n\x07Session\x12\x1d\n\nsession_id\x18\x01 \x01(\tR\tsessionId\x12\x1b\n\tperson_id\x18\x02 \x01(\tR\x08personId\x12\'\n\x0forganization_id\x18\x03 \x01(\tR\x0eorganizationId\x12\x14\n\x05roles\x18\x04 \x03(\tR\x05roles\x12\x19\n\x08team_ids\x18\x05 \x03(\tR\x07teamIds\x12\x16\n\x06\x62\x65\x61rer\x18\x06 \x01(\tR\x06\x62\x65\x61rer\x12.\n\x13person_display_name\x18\x07 \x01(\tR\x11personDisplayName\x12:\n\x19organization_display_name\x18\x08 \x01(\tR\x17organizationDisplayName2\x86\x02\n\x0eSessionService\x12\x42\n\x06SignIn\x12\x1e.host.session.v1.SignInRequest\x1a\x18.host.session.v1.Session\x12\x44\n\x07\x43urrent\x12\x1f.host.session.v1.CurrentRequest\x1a\x18.host.session.v1.Session\x12j\n\x11ListFixturePeople\x12).host.session.v1.ListFixturePeopleRequest\x1a*.host.session.v1.ListFixturePeopleResponseB+Z)gateway/pkg/gen/host/session/v1;sessionv1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -43,7 +43,7 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_SIGNINREQUEST']._serialized_start=377
   _globals['_SIGNINREQUEST']._serialized_end=429
   _globals['_SESSION']._serialized_start=432
-  _globals['_SESSION']._serialized_end=615
-  _globals['_SESSIONSERVICE']._serialized_start=618
-  _globals['_SESSIONSERVICE']._serialized_end=880
+  _globals['_SESSION']._serialized_end=723
+  _globals['_SESSIONSERVICE']._serialized_start=726
+  _globals['_SESSIONSERVICE']._serialized_end=988
 # @@protoc_insertion_point(module_scope)

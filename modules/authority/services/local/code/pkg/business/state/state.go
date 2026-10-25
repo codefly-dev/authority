@@ -58,6 +58,7 @@ func (r ResourceMatch) Grant() resources.Grant {
 
 // Person is a fixture person.
 type Person struct {
+	Name         string   `yaml:"name"`
 	ID           string   `yaml:"id"`
 	Email        string   `yaml:"email"`
 	FixtureToken string   `yaml:"fixture_token"`
@@ -393,11 +394,13 @@ func (i Installation) AgentPrincipal() string { return i.ID + "/agent" }
 
 // Session is an open sign-in.
 type Session struct {
-	ID           string
-	Person       string
-	Organization string
-	Roles        []string
-	Teams        []string
+	PersonDisplayName       string
+	OrganizationDisplayName string
+	ID                      string
+	Person                  string
+	Organization            string
+	Roles                   []string
+	Teams                   []string
 }
 
 // InstallStep converges one installation. Delivery replay may retry the same
@@ -590,7 +593,11 @@ func (s *State) SignIn(token string) (Session, error) {
 		return Session{}, fmt.Errorf("%w: fixture token", ErrUnknown)
 	}
 	p := s.people[id]
-	sess := Session{ID: uuid.NewString(), Person: p.ID, Organization: p.Organization, Roles: append([]string(nil), p.Roles...), Teams: append([]string(nil), p.Teams...)}
+	name := p.Name
+	if name == "" {
+		name = p.Email
+	}
+	sess := Session{PersonDisplayName: name, OrganizationDisplayName: s.orgs[p.Organization], ID: uuid.NewString(), Person: p.ID, Organization: p.Organization, Roles: append([]string(nil), p.Roles...), Teams: append([]string(nil), p.Teams...)}
 	s.sessions[sess.ID] = sess
 	return sess, nil
 }

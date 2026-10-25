@@ -76,8 +76,8 @@ message IssueRequest {
   // or a child acts through one.
   string operation_binding_id = 8;
   // The organisation the work runs in. A workload may leave this empty when
-  // its delivered principal pins a tenant or exactly one organisation has an
-  // active installation of its module. Otherwise it must name one organisation;
+  // exactly one organisation has an active installation of its module.
+  // Otherwise it must name the organisation of the work item;
   // absent or ambiguous installation authority is refused with a reason.
   string organization_id = 9;
   // The acting workload credential; required with parent_token, delegation,
@@ -189,6 +189,7 @@ message CheckRequest {
   // declares is only reported, in CheckResponse.refusal, and the verified
   // capability is answered. A hop in a composition that runs permissive
   // (hop/ENFORCEMENT=warn) asks this way and logs the refusal it did not make.
+  // Hosts may refuse advisory outside local development runs.
   bool advisory = 4;
 }
 

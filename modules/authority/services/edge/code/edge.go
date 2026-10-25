@@ -310,6 +310,7 @@ func (e *Edge) session(w http.ResponseWriter, r *http.Request) {
 	e.namespaces(r.Context(), bearer, sess.GetOrganizationId(), usable)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"personId": sess.GetPersonId(), "organizationId": sess.GetOrganizationId(), "roles": sess.GetRoles(),
+		"personDisplayName": sess.GetPersonDisplayName(), "organizationDisplayName": sess.GetOrganizationDisplayName(),
 		"installations": usable, "refused": refused,
 	})
 }

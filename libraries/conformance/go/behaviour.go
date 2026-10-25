@@ -31,7 +31,7 @@ func (c *client) sessionDisplayNames(t *testing.T, ctx context.Context, f Fixtur
 		}
 		for _, name := range []string{"person_display_name", "organization_display_name"} {
 			if descriptor.(protoreflect.MessageDescriptor).Fields().ByName(protoreflect.Name(name)) == nil {
-				t.Skip("pending interface addition: host.session.v1.Session needs person_display_name = 7 and organization_display_name = 8")
+				t.Fatal("required interface fields absent: host.session.v1.Session needs person_display_name = 7 and organization_display_name = 8")
 			}
 		}
 		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})

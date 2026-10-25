@@ -41,14 +41,14 @@ func (s *standIn) SignIn(_ context.Context, in *sessionv1.SignInRequest, _ ...gr
 	if in.GetFixtureToken() != "fixture-remi" {
 		return nil, status.Error(codes.NotFound, "no such fixture person")
 	}
-	return &sessionv1.Session{SessionId: "s1", PersonId: "remi", OrganizationId: "acme", Bearer: "remi-session"}, nil
+	return &sessionv1.Session{SessionId: "s1", PersonId: "remi", OrganizationId: "acme", PersonDisplayName: "Rémi", OrganizationDisplayName: "Acme", Bearer: "remi-session"}, nil
 }
 
 func (s *standIn) Current(ctx context.Context, _ *sessionv1.CurrentRequest, _ ...grpc.CallOption) (*sessionv1.Session, error) {
 	if bearerIn(ctx) != "remi-session" {
 		return nil, status.Error(codes.Unauthenticated, "no session")
 	}
-	return &sessionv1.Session{SessionId: "s1", PersonId: "remi", OrganizationId: "acme"}, nil
+	return &sessionv1.Session{SessionId: "s1", PersonId: "remi", OrganizationId: "acme", PersonDisplayName: "Rémi", OrganizationDisplayName: "Acme"}, nil
 }
 
 func (s *standIn) ListFixturePeople(context.Context, *sessionv1.ListFixturePeopleRequest, ...grpc.CallOption) (*sessionv1.ListFixturePeopleResponse, error) {
@@ -212,7 +212,7 @@ func TestAPersonSignsInAtTheEdge(t *testing.T) {
 	res, body := f.do(t, http.MethodGet, "/auth/session", http.Header{"Cookie": {cookie.String()}})
 	var who map[string]any
 	_ = json.Unmarshal([]byte(body), &who)
-	if res.StatusCode != http.StatusOK || who["personId"] != "remi" || who["organizationId"] != "acme" {
+	if res.StatusCode != http.StatusOK || who["personId"] != "remi" || who["organizationId"] != "acme" || who["personDisplayName"] != "Rémi" || who["organizationDisplayName"] != "Acme" {
 		t.Fatalf("session answered %d: %s", res.StatusCode, body)
 	}
 	// What the person may use, which the frontend binds its calls to: records,
