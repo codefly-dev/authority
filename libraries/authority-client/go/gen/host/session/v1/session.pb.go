@@ -6,7 +6,7 @@
 
 // The session interface, at the browser edge: a person signs in and the host
 // opens a session, and a page's runtime asks who the bearer a request carries is.
-// The authority gateway signs in fixture people; the host signs in real ones. A
+// The local authority signs in fixture people; the host signs in real ones. A
 // module never calls this: it is called through the hop.
 
 package sessionv1
@@ -299,11 +299,15 @@ type Session struct {
 	// The teams belonged to.
 	TeamIds []string `protobuf:"bytes,5,rep,name=team_ids,json=teamIds,proto3" json:"team_ids,omitempty"`
 	// The credential the person presents on every call as `authorization: Bearer
-	// <bearer>`; whatever this implementation authenticates a person by. The mini
-	// gateway hands back the session id; the host hands back its access token.
-	Bearer        string `protobuf:"bytes,6,opt,name=bearer,proto3" json:"bearer,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// <bearer>`; whatever this implementation authenticates a person by. The local
+	// authority hands back the session id; the host hands back its access token.
+	Bearer string `protobuf:"bytes,6,opt,name=bearer,proto3" json:"bearer,omitempty"`
+	// The person's display name, for the browser session surface.
+	PersonDisplayName string `protobuf:"bytes,7,opt,name=person_display_name,json=personDisplayName,proto3" json:"person_display_name,omitempty"`
+	// The signed-in organisation's display name.
+	OrganizationDisplayName string `protobuf:"bytes,8,opt,name=organization_display_name,json=organizationDisplayName,proto3" json:"organization_display_name,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *Session) Reset() {
@@ -378,6 +382,20 @@ func (x *Session) GetBearer() string {
 	return ""
 }
 
+func (x *Session) GetPersonDisplayName() string {
+	if x != nil {
+		return x.PersonDisplayName
+	}
+	return ""
+}
+
+func (x *Session) GetOrganizationDisplayName() string {
+	if x != nil {
+		return x.OrganizationDisplayName
+	}
+	return ""
+}
+
 var File_host_session_v1_session_proto protoreflect.FileDescriptor
 
 const file_host_session_v1_session_proto_rawDesc = "" +
@@ -395,7 +413,7 @@ const file_host_session_v1_session_proto_rawDesc = "" +
 	"\rfixture_token\x18\x06 \x01(\tR\ffixtureToken\"\x10\n" +
 	"\x0eCurrentRequest\"4\n" +
 	"\rSignInRequest\x12#\n" +
-	"\rfixture_token\x18\x01 \x01(\tR\ffixtureToken\"\xb7\x01\n" +
+	"\rfixture_token\x18\x01 \x01(\tR\ffixtureToken\"\xa3\x02\n" +
 	"\aSession\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1b\n" +
@@ -403,7 +421,9 @@ const file_host_session_v1_session_proto_rawDesc = "" +
 	"\x0forganization_id\x18\x03 \x01(\tR\x0eorganizationId\x12\x14\n" +
 	"\x05roles\x18\x04 \x03(\tR\x05roles\x12\x19\n" +
 	"\bteam_ids\x18\x05 \x03(\tR\ateamIds\x12\x16\n" +
-	"\x06bearer\x18\x06 \x01(\tR\x06bearer2\xe0\x02\n" +
+	"\x06bearer\x18\x06 \x01(\tR\x06bearer\x12.\n" +
+	"\x13person_display_name\x18\a \x01(\tR\x11personDisplayName\x12:\n" +
+	"\x19organization_display_name\x18\b \x01(\tR\x17organizationDisplayName2\xe0\x02\n" +
 	"\x0eSessionService\x12b\n" +
 	"\x06SignIn\x12\x1e.host.session.v1.SignInRequest\x1a\x18.host.session.v1.Session\"\x1e\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/v1/session:sign-in\x12Y\n" +
 	"\aCurrent\x12\x1f.host.session.v1.CurrentRequest\x1a\x18.host.session.v1.Session\"\x13\x82\xd3\xe4\x93\x02\r\x12\v/v1/session\x12\x8e\x01\n" +

@@ -30,6 +30,7 @@ BINDING_KEY = STAMP_PREFIX + "binding"
 TASK_KEY = STAMP_PREFIX + "task"
 EXPIRES_KEY = STAMP_PREFIX + "expires"
 CONTEXT_KEY = STAMP_PREFIX + "context"
+ADVISORY_KEY = STAMP_PREFIX + "advisory"
 
 
 class NoStamp(Exception):
@@ -58,6 +59,8 @@ class Identity:
     expires: int = 0
     # The Work Context the authority checked, as forwarded.
     context: str = field(default="", repr=False)
+    # The refusal the hop allowed in warning mode.
+    advisory: str = ""
 
     def has(self, kind: str, action: str) -> bool:
         """Whether the call may do action on kind."""
@@ -97,6 +100,7 @@ def read(headers: Mapping[str, str] | Iterable[tuple[str, str]], proof: str) -> 
         task=_first(values, TASK_KEY),
         expires=expires,
         context=context,
+        advisory=_first(values, ADVISORY_KEY),
     )
 
 

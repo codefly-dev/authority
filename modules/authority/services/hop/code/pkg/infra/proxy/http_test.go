@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"hop/pkg/business/decide"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/hop/go"
+	"github.com/codefly-dev/authority/libraries/hop/go/routing"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -29,13 +31,13 @@ func TestAnHTTPRequestIsDecidedThenStampedAndForwarded(t *testing.T) {
 	var decided string
 	h := &HTTP{
 		Proof:     "run-proof",
-		Upstreams: map[string]*url.URL{"model": target},
-		Decide: func(_ context.Context, method string, md metadata.MD) (string, hop.Identity, error) {
+		Upstreams: map[string]*url.URL{target.String(): target},
+		Decide: func(_ context.Context, method string, md metadata.MD) (decide.Decision, error) {
 			decided = method
 			if md.Get(hop.WorkContextKey)[0] != "wc-model" {
 				t.Fatalf("the decision did not read the Work Context header: %v", md)
 			}
-			return "model", hop.Identity{Owner: "remi", OwnerKind: "human", Tenant: "acme", Scopes: []string{"modelservice.profiles:read"}}, nil
+			return decide.Decision{Route: &routing.RouteEndpoint{Address: target.String()}, Module: "model", Identity: hop.Identity{Owner: "remi", OwnerKind: "human", Tenant: "acme", Scopes: []string{"modelservice.profiles:read"}}}, nil
 		},
 	}
 	req := httptest.NewRequest(http.MethodGet, "/v1/model/profiles?x=1", nil)
@@ -60,41 +62,6 @@ func TestAnHTTPRequestIsDecidedThenStampedAndForwarded(t *testing.T) {
 	}
 }
 
-// A Connect call, a POST to the gRPC method's full name, is decided for that
-// name and goes to the module's Connect listener when it has one of its own;
-// a REST call goes to its HTTP listener.
-func TestAConnectCallGoesToTheModulesConnectListener(t *testing.T) {
-	served := map[string]string{}
-	listener := func(name string) *url.URL {
-		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { served[name] = r.URL.Path }))
-		t.Cleanup(s.Close)
-		u, _ := url.Parse(s.URL)
-		return u
-	}
-	var decided []string
-	h := &HTTP{Proof: "p", Upstreams: map[string]*url.URL{"evaluation": listener("rest")}, Connect: map[string]*url.URL{"evaluation": listener("connect")},
-		Decide: func(_ context.Context, method string, _ metadata.MD) (string, hop.Identity, error) {
-			decided = append(decided, method)
-			return "evaluation", hop.Identity{Owner: "remi", Tenant: "acme"}, nil
-		}}
-	for _, path := range []string{"/evaluation.v1.RegistryService/ListRuns", "/v1/evaluation/runs"} {
-		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader("{}"))
-		req.Header.Set(hop.WorkContextKey, "wc")
-		h.ServeHTTP(httptest.NewRecorder(), req)
-	}
-	if served["connect"] != "/evaluation.v1.RegistryService/ListRuns" || served["rest"] != "/v1/evaluation/runs" {
-		t.Fatalf("served %v", served)
-	}
-	if strings.Join(decided, ",") != "POST /evaluation.v1.RegistryService/ListRuns,POST /v1/evaluation/runs" {
-		t.Fatalf("decided %v", decided)
-	}
-	for path, want := range map[string]bool{"/a.b/C": true, "/v1/x": false, "/a.b/C/d": false, "/a.b/": false, "/ab/C": false} {
-		if isMethodPath(path) != want {
-			t.Errorf("isMethodPath(%q) = %v", path, !want)
-		}
-	}
-}
-
 // A refusal is answered in HTTP's words with the decision's reason, and nothing
 // reaches the module.
 func TestAnHTTPRefusalNeverReachesTheModule(t *testing.T) {
@@ -107,9 +74,9 @@ func TestAnHTTPRefusalNeverReachesTheModule(t *testing.T) {
 		codes.PermissionDenied: http.StatusForbidden,
 		codes.Unavailable:      http.StatusServiceUnavailable,
 	} {
-		h := &HTTP{Proof: "p", Upstreams: map[string]*url.URL{"model": target},
-			Decide: func(context.Context, string, metadata.MD) (string, hop.Identity, error) {
-				return "", hop.Identity{}, status.Error(code, "the authority said why")
+		h := &HTTP{Proof: "p", Upstreams: map[string]*url.URL{target.String(): target},
+			Decide: func(context.Context, string, metadata.MD) (decide.Decision, error) {
+				return decide.Decision{}, status.Error(code, "the authority said why")
 			}}
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/model/invoke", nil))

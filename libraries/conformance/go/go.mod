@@ -1,10 +1,10 @@
 module github.com/codefly-dev/authority/libraries/conformance/go
 
-go 1.27.0
+go 1.27.3
 
 require (
 	github.com/codefly-dev/authority/libraries/resources/go v0.0.0-20261023203940-e720ad2851c7
-	github.com/codefly-dev/core v0.19.6-0.20261018051341-b81d92e6feda
+	github.com/codefly-dev/core v0.19.7-0.20261025185759-e501458995d0
 	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12
 )

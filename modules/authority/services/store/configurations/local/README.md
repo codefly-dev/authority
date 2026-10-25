@@ -26,4 +26,4 @@ The keys the postgres agent reads:
 - `POSTGRES_READ_ONLY_PASSWORD` — read-only principal password
 - `POSTGRES_READ_WRITE_PASSWORD` — read-write principal password; the agent
   exports its connection as the `postgres/read-write-connection` secret the
-  gateway reads
+  local authority reads

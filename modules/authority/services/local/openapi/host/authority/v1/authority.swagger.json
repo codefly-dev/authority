@@ -1,0 +1,548 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "host/authority/v1/authority.proto",
+    "description": "The authority interface: what a module or solution calls on its host to be\nissued a Work Context, to have one checked, and to learn the keys it was\nsigned with, and to ask which resources of a kind it covers. Every former spelling (start task, start\ninstallation task, exchange audience, start child, renew, the module broker's\nmints) is Issue with a different `as`.",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "AuthorityService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/v1/authority:check": {
+      "post": {
+        "summary": "Check verifies a presented Work Context for the audience the caller is,\nre-checking the authorization revision and the seal live.",
+        "operationId": "AuthorityService_Check",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CheckResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "CheckRequest presents a capability for verification.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CheckRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AuthorityService"
+        ]
+      }
+    },
+    "/v1/authority:issue": {
+      "post": {
+        "summary": "Issue signs a Work Context for one owner shape, one audience and the scopes\nasked for, bounded by what the owner holds and what the audience declared.\nServed over REST too (POST /v1/authority:issue), for a module with no\ngenerated client of its own, as a Python service: the same request and\nanswer, in JSON.",
+        "operationId": "AuthorityService_Issue",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1IssueResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "IssueRequest names on whose behalf the capability is issued.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1IssueRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AuthorityService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1CheckRequest": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "The capability presented."
+        },
+        "audience": {
+          "type": "string",
+          "description": "The audience the caller is; a capability addressed elsewhere is refused."
+        },
+        "method": {
+          "type": "string",
+          "description": "The method the capability is presented to: \"/package.Service/Method\" for a\ngRPC call, \"\u003cVERB\u003e \u003cpath\u003e\" for an HTTP request (GET /v1/model/profiles),\nmatched against the routes the module declares. When set, the check also\napplies what the audience module's delivery declares for that method, and\nrefuses by name a call that does not hold it, a method that declares\nnothing, and a method the module does not serve."
+        },
+        "advisory": {
+          "type": "boolean",
+          "description": "Advisory asks for the policy decision without its refusal: the capability\nis still verified and refused when it is not sound, but what the method\ndeclares is only reported, in CheckResponse.refusal, and the verified\ncapability is answered. A hop in a composition that runs permissive\n(hop/ENFORCEMENT=warn) asks this way and logs the refusal it did not make.\nHosts may refuse advisory outside local development runs."
+        }
+      },
+      "description": "CheckRequest presents a capability for verification."
+    },
+    "v1CheckResponse": {
+      "type": "object",
+      "properties": {
+        "context": {
+          "$ref": "#/definitions/v1WorkContextV1",
+          "description": "The verified capability."
+        },
+        "authorizationRevision": {
+          "type": "string",
+          "format": "uint64",
+          "description": "The owner's authorization revision as of this check."
+        },
+        "refusal": {
+          "type": "string",
+          "description": "Refusal is what the method's policy would have refused, verbatim, when the\ncheck was advisory and the policy did not hold; empty when it held."
+        }
+      },
+      "description": "CheckResponse is the verified capability."
+    },
+    "v1DelegationRef": {
+      "type": "object",
+      "properties": {
+        "delegationId": {
+          "type": "string",
+          "description": "The delegation's id, as Delegate answered it."
+        }
+      },
+      "description": "DelegationRef names one delegation."
+    },
+    "v1InstallationRef": {
+      "type": "object",
+      "properties": {
+        "installationId": {
+          "type": "string",
+          "description": "The installation id."
+        }
+      },
+      "description": "InstallationRef names an installation acting for itself."
+    },
+    "v1IssueRequest": {
+      "type": "object",
+      "properties": {
+        "person": {
+          "$ref": "#/definitions/v1PersonSession",
+          "description": "The signed-in person making this call, identified by the bearer the call\ncarries; the host opened that session at sign-in."
+        },
+        "workload": {
+          "$ref": "#/definitions/v1WorkloadCredential",
+          "description": "A module's own workload, proving which module it is."
+        },
+        "installation": {
+          "$ref": "#/definitions/v1InstallationRef",
+          "description": "An installation acting for itself, with the scope the organisation consented to.\nactor must authenticate a workload of that installation's solution."
+        },
+        "parentToken": {
+          "type": "string",
+          "description": "One more hop from an existing capability: a child, an exchange or a renewal."
+        },
+        "delegation": {
+          "$ref": "#/definitions/v1DelegationRef",
+          "description": "A delegation a person granted the module acting (actor): the capability\nis owned by that person and carries the delegation on the module's hop.\nNo live capability is presented: the authority re-checks the delegation\nand what its grantor holds now, so a revoked delegation or a lost role\nstops the next issue, and renewing is issuing again."
+        },
+        "audience": {
+          "type": "string",
+          "description": "The module principal that may consume the capability."
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1WorkScopeV1"
+          },
+          "description": "The scopes asked for; empty means everything the owner holds at the audience."
+        },
+        "ttlSeconds": {
+          "type": "string",
+          "format": "int64",
+          "description": "Requested lifetime in seconds; clamped to the issuer's ceiling."
+        },
+        "operationBindingId": {
+          "type": "string",
+          "description": "The declared binding this capability exercises, when the owner is a workload\nor a child acts through one."
+        },
+        "organizationId": {
+          "type": "string",
+          "description": "The organisation the work runs in. A workload may leave this empty when\nexactly one organisation has an active installation of its module.\nOtherwise it must name the organisation of the work item;\nabsent or ambiguous installation authority is refused with a reason."
+        },
+        "actor": {
+          "$ref": "#/definitions/v1WorkloadCredential",
+          "description": "The acting workload credential; required with parent_token, delegation,\nand installation. For installation it must name the installed solution."
+        },
+        "operation": {
+          "type": "string",
+          "description": "Which of the binding's operations the capability is for: \"invoke\" (the\ndefault for a person, a child or a delegation), \"headless\" (the default for\na workload) or \"lookup\": the binding's lookup scopes alone, to read a\nreceipt without the authority to repeat the effect."
+        }
+      },
+      "description": "IssueRequest names on whose behalf the capability is issued."
+    },
+    "v1IssueResponse": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "The signed capability, as a caller presents it."
+        },
+        "expiresAtUnix": {
+          "type": "string",
+          "format": "int64",
+          "description": "When the capability expires."
+        },
+        "context": {
+          "$ref": "#/definitions/v1WorkContextV1",
+          "description": "The decoded capability, for the holder to read its own claims."
+        }
+      },
+      "description": "IssueResponse carries the signed capability and its decoded form."
+    },
+    "v1PersonSession": {
+      "type": "object",
+      "description": "PersonSession names the caller's own session. It carries no field: the person\nis whoever the bearer on the call authenticates as, so a caller cannot ask for\nanother person's authority by naming a session."
+    },
+    "v1WorkActorV1": {
+      "type": "object",
+      "properties": {
+        "principalId": {
+          "type": "string",
+          "description": "principal_id identifies the actor this hop delegated to."
+        },
+        "principalKind": {
+          "type": "string",
+          "description": "principal_kind distinguishes the sort of principal, so a human and an\nagent bearing the same id are not conflated."
+        },
+        "delegationId": {
+          "type": "string",
+          "description": "delegation_id identifies the delegation that produced this hop, so the\nchain stays auditable back to its grant."
+        },
+        "grantedScopes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1WorkScopeV1"
+          },
+          "description": "granted_scopes are this actor's effective scopes, a subset of the\npreceding hop's."
+        },
+        "agentId": {
+          "type": "string",
+          "description": "agent_id is the actor's agent manifest identity. Required when\nprincipal_kind is \"agent\" and absent otherwise."
+        },
+        "organizationId": {
+          "type": "string",
+          "description": "organization_id is the organization this actor belongs to, when it is not\nthe one the task runs in. An org-bridge agent acts in an organization the\nowner does not belong to, and authorization is scoped to the actor's own."
+        },
+        "principalEpoch": {
+          "type": "string",
+          "format": "uint64",
+          "description": "principal_epoch is THIS actor's epoch, distinct from the owner's epoch in\nthe seal. Advancing it invalidates every capability in which this\nprincipal is an actor, without touching the owner's.\n\nIt exists because the seal's epoch is the task owner's, and an actor's\nauthority can be narrowed independently of the owner's: a delegated\noperation context may have a person as its owner and a service principal\nas its actor, and narrowing that service principal must reach the\ncapabilities it acts in. Without this field the only lever for a\ncompromised actor is the tenant's authorization_revision, which cuts off\nevery capability of the tenant.\n\nREQUIRED, for the reason seal gives. A hop with no epoch is a principal\nnothing can revoke, and leaving that expressible on the wire made it a\nshape a consumer could mint without noticing."
+        }
+      },
+      "description": "WorkActorV1 is one verified delegated actor. granted_scopes are the actor's\neffective scopes and must monotonically attenuate the previous hop."
+    },
+    "v1WorkApproverV1": {
+      "type": "object",
+      "properties": {
+        "principalId": {
+          "type": "string",
+          "description": "principal_id identifies the approver."
+        },
+        "principalKind": {
+          "type": "string",
+          "description": "principal_kind distinguishes the sort of principal the approver is."
+        }
+      },
+      "description": "WorkApproverV1 is one principal whose decision produced a grant. It carries\nthe kind as well as the id: a policy that requires a human approver cannot\nbe written against bare identifiers."
+    },
+    "v1WorkContextV1": {
+      "type": "object",
+      "properties": {
+        "typ": {
+          "type": "string",
+          "description": "typ is fixed to \"codefly.work-context/v1\"."
+        },
+        "algorithm": {
+          "type": "string",
+          "description": "algorithm is fixed to \"Ed25519\"."
+        },
+        "keyId": {
+          "type": "string",
+          "description": "key_id selects one public verification key during rotation."
+        },
+        "issuer": {
+          "type": "string",
+          "description": "issuer is the authority that verified identity and minted this context."
+        },
+        "audience": {
+          "type": "string",
+          "description": "audience is the exact service or trust boundary allowed to consume it."
+        },
+        "notBeforeUnix": {
+          "type": "string",
+          "format": "int64",
+          "description": "not_before_unix is the earliest instant a verifier may accept this\ncapability."
+        },
+        "issuedAtUnix": {
+          "type": "string",
+          "format": "int64",
+          "description": "issued_at_unix is when the issuer minted it."
+        },
+        "expiresAtUnix": {
+          "type": "string",
+          "format": "int64",
+          "description": "expires_at_unix is the instant it stops being accepted. Exchanging a\nparent capability for a child one never extends it."
+        },
+        "nonce": {
+          "type": "string",
+          "description": "nonce identifies the capability. Replay behavior is separately explicit."
+        },
+        "authorizationRevision": {
+          "type": "string",
+          "format": "uint64",
+          "description": "authorization_revision is the issuer's current membership/policy revision."
+        },
+        "replayPolicy": {
+          "type": "string",
+          "description": "replay_policy is \"idempotent\" or \"single-use\". A verifier still needs a\ndurable replay store to enforce single-use consumption."
+        },
+        "tenantId": {
+          "type": "string",
+          "description": "tenant_id is the first element of the task identity tuple and is carried\nunchanged across every hop."
+        },
+        "ownerPrincipalId": {
+          "type": "string",
+          "description": "owner_principal_id is the principal on whose authority the task runs. It\nis the delegating owner, not necessarily the current actor."
+        },
+        "taskId": {
+          "type": "string",
+          "description": "task_id completes the task identity tuple and survives child agents."
+        },
+        "sessionId": {
+          "type": "string",
+          "description": "session_id identifies this hop. Starting a child agent mints a new one\nrather than mutating this capability."
+        },
+        "parentSessionId": {
+          "type": "string",
+          "description": "parent_session_id is the session this one was exchanged from; absent on\nthe first session of a task."
+        },
+        "authorityScopes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1WorkScopeV1"
+          },
+          "description": "authority_scopes are the maximum scopes the owner delegated into this\nWork Context. Each actor hop's granted_scopes must be a subset of the\npreceding effective scopes."
+        },
+        "actorChain": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1WorkActorV1"
+          },
+          "description": "actor_chain is ordered from the first delegated actor to the current actor.\nThe owner is not duplicated here merely to make a direct call look uniform.\nEvery hop attenuates the one before it, except the final hop of a\ncapability carrying grant_hop."
+        },
+        "attributionTeamIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "attribution_team_ids is an immutable verified attribution snapshot. It\nexplains ownership; current authorization is still evaluated separately."
+        },
+        "workspaceId": {
+          "type": "string",
+          "description": "workspace_id is the workspace the task runs against, when the task is\nscoped to one."
+        },
+        "projectId": {
+          "type": "string",
+          "description": "project_id narrows workspace_id to a single project, when the task is\nscoped that far."
+        },
+        "ownerPrincipalKind": {
+          "type": "string",
+          "description": "owner_principal_kind distinguishes the sort of principal the owner is, so\na verifier can present the owner without resolving it against a directory.\nOptional on the wire: a capability minted before this field existed is\nstill a valid capability, and an archived receipt embedding one still\nverifies. Deriving an identity from a capability that omits it is the\nerror, raised where the identity is built."
+        },
+        "ownerAgentId": {
+          "type": "string",
+          "description": "owner_agent_id is the owner's agent manifest identity. Required when\nowner_principal_kind is \"agent\" and absent otherwise."
+        },
+        "organizationId": {
+          "type": "string",
+          "description": "organization_id is the organization the task runs in. It is not the\ntenant: a tenant may hold several organizations, and authorization is\nscoped per organization. An actor hop may name a different one."
+        },
+        "grantHop": {
+          "$ref": "#/definitions/v1WorkGrantHopV1",
+          "description": "grant_hop is the approval grant this capability was minted under. It is\nthe one audited exception to the attenuation rule: the final actor hop\nholds exactly granted_scope, which the preceding hop need not contain.\nPresent only on a single-use child capability minted for one approved\ncall; absent on every ordinary session."
+        },
+        "seal": {
+          "$ref": "#/definitions/v1WorkSealV1",
+          "description": "seal binds this capability to one installation and one execution: the\nprincipal's epoch, the installation and revision it was minted for, and\nthe build incarnation it was minted on. A verifier compares every field\nagainst the live value and refuses on any mismatch, which is what stops a\ncapability outliving the installation or the build it was issued against.\n\nREQUIRED. An earlier version of this field was optional, with the stated\nreason that a schema rule would invalidate every archived capability and\nevery receipt embedding one, so the requirement belonged in the verifier.\nTwo independent reviews named that for what it is: a backward-compatibility\nhedge, which the rules in force forbid. It also meant every reader other\nthan the verifier saw a capability's binding to its installation as\noptional, so the strongest check in the model was the easiest one for a\nconsumer to not notice.\n\nArchived capabilities and receipts are historical DATA. If they must be\nread after this, they get a snapshot type of their own rather than keeping\nthe live credential permanently weaker than it should be."
+        },
+        "operationBinding": {
+          "$ref": "#/definitions/v1WorkOperationBindingV1",
+          "description": "operation_binding is the unit of authority this capability exercises,\nsealed by its id, revision and incarnation. Present on an operation\ncontext and absent on a session that exercises none.\n\nThe id is what a verifier looks the binding up by, exactly. Nothing\nsearches the bindings for one that contains the capability's scopes: a\nsearch is a predicate someone wrote, and a predicate one case too\ngenerous grants authority nobody reviewed."
+        }
+      },
+      "description": "WorkContextV1 is the product-neutral identity and authority capability for\none Task/Session hop. The signed wire representation is owned by Codefly\nSDKs; applications must never serialize this message into a bearer token or\nconstruct the transport header themselves.\n\nTask identity is the tuple (tenant_id, owner_principal_id, task_id).\nStarting a child agent keeps that tuple and exchanges the parent capability\nfor a new child session capability. It never mutates an existing capability."
+    },
+    "v1WorkGrantHopV1": {
+      "type": "object",
+      "properties": {
+        "grantId": {
+          "type": "string",
+          "description": "grant_id identifies the approval grant, so revoking the grant and\nauditing the call both reach the same record."
+        },
+        "approvers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1WorkApproverV1"
+          },
+          "description": "approvers are the principals whose decision produced the grant, every one\nof an N-of-M quorum, so the audit record is complete."
+        },
+        "grantedScope": {
+          "$ref": "#/definitions/v1WorkScopeV1",
+          "description": "granted_scope is exactly what the approval added: one resource_kind, one\naction and one resource_id. A grant never widens beyond that triple."
+        },
+        "subject": {
+          "type": "string",
+          "description": "subject is what the grant is pinned to, in the approvals engine's own\nvocabulary, so a grant approved for one subject cannot be spent on another."
+        },
+        "requestDigest": {
+          "type": "string",
+          "description": "request_digest binds the grant to the exact call the approver saw."
+        }
+      },
+      "description": "WorkGrantHopV1 records the approval that justifies a capability holding\nauthority its delegating owner never held. It is minted only as a new child\ncapability bound to one tool, one subject and one call, so the authority it\nadds is unusable anywhere else and expires with the grant window."
+    },
+    "v1WorkOperationBindingV1": {
+      "type": "object",
+      "properties": {
+        "bindingId": {
+          "type": "string",
+          "description": "binding_id is the host's identifier for the binding. The verifier looks it\nup EXACTLY: nothing searches the bindings for one that fits a capability's\nscopes, because a search is a predicate somebody wrote and a predicate one\ncase too generous grants authority nobody reviewed.\n\nThis comment used to say the id \"is never derived from the binding's\ncontents, because a derived id is one a caller can compute for a binding\nit was never granted\". I refuted a review finding against that sentence by\nreading it in isolation and judging it correct. The reviewer was right and\nI was wrong: solutionhost/authority.go says the opposite in the package\nthat owns the id — deriving it deterministically is delivery's business\nand better than random, and \"predictability costs nothing here: an id is\nneither a secret nor a capability\".\n\nPredictability costs nothing because ENTITLEMENT is what refuses a binding\na caller does not hold, not obscurity: the verifier requires the resolved\nbinding to be granted to the exercising principal within the installation\nthe capability is sealed to. Guessing an id gets you a refusal. Resting\nthe rule on unguessability was the retracted reasoning, and leaving it\nhere contradicted the package it describes."
+        },
+        "revision": {
+          "type": "string",
+          "format": "uint64",
+          "description": "revision is the binding's revision at mint time. A verifier holding a\ndifferent revision refuses."
+        },
+        "incarnation": {
+          "type": "string",
+          "format": "uint64",
+          "description": "incarnation is the binding's incarnation at mint time, which changes when\nthe binding is re-established rather than merely revised."
+        }
+      },
+      "description": "WorkOperationBindingV1 is the unit of authority an operation context\nexercises, sealed so that a verifier resolves exactly one binding and\ncompares it rather than deciding which binding the capability's scopes fit."
+    },
+    "v1WorkScopeV1": {
+      "type": "object",
+      "properties": {
+        "resourceKind": {
+          "type": "string",
+          "description": "resource_kind is the class of resource the scope grants against."
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "actions are the operations permitted on that kind."
+        },
+        "resourceIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "resource_ids narrows the scope to specific resources. Empty means every\nresource of resource_kind."
+        }
+      },
+      "description": "WorkScopeV1 is a structured, product-neutral capability scope. Empty\nresource_ids means every resource of resource_kind; a child may narrow that\nwildcard to explicit IDs but may never widen an explicit parent set."
+    },
+    "v1WorkSealV1": {
+      "type": "object",
+      "properties": {
+        "principalEpoch": {
+          "type": "string",
+          "format": "uint64",
+          "description": "principal_epoch is the principal's current epoch. Advancing it\ninvalidates every capability minted for that principal, which is how a\ncompromised principal is cut off without waiting for expiry."
+        },
+        "installationId": {
+          "type": "string",
+          "description": "installation_id identifies one organization's installation of one module.\nAuthority is held through an installation, so a capability that names none\nis bound to nothing."
+        },
+        "installationRevision": {
+          "type": "string",
+          "format": "uint64",
+          "description": "installation_revision is the installation's revision at mint time. A\nverifier holding a different revision refuses: the scope of an\ninstallation changes with its revision, so a capability sealed to an\nearlier one asks for authority under terms that no longer apply."
+        }
+      },
+      "description": "WorkSealV1 binds a capability to one installation and one execution. Its\nprincipal_epoch is the TASK OWNER'S; an actor hop carries its own in\nWorkActorV1.principal_epoch, because an actor's authority is narrowed\nindependently of the owner's. Every\nfield is a value the issuer holds live and the verifier compares exactly, so\na capability minted before an installation was revised, a principal's\nauthority was reset, or a build was replaced stops verifying at that moment\nrather than at its own expiry."
+    },
+    "v1WorkloadCredential": {
+      "type": "object",
+      "properties": {
+        "credential": {
+          "type": "string",
+          "description": "The launcher-signed credential, as core's native issuer writes it."
+        }
+      },
+      "description": "WorkloadCredential proves which module a running process is: the native\nlauncher credential core's workloadidentity defines, signed by the one launcher\nthe host was handed an anchor for."
+    }
+  }
+}

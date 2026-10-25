@@ -21,7 +21,9 @@ import (
 )
 
 // standIn is the authority for one fixture person, Rémi, whose session bearer
-// is "remi-session"; it holds nothing at "secrets".
+// is "remi-session": Acme's records installation is his to use, he holds
+// nothing at "secrets", "wiki" is not installed at Acme, and "down" does not
+// answer.
 type standIn struct {
 	mu     sync.Mutex
 	issued []string
@@ -39,14 +41,14 @@ func (s *standIn) SignIn(_ context.Context, in *sessionv1.SignInRequest, _ ...gr
 	if in.GetFixtureToken() != "fixture-remi" {
 		return nil, status.Error(codes.NotFound, "no such fixture person")
 	}
-	return &sessionv1.Session{SessionId: "s1", PersonId: "remi", OrganizationId: "acme", Bearer: "remi-session"}, nil
+	return &sessionv1.Session{SessionId: "s1", PersonId: "remi", OrganizationId: "acme", PersonDisplayName: "Rémi", OrganizationDisplayName: "Acme", Bearer: "remi-session"}, nil
 }
 
 func (s *standIn) Current(ctx context.Context, _ *sessionv1.CurrentRequest, _ ...grpc.CallOption) (*sessionv1.Session, error) {
 	if bearerIn(ctx) != "remi-session" {
 		return nil, status.Error(codes.Unauthenticated, "no session")
 	}
-	return &sessionv1.Session{SessionId: "s1", PersonId: "remi", OrganizationId: "acme"}, nil
+	return &sessionv1.Session{SessionId: "s1", PersonId: "remi", OrganizationId: "acme", PersonDisplayName: "Rémi", OrganizationDisplayName: "Acme"}, nil
 }
 
 func (s *standIn) ListFixturePeople(context.Context, *sessionv1.ListFixturePeopleRequest, ...grpc.CallOption) (*sessionv1.ListFixturePeopleResponse, error) {
@@ -57,16 +59,28 @@ func (s *standIn) Issue(ctx context.Context, in *authorityv1.IssueRequest, _ ...
 	if bearerIn(ctx) != "remi-session" || in.GetPerson() == nil {
 		return nil, status.Error(codes.Unauthenticated, "no session")
 	}
-	if in.GetAudience() == "secrets" {
+	switch in.GetAudience() {
+	case "secrets":
 		return nil, status.Error(codes.PermissionDenied, "remi holds nothing at secrets")
+	case "wiki":
+		return nil, status.Error(codes.FailedPrecondition, `audience "wiki" is not installed in this organization, so there is no installation to seal the capability to`)
+	case "down":
+		return nil, status.Error(codes.Unavailable, "connection refused")
 	}
 	s.mu.Lock()
 	s.issued = append(s.issued, in.GetAudience())
 	s.mu.Unlock()
-	return &authorityv1.IssueResponse{Token: "wc-" + in.GetAudience(), ExpiresAtUnix: time.Now().Add(5 * time.Minute).Unix()}, nil
+	return &authorityv1.IssueResponse{
+		Token: "wc-" + in.GetAudience(), ExpiresAtUnix: time.Now().Add(5 * time.Minute).Unix(),
+		Context: &authorityv1.WorkContextV1{Seal: &authorityv1.WorkSealV1{InstallationId: recordsInstallation}},
+	}, nil
 }
 
-// List answers Acme's installations: robin active, a solution still pending.
+// recordsInstallation is Acme's installation of records.
+const recordsInstallation = "4f0c5b1e-0000-5000-8000-000000000001"
+
+// List answers Acme's installations, as a host answers an administrator:
+// records active, a solution still pending.
 func (s *standIn) List(ctx context.Context, in *installationv1.ListRequest, _ ...grpc.CallOption) (*installationv1.ListResponse, error) {
 	if bearerIn(ctx) != "remi-session" {
 		return nil, status.Error(codes.Unauthenticated, "no session")
@@ -75,7 +89,7 @@ func (s *standIn) List(ctx context.Context, in *installationv1.ListRequest, _ ..
 		return nil, status.Error(codes.PermissionDenied, "not acme")
 	}
 	return &installationv1.ListResponse{Installations: []*installationv1.Installation{
-		{Id: "4f0c5b1e-0000-5000-8000-000000000001", OrganizationId: "acme", Target: "robin", Status: installationv1.Installation_STATUS_ACTIVE, Namespace: "acme.robin"},
+		{Id: recordsInstallation, OrganizationId: "acme", Target: "records", Status: installationv1.Installation_STATUS_ACTIVE, Namespace: "acme.records"},
 		{Id: "4f0c5b1e-0000-5000-8000-000000000002", OrganizationId: "acme", Target: "proposals", Status: installationv1.Installation_STATUS_PENDING},
 	}}, nil
 }
@@ -198,20 +212,104 @@ func TestAPersonSignsInAtTheEdge(t *testing.T) {
 	res, body := f.do(t, http.MethodGet, "/auth/session", http.Header{"Cookie": {cookie.String()}})
 	var who map[string]any
 	_ = json.Unmarshal([]byte(body), &who)
-	if res.StatusCode != http.StatusOK || who["personId"] != "remi" || who["organizationId"] != "acme" {
+	if res.StatusCode != http.StatusOK || who["personId"] != "remi" || who["organizationId"] != "acme" || who["personDisplayName"] != "Rémi" || who["organizationDisplayName"] != "Acme" {
 		t.Fatalf("session answered %d: %s", res.StatusCode, body)
 	}
-	// What the person's organisation has installed and active, which the
-	// frontend binds its calls to; a pending installation is not usable yet.
+	// What the person may use, which the frontend binds its calls to: records,
+	// with the installation the authority sealed his context to; secrets, which
+	// is installed but where he holds nothing, refused with the authority's reason.
 	installed, _ := who["installations"].([]any)
 	if len(installed) != 1 {
 		t.Fatalf("installations = %v", who["installations"])
 	}
-	if robin, _ := installed[0].(map[string]any); robin["target"] != "robin" || robin["id"] != "4f0c5b1e-0000-5000-8000-000000000001" || robin["namespace"] != "acme.robin" {
-		t.Fatalf("installation = %v", robin)
+	if records, _ := installed[0].(map[string]any); records["target"] != "records" || records["id"] != recordsInstallation || records["namespace"] != "acme.records" {
+		t.Fatalf("installation = %v", records)
+	}
+	if refused, _ := who["refused"].(map[string]any); len(refused) != 1 || !strings.Contains(refused["secrets"].(string), "holds nothing at secrets") {
+		t.Fatalf("refused = %v", who["refused"])
+	}
+	// The Work Context the session read was issued is the one a call presents.
+	if res, _ := f.do(t, http.MethodGet, "/v1/records/types", http.Header{"Cookie": {cookie.String()}}); res.StatusCode != http.StatusOK || len(f.authority.issued) != 1 {
+		t.Fatalf("a call after the session read answered %d, issued %v", res.StatusCode, f.authority.issued)
 	}
 	if res, _ := f.signInAs(t, "nobody", "/", f.edge.URL); res.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("an unknown fixture signed in: %d", res.StatusCode)
+	}
+}
+
+// listing answers List with a fixed error, as a host does that lists an
+// organisation's installations for its admins only, or cannot be reached.
+type listing struct {
+	*standIn
+	err error
+}
+
+func (l listing) List(context.Context, *installationv1.ListRequest, ...grpc.CallOption) (*installationv1.ListResponse, error) {
+	return nil, l.err
+}
+
+// sessionOf reads /auth/session from e as the signed-in cookie.
+func sessionOf(t *testing.T, e *Edge, cookie *http.Cookie) (*httptest.ResponseRecorder, map[string]any) {
+	t.Helper()
+	res := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/auth/session", nil)
+	req.AddCookie(cookie)
+	e.ServeHTTP(res, req)
+	var who map[string]any
+	_ = json.Unmarshal(res.Body.Bytes(), &who)
+	return res, who
+}
+
+// A member is not an administrator: a host refuses them the organisation's
+// installation list, and the session still names what they may use, because
+// that is the authority's Issue, never the list. Only the namespace, which the
+// list alone carries, goes unnamed.
+func TestAMemberSeesWhatTheyHoldWithoutTheAdministratorsList(t *testing.T) {
+	for _, err := range []error{
+		status.Error(codes.PermissionDenied, "requires org admin or owner role"),
+		status.Error(codes.Unavailable, "connection refused"),
+	} {
+		f := newFixture(t)
+		cookie := f.signIn(t)
+		e := &Edge{Sessions: f.authority, Authority: f.authority, Installations: listing{f.authority, err}, Modules: map[string]Module{
+			"records": {Name: "records", REST: mustURL(t, f.rest.URL)},
+		}}
+		res, who := sessionOf(t, e, cookie)
+		installed, _ := who["installations"].([]any)
+		if res.Code != http.StatusOK || len(installed) != 1 {
+			t.Fatalf("with List answering %v the session answered %d: %s", err, res.Code, res.Body)
+		}
+		if records, _ := installed[0].(map[string]any); records["target"] != "records" || records["id"] != recordsInstallation || records["namespace"] != nil {
+			t.Fatalf("installation = %v", records)
+		}
+	}
+}
+
+// Each target the person cannot use is refused by name with the authority's
+// reason: holding nothing there is not the same answer as an organisation that
+// never installed it. An unavailable module is refused without losing the session.
+func TestTheSessionSaysWhyATargetIsNotUsable(t *testing.T) {
+	f := newFixture(t)
+	cookie := f.signIn(t)
+	modules := map[string]Module{
+		"records": {Name: "records", REST: mustURL(t, f.rest.URL)},
+		"secrets": {Name: "secrets", REST: mustURL(t, f.secrets.URL)},
+		"wiki":    {Name: "wiki", REST: mustURL(t, f.secrets.URL)},
+	}
+	res, who := sessionOf(t, &Edge{Sessions: f.authority, Authority: f.authority, Modules: modules}, cookie)
+	refused, _ := who["refused"].(map[string]any)
+	if res.Code != http.StatusOK || len(refused) != 2 {
+		t.Fatalf("session answered %d: %s", res.Code, res.Body)
+	}
+	if reason, _ := refused["secrets"].(string); !strings.Contains(reason, "holds nothing at secrets") {
+		t.Errorf("secrets refused as %q", reason)
+	}
+	if reason, _ := refused["wiki"].(string); !strings.Contains(reason, "not installed") {
+		t.Errorf("wiki refused as %q", reason)
+	}
+	modules["down"] = Module{Name: "down", REST: mustURL(t, f.secrets.URL)}
+	if res, _ := sessionOf(t, &Edge{Sessions: f.authority, Authority: f.authority, Modules: modules}, cookie); res.Code != http.StatusOK || !strings.Contains(res.Body.String(), `"down":"connection refused"`) {
+		t.Fatalf("an authority that does not answer: %d %s", res.Code, res.Body)
 	}
 }
 
@@ -221,8 +319,9 @@ func TestAPersonSignsInAtTheEdge(t *testing.T) {
 func TestTheSignInPageListsTheAuthoritysPeople(t *testing.T) {
 	f := newFixture(t)
 	res, body := f.do(t, http.MethodGet, "/auth/sign-in?return=/records%3Ftab%3Dschemas", nil)
-	if res.StatusCode != http.StatusOK || !strings.Contains(body, "remi@acme.test") || !strings.Contains(body, `value="fixture-remi"`) || !strings.Contains(body, `value="/records?tab=schemas"`) {
-		t.Fatalf("the page answered %d: %s", res.StatusCode, body)
+	data := pageData(t, res, body)
+	if data.Return != "/records?tab=schemas" || len(data.People) != 1 || data.People[0].Email != "remi@acme.test" || data.People[0].FixtureToken != "fixture-remi" {
+		t.Fatalf("the page carries %+v", data)
 	}
 	for _, elsewhere := range []string{"https://elsewhere.test/", "//elsewhere.test/", "/\\elsewhere.test/", "records"} {
 		if res, _ := f.signInAs(t, "fixture-remi", elsewhere, f.edge.URL); res.Header.Get("Location") != "/" {
@@ -332,5 +431,106 @@ func TestAJSONSignInHandsTheBearerBack(t *testing.T) {
 	}
 	if res, _ := f.do(t, http.MethodGet, "/v1/records/types", http.Header{"Authorization": {"Bearer " + answer["bearer"]}}); res.StatusCode != http.StatusOK {
 		t.Fatalf("the bearer handed back does not sign a call: %d", res.StatusCode)
+	}
+}
+
+func TestCacheEvictsOnExpiryAndSignOut(t *testing.T) {
+	f := newFixture(t)
+	now := time.Now()
+	e := &Edge{Authority: f.authority, Now: func() time.Time { return now }}
+	if _, err := e.workContext(context.Background(), "remi-session", "records"); err != nil {
+		t.Fatal(err)
+	}
+	if len(e.held) != 1 {
+		t.Fatal("missing cache")
+	}
+	now = now.Add(time.Hour)
+	// Even a refused refresh must remove old contexts.
+	if _, err := e.workContext(context.Background(), "remi-session", "down"); err == nil {
+		t.Fatal("expected refused target")
+	}
+	if len(e.held) != 0 {
+		t.Fatal("expired context retained")
+	}
+	now = time.Now()
+	if _, err := e.workContext(context.Background(), "remi-session", "records"); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "http://edge.test/auth/sign-out", nil)
+	req.Header.Set("Origin", "http://edge.test")
+	req.AddCookie(&http.Cookie{Name: SessionKey, Value: "remi-session"})
+	e.ServeHTTP(httptest.NewRecorder(), req)
+	if len(e.held) != 0 {
+		t.Fatal("signed-out bearer retained")
+	}
+}
+
+type blockedIssuer struct {
+	*standIn
+	started chan string
+	release chan struct{}
+}
+
+func (s *blockedIssuer) Issue(ctx context.Context, req *authorityv1.IssueRequest, opts ...grpc.CallOption) (*authorityv1.IssueResponse, error) {
+	s.started <- req.GetAudience()
+	<-s.release
+	return s.standIn.Issue(ctx, req, opts...)
+}
+func TestSessionIssuesConcurrently(t *testing.T) {
+	s := &blockedIssuer{standIn: &standIn{}, started: make(chan string, 2), release: make(chan struct{})}
+	e := &Edge{Authority: s, Modules: map[string]Module{"a": {}, "b": {}}}
+	done := make(chan struct{})
+	go func() { e.usable(context.Background(), "remi-session"); close(done) }()
+	defer func() { close(s.release); <-done }()
+	for range 2 {
+		select {
+		case <-s.started:
+		case <-time.After(time.Second):
+			t.Fatal("session issued modules serially")
+		}
+	}
+}
+func TestSignOutFencesAnInflightCacheWrite(t *testing.T) {
+	s := &blockedIssuer{standIn: &standIn{}, started: make(chan string, 1), release: make(chan struct{})}
+	e := &Edge{Authority: s}
+	done := make(chan struct{})
+	go func() { defer close(done); _, _ = e.workContext(context.Background(), "remi-session", "records") }()
+	<-s.started
+	e.evict("remi-session")
+	close(s.release)
+	<-done
+	if len(e.held) != 0 {
+		t.Fatal("inflight issue restored signed-out cache")
+	}
+}
+
+type failingCurrent struct {
+	*standIn
+	failure error
+}
+
+func (s failingCurrent) Current(context.Context, *sessionv1.CurrentRequest, ...grpc.CallOption) (*sessionv1.Session, error) {
+	return nil, s.failure
+}
+func TestSessionOutagePreservesCacheAndReportsTheActualReason(t *testing.T) {
+	for _, code := range []codes.Code{codes.Unavailable, codes.DeadlineExceeded, codes.Internal, codes.Unauthenticated} {
+		t.Run(code.String(), func(t *testing.T) {
+			s := &standIn{}
+			e := &Edge{Authority: s, Sessions: failingCurrent{s, status.Error(code, "Current failed: test reason")}}
+			if _, err := e.workContext(context.Background(), "remi-session", "records"); err != nil {
+				t.Fatal(err)
+			}
+			r := httptest.NewRequest(http.MethodGet, "/auth/session", nil)
+			r.Header.Set("Authorization", "Bearer remi-session")
+			w := httptest.NewRecorder()
+			e.ServeHTTP(w, r)
+			want, cached := http.StatusServiceUnavailable, 1
+			if code == codes.Unauthenticated {
+				want, cached = http.StatusUnauthorized, 0
+			}
+			if w.Code != want || len(e.held) != cached || !strings.Contains(w.Body.String(), "Current failed: test reason") {
+				t.Fatalf("code=%d cache=%d reason=%s", w.Code, len(e.held), w.Body)
+			}
+		})
 	}
 }

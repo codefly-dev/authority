@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
 	"google.golang.org/grpc"
@@ -32,8 +33,16 @@ type Outbound struct {
 	Credential func() (string, error)
 }
 
-// Option shapes one issue: Lookup asks for the binding's lookup scopes alone.
+// Option shapes one issue: Lookup asks for the binding's lookup scopes alone;
+// Scopes narrows what is asked.
 type Option func(*authorityv1.IssueRequest)
+
+// Scopes narrows the issue to what is asked: the authority grants no more than
+// the binding's ceiling and what the owner holds there, and no more than these.
+// No scopes asks for everything the binding allows.
+func Scopes(scopes ...*authorityv1.WorkScopeV1) Option {
+	return func(r *authorityv1.IssueRequest) { r.Scopes = append(r.Scopes, scopes...) }
+}
 
 // Lookup issues for reading a receipt back: the binding's lookup scopes only,
 // never the authority to repeat the effect.
@@ -41,10 +50,6 @@ func Lookup() Option { return func(r *authorityv1.IssueRequest) { r.Operation = 
 
 // ErrNoCaller is ForCaller on a call that did not arrive through the hop.
 var ErrNoCaller = errors.New("hop: no caller to act for: the call carries no checked Work Context")
-
-// ErrNoOrganization is ForModule naming no organisation: a module's own work
-// runs in one, and the authority issues for none other.
-var ErrNoOrganization = errors.New("hop: a module's own Work Context names the organisation its work runs in")
 
 // ForCaller returns ctx carrying a child of the caller's Work Context, issued
 // through binding.
@@ -67,14 +72,21 @@ func (o Outbound) ForCaller(ctx context.Context, binding string, opts ...Option)
 // ForParent is ForCaller for a module that reads the stamp itself: parent is
 // the caller's checked Work Context, the one the stamp's digest binds.
 func (o Outbound) ForParent(ctx context.Context, parent, binding string, opts ...Option) (context.Context, error) {
+	return carried(ctx)(o.IssueForParent(ctx, parent, binding, opts...))
+}
+
+// IssueForParent is ForParent's issue, returned rather than carried: for a
+// caller that holds the Work Context across calls, renewing it before it
+// expires, or reads whom the authority issued it for.
+func (o Outbound) IssueForParent(ctx context.Context, parent, binding string, opts ...Option) (Issued, error) {
 	if parent == "" {
-		return nil, ErrNoCaller
+		return Issued{}, ErrNoCaller
 	}
 	credential, err := o.Credential()
 	if err != nil {
-		return nil, err
+		return Issued{}, err
 	}
-	return o.issue(ctx, binding, &authorityv1.IssueRequest{
+	return o.ask(ctx, binding, &authorityv1.IssueRequest{
 		As:                 &authorityv1.IssueRequest_ParentToken{ParentToken: parent},
 		Actor:              &authorityv1.WorkloadCredential{Credential: credential},
 		OperationBindingId: binding,
@@ -98,35 +110,72 @@ func (o Outbound) ForDelegation(ctx context.Context, delegation, binding string,
 }
 
 // ForModule returns ctx carrying a Work Context for this module's own work in
-// organization, issued through binding. A module working for several
-// organisations asks once for each: a context attests one.
+// organization, issued through binding. An empty organization asks the authority
+// for its sole active installing organization. On a multi-organization host,
+// name the organization of the work item. Ambiguous or absent authority is
+// refused with a reason. Each issued context attests one organization.
 func (o Outbound) ForModule(ctx context.Context, organization, binding string, opts ...Option) (context.Context, error) {
-	if strings.TrimSpace(organization) == "" {
-		return nil, ErrNoOrganization
-	}
+	return carried(ctx)(o.IssueForModule(ctx, organization, binding, opts...))
+}
+
+// IssueForModule is ForModule's issue, returned rather than carried, as
+// IssueForParent is ForParent's.
+func (o Outbound) IssueForModule(ctx context.Context, organization, binding string, opts ...Option) (Issued, error) {
 	credential, err := o.Credential()
 	if err != nil {
-		return nil, err
+		return Issued{}, err
 	}
-	return o.issue(ctx, binding, &authorityv1.IssueRequest{
+	return o.ask(ctx, binding, &authorityv1.IssueRequest{
 		As:                 &authorityv1.IssueRequest_Workload{Workload: &authorityv1.WorkloadCredential{Credential: credential}},
 		OrganizationId:     organization,
 		OperationBindingId: binding,
 	}, opts...)
 }
 
+// Issued is what the authority issued for one ask: the Work Context a call
+// carries, the instant it expires, and whom the authority says it is for. It
+// is the authority's answer as given; the caller decodes nothing.
+type Issued struct {
+	Token     string
+	ExpiresAt time.Time
+	Context   *authorityv1.WorkContextV1
+}
+
+// Carry returns ctx carrying the issued Work Context in its outgoing gRPC
+// metadata, keeping every other outgoing key.
+func (i Issued) Carry(ctx context.Context) context.Context {
+	md, _ := metadata.FromOutgoingContext(ctx)
+	md = md.Copy()
+	md.Set(WorkContextKey, i.Token)
+	return metadata.NewOutgoingContext(ctx, md)
+}
+
+// carried is an issue's answer as a For* method gives it: ctx carrying what
+// was issued, or the refusal.
+func carried(ctx context.Context) func(Issued, error) (context.Context, error) {
+	return func(issued Issued, err error) (context.Context, error) {
+		if err != nil {
+			return nil, err
+		}
+		return issued.Carry(ctx), nil
+	}
+}
+
 func (o Outbound) issue(ctx context.Context, binding string, req *authorityv1.IssueRequest, opts ...Option) (context.Context, error) {
+	return carried(ctx)(o.ask(ctx, binding, req, opts...))
+}
+
+// ask is the one call every issue makes. The authority's refusal keeps its
+// gRPC status in the chain (errors.As finds it), and names the binding.
+func (o Outbound) ask(ctx context.Context, binding string, req *authorityv1.IssueRequest, opts ...Option) (Issued, error) {
 	for _, opt := range opts {
 		opt(req)
 	}
 	issued, err := o.Authority.Issue(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf("hop: the authority refused to issue through binding %q: %w", binding, err)
+		return Issued{}, fmt.Errorf("hop: the authority refused to issue through binding %q: %w", binding, err)
 	}
-	md, _ := metadata.FromOutgoingContext(ctx)
-	md = md.Copy()
-	md.Set(WorkContextKey, issued.GetToken())
-	return metadata.NewOutgoingContext(ctx, md), nil
+	return Issued{Token: issued.GetToken(), ExpiresAt: time.Unix(issued.GetExpiresAtUnix(), 0), Context: issued.GetContext()}, nil
 }
 
 // WorkloadTokenFile is where a run names the file holding this workload's
@@ -140,13 +189,23 @@ func RunCredential() (string, error) {
 	if path == "" {
 		return "", fmt.Errorf("hop: %s is not set: the run attests no credential for this workload (declare module-identity)", WorkloadTokenFile)
 	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", fmt.Errorf("hop: read this workload's credential: %w", err)
+	return FileCredential(path)()
+}
+
+// FileCredential reads this workload's credential from path on every call, so
+// a rotation of the projected file takes effect: for a caller that resolved
+// where the run projects it once, at boot, rather than from the environment
+// on each call.
+func FileCredential(path string) func() (string, error) {
+	return func() (string, error) {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return "", fmt.Errorf("hop: read this workload's credential at %s (declare module-identity): %w", path, err)
+		}
+		credential := strings.TrimSpace(string(data))
+		if credential == "" {
+			return "", fmt.Errorf("hop: this workload's credential at %s is empty", path)
+		}
+		return credential, nil
 	}
-	credential := strings.TrimSpace(string(data))
-	if credential == "" {
-		return "", fmt.Errorf("hop: this workload's credential at %s is empty", path)
-	}
-	return credential, nil
 }

@@ -51,10 +51,13 @@ type IssueRequest struct {
 	// The declared binding this capability exercises, when the owner is a workload
 	// or a child acts through one.
 	OperationBindingId string `protobuf:"bytes,8,opt,name=operation_binding_id,json=operationBindingId,proto3" json:"operation_binding_id,omitempty"`
-	// The organisation the work runs in, for an owner shape that does not carry one.
+	// The organisation the work runs in. A workload may leave this empty when
+	// exactly one organisation has an active installation of its module.
+	// Otherwise it must name the organisation of the work item;
+	// absent or ambiguous installation authority is refused with a reason.
 	OrganizationId string `protobuf:"bytes,9,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"`
-	// The actor a child hop delegates to, as a workload credential; required with
-	// parent_token and with delegation.
+	// The acting workload credential; required with parent_token, delegation,
+	// and installation. For installation it must name the installed solution.
 	Actor *WorkloadCredential `protobuf:"bytes,10,opt,name=actor,proto3" json:"actor,omitempty"`
 	// Which of the binding's operations the capability is for: "invoke" (the
 	// default for a person, a child or a delegation), "headless" (the default for
@@ -213,6 +216,7 @@ type IssueRequest_Workload struct {
 
 type IssueRequest_Installation struct {
 	// An installation acting for itself, with the scope the organisation consented to.
+	// actor must authenticate a workload of that installation's solution.
 	Installation *InstallationRef `protobuf:"bytes,3,opt,name=installation,proto3,oneof"`
 }
 
@@ -802,7 +806,14 @@ type CheckRequest struct {
 	// applies what the audience module's delivery declares for that method, and
 	// refuses by name a call that does not hold it, a method that declares
 	// nothing, and a method the module does not serve.
-	Method        string `protobuf:"bytes,3,opt,name=method,proto3" json:"method,omitempty"`
+	Method string `protobuf:"bytes,3,opt,name=method,proto3" json:"method,omitempty"`
+	// Advisory asks for the policy decision without its refusal: the capability
+	// is still verified and refused when it is not sound, but what the method
+	// declares is only reported, in CheckResponse.refusal, and the verified
+	// capability is answered. A hop in a composition that runs permissive
+	// (hop/ENFORCEMENT=warn) asks this way and logs the refusal it did not make.
+	// Hosts may refuse advisory outside local development runs.
+	Advisory      bool `protobuf:"varint,4,opt,name=advisory,proto3" json:"advisory,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -858,6 +869,13 @@ func (x *CheckRequest) GetMethod() string {
 	return ""
 }
 
+func (x *CheckRequest) GetAdvisory() bool {
+	if x != nil {
+		return x.Advisory
+	}
+	return false
+}
+
 // CheckResponse is the verified capability.
 type CheckResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -865,8 +883,11 @@ type CheckResponse struct {
 	Context *WorkContextV1 `protobuf:"bytes,1,opt,name=context,proto3" json:"context,omitempty"`
 	// The owner's authorization revision as of this check.
 	AuthorizationRevision uint64 `protobuf:"varint,2,opt,name=authorization_revision,json=authorizationRevision,proto3" json:"authorization_revision,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	// Refusal is what the method's policy would have refused, verbatim, when the
+	// check was advisory and the policy did not hold; empty when it held.
+	Refusal       string `protobuf:"bytes,3,opt,name=refusal,proto3" json:"refusal,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CheckResponse) Reset() {
@@ -911,6 +932,13 @@ func (x *CheckResponse) GetAuthorizationRevision() uint64 {
 		return x.AuthorizationRevision
 	}
 	return 0
+}
+
+func (x *CheckResponse) GetRefusal() string {
+	if x != nil {
+		return x.Refusal
+	}
+	return ""
 }
 
 // KeysRequest asks for the verification keys.
@@ -1367,14 +1395,16 @@ const file_host_authority_v1_authority_proto_rawDesc = "" +
 	"\rIssueResponse\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12&\n" +
 	"\x0fexpires_at_unix\x18\x02 \x01(\x03R\rexpiresAtUnix\x12:\n" +
-	"\acontext\x18\x03 \x01(\v2 .host.authority.v1.WorkContextV1R\acontext\"X\n" +
+	"\acontext\x18\x03 \x01(\v2 .host.authority.v1.WorkContextV1R\acontext\"t\n" +
 	"\fCheckRequest\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12\x1a\n" +
 	"\baudience\x18\x02 \x01(\tR\baudience\x12\x16\n" +
-	"\x06method\x18\x03 \x01(\tR\x06method\"\x82\x01\n" +
+	"\x06method\x18\x03 \x01(\tR\x06method\x12\x1a\n" +
+	"\badvisory\x18\x04 \x01(\bR\badvisory\"\x9c\x01\n" +
 	"\rCheckResponse\x12:\n" +
 	"\acontext\x18\x01 \x01(\v2 .host.authority.v1.WorkContextV1R\acontext\x125\n" +
-	"\x16authorization_revision\x18\x02 \x01(\x04R\x15authorizationRevision\"\r\n" +
+	"\x16authorization_revision\x18\x02 \x01(\x04R\x15authorizationRevision\x12\x18\n" +
+	"\arefusal\x18\x03 \x01(\tR\arefusal\"\r\n" +
 	"\vKeysRequest\"X\n" +
 	"\fKeysResponse\x12\x16\n" +
 	"\x06issuer\x18\x01 \x01(\tR\x06issuer\x120\n" +

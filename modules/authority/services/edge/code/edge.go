@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -41,8 +42,11 @@ type Sessions interface {
 	ListFixturePeople(ctx context.Context, in *sessionv1.ListFixturePeopleRequest, opts ...grpc.CallOption) (*sessionv1.ListFixturePeopleResponse, error)
 }
 
-// Installations is the installation interface's List: what the person's
-// organisation has installed, which a frontend binds its calls to.
+// Installations is the installation interface's List: an administrator's read
+// of what one organisation has installed, which a host refuses a member. The
+// edge never decides from it who may use an installation (that is Issue, see
+// session); it reads from it only the namespace an installation's authored
+// content belongs to, which no member's read carries yet.
 type Installations interface {
 	List(ctx context.Context, in *installationv1.ListRequest, opts ...grpc.CallOption) (*installationv1.ListResponse, error)
 }
@@ -71,13 +75,17 @@ type Edge struct {
 	Frontend *url.URL
 	Now      func() time.Time
 
-	mu   sync.Mutex
-	held map[[32]byte]held
+	mu              sync.Mutex
+	held            map[[32]byte]held
+	cacheGeneration uint64
 }
 
 type held struct {
-	token string
-	renew time.Time
+	bearer [32]byte
+	token  string
+	// installation is the installation the authority sealed the context to.
+	installation string
+	renew        time.Time
 }
 
 func (e *Edge) now() time.Time {
@@ -97,6 +105,10 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	case "/auth/sign-out":
 		e.signOut(w, r)
+		return
+	}
+	if strings.HasPrefix(r.URL.Path, "/auth/assets/") {
+		e.signInAsset(w, r)
 		return
 	}
 	if module, target, ok := e.route(r.URL.Path); ok {
@@ -144,7 +156,7 @@ func (e *Edge) toModule(w http.ResponseWriter, r *http.Request, module Module, t
 		refuse(w, http.StatusForbidden, "a write must come from this origin")
 		return
 	}
-	token, err := e.workContext(r.Context(), bearer, module.Name)
+	wc, err := e.workContext(r.Context(), bearer, module.Name)
 	if err != nil {
 		code := http.StatusForbidden
 		if status.Code(err) == codes.Unauthenticated {
@@ -153,18 +165,24 @@ func (e *Edge) toModule(w http.ResponseWriter, r *http.Request, module Module, t
 		refuse(w, code, "the authority refused this person at "+module.Name+": "+status.Convert(err).Message())
 		return
 	}
-	proxy(target, token, w, r)
+	proxy(target, wc.token, w, r)
 }
 
 // workContext is the person's Work Context at module, issued by the authority
 // for everything the person holds there and held until shortly before it
 // lapses. The hop narrows each call to what its method requires.
-func (e *Edge) workContext(ctx context.Context, bearer, module string) (string, error) {
+func (e *Edge) workContext(ctx context.Context, bearer, module string) (held, error) {
 	key := sha256.Sum256([]byte(bearer + "\x00" + module))
 	e.mu.Lock()
+	for key, h := range e.held {
+		if !e.now().Before(h.renew) {
+			delete(e.held, key)
+		}
+	}
+	generation := e.cacheGeneration
 	if h, ok := e.held[key]; ok && e.now().Before(h.renew) {
 		e.mu.Unlock()
-		return h.token, nil
+		return h, nil
 	}
 	e.mu.Unlock()
 	ctx, cancel := context.WithTimeout(metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+bearer), 10*time.Second)
@@ -174,23 +192,26 @@ func (e *Edge) workContext(ctx context.Context, bearer, module string) (string, 
 		Audience: module,
 	})
 	if err != nil {
-		return "", err
+		return held{}, err
 	}
 	if issued.GetToken() == "" {
-		return "", status.Error(codes.Internal, "the authority issued no Work Context")
+		return held{}, status.Error(codes.Internal, "the authority issued no Work Context")
 	}
 	expires := time.Unix(issued.GetExpiresAtUnix(), 0)
 	lead := expires.Sub(e.now()) / 2
 	if lead > 30*time.Second {
 		lead = 30 * time.Second
 	}
+	h := held{bearer: sha256.Sum256([]byte(bearer)), token: issued.GetToken(), installation: issued.GetContext().GetSeal().GetInstallationId(), renew: expires.Add(-lead)}
 	e.mu.Lock()
 	if e.held == nil {
 		e.held = map[[32]byte]held{}
 	}
-	e.held[key] = held{token: issued.GetToken(), renew: expires.Add(-lead)}
+	if generation == e.cacheGeneration && e.now().Before(h.renew) {
+		e.held[key] = h
+	}
 	e.mu.Unlock()
-	return issued.GetToken(), nil
+	return h, nil
 }
 
 func (e *Edge) signIn(w http.ResponseWriter, r *http.Request) {
@@ -258,6 +279,8 @@ func (e *Edge) signOut(w http.ResponseWriter, r *http.Request) {
 		refuse(w, http.StatusForbidden, "a sign-out must come from this origin")
 		return
 	}
+	bearer, _ := bearerOf(r)
+	e.evict(bearer)
 	http.SetCookie(w, &http.Cookie{Name: SessionKey, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -279,27 +302,85 @@ func (e *Edge) session(w http.ResponseWriter, r *http.Request) {
 	}
 	sess, err := e.Sessions.Current(metadata.AppendToOutgoingContext(r.Context(), "authorization", "Bearer "+bearer), &sessionv1.CurrentRequest{})
 	if err != nil {
-		refuse(w, http.StatusUnauthorized, "the authority knows no session for this bearer")
+		if status.Code(err) == codes.Unauthenticated {
+			e.evict(bearer)
+			refuse(w, http.StatusUnauthorized, status.Convert(err).Message())
+		} else {
+			refuse(w, http.StatusServiceUnavailable, "the authority could not answer Current: "+status.Convert(err).Message())
+		}
 		return
 	}
-	answer := map[string]any{"personId": sess.GetPersonId(), "organizationId": sess.GetOrganizationId(), "roles": sess.GetRoles(), "installations": []installation{}}
-	if e.Installations != nil {
-		listed, err := e.Installations.List(metadata.AppendToOutgoingContext(r.Context(), "authorization", "Bearer "+bearer), &installationv1.ListRequest{OrganizationId: sess.GetOrganizationId()})
-		if err != nil {
-			refuse(w, http.StatusBadGateway, "the authority did not list "+sess.GetOrganizationId()+"'s installations: "+status.Convert(err).Message())
-			return
-		}
-		var active []installation
-		for _, i := range listed.GetInstallations() {
-			if i.GetStatus() == installationv1.Installation_STATUS_ACTIVE {
-				active = append(active, installation{ID: i.GetId(), Target: i.GetTarget(), Namespace: i.GetNamespace()})
-			}
-		}
-		if active != nil {
-			answer["installations"] = active
+	usable, refused := e.usable(r.Context(), bearer)
+	e.namespaces(r.Context(), bearer, sess.GetOrganizationId(), usable)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"personId": sess.GetPersonId(), "organizationId": sess.GetOrganizationId(), "roles": sess.GetRoles(),
+		"personDisplayName": sess.GetPersonDisplayName(), "organizationDisplayName": sess.GetOrganizationDisplayName(),
+		"installations": usable, "refused": refused,
+	})
+}
+
+// evict drops this bearer's cached authority and fences in-flight cache writes.
+func (e *Edge) evict(bearer string) {
+	digest := sha256.Sum256([]byte(bearer))
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.cacheGeneration++
+	for key, h := range e.held {
+		if h.bearer == digest || !e.now().Before(h.renew) {
+			delete(e.held, key)
 		}
 	}
-	writeJSON(w, http.StatusOK, answer)
+}
+
+// usable asks each target independently. Every failure retains its named reason
+// without hiding the session or waiting serially for each target's timeout.
+func (e *Edge) usable(ctx context.Context, bearer string) ([]installation, map[string]string) {
+	type result struct {
+		name string
+		wc   held
+		err  error
+	}
+	results := make(chan result, len(e.Modules))
+	for name := range e.Modules {
+		go func() { wc, err := e.workContext(ctx, bearer, name); results <- result{name, wc, err} }()
+	}
+	usable, refused := []installation{}, map[string]string{}
+	for range e.Modules {
+		r := <-results
+		if r.err != nil {
+			refused[r.name] = status.Convert(r.err).Message()
+			continue
+		}
+		if r.wc.installation == "" {
+			refused[r.name] = "the authority sealed the person's Work Context at " + r.name + " to no installation"
+			continue
+		}
+		usable = append(usable, installation{ID: r.wc.installation, Target: r.name})
+	}
+	sort.Slice(usable, func(i, j int) bool { return usable[i].Target < usable[j].Target })
+	return usable, refused
+}
+
+// namespaces names the namespace of each usable installation from List, the
+// one read that carries it. List is an administrator's read, so for anyone a
+// host refuses it to the namespace stays unnamed, and a frontend that needs one
+// says so rather than guess it. Nothing about who may use an installation is
+// read here. A stopgap until a member's read carries the namespace.
+func (e *Edge) namespaces(ctx context.Context, bearer, organization string, usable []installation) {
+	if e.Installations == nil || len(usable) == 0 {
+		return
+	}
+	listed, err := e.Installations.List(metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+bearer), &installationv1.ListRequest{OrganizationId: organization})
+	if err != nil {
+		return
+	}
+	named := map[string]string{}
+	for _, i := range listed.GetInstallations() {
+		named[i.GetId()] = i.GetNamespace()
+	}
+	for i := range usable {
+		usable[i].Namespace = named[usable[i].ID]
+	}
 }
 
 // installation is one installation a frontend may bind a call to: its id, the

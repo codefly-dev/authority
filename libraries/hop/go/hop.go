@@ -15,6 +15,7 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"errors"
+	"github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
 	"strconv"
 	"strings"
 
@@ -48,6 +49,10 @@ const (
 	// the digest of the forwarded token. A module reading that token's claims
 	// reads exactly what was checked, and nothing a caller swapped in after.
 	ContextKey = StampPrefix + "context"
+	// AdvisoryKey carries what the authority would have refused when the hop
+	// runs permissive (hop/ENFORCEMENT=warn): the call went through, this says
+	// why it would not have. Empty, or absent, when nothing was refused.
+	AdvisoryKey = StampPrefix + "advisory"
 )
 
 // Identity is who a call is for, as the hop established it.
@@ -69,6 +74,9 @@ type Identity struct {
 	// that needs its full claims decodes them from it without verifying again:
 	// the stamp's proof and digest are what vouch for it.
 	Context string
+	// Advisory is what the authority would have refused, when the hop let the
+	// call through anyway (permissive mode); "" when the call was admitted.
+	Advisory string
 }
 
 // Has reports whether the identity may do action on kind.
@@ -113,6 +121,9 @@ func Stamp(md metadata.MD, id Identity, proof string) {
 	if id.Expires > 0 {
 		md.Set(ExpiresKey, strconv.FormatInt(id.Expires, 10))
 	}
+	if id.Advisory != "" {
+		md.Set(AdvisoryKey, id.Advisory)
+	}
 	if token := first(md, WorkContextKey); token != "" {
 		md.Set(ContextKey, digest(token))
 	}
@@ -139,12 +150,13 @@ func Read(md metadata.MD, proof string) (Identity, error) {
 	}
 	id.Actors = split(first(md, ActorsKey))
 	id.Scopes = split(first(md, ScopesKey))
+	id.Advisory = first(md, AdvisoryKey)
 	if bound := first(md, ContextKey); bound != "" {
-		tokens := md.Get(WorkContextKey)
-		if len(tokens) != 1 || subtle.ConstantTimeCompare([]byte(digest(tokens[0])), []byte(bound)) != 1 {
+		token, err := stamp.Context(md, proof)
+		if err != nil {
 			return Identity{}, ErrNoStamp
 		}
-		id.Context = tokens[0]
+		id.Context = token
 	}
 	return id, nil
 }

@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/codefly-dev/authority/libraries/authority-client/go/host"
 	"log"
 	"net/http"
 	"net/url"
@@ -18,8 +19,6 @@ import (
 	sessionv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/session/v1"
 	"github.com/codefly-dev/core/resources"
 	codefly "github.com/codefly-dev/sdk-go"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -47,8 +46,8 @@ func main() {
 	_ = srv.Shutdown(context.Background())
 }
 
-// compose reads the edge's composition: its own listener, the authority it
-// depends on, and the modules it routes to. The edge group names the modules
+// compose reads the edge's composition: its own listener, the host it depends
+// on (host.go), and the modules it routes to. The edge group names the modules
 // (MODULES) and, per module, its REST face (<MODULE>_REST), its Connect face
 // (<MODULE>_CONNECT) and the RPC services the Connect face serves
 // (<MODULE>_RPC); FRONTEND is what every other path serves. Each address is an
@@ -62,14 +61,11 @@ func compose(ctx context.Context) (*Edge, int, func(), error) {
 	if err != nil || self == nil || self.Port == 0 {
 		return nil, 0, nil, fmt.Errorf("edge: this service's http endpoint is not resolved: %v", err)
 	}
-	authority, err := codefly.For(ctx).Module("authority").Service("gateway").API("grpc").ResolveNetworkInstance()
-	if err != nil || authority == nil {
-		return nil, 0, nil, fmt.Errorf("edge: the authority (authority/gateway) is not resolved: %v", err)
-	}
-	conn, err := grpc.NewClient(authority.Host, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, at, err := host.Dial(ctx)
 	if err != nil {
-		return nil, 0, nil, err
+		return nil, 0, nil, fmt.Errorf("edge: %w", err)
 	}
+	log.Printf("edge: the host is at %s", at)
 	edge := &Edge{Sessions: sessionv1.NewSessionServiceClient(conn), Authority: authorityv1.NewAuthorityServiceClient(conn), Installations: installationv1.NewInstallationServiceClient(conn), Modules: map[string]Module{}}
 	value := func(key string) string {
 		v, _ := codefly.For(ctx).WorkspaceConfiguration("edge", key)

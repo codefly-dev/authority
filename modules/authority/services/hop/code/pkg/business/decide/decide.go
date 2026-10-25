@@ -6,7 +6,9 @@ package decide
 
 import (
 	"context"
+	"github.com/codefly-dev/authority/libraries/hop/go/routing"
 	"slices"
+	"strings"
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
 	"github.com/codefly-dev/authority/libraries/hop/go"
@@ -27,9 +29,26 @@ type Checker interface {
 // context's audience, unverified, and the authority's Check verifies that
 // audience and that the module serves the method. A context addressed to a
 // module the hop does not front is refused before the authority is asked.
+type Decision struct {
+	Module   string
+	Identity hop.Identity
+	// Route is the destination; the authority checks the actual HTTP request.
+	Route *routing.RouteEndpoint
+}
+
 type Decider struct {
+	Routes    *routing.Routing
 	Authority Checker
 	Modules   map[string]bool
+	// Permissive is hop/ENFORCEMENT=warn: the authority is asked for advice,
+	// verifies the Work Context as always, and answers what the method's
+	// policy would have refused beside the verified identity; the call goes
+	// through stamped with that identity and the refusal as its advisory,
+	// which the hop also logs. An unsound or missing Work Context is still
+	// refused. The composition says so; a cell never does.
+	Permissive bool
+	// Warned is told each policy refusal the permissive hop let through.
+	Warned func(method string, err error)
 	// AudienceOf reads the module a token is addressed to; nil decodes it with
 	// core, unverified, which is all the hop needs before the authority checks.
 	AudienceOf func(token string) (string, error)
@@ -44,14 +63,22 @@ func coreAudience(token string) (string, error) {
 }
 
 // Decide returns the module a call is for and who it acts for, or the refusal.
-func (d Decider) Decide(ctx context.Context, method string, md metadata.MD) (string, hop.Identity, error) {
+// Permissive changes one answer only: the authority verified the Work Context
+// and the method's policy would have refused it (decide's advisory path). A
+// call whose Work Context is missing, unsound or addressed elsewhere, or that
+// the authority could not be asked about, is refused in either mode.
+func (d Decider) Decide(ctx context.Context, method string, md metadata.MD) (Decision, error) {
+	return d.decide(ctx, method, md)
+}
+
+func (d Decider) decide(ctx context.Context, method string, md metadata.MD) (Decision, error) {
 	tokens := md.Get(hop.WorkContextKey)
 	switch len(tokens) {
 	case 0:
-		return "", hop.Identity{}, status.Errorf(codes.Unauthenticated, "the call to %s carries no Work Context; the hop lets through only a call the authority checked", method)
+		return Decision{}, status.Errorf(codes.Unauthenticated, "the call to %s carries no Work Context; the hop lets through only a call the authority checked", method)
 	case 1:
 	default:
-		return "", hop.Identity{}, status.Errorf(codes.InvalidArgument, "the call to %s carries %d Work Contexts; exactly one says who it is for", method, len(tokens))
+		return Decision{}, status.Errorf(codes.InvalidArgument, "the call to %s carries %d Work Contexts; exactly one says who it is for", method, len(tokens))
 	}
 	audienceOf := d.AudienceOf
 	if audienceOf == nil {
@@ -59,20 +86,36 @@ func (d Decider) Decide(ctx context.Context, method string, md metadata.MD) (str
 	}
 	module, err := audienceOf(tokens[0])
 	if err != nil {
-		return "", hop.Identity{}, status.Errorf(codes.Unauthenticated, "the call to %s carries a Work Context that does not decode: %v", method, err)
+		return Decision{}, status.Errorf(codes.Unauthenticated, "the call to %s carries a Work Context that does not decode: %v", method, err)
 	}
 	if !d.Modules[module] {
-		return "", hop.Identity{}, status.Errorf(codes.PermissionDenied, "the call to %s is addressed to %q, a module this hop does not stand in front of", method, module)
+		return Decision{}, status.Errorf(codes.PermissionDenied, "the call to %s is addressed to %q, a module this hop does not stand in front of", method, module)
 	}
-	checked, err := d.Authority.Check(ctx, &authorityv1.CheckRequest{Token: tokens[0], Audience: module, Method: method})
+	transport := "grpc"
+	if !strings.HasPrefix(method, "/") {
+		transport = "http"
+	}
+	selected, policy, routeErr := d.Routes.Resolve(module, transport, method)
+	if routeErr != nil {
+		return Decision{}, status.Error(codes.NotFound, routeErr.Error())
+	}
+	route := &selected
+	checked, err := d.Authority.Check(ctx, &authorityv1.CheckRequest{Token: tokens[0], Audience: module, Method: policy, Advisory: d.Permissive})
 	if err != nil {
 		refusal := status.Convert(err)
 		if refusal.Code() == codes.Unavailable || refusal.Code() == codes.DeadlineExceeded {
-			return "", hop.Identity{}, status.Errorf(codes.Unavailable, "the hop could not reach the authority to check the call to %s: %s", module, refusal.Message())
+			return Decision{}, status.Errorf(codes.Unavailable, "the hop could not reach the authority to check the call to %s: %s", module, refusal.Message())
 		}
-		return "", hop.Identity{}, status.Errorf(refusal.Code(), "the authority refused the call to %s: %s", module, refusal.Message())
+		return Decision{}, status.Errorf(refusal.Code(), "the authority refused the call to %s: %s", module, refusal.Message())
 	}
-	return module, IdentityOf(checked.GetContext()), nil
+	id := IdentityOf(checked.GetContext())
+	if d.Permissive && checked.GetRefusal() != "" {
+		id.Advisory = checked.GetRefusal()
+		if d.Warned != nil {
+			d.Warned(method, status.Error(codes.PermissionDenied, id.Advisory))
+		}
+	}
+	return Decision{Module: module, Identity: id, Route: route}, nil
 }
 
 // IdentityOf reads who a checked Work Context is for. Its scopes are the

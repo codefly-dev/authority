@@ -24,13 +24,14 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\tapi.proto\x12\x03\x61pi\"\x10\n\x0eVersionRequest\"+\n\x0fVersionResponse\x12\x18\n\x07version\x18\x01 \x01(\tR\x07version2F\n\x0eGatewayService\x12\x34\n\x07Version\x12\x13.api.VersionRequest\x1a\x14.api.VersionResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\tapi.proto\x12\x03\x61pi\"\x10\n\x0eVersionRequest\"+\n\x0fVersionResponse\x12\x18\n\x07version\x18\x01 \x01(\tR\x07version2F\n\x0eGatewayService\x12\x34\n\x07Version\x12\x13.api.VersionRequest\x1a\x14.api.VersionResponseB\x15Z\x13gateway/pkg/gen;genb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'api_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
-  DESCRIPTOR._loaded_options = None
+  _globals['DESCRIPTOR']._loaded_options = None
+  _globals['DESCRIPTOR']._serialized_options = b'Z\023gateway/pkg/gen;gen'
   _globals['_VERSIONREQUEST']._serialized_start=18
   _globals['_VERSIONREQUEST']._serialized_end=34
   _globals['_VERSIONRESPONSE']._serialized_start=36

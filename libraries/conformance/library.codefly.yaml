@@ -1,7 +1,7 @@
 # Declared like the generated authority-client library (codefly add library's
 # prompt cannot run non-interactively; reported). The suite every implementation
 # of the host interfaces must pass, importable by the host without importing
-# the authority gateway.
+# the local authority.
 kind: library
 name: conformance
 version: 0.0.0

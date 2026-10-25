@@ -1,0 +1,260 @@
+syntax = "proto3";
+// The authority interface: what a module or solution calls on its host to be
+// issued a Work Context, to have one checked, and to learn the keys it was
+// signed with, and to ask which resources of a kind it covers. Every former spelling (start task, start
+// installation task, exchange audience, start child, renew, the module broker's
+// mints) is Issue with a different `as`.
+package host.authority.v1;
+
+option go_package = "gateway/pkg/gen/host/authority/v1;authorityv1";
+
+import "google/api/annotations.proto";
+import "host/authority/v1/work_context.proto";
+
+// AuthorityService is implemented by the host (accounts) and by the local authority.
+service AuthorityService {
+  // Issue signs a Work Context for one owner shape, one audience and the scopes
+  // asked for, bounded by what the owner holds and what the audience declared.
+  // Served over REST too (POST /v1/authority:issue), for a module with no
+  // generated client of its own, as a Python service: the same request and
+  // answer, in JSON.
+  rpc Issue(IssueRequest) returns (IssueResponse) {
+    option (google.api.http) = {post: "/v1/authority:issue" body: "*"};
+  }
+  // Check verifies a presented Work Context for the audience the caller is,
+  // re-checking the authorization revision and the seal live.
+  rpc Check(CheckRequest) returns (CheckResponse) {
+    option (google.api.http) = {post: "/v1/authority:check" body: "*"};
+  }
+  // Keys returns the issuer and the public keys a verifier pins.
+  rpc Keys(KeysRequest) returns (KeysResponse);
+  // ListResources answers which resources of one kind a checked capability may
+  // act on with one action, decided by the authority at the time of the call
+  // rather than carried in the capability. A module maps the answer onto its
+  // own resources; the authority knows them only by id.
+  rpc ListResources(ListResourcesRequest) returns (ListResourcesResponse);
+  // Delegate records a signed-in person's grant to a module (the caller's
+  // bearer is the person); Issue with a delegation acts on it.
+  rpc Delegate(DelegateRequest) returns (Delegation);
+  // RevokeDelegation ends a delegation; the next Issue from it is refused.
+  rpc RevokeDelegation(RevokeDelegationRequest) returns (RevokeDelegationResponse);
+  // GetDelegation reads one delegation for the module it is granted to (by its
+  // workload credential) or for its grantor (by the caller's bearer): whether it
+  // still stands. Work that outlives the capability that started it asks this
+  // between issues, so a revoke stops it even when it calls no other module.
+  rpc GetDelegation(GetDelegationRequest) returns (Delegation);
+}
+
+// IssueRequest names on whose behalf the capability is issued.
+message IssueRequest {
+  // Who the capability is for; exactly one.
+  oneof as {
+    // The signed-in person making this call, identified by the bearer the call
+    // carries; the host opened that session at sign-in.
+    PersonSession person = 1;
+    // A module's own workload, proving which module it is.
+    WorkloadCredential workload = 2;
+    // An installation acting for itself, with the scope the organisation consented to.
+    // actor must authenticate a workload of that installation's solution.
+    InstallationRef installation = 3;
+    // One more hop from an existing capability: a child, an exchange or a renewal.
+    string parent_token = 4;
+    // A delegation a person granted the module acting (actor): the capability
+    // is owned by that person and carries the delegation on the module's hop.
+    // No live capability is presented: the authority re-checks the delegation
+    // and what its grantor holds now, so a revoked delegation or a lost role
+    // stops the next issue, and renewing is issuing again.
+    DelegationRef delegation = 11;
+  }
+  // The module principal that may consume the capability.
+  string audience = 5;
+  // The scopes asked for; empty means everything the owner holds at the audience.
+  repeated WorkScopeV1 scopes = 6;
+  // Requested lifetime in seconds; clamped to the issuer's ceiling.
+  int64 ttl_seconds = 7;
+  // The declared binding this capability exercises, when the owner is a workload
+  // or a child acts through one.
+  string operation_binding_id = 8;
+  // The organisation the work runs in. A workload may leave this empty when
+  // exactly one organisation has an active installation of its module.
+  // Otherwise it must name the organisation of the work item;
+  // absent or ambiguous installation authority is refused with a reason.
+  string organization_id = 9;
+  // The acting workload credential; required with parent_token, delegation,
+  // and installation. For installation it must name the installed solution.
+  WorkloadCredential actor = 10;
+  // Which of the binding's operations the capability is for: "invoke" (the
+  // default for a person, a child or a delegation), "headless" (the default for
+  // a workload) or "lookup": the binding's lookup scopes alone, to read a
+  // receipt without the authority to repeat the effect.
+  string operation = 12;
+}
+
+// DelegationRef names one delegation.
+message DelegationRef {
+  // The delegation's id, as Delegate answered it.
+  string delegation_id = 1;
+}
+
+// DelegateRequest is a signed-in person granting a module the right to act for
+// them beyond any session: on scopes they hold, through the module's bindings.
+message DelegateRequest {
+  // The module granted, by principal.
+  string module = 1;
+  // What the module may do for the person; within what the person holds.
+  repeated WorkScopeV1 scopes = 2;
+  // Why, as the person was told (a connected source, a scheduled job).
+  string purpose = 3;
+}
+
+// Delegation is one grant from a person to a module.
+message Delegation {
+  string delegation_id = 1;
+  string organization_id = 2;
+  // The person who granted it, and whom every capability issued from it is for.
+  string grantor = 3;
+  // The module granted.
+  string module = 4;
+  repeated WorkScopeV1 scopes = 5;
+  string purpose = 6;
+  // False once revoked; a revoked delegation issues nothing.
+  bool active = 7;
+}
+
+// GetDelegationRequest names the delegation read; anyone but its module or its
+// grantor is told it does not exist.
+message GetDelegationRequest {
+  string delegation_id = 1;
+  // The module asking, proving which module it is; absent when the grantor asks.
+  WorkloadCredential actor = 2;
+}
+
+// RevokeDelegationRequest ends a delegation; only its grantor may.
+message RevokeDelegationRequest {
+  string delegation_id = 1;
+}
+
+// RevokeDelegationResponse is the delegation as it now stands.
+message RevokeDelegationResponse {
+  Delegation delegation = 1;
+}
+
+// PersonSession names the caller's own session. It carries no field: the person
+// is whoever the bearer on the call authenticates as, so a caller cannot ask for
+// another person's authority by naming a session.
+message PersonSession {
+  reserved 1;
+  reserved "session_id";
+}
+
+// WorkloadCredential proves which module a running process is: the native
+// launcher credential core's workloadidentity defines, signed by the one launcher
+// the host was handed an anchor for.
+message WorkloadCredential {
+  // The launcher-signed credential, as core's native issuer writes it.
+  string credential = 1;
+}
+
+// InstallationRef names an installation acting for itself.
+message InstallationRef {
+  // The installation id.
+  string installation_id = 1;
+}
+
+// IssueResponse carries the signed capability and its decoded form.
+message IssueResponse {
+  // The signed capability, as a caller presents it.
+  string token = 1;
+  // When the capability expires.
+  int64 expires_at_unix = 2;
+  // The decoded capability, for the holder to read its own claims.
+  WorkContextV1 context = 3;
+}
+
+// CheckRequest presents a capability for verification.
+message CheckRequest {
+  // The capability presented.
+  string token = 1;
+  // The audience the caller is; a capability addressed elsewhere is refused.
+  string audience = 2;
+  // The method the capability is presented to: "/package.Service/Method" for a
+  // gRPC call, "<VERB> <path>" for an HTTP request (GET /v1/model/profiles),
+  // matched against the routes the module declares. When set, the check also
+  // applies what the audience module's delivery declares for that method, and
+  // refuses by name a call that does not hold it, a method that declares
+  // nothing, and a method the module does not serve.
+  string method = 3;
+  // Advisory asks for the policy decision without its refusal: the capability
+  // is still verified and refused when it is not sound, but what the method
+  // declares is only reported, in CheckResponse.refusal, and the verified
+  // capability is answered. A hop in a composition that runs permissive
+  // (hop/ENFORCEMENT=warn) asks this way and logs the refusal it did not make.
+  // Hosts may refuse advisory outside local development runs.
+  bool advisory = 4;
+}
+
+// CheckResponse is the verified capability.
+message CheckResponse {
+  // The verified capability.
+  WorkContextV1 context = 1;
+  // The owner's authorization revision as of this check.
+  uint64 authorization_revision = 2;
+  // Refusal is what the method's policy would have refused, verbatim, when the
+  // check was advisory and the policy did not hold; empty when it held.
+  string refusal = 3;
+}
+
+// KeysRequest asks for the verification keys.
+message KeysRequest {}
+
+// KeysResponse is the issuer and its keys.
+message KeysResponse {
+  // The issuer every capability names.
+  string issuer = 1;
+  // The public keys by key id.
+  repeated PublicKey keys = 2;
+}
+
+// PublicKey is one verification key.
+message PublicKey {
+  // The key id a capability names.
+  string key_id = 1;
+  // The signature algorithm; Ed25519.
+  string algorithm = 2;
+  // The raw public key bytes.
+  bytes public_key = 3;
+}
+
+// ListResourcesRequest asks about one kind and one action.
+message ListResourcesRequest {
+  // The capability presented.
+  string token = 1;
+  // The audience the caller is; a capability addressed elsewhere is refused.
+  string audience = 2;
+  // The resource kind, as the audience module serves it.
+  string resource_kind = 3;
+  // The action, in the kind's own vocabulary.
+  string action = 4;
+}
+
+// ListResourcesResponse is every grant the capability holds on the kind for the
+// action. A resource is covered when any grant matches its id; no grant means
+// none. A capability that does not hold the action at all is refused instead.
+message ListResourcesResponse {
+  repeated ResourceGrant grants = 1;
+}
+
+// ResourceGrant is one way of naming covered resources. Exactly one is set.
+message ResourceGrant {
+  oneof match {
+    // Every resource of the kind.
+    bool all = 1;
+    // Exactly this resource id.
+    string id = 2;
+    // Every resource whose id starts with this.
+    string prefix = 3;
+    // Every resource whose whole id matches this RE2 expression, at most 256
+    // bytes; it is matched against the entire id, as if anchored.
+    string pattern = 4;
+  }
+}

@@ -15,7 +15,7 @@ agent:
     publisher: codefly.dev
 endpoints:
     - name: tcp
-      # Only this module's gateway reaches the store, and the module interface
+      # Only this module's local authority reaches the store, and the module interface
       # does not export it. In-system (no `location`): the run allocates its
       # address.
       visibility: private
@@ -34,7 +34,7 @@ spec:
     runtime-logins: []
     # The agent reconciles its managed read-write principal into this role on
     # every boot; migrations/1_approvals.up.sql creates it and grants exactly
-    # what the gateway does: read, insert and revoke (update), never delete.
+    # what the local authority does: read, insert and revoke (update), never delete.
     runtime-read-write-roles:
         - app_authority
     runtime-schemas: []

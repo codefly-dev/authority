@@ -38,10 +38,10 @@ type ApplyManifestRequest struct {
 	// envelope over it. An implementation verifies the envelope against the release
 	// keys it pins and reads the manifest from the verified document, never from
 	// the request, so what composes a module is the same signed document on the
-	// authority gateway and on the host.
+	// local authority and on the host.
 	Carrier *SignedManifestV1 `protobuf:"bytes,2,opt,name=carrier,proto3" json:"carrier,omitempty"`
 	// The credential of the workload delivering the manifest, as that
-	// implementation attests workloads: the launcher's on the authority gateway, the
+	// implementation attests workloads: the launcher's on the local authority, the
 	// delivery service account's on the host. A manifest is delivered by its own
 	// module's delivery workload and by nothing else.
 	Credential string `protobuf:"bytes,3,opt,name=credential,proto3" json:"credential,omitempty"`
@@ -132,7 +132,8 @@ type AuthorityManifestV1 struct {
 	ScopeCeilings []*v1.WorkScopeV1 `protobuf:"bytes,5,rep,name=scope_ceilings,json=scopeCeilings,proto3" json:"scope_ceilings,omitempty"`
 	// The roles a solution declares a person may hold on an installation of it,
 	// as ModuleManifestV1.roles declares them through the sketch: each within
-	// the solution's own kinds (its scope ceilings), one of them installer.
+	// the solution's own scope ceilings or explicit invoke/lookup binding scopes,
+	// one of them installer. Headless-only scopes cannot supply a role grant.
 	// Core's manifest carries no roles, so they travel here until it does. A
 	// module declares none; a module's delivery listing any is refused.
 	Roles         []*RoleV1 `protobuf:"bytes,6,rep,name=roles,proto3" json:"roles,omitempty"`
@@ -415,8 +416,9 @@ type ModuleManifestV1 struct {
 	// The page the module contributes, if any.
 	Page *PageV1 `protobuf:"bytes,7,opt,name=page,proto3" json:"page,omitempty"`
 	// The roles a solution declares a person may hold on an installation of it,
-	// each within what the solution serves; one is named installer, held by
-	// whoever installs it. A module declares none.
+	// each within what the solution serves or explicitly consumes through
+	// invoke/lookup bindings; one is named installer, held by whoever installs it.
+	// Headless-only scopes cannot supply a role grant. A module declares none.
 	Roles         []*RoleV1 `protobuf:"bytes,8,rep,name=roles,proto3" json:"roles,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

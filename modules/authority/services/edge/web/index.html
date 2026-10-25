@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Sign in</title>
+	</head>
+	<body>
+		<div id="root"></div>
+		<!-- The edge executes this file as a template and writes the page's data
+		     (who may sign in, where to return) into this island; the page reads
+		     it and holds no other source of truth. -->
+		<script id="sign-in" type="application/json">{{.}}</script>
+		<script type="module" src="/src/main.tsx"></script>
+	</body>
+</html>

@@ -14,7 +14,7 @@ modules:
     - name: console
       path: ../modules/console
     # The platform's stores, composed behind the hop to prove a module runs on
-    # the authority gateway with no saas. Released identities; a local run
+    # the local authority with no saas. Released identities; a local run
     # selects a checkout through the gitignored overlay.
     - name: documents
       source: obin-ai/module-document-store
@@ -31,9 +31,9 @@ modules:
       version: "0.0.0"
 environments:
     - name: local
-      description: The authority gateway on a laptop, the authority of its own run
+      description: The local authority on a laptop, the authority of its own run
       fixture: local
-      # The run's host is the authority gateway itself: the launcher vouches for every
+      # The run's host is the local authority itself: the launcher vouches for every
       # composed workload against this anchor, and delivers manifests to it.
       host:
           coordinate: codefly/local/authority
@@ -41,4 +41,4 @@ environments:
           domain: local
           audience: https://authority.local.test
           trust_domain: authority.local
-          delivery: authority/gateway/grpc
+          delivery: authority/local/grpc

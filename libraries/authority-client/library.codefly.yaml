@@ -10,13 +10,17 @@ languages:
       path: python/
       exports:
         - authority_client
+    - name: typescript
+      path: typescript/
+      exports:
+        - '@codefly-dev/authority-client'
 sources:
     - package: local
       version: 0.0.0
       module: authority
-      service: gateway
+      service: local
       endpoint: grpc
-      contract-digest: sha256:89baa9ae5c5f7940f17b303afdb58824e913427d3fb826c81b24f78e5378d599
+      contract-digest: sha256:d2fcb57f3608ea6c57918565db2d83cc69d7e9cebee33edadf2160a3fee8d635
       services:
         - GatewayService
 generated-by:

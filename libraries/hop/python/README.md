@@ -11,6 +11,11 @@ identity = read(request.headers, proof)  # proof: the run's hop/PROOF
 identity.tenant, identity.owner, identity.has("modelservice.profiles", "read")
 ```
 
+`identity.advisory` preserves the hop's reason for admitting a call in warning
+mode; it is empty when no reason was stamped. It is diagnostic information:
+reading it grants no scopes and leaves proof and Work Context binding checks
+unchanged. Consumers decide how to report it alongside their own domain checks.
+
 A module depends on it by its git coordinates at a pinned commit:
 `codefly-hop @ git+https://github.com/codefly-dev/authority@<commit>#subdirectory=libraries/hop/python`.
 

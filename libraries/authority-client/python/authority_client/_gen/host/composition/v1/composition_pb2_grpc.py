@@ -26,7 +26,7 @@ if _version_not_supported:
 
 
 class CompositionServiceStub(object):
-    """CompositionService is implemented by the host and by the authority gateway.
+    """CompositionService is implemented by the host and by the local authority.
     """
 
     def __init__(self, channel):
@@ -43,7 +43,7 @@ class CompositionServiceStub(object):
 
 
 class CompositionServiceServicer(object):
-    """CompositionService is implemented by the host and by the authority gateway.
+    """CompositionService is implemented by the host and by the local authority.
     """
 
     def ApplyManifest(self, request, context):
@@ -70,7 +70,7 @@ def add_CompositionServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class CompositionService(object):
-    """CompositionService is implemented by the host and by the authority gateway.
+    """CompositionService is implemented by the host and by the local authority.
     """
 
     @staticmethod

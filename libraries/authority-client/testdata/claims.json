@@ -1,0 +1,302 @@
+[
+  {
+    "name": "delegated",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZAsOH11gZKJGZmNTI5NTQ0LTFjMzItNDM1MS1hOGEwLWI4ODA1MDQzMGYzNFAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZDczMGEwNjYtYWFjYy00ZDE4LTk2ZGItODdhNTU1MmQ1NWZkggEkZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSSAXAKD3ByaW5jaXBhbC1hY3RvchIFYWdlbnQaFmRlbGVnYXRpb24tY29uZm9ybWFuY2UiIgoGcmVjb3JkEgRyZWFkGhJyZWNvcmQtY29uZm9ybWFuY2UqGGNvZGVmbHkudGVzdC9hY3RvcjoxLjAuMDgFsgEFaHVtYW7KARhvcmdhbml6YXRpb24tY29uZm9ybWFuY2XSAR4IAhIYaW5zdGFsbGF0aW9uLWNvbmZvcm1hbmNlGAM.xHzsawwSVUPXqyBR6EfEk5vB5GePrMJAhDnZfiuG24EIHCYevVpUAW-PXs_otAQ3vSWIhB-UoW9LOLa3pnpqBA",
+    "audience": "codefly.test/conformance",
+    "scopes": [
+      {
+        "resource_kind": "record",
+        "actions": [
+          "read"
+        ],
+        "resource_ids": [
+          "record-conformance"
+        ]
+      }
+    ],
+    "probes": [
+      {
+        "kind": "record",
+        "action": "read",
+        "resource_id": "",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "read",
+        "resource_id": "other-resource",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "read",
+        "resource_id": "record-conformance",
+        "allowed": true
+      },
+      {
+        "kind": "record",
+        "action": "read",
+        "resource_id": "record-conformance",
+        "allowed": true
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "other-resource",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "record-conformance",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "record-conformance",
+        "allowed": false
+      }
+    ]
+  },
+  {
+    "name": "delegated-operation",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZAsOH11gZKJGY0Y2M3MDc2LThlYTItNDI3Ny1iYjBlLTkwZDE0ZjYzZjAxZFAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZmIwOTg1ZmMtMjcxNi00NWE0LTlhZDUtMTg1Y2UwZDA4MGIyggEkZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSSAXAKD3ByaW5jaXBhbC1hY3RvchIFYWdlbnQaFmRlbGVnYXRpb24tY29uZm9ybWFuY2UiIgoGcmVjb3JkEgRyZWFkGhJyZWNvcmQtY29uZm9ybWFuY2UqGGNvZGVmbHkudGVzdC9hY3RvcjoxLjAuMDgFsgEFaHVtYW7KARhvcmdhbml6YXRpb24tY29uZm9ybWFuY2XSAR4IAhIYaW5zdGFsbGF0aW9uLWNvbmZvcm1hbmNlGAPaAR8KGWJpbmRpbmctY29uZm9ybWFuY2UtYWN0b3IQBBgB.igwjaNWjv_k76P78HjVpZ0WGIVLTzC31Kjd8HGgb5l_If6jTF6H32sfynx00zewIoykxvRJuRLHXxFQk7ZUVDw",
+    "audience": "codefly.test/conformance",
+    "scopes": [
+      {
+        "resource_kind": "record",
+        "actions": [
+          "read"
+        ],
+        "resource_ids": [
+          "record-conformance"
+        ]
+      }
+    ],
+    "probes": [
+      {
+        "kind": "record",
+        "action": "read",
+        "resource_id": "",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "read",
+        "resource_id": "other-resource",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "read",
+        "resource_id": "record-conformance",
+        "allowed": true
+      },
+      {
+        "kind": "record",
+        "action": "read",
+        "resource_id": "record-conformance",
+        "allowed": true
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "other-resource",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "record-conformance",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "record-conformance",
+        "allowed": false
+      }
+    ]
+  },
+  {
+    "name": "grant",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZA3MX11gZKJGIzNzgwZDEwLWFlYzAtNGJlYS05YTdiLTk4NzU1ODAxYzc0MFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokYWEwYzdmMTQtY2ViYy00MDY1LThmYTEtYmNlMzMyZjE0YmY1ggEkZDczMGEwNjYtYWFjYy00ZDE4LTk2ZGItODdhNTU1MmQ1NWZkigEOCgZyZWNvcmQSBHJlYWSSAXAKD3ByaW5jaXBhbC1hY3RvchIFYWdlbnQaFmRlbGVnYXRpb24tY29uZm9ybWFuY2UiIgoGcmVjb3JkEgRyZWFkGhJyZWNvcmQtY29uZm9ybWFuY2UqGGNvZGVmbHkudGVzdC9hY3RvcjoxLjAuMDgFkgFuCg9wcmluY2lwYWwtYWN0b3ISBWFnZW50GhFncmFudC1jb25mb3JtYW5jZSIlCgZyZWNvcmQSB2FwcHJvdmUaEnJlY29yZC1jb25mb3JtYW5jZSoYY29kZWZseS50ZXN0L2FjdG9yOjEuMC4wOAWyAQVodW1hbsIBgQEKEWdyYW50LWNvbmZvcm1hbmNlEhsKEnByaW5jaXBhbC1hcHByb3ZlchIFaHVtYW4aJQoGcmVjb3JkEgdhcHByb3ZlGhJyZWNvcmQtY29uZm9ybWFuY2UiFHJlc291cmNlLWNvbmZvcm1hbmNlKhJzaGEyNTY6Y29uZm9ybWFuY2XKARhvcmdhbml6YXRpb24tY29uZm9ybWFuY2XSAR4IAhIYaW5zdGFsbGF0aW9uLWNvbmZvcm1hbmNlGAM.8J0ouWQivBDUs32wk8jv_mHqE7DXmEbcoXjcgknZOgNKFh3Ap2UkTgswvMWkLfXrSsgEkCZlMxAtIoe20rwACA",
+    "audience": "codefly.test/conformance",
+    "scopes": [
+      {
+        "resource_kind": "record",
+        "actions": [
+          "approve"
+        ],
+        "resource_ids": [
+          "record-conformance"
+        ]
+      }
+    ],
+    "probes": [
+      {
+        "kind": "record",
+        "action": "approve",
+        "resource_id": "",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "approve",
+        "resource_id": "other-resource",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "approve",
+        "resource_id": "record-conformance",
+        "allowed": true
+      },
+      {
+        "kind": "record",
+        "action": "approve",
+        "resource_id": "record-conformance",
+        "allowed": true
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "other-resource",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "record-conformance",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "record-conformance",
+        "allowed": false
+      }
+    ]
+  },
+  {
+    "name": "operation",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZAsOH11gZKJGRiYzBmYzgyLWQ0YzQtNGQ1NC1iN2RmLThjZTRhODZkYjlhMlAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokNDYzY2FkNjgtOGQxYi00ZmJkLWFkOTctZmUzZjI5NjdkMGFhigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYA9oBGQoTYmluZGluZy1jb25mb3JtYW5jZRAEGAE.HaWwuxTDaXO0JA1gjwrHJ764CGsfNCRpmn1PuMYByH70X2lm_nbrxSnlDXe80IYR7hoq4NFGjq-xon08KTZiBQ",
+    "audience": "codefly.test/conformance",
+    "scopes": [
+      {
+        "resource_kind": "record",
+        "actions": [
+          "read"
+        ]
+      }
+    ],
+    "probes": [
+      {
+        "kind": "record",
+        "action": "read",
+        "resource_id": "",
+        "allowed": true
+      },
+      {
+        "kind": "record",
+        "action": "read",
+        "resource_id": "other-resource",
+        "allowed": true
+      },
+      {
+        "kind": "record",
+        "action": "read",
+        "resource_id": "record-conformance",
+        "allowed": true
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "other-resource",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "record-conformance",
+        "allowed": false
+      }
+    ]
+  },
+  {
+    "name": "session",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.QfE84kjvNVYJlmI60DaVgZZQQJebFu7uXjdzOkZh6MgVcpeZNM6bkdn9vCBNxWNtkdVp6N7wBrWHEuuHWradDQ",
+    "audience": "codefly.test/conformance",
+    "scopes": [
+      {
+        "resource_kind": "record",
+        "actions": [
+          "read"
+        ]
+      }
+    ],
+    "probes": [
+      {
+        "kind": "record",
+        "action": "read",
+        "resource_id": "",
+        "allowed": true
+      },
+      {
+        "kind": "record",
+        "action": "read",
+        "resource_id": "other-resource",
+        "allowed": true
+      },
+      {
+        "kind": "record",
+        "action": "read",
+        "resource_id": "record-conformance",
+        "allowed": true
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "other-resource",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "record-conformance",
+        "allowed": false
+      }
+    ]
+  }
+]

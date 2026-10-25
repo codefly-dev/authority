@@ -1,7 +1,7 @@
 # authority
 
 **What we are doing.** Making the interface the mapping between local development
-and deployment. The small gateway a developer runs on a laptop and the host's
+and deployment. The local authority a developer runs on a laptop and the host's
 accounts service implement the same declared contract, checked by the render and
 proven by one suite, so what passes on the laptop is what runs on the cell and
 what refuses on the laptop is what refuses on the cell. Without the interface
@@ -13,21 +13,23 @@ This repository holds two things, and only these two:
    a Codefly interface declaring what a module or solution calls on the host that
    runs it. Issue a Work Context for a person, an installation or a module's own
    binding; re-address, derive a child, renew; check a revision live; the current
-   installation. The host's `accounts` service implements it in full. A module
+   installation. The host's `accounts` service implements the same interface;
+   provider qualification gaps are recorded below. A module
    depends on the interface, never on a service.
-2. **The authority gateway** (`modules/authority/services/gateway`): the development
+2. **The local authority** (`modules/authority/services/local`): the development
    implementation. One process that signs in fixture people with their roles,
    issues and verifies Work Contexts, knows the composition from the rendered
    manifests, and holds the fixture installations in memory. No accounts
    service, no stores, no platform frontend. Running a solution locally is the
    solution, the modules it consumes, and this.
 
-**What keeps the authority gateway from being a second authority.** It links the same
-packages `accounts` uses to sign in, mint and derive a module's grant from its
-manifest, and the conformance kit runs against both implementations in one test.
-It is a profile of the host, not a reimplementation. If a package of `accounts`
-cannot be linked without its store, the package is split in the host; nothing is
-copied here.
+**What is reused today.** The local implementation uses Core's Work Context
+authority/verifier, workload attestation and signed composition machinery.
+Its issuer/state resolves fixture grants; it does not currently link Accounts'
+sign-in or grant-derivation packages. The original host-package reuse requirement
+remains an unresolved design obligation with the host owner, not a guarantee
+established by this checkout. The shared conformance suite must run against both
+implementations; a local pass or a skipped provider scenario does not prove parity.
 
 **What this repo is, in one line.** The interfaces the host's saas component
 MUST satisfy, with the suite that proves it, and the development implementation
@@ -36,8 +38,8 @@ that satisfies them on a laptop, fixture included.
 **Order of work.**
 
 1. Declare the interfaces and give them their protos, reduced to the six duties
-   (done; `interfaces/`, `modules/authority/services/gateway/proto/host/*/v1`).
-2. Build the authority gateway against them with the suite every implementation must
+   (done; `interfaces/`, `modules/authority/services/local/proto/host/*/v1`).
+2. Build the local authority against them with the suite every implementation must
    pass (done; `pkg/conformance`, run over gRPC in `plugins/registry_test`).
 3. Point the host and the SDKs at these packages; run `pkg/conformance` against
    accounts; delete the copies in `codefly-dev/core` and the host, fixtures proving
@@ -57,7 +59,9 @@ runtime, records and the org-directory page.
   to documents at Acme, write refused by name. 4 documents embeds through model
   for itself under its binding; `modelservice` is refused as not composed; the
   second binding the envelope forgot this week is simply there. 5 A 60-second
-  child for the runtime, actor documents, nothing widened. 6 The wiki reconciles
+  child for Runtime is refused for Maya, who has no Runtime grant; the entitled
+  developer succeeds with actor documents and only the Runtime binding's scopes.
+  6 The wiki reconciles
   overnight as its installation; uninstalled at 10:00, its 09:58 token is refused.
   7 Maya opens the directory page and is issued records read; Rémi gets write; the
   UI follows the token. 8 All of it ran with no accounts service, no store, no
@@ -91,7 +95,7 @@ template always returns nil, so `plugins/plugins.yaml` is declared but not
 rendered; the four plugins implement the agent's own `framework.Plugin` and are
 wired in the tests, and serving them from the agent's server is the agent's work,
 not a hand edit of `registry_gen.go`. `codefly generate client --from
-authority/gateway/grpc --language go,python` writes two Go packages (`api` from
+authority/local/grpc --language go,python` writes two Go packages (`api` from
 the scaffold's proto, `authority` from ours) into one facade directory and fails
 its own build; the Go and Python clients that would replace the solution SDK wait
 on that fix.
@@ -99,7 +103,7 @@ on that fix.
 **Where the thinking is.** The Platform Authority Primer (decisions 6 and 7) and the
 handbook proposal that will carry them. Run it with `codefly run` from the module.
 
-## What the authority gateway must serve, read from the callers (2026-10-21)
+## What the local authority must serve, read from the callers (2026-10-21)
 
 Inventory taken from the code that calls the host today: the module SDK
 (`saas-sdk-go/moduleauthority`), the solution runtime (`solution-runtime-go`), the
@@ -114,7 +118,7 @@ design.
 | A fixture person signs in | `POST /v1/auth/authenticate` with `fixture_token` (accounts `auth/dev` validator); `/v1/auth/refresh` |
 | Verify what the host issued | `GET /v1/auth/.well-known/jwks.json` (also `/jwks`, `/.well-known/openid-configuration`) |
 | The composition reaches the host | `POST /platform/_delivery/manifest` (one signed manifest per module instance) |
-| What a module may hold | derived from the manifest; today `GET`/`PUT /v1/platform/module-envelope`, which the authority gateway does not serve |
+| What a module may hold | derived from the manifest; today `GET`/`PUT /v1/platform/module-envelope`, which the local authority does not serve |
 | The module's workload becomes a principal and gets Work Contexts | gateway workload endpoint: `POST /modules/_work-context` (for a person), `/modules/_operation-context` (the module's own binding), `/modules/_source-operation-context` (a source delegation) |
 | The module calls the host as itself | Connect proxy at `/modules/_authority` → `ModuleCapabilitiesService`: `ExchangeDelegatedOperationAudience`, `EmitAuditEvent`, `DeclareAuditEventTypes`, `AuthorizeExecutableArtifact` / `ApproveExecutableArtifact`, `NotifyUser` / `NotifyOrgAdmins` |
 | Person-owned authority | `WorkContextService`: `StartTask`, `ExchangeAudience`, `StartChildSession`, `RenewWorkContext`, `CheckAuthorizationRevision`, `StartInstallationTask`, `AuthorizeEvidenceRead`, `ConsumeSingleUse` |
@@ -171,7 +175,7 @@ talks to. Against that:
 **What remains is the interface.** Authority: `Issue`, `Check`, `Keys`.
 Composition: `ApplyManifest`. Installation: `Install`, `GrantToTeam`, `List`, and
 the install step callback. Sign-in at the browser edge only. Routing is the data
-plane, not a contract. 0.1.0 mirrors today's spellings so the authority gateway serves
+plane, not a contract. 0.1.0 mirrors today's spellings so the local authority serves
 the SDKs as they are; the reduced shape is 0.2.0, a host contract change through a
 handbook proposal, after which the SDKs move once.
 
@@ -206,10 +210,10 @@ Each rung proves one claim; nothing is deleted before the rung above it is green
 
 | Rung | Claim | How | Pass | Owner |
 |---|---|---|---|---|
-| 0 | the authority gateway holds | 47 tests here: byte identity, core's kit, scenario, `pkg/conformance` over gRPC | green (done) | this repo |
+| 0 | the local authority holds | 47 tests here: byte identity, core's kit, scenario, `pkg/conformance` over gRPC | green (done) | this repo |
 | 1 | one contract, two implementations | accounts implements the four interfaces as adapters over what it does; saas CI runs `pkg/conformance` against it with the saas fixture | same codes, same reasons on both | module-saas-starter |
-| 2 | a module cannot tell which answered | documents takes the generated authority client and requires the interface, not a service; runs against the authority gateway and against accounts | identical tests, playground and refusals; the render picks the implementation | module-document-store, saas-sdk-go |
-| 3 | a solution needs no runtime | the wiki as an agent-scaffolded service on the generated clients; wiki + documents + authority gateway, then the full host locally, then obin-staging; the eight steps through the UI | the scenario passes end to end; no envelope, anchor or audience key anywhere | core-solutions |
+| 2 | a module cannot tell which answered | documents takes the generated authority client and requires the interface, not a service; runs against the local authority and against accounts | identical tests, playground and refusals; the render picks the implementation | module-document-store, saas-sdk-go |
+| 3 | a solution needs no runtime | the wiki as an agent-scaffolded service on the generated clients; wiki + documents + local authority, then the full host locally, then obin-staging; the eight steps through the UI | the scenario passes end to end; no envelope, anchor or audience key anywhere | core-solutions |
 | 4 | the laptop refuses where the cell refuses | recorded request vectors replayed against both, compared field by field; property tests on the four ways a token widens; replay, expiry, revocation, forgery; one independent security review | zero divergence, zero widening, findings closed | this repo + reviewer |
 | 5 | it is fast | clean clone → Maya sees the wiki, one command, timed; a grep gate against envelope files and audience keys | the owner's number; gate green fleet-wide | cli, handbook |
 
@@ -220,8 +224,8 @@ staging validated.
 **Rung 1 first; it is the one that matters (owner, 2026-10-21).** The loop:
 
 1. Cut a branch in module-saas-starter. accounts declares in its module
-   interface that it implements `codefly.dev/authority@0.1.0`, `codefly.dev/composition@0.1.0`,
-   `codefly.dev/installation@0.1.0` and `codefly.dev/session@0.1.0`, takes this repo's
+   interface that it implements `codefly.dev/authority@0.2.0`, `codefly.dev/composition@0.1.0`,
+   `codefly.dev/installation@0.1.0` and `codefly.dev/session@0.2.0`, takes this repo's
    protos (bindings via `codefly generate proto`), and serves the four services as
    adapters over what it already has: `Issue` → StartTask / StartInstallationTask /
    the module broker's mint / StartChildSession-ExchangeAudience-Renew by owner
@@ -262,12 +266,12 @@ not run yet, because of what the branch found:
 
 Gap 7 was a decision, taken on 2026-10-22: the interface carries the host's names, see "The namespace, settled" below. Gaps 1 and 2 closed the same day on the host branch; a ninth surfaced and closed with them: the generated service catalog crossed the host's naming-gate scan cap (512 KiB) at 40 services, and the gate now skips that generated file for the reason it skips descriptors.
 
-**What the second implementation taught the interface.** `GrantToTeamRequest` gained `organization_id`: the host checks an administrator against the organisation before it reads the installation, so the request must name it; the authority gateway now refuses a grant naming another organisation than the installation's, and the suite asserts it. That is what a second implementation is for.
+**What the second implementation taught the interface.** `GrantToTeamRequest` gained `organization_id`: the host checks an administrator against the organisation before it reads the installation, so the request must name it; the local authority now refuses a grant naming another organisation than the installation's, and the suite asserts it. That is what a second implementation is for.
 
 ## The namespace, settled (2026-10-22)
 
 The interfaces are the host's contract, so they carry the host's names: publisher
-`codefly.dev` (ids `codefly.dev/authority@0.1.0`, `composition`, `installation`,
+`codefly.dev` (ids `codefly.dev/authority@0.2.0`, `composition`, `installation`,
 `installable`, `session`) and protobuf packages `host.authority.v1`,
 `host.composition.v1`, `host.installation.v1`, `host.session.v1` under `proto/host/`.
 Not `codefly.*`: the host's buf configuration excludes a `codefly/` proto directory
@@ -280,7 +284,7 @@ scans files, not URLs. This closes gap 7 of rung 1.
 
 **Invariant:** one declared interface and one suite on both sides from phase 0 on,
 so local development to deployment is correct by construction. Phases: 0 now
-(interfaces, authority gateway, host adapters on a branch; protos and policy exist
+(interfaces, local authority, host adapters on a branch; protos and policy exist
 twice, knowingly); 1 rung 1 done (suite green against accounts, refusing adapters
 made real, suite and credential and person shape corrected, digest check on the
 copied protos); 2 the wiki against the branch; 3 rungs 2 and 3 (agent and CLI
@@ -292,7 +296,7 @@ Deletions only in 4 and 5, each behind a green suite and staging. The full table
 is the handbook's `design/host-authority-interface.md`.
 
 **Corrections of 2026-10-22 (`0403966`).** The suite accepts pending or active from
-Install. The authority gateway attests core's native launcher credential against the
+Install. The local authority attests core's native launcher credential against the
 launcher's anchor; nothing of its own. The person shape is the caller's bearer;
 `PersonSession` is empty. See the handbook's audit sidecar for the reasoning.
 
@@ -304,8 +308,24 @@ consumer's organisation in an import path). GitHub redirects the old location.
 `libraries/authority-client/go` is the generated Go bindings library
 (`codefly generate client --no-facade`), importable as
 `github.com/codefly-dev/authority/libraries/authority-client/go`. The Python
-library did not generate: the client generator lacks the protovalidate dependency
-the Work Context messages import (reported on codefly-dev/cli#1107).
+library publishes generated bindings under `libraries/authority-client/python`.
+The [Python bound-context reader](libraries/authority-client/python/README.md) projects
+effective resource scopes without another verification call. Consumers read the
+hop stamp first and retain their domain resource and installation checks.
+The [Go reader](libraries/authority-client/go/README.md) reuses Core Decode and
+scope containment; the [TypeScript reader](libraries/authority-client/typescript/README.md)
+uses Codefly-generated protobuf bindings. Shared Core-produced fixtures cover
+their scope decisions. These projections do not authenticate a context or replace
+live checks; TypeScript hop-binding integration remains separate work. Go also
+retains Core's stronger structural validation.
+
+After changing local Go library dependencies, validate all four services as
+standalone modules: local, hop, edge and console API. The latter three consume
+the local authority client; local has other local library replacements. Run
+`GOWORK=off go mod tidy -diff`, `GOWORK=off go test -race ./...` and
+`GOWORK=off go vet ./...` from each service's `code/` directory. Workspace-only
+library tests can hide stale service module graphs and leave `codefly run`
+unable to build.
 
 ## Rules of change (owner, 2026-10-22)
 
@@ -323,8 +343,10 @@ the Work Context messages import (reported on codefly-dev/cli#1107).
 
 ## Roles and the permission matrix
 
-A solution declares its roles in its manifest, each within what the solution
-serves, and one of them is `installer`: whoever installs the solution holds it on
+A solution declares its roles in its canonical `module.contract.codefly.yaml`,
+each within what the solution serves or explicitly consumes through its invoke
+and lookup bindings. Headless-only permissions cannot supply a role grant.
+One role is `installer`: whoever installs the solution holds it on
 that installation, which is the install-and-configure surface. A module declares
 no roles; a person's access to a module is the organisation's roles intersected
 with what the module serves. A person's access to a solution is the role its
@@ -333,32 +355,127 @@ role through a granted team, and nothing from the organisation's roles. Another
 organisation's installation grants nothing. The values of real roles belong to
 each solution's manifest and arrive through the carrier: core's manifest carries
 no roles, so they travel in the authority's own document delivered with it
-(`AuthorityManifestV1.roles`, as the sketch's `ModuleManifestV1.roles`), each
-within the solution's scope ceilings in the same document. This repository holds
+(`AuthorityManifestV1.roles`, as the sketch's `ModuleManifestV1.roles`), bounded
+by the solution's own scope ceilings and the invoke/lookup scopes in the paired
+Core manifest. Consumed kinds do not become kinds the solution serves. This repository holds
 the contract and its evaluation, never a product's roles.
+
+An installation acting for itself resolves its selected role in that installed
+solution's manifest, using the same role source as installation validation.
+An organisation role with the same label supplies no authority to it. The
+requested audience still intersects that role with what it serves; a binding
+alone does not grant downstream module access. A role may explicitly grant a
+consumed permission within those bindings, allowing the installation's agent to
+issue at that module or carry it on a child call. Resource restrictions survive
+that intersection.
+
+For person-owned work through a solution, the person's effective installation
+roles are the permission source, including explicitly declared consumed grants.
+No additional organisation grant is required. Installer-only owners hold only the
+installer role; members of granted teams hold the selected role; a person in both
+positions holds their union. A binding is a ceiling, never an independent grant.
+The authority applies this source to person issuance naming a solution binding,
+children, delegation admission and use, and resource reads. Every solution in the
+verified actor chain continues to bound later module calls; a later module cannot
+recover a permission that the solution role withheld. A target solution also
+requires the person's entitlement there. Independent person-to-module work still
+uses organisation roles; child derivation follows the target rule below.
+
+Solution roles preserve exact resource IDs and whole-kind grants through issuance
+and resource listing. Restricted grants still do not satisfy a method policy
+requiring a whole kind. Solutions must declare their intended consumed permissions
+in their own roles; missing declarations cause refusal, not an organisation-role
+fallback. Tests cover both denied organisation rights and permitted solution rights,
+signed role delivery, multiple solution actors, and role/installation/delegation
+revocation. SaaS parity and composed browser qualification remain separate work.
+Installation-owned calls to another solution still need the target-consent contract
+tracked by the pending tool-matrix row 11; this person rule does not supply it.
+
+Delivering a narrower or removed selected role, or narrowing the installer's
+role, advances active installation seals and the affected organisations'
+authorization revisions. Existing roots and descendants are then refused by
+Core's ordinary live verification. Role expansion alone leaves existing narrow
+installation roots valid; module actors still obey their generation checks.
+New issuance resolves the current declaration.
+
+Issuance binds those role reads to the authorization revision Core signs. If
+delivery changes it between resolution and minting, issuance refuses with
+`permissions changed during issuance`; it does not retry with the old scopes.
+Workload, delegated and child binding resolution likewise must match the signed
+binding's module generation. Narrowing, removing or retargeting a binding also
+advances the active installations' seals and organization revisions: person
+roots can carry its scopes for a later hop without carrying the module's epoch.
+Organization revision invalidation is coarse: unrelated existing capabilities in
+each affected organization also need fresh issuance. Current grants remain usable.
+A change after version capture leaves an older capability that ordinary
+verification refuses. Deterministic issuer tests cover
+role narrowing/removal and binding narrowing/removal before resolution, during
+minting and after issuance. These checks do not choose a child-scope policy or
+qualify the separate accounts implementation.
+
+Installation administration (`List`, `Install`, `GrantToTeam`) requires an open
+session whose current person is an administrator or owner of the requested
+organization. Anonymous and invalid sessions are `Unauthenticated`; a member or
+an administrator of another organization receives `PermissionDenied`. This is
+not the navigation API: a member probes each target with an empty-scope `Issue`.
+That call returns `FailedPrecondition` when the audience has no active
+installation in the person's organization, and `PermissionDenied` when installed
+but the person holds no grant. Shared conformance exercises both distinctions;
+its optional `UnentitledToken` must name a fixture person with no roles or teams.
+The local fixture includes `no-roles` in Acme for that case.
 
 The suite proves it as a matrix: the fixture states, for each person at each
 audience, which kind and action is allowed and which refused, and the suite asks
-for exactly that scope and expects the answer. The authority gateway's fixture carries
-two organisations, five people, three organisation roles, one solution with three
-roles installed twice, and 25 cells. The host supplies its own matrix from its
+for exactly that scope and expects the answer. The local authority's fixture carries
+two organisations, a person with no roles or teams, an automatically generated
+developer role, and a solution installed under different roles. The host supplies its own matrix from its
 own fixture. When the fixture signs, the suite composes its solution as a carrier
 with the authority's document carrying its roles; the sketch remains for a
 fixture that does not sign.
 
+The local authority also logs a delivery-time role × method report and
+generates its local developer role from concrete delivered permissions. See
+[local permission diagnostics](modules/authority/services/local/README.md#permission-diagnostics-during-local-development)
+for the distinction between static coverage and runtime authorization.
+
 ## Delegate chains: a module inherits who it acts for
 
-Owner's rule of 2026-10-23, generic to every module that acts for someone (robin
+Owner's rule A of 2026-10-25, generic to every module that acts for someone (robin
 and runtime first): a module holds no standing authority over anyone's data. Its
 hop on a person's or an installation's token is owned by that principal, adds
-the module to the actor chain, and has as its ceiling the owner's authority twice
-over: what was already delegated down the chain (the parent's scopes) and what
-the owner holds now at the hop's audience through the module's binding. An ask
-narrows the ceiling; the child never outlives its parent. A module hops only on a
+the module to the actor chain, and derives its scopes for each target from the
+owner's current grants intersected with the selected binding, capped by the
+parent's per-kind limits. Dropped actions and restricted resource IDs stay
+restricted even after an intermediate call to another audience. An explicit ask
+that drops an entire current-target kind leaves a zero-action cap; disjoint
+resource sets also leave that cap, never an unrestricted empty resource list.
+A kind never visited can still be derived from the owner's current grants.
+
+Authority scopes and replayed prior actors carry those limits across audiences;
+the final actor receives only the current target's effective scopes. Carried
+limits are not usable authority at that target. A service-owned context has no
+person role to recover and retains only its existing authority through the
+binding. A stored `Delegate` grant remains a complete ceiling: absent kinds,
+dropped actions and named resource IDs cannot return. Every matching stored
+delegation must still authorize the owner and actor. The target projection does
+not replace that durable grant.
+The child never outlives its parent. A module hops only on a
 token addressed to it and names the binding it exercises. Revoking the person's
 access, or changing the solution's role, revokes every delegate on the next call.
 The suite proves it with a chain of three modules where the last hop gets a read
 the person's first token never carried.
+
+The shared `conformance.Fixture.ChildScopes` case proves exact effective target
+scopes, exclusion of unrelated carried caps, a two-target stored delegation,
+resource discovery, refusal to restore actions/IDs, and descendant revocation.
+Each host must populate this fixture: an omitted case fails conformance.
+`Fixture.ParentLimits` additionally proves action, resource and entirely dropped
+kind restrictions across repeated audience round trips. Local issuer tests cover
+disjoint target actions/IDs, service-owned attenuation, and revocation
+interleavings. A missing, undeclared or misaddressed binding is refused before
+verification can spend a single-use parent; binding seals use
+`<organization>/<module>/<binding>`. SaaS must run this same
+suite against its own real adapters before cross-host qualification is claimed.
 
 ## The hop: one door in front of a module (2026-10-23)
 
@@ -366,7 +483,14 @@ The hop is the authority module's second service. It stands in front of a module
 and lets through only a call the authority checked. For each call it reads the
 caller's Work Context, asks the interface's `Check` with the module's principal
 as the audience, removes any stamp the caller sent, writes its own stamp, and
-forwards the call as opaque frames. It knows no method of the module.
+forwards the call as opaque frames. Its generated catalog snapshot identifies
+each method's service and endpoint; it does not interpret permission requirements.
+See [hop routing and upgrade requirements](modules/authority/services/hop/README.md).
+
+The hop always listens on its declared HTTP endpoint, including in a
+gRPC-only composition. An empty HTTP routing table does not remove that
+endpoint from Codefly's readiness checks. Requests still pass through the
+authority decision and are refused when no corresponding HTTP upstream exists.
 
 The module behind it carries one interceptor from `libraries/hop/go` and no
 other authority code. The stamp binds the digest of the Work Context the hop
@@ -376,6 +500,16 @@ stamped, and refuses a call that did not come through the hop. It verifies no
 token and asks no authority. The stamp is believed only with the run's proof,
 which Codefly generates and delivers to the hop and the module alone. In a cell
 the mesh plays that part.
+
+The hop and the edge ask the host the composition names in the `authority`
+group's `endpoint`, the key every module reads for the same host, so pointing
+that key at saas accounts' Connect listener moves them with the modules:
+`host:port` and `http://` are the run's plaintext transport (h2c), `https://` is
+TLS. A composition that names none reaches the authority module's local service.
+Under `hop/ENFORCEMENT=warn` the hop lets through a call the authority verified
+and the method's policy would have refused, stamped with that refusal as its
+advisory; a call with a missing, unsound or misaddressed Work Context, or one
+the authority could not be asked about, is refused in either mode.
 
 This run's hop fronts the console, whose one operation answers who the call is
 for. Run it from the playground workspace, `playground/`, which composes this
@@ -437,7 +571,21 @@ The marks reach the authority in the delivery, and the authority decides:
    does not hold (saying what it holds), a method that declares nothing or both,
    a method the module does not serve. Without it, `Check` answers as before.
 3. **The hop** asks `Check` with the method and passes the answer on. It holds
-   no policy, reads nothing from the module, and polls nothing.
+   no permission requirements and polls nothing. Codefly supplies its published
+   route inventory; the selected destination and declared policy method travel
+   together into the single Check decision.
+
+A method requirement names a whole resource kind. Delivery rejects a method
+requirement containing resource IDs instead of silently dropping its restriction.
+A capability restricted to
+resource IDs does not satisfy that requirement, even with a wildcard action;
+several restricted scopes do not become a whole-kind grant. A whole-kind grant
+alongside restricted scopes still satisfies its declared action. Refusals mark
+resource-limited holdings in the diagnostic. `Advise` reports the same refusal
+without widening or discarding the checked capability, so warn mode can log it.
+Checking a capability without a method and reading its resource scope remain
+supported. Modules still own resource visibility, ownership and installation
+checks; method admission does not replace them.
 
 Proven live on 2026-10-23 with the CLI of codefly-dev/cli#1128 at 13f7a3e3: the
 console's delivery carries its signed document; Maya's `WhoAmI` and `Version`
@@ -446,10 +594,10 @@ console method `NotFound`; and a check naming a method at a module whose
 delivery carried no document is refused, while the same token with no method
 named is checked as before.
 
-The authority gateway passes the suite line that proves it ("a check naming a
+The local authority passes the suite line that proves it ("a check naming a
 method applies what the module's delivery declares"), which fails when `Check`
-ignores the method. Accounts implements neither the document nor the method
-yet; the line skips for a fixture that signs no authority document.
+ignores the method. Each host must supply a signed authority document and prove the method cases;
+an omitted signer fails conformance. Local results do not establish Accounts parity.
 
 The console imports the option by copying `policy.proto` into its proto tree,
 as every module in the fleet copies the option protos it uses. That copy is a
@@ -467,7 +615,7 @@ Not yet:
   `playground/configurations/local/hop.env` lists the console. Composing hops is the
   composition's job.
 - **The interface, not the provider.** The SDK resolves an endpoint by its
-  provider, so the hop names the authority gateway. An accessor by interface is
+  provider, so the hop names the local authority. An accessor by interface is
   an SDK change.
 - **The cell face.** The same decision, called by the mesh's authorization step.
 
@@ -504,7 +652,7 @@ the `approvals` table), as accounts keeps its own in its store when it implement
 the interface: consent is runtime state a person created, not fixture, and a
 restart that forgot it refused every run of the approved artifact while the
 consuming module kept its installation. A run that composes no store keeps
-them in memory, and the gateway says which at boot
+them in memory, and the local authority says which at boot
 ([the module page](modules/authority/README.md)). The fixture grants an Acme
 admin `robin.intents:activate` and an editor `robin.intents:run`.
 
@@ -523,11 +671,20 @@ another site lands on the root, and a non-browser caller signs in with a JSON
 `fixtureToken`.
 
 `/auth/session` answers who is signed in (`personId`, `organizationId`,
-`roles`) and the organisation's active `installations`, each `{id, target}`:
-the host's navigation read, which a frontend binds its calls to (a robin
-conversation names its installation). An installation id is a canonical UUID,
-as the host issues, named by organisation and target so it is the same on
-every start: a module's stored rows keep naming it.
+`roles`), the `installations` the person may use, each `{id, target}`, which a
+frontend binds its calls to (a robin conversation names its installation), and
+`refused`, the reason for each other target. Both come from `Issue`, once per
+module the edge routes, as a call to that module would: a target is usable when
+the authority issues the person a Work Context there, and its id is the
+installation the context is sealed to. A member reads this as well as an
+administrator, so the installation interface's `List`, an administrator's read
+a host refuses a member, decides nothing here. A person who holds nothing at a
+target and an organisation that never installed it are each refused with the
+authority's own words. `List` is asked only for each installation's
+`namespace`, which no member's read carries yet, so the namespace is named for
+whoever the host lets list. An installation id is a canonical UUID, as the host
+issues, named by organisation and target so it is the same on every start: a
+module's stored rows keep naming it.
 
 Each call is routed by its path: `/v1/<module>/…` to the module's REST face,
 `/<package.Service>/…` to its Connect face, and every other path to the
@@ -572,11 +729,11 @@ token, so tokens stay small and a new grant takes effect at once.
 The answer is a list of grants. Each one covers every resource of the kind, one
 id, an id prefix, or a whole-id RE2 pattern of at most 256 bytes. A resource is
 covered when any grant matches its id. `libraries/resources/go` is the one
-evaluation of grants, used by the authority gateway to validate its roles, by
+evaluation of grants, used by the local authority to validate its roles, by
 the suite, and by any module deciding which of its own resources a caller sees.
 The authority knows resources by id only; each module maps ids onto its own.
 
-On the authority gateway a role's scope may carry `resources`. A scope with
+On the local authority a role's scope may carry `resources`. A scope with
 none covers the whole kind. A person's answer is what her roles grant. A
 module's or an installation's own work is bounded by its capability alone. A
 capability narrowed to named ids covers only the ones the owner's grants also
@@ -587,17 +744,17 @@ grant" holds an implementation to a fixture's covered and uncovered ids, an
 unheld action, and a narrowed capability. It fails on an implementation that
 answers every resource.
 
-Building it exposed an attenuation bug: the gateway's scope operations dropped
+Building it exposed an attenuation bug: the local authority's scope operations dropped
 resource ids, so a capability asked for two named resources was issued for the
 whole kind. They now keep ids, and an intersection keeps the narrower side
 (`pkg/business/state`, with unit tests). The fixture's record kinds are now the
 record store's own, `records.records` and `records.types`.
 
-## The document store on the authority gateway, no saas (2026-10-23)
+## The document store on the local authority, no saas (2026-10-23)
 
 Proven live, with the document store from obin-ai/module-document-store's
 `authority/behind-the-hop` branch (4e295b1) and the record store from its
-branch (d506000), composed in this workspace with the authority gateway as host,
+branch (d506000), composed in this workspace with the local authority as host,
 the hop in front of both, and no saas module:
 
 | Call | Answer |
@@ -610,11 +767,43 @@ the hop in front of both, and no saas module:
 | The same REST call with no token | HTTP 401 from the hop, naming the gRPC method |
 | Rémi's token straight to the store's gRPC port | refused: no stamp |
 
-Every manifest reached the authority gateway through the composition interface.
+Every manifest reached the local authority through the composition interface.
 The store's host services (jobs, notifications, approvals, record placement,
 file fetch) report themselves unwired and idle, and ingest is off because no
 runtime is composed. The fixture's collection grants do not yet use the store's
 real namespace spelling.
+
+## Delegated resource restrictions
+
+A delegation preserves the exact resource IDs supplied in its WorkScopes.
+Omitted IDs grant the whole kind, while named IDs remain a ceiling even when
+the grantor and operation binding hold broader authority. Delegate,
+GetDelegation, Issue, downstream children and RevokeDelegation preserve that
+stored ceiling; requesting an ID outside it is refused. The child reconstructs
+the target projection from the stored grant, not from the narrower previous
+audience's projection.
+
+Development fixtures use `resource_ids` on delegation scopes. The
+`resources` matchers used by roles (IDs, prefixes and patterns) are a separate
+contract and are rejected on delegation scopes rather than silently ignored.
+The generated gRPC client regression covers the complete delegation lifecycle;
+the fixture regression checks exact IDs and matcher-syntax refusal. These are
+hermetic local authority checks, not full consumer or SaaS-provider qualification.
+
+Revoking a delegation advances the organization's authorization revision in the
+same state update. Previously issued capabilities, including descendants, then
+fail the ordinary core verifier. This is deliberately conservative: outstanding
+capabilities throughout that organization are invalidated, while other
+organizations are unaffected. Ordinary authorized callers recover by requesting
+fresh authority; the revoked delegation cannot issue again. Repeated, unknown
+or unauthorized revocations do not advance the revision.
+
+Issuance rereads the delegation after signing, and parent exchanges recheck the
+original parent after signing, to prevent concurrent revocation from being
+refreshed into new authority. Regressions cover existing-token checks, resource
+discovery, descendants, tenant isolation and deterministic issuance interleavings.
+This does not qualify the separate cross-audience attenuation or durable custody
+contracts.
 
 ## Every saas module-authority feature, and where it lives now (2026-10-23)
 
@@ -636,17 +825,19 @@ the interface, with a suite line, or named as belonging elsewhere.
 | Audit (`EmitAuditEvent`, `DeclareAuditEventTypes`) | not authority: an optional audit interface; with none injected, the module logs each event | the record store |
 | Notifications and the current installation (`NotifyUser`, `NotifyOrgAdmins`, `GetCurrentInstallation`) | not authority: host services, optional interfaces | open |
 
-The authority gateway implements every line. Accounts implements none of the
-last five additions yet (lookup, delegations and their read, `ListResources`,
-method policy);
-each suite line skips for a fixture that states no case.
+The local authority supplies these cases. Each host must run the current suite
+against its own provider; missing required fixtures fail. Earlier Accounts
+results do not qualify later suite additions.
 
 ## Open decisions
 
-- **Decided 2026-10-23, the hop rule.** A module hops only on a person's token
-  addressed to it, the hop names the binding it exercises, and the person's token
-  names that binding too, so the child carries exactly what the person holds
-  through the binding at its audience. Core stands unchanged. The authority gateway
+- **Decided 2026-10-23, the hop rule.** A module hops only on a verified token
+  addressed to it, and the hop names the binding it exercises. Current child
+  derivation supports person and installation owners through their target grants;
+  service-owned work remains bounded by its existing effective scopes. The
+  target-projection and stored-delegation rules above state these distinctions.
+  Core main `e501458995d05b641ed10e456fcb2837ff8b9f86` supplies action-specific
+  scope containment; these dependency graphs require Go 1.27.3. The local authority
   and the suite state it; the host's `childHop` and its person issue follow
   (saas #1219 is the person half there). History:
   The host's `module_actor` mode (saas #1215) requires the person's parent to be
@@ -669,7 +860,84 @@ each suite line skips for a fixture that states no case.
   workload's credential (`SignedManifestV1`, `ApplyManifestRequest.carrier` and
   `.credential`). Each implementation verifies the envelope against the release
   keys it pins and reads the manifest from the verified document. The mini
-  gateway pins the kit's release key and attests the carrier by the launcher's
+  local authority pins the kit's release key and attests the carrier by the launcher's
   anchor; the host pins its release keys and attests the delivery service
   account. The sketch (`manifest`) stays through the transition and is ignored
   when a carrier is present. Not yet done: the host adapter behind it.
+
+## Local service name (2026-10-25)
+
+The development implementation is `authority/local`, with `grpc` and `rest`
+endpoints. Module and solution playgrounds compose this local authority; the
+platform composition uses SaaS locally as its authority interface implementation.
+The edge and hop resolve `authority/local/grpc` when no `authority/endpoint`
+configuration is supplied. Consumers must update service pins and endpoint
+references together. The existing Go module import and protobuf wire identities
+remain stable; they do not select the implementation in a composition.
+
+The local issuer is `codefly.dev/authority/local`; compositions pinning an
+expected issuer (including Runtime) must update that configuration alongside the
+endpoint selectors. SaaS compositions keep their own issuer and host selection.
+
+## Tool-call authority tests (2026-10-25)
+
+An installation-owned `Issue` requires `actor.credential` from that installed
+solution's workload. The host verifies it through the same workload verifier used
+for ordinary module issuance, then checks that the authenticated module is the
+installation's target solution. An installation ID or a signed-in person's
+session alone grants nothing. Existing callers must supply the credential; the
+shared conformance fixture now requires `InstalledCredential` as well.
+
+The issuer tests and shared gRPC conformance suite exercise a module's binding to
+an installed solution: the entitled person's root carries the binding scope,
+the child preserves the person as owner and the module as actor, and a real
+method-policy check succeeds. A person without the target entitlement cannot
+obtain that permission, including when the child asks for its default scopes.
+A solution target bounds the whole child by its person role and binding; ordinary
+module-to-module derivation is unchanged. Hosts supply `SolutionTools` to run this
+additional shared scenario; a missing scenario fails conformance.
+
+An installation owner can cross successive module actors in its organisation.
+The local seal source associates an active solution installation's agent with
+active module installations in that same organisation. The acting module's
+binding remains sealed to its own installation, and Core's binding/seal
+verification is unchanged. The issuer still derives each target from the
+original installation's current role and the binding; the seal association adds
+no actions or resource rights. It does not associate an agent with another
+solution installation or another organisation.
+
+Issuer tests cover exact owner/actor provenance, resource restrictions, wrong
+actors, source and actor uninstall, role/binding narrowing, and source uninstall
+during issuance. Shared conformance hosts supply `InstallationChain` to prove
+successive module hops; the local fixture crosses three actors. A missing
+fixture fails conformance and is not evidence of provider parity. These are offline
+authority tests, not a live solution or SaaS qualification.
+
+Target-solution consent for installation-owned tool calls is **not implemented**.
+The executable regression is deliberately behind the `pending` build tag:
+`go test -tags pending ./pkg/business/issuer -run
+TestInstallationToolRequiresTargetSolutionConsent` from the local service's
+`code/` directory. It currently fails for direct issuance based on the source
+solution's role alone; the two-hop case now also issues without target consent.
+Neither result proves target consent. The
+positive consent relationship and its revocation remain an authority contract
+and implementation gap. No target-consent grant was invented, and Core's
+binding verification was not bypassed to hide it.
+
+## Interface evolution, 2026-10-25
+
+`codefly.dev/authority@0.2.0` is the breaking successor to 0.1.0. Core's
+interface evolution rules require a minor bump below 1.0. Installation Issue
+requires its installed caller's workload credential; an installation ID alone
+is never authority. Workloads name the work item's organization; the local
+sole-installation convenience is not required of other hosts. Advisory Check
+is a local development extension, and the hop rejects warn outside local runs.
+
+`codefly.dev/session@0.2.0` adds person and organization display names to Current
+and SignIn (fields 7 and 8). Missing fields fail conformance. These implement the
+[host interface use cases](https://github.com/obin-ai/handbook/blob/main/design/host-authority-interface/use-cases.md)
+under the existing
+[host interface proposal](https://github.com/obin-ai/handbook/blob/main/proposals/2026-10-22-the-host-authority-interface-and-the-local-authority.md).
+All consumers and implementations must select the updated interface versions;
+this repository updates its module, edge, hop and console declarations. SaaS
+must adopt the version and fields before claiming this contract.

@@ -1,5 +1,5 @@
 // Package resources is how a grant the authority answers is evaluated, the same
-// way everywhere: by the authority gateway when it validates a role, by the
+// way everywhere: by the local authority when it validates a role, by the
 // conformance suite when it holds an implementation to its answers, and by a
 // module when it decides which of its resources a caller may touch.
 //

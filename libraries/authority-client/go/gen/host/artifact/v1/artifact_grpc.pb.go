@@ -36,7 +36,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// ArtifactService is implemented by the host and by the authority gateway.
+// ArtifactService is implemented by the host and by the local authority.
 type ArtifactServiceClient interface {
 	// Approve records the person's consent to the identity for the installation
 	// under the policy. The person is present: the parent is theirs, addressed
@@ -97,7 +97,7 @@ func (c *artifactServiceClient) Revoke(ctx context.Context, in *RevokeRequest, o
 // All implementations must embed UnimplementedArtifactServiceServer
 // for forward compatibility.
 //
-// ArtifactService is implemented by the host and by the authority gateway.
+// ArtifactService is implemented by the host and by the local authority.
 type ArtifactServiceServer interface {
 	// Approve records the person's consent to the identity for the installation
 	// under the policy. The person is present: the parent is theirs, addressed

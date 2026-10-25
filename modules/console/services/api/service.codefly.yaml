@@ -32,7 +32,7 @@ spec:
 # The console reaches the authority through the interface it depends on, never a
 # service: the composition resolves which implementation answers.
 service-dependencies:
-    - interface: codefly.dev/authority@0.1.0
+    - interface: codefly.dev/authority@0.2.0
 # The console acts as a workload of its own: the run vouches for it and delivers
 # its manifest to the authority.
 module-identity: true

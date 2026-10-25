@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/codefly-dev/authority/libraries/hop/go"
+	"github.com/codefly-dev/authority/libraries/hop/go/routing"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -22,21 +23,26 @@ import (
 type HTTP struct {
 	Decide    Decide
 	Upstreams map[string]*url.URL
-	// Connect is where a module serves the Connect protocol when it is not
-	// Upstreams: a call whose path is a gRPC method name goes there.
-	Connect map[string]*url.URL
-	Proof   string
+	Proof     string
 	// Refused is told every refusal, so the hop's log names it.
 	Refused func(method string, err error)
 }
 
 func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	method := r.Method + " " + r.URL.Path
+	if err := routing.CanonicalPath(r.URL.Path, r.URL.EscapedPath()); err != nil {
+		refusal := status.Error(codes.InvalidArgument, err.Error())
+		if h.Refused != nil {
+			h.Refused(method, refusal)
+		}
+		refuse(w, refusal)
+		return
+	}
 	md := metadata.MD{}
 	for key, values := range r.Header {
 		md[strings.ToLower(key)] = values
 	}
-	module, id, err := h.Decide(r.Context(), method, md)
+	decision, err := h.Decide(r.Context(), method, md)
 	if err != nil {
 		if h.Refused != nil {
 			h.Refused(method, err)
@@ -44,10 +50,12 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		refuse(w, err)
 		return
 	}
-	target, ok := h.Upstreams[module]
-	if connect, served := h.Connect[module]; served && isMethodPath(r.URL.Path) {
-		target, ok = connect, true
+	module, id := decision.Module, decision.Identity
+	if decision.Route == nil {
+		refuse(w, status.Error(codes.Internal, "the hop decision names no published route"))
+		return
 	}
+	target, ok := h.Upstreams[decision.Route.Address]
 	if !ok {
 		refuse(w, status.Errorf(codes.Internal, "the hop has no HTTP connection to %s", module))
 		return
@@ -74,13 +82,6 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			refuse(w, status.Errorf(codes.Unavailable, "the module did not answer: %v", err))
 		},
 	}).ServeHTTP(w, r)
-}
-
-// isMethodPath is whether path is a gRPC method's full name, "/<package.Service>/
-// <Method>", the path a Connect call takes.
-func isMethodPath(path string) bool {
-	service, method, ok := strings.Cut(strings.TrimPrefix(path, "/"), "/")
-	return ok && strings.Contains(service, ".") && method != "" && !strings.Contains(method, "/")
 }
 
 // refuse answers a refusal in HTTP's words, its reason the decision's own.
