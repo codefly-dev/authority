@@ -76,6 +76,9 @@ func configureLocalAuthority(ctx context.Context, _ *adapters.Configuration) (Cl
 	if err := st.LoadFixture(ctx, data); err != nil {
 		return nil, fmt.Errorf("fixture %q: %w", name, err)
 	}
+	if err := grantCompositionRoles(ctx, st); err != nil {
+		return nil, err
+	}
 	clean, err := approvalsFor(ctx, st)
 	if err != nil {
 		return nil, err
@@ -114,6 +117,31 @@ func configureLocalAuthority(ctx context.Context, _ *adapters.Configuration) (Cl
 		})
 	}
 	return clean, nil
+}
+
+// grantCompositionRoles adds what the composition grants the fixture's roles:
+// the workspace configuration document fixture-roles, which a module's own
+// playground supplies for the permissions its module serves. A run that
+// supplies none keeps the fixture's roles as they are; a document that does not
+// read, or names a role the fixture does not define, refuses to boot.
+func grantCompositionRoles(ctx context.Context, st *state.State) error {
+	w := wool.Get(ctx).In("local")
+	document, err := codefly.For(ctx).WorkspaceConfigurationDocument(state.CompositionRolesDocument)
+	if errors.Is(err, codefly.ErrConfigurationDocumentMissing) {
+		w.Info("the composition grants the fixture's roles nothing (no fixture-roles document)")
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	granted, err := st.GrantCompositionRoles(document)
+	if err != nil {
+		return err
+	}
+	for _, line := range granted {
+		w.Info("the composition grants " + line)
+	}
+	return nil
 }
 
 // approvalsFor chooses where consent lives. The store is a declared dependency

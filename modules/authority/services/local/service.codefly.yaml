@@ -10,8 +10,13 @@ agent:
 # connection as this service's `store` postgres/read-write-connection secret.
 # A run that composes no store delivers none, and the local authority keeps approvals in
 # memory, saying so at boot (code/work.go approvalsFor).
+# federation: the host coordinate a signed delivery is checked against.
+# fixture-roles: a document the composition may supply, granting the fixture's
+# organisation roles what its modules serve (code/work.go
+# grantCompositionRoles); a run that supplies none keeps the fixture's roles.
 workspace-configuration-dependencies:
     - federation
+    - fixture-roles
 service-dependencies:
     - name: store
       module: authority

@@ -433,6 +433,10 @@ own fixture. When the fixture signs, the suite composes its solution as a carrie
 with the authority's document carrying its roles; the sketch remains for a
 fixture that does not sign.
 
+A composition grants the fixture's organisation roles what its modules serve
+through the `fixture-roles` workspace configuration document
+([grants a composition supplies](modules/authority/services/local/README.md#grants-a-composition-supplies)),
+so a module's permissions need not be written into this repository's fixture.
 The local authority also logs a delivery-time role × method report and
 generates its local developer role from concrete delivered permissions. See
 [local permission diagnostics](modules/authority/services/local/README.md#permission-diagnostics-during-local-development)

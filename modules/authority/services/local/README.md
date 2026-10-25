@@ -37,6 +37,42 @@ Generated code (`pkg/gen`, `*_gen.go`, `main.go`) comes from `codefly generate`
 and the agent; `work.go` and everything under `pkg/business`, `pkg/infra` and
 `plugins` is written here.
 
+## Grants a composition supplies
+
+The fixture says who exists, which organisation roles they hold and what each
+role grants of the platform's own vocabulary. What a role may do at one module
+belongs to that module's composition, not to this repository: a module's
+playground supplies the workspace configuration document `fixture-roles`
+(`configurations/local/fixture-roles.yaml` in its workspace), spelled as the
+fixture's `roles:` entries, and the local authority adds each entry's scopes to
+the fixture role it names before any listener starts:
+
+```yaml
+roles:
+  - organization: acme
+    name: editor
+    scopes:
+      - {kind: ledger.entry, actions: [write]}
+```
+
+A composition grants; it never creates a role or a person. An entry naming a
+role the fixture does not define, the generated `developer` role, no scope, a
+scope with no kind or action, an unknown field or a malformed resource matcher
+refuses the boot by name, and a refused document changes no role. Empty or null
+documents and additional YAML documents are refused; `roles: []` explicitly
+grants nothing. The boot log
+names each grant (`the composition grants acme/editor: ledger.entry:[write]`),
+or says the composition supplied none. The delivery-time report below then
+reads the granted roles like any other.
+
+This reuses Codefly's public workspace document delivery and SDK
+`WorkspaceConfigurationDocument`, the fixture's `Role`/`Scope` schema, the
+shared resource matcher compiler, and the existing person-scope resolver.
+The delivered method catalog generates only `developer` today
+(`pkg/business/state/permissions.go`); it carries no organisation-role-class
+mapping for editor or admin. Composition grants fill that local fixture gap
+without introducing another resolver or changing the host authority interface.
+
 ## Permission diagnostics during local development
 
 The local fixture's `developer` role uses `generated: true` and declares no
