@@ -111,6 +111,13 @@ func (i *Issuer) ListResources(ctx context.Context, token, audience, kind, actio
 	wc := verified.Context()
 	grants := []resources.Grant{{All: true}}
 	if wc.GetOwnerPrincipalKind() == "human" {
+		ceiling, bounded, err := i.solutionCeiling(wc.GetOwnerPrincipalId(), solutionPrincipals(wc, wc.GetAudience()))
+		if err != nil {
+			return nil, err
+		}
+		if bounded {
+			return roleResources(state.Intersect(verified.EffectiveScopes(), ceiling), kind, action), nil
+		}
 		if grants, err = i.state.ResourceGrants(wc.GetOwnerPrincipalId(), audience, kind, action); err != nil {
 			return nil, err
 		}
@@ -258,7 +265,11 @@ func (i *Issuer) forPerson(ctx context.Context, sessionID string, audience state
 		if !declared {
 			return "", nil, fmt.Errorf("%w: operation binding %q is not one %s declares", state.ErrUnknown, bindingID, audience.Module)
 		}
-		there, err := i.state.PersonScopes(sess.Person, binding.Audience)
+		target, err := i.state.ModuleByPrincipal(binding.Audience)
+		if err != nil {
+			return "", nil, err
+		}
+		there, _, _, err := i.personThroughSolutions(sess.Person, target, []string{audience.Principal})
 		if err != nil {
 			return "", nil, err
 		}
@@ -418,7 +429,13 @@ func (i *Issuer) child(ctx context.Context, parent, actorCredential, bindingID, 
 	if binding.Audience != audience.Principal {
 		return "", nil, fmt.Errorf("%w: binding %q is addressed to %s, not %s", ErrRefused, bindingID, binding.Audience, audience.Principal)
 	}
-	held, err := i.ownerHolds(claims, audience)
+	var held, sourceCeiling []*basev0.WorkScopeV1
+	sourceBounded := false
+	if claims.GetOwnerPrincipalKind() == "human" {
+		held, sourceCeiling, sourceBounded, err = i.personThroughSolutions(claims.GetOwnerPrincipalId(), audience, solutionPrincipals(claims, actor.Principal))
+	} else {
+		held, err = i.ownerHolds(claims, audience)
+	}
 	if err != nil {
 		return "", nil, err
 	}
@@ -427,6 +444,9 @@ func (i *Issuer) child(ctx context.Context, parent, actorCredential, bindingID, 
 		return "", nil, err
 	}
 	ceiling := state.Normalize(append(append([]*basev0.WorkScopeV1(nil), verified.EffectiveScopes()...), state.Intersect(held, through)...))
+	if sourceBounded {
+		ceiling = state.Intersect(ceiling, sourceCeiling)
+	}
 	// A target solution admits the person through its own installation role.
 	// Carried scopes from a module are not a substitute for that entitlement.
 	if audience.Kind == "solution" && claims.GetOwnerPrincipalKind() == "human" {
@@ -569,7 +589,7 @@ func (i *Issuer) forDelegation(ctx context.Context, id, actorCredential, binding
 	if err != nil {
 		return "", nil, err
 	}
-	held, err := i.state.PersonScopes(d.Grantor, audience.Principal)
+	held, _, _, err := i.personThroughSolutions(d.Grantor, audience, []string{actor.Principal})
 	if err != nil {
 		return "", nil, err
 	}

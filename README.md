@@ -363,10 +363,29 @@ requested audience still intersects that role with what it serves; a binding
 alone does not grant downstream module access. A role may explicitly grant a
 consumed permission within those bindings, allowing the installation's agent to
 issue at that module or carry it on a child call. Resource restrictions survive
-that intersection. This does not change person-owned child calls: they still
-resolve the person's organisation roles at a module audience. Whether solution
-roles additionally bound those calls is a separate decision; host parity remains
-separate qualification work.
+that intersection.
+
+For person-owned work through a solution, the person's effective installation
+roles are the permission source, including explicitly declared consumed grants.
+No additional organisation grant is required. Installer-only owners hold only the
+installer role; members of granted teams hold the selected role; a person in both
+positions holds their union. A binding is a ceiling, never an independent grant.
+The authority applies this source to person issuance naming a solution binding,
+children, delegation admission and use, and resource reads. Every solution in the
+verified actor chain continues to bound later module calls; a later module cannot
+recover a permission that the solution role withheld. A target solution also
+requires the person's entitlement there. Independent person-to-module work still
+uses organisation roles; module-only child derivation is unchanged.
+
+Solution roles preserve exact resource IDs and whole-kind grants through issuance
+and resource listing. Restricted grants still do not satisfy a method policy
+requiring a whole kind. Solutions must declare their intended consumed permissions
+in their own roles; missing declarations cause refusal, not an organisation-role
+fallback. Tests cover both denied organisation rights and permitted solution rights,
+signed role delivery, multiple solution actors, and role/installation/delegation
+revocation. SaaS parity and composed browser qualification remain separate work.
+Installation-owned calls to another solution still need the target-consent contract
+tracked by the pending tool-matrix row 11; this person rule does not supply it.
 
 Delivering a narrower or removed selected role, or narrowing the installer's
 role, advances active installation seals and the affected organisations'

@@ -626,6 +626,11 @@ func (s *State) Session(id string) (Session, error) {
 func (s *State) PersonScopes(person, audience string) ([]*basev0.WorkScopeV1, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	return s.personScopes(person, audience)
+}
+
+// personScopes reads one locked state snapshot.
+func (s *State) personScopes(person, audience string) ([]*basev0.WorkScopeV1, error) {
 	p, ok := s.people[person]
 	if !ok {
 		return nil, fmt.Errorf("%w: person", ErrUnknown)
@@ -636,23 +641,7 @@ func (s *State) PersonScopes(person, audience string) ([]*basev0.WorkScopeV1, er
 	}
 	var held []*basev0.WorkScopeV1
 	if m.Kind == "solution" {
-		// A person's access to a solution is the role its installation grants
-		// her: the installer role as its owner, the installation's role through
-		// a granted team. Nothing from the organisation's roles.
-		for _, i := range s.entitled(p) {
-			if i.Target != m.Module {
-				continue
-			}
-			if i.Owner == person {
-				held = append(held, m.Roles[InstallerRole]...)
-			}
-			for _, t := range i.Teams {
-				if slices.Contains(p.Teams, t) {
-					held = append(held, m.Roles[i.Role]...)
-				}
-			}
-		}
-		return Intersect(Normalize(held), m.ResourceKinds), nil
+		return Intersect(s.personSolutionScopes(p, m), m.ResourceKinds), nil
 	}
 	for _, name := range p.Roles {
 		for _, sc := range s.roles[p.Organization+"/"+name].Scopes {
@@ -672,10 +661,10 @@ func (s *State) PersonScopes(person, audience string) ([]*basev0.WorkScopeV1, er
 // person must hold at the module or at an audience one of its bindings
 // addresses.
 func (s *State) Delegate(person, module string, scopes []*basev0.WorkScopeV1, purpose string) (Delegation, error) {
-	s.mu.RLock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	p, ok := s.people[person]
 	m, err := s.moduleByPrincipal(module)
-	s.mu.RUnlock()
 	if !ok {
 		return Delegation{}, fmt.Errorf("%w: person", ErrUnknown)
 	}
@@ -685,16 +674,35 @@ func (s *State) Delegate(person, module string, scopes []*basev0.WorkScopeV1, pu
 	if len(scopes) == 0 {
 		return Delegation{}, fmt.Errorf("%w: a delegation names what it grants", ErrForbidden)
 	}
-	audiences := []string{m.Principal}
-	for _, b := range m.Bindings {
-		audiences = append(audiences, b.Audience)
-	}
 	var holds []*basev0.WorkScopeV1
-	for _, audience := range audiences {
-		if there, err := s.PersonScopes(person, audience); err == nil {
-			holds = append(holds, there...)
+	if m.Kind == "solution" {
+		// A role grants consumed authority only through the person's operations.
+		role := s.personSolutionScopes(p, m)
+		holds = Intersect(role, m.ResourceKinds)
+		for _, binding := range m.Bindings {
+			target, err := s.moduleByPrincipal(binding.Audience)
+			if err != nil {
+				continue
+			}
+			there := Intersect(role, target.ResourceKinds)
+			if target.Kind == "solution" {
+				there = Intersect(there, s.personSolutionScopes(p, target))
+			}
+			holds = append(holds, Intersect(there, binding.InvokeScopes)...)
+			holds = append(holds, Intersect(there, binding.LookupScopes)...)
+		}
+	} else {
+		audiences := []string{m.Principal}
+		for _, binding := range m.Bindings {
+			audiences = append(audiences, binding.Audience)
+		}
+		for _, audience := range audiences {
+			if there, err := s.personScopes(person, audience); err == nil {
+				holds = append(holds, there...)
+			}
 		}
 	}
+
 	if !Attenuates(scopes, holds) {
 		return Delegation{}, fmt.Errorf("%w: %s delegates what they do not hold", ErrForbidden, person)
 	}
@@ -705,9 +713,7 @@ func (s *State) Delegate(person, module string, scopes []*basev0.WorkScopeV1, pu
 			ResourceIDs: append([]string(nil), sc.GetResourceIds()...),
 		})
 	}
-	s.mu.Lock()
 	s.delegations[d.ID] = d
-	s.mu.Unlock()
 	return d, nil
 }
 

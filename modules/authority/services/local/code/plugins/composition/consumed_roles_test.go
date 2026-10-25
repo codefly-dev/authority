@@ -101,6 +101,26 @@ func TestConsumedInstallationRoleIssuesAndRevokesAcrossAudiences(t *testing.T) {
 			if got := held(t, k, "maya", "documents"); got != "documents:read documents.collection:read" {
 				t.Fatalf("installation changed organisation grants: %s", got)
 			}
+			// The same delivered role supplies a person's consumed authority;
+			// Maya's independent organisation role remains read-only above.
+			session, err := k.State.SignIn("fixture-maya")
+			if err != nil {
+				t.Fatal(err)
+			}
+			personContext := issuer.WithSession(ctx, session.ID)
+			personRequest := &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "conformance-solution", OperationBindingId: "documents", Scopes: []*authorityv1.WorkScopeV1{scope("documents", "write")}}
+			personRoot, err := k.Issuer.Issue(personContext, personRequest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			personChild, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_ParentToken{ParentToken: personRoot.Token}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, "conformance-solution")}, Audience: "documents", OperationBindingId: "documents", Scopes: []*authorityv1.WorkScopeV1{scope("documents", "write")}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			grants, err := k.Issuer.ListResources(ctx, personChild.Token, "documents", "documents", "write")
+			if err != nil || len(grants) != 1 || !grants[0].All {
+				t.Fatalf("delivered person role lost its resource grant: %v %v", grants, err)
+			}
 			request := &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: inst.ID}}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, inst.Target)}, Audience: "conformance-solution"}
 			root, err := k.Issuer.Issue(ctx, request)
 			if err != nil {
@@ -129,7 +149,7 @@ func TestConsumedInstallationRoleIssuesAndRevokesAcrossAudiences(t *testing.T) {
 			if _, err := k.Issuer.Issue(ctx, childRequest); !errors.Is(err, issuer.ErrRefused) {
 				t.Fatalf("lookup recovered write: %v", err)
 			}
-			for _, issued := range []*authorityv1.IssueResponse{root, direct, child} {
+			for _, issued := range []*authorityv1.IssueResponse{root, direct, child, personRoot, personChild} {
 				if _, err := k.Issuer.Check(ctx, issued.Token, issued.Context.Audience, ""); err != nil {
 					t.Fatal(err)
 				}
@@ -142,7 +162,7 @@ func TestConsumedInstallationRoleIssuesAndRevokesAcrossAudiences(t *testing.T) {
 				doc.Roles = doc.Roles[:1]
 			}
 			deliver(2)
-			for _, issued := range []*authorityv1.IssueResponse{root, direct, child} {
+			for _, issued := range []*authorityv1.IssueResponse{root, direct, child, personRoot, personChild} {
 				if _, err := k.Issuer.Check(ctx, issued.Token, issued.Context.Audience, ""); !errors.Is(err, workcontext.ErrRevoked) {
 					t.Fatalf("old consumed role survived %s: %v", change, err)
 				}
@@ -150,6 +170,9 @@ func TestConsumedInstallationRoleIssuesAndRevokesAcrossAudiences(t *testing.T) {
 			request.Scopes = []*authorityv1.WorkScopeV1{scope("documents", "write")}
 			if _, err := k.Issuer.Issue(ctx, request); err == nil {
 				t.Fatal("fresh issuance recovered write")
+			}
+			if _, err := k.Issuer.Issue(personContext, personRequest); err == nil {
+				t.Fatal("fresh person issuance recovered removed solution write")
 			}
 		})
 	}
