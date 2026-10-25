@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	delivery "github.com/codefly-dev/authority/libraries/delivery/go"
 	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	"slices"
 	"sort"
@@ -67,6 +68,7 @@ type Person struct {
 type Role struct {
 	Organization string  `yaml:"organization"`
 	Name         string  `yaml:"name"`
+	Generated    bool    `yaml:"generated,omitempty"`
 	Scopes       []Scope `yaml:"scopes"`
 }
 
@@ -186,6 +188,11 @@ func (s *State) AdmitMethod(audience, method string, held []*basev0.WorkScopeV1)
 	if err != nil {
 		return err
 	}
+	return admitMethod(m, audience, method, held)
+}
+
+func admitMethod(m Manifest, audience, method string, held []*basev0.WorkScopeV1) error {
+	var err error
 	if m.Methods == nil {
 		return fmt.Errorf("%w: %s's delivery declares no method policy, so %s is refused", ErrForbidden, audience, method)
 	}
@@ -486,20 +493,27 @@ func (s *State) LoadFixture(ctx context.Context, data []byte) error {
 		s.ensureModuleInstallations(m)
 	}
 	for _, r := range f.Roles {
+		if r.Generated && (r.Name != "developer" || len(r.Scopes) != 0) {
+			s.mu.Unlock()
+			return fmt.Errorf("fixture: generated role must be developer with no authored scopes")
+		}
 		for _, sc := range r.Scopes {
 			grants := make([]resources.Grant, 0, len(sc.Resources))
 			for _, m := range sc.Resources {
 				grants = append(grants, m.Grant())
 			}
 			if _, err := resources.Compile(grants); err != nil {
+				s.mu.Unlock()
 				return fmt.Errorf("role %s/%s scope %s: %w", r.Organization, r.Name, sc.Kind, err)
 			}
 		}
 		s.roles[r.Organization+"/"+r.Name] = r
 	}
+	s.refreshDeveloperRoles()
 	var fixtureModules []Manifest
 	for _, d := range f.Delegations {
 		if d.ID == "" || d.Grantor == "" || d.Module == "" || d.Organization == "" {
+			s.mu.Unlock()
 			return fmt.Errorf("delegation %q names no id, grantor, module or organization", d.ID)
 		}
 		s.delegations[d.ID] = d
@@ -771,6 +785,15 @@ func (s *State) ResourceGrants(person, audience, kind, action string) ([]resourc
 // module installation at every organisation, so a module is usable without a
 // click. A lower or equal generation is refused.
 func (s *State) ApplyManifest(m Manifest) ([]string, error) {
+	for method, policy := range m.Methods {
+		requires := map[string][]string{}
+		for _, scope := range policy.Requires {
+			requires[scope.GetResourceKind()] = append(requires[scope.GetResourceKind()], scope.GetActions()...)
+		}
+		if err := delivery.ValidateMethodPolicy(method, policy.AnyCheckedCaller, requires, false); err != nil {
+			return nil, fmt.Errorf("%w: %s: %w", ErrForbidden, m.Module, err)
+		}
+	}
 	if err := validateRoles(m); err != nil {
 		return nil, err
 	}
@@ -806,6 +829,7 @@ func (s *State) ApplyManifest(m Manifest) ([]string, error) {
 	}
 	m.ResourceKinds = Normalize(append(m.ResourceKinds, servedByMethods(m.Methods)...))
 	s.modules[m.Module] = m
+	s.refreshDeveloperRoles()
 	s.principals[m.Principal] = m.Module
 	ids := s.ensureModuleInstallations(m)
 	pending := s.takePendingInstalls(m.Module)

@@ -346,6 +346,11 @@ own fixture. When the fixture signs, the suite composes its solution as a carrie
 with the authority's document carrying its roles; the sketch remains for a
 fixture that does not sign.
 
+The development gateway also logs a delivery-time role × method report and
+generates its local developer role from concrete delivered permissions. See
+[local permission diagnostics](modules/authority/services/gateway/README.md#permission-diagnostics-during-local-development)
+for the distinction between static coverage and runtime authorization.
+
 ## Delegate chains: a module inherits who it acts for
 
 Owner's rule of 2026-10-23, generic to every module that acts for someone (robin

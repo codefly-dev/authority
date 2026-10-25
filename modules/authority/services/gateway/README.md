@@ -36,3 +36,25 @@ AUTHORITY_STORE_TEST_DATABASE_URL='postgres://postgres:…@127.0.0.1:5432/postgr
 Generated code (`pkg/gen`, `*_gen.go`, `main.go`) comes from `codefly generate`
 and the agent; `work.go` and everything under `pkg/business`, `pkg/infra` and
 `plugins` is written here.
+
+## Permission diagnostics during local development
+
+The local fixture's `developer` role uses `generated: true` and declares no
+scopes. The gateway replaces its scopes after each delivery with the explicit
+union of currently delivered module kinds/actions. Method requirements contribute
+to that catalog; explicitly declared non-method ceilings remain supported during
+migration. A new delivery can remove an action as well as add one. The generated
+role does not assign itself to anyone and does not change business roles or
+solution installation roles. This is fixture behavior in the development gateway.
+
+Every successful composition delivery logs a sorted role × module-generation ×
+method report. It names uncovered requirements, unrecognized fixture actions and
+kinds unresolved in the currently delivered composition. These are diagnostics,
+not a demand that every role may call every method. Static coverage still needs
+valid identity, active installation, consent where required and resource checks.
+An absent method policy remains a named local refusal; contradictory or malformed
+policy is rejected when delivered. Offline deployment validation uses the same
+policy validator in the delivery library, requiring explicit method declarations.
+
+`go test -race ./...` in `code/` includes replacement/removal and fixture coverage
+regressions. This does not qualify the production host or live browser journeys.

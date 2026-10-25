@@ -74,12 +74,11 @@ roles:
     name: admin
     scopes:
       - {kind: documents, actions: [read, write]}
-  # The local developer: every action on every kind each composed module serves,
+  # Generated from the current delivered catalog, recomputed on each delivery,
   # in Acme. A playground signs its person in as dev.
   - organization: acme
     name: developer
-    scopes:
-      - {kind: "*", actions: ["*"]}
+    generated: true
 people:
   - id: maya
     email: maya@acme.test

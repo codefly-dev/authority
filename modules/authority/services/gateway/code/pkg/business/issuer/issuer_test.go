@@ -461,8 +461,8 @@ func TestABindingNamingIssueMayLeaveItsAudienceToTheBinding(t *testing.T) {
 
 // The local developer's role names no module: it holds every action on every
 // kind the audience serves. At a module whose manifest names kinds and not
-// actions, an explicit ask is granted as asked and an empty ask is refused by
-// name, since "everything" would put no concrete action in the token.
+// actions, both explicit and empty asks are refused until concrete permission
+// declarations arrive. The developer role never invents actions from a wildcard.
 func TestTheDeveloperRoleHoldsWhatEachComposedModuleServes(t *testing.T) {
 	k := testkit.New(t)
 	held, err := k.State.PersonScopes("dev", "records")
@@ -476,8 +476,8 @@ func TestTheDeveloperRoleHoldsWhatEachComposedModuleServes(t *testing.T) {
 	dev := person(t, k, "fixture-dev")
 	out, err := k.Issuer.Issue(dev, &authorityv1.IssueRequest{
 		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "probe", Scopes: scopes(testkit.Scope("probe.items", "run"))})
-	if err != nil || out.GetContext().GetAuthorityScopes()[0].GetActions()[0] != "run" {
-		t.Fatalf("an explicit ask at a kinds-only module: %v %v", out.GetContext().GetAuthorityScopes(), err)
+	if !errors.Is(err, issuer.ErrRefused) || out != nil {
+		t.Fatalf("undeclared action was invented: %v %v", out, err)
 	}
 	if _, err := k.Issuer.Issue(dev, &authorityv1.IssueRequest{
 		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "probe"}); !errors.Is(err, issuer.ErrRefused) {

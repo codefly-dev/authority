@@ -6,6 +6,7 @@ import (
 	"crypto"
 	"gateway/pkg/framework"
 	"gateway/pkg/wiring"
+	"log"
 	"strings"
 
 	delivery "github.com/codefly-dev/authority/libraries/delivery/go"
@@ -84,6 +85,9 @@ func (p *Plugin) ApplyManifest(ctx context.Context, req *compositionv1.ApplyMani
 	ids, err := p.State.ApplyManifest(m)
 	if err != nil {
 		return nil, authorityplugin.Status(err)
+	}
+	for _, line := range p.State.PermissionReport() {
+		log.Printf("permissions: %s", line)
 	}
 	return &compositionv1.ApplyManifestResponse{Principal: m.Principal, Generation: m.Generation, InstallationIds: ids}, nil
 }
