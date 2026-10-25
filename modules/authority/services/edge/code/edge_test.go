@@ -464,3 +464,42 @@ func TestCacheEvictsOnExpiryAndSignOut(t *testing.T) {
 		t.Fatal("signed-out bearer retained")
 	}
 }
+
+type blockedIssuer struct {
+	*standIn
+	started chan string
+	release chan struct{}
+}
+
+func (s *blockedIssuer) Issue(ctx context.Context, req *authorityv1.IssueRequest, opts ...grpc.CallOption) (*authorityv1.IssueResponse, error) {
+	s.started <- req.GetAudience()
+	<-s.release
+	return s.standIn.Issue(ctx, req, opts...)
+}
+func TestSessionIssuesConcurrently(t *testing.T) {
+	s := &blockedIssuer{standIn: &standIn{}, started: make(chan string, 2), release: make(chan struct{})}
+	e := &Edge{Authority: s, Modules: map[string]Module{"a": {}, "b": {}}}
+	done := make(chan struct{})
+	go func() { e.usable(context.Background(), "remi-session"); close(done) }()
+	defer func() { close(s.release); <-done }()
+	for range 2 {
+		select {
+		case <-s.started:
+		case <-time.After(time.Second):
+			t.Fatal("session issued modules serially")
+		}
+	}
+}
+func TestSignOutFencesAnInflightCacheWrite(t *testing.T) {
+	s := &blockedIssuer{standIn: &standIn{}, started: make(chan string, 1), release: make(chan struct{})}
+	e := &Edge{Authority: s}
+	done := make(chan struct{})
+	go func() { defer close(done); _, _ = e.workContext(context.Background(), "remi-session", "records") }()
+	<-s.started
+	e.evict("remi-session")
+	close(s.release)
+	<-done
+	if len(e.held) != 0 {
+		t.Fatal("inflight issue restored signed-out cache")
+	}
+}

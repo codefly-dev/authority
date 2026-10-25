@@ -111,9 +111,9 @@ func (o Outbound) ForDelegation(ctx context.Context, delegation, binding string,
 
 // ForModule returns ctx carrying a Work Context for this module's own work in
 // organization, issued through binding. An empty organization asks the authority
-// to resolve the module's installed tenant: its delivered tenant pin or sole
-// active installing organization. Ambiguous or absent authority is refused by
-// the authority with a reason. Each issued context attests one organization.
+// for its sole active installing organization. On a multi-organization host,
+// name the organization of the work item. Ambiguous or absent authority is
+// refused with a reason. Each issued context attests one organization.
 func (o Outbound) ForModule(ctx context.Context, organization, binding string, opts ...Option) (context.Context, error) {
 	return carried(ctx)(o.IssueForModule(ctx, organization, binding, opts...))
 }
