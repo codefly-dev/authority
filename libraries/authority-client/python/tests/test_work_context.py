@@ -7,11 +7,18 @@ from pathlib import Path
 import pytest
 
 from authority_client._gen.host.authority.v1.work_context_pb2 import WorkContextV1
-from authority_client.work_context import MAX_TOKEN_BYTES, Claims, Scope, UnreadableContext, read_claims
+from authority_client.work_context import MAX_TOKEN_BYTES, Claims, Scope, UnreadableContext, read_claims as bound_claims
 from codefly_hop import CONTEXT_KEY, WORK_CONTEXT_KEY, NoStamp, read
 
 FIXTURES = json.loads((Path(__file__).parents[2] / "testdata/claims.json").read_text())
 STAMP = json.loads((Path(__file__).parents[3] / "hop/testdata/stamped.json").read_text())
+
+
+def read_claims(token):
+    headers = dict(STAMP["headers"])
+    headers[WORK_CONTEXT_KEY] = token
+    headers[CONTEXT_KEY] = hashlib.sha256(token.encode(errors="surrogatepass")).hexdigest()
+    return bound_claims(headers, STAMP["proof"])
 
 
 def encoded(payload):
@@ -98,7 +105,7 @@ def test_resource_projection_uses_the_bound_token_and_never_the_flat_stamp():
     headers[WORK_CONTEXT_KEY] = fixture["token"]
     headers[CONTEXT_KEY] = hashlib.sha256(fixture["token"].encode()).hexdigest()
     identity = read(headers, STAMP["proof"])
-    claims = read_claims(identity.context)
+    claims = bound_claims(headers, STAMP["proof"])
     assert claims == read_claims(fixture["token"])
     assert not claims.allows("documents.collection", "read")  # advisory is not a grant
     other_token = next(f["token"] for f in FIXTURES if f["token"] != fixture["token"])
@@ -108,9 +115,24 @@ def test_resource_projection_uses_the_bound_token_and_never_the_flat_stamp():
             read(changed, STAMP["proof"])
     headers.pop(CONTEXT_KEY)
     with pytest.raises(UnreadableContext):
-        read_claims(read(headers, STAMP["proof"]).context)
+        bound_claims(headers, STAMP["proof"])
 
 
 def test_projection_does_not_claim_to_verify_signature():
     token = FIXTURES[0]["token"]
     assert read_claims(token) == read_claims(token.split(".")[0] + "." + encoded(bytes(64)))
+
+
+@pytest.mark.parametrize("change", ["proof", "digest", "token", "duplicate", "missing"])
+def test_reader_itself_refuses_an_unbound_token(change):
+    headers = dict(STAMP["headers"])
+    if change == "proof": headers["x-codefly-hop-proof"] = "forged"
+    if change == "digest": headers[CONTEXT_KEY] = "0" * 64
+    if change == "token": headers[WORK_CONTEXT_KEY] = FIXTURES[0]["token"]
+    if change == "duplicate": headers = list(headers.items()) + [(WORK_CONTEXT_KEY,headers[WORK_CONTEXT_KEY])]
+    if change == "missing": headers.pop(CONTEXT_KEY)
+    with pytest.raises(UnreadableContext): bound_claims(headers,STAMP["proof"])
+
+
+def test_reader_refuses_an_empty_proof():
+    with pytest.raises(UnreadableContext): bound_claims(STAMP["headers"], "")

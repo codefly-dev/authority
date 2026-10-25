@@ -1,6 +1,6 @@
 """Non-verifying projection of the Work Context already bound by a hop stamp.
 
-Call ``codefly_hop.read`` first, then pass ``identity.context`` to ``read_claims``.
+Pass the incoming headers and this run's delivered hop proof to ``read_claims``.
 This is a reader, not Core's structural validator or a verifier: it checks neither
 signature, liveness, revocation nor delegation. In warning mode the hop may have
 forwarded a refused context; its advisory remains diagnostic, never a grant.
@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import base64
 from dataclasses import dataclass
+from collections.abc import Iterable, Mapping
+from codefly_hop import read, NoStamp
 
 from google.protobuf.message import DecodeError
 
@@ -53,7 +55,7 @@ class Claims:
         )
 
 
-def read_claims(token: str) -> Claims:
+def read_claims(headers: Mapping[str, str] | Iterable[tuple[str, str]], proof: str) -> Claims:
     """Read an already hop-bound context without another verification/replay call.
 
     Uses the published generated protobuf type. The canonical-envelope/payload
@@ -62,7 +64,13 @@ def read_claims(token: str) -> Claims:
     refused rather than silently losing a restriction. Consumers still check audience and resolve the
     exact domain resource; this projection alone is never proof of authority.
     """
-    if not token or not token.isascii() or len(token) > MAX_TOKEN_BYTES or token.count(".") != 1:
+    try:
+        token = read(headers, proof).context
+    except (NoStamp, TypeError, ValueError) as error:
+        raise UnreadableContext("context requires this run's hop proof and matching stamp") from error
+    if not token:
+        raise UnreadableContext("context requires a token bound by the hop stamp")
+    if not token.isascii() or len(token) > MAX_TOKEN_BYTES or token.count(".") != 1:
         raise UnreadableContext("expected a bounded <payload>.<signature> context")
     payload_segment, signature_segment = token.split(".")
     payload = _decode_segment(payload_segment)

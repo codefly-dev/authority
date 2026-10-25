@@ -1,4 +1,5 @@
 /** Non-verifying projection of an already hop-bound Work Context. */
+import { createHash, timingSafeEqual } from "node:crypto";
 import { fromBinary, toBinary } from "@bufbuild/protobuf";
 import { WorkContextV1Schema } from "./src/gen/host/authority/v1/work_context_pb.js";
 
@@ -19,12 +20,31 @@ export interface Claims {
   allows(kind: string, action: string, resourceID?: string): boolean;
 }
 
-/**
- * Read the context bound by a trusted integration; this library supplies no
- * TypeScript hop reader. A projection authenticates nothing and checks neither
- * liveness nor replay. In warn mode even bound claims may have been refused.
- */
-export function readClaims(token: string): Claims {
+/** Server-side request headers; repeated values must not be discarded. */
+export type StampHeaders = Readonly<Record<string, string | readonly string[]>> | Iterable<readonly [string, string]>;
+
+/** Verify the run proof and token digest before projecting. This is not another
+ * signature, liveness or replay check. In warn mode bound claims may be refused. */
+export function readClaims(headers: StampHeaders, proof: string): Claims {
+  if (headers === null || typeof headers !== "object" || typeof proof !== "string") {
+    throw new UnreadableContext("context requires request headers and a run proof");
+  }
+  const values = new Map<string, string[]>();
+  const pairs = Symbol.iterator in Object(headers) ? headers as Iterable<readonly [string,string]> : Object.entries(headers);
+  for (const [key,value] of pairs) {
+    const name=key.toLowerCase();
+    values.set(name,[...(values.get(name) ?? []),...(typeof value === "string" ? [value] : value)]);
+  }
+  const one=(key:string):string => { const v=values.get(key); return v?.length === 1 ? v[0] : ""; };
+  const equal=(a:string,b:string):boolean => {
+    const left=new TextEncoder().encode(a),right=new TextEncoder().encode(b);
+    return left.length === right.length && timingSafeEqual(left,right);
+  };
+  const token=one("x-codefly-work-context");
+  if (!proof || !equal(proof,one("x-codefly-hop-proof")) || !token || token.length > 32*1024 ||
+      !equal(createHash("sha256").update(token).digest("hex"),one("x-codefly-hop-context"))) {
+    throw new UnreadableContext("context requires this run's hop proof and matching stamp");
+  }
   if (!token || token.length > 32 * 1024 || token.split(".").length !== 2) {
     throw new UnreadableContext("expected a bounded payload.signature context");
   }

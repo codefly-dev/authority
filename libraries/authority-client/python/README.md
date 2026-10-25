@@ -1,15 +1,13 @@
 # Authority Python client
 
 The Codefly-generated authority bindings are accompanied by a small, non-verifying
-Work Context reader. A module first reads the hop stamp, then projects its bound
+Work Context reader. The reader verifies the incoming hop stamp itself before projecting the bound
 context through the generated protobuf type:
 
 ```python
-from codefly_hop import read
 from authority_client.work_context import read_claims
 
-identity = read(request.headers, proof)
-claims = read_claims(identity.context)
+claims = read_claims(request.headers, proof)
 # Compare claims.audience to this module's delivered audience.
 allowed = claims.allows(resource_kind, action, installed_resource_id)
 ```
@@ -23,7 +21,7 @@ grant can satisfy a named-resource request. Actions are literal, following the
 existing Core containment rule and Python SDK; `admin` implies no other action,
 and raw token `*` actions are not expanded here.
 
-`read_claims` raises `UnreadableContext` for an unreadable envelope, unknown wire
+`read_claims` raises `UnreadableContext` for a missing/forged stamp, a substituted token, an unreadable envelope, unknown wire
 fields, noncanonical payload or absent audience. It does **not** replace Core's
 structural validation, authenticate a signature, check time/revocation or consume
 a replay nonce. In warning mode even a stamped context may have been refused by
@@ -44,7 +42,7 @@ Pin consumers by repository commit, together with the hop package:
 Run the Python tests from this directory:
 
 ```sh
-uv run --no-project --with pytest --with-editable . --with-editable ../../hop/python pytest tests
+uv run --no-project --with pytest --with-editable . pytest tests
 ```
 
 The shared `../testdata/claims.json` contains Core-minted tokens and effective

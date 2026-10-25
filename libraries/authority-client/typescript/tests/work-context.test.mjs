@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import { create, fromBinary, toBinary } from '@bufbuild/protobuf';
 import { WorkContextV1Schema, WorkScopeV1Schema } from '@codefly-dev/authority-client';
-import { readClaims, UnreadableContext } from '@codefly-dev/authority-client/work-context';
+import { readClaims as boundClaims, UnreadableContext } from '@codefly-dev/authority-client/work-context';
+
+const stamped = token => ({'x-codefly-work-context':token,'x-codefly-hop-proof':'test-proof','x-codefly-hop-context':createHash('sha256').update(token).digest('hex')});
+const readClaims = token => boundClaims(stamped(token),'test-proof');
 
 const fixtures = JSON.parse(readFileSync(new URL('../../testdata/claims.json',import.meta.url),'utf8'));
 const encode = bytes => Buffer.from(bytes).toString('base64url');
@@ -78,4 +82,20 @@ test('projection is not authentication or Core structural validation',()=>{
   // Like Python, this projection accepts readable but structurally incomplete
   // claims. Go deliberately retains Core Decode's stronger structural refusal.
   assert.equal(readClaims(tokenFor(create(WorkContextV1Schema,{audience:'model'}))).audience,'model');
+});
+
+
+test('the reader refuses missing, forged and substituted stamps',()=>{
+ const token=fixtures[0].token;
+ for (const change of [
+  h=>delete h['x-codefly-hop-proof'],h=>h['x-codefly-hop-proof']='forged',
+  h=>delete h['x-codefly-hop-context'],h=>h['x-codefly-hop-context']='0'.repeat(64),
+  h=>h['x-codefly-work-context']=fixtures[1].token,
+  h=>h['x-codefly-work-context']=[token,token],
+ ]) {
+  const headers=stamped(token);change(headers);
+  assert.throws(()=>boundClaims(headers,'test-proof'),UnreadableContext);
+ }
+ assert.throws(()=>boundClaims(stamped(token),''),UnreadableContext);
+ assert.throws(()=>boundClaims([...Object.entries(stamped(token)),['X-Codefly-Work-Context',token]],'test-proof'),UnreadableContext);
 });

@@ -6,13 +6,15 @@ The handwritten, non-verifying claims reader has a separate public export:
 ```ts
 import { readClaims } from '@codefly-dev/authority-client/work-context';
 
-const claims = readClaims(boundToken);
+const claims = readClaims(requestHeaders, proof);
 // Compare claims.audience to the delivered module audience.
 const allowed = claims.allows(resourceKind, action, exactResourceID);
 ```
 
-The input must already be bound by a trusted integration. This package supplies
-no TypeScript hop reader; readable claims are not proof of authentication. The
+The server-side Node reader takes header pairs (preserving repeats) or a header
+map and the run-delivered proof. It requires exactly one proof, token and digest,
+checks the proof and SHA-256 binding, then projects. Do not send the proof to a
+browser. Readable claims alone are not proof of authentication. The
 projection verifies neither signatures, current time, live revisions nor replay.
 A warning-mode hop can bind a context the authority refused. Preserve the
 integration's authentication and the module's audience, installed-definition,
