@@ -315,6 +315,14 @@ their scope decisions. These projections do not authenticate a context or replac
 live checks; TypeScript hop-binding integration remains separate work. Go also
 retains Core's stronger structural validation.
 
+After changing local Go library dependencies, validate all four services as
+standalone modules: gateway, hop, edge and console API. The latter three consume
+the local authority client; gateway has other local library replacements. Run
+`GOWORK=off go mod tidy -diff`, `GOWORK=off go test -race ./...` and
+`GOWORK=off go vet ./...` from each service's `code/` directory. Workspace-only
+library tests can hide stale service module graphs and leave `codefly run`
+unable to build.
+
 ## Rules of change (owner, 2026-10-22)
 
 - **Additive until phase 4.** A field, a message, a service, a test or a check is
