@@ -30,7 +30,7 @@ func TestTheMiniGatewayPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
 	k := testkit.New(t)
 	plugins := []framework.Plugin{
 		&authority.Plugin{Issuer: k.Issuer},
-		&composition.Plugin{State: k.State, Verifier: testkit.ReleaseVerifier(t, "local"), Carrier: k.CarrierAuthority, Keys: testkit.ReleaseKeys()},
+		&composition.Plugin{State: k.State, Coordinate: "local", Verifier: testkit.ReleaseVerifier(t, "local"), Carrier: k.CarrierAuthority, Keys: testkit.ReleaseKeys()},
 		&installation.Plugin{State: k.State}, &session.Plugin{State: k.State},
 	}
 	server := grpc.NewServer()

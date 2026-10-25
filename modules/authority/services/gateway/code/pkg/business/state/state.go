@@ -392,7 +392,8 @@ type Session struct {
 	Teams        []string
 }
 
-// InstallStep is what the host calls once per installation; it must converge.
+// InstallStep converges one installation. Delivery replay may retry the same
+// Pending attempt after a failed call; external effects must be idempotent.
 type InstallStep func(ctx context.Context, installation Installation) error
 
 type fixtureFile struct {
@@ -432,6 +433,7 @@ type FixtureInstallation struct {
 // State holds everything; every method is safe for concurrent use.
 type State struct {
 	mu            sync.RWMutex
+	deliveries    map[string]*appliedDelivery // binding → verified record, including withdrawals
 	orgs          map[string]string
 	people        map[string]Person
 	order         []string // people's ids, in the fixture's order
@@ -466,7 +468,7 @@ func New(anchor native.Anchor, audience string) (*State, error) {
 	}
 	return &State{
 		orgs: map[string]string{}, people: map[string]Person{}, byToken: map[string]string{},
-		roles: map[string]Role{}, modules: map[string]Manifest{}, principals: map[string]string{},
+		deliveries: map[string]*appliedDelivery{}, roles: map[string]Role{}, modules: map[string]Manifest{}, principals: map[string]string{},
 		installations: map[string]Installation{}, delegations: map[string]Delegation{}, sessions: map[string]Session{}, revisions: map[string]uint64{},
 		attester: attester, audience: audience, Approvals: &MemoryApprovals{},
 	}, nil
@@ -785,30 +787,62 @@ func (s *State) ResourceGrants(person, audience, kind, action string) ([]resourc
 // module installation at every organisation, so a module is usable without a
 // click. A lower or equal generation is refused.
 func (s *State) ApplyManifest(m Manifest) ([]string, error) {
+	s.mu.Lock()
+	for _, record := range s.deliveries {
+		held, _ := record.carrier.Manifest()
+		if held.Alias == m.Module {
+			s.mu.Unlock()
+			return nil, fmt.Errorf("%w: %s is owned by signed binding %s; a sketch cannot replace it", ErrForbidden, m.Module, held.Binding)
+		}
+	}
+	ids, pending, err := s.applyManifestLocked(m)
+	s.mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	if err := s.performPendingInstalls(pending); err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+// applyManifestLocked validates before replacing the live projection. Caller holds mu.
+func (s *State) applyManifestLocked(m Manifest) ([]string, []FixtureInstallation, error) {
+	if err := validateManifest(m); err != nil {
+		return nil, nil, err
+	}
+	if prev, ok := s.modules[m.Module]; ok && !prev.StandIn && prev.Generation >= m.Generation {
+		return nil, nil, fmt.Errorf("%w: %s is at %d, got %d", ErrStale, m.Module, prev.Generation, m.Generation)
+	}
+	if other, ok := s.principals[m.Principal]; ok && other != m.Module {
+		return nil, nil, fmt.Errorf("%w: principal %q already belongs to %s", ErrForbidden, m.Principal, other)
+	}
+	m.ResourceKinds = Normalize(append(m.ResourceKinds, servedByMethods(m.Methods)...))
+	s.invalidateNarrowedAuthority(m)
+	if previous, ok := s.modules[m.Module]; ok {
+		delete(s.principals, previous.Principal)
+	}
+	s.modules[m.Module] = m
+	s.refreshDeveloperRoles()
+	s.principals[m.Principal] = m.Module
+	return s.ensureModuleInstallations(m), s.takePendingInstalls(m.Module), nil
+}
+
+func validateManifest(m Manifest) error {
 	for method, policy := range m.Methods {
 		requires := map[string][]string{}
 		for _, scope := range policy.Requires {
 			requires[scope.GetResourceKind()] = append(requires[scope.GetResourceKind()], scope.GetActions()...)
 		}
 		if err := delivery.ValidateMethodPolicy(method, policy.AnyCheckedCaller, requires, false); err != nil {
-			return nil, fmt.Errorf("%w: %s: %w", ErrForbidden, m.Module, err)
+			return fmt.Errorf("%w: %s: %w", ErrForbidden, m.Module, err)
 		}
 	}
 	if err := validateRoles(m); err != nil {
-		return nil, err
+		return err
 	}
 	if m.Module == "" || m.Principal == "" || m.Generation == 0 {
-		return nil, fmt.Errorf("%w: a manifest names its module, its principal and a generation", ErrForbidden)
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	// A fixture's stand-in (a module a local run supervises itself) is replaced
-	// by the module's own delivery, whatever generation that carries.
-	if prev, ok := s.modules[m.Module]; ok && !prev.StandIn && prev.Generation >= m.Generation {
-		return nil, fmt.Errorf("%w: %s is at %d, got %d", ErrStale, m.Module, prev.Generation, m.Generation)
-	}
-	if other, ok := s.principals[m.Principal]; ok && other != m.Module {
-		return nil, fmt.Errorf("%w: principal %q already belongs to %s", ErrForbidden, m.Principal, other)
+		return fmt.Errorf("%w: a manifest names its module, its principal and a generation", ErrForbidden)
 	}
 	for id, b := range m.Bindings {
 		lookupCeiling := b.InvokeScopes
@@ -816,30 +850,13 @@ func (s *State) ApplyManifest(m Manifest) ([]string, error) {
 			lookupCeiling = b.HeadlessScopes
 		}
 		if len(b.LookupScopes) > 0 && !Attenuates(b.LookupScopes, lookupCeiling) {
-			return nil, fmt.Errorf("%w: binding %s: lookup scopes exceed what the binding may do", ErrForbidden, id)
+			return fmt.Errorf("%w: binding %s: lookup scopes exceed what the binding may do", ErrForbidden, id)
 		}
-		// A binding that acts for a person (invoke scopes) may do no more for the
-		// module itself than it may for that person. A binding that exists only
-		// for the module's own work (a store exporting its traces) declares no
-		// invoke scopes and stands alone: there is no person-facing ceiling to
-		// stay within.
 		if len(b.InvokeScopes) > 0 && !Attenuates(b.HeadlessScopes, b.InvokeScopes) {
-			return nil, fmt.Errorf("%w: binding %s: headless scopes exceed invoke scopes", ErrForbidden, id)
+			return fmt.Errorf("%w: binding %s: headless scopes exceed invoke scopes", ErrForbidden, id)
 		}
 	}
-	m.ResourceKinds = Normalize(append(m.ResourceKinds, servedByMethods(m.Methods)...))
-	s.invalidateNarrowedAuthority(m)
-	s.modules[m.Module] = m
-	s.refreshDeveloperRoles()
-	s.principals[m.Principal] = m.Module
-	ids := s.ensureModuleInstallations(m)
-	pending := s.takePendingInstalls(m.Module)
-	s.mu.Unlock()
-	defer s.mu.Lock()
-	if err := s.performPendingInstalls(pending); err != nil {
-		return nil, err
-	}
-	return ids, nil
+	return nil
 }
 
 // invalidateNarrowedAuthority advances the existing live revisions when delivery
@@ -958,6 +975,11 @@ func (s *State) moduleByPrincipal(principal string) (Manifest, error) {
 
 // Install composes an installation: pending until the install step is acknowledged.
 func (s *State) Install(ctx context.Context, org, target, role, owner string) (Installation, error) {
+	return s.install(ctx, org, target, role, owner, 0, nil)
+}
+
+// generation is nonzero only when resuming a committed delivery's fixture intent.
+func (s *State) install(ctx context.Context, org, target, role, owner string, generation uint64, intent *pendingInstallation) (Installation, error) {
 	s.mu.Lock()
 	if _, ok := s.orgs[org]; !ok {
 		s.mu.Unlock()
@@ -968,6 +990,10 @@ func (s *State) Install(ctx context.Context, org, target, role, owner string) (I
 		s.mu.Unlock()
 		return Installation{}, fmt.Errorf("%w: %q is not a composed solution; a module is installed by composition", ErrUnknown, target)
 	}
+	if generation != 0 && target_.Generation != generation {
+		s.mu.Unlock()
+		return Installation{}, fmt.Errorf("%w: installation delivery was superseded", ErrStale)
+	}
 	if _, ok := target_.Roles[role]; !ok {
 		s.mu.Unlock()
 		return Installation{}, fmt.Errorf("%w: role %q is not one %s declares", ErrUnknown, role, target)
@@ -977,22 +1003,45 @@ func (s *State) Install(ctx context.Context, org, target, role, owner string) (I
 		return Installation{}, fmt.Errorf("%w: owner %q is not a member of %s", ErrForbidden, owner, org)
 	}
 	id := InstallationID(org, target)
-	if existing, ok := s.installations[id]; ok && existing.Status != Revoked {
+	existing, exists := s.installations[id]
+	if intent != nil && exists && (existing.Status == Revoked || (intent.revision == 0 || existing.Revision != intent.revision)) {
 		s.mu.Unlock()
-		return Installation{}, fmt.Errorf("%w: %s is already installed at %s", ErrForbidden, target, org)
+		return Installation{}, fmt.Errorf("%w: fixture installation attempt %s was revoked or changed", ErrStale, id)
 	}
-	inst := Installation{ID: id, Organization: org, Target: target, Status: Pending, Revision: 1, Role: role, Owner: owner}
-	s.installations[id] = inst
-	s.revisions[org]++
+	if exists && existing.Status != Revoked {
+		if generation == 0 || existing.Role != role || existing.Owner != owner {
+			s.mu.Unlock()
+			return Installation{}, fmt.Errorf("%w: %s is already installed at %s", ErrForbidden, target, org)
+		}
+		if existing.Status == Active {
+			s.mu.Unlock()
+			return existing, nil
+		}
+	} else {
+		existing = Installation{ID: id, Organization: org, Target: target, Status: Pending, Revision: existing.Revision + 1, Role: role, Owner: owner}
+		s.installations[id] = existing
+		s.revisions[org]++
+	}
+	if intent != nil {
+		intent.revision = existing.Revision
+	}
 	step := s.installStep
 	s.mu.Unlock()
-	if step == nil {
-		return s.Acknowledge(id)
+	if step != nil {
+		if err := step(ctx, existing); err != nil {
+			return existing, fmt.Errorf("install step for %s: %w", id, err)
+		}
 	}
-	if err := step(ctx, inst); err != nil {
-		return inst, fmt.Errorf("install step for %s: %w", id, err)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current := s.installations[id]
+	live, composed := s.modules[target]
+	if !composed || live.Generation != target_.Generation || current.Status != Pending || current.Revision != existing.Revision {
+		return current, fmt.Errorf("%w: installation attempt %s changed before acknowledgement", ErrStale, id)
 	}
-	return s.Acknowledge(id)
+	current.Status = Active
+	s.installations[id] = current
+	return current, nil
 }
 
 // Acknowledge records that the target's install step completed.
@@ -1152,7 +1201,8 @@ func (s *State) RoleScopes(org, role string) []*basev0.WorkScopeV1 {
 // VerifyWorkload attests a native launcher credential with core's attester and
 // resolves the module it names to a composed module. The credential format, the
 // signature check, the audience and the window are core's, the same the host
-// runs; this state adds only "is that module composed here".
+// runs. This state also requires a composed module and, for signed deliveries,
+// membership in its current declared workloads.
 func (s *State) VerifyWorkload(ctx context.Context, credential string) (Manifest, error) {
 	attestation, err := s.attester.Attest(ctx, credential, s.audience)
 	if err != nil {
@@ -1163,6 +1213,18 @@ func (s *State) VerifyWorkload(ctx context.Context, credential string) (Manifest
 	m, ok := s.modules[attestation.Workload.Module]
 	if !ok {
 		return Manifest{}, fmt.Errorf("%w: module %q is not composed", ErrUnknown, attestation.Workload.Module)
+	}
+	for _, record := range s.deliveries {
+		manifest, err := record.carrier.Manifest()
+		if err != nil {
+			return Manifest{}, err
+		}
+		if manifest.Alias != m.Module {
+			continue
+		}
+		if _, listed := manifest.WorkloadNamed(attestation.Workload.Service); !listed || manifest.Removed {
+			return Manifest{}, fmt.Errorf("%w: service %q is not a live workload of %s", ErrForbidden, attestation.Workload.Service, m.Module)
+		}
 	}
 	return m, nil
 }

@@ -63,7 +63,7 @@ func scope(kind string, actions ...string) *authorityv1.WorkScopeV1 {
 func verifying(t *testing.T) (*Plugin, *testkit.Kit) {
 	t.Helper()
 	k := testkit.New(t)
-	return &Plugin{State: k.State, Verifier: testkit.ReleaseVerifier(t, "local"), Carrier: k.CarrierAuthority, Keys: testkit.ReleaseKeys()}, k
+	return &Plugin{State: k.State, Coordinate: "local", Verifier: testkit.ReleaseVerifier(t, "local"), Carrier: k.CarrierAuthority, Keys: testkit.ReleaseKeys()}, k
 }
 
 func held(t *testing.T, k *testkit.Kit, person, audience string) string {

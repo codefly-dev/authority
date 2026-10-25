@@ -65,3 +65,38 @@ consume the context; the original session remains unchanged. The local Globex
 administrator explicitly holds `documents.collection:read` alongside document
 read/write; the role name itself implies no additional grants. Issuer regressions
 and the shared fixture matrix cover this grant and a person who lacks it.
+
+## Signed delivery lifecycle
+
+The signed-carrier path retains Core's verified manifest and its paired authority
+policy. Core decides host coordinate, domain continuity, generation replay and
+terminal withdrawal; the gateway applies that decision and its permission
+projection together. The host declares the `federation` workspace configuration
+and reads `SOLUTION_HOST_COORDINATE` through the SDK. A carrier cannot select the
+coordinate against which it is checked.
+
+An identical replay returns the original receipt without advancing revisions or
+reapplying grants. Changing, adding or removing the authority policy at the same
+generation is refused. Once an alias is delivered as a signed carrier, the
+transitional unsigned sketch cannot overwrite or resurrect it. Sketch-only
+composition retains its existing strictly newer generation rule.
+
+A workload must still be declared by the current signed manifest to obtain new
+authority. Withdrawal removes the module and its principal, revokes its
+installations and alias-scoped delegations, and retains a terminal binding record.
+Repeating withdrawal has no additional effects. Pending fixture installation
+work remains attached to its admitted delivery: replay resumes the same convergent
+installation step after failure or cancellation. Completion is serialized per
+binding, outside the state lock; a superseded or withdrawn attempt cannot
+acknowledge an installation or expose it to teams. Cancellation does not undo
+already-applied declarations or external installation effects.
+
+**Compatibility limits.** Existing installation UUIDs remain stable. This process
+explicitly refuses a new binding reusing an already-admitted alias, even after
+withdrawal, and refuses renaming the alias of a binding. Supporting those
+transitions requires an installation-identity migration that preserves existing
+stored rows without transferring them to a replacement. Signed records and
+tombstones currently live in memory: restart forgets them. This does not prove
+anti-resurrection or persistent consumer-data isolation across changed bindings
+and restarts. Full alias replacement, durable history and production accounts
+parity remain unfinished; local lifecycle tests do not qualify those behaviors.

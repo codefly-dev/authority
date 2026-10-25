@@ -48,3 +48,11 @@ func Verifier() *solutionhost.Verifier { return configuredVerifier }
 
 // Carrier admits a delivery credential as the module's delivery workload.
 func Carrier() func(ctx context.Context, credential, module string) error { return configuredCarrier }
+
+// SetCoordinate records the SDK-delivered host coordinate before listeners start.
+func SetCoordinate(coordinate string) { configuredCoordinate = coordinate }
+
+var configuredCoordinate string
+
+// Coordinate is the host's own delivery target.
+func Coordinate() string { return configuredCoordinate }

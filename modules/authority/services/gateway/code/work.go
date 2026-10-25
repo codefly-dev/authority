@@ -89,6 +89,11 @@ func configureMiniGateway(ctx context.Context, _ *adapters.Configuration) (Clean
 	// carried only by the module's own delivery workload, attested by the
 	// anchor. With no policy the carrier path refuses by name and says so.
 	if dir := os.Getenv(delivery.TrustAnchorEnvironment); dir != "" {
+		coordinate, err := codefly.For(ctx).WorkspaceValue("federation", "SOLUTION_HOST_COORDINATE")
+		if err != nil || strings.TrimSpace(coordinate) == "" {
+			return nil, fmt.Errorf("signed delivery requires the host's federation/SOLUTION_HOST_COORDINATE configuration")
+		}
+		wiring.SetCoordinate(coordinate)
 		verifier, keys, err := delivery.VerifierFromDirectory(dir)
 		if err != nil {
 			return nil, fmt.Errorf("delivery trust: %w", err)

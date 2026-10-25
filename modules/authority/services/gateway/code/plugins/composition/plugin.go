@@ -29,6 +29,8 @@ import (
 type Plugin struct {
 	compositionv1.UnimplementedCompositionServiceServer
 	State *state.State
+	// Coordinate is supplied by the host configuration, not by a delivery.
+	Coordinate string
 	// Verifier holds the release keys this implementation pins; nil verifies nothing.
 	Verifier *solutionhost.Verifier
 	// Carrier admits a delivery credential as the named module's delivery workload.
@@ -52,19 +54,34 @@ func (p *Plugin) RegisterREST(context.Context, *runtime.ServeMux, string, []grpc
 // Migrations: none.
 func (p *Plugin) Migrations() []string { return nil }
 
-// ApplyManifest records one module instance at a newer generation.
+// ApplyManifest admits a signed delivery or a transitional sketch. Signed
+// delivery supports immutable replay and terminal withdrawal through Core.
 func (p *Plugin) ApplyManifest(ctx context.Context, req *compositionv1.ApplyManifestRequest) (*compositionv1.ApplyManifestResponse, error) {
 	var m state.Manifest
+	var verified *solutionhost.Delivered
+	var sidecar []byte
 	if req.GetCarrier() != nil {
-		delivered, signer, err := p.verified(ctx, req.GetCarrier(), req.GetCredential())
+		carrier, err := p.verified(ctx, req.GetCarrier(), req.GetCredential())
 		if err != nil {
 			return nil, err
 		}
+		verified = carrier
+		delivered, err := carrier.Manifest()
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "manifest: %v", err)
+		}
 		m = FromCore(delivered)
 		if req.GetAuthority() != nil {
-			doc, err := p.document(req.GetAuthority(), req.GetCarrier(), delivered, signer)
+			doc, err := p.document(req.GetAuthority(), req.GetCarrier(), delivered, carrier.Signer().KeyID)
 			if err != nil {
 				return nil, err
+			}
+			if delivered.Removed && (len(doc.GetMethods()) > 0 || len(doc.GetRoles()) > 0 || len(doc.GetScopeCeilings()) > 0) {
+				return nil, status.Error(codes.InvalidArgument, "a withdrawal carries no live authority declarations")
+			}
+			sidecar = req.GetAuthority().GetDocument()
+			if sidecar == nil {
+				sidecar = []byte{}
 			}
 			if m.Methods, err = methodsOf(doc); err != nil {
 				return nil, err
@@ -82,7 +99,13 @@ func (p *Plugin) ApplyManifest(ctx context.Context, req *compositionv1.ApplyMani
 		}
 		m = Manifest(req.GetManifest())
 	}
-	ids, err := p.State.ApplyManifest(m)
+	var ids []string
+	var err error
+	if verified != nil {
+		ids, err = p.State.ApplyDelivered(ctx, p.Coordinate, verified, sidecar, m)
+	} else {
+		ids, err = p.State.ApplyManifest(m)
+	}
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}
@@ -113,22 +136,22 @@ func Manifest(in *compositionv1.ModuleManifestV1) state.Manifest {
 
 // verified reads the manifest from the carrier's verified document and admits
 // the delivery only from the module's own delivery workload.
-func (p *Plugin) verified(ctx context.Context, carrier *compositionv1.SignedManifestV1, credential string) (*solutionhost.ModuleManifest, string, error) {
+func (p *Plugin) verified(ctx context.Context, carrier *compositionv1.SignedManifestV1, credential string) (*solutionhost.Delivered, error) {
 	if p.Verifier == nil || p.Carrier == nil {
-		return nil, "", status.Error(codes.FailedPrecondition, "this implementation verifies no delivery: no release keys are pinned")
+		return nil, status.Error(codes.FailedPrecondition, "this implementation verifies no delivery: no release keys are pinned")
 	}
 	delivered, err := solutionhost.VerifyDelivered(ctx, &solutionhost.Signed{Document: carrier.GetDocument(), Envelope: carrier.GetEnvelope()}, p.Verifier)
 	if err != nil {
-		return nil, "", status.Errorf(codes.PermissionDenied, "the delivery does not verify: %v", err)
+		return nil, status.Errorf(codes.PermissionDenied, "the delivery does not verify: %v", err)
 	}
 	manifest, err := delivered.Manifest()
 	if err != nil {
-		return nil, "", status.Errorf(codes.InvalidArgument, "the delivered manifest does not read: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "the delivered manifest does not read: %v", err)
 	}
 	if err := p.Carrier(ctx, credential, manifest.Alias); err != nil {
-		return nil, "", status.Errorf(codes.PermissionDenied, "the delivery is not carried by %s's delivery workload: %v", manifest.Alias, err)
+		return nil, status.Errorf(codes.PermissionDenied, "the delivery is not carried by %s's delivery workload: %v", manifest.Alias, err)
 	}
-	return manifest, delivered.Signer().KeyID, nil
+	return delivered, nil
 }
 
 // document reads the authority's document delivered with a verified carrier:
@@ -274,5 +297,5 @@ func scopesOf(entries []string) []*basev0.WorkScopeV1 {
 
 // New is the registry's constructor: the plugin over what Configure wired.
 func New() framework.Plugin {
-	return &Plugin{State: wiring.State(), Verifier: wiring.Verifier(), Carrier: wiring.Carrier(), Keys: wiring.Keys()}
+	return &Plugin{State: wiring.State(), Coordinate: wiring.Coordinate(), Verifier: wiring.Verifier(), Carrier: wiring.Carrier(), Keys: wiring.Keys()}
 }
