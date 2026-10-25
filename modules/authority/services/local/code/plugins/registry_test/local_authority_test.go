@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"testing"
 
 	"google.golang.org/grpc"
@@ -29,6 +30,18 @@ import (
 func TestTheLocalAuthorityPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
 	k := testkit.New(t)
 	testkit.SolutionTools(t, k)
+	if err := k.State.LoadFixture(context.Background(), []byte(`roles:
+  - organization: acme
+    name: owner
+    scopes: []
+people:
+  - id: inventory-owner
+    fixture_token: fixture-owner
+    organization: acme
+    roles: [owner]
+`)); err != nil {
+		t.Fatal(err)
+	}
 	source := testkit.Wiki(1)
 	source.Module, source.Principal = "assistant", "assistant"
 	source.Bindings = map[string]state.Binding{
@@ -101,8 +114,32 @@ func TestTheLocalAuthorityPassesTheSuiteEveryImplementationMustPass(t *testing.T
 	}
 	conformance.Run(t, conn, descriptors, conformance.Fixture{
 		WorkloadOrganizations: workloadOrganizations,
-		UnentitledToken:       "fixture-no-roles",
-		Organization:          "acme", ViewerToken: "fixture-maya", AdminToken: "fixture-alex",
+		OwnerToken:            "fixture-owner",
+		SlowChecks:            true,
+		SolutionRoles: &conformance.SolutionRoleCase{
+			Solution: "wiki", Credential: k.Credential(t, "wiki"), Token: "fixture-maya", Outsider: "fixture-no-roles",
+			OwnKind: "wiki.page", OwnActions: []string{"read", "write", "publish"},
+			Binding: "documents", Audience: "documents", ConsumedKind: "documents", ConsumedAction: "write", ForbiddenAction: "ingest", Generation: 2,
+		},
+		Lifecycle: &conformance.InstallationLifecycleCase{
+			Target: "conformance-solution", Credential: k.Credential(t, "conformance-solution"), Kind: "conformance.page", Team: "finance",
+			PauseInstall: func() func() {
+				done := make(chan struct{})
+				var once sync.Once
+				k.State.OnInstall(func(ctx context.Context, _ state.Installation) error {
+					select {
+					case <-done:
+						return nil
+					case <-ctx.Done():
+						return ctx.Err()
+					}
+				})
+				return func() { once.Do(func() { close(done) }) }
+			},
+			Revoke: func(_ context.Context, id string) error { return k.State.Revoke(id) },
+		},
+		UnentitledToken: "fixture-no-roles",
+		Organization:    "acme", ViewerToken: "fixture-maya", AdminToken: "fixture-alex",
 		// Maya reads records; the directory page hops on her context through its
 		// records binding; a context at records is refused at model.
 		Audience: "records", ReadKind: "records.records",

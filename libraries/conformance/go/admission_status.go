@@ -2,16 +2,24 @@ package conformance
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 // Admission errors distinguish an absent installation from a person who cannot
 // use an installed audience. Navigation must not need an administrative List.
 func (c *client) admissionStatus(t *testing.T, ctx context.Context, f Fixture) {
 	t.Run("installation inventory is an administrator read", func(t *testing.T) {
+		t.Run("an organization owner can list installations", func(t *testing.T) {
+			if f.OwnerToken == "" {
+				t.Fatal("required conformance fixture missing: organization owner distinct from admin")
+			}
+			owner := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.OwnerToken})
+			_, err := c.call(as(ctx, owner), "host.installation.v1.InstallationService", "List", map[string]any{"organization_id": f.Organization})
+			refused(t, err, codes.OK, "")
+		})
 		viewer := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
 		admin := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.AdminToken})
 		for _, tc := range []struct {
@@ -27,9 +35,14 @@ func (c *client) admissionStatus(t *testing.T, ctx context.Context, f Fixture) {
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				_, err := c.call(tc.ctx, "host.installation.v1.InstallationService", "List", map[string]any{"organization_id": tc.org})
-				if status.Code(err) != tc.want {
-					t.Fatalf("want %s, got %v", tc.want, err)
+				reason := ""
+				if tc.want == codes.PermissionDenied {
+					reason = "owner"
+					if tc.name == "foreign organization" {
+						reason = "organization"
+					}
 				}
+				refused(t, err, tc.want, reason)
 			})
 		}
 	})
@@ -40,18 +53,14 @@ func (c *client) admissionStatus(t *testing.T, ctx context.Context, f Fixture) {
 		}
 		viewer := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
 		_, err := c.call(as(ctx, viewer), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": target})
-		if status.Code(err) != codes.FailedPrecondition {
-			t.Fatalf("uninstalled audience: %v", err)
-		}
+		refused(t, err, codes.FailedPrecondition, fmt.Sprintf("audience %q is not installed in this organization, so there is no installation to seal the capability to", target))
 	})
 	t.Run("a person without grants cannot use an installed audience", func(t *testing.T) {
 		if f.UnentitledToken == "" {
-			t.Skip("fixture supplies no person without roles or teams")
+			t.Fatal("required conformance fixture missing: person without roles or teams")
 		}
 		person := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.UnentitledToken})
 		_, err := c.call(as(ctx, person), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.Audience})
-		if status.Code(err) != codes.PermissionDenied {
-			t.Fatalf("unentitled person: %v", err)
-		}
+		refused(t, err, codes.PermissionDenied, "the owner holds nothing at this audience")
 	})
 }

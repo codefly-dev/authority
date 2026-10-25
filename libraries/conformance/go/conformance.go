@@ -52,6 +52,13 @@ type Fixture struct {
 	// delivered tenant or the sole active installing organization, never any tenant.
 	WorkloadOrganizations *WorkloadOrganizationsCase
 
+	// SolutionRoles proves a delivered solution role, independently of organization grants.
+	SolutionRoles *SolutionRoleCase
+	// Lifecycle controls the real install-step acknowledgement and revocation.
+	Lifecycle *InstallationLifecycleCase
+	// OwnerToken is a member with the organization owner role, not admin.
+	OwnerToken string
+
 	// SolutionTools exercises a module binding to a solution with distinct person entitlements.
 	SolutionTools *SolutionToolsCase
 
@@ -63,31 +70,31 @@ type Fixture struct {
 	HostDomain         string
 	SignManifest       func(document []byte) (envelope []byte, err error)
 	DeliveryCredential func(module string) string
-	// Resources is what a person's context covers on one kind, or nil to skip.
+	// Resources is required and states what a person covers on one kind.
 	Resources *ResourceCase
 	// Lookup is a binding whose lookup scopes are narrower than its invoke
-	// scopes, or nil to skip.
+	// scopes; required for complete conformance.
 	Lookup *LookupCase
-	// Delegation is a grant a person makes to a module, or nil to skip.
+	// Delegation is a required grant a person makes to a module.
 	Delegation *DelegationCase
 	// SignAuthority signs the authority's own document delivered with a manifest,
-	// with the key SignManifest signs with. Nil skips the method-policy line.
+	// with the key SignManifest signs with. Required for method-policy conformance.
 	SignAuthority func(document []byte) (envelope []byte, err error)
 
-	// Chain is a delegate chain the fixture states, or nil: a person signs in,
+	// Chain is a required delegate chain: a person signs in,
 	// is issued at Start, and each hop is taken by its module on the previous
 	// token, through its binding. The last hop asks for something the first
 	// token never carried, so it holds only if each hop inherits from the owner.
 	Chain *Chain
 	// ChildScopes distinguishes target-local binding projection from a stored
-	// delegation's enduring action/resource ceiling. Nil leaves this line unproven.
+	// delegation's enduring action/resource ceiling. Omission fails conformance.
 	ChildScopes *ChildScopesCase
 	// InstallationChain exercises successive module actors under one installed
-	// solution's role. Nil leaves installation-owned multi-hop work unproven.
+	// solution's role. Omission fails conformance.
 	InstallationChain *InstallationChainCase
 
-	// SlowChecks runs the lines that must wait on the clock, such as a token
-	// expiring past core's skew; off by default.
+	// SlowChecks is retained for source compatibility. Expiry is now always
+	// checked: omitting a fixture option must not silently remove a contract case.
 	SlowChecks bool
 
 	// Matrix is the permission matrix the fixture states: for each person, at
@@ -192,13 +199,16 @@ func (c *client) deliverWithMethods(ctx context.Context, f Fixture, alias string
 // fixture's release key, carried by the module's own delivery credential, and,
 // when document names any field, the authority's own document signed by the same
 // key and bound to the manifest by module, generation and digest.
-func (c *client) deliver(ctx context.Context, f Fixture, alias, kind string, generation uint64, kinds []string, document map[string]any, skew uint64) (protoreflect.Message, error) {
+func (c *client) deliver(ctx context.Context, f Fixture, alias, kind string, generation uint64, kinds []string, document map[string]any, skew uint64, bindings ...solutionhost.AuthorityBinding) (protoreflect.Message, error) {
 	manifest := &solutionhost.ModuleManifest{
 		Schema: solutionhost.SchemaModuleManifestV1, Binding: alias, Alias: alias, Kind: solutionhost.Kind(kind), Generation: generation,
 		Host:      solutionhost.HostTarget{Coordinate: f.HostCoordinate, Domain: f.HostDomain},
 		Release:   solutionhost.Release{Publisher: "conformance", Name: alias, Version: "0.1.0"},
-		Workloads: []solutionhost.Workload{{Service: "api", Container: "app"}},
+		Workloads: []solutionhost.Workload{{Service: alias, Container: "app"}},
 		Authority: &solutionhost.Authority{Principal: alias, ResourceKinds: kinds},
+	}
+	if len(bindings) > 0 {
+		manifest.Authority.Bindings = bindings
 	}
 	carrier, err := solutionhost.SignedPayload(manifest)
 	if err != nil {
@@ -226,7 +236,7 @@ func (c *client) deliver(ctx context.Context, f Fixture, alias, kind string, gen
 	if err := fill(doc, fields); err != nil {
 		return nil, err
 	}
-	authority, err := proto.Marshal(doc)
+	authority, err := (proto.MarshalOptions{Deterministic: true}).Marshal(doc)
 	if err != nil {
 		return nil, err
 	}
@@ -247,6 +257,10 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 	}
 	ctx := context.Background()
 	c.admissionStatus(t, ctx, f)
+	c.solutionRoleCases(t, ctx, f)
+	c.installationIdentity(t, ctx, f)
+	c.sessionDisplayNames(t, ctx, f)
+	c.bindingRefusals(t, ctx, f)
 
 	t.Run("keys name one Ed25519 key and an issuer", func(t *testing.T) {
 		keys := c.must(t, ctx, "host.authority.v1.AuthorityService", "Keys", map[string]any{})
@@ -318,7 +332,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 	})
 	t.Run("the permission matrix holds, allow and deny", func(t *testing.T) {
 		if len(f.Matrix) == 0 {
-			t.Skip("the fixture states no matrix")
+			t.Fatal("required conformance fixture missing: the fixture states no matrix")
 		}
 		sessions := map[string]protoreflect.Message{}
 		for _, e := range f.Matrix {
@@ -358,19 +372,18 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		}
 		// A window is honoured with core's clock skew: a token is refused once it
 		// is past its expiry by more than DefaultSkew (30 s). Waiting that long is
-		// opt-in (SlowChecks); the fast check asserts the window the token states.
+		// required; the fast check also asserts the window the token states.
 		short := c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.Audience, "scopes": read, "ttl_seconds": int64(1)})
 		if i64(msg(short, "context"), "expires_at_unix")-i64(msg(short, "context"), "issued_at_unix") > 1 {
 			t.Fatalf("a one-second window is issued as asked: %v", msg(short, "context"))
 		}
-		if f.SlowChecks {
+		t.Run("an expired capability is refused after clock skew", func(t *testing.T) {
 			time.Sleep(workcontext.DefaultSkew + 2*time.Second)
-			if _, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(short, "token"), "audience": f.Audience}); status.Code(err) != codes.Unauthenticated {
-				t.Fatalf("an expired token is Unauthenticated: %v", err)
-			}
-		}
+			_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(short, "token"), "audience": f.Audience})
+			refused(t, err, codes.Unauthenticated, "expired")
+		})
 		if f.InstalledSolution == "" {
-			t.Skip("staleness needs an installation whose grant can move")
+			t.Fatal("required conformance fixture missing: staleness needs an installation whose grant can move")
 		}
 		admin := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.AdminToken})
 		before := c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": token, "audience": f.Audience})
@@ -478,7 +491,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 	})
 	t.Run("a module tool binding carries the person's solution role", func(t *testing.T) {
 		if f.SolutionTools == nil {
-			t.Skip("fixture supplies no module-to-solution tool case")
+			t.Fatal("required conformance fixture missing: fixture supplies no module-to-solution tool case")
 		}
 		c.solutionTools(t, ctx, *f.SolutionTools)
 	})
@@ -532,7 +545,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 	})
 	t.Run("a delegate chain inherits the owner's authority at each audience", func(t *testing.T) {
 		if f.Chain == nil || len(f.Chain.Hops) < 2 {
-			t.Skip("the fixture states no delegate chain")
+			t.Fatal("required conformance fixture missing: the fixture states no delegate chain")
 		}
 		ch := f.Chain
 		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": ch.Token})
@@ -557,19 +570,19 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 	})
 	t.Run("child target projection preserves explicit delegation restrictions", func(t *testing.T) {
 		if f.ChildScopes == nil {
-			t.Skip("the fixture states no child-scope case")
+			t.Fatal("required conformance fixture missing: the fixture states no child-scope case")
 		}
 		c.childScopes(t, ctx, *f.ChildScopes)
 	})
 	t.Run("an installation owner survives successive module actors", func(t *testing.T) {
 		if f.InstallationChain == nil {
-			t.Skip("the fixture states no installation-owned chain")
+			t.Fatal("required conformance fixture missing: the fixture states no installation-owned chain")
 		}
 		c.installationChain(t, ctx, *f.InstallationChain)
 	})
 	t.Run("a check naming a method applies what the module's delivery declares", func(t *testing.T) {
 		if f.SignManifest == nil || f.SignAuthority == nil {
-			t.Skip("the fixture signs no authority document")
+			t.Fatal("required conformance fixture missing: the fixture signs no authority document")
 		}
 		const module = "conformance-methods"
 		read := []any{map[string]any{"resource_kind": f.ReadKind, "actions": []any{"read"}}}
@@ -594,14 +607,29 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			"/conformance.Service/Write": codes.PermissionDenied, "/conformance.Service/Unmarked": codes.PermissionDenied,
 			"/conformance.Service/Missing": codes.NotFound,
 		} {
-			err := check(method)
-			if status.Code(err) != want {
-				t.Fatalf("check naming %q: want %v, got %v", method, want, err)
-			}
-			if err != nil && !strings.Contains(status.Convert(err).Message(), strings.TrimPrefix(method, "/conformance.Service/")) {
-				t.Fatalf("a refusal names the method: %v", err)
-			}
+			t.Run("method policy "+method, func(t *testing.T) {
+				err := check(method)
+				reason := ""
+				if want != codes.OK {
+					reason = strings.TrimPrefix(method, "/conformance.Service/")
+				}
+				refused(t, err, want, reason)
+			})
 		}
+		t.Run("advisory preserves the checked context and exact policy refusal", func(t *testing.T) {
+			method := "/conformance.Service/Write"
+			denied := check(method)
+			refused(t, denied, codes.PermissionDenied, "requires")
+			request := map[string]any{"token": token, "audience": module, "method": method, "advisory": true}
+			advised := c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", request)
+			plain := c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": token, "audience": module})
+			if str(advised, "refusal") != status.Convert(denied).Message() || !proto.Equal(msg(advised, "context").Interface(), msg(plain, "context").Interface()) || str(advised, "authorization_revision") != str(plain, "authorization_revision") {
+				t.Fatal("advisory changed verified authority or lost the exact refusal")
+			}
+			request["token"] = "invalid-token"
+			_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", request)
+			refused(t, err, codes.Unauthenticated, "")
+		})
 		// A document that does not match the manifest it travels with is refused,
 		// and the module keeps the policy it had.
 		if _, err := c.deliverWithMethods(ctx, f, module, 2, []string{f.ReadKind}, []any{map[string]any{"method": "/conformance.Service/Write", "any_checked_caller": true}}, 1); status.Code(err) != codes.PermissionDenied {
@@ -622,7 +650,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 	t.Run("the authority answers which resources a context covers, by grant", func(t *testing.T) {
 		rc := f.Resources
 		if rc == nil {
-			t.Skip("the fixture states no resource case")
+			t.Fatal("required conformance fixture missing: the fixture states no resource case")
 		}
 		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": rc.Token})
 		issue := func(scopes []any) string {
@@ -672,7 +700,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 	t.Run("a lookup through a binding carries only the binding's lookup scopes", func(t *testing.T) {
 		lc := f.Lookup
 		if lc == nil {
-			t.Skip("the fixture states no lookup case")
+			t.Fatal("required conformance fixture missing: the fixture states no lookup case")
 		}
 		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": lc.Token})
 		parent := str(c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": lc.Start}), "token")
@@ -692,7 +720,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 	t.Run("a delegation issues as its grantor through its module, until revoked", func(t *testing.T) {
 		dc := f.Delegation
 		if dc == nil {
-			t.Skip("the fixture states no delegation case")
+			t.Fatal("required conformance fixture missing: the fixture states no delegation case")
 		}
 		scopes := []any{map[string]any{"resource_kind": dc.Kind, "actions": []any{dc.Action}}}
 		grantor := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": dc.Token})
@@ -753,33 +781,10 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			t.Fatalf("apply: %v", err)
 		}
 		_, err := c.applyManifest(ctx, f, "conformance-probe", "module", 1, []string{"probe"})
-		if status.Code(err) != codes.FailedPrecondition {
-			t.Fatalf("lower generation: %v", err)
-		}
+		refused(t, err, codes.FailedPrecondition, "generation")
 	})
-	t.Run("install is pending until acknowledged, then exposed to a team", func(t *testing.T) {
-		admin := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.AdminToken})
-		if _, err := c.applyManifest(ctx, f, "conformance-solution", "solution", 1, []string{"conformance.page"}); err != nil {
-			t.Fatalf("apply solution: %v", err)
-		}
-		install := map[string]any{"organization_id": f.Organization, "target": "conformance-solution", "role": "viewer", "owner_person_id": str(admin, "person_id")}
-		inst := c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "Install", install)
-		if st := enumName(inst, "status"); st != "STATUS_PENDING" && st != "STATUS_ACTIVE" {
-			t.Fatalf("install status = %s", st)
-		}
-		granted := c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "GrantToTeam", map[string]any{"organization_id": f.Organization, "installation_id": str(inst, "id"), "team_id": "finance"})
-		if count(granted, "team_ids") != 1 || u64(granted, "revision") != u64(inst, "revision")+1 {
-			t.Fatalf("grant: %v", granted)
-		}
-		_, err := c.call(as(ctx, admin), "host.installation.v1.InstallationService", "Install", install)
-		if status.Code(err) != codes.PermissionDenied {
-			t.Fatalf("installing twice: %v", err)
-		}
-		_, err = c.call(as(ctx, admin), "host.installation.v1.InstallationService", "GrantToTeam", map[string]any{"organization_id": "another-organisation", "installation_id": str(inst, "id"), "team_id": "finance"})
-		if status.Code(err) != codes.PermissionDenied {
-			t.Fatalf("a grant naming another organisation: %v", err)
-		}
-	})
+	c.resourceMethod(t, ctx, f)
+	c.installationLifecycle(t, ctx, f)
 }
 
 // scopeActions is a context's actions on kind, comma-joined.

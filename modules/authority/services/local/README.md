@@ -100,3 +100,11 @@ tombstones currently live in memory: restart forgets them. This does not prove
 anti-resurrection or persistent consumer-data isolation across changed bindings
 and restarts. Full alias replacement, durable history and production accounts
 parity remain unfinished; local lifecycle tests do not qualify those behaviors.
+
+Installation-owned Issue verifies an explicitly supplied `organization_id`
+against the installation's organization, as well as authenticating the installed
+solution workload. Omitting the organization uses the installation's own tenant.
+A pending installation cannot be granted to a team: its install step must first
+acknowledge it. Shared conformance observes the pending state while that step is
+blocked, then verifies exposure after acknowledgement and refusal after revocation.
+See `libraries/conformance/go/README.md` for the complete host comparison contract.

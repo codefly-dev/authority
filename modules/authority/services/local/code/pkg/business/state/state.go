@@ -1092,6 +1092,9 @@ func (s *State) GrantToTeam(_ context.Context, org, id, team string) (Installati
 	if !ok || inst.Status == Revoked {
 		return Installation{}, fmt.Errorf("%w: installation %q", ErrUnknown, id)
 	}
+	if inst.Status != Active {
+		return Installation{}, fmt.Errorf("%w: installation %s is %s; only an active installation can be exposed", ErrForbidden, id, inst.Status)
+	}
 	if org != "" && org != inst.Organization {
 		return Installation{}, fmt.Errorf("%w: installation %s is not at organization %q", ErrForbidden, id, org)
 	}

@@ -218,7 +218,7 @@ func (i *Issuer) Issue(ctx context.Context, req *authorityv1.IssueRequest) (*aut
 	case *authorityv1.IssueRequest_Workload:
 		token, wc, err = i.forWorkload(ctx, as.Workload.GetCredential(), req.GetOrganizationId(), req.GetOperationBindingId(), req.GetOperation(), audience, asked, ttl)
 	case *authorityv1.IssueRequest_Installation:
-		token, wc, err = i.forInstallation(ctx, as.Installation.GetInstallationId(), req.GetActor().GetCredential(), audience, asked, ttl)
+		token, wc, err = i.forInstallation(ctx, as.Installation.GetInstallationId(), req.GetOrganizationId(), req.GetActor().GetCredential(), audience, asked, ttl)
 	case *authorityv1.IssueRequest_ParentToken:
 		token, wc, err = i.child(ctx, as.ParentToken, req.GetActor().GetCredential(), req.GetOperationBindingId(), req.GetOperation(), audience, asked, ttl)
 	case *authorityv1.IssueRequest_Delegation:
@@ -354,7 +354,7 @@ func (i *Issuer) forWorkload(ctx context.Context, credential, org, bindingID, op
 // forInstallation: owner = actor = the installation's agent; scopes = asked ∩
 // the installation's role ∩ the audience's ceiling. Its solution authenticates
 // with its own workload credential; an installation ID is not a credential.
-func (i *Issuer) forInstallation(ctx context.Context, id, credential string, audience state.Manifest, asked []*basev0.WorkScopeV1, ttl time.Duration) (string, *basev0.WorkContextV1, error) {
+func (i *Issuer) forInstallation(ctx context.Context, id, org, credential string, audience state.Manifest, asked []*basev0.WorkScopeV1, ttl time.Duration) (string, *basev0.WorkContextV1, error) {
 	actor, err := i.state.VerifyWorkload(ctx, credential)
 	if err != nil {
 		return "", nil, err
@@ -362,6 +362,9 @@ func (i *Issuer) forInstallation(ctx context.Context, id, credential string, aud
 	inst, held, revision, err := i.state.InstallationScopes(id, audience.Principal)
 	if err != nil {
 		return "", nil, err
+	}
+	if org != "" && org != inst.Organization {
+		return "", nil, fmt.Errorf("%w: installation %s belongs to organization %q, not %q", state.ErrForbidden, id, inst.Organization, org)
 	}
 	if actor.Kind != "solution" || actor.Module != inst.Target {
 		return "", nil, fmt.Errorf("%w: installation issuance requires the installed solution's workload", state.ErrForbidden)
