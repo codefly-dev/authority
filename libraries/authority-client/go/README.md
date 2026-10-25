@@ -6,8 +6,9 @@ non-verifying projection using Core's maintained decoder and scope containment:
 ```go
 import claims "github.com/codefly-dev/authority/libraries/authority-client/go/workcontext"
 
-// First read the trusted hop stamp through codefly's hop library.
-c, err := claims.ReadClaims(identity.Context)
+// The reader requires incoming metadata and the run-delivered hop proof.
+md, _ := metadata.FromIncomingContext(ctx)
+c, err := claims.ReadClaims(md, proof)
 // Handle err, compare c.Audience() to this module's delivered audience, then:
 allowed := c.Allows(resourceKind, action, exactResourceID)
 ```
@@ -37,3 +38,6 @@ tests exercise parsing only and are not valid credentials.
 
 Handwritten code lives outside `gen/`, the directory Codefly replaces. The root
 module scaffold is preserved by `codefly generate client`.
+
+The shared `host.Dial` resolves the authority for edge and hop. Remote endpoints
+require HTTPS/TLS; plaintext is limited to loopback, including resolved fallbacks.

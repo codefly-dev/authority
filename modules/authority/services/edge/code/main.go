@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/codefly-dev/authority/libraries/authority-client/go/host"
 	"log"
 	"net/http"
 	"net/url"
@@ -60,7 +61,7 @@ func compose(ctx context.Context) (*Edge, int, func(), error) {
 	if err != nil || self == nil || self.Port == 0 {
 		return nil, 0, nil, fmt.Errorf("edge: this service's http endpoint is not resolved: %v", err)
 	}
-	conn, at, err := dialHost(ctx)
+	conn, at, err := host.Dial(ctx)
 	if err != nil {
 		return nil, 0, nil, fmt.Errorf("edge: %w", err)
 	}

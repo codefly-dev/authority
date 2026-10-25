@@ -25,3 +25,7 @@ Validation: run `go test -race ./...` in this service's `code/`, the local autho
 `code/`, and `libraries/hop/go`. Local authority's generated-client advisory test checks
 the real issuer; proxy's routing regression checks that a Records request never
 reaches Documents when its destination is unresolved.
+
+`ENFORCEMENT=warn` is accepted only when the SDK reports a local environment.
+Unknown enforcement modes and warn in other environments are refused by name.
+The shared authority client dialer requires TLS for every non-loopback host.

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/codefly-dev/authority/libraries/authority-client/go/host"
 	"net"
 	"net/http"
 	"net/url"
@@ -35,7 +36,7 @@ func standInFront(ctx context.Context, config *adapters.Configuration) (Clean, e
 	// The authority, through the interface the hop depends on: the host the
 	// composition names in authority/endpoint (saas accounts, say), else the
 	// authority module's local authority (host.go).
-	authority, at, err := dialHost(ctx)
+	authority, at, err := host.Dial(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("hop: %w", err)
 	}
@@ -92,7 +93,10 @@ func standInFront(ctx context.Context, config *adapters.Configuration) (Clean, e
 	// been refused — a composition's choice for a developer's run, never a
 	// cell's.
 	enforcement, _ := codefly.For(ctx).WorkspaceConfiguration("hop", "ENFORCEMENT")
-	permissive := strings.EqualFold(strings.TrimSpace(enforcement), "warn")
+	permissive, err := enforcementMode(enforcement, codefly.IsLocal())
+	if err != nil {
+		return nil, err
+	}
 	decider := decide.Decider{Authority: authorityv1.NewAuthorityServiceClient(authority), Modules: modules, Permissive: permissive,
 		Warned: func(method string, err error) {
 			w.Warn("PERMISSIVE: let through a call the authority refused", wool.Field("method", method), wool.Field("reason", err.Error()))
@@ -146,4 +150,19 @@ func address(endpoint string) string {
 		endpoint = strings.TrimPrefix(endpoint, scheme)
 	}
 	return endpoint
+}
+
+// enforcementMode refuses configuration mistakes and permits advice only locally.
+func enforcementMode(value string, local bool) (bool, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "enforce":
+		return false, nil
+	case "warn":
+		if !local {
+			return false, fmt.Errorf("hop/ENFORCEMENT=warn requires a local environment; use enforce outside local runs")
+		}
+		return true, nil
+	default:
+		return false, fmt.Errorf("hop/ENFORCEMENT must be enforce or warn")
+	}
 }
