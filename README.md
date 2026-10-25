@@ -304,8 +304,10 @@ consumer's organisation in an import path). GitHub redirects the old location.
 `libraries/authority-client/go` is the generated Go bindings library
 (`codefly generate client --no-facade`), importable as
 `github.com/codefly-dev/authority/libraries/authority-client/go`. The Python
-library did not generate: the client generator lacks the protovalidate dependency
-the Work Context messages import (reported on codefly-dev/cli#1107).
+library publishes generated bindings under `libraries/authority-client/python`.
+Its [bound-context reader](libraries/authority-client/python/README.md) projects
+effective resource scopes without another verification call. Consumers read the
+hop stamp first and retain their domain resource and installation checks.
 
 ## Rules of change (owner, 2026-10-22)
 
