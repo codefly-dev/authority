@@ -213,10 +213,18 @@ func admitMethod(m Manifest, audience, method string, held []*basev0.WorkScopeV1
 	case len(p.Requires) == 0:
 		return fmt.Errorf("%w: %s declares no policy for %s", ErrForbidden, audience, method)
 	}
+	// Method requirements name whole kinds, not selected resources. Keep the
+	// existing action matcher, but only whole-kind holdings can satisfy it.
+	var wholeKindHeld []*basev0.WorkScopeV1
+	for _, scope := range held {
+		if len(scope.GetResourceIds()) == 0 {
+			wholeKindHeld = append(wholeKindHeld, scope)
+		}
+	}
 	var missing []string
 	for _, r := range p.Requires {
 		for _, action := range r.GetActions() {
-			if !holdsAction(held, r.GetResourceKind(), action) {
+			if !holdsAction(wholeKindHeld, r.GetResourceKind(), action) {
 				missing = append(missing, r.GetResourceKind()+":"+action)
 			}
 		}
@@ -308,9 +316,8 @@ func segmentMatches(template, segment string) bool {
 	return false
 }
 
-// holdsAction is whether held carries action on kind. A method's requirement is
-// on the kind; which resources of it the call may touch is the module's own
-// check, against the context it is handed.
+// holdsAction reports whether held carries action on any resource of kind.
+// It is a vocabulary/presence check, not whole-kind method admission.
 func holdsAction(held []*basev0.WorkScopeV1, kind, action string) bool {
 	for _, h := range held {
 		if h.GetResourceKind() == kind && (slices.Contains(h.GetActions(), action) || slices.Contains(h.GetActions(), AnyAction)) {
@@ -324,7 +331,11 @@ func describe(held []*basev0.WorkScopeV1) string {
 	var out []string
 	for _, h := range held {
 		for _, a := range h.GetActions() {
-			out = append(out, h.GetResourceKind()+":"+a)
+			permission := h.GetResourceKind() + ":" + a
+			if len(h.GetResourceIds()) > 0 {
+				permission += " (resource-limited)"
+			}
+			out = append(out, permission)
 		}
 	}
 	if len(out) == 0 {
@@ -833,6 +844,9 @@ func validateManifest(m Manifest) error {
 	for method, policy := range m.Methods {
 		requires := map[string][]string{}
 		for _, scope := range policy.Requires {
+			if len(scope.GetResourceIds()) > 0 {
+				return fmt.Errorf("%w: %s: %s: method requirements name whole resource kinds; resource IDs are not supported", ErrForbidden, m.Module, method)
+			}
 			requires[scope.GetResourceKind()] = append(requires[scope.GetResourceKind()], scope.GetActions()...)
 		}
 		if err := delivery.ValidateMethodPolicy(method, policy.AnyCheckedCaller, requires, false); err != nil {

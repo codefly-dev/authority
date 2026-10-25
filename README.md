@@ -512,6 +512,18 @@ The marks reach the authority in the delivery, and the authority decides:
 3. **The hop** asks `Check` with the method and passes the answer on. It holds
    no policy, reads nothing from the module, and polls nothing.
 
+A method requirement names a whole resource kind. Delivery rejects a method
+requirement containing resource IDs instead of silently dropping its restriction.
+A capability restricted to
+resource IDs does not satisfy that requirement, even with a wildcard action;
+several restricted scopes do not become a whole-kind grant. A whole-kind grant
+alongside restricted scopes still satisfies its declared action. Refusals mark
+resource-limited holdings in the diagnostic. `Advise` reports the same refusal
+without widening or discarding the checked capability, so warn mode can log it.
+Checking a capability without a method and reading its resource scope remain
+supported. Modules still own resource visibility, ownership and installation
+checks; method admission does not replace them.
+
 Proven live on 2026-10-23 with the CLI of codefly-dev/cli#1128 at 13f7a3e3: the
 console's delivery carries its signed document; Maya's `WhoAmI` and `Version`
 pass through the hop on the delivered policy; `Check` answers an unserved
