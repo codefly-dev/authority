@@ -305,9 +305,15 @@ consumer's organisation in an import path). GitHub redirects the old location.
 (`codefly generate client --no-facade`), importable as
 `github.com/codefly-dev/authority/libraries/authority-client/go`. The Python
 library publishes generated bindings under `libraries/authority-client/python`.
-Its [bound-context reader](libraries/authority-client/python/README.md) projects
+The [Python bound-context reader](libraries/authority-client/python/README.md) projects
 effective resource scopes without another verification call. Consumers read the
 hop stamp first and retain their domain resource and installation checks.
+The [Go reader](libraries/authority-client/go/README.md) reuses Core Decode and
+scope containment; the [TypeScript reader](libraries/authority-client/typescript/README.md)
+uses Codefly-generated protobuf bindings. Shared Core-produced fixtures cover
+their scope decisions. These projections do not authenticate a context or replace
+live checks; TypeScript hop-binding integration remains separate work. Go also
+retains Core's stronger structural validation.
 
 ## Rules of change (owner, 2026-10-22)
 

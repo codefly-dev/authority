@@ -16,7 +16,7 @@ import (
 	sync "sync"
 	unsafe "unsafe"
 
-	v1 "github.com/codefly-dev/authority-client-go/gen/host/authority/v1"
+	v1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
