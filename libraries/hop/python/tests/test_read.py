@@ -18,10 +18,13 @@ class Keys:
     """The authority interface's Keys, as the generated stub answers it."""
 
     def __init__(self, response=None, error=None):
-        self.response, self.error, self.reads = response, error, 0
+        self.response, self.error, self.reads, self.hold = response, error, 0, None
 
-    def Keys(self, _request):
+    def Keys(self, _request, timeout=None):
+        assert timeout is not None, "a key read always carries a timeout"
         self.reads += 1
+        if self.hold is not None and not self.hold.wait(timeout):
+            raise TimeoutError("deadline exceeded")
         if self.error:
             raise self.error
         return self.response
@@ -76,21 +79,70 @@ def test_another_audience_and_an_expired_context_are_refused():
         verifier(clock=lambda: FIXTURE["now"] + 3600, source=Keys(published())).verify(FIXTURE["headers"])
 
 
-def test_keys_are_reread_for_an_unknown_key_and_trusted_no_longer_than_stale():
+def settle(v):
+    wait = v._inflight
+    if wait is not None:
+        wait.wait(5)
+
+
+def test_keys_are_reread_when_old_and_trusted_no_longer_than_stale():
     clock = [FIXTURE["now"]]
     source = Keys(published())
     v = verifier(clock=lambda: clock[0], source=source)
     rotated = KeysResponse(issuer=published().issuer)
     rotated.keys.add(key_id="rotated", algorithm="Ed25519", public_key=bytes(32))
     source.response = rotated
-    clock[0] += 400  # older than KEY_MAX_AGE: re-read, and the fixture key is gone
-    with pytest.raises(Unauthenticated, match="no verification key"):
-        v.verify(FIXTURE["headers"])
+    clock[0] += 400  # older than KEY_MAX_AGE: a re-read starts; the held key serves this call
+    v.verify(FIXTURE["headers"])
+    settle(v)
     assert source.reads == 2
-    source.response, source.error = published(), RuntimeError("authority down")
+    clock[0] += 11
+    with pytest.raises(Unauthenticated, match="no verification key"):
+        v.verify(FIXTURE["headers"])  # the authority no longer publishes it
+    source.response, source.error = published(), RuntimeError("dial authority.internal:4000: connection refused")
     clock[0] += 1000
-    with pytest.raises(Unauthenticated, match="cannot be read"):
+    with pytest.raises(Unauthenticated, match="unavailable") as refused:
+        v.verify(FIXTURE["headers"])  # an unheld key waits for the read, which fails; the keys are stale
+    assert "4000" not in str(refused.value) and "4000" in str(v.keys_error)
+
+
+# Review r44 B1: nothing without the proof reaches the key read, and a hung read
+# stalls no call whose key is held.
+def test_a_call_without_the_proof_never_reads_the_keys():
+    clock = [FIXTURE["now"]]
+    source = Keys(published())
+    v = verifier(clock=lambda: clock[0], source=source)
+    for _ in range(20):
+        clock[0] += 11
+        for headers in ({WORK_CONTEXT_KEY: "garbage"}, {**FIXTURE["headers"], "x-codefly-hop-proof": "another-run"}):
+            with pytest.raises(Unauthenticated):
+                v.verify(headers)
+    assert source.reads == 1
+
+
+def test_a_hung_read_stalls_no_held_key():
+    import threading
+    import time as clock_time
+    clock = [FIXTURE["now"]]
+    source = Keys(published())
+    v = verifier(clock=lambda: clock[0], source=source)
+    source.hold = threading.Event()
+    clock[0] += 400  # old keys: a background read starts and hangs
+    started = clock_time.monotonic()
+    assert v.verify(FIXTURE["headers"]).owner == FIXTURE["identity"]["owner"]
+    assert clock_time.monotonic() - started < 1
+    source.hold.set()
+
+
+def test_a_verifier_starts_before_the_authority_serves_keys():
+    clock = [FIXTURE["now"]]
+    source = Keys(error=RuntimeError("connection refused"))
+    v = Verifier(source, audience=FIXTURE["audience"], proof=FIXTURE["proof"], now=lambda: clock[0])
+    with pytest.raises(Unauthenticated, match="unavailable"):
         v.verify(FIXTURE["headers"])
+    source.error, source.response = None, published()
+    clock[0] += 11
+    assert v.verify(FIXTURE["headers"]).owner == FIXTURE["identity"]["owner"]
 
 
 def test_identity_narrows_by_every_actor_and_never_widens_a_resource_scope():
@@ -99,9 +151,12 @@ def test_identity_narrows_by_every_actor_and_never_widens_a_resource_scope():
     context.authority_scopes.add(resource_kind="records", actions=["read"], resource_ids=["r-1"])
     robin = context.actor_chain.add(principal_id="robin")
     robin.granted_scopes.add(resource_kind="documents", actions=["read"])
-    context.actor_chain.add(principal_id="model")
+    model = context.actor_chain.add(principal_id="model")
+    model.granted_scopes.add(resource_kind="documents", actions=["read"])
     identity = identity_of(context)
     assert identity.actors == ("robin", "model") and identity.scopes == ("documents:read",)
+    context.actor_chain.add(principal_id="granted-nothing")
+    assert identity_of(context).scopes == ()  # Core's EffectiveScopes: the last actor's grants
 
 
 def test_a_verifier_needs_keys_an_audience_and_a_proof():

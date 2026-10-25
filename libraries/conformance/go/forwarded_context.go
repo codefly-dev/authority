@@ -1,6 +1,7 @@
 package conformance
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -14,6 +15,7 @@ import (
 
 	forwarded "github.com/codefly-dev/authority/libraries/authority-client/go/workcontext"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/proto"
 )
 
 // forwardedContext is the module side of the hop, against this host: what the
@@ -47,6 +49,14 @@ func (c *client) forwardedContext(t *testing.T, ctx context.Context, f Fixture) 
 		raw, err := base64.RawURLEncoding.DecodeString(payload)
 		if err != nil {
 			t.Fatal(err)
+		}
+		// The hop stamps who the call is for from Check's context and the module
+		// derives it from the token; they agree only if Check answers the token's
+		// own claims, byte for byte, never a re-derivation.
+		checked := c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": token, "audience": f.Audience})
+		answered, err := proto.MarshalOptions{Deterministic: true}.Marshal(msg(checked, "context").Interface())
+		if err != nil || !bytes.Equal(answered, raw) {
+			t.Fatalf("Check answers the token's own claims unchanged: %v", err)
 		}
 		_, forger, _ := ed25519.GenerateKey(rand.Reader)
 		later := trust

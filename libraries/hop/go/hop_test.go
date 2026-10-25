@@ -142,3 +142,14 @@ func TestAVerifierNeedsPublishedKeysAnAudienceAndAProof(t *testing.T) {
 		}
 	}
 }
+
+func TestTheAudienceIsTheModuleTheCompositionStarted(t *testing.T) {
+	t.Setenv("CODEFLY__MODULE", "documents")
+	if got, err := hop.Audience(); err != nil || got != "documents" {
+		t.Fatalf("audience: %q %v", got, err)
+	}
+	t.Setenv("CODEFLY__MODULE", "")
+	if _, err := hop.Audience(); err == nil {
+		t.Fatal("a process the composition names no module for has no audience")
+	}
+}

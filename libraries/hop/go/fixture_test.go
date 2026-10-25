@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -69,16 +70,51 @@ func forwarded(t *testing.T, token, proof, advisory string) metadata.MD {
 	return md
 }
 
-// keys is a switchable Keys answer that counts the reads.
+// keys is a switchable Keys answer that counts the reads; with hold set, a
+// read waits for it to be closed (or for its own context to end).
 type keys struct {
+	mu       sync.Mutex
 	response *authorityv1.KeysResponse
 	err      error
 	reads    int
+	hold     chan struct{}
 }
 
-func (k *keys) Keys(context.Context, *authorityv1.KeysRequest, ...grpc.CallOption) (*authorityv1.KeysResponse, error) {
+func (k *keys) Keys(ctx context.Context, _ *authorityv1.KeysRequest, _ ...grpc.CallOption) (*authorityv1.KeysResponse, error) {
+	k.mu.Lock()
 	k.reads++
-	return k.response, k.err
+	hold, response, err := k.hold, k.response, k.err
+	k.mu.Unlock()
+	if hold != nil {
+		select {
+		case <-hold:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	return response, err
+}
+
+func (k *keys) set(response *authorityv1.KeysResponse, err error, hold chan struct{}) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	k.response, k.err, k.hold = response, err, hold
+}
+
+func (k *keys) count() int {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	return k.reads
+}
+
+// settled waits for the verifier's running read, if any, to end.
+func settled(v *Verifier) {
+	v.mu.Lock()
+	wait := v.inflight
+	v.mu.Unlock()
+	if wait != nil {
+		<-wait
+	}
 }
 
 type stampFixture struct {
@@ -171,30 +207,140 @@ func TestPublishedKeysAreRereadOnRotationAndExpireWhenUnreadable(t *testing.T) {
 	v.tried, v.fetched = start, start
 	verify := func(token string) error {
 		_, err := v.Verify(context.Background(), forwarded(t, token, "proof", ""))
+		settled(v)
 		return err
 	}
 	if err := verify(first.issue(t, clock, "documents")); err != nil {
 		t.Fatal(err)
 	}
-	source.response = &authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{second.published()}}
+	source.set(&authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{second.published()}}, nil, nil)
 	clock = start.Add(time.Second)
-	if err := verify(second.issue(t, clock, "documents")); err == nil || !strings.Contains(err.Error(), "no verification key") || source.reads != 1 {
-		t.Fatalf("within keyRetry the keys are not re-read: %v (reads %d)", err, source.reads)
+	if err := verify(second.issue(t, clock, "documents")); err == nil || !strings.Contains(err.Error(), "no verification key") || source.count() != 1 {
+		t.Fatalf("within keyRetry the keys are not re-read: %v (reads %d)", err, source.count())
 	}
 	clock = start.Add(keyRetry + time.Second)
-	if err := verify(second.issue(t, clock, "documents")); err != nil || source.reads != 2 {
-		t.Fatalf("a rotated key is fetched: %v (reads %d)", err, source.reads)
+	if err := verify(second.issue(t, clock, "documents")); err != nil || source.count() != 2 {
+		t.Fatalf("a rotated key is fetched: %v (reads %d)", err, source.count())
 	}
 	if err := verify(first.issue(t, clock, "documents")); err == nil {
 		t.Fatal("a key the authority no longer publishes still verifies")
 	}
-	source.err = errors.New("authority down")
+	source.set(nil, errors.New("dial authority.internal:4000: connection refused"), nil)
 	clock = clock.Add(keyMaxAge + time.Second)
 	if err := verify(second.issue(t, clock, "documents")); err != nil {
 		t.Fatalf("a failed re-read keeps the last keys until keyStale: %v", err)
 	}
 	clock = clock.Add(keyStale)
-	if err := verify(second.issue(t, clock, "documents")); !errors.Is(err, workcontext.ErrUnauthenticated) || !strings.Contains(err.Error(), "cannot be read") {
-		t.Fatalf("stale keys are refused, naming the outage: %v", err)
+	err = verify(second.issue(t, clock, "documents"))
+	if !errors.Is(err, workcontext.ErrUnauthenticated) || !strings.Contains(err.Error(), "unavailable") || strings.Contains(err.Error(), "4000") {
+		t.Fatalf("stale keys are refused with a fixed reason that names no address: %v", err)
+	}
+	if v.KeysError() == nil || !strings.Contains(v.KeysError().Error(), "4000") {
+		t.Fatalf("the read's own failure is kept for the module's logs: %v", v.KeysError())
+	}
+}
+
+// Review r44 B1, first probe: after a rotation, a caller without the proof,
+// with a cancelled context, every keyRetry, must neither read the keys nor
+// stop the genuine call carrying the new key.
+func TestAnUnauthenticatedCallerNeitherReadsNorStarvesTheKeys(t *testing.T) {
+	first, second := newSigner("first"), newSigner("second")
+	source := &keys{response: &authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{first.published()}}}
+	clock := time.Unix(1792818000, 0)
+	v, _ := NewVerifier(context.Background(), source, "documents", "proof")
+	v.now = func() time.Time { return clock }
+	v.fetched, v.tried = clock, clock
+	source.set(&authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{second.published()}}, nil, nil)
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	genuine, unauthenticatedReads := 0, 0
+	for i := 0; i < 100; i++ {
+		clock = clock.Add(keyRetry)
+		before := source.count()
+		for _, md := range []metadata.MD{metadata.Pairs(WorkContextKey, "garbage"), forwarded(t, second.issue(t, clock, "documents"), "another-run", "")} {
+			if _, err := v.Verify(cancelled, md); err == nil {
+				t.Fatal("a call without this run's proof was admitted")
+			}
+		}
+		settled(v)
+		unauthenticatedReads += source.count() - before
+		if _, err := v.Verify(context.Background(), forwarded(t, second.issue(t, clock, "documents"), "proof", "")); err == nil {
+			genuine++
+		}
+		settled(v)
+	}
+	if genuine != 100 || unauthenticatedReads != 0 {
+		t.Fatalf("admitted %d/100 genuine calls; %d key reads caused by calls without the proof", genuine, unauthenticatedReads)
+	}
+}
+
+// Review r44 B1, second probe: a hung read stalls no call whose key is held,
+// and a caller that gives up waiting delays nobody's next read.
+func TestAHungReadStallsNoHeldKeyAndACallerGivingUpDelaysNoOne(t *testing.T) {
+	first, second := newSigner("first"), newSigner("second")
+	source := &keys{response: &authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{first.published(), second.published()}}}
+	start := time.Unix(1792818000, 0)
+	clock := start
+	v, _ := NewVerifier(context.Background(), source, "documents", "proof")
+	v.now = func() time.Time { return clock }
+	v.fetched, v.tried = start, start
+	hold := make(chan struct{})
+	source.set(&authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{first.published(), second.published()}}, nil, hold)
+	clock = start.Add(keyMaxAge + time.Second) // old keys: a background read starts, and hangs
+	done := make(chan error, 1)
+	go func() {
+		_, err := v.Verify(context.Background(), forwarded(t, first.issue(t, clock, "documents"), "proof", ""))
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("a held key: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("a call with a held key stalled behind a hung read")
+	}
+	// A key not held waits for the read; a caller who gives up is refused alone.
+	third := newSigner("third")
+	short, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if _, err := v.Verify(short, forwarded(t, third.issue(t, clock, "documents"), "proof", "")); err == nil || !strings.Contains(err.Error(), "ended while") {
+		t.Fatalf("a caller giving up: %v", err)
+	}
+	source.set(&authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{third.published()}}, nil, nil)
+	close(hold)
+	settled(v)
+	clock = clock.Add(keyRetry)
+	if _, err := v.Verify(context.Background(), forwarded(t, third.issue(t, clock, "documents"), "proof", "")); err != nil {
+		t.Fatalf("the next read is not delayed by the caller who gave up: %v", err)
+	}
+}
+
+// A read that never answers is bounded by the verifier's own timeout.
+func TestAReadIsBoundedByItsOwnTimeout(t *testing.T) {
+	source := &keys{hold: make(chan struct{})}
+	v := &Verifier{source: source, audience: "documents", proof: "proof", now: time.Now, timeout: 20 * time.Millisecond}
+	v.mu.Lock()
+	done := v.refresh()
+	v.mu.Unlock()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("a hung read was not bounded")
+	}
+	if !errors.Is(v.KeysError(), context.DeadlineExceeded) {
+		t.Fatalf("the timeout is recorded: %v", v.KeysError())
+	}
+}
+
+// An actor granted nothing narrows the identity to nothing, as Core's
+// EffectiveScopes does (review r44 m1).
+func TestAnActorGrantedNothingNarrowsToNothing(t *testing.T) {
+	id := IdentityOf(&basev0.WorkContextV1{
+		AuthorityScopes: []*basev0.WorkScopeV1{{ResourceKind: "documents", Actions: []string{"read"}}},
+		ActorChain:      []*basev0.WorkActorV1{{PrincipalId: "robin"}},
+	})
+	if len(id.Scopes) != 0 || id.Has("documents", "read") {
+		t.Fatalf("identity: %+v", id)
 	}
 }

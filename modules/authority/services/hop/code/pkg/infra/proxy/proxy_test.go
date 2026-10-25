@@ -176,12 +176,16 @@ func TestEffectiveScopesAreTheOwnersNarrowedByEveryActor(t *testing.T) {
 			{ResourceKind: "records", Actions: []string{"read"}, ResourceIds: []string{"r1"}},
 		},
 		ActorChain: []*authorityv1.WorkActorV1{
-			{PrincipalId: "org-directory"},
+			{PrincipalId: "org-directory", GrantedScopes: []*authorityv1.WorkScopeV1{{ResourceKind: "documents", Actions: []string{"read", "write"}}}},
 			{PrincipalId: "documents-reader", GrantedScopes: []*authorityv1.WorkScopeV1{{ResourceKind: "documents", Actions: []string{"read"}}}},
 		},
 	})
 	if strings.Join(id.Scopes, ",") != "documents:read" || strings.Join(id.Actors, ",") != "org-directory,documents-reader" {
 		t.Fatalf("identity: %+v", id)
+	}
+	// An actor granted nothing narrows to nothing, as Core's EffectiveScopes.
+	if empty := decide.IdentityOf(&authorityv1.WorkContextV1{AuthorityScopes: []*authorityv1.WorkScopeV1{{ResourceKind: "documents", Actions: []string{"read"}}}, ActorChain: []*authorityv1.WorkActorV1{{PrincipalId: "robin"}}}); len(empty.Scopes) != 0 {
+		t.Fatalf("an actor granted nothing: %+v", empty)
 	}
 }
 

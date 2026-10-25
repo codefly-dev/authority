@@ -30,7 +30,7 @@ require (
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
-	github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0-20261025224207-ead918ed860c // indirect
+	github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0-20261025234644-fff5385f9203 // indirect
 	github.com/go-openapi/analysis v1.0.0 // indirect
 	github.com/go-openapi/errors v0.22.9 // indirect
 	github.com/go-openapi/jsonpointer v1.0.1 // indirect

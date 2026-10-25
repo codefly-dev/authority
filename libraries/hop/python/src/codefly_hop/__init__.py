@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 
 from authority_client._gen.host.authority.v1.authority_pb2 import KeysRequest
 from authority_client._gen.host.authority.v1.work_context_pb2 import WorkContextV1
-from authority_client.work_context import Claims, Trust, Unauthenticated, authenticate, collect
+from authority_client.work_context import Claims, Trust, Unauthenticated, authenticate, bound_token, collect
 
 __all__ = ["Identity", "Verifier", "Unauthenticated", "identity_of"]
 
@@ -41,8 +41,9 @@ CONTEXT_KEY = STAMP_PREFIX + "context"
 ADVISORY_KEY = STAMP_PREFIX + "advisory"
 
 # The Go verifier's key policy: re-read on an unknown key at most every 10 s,
-# and when older than 5 min; unreadable keys are trusted no longer than 15 min.
-KEY_RETRY, KEY_MAX_AGE, KEY_STALE = 10.0, 300.0, 900.0
+# and when older than 5 min, on a read of its own bounded by 5 s; unreadable
+# keys are trusted no longer than 15 min.
+KEY_RETRY, KEY_MAX_AGE, KEY_STALE, KEY_TIMEOUT = 10.0, 300.0, 900.0, 5.0
 
 
 @dataclass(frozen=True)
@@ -77,9 +78,8 @@ def identity_of(context) -> Identity:
     actors = []
     for actor in context.actor_chain:
         actors.append(actor.principal_id)
-        if actor.granted_scopes:
-            held = _flatten(actor.granted_scopes)
-            scopes = [s for s in scopes if s in held]
+        held = _flatten(actor.granted_scopes)  # an actor granted nothing narrows to nothing
+        scopes = [s for s in scopes if s in held]
     return Identity(
         owner=context.owner_principal_id,
         owner_kind=context.owner_principal_kind,
@@ -97,26 +97,33 @@ class Verifier:
 
     ``keys`` is the authority interface's generated ``AuthorityServiceStub`` (or
     anything with its ``Keys``): the published keys are read through it, never
-    typed in. Build it once at startup.
+    typed in. Build it once at startup; it never fails on an authority that is not
+    serving yet, and refuses calls, with the reason, until the keys are read.
     """
 
-    def __init__(self, keys, *, audience: str, proof: str, now: Callable[[], float] | None = None) -> None:
+    def __init__(self, keys, *, audience: str, proof: str, now: Callable[[], float] | None = None,
+                 timeout: float = KEY_TIMEOUT) -> None:
         if keys is None or not audience or not proof:
             raise Unauthenticated("a verifier needs the authority's Keys, this module's audience and the run's hop proof")
-        self._source, self._audience, self._proof = keys, audience, proof
+        self._source, self._audience, self._proof, self._timeout = keys, audience, proof, timeout
         self._now = now or time.time
         self._lock = threading.Lock()
         self._trust: Trust | None = None
-        self._fetched = self._tried = 0.0
+        self._fetched = 0.0
+        self._tried = float("-inf")
+        self._inflight: threading.Event | None = None
+        self.keys_error: Exception | None = None  # the last read's failure, for logs; never sent to a caller
         with self._lock:
-            self._fetch()
+            started = self._refresh()
+        started.wait(timeout)
 
     def verify(self, headers: Mapping[str, str] | Iterable[tuple[str, str]]) -> Identity:
-        """Who the call is for, or ``Unauthenticated`` naming why it is refused."""
+        """Who the call is for, or ``Unauthenticated`` naming why it is refused.
+        The stamp is checked first: nothing unbound reaches the key read."""
         pairs = list(headers.items() if isinstance(headers, Mapping) else headers)
+        token = bound_token(pairs, self._proof)
+        claims = authenticate(pairs, self._proof, self._audience, self._trust_for(_key_id(token)))
         values = collect(pairs)
-        token = (values.get(WORK_CONTEXT_KEY) or [""])[0]
-        claims = authenticate(pairs, self._proof, self._audience, self._trust_for(token))
         identity = identity_of(claims.context)
         stamped = {
             OWNER_KEY: identity.owner, OWNER_KIND_KEY: identity.owner_kind, TENANT_KEY: identity.tenant,
@@ -131,28 +138,42 @@ class Verifier:
         advisory = (values.get(ADVISORY_KEY) or [""])[0]
         return Identity(**{**identity.__dict__, "context": token, "advisory": advisory, "claims": claims})
 
-    def _trust_for(self, token: str) -> Trust:
+    def _trust_for(self, key_id: str) -> Trust:
         with self._lock:
             now = self._now()
-            held = self._trust is not None and _key_id(token) in self._trust.keys
-            if (not held or now - self._fetched > KEY_MAX_AGE) and now - self._tried >= KEY_RETRY:
-                try:
-                    self._fetch()
-                except Unauthenticated:
-                    if now - self._fetched > KEY_STALE:
-                        raise
-            if now - self._fetched > KEY_STALE:
-                raise Unauthenticated(f"the authority's keys were last read {int(now - self._fetched)}s ago")
+            held = self._trust is not None and key_id in self._trust.keys
+            if (not held or now - self._fetched > KEY_MAX_AGE) and self._inflight is None and now - self._tried >= KEY_RETRY:
+                self._refresh()
+            wait = self._inflight
+        if not held and wait is not None:
+            wait.wait(self._timeout)
+        with self._lock:
+            if self._trust is None or self._now() - self._fetched > KEY_STALE:
+                raise Unauthenticated("the authority's published keys are unavailable")
             return self._trust
 
-    def _fetch(self) -> None:
-        self._tried = self._now()
-        try:
-            response = self._source.Keys(KeysRequest())
-        except Exception as error:  # a gRPC error, or the stub's transport
-            raise Unauthenticated(f"the authority's published keys cannot be read: {error}") from error
-        self._trust = Trust.from_keys(response, now=lambda: datetime.fromtimestamp(self._now(), timezone.utc))
-        self._fetched = self._tried
+    def _refresh(self) -> threading.Event:
+        """Start the one read, on its own thread and timeout; the lock is held."""
+        if self._inflight is not None:
+            return self._inflight
+        done = threading.Event()
+        self._inflight, self._tried = done, self._now()
+
+        def read() -> None:
+            trust, error = None, None
+            try:
+                response = self._source.Keys(KeysRequest(), timeout=self._timeout)
+                trust = Trust.from_keys(response, now=lambda: datetime.fromtimestamp(self._now(), timezone.utc))
+            except Exception as failure:  # a gRPC error, a timeout, or keys that are unusable
+                error = failure
+            with self._lock:
+                if trust is not None:
+                    self._trust, self._fetched = trust, self._now()
+                self.keys_error, self._inflight = error, None
+            done.set()
+
+        threading.Thread(target=read, name="codefly-hop-keys", daemon=True).start()
+        return done
 
 
 def _key_id(token: str) -> str:

@@ -3,7 +3,7 @@ name = "codefly-hop"
 version = "0.2.0"
 description = "The authority hop's stamp, authenticated by a module served in Python: who a call is for, read from the verified Work Context."
 requires-python = ">=3.11"
-dependencies = ["authority-client @ git+https://github.com/codefly-dev/authority@ead918ed860c5b56160f61b85dbd4cc44701feb4#subdirectory=libraries/authority-client/python"]
+dependencies = ["authority-client"]
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
@@ -12,8 +12,11 @@ test = ["pytest>=8"]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.hatch.metadata]
-allow-direct-references = true
-
 [tool.hatch.build.targets.wheel]
 packages = ["src/codefly_hop"]
+
+# authority-client is this repository's sibling library, at the same commit:
+# installing codefly-hop at commit X with uv (git+…@X#subdirectory=…) brings
+# authority-client at X, with no pin of its own to keep in step.
+[tool.uv.sources]
+authority-client = { path = "../../authority-client/python" }

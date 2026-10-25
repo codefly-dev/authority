@@ -30,11 +30,17 @@ func answerFromTheStamp(ctx context.Context, config *adapters.Configuration) (Cl
 	if err != nil || proof == "" {
 		return nil, fmt.Errorf("console: no run proof delivered (codefly config generate hop PROOF): %v", err)
 	}
+	audience, err := hop.Audience()
+	if err != nil {
+		return nil, fmt.Errorf("console: %w", err)
+	}
 	conn, _, err := host.Dial(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("console: %w", err)
 	}
-	verifier, err := hop.NewVerifier(ctx, authorityv1.NewAuthorityServiceClient(conn), "console", proof)
+	// It starts whether or not the authority serves its keys yet, and refuses
+	// calls with the reason until it does.
+	verifier, err := hop.NewVerifier(ctx, authorityv1.NewAuthorityServiceClient(conn), audience, proof)
 	if err != nil {
 		_ = conn.Close()
 		return nil, fmt.Errorf("console: %w", err)

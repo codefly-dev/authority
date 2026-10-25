@@ -14,7 +14,8 @@ import (
 
 proof, _ := codefly.For(ctx).WorkspaceSecret("hop", "PROOF")
 conn, _, err := host.Dial(ctx) // the local authority on a laptop, the host on a cell
-verifier, err := hop.NewVerifier(ctx, authorityv1.NewAuthorityServiceClient(conn), "<this module's audience>", proof)
+audience, err := hop.Audience() // the module the composition started this process as (CODEFLY__MODULE)
+verifier, err := hop.NewVerifier(ctx, authorityv1.NewAuthorityServiceClient(conn), audience, proof)
 config.GRPCServerOptions = append(config.GRPCServerOptions,
 	grpc.ChainUnaryInterceptor(verifier.UnaryServerInterceptor()),
 	grpc.ChainStreamInterceptor(verifier.StreamServerInterceptor()))
@@ -22,8 +23,8 @@ config.GRPCServerOptions = append(config.GRPCServerOptions,
 // an HTTP module: id, err := verifier.Verify(ctx, metadataFromHeaders)
 ```
 
-`Verify` checks this run's proof, that the stamp's digest binds the one
-forwarded token, and then the token itself (Core's `Inspector`): the issuer pin,
+`Verify` checks this run's proof and that the stamp's digest binds the one
+forwarded token first (a call without them never reaches the keys), and then the token itself (Core's `Inspector`): the issuer pin,
 the Ed25519 signature under the authority's published key, the audience is this
 module, not-before and expiry, structure and attenuation. Who the call is for is
 read from the authenticated claims (`IdentityOf`); a stamp that says otherwise
@@ -32,10 +33,19 @@ consumes nothing: liveness (revision, seal, single use) is the authority's Check
 the hop made, bound to this call by the digest.
 
 The keys come from the interface's `Keys`, through the generated client: never
-typed in, never mounted. They are re-read when a token names a key the verifier
-does not hold (at most every 10 s) and when older than 5 minutes; keys that
-cannot be re-read are trusted for 15 minutes at most, then every call is
-refused naming the outage.
+typed in, never mounted. A read runs on its own, detached from every call and
+bounded by 5 s, one at a time: no caller can cancel it, fail it or delay the
+next one. Keys are re-read when a token names a key the verifier does not hold
+(at most every 10 s; that call waits for the read while it lasts) and when older
+than 5 minutes (the held keys serve meanwhile); keys that cannot be re-read are
+trusted for 15 minutes at most. `NewVerifier` never fails on an authority that
+is not serving yet: calls are refused with "the authority's published keys are
+unavailable" until it is, and `KeysError()` gives the read's own failure to the
+module's logs, never to a caller.
+
+The proof is shared by every hop-fronted module: it keeps out a caller that is
+not a composed workload, and it does not show that a composed workload came
+through the hop (codefly-dev/authority#5).
 
 `hoptest` is a real authority for a module's own tests: `hoptest.New(t)` signs
 with a fresh key and answers `Keys`; `Issue` mints a Work Context and
