@@ -106,7 +106,23 @@ people:
 		{Credential: k.Credential(t, "org-directory"), Binding: "documents", Audience: "documents", AskKind: "documents", AskAction: "read"},
 		{Credential: k.Credential(t, "documents"), Binding: "model", Audience: "model", AskKind: "modelservice.profiles", AskAction: "read"},
 	}}
+	// A dedicated declared workload with no active installation exercises the
+	// refusal without removing any installation other cases need.
+	absent := testkit.Documents(2)
+	absent.Module, absent.Principal = "runtime", "runtime"
+	if _, err := k.State.ApplyManifest(absent); err != nil {
+		t.Fatal(err)
+	}
+	for _, org := range []string{"acme", "globex"} {
+		if err := k.State.Revoke(state.InstallationID(org, "runtime")); err != nil {
+			t.Fatal(err)
+		}
+	}
 	conformance.Run(t, conn, descriptors, conformance.Fixture{
+		WorkloadOrganizations: &conformance.WorkloadOrganizationsCase{
+			Ambiguous: conformance.WorkloadOrganizationCase{Credential: k.Credential(t, "org-directory"), Module: "org-directory", Binding: "records", Audience: "records"},
+			None:      conformance.WorkloadOrganizationCase{Credential: k.Credential(t, "runtime"), Module: "runtime", Binding: "model", Audience: "model"},
+		},
 		LocalAdvisory: true,
 		OwnerToken:    "fixture-owner",
 		SlowChecks:    true,

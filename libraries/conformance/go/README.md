@@ -53,3 +53,8 @@ are documented in its `module/services/accounts/HOST_INTERFACE.md`. Use an
 external Go modfile to select this checkout of the suite when the Accounts
 checkout must remain read-only. Missing Accounts fixtures must be implemented
 by that host; they must not be converted into skips here.
+
+Empty workload organizations are required refusals when the module has multiple
+active installing organizations or none, naming “must name the organization of
+the work item”. `WorkloadOrganizations` supplies these two fixtures. Successful
+single-organization inference remains a local convenience, not a shared promise.

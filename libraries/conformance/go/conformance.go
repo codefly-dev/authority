@@ -33,20 +33,22 @@ import (
 
 // Fixture is what the suite assumes the implementation seeded.
 type Fixture struct {
-	Organization        string // the one organisation the people belong to
-	ViewerToken         string // signs in a person who may read ReadKind at Audience and nothing more
-	UnentitledToken     string // signs in a member with neither roles nor teams; empty leaves this line unproven
-	AdminToken          string // signs in an organisation administrator
-	Audience            string // a composed module the viewer holds "read" on
-	ReadKind            string // the resource kind the viewer may read at Audience
-	WorkloadModule      string // the principal of the module WorkloadCredential names; a person's token for its hop is addressed here
-	WorkloadCredential  string // the credential of a composed module's workload; the module declares Binding, addressed to BindingAudience
-	Binding             string // the workload module's operation binding whose invoke scopes cover "read" on ReadKind
-	BindingAudience     string // the audience Binding is addressed to; a hop exercising Binding is addressed here
-	Elsewhere           string // a composed audience the viewer's context at Audience is not addressed to
-	InstalledSolution   string // an active installation the viewer is entitled to
-	InstalledCredential string // workload credential of InstalledAudience, required for installation-owned Issue
-	InstalledAudience   string // the installed solution principal; distinct from the organisation-role module Audience
+	// WorkloadOrganizations proves both mandatory empty-tenant isolation refusals.
+	WorkloadOrganizations *WorkloadOrganizationsCase
+	Organization          string // the one organisation the people belong to
+	ViewerToken           string // signs in a person who may read ReadKind at Audience and nothing more
+	UnentitledToken       string // signs in a member with neither roles nor teams; empty leaves this line unproven
+	AdminToken            string // signs in an organisation administrator
+	Audience              string // a composed module the viewer holds "read" on
+	ReadKind              string // the resource kind the viewer may read at Audience
+	WorkloadModule        string // the principal of the module WorkloadCredential names; a person's token for its hop is addressed here
+	WorkloadCredential    string // the credential of a composed module's workload; the module declares Binding, addressed to BindingAudience
+	Binding               string // the workload module's operation binding whose invoke scopes cover "read" on ReadKind
+	BindingAudience       string // the audience Binding is addressed to; a hop exercising Binding is addressed here
+	Elsewhere             string // a composed audience the viewer's context at Audience is not addressed to
+	InstalledSolution     string // an active installation the viewer is entitled to
+	InstalledCredential   string // workload credential of InstalledAudience, required for installation-owned Issue
+	InstalledAudience     string // the installed solution principal; distinct from the organisation-role module Audience
 
 	// LocalAdvisory enables the local-only advisory Check contract.
 	LocalAdvisory bool
@@ -423,6 +425,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			t.Fatalf("garbage token: %v", err)
 		}
 	})
+	c.workloadOrganizations(t, ctx, f.WorkloadOrganizations)
 	t.Run("a workload is issued its own binding and nothing it did not declare", func(t *testing.T) {
 		workload := map[string]any{"workload": map[string]any{"credential": f.WorkloadCredential}, "audience": f.BindingAudience, "organization_id": f.Organization}
 		req := clone(workload)
