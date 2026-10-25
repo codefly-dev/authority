@@ -12,3 +12,8 @@ The sign-in page at `/auth/sign-in` is built from the platform's UI kit
 (`@codefly-dev/ui`) in [`web/`](web/) and embedded from `code/signin/out`, a
 committed build. After changing `web/`, rebuild it and commit the output:
 `cd web && NODE_AUTH_TOKEN=<read:packages token> npm ci && npm run build`.
+
+Session discovery asks routed modules concurrently. A failed module is listed in
+`refused` with its authority reason; other modules and the session still answer.
+Cached Work Contexts are removed on expiry and sign-out, which also fences
+in-flight cache writes. Remote authority endpoints require TLS.

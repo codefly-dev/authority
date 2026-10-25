@@ -287,7 +287,7 @@ func TestAMemberSeesWhatTheyHoldWithoutTheAdministratorsList(t *testing.T) {
 
 // Each target the person cannot use is refused by name with the authority's
 // reason: holding nothing there is not the same answer as an organisation that
-// never installed it. An authority that does not answer is the edge's 502.
+// never installed it. An unavailable module is refused without losing the session.
 func TestTheSessionSaysWhyATargetIsNotUsable(t *testing.T) {
 	f := newFixture(t)
 	cookie := f.signIn(t)
@@ -308,7 +308,7 @@ func TestTheSessionSaysWhyATargetIsNotUsable(t *testing.T) {
 		t.Errorf("wiki refused as %q", reason)
 	}
 	modules["down"] = Module{Name: "down", REST: mustURL(t, f.secrets.URL)}
-	if res, _ := sessionOf(t, &Edge{Sessions: f.authority, Authority: f.authority, Modules: modules}, cookie); res.Code != http.StatusBadGateway || !strings.Contains(res.Body.String(), "down: connection refused") {
+	if res, _ := sessionOf(t, &Edge{Sessions: f.authority, Authority: f.authority, Modules: modules}, cookie); res.Code != http.StatusOK || !strings.Contains(res.Body.String(), `"down":"connection refused"`) {
 		t.Fatalf("an authority that does not answer: %d %s", res.Code, res.Body)
 	}
 }
@@ -431,5 +431,36 @@ func TestAJSONSignInHandsTheBearerBack(t *testing.T) {
 	}
 	if res, _ := f.do(t, http.MethodGet, "/v1/records/types", http.Header{"Authorization": {"Bearer " + answer["bearer"]}}); res.StatusCode != http.StatusOK {
 		t.Fatalf("the bearer handed back does not sign a call: %d", res.StatusCode)
+	}
+}
+
+func TestCacheEvictsOnExpiryAndSignOut(t *testing.T) {
+	f := newFixture(t)
+	now := time.Now()
+	e := &Edge{Authority: f.authority, Now: func() time.Time { return now }}
+	if _, err := e.workContext(context.Background(), "remi-session", "records"); err != nil {
+		t.Fatal(err)
+	}
+	if len(e.held) != 1 {
+		t.Fatal("missing cache")
+	}
+	now = now.Add(time.Hour)
+	// Even a refused refresh must remove old contexts.
+	if _, err := e.workContext(context.Background(), "remi-session", "down"); err == nil {
+		t.Fatal("expected refused target")
+	}
+	if len(e.held) != 0 {
+		t.Fatal("expired context retained")
+	}
+	now = time.Now()
+	if _, err := e.workContext(context.Background(), "remi-session", "records"); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "http://edge.test/auth/sign-out", nil)
+	req.Header.Set("Origin", "http://edge.test")
+	req.AddCookie(&http.Cookie{Name: SessionKey, Value: "remi-session"})
+	e.ServeHTTP(httptest.NewRecorder(), req)
+	if len(e.held) != 0 {
+		t.Fatal("signed-out bearer retained")
 	}
 }
