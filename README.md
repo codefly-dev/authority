@@ -1,7 +1,7 @@
 # authority
 
 **What we are doing.** Making the interface the mapping between local development
-and deployment. The small gateway a developer runs on a laptop and the host's
+and deployment. The local authority a developer runs on a laptop and the host's
 accounts service implement the same declared contract, checked by the render and
 proven by one suite, so what passes on the laptop is what runs on the cell and
 what refuses on the laptop is what refuses on the cell. Without the interface
@@ -15,14 +15,14 @@ This repository holds two things, and only these two:
    binding; re-address, derive a child, renew; check a revision live; the current
    installation. The host's `accounts` service implements it in full. A module
    depends on the interface, never on a service.
-2. **The authority gateway** (`modules/authority/services/gateway`): the development
+2. **The local authority** (`modules/authority/services/local`): the development
    implementation. One process that signs in fixture people with their roles,
    issues and verifies Work Contexts, knows the composition from the rendered
    manifests, and holds the fixture installations in memory. No accounts
    service, no stores, no platform frontend. Running a solution locally is the
    solution, the modules it consumes, and this.
 
-**What keeps the authority gateway from being a second authority.** It links the same
+**What keeps the local authority from being a second authority.** It links the same
 packages `accounts` uses to sign in, mint and derive a module's grant from its
 manifest, and the conformance kit runs against both implementations in one test.
 It is a profile of the host, not a reimplementation. If a package of `accounts`
@@ -36,8 +36,8 @@ that satisfies them on a laptop, fixture included.
 **Order of work.**
 
 1. Declare the interfaces and give them their protos, reduced to the six duties
-   (done; `interfaces/`, `modules/authority/services/gateway/proto/host/*/v1`).
-2. Build the authority gateway against them with the suite every implementation must
+   (done; `interfaces/`, `modules/authority/services/local/proto/host/*/v1`).
+2. Build the local authority against them with the suite every implementation must
    pass (done; `pkg/conformance`, run over gRPC in `plugins/registry_test`).
 3. Point the host and the SDKs at these packages; run `pkg/conformance` against
    accounts; delete the copies in `codefly-dev/core` and the host, fixtures proving
@@ -91,7 +91,7 @@ template always returns nil, so `plugins/plugins.yaml` is declared but not
 rendered; the four plugins implement the agent's own `framework.Plugin` and are
 wired in the tests, and serving them from the agent's server is the agent's work,
 not a hand edit of `registry_gen.go`. `codefly generate client --from
-authority/gateway/grpc --language go,python` writes two Go packages (`api` from
+authority/local/grpc --language go,python` writes two Go packages (`api` from
 the scaffold's proto, `authority` from ours) into one facade directory and fails
 its own build; the Go and Python clients that would replace the solution SDK wait
 on that fix.
@@ -99,7 +99,7 @@ on that fix.
 **Where the thinking is.** The Platform Authority Primer (decisions 6 and 7) and the
 handbook proposal that will carry them. Run it with `codefly run` from the module.
 
-## What the authority gateway must serve, read from the callers (2026-10-21)
+## What the local authority must serve, read from the callers (2026-10-21)
 
 Inventory taken from the code that calls the host today: the module SDK
 (`saas-sdk-go/moduleauthority`), the solution runtime (`solution-runtime-go`), the
@@ -114,7 +114,7 @@ design.
 | A fixture person signs in | `POST /v1/auth/authenticate` with `fixture_token` (accounts `auth/dev` validator); `/v1/auth/refresh` |
 | Verify what the host issued | `GET /v1/auth/.well-known/jwks.json` (also `/jwks`, `/.well-known/openid-configuration`) |
 | The composition reaches the host | `POST /platform/_delivery/manifest` (one signed manifest per module instance) |
-| What a module may hold | derived from the manifest; today `GET`/`PUT /v1/platform/module-envelope`, which the authority gateway does not serve |
+| What a module may hold | derived from the manifest; today `GET`/`PUT /v1/platform/module-envelope`, which the local authority does not serve |
 | The module's workload becomes a principal and gets Work Contexts | gateway workload endpoint: `POST /modules/_work-context` (for a person), `/modules/_operation-context` (the module's own binding), `/modules/_source-operation-context` (a source delegation) |
 | The module calls the host as itself | Connect proxy at `/modules/_authority` → `ModuleCapabilitiesService`: `ExchangeDelegatedOperationAudience`, `EmitAuditEvent`, `DeclareAuditEventTypes`, `AuthorizeExecutableArtifact` / `ApproveExecutableArtifact`, `NotifyUser` / `NotifyOrgAdmins` |
 | Person-owned authority | `WorkContextService`: `StartTask`, `ExchangeAudience`, `StartChildSession`, `RenewWorkContext`, `CheckAuthorizationRevision`, `StartInstallationTask`, `AuthorizeEvidenceRead`, `ConsumeSingleUse` |
@@ -171,7 +171,7 @@ talks to. Against that:
 **What remains is the interface.** Authority: `Issue`, `Check`, `Keys`.
 Composition: `ApplyManifest`. Installation: `Install`, `GrantToTeam`, `List`, and
 the install step callback. Sign-in at the browser edge only. Routing is the data
-plane, not a contract. 0.1.0 mirrors today's spellings so the authority gateway serves
+plane, not a contract. 0.1.0 mirrors today's spellings so the local authority serves
 the SDKs as they are; the reduced shape is 0.2.0, a host contract change through a
 handbook proposal, after which the SDKs move once.
 
@@ -206,10 +206,10 @@ Each rung proves one claim; nothing is deleted before the rung above it is green
 
 | Rung | Claim | How | Pass | Owner |
 |---|---|---|---|---|
-| 0 | the authority gateway holds | 47 tests here: byte identity, core's kit, scenario, `pkg/conformance` over gRPC | green (done) | this repo |
+| 0 | the local authority holds | 47 tests here: byte identity, core's kit, scenario, `pkg/conformance` over gRPC | green (done) | this repo |
 | 1 | one contract, two implementations | accounts implements the four interfaces as adapters over what it does; saas CI runs `pkg/conformance` against it with the saas fixture | same codes, same reasons on both | module-saas-starter |
-| 2 | a module cannot tell which answered | documents takes the generated authority client and requires the interface, not a service; runs against the authority gateway and against accounts | identical tests, playground and refusals; the render picks the implementation | module-document-store, saas-sdk-go |
-| 3 | a solution needs no runtime | the wiki as an agent-scaffolded service on the generated clients; wiki + documents + authority gateway, then the full host locally, then obin-staging; the eight steps through the UI | the scenario passes end to end; no envelope, anchor or audience key anywhere | core-solutions |
+| 2 | a module cannot tell which answered | documents takes the generated authority client and requires the interface, not a service; runs against the local authority and against accounts | identical tests, playground and refusals; the render picks the implementation | module-document-store, saas-sdk-go |
+| 3 | a solution needs no runtime | the wiki as an agent-scaffolded service on the generated clients; wiki + documents + local authority, then the full host locally, then obin-staging; the eight steps through the UI | the scenario passes end to end; no envelope, anchor or audience key anywhere | core-solutions |
 | 4 | the laptop refuses where the cell refuses | recorded request vectors replayed against both, compared field by field; property tests on the four ways a token widens; replay, expiry, revocation, forgery; one independent security review | zero divergence, zero widening, findings closed | this repo + reviewer |
 | 5 | it is fast | clean clone → Maya sees the wiki, one command, timed; a grep gate against envelope files and audience keys | the owner's number; gate green fleet-wide | cli, handbook |
 
@@ -262,7 +262,7 @@ not run yet, because of what the branch found:
 
 Gap 7 was a decision, taken on 2026-10-22: the interface carries the host's names, see "The namespace, settled" below. Gaps 1 and 2 closed the same day on the host branch; a ninth surfaced and closed with them: the generated service catalog crossed the host's naming-gate scan cap (512 KiB) at 40 services, and the gate now skips that generated file for the reason it skips descriptors.
 
-**What the second implementation taught the interface.** `GrantToTeamRequest` gained `organization_id`: the host checks an administrator against the organisation before it reads the installation, so the request must name it; the authority gateway now refuses a grant naming another organisation than the installation's, and the suite asserts it. That is what a second implementation is for.
+**What the second implementation taught the interface.** `GrantToTeamRequest` gained `organization_id`: the host checks an administrator against the organisation before it reads the installation, so the request must name it; the local authority now refuses a grant naming another organisation than the installation's, and the suite asserts it. That is what a second implementation is for.
 
 ## The namespace, settled (2026-10-22)
 
@@ -280,7 +280,7 @@ scans files, not URLs. This closes gap 7 of rung 1.
 
 **Invariant:** one declared interface and one suite on both sides from phase 0 on,
 so local development to deployment is correct by construction. Phases: 0 now
-(interfaces, authority gateway, host adapters on a branch; protos and policy exist
+(interfaces, local authority, host adapters on a branch; protos and policy exist
 twice, knowingly); 1 rung 1 done (suite green against accounts, refusing adapters
 made real, suite and credential and person shape corrected, digest check on the
 copied protos); 2 the wiki against the branch; 3 rungs 2 and 3 (agent and CLI
@@ -292,7 +292,7 @@ Deletions only in 4 and 5, each behind a green suite and staging. The full table
 is the handbook's `design/host-authority-interface.md`.
 
 **Corrections of 2026-10-22 (`0403966`).** The suite accepts pending or active from
-Install. The authority gateway attests core's native launcher credential against the
+Install. The local authority attests core's native launcher credential against the
 launcher's anchor; nothing of its own. The person shape is the caller's bearer;
 `PersonSession` is empty. See the handbook's audit sidecar for the reasoning.
 
@@ -316,8 +316,8 @@ live checks; TypeScript hop-binding integration remains separate work. Go also
 retains Core's stronger structural validation.
 
 After changing local Go library dependencies, validate all four services as
-standalone modules: gateway, hop, edge and console API. The latter three consume
-the local authority client; gateway has other local library replacements. Run
+standalone modules: local, hop, edge and console API. The latter three consume
+the local authority client; local has other local library replacements. Run
 `GOWORK=off go mod tidy -diff`, `GOWORK=off go test -race ./...` and
 `GOWORK=off go vet ./...` from each service's `code/` directory. Workspace-only
 library tests can hide stale service module graphs and leave `codefly run`
@@ -392,16 +392,16 @@ qualify the separate accounts implementation.
 
 The suite proves it as a matrix: the fixture states, for each person at each
 audience, which kind and action is allowed and which refused, and the suite asks
-for exactly that scope and expects the answer. The authority gateway's fixture carries
+for exactly that scope and expects the answer. The local authority's fixture carries
 two organisations, five people, three organisation roles, one solution with three
 roles installed twice, and 25 cells. The host supplies its own matrix from its
 own fixture. When the fixture signs, the suite composes its solution as a carrier
 with the authority's document carrying its roles; the sketch remains for a
 fixture that does not sign.
 
-The development gateway also logs a delivery-time role × method report and
+The local authority also logs a delivery-time role × method report and
 generates its local developer role from concrete delivered permissions. See
-[local permission diagnostics](modules/authority/services/gateway/README.md#permission-diagnostics-during-local-development)
+[local permission diagnostics](modules/authority/services/local/README.md#permission-diagnostics-during-local-development)
 for the distinction between static coverage and runtime authorization.
 
 ## Delegate chains: a module inherits who it acts for
@@ -444,7 +444,7 @@ The hop and the edge ask the host the composition names in the `authority`
 group's `endpoint`, the key every module reads for the same host, so pointing
 that key at saas accounts' Connect listener moves them with the modules:
 `host:port` and `http://` are the run's plaintext transport (h2c), `https://` is
-TLS. A composition that names none reaches the authority module's own gateway.
+TLS. A composition that names none reaches the authority module's local service.
 Under `hop/ENFORCEMENT=warn` the hop lets through a call the authority verified
 and the method's policy would have refused, stamped with that refusal as its
 advisory; a call with a missing, unsound or misaddressed Work Context, or one
@@ -531,7 +531,7 @@ console method `NotFound`; and a check naming a method at a module whose
 delivery carried no document is refused, while the same token with no method
 named is checked as before.
 
-The authority gateway passes the suite line that proves it ("a check naming a
+The local authority passes the suite line that proves it ("a check naming a
 method applies what the module's delivery declares"), which fails when `Check`
 ignores the method. Accounts implements neither the document nor the method
 yet; the line skips for a fixture that signs no authority document.
@@ -552,7 +552,7 @@ Not yet:
   `playground/configurations/local/hop.env` lists the console. Composing hops is the
   composition's job.
 - **The interface, not the provider.** The SDK resolves an endpoint by its
-  provider, so the hop names the authority gateway. An accessor by interface is
+  provider, so the hop names the local authority. An accessor by interface is
   an SDK change.
 - **The cell face.** The same decision, called by the mesh's authorization step.
 
@@ -589,7 +589,7 @@ the `approvals` table), as accounts keeps its own in its store when it implement
 the interface: consent is runtime state a person created, not fixture, and a
 restart that forgot it refused every run of the approved artifact while the
 consuming module kept its installation. A run that composes no store keeps
-them in memory, and the gateway says which at boot
+them in memory, and the local authority says which at boot
 ([the module page](modules/authority/README.md)). The fixture grants an Acme
 admin `robin.intents:activate` and an editor `robin.intents:run`.
 
@@ -657,11 +657,11 @@ token, so tokens stay small and a new grant takes effect at once.
 The answer is a list of grants. Each one covers every resource of the kind, one
 id, an id prefix, or a whole-id RE2 pattern of at most 256 bytes. A resource is
 covered when any grant matches its id. `libraries/resources/go` is the one
-evaluation of grants, used by the authority gateway to validate its roles, by
+evaluation of grants, used by the local authority to validate its roles, by
 the suite, and by any module deciding which of its own resources a caller sees.
 The authority knows resources by id only; each module maps ids onto its own.
 
-On the authority gateway a role's scope may carry `resources`. A scope with
+On the local authority a role's scope may carry `resources`. A scope with
 none covers the whole kind. A person's answer is what her roles grant. A
 module's or an installation's own work is bounded by its capability alone. A
 capability narrowed to named ids covers only the ones the owner's grants also
@@ -672,17 +672,17 @@ grant" holds an implementation to a fixture's covered and uncovered ids, an
 unheld action, and a narrowed capability. It fails on an implementation that
 answers every resource.
 
-Building it exposed an attenuation bug: the gateway's scope operations dropped
+Building it exposed an attenuation bug: the local authority's scope operations dropped
 resource ids, so a capability asked for two named resources was issued for the
 whole kind. They now keep ids, and an intersection keeps the narrower side
 (`pkg/business/state`, with unit tests). The fixture's record kinds are now the
 record store's own, `records.records` and `records.types`.
 
-## The document store on the authority gateway, no saas (2026-10-23)
+## The document store on the local authority, no saas (2026-10-23)
 
 Proven live, with the document store from obin-ai/module-document-store's
 `authority/behind-the-hop` branch (4e295b1) and the record store from its
-branch (d506000), composed in this workspace with the authority gateway as host,
+branch (d506000), composed in this workspace with the local authority as host,
 the hop in front of both, and no saas module:
 
 | Call | Answer |
@@ -695,7 +695,7 @@ the hop in front of both, and no saas module:
 | The same REST call with no token | HTTP 401 from the hop, naming the gRPC method |
 | Rémi's token straight to the store's gRPC port | refused: no stamp |
 
-Every manifest reached the authority gateway through the composition interface.
+Every manifest reached the local authority through the composition interface.
 The store's host services (jobs, notifications, approvals, record placement,
 file fetch) report themselves unwired and idle, and ingest is off because no
 runtime is composed. The fixture's collection grants do not yet use the store's
@@ -714,7 +714,7 @@ Development fixtures use `resource_ids` on delegation scopes. The
 contract and are rejected on delegation scopes rather than silently ignored.
 The generated gRPC client regression covers the complete delegation lifecycle;
 the fixture regression checks exact IDs and matcher-syntax refusal. These are
-hermetic gateway checks, not full consumer or SaaS-provider qualification.
+hermetic local authority checks, not full consumer or SaaS-provider qualification.
 
 Revoking a delegation advances the organization's authorization revision in the
 same state update. Previously issued capabilities, including descendants, then
@@ -751,7 +751,7 @@ the interface, with a suite line, or named as belonging elsewhere.
 | Audit (`EmitAuditEvent`, `DeclareAuditEventTypes`) | not authority: an optional audit interface; with none injected, the module logs each event | the record store |
 | Notifications and the current installation (`NotifyUser`, `NotifyOrgAdmins`, `GetCurrentInstallation`) | not authority: host services, optional interfaces | open |
 
-The authority gateway implements every line. Accounts implements none of the
+The local authority implements every line. Accounts implements none of the
 last five additions yet (lookup, delegations and their read, `ListResources`,
 method policy);
 each suite line skips for a fixture that states no case.
@@ -761,7 +761,7 @@ each suite line skips for a fixture that states no case.
 - **Decided 2026-10-23, the hop rule.** A module hops only on a person's token
   addressed to it, the hop names the binding it exercises, and the person's token
   names that binding too, so the child carries exactly what the person holds
-  through the binding at its audience. Core stands unchanged. The authority gateway
+  through the binding at its audience. Core stands unchanged. The local authority
   and the suite state it; the host's `childHop` and its person issue follow
   (saas #1219 is the person half there). History:
   The host's `module_actor` mode (saas #1215) requires the person's parent to be
@@ -784,7 +784,21 @@ each suite line skips for a fixture that states no case.
   workload's credential (`SignedManifestV1`, `ApplyManifestRequest.carrier` and
   `.credential`). Each implementation verifies the envelope against the release
   keys it pins and reads the manifest from the verified document. The mini
-  gateway pins the kit's release key and attests the carrier by the launcher's
+  local authority pins the kit's release key and attests the carrier by the launcher's
   anchor; the host pins its release keys and attests the delivery service
   account. The sketch (`manifest`) stays through the transition and is ignored
   when a carrier is present. Not yet done: the host adapter behind it.
+
+## Local service name (2026-10-25)
+
+The development implementation is `authority/local`, with `grpc` and `rest`
+endpoints. Module and solution playgrounds compose this local authority; the
+platform composition uses SaaS locally as its authority interface implementation.
+The edge and hop resolve `authority/local/grpc` when no `authority/endpoint`
+configuration is supplied. Consumers must update service pins and endpoint
+references together. The existing Go module import and protobuf wire identities
+remain stable; they do not select the implementation in a composition.
+
+The local issuer is `codefly.dev/authority/local`; compositions pinning an
+expected issuer (including Runtime) must update that configuration alongside the
+endpoint selectors. SaaS compositions keep their own issuer and host selection.

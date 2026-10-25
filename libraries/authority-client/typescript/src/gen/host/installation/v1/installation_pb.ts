@@ -295,7 +295,7 @@ export const InstallationAckSchema: GenMessage<InstallationAck> = /*@__PURE__*/
   messageDesc(file_host_installation_v1_installation, 6);
 
 /**
- * InstallationService is implemented by the host and by the authority gateway.
+ * InstallationService is implemented by the host and by the local authority.
  *
  * @generated from service host.installation.v1.InstallationService
  */

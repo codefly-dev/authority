@@ -32,7 +32,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// CompositionService is implemented by the host and by the authority gateway.
+// CompositionService is implemented by the host and by the local authority.
 type CompositionServiceClient interface {
 	// ApplyManifest delivers one module instance's manifest at one generation.
 	ApplyManifest(ctx context.Context, in *ApplyManifestRequest, opts ...grpc.CallOption) (*ApplyManifestResponse, error)
@@ -60,7 +60,7 @@ func (c *compositionServiceClient) ApplyManifest(ctx context.Context, in *ApplyM
 // All implementations must embed UnimplementedCompositionServiceServer
 // for forward compatibility.
 //
-// CompositionService is implemented by the host and by the authority gateway.
+// CompositionService is implemented by the host and by the local authority.
 type CompositionServiceServer interface {
 	// ApplyManifest delivers one module instance's manifest at one generation.
 	ApplyManifest(context.Context, *ApplyManifestRequest) (*ApplyManifestResponse, error)

@@ -6,7 +6,7 @@
 
 // The session interface, at the browser edge: a person signs in and the host
 // opens a session, and a page's runtime asks who the bearer a request carries is.
-// The authority gateway signs in fixture people; the host signs in real ones. A
+// The local authority signs in fixture people; the host signs in real ones. A
 // module never calls this: it is called through the hop.
 
 package sessionv1
@@ -299,8 +299,8 @@ type Session struct {
 	// The teams belonged to.
 	TeamIds []string `protobuf:"bytes,5,rep,name=team_ids,json=teamIds,proto3" json:"team_ids,omitempty"`
 	// The credential the person presents on every call as `authorization: Bearer
-	// <bearer>`; whatever this implementation authenticates a person by. The mini
-	// gateway hands back the session id; the host hands back its access token.
+	// <bearer>`; whatever this implementation authenticates a person by. The local
+	// authority hands back the session id; the host hands back its access token.
 	Bearer        string `protobuf:"bytes,6,opt,name=bearer,proto3" json:"bearer,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

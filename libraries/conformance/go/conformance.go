@@ -1,5 +1,5 @@
 // Package conformance is the suite every implementation of the host interfaces
-// must pass: the authority gateway and the host's accounts alike. It links no
+// must pass: the local authority and the host's accounts alike. It links no
 // generated Go package, because an implementation links its own and a second
 // registration of the same proto file panics; it drives the interfaces from
 // their published descriptors (the contract.binpb codefly generate writes) with

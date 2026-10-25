@@ -24,7 +24,7 @@ session or a replacement for an installation. Upstream connection and applicatio
 failures remain visible. Full solution unblocking needs those owner paths to be
 exercised; a successful hop unit test alone does not prove it.
 
-Validation: run `go test -race ./...` in this service's `code/`, the gateway's
-`code/`, and `libraries/hop/go`. Gateway's generated-client advisory test checks
+Validation: run `go test -race ./...` in this service's `code/`, the local authority's
+`code/`, and `libraries/hop/go`. Local authority's generated-client advisory test checks
 the real issuer; proxy's routing regression checks that a Records request never
 reaches Documents when its destination is unresolved.

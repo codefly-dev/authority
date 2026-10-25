@@ -33,7 +33,7 @@ spec:
     runtime-assets: []
 # The hop asks the authority through the interface, never a service: the host
 # the composition names in the authority group's endpoint answers (saas
-# accounts, say), and the mini gateway when it names none (code/host.go).
+# accounts, say), and the local authority when it names none (code/host.go).
 service-dependencies:
     - interface: codefly.dev/authority@0.1.0
 # The hop group: the run's proof, which the hop writes on every stamp so the

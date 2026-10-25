@@ -1,1 +1,0 @@
-# Project gateway's service

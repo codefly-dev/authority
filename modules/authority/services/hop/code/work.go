@@ -34,7 +34,7 @@ func standInFront(ctx context.Context, config *adapters.Configuration) (Clean, e
 	}
 	// The authority, through the interface the hop depends on: the host the
 	// composition names in authority/endpoint (saas accounts, say), else the
-	// authority module's mini gateway (host.go).
+	// authority module's local authority (host.go).
 	authority, at, err := dialHost(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("hop: %w", err)

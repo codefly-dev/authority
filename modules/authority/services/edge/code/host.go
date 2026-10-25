@@ -17,18 +17,18 @@ import (
 // dialHost connects to the host the edge calls (the authority, session and
 // installation interfaces). The composition names it in the authority group's
 // endpoint, the key every module reads for the same host; a composition that
-// names none reaches the authority module's mini gateway, as before.
+// names none reaches the authority module's local authority, as before.
 func dialHost(ctx context.Context) (*grpc.ClientConn, string, error) {
 	endpoint, _, err := codefly.For(ctx).WorkspaceValueIfSet("authority", "endpoint")
 	if err != nil {
 		return nil, "", fmt.Errorf("authority/endpoint cannot be read: %w", err)
 	}
 	target, transport, err := hostTarget(endpoint, func() (string, error) {
-		gateway, err := codefly.For(ctx).Module("authority").Service("gateway").API("grpc").ResolveNetworkInstance()
-		if err != nil || gateway == nil {
-			return "", fmt.Errorf("the composition names no authority/endpoint and the authority gateway (authority/gateway) is not resolved: %v", err)
+		local, err := codefly.For(ctx).Module("authority").Service("local").API("grpc").ResolveNetworkInstance()
+		if err != nil || local == nil {
+			return "", fmt.Errorf("the composition names no authority/endpoint and the local authority (authority/local) is not resolved: %v", err)
 		}
-		return gateway.Host, nil
+		return local.Host, nil
 	})
 	if err != nil {
 		return nil, "", err

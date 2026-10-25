@@ -695,7 +695,7 @@ export const ResourceGrantSchema: GenMessage<ResourceGrant> = /*@__PURE__*/
   messageDesc(file_host_authority_v1_authority, 18);
 
 /**
- * AuthorityService is implemented by the host (accounts) and by the authority gateway.
+ * AuthorityService is implemented by the host (accounts) and by the local authority.
  *
  * @generated from service host.authority.v1.AuthorityService
  */

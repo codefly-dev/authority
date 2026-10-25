@@ -1,0 +1,227 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "host/session/v1/session.proto",
+    "description": "The session interface, at the browser edge: a person signs in and the host\nopens a session, and a page's runtime asks who the bearer a request carries is.\nThe local authority signs in fixture people; the host signs in real ones. A\nmodule never calls this: it is called through the hop.",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "SessionService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/v1/session": {
+      "get": {
+        "summary": "Current answers the session the caller's bearer (`authorization: Bearer\n\u003cbearer\u003e`) belongs to: who a page's request is for, decided by the host,\nnever read from a header the request wrote. The bearer itself is not\nhanded back. An unknown or ended session is unauthenticated.",
+        "operationId": "SessionService_Current",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1Session"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "SessionService"
+        ]
+      }
+    },
+    "/v1/session/fixture-people": {
+      "get": {
+        "summary": "ListFixturePeople answers who this authority signs in by fixture token, for\nthe browser edge's sign-in page: the people are defined once, in the\nauthority's fixture. A host that signs real people in through its identity\nprovider has no fixture people and answers none.",
+        "operationId": "SessionService_ListFixturePeople",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListFixturePeopleResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "SessionService"
+        ]
+      }
+    },
+    "/v1/session:sign-in": {
+      "post": {
+        "summary": "SignIn opens a session for a fixture person by their fixture token.",
+        "operationId": "SessionService_SignIn",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1Session"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "SignInRequest presents a fixture token.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1SignInRequest"
+            }
+          }
+        ],
+        "tags": [
+          "SessionService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1FixturePerson": {
+      "type": "object",
+      "properties": {
+        "personId": {
+          "type": "string",
+          "description": "The person."
+        },
+        "email": {
+          "type": "string",
+          "description": "Their email."
+        },
+        "organizationId": {
+          "type": "string",
+          "description": "The organisation they sign into."
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The roles they hold in it."
+        },
+        "teamIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The teams they belong to."
+        },
+        "fixtureToken": {
+          "type": "string",
+          "description": "The token SignIn takes for them."
+        }
+      },
+      "description": "FixturePerson is one person a fixture run signs in."
+    },
+    "v1ListFixturePeopleResponse": {
+      "type": "object",
+      "properties": {
+        "people": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1FixturePerson"
+          },
+          "description": "The people."
+        }
+      },
+      "description": "ListFixturePeopleResponse is every fixture person, in the fixture's order."
+    },
+    "v1Session": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "description": "The session id a person-owned Issue names."
+        },
+        "personId": {
+          "type": "string",
+          "description": "The person."
+        },
+        "organizationId": {
+          "type": "string",
+          "description": "The organisation signed into."
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The roles held in it."
+        },
+        "teamIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The teams belonged to."
+        },
+        "bearer": {
+          "type": "string",
+          "description": "The credential the person presents on every call as `authorization: Bearer\n\u003cbearer\u003e`; whatever this implementation authenticates a person by. The local\nauthority hands back the session id; the host hands back its access token."
+        }
+      },
+      "description": "Session is an open session."
+    },
+    "v1SignInRequest": {
+      "type": "object",
+      "properties": {
+        "fixtureToken": {
+          "type": "string",
+          "description": "The person's fixture token."
+        }
+      },
+      "description": "SignInRequest presents a fixture token."
+    }
+  }
+}

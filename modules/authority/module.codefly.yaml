@@ -1,11 +1,11 @@
 kind: module
 name: authority
-# The gateway's grpc endpoint serves the four host interfaces declared under
+# The local authority's grpc endpoint serves the four host interfaces declared under
 # interfaces/. accounts in the host implements the same identities; a consumer
 # depends on an interface, never on either service.
 interface:
     endpoints:
-        - service: gateway
+        - service: local
           endpoint: grpc
           implements:
               - codefly.dev/authority@0.1.0
@@ -14,7 +14,7 @@ interface:
               - codefly.dev/session@0.1.0
         # The REST face publishes the authority's keys as a JSON Web Key Set
         # (/.well-known/jwks.json), for a module that reads them by URL.
-        - service: gateway
+        - service: local
           endpoint: rest
           visibility: internal
         # The hop's gRPC face: a module's REST gateway sends its translated
@@ -32,7 +32,7 @@ interface:
           endpoint: http
           visibility: public
 services:
-    - name: gateway
+    - name: local
     # The hop stands in front of a module and lets through only a call the
     # authority checked, stamped with who it is for. Its gRPC face is exported
     # for the modules' REST gateways; the composition puts it in their path.
@@ -42,6 +42,6 @@ services:
     # person's Work Context; the hop checks it there.
     - name: edge
     # The authority's own Postgres: what a person created at runtime and a
-    # restart must not forget — approvals today. The gateway depends on it and
+    # restart must not forget — approvals today. The local authority depends on it and
     # reads its read-write connection; who exists stays the fixture.
     - name: store

@@ -38,10 +38,10 @@ type ApplyManifestRequest struct {
 	// envelope over it. An implementation verifies the envelope against the release
 	// keys it pins and reads the manifest from the verified document, never from
 	// the request, so what composes a module is the same signed document on the
-	// authority gateway and on the host.
+	// local authority and on the host.
 	Carrier *SignedManifestV1 `protobuf:"bytes,2,opt,name=carrier,proto3" json:"carrier,omitempty"`
 	// The credential of the workload delivering the manifest, as that
-	// implementation attests workloads: the launcher's on the authority gateway, the
+	// implementation attests workloads: the launcher's on the local authority, the
 	// delivery service account's on the host. A manifest is delivered by its own
 	// module's delivery workload and by nothing else.
 	Credential string `protobuf:"bytes,3,opt,name=credential,proto3" json:"credential,omitempty"`

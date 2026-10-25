@@ -18,9 +18,9 @@ sources:
     - package: local
       version: 0.0.0
       module: authority
-      service: gateway
+      service: local
       endpoint: grpc
-      contract-digest: sha256:d74e5225b295ebc312a7c28af2e9da78ff3a2a33203e0f658ef7565298da0003
+      contract-digest: sha256:f990dcc0155b4181f986a30fa2093478964784ce4d76ee70bb4e4d3fcf2b3471
       services:
         - GatewayService
 generated-by:

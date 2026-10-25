@@ -4,13 +4,13 @@
   "version": "0.0.0",
   "endpoints": [
     {
-      "service": "gateway",
+      "service": "local",
       "endpoint": "grpc",
       "api": "grpc",
       "kind": "protobuf",
       "package": "api",
       "path": "contract.binpb",
-      "digest": "sha256:d74e5225b295ebc312a7c28af2e9da78ff3a2a33203e0f658ef7565298da0003",
+      "digest": "sha256:f990dcc0155b4181f986a30fa2093478964784ce4d76ee70bb4e4d3fcf2b3471",
       "services": [
         {
           "name": "GatewayService",

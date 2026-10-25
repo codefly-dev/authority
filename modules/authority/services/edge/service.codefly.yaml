@@ -12,7 +12,7 @@ agent:
 # The host interfaces the edge calls: session (SignIn, Current,
 # ListFixturePeople), installation (List) and authority (Issue). The edge
 # reaches the host the composition names in the authority group's endpoint —
-# saas accounts implements the same interfaces — and the mini gateway that
+# saas accounts implements the same interfaces — and the local authority that
 # implements all three when it names none (code/host.go).
 service-dependencies:
     - interface: codefly.dev/authority@0.1.0

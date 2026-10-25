@@ -6,7 +6,7 @@
 
 // The session interface, at the browser edge: a person signs in and the host
 // opens a session, and a page's runtime asks who the bearer a request carries is.
-// The authority gateway signs in fixture people; the host signs in real ones. A
+// The local authority signs in fixture people; the host signs in real ones. A
 // module never calls this: it is called through the hop.
 
 package sessionv1

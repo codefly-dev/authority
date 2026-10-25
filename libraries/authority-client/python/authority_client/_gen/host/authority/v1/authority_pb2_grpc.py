@@ -26,7 +26,7 @@ if _version_not_supported:
 
 
 class AuthorityServiceStub(object):
-    """AuthorityService is implemented by the host (accounts) and by the authority gateway.
+    """AuthorityService is implemented by the host (accounts) and by the local authority.
     """
 
     def __init__(self, channel):
@@ -73,7 +73,7 @@ class AuthorityServiceStub(object):
 
 
 class AuthorityServiceServicer(object):
-    """AuthorityService is implemented by the host (accounts) and by the authority gateway.
+    """AuthorityService is implemented by the host (accounts) and by the local authority.
     """
 
     def Issue(self, request, context):
@@ -184,7 +184,7 @@ def add_AuthorityServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class AuthorityService(object):
-    """AuthorityService is implemented by the host (accounts) and by the authority gateway.
+    """AuthorityService is implemented by the host (accounts) and by the local authority.
     """
 
     @staticmethod

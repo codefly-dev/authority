@@ -38,7 +38,7 @@ export type ApplyManifestRequest = Message<"host.composition.v1.ApplyManifestReq
    * envelope over it. An implementation verifies the envelope against the release
    * keys it pins and reads the manifest from the verified document, never from
    * the request, so what composes a module is the same signed document on the
-   * authority gateway and on the host.
+   * local authority and on the host.
    *
    * @generated from field: host.composition.v1.SignedManifestV1 carrier = 2;
    */
@@ -46,7 +46,7 @@ export type ApplyManifestRequest = Message<"host.composition.v1.ApplyManifestReq
 
   /**
    * The credential of the workload delivering the manifest, as that
-   * implementation attests workloads: the launcher's on the authority gateway, the
+   * implementation attests workloads: the launcher's on the local authority, the
    * delivery service account's on the host. A manifest is delivered by its own
    * module's delivery workload and by nothing else.
    *
@@ -442,7 +442,7 @@ export const PageV1Schema: GenMessage<PageV1> = /*@__PURE__*/
   messageDesc(file_host_composition_v1_composition, 9);
 
 /**
- * CompositionService is implemented by the host and by the authority gateway.
+ * CompositionService is implemented by the host and by the local authority.
  *
  * @generated from service host.composition.v1.CompositionService
  */

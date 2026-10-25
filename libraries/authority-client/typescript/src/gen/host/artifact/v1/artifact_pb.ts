@@ -227,7 +227,7 @@ export const ApprovalSchema: GenMessage<Approval> = /*@__PURE__*/
   messageDesc(file_host_artifact_v1_artifact, 4);
 
 /**
- * ArtifactService is implemented by the host and by the authority gateway.
+ * ArtifactService is implemented by the host and by the local authority.
  *
  * @generated from service host.artifact.v1.ArtifactService
  */

@@ -26,7 +26,7 @@ if _version_not_supported:
 
 
 class ArtifactServiceStub(object):
-    """ArtifactService is implemented by the host and by the authority gateway.
+    """ArtifactService is implemented by the host and by the local authority.
     """
 
     def __init__(self, channel):
@@ -53,7 +53,7 @@ class ArtifactServiceStub(object):
 
 
 class ArtifactServiceServicer(object):
-    """ArtifactService is implemented by the host and by the authority gateway.
+    """ArtifactService is implemented by the host and by the local authority.
     """
 
     def Approve(self, request, context):
@@ -113,7 +113,7 @@ def add_ArtifactServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class ArtifactService(object):
-    """ArtifactService is implemented by the host and by the authority gateway.
+    """ArtifactService is implemented by the host and by the local authority.
     """
 
     @staticmethod

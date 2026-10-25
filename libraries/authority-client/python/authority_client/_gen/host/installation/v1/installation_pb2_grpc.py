@@ -26,7 +26,7 @@ if _version_not_supported:
 
 
 class InstallationServiceStub(object):
-    """InstallationService is implemented by the host and by the authority gateway.
+    """InstallationService is implemented by the host and by the local authority.
     """
 
     def __init__(self, channel):
@@ -53,7 +53,7 @@ class InstallationServiceStub(object):
 
 
 class InstallationServiceServicer(object):
-    """InstallationService is implemented by the host and by the authority gateway.
+    """InstallationService is implemented by the host and by the local authority.
     """
 
     def Install(self, request, context):
@@ -107,7 +107,7 @@ def add_InstallationServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class InstallationService(object):
-    """InstallationService is implemented by the host and by the authority gateway.
+    """InstallationService is implemented by the host and by the local authority.
     """
 
     @staticmethod
