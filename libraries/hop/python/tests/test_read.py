@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from codefly_hop import (
+    ADVISORY_KEY,
     CONTEXT_KEY,
     EXPIRES_KEY,
     PROOF_KEY,
@@ -33,6 +34,7 @@ def test_the_stamp_the_hop_writes_reads_back_as_its_identity():
     assert identity.binding == "acme/robin/model"
     assert (identity.task, identity.expires) == ("task-7", 1792818000)
     assert identity.context == FIXTURE["headers"][WORK_CONTEXT_KEY]
+    assert identity.advisory == "documents.collection:read is not held"
     assert identity.has("modelservice.profiles", "invoke")
     assert not identity.has("modelservice.profiles", "admin")
 
@@ -60,3 +62,15 @@ def test_header_names_are_case_insensitive_and_repeats_are_kept():
 def test_a_call_without_this_runs_stamp_acts_for_no_one(headers, proof):
     with pytest.raises(NoStamp):
         read(headers, proof)
+
+
+def test_advisory_is_preserved_without_changing_scope_or_stamp_checks():
+    reason = "documents.collection:read is not held"
+    headers = stamped(**{ADVISORY_KEY: reason})
+    identity = read(headers, FIXTURE["proof"])
+    assert identity.advisory == reason
+    assert not identity.has("documents.collection", "read")
+    assert identity.context == FIXTURE["headers"][WORK_CONTEXT_KEY]
+    assert read(stamped(**{ADVISORY_KEY: None}), FIXTURE["proof"]).advisory == ""
+    with pytest.raises(NoStamp):
+        read(headers, "wrong-proof")
