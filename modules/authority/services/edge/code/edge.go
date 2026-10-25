@@ -4,9 +4,11 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -41,8 +43,11 @@ type Sessions interface {
 	ListFixturePeople(ctx context.Context, in *sessionv1.ListFixturePeopleRequest, opts ...grpc.CallOption) (*sessionv1.ListFixturePeopleResponse, error)
 }
 
-// Installations is the installation interface's List: what the person's
-// organisation has installed, which a frontend binds its calls to.
+// Installations is the installation interface's List: an administrator's read
+// of what one organisation has installed, which a host refuses a member. The
+// edge never decides from it who may use an installation (that is Issue, see
+// session); it reads from it only the namespace an installation's authored
+// content belongs to, which no member's read carries yet.
 type Installations interface {
 	List(ctx context.Context, in *installationv1.ListRequest, opts ...grpc.CallOption) (*installationv1.ListResponse, error)
 }
@@ -77,7 +82,9 @@ type Edge struct {
 
 type held struct {
 	token string
-	renew time.Time
+	// installation is the installation the authority sealed the context to.
+	installation string
+	renew        time.Time
 }
 
 func (e *Edge) now() time.Time {
@@ -144,7 +151,7 @@ func (e *Edge) toModule(w http.ResponseWriter, r *http.Request, module Module, t
 		refuse(w, http.StatusForbidden, "a write must come from this origin")
 		return
 	}
-	token, err := e.workContext(r.Context(), bearer, module.Name)
+	wc, err := e.workContext(r.Context(), bearer, module.Name)
 	if err != nil {
 		code := http.StatusForbidden
 		if status.Code(err) == codes.Unauthenticated {
@@ -153,18 +160,18 @@ func (e *Edge) toModule(w http.ResponseWriter, r *http.Request, module Module, t
 		refuse(w, code, "the authority refused this person at "+module.Name+": "+status.Convert(err).Message())
 		return
 	}
-	proxy(target, token, w, r)
+	proxy(target, wc.token, w, r)
 }
 
 // workContext is the person's Work Context at module, issued by the authority
 // for everything the person holds there and held until shortly before it
 // lapses. The hop narrows each call to what its method requires.
-func (e *Edge) workContext(ctx context.Context, bearer, module string) (string, error) {
+func (e *Edge) workContext(ctx context.Context, bearer, module string) (held, error) {
 	key := sha256.Sum256([]byte(bearer + "\x00" + module))
 	e.mu.Lock()
 	if h, ok := e.held[key]; ok && e.now().Before(h.renew) {
 		e.mu.Unlock()
-		return h.token, nil
+		return h, nil
 	}
 	e.mu.Unlock()
 	ctx, cancel := context.WithTimeout(metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+bearer), 10*time.Second)
@@ -174,23 +181,24 @@ func (e *Edge) workContext(ctx context.Context, bearer, module string) (string, 
 		Audience: module,
 	})
 	if err != nil {
-		return "", err
+		return held{}, err
 	}
 	if issued.GetToken() == "" {
-		return "", status.Error(codes.Internal, "the authority issued no Work Context")
+		return held{}, status.Error(codes.Internal, "the authority issued no Work Context")
 	}
 	expires := time.Unix(issued.GetExpiresAtUnix(), 0)
 	lead := expires.Sub(e.now()) / 2
 	if lead > 30*time.Second {
 		lead = 30 * time.Second
 	}
+	h := held{token: issued.GetToken(), installation: issued.GetContext().GetSeal().GetInstallationId(), renew: expires.Add(-lead)}
 	e.mu.Lock()
 	if e.held == nil {
 		e.held = map[[32]byte]held{}
 	}
-	e.held[key] = held{token: issued.GetToken(), renew: expires.Add(-lead)}
+	e.held[key] = h
 	e.mu.Unlock()
-	return issued.GetToken(), nil
+	return h, nil
 }
 
 func (e *Edge) signIn(w http.ResponseWriter, r *http.Request) {
@@ -282,33 +290,70 @@ func (e *Edge) session(w http.ResponseWriter, r *http.Request) {
 		refuse(w, http.StatusUnauthorized, "the authority knows no session for this bearer")
 		return
 	}
-	answer := map[string]any{"personId": sess.GetPersonId(), "organizationId": sess.GetOrganizationId(), "roles": sess.GetRoles(), "installations": []installation{}}
-	if e.Installations != nil {
-		listed, err := e.Installations.List(metadata.AppendToOutgoingContext(r.Context(), "authorization", "Bearer "+bearer), &installationv1.ListRequest{OrganizationId: sess.GetOrganizationId()})
-		switch code := status.Code(err); {
-		case err == nil:
-		case code == codes.PermissionDenied || code == codes.Unauthenticated:
-			// The host may refuse this person the organisation's list (a host
-			// answers it for an organisation's admins only): the session holds,
-			// with no installation to bind to and the refusal said.
-			answer["installationsRefused"] = status.Convert(err).Message()
-			writeJSON(w, http.StatusOK, answer)
-			return
-		default:
-			refuse(w, http.StatusBadGateway, "the authority did not list "+sess.GetOrganizationId()+"'s installations: "+status.Convert(err).Message())
-			return
-		}
-		var active []installation
-		for _, i := range listed.GetInstallations() {
-			if i.GetStatus() == installationv1.Installation_STATUS_ACTIVE {
-				active = append(active, installation{ID: i.GetId(), Target: i.GetTarget(), Namespace: i.GetNamespace()})
+	usable, refused, err := e.usable(r.Context(), bearer)
+	if err != nil {
+		refuse(w, http.StatusBadGateway, "the authority did not answer for "+err.Error())
+		return
+	}
+	e.namespaces(r.Context(), bearer, sess.GetOrganizationId(), usable)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"personId": sess.GetPersonId(), "organizationId": sess.GetOrganizationId(), "roles": sess.GetRoles(),
+		"installations": usable, "refused": refused,
+	})
+}
+
+// usable is every module or solution the edge routes to that the person holds
+// something at, each with the installation the authority sealed their Work
+// Context to: the same Issue a call to it makes, so the session never names an
+// installation a call would be refused at, and a member reads it as well as an
+// administrator. Every other target is in refused with the authority's own
+// reason: the person holds nothing there, it is not installed at their
+// organisation, or it is not composed. A host that does not answer is an error.
+func (e *Edge) usable(ctx context.Context, bearer string) ([]installation, map[string]string, error) {
+	names := make([]string, 0, len(e.Modules))
+	for name := range e.Modules {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	usable, refused := []installation{}, map[string]string{}
+	for _, name := range names {
+		wc, err := e.workContext(ctx, bearer, name)
+		switch status.Code(err) {
+		case codes.OK:
+			if wc.installation == "" {
+				refused[name] = "the authority sealed the person's Work Context at " + name + " to no installation"
+				continue
 			}
-		}
-		if active != nil {
-			answer["installations"] = active
+			usable = append(usable, installation{ID: wc.installation, Target: name})
+		case codes.PermissionDenied, codes.FailedPrecondition, codes.NotFound, codes.Unauthenticated:
+			refused[name] = status.Convert(err).Message()
+		default:
+			return nil, nil, errors.New(name + ": " + status.Convert(err).Message())
 		}
 	}
-	writeJSON(w, http.StatusOK, answer)
+	return usable, refused, nil
+}
+
+// namespaces names the namespace of each usable installation from List, the
+// one read that carries it. List is an administrator's read, so for anyone a
+// host refuses it to the namespace stays unnamed, and a frontend that needs one
+// says so rather than guess it. Nothing about who may use an installation is
+// read here. A stopgap until a member's read carries the namespace.
+func (e *Edge) namespaces(ctx context.Context, bearer, organization string, usable []installation) {
+	if e.Installations == nil || len(usable) == 0 {
+		return
+	}
+	listed, err := e.Installations.List(metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+bearer), &installationv1.ListRequest{OrganizationId: organization})
+	if err != nil {
+		return
+	}
+	named := map[string]string{}
+	for _, i := range listed.GetInstallations() {
+		named[i.GetId()] = i.GetNamespace()
+	}
+	for i := range usable {
+		usable[i].Namespace = named[usable[i].ID]
+	}
 }
 
 // installation is one installation a frontend may bind a call to: its id, the

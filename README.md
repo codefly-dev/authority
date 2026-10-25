@@ -627,11 +627,20 @@ another site lands on the root, and a non-browser caller signs in with a JSON
 `fixtureToken`.
 
 `/auth/session` answers who is signed in (`personId`, `organizationId`,
-`roles`) and the organisation's active `installations`, each `{id, target}`:
-the host's navigation read, which a frontend binds its calls to (a robin
-conversation names its installation). An installation id is a canonical UUID,
-as the host issues, named by organisation and target so it is the same on
-every start: a module's stored rows keep naming it.
+`roles`), the `installations` the person may use, each `{id, target}`, which a
+frontend binds its calls to (a robin conversation names its installation), and
+`refused`, the reason for each other target. Both come from `Issue`, once per
+module the edge routes, as a call to that module would: a target is usable when
+the authority issues the person a Work Context there, and its id is the
+installation the context is sealed to. A member reads this as well as an
+administrator, so the installation interface's `List`, an administrator's read
+a host refuses a member, decides nothing here. A person who holds nothing at a
+target and an organisation that never installed it are each refused with the
+authority's own words. `List` is asked only for each installation's
+`namespace`, which no member's read carries yet, so the namespace is named for
+whoever the host lets list. An installation id is a canonical UUID, as the host
+issues, named by organisation and target so it is the same on every start: a
+module's stored rows keep naming it.
 
 Each call is routed by its path: `/v1/<module>/…` to the module's REST face,
 `/<package.Service>/…` to its Connect face, and every other path to the
