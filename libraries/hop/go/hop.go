@@ -15,6 +15,7 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"errors"
+	"github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
 	"strconv"
 	"strings"
 
@@ -151,11 +152,11 @@ func Read(md metadata.MD, proof string) (Identity, error) {
 	id.Scopes = split(first(md, ScopesKey))
 	id.Advisory = first(md, AdvisoryKey)
 	if bound := first(md, ContextKey); bound != "" {
-		tokens := md.Get(WorkContextKey)
-		if len(tokens) != 1 || subtle.ConstantTimeCompare([]byte(digest(tokens[0])), []byte(bound)) != 1 {
+		token, err := stamp.Context(md, proof)
+		if err != nil {
 			return Identity{}, ErrNoStamp
 		}
-		id.Context = tokens[0]
+		id.Context = token
 	}
 	return id, nil
 }

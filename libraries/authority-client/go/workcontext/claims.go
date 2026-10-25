@@ -6,6 +6,8 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
+	"google.golang.org/grpc/metadata"
 	"strings"
 
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
@@ -24,11 +26,16 @@ type Claims struct {
 	scopes   []*basev0.WorkScopeV1
 }
 
-// ReadClaims reads the token bound by the hop, using Core's maintained decoder.
+// ReadClaims verifies the hop proof and digest before reading the bound token, using Core's maintained decoder.
 // In addition to canonical envelope checks, Go retains Core's structural checks;
 // the Python/TypeScript projections do not implement that structural validator.
 // None of these readers verifies signatures, time, live revisions or replay.
-func ReadClaims(token string) (*Claims, error) {
+func ReadClaims(md metadata.MD, proof string) (*Claims, error) {
+	token, err := stamp.Context(md, proof)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrUnreadableContext, err)
+	}
+
 	if len(token) == 0 || len(token) > core.MaxTokenSize {
 		return nil, fmt.Errorf("%w: expected a bounded context", ErrUnreadableContext)
 	}

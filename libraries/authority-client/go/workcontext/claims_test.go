@@ -1,9 +1,12 @@
 package workcontext_test
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"google.golang.org/grpc/metadata"
 	"os"
 	"strings"
 	"testing"
@@ -62,7 +65,7 @@ func tokenFor(t *testing.T, c *basev0.WorkContextV1) string {
 }
 func read(t *testing.T, c *basev0.WorkContextV1) *reader.Claims {
 	t.Helper()
-	out, err := reader.ReadClaims(tokenFor(t, c))
+	out, err := readToken(tokenFor(t, c))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +74,7 @@ func read(t *testing.T, c *basev0.WorkContextV1) *reader.Claims {
 func TestCoreFixtures(t *testing.T) {
 	for _, f := range fixtures(t) {
 		t.Run(f.Name, func(t *testing.T) {
-			c, err := reader.ReadClaims(f.Token)
+			c, err := readToken(f.Token)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -138,7 +141,7 @@ func TestUnreadableContexts(t *testing.T) {
 	valid := tokenFor(t, body(t, "session"))
 	payload, _, _ := strings.Cut(valid, ".")
 	for _, token := range []string{"", "abc", "a.b.c", ".", "é.x", strings.Repeat("a", 32*1024+1), valid + "=", payload + ".AA", payload + "." + strings.Repeat("A", 85) + "B"} {
-		if _, err := reader.ReadClaims(token); !errors.Is(err, reader.ErrUnreadableContext) {
+		if _, err := readToken(token); !errors.Is(err, reader.ErrUnreadableContext) {
 			t.Fatalf("envelope not refused: %v", err)
 		}
 	}
@@ -161,9 +164,36 @@ func TestUnreadableContexts(t *testing.T) {
 				b, _ := base64.RawURLEncoding.DecodeString(p)
 				token = base64.RawURLEncoding.EncodeToString(append(b, b...)) + "." + s
 			}
-			if _, err := reader.ReadClaims(token); !errors.Is(err, reader.ErrUnreadableContext) {
+			if _, err := readToken(token); !errors.Is(err, reader.ErrUnreadableContext) {
 				t.Fatalf("malformed claims not refused: %v", err)
 			}
 		})
+	}
+}
+
+func stampedToken(token string) metadata.MD {
+	sum := sha256.Sum256([]byte(token))
+	return metadata.Pairs("x-codefly-work-context", token, "x-codefly-hop-proof", "test-proof", "x-codefly-hop-context", hex.EncodeToString(sum[:]))
+}
+func readToken(token string) (*reader.Claims, error) {
+	return reader.ReadClaims(stampedToken(token), "test-proof")
+}
+func TestReadClaimsRequiresTheStamp(t *testing.T) {
+	token := fixtures(t)[0].Token
+	for _, change := range []func(metadata.MD){
+		func(md metadata.MD) { md.Delete("x-codefly-hop-proof") },
+		func(md metadata.MD) { md.Set("x-codefly-hop-proof", "forged") },
+		func(md metadata.MD) { md.Delete("x-codefly-hop-context") },
+		func(md metadata.MD) { md.Set("x-codefly-work-context", token+"forged") },
+		func(md metadata.MD) { md.Append("x-codefly-work-context", token) },
+	} {
+		md := stampedToken(token)
+		change(md)
+		if _, err := reader.ReadClaims(md, "test-proof"); !errors.Is(err, reader.ErrUnreadableContext) {
+			t.Fatalf("unbound claims accepted: %v", err)
+		}
+	}
+	if _, err := reader.ReadClaims(stampedToken(token), ""); err == nil {
+		t.Fatal("empty proof accepted")
 	}
 }
