@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"hop/pkg/business/decide"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -30,12 +31,12 @@ func TestAnHTTPRequestIsDecidedThenStampedAndForwarded(t *testing.T) {
 	h := &HTTP{
 		Proof:     "run-proof",
 		Upstreams: map[string]*url.URL{"model": target},
-		Decide: func(_ context.Context, method string, md metadata.MD) (string, hop.Identity, error) {
+		Decide: func(_ context.Context, method string, md metadata.MD) (decide.Decision, error) {
 			decided = method
 			if md.Get(hop.WorkContextKey)[0] != "wc-model" {
 				t.Fatalf("the decision did not read the Work Context header: %v", md)
 			}
-			return "model", hop.Identity{Owner: "remi", OwnerKind: "human", Tenant: "acme", Scopes: []string{"modelservice.profiles:read"}}, nil
+			return decide.Decision{Module: "model", Identity: hop.Identity{Owner: "remi", OwnerKind: "human", Tenant: "acme", Scopes: []string{"modelservice.profiles:read"}}}, nil
 		},
 	}
 	req := httptest.NewRequest(http.MethodGet, "/v1/model/profiles?x=1", nil)
@@ -73,9 +74,9 @@ func TestAConnectCallGoesToTheModulesConnectListener(t *testing.T) {
 	}
 	var decided []string
 	h := &HTTP{Proof: "p", Upstreams: map[string]*url.URL{"evaluation": listener("rest")}, Connect: map[string]*url.URL{"evaluation": listener("connect")},
-		Decide: func(_ context.Context, method string, _ metadata.MD) (string, hop.Identity, error) {
+		Decide: func(_ context.Context, method string, _ metadata.MD) (decide.Decision, error) {
 			decided = append(decided, method)
-			return "evaluation", hop.Identity{Owner: "remi", Tenant: "acme"}, nil
+			return decide.Decision{Module: "evaluation", Identity: hop.Identity{Owner: "remi", Tenant: "acme"}}, nil
 		}}
 	for _, path := range []string{"/evaluation.v1.RegistryService/ListRuns", "/v1/evaluation/runs"} {
 		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader("{}"))
@@ -108,8 +109,8 @@ func TestAnHTTPRefusalNeverReachesTheModule(t *testing.T) {
 		codes.Unavailable:      http.StatusServiceUnavailable,
 	} {
 		h := &HTTP{Proof: "p", Upstreams: map[string]*url.URL{"model": target},
-			Decide: func(context.Context, string, metadata.MD) (string, hop.Identity, error) {
-				return "", hop.Identity{}, status.Error(code, "the authority said why")
+			Decide: func(context.Context, string, metadata.MD) (decide.Decision, error) {
+				return decide.Decision{}, status.Error(code, "the authority said why")
 			}}
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/model/invoke", nil))

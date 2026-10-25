@@ -46,7 +46,8 @@ func TestAPermissiveHopStillRefusesWhatHasNoSoundIdentity(t *testing.T) {
 			warnings := 0
 			d := tc.d
 			d.Modules, d.Permissive, d.Warned = map[string]bool{"robin": true}, true, func(string, error) { warnings++ }
-			module, id, err := d.Decide(context.Background(), "GET /v1/robin/intents/version", tc.md)
+			decision, err := d.Decide(context.Background(), "GET /v1/robin/intents/version", tc.md)
+			module, id := decision.Module, decision.Identity
 			if status.Code(err) != tc.code || module != "" || id.Owner != "" || warnings != 0 {
 				t.Fatalf("module=%q id=%+v error=%v warnings=%d; want refused %v, nothing warned", module, id, err, warnings, tc.code)
 			}
@@ -91,7 +92,8 @@ func TestPermissivePolicyUsesTheAuthorityAdvisoryIdentity(t *testing.T) {
 		},
 	}
 	stamp := metadata.MD{}
-	module, id, err := d.Decide(context.Background(), "POST /documents/write", metadata.Pairs(hop.WorkContextKey, "test-context"))
+	decision, err := d.Decide(context.Background(), "POST /documents/write", metadata.Pairs(hop.WorkContextKey, "test-context"))
+	module, id := decision.Module, decision.Identity
 	if err != nil || module != "documents" || warnings != 1 {
 		t.Fatalf("decision = %q, %v; warnings = %d", module, err, warnings)
 	}
@@ -107,7 +109,7 @@ func TestPermissivePolicyUsesTheAuthorityAdvisoryIdentity(t *testing.T) {
 	}
 
 	strict := Decider{Authority: advisoryChecker{}, Modules: map[string]bool{"documents": true}, AudienceOf: func(string) (string, error) { return "documents", nil }}
-	if _, _, err := strict.Decide(context.Background(), "POST /documents/write", metadata.Pairs(hop.WorkContextKey, "test-context")); status.Code(err) != codes.PermissionDenied {
+	if _, err := strict.Decide(context.Background(), "POST /documents/write", metadata.Pairs(hop.WorkContextKey, "test-context")); status.Code(err) != codes.PermissionDenied {
 		t.Fatalf("enforcing, the policy refusal stands: %v", err)
 	}
 }

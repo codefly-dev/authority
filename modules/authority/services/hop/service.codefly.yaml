@@ -9,8 +9,8 @@ endpoints:
     - name: grpc
     - name: rest
     # The hop's face for a module that serves HTTP: each request decided for
-    # "<VERB> <path>" and sent on to the module's HTTP_UPSTREAM, or, a Connect
-    # call, for its gRPC method and on to its CONNECT_UPSTREAM (code/work.go).
+    # its published HTTP template or Connect procedure and sent to the exact
+    # service endpoint Codefly resolves in hop-routes (code/work.go).
     - name: http
       api: http
 spec:
@@ -38,6 +38,8 @@ service-dependencies:
     - interface: codefly.dev/authority@0.2.0
 # The hop group: the run's proof, which the hop writes on every stamp so the
 # module behind it believes only stamps from this run's hop, and the module the
-# composition puts the hop in front of (MODULE, UPSTREAM).
+# composition puts the hop in front of (MODULES). hop-routes is generated
+# by Codefly from their published API catalogs, resolved only for this hop.
 workspace-configuration-dependencies:
     - hop
+    - hop-routes

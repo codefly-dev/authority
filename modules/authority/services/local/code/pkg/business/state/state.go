@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	delivery "github.com/codefly-dev/authority/libraries/delivery/go"
+	"github.com/codefly-dev/authority/libraries/hop/go/routing"
 	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	"slices"
 	"sort"
@@ -250,7 +251,7 @@ func routeOf(methods map[string]MethodPolicy, request string) (MethodPolicy, boo
 	}
 	var found []string
 	for declared := range methods {
-		if v, template, ok := strings.Cut(declared, " "); ok && v == verb && routeMatches(template, path) {
+		if v, template, ok := strings.Cut(declared, " "); ok && v == verb && routing.RouteMatches(template, path) {
 			found = append(found, declared)
 		}
 	}
@@ -262,55 +263,6 @@ func routeOf(methods map[string]MethodPolicy, request string) (MethodPolicy, boo
 	}
 	slices.Sort(found)
 	return MethodPolicy{}, false, fmt.Errorf("%s matches more than one declared route (%s)", request, strings.Join(found, ", "))
-}
-
-// routeMatches is whether path is an instance of template, segment by segment;
-// a last segment holding "{name=**}" takes the rest of the path, at least one
-// character of at least one segment, between the literal text around it (a
-// custom verb such as ":settle" after it).
-func routeMatches(template, path string) bool {
-	want, got := strings.Split(template, "/"), strings.Split(path, "/")
-	if last := want[len(want)-1]; strings.Contains(last, "=**}") {
-		if len(got) < len(want) {
-			return false
-		}
-		open := strings.Index(last, "{")
-		prefix, suffix := last[:open], last[strings.Index(last, "=**}")+4:]
-		rest := strings.Join(got[len(want)-1:], "/")
-		if !strings.HasPrefix(rest, prefix) || !strings.HasSuffix(rest, suffix) || len(rest) <= len(prefix)+len(suffix) {
-			return false
-		}
-		want, got = want[:len(want)-1], got[:len(want)-1]
-	}
-	if len(want) != len(got) {
-		return false
-	}
-	for i, segment := range want {
-		if !segmentMatches(segment, got[i]) {
-			return false
-		}
-	}
-	return true
-}
-
-// segmentMatches matches one segment: literal text, with each "{name}" standing
-// for at least one character of the segment, such as "{match_id}:settle".
-func segmentMatches(template, segment string) bool {
-	open := strings.IndexByte(template, '{')
-	if open < 0 {
-		return template == segment
-	}
-	end := strings.IndexByte(template[open:], '}')
-	if end < 0 || !strings.HasPrefix(segment, template[:open]) {
-		return false
-	}
-	rest, tail := segment[open:], template[open+end+1:]
-	for i := 1; i <= len(rest); i++ {
-		if segmentMatches(tail, rest[i:]) {
-			return true
-		}
-	}
-	return false
 }
 
 // holdsAction reports whether held carries action on any resource of kind.

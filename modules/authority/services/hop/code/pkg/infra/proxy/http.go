@@ -36,7 +36,7 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for key, values := range r.Header {
 		md[strings.ToLower(key)] = values
 	}
-	module, id, err := h.Decide(r.Context(), method, md)
+	decision, err := h.Decide(r.Context(), method, md)
 	if err != nil {
 		if h.Refused != nil {
 			h.Refused(method, err)
@@ -44,8 +44,11 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		refuse(w, err)
 		return
 	}
+	module, id := decision.Module, decision.Identity
 	target, ok := h.Upstreams[module]
-	if connect, served := h.Connect[module]; served && isMethodPath(r.URL.Path) {
+	if decision.Route != nil {
+		target, ok = h.Upstreams[decision.Route.Address]
+	} else if connect, served := h.Connect[module]; served && isMethodPath(r.URL.Path) {
 		target, ok = connect, true
 	}
 	if !ok {

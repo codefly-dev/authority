@@ -1,0 +1,202 @@
+// Package routing shares published route selection between admission and forwarding.
+package routing
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/url"
+	"strings"
+)
+
+// RoutingSchema identifies the Codefly-generated, resolved hop configuration.
+const RoutingSchema = "codefly.dev/hop-routes/v1"
+
+// Routing is one immutable composition snapshot. Codefly derives it from the
+// published API catalog and resolves its addresses for this hop's visibility.
+// It supplies destinations, never authority or evidence that a service is ready.
+type Routing struct {
+	Schema    string          `json:"schema"`
+	Endpoints []RouteEndpoint `json:"endpoints"`
+}
+
+// RouteEndpoint retains the published listener identity and its exact inventory.
+// Methods are full protobuf procedures for grpc/connect and "VERB /template"
+// for http. REST publication is normalized to http by the producer.
+type RouteEndpoint struct {
+	Audience  string   `json:"audience"`
+	Service   string   `json:"service"`
+	Endpoint  string   `json:"endpoint"`
+	Transport string   `json:"transport"`
+	Address   string   `json:"address"`
+	Package   string   `json:"package"`
+	Version   string   `json:"version"`
+	Digest    string   `json:"digest"`
+	Methods   []string `json:"methods"`
+}
+
+// DecodeRouting refuses malformed snapshots. A refusal must never select an
+// older module-wide upstream as a fallback.
+func DecodeRouting(raw string) (*Routing, error) {
+	var routes Routing
+	decoder := json.NewDecoder(strings.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&routes); err != nil {
+		return nil, fmt.Errorf("hop routes: %w", err)
+	}
+	if err := decoder.Decode(new(any)); err != io.EOF {
+		return nil, fmt.Errorf("hop routes: trailing JSON")
+	}
+	if err := routes.Validate(); err != nil {
+		return nil, err
+	}
+	return &routes, nil
+}
+
+// Validate checks the carrier independently of endpoint resolution. Unresolved
+// references are accepted here for Codefly's plan; the hop rejects them at dial.
+func (r *Routing) Validate() error {
+	if r.Schema != RoutingSchema || len(r.Endpoints) == 0 {
+		return fmt.Errorf("hop routes: expected %s and at least one endpoint", RoutingSchema)
+	}
+	seen, listeners := map[string]bool{}, map[string]bool{}
+	for _, e := range r.Endpoints {
+		if e.Audience == "" || e.Service == "" || e.Endpoint == "" || e.Address == "" || e.Package == "" || e.Version == "" || e.Digest == "" || len(e.Methods) == 0 {
+			return fmt.Errorf("hop routes: incomplete published endpoint identity")
+		}
+		listener := e.Audience + "/" + e.Service + "/" + e.Endpoint
+		if listeners[listener] {
+			return fmt.Errorf("hop routes: duplicate endpoint %s", listener)
+		}
+		listeners[listener] = true
+		for _, method := range e.Methods {
+			match := method
+			switch e.Transport {
+			case "grpc", "connect":
+				service, operation, ok := strings.Cut(strings.TrimPrefix(method, "/"), "/")
+				if !strings.HasPrefix(method, "/") || !ok || service == "" || operation == "" || strings.Contains(operation, "/") {
+					return fmt.Errorf("hop routes: invalid procedure %q", method)
+				}
+				if e.Transport == "connect" {
+					match = "POST " + method
+				}
+			case "http":
+				verb, path, ok := strings.Cut(method, " ")
+				if !ok || verb == "" || verb != strings.ToUpper(verb) || !strings.HasPrefix(path, "/") {
+					return fmt.Errorf("hop routes: invalid HTTP route %q", method)
+				}
+			default:
+				return fmt.Errorf("hop routes: unsupported transport %q", e.Transport)
+			}
+			transport := e.Transport
+			if transport == "connect" {
+				transport = "http"
+			}
+			key := e.Audience + "\x00" + transport + "\x00" + match
+			if seen[key] {
+				return fmt.Errorf("hop routes: ambiguous destination for %s %s", e.Audience, method)
+			}
+			seen[key] = true
+		}
+	}
+	return nil
+}
+
+// Find selects a published route after the caller's audience has been checked.
+// HTTP includes Connect POSTs, selected from publication, never path heuristics.
+// Exact matches win, as in method admission; overlapping templates are refused.
+func (r *Routing) Find(audience, transport, method string) (RouteEndpoint, error) {
+	endpoint, _, err := r.Resolve(audience, transport, method)
+	return endpoint, err
+}
+
+// Resolve selects the destination and its declared policy method together.
+// A gRPC method's existence never supplies policy for a different HTTP listener.
+func (r *Routing) Resolve(audience, transport, method string) (RouteEndpoint, string, error) {
+	type match struct {
+		endpoint RouteEndpoint
+		policy   string
+	}
+	var matched []match
+	for _, endpoint := range r.Endpoints {
+		if endpoint.Audience != audience || (endpoint.Transport != transport && !(transport == "http" && endpoint.Transport == "connect")) {
+			continue
+		}
+		for _, declared := range endpoint.Methods {
+			policy := declared
+			if endpoint.Transport == "connect" {
+				declared = "POST " + declared
+			}
+			if declared == method {
+				return endpoint, policy, nil
+			}
+			verb, path, ok := strings.Cut(method, " ")
+			wantVerb, template, wantOK := strings.Cut(declared, " ")
+			if endpoint.Transport == "http" && ok && wantOK && verb == wantVerb && RouteMatches(template, path) {
+				matched = append(matched, match{endpoint, policy})
+			}
+		}
+	}
+	if len(matched) == 1 {
+		return matched[0].endpoint, matched[0].policy, nil
+	}
+	return RouteEndpoint{}, "", fmt.Errorf("hop routes: %s %s has %d matching published destinations", audience, method, len(matched))
+}
+
+// ResolvedURL validates a resolved HTTP or Connect destination without allowing
+// credentials, query rewriting, or unresolved endpoint references into a proxy.
+func (e RouteEndpoint) ResolvedURL() (*url.URL, error) {
+	u, err := url.Parse(e.Address)
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.RawQuery != "" || u.Fragment != "" || strings.Contains(e.Address, "${") {
+		return nil, fmt.Errorf("hop routes: %s/%s/%s has no resolved HTTP address", e.Audience, e.Service, e.Endpoint)
+	}
+	return u, nil
+}
+
+// RouteMatches is the shared admission/forwarding template matcher. A final
+// {name=**} spans at least one character; ordinary variables span one segment.
+func RouteMatches(template, path string) bool {
+	want, got := strings.Split(template, "/"), strings.Split(path, "/")
+	if last := want[len(want)-1]; strings.Contains(last, "=**}") {
+		if len(got) < len(want) {
+			return false
+		}
+		open := strings.Index(last, "{")
+		if open < 0 {
+			return false
+		}
+		prefix, suffix := last[:open], last[strings.Index(last, "=**}")+4:]
+		rest := strings.Join(got[len(want)-1:], "/")
+		if !strings.HasPrefix(rest, prefix) || !strings.HasSuffix(rest, suffix) || len(rest) <= len(prefix)+len(suffix) {
+			return false
+		}
+		want, got = want[:len(want)-1], got[:len(want)-1]
+	}
+	if len(want) != len(got) {
+		return false
+	}
+	for i, segment := range want {
+		if !segmentMatches(segment, got[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func segmentMatches(template, segment string) bool {
+	open := strings.IndexByte(template, '{')
+	if open < 0 {
+		return template == segment
+	}
+	end := strings.IndexByte(template[open:], '}')
+	if end < 0 || !strings.HasPrefix(segment, template[:open]) {
+		return false
+	}
+	rest, tail := segment[open:], template[open+end+1:]
+	for i := 1; i <= len(rest); i++ {
+		if segmentMatches(tail, rest[i:]) {
+			return true
+		}
+	}
+	return false
+}

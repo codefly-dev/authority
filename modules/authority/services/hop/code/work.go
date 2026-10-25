@@ -3,13 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/codefly-dev/authority/libraries/authority-client/go/host"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/codefly-dev/authority/libraries/authority-client/go/host"
 	"github.com/codefly-dev/core/standards"
 	"github.com/codefly-dev/core/wool"
 	codefly "github.com/codefly-dev/sdk-go"
@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
+	"github.com/codefly-dev/authority/libraries/hop/go/routing"
 
 	"hop/pkg/adapters"
 	"hop/pkg/business/decide"
@@ -35,56 +36,76 @@ func standInFront(ctx context.Context, config *adapters.Configuration) (Clean, e
 	}
 	// The authority, through the interface the hop depends on: the host the
 	// composition names in authority/endpoint (saas accounts, say), else the
-	// authority module's local authority (host.go).
+	// authority module's local authority (the shared host client).
 	authority, at, err := host.Dial(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("hop: %w", err)
 	}
 	w.Info("asking the authority", wool.Field("at", at))
-	// The modules this hop stands in front of are the composition's to name:
-	// MODULES lists their principals, and each one's endpoint is
-	// UPSTREAM_<MODULE> for a module serving gRPC, HTTP_UPSTREAM_<MODULE> for
-	// one serving HTTP, CONNECT_UPSTREAM_<MODULE> for one serving Connect on a
-	// listener of its own, any of them: a ${endpoint:<module>/<service>/
-	// <endpoint>} reference the CLI resolves. Codefly composing a hop in front
-	// of every module replaces them.
+	configured := false
+	defer func() {
+		if !configured {
+			_ = authority.Close()
+		}
+	}()
+	// Codefly joins hop/MODULES to published catalogs and delivers exact
+	// listener references through the normal hop-routes configuration group.
 	listed, err := codefly.For(ctx).WorkspaceConfiguration("hop", "MODULES")
 	if err != nil || listed == "" {
 		return nil, fmt.Errorf("hop: the composition names no module to stand in front of (hop/MODULES): %v", err)
 	}
-	modules, upstreams, webs, connects := map[string]bool{}, map[string]*grpc.ClientConn{}, map[string]*url.URL{}, map[string]*url.URL{}
-	for _, name := range strings.Split(listed, ",") {
-		name = strings.TrimSpace(name)
-		suffix := strings.ToUpper(strings.ReplaceAll(name, "-", "_"))
-		grpcEndpoint, _ := codefly.For(ctx).WorkspaceConfiguration("hop", "UPSTREAM_"+suffix)
-		httpEndpoint, _ := codefly.For(ctx).WorkspaceConfiguration("hop", "HTTP_UPSTREAM_"+suffix)
-		connectEndpoint, _ := codefly.For(ctx).WorkspaceConfiguration("hop", "CONNECT_UPSTREAM_"+suffix)
-		if grpcEndpoint == "" && httpEndpoint == "" && connectEndpoint == "" {
-			return nil, fmt.Errorf("hop: the composition names no endpoint for %s (hop/UPSTREAM_%s, hop/HTTP_UPSTREAM_%s or hop/CONNECT_UPSTREAM_%s)", name, suffix, suffix, suffix)
-		}
-		if grpcEndpoint != "" {
-			conn, err := grpc.NewClient(address(grpcEndpoint), append(proxy.DialOptions(), grpc.WithTransportCredentials(insecure.NewCredentials()))...)
-			if err != nil {
-				return nil, err
+	modules, upstreams, webs := map[string]bool{}, map[string]*grpc.ClientConn{}, map[string]*url.URL{}
+	defer func() {
+		if !configured {
+			for _, conn := range upstreams {
+				_ = conn.Close()
 			}
-			upstreams[name] = conn
 		}
-		if httpEndpoint != "" {
-			target, err := url.Parse(httpEndpoint)
-			if err != nil || target.Scheme == "" || target.Host == "" {
-				return nil, fmt.Errorf("hop: hop/HTTP_UPSTREAM_%s is not an absolute URL: %q", suffix, httpEndpoint)
-			}
-			webs[name] = target
-		}
-		if connectEndpoint != "" {
-			target, err := url.Parse(connectEndpoint)
-			if err != nil || target.Scheme == "" || target.Host == "" {
-				return nil, fmt.Errorf("hop: hop/CONNECT_UPSTREAM_%s is not an absolute URL: %q", suffix, connectEndpoint)
-			}
-			connects[name] = target
-		}
-		modules[name] = true
+	}()
+	rawRoutes, routesErr := codefly.For(ctx).WorkspaceConfiguration("hop-routes", "ROUTES")
+	if routesErr != nil || rawRoutes == "" {
+		return nil, fmt.Errorf("hop: generated hop-routes/ROUTES is required; use a Codefly CLI that derives published service routes: %v", routesErr)
 	}
+	routes, err := routing.DecodeRouting(rawRoutes)
+	if err != nil {
+		return nil, err
+	}
+	for _, name := range strings.Split(listed, ",") {
+		modules[strings.TrimSpace(name)] = true
+	}
+	covered := map[string]bool{}
+	for _, route := range routes.Endpoints {
+		if !modules[route.Audience] {
+			return nil, fmt.Errorf("hop routes: undeclared audience %s", route.Audience)
+		}
+		covered[route.Audience] = true
+		switch route.Transport {
+		case "grpc":
+			if strings.Contains(route.Address, "${") {
+				return nil, fmt.Errorf("hop routes: unresolved endpoint for %s/%s", route.Audience, route.Service)
+			}
+			if upstreams[route.Address] != nil {
+				continue
+			}
+			conn, dialErr := grpc.NewClient(address(route.Address), append(proxy.DialOptions(), grpc.WithTransportCredentials(insecure.NewCredentials()))...)
+			if dialErr != nil {
+				return nil, dialErr
+			}
+			upstreams[route.Address] = conn
+		default:
+			target, urlErr := route.ResolvedURL()
+			if urlErr != nil {
+				return nil, urlErr
+			}
+			webs[route.Address] = target
+		}
+	}
+	for module := range modules {
+		if !covered[module] {
+			return nil, fmt.Errorf("hop routes: no published endpoint for %s", module)
+		}
+	}
+
 	refused := func(method string, err error) {
 		w.Warn("refused", wool.Field("method", method), wool.Field("reason", err.Error()))
 	}
@@ -97,7 +118,7 @@ func standInFront(ctx context.Context, config *adapters.Configuration) (Clean, e
 	if err != nil {
 		return nil, err
 	}
-	decider := decide.Decider{Authority: authorityv1.NewAuthorityServiceClient(authority), Modules: modules, Permissive: permissive,
+	decider := decide.Decider{Routes: routes, Authority: authorityv1.NewAuthorityServiceClient(authority), Modules: modules, Permissive: permissive,
 		Warned: func(method string, err error) {
 			w.Warn("PERMISSIVE: let through a call the authority refused", wool.Field("method", method), wool.Field("reason", err.Error()))
 		}}
@@ -110,11 +131,12 @@ func standInFront(ctx context.Context, config *adapters.Configuration) (Clean, e
 	// The service declares this endpoint even when every upstream uses gRPC.
 	// Keep it listening so the declared readiness contract holds; the proxy
 	// still refuses requests for which no authorized HTTP route exists.
-	stopWeb, err := serveHTTP(ctx, &proxy.HTTP{Decide: decision, Upstreams: webs, Connect: connects, Proof: proof, Refused: refused})
+	stopWeb, err := serveHTTP(ctx, &proxy.HTTP{Decide: decision, Upstreams: webs, Proof: proof, Refused: refused})
 	if err != nil {
 		return nil, err
 	}
 	w.Info("standing in front of modules", wool.Field("modules", listed))
+	configured = true
 	return func() {
 		stopWeb()
 		_ = authority.Close()

@@ -16,11 +16,12 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+	"hop/pkg/business/decide"
 )
 
 // Decide is the hop's decision for one call to method: the module it is for and
 // who it acts for.
-type Decide func(ctx context.Context, method string, md metadata.MD) (string, hop.Identity, error)
+type Decide func(ctx context.Context, method string, md metadata.MD) (decide.Decision, error)
 
 // Proxy forwards a decided call to the module's own connection.
 type Proxy struct {
@@ -46,13 +47,14 @@ func DialOptions() []grpc.DialOption {
 func (p *Proxy) handle(_ any, in grpc.ServerStream) error {
 	method, _ := grpc.MethodFromServerStream(in)
 	md, _ := metadata.FromIncomingContext(in.Context())
-	module, id, err := p.Decide(in.Context(), method, md)
+	decision, err := p.Decide(in.Context(), method, md)
 	if err != nil {
 		if p.Refused != nil {
 			p.Refused(method, err)
 		}
 		return err
 	}
+	module, id := decision.Module, decision.Identity
 	out := metadata.MD{}
 	for key, values := range md {
 		if !strings.HasPrefix(key, ":") && key != "content-type" && key != "user-agent" && !strings.HasPrefix(key, "grpc-") {
@@ -62,7 +64,11 @@ func (p *Proxy) handle(_ any, in grpc.ServerStream) error {
 	hop.Stamp(out, id, p.Proof)
 	ctx, cancel := context.WithCancel(metadata.NewOutgoingContext(in.Context(), out))
 	defer cancel()
-	upstream, ok := p.Upstreams[module]
+	key := module
+	if decision.Route != nil {
+		key = decision.Route.Address
+	}
+	upstream, ok := p.Upstreams[key]
 	if !ok {
 		return status.Errorf(codes.Internal, "the hop has no connection to %s", module)
 	}

@@ -483,7 +483,9 @@ The hop is the authority module's second service. It stands in front of a module
 and lets through only a call the authority checked. For each call it reads the
 caller's Work Context, asks the interface's `Check` with the module's principal
 as the audience, removes any stamp the caller sent, writes its own stamp, and
-forwards the call as opaque frames. It knows no method of the module.
+forwards the call as opaque frames. Its generated catalog snapshot identifies
+each method's service and endpoint; it does not interpret permission requirements.
+See [hop routing and upgrade requirements](modules/authority/services/hop/README.md).
 
 The hop always listens on its declared HTTP endpoint, including in a
 gRPC-only composition. An empty HTTP routing table does not remove that
@@ -569,7 +571,9 @@ The marks reach the authority in the delivery, and the authority decides:
    does not hold (saying what it holds), a method that declares nothing or both,
    a method the module does not serve. Without it, `Check` answers as before.
 3. **The hop** asks `Check` with the method and passes the answer on. It holds
-   no policy, reads nothing from the module, and polls nothing.
+   no permission requirements and polls nothing. Codefly supplies its published
+   route inventory; the selected destination and declared policy method travel
+   together into the single Check decision.
 
 A method requirement names a whole resource kind. Delivery rejects a method
 requirement containing resource IDs instead of silently dropping its restriction.
