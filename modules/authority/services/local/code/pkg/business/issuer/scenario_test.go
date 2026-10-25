@@ -141,8 +141,8 @@ func TestTheScenarioOneHopAtATime(t *testing.T) {
 		if _, err := k.Issuer.Check(ctx, child.GetToken(), "runtime", ""); err != nil {
 			t.Fatalf("the runtime checks the child: %v", err)
 		}
-		if len(wc.AuthorityScopes) != 1 || actions(wc, "runtime.task") != "admit,read" {
-			t.Fatalf("runtime child carries scopes outside its binding: %v", wc.AuthorityScopes)
+		if len(effectiveScopes(wc)) != 1 || actions(wc, "runtime.task") != "admit,read" {
+			t.Fatalf("runtime child carries scopes outside its binding: %v", effectiveScopes(wc))
 		}
 		// Even the developer cannot carry documents scope through this binding.
 		_, err = k.Issuer.Issue(ctx, &authorityv1.IssueRequest{

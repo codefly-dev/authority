@@ -31,7 +31,7 @@ func TestRestrictedCapabilityIsRefusedForKindWideMethodAndAdvisedWithoutWidening
 	if advice.GetRefusal() == "" {
 		t.Fatal("warn mode lost the method refusal")
 	}
-	if len(advice.GetContext().GetAuthorityScopes()) != 1 || len(advice.GetContext().GetAuthorityScopes()[0].GetResourceIds()) != 1 || advice.GetContext().GetAuthorityScopes()[0].GetResourceIds()[0] != "one" {
+	if len(effectiveScopes(advice.GetContext())) != 1 || len(effectiveScopes(advice.GetContext())[0].GetResourceIds()) != 1 || effectiveScopes(advice.GetContext())[0].GetResourceIds()[0] != "one" {
 		t.Fatalf("warn mode widened the signed capability: %v", advice.GetContext())
 	}
 	if _, err := k.Issuer.Check(ctx, token, "documents", ""); err != nil {

@@ -37,7 +37,13 @@ func scopeAsk(kind string, actions, ids []string) map[string]any {
 
 func exactScope(t *testing.T, wc protoreflect.Message, name, kind string, actions, ids []string) {
 	t.Helper()
-	scopes := listMsgs(wc, name)
+	// Empty-action rows carry enduring denials, not effective grants.
+	var scopes []protoreflect.Message
+	for _, scope := range listMsgs(wc, name) {
+		if field(scope, "actions").List().Len() > 0 {
+			scopes = append(scopes, scope)
+		}
+	}
 	if len(scopes) != 1 || str(scopes[0], "resource_kind") != kind {
 		t.Fatalf("%s is not exactly target %s: %v", name, kind, scopes)
 	}
@@ -54,6 +60,16 @@ func exactScope(t *testing.T, wc protoreflect.Message, name, kind string, action
 			t.Fatalf("%s: got %v want %v", key, got, want)
 		}
 	}
+}
+
+func exactEffectiveScope(t *testing.T, wc protoreflect.Message, kind string, actions, ids []string) {
+	t.Helper()
+	actors := listMsgs(wc, "actor_chain")
+	if len(actors) == 0 {
+		exactScope(t, wc, "authority_scopes", kind, actions, ids)
+		return
+	}
+	exactScope(t, actors[len(actors)-1], "granted_scopes", kind, actions, ids)
 }
 
 func (c *client) childScopes(t *testing.T, ctx context.Context, f ChildScopesCase) {
@@ -86,7 +102,7 @@ func (c *client) childScopes(t *testing.T, ctx context.Context, f ChildScopesCas
 			if n == 1 {
 				actions = f.NextActions
 			}
-			exactScope(t, wc, "authority_scopes", h.AskKind, actions, nil)
+			exactEffectiveScope(t, wc, h.AskKind, actions, nil)
 			actors := listMsgs(wc, "actor_chain")
 			if len(actors) != n+1 || str(actors[0], "principal_id") != f.Chain.Start ||
 				str(actors[n], "principal_id") != str(before, "audience") ||
@@ -113,19 +129,17 @@ func (c *client) childScopes(t *testing.T, ctx context.Context, f ChildScopesCas
 			}})
 		delegated := issue(t, map[string]any{"delegation": map[string]any{"delegation_id": str(d, "delegation_id")},
 			"actor": map[string]any{"credential": first.Credential}, "audience": first.Audience, "operation_binding_id": first.Binding})
-		exactScope(t, msg(delegated, "context"), "authority_scopes", first.AskKind, []string{first.AskAction}, nil)
+		exactEffectiveScope(t, msg(delegated, "context"), first.AskKind, []string{first.AskAction}, nil)
 		req := hopRequest(delegated, next)
 		out := issue(t, req)
 		wc := msg(out, "context")
-		exactScope(t, wc, "authority_scopes", next.AskKind, []string{next.AskAction}, []string{f.ResourceID})
+		exactEffectiveScope(t, wc, next.AskKind, []string{next.AskAction}, []string{f.ResourceID})
 		actors := listMsgs(wc, "actor_chain")
 		if len(actors) != 2 || str(actors[0], "delegation_id") != str(d, "delegation_id") ||
 			str(actors[0], "principal_id") != f.Chain.Start || str(actors[1], "principal_id") != first.Audience {
 			t.Fatalf("child lost explicit delegation provenance: %v", wc)
 		}
-		for _, actor := range actors {
-			exactScope(t, actor, "granted_scopes", next.AskKind, []string{next.AskAction}, []string{f.ResourceID})
-		}
+		exactScope(t, actors[len(actors)-1], "granted_scopes", next.AskKind, []string{next.AskAction}, []string{f.ResourceID})
 		check(t, out, next.Audience)
 		listed := c.must(t, ctx, "host.authority.v1.AuthorityService", "ListResources", map[string]any{
 			"token": str(out, "token"), "audience": next.Audience, "resource_kind": next.AskKind, "action": next.AskAction,

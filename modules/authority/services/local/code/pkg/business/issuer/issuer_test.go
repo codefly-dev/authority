@@ -122,7 +122,7 @@ func person(t *testing.T, k *testkit.Kit, token string) context.Context {
 func scopes(sc ...*basev0.WorkScopeV1) []*authorityv1.WorkScopeV1 {
 	var out []*authorityv1.WorkScopeV1
 	for _, s := range sc {
-		out = append(out, &authorityv1.WorkScopeV1{ResourceKind: s.ResourceKind, Actions: s.Actions})
+		out = append(out, &authorityv1.WorkScopeV1{ResourceKind: s.ResourceKind, Actions: s.Actions, ResourceIds: s.ResourceIds})
 	}
 	return out
 }

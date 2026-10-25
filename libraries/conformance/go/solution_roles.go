@@ -85,7 +85,7 @@ func (c *client) solutionRoleCases(t *testing.T, ctx context.Context, f Fixture)
 				}
 				out := c.must(t, ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"parent_token": str(root, "token"), "actor": map[string]any{"credential": r.Credential}, "operation_binding_id": r.Binding, "audience": r.Audience, "scopes": []any{consumed}})
 				wc := msg(out, "context")
-				exactScope(t, wc, "authority_scopes", r.ConsumedKind, []string{r.ConsumedAction}, nil)
+				exactEffectiveScope(t, wc, r.ConsumedKind, []string{r.ConsumedAction}, nil)
 				if str(wc, "owner_principal_id") != str(sess, "person_id") || str(wc, "tenant_id") != f.Organization || str(msg(wc, "operation_binding"), "binding_id") != f.Organization+"/"+r.Solution+"/"+r.Binding {
 					t.Fatal("solution child lost owner, tenant or canonical binding identity")
 				}
@@ -95,7 +95,7 @@ func (c *client) solutionRoleCases(t *testing.T, ctx context.Context, f Fixture)
 				if err != nil {
 					t.Fatal(err)
 				}
-				exactScope(t, msg(out, "context"), "authority_scopes", r.ConsumedKind, []string{r.ConsumedAction}, nil)
+				exactEffectiveScope(t, msg(out, "context"), r.ConsumedKind, []string{r.ConsumedAction}, nil)
 			case names[3]:
 				outsider := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": r.Outsider})
 				_, err := c.call(as(ctx, outsider), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": r.Solution})

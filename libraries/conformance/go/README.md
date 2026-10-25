@@ -24,7 +24,7 @@ providing different labels does not remove an obligation.
 | --- | --- |
 | Delivered solution roles at their own audience, binding roots and children; no-role refusals; ceiling enforcement | `SolutionRoles`: a signed wiki viewer role grants Maya documents write, which she lacks independently. Replayed deliveries use deterministic authority-document bytes. |
 | Rule A: current owner grants intersected with each target binding; canonical `<org>/<module>/<binding>` identity; named hop refusals | `Chain`, `ChildScopes`, and the individual binding-refusal cases |
-| Enduring narrowing through two hops | `ChildScopes`: a stored delegation retains action and exact resource-ID limits; earlier target projections and per-Issue asks remain target-local under rule A. |
+| Enduring narrowing through two hops | `ChildScopes` and `ParentLimits`: stored delegations retain complete ceilings; parent action/resource limits and entirely dropped kinds remain capped across target changes. Multiple action/resource rows must not become a cross product. |
 | Workload tenant inference, ambiguity and no installation | `WorkloadOrganizations`; a pinned tenant or sole active installing organization, never an arbitrary organization |
 | Installation identity, installed caller, explicit organization, pending, active and revoked states | `InstalledSolution`, `InstalledCredential`, `Lifecycle` |
 | Absent installation versus no entitlement | `FailedPrecondition` with the absent-installation reason versus `PermissionDenied` with the holds-nothing reason |

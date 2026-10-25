@@ -86,9 +86,11 @@ type Fixture struct {
 	// token, through its binding. The last hop asks for something the first
 	// token never carried, so it holds only if each hop inherits from the owner.
 	Chain *Chain
-	// ChildScopes distinguishes target-local binding projection from a stored
-	// delegation's enduring action/resource ceiling. Omission fails conformance.
+	// ChildScopes proves current effective target scopes within a stored
+	// delegation's enduring ceiling. Omission fails conformance.
 	ChildScopes *ChildScopesCase
+	// ParentLimits proves persistent per-kind limits, including entirely dropped kinds.
+	ParentLimits *ParentLimitsCase
 	// InstallationChain exercises successive module actors under one installed
 	// solution's role. Omission fails conformance.
 	InstallationChain *InstallationChainCase
@@ -261,6 +263,12 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 	c.installationIdentity(t, ctx, f)
 	c.sessionDisplayNames(t, ctx, f)
 	c.bindingRefusals(t, ctx, f)
+	t.Run("parent per-kind limits survive audience changes", func(t *testing.T) {
+		if f.ParentLimits == nil {
+			t.Fatal("fixture supplies no parent-limit round trip")
+		}
+		c.parentLimits(t, ctx, *f.ParentLimits)
+	})
 
 	t.Run("keys name one Ed25519 key and an issuer", func(t *testing.T) {
 		keys := c.must(t, ctx, "host.authority.v1.AuthorityService", "Keys", map[string]any{})
@@ -528,6 +536,11 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		req["scopes"] = []any{map[string]any{"resource_kind": f.ReadKind, "actions": []any{"admin"}}}
 		if _, err := c.call(ctx, "host.authority.v1.AuthorityService", "Issue", req); status.Code(err) != codes.PermissionDenied {
 			t.Fatalf("widening: %v", err)
+		}
+		req = clone(hop)
+		delete(req, "operation_binding_id")
+		if _, err := c.call(ctx, "host.authority.v1.AuthorityService", "Issue", req); status.Code(err) != codes.PermissionDenied && status.Code(err) != codes.NotFound {
+			t.Fatalf("a hop without a binding must be refused: %v", err)
 		}
 		req = clone(hop)
 		req["operation_binding_id"] = "undeclared"

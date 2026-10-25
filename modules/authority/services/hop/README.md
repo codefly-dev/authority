@@ -11,18 +11,15 @@ an advisory Check and uses the authority's returned context, preserving its
 owner, tenant, operation binding, task and effective scopes. The refusal travels
 in the stamp's advisory field and is logged once.
 
-For other authority failures, the existing developer fallback uses the readable
-token's identity, or `developer`/`local` if none is readable. A usable token
-audience selects the upstream. With no audience, only a sole configured upstream
-can be selected; a multi-module hop reports a routing diagnostic rather than
-sending the request to an unrelated module. No module response is fabricated.
+Missing, malformed, expired, revoked or misaddressed Work Contexts remain
+refused in both modes. The hop also refuses when it cannot reach the authority.
+Warning mode uses the authority's verified advisory context; it creates no
+synthetic identity or developer session. The verified audience selects the
+configured upstream, and a missing route remains an error.
 
-Warning mode relaxes hop admission. Issuance and downstream module checks still
-run: modules that require a live Work Context, scope or resource grant can still
-refuse the forwarded call. The synthetic fallback is not a complete developer
-session or a replacement for an installation. Upstream connection and application
-failures remain visible. Full solution unblocking needs those owner paths to be
-exercised; a successful hop unit test alone does not prove it.
+Warning mode relaxes method-policy admission only. Issuance and downstream
+resource, visibility and ownership decisions still apply. A successful hop unit
+test alone does not prove a complete solution journey or enforce-mode qualification.
 
 Validation: run `go test -race ./...` in this service's `code/`, the local authority's
 `code/`, and `libraries/hop/go`. Local authority's generated-client advisory test checks

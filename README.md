@@ -444,26 +444,37 @@ Owner's rule A of 2026-10-25, generic to every module that acts for someone (rob
 and runtime first): a module holds no standing authority over anyone's data. Its
 hop on a person's or an installation's token is owned by that principal, adds
 the module to the actor chain, and derives its scopes for each target from the
-owner's current grants intersected with the selected binding. It does not carry
-unrelated scopes from the previous audience. A service-owned context has no
-person role to recover: it retains only its existing scopes through that binding.
-An explicit stored `Delegate` grant is a lasting ceiling across these projections:
-dropped actions, absent kinds and named resource IDs cannot return on a later hop.
-Every matching stored delegation in the verified actor chain must stand and
-authorize that owner and actor. A binding's projection, and a per-`Issue` scopes
-ask, constrain that issue; they do not create a new stored delegation.
+owner's current grants intersected with the selected binding, capped by the
+parent's per-kind limits. Dropped actions and restricted resource IDs stay
+restricted even after an intermediate call to another audience. An explicit ask
+that drops an entire current-target kind leaves a zero-action cap; disjoint
+resource sets also leave that cap, never an unrestricted empty resource list.
+A kind never visited can still be derived from the owner's current grants.
+
+Authority scopes and replayed prior actors carry those limits across audiences;
+the final actor receives only the current target's effective scopes. Carried
+limits are not usable authority at that target. A service-owned context has no
+person role to recover and retains only its existing authority through the
+binding. A stored `Delegate` grant remains a complete ceiling: absent kinds,
+dropped actions and named resource IDs cannot return. Every matching stored
+delegation must still authorize the owner and actor. The target projection does
+not replace that durable grant.
 The child never outlives its parent. A module hops only on a
 token addressed to it and names the binding it exercises. Revoking the person's
 access, or changing the solution's role, revokes every delegate on the next call.
 The suite proves it with a chain of three modules where the last hop gets a read
 the person's first token never carried.
 
-The shared `conformance.Fixture.ChildScopes` case proves exact empty-ask target
-scopes, exclusion of unrelated parent scopes, a two-target stored delegation,
+The shared `conformance.Fixture.ChildScopes` case proves exact effective target
+scopes, exclusion of unrelated carried caps, a two-target stored delegation,
 resource discovery, refusal to restore actions/IDs, and descendant revocation.
-Each host must populate this fixture: a skipped case does not prove parity.
-Local issuer tests also exercise a later third hop, binding-local narrowing,
-service-owned attenuation, and revocation interleavings. SaaS must run this same
+Each host must populate this fixture: an omitted case fails conformance.
+`Fixture.ParentLimits` additionally proves action, resource and entirely dropped
+kind restrictions across repeated audience round trips. Local issuer tests cover
+disjoint target actions/IDs, service-owned attenuation, and revocation
+interleavings. A missing, undeclared or misaddressed binding is refused before
+verification can spend a single-use parent; binding seals use
+`<organization>/<module>/<binding>`. SaaS must run this same
 suite against its own real adapters before cross-host qualification is claimed.
 
 ## The hop: one door in front of a module (2026-10-23)
@@ -581,8 +592,8 @@ named is checked as before.
 
 The local authority passes the suite line that proves it ("a check naming a
 method applies what the module's delivery declares"), which fails when `Check`
-ignores the method. Accounts implements neither the document nor the method
-yet; the line skips for a fixture that signs no authority document.
+ignores the method. Each host must supply a signed authority document and prove the method cases;
+an omitted signer fails conformance. Local results do not establish Accounts parity.
 
 The console imports the option by copying `policy.proto` into its proto tree,
 as every module in the fleet copies the option protos it uses. That copy is a
@@ -810,10 +821,9 @@ the interface, with a suite line, or named as belonging elsewhere.
 | Audit (`EmitAuditEvent`, `DeclareAuditEventTypes`) | not authority: an optional audit interface; with none injected, the module logs each event | the record store |
 | Notifications and the current installation (`NotifyUser`, `NotifyOrgAdmins`, `GetCurrentInstallation`) | not authority: host services, optional interfaces | open |
 
-The local authority implements every line. Accounts implements none of the
-last five additions yet (lookup, delegations and their read, `ListResources`,
-method policy);
-each suite line skips for a fixture that states no case.
+The local authority supplies these cases. Each host must run the current suite
+against its own provider; missing required fixtures fail. Earlier Accounts
+results do not qualify later suite additions.
 
 ## Open decisions
 
@@ -822,7 +832,8 @@ each suite line skips for a fixture that states no case.
   derivation supports person and installation owners through their target grants;
   service-owned work remains bounded by its existing effective scopes. The
   target-projection and stored-delegation rules above state these distinctions.
-  Core stands unchanged. The local authority
+  Core main `e501458995d05b641ed10e456fcb2837ff8b9f86` supplies action-specific
+  scope containment; these dependency graphs require Go 1.27.3. The local authority
   and the suite state it; the host's `childHop` and its person issue follow
   (saas #1219 is the person half there). History:
   The host's `module_actor` mode (saas #1215) requires the person's parent to be
@@ -880,7 +891,7 @@ method-policy check succeeds. A person without the target entitlement cannot
 obtain that permission, including when the child asks for its default scopes.
 A solution target bounds the whole child by its person role and binding; ordinary
 module-to-module derivation is unchanged. Hosts supply `SolutionTools` to run this
-additional shared scenario; a missing scenario is reported as skipped.
+additional shared scenario; a missing scenario fails conformance.
 
 An installation owner can cross successive module actors in its organisation.
 The local seal source associates an active solution installation's agent with
@@ -895,7 +906,7 @@ Issuer tests cover exact owner/actor provenance, resource restrictions, wrong
 actors, source and actor uninstall, role/binding narrowing, and source uninstall
 during issuance. Shared conformance hosts supply `InstallationChain` to prove
 successive module hops; the local fixture crosses three actors. A missing
-fixture is skipped, not evidence of provider parity. These are offline
+fixture fails conformance and is not evidence of provider parity. These are offline
 authority tests, not a live solution or SaaS qualification.
 
 Target-solution consent for installation-owned tool calls is **not implemented**.

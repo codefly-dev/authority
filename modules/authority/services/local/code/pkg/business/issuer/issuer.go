@@ -294,7 +294,7 @@ func (i *Issuer) forPerson(ctx context.Context, sessionID string, audience state
 		TenantID: sess.Organization, OrganizationID: sess.Organization,
 		OwnerPrincipalID: sess.Person, OwnerPrincipalKind: "human",
 		TaskID: uuid.NewString(), SessionID: sess.ID,
-		Audience: audience.Principal, AuthorityScopes: scopes, AttributionTeamIDs: teams,
+		Audience: audience.Principal, AuthorityScopes: scopeLimits{}.project(held, scopes), AttributionTeamIDs: teams,
 		InstallationID: state.InstallationID(sess.Organization, audience.Module), TTL: ttl,
 	})
 }
@@ -339,7 +339,7 @@ func (i *Issuer) forWorkload(ctx context.Context, credential, org, bindingID, op
 	token, signed, err := i.authority.Start(ctx, workcontext.StartInput{
 		TenantID: org, OrganizationID: org,
 		OwnerPrincipalID: module.Principal, OwnerPrincipalKind: "service",
-		TaskID: uuid.NewString(), Audience: audience.Principal, AuthorityScopes: scopes,
+		TaskID: uuid.NewString(), Audience: audience.Principal, AuthorityScopes: scopeLimits{}.project(through, scopes),
 		InstallationID: state.InstallationID(org, module.Module), OperationBindingID: fullID, TTL: ttl,
 	})
 	if err != nil {
@@ -377,7 +377,7 @@ func (i *Issuer) forInstallation(ctx context.Context, id, org, credential string
 	token, signed, err := i.startAtRevision(ctx, revision, workcontext.StartInput{
 		TenantID: inst.Organization, OrganizationID: inst.Organization,
 		OwnerPrincipalID: inst.AgentPrincipal(), OwnerPrincipalKind: "agent", OwnerAgentID: inst.Target,
-		TaskID: uuid.NewString(), Audience: audience.Principal, AuthorityScopes: scopes,
+		TaskID: uuid.NewString(), Audience: audience.Principal, AuthorityScopes: scopeLimits{}.project(held, scopes),
 		InstallationID: inst.ID, TTL: ttl,
 	})
 	if err != nil {
@@ -415,25 +415,13 @@ func (i *Issuer) startAtRevision(ctx context.Context, revision uint64, in workco
 // and names the binding it exercises, addressed to the hop's audience. The child
 // is owned by the parent's owner and carries the parent's actors and then this
 // one. Human and installation owners supply current target authority through the
-// binding. A service owner carries only its existing authority. Explicit stored
-// delegations remain ceilings across target projections; a previous binding's
-// projection is not a grant for the next audience. An ask narrows this issue.
+// binding. A service owner carries only its existing authority. Stored
+// delegations remain complete ceilings. Per-kind parent limits also persist
+// across audiences; carried caps are never effective off-target grants.
 func (i *Issuer) child(ctx context.Context, parent, actorCredential, bindingID, operation string, audience state.Manifest, asked []*basev0.WorkScopeV1, ttl time.Duration) (string, *basev0.WorkContextV1, error) {
-	decoded, err := workcontext.Decode(parent)
-	if err != nil {
-		return "", nil, err
-	}
-	verified, err := i.verifier(decoded.Context().GetAudience()).Verify(ctx, parent)
-	if err != nil {
-		return "", nil, err
-	}
-	claims := verified.Context()
 	actor, err := i.state.VerifyWorkload(ctx, actorCredential)
 	if err != nil {
 		return "", nil, fmt.Errorf("a child hop names the module acting: %w", err)
-	}
-	if claims.GetAudience() != actor.Principal {
-		return "", nil, fmt.Errorf("%w: %s hops only on a token addressed to it; this one is addressed to %s", ErrRefused, actor.Module, claims.GetAudience())
 	}
 	if bindingID == "" {
 		return "", nil, fmt.Errorf("%w: a module's hop names the binding it exercises", ErrRefused)
@@ -444,6 +432,18 @@ func (i *Issuer) child(ctx context.Context, parent, actorCredential, bindingID, 
 	}
 	if binding.Audience != audience.Principal {
 		return "", nil, fmt.Errorf("%w: binding %q is addressed to %s, not %s", ErrRefused, bindingID, binding.Audience, audience.Principal)
+	}
+	decoded, err := workcontext.Decode(parent)
+	if err != nil {
+		return "", nil, err
+	}
+	verified, err := i.verifier(decoded.Context().GetAudience()).Verify(ctx, parent)
+	if err != nil {
+		return "", nil, err
+	}
+	claims := verified.Context()
+	if claims.GetAudience() != actor.Principal {
+		return "", nil, fmt.Errorf("%w: %s hops only on a token addressed to it; this one is addressed to %s", ErrRefused, actor.Module, claims.GetAudience())
 	}
 	var held, sourceCeiling []*basev0.WorkScopeV1
 	sourceBounded := false
@@ -470,6 +470,8 @@ func (i *Issuer) child(ctx context.Context, parent, actorCredential, bindingID, 
 	if err != nil {
 		return "", nil, err
 	}
+	limits := parentScopeLimits(claims)
+	ceiling = limits.constrain(ceiling)
 	if len(ceiling) == 0 {
 		return "", nil, fmt.Errorf("%w: %s holds nothing at %s through binding %q", ErrRefused, claims.GetOwnerPrincipalId(), audience.Module, bindingID)
 	}
@@ -480,6 +482,7 @@ func (i *Issuer) child(ctx context.Context, parent, actorCredential, bindingID, 
 		}
 		scopes = state.Normalize(asked)
 	}
+	authorityScopes := limits.project(through, scopes)
 	// The child never outlives its parent, on the authority's own clock.
 	now := time.Now()
 	if i.authority.Now != nil {
@@ -505,7 +508,7 @@ func (i *Issuer) child(ctx context.Context, parent, actorCredential, bindingID, 
 	token, _, err := i.authority.Start(ctx, workcontext.StartInput{
 		TenantID: tenant, OrganizationID: claims.GetOrganizationId(),
 		OwnerPrincipalID: claims.GetOwnerPrincipalId(), OwnerPrincipalKind: claims.GetOwnerPrincipalKind(), OwnerAgentID: claims.GetOwnerAgentId(),
-		TaskID: claims.GetTaskId(), Audience: audience.Principal, AuthorityScopes: scopes, AttributionTeamIDs: claims.GetAttributionTeamIds(),
+		TaskID: claims.GetTaskId(), Audience: audience.Principal, AuthorityScopes: authorityScopes, AttributionTeamIDs: claims.GetAttributionTeamIds(),
 		InstallationID: state.InstallationID(tenant, actor.Module), SessionID: rootSession, TTL: ttl, ReplayPolicy: workcontext.ReplayIdempotent,
 	})
 	if err != nil {
@@ -518,6 +521,7 @@ func (i *Issuer) child(ctx context.Context, parent, actorCredential, bindingID, 
 		}
 		in := workcontext.ChildInput{GrantedScopes: scopes, Audience: audience.Principal, TTL: ttl, ReplayPolicy: workcontext.ReplayIdempotent}
 		if n < len(hops) {
+			in.GrantedScopes = authorityScopes
 			in.PrincipalID, in.PrincipalKind, in.DelegationID = hops[n].GetPrincipalId(), hops[n].GetPrincipalKind(), hops[n].GetDelegationId()
 			if n == len(hops)-1 {
 				in.SessionID = parentSession
@@ -616,7 +620,7 @@ func (i *Issuer) forDelegation(ctx context.Context, id, actorCredential, binding
 	token, _, err := i.startAtRevision(ctx, revision, workcontext.StartInput{
 		TenantID: d.Organization, OrganizationID: d.Organization,
 		OwnerPrincipalID: d.Grantor, OwnerPrincipalKind: "human",
-		TaskID: uuid.NewString(), Audience: audience.Principal, AuthorityScopes: scopes,
+		TaskID: uuid.NewString(), Audience: audience.Principal, AuthorityScopes: scopeLimits{}.project(through, scopes),
 		InstallationID: state.InstallationID(d.Organization, actor.Module), TTL: ttl, ReplayPolicy: workcontext.ReplayIdempotent,
 	})
 	if err != nil {

@@ -65,9 +65,9 @@ func TestInstallationChainRetainsOwnerRoleResourcesAndProvenance(t *testing.T) {
 		wc.OperationBinding.BindingId != "acme/org-directory/documents" {
 		t.Fatalf("installation provenance changed: %v", wc)
 	}
-	if len(wc.AuthorityScopes) != 1 || actions(wc, "documents") != "read" ||
-		len(wc.AuthorityScopes[0].ResourceIds) != 1 || wc.AuthorityScopes[0].ResourceIds[0] != "one" {
-		t.Fatalf("role projection changed: %v", wc.AuthorityScopes)
+	if len(effectiveScopes(wc)) != 1 || actions(wc, "documents") != "read" ||
+		len(effectiveScopes(wc)[0].ResourceIds) != 1 || effectiveScopes(wc)[0].ResourceIds[0] != "one" {
+		t.Fatalf("role projection changed: %v", effectiveScopes(wc))
 	}
 	if _, err := k.Issuer.Check(ctx, out.Token, "documents", ""); err != nil {
 		t.Fatal(err)

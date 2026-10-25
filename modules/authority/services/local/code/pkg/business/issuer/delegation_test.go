@@ -13,7 +13,7 @@ import (
 )
 
 func actions(wc *authorityv1.WorkContextV1, kind string) string {
-	for _, sc := range wc.GetAuthorityScopes() {
+	for _, sc := range effectiveScopes(wc) {
 		if sc.GetResourceKind() == kind {
 			return strings.Join(sc.GetActions(), ",")
 		}

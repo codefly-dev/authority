@@ -37,8 +37,8 @@ func TestChildUsesOnlyCurrentTargetBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(out.Context.AuthorityScopes) != 1 || actions(out.Context, "documents") != "read,write" {
-		t.Fatalf("child retained unrelated parent grants: %v", out.Context.AuthorityScopes)
+	if len(effectiveScopes(out.Context)) != 1 || actions(out.Context, "documents") != "read,write" {
+		t.Fatalf("child retained unrelated parent grants: %v", effectiveScopes(out.Context))
 	}
 	req.Scopes = scopes(testkit.Scope("directory.entry", "read"))
 	if _, err := k.Issuer.Issue(context.Background(), req); !errors.Is(err, issuer.ErrRefused) {
@@ -84,10 +84,10 @@ func TestChildRetainsExplicitDelegationAcrossTargetProjection(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got := out.Context.AuthorityScopes
+			got := effectiveScopes(out.Context)
 			if len(got) != 1 || actions(out.Context, "modelservice.profiles") != "read" ||
 				len(got[0].ResourceIds) != 1 || got[0].ResourceIds[0] != "a" {
-				t.Fatalf("delegation restriction lost: %v", out.Context.AuthorityScopes)
+				t.Fatalf("delegation restriction lost: %v", effectiveScopes(out.Context))
 			}
 			if _, err := k.Issuer.Check(context.Background(), out.Token, "model", ""); err != nil {
 				t.Fatal(err)
@@ -111,15 +111,15 @@ func TestChildRetainsExplicitDelegationAcrossTargetProjection(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(later.Context.AuthorityScopes) != 1 || actions(later.Context, "modelservice.profiles") != "read" ||
-				len(later.Context.AuthorityScopes[0].ResourceIds) != 1 || later.Context.AuthorityScopes[0].ResourceIds[0] != "a" {
-				t.Fatalf("later replay lost delegation restrictions: %v", later.Context.AuthorityScopes)
+			if len(effectiveScopes(later.Context)) != 1 || actions(later.Context, "modelservice.profiles") != "read" ||
+				len(effectiveScopes(later.Context)[0].ResourceIds) != 1 || effectiveScopes(later.Context)[0].ResourceIds[0] != "a" {
+				t.Fatalf("later replay lost delegation restrictions: %v", effectiveScopes(later.Context))
 			}
 		})
 	}
 }
 
-func TestBindingProjectionIsLocalButServiceOwnerNeverGainsNewAuthority(t *testing.T) {
+func TestBindingProjectionPersistsAndServiceOwnerNeverGainsNewAuthority(t *testing.T) {
 	for _, serviceOwner := range []bool{false, true} {
 		t.Run(map[bool]string{false: "person", true: "service"}[serviceOwner], func(t *testing.T) {
 			k := testkit.New(t)
@@ -136,8 +136,7 @@ func TestBindingProjectionIsLocalButServiceOwnerNeverGainsNewAuthority(t *testin
 					OrganizationId: "acme", Audience: "model", OperationBindingId: "model", Scopes: scopes(testkit.Scope("modelservice.profiles", "read")),
 				})
 			} else {
-				// A read-only binding projects the person's first call. It is
-				// not an explicit lasting delegation of only read.
+				// A read-only binding constrains this kind on later hops too.
 				docs := testkit.Documents(2)
 				b := docs.Bindings["model"]
 				b.InvokeScopes = []*base.WorkScopeV1{testkit.Scope("modelservice.profiles", "read")}
@@ -167,18 +166,15 @@ func TestBindingProjectionIsLocalButServiceOwnerNeverGainsNewAuthority(t *testin
 			if err != nil {
 				t.Fatal(err)
 			}
-			want := "invoke,read"
-			if serviceOwner {
-				want = "read"
-			}
-			if len(out.Context.AuthorityScopes) != 1 || actions(out.Context, "modelservice.profiles") != want {
-				t.Fatalf("wrong owner-derived scope: %v", out.Context.AuthorityScopes)
+			want := "read"
+			if len(effectiveScopes(out.Context)) != 1 || actions(out.Context, "modelservice.profiles") != want {
+				t.Fatalf("wrong owner-derived scope: %v", effectiveScopes(out.Context))
 			}
 		})
 	}
 }
 
-func TestPersonIssueAskIsLocalToItsTargetProjection(t *testing.T) {
+func TestPersonIssueAskPersistsForTheSameKind(t *testing.T) {
 	k := testkit.New(t)
 	model := testkit.Model(2)
 	model.Bindings = map[string]state.Binding{"self": {ID: "self", Audience: "model", InvokeScopes: testkit.Documents(1).Bindings["model"].InvokeScopes}}
@@ -198,8 +194,8 @@ func TestPersonIssueAskIsLocalToItsTargetProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(out.Context.AuthorityScopes) != 1 || actions(out.Context, "modelservice.profiles") != "invoke,read" {
-		t.Fatalf("a per-issue ask became a stored delegation: %v", out.Context.AuthorityScopes)
+	if len(effectiveScopes(out.Context)) != 1 || actions(out.Context, "modelservice.profiles") != "read" {
+		t.Fatalf("a per-issue narrowing was recovered: %v", effectiveScopes(out.Context))
 	}
 }
 
@@ -219,8 +215,8 @@ func TestInstallationChildProjectsTheTargetRoleAndBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(out.Context.AuthorityScopes) != 1 || actions(out.Context, "documents") != "read" {
-		t.Fatalf("installation child retained unrelated role scopes: %v", out.Context.AuthorityScopes)
+	if len(effectiveScopes(out.Context)) != 1 || actions(out.Context, "documents") != "read" {
+		t.Fatalf("installation child retained unrelated role scopes: %v", effectiveScopes(out.Context))
 	}
 	if _, err := k.Issuer.Check(context.Background(), out.Token, "documents", ""); err != nil {
 		t.Fatal(err)

@@ -64,6 +64,20 @@ people:
 	if _, err := k.State.ApplyManifest(directory); err != nil {
 		t.Fatal(err)
 	}
+	model := testkit.Model(2)
+	model.ResourceKinds = append(model.ResourceKinds, testkit.Scope("documents", "read", "write"))
+	model.Bindings = map[string]state.Binding{
+		"records": testkit.OrgDirectory(1).Bindings["records"],
+		"self":    {ID: "self", Audience: "model", InvokeScopes: model.ResourceKinds},
+	}
+	if _, err := k.State.ApplyManifest(model); err != nil {
+		t.Fatal(err)
+	}
+	records := testkit.Records(2)
+	records.Bindings = map[string]state.Binding{"model": testkit.Documents(1).Bindings["model"]}
+	if _, err := k.State.ApplyManifest(records); err != nil {
+		t.Fatal(err)
+	}
 	plugins := []framework.Plugin{
 		&authority.Plugin{Issuer: k.Issuer},
 		&composition.Plugin{State: k.State, Coordinate: "local", Verifier: testkit.ReleaseVerifier(t, "local"), Carrier: k.CarrierAuthority, Keys: testkit.ReleaseKeys()},
@@ -153,6 +167,10 @@ people:
 		SignAuthority:      testkit.SignAuthority,
 		DeliveryCredential: func(module string) string { return k.Credential(t, module) },
 		Matrix:             testkit.Matrix(),
+		ParentLimits: &conformance.ParentLimitsCase{Token: "fixture-remi", Root: "model", Credential: k.Credential(t, "model"), SelfBinding: "self",
+			Kind: "modelservice.profiles", DroppedKind: "documents", Action: "read", DroppedAction: "invoke", ResourceID: "a", OtherResourceID: "b",
+			Out:  conformance.Hop{Credential: k.Credential(t, "model"), Audience: "records", Binding: "records"},
+			Back: conformance.Hop{Credential: k.Credential(t, "records"), Audience: "model", Binding: "model"}},
 		ChildScopes: &conformance.ChildScopesCase{Chain: chain, FirstActions: []string{"read", "write"}, NextActions: []string{"read", "invoke"},
 			OutsideKind: "directory.entry", OutsideAction: "read", ResourceID: "a", OtherResourceID: "b", DroppedAction: "invoke"},
 		InstallationChain: &conformance.InstallationChainCase{

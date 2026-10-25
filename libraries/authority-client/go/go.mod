@@ -1,10 +1,10 @@
 module github.com/codefly-dev/authority/libraries/authority-client/go
 
-go 1.27.0
+go 1.27.3
 
 require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.12-20260825204119-511051f7f437.2
-	github.com/codefly-dev/core v0.19.6-0.20261018051341-b81d92e6feda
+	github.com/codefly-dev/core v0.19.7-0.20261025185759-e501458995d0
 	google.golang.org/genproto/googleapis/api v0.0.0-20261019180522-ce908d29299b
 	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12

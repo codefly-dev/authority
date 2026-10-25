@@ -53,7 +53,7 @@ func (c *client) installationChain(t *testing.T, ctx context.Context, f Installa
 				t.Fatalf("hop %d actor %d: %v", n+1, a, actor)
 			}
 		}
-		exactScope(t, wc, "authority_scopes", hop.AskKind, []string{hop.AskAction}, nil)
+		exactEffectiveScope(t, wc, hop.AskKind, []string{hop.AskAction}, nil)
 		c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(out, "token"), "audience": hop.Audience})
 		parent = out
 	}
