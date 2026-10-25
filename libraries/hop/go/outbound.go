@@ -42,10 +42,6 @@ func Lookup() Option { return func(r *authorityv1.IssueRequest) { r.Operation = 
 // ErrNoCaller is ForCaller on a call that did not arrive through the hop.
 var ErrNoCaller = errors.New("hop: no caller to act for: the call carries no checked Work Context")
 
-// ErrNoOrganization is ForModule naming no organisation: a module's own work
-// runs in one, and the authority issues for none other.
-var ErrNoOrganization = errors.New("hop: a module's own Work Context names the organisation its work runs in")
-
 // ForCaller returns ctx carrying a child of the caller's Work Context, issued
 // through binding.
 func (o Outbound) ForCaller(ctx context.Context, binding string, opts ...Option) (context.Context, error) {
@@ -98,12 +94,11 @@ func (o Outbound) ForDelegation(ctx context.Context, delegation, binding string,
 }
 
 // ForModule returns ctx carrying a Work Context for this module's own work in
-// organization, issued through binding. A module working for several
-// organisations asks once for each: a context attests one.
+// organization, issued through binding. An empty organization asks the authority
+// to resolve the module's installed tenant: its delivered tenant pin or sole
+// active installing organization. Ambiguous or absent authority is refused by
+// the authority with a reason. Each issued context attests one organization.
 func (o Outbound) ForModule(ctx context.Context, organization, binding string, opts ...Option) (context.Context, error) {
-	if strings.TrimSpace(organization) == "" {
-		return nil, ErrNoOrganization
-	}
 	credential, err := o.Credential()
 	if err != nil {
 		return nil, err
