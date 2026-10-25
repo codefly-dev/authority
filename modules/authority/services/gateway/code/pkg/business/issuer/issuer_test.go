@@ -228,18 +228,18 @@ func TestAnUninstallRefusesAnOutstandingTokenOnTheNextCheck(t *testing.T) {
 	ctx := context.Background()
 	wiki, _ := k.State.Installation(state.InstallationID("acme", "wiki"))
 	out, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: wiki.ID}}, Audience: "documents",
+		As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: wiki.ID}}, Audience: "wiki",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := k.Issuer.Check(ctx, out.GetToken(), "documents", ""); err != nil {
+	if _, err := k.Issuer.Check(ctx, out.GetToken(), "wiki", ""); err != nil {
 		t.Fatalf("before: %v", err)
 	}
 	if err := k.State.Revoke(wiki.ID); err != nil {
 		t.Fatal(err)
 	}
-	_, err = k.Issuer.Check(ctx, out.GetToken(), "documents", "")
+	_, err = k.Issuer.Check(ctx, out.GetToken(), "wiki", "")
 	if err == nil || !(errors.Is(err, workcontext.ErrRevoked) || errors.Is(err, workcontext.ErrNoSeal)) {
 		t.Fatalf("after the uninstall: %v", err)
 	}
@@ -249,7 +249,7 @@ func TestAnInstallationActsForItselfWithinItsRoleAndTheAudiencesCeiling(t *testi
 	k := testkit.New(t)
 	ctx := context.Background()
 	out, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: state.InstallationID("acme", "wiki")}}, Audience: "documents",
+		As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: state.InstallationID("acme", "wiki")}}, Audience: "wiki",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -258,8 +258,8 @@ func TestAnInstallationActsForItselfWithinItsRoleAndTheAudiencesCeiling(t *testi
 	if wc.GetOwnerPrincipalId() != state.InstallationID("acme", "wiki")+"/agent" || wc.GetOwnerPrincipalKind() != "agent" || wc.GetOwnerAgentId() != "wiki" {
 		t.Fatalf("owner = %s/%s/%s", wc.GetOwnerPrincipalId(), wc.GetOwnerPrincipalKind(), wc.GetOwnerAgentId())
 	}
-	if strings.Join(wc.GetAuthorityScopes()[0].GetActions(), ",") != "read" {
-		t.Fatalf("viewer role at documents = %v", wc.GetAuthorityScopes())
+	if wc.GetAuthorityScopes()[0].GetResourceKind() != "wiki.page" || strings.Join(wc.GetAuthorityScopes()[0].GetActions(), ",") != "read" {
+		t.Fatalf("viewer role at its solution = %v", wc.GetAuthorityScopes())
 	}
 	if _, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
 		As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: state.InstallationID("acme", "nothing")}}, Audience: "documents",

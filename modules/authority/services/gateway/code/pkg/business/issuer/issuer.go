@@ -236,6 +236,16 @@ func (i *Issuer) forPerson(ctx context.Context, sessionID string, audience state
 	if err != nil {
 		return "", nil, err
 	}
+	revision, err := i.state.AuthorizationRevision(ctx, sess.Organization)
+	if err != nil {
+		return "", nil, err
+	}
+	// Issue's audience lookup precedes this revision snapshot. Resolve any
+	// binding again below it so a concurrent delivery cannot supply old scopes.
+	audience, err = i.state.ModuleByPrincipal(audience.Principal)
+	if err != nil {
+		return "", nil, err
+	}
 	held, err := i.state.PersonScopes(sess.Person, audience.Principal)
 	if err != nil {
 		return "", nil, err
@@ -266,7 +276,7 @@ func (i *Issuer) forPerson(ctx context.Context, sessionID string, audience state
 	teams := slices.Clone(sess.Teams)
 	slices.Sort(teams)
 	teams = slices.Compact(teams)
-	return i.authority.Start(ctx, workcontext.StartInput{
+	return i.startAtRevision(ctx, revision, workcontext.StartInput{
 		TenantID: sess.Organization, OrganizationID: sess.Organization,
 		OwnerPrincipalID: sess.Person, OwnerPrincipalKind: "human",
 		TaskID: uuid.NewString(), SessionID: sess.ID,
@@ -301,35 +311,52 @@ func (i *Issuer) forWorkload(ctx context.Context, credential, org, bindingID, op
 	if err != nil {
 		return "", nil, err
 	}
-	return i.authority.Start(ctx, workcontext.StartInput{
+	token, signed, err := i.authority.Start(ctx, workcontext.StartInput{
 		TenantID: org, OrganizationID: org,
 		OwnerPrincipalID: module.Principal, OwnerPrincipalKind: "service",
 		TaskID: uuid.NewString(), Audience: audience.Principal, AuthorityScopes: scopes,
 		InstallationID: state.InstallationID(org, module.Module), OperationBindingID: fullID, TTL: ttl,
 	})
+	if err != nil {
+		return "", nil, err
+	}
+	if signed.GetSeal().GetPrincipalEpoch() != module.Generation || signed.GetOperationBinding().GetRevision() != module.Generation {
+		return "", nil, fmt.Errorf("%w: workload binding changed during issuance", ErrRefused)
+	}
+	return token, signed, nil
 }
 
 // forInstallation: owner = actor = the installation's agent; scopes = asked ∩
 // the installation's role ∩ the audience's ceiling.
 func (i *Issuer) forInstallation(ctx context.Context, id string, audience state.Manifest, asked []*basev0.WorkScopeV1, ttl time.Duration) (string, *basev0.WorkContextV1, error) {
-	inst, ok := i.state.Installation(id)
-	if !ok {
-		return "", nil, fmt.Errorf("%w: installation %q", state.ErrUnknown, id)
+	inst, held, revision, err := i.state.InstallationScopes(id, audience.Principal)
+	if err != nil {
+		return "", nil, err
 	}
-	if inst.Status != state.Active {
-		return "", nil, fmt.Errorf("%w: installation %s is %s", workcontext.ErrNoSeal, id, inst.Status)
-	}
-	held := state.Intersect(i.state.RoleScopes(inst.Organization, inst.Role), audience.ResourceKinds)
 	scopes, err := grant(asked, held)
 	if err != nil {
 		return "", nil, err
 	}
-	return i.authority.Start(ctx, workcontext.StartInput{
+	return i.startAtRevision(ctx, revision, workcontext.StartInput{
 		TenantID: inst.Organization, OrganizationID: inst.Organization,
 		OwnerPrincipalID: inst.AgentPrincipal(), OwnerPrincipalKind: "agent", OwnerAgentID: inst.Target,
 		TaskID: uuid.NewString(), Audience: audience.Principal, AuthorityScopes: scopes,
 		InstallationID: inst.ID, TTL: ttl,
 	})
+}
+
+// startAtRevision binds the permission reads to the revision Core stamps.
+// A concurrent grant change must not turn old scopes into fresh authority.
+// A change after Core reads the revision is rejected by ordinary verification.
+func (i *Issuer) startAtRevision(ctx context.Context, revision uint64, in workcontext.StartInput) (string, *basev0.WorkContextV1, error) {
+	token, signed, err := i.authority.Start(ctx, in)
+	if err != nil {
+		return "", nil, err
+	}
+	if signed.GetAuthorizationRevision() != revision {
+		return "", nil, fmt.Errorf("%w: permissions changed during issuance", ErrRefused)
+	}
+	return token, signed, nil
 }
 
 // child: one more hop, inherited from the owner. The parent is verified for its
@@ -444,6 +471,9 @@ func (i *Issuer) child(ctx context.Context, parent, actorCredential, bindingID, 
 			return "", nil, err
 		}
 		if n == len(hops) {
+			if signed.GetOperationBinding().GetRevision() != actor.Generation {
+				return "", nil, fmt.Errorf("%w: actor binding changed during issuance", ErrRefused)
+			}
 			// Reconstruction must not refresh a parent across revocation. Check
 			// the original capability after the final child has been signed.
 			if err := i.verifier(claims.GetAudience()).Recheck(ctx, verified); err != nil {
@@ -485,6 +515,10 @@ func (i *Issuer) forDelegation(ctx context.Context, id, actorCredential, binding
 	if d.Revoked {
 		return "", nil, fmt.Errorf("%w: delegation %s is revoked", ErrRefused, id)
 	}
+	revision, err := i.state.AuthorizationRevision(ctx, d.Organization)
+	if err != nil {
+		return "", nil, err
+	}
 	actor, err := i.state.VerifyWorkload(ctx, actorCredential)
 	if err != nil {
 		return "", nil, fmt.Errorf("an issue from a delegation names the module acting: %w", err)
@@ -518,7 +552,7 @@ func (i *Issuer) forDelegation(ctx context.Context, id, actorCredential, binding
 	if err != nil {
 		return "", nil, err
 	}
-	token, _, err := i.authority.Start(ctx, workcontext.StartInput{
+	token, _, err := i.startAtRevision(ctx, revision, workcontext.StartInput{
 		TenantID: d.Organization, OrganizationID: d.Organization,
 		OwnerPrincipalID: d.Grantor, OwnerPrincipalKind: "human",
 		TaskID: uuid.NewString(), Audience: audience.Principal, AuthorityScopes: scopes,
@@ -548,6 +582,9 @@ func (i *Issuer) forDelegation(ctx context.Context, id, actorCredential, binding
 	}
 	if d.Revoked {
 		return "", nil, fmt.Errorf("%w: delegation %s is revoked", ErrRefused, id)
+	}
+	if signed.GetOperationBinding().GetRevision() != actor.Generation {
+		return "", nil, fmt.Errorf("%w: actor binding changed during issuance", ErrRefused)
 	}
 	return token, signed, nil
 }
@@ -608,11 +645,8 @@ func (i *Issuer) ownerHolds(claims *basev0.WorkContextV1, audience state.Manifes
 	case "human":
 		return i.state.PersonScopes(owner, audience.Principal)
 	case "agent":
-		inst, ok := i.state.Installation(strings.TrimSuffix(owner, "/agent"))
-		if !ok || inst.Status != state.Active {
-			return nil, fmt.Errorf("%w: the installation that owns this context is not active", workcontext.ErrNoSeal)
-		}
-		return state.Intersect(i.state.RoleScopes(inst.Organization, inst.Role), audience.ResourceKinds), nil
+		_, scopes, _, err := i.state.InstallationScopes(strings.TrimSuffix(owner, "/agent"), audience.Principal)
+		return scopes, err
 	}
 	// A module's own context inherits nothing more at the next audience: its
 	// child carries what it was already delegated.

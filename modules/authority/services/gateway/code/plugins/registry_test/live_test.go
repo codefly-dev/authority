@@ -37,6 +37,6 @@ func TestARunningMiniGatewayPassesTheSuite(t *testing.T) {
 		Organization: "acme", ViewerToken: "fixture-maya", AdminToken: "fixture-alex",
 		Audience: "records", ReadKind: "records.records", Elsewhere: "model",
 		WorkloadModule: "org-directory", Binding: "records", BindingAudience: "records",
-		InstalledSolution: state.InstallationID("acme", "wiki"),
+		InstalledSolution: state.InstallationID("acme", "wiki"), InstalledAudience: "wiki",
 	})
 }

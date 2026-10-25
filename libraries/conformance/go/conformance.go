@@ -44,6 +44,7 @@ type Fixture struct {
 	BindingAudience    string // the audience Binding is addressed to; a hop exercising Binding is addressed here
 	Elsewhere          string // a composed audience the viewer's context at Audience is not addressed to
 	InstalledSolution  string // an active installation the viewer is entitled to
+	InstalledAudience  string // the installed solution principal; distinct from the organisation-role module Audience
 
 	// A delivery, as Codefly signs it. When SignManifest is set the suite applies
 	// manifests as signed carriers: core's module manifest for HostCoordinate and
@@ -411,20 +412,32 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		}
 	})
 	t.Run("an installation acts for itself", func(t *testing.T) {
+		if f.InstalledAudience == "" {
+			t.Fatal("fixture must name the installed solution audience")
+		}
 		admin := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.AdminToken})
 		list := c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "List", map[string]any{"organization_id": f.Organization})
-		var wiki protoreflect.Message
+		var installation protoreflect.Message
 		for _, i := range listMsgs(list, "installations") {
 			if str(i, "id") == f.InstalledSolution {
-				wiki = i
+				installation = i
 			}
 		}
-		if wiki == nil || enumName(wiki, "status") != "STATUS_ACTIVE" || str(wiki, "agent_principal_id") == "" {
-			t.Fatalf("installed solution = %v", wiki)
+		if installation == nil || enumName(installation, "status") != "STATUS_ACTIVE" || str(installation, "agent_principal_id") == "" {
+			t.Fatalf("installed solution = %v", installation)
 		}
-		out := c.must(t, ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"installation": map[string]any{"installation_id": str(wiki, "id")}, "audience": f.Audience})
-		if str(msg(out, "context"), "owner_principal_id") != str(wiki, "agent_principal_id") {
+		out := c.must(t, ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"installation": map[string]any{"installation_id": str(installation, "id")}, "audience": f.InstalledAudience})
+		if str(msg(out, "context"), "owner_principal_id") != str(installation, "agent_principal_id") {
 			t.Fatalf("installation issue: %v", out)
+		}
+		c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(out, "token"), "audience": f.InstalledAudience})
+		// The independent organisation role catalogue cannot grant this installation
+		// authority at an unrelated module merely because a role label matches.
+		if f.InstalledAudience != f.Audience {
+			_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"installation": map[string]any{"installation_id": str(installation, "id")}, "audience": f.Audience})
+			if status.Code(err) != codes.PermissionDenied {
+				t.Fatalf("installation acquired unrelated organisation-role authority: %v", err)
+			}
 		}
 	})
 	t.Run("a child hop attenuates and names its actor and its binding", func(t *testing.T) {

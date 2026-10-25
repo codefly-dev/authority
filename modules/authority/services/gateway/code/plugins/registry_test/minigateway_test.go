@@ -58,7 +58,7 @@ func TestTheMiniGatewayPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
 		// records binding; a context at records is refused at model.
 		Audience: "records", ReadKind: "records.records",
 		WorkloadModule: "org-directory", WorkloadCredential: k.Credential(t, "org-directory"), Binding: "records", BindingAudience: "records", Elsewhere: "model",
-		InstalledSolution: state.InstallationID("acme", "wiki"),
+		InstalledSolution: state.InstallationID("acme", "wiki"), InstalledAudience: "wiki",
 		// Deliveries are signed with the kit's release key and carried by the
 		// module's own workload under the launcher.
 		HostCoordinate: "local", HostDomain: "local",

@@ -339,6 +339,35 @@ no roles, so they travel in the authority's own document delivered with it
 within the solution's scope ceilings in the same document. This repository holds
 the contract and its evaluation, never a product's roles.
 
+An installation acting for itself resolves its selected role in that installed
+solution's manifest, using the same role source as installation validation.
+An organisation role with the same label supplies no authority to it. The
+requested audience still intersects that role with what it serves; a binding
+alone does not grant downstream module access. Downstream standing grants and
+host parity remain separate qualification work.
+
+Delivering a narrower or removed selected role, or narrowing the installer's
+role, advances active installation seals and the affected organisations'
+authorization revisions. Existing roots and descendants are then refused by
+Core's ordinary live verification. Role expansion alone leaves existing narrow
+installation roots valid; module actors still obey their generation checks.
+New issuance resolves the current declaration.
+
+Issuance binds those role reads to the authorization revision Core signs. If
+delivery changes it between resolution and minting, issuance refuses with
+`permissions changed during issuance`; it does not retry with the old scopes.
+Workload, delegated and child binding resolution likewise must match the signed
+binding's module generation. Narrowing, removing or retargeting a binding also
+advances the active installations' seals and organization revisions: person
+roots can carry its scopes for a later hop without carrying the module's epoch.
+Organization revision invalidation is coarse: unrelated existing capabilities in
+each affected organization also need fresh issuance. Current grants remain usable.
+A change after version capture leaves an older capability that ordinary
+verification refuses. Deterministic issuer tests cover
+role narrowing/removal and binding narrowing/removal before resolution, during
+minting and after issuance. These checks do not choose a child-scope policy or
+qualify the separate accounts implementation.
+
 The suite proves it as a matrix: the fixture states, for each person at each
 audience, which kind and action is allowed and which refused, and the suite asks
 for exactly that scope and expects the answer. The authority gateway's fixture carries

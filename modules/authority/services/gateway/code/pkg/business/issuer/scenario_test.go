@@ -140,13 +140,13 @@ func TestTheScenarioOneHopAtATime(t *testing.T) {
 
 	t.Run("6 overnight, the wiki reconciles, as itself", func(t *testing.T) {
 		out, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
-			As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: state.InstallationID("acme", "wiki")}}, Audience: "documents",
+			As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: state.InstallationID("acme", "wiki")}}, Audience: "wiki",
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
 		wc := out.GetContext()
-		// owner = actor = the wiki at Acme; scopes = what Acme consented to at install (viewer) ∩ documents' ceiling.
+		// owner = actor = the wiki at Acme; scopes = what Acme consented to at install (viewer) ∩ the solution's own ceiling. No downstream grant is implied.
 		if wc.GetOwnerPrincipalId() != state.InstallationID("acme", "wiki")+"/agent" || wc.GetOwnerAgentId() != "wiki" || wc.GetSeal().GetInstallationId() != state.InstallationID("acme", "wiki") ||
 			strings.Join(wc.GetAuthorityScopes()[0].GetActions(), ",") != "read" {
 			t.Fatalf("step 6 token = %v", wc)
@@ -155,7 +155,7 @@ func TestTheScenarioOneHopAtATime(t *testing.T) {
 		if err := k.State.Revoke(state.InstallationID("acme", "wiki")); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := k.Issuer.Check(ctx, out.GetToken(), "documents", ""); err == nil {
+		if _, err := k.Issuer.Check(ctx, out.GetToken(), "wiki", ""); err == nil {
 			t.Fatal("an uninstalled wiki still acted")
 		}
 	})

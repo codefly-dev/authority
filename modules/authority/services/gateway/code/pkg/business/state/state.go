@@ -828,6 +828,7 @@ func (s *State) ApplyManifest(m Manifest) ([]string, error) {
 		}
 	}
 	m.ResourceKinds = Normalize(append(m.ResourceKinds, servedByMethods(m.Methods)...))
+	s.invalidateNarrowedAuthority(m)
 	s.modules[m.Module] = m
 	s.refreshDeveloperRoles()
 	s.principals[m.Principal] = m.Module
@@ -839,6 +840,46 @@ func (s *State) ApplyManifest(m Manifest) ([]string, error) {
 		return nil, err
 	}
 	return ids, nil
+}
+
+// invalidateNarrowedAuthority advances the existing live revisions when delivery
+// removes role or binding authority. Person roots can carry binding scopes for a
+// later module hop without that module's epoch, so generation alone is not enough.
+// Caller holds mu; expansion does not advance these revisions.
+func (s *State) invalidateNarrowedAuthority(next Manifest) {
+	previous, ok := s.modules[next.Module]
+	if !ok {
+		return
+	}
+	bindingsNarrowed := false
+	for id, old := range previous.Bindings {
+		binding, exists := next.Bindings[id]
+		if !exists || old.Audience != binding.Audience ||
+			!Attenuates(old.InvokeScopes, binding.InvokeScopes) ||
+			!Attenuates(old.HeadlessScopes, binding.HeadlessScopes) ||
+			!Attenuates(old.LookupScopes, binding.LookupScopes) {
+			bindingsNarrowed = true
+			break
+		}
+	}
+	changed := map[string]bool{}
+	for id, inst := range s.installations {
+		if inst.Target != next.Module || inst.Status != Active {
+			continue
+		}
+		rolesNarrowed := previous.Kind == "solution" &&
+			(!Attenuates(previous.Roles[inst.Role], next.Roles[inst.Role]) ||
+				!Attenuates(previous.Roles[InstallerRole], next.Roles[InstallerRole]))
+		if !bindingsNarrowed && !rolesNarrowed {
+			continue
+		}
+		inst.Revision++
+		s.installations[id] = inst
+		changed[inst.Organization] = true
+	}
+	for org := range changed {
+		s.revisions[org]++
+	}
 }
 
 // takePendingInstalls removes and returns the fixture installations waiting for
@@ -1015,6 +1056,35 @@ func (s *State) Installation(id string) (Installation, bool) {
 	defer s.mu.RUnlock()
 	i, ok := s.installations[id]
 	return i, ok
+}
+
+// InstallationScopes resolves the selected role in the installed solution's
+// declaration, never in the organisation's independent role catalogue. The
+// installation, role, audience and authorization revision share one snapshot.
+// Issuance must not stamp these scopes with a different revision.
+func (s *State) InstallationScopes(id, audience string) (Installation, []*basev0.WorkScopeV1, uint64, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	inst, ok := s.installations[id]
+	if !ok {
+		return Installation{}, nil, 0, fmt.Errorf("%w: installation %q", ErrUnknown, id)
+	}
+	if inst.Status != Active {
+		return Installation{}, nil, 0, fmt.Errorf("%w: installation %s is %s", workcontext.ErrNoSeal, id, inst.Status)
+	}
+	target, ok := s.modules[inst.Target]
+	if !ok || target.Kind != "solution" {
+		return Installation{}, nil, 0, fmt.Errorf("%w: installation target is not a delivered solution", ErrUnknown)
+	}
+	held, ok := target.Roles[inst.Role]
+	if !ok {
+		return Installation{}, nil, 0, fmt.Errorf("%w: role %q is no longer declared by %s", ErrUnknown, inst.Role, inst.Target)
+	}
+	served, err := s.moduleByPrincipal(audience)
+	if err != nil {
+		return Installation{}, nil, 0, err
+	}
+	return inst, Intersect(held, served.ResourceKinds), s.revisions[inst.Organization] + 1, nil
 }
 
 // List answers what one organisation has installed, sorted by id.
