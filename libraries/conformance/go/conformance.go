@@ -77,6 +77,9 @@ type Fixture struct {
 	// ChildScopes distinguishes target-local binding projection from a stored
 	// delegation's enduring action/resource ceiling. Nil leaves this line unproven.
 	ChildScopes *ChildScopesCase
+	// InstallationChain exercises successive module actors under one installed
+	// solution's role. Nil leaves installation-owned multi-hop work unproven.
+	InstallationChain *InstallationChainCase
 
 	// SlowChecks runs the lines that must wait on the clock, such as a token
 	// expiring past core's skew; off by default.
@@ -545,6 +548,12 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			t.Skip("the fixture states no child-scope case")
 		}
 		c.childScopes(t, ctx, *f.ChildScopes)
+	})
+	t.Run("an installation owner survives successive module actors", func(t *testing.T) {
+		if f.InstallationChain == nil {
+			t.Skip("the fixture states no installation-owned chain")
+		}
+		c.installationChain(t, ctx, *f.InstallationChain)
 	})
 	t.Run("a check naming a method applies what the module's delivery declares", func(t *testing.T) {
 		if f.SignManifest == nil || f.SignAuthority == nil {

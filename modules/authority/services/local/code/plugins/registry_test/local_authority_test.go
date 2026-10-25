@@ -29,6 +29,21 @@ import (
 func TestTheLocalAuthorityPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
 	k := testkit.New(t)
 	testkit.SolutionTools(t, k)
+	source := testkit.Wiki(1)
+	source.Module, source.Principal = "assistant", "assistant"
+	source.Bindings = map[string]state.Binding{
+		"directory": {ID: "directory", Audience: "org-directory", InvokeScopes: testkit.OrgDirectory(1).ResourceKinds},
+		"documents": testkit.OrgDirectory(1).Bindings["documents"],
+		"model":     testkit.Documents(1).Bindings["model"],
+	}
+	source.Roles["viewer"] = append(source.Roles["viewer"], testkit.Scope("directory.entry", "read"), testkit.Scope("documents", "read"), testkit.Scope("modelservice.profiles", "read"))
+	if _, err := k.State.ApplyManifest(source); err != nil {
+		t.Fatal(err)
+	}
+	installedChain, err := k.State.Install(context.Background(), "acme", source.Module, "viewer", "alex")
+	if err != nil {
+		t.Fatal(err)
+	}
 	// The explicit two-target delegation must name a target the granting module
 	// declares, even when the live call reaches it through another module.
 	directory := testkit.OrgDirectory(2)
@@ -81,6 +96,14 @@ func TestTheLocalAuthorityPassesTheSuiteEveryImplementationMustPass(t *testing.T
 		Matrix:             testkit.Matrix(),
 		ChildScopes: &conformance.ChildScopesCase{Chain: chain, FirstActions: []string{"read", "write"}, NextActions: []string{"read", "invoke"},
 			OutsideKind: "directory.entry", OutsideAction: "read", ResourceID: "a", OtherResourceID: "b", DroppedAction: "invoke"},
+		InstallationChain: &conformance.InstallationChainCase{
+			Installation: installedChain.ID, Source: source.Principal, Credential: k.Credential(t, source.Module),
+			Hops: []conformance.Hop{
+				{Credential: k.Credential(t, source.Module), Binding: "directory", Audience: "org-directory", AskKind: "directory.entry", AskAction: "read"},
+				{Credential: k.Credential(t, "org-directory"), Binding: "documents", Audience: "documents", AskKind: "documents", AskAction: "read"},
+				{Credential: k.Credential(t, "documents"), Binding: "model", Audience: "model", AskKind: "modelservice.profiles", AskAction: "read"},
+			},
+		},
 		// Maya reads the directory's and the wiki's collections and every shared
 		// one, and administers none: the authority's answer, not her token's.
 		// The page may write documents for Rémi, and a lookup through it reads.

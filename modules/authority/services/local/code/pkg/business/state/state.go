@@ -1254,7 +1254,9 @@ func (s *State) VerifyWorkload(ctx context.Context, credential string) (Manifest
 
 // Seal answers for a principal's use of an installation: the installation must
 // be active and the principal must be a member of its organisation, a composed
-// module, or the installation's own agent.
+// module, the installation's own agent, or an active solution installation's
+// agent acting through a module in the same organisation. Role scopes are
+// resolved by the issuer; a seal association grants no additional actions.
 func (s *State) Seal(_ context.Context, principalID, installationID string) (workcontext.Seal, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -1266,10 +1268,27 @@ func (s *State) Seal(_ context.Context, principalID, installationID string) (wor
 	case principalID == inst.AgentPrincipal():
 	case s.isModulePrincipal(principalID):
 	case s.isMember(principalID, inst.Organization):
+	case s.installationAgentAtModule(principalID, inst):
 	default:
 		return workcontext.Seal{}, workcontext.ErrNoSeal
 	}
 	return workcontext.Seal{InstallationID: inst.ID, InstallationRevision: inst.Revision}, nil
+}
+
+// installationAgentAtModule is called under the state lock. The actor's binding
+// remains sealed to that module's installation; the original solution agent
+// remains the owner. Its source installation must still be active. Other
+// solutions and organisations acquire no association through this rule.
+func (s *State) installationAgentAtModule(principalID string, target Installation) bool {
+	id, agent := strings.CutSuffix(principalID, "/agent")
+	if !agent {
+		return false
+	}
+	source, ok := s.installations[id]
+	if !ok || source.Status != Active || source.Organization != target.Organization {
+		return false
+	}
+	return s.modules[source.Target].Kind == "solution" && s.modules[target.Target].Kind == "module"
 }
 
 // PrincipalEpoch is a module's generation, and 1 for a person or an agent.

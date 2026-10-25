@@ -13,7 +13,8 @@ This repository holds two things, and only these two:
    a Codefly interface declaring what a module or solution calls on the host that
    runs it. Issue a Work Context for a person, an installation or a module's own
    binding; re-address, derive a child, renew; check a revision live; the current
-   installation. The host's `accounts` service implements it in full. A module
+   installation. The host's `accounts` service implements the same interface;
+   provider qualification gaps are recorded below. A module
    depends on the interface, never on a service.
 2. **The local authority** (`modules/authority/services/local`): the development
    implementation. One process that signs in fixture people with their roles,
@@ -22,12 +23,13 @@ This repository holds two things, and only these two:
    service, no stores, no platform frontend. Running a solution locally is the
    solution, the modules it consumes, and this.
 
-**What keeps the local authority from being a second authority.** It links the same
-packages `accounts` uses to sign in, mint and derive a module's grant from its
-manifest, and the conformance kit runs against both implementations in one test.
-It is a profile of the host, not a reimplementation. If a package of `accounts`
-cannot be linked without its store, the package is split in the host; nothing is
-copied here.
+**What is reused today.** The local implementation uses Core's Work Context
+authority/verifier, workload attestation and signed composition machinery.
+Its issuer/state resolves fixture grants; it does not currently link Accounts'
+sign-in or grant-derivation packages. The original host-package reuse requirement
+remains an unresolved design obligation with the host owner, not a guarantee
+established by this checkout. The shared conformance suite must run against both
+implementations; a local pass or a skipped provider scenario does not prove parity.
 
 **What this repo is, in one line.** The interfaces the host's saas component
 MUST satisfy, with the suite that proves it, and the development implementation
@@ -804,10 +806,12 @@ each suite line skips for a fixture that states no case.
 
 ## Open decisions
 
-- **Decided 2026-10-23, the hop rule.** A module hops only on a person's token
-  addressed to it, the hop names the binding it exercises, and the person's token
-  names that binding too, so the child carries exactly what the person holds
-  through the binding at its audience. Core stands unchanged. The local authority
+- **Decided 2026-10-23, the hop rule.** A module hops only on a verified token
+  addressed to it, and the hop names the binding it exercises. Current child
+  derivation supports person and installation owners through their target grants;
+  service-owned work remains bounded by its existing effective scopes. The
+  target-projection and stored-delegation rules above state these distinctions.
+  Core stands unchanged. The local authority
   and the suite state it; the host's `childHop` and its person issue follow
   (saas #1219 is the person half there). History:
   The host's `module_actor` mode (saas #1215) requires the person's parent to be
@@ -867,12 +871,29 @@ A solution target bounds the whole child by its person role and binding; ordinar
 module-to-module derivation is unchanged. Hosts supply `SolutionTools` to run this
 additional shared scenario; a missing scenario is reported as skipped.
 
+An installation owner can cross successive module actors in its organisation.
+The local seal source associates an active solution installation's agent with
+active module installations in that same organisation. The acting module's
+binding remains sealed to its own installation, and Core's binding/seal
+verification is unchanged. The issuer still derives each target from the
+original installation's current role and the binding; the seal association adds
+no actions or resource rights. It does not associate an agent with another
+solution installation or another organisation.
+
+Issuer tests cover exact owner/actor provenance, resource restrictions, wrong
+actors, source and actor uninstall, role/binding narrowing, and source uninstall
+during issuance. Shared conformance hosts supply `InstallationChain` to prove
+successive module hops; the local fixture crosses three actors. A missing
+fixture is skipped, not evidence of provider parity. These are offline
+authority tests, not a live solution or SaaS qualification.
+
 Target-solution consent for installation-owned tool calls is **not implemented**.
 The executable regression is deliberately behind the `pending` build tag:
 `go test -tags pending ./pkg/business/issuer -run
 TestInstallationToolRequiresTargetSolutionConsent` from the local service's
 `code/` directory. It currently fails for direct issuance based on the source
-solution's role alone; the two-hop case also fails because its refusal comes from
-an unrelated installation seal. Neither result proves target consent. The
+solution's role alone; the two-hop case now also issues without target consent.
+Neither result proves target consent. The
 positive consent relationship and its revocation remain an authority contract
-and implementation gap; no extra grant or weaker seal was added to hide it.
+and implementation gap. No target-consent grant was invented, and Core's
+binding verification was not bypassed to hide it.

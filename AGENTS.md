@@ -13,8 +13,14 @@ another clause, it does not belong here.
   not also use; any solution, customer or business-line name; a route of the
   product frontend; anything the CLI should do (rendering, per-process launcher
   credentials).
-- **Depends on:** the host's authority packages (codefly-dev/module-saas-starter)
-  and core's Work Context types until step 3 moves them here.
+- **Depends on today:** Core's Work Context authority/verifier, workload
+  attestation and composition packages, plus this repo's libraries. The local
+  service does not currently import module-saas-starter.
+
+The host-package reuse requirement above is an unresolved design obligation:
+the existing local issuer/state resolves fixture grants itself. Do not add a
+parallel resolver, infer that local tests prove SaaS parity, or silently erase
+that obligation to match the implementation. Reconcile it with the host owner.
 
 Rules, governed by https://github.com/obin-ai/handbook/blob/main/concepts/boundaries.md
 and the development contract at
