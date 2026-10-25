@@ -2,7 +2,7 @@ package decide
 
 import (
 	"context"
-	"strings"
+	"errors"
 	"testing"
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
@@ -14,42 +14,50 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-type refusing struct{}
+// unsound is the authority refusing the Work Context itself: verification, not
+// the method's policy, so even an advisory Check refuses it.
+type unsound struct{}
 
-func (refusing) Check(context.Context, *authorityv1.CheckRequest, ...grpc.CallOption) (*authorityv1.CheckResponse, error) {
-	return nil, status.Error(codes.PermissionDenied, "robin requires robin.intents:read_config for GET /v1/robin/intents/version, which the call does not hold")
+func (unsound) Check(context.Context, *authorityv1.CheckRequest, ...grpc.CallOption) (*authorityv1.CheckResponse, error) {
+	return nil, status.Error(codes.Unauthenticated, "the Work Context's signature does not verify")
 }
 
-// Permissive, the hop lets a refused call through: the module is the token's
-// audience, the identity what the token claims, the refusal rides as the
-// stamp's advisory and is told to Warned. Enforcing, the refusal stands.
-func TestAPermissiveHopLetsARefusedCallThroughWithTheRefusalAsAdvisory(t *testing.T) {
-	var warned string
-	d := Decider{Authority: refusing{}, Modules: map[string]bool{"robin": true}, Permissive: true,
-		Warned:     func(method string, err error) { warned = method + ": " + err.Error() },
-		AudienceOf: func(string) (string, error) { return "robin", nil }}
-	md := metadata.Pairs(hop.WorkContextKey, "not-a-core-token")
-	module, id, err := d.Decide(context.Background(), "GET /v1/robin/intents/version", md)
-	if err != nil || module != "robin" {
-		t.Fatalf("permissive: %v %v", module, err)
+// Permissive or not, a call whose identity the authority could not establish is
+// refused: a missing, ambiguous or undecodable Work Context, one addressed to a
+// module the hop does not front, one the authority refuses as unsound, and one
+// the authority could not be asked about. Nothing is stamped as a developer.
+func TestAPermissiveHopStillRefusesWhatHasNoSoundIdentity(t *testing.T) {
+	audience := func(string) (string, error) { return "robin", nil }
+	undecodable := func(string) (string, error) { return "", errors.New("not a Work Context") }
+	for _, tc := range []struct {
+		name string
+		d    Decider
+		md   metadata.MD
+		code codes.Code
+	}{
+		{"no work context", Decider{Authority: advisoryChecker{}, AudienceOf: audience}, nil, codes.Unauthenticated},
+		{"two work contexts", Decider{Authority: advisoryChecker{}, AudienceOf: audience}, metadata.Pairs(hop.WorkContextKey, "a", hop.WorkContextKey, "b"), codes.InvalidArgument},
+		{"undecodable", Decider{Authority: advisoryChecker{}, AudienceOf: undecodable}, metadata.Pairs(hop.WorkContextKey, "x"), codes.Unauthenticated},
+		{"not fronted", Decider{Authority: advisoryChecker{}, AudienceOf: func(string) (string, error) { return "documents", nil }}, metadata.Pairs(hop.WorkContextKey, "x"), codes.PermissionDenied},
+		{"unsound", Decider{Authority: unsound{}, AudienceOf: audience}, metadata.Pairs(hop.WorkContextKey, "x"), codes.Unauthenticated},
+		{"authority unreachable", Decider{Authority: unreachable{}, AudienceOf: audience}, metadata.Pairs(hop.WorkContextKey, "x"), codes.Unavailable},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			warnings := 0
+			d := tc.d
+			d.Modules, d.Permissive, d.Warned = map[string]bool{"robin": true}, true, func(string, error) { warnings++ }
+			module, id, err := d.Decide(context.Background(), "GET /v1/robin/intents/version", tc.md)
+			if status.Code(err) != tc.code || module != "" || id.Owner != "" || warnings != 0 {
+				t.Fatalf("module=%q id=%+v error=%v warnings=%d; want refused %v, nothing warned", module, id, err, warnings, tc.code)
+			}
+		})
 	}
-	if id.Owner != "developer" || id.Tenant != "local" || id.Advisory == "" {
-		t.Fatalf("an undecodable token is stamped as a developer with the advisory: %+v", id)
-	}
-	if warned == "" {
-		t.Fatal("the refusal was not told")
-	}
-	stamp := metadata.MD{}
-	hop.Stamp(stamp, id, "proof")
-	read, err := hop.Read(stamp, "proof")
-	if err != nil || read.Advisory != id.Advisory {
-		t.Fatalf("the advisory rides the stamp: %+v %v", read, err)
-	}
+}
 
-	strict := Decider{Authority: refusing{}, Modules: map[string]bool{"robin": true}, AudienceOf: func(string) (string, error) { return "robin", nil }}
-	if _, _, err := strict.Decide(context.Background(), "GET /v1/robin/intents/version", md); err == nil || status.Code(err) != codes.PermissionDenied {
-		t.Fatalf("enforcing, the refusal stands: %v", err)
-	}
+type unreachable struct{}
+
+func (unreachable) Check(context.Context, *authorityv1.CheckRequest, ...grpc.CallOption) (*authorityv1.CheckResponse, error) {
+	return nil, status.Error(codes.Unavailable, "connection refused")
 }
 
 // The gateway already provides verified identity with an advisory. The hop
@@ -68,6 +76,9 @@ func (advisoryChecker) Check(_ context.Context, req *authorityv1.CheckRequest, _
 	}}, nil
 }
 
+// Permissive, a call the method's policy refuses goes through with the
+// identity the authority verified and the refusal as the stamp's advisory,
+// told to Warned. Enforcing, the same refusal stands.
 func TestPermissivePolicyUsesTheAuthorityAdvisoryIdentity(t *testing.T) {
 	warnings := 0
 	d := Decider{Authority: advisoryChecker{}, Modules: map[string]bool{"documents": true}, Permissive: true,
@@ -79,6 +90,7 @@ func TestPermissivePolicyUsesTheAuthorityAdvisoryIdentity(t *testing.T) {
 			}
 		},
 	}
+	stamp := metadata.MD{}
 	module, id, err := d.Decide(context.Background(), "POST /documents/write", metadata.Pairs(hop.WorkContextKey, "test-context"))
 	if err != nil || module != "documents" || warnings != 1 {
 		t.Fatalf("decision = %q, %v; warnings = %d", module, err, warnings)
@@ -89,31 +101,13 @@ func TestPermissivePolicyUsesTheAuthorityAdvisoryIdentity(t *testing.T) {
 	if id.Advisory != "write scope missing" || len(id.Actors) != 1 || id.Actors[0] != "robin" || len(id.Scopes) != 1 || id.Scopes[0] != "documents:read" {
 		t.Fatalf("lost advisory or effective scopes: %+v", id)
 	}
-}
+	hop.Stamp(stamp, id, "proof")
+	if read, err := hop.Read(stamp, "proof"); err != nil || read.Advisory != id.Advisory {
+		t.Fatalf("the advisory rides the stamp: %+v %v", read, err)
+	}
 
-func TestPermissiveFallbackNeedsAnUnambiguousDestination(t *testing.T) {
-	for _, tc := range []struct {
-		name       string
-		modules    map[string]bool
-		code       codes.Code
-		diagnostic string
-		module     string
-		warnings   int
-	}{
-		{name: "none", modules: map[string]bool{}, code: codes.Internal, diagnostic: "fronts no module"},
-		{name: "sole upstream", modules: map[string]bool{"records": true, "documents": false}, code: codes.OK, module: "records", warnings: 1},
-		{name: "unresolved audience", modules: map[string]bool{"records": true, "documents": true}, code: codes.FailedPrecondition, diagnostic: "without a module audience"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			warnings := 0
-			d := Decider{Permissive: true, Modules: tc.modules, Warned: func(string, error) { warnings++ }}
-			module, _, err := d.Decide(context.Background(), "/records.v1.RecordsService/ReadRecord", nil)
-			if module != tc.module || status.Code(err) != tc.code || warnings != tc.warnings {
-				t.Fatalf("module=%q error=%v warnings=%d; want %q %v %d", module, err, warnings, tc.module, tc.code, tc.warnings)
-			}
-			if tc.diagnostic != "" && !strings.Contains(status.Convert(err).Message(), tc.diagnostic) {
-				t.Fatalf("missing routing diagnostic %q: %v", tc.diagnostic, err)
-			}
-		})
+	strict := Decider{Authority: advisoryChecker{}, Modules: map[string]bool{"documents": true}, AudienceOf: func(string) (string, error) { return "documents", nil }}
+	if _, _, err := strict.Decide(context.Background(), "POST /documents/write", metadata.Pairs(hop.WorkContextKey, "test-context")); status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("enforcing, the policy refusal stands: %v", err)
 	}
 }

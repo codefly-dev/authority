@@ -30,13 +30,14 @@ type Checker interface {
 type Decider struct {
 	Authority Checker
 	Modules   map[string]bool
-	// Permissive is hop/ENFORCEMENT=warn: the authority is still asked, and
-	// whatever it answers the call goes through, stamped with who the token
-	// says it is (a developer identity when there is none) and with the
-	// refusal the hop did not make, which it also logs. The composition says
-	// so; a cell never does.
+	// Permissive is hop/ENFORCEMENT=warn: the authority is asked for advice,
+	// verifies the Work Context as always, and answers what the method's
+	// policy would have refused beside the verified identity; the call goes
+	// through stamped with that identity and the refusal as its advisory,
+	// which the hop also logs. An unsound or missing Work Context is still
+	// refused. The composition says so; a cell never does.
 	Permissive bool
-	// Warned is told each refusal the permissive hop let through.
+	// Warned is told each policy refusal the permissive hop let through.
 	Warned func(method string, err error)
 	// AudienceOf reads the module a token is addressed to; nil decodes it with
 	// core, unverified, which is all the hop needs before the authority checks.
@@ -52,63 +53,12 @@ func coreAudience(token string) (string, error) {
 }
 
 // Decide returns the module a call is for and who it acts for, or the refusal.
+// Permissive changes one answer only: the authority verified the Work Context
+// and the method's policy would have refused it (decide's advisory path). A
+// call whose Work Context is missing, unsound or addressed elsewhere, or that
+// the authority could not be asked about, is refused in either mode.
 func (d Decider) Decide(ctx context.Context, method string, md metadata.MD) (string, hop.Identity, error) {
-	module, id, err := d.decide(ctx, method, md)
-	if err == nil || !d.Permissive {
-		return module, id, err
-	}
-	refusal := err
-	module, id, err = d.permit(method, md, refusal)
-	if err == nil && d.Warned != nil {
-		d.Warned(method, refusal)
-	}
-	return module, id, err
-}
-
-// permit is the permissive hop's answer to a refusal: the module the call
-// names (or its sole upstream), the identity the token claims unverified
-// (or a developer's), and the refusal carried as the stamp's advisory.
-func (d Decider) permit(method string, md metadata.MD, refusal error) (string, hop.Identity, error) {
-	id := hop.Identity{Owner: "developer", OwnerKind: "human", Tenant: "local", Advisory: refusal.Error()}
-	module := ""
-	if tokens := md.Get(hop.WorkContextKey); len(tokens) == 1 {
-		if decoded, err := workcontext.Decode(tokens[0]); err == nil {
-			wc := decoded.Context()
-			id = hop.Identity{Owner: wc.GetOwnerPrincipalId(), OwnerKind: wc.GetOwnerPrincipalKind(), Tenant: wc.GetTenantId(),
-				Task: wc.GetTaskId(), Expires: wc.GetExpiresAtUnix(), Binding: wc.GetOperationBinding().GetBindingId(), Advisory: refusal.Error()}
-			for _, scope := range wc.GetAuthorityScopes() {
-				for _, action := range scope.GetActions() {
-					id.Scopes = append(id.Scopes, scope.GetResourceKind()+":"+action)
-				}
-			}
-			for _, actor := range wc.GetActorChain() {
-				id.Actors = append(id.Actors, actor.GetPrincipalId())
-			}
-			if d.Modules[wc.GetAudience()] {
-				module = wc.GetAudience()
-			}
-		}
-	}
-	if module == "" {
-		names := make([]string, 0, len(d.Modules))
-		for name, enabled := range d.Modules {
-			if enabled {
-				names = append(names, name)
-			}
-		}
-		slices.Sort(names)
-		if len(names) == 0 {
-			return "", hop.Identity{}, status.Errorf(codes.Internal, "the hop fronts no module")
-		}
-		if len(names) > 1 {
-			return "", hop.Identity{}, status.Errorf(codes.FailedPrecondition, "the permissive hop cannot route %s without a module audience; it fronts %v", method, names)
-		}
-		module = names[0]
-	}
-	if id.Owner == "" || id.Tenant == "" {
-		id.Owner, id.OwnerKind, id.Tenant = "developer", "human", "local"
-	}
-	return module, id, nil
+	return d.decide(ctx, method, md)
 }
 
 func (d Decider) decide(ctx context.Context, method string, md metadata.MD) (string, hop.Identity, error) {
