@@ -106,6 +106,10 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		e.signOut(w, r)
 		return
 	}
+	if strings.HasPrefix(r.URL.Path, "/auth/assets/") {
+		e.signInAsset(w, r)
+		return
+	}
 	if module, target, ok := e.route(r.URL.Path); ok {
 		e.toModule(w, r, module, target)
 		return

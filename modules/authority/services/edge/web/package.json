@@ -1,0 +1,23 @@
+{
+  "name": "edge-sign-in",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "The edge's sign-in page, built from the platform's UI kit into code/signin/out for go:embed.",
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@codefly-dev/ui": "0.13.2",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.0"
+  }
+}

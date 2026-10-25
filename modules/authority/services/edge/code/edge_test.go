@@ -319,8 +319,9 @@ func TestTheSessionSaysWhyATargetIsNotUsable(t *testing.T) {
 func TestTheSignInPageListsTheAuthoritysPeople(t *testing.T) {
 	f := newFixture(t)
 	res, body := f.do(t, http.MethodGet, "/auth/sign-in?return=/records%3Ftab%3Dschemas", nil)
-	if res.StatusCode != http.StatusOK || !strings.Contains(body, "remi@acme.test") || !strings.Contains(body, `value="fixture-remi"`) || !strings.Contains(body, `value="/records?tab=schemas"`) {
-		t.Fatalf("the page answered %d: %s", res.StatusCode, body)
+	data := pageData(t, res, body)
+	if data.Return != "/records?tab=schemas" || len(data.People) != 1 || data.People[0].Email != "remi@acme.test" || data.People[0].FixtureToken != "fixture-remi" {
+		t.Fatalf("the page carries %+v", data)
 	}
 	for _, elsewhere := range []string{"https://elsewhere.test/", "//elsewhere.test/", "/\\elsewhere.test/", "records"} {
 		if res, _ := f.signInAs(t, "fixture-remi", elsewhere, f.edge.URL); res.Header.Get("Location") != "/" {
