@@ -440,6 +440,16 @@ token and asks no authority. The stamp is believed only with the run's proof,
 which Codefly generates and delivers to the hop and the module alone. In a cell
 the mesh plays that part.
 
+The hop and the edge ask the host the composition names in the `authority`
+group's `endpoint`, the key every module reads for the same host, so pointing
+that key at saas accounts' Connect listener moves them with the modules:
+`host:port` and `http://` are the run's plaintext transport (h2c), `https://` is
+TLS. A composition that names none reaches the authority module's own gateway.
+Under `hop/ENFORCEMENT=warn` the hop lets through a call the authority verified
+and the method's policy would have refused, stamped with that refusal as its
+advisory; a call with a missing, unsound or misaddressed Work Context, or one
+the authority could not be asked about, is refused in either mode.
+
 This run's hop fronts the console, whose one operation answers who the call is
 for. Run it from the playground workspace, `playground/`, which composes this
 repository's modules with the platform's stores and the directory's page:

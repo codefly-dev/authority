@@ -32,13 +32,14 @@ func standInFront(ctx context.Context, config *adapters.Configuration) (Clean, e
 	if err != nil || proof == "" {
 		return nil, fmt.Errorf("hop: no run proof delivered (codefly config generate hop PROOF): %v", err)
 	}
-	// The authority, through the interface the hop depends on. The SDK resolves an
-	// endpoint by its provider, not yet by the interface it implements, so this
-	// names the provider the local composition binds; the host is another one.
-	authority, err := dial(ctx, "authority", "gateway")
+	// The authority, through the interface the hop depends on: the host the
+	// composition names in authority/endpoint (saas accounts, say), else the
+	// authority module's mini gateway (host.go).
+	authority, at, err := dialHost(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("hop: %w", err)
 	}
+	w.Info("asking the authority", wool.Field("at", at))
 	// The modules this hop stands in front of are the composition's to name:
 	// MODULES lists their principals, and each one's endpoint is
 	// UPSTREAM_<MODULE> for a module serving gRPC, HTTP_UPSTREAM_<MODULE> for
@@ -145,12 +146,4 @@ func address(endpoint string) string {
 		endpoint = strings.TrimPrefix(endpoint, scheme)
 	}
 	return endpoint
-}
-
-func dial(ctx context.Context, module, service string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-	instance, err := codefly.For(ctx).Module(module).Service(service).API("grpc").ResolveNetworkInstance()
-	if err != nil {
-		return nil, fmt.Errorf("hop: cannot resolve %s/%s: %w", module, service, err)
-	}
-	return grpc.NewClient(fmt.Sprintf("%s:%d", instance.Hostname, instance.Port), append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))...)
 }

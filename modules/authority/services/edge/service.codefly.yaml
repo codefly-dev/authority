@@ -9,8 +9,15 @@ agent:
 # browser talks to. A person signs in here; every call to a module is routed by
 # its path to the module's own HTTP face with the person's Work Context, and the
 # hop in front of the module checks and stamps it (code/edge.go).
+# The host interfaces the edge calls: session (SignIn, Current,
+# ListFixturePeople), installation (List) and authority (Issue). The edge
+# reaches the host the composition names in the authority group's endpoint —
+# saas accounts implements the same interfaces — and the mini gateway that
+# implements all three when it names none (code/host.go).
 service-dependencies:
     - interface: codefly.dev/authority@0.1.0
+    - interface: codefly.dev/session@0.1.0
+    - interface: codefly.dev/installation@0.1.0
 workspace-configuration-dependencies:
     # The modules the edge routes to, their REST and Connect faces, and the
     # frontend every other path serves (code/main.go).
