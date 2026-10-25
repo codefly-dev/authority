@@ -215,6 +215,57 @@ func TestAPersonSignsInAtTheEdge(t *testing.T) {
 	}
 }
 
+// listing answers List with a fixed error, as a host does that lists an
+// organisation's installations for its admins only, or cannot be reached.
+type listing struct {
+	*standIn
+	err error
+}
+
+func (l listing) List(context.Context, *installationv1.ListRequest, ...grpc.CallOption) (*installationv1.ListResponse, error) {
+	return nil, l.err
+}
+
+// A host refusing this person the organisation's installations leaves the
+// session standing with none to bind to and the refusal said; a host that
+// does not answer is still the edge's 502.
+func TestARefusedInstallationListLeavesTheSessionWithNone(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+		code int
+	}{
+		{"not an admin", status.Error(codes.PermissionDenied, "listing installations is for acme's admins"), http.StatusOK},
+		{"unavailable", status.Error(codes.Unavailable, "connection refused"), http.StatusBadGateway},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t)
+			cookie := f.signIn(t)
+			e := &Edge{Sessions: f.authority, Authority: f.authority, Installations: listing{f.authority, tc.err}, Modules: map[string]Module{}}
+			res := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/auth/session", nil)
+			req.AddCookie(cookie)
+			e.ServeHTTP(res, req)
+			if res.Code != tc.code {
+				t.Fatalf("session answered %d: %s", res.Code, res.Body)
+			}
+			if tc.code != http.StatusOK {
+				return
+			}
+			var who map[string]any
+			if err := json.Unmarshal(res.Body.Bytes(), &who); err != nil || who["personId"] != "remi" {
+				t.Fatalf("session = %s (%v)", res.Body, err)
+			}
+			if installed, ok := who["installations"].([]any); !ok || len(installed) != 0 {
+				t.Fatalf("installations = %v, want an empty list", who["installations"])
+			}
+			if refused, _ := who["installationsRefused"].(string); !strings.Contains(refused, "admins") {
+				t.Fatalf("the refusal is not said: %v", who["installationsRefused"])
+			}
+		})
+	}
+}
+
 // The sign-in page lists the authority's fixture people, each signing in and
 // returning where the browser came from; a return to another site lands on
 // this origin's root.

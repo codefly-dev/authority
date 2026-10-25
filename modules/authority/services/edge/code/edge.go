@@ -285,7 +285,16 @@ func (e *Edge) session(w http.ResponseWriter, r *http.Request) {
 	answer := map[string]any{"personId": sess.GetPersonId(), "organizationId": sess.GetOrganizationId(), "roles": sess.GetRoles(), "installations": []installation{}}
 	if e.Installations != nil {
 		listed, err := e.Installations.List(metadata.AppendToOutgoingContext(r.Context(), "authorization", "Bearer "+bearer), &installationv1.ListRequest{OrganizationId: sess.GetOrganizationId()})
-		if err != nil {
+		switch code := status.Code(err); {
+		case err == nil:
+		case code == codes.PermissionDenied || code == codes.Unauthenticated:
+			// The host may refuse this person the organisation's list (a host
+			// answers it for an organisation's admins only): the session holds,
+			// with no installation to bind to and the refusal said.
+			answer["installationsRefused"] = status.Convert(err).Message()
+			writeJSON(w, http.StatusOK, answer)
+			return
+		default:
 			refuse(w, http.StatusBadGateway, "the authority did not list "+sess.GetOrganizationId()+"'s installations: "+status.Convert(err).Message())
 			return
 		}
