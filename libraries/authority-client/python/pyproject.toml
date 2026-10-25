@@ -1,7 +1,7 @@
 [project]
 name = "authority-client"
 version = "0.0.1"
-dependencies = ["protobuf>=5.29.3,<7", "grpcio>=1.71.0", "googleapis-common-protos", "cryptography>=41"]
+dependencies = ["protobuf>=5.29.3,<7", "grpcio>=1.71.0", "googleapis-common-protos", "cryptography>=41", "protovalidate>=1.0"]
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -9,3 +9,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["authority_client", "authority_client.*"]
+
+[tool.setuptools.package-data]
+authority_client = ["contract.binpb"]

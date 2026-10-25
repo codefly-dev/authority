@@ -141,3 +141,21 @@ def test_trust_comes_only_from_published_ed25519_keys():
         Trust.from_keys(KeysResponse(issuer="i", keys=[PublicKey(key_id="k", algorithm="Ed25519", public_key=PUBLIC)] * 2))
     with pytest.raises(Unauthenticated, match="unusable"):
         Trust.from_keys(KeysResponse(issuer="i", keys=[PublicKey(key_id="k", algorithm="Ed25519", public_key=b"short")]))
+
+
+VECTORS = json.loads((Path(__file__).parents[2] / "testdata/vectors.json").read_text())
+
+
+# Go writes the vectors and its verdict on each (workcontext/vectors_test.go):
+# this reader must reach the same verdict on every one, rule for rule.
+@pytest.mark.parametrize("vector", VECTORS, ids=lambda v: v["name"])
+def test_python_reaches_gos_verdict_on_every_shared_vector(vector):
+    keys = {kid: base64.b64decode(raw) for kid, raw in vector["keys"].items()}
+    trust = Trust(vector["issuer"], keys, now=lambda: datetime.fromtimestamp(vector["now"], timezone.utc))
+    headers = stamped(vector["token"])
+    if vector["accept"]:
+        authenticate(headers, PROOF, vector["audience"], trust)
+    else:
+        with pytest.raises(Unauthenticated) as refused:
+            authenticate(headers, PROOF, vector["audience"], trust)
+        assert vector["reason"] in str(refused.value)

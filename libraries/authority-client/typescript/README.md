@@ -1,22 +1,29 @@
 # Authority TypeScript client
 
 Codefly generates the RPC bindings exported by `@codefly-dev/authority-client`.
-The handwritten module-side check has a separate public export:
+The handwritten module side has a separate public export. A module builds one
+`Verifier` at startup from the generated client of the authority interface it
+depends on:
 
 ```ts
-import { authenticateClaims, trustFromKeys } from '@codefly-dev/authority-client/work-context';
+import { Unauthenticated, Verifier } from '@codefly-dev/authority-client/work-context';
 
-const trust = trustFromKeys(await authority.keys({}));   // the interface's published keys
-const claims = authenticateClaims(requestHeaders, proof, audience, trust); // throws Unauthenticated
-const allowed = claims.allows(resourceKind, action, exactResourceID);
+const verifier = new Verifier(createClient(AuthorityService, transport), audience, proof);
+const id = await verifier.verify(requestHeaders);   // throws Unauthenticated, naming why
+id.tenant; id.scopes; id.claims.allows(resourceKind, action, exactResourceID);
 ```
 
-It requires exactly one proof, token and digest and checks the SHA-256 binding,
-then, in Core's order: canonical decode, issuer, the Ed25519 signature under the
-published key the token names, the audience is this module, and not-before and
-expiry within Core's 30-second skew. Core's structural and attenuation rules are
-not reproduced; they constrain what the authority signs. Re-fetch the keys when a
-token names a key id the trust does not hold. Do not send the proof to a browser.
+It is the Go library's `hop.Verifier`: the stamp first (proof and digest), then
+the keys read through `Keys` (re-read on an unknown key at most every 10 s and
+when older than 5 minutes, on a read of its own bounded by 5 s; stale after 15
+minutes), then `authenticateClaims`: Core's decode path (size, the contract's
+`buf.validate` rules run by protovalidate, unknown fields, canonical encoding,
+lifetime), the issuer, the key (never Core's public conformance key), the Ed25519
+signature, the audience, the window, and attenuation and grant shape. Who the
+call is for comes from the claims; a stamp that disagrees is refused. The shared
+`../testdata/vectors.json`, written by Go, holds every rule to Go's verdict. A
+read's own failure is kept in `verifier.keysError` for logs, never sent to a
+caller. Do not send the proof to a browser.
 
 `claims.scopes` contains frozen copies of the final actor's grants, or the owner's
 when no actor exists. Each scope is evaluated independently; an omitted resource

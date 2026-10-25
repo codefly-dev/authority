@@ -31,6 +31,10 @@ each candidate independently. An empty requested resource ID asks for the entire
 kind; a restricted grant cannot satisfy it. Kind-wide grants cover named IDs.
 Actions are literal. `Context()` is a deep copy of the authenticated claims.
 
+`../testdata/vectors.json` is written by `workcontext/vectors_test.go`
+(`go test ./workcontext -args -update-vectors`): tokens and Go's verdict on
+each, which the Python and TypeScript readers must reach too.
+
 From this directory, run `GOWORK=off go test -race ./...` and `go vet ./...`.
 The tests re-sign the bodies of `../testdata/claims.json` with a test key of
 their own (Core refuses its public fixture key outside its kit).

@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash, createPrivateKey, generateKeyPairSync, sign } from 'node:crypto';
 import { test } from 'node:test';
-import { create, fromBinary, toBinary } from '@bufbuild/protobuf';
+import { create, fromBinary, fromJson, toBinary } from '@bufbuild/protobuf';
 import { KeysResponseSchema, PublicKeySchema, WorkContextV1Schema, WorkScopeV1Schema } from '@codefly-dev/authority-client';
-import { authenticateClaims, trustFromKeys, Unauthenticated } from '@codefly-dev/authority-client/work-context';
+import { authenticateClaims, identityOf, trustFromKeys, Unauthenticated, Verifier } from '@codefly-dev/authority-client/work-context';
 
 const fixtures = JSON.parse(readFileSync(new URL('../../testdata/claims.json',import.meta.url),'utf8'));
 const encode = bytes => Buffer.from(bytes).toString('base64url');
@@ -78,3 +78,75 @@ test('trust comes only from published Ed25519 keys', () => {
 });
 
 function payloadOnly(token) { return token.split('.')[0]; }
+
+const vectors = JSON.parse(readFileSync(new URL('../../testdata/vectors.json',import.meta.url),'utf8'));
+// Go writes the vectors and its verdict on each (workcontext/vectors_test.go):
+// this reader must reach the same verdict, for the same reason, on every one.
+for (const v of vectors) {
+  test(`shared vector, Go's verdict: ${v.name}`, () => {
+    const trust = {issuer: v.issuer, keys: new Map(Object.entries(v.keys).map(([kid, raw]) => [kid, new Uint8Array(Buffer.from(raw,'base64'))])), now: () => v.now*1000};
+    const run = () => authenticateClaims(stamped(v.token),'test-proof',v.audience,trust);
+    if (v.accept) run();
+    else assert.throws(run, e => e instanceof Unauthenticated && e.message.includes(v.reason), v.reason);
+  });
+}
+
+const fixture = JSON.parse(readFileSync(new URL('../../../hop/testdata/stamped.json',import.meta.url),'utf8'));
+const published = fromJson(KeysResponseSchema, fixture.keys);
+const source = (answer = () => Promise.resolve(published)) => { const s = {reads: 0, keys: () => { s.reads++; return answer(); }}; return s; };
+const settle = () => new Promise(resolve => setImmediate(resolve));
+
+test('the Verifier reads the hop fixture as Go reads it', async () => {
+  const keys = source();
+  const v = new Verifier(keys, fixture.audience, fixture.proof, () => fixture.now*1000);
+  const id = await v.verify(fixture.headers);
+  assert.equal(id.owner, fixture.identity.owner);
+  assert.equal(id.tenant, fixture.identity.tenant);
+  assert.deepEqual([...id.scopes], fixture.identity.scopes);
+  assert.equal(id.advisory, fixture.identity.advisory);
+  assert.ok(id.claims.allows('documents.collection','write','c-1'));
+  for (const [key, value, reason] of [['x-codefly-hop-tenant','globex',/tenant/],['x-codefly-hop-scopes','documents.collection:admin',/scopes/],['x-codefly-hop-proof','another-run',/proof/]]) {
+    await assert.rejects(v.verify({...fixture.headers, [key]: value}), e => e instanceof Unauthenticated && reason.test(e.message));
+  }
+});
+
+// Review r44 B1: nothing unauthenticated reaches the key read, and a hung read
+// never stalls a call whose key is already held.
+test('a call without the proof never reads the keys, and a hung read stalls no held key', async () => {
+  let release;
+  let hang = false;
+  const keys = source(() => hang ? new Promise(resolve => { release = () => resolve(published); }) : Promise.resolve(published));
+  let clock = fixture.now*1000;
+  const v = new Verifier(keys, fixture.audience, fixture.proof, () => clock);
+  await settle();
+  assert.equal(keys.reads, 1);
+  for (let i = 0; i < 20; i++) {
+    clock += 11_000;
+    await assert.rejects(v.verify({'x-codefly-work-context': 'garbage'}), Unauthenticated);
+  }
+  assert.equal(keys.reads, 1, 'a proof-less call read the keys');
+  hang = true;
+  clock = fixture.now*1000 + 400_000; // keys older than max age: a background re-read starts and hangs
+  const id = await v.verify(fixture.headers);
+  assert.equal(id.owner, fixture.identity.owner);
+  assert.equal(keys.reads, 2);
+  release();
+});
+
+test('a Verifier starts before the authority serves keys and refuses with a reason until it does', async () => {
+  let up = false;
+  const keys = source(() => up ? Promise.resolve(published) : Promise.reject(new Error('dial authority:4000: connection refused')));
+  let clock = fixture.now*1000;
+  const v = new Verifier(keys, fixture.audience, fixture.proof, () => clock);
+  await settle();
+  await assert.rejects(v.verify(fixture.headers), e => e instanceof Unauthenticated && /unavailable/.test(e.message) && !/4000/.test(e.message));
+  up = true;
+  clock += 11_000;
+  assert.equal((await v.verify(fixture.headers)).owner, fixture.identity.owner);
+});
+
+test('an actor granted nothing narrows the identity to nothing', () => {
+  const context = body('delegated');
+  context.actorChain[0].grantedScopes = [];
+  assert.deepEqual(identityOf(context).scopes, []);
+});

@@ -15,12 +15,19 @@ A module normally uses `codefly_hop.Verifier` (`libraries/hop/python`), which
 resolves and refreshes the trust and derives who the call is for.
 
 `authenticate` checks the run's hop proof, exactly one token and the stamp's
-digest of it; then, in Core's order: canonical decode, the issuer pin, the
-Ed25519 signature under the published key the token names, the audience is this
-module, and not-before and expiry within Core's 30-second skew. Core's structural
-and attenuation rules constrain what the authority signs and are not reproduced.
-It consumes nothing and asks the authority nothing: liveness is the hop's Check,
-bound to this call by the digest.
+digest of it; then Core's rules in Core's order: the decode path (size, the
+contract's `buf.validate` schema rules run by protovalidate against the packaged
+contract descriptor, unknown fields, canonical encoding, a lifetime of at most a
+day), the issuer pin, the key (never Core's public conformance key), the Ed25519
+signature, the audience is this module, not-before and expiry within Core's
+30-second skew, and the chain's attenuation and grant shape. Go writes
+`../testdata/vectors.json` with its verdict on each case; this reader's tests
+must reach the same verdict, for the same reason. It consumes nothing and asks
+the authority nothing: liveness is the hop's Check, bound by the digest.
+
+`authority_client/contract.binpb` links to the published `../contract`
+descriptor because the generated Python module was emitted without the
+`buf.validate` options; it is packaged with the wheel.
 
 The SaaS Python SDK's verifier was not reused: it refuses tokens Core accepts
 (several scope rows of one resource kind, and Core's own grant fixture).
