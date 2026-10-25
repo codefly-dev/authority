@@ -155,6 +155,9 @@ people:
 		Audience: "records", ReadKind: "records.records",
 		WorkloadModule: "org-directory", WorkloadCredential: k.Credential(t, "org-directory"), Binding: "records", BindingAudience: "records", Elsewhere: "model",
 		InstalledSolution: state.InstallationID("acme", "wiki"), InstalledAudience: "wiki", InstalledCredential: k.Credential(t, "wiki"),
+		// Acme's wiki reaches finance and engineering; a local team is the id its
+		// members carry, so one no person carries is a real team with no members.
+		UnexposedTeam: "auditors",
 		SolutionTools: &conformance.SolutionToolsCase{Token: "fixture-maya", Outsider: "fixture-remi", Module: "robin", Credential: k.Credential(t, "robin"), Binding: "tools", Audience: "proposals", Kind: "proposals.item", Action: "read", Method: "/tools.Solution/Read"},
 		// Deliveries are signed with the kit's release key and carried by the
 		// module's own workload under the launcher.
