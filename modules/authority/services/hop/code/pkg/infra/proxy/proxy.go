@@ -64,11 +64,10 @@ func (p *Proxy) handle(_ any, in grpc.ServerStream) error {
 	hop.Stamp(out, id, p.Proof)
 	ctx, cancel := context.WithCancel(metadata.NewOutgoingContext(in.Context(), out))
 	defer cancel()
-	key := module
-	if decision.Route != nil {
-		key = decision.Route.Address
+	if decision.Route == nil {
+		return status.Error(codes.Internal, "the hop decision names no published route")
 	}
-	upstream, ok := p.Upstreams[key]
+	upstream, ok := p.Upstreams[decision.Route.Address]
 	if !ok {
 		return status.Errorf(codes.Internal, "the hop has no connection to %s", module)
 	}

@@ -103,3 +103,15 @@ func TestDecodeAndResolvedAddressRefuseInvalidInput(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestNonCanonicalPathsNeverMatchEvenAnExactInventory(t *testing.T) {
+	for _, path := range []string{"/items/../secret", "/items/./x", "/items//x", "/items/%2e%2e/secret"} {
+		if RouteMatches("/items/{tail=**}", path) {
+			t.Fatalf("matched %s", path)
+		}
+		r := Routing{Endpoints: []RouteEndpoint{endpoint("web", "http", "GET "+path)}}
+		if _, _, err := r.Resolve("module", "http", "GET "+path); err == nil {
+			t.Fatalf("exact inventory accepted %s", path)
+		}
+	}
+}

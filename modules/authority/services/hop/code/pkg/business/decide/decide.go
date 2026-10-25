@@ -32,7 +32,7 @@ type Checker interface {
 type Decision struct {
 	Module   string
 	Identity hop.Identity
-	// Route and the checked policy are one selection from the immutable snapshot.
+	// Route is the destination; the authority checks the actual HTTP request.
 	Route *routing.RouteEndpoint
 }
 
@@ -91,19 +91,15 @@ func (d Decider) decide(ctx context.Context, method string, md metadata.MD) (Dec
 	if !d.Modules[module] {
 		return Decision{}, status.Errorf(codes.PermissionDenied, "the call to %s is addressed to %q, a module this hop does not stand in front of", method, module)
 	}
-	policy := method
-	var route *routing.RouteEndpoint
-	if d.Routes != nil {
-		transport := "grpc"
-		if !strings.HasPrefix(method, "/") {
-			transport = "http"
-		}
-		selected, selectedPolicy, routeErr := d.Routes.Resolve(module, transport, method)
-		if routeErr != nil {
-			return Decision{}, status.Error(codes.NotFound, routeErr.Error())
-		}
-		route, policy = &selected, selectedPolicy
+	transport := "grpc"
+	if !strings.HasPrefix(method, "/") {
+		transport = "http"
 	}
+	selected, policy, routeErr := d.Routes.Resolve(module, transport, method)
+	if routeErr != nil {
+		return Decision{}, status.Error(codes.NotFound, routeErr.Error())
+	}
+	route := &selected
 	checked, err := d.Authority.Check(ctx, &authorityv1.CheckRequest{Token: tokens[0], Audience: module, Method: policy, Advisory: d.Permissive})
 	if err != nil {
 		refusal := status.Convert(err)

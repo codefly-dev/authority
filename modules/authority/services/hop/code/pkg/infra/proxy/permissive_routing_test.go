@@ -30,7 +30,7 @@ func TestWarnModeDoesNotSendRecordsToDocuments(t *testing.T) {
 	recordsURL, _ := url.Parse(records.URL)
 	decision := decide.Decider{Permissive: true, Modules: map[string]bool{"documents": true, "records": true}}
 	face := proxy.HTTP{Proof: "test-run-proof", Decide: decision.Decide,
-		Connect: map[string]*url.URL{"documents": docsURL, "records": recordsURL}}
+		Upstreams: map[string]*url.URL{"documents": docsURL, "records": recordsURL}}
 	req := httptest.NewRequest(http.MethodPost, "/records.v1.RecordsService/ReadRecord", strings.NewReader(`{}`))
 	req.Header.Set("Content-Type", "application/json")
 	response := httptest.NewRecorder()

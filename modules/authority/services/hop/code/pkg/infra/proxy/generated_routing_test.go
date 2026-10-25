@@ -67,7 +67,7 @@ func TestPublishedDestinationAndPolicyAreOneSelection(t *testing.T) {
 	if err := routes.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	checker := &routeChecker{denied: "POST /{service}/{operation}"}
+	checker := &routeChecker{denied: "POST /gauge.v1.Service/Call"}
 	decision := decide.Decider{Routes: routes, Authority: checker, Modules: map[string]bool{"module": true}, AudienceOf: func(string) (string, error) { return "module", nil }}
 	for _, warn := range []bool{false, true} {
 		decision.Permissive = warn

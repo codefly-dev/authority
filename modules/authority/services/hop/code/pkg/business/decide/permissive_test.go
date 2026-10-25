@@ -7,6 +7,7 @@ import (
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
 	"github.com/codefly-dev/authority/libraries/hop/go"
+	"github.com/codefly-dev/authority/libraries/hop/go/routing"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -45,6 +46,7 @@ func TestAPermissiveHopStillRefusesWhatHasNoSoundIdentity(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			warnings := 0
 			d := tc.d
+			d.Routes = testRoutes("robin", "GET /v1/robin/intents/version")
 			d.Modules, d.Permissive, d.Warned = map[string]bool{"robin": true}, true, func(string, error) { warnings++ }
 			decision, err := d.Decide(context.Background(), "GET /v1/robin/intents/version", tc.md)
 			module, id := decision.Module, decision.Identity
@@ -82,7 +84,7 @@ func (advisoryChecker) Check(_ context.Context, req *authorityv1.CheckRequest, _
 // told to Warned. Enforcing, the same refusal stands.
 func TestPermissivePolicyUsesTheAuthorityAdvisoryIdentity(t *testing.T) {
 	warnings := 0
-	d := Decider{Authority: advisoryChecker{}, Modules: map[string]bool{"documents": true}, Permissive: true,
+	d := Decider{Routes: testRoutes("documents", "POST /documents/write"), Authority: advisoryChecker{}, Modules: map[string]bool{"documents": true}, Permissive: true,
 		AudienceOf: func(string) (string, error) { return "documents", nil },
 		Warned: func(method string, err error) {
 			warnings++
@@ -108,8 +110,12 @@ func TestPermissivePolicyUsesTheAuthorityAdvisoryIdentity(t *testing.T) {
 		t.Fatalf("the advisory rides the stamp: %+v %v", read, err)
 	}
 
-	strict := Decider{Authority: advisoryChecker{}, Modules: map[string]bool{"documents": true}, AudienceOf: func(string) (string, error) { return "documents", nil }}
+	strict := Decider{Routes: testRoutes("documents", "POST /documents/write"), Authority: advisoryChecker{}, Modules: map[string]bool{"documents": true}, AudienceOf: func(string) (string, error) { return "documents", nil }}
 	if _, err := strict.Decide(context.Background(), "POST /documents/write", metadata.Pairs(hop.WorkContextKey, "test-context")); status.Code(err) != codes.PermissionDenied {
 		t.Fatalf("enforcing, the policy refusal stands: %v", err)
 	}
+}
+
+func testRoutes(audience, method string) *routing.Routing {
+	return &routing.Routing{Endpoints: []routing.RouteEndpoint{{Audience: audience, Transport: "http", Address: "unused", Methods: []string{method}}}}
 }

@@ -8,6 +8,7 @@ import (
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
 	"github.com/codefly-dev/authority/libraries/hop/go"
+	"github.com/codefly-dev/authority/libraries/hop/go/routing"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -91,7 +92,7 @@ func setup(t *testing.T) (through gen.HopServiceClient, direct gen.HopServiceCli
 	go func() { _ = moduleServer.Serve(moduleListener) }()
 	t.Cleanup(moduleServer.Stop)
 	p := &proxy.Proxy{
-		Decide: decide.Decider{Authority: a, Modules: map[string]bool{"console": true}, AudienceOf: func(token string) (string, error) {
+		Decide: decide.Decider{Routes: &routing.Routing{Endpoints: []routing.RouteEndpoint{{Audience: "console", Transport: "grpc", Address: "console", Methods: []string{"/api.HopService/Version"}}}}, Authority: a, Modules: map[string]bool{"console": true}, AudienceOf: func(token string) (string, error) {
 			if token == "for-records" {
 				return "records", nil
 			}

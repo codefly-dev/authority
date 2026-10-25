@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"path"
 	"strings"
 )
 
@@ -110,9 +111,23 @@ func (r *Routing) Find(audience, transport, method string) (RouteEndpoint, error
 	return endpoint, err
 }
 
-// Resolve selects the destination and its declared policy method together.
+// Resolve selects a destination. HTTP admission always uses the concrete request;
+// only a published Connect procedure maps to its protobuf method name.
 // A gRPC method's existence never supplies policy for a different HTTP listener.
 func (r *Routing) Resolve(audience, transport, method string) (RouteEndpoint, string, error) {
+	if r == nil {
+		return RouteEndpoint{}, "", fmt.Errorf("hop routes: generated routing snapshot is required")
+	}
+	if transport == "http" {
+		_, requestPath, ok := strings.Cut(method, " ")
+		if !ok {
+			return RouteEndpoint{}, "", fmt.Errorf("hop routes: HTTP request must name method and path")
+		}
+		if err := CanonicalPath(requestPath, ""); err != nil {
+			return RouteEndpoint{}, "", err
+		}
+	}
+
 	type match struct {
 		endpoint RouteEndpoint
 		policy   string
@@ -123,8 +138,9 @@ func (r *Routing) Resolve(audience, transport, method string) (RouteEndpoint, st
 			continue
 		}
 		for _, declared := range endpoint.Methods {
-			policy := declared
+			policy := method
 			if endpoint.Transport == "connect" {
+				policy = declared
 				declared = "POST " + declared
 			}
 			if declared == method {
@@ -147,7 +163,7 @@ func (r *Routing) Resolve(audience, transport, method string) (RouteEndpoint, st
 // credentials, query rewriting, or unresolved endpoint references into a proxy.
 func (e RouteEndpoint) ResolvedURL() (*url.URL, error) {
 	u, err := url.Parse(e.Address)
-	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.RawQuery != "" || u.Fragment != "" || strings.Contains(e.Address, "${") {
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") || strings.Contains(e.Address, "${") {
 		return nil, fmt.Errorf("hop routes: %s/%s/%s has no resolved HTTP address", e.Audience, e.Service, e.Endpoint)
 	}
 	return u, nil
@@ -156,6 +172,9 @@ func (e RouteEndpoint) ResolvedURL() (*url.URL, error) {
 // RouteMatches is the shared admission/forwarding template matcher. A final
 // {name=**} spans at least one character; ordinary variables span one segment.
 func RouteMatches(template, path string) bool {
+	if CanonicalPath(path, "") != nil {
+		return false
+	}
 	want, got := strings.Split(template, "/"), strings.Split(path, "/")
 	if last := want[len(want)-1]; strings.Contains(last, "=**}") {
 		if len(got) < len(want) {
@@ -199,4 +218,18 @@ func segmentMatches(template, segment string) bool {
 		}
 	}
 	return false
+}
+
+// CanonicalPath rejects paths whose interpretation can change at a later proxy.
+// Escaped separators, dot segments and nested escapes are never normalized here.
+func CanonicalPath(decoded, escaped string) error {
+	bad := decoded == "" || !strings.HasPrefix(decoded, "/") || path.Clean(decoded) != decoded || strings.ContainsAny(decoded, "\\%")
+	lower := strings.ToLower(escaped)
+	for _, escape := range []string{"%2e", "%2f", "%5c", "%25"} {
+		bad = bad || strings.Contains(lower, escape)
+	}
+	if bad {
+		return fmt.Errorf("hop routes: non-canonical request path is refused; use a canonical path without dot segments, repeated or encoded separators")
+	}
+	return nil
 }
