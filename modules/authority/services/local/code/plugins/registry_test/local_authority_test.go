@@ -123,7 +123,7 @@ people:
 	// both, and Maya's finance team holds A's viewer role and nothing of B's.
 	owned := map[string]string{}
 	for _, solution := range []string{"conformance-owner-a", "conformance-owner-b"} {
-		note := testkit.Scope("conformance.owned-note", "read")
+		note := testkit.Scope(solution+".note", "read")
 		m := state.Manifest{Module: solution, Principal: solution, Kind: "solution", Generation: 1, ResourceKinds: []*basev0.WorkScopeV1{note},
 			Roles: map[string][]*basev0.WorkScopeV1{state.InstallerRole: {note}, "viewer": {note}}}
 		if _, err := k.State.ApplyManifest(m); err != nil {

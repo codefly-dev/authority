@@ -817,17 +817,24 @@ export const AuthorityService: GenService<{
     output: typeof ListResourcesResponseSchema;
   },
   /**
-   * AttachResource records that one resource was created or attached through
-   * an installation, so a role scope its solution declares installation-owned
-   * (RoleV1.installation_owned_scopes) covers it. The caller is the module that
-   * serves the kind, proving itself with its workload credential, and presents
-   * the capability the creating call carried, addressed to it and holding an
-   * action on the kind. The owning installation is read from that capability's
+   * AttachResource records that one resource was newly created through an
+   * installation, so a role scope its solution declares installation-owned
+   * (RoleV1.installation_owned_scopes) covers it. It is for what the
+   * installation creates, never for an existing resource: a resource has one
+   * owner in an organisation, and an id another installation owns is refused.
+   * The caller is the kind's one serving module (a kind two composed modules
+   * declare attaches nothing), proving itself with its workload credential,
+   * and presents the capability the creating call carried: addressed to it, at
+   * the organisation's current authorization revision, and holding create on
+   * the whole kind; a capability that only reads, or acts on named ids,
+   * attaches nothing. The owning installation is read from that capability's
    * verified provenance and never named by the caller: the installation itself
-   * when it is the owner, otherwise the one solution in its actor chain. A
-   * capability issued through no installation, or through two, is refused.
-   * Attaching only widens what an installation-owned scope covers, so it moves
-   * no authorization revision; a reinstalled installation owns nothing.
+   * when it is the owner, the installed solution when it is the caller, and
+   * each solution in its actor chain; exactly one must result. Owned ids travel
+   * in every capability holding them, so an installation owns at most 32 of one
+   * kind, each id at most 128 bytes, refused by name past either. Attaching
+   * only widens what an owned scope covers, so it moves no authorization
+   * revision; a reinstalled installation owns nothing.
    *
    * @generated from rpc host.authority.v1.AuthorityService.AttachResource
    */

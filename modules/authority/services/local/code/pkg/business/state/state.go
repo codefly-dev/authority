@@ -932,6 +932,20 @@ func (s *State) ensureModuleInstallations(m Manifest) []string {
 	return ids
 }
 
+// ServersOf names every composed module that serves kind, sorted.
+func (s *State) ServersOf(kind string) []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var servers []string
+	for _, m := range s.modules {
+		if slices.ContainsFunc(m.ResourceKinds, func(sc *basev0.WorkScopeV1) bool { return sc.GetResourceKind() == kind }) {
+			servers = append(servers, m.Module)
+		}
+	}
+	sort.Strings(servers)
+	return servers
+}
+
 // Module returns a composed module by name.
 func (s *State) Module(name string) (Manifest, bool) {
 	s.mu.RLock()

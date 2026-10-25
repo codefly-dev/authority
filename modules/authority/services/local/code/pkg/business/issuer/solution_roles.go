@@ -93,11 +93,14 @@ func roleResources(scopes []*basev0.WorkScopeV1, kind, action string) []resource
 	return grants
 }
 
-// AttachResource records that the module serving kind created or attached id
-// under token, a capability addressed to that module and holding an action on
-// kind. The owning installation is read from the capability's verified
-// provenance, never named by the caller: an installation owning it, and the
-// installation of each solution in its actor chain. The state requires one.
+// AttachResource records that the module serving kind created id under
+// token, a capability addressed to that module and holding create on the whole
+// kind: attaching is for a resource the installation creates, so a capability
+// that only reads, or acts on named ids, attaches nothing. The owning
+// installation is read from the capability's verified provenance, never named
+// by the caller: an installation owning it, the installation of each solution
+// in its actor chain, and the module's own when it is the solution. The state
+// requires exactly one, at the capability's authorization revision.
 func (i *Issuer) AttachResource(ctx context.Context, token, credential, kind, id string) (string, error) {
 	if kind == "" || id == "" {
 		return "", fmt.Errorf("%w: an attachment names a resource kind and a resource id", ErrRefused)
@@ -106,20 +109,30 @@ func (i *Issuer) AttachResource(ctx context.Context, token, credential, kind, id
 	if err != nil {
 		return "", err
 	}
-	if !holdsKind(actor.ResourceKinds, kind) {
+	// Only the one module serving a kind is trusted to say what it created; a
+	// kind two composed modules declare has no such module, so nothing of it
+	// is attached.
+	switch servers := i.state.ServersOf(kind); {
+	case !slices.Contains(servers, actor.Module):
 		return "", fmt.Errorf("%w: %s does not serve %s, so it attaches none of its resources", ErrRefused, actor.Module, kind)
+	case len(servers) > 1:
+		return "", fmt.Errorf("%w: %s is served by %s; an attachment needs the kind's one serving module", ErrRefused, kind, strings.Join(servers, ", "))
 	}
 	verified, err := i.verifier(actor.Principal).Verify(ctx, token)
 	if err != nil {
 		return "", err
 	}
-	if !holdsKind(verified.EffectiveScopes(), kind) {
-		return "", fmt.Errorf("%w: the capability holds no action on %s, so nothing of it was created under it", ErrRefused, kind)
+	if !holdsCreate(verified.EffectiveScopes(), kind) {
+		return "", fmt.Errorf("%w: the capability holds no create on the whole of %s; an installation attaches only what it creates", ErrRefused, kind)
 	}
 	wc := verified.Context()
+	tenant := wc.GetTenantId()
 	var candidates []string
 	if wc.GetOwnerPrincipalKind() == "agent" {
 		candidates = append(candidates, strings.TrimSuffix(wc.GetOwnerPrincipalId(), "/agent"))
+	}
+	if actor.Kind == "solution" {
+		candidates = append(candidates, state.InstallationID(tenant, actor.Module))
 	}
 	for _, hop := range wc.GetActorChain() {
 		if hop.GetPrincipalKind() != "service" {
@@ -130,16 +143,21 @@ func (i *Issuer) AttachResource(ctx context.Context, token, credential, kind, id
 			return "", err
 		}
 		if m.Kind == "solution" {
-			candidates = append(candidates, state.InstallationID(wc.GetTenantId(), m.Module))
+			candidates = append(candidates, state.InstallationID(tenant, m.Module))
 		}
 	}
-	return i.state.AttachResource(wc.GetTenantId(), candidates, kind, id)
+	return i.state.AttachResource(tenant, wc.GetAuthorizationRevision(), candidates, kind, id)
 }
 
-// holdsKind reports whether any scope grants an action on kind; a zero-action
-// row is a denial, not a grant.
-func holdsKind(scopes []*basev0.WorkScopeV1, kind string) bool {
+// CreateAction is the action a creating call holds on the whole kind; it is
+// what AttachResource requires of the capability it is presented.
+const CreateAction = "create"
+
+// holdsCreate reports whether scopes hold create (or every action) on the
+// whole of kind, not on named ids.
+func holdsCreate(scopes []*basev0.WorkScopeV1, kind string) bool {
 	return slices.ContainsFunc(scopes, func(scope *basev0.WorkScopeV1) bool {
-		return scope.GetResourceKind() == kind && len(scope.GetActions()) > 0
+		return scope.GetResourceKind() == kind && len(scope.GetResourceIds()) == 0 &&
+			(slices.Contains(scope.GetActions(), CreateAction) || slices.Contains(scope.GetActions(), state.AnyAction))
 	})
 }

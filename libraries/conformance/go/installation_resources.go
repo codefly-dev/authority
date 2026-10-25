@@ -14,7 +14,8 @@ import (
 // installation-owned. The host seeds two active installations, A and B, of two
 // solutions at Organization: Owner installed both, and Viewer is entitled to A
 // alone, through A's viewer role. The suite delivers both solutions and Store,
-// the module serving Kind, so their declarations are exactly the suite's.
+// the module serving Kind, so their declarations are exactly the suite's. Each
+// solution serves its own kind, "<solution>.note": a kind has one serving module.
 type InstallationResourcesCase struct {
 	Owner, Viewer string // fixture tokens
 	A, B          OwnedInstallation
@@ -31,8 +32,6 @@ type OwnedInstallation struct {
 	Solution, Credential, Installation string
 }
 
-const ownedOwnKind = "conformance.owned-note"
-
 func (c *client) installationResources(t *testing.T, ctx context.Context, fixture Fixture) {
 	f := fixture.InstallationResources
 	if f == nil || fixture.SignManifest == nil || fixture.SignAuthority == nil || f.Owner == "" || f.Viewer == "" || f.A.Installation == "" || f.B.Installation == "" ||
@@ -42,24 +41,25 @@ func (c *client) installationResources(t *testing.T, ctx context.Context, fixtur
 	const binding, self = "store", "self"
 	create, read := scopeAsk(f.Kind, []string{"create"}, nil), scopeAsk(f.Kind, []string{"read"}, nil)
 	// Store serves Kind; its self binding lets it hop on, and work headless.
+	both := []string{f.Kind + ":create", f.Kind + ":read"}
 	if _, err := c.deliver(ctx, fixture, f.Store, "module", f.Generation, []string{f.Kind},
 		map[string]any{"scope_ceilings": []any{scopeAsk(f.Kind, []string{"create", "read"}, nil)}}, 0,
-		solutionhost.AuthorityBinding{ID: self, Audience: f.Store, Operations: map[string][]string{"invoke": {f.Kind + ":read"}, "headless": {f.Kind + ":read"}}}); err != nil {
+		solutionhost.AuthorityBinding{ID: self, Audience: f.Store, Operations: map[string][]string{"invoke": both, "headless": both}}); err != nil {
 		t.Fatalf("deliver %s: %v", f.Store, err)
 	}
 	// Each installer may create anywhere; each role reads only what its own
 	// installation owns.
-	own := scopeAsk(ownedOwnKind, []string{"read"}, nil)
-	doc := map[string]any{
-		"scope_ceilings": []any{own},
-		"roles": []any{
-			map[string]any{"name": "installer", "scopes": []any{own, create}, "installation_owned_scopes": []any{read}},
-			map[string]any{"name": "viewer", "scopes": []any{own}, "installation_owned_scopes": []any{read}},
-		},
-	}
 	for _, s := range []OwnedInstallation{f.A, f.B} {
-		if _, err := c.deliver(ctx, fixture, s.Solution, "solution", f.Generation, []string{ownedOwnKind}, doc, 0,
-			solutionhost.AuthorityBinding{ID: binding, Audience: f.Store, Operations: map[string][]string{"invoke": {f.Kind + ":create", f.Kind + ":read"}}}); err != nil {
+		own := scopeAsk(s.Solution+".note", []string{"read"}, nil)
+		doc := map[string]any{
+			"scope_ceilings": []any{own},
+			"roles": []any{
+				map[string]any{"name": "installer", "scopes": []any{own, create}, "installation_owned_scopes": []any{read}},
+				map[string]any{"name": "viewer", "scopes": []any{own}, "installation_owned_scopes": []any{read}},
+			},
+		}
+		if _, err := c.deliver(ctx, fixture, s.Solution, "solution", f.Generation, []string{s.Solution + ".note"}, doc, 0,
+			solutionhost.AuthorityBinding{ID: binding, Audience: f.Store, Operations: map[string][]string{"invoke": both}}); err != nil {
 			t.Fatalf("deliver %s: %v", s.Solution, err)
 		}
 	}
@@ -102,6 +102,33 @@ func (c *client) installationResources(t *testing.T, ctx context.Context, fixtur
 				}
 			}
 		}
+	})
+	t.Run("an existing resource is never pulled into another installation, by name", func(t *testing.T) {
+		// A read-only capability attaches nothing: A's viewer cannot pull B's
+		// collection into A, nor a read through B pull A's into B.
+		viewed, err := through(t, viewer, f.A)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = attach(str(viewed, "token"), f.StoreCredential, f.ResourceB)
+		refused(t, err, codes.PermissionDenied, "holds no create")
+		readB, err := through(t, owner, f.B, scopeAsk(f.Kind, []string{"read"}, []string{f.ResourceB}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = attach(str(readB, "token"), f.StoreCredential, f.ResourceA)
+		refused(t, err, codes.PermissionDenied, "holds no create")
+		// A creating capability attaches only what no other installation owns.
+		for s, foreign := range map[OwnedInstallation]string{f.A: f.ResourceB, f.B: f.ResourceA} {
+			created, err := through(t, owner, s, create)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = attach(str(created, "token"), f.StoreCredential, foreign)
+			refused(t, err, codes.PermissionDenied, "owned by")
+		}
+		_, err = through(t, owner, f.B, scopeAsk(f.Kind, []string{"read"}, []string{f.ResourceA}))
+		refused(t, err, codes.PermissionDenied, "widens")
 	})
 	t.Run("an attachment is refused without a serving module or an installation, by name", func(t *testing.T) {
 		created, err := through(t, owner, f.A, create)

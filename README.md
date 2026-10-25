@@ -224,7 +224,7 @@ staging validated.
 **Rung 1 first; it is the one that matters (owner, 2026-10-21).** The loop:
 
 1. Cut a branch in module-saas-starter. accounts declares in its module
-   interface that it implements `codefly.dev/authority@0.2.0`, `codefly.dev/composition@0.1.0`,
+   interface that it implements `codefly.dev/authority@0.3.0`, `codefly.dev/composition@0.2.0`,
    `codefly.dev/installation@0.1.0` and `codefly.dev/session@0.2.0`, takes this repo's
    protos (bindings via `codefly generate proto`), and serves the four services as
    adapters over what it already has: `Issue` → StartTask / StartInstallationTask /
@@ -271,7 +271,7 @@ Gap 7 was a decision, taken on 2026-10-22: the interface carries the host's name
 ## The namespace, settled (2026-10-22)
 
 The interfaces are the host's contract, so they carry the host's names: publisher
-`codefly.dev` (ids `codefly.dev/authority@0.2.0`, `composition`, `installation`,
+`codefly.dev` (ids `codefly.dev/authority@0.3.0`, `composition`, `installation`,
 `installable`, `session`) and protobuf packages `host.authority.v1`,
 `host.composition.v1`, `host.installation.v1`, `host.session.v1` under `proto/host/`.
 Not `codefly.*`: the host's buf configuration excludes a `codefly/` proto directory
@@ -941,3 +941,12 @@ under the existing
 All consumers and implementations must select the updated interface versions;
 this repository updates its module, edge, hop and console declarations. SaaS
 must adopt the version and fields before claiming this contract.
+
+`codefly.dev/authority@0.3.0` adds `AttachResource` and
+`codefly.dev/composition@0.2.0` adds `RoleV1.installation_owned_scopes`: a role
+scope held only on the resources its installation created, recorded from the
+creating capability's provenance (one owner per resource, at most 32 per kind).
+Both are additive. The local authority implements 0.3.0 and 0.2.0; the edge,
+hop and console call nothing new, so they require `>=0.2.0 <0.4.0` and resolve
+against a host still at 0.2.0. Shared conformance requires
+`InstallationResources`, so a host must implement both before it passes.

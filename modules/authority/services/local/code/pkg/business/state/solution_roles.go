@@ -64,12 +64,28 @@ func roleGrants(m Manifest, role string, inst Installation) []*basev0.WorkScopeV
 	return out
 }
 
-// AttachResource records that id of kind was created or attached through one
+// Owned ids travel in every capability that holds them, so they are bounded:
+// an installation owns at most MaxOwnedPerKind resources of one kind, each id
+// at most MaxResourceIDBytes long. Past either, AttachResource refuses by name.
+const (
+	MaxOwnedPerKind    = 32
+	MaxResourceIDBytes = 128
+)
+
+// AttachResource records that id of kind was created through one
 // installation. candidates are the installations the presenting capability's
-// verified provenance names; exactly one active installation at tenant must
-// remain. Attaching only widens what an installation-owned scope covers, so no
-// revision moves: every capability already issued names its own ids.
-func (s *State) AttachResource(tenant string, candidates []string, kind, id string) (string, error) {
+// verified provenance names, and revision is the authorization revision it was
+// minted at; exactly one active installation at tenant must remain, at the
+// tenant's current revision, checked under the write lock so a capability from
+// before an uninstall never attaches into the reinstalled installation. A
+// resource has one owner in a tenant: an id another installation owns is
+// refused, since attaching is for what an installation creates, never for an
+// existing resource. Attaching only widens what an installation-owned scope
+// covers, so no revision moves: every capability already issued names its ids.
+func (s *State) AttachResource(tenant string, revision uint64, candidates []string, kind, id string) (string, error) {
+	if len(id) > MaxResourceIDBytes {
+		return "", fmt.Errorf("%w: resource id is %d bytes; an installation-owned id is at most %d", ErrForbidden, len(id), MaxResourceIDBytes)
+	}
 	candidates = slices.Compact(slices.Sorted(slices.Values(candidates)))
 	switch len(candidates) {
 	case 0:
@@ -80,12 +96,23 @@ func (s *State) AttachResource(tenant string, candidates []string, kind, id stri
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if current := s.revisions[tenant] + 1; revision != current {
+		return "", fmt.Errorf("%w: authorization revision superseded: the capability was minted at revision %d, %s is at %d", ErrForbidden, revision, tenant, current)
+	}
 	inst, ok := s.installations[candidates[0]]
 	if !ok || inst.Organization != tenant || inst.Status != Active {
 		return "", fmt.Errorf("%w: installation %s is not active at %s, so it owns nothing new", ErrForbidden, candidates[0], tenant)
 	}
 	if slices.Contains(inst.Owned[kind], id) {
 		return inst.ID, nil
+	}
+	for _, other := range s.installations {
+		if other.ID != inst.ID && other.Organization == tenant && slices.Contains(other.Owned[kind], id) {
+			return "", fmt.Errorf("%w: %s %q is owned by installation %s; an installation attaches only what it creates", ErrForbidden, kind, id, other.ID)
+		}
+	}
+	if len(inst.Owned[kind]) >= MaxOwnedPerKind {
+		return "", fmt.Errorf("%w: installation %s already owns %d of %s, the most a capability carries", ErrForbidden, inst.ID, MaxOwnedPerKind, kind)
 	}
 	owned := maps.Clone(inst.Owned)
 	if owned == nil {
