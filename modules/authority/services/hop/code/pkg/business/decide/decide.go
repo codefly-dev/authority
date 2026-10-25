@@ -57,14 +57,16 @@ func (d Decider) Decide(ctx context.Context, method string, md metadata.MD) (str
 	if err == nil || !d.Permissive {
 		return module, id, err
 	}
-	if d.Warned != nil {
-		d.Warned(method, err)
+	refusal := err
+	module, id, err = d.permit(method, md, refusal)
+	if err == nil && d.Warned != nil {
+		d.Warned(method, refusal)
 	}
-	return d.permit(method, md, err)
+	return module, id, err
 }
 
 // permit is the permissive hop's answer to a refusal: the module the call
-// names (or the first one it fronts), the identity the token claims unverified
+// names (or its sole upstream), the identity the token claims unverified
 // (or a developer's), and the refusal carried as the stamp's advisory.
 func (d Decider) permit(method string, md metadata.MD, refusal error) (string, hop.Identity, error) {
 	id := hop.Identity{Owner: "developer", OwnerKind: "human", Tenant: "local", Advisory: refusal.Error()}
@@ -73,7 +75,7 @@ func (d Decider) permit(method string, md metadata.MD, refusal error) (string, h
 		if decoded, err := workcontext.Decode(tokens[0]); err == nil {
 			wc := decoded.Context()
 			id = hop.Identity{Owner: wc.GetOwnerPrincipalId(), OwnerKind: wc.GetOwnerPrincipalKind(), Tenant: wc.GetTenantId(),
-				Task: wc.GetTaskId(), Expires: wc.GetExpiresAtUnix(), Advisory: refusal.Error()}
+				Task: wc.GetTaskId(), Expires: wc.GetExpiresAtUnix(), Binding: wc.GetOperationBinding().GetBindingId(), Advisory: refusal.Error()}
 			for _, scope := range wc.GetAuthorityScopes() {
 				for _, action := range scope.GetActions() {
 					id.Scopes = append(id.Scopes, scope.GetResourceKind()+":"+action)
@@ -89,12 +91,17 @@ func (d Decider) permit(method string, md metadata.MD, refusal error) (string, h
 	}
 	if module == "" {
 		names := make([]string, 0, len(d.Modules))
-		for name := range d.Modules {
-			names = append(names, name)
+		for name, enabled := range d.Modules {
+			if enabled {
+				names = append(names, name)
+			}
 		}
 		slices.Sort(names)
 		if len(names) == 0 {
 			return "", hop.Identity{}, status.Errorf(codes.Internal, "the hop fronts no module")
+		}
+		if len(names) > 1 {
+			return "", hop.Identity{}, status.Errorf(codes.FailedPrecondition, "the permissive hop cannot route %s without a module audience; it fronts %v", method, names)
 		}
 		module = names[0]
 	}
@@ -124,7 +131,7 @@ func (d Decider) decide(ctx context.Context, method string, md metadata.MD) (str
 	if !d.Modules[module] {
 		return "", hop.Identity{}, status.Errorf(codes.PermissionDenied, "the call to %s is addressed to %q, a module this hop does not stand in front of", method, module)
 	}
-	checked, err := d.Authority.Check(ctx, &authorityv1.CheckRequest{Token: tokens[0], Audience: module, Method: method})
+	checked, err := d.Authority.Check(ctx, &authorityv1.CheckRequest{Token: tokens[0], Audience: module, Method: method, Advisory: d.Permissive})
 	if err != nil {
 		refusal := status.Convert(err)
 		if refusal.Code() == codes.Unavailable || refusal.Code() == codes.DeadlineExceeded {
@@ -132,7 +139,14 @@ func (d Decider) decide(ctx context.Context, method string, md metadata.MD) (str
 		}
 		return "", hop.Identity{}, status.Errorf(refusal.Code(), "the authority refused the call to %s: %s", module, refusal.Message())
 	}
-	return module, IdentityOf(checked.GetContext()), nil
+	id := IdentityOf(checked.GetContext())
+	if d.Permissive && checked.GetRefusal() != "" {
+		id.Advisory = checked.GetRefusal()
+		if d.Warned != nil {
+			d.Warned(method, status.Error(codes.PermissionDenied, id.Advisory))
+		}
+	}
+	return module, id, nil
 }
 
 // IdentityOf reads who a checked Work Context is for. Its scopes are the
