@@ -262,11 +262,15 @@ func (i *Issuer) forPerson(ctx context.Context, sessionID string, audience state
 	if err != nil {
 		return "", nil, err
 	}
+	// Attribution is a set on the wire; never sort the session's shared slice.
+	teams := slices.Clone(sess.Teams)
+	slices.Sort(teams)
+	teams = slices.Compact(teams)
 	return i.authority.Start(ctx, workcontext.StartInput{
 		TenantID: sess.Organization, OrganizationID: sess.Organization,
 		OwnerPrincipalID: sess.Person, OwnerPrincipalKind: "human",
 		TaskID: uuid.NewString(), SessionID: sess.ID,
-		Audience: audience.Principal, AuthorityScopes: scopes, AttributionTeamIDs: sess.Teams,
+		Audience: audience.Principal, AuthorityScopes: scopes, AttributionTeamIDs: teams,
 		InstallationID: state.InstallationID(sess.Organization, audience.Module), TTL: ttl,
 	})
 }

@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -487,5 +488,82 @@ func TestTheDeveloperRoleHoldsWhatEachComposedModuleServes(t *testing.T) {
 	if _, err := k.Issuer.Issue(maya, &authorityv1.IssueRequest{
 		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "probe", Scopes: scopes(testkit.Scope("probe.items", "run"))}); err == nil {
 		t.Fatal("a viewer holds nothing at a module her roles do not name")
+	}
+}
+
+// Team attribution is a set on the signed wire. Fixture order must not make a
+// valid person unusable by modules that require canonical attribution.
+func TestPersonIssuanceCanonicalizesTeamsWithoutChangingTheSession(t *testing.T) {
+	for _, duplicate := range []bool{false, true} {
+		name := "fixture-order"
+		if duplicate {
+			name = "duplicate-membership"
+		}
+		t.Run(name, func(t *testing.T) {
+			k := testkit.New(t)
+			if duplicate {
+				err := k.State.LoadFixture(context.Background(), []byte(`people:
+  - id: alex
+    fixture_token: fixture-alex
+    organization: acme
+    roles: [admin]
+    teams: [finance, engineering, finance]
+`))
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			session, err := k.State.SignIn("fixture-alex")
+			if err != nil {
+				t.Fatal(err)
+			}
+			before := slices.Clone(session.Teams)
+			ctx := issuer.WithSession(context.Background(), session.ID)
+			out, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
+				As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			checked, err := k.Issuer.Check(ctx, out.GetToken(), "documents", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := []string{"engineering", "finance"}
+			if got := checked.GetContext().GetAttributionTeamIds(); !slices.Equal(got, want) {
+				t.Fatalf("signed attribution teams = %v, want %v", got, want)
+			}
+			after, err := k.State.Session(session.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(after.Teams, before) {
+				t.Fatalf("issuance changed session teams from %v to %v", before, after.Teams)
+			}
+		})
+	}
+}
+
+func TestGlobexCollectionReadIsAnExplicitFixtureGrant(t *testing.T) {
+	k := testkit.New(t)
+	for _, token := range []string{"fixture-zoe", "fixture-omar"} {
+		t.Run(token, func(t *testing.T) {
+			out, err := k.Issuer.Issue(person(t, k, token), &authorityv1.IssueRequest{
+				As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents",
+				Scopes: scopes(testkit.Scope("documents.collection", "read")),
+			})
+			if token == "fixture-omar" {
+				if !errors.Is(err, issuer.ErrRefused) {
+					t.Fatalf("ungranted collection read: %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if out.GetContext().GetOrganizationId() != "globex" {
+				t.Fatal("grant escaped its organization")
+			}
+		})
 	}
 }

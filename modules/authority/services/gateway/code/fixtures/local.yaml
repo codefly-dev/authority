@@ -74,6 +74,7 @@ roles:
     name: admin
     scopes:
       - {kind: documents, actions: [read, write]}
+      - {kind: documents.collection, actions: [read]}
   # Generated from the current delivered catalog, recomputed on each delivery,
   # in Acme. A playground signs its person in as dev.
   - organization: acme

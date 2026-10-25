@@ -241,6 +241,8 @@ func Matrix() []conformance.Expectation {
 		// Globex: its own installation of the wiki, and a documents role of its own.
 		allow("fixture-zoe", "wiki", "wiki.page", "publish"), allow("fixture-omar", "wiki", "wiki.page", "write"),
 		deny("fixture-omar", "wiki", "wiki.page", "publish"), allow("fixture-zoe", "documents", "documents", "write"),
+		allow("fixture-zoe", "documents", "documents.collection", "read"),
+		deny("fixture-omar", "documents", "documents.collection", "read"),
 		deny("fixture-omar", "documents", "documents", "read"),
 	}
 }

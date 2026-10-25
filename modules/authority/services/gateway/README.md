@@ -58,3 +58,10 @@ policy validator in the delivery library, requiring explicit method declarations
 
 `go test -race ./...` in `code/` includes replacement/removal and fixture coverage
 regressions. This does not qualify the production host or live browser journeys.
+
+Person issuance sorts and deduplicates a copy of the session's team attribution
+before signing. Fixture order therefore does not affect a module's ability to
+consume the context; the original session remains unchanged. The local Globex
+administrator explicitly holds `documents.collection:read` alongside document
+read/write; the role name itself implies no additional grants. Issuer regressions
+and the shared fixture matrix cover this grant and a person who lacks it.
