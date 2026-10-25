@@ -25,3 +25,7 @@ unchanged. Consumers pin this library by commit until it is tagged.
 Validate this library with `go test -race ./...` and `go vet ./...` from this
 directory. Issuer unit tests in the local authority exercise
 the actual installation-based tenant resolution.
+
+The Go dependency now pins the shared hop-stamp validation introduced in
+`9f04fc4`; standalone library tests therefore use the same digest check as the
+service without needing an external workspace replacement.
