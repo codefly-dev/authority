@@ -36,6 +36,9 @@ func (p *Plugin) Migrations() []string { return nil }
 
 // Install composes an installation and runs the target's install step.
 func (p *Plugin) Install(ctx context.Context, req *installationv1.InstallRequest) (*installationv1.Installation, error) {
+	if err := p.State.RequireAdministrator(authorityplugin.Bearer(ctx), req.GetOrganizationId()); err != nil {
+		return nil, authorityplugin.Status(err)
+	}
 	inst, err := p.State.Install(ctx, req.GetOrganizationId(), req.GetTarget(), req.GetRole(), req.GetOwnerPersonId())
 	if err != nil {
 		return nil, authorityplugin.Status(err)
@@ -45,6 +48,9 @@ func (p *Plugin) Install(ctx context.Context, req *installationv1.InstallRequest
 
 // GrantToTeam exposes an installation to a team.
 func (p *Plugin) GrantToTeam(ctx context.Context, req *installationv1.GrantToTeamRequest) (*installationv1.Installation, error) {
+	if err := p.State.RequireAdministrator(authorityplugin.Bearer(ctx), req.GetOrganizationId()); err != nil {
+		return nil, authorityplugin.Status(err)
+	}
 	inst, err := p.State.GrantToTeam(ctx, req.GetOrganizationId(), req.GetInstallationId(), req.GetTeamId())
 	if err != nil {
 		return nil, authorityplugin.Status(err)
@@ -53,7 +59,10 @@ func (p *Plugin) GrantToTeam(ctx context.Context, req *installationv1.GrantToTea
 }
 
 // List answers what one organisation has installed.
-func (p *Plugin) List(_ context.Context, req *installationv1.ListRequest) (*installationv1.ListResponse, error) {
+func (p *Plugin) List(ctx context.Context, req *installationv1.ListRequest) (*installationv1.ListResponse, error) {
+	if err := p.State.RequireAdministrator(authorityplugin.Bearer(ctx), req.GetOrganizationId()); err != nil {
+		return nil, authorityplugin.Status(err)
+	}
 	out := &installationv1.ListResponse{}
 	for _, inst := range p.State.List(req.GetOrganizationId()) {
 		out.Installations = append(out.Installations, Wire(inst))

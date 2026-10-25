@@ -26,9 +26,11 @@ import (
 
 // Errors a caller distinguishes.
 var (
-	ErrUnknown   = errors.New("state: unknown")
-	ErrForbidden = errors.New("state: forbidden")
-	ErrStale     = errors.New("state: generation is not newer")
+	ErrUnknown         = errors.New("state: unknown")
+	ErrNotInstalled    = errors.New("state: not installed")
+	ErrUnauthenticated = errors.New("state: unauthenticated")
+	ErrForbidden       = errors.New("state: forbidden")
+	ErrStale           = errors.New("state: generation is not newer")
 )
 
 // Scope is one (kind, actions) pair as the fixture spells it, optionally

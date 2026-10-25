@@ -35,6 +35,7 @@ import (
 type Fixture struct {
 	Organization        string // the one organisation the people belong to
 	ViewerToken         string // signs in a person who may read ReadKind at Audience and nothing more
+	UnentitledToken     string // signs in a member with neither roles nor teams; empty leaves this line unproven
 	AdminToken          string // signs in an organisation administrator
 	Audience            string // a composed module the viewer holds "read" on
 	ReadKind            string // the resource kind the viewer may read at Audience
@@ -245,6 +246,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		t.Fatalf("conformance: %v", err)
 	}
 	ctx := context.Background()
+	c.admissionStatus(t, ctx, f)
 
 	t.Run("keys name one Ed25519 key and an issuer", func(t *testing.T) {
 		keys := c.must(t, ctx, "host.authority.v1.AuthorityService", "Keys", map[string]any{})

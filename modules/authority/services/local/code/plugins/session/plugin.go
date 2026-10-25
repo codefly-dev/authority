@@ -4,13 +4,11 @@ package session
 
 import (
 	"context"
-	"strings"
 
 	"gateway/pkg/framework"
 	"gateway/pkg/wiring"
 
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
@@ -57,7 +55,7 @@ func (p *Plugin) SignIn(_ context.Context, req *sessionv1.SignInRequest) (*sessi
 // Current answers the session the call's bearer belongs to. The bearer is not
 // handed back: the caller already holds it.
 func (p *Plugin) Current(ctx context.Context, _ *sessionv1.CurrentRequest) (*sessionv1.Session, error) {
-	bearer := bearerOf(ctx)
+	bearer := authorityplugin.Bearer(ctx)
 	if bearer == "" {
 		return nil, status.Error(codes.Unauthenticated, "the call carries no session bearer")
 	}
@@ -75,17 +73,6 @@ func (p *Plugin) ListFixturePeople(context.Context, *sessionv1.ListFixturePeople
 		out.People = append(out.People, &sessionv1.FixturePerson{PersonId: person.ID, Email: person.Email, OrganizationId: person.Organization, Roles: person.Roles, TeamIds: person.Teams, FixtureToken: person.FixtureToken})
 	}
 	return out, nil
-}
-
-// bearerOf is the call's `authorization: Bearer <bearer>`, or "".
-func bearerOf(ctx context.Context) string {
-	md, _ := metadata.FromIncomingContext(ctx)
-	for _, value := range md.Get("authorization") {
-		if token, found := strings.CutPrefix(value, "Bearer "); found && token != "" {
-			return token
-		}
-	}
-	return ""
 }
 
 func New() framework.Plugin { return &Plugin{State: wiring.State()} }

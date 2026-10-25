@@ -253,6 +253,9 @@ func (i *Issuer) forPerson(ctx context.Context, sessionID string, audience state
 	if err != nil {
 		return "", nil, err
 	}
+	if err := i.state.RequireInstallation(sess.Organization, audience.Module, audience.Principal); err != nil {
+		return "", nil, err
+	}
 	held, err := i.state.PersonScopes(sess.Person, audience.Principal)
 	if err != nil {
 		return "", nil, err

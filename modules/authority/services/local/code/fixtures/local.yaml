@@ -81,6 +81,12 @@ roles:
     name: developer
     generated: true
 people:
+  - id: no-roles
+    email: no-roles@acme.test
+    fixture_token: fixture-no-roles
+    organization: acme
+    roles: []
+    teams: []
   - id: maya
     email: maya@acme.test
     fixture_token: fixture-maya

@@ -96,14 +96,21 @@ func (p *Plugin) Issue(ctx context.Context, req *authorityv1.IssueRequest) (*aut
 
 // withBearer carries the caller's bearer as the session it names.
 func withBearer(ctx context.Context) context.Context {
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		for _, value := range md.Get("authorization") {
-			if token, found := strings.CutPrefix(value, "Bearer "); found && token != "" {
-				ctx = issuer.WithSession(ctx, token)
-			}
-		}
+	if token := Bearer(ctx); token != "" {
+		return issuer.WithSession(ctx, token)
 	}
 	return ctx
+}
+
+// Bearer reads the session credential forwarded by the generated transport.
+func Bearer(ctx context.Context) string {
+	md, _ := metadata.FromIncomingContext(ctx)
+	for _, value := range md.Get("authorization") {
+		if token, found := strings.CutPrefix(value, "Bearer "); found && token != "" {
+			return token
+		}
+	}
+	return ""
 }
 
 // Delegate records the signed-in person's grant to a module.
@@ -195,7 +202,9 @@ func Status(err error) error {
 		return status.Error(codes.PermissionDenied, err.Error())
 	case errors.Is(err, workcontext.ErrInvalid), errors.Is(err, workcontext.ErrNotACoreToken), errors.Is(err, workcontext.ErrReplayed):
 		return status.Error(codes.Unauthenticated, err.Error())
-	case errors.Is(err, state.ErrStale):
+	case errors.Is(err, state.ErrUnauthenticated):
+		return status.Error(codes.Unauthenticated, err.Error())
+	case errors.Is(err, state.ErrStale), errors.Is(err, state.ErrNotInstalled):
 		return status.Error(codes.FailedPrecondition, err.Error())
 	default:
 		return status.Error(codes.Internal, err.Error())

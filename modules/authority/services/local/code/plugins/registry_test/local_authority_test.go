@@ -101,6 +101,7 @@ func TestTheLocalAuthorityPassesTheSuiteEveryImplementationMustPass(t *testing.T
 	}
 	conformance.Run(t, conn, descriptors, conformance.Fixture{
 		WorkloadOrganizations: workloadOrganizations,
+		UnentitledToken:       "fixture-no-roles",
 		Organization:          "acme", ViewerToken: "fixture-maya", AdminToken: "fixture-alex",
 		// Maya reads records; the directory page hops on her context through its
 		// records binding; a context at records is refused at model.

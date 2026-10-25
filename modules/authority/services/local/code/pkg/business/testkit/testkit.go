@@ -266,7 +266,7 @@ func New(t *testing.T) *Kit {
 	// manifests from their own workloads.
 	// robin and assistant are declared for the artifact tests, which compose
 	// them themselves.
-	for _, module := range []string{"model", "runtime", "records", "org-directory", "documents", "wiki", "proposals", "conformance-probe", "conformance-solution", "conformance-methods", "robin", "assistant", "evaluation"} {
+	for _, module := range []string{"model", "runtime", "records", "org-directory", "documents", "wiki", "proposals", "conformance-probe", "conformance-uninstalled", "conformance-solution", "conformance-methods", "robin", "assistant", "evaluation"} {
 		launcher.Declare(Workload(module))
 	}
 	_, signing, err := ed25519.GenerateKey(rand.Reader)

@@ -413,11 +413,22 @@ role narrowing/removal and binding narrowing/removal before resolution, during
 minting and after issuance. These checks do not choose a child-scope policy or
 qualify the separate accounts implementation.
 
+Installation administration (`List`, `Install`, `GrantToTeam`) requires an open
+session whose current person is an administrator or owner of the requested
+organization. Anonymous and invalid sessions are `Unauthenticated`; a member or
+an administrator of another organization receives `PermissionDenied`. This is
+not the navigation API: a member probes each target with an empty-scope `Issue`.
+That call returns `FailedPrecondition` when the audience has no active
+installation in the person's organization, and `PermissionDenied` when installed
+but the person holds no grant. Shared conformance exercises both distinctions;
+its optional `UnentitledToken` must name a fixture person with no roles or teams.
+The local fixture includes `no-roles` in Acme for that case.
+
 The suite proves it as a matrix: the fixture states, for each person at each
 audience, which kind and action is allowed and which refused, and the suite asks
 for exactly that scope and expects the answer. The local authority's fixture carries
-two organisations, five people, three organisation roles, one solution with three
-roles installed twice, and 25 cells. The host supplies its own matrix from its
+two organisations, a person with no roles or teams, an automatically generated
+developer role, and a solution installed under different roles. The host supplies its own matrix from its
 own fixture. When the fixture signs, the suite composes its solution as a carrier
 with the authority's document carrying its roles; the sketch remains for a
 fixture that does not sign.
