@@ -79,8 +79,29 @@ func TestTheLocalAuthorityPassesTheSuiteEveryImplementationMustPass(t *testing.T
 		{Credential: k.Credential(t, "org-directory"), Binding: "documents", Audience: "documents", AskKind: "documents", AskAction: "read"},
 		{Credential: k.Credential(t, "documents"), Binding: "model", Audience: "model", AskKind: "modelservice.profiles", AskAction: "read"},
 	}}
+	// Workloads already declared by the launcher preserve the main fixture's
+	// multi-organization checks. The probe is advanced to generation 2 later.
+	organizationCase := func(name string, generation uint64, revoked ...string) conformance.WorkloadOrganizationCase {
+		module := testkit.Documents(generation)
+		module.Module, module.Principal = name, name
+		if _, err := k.State.ApplyManifest(module); err != nil {
+			t.Fatal(err)
+		}
+		for _, org := range revoked {
+			if err := k.State.Revoke(state.InstallationID(org, name)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return conformance.WorkloadOrganizationCase{Credential: k.Credential(t, name), Module: name, Binding: "model", Audience: "model", Organization: "acme"}
+	}
+	workloadOrganizations := &conformance.WorkloadOrganizationsCase{
+		Single:    organizationCase("conformance-probe", 1, "globex"),
+		Ambiguous: conformance.WorkloadOrganizationCase{Credential: k.Credential(t, "org-directory"), Module: "org-directory", Binding: "records", Audience: "records"},
+		None:      organizationCase("runtime", 2, "acme", "globex"),
+	}
 	conformance.Run(t, conn, descriptors, conformance.Fixture{
-		Organization: "acme", ViewerToken: "fixture-maya", AdminToken: "fixture-alex",
+		WorkloadOrganizations: workloadOrganizations,
+		Organization:          "acme", ViewerToken: "fixture-maya", AdminToken: "fixture-alex",
 		// Maya reads records; the directory page hops on her context through its
 		// records binding; a context at records is refused at model.
 		Audience: "records", ReadKind: "records.records",

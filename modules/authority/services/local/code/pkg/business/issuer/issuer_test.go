@@ -328,6 +328,50 @@ func TestAWorkloadIsIssuedItsBindingsHeadlessScopesForTheBindingsAudience(t *tes
 	}
 }
 
+func TestAWorkloadInfersOnlyOneActiveInstallingOrganization(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		revoke       []string
+		organization string
+		reason       string
+	}{
+		{"one active organization", []string{"globex"}, "acme", ""},
+		{"other active organization", []string{"acme"}, "globex", ""},
+		{"ambiguous", nil, "", "ambiguous"},
+		{"none", []string{"acme", "globex"}, "", "no active installation"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			k := testkit.New(t)
+			for _, org := range tc.revoke {
+				if err := k.State.Revoke(state.InstallationID(org, "documents")); err != nil {
+					t.Fatal(err)
+				}
+			}
+			out, err := k.Issuer.Issue(context.Background(), &authorityv1.IssueRequest{
+				As:                 &authorityv1.IssueRequest_Workload{Workload: &authorityv1.WorkloadCredential{Credential: k.Credential(t, "documents")}},
+				OperationBindingId: "model",
+			})
+			if tc.reason != "" {
+				if !errors.Is(err, issuer.ErrRefused) || !strings.Contains(err.Error(), tc.reason) || !strings.Contains(err.Error(), "must name one organization") {
+					t.Fatalf("want named %s refusal, got %v", tc.reason, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			wc := out.GetContext()
+			if wc.GetTenantId() != tc.organization || wc.GetOrganizationId() != tc.organization || wc.GetOwnerPrincipalId() != "documents" || wc.GetAudience() != "model" ||
+				wc.GetSeal().GetInstallationId() != state.InstallationID(tc.organization, "documents") || wc.GetOperationBinding().GetBindingId() != tc.organization+"/documents/model" {
+				t.Fatalf("inferred context lost its organization or binding: %v", wc)
+			}
+			if _, err := k.Issuer.Check(context.Background(), out.GetToken(), "model", ""); err != nil {
+				t.Fatalf("inferred context is not usable: %v", err)
+			}
+		})
+	}
+}
+
 // The hop rule: a module hops only on a person's token addressed to it, names
 // the binding it exercises, and the child carries what the person holds through
 // that binding at its audience, no more.

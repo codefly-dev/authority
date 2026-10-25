@@ -303,8 +303,19 @@ func (i *Issuer) forWorkload(ctx context.Context, credential, org, bindingID, op
 	if err != nil {
 		return "", nil, err
 	}
-	if org == "" || bindingID == "" {
-		return "", nil, fmt.Errorf("%w: a workload issue names the organization and the binding it exercises", ErrRefused)
+	if bindingID == "" {
+		return "", nil, fmt.Errorf("%w: a workload issue names the binding it exercises", ErrRefused)
+	}
+	if org == "" {
+		organizations := i.state.ActiveInstallationOrganizations(module.Module)
+		switch len(organizations) {
+		case 0:
+			return "", nil, fmt.Errorf("%w: module %q has no active installation; a workload must name one organization", ErrRefused, module.Module)
+		case 1:
+			org = organizations[0]
+		default:
+			return "", nil, fmt.Errorf("%w: module %q has ambiguous active installations across organizations; a workload must name one organization", ErrRefused, module.Module)
+		}
 	}
 	fullID := org + "/" + module.Module + "/" + bindingID
 	binding, ok := module.Bindings[bindingID]

@@ -1120,6 +1120,21 @@ func (s *State) Revoke(id string) error {
 	return nil
 }
 
+// ActiveInstallationOrganizations returns the organizations with an active
+// installation of target. Pending and revoked installations confer no authority.
+func (s *State) ActiveInstallationOrganizations(target string) []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var organizations []string
+	for _, inst := range s.installations {
+		if inst.Target == target && inst.Status == Active {
+			organizations = append(organizations, inst.Organization)
+		}
+	}
+	sort.Strings(organizations)
+	return organizations
+}
+
 // Installation returns one installation.
 func (s *State) Installation(id string) (Installation, bool) {
 	s.mu.RLock()

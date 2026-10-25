@@ -222,7 +222,7 @@
         },
         "organizationId": {
           "type": "string",
-          "description": "The organisation the work runs in, for an owner shape that does not carry one."
+          "description": "The organisation the work runs in. A workload may leave this empty when\nits delivered principal pins a tenant or exactly one organisation has an\nactive installation of its module. Otherwise it must name one organisation;\nabsent or ambiguous installation authority is refused with a reason."
         },
         "actor": {
           "$ref": "#/definitions/v1WorkloadCredential",

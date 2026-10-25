@@ -51,7 +51,10 @@ type IssueRequest struct {
 	// The declared binding this capability exercises, when the owner is a workload
 	// or a child acts through one.
 	OperationBindingId string `protobuf:"bytes,8,opt,name=operation_binding_id,json=operationBindingId,proto3" json:"operation_binding_id,omitempty"`
-	// The organisation the work runs in, for an owner shape that does not carry one.
+	// The organisation the work runs in. A workload may leave this empty when
+	// its delivered principal pins a tenant or exactly one organisation has an
+	// active installation of its module. Otherwise it must name one organisation;
+	// absent or ambiguous installation authority is refused with a reason.
 	OrganizationId string `protobuf:"bytes,9,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"`
 	// The acting workload credential; required with parent_token, delegation,
 	// and installation. For installation it must name the installed solution.

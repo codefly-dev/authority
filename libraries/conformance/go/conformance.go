@@ -47,6 +47,10 @@ type Fixture struct {
 	InstalledCredential string // workload credential of InstalledAudience, required for installation-owned Issue
 	InstalledAudience   string // the installed solution principal; distinct from the organisation-role module Audience
 
+	// WorkloadOrganizations is required: omitted organization resolves only to a
+	// delivered tenant or the sole active installing organization, never any tenant.
+	WorkloadOrganizations *WorkloadOrganizationsCase
+
 	// SolutionTools exercises a module binding to a solution with distinct person entitlements.
 	SolutionTools *SolutionToolsCase
 
@@ -396,6 +400,12 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		if status.Code(err) != codes.Unauthenticated {
 			t.Fatalf("garbage token: %v", err)
 		}
+	})
+	t.Run("workload organization is inferred only when unambiguous", func(t *testing.T) {
+		if f.WorkloadOrganizations == nil {
+			t.Fatal("fixture must supply single, ambiguous and absent workload organization cases")
+		}
+		c.workloadOrganizations(t, ctx, *f.WorkloadOrganizations)
 	})
 	t.Run("a workload is issued its own binding and nothing it did not declare", func(t *testing.T) {
 		workload := map[string]any{"workload": map[string]any{"credential": f.WorkloadCredential}, "audience": f.BindingAudience, "organization_id": f.Organization}
