@@ -83,7 +83,7 @@ def test_another_audience_and_an_expired_context_are_refused():
 def settle(v):
     wait = v._inflight
     if wait is not None:
-        wait.wait(5)
+        wait.result(5)
 
 
 def test_keys_are_reread_when_old_and_trusted_no_longer_than_stale():
@@ -248,6 +248,46 @@ def test_verify_async_waits_for_keys_off_the_event_loop():
     ticks, identity = asyncio.run(scenario())
     assert ticks >= 10, "the event loop was blocked while the keys were read"
     assert identity.owner == FIXTURE["identity"]["owner"]
+
+
+# Review r159 f2: verify_async waits for a re-read without a thread. Calls on
+# keys past KEY_STALE, more than the default executor has workers, all wait for
+# one hung re-read on a loop whose executor refuses work, and all verify once it
+# lands; a call whose wait outlives the timeout is refused with the reason.
+def test_verify_async_waits_for_a_stale_reread_without_a_thread():
+    import asyncio
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    class NoThreads(ThreadPoolExecutor):
+        def submit(self, *args, **kwargs):
+            raise AssertionError("verify_async took an executor thread to wait for the keys")
+
+    clock = [FIXTURE["now"] - KEY_STALE - 60]
+    source = Keys(published())
+    v = Verifier(source, audience=FIXTURE["audience"], proof=FIXTURE["proof"], now=lambda: clock[0], timeout=1.0)
+    source.hold = threading.Event()
+    clock[0] = FIXTURE["now"]
+
+    async def scenario():
+        asyncio.get_running_loop().set_default_executor(NoThreads())
+        calls = [asyncio.create_task(v.verify_async(FIXTURE["headers"])) for _ in range(64)]
+        await asyncio.sleep(0.1)
+        assert not any(call.done() for call in calls), "a call was judged before its re-read ended"
+        source.hold.set()
+        identities = await asyncio.gather(*calls)
+        source.hold = threading.Event()  # the next re-read hangs past the timeout
+        clock[0] += KEY_STALE + KEY_RETRY  # stale keys are refused before the token's own expiry is read
+        try:
+            await v.verify_async(FIXTURE["headers"])
+        except Unauthenticated as refused:
+            return identities, str(refused)
+        return identities, "admitted"
+
+    identities, refusal = asyncio.run(scenario())
+    assert {identity.owner for identity in identities} == {FIXTURE["identity"]["owner"]} and len(identities) == 64
+    assert source.reads == 3 and "unavailable" in refusal
+    source.hold.set()
 
 
 # Readiness follows trust, not the last read.

@@ -22,6 +22,7 @@ import base64
 import threading
 import time
 from collections.abc import Callable, Iterable, Mapping
+from concurrent import futures
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
@@ -116,11 +117,11 @@ class Verifier:
         self._trust: Trust | None = None
         self._fetched = 0.0
         self._tried = float("-inf")
-        self._inflight: threading.Event | None = None
+        self._inflight: futures.Future[None] | None = None  # done when the running read ends
         self.keys_error: Exception | None = None  # the last read's failure, for logs; never sent to a caller
         with self._lock:
             started = self._refresh()
-        started.wait(timeout)
+        futures.wait((started,), timeout)
 
     def ready(self) -> bool:
         """Whether trusted keys are held: true from the first successful read and
@@ -145,23 +146,27 @@ class Verifier:
         pairs, token = self._bound(headers)
         wait = self._start(_key_id(token))
         if wait is not None:
-            wait.wait(self._timeout)
+            futures.wait((wait,), self._timeout)
         return self._finish(pairs, token)
 
     async def verify_async(self, headers: Mapping[str, str] | Iterable[tuple[str, str]]) -> Identity:
-        """``verify`` for an asyncio handler: a wait for the keys runs off the event
-        loop, and a call whose key is held never leaves it."""
+        """``verify`` for an asyncio handler: a wait for the keys is awaited on the
+        event loop and holds no thread, so any number of waiting calls leave the
+        loop's executor free; a call whose key is held never waits."""
         pairs, token = self._bound(headers)
         wait = self._start(_key_id(token))
         if wait is not None:
-            await asyncio.to_thread(wait.wait, self._timeout)
+            try:
+                await asyncio.wait_for(asyncio.wrap_future(wait), self._timeout)
+            except asyncio.TimeoutError:
+                pass  # judged below on the keys held: stale ones are refused with the reason
         return self._finish(pairs, token)
 
     def _bound(self, headers) -> tuple[list[tuple[str, str]], str]:
         pairs = list(headers.items() if isinstance(headers, Mapping) else headers)
         return pairs, bound_token(pairs, self._proof)
 
-    def _start(self, key_id: str) -> threading.Event | None:
+    def _start(self, key_id: str) -> futures.Future[None] | None:
         """Start a read when one is due; return it when this call must wait for it:
         its key is not held, or the held keys are past ``KEY_STALE`` (an idle
         replica's first call is judged on fresh keys, not refused while they
@@ -196,11 +201,15 @@ class Verifier:
         advisory = (values.get(ADVISORY_KEY) or [""])[0]
         return Identity(**{**identity.__dict__, "context": token, "advisory": advisory, "claims": claims})
 
-    def _refresh(self) -> threading.Event:
-        """Start the one read, on its own thread and timeout; the lock is held."""
+    def _refresh(self) -> futures.Future[None]:
+        """Start the one read, on its own thread and timeout; the lock is held. The
+        returned future is done when the read ends; it is running from the start,
+        so a waiter that gives up (``wait_for`` cancelling its wrapper) cannot
+        cancel it for the others."""
         if self._inflight is not None:
             return self._inflight
-        done = threading.Event()
+        done: futures.Future[None] = futures.Future()
+        done.set_running_or_notify_cancel()
         self._inflight, self._tried = done, self._now()
 
         def read() -> None:
@@ -214,7 +223,7 @@ class Verifier:
                 if trust is not None:
                     self._trust, self._fetched = trust, self._now()
                 self.keys_error, self._inflight = error, None
-            done.set()
+            done.set_result(None)
 
         threading.Thread(target=read, name="codefly-hop-keys", daemon=True).start()
         return done
