@@ -25,7 +25,9 @@ type fixture struct {
 	Probes                []struct {
 		Kind, Action string
 		ResourceID   string `json:"resource_id"`
-		Allowed      bool
+		// Owner, when the probe names one, asks the owner-aware AllowsOwned.
+		Owner   *string
+		Allowed bool
 	}
 }
 
@@ -100,8 +102,12 @@ func TestCoreFixtures(t *testing.T) {
 				}
 			}
 			for _, p := range f.Probes {
-				if c.Allows(p.Kind, p.Action, p.ResourceID) != p.Allowed {
-					t.Fatalf("probe %s %s %s", p.Kind, p.Action, p.ResourceID)
+				got := c.Allows(p.Kind, p.Action, p.ResourceID)
+				if p.Owner != nil {
+					got = c.AllowsOwned(p.Kind, p.Action, p.ResourceID, *p.Owner)
+				}
+				if got != p.Allowed {
+					t.Fatalf("probe %s %s %s owner %v", p.Kind, p.Action, p.ResourceID, p.Owner)
 				}
 			}
 		})

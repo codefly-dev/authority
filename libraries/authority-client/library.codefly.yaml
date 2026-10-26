@@ -1,6 +1,6 @@
 kind: library
 name: authority-client
-version: 0.0.0
+version: 0.0.1
 languages:
     - name: go
       path: go/
@@ -16,11 +16,11 @@ languages:
         - '@codefly-dev/authority-client'
 sources:
     - package: local
-      version: 0.0.0
+      version: 0.0.1
       module: authority
       service: local
       endpoint: grpc
-      contract-digest: sha256:d2fcb57f3608ea6c57918565db2d83cc69d7e9cebee33edadf2160a3fee8d635
+      contract-digest: sha256:9fcee9f110613a97881cfdfd035de3b82b7b58cac138e1093a47ba4460436d72
       services:
         - GatewayService
 generated-by:

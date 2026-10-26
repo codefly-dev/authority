@@ -111,12 +111,23 @@ func (c *Claims) Scopes() []*basev0.WorkScopeV1 {
 
 // Allows asks for one literal action on one exact resource. An empty resourceID
 // asks for the whole kind; a resource-limited grant cannot satisfy that request.
-// No wildcard expansion, action implication or cross-grant merging occurs.
+// No wildcard expansion, action implication or cross-grant merging occurs. It
+// names no resource owner, so an owner-selected grant never satisfies it: a
+// module whose resources have owners asks AllowsOwned.
 func (c *Claims) Allows(kind, action, resourceID string) bool {
+	return c.AllowsOwned(kind, action, resourceID, "")
+}
+
+// AllowsOwned is Allows for a resource owned by ownerID (the owner the
+// module's own record names): an owner-selected grant covers it only when it
+// names that owner, and, with ids, the id too. A grant naming no owner covers
+// it whatever its owner. An empty resourceID with an owner asks for every
+// resource that owner holds, the list path.
+func (c *Claims) AllowsOwned(kind, action, resourceID, ownerID string) bool {
 	if c == nil || kind == "" || action == "" {
 		return false
 	}
-	ask := &basev0.WorkScopeV1{ResourceKind: kind, Actions: []string{action}}
+	ask := &basev0.WorkScopeV1{ResourceKind: kind, Actions: []string{action}, ResourceOwnerId: ownerID}
 	if resourceID != "" {
 		ask.ResourceIds = []string{resourceID}
 	}

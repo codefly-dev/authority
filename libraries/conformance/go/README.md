@@ -121,13 +121,13 @@ then runs these cases, each making its own grants:
 17. a person leaving the organization loses the solution's data at once
 18. uninstalling disables the principal at once and its data stays owned; old capabilities (a person's, the agent's, a parent's children) stay dead after reinstall and re-grant
 
-Library targets pin the modules' side: `libraries/hop/go`
-`TestAnOwnerSelectedScopeNeverReadsAsTheWholeKind`,
-`libraries/authority-client/go/workcontext`
-`TestClaimsAdmitAnOwnerSelectedScopeOnlyForItsOwner` and
-`TestScopesKeepTheirResourceOwner`,
-`libraries/authority-client/python/tests/test_owner_target.py` and
-`libraries/authority-client/typescript/tests/owner-target.test.mjs`.
+The modules' side is no longer a target: the readers now honour owners and
+their tests run by default. `libraries/hop/go` `owner_test.go` (the stamp never
+flattens an owner-selected scope), `libraries/authority-client/go/workcontext`
+`owner_test.go` (`AllowsOwned`, `Scopes()` keeps owners, a signed chain dropping
+or changing the owner is refused), `libraries/authority-client/python/tests/test_owner.py`
+and `libraries/authority-client/typescript/tests/owner.test.mjs` (the same in
+Python and TypeScript, through the real decode path).
 
 ### Run cases the target supersedes, and how one host passes both
 
@@ -152,9 +152,7 @@ installing person holds no role unless granted, so a Matrix row such as the
 installer publishing at a solution needs an explicit installer grant), and
 declares `owner_aware` on the modules solutions consume.
 
-Run everything with `AUTHORITY_TARGET=solution-principal`: from
-`modules/authority/services/local/code`,
-`go test ./plugins/registry_test -run SolutionPrincipal`; `go test ./...` in
-`libraries/hop/go` and `libraries/authority-client/go`; `pytest` in
-`libraries/authority-client/python`; `npm test` in
-`libraries/authority-client/typescript`. Each target skips without it.
+Run the conformance target with `AUTHORITY_TARGET=solution-principal` from
+`modules/authority/services/local/code`:
+`go test ./plugins/registry_test -run SolutionPrincipal`. It skips without it
+until the local authority implements it.
