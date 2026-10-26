@@ -11,12 +11,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/codefly-dev/authority/libraries/authority-client/go/host"
 	"github.com/codefly-dev/core/workcontext"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
@@ -43,11 +41,10 @@ func (p *Plugin) RegisterGRPC(s *grpc.Server) { authorityv1.RegisterAuthoritySer
 // transcoded to the gRPC service, the caller's Authorization header carried as
 // the bearer.
 //
-// It dials this process's own gRPC endpoint through host.DialOptions, never
-// with options handed in, so no environment proxy sits between the transcoder
-// and the authority it fronts (the no-proxy gate holds every such call).
-func (p *Plugin) RegisterREST(ctx context.Context, mux *runtime.ServeMux, endpoint string, _ []grpc.DialOption) error {
-	if err := authorityv1.RegisterAuthorityServiceHandlerFromEndpoint(ctx, mux, endpoint, host.DialOptions(insecure.NewCredentials())); err != nil {
+// It forwards the generated adapter's options unchanged, preserving its
+// loopback-only transport credentials.
+func (p *Plugin) RegisterREST(ctx context.Context, mux *runtime.ServeMux, endpoint string, opts []grpc.DialOption) error {
+	if err := authorityv1.RegisterAuthorityServiceHandlerFromEndpoint(ctx, mux, endpoint, opts); err != nil {
 		return err
 	}
 	return mux.HandlePath(http.MethodGet, KeySetPath, func(w http.ResponseWriter, _ *http.Request, _ map[string]string) {

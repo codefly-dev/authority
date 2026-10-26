@@ -201,6 +201,10 @@ func Check(root, dir string, overlay map[string][]byte, patterns ...string) ([]V
 }
 
 func check(root, dir string, overlay map[string][]byte, trusted map[string]string, patterns ...string) ([]Violation, error) {
+	return checkWithFlags(root, dir, overlay, trusted, nil, patterns...)
+}
+
+func checkWithFlags(root, dir string, overlay map[string][]byte, trusted map[string]string, buildFlags []string, patterns ...string) ([]Violation, error) {
 	root, _ = filepath.Abs(root)
 	dir, _ = filepath.Abs(dir)
 	all := len(patterns) == 1 && patterns[0] == "./..."
@@ -226,8 +230,9 @@ func check(root, dir string, overlay map[string][]byte, trusted map[string]strin
 	config := &packages.Config{
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports |
 			packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedTypesSizes,
-		Dir:     dir,
-		Overlay: overlay,
+		Dir:        dir,
+		Overlay:    overlay,
+		BuildFlags: buildFlags,
 	}
 	loaded, err := packages.Load(config, patterns...)
 	if err != nil {
@@ -236,6 +241,11 @@ func check(root, dir string, overlay map[string][]byte, trusted map[string]strin
 	var problems []string
 	violations := inventory
 	judged := map[string]bool{}
+	// Build the complete package graph before proving interface dispatch. All
+	// plugin method sets and adapter calls must share this load's type identities.
+	module := map[*types.Package]*selfDials{}
+	refusals := map[Violation]bool{}
+	generated := map[*ast.File]string{}
 	for _, p := range loaded {
 		for _, e := range p.Errors {
 			problems = append(problems, e.Error())
@@ -243,8 +253,10 @@ func check(root, dir string, overlay map[string][]byte, trusted map[string]strin
 		if len(p.Errors) > 0 {
 			continue
 		}
-		self := selfDials{parsed: p.Syntax, info: p.TypesInfo, pkg: p.Types, generated: map[*ast.File]bool{}}
-		generators := map[*ast.File]string{}
+		self := &selfDials{root: root, files: p.Fset, module: module, refusals: refusals,
+			checkedDials: map[*ast.CallExpr]bool{}, parsed: p.Syntax, info: p.TypesInfo,
+			pkg: p.Types, generated: map[*ast.File]bool{}}
+		module[p.Types] = self
 		for _, file := range p.Syntax {
 			name := p.Fset.File(file.Pos()).Name()
 			relative, _ := filepath.Rel(root, name)
@@ -256,10 +268,19 @@ func check(root, dir string, overlay map[string][]byte, trusted map[string]strin
 				}
 			}
 			if trusted[filepath.ToSlash(relative)] == digest(source) {
-				generators[file] = generatedBy(name, file)
-				self.generated[file] = generators[file] == "go-grpc"
+				generated[file] = generatedBy(name, file)
+				self.generated[file] = generated[file] == "go-grpc"
 			}
 		}
+	}
+	if len(problems) > 0 {
+		return nil, fmt.Errorf("packages in %s do not load or type-check, so the gate cannot judge them:\n%s", dir, strings.Join(problems, "\n"))
+	}
+	for _, self := range module {
+		violations = append(violations, self.violations()...)
+	}
+	for _, p := range loaded {
+		self := module[p.Types]
 		for _, file := range p.Syntax {
 			name := p.Fset.File(file.Pos()).Name()
 			if strings.HasSuffix(name, "_test.go") {
@@ -270,12 +291,9 @@ func check(root, dir string, overlay map[string][]byte, trusted map[string]strin
 			if err != nil {
 				return nil, err
 			}
-			c := &checker{pkg: p, file: file, relative: filepath.ToSlash(relative), generator: generators[file], self: &self}
+			c := &checker{pkg: p, file: file, relative: filepath.ToSlash(relative), generator: generated[file], self: self}
 			violations = append(violations, c.check()...)
 		}
-	}
-	if len(problems) > 0 {
-		return nil, fmt.Errorf("packages in %s do not load or type-check, so the gate cannot judge them:\n%s", dir, strings.Join(problems, "\n"))
 	}
 	if all {
 		unjudged, err := Unjudged(root, dir, judged)
@@ -679,17 +697,10 @@ func (c *checker) use(id *ast.Ident, stack []ast.Node) {
 	}
 	call := calling(id, stack)
 	if c.generator == "go-grpc" {
-		seam, _ := c.pkg.Types.Scope().Lookup("gatewayDialOptions").(*types.Func)
-		if reason := c.self.seamRefusal(seam); reason != "" {
-			c.refuse(id, "gatewayDialOptions "+reason+"; regenerate with go-grpc 0.1.67 or later")
-		}
-		var options ast.Expr
-		if call != nil && len(call.Args) > 0 && (isEndpoint && !call.Ellipsis.IsValid() || isDial && call.Ellipsis.IsValid()) {
-			options = call.Args[len(call.Args)-1]
-		}
-		if seam == nil || !c.self.fromSeam(options, seam) {
-			c.refuse(id, "a generated self-dial must pass gatewayDialOptions(…), or a variable defined once from it, as its options")
-		}
+		// The module-wide self-dial proof also checks generated forwarders and plugins.
+		return
+	}
+	if call != nil && c.self.checkedDials[call] {
 		return
 	}
 	switch {
