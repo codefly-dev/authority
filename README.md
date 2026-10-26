@@ -866,7 +866,8 @@ the interface, with a suite line, or named as belonging elsewhere.
 | Which collections or resources a caller reads (saas `ListReadableSourceCollections`) | `ListResources`, by id, prefix or pattern | suite: the authority answers which resources a context covers |
 | Executable artifact approvals (`Approve`, `Authorize`, `RevokeExecutableArtifact`) | not authority: the signed release (handbook#146) | open |
 | Audit (`EmitAuditEvent`, `DeclareAuditEventTypes`) | not authority: an optional audit interface; with none injected, the module logs each event | the record store |
-| Notifications and the current installation (`NotifyUser`, `NotifyOrgAdmins`, `GetCurrentInstallation`) | not authority: host services, optional interfaces | open |
+| Notifications (`NotifyUser`, `NotifyOrgAdmins`) | host services, optional interfaces | open |
+| Current installation identity and authored namespace | proposed `InstallationService.Current`, confined to the authenticated module in the parent organization | shared core and public RPC tests; host adoption pending |
 
 The local authority supplies these cases. Each host must run the current suite
 against its own provider; missing required fixtures fail. Earlier Accounts
@@ -1047,3 +1048,27 @@ same registration is follow-up work in the host.
 The 0.3.1 authority version is an additive pre-stable revision selected for
 this refresh so existing `>=0.2.0 <0.4.0` consumers admit it. It retains 0.3.0's
 `AuthorizeTransfer` and adds attachment operations. Composition remains 0.2.0.
+
+## Current installation metadata for a module
+
+The installation interface advances to `0.3.0` for this additive capability.
+The in-repository edge accepts it; external compositions constrained below
+`0.3.0` need explicit consumer adoption before selecting this provider.
+
+`InstallationService.Current` accepts the caller's parent Work Context and the
+module's independently authenticated workload credential. Shared core verifies
+the parent for that module and returns only its active installation in the parent
+organization. A delegated child is sealed to its source actor; that seal is
+verified, never mistaken for the destination module installation.
+The projection contains id, organization, target, revision and authored namespace;
+it exposes no roles, grants or other installations. There are no tenant or
+installation selectors. It is a current metadata read, not content access,
+artifact consent or a lease; artifact approval and authorization remain separate.
+`List` remains administrator-only. Invalid credentials, foreign audiences and
+revoked authority refuse instead of returning an empty namespace.
+
+The contract is proposed in handbook
+[`2026-10-26-authored-content-foundations`](https://github.com/obin-ai/handbook/blob/proposal/authored-content-foundations/proposals/2026-10-26-authored-content-foundations.md).
+Shared-core tests exercise tenant/audience isolation and revocation; the shared
+conformance suite exercises the generated public RPC. Accounts must adopt this
+method and pass that suite before its consumer deployment is qualified.

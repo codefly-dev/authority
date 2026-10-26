@@ -26,6 +26,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
+	InstallationService_Current_FullMethodName        = "/host.installation.v1.InstallationService/Current"
 	InstallationService_Install_FullMethodName        = "/host.installation.v1.InstallationService/Install"
 	InstallationService_Review_FullMethodName         = "/host.installation.v1.InstallationService/Review"
 	InstallationService_GrantRole_FullMethodName      = "/host.installation.v1.InstallationService/GrantRole"
@@ -40,6 +41,10 @@ const (
 //
 // InstallationService is implemented by the host and by the local authority.
 type InstallationServiceClient interface {
+	// Current reads only the authenticated module's own active installation,
+	// in the tenant of a current parent addressed to that module. It grants no
+	// artifact approval or content access and exposes no roles or grants.
+	Current(ctx context.Context, in *CurrentInstallationRequest, opts ...grpc.CallOption) (*CurrentInstallation, error)
 	// Install composes an installation: its agent principal, its root scope and
 	// the row, pending until the target acknowledges its install step.
 	Install(ctx context.Context, in *InstallRequest, opts ...grpc.CallOption) (*Installation, error)
@@ -68,6 +73,16 @@ type installationServiceClient struct {
 
 func NewInstallationServiceClient(cc grpc.ClientConnInterface) InstallationServiceClient {
 	return &installationServiceClient{cc}
+}
+
+func (c *installationServiceClient) Current(ctx context.Context, in *CurrentInstallationRequest, opts ...grpc.CallOption) (*CurrentInstallation, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CurrentInstallation)
+	err := c.cc.Invoke(ctx, InstallationService_Current_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *installationServiceClient) Install(ctx context.Context, in *InstallRequest, opts ...grpc.CallOption) (*Installation, error) {
@@ -136,6 +151,10 @@ func (c *installationServiceClient) List(ctx context.Context, in *ListRequest, o
 //
 // InstallationService is implemented by the host and by the local authority.
 type InstallationServiceServer interface {
+	// Current reads only the authenticated module's own active installation,
+	// in the tenant of a current parent addressed to that module. It grants no
+	// artifact approval or content access and exposes no roles or grants.
+	Current(context.Context, *CurrentInstallationRequest) (*CurrentInstallation, error)
 	// Install composes an installation: its agent principal, its root scope and
 	// the row, pending until the target acknowledges its install step.
 	Install(context.Context, *InstallRequest) (*Installation, error)
@@ -166,6 +185,9 @@ type InstallationServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedInstallationServiceServer struct{}
 
+func (UnimplementedInstallationServiceServer) Current(context.Context, *CurrentInstallationRequest) (*CurrentInstallation, error) {
+	return nil, status.Error(codes.Unimplemented, "method Current not implemented")
+}
 func (UnimplementedInstallationServiceServer) Install(context.Context, *InstallRequest) (*Installation, error) {
 	return nil, status.Error(codes.Unimplemented, "method Install not implemented")
 }
@@ -203,6 +225,24 @@ func RegisterInstallationServiceServer(s grpc.ServiceRegistrar, srv Installation
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&InstallationService_ServiceDesc, srv)
+}
+
+func _InstallationService_Current_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CurrentInstallationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InstallationServiceServer).Current(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: InstallationService_Current_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(InstallationServiceServer).Current(ctx, req.(*CurrentInstallationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _InstallationService_Install_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -320,6 +360,10 @@ var InstallationService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "host.installation.v1.InstallationService",
 	HandlerType: (*InstallationServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Current",
+			Handler:    _InstallationService_Current_Handler,
+		},
 		{
 			MethodName: "Install",
 			Handler:    _InstallationService_Install_Handler,
