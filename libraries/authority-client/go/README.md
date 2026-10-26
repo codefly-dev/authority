@@ -60,17 +60,23 @@ and refuses, by file and line, any request, dial or subprocess that bypasses
 variables by object identity (`http.DefaultClient`, `http.Get` and friends,
 `http.ProxyFromEnvironment`, `httputil.NewSingleHostReverseProxy`, the
 `os/exec` and `syscall` process starters, `http.DefaultTransport` outside
-`host.go`); a gRPC dial or generated `Register…HandlerFromEndpoint` whose final
-options argument is not the seam; any value, literal, conversion, identical type
-or generic instantiation of `http.Client`, `httputil.ReverseProxy` or
-`http.Transport` except a literal setting `Transport: host.HTTPTransport()`; and
-any write to, or address of, their `Transport` field. Generated files are
-skipped only by their generated-code marker. Its blind spots, by class: raw
-sockets, unsafe, go:linkname, cgo, reflection, subprocesses started by other
-means than those it refuses, third-party clients, and options built but not
-used. Only the go-grpc agent's generated self-dials are exempt from the dial
-rule, until its template carries `grpc.WithNoProxy()`; an entry must be removed
-once its regenerated file does. Remote endpoints
+`host.go`); a gRPC dial or `Register…HandlerFromEndpoint` call whose final
+options argument is not the seam, or appends an option after it that sets the
+transport; any value, literal, identical type, generic instantiation or
+conversion (in either direction, type parameters included) of `http.Client`,
+`httputil.ReverseProxy` or `http.Transport` except a literal setting
+`Transport: host.HTTPTransport()`; any write to, or address of, their
+`Transport` field; and `unsafe`, `import "C"` and `//go:linkname` in hand-written
+files. Every file the load returns is judged, generated or not; a
+generated-code marker is believed only when it names a known generator and the
+file has that generator's suffix. A production file the load does not judge (a
+build constraint, cgo, a directory the go tool ignores) is refused. No function
+is exempt by its name. Its blind spots, by class: `_test.go` files, raw sockets,
+reflection, subprocesses started by other means than those it refuses,
+third-party clients, option slices built elsewhere and spread after the seam,
+and what dependencies do on the repository's behalf. Only the go-grpc agent's
+generated self-dials are exempt from the dial rule, until its template carries
+`grpc.WithNoProxy()`; an entry must be removed once its regenerated file does. Remote endpoints
 use verified HTTPS/TLS unless the composition asserts
 `internal-transport/mesh-protected=true` and the target is an in-cluster Service
 DNS name. Plaintext loopback is accepted only in a local Codefly environment: the one named exactly `local` (the SDK's `IsLocal`); no name prefix is reserved for local runs.

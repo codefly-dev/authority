@@ -69,11 +69,13 @@ var httpTransport = func() noProxy {
 // carrying a Work Context, a stamp or the run's proof is sent over (the hop's
 // HTTP face, the edge's reverse proxy). It never consults HTTP_PROXY or
 // HTTPS_PROXY, and it exposes no *http.Transport to reconfigure. The
-// repository's no-proxy gate (tools/noproxygate) type-checks every module and
-// refuses requests, dials and subprocesses that bypass this seam or
-// DialOptions. Its blind spots, by class: raw sockets, unsafe, go:linkname,
-// cgo, reflection, subprocesses started by other means than those it refuses,
-// third-party clients, and options built but not used.
+// repository's no-proxy gate (tools/noproxygate) type-checks every production
+// file of every module, refuses one it cannot load, and refuses requests,
+// dials and subprocesses that bypass this seam or DialOptions. Its blind spots,
+// by class: _test.go files, raw sockets, reflection, subprocesses started by
+// other means than those it refuses, third-party clients, option slices built
+// elsewhere and spread after the seam, and what dependencies do on the
+// repository's behalf.
 func HTTPTransport() http.RoundTripper { return httpTransport }
 
 // Target is the gRPC target and transport for the host at endpoint:

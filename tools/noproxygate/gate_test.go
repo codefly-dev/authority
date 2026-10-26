@@ -55,6 +55,7 @@ type gateCase struct {
 	body    string
 	source  string // a whole file, in place of header and body
 	dir     string // in place of a numbered directory
+	file    string // in place of case.go
 	reason  string // "" for a form the gate must pass
 }
 
@@ -105,12 +106,12 @@ var refused = []gateCase{
 	// Review r114's fifteen, from its evidence sources.
 	{name: "S1 elided slice literal", body: "func s() *http.Client { return []*http.Client{{}}[0] }", reason: "literal must set Transport"},
 	{name: "S2 elided map literal", body: "func s() *http.Client { return map[string]*http.Client{\"x\": {}}[\"x\"] }", reason: "literal must set Transport"},
-	{name: "S3 pointer conversion from an identical struct", imports: []string{`"time"`}, body: "type fakeClient struct {\n\tTransport     http.RoundTripper\n\tCheckRedirect func(req *http.Request, via []*http.Request) error\n\tJar           http.CookieJar\n\tTimeout       time.Duration\n}\n\nfunc s() *http.Client { return (*http.Client)(&fakeClient{}) }", reason: "conversion to http.Client"},
+	{name: "S3 pointer conversion from an identical struct", imports: []string{`"time"`}, body: "type fakeClient struct {\n\tTransport     http.RoundTripper\n\tCheckRedirect func(req *http.Request, via []*http.Request) error\n\tJar           http.CookieJar\n\tTimeout       time.Duration\n}\n\nfunc s() *http.Client { return (*http.Client)(&fakeClient{}) }", reason: "conversion to or from http.Client"},
 	{name: "S4 inferred generic new", body: "func newOf[T any](_ *T) *T { return new(T) }\n\nfunc s() *http.Client { return newOf((*http.Client)(nil)) }", reason: "generic instantiated with http.Client"},
 	{name: "S5 parenthesised Transport write", body: "func s() *http.Client {\n\tc := &http.Client{Transport: host.HTTPTransport()}\n\t(c.Transport) = nil\n\treturn c\n}", reason: "may only be set to host.HTTPTransport()"},
 	{name: "S6 Transport write through *&", body: "func s() *http.Client {\n\tc := &http.Client{Transport: host.HTTPTransport()}\n\t*&c.Transport = nil\n\treturn c\n}", reason: "may only be set to host.HTTPTransport()"},
 	{name: "S7 Transport write through a pointer to the field", body: "func s() *http.Client {\n\tc := &http.Client{Transport: host.HTTPTransport()}\n\tp := &c.Transport\n\t*p = nil\n\treturn c\n}", reason: "address of a Transport field"},
-	{name: "S8 proxy pointer conversion", imports: []string{`"log"`, `"net/url"`, `"time"`}, body: "type fakeProxy struct {\n\tRewrite        func(*httputil.ProxyRequest)\n\tTransport      http.RoundTripper\n\tFlushInterval  time.Duration\n\tErrorLog       *log.Logger\n\tBufferPool     httputil.BufferPool\n\tModifyResponse func(*http.Response) error\n\tErrorHandler   func(http.ResponseWriter, *http.Request, error)\n\tDirector       func(*http.Request)\n}\n\nfunc s(target *url.URL) *httputil.ReverseProxy {\n\tf := &fakeProxy{Rewrite: func(r *httputil.ProxyRequest) { r.SetURL(target) }}\n\treturn (*httputil.ReverseProxy)(f)\n}", reason: "conversion to httputil.ReverseProxy"},
+	{name: "S8 proxy pointer conversion", imports: []string{`"log"`, `"net/url"`, `"time"`}, body: "type fakeProxy struct {\n\tRewrite        func(*httputil.ProxyRequest)\n\tTransport      http.RoundTripper\n\tFlushInterval  time.Duration\n\tErrorLog       *log.Logger\n\tBufferPool     httputil.BufferPool\n\tModifyResponse func(*http.Response) error\n\tErrorHandler   func(http.ResponseWriter, *http.Request, error)\n\tDirector       func(*http.Request)\n}\n\nfunc s(target *url.URL) *httputil.ReverseProxy {\n\tf := &fakeProxy{Rewrite: func(r *httputil.ProxyRequest) { r.SetURL(target) }}\n\treturn (*httputil.ReverseProxy)(f)\n}", reason: "conversion to or from httputil.ReverseProxy"},
 	{name: "S9 elided proxy literal", imports: []string{`"net/url"`}, body: "func s(target *url.URL) *httputil.ReverseProxy {\n\treturn []*httputil.ReverseProxy{{Rewrite: func(r *httputil.ProxyRequest) { r.SetURL(target) }}}[0]\n}", reason: "literal must set Transport"},
 	{name: "S10 elided second transport", imports: []string{`"net/url"`, `"os"`}, body: "func s() *http.Client {\n\tts := []*http.Transport{{Proxy: func(*http.Request) (*url.URL, error) { return url.Parse(os.Getenv(\"HTTP_PROXY\")) }}}\n\treturn []*http.Client{{Transport: ts[0]}}[0]\n}", reason: "second transport"},
 	{name: "S11 seam in a dead branch", imports: []string{`"google.golang.org/grpc/credentials/insecure"`}, body: "func s(target string) (*grpc.ClientConn, error) {\n\treturn grpc.NewClient(target, func() []grpc.DialOption {\n\t\tif false {\n\t\t\treturn host.DialOptions(nil)\n\t\t}\n\t\treturn []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}\n\t}()...)\n}", reason: "grpc.NewClient must be called"},
@@ -121,6 +122,18 @@ var refused = []gateCase{
 
 	// The FromEndpoint rule (r114 f3).
 	{name: "FromEndpoint with its own options", imports: []string{`"context"`}, body: "func RegisterThingHandlerFromEndpoint(context.Context, any, string, []grpc.DialOption) error { return nil }\n\nfunc f(ctx context.Context) { _ = RegisterThingHandlerFromEndpoint(ctx, nil, \"t\", []grpc.DialOption{}) }", reason: "must be passed host.DialOptions"},
+
+	// Review r149's probes and minors.
+	{name: "N01 client converted to an identical unnamed struct, then reset", imports: []string{`"time"`}, body: "func s() {\n\tc := &http.Client{Transport: host.HTTPTransport()}\n\t(*struct {\n\tTransport     http.RoundTripper\n\tCheckRedirect func(*http.Request, []*http.Request) error\n\tJar           http.CookieJar\n\tTimeout       time.Duration\n})(c).Transport = nil\n}", reason: "conversion to or from http.Client"},
+	{name: "N02 proxy converted to an identical unnamed struct, then reset", imports: []string{`"log"`, `"time"`}, body: "func s() {\n\tp := &httputil.ReverseProxy{Transport: host.HTTPTransport()}\n\t(*struct {\n\tRewrite        func(*httputil.ProxyRequest)\n\tTransport      http.RoundTripper\n\tFlushInterval  time.Duration\n\tErrorLog       *log.Logger\n\tBufferPool     httputil.BufferPool\n\tModifyResponse func(*http.Response) error\n\tErrorHandler   func(http.ResponseWriter, *http.Request, error)\n\tDirector       func(*http.Request)\n})(p).Transport = nil\n}", reason: "conversion to or from httputil.ReverseProxy"},
+	{name: "N03 conversion to a type parameter", imports: []string{`"time"`}, body: "func conv[P ~*http.Client, Q ~*struct {\n\tTransport     http.RoundTripper\n\tCheckRedirect func(*http.Request, []*http.Request) error\n\tJar           http.CookieJar\n\tTimeout       time.Duration\n}](q Q) P { return P(q) }\n\nfunc s() *http.Client { return conv[*http.Client](&struct {\n\tTransport     http.RoundTripper\n\tCheckRedirect func(*http.Request, []*http.Request) error\n\tJar           http.CookieJar\n\tTimeout       time.Duration\n}{}) }", reason: "conversion to or from http.Client"},
+	{name: "N04 a RegisterREST forwarding its caller's options", imports: []string{`"context"`, `"google.golang.org/grpc/credentials/insecure"`}, body: "func RegisterThingHandlerFromEndpoint(context.Context, any, string, []grpc.DialOption) error { return nil }\n\nfunc RegisterREST(ctx context.Context, mux any, endpoint string, opts []grpc.DialOption) error {\n\treturn RegisterThingHandlerFromEndpoint(ctx, mux, endpoint, opts)\n}\n\nfunc f(ctx context.Context) { _ = RegisterREST(ctx, nil, \"t\", []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}) }", reason: "must be passed host.DialOptions"},
+	{name: "m1 import unsafe", imports: []string{`"unsafe"`}, body: "var _ = unsafe.Sizeof(0)", reason: "import \"unsafe\""},
+	{name: "m1 go:linkname", imports: []string{`_ "unsafe"`}, body: "//go:linkname nanotime runtime.nanotime\nfunc nanotime() int64", reason: "go:linkname"},
+	{name: "m2 credentials appended after the seam", imports: []string{`"google.golang.org/grpc/credentials/insecure"`}, body: "func f() { _, _ = grpc.NewClient(\"t\", append(host.DialOptions(nil), grpc.WithTransportCredentials(insecure.NewCredentials()))...) }", reason: "no option after the seam that sets the transport"},
+	{name: "a forged generated marker", source: "// Code generated by protoc-gen-go. DO NOT EDIT.\n\npackage %s\n\nimport \"net/http\"\n\nfunc s() { _, _ = http.Get(\"u\") }\n", reason: "http.Get uses"},
+	{name: "a forged marker on a .pb.go file", file: "forged.pb.go", source: "// Code generated by protoc-gen-go. DO NOT EDIT.\n\npackage %s\n\nimport \"unsafe\"\n\nimport \"net/http\"\n\nvar _ = unsafe.Sizeof(0)\n\nfunc s() { _, _ = http.Get(\"u\") }\n", reason: "http.Get uses"},
+	{name: "a gateway forwarder under a forged marker", source: "// Code generated by protoc-gen-grpc-gateway. DO NOT EDIT.\n\npackage %s\n\nimport (\n\t\"context\"\n\n\t\"google.golang.org/grpc\"\n)\n\nfunc RegisterThingHandlerFromEndpoint(ctx context.Context, mux any, endpoint string, opts []grpc.DialOption) error {\n\tconn, err := grpc.NewClient(endpoint, opts...)\n\t_ = conn\n\treturn err\n}\n", reason: "grpc.NewClient must be called"},
 }
 
 var allowed = []gateCase{
@@ -131,7 +144,8 @@ var allowed = []gateCase{
 	{name: "a gRPC dial with DialOptions", body: "func f() { _, _ = grpc.NewClient(\"t\", host.DialOptions(nil)...) }"},
 	{name: "a gRPC dial appending to DialOptions", body: "func f() { _, _ = grpc.NewClient(\"t\", append(host.DialOptions(nil), grpc.WithUserAgent(\"x\"))...) }"},
 	{name: "an aliased host import", source: "package %s\n\nimport (\n\t\"net/http\"\n\n\th \"github.com/codefly-dev/authority/libraries/authority-client/go/host\"\n)\n\nvar _ = &http.Client{Transport: h.HTTPTransport()}\n"},
-	{name: "a plugin forwarding its gateway's endpoint and options", imports: []string{`"context"`}, body: "func RegisterThingHandlerFromEndpoint(context.Context, any, string, []grpc.DialOption) error { return nil }\n\ntype plugin struct{}\n\nfunc (plugin) RegisterREST(ctx context.Context, mux any, endpoint string, opts []grpc.DialOption) error {\n\treturn RegisterThingHandlerFromEndpoint(ctx, mux, endpoint, opts)\n}"},
+	{name: "a plugin dialling its gateway with the seam", imports: []string{`"context"`, `"google.golang.org/grpc/credentials/insecure"`}, body: "func RegisterThingHandlerFromEndpoint(context.Context, any, string, []grpc.DialOption) error { return nil }\n\ntype plugin struct{}\n\nfunc (plugin) RegisterREST(ctx context.Context, mux any, endpoint string, _ []grpc.DialOption) error {\n\treturn RegisterThingHandlerFromEndpoint(ctx, mux, endpoint, host.DialOptions(insecure.NewCredentials()))\n}"},
+	{name: "a genuine grpc-gateway forwarder", file: "thing.pb.gw.go", source: "// Code generated by protoc-gen-grpc-gateway. DO NOT EDIT.\n\npackage %s\n\nimport (\n\t\"context\"\n\n\t\"google.golang.org/grpc\"\n)\n\nfunc RegisterThingHandlerFromEndpoint(ctx context.Context, mux any, endpoint string, opts []grpc.DialOption) error {\n\tconn, err := grpc.NewClient(endpoint, opts...)\n\t_ = conn\n\treturn err\n}\n"},
 }
 
 // The gate itself, on sources written to bypass it: each refused case fails
@@ -165,7 +179,11 @@ func TestTheGateRefusesEachBypass(t *testing.T) {
 			}
 			source += ")\n\n" + headerUses + "\n" + c.body + "\n"
 		}
-		overlay[filepath.Join(module, "zzcases", filepath.FromSlash(dir), "case.go")] = []byte(source)
+		file := c.file
+		if file == "" {
+			file = "case.go"
+		}
+		overlay[filepath.Join(module, "zzcases", filepath.FromSlash(dir), file)] = []byte(source)
 		dirs["tools/noproxygate/zzcases/"+dir] = c
 		patterns = append(patterns, "./zzcases/"+dir)
 	}
@@ -199,8 +217,55 @@ func TestTheGateRefusesEachBypass(t *testing.T) {
 			t.Errorf("refused %q: want a refusal naming %q, got %v", c.name, c.reason, got)
 		}
 	}
-	if len(refused) != 44 {
-		t.Errorf("the table holds %d refused cases; 28 from earlier rounds, 15 from r114 and the FromEndpoint case are 44", len(refused))
+	if len(refused) != 54 {
+		t.Errorf("the table holds %d refused cases; 28 from earlier rounds, 15 from r114, the FromEndpoint case and r149's 10 are 54", len(refused))
+	}
+}
+
+// Rule 7, on a real module: files the type-checked load does not judge (a
+// build-constrained file, directories the go tool ignores) are refused, and a
+// judged file is not.
+func TestAFileTheLoadDoesNotJudgeIsRefused(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"go.mod":           "module example.com/probe\n\ngo 1.27.3\n",
+		"ok.go":            "package probe\n",
+		"tagged.go":        "//go:build release\n\npackage probe\n\nimport \"net/http\"\n\nfunc s() { _, _ = http.Get(\"u\") }\n",
+		"_hidden/h.go":     "package hidden\n\nimport \"net/http\"\n\nfunc s() { _, _ = http.Get(\"u\") }\n",
+		".dot/d.go":        "package dot\n",
+		"testdata/td/t.go": "package td\n\nimport \"net/http\"\n\nfunc s() { _, _ = http.Get(\"u\") }\n",
+		"nested/go.mod":    "module example.com/nested\n\ngo 1.27.3\n",
+		"nested/n.go":      "package nested\n",
+		"ok_test.go":       "package probe\n",
+	}
+	for name, content := range files {
+		path := filepath.Join(dir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	violations, err := Check(dir, dir, nil, "./...")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, v := range violations {
+		if strings.Contains(v.Reason, "was not judged") {
+			got[v.File] = true
+		}
+	}
+	for _, want := range []string{"tagged.go", "_hidden/h.go", ".dot/d.go", "testdata/td/t.go"} {
+		if !got[want] {
+			t.Errorf("%s was not refused as unjudged: %v", want, violations)
+		}
+	}
+	for _, clean := range []string{"ok.go", "nested/n.go", "ok_test.go"} {
+		if got[clean] {
+			t.Errorf("%s was refused as unjudged", clean)
+		}
 	}
 }
 
