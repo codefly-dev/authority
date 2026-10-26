@@ -82,8 +82,10 @@ in-cluster Service address under `internal-transport/mesh-protected=true`; anyth
 else (control characters, a zone id, port 0 included) is refused by name, never
 echoing the value. Where its two inputs come from:
 
-- **local**: whether the run is in the environment named exactly `local`, as Go's
-  `codefly.IsLocal()` decides it: `os.environ.get("CODEFLY__ENVIRONMENT") == "local"`.
+- **local**: whether the run is in the environment named exactly `local`:
+  `os.environ.get("CODEFLY__ENVIRONMENT") == "local"`. This is stricter than Go's
+  `codefly.IsLocal()`, which compares case-insensitively (it also accepts `LOCAL`);
+  stricter is the safer side for admitting loopback.
   No name prefix is reserved for local runs; a playground's `local-authority` is a
   configuration profile of `local`. Do not use the Python SDK's `is_local`, which
   reads the wrong variable (codefly-dev/sdk-python#8).

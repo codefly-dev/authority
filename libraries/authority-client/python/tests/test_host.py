@@ -104,7 +104,8 @@ def test_a_refusal_never_echoes_the_endpoint_value(value):
     "http://[::1%25lo0]:80", "[::1%lo0]:80", "http://127.0.0.1:0", "127.0.0.1:0", "localhost:00",
     "https://accounts.example.test:0", "localhost:", "127.0.0.1:", "localhost:+80", "localhost: 80",
     "localhost:-1", "localhost:65536", "http://localhost:+80", "https://accounts.example.test:65536",
-    "localhost:\u0663\u0663",
+    "localhost:\u0663\u0663", "localhost:000080", "http://localhost:000080",
+    "https://accounts.example.test:000443", "https://:443", "http://:80",
 ])
 def test_control_characters_zone_ids_and_invalid_ports_are_refused(value):
     with pytest.raises(Refused) as refused:
@@ -120,3 +121,24 @@ def test_dial_admits_only_allowlisted_options(option):
     with pytest.raises(Refused, match="ALLOWED_OPTIONS"):
         dial("https://accounts.example.test", local=False, mesh=None, options=[(option, "evil.example")])
     dial("https://accounts.example.test", local=False, mesh=None, options=[("grpc.keepalive_time_ms", 30000)]).close()
+
+
+# Review r83 m1: an empty host and an over-long port are refused, each by name, as Go.
+@pytest.mark.parametrize("value, reason", [
+    ("https://:443", "names no host"), ("http://:80", "names no host"),
+    ("https://accounts.example.test:000443", "no port in 1-65535"), ("http://localhost:000080", "no port in 1-65535"),
+])
+def test_an_empty_host_and_an_overlong_port_are_refused_by_name(value, reason):
+    with pytest.raises(Refused, match=reason):
+        endpoint(value, local=True, mesh=None)
+
+
+# Review r83 m3: options given as a generator reach grpc whole, after validation.
+def test_dial_hands_grpc_every_option_of_a_generator(monkeypatch):
+    import authority_client.host as host
+
+    seen = {}
+    monkeypatch.setattr(host.grpc, "secure_channel", lambda address, credentials, options: seen.setdefault("options", options))
+    dial("https://accounts.example.test", local=False, mesh=None,
+         options=(option for option in [("grpc.keepalive_time_ms", 30000), ("grpc.max_receive_message_length", 1 << 20)]))
+    assert list(seen["options"]) == [("grpc.keepalive_time_ms", 30000), ("grpc.max_receive_message_length", 1 << 20)]

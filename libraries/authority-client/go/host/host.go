@@ -82,6 +82,9 @@ func targetFor(ctx context.Context, endpoint string, fallback func() (string, er
 		return plaintext(endpoint, codefly.IsLocal(), mesh)
 	}
 	u, err := url.Parse(endpoint)
+	if err == nil && u.Host != "" && u.Hostname() == "" {
+		return "", nil, fmt.Errorf("authority/endpoint %s names no host", hostOnly(u))
+	}
 	if err != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
 		return "", nil, fmt.Errorf("authority/endpoint %s is not an origin: it must carry no credential, path, query or fragment", hostOnly(u))
 	}
@@ -107,11 +110,12 @@ func hostOnly(u *url.URL) string {
 	return u.Host
 }
 
-// validPort reports whether target names a decimal port in 1..65535: never an
-// empty port (the dialer reads it as 0), a sign, a space or an out-of-range one.
+// validPort reports whether target names a decimal port in 1..65535 written in
+// at most five digits: never an empty port (the dialer reads it as 0), a sign,
+// a space, a zero-padded longer spelling or an out-of-range one.
 func validPort(target string) bool {
 	_, port, err := net.SplitHostPort(target)
-	if err != nil || port == "" || strings.TrimLeft(port, "0123456789") != "" {
+	if err != nil || port == "" || len(port) > 5 || strings.TrimLeft(port, "0123456789") != "" {
 		return false
 	}
 	number, err := strconv.Atoi(port)
