@@ -73,14 +73,27 @@ The tests re-sign the bodies of `../testdata/claims.json` with a test key.
 
 `authority_client.host` is the Go library's `host.Target` / `host.Endpoint` rule
 (`../go/host`), case for case (`tests/test_host.py` mirrors `host_test.go`):
-`https://` is verified TLS; plaintext only to loopback in a local run, or to an
+`https://` is verified TLS; plaintext only to loopback in a local-kind run, or to an
 in-cluster Service address under `internal-transport/mesh-protected=true`; anything
-else is refused by name, never echoing the value. The caller passes what its SDK
-resolved (whether the run is local, the raw assertion):
+else (control characters, a zone id, port 0 included) is refused by name, never
+echoing the value. Where its two inputs come from:
+
+- **local**: omit it. `host.local_environment()` reads `CODEFLY__ENVIRONMENT` and
+  applies Core's rule (`resources.Environment.Local`, as Go's `host.Local()` does):
+  `local`, `local-authority` and every other `local-*` environment admit loopback;
+  hosted environments never do. (The SDKs' `is_local` / `IsLocal` compare the name to
+  `local` exactly; do not pass them.)
+- **mesh**: the raw workspace value `internal-transport/mesh-protected`, from the
+  Codefly Python SDK: `codefly.configuration(name="internal-transport", key="mesh-protected")`,
+  or `None` when the composition sets none. Only the literal `true` asserts it.
 
 ```python
 from authority_client import host
 
-channel = host.dial(endpoint, local=is_local, mesh=mesh_protected_value)
+channel = host.dial(endpoint, mesh=mesh_protected_value)
 stub = AuthorityServiceStub(channel)  # Keys for codefly_hop.Verifier, Issue
 ```
+
+`options` may tune the channel (keepalive, message sizes) but never how the TLS
+peer is verified: `grpc.ssl_target_name_override`, `grpc.default_authority` and
+any other `ssl`/`tls` option are refused.

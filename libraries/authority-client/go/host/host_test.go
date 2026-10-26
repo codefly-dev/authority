@@ -134,3 +134,31 @@ func TestARefusalNeverEchoesTheEndpointValue(t *testing.T) {
 		t.Fatalf("the refusal names the host and port: %v", err)
 	}
 }
+
+// Loopback is local-kind, as Core's environment model reports it: a playground's
+// local-authority run reaches its own authority over loopback; a hosted
+// environment never does.
+func TestLoopbackIsAdmittedInEveryLocalKindEnvironmentOnly(t *testing.T) {
+	for environment, admitted := range map[string]bool{"local": true, "local-authority": true, "local-k3d": true, "staging": false, "obin-staging": false, "production": false, "": false} {
+		t.Setenv(resources.EnvironmentPrefix, environment)
+		if Local() != admitted {
+			t.Errorf("%q: Local() = %v", environment, !admitted)
+		}
+		for _, endpoint := range []string{"localhost:7000", "http://127.0.0.1:7000", "grpc://[::1]:7000"} {
+			if _, _, err := Target(endpoint, nil); (err == nil) != admitted {
+				t.Errorf("%q in %q: admitted=%v, want %v (%v)", endpoint, environment, err == nil, admitted, err)
+			}
+		}
+	}
+}
+
+// Review r61 m1, held identical in Python (tests/test_host.py): control
+// characters, a zone id on a loopback address and an explicit port 0 are refused.
+func TestControlCharactersZoneIDsAndPortZeroAreRefused(t *testing.T) {
+	t.Setenv(resources.EnvironmentPrefix, "local")
+	for _, endpoint := range []string{"http://127.0.0.1\t:80", "http://local\nhost:80", "127.0.0.1\t:80", "localhost:80\x7f", "http://[::1%25lo0]:80", "[::1%lo0]:80", "http://127.0.0.1:0", "127.0.0.1:0", "localhost:00", "https://accounts.example.test:0"} {
+		if target, _, err := Target(endpoint, nil); err == nil {
+			t.Errorf("%q was admitted as %q", endpoint, target)
+		}
+	}
+}

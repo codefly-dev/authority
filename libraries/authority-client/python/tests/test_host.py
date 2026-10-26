@@ -3,7 +3,7 @@
 
 import pytest
 
-from authority_client.host import Refused, Target, endpoint, mesh_protected
+from authority_client.host import Refused, Target, dial, endpoint, local_environment, mesh_protected
 
 
 @pytest.mark.parametrize(
@@ -94,3 +94,40 @@ def test_a_refusal_never_echoes_the_endpoint_value(value):
     with pytest.raises(Refused) as refused:
         endpoint(value, local=True, mesh=None)
     assert SECRET not in str(refused.value)
+
+
+# Loopback is local-kind, as Core's environment model reports it, identically to
+# Go's TestLoopbackIsAdmittedInEveryLocalKindEnvironmentOnly.
+@pytest.mark.parametrize("environment, admitted", [
+    ("local", True), ("local-authority", True), ("local-k3d", True),
+    ("staging", False), ("obin-staging", False), ("production", False), ("", False),
+])
+def test_loopback_is_admitted_in_every_local_kind_environment_only(monkeypatch, environment, admitted):
+    monkeypatch.setenv("CODEFLY__ENVIRONMENT", environment)
+    assert local_environment() is admitted
+    for value in ("localhost:7000", "http://127.0.0.1:7000", "grpc://[::1]:7000"):
+        if admitted:
+            endpoint(value, mesh=None)
+        else:
+            with pytest.raises(Refused):
+                endpoint(value, mesh=None)
+
+
+# Review r61 m1, identical to Go's TestControlCharactersZoneIDsAndPortZeroAreRefused.
+@pytest.mark.parametrize("value", [
+    "http://127.0.0.1\t:80", "http://local\nhost:80", "127.0.0.1\t:80", "localhost:80\x7f",
+    "http://[::1%25lo0]:80", "[::1%lo0]:80", "http://127.0.0.1:0", "127.0.0.1:0", "localhost:00",
+    "https://accounts.example.test:0",
+])
+def test_control_characters_zone_ids_and_port_zero_are_refused(value):
+    with pytest.raises(Refused) as refused:
+        endpoint(value, local=True, mesh=None)
+    assert "\t" not in str(refused.value) and "\n" not in str(refused.value)
+
+
+# Review r61 m3: a channel option never weakens TLS peer verification.
+@pytest.mark.parametrize("option", ["grpc.ssl_target_name_override", "grpc.default_authority", "grpc.ssl_session_cache"])
+def test_dial_refuses_options_that_weaken_tls(option):
+    with pytest.raises(Refused, match="weaken"):
+        dial("https://accounts.example.test", local=False, mesh=None, options=[(option, "evil.example")])
+    dial("https://accounts.example.test", local=False, mesh=None, options=[("grpc.keepalive_time_ms", 30000)]).close()

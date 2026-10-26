@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/codefly-dev/core/resources"
 	codefly "github.com/codefly-dev/sdk-go"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -52,6 +53,15 @@ func Endpoint(ctx context.Context, endpoint string) (string, credentials.Transpo
 	return targetFor(ctx, endpoint, nil)
 }
 
+// Local reports whether this run is in a local-kind environment, as Core's
+// environment model decides it (resources.Environment.Local): local,
+// local-authority and every other local-* environment a playground composes.
+// Hosted environments are not. The SDK's IsLocal compares the name to "local"
+// exactly, which refuses loopback in local-authority; Core's model is the owner.
+func Local() bool {
+	return (&resources.Environment{Name: codefly.Environment()}).Local()
+}
+
 func targetFor(ctx context.Context, endpoint string, fallback func() (string, error)) (string, credentials.TransportCredentials, error) {
 	mesh, err := meshProtected(codefly.For(ctx).WorkspaceValueIfSet)
 	if err != nil {
@@ -59,6 +69,9 @@ func targetFor(ctx context.Context, endpoint string, fallback func() (string, er
 	}
 
 	endpoint = strings.TrimSpace(endpoint)
+	if strings.ContainsFunc(endpoint, func(r rune) bool { return r < 0x20 || r == 0x7f }) {
+		return "", nil, fmt.Errorf("authority/endpoint carries a control character (value not shown: it may carry a credential)")
+	}
 	if endpoint == "" {
 		if fallback == nil {
 			return "", nil, fmt.Errorf("transport endpoint is empty; supply a resolved endpoint")
@@ -67,13 +80,13 @@ func targetFor(ctx context.Context, endpoint string, fallback func() (string, er
 		if err != nil {
 			return "", nil, err
 		}
-		return plaintext(target, codefly.IsLocal(), mesh)
+		return plaintext(target, Local(), mesh)
 	}
 	if !strings.Contains(endpoint, "://") {
 		if _, _, err := net.SplitHostPort(endpoint); err != nil {
 			return "", nil, fmt.Errorf("authority/endpoint is neither host:port nor a URL (value not shown: it may carry a credential)")
 		}
-		return plaintext(endpoint, codefly.IsLocal(), mesh)
+		return plaintext(endpoint, Local(), mesh)
 	}
 	u, err := url.Parse(endpoint)
 	if err != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
@@ -81,9 +94,12 @@ func targetFor(ctx context.Context, endpoint string, fallback func() (string, er
 	}
 	switch u.Scheme {
 	case "https":
+		if explicitPortZero(withPort(u, "443")) {
+			return "", nil, fmt.Errorf("authority/endpoint %s names port 0", hostOnly(u))
+		}
 		return withPort(u, "443"), credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS12}), nil
 	case "http", "grpc", "tcp":
-		return plaintext(withPort(u, "80"), codefly.IsLocal(), mesh)
+		return plaintext(withPort(u, "80"), Local(), mesh)
 	default:
 		return "", nil, fmt.Errorf("authority/endpoint %s names scheme %q; the host is reached over http:// (h2c) or https://", hostOnly(u), u.Scheme)
 	}
@@ -98,6 +114,13 @@ func hostOnly(u *url.URL) string {
 	return u.Host
 }
 
+// explicitPortZero is a target naming port 0, which dials nothing: refused
+// rather than passed to the dialer.
+func explicitPortZero(target string) bool {
+	_, port, err := net.SplitHostPort(target)
+	return err == nil && strings.TrimLeft(port, "0") == "" && port != ""
+}
+
 func withPort(u *url.URL, port string) string {
 	if u.Port() != "" {
 		return u.Host
@@ -109,6 +132,9 @@ func plaintext(target string, local, mesh bool) (string, credentials.TransportCr
 	hostname, _, err := net.SplitHostPort(target)
 	if err != nil {
 		return "", nil, fmt.Errorf("authority endpoint must name host:port")
+	}
+	if explicitPortZero(target) {
+		return "", nil, fmt.Errorf("authority endpoint names port 0")
 	}
 	ip := net.ParseIP(hostname)
 	loopback := strings.EqualFold(hostname, "localhost") || ip != nil && ip.IsLoopback()

@@ -114,7 +114,7 @@ func standInFront(ctx context.Context, config *adapters.Configuration) (Clean, e
 	// been refused — a composition's choice for a developer's run, never a
 	// cell's.
 	enforcement, _ := codefly.For(ctx).WorkspaceConfiguration("hop", "ENFORCEMENT")
-	permissive, err := enforcementMode(enforcement, codefly.IsLocal())
+	permissive, err := enforcementMode(enforcement, host.Local())
 	if err != nil {
 		return nil, err
 	}
