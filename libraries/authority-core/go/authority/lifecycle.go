@@ -21,10 +21,24 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 	}
 	var ids []string
 	err := s.store.Write(ctx, func(tx Tx) error {
+		ids = nil // a retried transaction starts over
 		previous, err := tx.ModuleNamed(m.Name)
 		exists := err == nil
 		if err != nil && !errors.Is(err, domain.ErrNotFound) {
 			return err
+		}
+		if !exists {
+			// A module withdrawn before keeps its principal and its last
+			// generation: a redelivery never renames it or rewinds it.
+			tomb, err := tx.Tombstone(m.Name)
+			switch {
+			case err == nil && tomb.Principal != m.Principal:
+				return domain.Refuse("%s is principal %q for life; a delivery cannot rename it %q", m.Name, tomb.Principal, m.Principal)
+			case err == nil && tomb.Generation >= m.Generation:
+				return domain.NotNow("%s was withdrawn at %d, got %d", m.Name, tomb.Generation, m.Generation)
+			case err != nil && !errors.Is(err, domain.ErrNotFound):
+				return err
+			}
 		}
 		if exists && !previous.StandIn && previous.Generation >= m.Generation {
 			return domain.NotNow("%s is at %d, got %d", m.Name, previous.Generation, m.Generation)
@@ -80,8 +94,19 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 		}
 		for _, org := range orgs {
 			id := s.cfg.InstallationID(org.ID, m.Name)
-			if _, err := tx.Installation(id); errors.Is(err, domain.ErrNotFound) {
+			inst, err := tx.Installation(id)
+			switch {
+			case errors.Is(err, domain.ErrNotFound):
 				if err := tx.PutInstallation(domain.Installation{ID: id, Organization: org.ID, Target: m.Name, Status: domain.Active, Revision: 1}); err != nil {
+					return err
+				}
+			case err != nil:
+				return err
+			case inst.Status == domain.Revoked:
+				// A module withdrawn and delivered again is installed again,
+				// at a revision above every capability sealed before.
+				inst.Status, inst.Revision = domain.Active, inst.Revision+1
+				if err := tx.PutInstallation(inst); err != nil {
 					return err
 				}
 			}
@@ -123,6 +148,13 @@ func (s *Service) WithdrawModule(ctx context.Context, name string) error {
 				}
 			}
 		}
+		m, err := tx.ModuleNamed(name)
+		if err != nil {
+			return notFound(err)
+		}
+		if err := tx.PutTombstone(domain.Tombstone{Name: m.Name, Principal: m.Principal, Generation: m.Generation}); err != nil {
+			return err
+		}
 		return tx.DeleteModule(name)
 	})
 }
@@ -162,20 +194,31 @@ func (s *Service) Install(ctx context.Context, caller *Person, org, target, agen
 		}
 		id := s.cfg.InstallationID(org, target)
 		existing, err := tx.Installation(id)
-		if err == nil && caller == nil && existing.Status == domain.Pending && existing.AgentRole == agentRole && existing.InstalledBy == installedBy {
-			// The host's own setup asking the same install again (a delivery
-			// replayed) resumes its pending attempt: its step converges
-			// idempotently, and its revision stays the one the first attempt
-			// took, so a revoke or a reinstall since is told apart. A person's
-			// second install while one is pending is refused below.
+		if err == nil && existing.Status == domain.Pending {
+			if existing.AgentRole != agentRole || existing.InstalledBy != installedBy {
+				return domain.NotNow("%s is pending at %s as %s for %s; only that install resumes it", target, org, existing.AgentRole, existing.InstalledBy)
+			}
+			// The same install asked again resumes its pending attempt: its
+			// step converges idempotently, and its revision stays the one the
+			// first attempt took, so a revoke or a reinstall since is told apart.
 			inst = existing
 			return nil
 		}
 		if err == nil && existing.Status != domain.Revoked {
 			return domain.Refuse("%s is already installed at %s", target, org)
 		}
+		principal := s.cfg.PrincipalID(org, target)
+		if _, err := tx.Module(principal); err == nil {
+			return domain.Refuse("the principal %q of %s at %s names a module", principal, target, org)
+		}
+		if _, err := tx.Person(principal); err == nil {
+			return domain.Refuse("the principal %q of %s at %s names a person", principal, target, org)
+		}
+		if other, err := tx.InstallationByPrincipal(principal); err == nil && other.ID != id {
+			return domain.Refuse("the principal %q of %s at %s is another installation's", principal, target, org)
+		}
 		inst = domain.Installation{ID: id, Organization: org, Target: target, Status: domain.Pending, Revision: existing.Revision + 1,
-			AgentRole: agentRole, PrincipalID: s.cfg.PrincipalID(org, target), InstalledBy: installedBy}
+			AgentRole: agentRole, PrincipalID: principal, InstalledBy: installedBy}
 		if err := tx.DeleteRoleGrants(id); err != nil {
 			return err
 		}
@@ -214,6 +257,9 @@ func (s *Service) Install(ctx context.Context, caller *Person, org, target, agen
 // absent one.
 func (s *Service) Uninstall(ctx context.Context, caller *Person, organization, installationID string) error {
 	return s.store.Write(ctx, func(tx Tx) error {
+		if caller != nil && callerOrganization(tx, *caller) != organization {
+			return decide.ForeignInstallation(installationID, organization)
+		}
 		inst, err := tx.Installation(installationID)
 		if errors.Is(err, domain.ErrNotFound) || (err == nil && inst.Organization != organization) {
 			return decide.ForeignInstallation(installationID, organization)

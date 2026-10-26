@@ -21,9 +21,13 @@ func (r RoleRequest) grant() domain.RoleGrant {
 
 // decideRoleChange reads what decide.ChangeRole needs.
 func decideRoleChange(tx Tx, caller Person, r RoleRequest, list, revoke bool) (domain.Installation, error) {
-	// The installation is resolved by (organization, id) before anything else
-	// is read: another organization's and an absent one answer alike, having
-	// done the same work.
+	// A caller of another organization than the one named learns nothing of
+	// it: the foreign answer comes before any installation is read. Then the
+	// installation is resolved by (organization, id): another organization's
+	// and an absent one answer alike, having done the same work.
+	if callerOrganization(tx, caller) != r.Organization {
+		return domain.Installation{}, decide.ForeignInstallation(r.InstallationID, r.Organization)
+	}
 	inst, err := tx.Installation(r.InstallationID)
 	if errors.Is(err, domain.ErrNotFound) || (err == nil && inst.Organization != r.Organization) {
 		return inst, decide.ForeignInstallation(r.InstallationID, r.Organization)
@@ -129,4 +133,13 @@ func (s *Service) ListRoleGrants(ctx context.Context, caller Person, organizatio
 // refused at once.
 func (s *Service) PersonChanged(ctx context.Context, person string) error {
 	return s.store.Write(ctx, func(tx Tx) error { return tx.BumpPersonEpoch(person) })
+}
+
+// callerOrganization is the organization the caller belongs to now, read from
+// the store; a caller the store no longer knows keeps the session's.
+func callerOrganization(tx Tx, caller Person) string {
+	if p, err := tx.Person(caller.ID); err == nil {
+		return p.Organization
+	}
+	return caller.Organization
 }

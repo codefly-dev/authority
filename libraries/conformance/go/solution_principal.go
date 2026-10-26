@@ -344,12 +344,14 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 			code           codes.Code
 			reason         string
 		}{
-			"a viewer granting itself installer":                   {f.Viewer, "GrantRole", grant(instA, "installer", sp.person(t, f.Viewer)), codes.PermissionDenied, "may not grant"},
-			"a viewer revoking the installer":                      {f.Viewer, "RevokeRole", grant(instA, "installer", sp.person(t, f.Installer)), codes.PermissionDenied, "may not grant"},
-			"a viewer listing grants":                              {f.Viewer, "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": instA}, codes.PermissionDenied, "may not"},
-			"another organization's administrator granting":        {f.OtherAdmin, "GrantRole", grant(instA, "viewer", member), codes.PermissionDenied, "may not grant"},
-			"another organization's administrator revoking":        {f.OtherAdmin, "RevokeRole", grant(instA, "viewer", sp.person(t, f.Viewer)), codes.PermissionDenied, "may not grant"},
-			"another organization's administrator listing":         {f.OtherAdmin, "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": instA}, codes.PermissionDenied, "may not"},
+			"a viewer granting itself installer": {f.Viewer, "GrantRole", grant(instA, "installer", sp.person(t, f.Viewer)), codes.PermissionDenied, "may not grant"},
+			"a viewer revoking the installer":    {f.Viewer, "RevokeRole", grant(instA, "installer", sp.person(t, f.Installer)), codes.PermissionDenied, "may not grant"},
+			"a viewer listing grants":            {f.Viewer, "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": instA}, codes.PermissionDenied, "may not"},
+			// A caller of another organization learns nothing of this one: the
+			// installation answers as an absent one would (r143 M-a).
+			"another organization's administrator granting":        {f.OtherAdmin, "GrantRole", grant(instA, "viewer", member), codes.PermissionDenied, "belongs to another organization"},
+			"another organization's administrator revoking":        {f.OtherAdmin, "RevokeRole", grant(instA, "viewer", sp.person(t, f.Viewer)), codes.PermissionDenied, "belongs to another organization"},
+			"another organization's administrator listing":         {f.OtherAdmin, "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": instA}, codes.PermissionDenied, "belongs to another organization"},
 			"A's installer granting on B":                          {f.Installer, "GrantRole", grant(instB, "author", sp.person(t, f.Installer)), codes.PermissionDenied, "may not grant"},
 			"A's installer revoking on B":                          {f.Installer, "RevokeRole", grant(instB, "viewer", member), codes.PermissionDenied, "may not grant"},
 			"another organization's id":                            {f.Admin, "GrantRole", map[string]any{"organization_id": f.OtherOrganization, "installation_id": instA, "role": "viewer", "person_id": sp.personID(t, f.Member)}, codes.PermissionDenied, "organization"},

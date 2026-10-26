@@ -31,6 +31,7 @@ type Store struct {
 	grantEpochs   map[string]uint64
 	ownerAware    map[string]uint64
 	delegations   map[string]domain.Delegation
+	tombstones    map[string]domain.Tombstone
 }
 
 // New is an empty store.
@@ -39,7 +40,7 @@ func New() *Store {
 		orgs: map[string]domain.Organization{}, people: map[string]domain.Person{}, roles: map[string]domain.OrgRole{},
 		modules: map[string]domain.Module{}, installations: map[string]domain.Installation{}, grants: map[string][]domain.RoleGrant{},
 		revisions: map[string]uint64{}, personEpochs: map[string]uint64{}, grantEpochs: map[string]uint64{},
-		ownerAware: map[string]uint64{}, delegations: map[string]domain.Delegation{},
+		ownerAware: map[string]uint64{}, delegations: map[string]domain.Delegation{}, tombstones: map[string]domain.Tombstone{},
 	}
 }
 
@@ -52,16 +53,21 @@ func (s *Store) Read(_ context.Context, fn func(authority.Tx) error) error {
 	return fn(tx{s: s})
 }
 
-// Write runs fn under the write lock, as one transaction: when fn fails,
-// every write it made is undone.
-func (s *Store) Write(_ context.Context, fn func(authority.Tx) error) error {
+// Write runs fn under the write lock, as one transaction: when fn fails or
+// panics, every write it made is undone.
+func (s *Store) Write(_ context.Context, fn func(authority.Tx) error) (err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	before := s.snapshot()
-	if err := fn(tx{s: s, write: true}); err != nil {
-		s.restore(before)
+	before, committed := s.snapshot(), false
+	defer func() {
+		if !committed {
+			s.restore(before)
+		}
+	}()
+	if err = fn(tx{s: s, write: true}); err != nil {
 		return err
 	}
+	committed = true
 	return nil
 }
 
@@ -76,6 +82,7 @@ type state struct {
 	grantEpochs   map[string]uint64
 	ownerAware    map[string]uint64
 	delegations   map[string]domain.Delegation
+	tombstones    map[string]domain.Tombstone
 }
 
 func (s *Store) snapshot() state {
@@ -85,12 +92,13 @@ func (s *Store) snapshot() state {
 	}
 	return state{modules: maps.Clone(s.modules), installations: maps.Clone(s.installations), grants: grants,
 		revisions: maps.Clone(s.revisions), personEpochs: maps.Clone(s.personEpochs), grantEpochs: maps.Clone(s.grantEpochs),
-		ownerAware: maps.Clone(s.ownerAware), delegations: maps.Clone(s.delegations)}
+		ownerAware: maps.Clone(s.ownerAware), delegations: maps.Clone(s.delegations), tombstones: maps.Clone(s.tombstones)}
 }
 
 func (s *Store) restore(b state) {
 	s.modules, s.installations, s.grants, s.revisions = b.modules, b.installations, b.grants, b.revisions
 	s.personEpochs, s.grantEpochs, s.ownerAware, s.delegations = b.personEpochs, b.grantEpochs, b.ownerAware, b.delegations
+	s.tombstones = b.tombstones
 }
 
 // PutOrganization, PutPerson, DeletePerson and PutOrgRole seed and change
@@ -214,6 +222,20 @@ func (t tx) PutModule(m domain.Module) error {
 func (t tx) DeleteModule(name string) error {
 	t.mustWrite()
 	delete(t.s.modules, name)
+	return nil
+}
+
+func (t tx) Tombstone(name string) (domain.Tombstone, error) {
+	tomb, ok := t.s.tombstones[name]
+	if !ok {
+		return tomb, missing("tombstone", name)
+	}
+	return tomb, nil
+}
+
+func (t tx) PutTombstone(tomb domain.Tombstone) error {
+	t.mustWrite()
+	t.s.tombstones[tomb.Name] = tomb
 	return nil
 }
 
