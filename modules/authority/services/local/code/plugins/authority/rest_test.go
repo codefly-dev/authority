@@ -11,6 +11,7 @@ import (
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"gateway/pkg/business/testkit"
 	authorityplugin "gateway/plugins/authority"
@@ -25,9 +26,7 @@ func TestIssueAndCheckAreServedOverHTTP(t *testing.T) {
 	plugin := &authorityplugin.Plugin{Issuer: k.Issuer}
 	server := grpc.NewServer()
 	plugin.RegisterGRPC(server)
-	// A real loopback listener: the plugin dials its endpoint through
-	// host.DialOptions and ignores options handed in, so no test dialer can be
-	// injected and the seam's dial is what this exercises.
+	// Exercise the plugin forwarding caller-supplied options to its endpoint.
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -35,7 +34,7 @@ func TestIssueAndCheckAreServedOverHTTP(t *testing.T) {
 	go func() { _ = server.Serve(listener) }()
 	t.Cleanup(server.Stop)
 	mux := runtime.NewServeMux()
-	if err := plugin.RegisterREST(context.Background(), mux, listener.Addr().String(), nil); err != nil {
+	if err := plugin.RegisterREST(context.Background(), mux, listener.Addr().String(), []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}); err != nil {
 		t.Fatal(err)
 	}
 	web := httptest.NewServer(mux)

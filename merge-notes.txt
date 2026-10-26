@@ -41,3 +41,32 @@ Integration follow-ups:
 - Made the Python key-rotation test hold the mocked refresh until the held-key
   assertion finishes; this removes a scheduling race without changing production
   verification or extending trust in retired keys.
+
+Main advanced during validation to 3daa64124b9a4fe5bc0338898f90d83229d328d7
+(PR #22). Merged that commit too without additional conflicts, retaining its
+module-wide proof that generated loopback credentials reach plugin self-dials
+unchanged. Its RegisterREST forwarding changes coexist with the branch's
+core-backed authority and delivery/consent security fixes.
+
+Final validation on the combined tree (including #16 and #22):
+- GOWORK=off, GOPRIVATE=github.com/codefly-dev,github.com/obin-ai,
+  GOFLAGS=-mod=mod, an isolated GOCACHE, and the requested scratchpad GOBIN.
+- go vet ./... and go test -race -count=1 ./... passed in all 11 Go modules.
+- Core conformance passed explicitly via
+  TestCoreConformanceKitPassesThroughCheckShapedVerification.
+- Shared authority conformance passed explicitly via
+  TestTheLocalAuthorityPassesTheSuiteEveryImplementationMustPass.
+- python -m pytest -q: 231 passed.
+- npm test: 89 passed (includes TypeScript build).
+- go mod tidy -diff checked all four service modules and the transport gate.
+  After #22 removed the plugins' direct host import, authority-client correctly
+  becomes indirect; go mod tidy also removes obsolete Core sums in the gate.
+- All 67 reviewed generated digests match; all tracked go.sum and lock files
+  pass the x-access-token marker check; no forbidden local files are staged.
+- The branch's issuer, composition, installation and security regression tests
+  are unchanged by this merge. No interface declaration was changed.
+
+Detailed local logs: ../authority-merge-validation/,
+../authority-merge-pytest.log, and ../authority-merge-npm.log.
+These are local checks against the local authority and Core verifier, not proof
+of Accounts adoption/parity; that existing obligation remains with the host owner.
