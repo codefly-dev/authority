@@ -88,9 +88,13 @@ type AuthorityServiceClient interface {
 	Keys(context.Context, *connect.Request[v1.KeysRequest]) (*connect.Response[v1.KeysResponse], error)
 	// RegisterAdmissionKey is how the hop tells the authority the public key it
 	// signs call admissions with, so Keys publishes it in admission_keys. The
-	// caller is the hop, proving it with its workload credential; any other
-	// workload is refused by name. Only the public half travels: the hop's seed
-	// never leaves it. Registering the same key again is idempotent and renews
+	// caller is the hop, proving it with its workload credential, in the
+	// authority's own trust domain; any other workload is refused by name. The
+	// hop also proves it holds the key: the request carries a fresh proof signed
+	// by the admission key itself over the credential, the key and the
+	// authority's audience, and a stale, replayed or unsigned registration is
+	// refused, so a captured credential alone registers nothing. Only the public
+	// half travels: the hop's seed never leaves it. Registering the same key again is idempotent and renews
 	// it, and a registration lapses at expires_at_unix unless renewed, so a hop
 	// renews while it runs (a restarted authority learns the key again at the
 	// next renewal) and a key no running hop signs with any more is withdrawn
@@ -330,9 +334,13 @@ type AuthorityServiceHandler interface {
 	Keys(context.Context, *connect.Request[v1.KeysRequest]) (*connect.Response[v1.KeysResponse], error)
 	// RegisterAdmissionKey is how the hop tells the authority the public key it
 	// signs call admissions with, so Keys publishes it in admission_keys. The
-	// caller is the hop, proving it with its workload credential; any other
-	// workload is refused by name. Only the public half travels: the hop's seed
-	// never leaves it. Registering the same key again is idempotent and renews
+	// caller is the hop, proving it with its workload credential, in the
+	// authority's own trust domain; any other workload is refused by name. The
+	// hop also proves it holds the key: the request carries a fresh proof signed
+	// by the admission key itself over the credential, the key and the
+	// authority's audience, and a stale, replayed or unsigned registration is
+	// refused, so a captured credential alone registers nothing. Only the public
+	// half travels: the hop's seed never leaves it. Registering the same key again is idempotent and renews
 	// it, and a registration lapses at expires_at_unix unless renewed, so a hop
 	// renews while it runs (a restarted authority learns the key again at the
 	// next renewal) and a key no running hop signs with any more is withdrawn
