@@ -11,7 +11,6 @@ import (
 	"crypto/ed25519"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -288,35 +287,6 @@ func notFound(err error) error {
 		return domain.Missing("%v", err)
 	}
 	return err
-}
-
-// orgRoles are a person's organization roles, those the catalogue defines.
-func orgRoles(tx Tx, p domain.Person) ([]domain.OrgRole, error) {
-	var out []domain.OrgRole
-	for _, name := range p.Roles {
-		r, err := tx.OrgRole(p.Organization, name)
-		if errors.Is(err, domain.ErrNotFound) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, r)
-	}
-	return out, nil
-}
-
-func clamp(ttl, max time.Duration) time.Duration {
-	if ttl <= 0 || ttl > max {
-		return max
-	}
-	return ttl
-}
-
-func sortedTeams(teams []string) []string {
-	out := slices.Clone(teams)
-	slices.Sort(out)
-	return slices.Compact(out)
 }
 
 // Scopes is a scope list.

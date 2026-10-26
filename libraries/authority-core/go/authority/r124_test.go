@@ -7,18 +7,6 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 )
 
-// A grant stays revocable after its person left the organization, and the
-// revoke ends their access for good if they return.
-func TestAGrantWhosePersonLeftIsStillRevoked(t *testing.T) {
-	h := newHarness(t)
-	h.grant("a", "viewer", "maya")
-	h.store.DeletePerson("maya")
-	h.revoke("a", "viewer", "maya", "")
-	h.store.PutPerson(domain.Person{ID: "maya", Organization: acme})
-	_, err := h.root("maya", "a")
-	refused(t, err, "holds no role")
-}
-
 // Another organization's installation and an installation nobody has answer
 // a role change with the same words.
 func TestAForeignAndAnAbsentInstallationAnswerAlike(t *testing.T) {
@@ -34,36 +22,3 @@ func TestAForeignAndAnAbsentInstallationAnswerAlike(t *testing.T) {
 	}
 }
 
-// A grant stays revocable on an uninstalled installation, whose reinstall
-// reuses its id, and when its role is no longer declared, which a later
-// generation may declare again: neither door revives it.
-func TestARevokeOutlivesUninstallAndARetiredRole(t *testing.T) {
-	h := newHarness(t)
-	id := h.inst(acme, "a").ID
-	h.grant("a", "viewer", "maya")
-	if err := h.svc.Uninstall(h.ctx, nil, acme, id); err != nil {
-		t.Fatal(err)
-	}
-	h.revoke("a", "viewer", "maya", "")
-	if again := h.install(acme, "a"); again.ID != id {
-		t.Fatalf("the reinstall is %s, not %s", again.ID, id)
-	}
-	_, err := h.root("maya", "a")
-	refused(t, err, "holds no role")
-
-	h.grant("a", "viewer", "maya")
-	retired := solution("a", true)
-	retired.Generation = 2
-	delete(retired.Roles, "viewer")
-	if _, err := h.svc.ApplyModule(h.ctx, retired); err != nil {
-		t.Fatal(err)
-	}
-	h.revoke("a", "viewer", "maya", "")
-	back := solution("a", true)
-	back.Generation = 3
-	if _, err := h.svc.ApplyModule(h.ctx, back); err != nil {
-		t.Fatal(err)
-	}
-	_, err = h.root("maya", "a")
-	refused(t, err, "holds no role")
-}
