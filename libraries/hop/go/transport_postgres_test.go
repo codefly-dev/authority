@@ -18,7 +18,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/tap"
+	"google.golang.org/grpc/stats"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -82,16 +82,12 @@ func newTransport(t *testing.T, ctx context.Context, store *replaypg.Store) *tra
 	tr.nonce = call.ReplayKey(hoptest.PublicKey("regression"))
 	tr.expires = time.Unix(call.Expires+int64(stamp.Skew/time.Second), 0)
 
-	v, err := hop.NewVerifier(ctx, authority, "regression", hoptest.PublicKey("regression"), store)
+	v, err := hop.NewVerifier(ctx, authority.PublishHop("regression"), "regression", store)
 	if err != nil {
 		t.Fatal(err)
 	}
 	server := grpc.NewServer(
-		grpc.InTapHandle(func(ctx context.Context, info *tap.Info) (context.Context, error) {
-			admitted, err := v.TapHandle()(ctx, info)
-			tr.arrived <- struct{}{}
-			return admitted, err
-		}),
+		grpc.StatsHandler(arrivals{Handler: v.StatsHandler(), arrived: tr.arrived}),
 		grpc.ChainUnaryInterceptor(v.UnaryServerInterceptor()))
 	server.RegisterService(&grpc.ServiceDesc{
 		ServiceName: "regression.Service",
@@ -120,6 +116,19 @@ func newTransport(t *testing.T, ctx context.Context, store *replaypg.Store) *tra
 	}
 	t.Cleanup(func() { _ = tr.conn.Close() })
 	return tr
+}
+
+// arrivals is the verifier's stats handler, telling the test each call it has
+// tagged on arrival.
+type arrivals struct {
+	stats.Handler
+	arrived chan struct{}
+}
+
+func (a arrivals) TagRPC(ctx context.Context, info *stats.RPCTagInfo) context.Context {
+	ctx = a.Handler.TagRPC(ctx, info)
+	a.arrived <- struct{}{}
+	return ctx
 }
 
 // deliver opens one delivery of the admission and returns once the server has
@@ -206,10 +215,11 @@ func TestASecondDeliveryHeldPastCollectionIsRefusedOverTheRealTransport(t *testi
 	}
 }
 
-// The reservation of a call whose handler is still running outlives its
-// retention: collection never removes it while the call runs, and removes it
-// once the call has returned.
-func TestARunningCallKeepsItsReservationPastItsRetention(t *testing.T) {
+// Review r3 M2: collection removes a reservation once its retention has
+// passed, even while its call still runs (a crashed holder never finishes),
+// and that reopens nothing: a delivery after the retention is refused on the
+// window and by the database, and the running call completes.
+func TestCollectingARunningCallsReservationReopensNothing(t *testing.T) {
 	t.Setenv(resources.EnvironmentPrefix, "production")
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
@@ -226,24 +236,21 @@ func TestARunningCallKeepsItsReservationPastItsRetention(t *testing.T) {
 		t.Fatal(ctx.Err())
 	}
 	tr.pastRetention(t, ctx, store)
-	if !held(t, ctx, pool, tr.nonce) {
-		t.Fatal("collection removed the reservation of a call that is still running")
+	if held(t, ctx, pool, tr.nonce) {
+		t.Fatal("a reservation past its retention outlived collection")
 	}
-	if err := tr.deliver(t, ctx)(); err == nil || !strings.Contains(err.Error(), "stamp_") {
-		t.Errorf("a delivery after the retention was admitted: %v", err)
+	if err := tr.deliver(t, ctx)(); err == nil || !strings.Contains(err.Error(), "stamp_window") {
+		t.Errorf("a delivery after the retention was not refused on the window: %v", err)
 	}
 	close(tr.hold)
 	if err := <-result; err != nil {
 		t.Fatalf("the running call was refused: %v", err)
 	}
-	if _, err := store.Collect(ctx); err != nil {
-		t.Fatal(err)
-	}
 	if held(t, ctx, pool, tr.nonce) {
-		t.Fatal("a finished call's reservation outlived its retention")
+		t.Fatal("finishing the call revived its collected reservation")
 	}
 	if got := tr.reached.Load(); got != 1 {
-		t.Fatalf("the handler ran %d times", got)
+		t.Fatalf("SECURITY: the handler ran %d times", got)
 	}
 }
 

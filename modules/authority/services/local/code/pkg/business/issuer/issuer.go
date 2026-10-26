@@ -62,11 +62,12 @@ func classify(err error) error {
 
 // Issuer is the wire over one host and its core.
 type Issuer struct {
-	state  *state.State
-	svc    *authority.Service
-	issuer string
-	keyID  string
-	public ed25519.PublicKey
+	state     *state.State
+	svc       *authority.Service
+	issuer    string
+	keyID     string
+	public    ed25519.PublicKey
+	admission []*authorityv1.PublicKey
 }
 
 // New builds the issuer for a host whose core signs as issuer with keyID, its
@@ -84,11 +85,19 @@ func Config(issuer, keyID string, key ed25519.PrivateKey, now func() time.Time) 
 	return authority.Config{Issuer: issuer, KeyID: keyID, Signer: key, Clock: now, MaxTTL: MaxTTL, Replay: replay}
 }
 
-// Keys is what a verifier pins.
+// PublishAdmission makes Keys publish the hop admission keys a module behind
+// the hop verifies each call's admission by, and answers i.
+func (i *Issuer) PublishAdmission(keys ...*authorityv1.PublicKey) *Issuer {
+	i.admission = append(i.admission, keys...)
+	return i
+}
+
+// Keys is what a verifier pins: the Work Context key, and apart from it the
+// hop's admission keys.
 func (i *Issuer) Keys() *authorityv1.KeysResponse {
 	return &authorityv1.KeysResponse{Issuer: i.issuer, Keys: []*authorityv1.PublicKey{{
-		KeyId: i.keyID, Algorithm: workcontext.Algorithm, PublicKey: []byte(i.public),
-	}}}
+		KeyId: i.keyID, Algorithm: workcontext.Algorithm, PublicKey: []byte(i.public), Purpose: "work-context",
+	}}, AdmissionKeys: i.admission}
 }
 
 // ListResources answers which resources of kind a checked capability may act

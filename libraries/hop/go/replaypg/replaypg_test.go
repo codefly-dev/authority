@@ -3,6 +3,8 @@ package replaypg
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -10,6 +12,7 @@ import (
 	core "github.com/codefly-dev/core/workcontext"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // pool is a Postgres that holds one nonce per primary key, as the real table's
@@ -36,10 +39,10 @@ func (p *pool) Exec(_ context.Context, sql string, args ...any) (pgconn.CommandT
 		return pgconn.NewCommandTag("UPDATE 1"), nil
 	}
 	if len(args) != 2 {
-		// The collection statement; remove what has aged out and is not running.
+		// The collection statement; remove what has aged out, running or not.
 		removed := 0
 		for nonce, until := range p.held {
-			if until.Before(time.Now()) && !p.active[nonce] {
+			if until.Before(time.Now()) {
 				delete(p.held, nonce)
 				removed++
 			}
@@ -170,11 +173,11 @@ func TestCollectRemovesOnlyReservationsPastTheirRetention(t *testing.T) {
 	}
 }
 
-// A reservation is held while its call runs, past its retention, and refused
-// to anyone else; once the call finishes, collection removes it after its
-// retention. A reservation whose retention has already passed is refused as
-// the window, never inserted, so it cannot revive a collected nonce.
-func TestAReservationIsHeldWhileItsCallRuns(t *testing.T) {
+// A reservation is refused to anyone else while it is retained; collection
+// removes it once its retention has passed, its call finished or not, and a
+// reservation whose retention has already passed is refused as the window,
+// never inserted, so it cannot revive a collected nonce.
+func TestAReservationIsHeldToItsRetentionWhetherOrNotItsCallFinished(t *testing.T) {
 	p := &pool{}
 	store, _ := New(p)
 	ctx := context.Background()
@@ -184,15 +187,13 @@ func TestAReservationIsHeldWhileItsCallRuns(t *testing.T) {
 	if err := store.Reserve(ctx, "running", time.Now().Add(time.Minute)); !errors.Is(err, core.ErrReplayed) {
 		t.Fatalf("a second reservation was not refused: %v", err)
 	}
-	time.Sleep(60 * time.Millisecond)
 	if removed, err := store.Collect(ctx); err != nil || removed != 0 {
-		t.Fatalf("collection removed %d running reservations: %v", removed, err)
+		t.Fatalf("collection removed %d reservations still retained: %v", removed, err)
 	}
-	if err := store.Finish(ctx, "running"); err != nil {
-		t.Fatal(err)
-	}
+	time.Sleep(60 * time.Millisecond)
+	// Never finished: its holder stopped between Reserve and Finish.
 	if removed, err := store.Collect(ctx); err != nil || removed != 1 {
-		t.Fatalf("collected %d finished reservations: %v", removed, err)
+		t.Fatalf("collected %d reservations past their retention: %v", removed, err)
 	}
 	if err := store.Reserve(ctx, "running", time.Now().Add(-time.Second)); !errors.Is(err, refusal.StampWindow) {
 		t.Fatalf("a reservation past its retention was not refused as the window: %v", err)
@@ -226,4 +227,56 @@ func contains(haystack, needle string) bool {
 		}
 	}
 	return false
+}
+
+// Review r3 M2, on a real Postgres (HOP_TEST_POSTGRES): a holder that stops
+// between Reserve and Finish leaves its row active for good, and collection
+// still removes it once its retention has passed by the database's clock;
+// the nonce is not revived, since a reservation past its retention is refused.
+func TestACrashedHoldersReservationIsCollectedOnTheDatabaseClock(t *testing.T) {
+	dsn := os.Getenv("HOP_TEST_POSTGRES")
+	if dsn == "" {
+		t.Skip("HOP_TEST_POSTGRES names no Postgres")
+	}
+	ctx := context.Background()
+	pg, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pg.Close()
+	if _, err := pg.Exec(ctx, Migration); err != nil {
+		t.Fatal(err)
+	}
+	store, _ := New(pg)
+	nonce := fmt.Sprintf("crashed-holder-%d", time.Now().UnixNano())
+	until := time.Now().Add(time.Second)
+	if err := store.Reserve(ctx, nonce, until); err != nil {
+		t.Fatal(err)
+	}
+	// The holder stops here: no Finish, so the row stays active.
+	if _, err := store.Collect(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !held(t, pg, nonce) {
+		t.Fatal("collection removed a reservation still inside its retention")
+	}
+	time.Sleep(time.Until(until) + 200*time.Millisecond)
+	if _, err := store.Collect(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if held(t, pg, nonce) {
+		t.Fatal("a crashed holder's reservation outlived its retention")
+	}
+	if err := store.Reserve(ctx, nonce, until); !errors.Is(err, refusal.StampWindow) {
+		t.Fatalf("the collected nonce was reserved again: %v", err)
+	}
+}
+
+func held(t *testing.T, pg *pgxpool.Pool, nonce string) bool {
+	t.Helper()
+	var n int
+	if err := pg.QueryRow(context.Background(), `SELECT count(*) FROM hop_admissions WHERE nonce = $1`, nonce).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n == 1
 }

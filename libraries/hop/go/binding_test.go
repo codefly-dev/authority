@@ -23,11 +23,11 @@ func TestReviewReadStampCannotRetargetOrReplayAcrossReplicas(t *testing.T) {
 	const readMethod = "/documents.v1.Service/Get"
 	md := hoptest.Forward(t, token, proof, readMethod)
 	store := hoptest.Replay()
-	v, err := hop.NewVerifier(ctx, a, "documents", hoptest.PublicKey(proof), store)
+	v, err := hop.NewVerifier(ctx, a.PublishHop(proof), "documents", store)
 	if err != nil {
 		t.Fatal(err)
 	}
-	replica, err := hop.NewVerifier(ctx, a, "documents", hoptest.PublicKey(proof), store)
+	replica, err := hop.NewVerifier(ctx, a.PublishHop(proof), "documents", store)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +36,7 @@ func TestReviewReadStampCannotRetargetOrReplayAcrossReplicas(t *testing.T) {
 			t.Fatalf("retarget to %q: %v", method, err)
 		}
 	}
-	other, _ := hop.NewVerifier(ctx, a, "records", hoptest.PublicKey(proof), store)
+	other, _ := hop.NewVerifier(ctx, a.PublishHop(proof), "records", store)
 	if _, err := other.Verify(ctx, md, readMethod); err == nil || !strings.Contains(err.Error(), "stamp_audience") {
 		t.Fatalf("other audience: %v", err)
 	}
@@ -64,8 +64,8 @@ func TestReviewZeroScopeSharedProofCannotFabricateAdmission(t *testing.T) {
 func TestConcurrentReplayHasOneWinnerAcrossVerifiers(t *testing.T) {
 	a := hoptest.New(t)
 	store := hoptest.Replay()
-	first, _ := hop.NewVerifier(context.Background(), a, "documents", hoptest.PublicKey(proof), store)
-	second, _ := hop.NewVerifier(context.Background(), a, "documents", hoptest.PublicKey(proof), store)
+	first, _ := hop.NewVerifier(context.Background(), a.PublishHop(proof), "documents", store)
+	second, _ := hop.NewVerifier(context.Background(), a.PublishHop(proof), "documents", store)
 	md := hoptest.Forward(t, a.IssueSingleUse(t, "documents", read), proof, "/documents.v1.Service/Get")
 	var accepted atomic.Int64
 	var wg sync.WaitGroup

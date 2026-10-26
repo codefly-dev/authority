@@ -7,6 +7,7 @@ require (
 	buf.build/go/protovalidate v1.4.0
 	connectrpc.com/connect v1.21.0
 	connectrpc.com/vanguard v0.4.0
+	github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0-20261026180113-c5b5e23960ab
 	github.com/codefly-dev/authority/libraries/authority-core/go v0.0.0
 	github.com/codefly-dev/authority/libraries/conformance/go v0.0.0
 	github.com/codefly-dev/authority/libraries/delivery/go v0.0.0
@@ -33,7 +34,6 @@ require (
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0-20261026135819-3d0a11cf77e4 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/analysis v1.0.0 // indirect

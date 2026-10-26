@@ -31,8 +31,8 @@ import (
 
 // Migration creates the table, as the module's own migration. The primary key
 // is the reservation: Postgres decides one winner among concurrent inserts.
-// active marks a reservation whose call is still running, which collection
-// never removes.
+// active marks a reservation whose call is still running, for diagnosis:
+// collection does not read it.
 const Migration = `CREATE TABLE IF NOT EXISTS hop_admissions (
 	nonce TEXT PRIMARY KEY,
 	retain_until TIMESTAMPTZ NOT NULL,
@@ -90,11 +90,14 @@ func (s *Store) Consume(ctx context.Context, nonce string, retainUntil time.Time
 // own clock, and answers how many it removed. Run it on a schedule: without it
 // the table grows by one row per admitted call.
 //
-// A reservation whose call is still running is never removed, however long
-// the call runs. One whose retention has passed can be removed safely because
-// Reserve refuses, on the same clock, any reservation past that retention.
+// A reservation is removed once its retention has passed whether or not its
+// call has finished: Reserve refuses, on the same clock, any reservation past
+// that retention, and a delivery past it is refused on the window too, so
+// removing it can never revive the nonce. A holder that stopped between
+// Reserve and Finish (a crash, a failed or timed-out Finish, a Reserve that
+// committed after its caller gave up) therefore leaves no permanent row.
 func (s *Store) Collect(ctx context.Context) (int64, error) {
-	tag, err := s.pool.Exec(ctx, `DELETE FROM hop_admissions WHERE NOT active AND retain_until < now()`)
+	tag, err := s.pool.Exec(ctx, `DELETE FROM hop_admissions WHERE retain_until < now()`)
 	if err != nil {
 		return 0, err
 	}
@@ -103,8 +106,8 @@ func (s *Store) Collect(ctx context.Context) (int64, error) {
 
 var _ hop.ReservationStore = (*Store)(nil)
 
-// Reserve consumes nonce when a call arrives and holds it while the call runs,
-// until Finish and retainUntil have both passed. It reports core.ErrReplayed
+// Reserve consumes nonce when a call arrives and holds it, marked active until
+// Finish, to retainUntil. It reports core.ErrReplayed
 // when the nonce is already held, and refusal.StampWindow when retainUntil has
 // already passed by the database's clock: a reservation delayed past its own
 // horizon must never revive a nonce that Collect removed.

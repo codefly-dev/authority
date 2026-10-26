@@ -13,16 +13,26 @@ import (
 	core "github.com/codefly-dev/core/workcontext"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/tap"
+	"google.golang.org/grpc/stats"
 )
 
 const arrivalMethod = "/test.Service/Read"
+
+// arrive is gRPC tagging a call that reached the server carrying md, as it
+// does on every transport before the call's body is read. It returns once the
+// reservation started at arrival has been decided, so the test's clock moves
+// only after it.
+func arrive(v *Verifier, md metadata.MD) context.Context {
+	ctx := v.StatsHandler().TagRPC(metadata.NewIncomingContext(context.Background(), md), &stats.RPCTagInfo{FullMethodName: arrivalMethod})
+	<-ctx.Value(admissionKey{}).(*admission).reserved
+	return ctx
+}
 
 func arrivalVerifier(t *testing.T, clock *time.Time) (*Verifier, signer) {
 	t.Helper()
 	s := newSigner("arrival")
 	source := &keys{response: &authorityv1.KeysResponse{Issuer: s.issuer, Keys: []*authorityv1.PublicKey{s.published()}}}
-	v, err := NewVerifier(context.Background(), source, "documents", testSigner("proof").PublicKey(), core.NewMemoryReplayStore())
+	v, err := NewVerifier(context.Background(), source, "documents", core.NewMemoryReplayStore())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +45,7 @@ func arrivalVerifier(t *testing.T, clock *time.Time) (*Verifier, signer) {
 // unary interceptor, so a slow or large upload reached Verify long after the
 // hop admitted it and was refused for an expiry that had not happened at call
 // start. The window is judged at the instant the stream was accepted, which
-// TapHandle records.
+// the stats handler records.
 func TestTheAdmissionWindowIsJudgedWhenTheCallArrivesNotAfterItsBodyDecodes(t *testing.T) {
 	clock := time.Unix(1792818000, 0)
 	v, s := arrivalVerifier(t, &clock)
@@ -43,10 +53,7 @@ func TestTheAdmissionWindowIsJudgedWhenTheCallArrivesNotAfterItsBodyDecodes(t *t
 
 	// The stream is accepted now; its body then takes two minutes to arrive,
 	// well past stamp.Lifetime.
-	ctx, err := v.TapHandle()(metadata.NewIncomingContext(context.Background(), md), &tap.Info{FullMethodName: arrivalMethod, Header: md})
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx := arrive(v, md)
 	clock = clock.Add(2 * time.Minute)
 	reached := false
 	if _, err := v.UnaryServerInterceptor()(ctx, nil, &grpc.UnaryServerInfo{FullMethod: arrivalMethod}, func(context.Context, any) (any, error) {
@@ -57,9 +64,9 @@ func TestTheAdmissionWindowIsJudgedWhenTheCallArrivesNotAfterItsBodyDecodes(t *t
 	}
 }
 
-// Nothing is admitted by the absence of a tap handle: a server that installs
-// none judges the window at the instant Verify runs, as it did before.
-func TestWithoutATapHandleTheWindowIsJudgedWhenVerifyRuns(t *testing.T) {
+// Nothing is admitted by the absence of the stats handler: a server that
+// installs none judges the window at the instant Verify runs, as it did before.
+func TestWithoutTheStatsHandlerTheWindowIsJudgedWhenVerifyRuns(t *testing.T) {
 	clock := time.Unix(1792818000, 0)
 	v, s := arrivalVerifier(t, &clock)
 	md := forwarded(t, s.issue(t, clock, "documents"), "proof", "")
@@ -67,11 +74,11 @@ func TestWithoutATapHandleTheWindowIsJudgedWhenVerifyRuns(t *testing.T) {
 	_, err := v.Verify(context.Background(), md, arrivalMethod)
 	var reason refusal.Reason
 	if !errors.As(err, &reason) || reason != refusal.StampWindow {
-		t.Fatalf("want %s without a tap handle: %v", refusal.StampWindow, err)
+		t.Fatalf("want %s without the stats handler: %v", refusal.StampWindow, err)
 	}
 }
 
-// The window the tap handle opens is the admission's own, not an unbounded one:
+// The window the stats handler opens is the admission's own, not an unbounded one:
 // a call accepted further ahead than the clock allowance, or long after the
 // admission expired, is still refused, each under its own reason.
 func TestTheArrivalInstantDoesNotWidenTheAdmissionWindow(t *testing.T) {
@@ -88,11 +95,8 @@ func TestTheArrivalInstantDoesNotWidenTheAdmissionWindow(t *testing.T) {
 			v, s := arrivalVerifier(t, &clock)
 			md := forwarded(t, s.issue(t, clock, "documents"), "proof", "")
 			clock = clock.Add(tc.shift)
-			ctx, err := v.TapHandle()(metadata.NewIncomingContext(context.Background(), md), &tap.Info{FullMethodName: arrivalMethod, Header: md})
-			if err != nil {
-				t.Fatal(err)
-			}
-			_, err = v.UnaryServerInterceptor()(ctx, nil, &grpc.UnaryServerInfo{FullMethod: arrivalMethod}, func(context.Context, any) (any, error) {
+			ctx := arrive(v, md)
+			_, err := v.UnaryServerInterceptor()(ctx, nil, &grpc.UnaryServerInfo{FullMethod: arrivalMethod}, func(context.Context, any) (any, error) {
 				return nil, nil
 			})
 			// The interceptor answers a gRPC status, which carries the reason
@@ -112,7 +116,7 @@ func TestAReservationIsRetainedPastExpiryByTheClockAllowance(t *testing.T) {
 	store := &retention{}
 	v.replay = store
 	md := forwarded(t, s.issue(t, clock, "documents"), "proof", "")
-	call, err := stamp.Check(md, v.publicKey, arrivalMethod, "documents", clock)
+	call, err := stamp.Check(md, testSigner("proof").PublicKey(), arrivalMethod, "documents", clock)
 	if err != nil {
 		t.Fatal(err)
 	}

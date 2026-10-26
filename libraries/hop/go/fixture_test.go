@@ -23,6 +23,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 var updateFixture = flag.Bool("update-fixture", false, "rewrite ../testdata/stamped.json")
@@ -41,7 +42,7 @@ func newSigner(seed string) signer {
 }
 
 func (s signer) published() *authorityv1.PublicKey {
-	return &authorityv1.PublicKey{KeyId: s.id, Algorithm: core.Algorithm, PublicKey: s.key.Public().(ed25519.PublicKey)}
+	return &authorityv1.PublicKey{KeyId: s.id, Algorithm: core.Algorithm, PublicKey: s.key.Public().(ed25519.PublicKey), Purpose: workContextPurpose}
 }
 
 func (s signer) issue(t *testing.T, at time.Time, audience string, scopes ...*basev0.WorkScopeV1) string {
@@ -74,7 +75,9 @@ func forwarded(t *testing.T, token, proof, advisory string) metadata.MD {
 }
 
 // keys is a switchable Keys answer that counts the reads; with hold set, a
-// read waits for it to be closed (or for its own context to end).
+// read waits for it to be closed (or for its own context to end). A response
+// that publishes no hop admission key publishes the test hop's
+// (testSigner("proof")), as an authority publishes its hop's key.
 type keys struct {
 	mu       sync.Mutex
 	response *authorityv1.KeysResponse
@@ -94,6 +97,10 @@ func (k *keys) Keys(ctx context.Context, _ *authorityv1.KeysRequest, _ ...grpc.C
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
+	}
+	if response != nil && len(response.GetAdmissionKeys()) == 0 {
+		response = proto.Clone(response).(*authorityv1.KeysResponse)
+		response.AdmissionKeys = []*authorityv1.PublicKey{publishedHop("proof")}
 	}
 	return response, err
 }
@@ -121,18 +128,17 @@ func settled(v *Verifier) {
 }
 
 type stampFixture struct {
-	PublicKey string            `json:"public_key"`
-	Audience  string            `json:"audience"`
-	Now       int64             `json:"now"`
-	Keys      json.RawMessage   `json:"keys"`
-	Headers   map[string]string `json:"headers"`
-	Identity  map[string]any    `json:"identity"`
+	Audience string            `json:"audience"`
+	Now      int64             `json:"now"`
+	Keys     json.RawMessage   `json:"keys"`
+	Headers  map[string]string `json:"headers"`
+	Identity map[string]any    `json:"identity"`
 }
 
 // The stamp's one contract, for every language a module is written in: the
 // headers this hop writes for one call carrying a genuinely signed Work
-// Context, the published keys that authenticate it at a fixed clock, and the
-// identity read from it. The Python verifier (codefly_hop, in libraries/authority-client/python) reads it back.
+// Context, the published keys that authenticate it at a fixed clock (the Work
+// Context's and the hop's admission key), and the identity read from it. The Python verifier (codefly_hop, in libraries/authority-client/python) reads it back.
 func TestTheStampFixtureAuthenticatesAsTheHopWroteIt(t *testing.T) {
 	path := filepath.Join("..", "testdata", "stamped.json")
 	s := newSigner("fixture")
@@ -140,8 +146,8 @@ func TestTheStampFixtureAuthenticatesAsTheHopWroteIt(t *testing.T) {
 		at := time.Unix(1792818000, 0)
 		token := s.issue(t, at, "documents", &basev0.WorkScopeV1{ResourceKind: "documents.collection", Actions: []string{"read"}}, &basev0.WorkScopeV1{ResourceKind: "documents.collection", Actions: []string{"write"}, ResourceIds: []string{"c-1"}})
 		md := forwarded(t, token, "fixture-proof", "")
-		published, _ := protojson.Marshal(&authorityv1.KeysResponse{Issuer: s.issuer, Keys: []*authorityv1.PublicKey{s.published()}})
-		f := stampFixture{PublicKey: testSigner("fixture-proof").PublicKey(), Audience: "documents", Now: at.Unix(), Keys: published, Headers: map[string]string{}}
+		published, _ := protojson.Marshal(&authorityv1.KeysResponse{Issuer: s.issuer, Keys: []*authorityv1.PublicKey{s.published()}, AdmissionKeys: []*authorityv1.PublicKey{publishedHop("fixture-proof")}})
+		f := stampFixture{Audience: "documents", Now: at.Unix(), Keys: published, Headers: map[string]string{}}
 		for key, values := range md {
 			f.Headers[key] = values[0]
 		}
@@ -164,7 +170,7 @@ func TestTheStampFixtureAuthenticatesAsTheHopWroteIt(t *testing.T) {
 	if err := protojson.Unmarshal(f.Keys, published); err != nil {
 		t.Fatal(err)
 	}
-	v, err := NewVerifier(context.Background(), &keys{response: published}, f.Audience, f.PublicKey, core.NewMemoryReplayStore())
+	v, err := NewVerifier(context.Background(), &keys{response: published}, f.Audience, core.NewMemoryReplayStore())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +206,7 @@ func TestPublishedKeysAreRereadOnRotationAndExpireWhenUnreadable(t *testing.T) {
 	source := &keys{response: &authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{first.published()}}}
 	start := time.Unix(1792818000, 0)
 	clock := start
-	v, err := NewVerifier(context.Background(), source, "documents", testSigner("proof").PublicKey(), core.NewMemoryReplayStore())
+	v, err := NewVerifier(context.Background(), source, "documents", core.NewMemoryReplayStore())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,7 +254,7 @@ func TestAnUnauthenticatedCallerNeitherReadsNorStarvesTheKeys(t *testing.T) {
 	first, second := newSigner("first"), newSigner("second")
 	source := &keys{response: &authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{first.published()}}}
 	clock := time.Unix(1792818000, 0)
-	v, _ := NewVerifier(context.Background(), source, "documents", testSigner("proof").PublicKey(), core.NewMemoryReplayStore())
+	v, _ := NewVerifier(context.Background(), source, "documents", core.NewMemoryReplayStore())
 	v.now = func() time.Time { return clock }
 	v.fetched, v.tried = clock, clock
 	source.set(&authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{second.published()}}, nil, nil)
@@ -282,7 +288,7 @@ func TestAHungReadStallsNoHeldKeyAndACallerGivingUpDelaysNoOne(t *testing.T) {
 	source := &keys{response: &authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{first.published(), second.published()}}}
 	start := time.Unix(1792818000, 0)
 	clock := start
-	v, _ := NewVerifier(context.Background(), source, "documents", testSigner("proof").PublicKey(), core.NewMemoryReplayStore())
+	v, _ := NewVerifier(context.Background(), source, "documents", core.NewMemoryReplayStore())
 	v.now = func() time.Time { return clock }
 	v.fetched, v.tried = start, start
 	hold := make(chan struct{})
@@ -326,7 +332,7 @@ func TestACallOnKeysPastKeyStaleWaitsForTheReread(t *testing.T) {
 	source := &keys{response: &authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{first.published()}}}
 	start := time.Unix(1792818000, 0)
 	clock := start
-	v, _ := NewVerifier(context.Background(), source, "documents", testSigner("proof").PublicKey(), core.NewMemoryReplayStore())
+	v, _ := NewVerifier(context.Background(), source, "documents", core.NewMemoryReplayStore())
 	v.now = func() time.Time { return clock }
 	v.fetched, v.tried = start, start
 	clock = start.Add(39 * time.Minute)
@@ -346,7 +352,7 @@ func TestACallOnKeysPastKeyStaleIsRefusedWhenTheRereadFails(t *testing.T) {
 	source := &keys{response: &authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{first.published()}}}
 	start := time.Unix(1792818000, 0)
 	clock := start
-	v, _ := NewVerifier(context.Background(), source, "documents", testSigner("proof").PublicKey(), core.NewMemoryReplayStore())
+	v, _ := NewVerifier(context.Background(), source, "documents", core.NewMemoryReplayStore())
 	v.now = func() time.Time { return clock }
 	v.timeout = 100 * time.Millisecond
 	v.fetched, v.tried = start, start
@@ -391,7 +397,7 @@ func TestACallOnKeysPastKeyStaleIsRefusedWhenTheRereadFails(t *testing.T) {
 // A read that never answers is bounded by the verifier's own timeout.
 func TestAReadIsBoundedByItsOwnTimeout(t *testing.T) {
 	source := &keys{hold: make(chan struct{})}
-	v := &Verifier{source: source, audience: "documents", publicKey: "proof", now: time.Now, timeout: 20 * time.Millisecond}
+	v := &Verifier{source: source, audience: "documents", replay: core.NewMemoryReplayStore(), now: time.Now, timeout: 20 * time.Millisecond}
 	v.mu.Lock()
 	done := v.refresh()
 	v.mu.Unlock()
@@ -423,7 +429,7 @@ func TestReadyHoldsWhileKeysAreTrusted(t *testing.T) {
 	first := newSigner("first")
 	source := &keys{response: &authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{first.published()}}}
 	clock := time.Unix(1792818000, 0)
-	v, _ := NewVerifier(context.Background(), source, "documents", testSigner("proof").PublicKey(), core.NewMemoryReplayStore())
+	v, _ := NewVerifier(context.Background(), source, "documents", core.NewMemoryReplayStore())
 	v.now = func() time.Time { return clock }
 	v.fetched, v.tried = clock, clock
 	if !v.Ready() {
@@ -449,7 +455,7 @@ func TestAnUnreadyReplicaBecomesReadyByPollingAlone(t *testing.T) {
 	first := newSigner("first")
 	source := &keys{err: errors.New("authority not serving yet")}
 	clock := time.Unix(1792818000, 0)
-	v, _ := NewVerifier(context.Background(), source, "documents", testSigner("proof").PublicKey(), core.NewMemoryReplayStore())
+	v, _ := NewVerifier(context.Background(), source, "documents", core.NewMemoryReplayStore())
 	v.now = func() time.Time { return clock }
 	v.tried = clock
 	ready := false
@@ -473,7 +479,7 @@ func TestAnIdleReplicaPolledForReadinessStaysReady(t *testing.T) {
 	first := newSigner("first")
 	source := &keys{response: &authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{first.published()}}}
 	clock := time.Unix(1792818000, 0)
-	v, _ := NewVerifier(context.Background(), source, "documents", testSigner("proof").PublicKey(), core.NewMemoryReplayStore())
+	v, _ := NewVerifier(context.Background(), source, "documents", core.NewMemoryReplayStore())
 	v.now = func() time.Time { return clock }
 	v.fetched, v.tried = clock, clock
 	for minute := 1; minute <= 60; minute++ {
@@ -487,6 +493,13 @@ func TestAnIdleReplicaPolledForReadinessStaysReady(t *testing.T) {
 	if reads := source.count(); reads < 10 || reads > 13 {
 		t.Fatalf("an hour of readiness polls re-read the keys %d times; keyMaxAge says about 12", reads)
 	}
+}
+
+// publishedHop is the admission key of the test hop that signs as label, as
+// an authority's Keys carries it in admission_keys.
+func publishedHop(label string) *authorityv1.PublicKey {
+	id, public := testSigner(label).Admission()
+	return &authorityv1.PublicKey{KeyId: id, Algorithm: core.Algorithm, PublicKey: public, Purpose: stamp.Purpose}
 }
 
 func testSigner(label string) *stamp.Signer {

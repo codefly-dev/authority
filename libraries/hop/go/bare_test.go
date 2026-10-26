@@ -55,7 +55,7 @@ func TestBareTokenWaitsForStaleRefreshAndRefusesFailure(t *testing.T) {
 	now := time.Now()
 	signer := newSigner("bare-refresh")
 	source := &keys{response: &authorityv1.KeysResponse{Issuer: signer.issuer, Keys: []*authorityv1.PublicKey{signer.published()}}}
-	v, err := NewVerifier(t.Context(), source, "module", testSigner("proof").PublicKey(), core.NewMemoryReplayStore())
+	v, err := NewVerifier(t.Context(), source, "module", core.NewMemoryReplayStore())
 	if err != nil {
 		t.Fatal(err)
 	}

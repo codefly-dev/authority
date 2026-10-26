@@ -96,7 +96,7 @@ func dial(t *testing.T, listener *bufconn.Listener, opts ...grpc.DialOption) *gr
 
 func setup(t *testing.T) (through gen.HopServiceClient, direct gen.HopServiceClient, m *module, a *authority, refused *[]string) {
 	m, a, refused = &module{}, &authority{Authority: hoptest.New(t), revoked: map[string]bool{}}, &[]string{}
-	verifier, err := hop.NewVerifier(context.Background(), a, "console", hoptest.PublicKey(proof), hoptest.Replay())
+	verifier, err := hop.NewVerifier(context.Background(), a.PublishHop(proof), "console", hoptest.Replay())
 	if err != nil {
 		t.Fatal(err)
 	}

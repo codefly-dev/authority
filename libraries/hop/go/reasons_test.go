@@ -14,7 +14,7 @@ import (
 func TestStampFailureCodesAreDistinctAndSafe(t *testing.T) {
 	s := newSigner("reasons")
 	source := &keys{response: &authorityv1.KeysResponse{Issuer: s.issuer, Keys: []*authorityv1.PublicKey{s.published()}}}
-	v, err := NewVerifier(t.Context(), source, "module", testSigner("proof").PublicKey(), core.NewMemoryReplayStore())
+	v, err := NewVerifier(t.Context(), source, "module", core.NewMemoryReplayStore())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,14 +45,14 @@ func TestStampFailureCodesAreDistinctAndSafe(t *testing.T) {
 }
 
 func TestConfigurationAndCancelledKeyWaitHaveNamedReasons(t *testing.T) {
-	_, err := NewVerifier(t.Context(), nil, "module", testSigner("proof").PublicKey(), core.NewMemoryReplayStore())
+	_, err := NewVerifier(t.Context(), nil, "module", core.NewMemoryReplayStore())
 	var reason Reason
 	if !errors.As(err, &reason) || reason != ReasonConfiguration {
 		t.Fatalf("configuration: %v", err)
 	}
 	s := newSigner("cancel-reason")
 	source := &keys{response: &authorityv1.KeysResponse{Issuer: s.issuer, Keys: []*authorityv1.PublicKey{s.published()}}}
-	v, err := NewVerifier(t.Context(), source, "module", testSigner("proof").PublicKey(), core.NewMemoryReplayStore())
+	v, err := NewVerifier(t.Context(), source, "module", core.NewMemoryReplayStore())
 	if err != nil {
 		t.Fatal(err)
 	}

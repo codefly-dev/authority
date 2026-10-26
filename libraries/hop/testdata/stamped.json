@@ -1,5 +1,4 @@
 {
-  "public_key": "17053f7519568253029258eca5f61d05c76647ea0bd9143ad1bf5f36e37d9629",
   "audience": "documents",
   "now": 1792818000,
   "keys": {
@@ -8,21 +7,30 @@
       {
         "keyId": "hop-fixture",
         "algorithm": "Ed25519",
-        "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc="
+        "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+        "purpose": "work-context"
+      }
+    ],
+    "admissionKeys": [
+      {
+        "keyId": "hop-c39261b4607295e9",
+        "algorithm": "Ed25519",
+        "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+        "purpose": "hop-admission"
       }
     ]
   },
   "headers": {
     "x-codefly-hop-actors": "",
-    "x-codefly-hop-context": "c32facab31f07e892551222e5acdfba8225f5ee9a44ff18168639a029548709f",
+    "x-codefly-hop-context": "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4",
     "x-codefly-hop-expires": "1792818600",
     "x-codefly-hop-owner": "principal-owner",
     "x-codefly-hop-owner-kind": "human",
-    "x-codefly-hop-proof": "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsImMzMmZhY2FiMzFmMDdlODkyNTUxMjIyZTVhY2RmYmE4MjI1ZjVlZTlhNDRmZjE4MTY4NjM5YTAyOTU0ODcwOWYiLCI3OWVjNDYzZDdiYjI0M2E2ZThjYzY0NDkwMTMxZGY5YzFiZjNmNWVkMTA2MzBjMDUxODllN2Y1OGMzM2ZjYzg2IiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.PkjjHEmoK7491qYH1TPs6sVOfUF-x7xdittoG2COw3gudr_d0TkqCFLg1djdcLU6DWX_e2K9pNWETB7Zb7pABQ",
+    "x-codefly-hop-proof": "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCI1NzE5NTA4Yzc4ODMxODFhNjExNDk3ODg1YjBlNTA1OTE2NDcxNTI1Zjg4ZGZjNmFhYzExZTYxNzBlMjI0ZWZiIiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.G7tlrYUanR448OvpJ9KEDgL4XpaURINC0aefPXigdauI18NwMCeiexentKI1LuZHD7R0Dq_VR3Q1w2cr_ixYAA",
     "x-codefly-hop-scopes": "documents.collection:read",
     "x-codefly-hop-task": "task-conformance",
     "x-codefly-hop-tenant": "tenant-conformance",
-    "x-codefly-work-context": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGRiMTMyYmE1LTUwZTctNDAwYi1iYjk0LTkxNzVkNDY0YWFkZVAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokYWUzNzI0ZDAtNTU1MS00NmQ3LTg3NDMtODc3NmE1NGMzOGRiigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.zqmygW1AVYgFft6kBTBv6OzFekNqAJzKe50POaDTr5Q6uXV91DmI-RynvAGdUWfCeiAN6e4M5B0icRRijiG3Cw"
+    "x-codefly-work-context": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
   },
   "identity": {
     "actors": null,

@@ -27,7 +27,7 @@ var read = &basev0.WorkScopeV1{ResourceKind: "documents", Actions: []string{"rea
 
 func verifier(t *testing.T, a *hoptest.Authority, audience string) *hop.Verifier {
 	t.Helper()
-	v, err := hop.NewVerifier(context.Background(), a, audience, hoptest.PublicKey(proof), hoptest.Replay())
+	v, err := hop.NewVerifier(context.Background(), a.PublishHop(proof), audience, hoptest.Replay())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,17 +133,17 @@ func TestTheInterceptorRefusesByNameAndLetsHealthThrough(t *testing.T) {
 	}
 }
 
-func TestAVerifierNeedsPublishedKeysAnAudienceAndAProof(t *testing.T) {
-	a := hoptest.New(t)
+func TestAVerifierNeedsPublishedKeysAnAudienceAndAReplayStore(t *testing.T) {
+	a := hoptest.New(t).PublishHop(proof)
 	for name, build := range map[string]func() (*hop.Verifier, error){
 		"no keys": func() (*hop.Verifier, error) {
-			return hop.NewVerifier(context.Background(), nil, "documents", hoptest.PublicKey(proof), hoptest.Replay())
+			return hop.NewVerifier(context.Background(), nil, "documents", hoptest.Replay())
 		},
 		"no audience": func() (*hop.Verifier, error) {
-			return hop.NewVerifier(context.Background(), a, "", hoptest.PublicKey(proof), hoptest.Replay())
+			return hop.NewVerifier(context.Background(), a, "", hoptest.Replay())
 		},
-		"no proof": func() (*hop.Verifier, error) {
-			return hop.NewVerifier(context.Background(), a, "documents", "", hoptest.Replay())
+		"no replay store": func() (*hop.Verifier, error) {
+			return hop.NewVerifier(context.Background(), a, "documents", nil)
 		},
 	} {
 		if _, err := build(); err == nil {

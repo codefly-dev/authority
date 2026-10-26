@@ -10,9 +10,12 @@
 // its window and structure, and that it is the token the stamp's digest binds;
 // who the call is for is read from the authenticated claims, never a header.
 //
-// The hop signs each admission with a service-only key. Verifiers pin its public
-// key and atomically consume the signed nonce in a shared ReplayStore. Method,
-// audience and token digest are authenticated; a captured stamp is single-use.
+// The hop signs each admission with a service-only key. The authority publishes
+// its public half in Keys (admission_keys, purpose hop-admission), so verifiers
+// take it from the keys they already read, cache and refresh, never from their
+// own configuration, and trust every published one while a key rotates. They
+// atomically consume the signed nonce in a shared ReplayStore. Method, audience
+// and token digest are authenticated; a captured stamp is single-use.
 //
 // Every refusal a caller is given is a refusal.Reason (Reason here): a stable
 // code with fixed text that names no token, claim, key or transport failure.
@@ -46,8 +49,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/stats"
 	"google.golang.org/grpc/status"
-	"google.golang.org/grpc/tap"
 )
 
 // WorkContextKey carries the caller's Work Context to the hop, as everywhere.
@@ -213,7 +216,8 @@ func Audience() (string, error) {
 }
 
 // KeySource is the authority interface's Keys, as its generated client serves
-// it: the issuer and the public keys every Work Context is signed with.
+// it: the issuer, the public keys every Work Context is signed with, and the
+// hop's admission keys.
 type KeySource interface {
 	Keys(ctx context.Context, in *authorityv1.KeysRequest, opts ...grpc.CallOption) (*authorityv1.KeysResponse, error)
 }
@@ -238,40 +242,46 @@ const (
 // so it goes to KeysError, for the module's logs, never to a caller.
 var errKeysUnavailable = fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.KeysUnavailable)
 
+// ErrNoAdmissionKeys is what KeysError reports, for the module's logs, while
+// the authority's keys read but publish no hop admission key: every call is
+// refused as keys_unavailable until the authority publishes its hop's key.
+var ErrNoAdmissionKeys = errors.New("hop: the authority's Keys publish no hop admission key (admission_keys), so no call can be admitted: the authority must publish its hop's key")
+
 // Verifier is the one module-side entry point: it authenticates every call the
 // hop forwards before anything reads it. Build it once, at startup.
 type Verifier struct {
-	source    KeySource
-	audience  string
-	publicKey string
-	replay    core.ReplayStore
-	now       func() time.Time
-	timeout   time.Duration
+	source   KeySource
+	audience string
+	replay   core.ReplayStore
+	now      func() time.Time
+	timeout  time.Duration
 
-	mu       sync.Mutex
-	trust    workcontext.Trust
-	fetched  time.Time     // when trust was read
-	tried    time.Time     // when the last read started
-	inflight chan struct{} // closed when the running read ends; nil when none runs
-	failure  error         // the last read's failure, for KeysError
+	mu        sync.Mutex
+	trust     workcontext.Trust
+	admission []string      // the published hop admission keys, hex, read with trust
+	fetched   time.Time     // when trust was read
+	tried     time.Time     // when the last read started
+	inflight  chan struct{} // closed when the running read ends; nil when none runs
+	failure   error         // the last read's failure, for KeysError
 }
 
-// NewVerifier pins this module's audience and the delivered hop public key.
-// replay must atomically reserve nonces across all replicas and survive restart.
-// Keys is the generated authority client; no signing seed is delivered here.
+// NewVerifier pins this module's audience. Keys is the generated authority
+// client: the Work Context keys and the hop's admission keys are both read
+// through it, so nothing about the hop is configured here and no signing seed
+// is delivered. replay must atomically reserve nonces across all replicas and
+// survive restart.
 //
 // It waits for that first read while ctx allows, and never fails on it: a
 // module starts before its authority serves keys, and refuses calls, with the
 // reason, until they are read.
-func NewVerifier(ctx context.Context, keys KeySource, audience, publicKey string, replay core.ReplayStore) (*Verifier, error) {
-	raw, keyErr := hex.DecodeString(publicKey)
-	if replay == nil || keyErr != nil || len(raw) != ed25519.PublicKeySize || hex.EncodeToString(raw) != publicKey {
+func NewVerifier(ctx context.Context, keys KeySource, audience string, replay core.ReplayStore) (*Verifier, error) {
+	if replay == nil {
 		return nil, refusal.Configuration
 	}
 	if err := durableOutsideLocal(replay); err != nil {
 		return nil, err
 	}
-	return newVerifier(ctx, keys, audience, publicKey, replay)
+	return newVerifier(ctx, keys, audience, replay)
 }
 
 // SharedReplayStore is a replay store that reports whether it is the durable
@@ -308,18 +318,18 @@ func durableOutsideLocal(replay core.ReplayStore) error {
 }
 
 // NewTokenVerifier builds a verifier for Issue responses in a process that does
-// not receive hop calls. It needs neither the hop's public key nor a replay
-// store. Verify always refuses stamps, because admission cannot be checked
-// without them; VerifyToken uses the same key cache and validation as NewVerifier.
+// not receive hop calls. It needs no replay store. Verify always refuses stamps,
+// because admission cannot be checked without one; VerifyToken uses the same
+// key cache and validation as NewVerifier.
 func NewTokenVerifier(ctx context.Context, keys KeySource, audience string) (*Verifier, error) {
-	return newVerifier(ctx, keys, audience, "", nil)
+	return newVerifier(ctx, keys, audience, nil)
 }
 
-func newVerifier(ctx context.Context, keys KeySource, audience, publicKey string, replay core.ReplayStore) (*Verifier, error) {
+func newVerifier(ctx context.Context, keys KeySource, audience string, replay core.ReplayStore) (*Verifier, error) {
 	if keys == nil || audience == "" {
 		return nil, refusal.Configuration
 	}
-	v := &Verifier{source: keys, audience: audience, publicKey: publicKey, replay: replay, now: time.Now, timeout: keyTimeout}
+	v := &Verifier{source: keys, audience: audience, replay: replay, now: time.Now, timeout: keyTimeout}
 	v.mu.Lock()
 	done := v.refresh()
 	v.mu.Unlock()
@@ -332,6 +342,8 @@ func newVerifier(ctx context.Context, keys KeySource, audience, publicKey string
 
 // KeysError is the last failure to read the published keys, nil after a
 // successful read: for the module's logs and readiness, never for a caller.
+// A verifier that admits calls also reports ErrNoAdmissionKeys when the keys
+// read but publish no hop admission key.
 func (v *Verifier) KeysError() error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
@@ -433,22 +445,81 @@ func (v *Verifier) trustFor(ctx context.Context, keyID string) (workcontext.Trus
 	}
 	wait, judgeable := v.inflight, held && now.Sub(v.fetched) <= keyStale
 	v.mu.Unlock()
-	if !judgeable && wait != nil {
-		select {
-		case <-wait:
-		case <-ctx.Done():
-			return workcontext.Trust{}, fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.Cancelled)
+	if !judgeable {
+		if err := v.await(ctx, wait); err != nil {
+			return workcontext.Trust{}, err
 		}
 	}
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	if v.fetched.IsZero() || v.now().Sub(v.fetched) > keyStale {
-		if errors.Is(v.failure, refusal.InvalidKey) {
-			return workcontext.Trust{}, fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.InvalidKey)
-		}
-		return workcontext.Trust{}, errKeysUnavailable
+	if err := v.trusted(); err != nil {
+		return workcontext.Trust{}, err
 	}
 	return workcontext.Trust{Issuer: v.trust.Issuer, Keys: v.trust.Keys, Now: v.now}, nil
+}
+
+// admissionKey is the published hop admission key the admission md carries is
+// signed by. It is judged on the keys held: the admission is what a call has
+// not yet proven, so neither a stamp signed by no published key nor keys past
+// keyMaxAge start a read here, and a caller without an admission can neither
+// drive the authority's keys nor delay the read a genuine call needs. Only
+// when no trusted keys are held at all (never read, or past keyStale, as on an
+// idle replica's first call) does it start a read, at most once per keyRetry
+// as readiness does, and wait for it. A hop's new key is therefore learnt on
+// the next read an admitted call or readiness starts, within keyMaxAge, so an
+// authority publishes it that long before its hop signs with it, beside the
+// retiring key.
+func (v *Verifier) admissionKey(ctx context.Context, md metadata.MD) (string, error) {
+	v.mu.Lock()
+	untrusted := v.trusted() != nil
+	if untrusted && v.inflight == nil && v.now().Sub(v.tried) >= keyRetry {
+		v.refresh()
+	}
+	wait := v.inflight
+	v.mu.Unlock()
+	if untrusted {
+		if err := v.await(ctx, wait); err != nil {
+			return "", err
+		}
+	}
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if err := v.trusted(); err != nil {
+		return "", err
+	}
+	if len(v.admission) == 0 {
+		return "", errKeysUnavailable
+	}
+	key := stamp.SignedBy(md, v.admission)
+	if key == "" {
+		return "", fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.StampProof)
+	}
+	return key, nil
+}
+
+// await waits for the running read, if any, as long as the caller does.
+func (v *Verifier) await(ctx context.Context, read chan struct{}) error {
+	if read == nil {
+		return nil
+	}
+	select {
+	case <-read:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.Cancelled)
+	}
+}
+
+// trusted refuses, with the reason, keys that were never read or are past
+// keyStale; v.mu is held.
+func (v *Verifier) trusted() error {
+	if v.fetched.IsZero() || v.now().Sub(v.fetched) > keyStale {
+		if errors.Is(v.failure, refusal.InvalidKey) {
+			return fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.InvalidKey)
+		}
+		return errKeysUnavailable
+	}
+	return nil
 }
 
 // refresh starts the one read, detached from every call; v.mu is held. It
@@ -462,11 +533,14 @@ func (v *Verifier) refresh() chan struct{} {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), v.timeout)
 		defer cancel()
-		trust, err := v.read(ctx)
+		trust, admission, err := v.read(ctx)
 		v.mu.Lock()
 		defer v.mu.Unlock()
 		if err == nil {
-			v.trust, v.fetched = trust, v.now()
+			v.trust, v.admission, v.fetched = trust, admission, v.now()
+			if v.replay != nil && len(admission) == 0 {
+				err = ErrNoAdmissionKeys
+			}
 		}
 		v.failure, v.inflight = err, nil
 		close(done)
@@ -474,27 +548,46 @@ func (v *Verifier) refresh() chan struct{} {
 	return done
 }
 
-// read asks the authority for its published keys.
-func (v *Verifier) read(ctx context.Context) (workcontext.Trust, error) {
+// read asks the authority for its published keys: the Work Context keys from
+// keys, each used only if its purpose is a Work Context's, and the hop's
+// admission keys from admission_keys, each used only if its purpose is
+// stamp.Purpose. A key in the wrong field is never used for the other.
+func (v *Verifier) read(ctx context.Context) (workcontext.Trust, []string, error) {
 	response, err := v.source.Keys(ctx, &authorityv1.KeysRequest{})
 	if err != nil {
-		return workcontext.Trust{}, fmt.Errorf("hop: the authority's published keys cannot be read: %w", err)
+		return workcontext.Trust{}, nil, fmt.Errorf("hop: the authority's published keys cannot be read: %w", err)
 	}
 	trust := workcontext.Trust{Issuer: response.GetIssuer(), Keys: map[string]ed25519.PublicKey{}}
 	for _, key := range response.GetKeys() {
-		if key.GetAlgorithm() != core.Algorithm {
+		if key.GetAlgorithm() != core.Algorithm || (key.GetPurpose() != "" && key.GetPurpose() != workContextPurpose) {
 			continue
 		}
 		if key.GetKeyId() == "" || len(key.GetPublicKey()) != ed25519.PublicKeySize || trust.Keys[key.GetKeyId()] != nil {
-			return workcontext.Trust{}, refusal.InvalidKey
+			return workcontext.Trust{}, nil, refusal.InvalidKey
 		}
 		trust.Keys[key.GetKeyId()] = ed25519.PublicKey(slices.Clone(key.GetPublicKey()))
 	}
 	if trust.Issuer == "" || len(trust.Keys) == 0 {
-		return workcontext.Trust{}, refusal.InvalidKey
+		return workcontext.Trust{}, nil, refusal.InvalidKey
 	}
-	return trust, nil
+	var admission []string
+	for _, key := range response.GetAdmissionKeys() {
+		if key.GetAlgorithm() != core.Algorithm || key.GetPurpose() != stamp.Purpose {
+			continue
+		}
+		if len(key.GetPublicKey()) != ed25519.PublicKeySize {
+			return workcontext.Trust{}, nil, refusal.InvalidKey
+		}
+		if public := hex.EncodeToString(key.GetPublicKey()); !slices.Contains(admission, public) {
+			admission = append(admission, public)
+		}
+	}
+	return trust, admission, nil
 }
+
+// workContextPurpose is a Work Context key's purpose in Keys. A key published
+// with no purpose, by a host older than admission_keys, is one too.
+const workContextPurpose = "work-context"
 
 // keyIDOf is the key a token names, read only to choose the keys it is judged
 // by; "" when it does not decode, which Authenticate then refuses.
@@ -571,7 +664,7 @@ func (v *Verifier) admit(ctx context.Context, method string) (context.Context, e
 	}
 	held, ok := ctx.Value(admissionKey{}).(*admission)
 	if !ok || held.verifier != v || held.method != method {
-		// No tap handle reserved this call: it is reserved now, judged at now.
+		// No stats handler reserved this call: it is reserved now, judged at now.
 		md, _ := metadata.FromIncomingContext(ctx)
 		release, err := v.reserve(ctx, md, method, v.instant())
 		held = &admission{verifier: v, method: method, md: md, reserved: make(chan struct{}), release: release, err: err}
@@ -610,9 +703,9 @@ func first(md metadata.MD, key string) string {
 	return ""
 }
 
-// TapHandle reserves each call's single-use admission when the call arrives,
-// before its body is read, and the interceptors hold that reservation until
-// the handler returns.
+// StatsHandler reserves each call's single-use admission when the call
+// arrives, before its body is read, and the interceptors hold that reservation
+// until the handler returns.
 //
 // grpc-go decodes a unary request fully before it invokes the unary
 // interceptor, and the Connect and REST faces buffer the message too. Judging
@@ -620,34 +713,51 @@ func first(md metadata.MD, key string) string {
 // longer than stamp.Lifetime to arrive; consuming its nonce there would let a
 // second delivery of the same admission, held back while its body arrived,
 // consume a nonce that had since been released, and run the handler twice.
-// Installing this handle judges the window at the instant the stream was
-// accepted and reserves the nonce then, so every delivery that arrives inside
-// the window meets the reservation and is refused as stamp_replayed. Python's
-// and TypeScript's verifiers run at the same point, before the body is read.
+// Installing this handler judges the window at the instant the call reached
+// the server and reserves the nonce then, so every delivery that arrives
+// inside the window meets the reservation and is refused as stamp_replayed.
+// Python's and TypeScript's verifiers run at the same point, before the body
+// is read.
 //
-// Install it beside the interceptors:
+// It is a stats handler rather than a tap handle because gRPC tags every call
+// with it, on every transport the server serves: its own listener, and the
+// Connect listener that hands each call to the same server through
+// grpc.Server.ServeHTTP, where a tap handle never runs. Install it beside the
+// interceptors:
 //
-//	grpc.NewServer(grpc.InTapHandle(verifier.TapHandle()),
+//	grpc.NewServer(grpc.StatsHandler(verifier.StatsHandler()),
 //		grpc.ChainUnaryInterceptor(verifier.UnaryServerInterceptor()),
 //		grpc.ChainStreamInterceptor(verifier.StreamServerInterceptor()))
 //
-// It runs on the connection's I/O goroutine, so it does no work there: it
-// records the arrival instant and starts the check and the reservation beside
-// the call, which the interceptor awaits and which refuses with the reason. A
-// call that ends before its handler starts releases its hold; one whose handler
-// started is released when the handler returns.
-func (v *Verifier) TapHandle() tap.ServerInHandle {
-	return func(ctx context.Context, info *tap.Info) (context.Context, error) {
-		if strings.HasPrefix(info.FullMethodName, "/grpc.health.v1.Health/") {
-			return ctx, nil
-		}
-		arrival := v.instant()
-		held := &admission{verifier: v, method: info.FullMethodName, md: info.Header, reserved: make(chan struct{})}
-		go func() {
-			defer close(held.reserved)
-			held.release, held.err = v.reserve(ctx, info.Header, info.FullMethodName, arrival)
-		}()
-		context.AfterFunc(ctx, held.abandon)
-		return context.WithValue(ctx, admissionKey{}, held), nil
+// It does no work on the call's path: it records the arrival instant and
+// starts the check and the reservation beside the call, which the interceptor
+// awaits and which refuses with the reason. A call that ends before its
+// handler starts releases its hold; one whose handler started is released
+// when the handler returns.
+func (v *Verifier) StatsHandler() stats.Handler { return arrivals{v} }
+
+// arrivals is the Verifier's stats handler: it tags each call with its
+// admission, and observes nothing else.
+type arrivals struct{ v *Verifier }
+
+func (a arrivals) TagRPC(ctx context.Context, info *stats.RPCTagInfo) context.Context {
+	method := info.FullMethodName
+	if strings.HasPrefix(method, "/grpc.health.v1.Health/") {
+		return ctx
 	}
+	md, _ := metadata.FromIncomingContext(ctx)
+	arrival := a.v.instant()
+	held := &admission{verifier: a.v, method: method, md: md, reserved: make(chan struct{})}
+	go func() {
+		defer close(held.reserved)
+		held.release, held.err = a.v.reserve(ctx, md, method, arrival)
+	}()
+	context.AfterFunc(ctx, held.abandon)
+	return context.WithValue(ctx, admissionKey{}, held)
 }
+
+func (arrivals) HandleRPC(context.Context, stats.RPCStats) {}
+
+func (arrivals) TagConn(ctx context.Context, _ *stats.ConnTagInfo) context.Context { return ctx }
+
+func (arrivals) HandleConn(context.Context, stats.ConnStats) {}

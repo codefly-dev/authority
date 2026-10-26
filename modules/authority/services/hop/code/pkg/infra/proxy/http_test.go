@@ -113,7 +113,7 @@ func TestHTTPAndConnectIssueTheBindingObservedByTheListener(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			verifier, err := hop.NewVerifier(context.Background(), a, "module", hoptest.PublicKey("binding-test"), hoptest.Replay())
+			verifier, err := hop.NewVerifier(context.Background(), a.PublishHop("binding-test"), "module", hoptest.Replay())
 			if err != nil {
 				t.Fatal(err)
 			}

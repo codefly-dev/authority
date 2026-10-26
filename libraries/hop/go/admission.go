@@ -27,7 +27,12 @@ import (
 // reservation whose retainUntil has already passed (refusal.StampWindow): a
 // reservation delayed past its own horizon must never revive a nonce that
 // collection removed. A Finish that fails leaves the reservation held, so a
-// failure never reopens admission. replaypg.Store implements it.
+// failure never reopens admission. Because Reserve refuses on the store's own
+// clock any reservation past retainUntil, a store may collect a reservation
+// once retainUntil has passed by that clock whether or not its call has
+// finished: nothing can reserve that nonce again. replaypg.Store implements
+// it, and collects so, so a holder that stops before Finish leaves no
+// permanent row.
 type ReservationStore interface {
 	core.ReplayStore
 	Reserve(ctx context.Context, nonce string, retainUntil time.Time) error
@@ -51,16 +56,22 @@ const storeTimeout = 5 * time.Second
 // and consumes its single-use nonce. It returns the release that ends the
 // reservation's in-flight hold, safe to call more than once.
 func (v *Verifier) reserve(ctx context.Context, md metadata.MD, method string, arrival instant) (func(), error) {
-	if v.publicKey == "" || v.replay == nil {
-		// A token-only verifier (NewTokenVerifier) holds neither the hop's
-		// public key nor a replay store, so it can establish no admission.
+	if v.replay == nil {
+		// A token-only verifier (NewTokenVerifier) holds no replay store, so
+		// it can establish no admission.
 		return nil, fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.Configuration)
 	}
-	call, err := stamp.Check(md, v.publicKey, method, v.audience, arrival.at)
+	// The admission is judged at the instant the call arrived, whenever the
+	// published key it is signed by is read.
+	key, err := v.admissionKey(ctx, md)
+	if err != nil {
+		return nil, err
+	}
+	call, err := stamp.Check(md, key, method, v.audience, arrival.at)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, err)
 	}
-	nonce := call.ReplayKey(v.publicKey)
+	nonce := call.ReplayKey(key)
 	// Retained to expiry plus the clock allowance at least, so a lagging
 	// verifier never admits a second delivery of a nonce another released.
 	until := time.Unix(call.Expires+int64(stamp.Skew/time.Second), 0)

@@ -26,15 +26,13 @@ func init() {
 }
 
 // answerFromTheStamp is all the authority code the console carries: the hop's
-// Verifier authenticates each forwarded Work Context against the authority's
+// Verifier checks each call's admission by the hop keys the authority
+// publishes, authenticates each forwarded Work Context against the authority's
 // published keys and reads who the call is for from it, and refuses, by name,
 // a call that did not come through the hop or carries a context the authority
-// did not issue for the console. It re-checks no permission the hop decided.
+// did not issue for the console. It re-checks no permission the hop decided,
+// and nothing about the hop is configured here: its key comes with the rest.
 func answerFromTheStamp(ctx context.Context, config *adapters.Configuration) (Clean, error) {
-	publicKey, err := codefly.For(ctx).WorkspaceConfiguration("hop-verification", "PUBLIC_KEY")
-	if err != nil || publicKey == "" {
-		return nil, fmt.Errorf("console: no hop verification public key delivered: %v", err)
-	}
 	replay, closeReplay, err := reservations(ctx)
 	if err != nil {
 		return nil, err
@@ -52,21 +50,28 @@ func answerFromTheStamp(ctx context.Context, config *adapters.Configuration) (Cl
 	// It starts whether or not the authority serves its keys yet, and refuses
 	// calls with the reason until it does. Outside a local run it also refuses
 	// a replay store that is not the one every replica shares.
-	verifier, err := hop.NewVerifier(ctx, authorityv1.NewAuthorityServiceClient(conn), audience, publicKey, replay)
+	verifier, err := hop.NewVerifier(ctx, authorityv1.NewAuthorityServiceClient(conn), audience, replay)
 	if err != nil {
 		_ = conn.Close()
 		closeReplay()
 		return nil, fmt.Errorf("console: %w", err)
 	}
-	config.GRPCServerOptions = append(config.GRPCServerOptions,
-		// TapHandle judges the admission window and reserves its single-use
-		// nonce when each call arrives, not after a request body has decoded;
-		// the interceptors hold the reservation until the handler returns.
-		grpc.InTapHandle(verifier.TapHandle()),
-		grpc.ChainUnaryInterceptor(verifier.UnaryServerInterceptor()),
-		grpc.ChainStreamInterceptor(verifier.StreamServerInterceptor()))
+	install(config, verifier)
 	config.Service = &console{}
 	return func() { _ = conn.Close(); closeReplay() }, nil
+}
+
+// install puts the verifier in front of every call the console serves. Its
+// stats handler judges the admission window and reserves the single-use nonce
+// when each call reaches the gRPC server, before a request body is read, on
+// both listeners: the gRPC one, and the Connect one the hop routes to, which
+// hands each call to the same server. The interceptors hold the reservation
+// until the handler returns.
+func install(config *adapters.Configuration, verifier *hop.Verifier) {
+	config.GRPCServerOptions = append(config.GRPCServerOptions,
+		grpc.StatsHandler(verifier.StatsHandler()),
+		grpc.ChainUnaryInterceptor(verifier.UnaryServerInterceptor()),
+		grpc.ChainStreamInterceptor(verifier.StreamServerInterceptor()))
 }
 
 // collectEvery is how often aged-out reservations are removed. Collection

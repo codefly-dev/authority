@@ -43,10 +43,3 @@ service-dependencies:
 # The console acts as a workload of its own: the run vouches for it and delivers
 # its manifest to the authority.
 module-identity: true
-# The hop's public verification key, and nothing else: no signing secret, and no
-# replay volume (the reservations live in this module's store). PUBLIC_KEY has
-# no producer yet — see libraries/hop/README.md, "Delivering the verification
-# key" — so this run is configured with it by hand until the authority
-# publishes it.
-workspace-configuration-dependencies:
-    - hop-verification

@@ -41,7 +41,7 @@ func TestAReplayStoreThatIsNotSharedIsRefusedOutsideALocalRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	build := func(store core.ReplayStore) error {
-		_, err := hop.NewVerifier(context.Background(), a, "documents", hoptest.PublicKey(proof), store)
+		_, err := hop.NewVerifier(context.Background(), a.PublishHop(proof), "documents", store)
 		return err
 	}
 
