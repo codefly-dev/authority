@@ -316,6 +316,77 @@ func TestAHungReadStallsNoHeldKeyAndACallerGivingUpDelaysNoOne(t *testing.T) {
 	}
 }
 
+// The robin playground's model gateway, live: its first call after 39 idle
+// minutes, with no readiness poll between, was refused while the re-read it
+// started succeeded in the background. Held keys past keyStale cannot judge a
+// call, so the call waits for the read, as it does for a key not held.
+func TestACallOnKeysPastKeyStaleWaitsForTheReread(t *testing.T) {
+	first := newSigner("first")
+	source := &keys{response: &authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{first.published()}}}
+	start := time.Unix(1792818000, 0)
+	clock := start
+	v, _ := NewVerifier(context.Background(), source, "documents", "proof")
+	v.now = func() time.Time { return clock }
+	v.fetched, v.tried = start, start
+	clock = start.Add(39 * time.Minute)
+	if _, err := v.Verify(context.Background(), forwarded(t, first.issue(t, clock, "documents"), "proof", "")); err != nil {
+		t.Fatalf("the first call after an idle stretch is refused while its keys are re-read: %v", err)
+	}
+	if source.count() != 2 {
+		t.Fatalf("reads %d, want the startup read and the one re-read", source.count())
+	}
+}
+
+// The wait on keys past keyStale fails closed: a re-read that fails, or that
+// outlives keyTimeout, refuses the call with the fixed reason, and only once
+// the read has ended.
+func TestACallOnKeysPastKeyStaleIsRefusedWhenTheRereadFails(t *testing.T) {
+	first := newSigner("first")
+	source := &keys{response: &authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{first.published()}}}
+	start := time.Unix(1792818000, 0)
+	clock := start
+	v, _ := NewVerifier(context.Background(), source, "documents", "proof")
+	v.now = func() time.Time { return clock }
+	v.timeout = 100 * time.Millisecond
+	v.fetched, v.tried = start, start
+	refused := func(err error) bool {
+		return errors.Is(err, workcontext.ErrUnauthenticated) && strings.Contains(err.Error(), "unavailable") && !strings.Contains(err.Error(), "4000")
+	}
+
+	hold := make(chan struct{})
+	source.set(nil, errors.New("dial authority.internal:4000: connection refused"), hold)
+	clock = start.Add(keyStale + time.Minute)
+	md := forwarded(t, first.issue(t, clock, "documents"), "proof", "")
+	done := make(chan error, 1)
+	go func() {
+		_, err := v.Verify(context.Background(), md)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		t.Fatalf("the call was judged before its re-read ended: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(hold)
+	if err := <-done; !refused(err) {
+		t.Fatalf("a failed re-read refuses with the fixed reason: %v", err)
+	}
+	if v.KeysError() == nil || !strings.Contains(v.KeysError().Error(), "4000") {
+		t.Fatalf("the read's own failure is kept for the module's logs: %v", v.KeysError())
+	}
+
+	source.set(nil, nil, make(chan struct{})) // a read that never answers
+	clock = clock.Add(keyRetry)
+	began := time.Now()
+	_, err := v.Verify(context.Background(), forwarded(t, first.issue(t, clock, "documents"), "proof", ""))
+	if !refused(err) || time.Since(began) < v.timeout {
+		t.Fatalf("a hung re-read refuses with the fixed reason after keyTimeout: %v after %v", err, time.Since(began))
+	}
+	if !errors.Is(v.KeysError(), context.DeadlineExceeded) {
+		t.Fatalf("the timeout is recorded: %v", v.KeysError())
+	}
+}
+
 // A read that never answers is bounded by the verifier's own timeout.
 func TestAReadIsBoundedByItsOwnTimeout(t *testing.T) {
 	source := &keys{hold: make(chan struct{})}

@@ -336,7 +336,10 @@ export class Verifier {
     const now = this.now();
     const held = this.trust?.keys.has(keyId) ?? false;
     if ((!held || now - this.fetched > KEY_MAX_AGE_MS) && now - this.tried >= KEY_RETRY_MS) void this.refresh();
-    if (!held && this.inflight) await this.inflight;
+    // A key not held, or held keys past the stale window, cannot judge this call:
+    // it waits for the read (bounded by the read's own timeout), so an idle
+    // replica's first call is judged on fresh keys, not refused while they arrive.
+    if ((!held || now - this.fetched > KEY_STALE_MS) && this.inflight) await this.inflight;
     if (!this.trust || this.now() - this.fetched > KEY_STALE_MS) {
       throw new Unauthenticated("the authority's published keys are unavailable");
     }
