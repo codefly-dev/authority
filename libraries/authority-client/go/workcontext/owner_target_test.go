@@ -118,4 +118,3 @@ func TestScopesKeepTheirResourceOwner(t *testing.T) {
 		}
 	}
 }
-

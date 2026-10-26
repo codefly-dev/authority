@@ -462,6 +462,16 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		sp.grant(t, A, "author", sp.person(t, f.Editor))
 		before := sp.must(t)(sp.through(t, f.Viewer, A, "store"))
 		unrelated := sp.must(t)(sp.through(t, f.Editor, A, "store"))
+		// A new grant, to the holder or to anyone else, leaves both valid.
+		sp.grant(t, A, "author", sp.person(t, f.Viewer))
+		sp.grant(t, A, "viewer", sp.person(t, f.Member))
+		for _, capability := range []protoreflect.Message{before, unrelated} {
+			if err := sp.check(capability); err != nil {
+				t.Fatalf("a new grant invalidated an existing capability: %v", err)
+			}
+		}
+		sp.revoke(t, A, "author", sp.person(t, f.Viewer))
+		sp.revoke(t, A, "viewer", sp.person(t, f.Member))
 		if !slices.Contains(sp.roleGrants(t, f.Admin, f.Organization, A), "viewer person "+sp.personID(t, f.Viewer)) {
 			t.Fatalf("ListRoleGrants does not show the grant: %v", sp.roleGrants(t, f.Admin, f.Organization, A))
 		}
