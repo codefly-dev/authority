@@ -16,7 +16,7 @@ require (
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
-	github.com/codefly-dev/core v0.19.7-0.20261026034911-b57347f09515 // indirect
+	github.com/codefly-dev/core v0.19.7-0.20261026092055-b23dc13543b2 // indirect
 	github.com/codefly-dev/sdk-go v0.4.0 // indirect
 	github.com/go-openapi/analysis v1.0.0 // indirect
 	github.com/go-openapi/errors v0.22.9 // indirect

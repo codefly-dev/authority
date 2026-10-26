@@ -86,7 +86,7 @@
       "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
     },
     "accept": false,
-    "reason": "widens authority"
+    "reason": "attenuation"
   },
   {
     "name": "no seal",
@@ -98,7 +98,7 @@
       "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
     },
     "accept": false,
-    "reason": "seal"
+    "reason": "malformed"
   },
   {
     "name": "seal epoch zero",
@@ -110,7 +110,7 @@
       "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
     },
     "accept": false,
-    "reason": "principal_epoch"
+    "reason": "malformed"
   },
   {
     "name": "empty tenant",
@@ -122,7 +122,7 @@
       "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
     },
     "accept": false,
-    "reason": "tenant_id"
+    "reason": "malformed"
   },
   {
     "name": "wrong type",
@@ -134,7 +134,7 @@
       "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
     },
     "accept": false,
-    "reason": "typ"
+    "reason": "malformed"
   },
   {
     "name": "unknown replay policy",
@@ -146,7 +146,7 @@
       "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
     },
     "accept": false,
-    "reason": "replay_policy"
+    "reason": "malformed"
   },
   {
     "name": "actor without an epoch",
@@ -158,7 +158,7 @@
       "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
     },
     "accept": false,
-    "reason": "principal_epoch"
+    "reason": "malformed"
   },
   {
     "name": "lifetime beyond a day",
@@ -182,7 +182,7 @@
       "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
     },
     "accept": false,
-    "reason": "replayable"
+    "reason": "grant"
   },
   {
     "name": "grant to another hop",
@@ -206,7 +206,7 @@
       "conformance-1": "zUk2IHGYpgzQIg62XX3M2E4ljwn34sgdGreGOMl9Efs="
     },
     "accept": false,
-    "reason": "conformance fixture key"
+    "reason": "fixture_key"
   },
   {
     "name": "forged signature",
@@ -233,6 +233,18 @@
     "reason": "signature"
   },
   {
+    "name": "empty signature",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893601,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "signature"
+  },
+  {
     "name": "another audience",
     "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.ccIoRo1Phc6RcTq3N_mL0z1r5EbZfw-v-Z8WXu4FGlJ6kprieciqWuU4kSPwplc0Itwdfk3mTSGIhQBbPeR7Dw",
     "audience": "another-module",
@@ -242,7 +254,7 @@
       "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
     },
     "accept": false,
-    "reason": "minted for audience"
+    "reason": "audience"
   },
   {
     "name": "expired",
@@ -266,7 +278,7 @@
       "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
     },
     "accept": false,
-    "reason": "not valid before"
+    "reason": "not_yet_valid"
   },
   {
     "name": "another issuer",
@@ -278,7 +290,7 @@
       "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
     },
     "accept": false,
-    "reason": "issued by"
+    "reason": "issuer"
   },
   {
     "name": "a key the authority does not publish",
@@ -290,6 +302,210 @@
       "rotated": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
     },
     "accept": false,
-    "reason": "no verification key"
+    "reason": "unknown_key"
+  },
+  {
+    "name": "payload padding",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw=.ccIoRo1Phc6RcTq3N_mL0z1r5EbZfw-v-Z8WXu4FGlJ6kprieciqWuU4kSPwplc0Itwdfk3mTSGIhQBbPeR7Dw",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893601,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "malformed"
+  },
+  {
+    "name": "payload double padding",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw==.ccIoRo1Phc6RcTq3N_mL0z1r5EbZfw-v-Z8WXu4FGlJ6kprieciqWuU4kSPwplc0Itwdfk3mTSGIhQBbPeR7Dw",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893601,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "malformed"
+  },
+  {
+    "name": "payload CR",
+    "token": "C\rhdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.ccIoRo1Phc6RcTq3N_mL0z1r5EbZfw-v-Z8WXu4FGlJ6kprieciqWuU4kSPwplc0Itwdfk3mTSGIhQBbPeR7Dw",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893601,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "malformed"
+  },
+  {
+    "name": "payload LF",
+    "token": "C\nhdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.ccIoRo1Phc6RcTq3N_mL0z1r5EbZfw-v-Z8WXu4FGlJ6kprieciqWuU4kSPwplc0Itwdfk3mTSGIhQBbPeR7Dw",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893601,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "malformed"
+  },
+  {
+    "name": "payload CRLF",
+    "token": "C\r\nhdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.ccIoRo1Phc6RcTq3N_mL0z1r5EbZfw-v-Z8WXu4FGlJ6kprieciqWuU4kSPwplc0Itwdfk3mTSGIhQBbPeR7Dw",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893601,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "malformed"
+  },
+  {
+    "name": "payload unused bit",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAx.ccIoRo1Phc6RcTq3N_mL0z1r5EbZfw-v-Z8WXu4FGlJ6kprieciqWuU4kSPwplc0Itwdfk3mTSGIhQBbPeR7Dw",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893601,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "malformed"
+  },
+  {
+    "name": "signature padding",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.ccIoRo1Phc6RcTq3N_mL0z1r5EbZfw-v-Z8WXu4FGlJ6kprieciqWuU4kSPwplc0Itwdfk3mTSGIhQBbPeR7Dw=",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893601,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "malformed"
+  },
+  {
+    "name": "signature double padding",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.ccIoRo1Phc6RcTq3N_mL0z1r5EbZfw-v-Z8WXu4FGlJ6kprieciqWuU4kSPwplc0Itwdfk3mTSGIhQBbPeR7Dw==",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893601,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "malformed"
+  },
+  {
+    "name": "signature CR",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.c\rcIoRo1Phc6RcTq3N_mL0z1r5EbZfw-v-Z8WXu4FGlJ6kprieciqWuU4kSPwplc0Itwdfk3mTSGIhQBbPeR7Dw",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893601,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "malformed"
+  },
+  {
+    "name": "signature LF",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.c\ncIoRo1Phc6RcTq3N_mL0z1r5EbZfw-v-Z8WXu4FGlJ6kprieciqWuU4kSPwplc0Itwdfk3mTSGIhQBbPeR7Dw",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893601,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "malformed"
+  },
+  {
+    "name": "signature CRLF",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.c\r\ncIoRo1Phc6RcTq3N_mL0z1r5EbZfw-v-Z8WXu4FGlJ6kprieciqWuU4kSPwplc0Itwdfk3mTSGIhQBbPeR7Dw",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893601,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "malformed"
+  },
+  {
+    "name": "signature unused bit",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.ccIoRo1Phc6RcTq3N_mL0z1r5EbZfw-v-Z8WXu4FGlJ6kprieciqWuU4kSPwplc0Itwdfk3mTSGIhQBbPeR7Dx",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893601,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "malformed"
+  },
+  {
+    "name": "protobuf duplicate field",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAwoXY29kZWZseS53b3JrLWNvbnRleHQvdjE.mbWqDB0EbkwfSwsKCB0logAx2kWefmj0Q_1kqv1LtiZxzyv3m4vK6V9CTtgqJhEQ4UopsMHto3C2JKd4lNJkAA",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893601,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "malformed"
+  },
+  {
+    "name": "protobuf reordered field",
+    "token": "EgdFZDI1NTE5Gg1jb25mb3JtYW5jZS0xIh5odHRwczovL2F1dGhvcml0eS5jb2RlZmx5LnRlc3QqGGNvZGVmbHkudGVzdC9jb25mb3JtYW5jZTCgxfXWBjigxfXWBkCw4fXWBkokYTIwYWVmZjctODQwYy00NjkzLThjYTMtMDRhNTQwNGJkOTFlUAdaCmlkZW1wb3RlbnRiEnRlbmFudC1jb25mb3JtYW5jZWoPcHJpbmNpcGFsLW93bmVychB0YXNrLWNvbmZvcm1hbmNleiRmN2QyM2ZhZC1lMjUxLTQzYzMtYWYzMi0zYzUzZTljYzBlYzKKAQ4KBnJlY29yZBIEcmVhZLIBBWh1bWFuygEYb3JnYW5pemF0aW9uLWNvbmZvcm1hbmNl0gEeCAISGGluc3RhbGxhdGlvbi1jb25mb3JtYW5jZRgDChdjb2RlZmx5LndvcmstY29udGV4dC92MQ.A1P7JAM3lj_Ihp-7ppvJv9Hbw-p1c9zVIvVpFvghcpoXQCqiMNPK63rIDgmzbQZicS6Q0oQdWMQV-Fr4xTBvDw",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893601,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "malformed"
+  },
+  {
+    "name": "protobuf overlong varint",
+    "token": "CpcAY29kZWZseS53b3JrLWNvbnRleHQvdjESB0VkMjU1MTkaDWNvbmZvcm1hbmNlLTEiHmh0dHBzOi8vYXV0aG9yaXR5LmNvZGVmbHkudGVzdCoYY29kZWZseS50ZXN0L2NvbmZvcm1hbmNlMKDF9dYGOKDF9dYGQLDh9dYGSiRhMjBhZWZmNy04NDBjLTQ2OTMtOGNhMy0wNGE1NDA0YmQ5MWVQB1oKaWRlbXBvdGVudGISdGVuYW50LWNvbmZvcm1hbmNlag9wcmluY2lwYWwtb3duZXJyEHRhc2stY29uZm9ybWFuY2V6JGY3ZDIzZmFkLWUyNTEtNDNjMy1hZjMyLTNjNTNlOWNjMGVjMooBDgoGcmVjb3JkEgRyZWFksgEFaHVtYW7KARhvcmdhbml6YXRpb24tY29uZm9ybWFuY2XSAR4IAhIYaW5zdGFsbGF0aW9uLWNvbmZvcm1hbmNlGAM.7TCLQhlkbfwJuSAT1-NKUfSvFzjapGTIdqK95dUepPve3bFGFLbABTqUVua0xeR15OrCn30sRfDvQ8e8Pfx3CQ",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893601,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "malformed"
+  },
+  {
+    "name": "protobuf unknown field",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYA_gHAQ.8s0wuPqDpmaHMNMm3h7KR66vsepWUlYvvbhvQR3W3j3GYUEbo6EYcQs9TbR-OA4tAdM2M_DslMGBwsoWcfuhCA",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893601,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "malformed"
+  },
+  {
+    "name": "JSON claims",
+    "token": "eyJ0eXAiOiJjb2RlZmx5LndvcmstY29udGV4dC92MSIsImFsZ29yaXRobSI6IkVkMjU1MTkiLCJrZXlJZCI6ImNvbmZvcm1hbmNlLTEiLCJpc3N1ZXIiOiJodHRwczovL2F1dGhvcml0eS5jb2RlZmx5LnRlc3QiLCJhdWRpZW5jZSI6ImNvZGVmbHkudGVzdC9jb25mb3JtYW5jZSIsIm5vdEJlZm9yZVVuaXgiOiIxNzkyODkzNjAwIiwiaXNzdWVkQXRVbml4IjoiMTc5Mjg5MzYwMCIsImV4cGlyZXNBdFVuaXgiOiIxNzkyODk3MjAwIiwibm9uY2UiOiJhMjBhZWZmNy04NDBjLTQ2OTMtOGNhMy0wNGE1NDA0YmQ5MWUiLCJhdXRob3JpemF0aW9uUmV2aXNpb24iOiI3IiwicmVwbGF5UG9saWN5IjoiaWRlbXBvdGVudCIsInRlbmFudElkIjoidGVuYW50LWNvbmZvcm1hbmNlIiwib3duZXJQcmluY2lwYWxJZCI6InByaW5jaXBhbC1vd25lciIsInRhc2tJZCI6InRhc2stY29uZm9ybWFuY2UiLCJzZXNzaW9uSWQiOiJmN2QyM2ZhZC1lMjUxLTQzYzMtYWYzMi0zYzUzZTljYzBlYzIiLCJhdXRob3JpdHlTY29wZXMiOlt7InJlc291cmNlS2luZCI6InJlY29yZCIsImFjdGlvbnMiOlsicmVhZCJdfV0sIm93bmVyUHJpbmNpcGFsS2luZCI6Imh1bWFuIiwib3JnYW5pemF0aW9uSWQiOiJvcmdhbml6YXRpb24tY29uZm9ybWFuY2UiLCJzZWFsIjp7InByaW5jaXBhbEVwb2NoIjoiMiIsImluc3RhbGxhdGlvbklkIjoiaW5zdGFsbGF0aW9uLWNvbmZvcm1hbmNlIiwiaW5zdGFsbGF0aW9uUmV2aXNpb24iOiIzIn19.S6df_jmaUBkPx--yz8zXsfoICAvC8kuT-J22uk3IIrhJTap28b6oMONUu4Wg_LklK77bInZA8-Lc-Tle-ZEtDA",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893601,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "malformed"
   }
 ]

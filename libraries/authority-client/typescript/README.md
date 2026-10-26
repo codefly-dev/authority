@@ -41,3 +41,24 @@ needed. Test signatures and fixed-clock fixtures are not live credentials.
 The generator owns `src/`, including its index. The helper lives at the package
 root; preserved `package.json`/`tsconfig.json` scaffolds export and compile it
 alongside generated bindings. Never edit the generated index to add this helper.
+
+
+Bare tokens returned by Issue can be authenticated without manufacturing a hop
+stamp: Go `Verifier.VerifyToken(ctx, token)`, Python `verify_token(token)` /
+`verify_token_async(token)`, TypeScript `verifyToken(token)`. These reuse the
+stamped path's published-key cache, including waiting for stale-key refresh and
+refusing failed refreshes. They check signature, issuer, audience, validity and
+claim structure. They do not prove hop admission, live revocation, method policy,
+or single-use consumption; retain those checks where required.
+
+Verifier failures expose fixed caller-safe reason codes and text. Go callers use
+`errors.As(err, &reason)` with `hop.Reason` (`Code()` / `Text()`); Python and
+TypeScript `Unauthenticated` expose `code` and `text`, with exported `Reason`
+values. These errors never retain underlying key-source errors or claim values.
+`KeysError` / `keys_error` / `keysError` is a separate internal diagnostic, not a
+caller response. Unknown future Core diagnostic categories remain refused.
+
+Processes that receive only Issue responses use Go `NewTokenVerifier` or omit
+`proof` when constructing Python/TypeScript `Verifier`. They still authenticate
+bare tokens against published Keys; stamped verification is refused without a
+configured run proof. A process receiving hop calls continues to require it.
