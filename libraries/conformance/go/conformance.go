@@ -8,6 +8,7 @@ package conformance
 
 import (
 	"context"
+	"slices"
 
 	"crypto/sha256"
 	"encoding/hex"
@@ -414,16 +415,38 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": token, "audience": f.Audience})
 		if c.solutionPrincipal() {
 			// Under the solution-principal contract a grant moves only its
-			// subject's authority: the callee refuses the capability whose own
-			// role was revoked, then the fixture's grant is restored.
+			// subject's authority: the callee refuses a capability once its
+			// person's roles are revoked. The fixture's grants are restored
+			// exactly, and a viewer reaching the installation through a team
+			// would keep access, so the fixture must not grant one.
 			viewer := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
-			role := map[string]any{"organization_id": f.Organization, "installation_id": f.InstalledSolution, "role": "viewer", "person_id": str(viewer, "person_id")}
-			c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "GrantRole", role)
-			held := str(c.must(t, as(ctx, viewer), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.InstalledAudience}), "token")
-			c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "RevokeRole", role)
-			_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": held, "audience": f.InstalledAudience})
+			installation := map[string]any{"organization_id": f.Organization, "installation_id": f.InstalledSolution}
+			held := c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "ListRoleGrants", installation)
+			teams := listStrings(viewer, "team_ids")
+			var direct []string
+			for _, g := range listMsgs(held, "grants") {
+				if slices.Contains(teams, str(g, "team_id")) {
+					t.Fatalf("required conformance fixture invalid: the staleness probe needs the viewer to hold %s's roles only directly; team %s holds %s", f.InstalledSolution, str(g, "team_id"), str(g, "role"))
+				}
+				if str(g, "person_id") == str(viewer, "person_id") {
+					direct = append(direct, str(g, "role"))
+				}
+			}
+			role := func(name string) map[string]any {
+				return map[string]any{"organization_id": f.Organization, "installation_id": f.InstalledSolution, "role": name, "person_id": str(viewer, "person_id")}
+			}
+			if len(direct) == 0 {
+				c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "GrantRole", role("viewer"))
+			}
+			token := str(c.must(t, as(ctx, viewer), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.InstalledAudience}), "token")
+			for _, name := range append(slices.Clone(direct), "viewer") {
+				c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "RevokeRole", role(name))
+			}
+			_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": token, "audience": f.InstalledAudience})
 			refused(t, err, codes.PermissionDenied, "revoked")
-			c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "GrantRole", role)
+			for _, name := range direct {
+				c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "GrantRole", role(name))
+			}
 			return
 		}
 		// A team the installation already reaches moves nothing, as a second run

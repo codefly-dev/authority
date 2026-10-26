@@ -80,7 +80,11 @@ implements it. The model, in full, is the doc comment on
 - the solution's roles are levels on U's data, and role names carry no rank;
   they are granted, revoked (both idempotent) and listed by an administrator
   of the installation's organization or a holder of that installation's
-  installer role (`GrantRole`, `RevokeRole`, `ListRoleGrants`);
+  installer role (`GrantRole`, `RevokeRole`, `ListRoleGrants`); a request
+  naming another organization's installation is refused;
+- a new grant leaves existing capabilities valid; a revoke, leaving a team or
+  the organization, an uninstall or a withdrawn `owner_aware` invalidates them
+  permanently; an uninstall clears the installation's role grants;
 - a capability through the solution, a person's or U's own, is confined to U's
   data by owner-selected scopes (`WorkScopeV1.resource_owner_id`, field 4),
   issued only to audiences declaring owner-aware checking, solutions included;
@@ -104,11 +108,11 @@ then runs these cases, each making its own grants:
 4. a viewer reads exactly what the principal owns, and nothing a person, an installation or another principal owns
 5. a route requiring the kind admits an owner-selected scope; the module enforces the owner
 6. a capability through the solution is confined to the principal's data; the person's own grants never flow in (the store's kind and the solution's own kind)
-7. every audience receiving owner-selected scopes declares owner-aware checking, solutions included
-8. withdrawing owner-aware checking refuses the owner-selected capabilities issued before
+7. every audience receiving owner-selected scopes declares owner-aware checking, solutions included (a person's root, a solution's child, the agent, and a module's hop)
+8. withdrawing owner-aware checking refuses the owner-selected capabilities issued before, and re-declaring it revives none
 9. a resource created through the solution is owned by its principal, the person its author
 10. a role writes when its scopes hold write, whatever it is called; a viewer cannot
-11. an administrator of the organization or the installation's installer grants, revokes and lists; anyone else (another organization's administrator, another installation's installer), and every malformed grant, is refused by name; grants are idempotent
+11. an administrator of the organization or the installation's installer grants, revokes and lists; anyone else (another organization's administrator, another installation's installer, a request naming another organization's installation), and every malformed grant, is refused by name; grants are idempotent
 12. another installation's and another organization's members never reach the principal's data
 13. a child never widens the owner, the actions or the ids it narrowed to
 14. an existing resource joins the principal only by a transfer from the organization or its person, administered on that resource through the person's own grants, by a holder of write on the principal's data (fourteen named refusals)
@@ -120,7 +124,8 @@ then runs these cases, each making its own grants:
 Library targets pin the modules' side: `libraries/hop/go`
 `TestAnOwnerSelectedScopeNeverReadsAsTheWholeKind`,
 `libraries/authority-client/go/workcontext`
-`TestClaimsAdmitAnOwnerSelectedScopeOnlyForItsOwner`,
+`TestClaimsAdmitAnOwnerSelectedScopeOnlyForItsOwner` and
+`TestScopesKeepTheirResourceOwner`,
 `libraries/authority-client/python/tests/test_owner_target.py` and
 `libraries/authority-client/typescript/tests/owner-target.test.mjs`.
 
@@ -134,7 +139,7 @@ one, and the target's model once it carries `Installation.principal_id`
 | --- | --- |
 | `conformance.go` an installation acts for itself | its owner is `principal_id` (`installationPrincipal`) |
 | `conformance.go` the permission matrix | a row at a solution audience asks within the owner the person holds there |
-| `conformance.go` a callee refuses what does not verify (staleness) | the viewer's own role is revoked and restored (`RevokeRole`), not a team exposure |
+| `conformance.go` a callee refuses what does not verify (staleness) | the viewer's direct roles are revoked and restored exactly (`RevokeRole`), not a team exposure; the fixture viewer holds them only directly |
 | `conformance.go` `applyManifest` | a solution delivery declares `owner_aware` |
 | `solution_roles.go` [0] own audience, [1] consumed child, [2] binding root, [4] binding ceiling | owner-selected asks and scopes; the delivery declares `owner_aware` |
 | `solution_roles.go` [3] no solution role | refused "holds no role" |

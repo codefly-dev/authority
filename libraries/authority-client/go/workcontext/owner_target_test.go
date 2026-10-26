@@ -69,3 +69,53 @@ func TestClaimsAdmitAnOwnerSelectedScopeOnlyForItsOwner(t *testing.T) {
 		}
 	}
 }
+
+// ownerOf reads WorkScopeV1 field 4 from scope's encoding, known or not.
+func ownerOf(t *testing.T, scope *basev0.WorkScopeV1) string {
+	t.Helper()
+	raw, err := proto.Marshal(scope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for len(raw) > 0 {
+		number, kind, n := protowire.ConsumeTag(raw)
+		if n < 0 {
+			t.Fatal("unreadable scope")
+		}
+		raw = raw[n:]
+		if number == 4 && kind == protowire.BytesType {
+			value, m := protowire.ConsumeString(raw)
+			if m < 0 {
+				t.Fatal("unreadable owner")
+			}
+			return value
+		}
+		m := protowire.ConsumeFieldValue(number, kind, raw)
+		if m < 0 {
+			t.Fatal("unreadable scope")
+		}
+		raw = raw[m:]
+	}
+	return ""
+}
+
+// TARGET: Scopes() never hands a module an owner-selected scope as the whole
+// kind: each it returns keeps its resource owner.
+func TestScopesKeepTheirResourceOwner(t *testing.T) {
+	if os.Getenv("AUTHORITY_TARGET") != "solution-principal" {
+		t.Skip("target contract, not yet implemented: run with AUTHORITY_TARGET=solution-principal")
+	}
+	c := body(t, "session")
+	c.AuthorityScopes = []*basev0.WorkScopeV1{ownedScope(t, "record", "read", "principal-u"), {ResourceKind: "plain", Actions: []string{"read"}}}
+	scopes := read(t, c).Scopes()
+	if len(scopes) != 2 {
+		t.Fatalf("target: Scopes() returned %d scopes, want 2", len(scopes))
+	}
+	for _, scope := range scopes {
+		want := map[string]string{"record": "principal-u", "plain": ""}[scope.GetResourceKind()]
+		if got := ownerOf(t, scope); got != want {
+			t.Fatalf("target: Scopes() returned %s owned by %q, want %q", scope.GetResourceKind(), got, want)
+		}
+	}
+}
+

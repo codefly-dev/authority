@@ -24,9 +24,15 @@ import (
 // permission levels on U's data, and role names carry no rank: what a role
 // may do is the scopes it declares. Granting a person or a team a role
 // (GrantRole) is the access, revoking it (RevokeRole) ends it at once, both
-// idempotent, and ListRoleGrants answers who holds which. An administrator of the
-// installation's organization, or a holder of the installer role on that
-// installation, grants, revokes and lists; nobody else.
+// idempotent, and ListRoleGrants answers who holds which. A new grant leaves
+// every existing capability valid; only a revoke, leaving a team or the
+// organization, an uninstall or a withdrawn owner_aware invalidates, and that
+// is permanent: only fresh capabilities work afterwards. An uninstall clears
+// the installation's role grants, so a reinstall needs re-grants. An
+// administrator of the installation's organization, or a holder of the
+// installer role on that installation, grants, revokes and lists; nobody
+// else, and a request naming an installation of another organization is
+// refused naming the organization.
 //
 // A capability issued through the solution, to a person or to U itself, is
 // CONFINED to U's data: owner-selected scopes {kind, actions,
@@ -274,13 +280,21 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		sp.grant(t, C, "viewer", sp.person(t, f.Viewer))
 		_, err = sp.root(t, f.Viewer, C)
 		refused(t, err, codes.PermissionDenied, "owner-aware")
+		// A module's hop counts as much as a solution's: the store carrying
+		// owner-selected scopes on to the legacy store is refused.
+		atStore := sp.must(t)(sp.through(t, f.Viewer, A, "store"))
+		_, err = sp.hopTo(t, atStore, "legacy", f.LegacyStore)
+		refused(t, err, codes.PermissionDenied, "owner-aware")
 	})
 	t.Run("withdrawing owner-aware checking refuses the owner-selected capabilities issued before", func(t *testing.T) {
 		sp.grant(t, A, "viewer", sp.person(t, f.Viewer))
 		before := sp.must(t)(sp.through(t, f.Viewer, A, "store"))
 		sp.deliverStore(t, false)
 		refused(t, sp.check(before), codes.PermissionDenied, "owner-aware")
+		// Re-declaring it revives nothing: only fresh capabilities work.
 		sp.deliverStore(t, true)
+		refused(t, sp.check(before), codes.PermissionDenied, "owner-aware")
+		sp.must(t)(sp.through(t, f.Viewer, A, "store"))
 	})
 	t.Run("a resource created through the solution is owned by its principal, the person its author", func(t *testing.T) {
 		sp.grant(t, A, "author", sp.person(t, f.Editor))
@@ -315,6 +329,7 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		sp.roleAs(t, f.Installer, "RevokeRole", f.Organization, A, "viewer", sp.person(t, f.Member))
 		sp.roleGrants(t, f.Installer, f.Organization, A)
 		instA, instB := str(sp.ensure(t, f.Organization, A), "id"), str(sp.ensure(t, f.Organization, B), "id")
+		instElsewhere := str(sp.ensure(t, f.OtherOrganization, A), "id")
 		grant := func(installation, role string, subject map[string]any) map[string]any {
 			out := map[string]any{"organization_id": f.Organization, "installation_id": installation, "role": role}
 			for k, v := range subject {
@@ -329,20 +344,24 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 			code           codes.Code
 			reason         string
 		}{
-			"a viewer granting itself installer":            {f.Viewer, "GrantRole", grant(instA, "installer", sp.person(t, f.Viewer)), codes.PermissionDenied, "may not grant"},
-			"a viewer revoking the installer":               {f.Viewer, "RevokeRole", grant(instA, "installer", sp.person(t, f.Installer)), codes.PermissionDenied, "may not grant"},
-			"a viewer listing grants":                       {f.Viewer, "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": instA}, codes.PermissionDenied, "may not"},
-			"another organization's administrator granting": {f.OtherAdmin, "GrantRole", grant(instA, "viewer", member), codes.PermissionDenied, "may not grant"},
-			"another organization's administrator revoking": {f.OtherAdmin, "RevokeRole", grant(instA, "viewer", sp.person(t, f.Viewer)), codes.PermissionDenied, "may not grant"},
-			"another organization's administrator listing":  {f.OtherAdmin, "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": instA}, codes.PermissionDenied, "may not"},
-			"A's installer granting on B":                   {f.Installer, "GrantRole", grant(instB, "author", sp.person(t, f.Installer)), codes.PermissionDenied, "may not grant"},
-			"A's installer revoking on B":                   {f.Installer, "RevokeRole", grant(instB, "viewer", member), codes.PermissionDenied, "may not grant"},
-			"another organization's id":                     {f.Admin, "GrantRole", map[string]any{"organization_id": f.OtherOrganization, "installation_id": instA, "role": "viewer", "person_id": sp.personID(t, f.Member)}, codes.PermissionDenied, "organization"},
-			"an undeclared role":                            {f.Admin, "GrantRole", grant(instA, "owner", member), codes.NotFound, "declares no role"},
-			"both a person and a team":                      {f.Admin, "GrantRole", grant(instA, "viewer", map[string]any{"person_id": sp.personID(t, f.Member), "team_id": f.Team}), codes.InvalidArgument, "exactly one"},
-			"neither a person nor a team":                   {f.Admin, "GrantRole", grant(instA, "viewer", nil), codes.InvalidArgument, "exactly one"},
-			"a person of another organization":              {f.Admin, "GrantRole", grant(instA, "viewer", sp.person(t, f.OtherMember)), codes.PermissionDenied, "not a member"},
-			"a team of another organization":                {f.Admin, "GrantRole", grant(instA, "viewer", map[string]any{"team_id": f.OtherTeam}), codes.PermissionDenied, "not a team of"},
+			"a viewer granting itself installer":                   {f.Viewer, "GrantRole", grant(instA, "installer", sp.person(t, f.Viewer)), codes.PermissionDenied, "may not grant"},
+			"a viewer revoking the installer":                      {f.Viewer, "RevokeRole", grant(instA, "installer", sp.person(t, f.Installer)), codes.PermissionDenied, "may not grant"},
+			"a viewer listing grants":                              {f.Viewer, "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": instA}, codes.PermissionDenied, "may not"},
+			"another organization's administrator granting":        {f.OtherAdmin, "GrantRole", grant(instA, "viewer", member), codes.PermissionDenied, "may not grant"},
+			"another organization's administrator revoking":        {f.OtherAdmin, "RevokeRole", grant(instA, "viewer", sp.person(t, f.Viewer)), codes.PermissionDenied, "may not grant"},
+			"another organization's administrator listing":         {f.OtherAdmin, "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": instA}, codes.PermissionDenied, "may not"},
+			"A's installer granting on B":                          {f.Installer, "GrantRole", grant(instB, "author", sp.person(t, f.Installer)), codes.PermissionDenied, "may not grant"},
+			"A's installer revoking on B":                          {f.Installer, "RevokeRole", grant(instB, "viewer", member), codes.PermissionDenied, "may not grant"},
+			"another organization's id":                            {f.Admin, "GrantRole", map[string]any{"organization_id": f.OtherOrganization, "installation_id": instA, "role": "viewer", "person_id": sp.personID(t, f.Member)}, codes.PermissionDenied, "organization"},
+			"granting on another organization's installation":      {f.Admin, "GrantRole", grant(instElsewhere, "viewer", member), codes.PermissionDenied, "organization"},
+			"revoking on another organization's installation":      {f.Admin, "RevokeRole", grant(instElsewhere, "viewer", sp.person(t, f.OtherMember)), codes.PermissionDenied, "organization"},
+			"listing another organization's installation":          {f.Admin, "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": instElsewhere}, codes.PermissionDenied, "organization"},
+			"the installer on another organization's installation": {f.Installer, "GrantRole", grant(instElsewhere, "viewer", member), codes.PermissionDenied, "organization"},
+			"an undeclared role":                                   {f.Admin, "GrantRole", grant(instA, "owner", member), codes.NotFound, "declares no role"},
+			"both a person and a team":                             {f.Admin, "GrantRole", grant(instA, "viewer", map[string]any{"person_id": sp.personID(t, f.Member), "team_id": f.Team}), codes.InvalidArgument, "exactly one"},
+			"neither a person nor a team":                          {f.Admin, "GrantRole", grant(instA, "viewer", nil), codes.InvalidArgument, "exactly one"},
+			"a person of another organization":                     {f.Admin, "GrantRole", grant(instA, "viewer", sp.person(t, f.OtherMember)), codes.PermissionDenied, "not a member"},
+			"a team of another organization":                       {f.Admin, "GrantRole", grant(instA, "viewer", map[string]any{"team_id": f.OtherTeam}), codes.PermissionDenied, "not a team of"},
 		} {
 			t.Run(name, func(t *testing.T) {
 				_, err := c.call(sp.as(t, r.caller), "host.installation.v1.InstallationService", r.method, r.fields)
@@ -593,7 +612,8 @@ func (sp *principalSuite) deliverStore(t *testing.T, ownerAware bool) {
 		doc["owner_aware"] = true
 	}
 	if _, err := sp.c.deliver(sp.ctx, sp.delivery(), f.Store, "module", sp.storeGeneration, []string{f.Kind}, doc, 0,
-		solutionhost.AuthorityBinding{ID: "self", Audience: f.Store, Operations: map[string][]string{"invoke": {f.Kind + ":read", f.Kind + ":write"}}}); err != nil {
+		solutionhost.AuthorityBinding{ID: "self", Audience: f.Store, Operations: map[string][]string{"invoke": {f.Kind + ":read", f.Kind + ":write"}}},
+		solutionhost.AuthorityBinding{ID: "legacy", Audience: f.LegacyStore, Operations: map[string][]string{"invoke": {f.LegacyKind + ":read"}}}); err != nil {
 		t.Fatalf("deliver %s: %v", f.Store, err)
 	}
 	sp.storeGeneration++
@@ -752,8 +772,13 @@ func (sp *principalSuite) through(t *testing.T, token string, s SolutionUnderTes
 
 // hop is the store's own hop on parent, through its self binding.
 func (sp *principalSuite) hop(t *testing.T, parent protoreflect.Message, scopes ...any) (protoreflect.Message, error) {
+	return sp.hopTo(t, parent, "self", sp.f.Store, scopes...)
+}
+
+// hopTo is the store's own hop on parent through binding to audience.
+func (sp *principalSuite) hopTo(t *testing.T, parent protoreflect.Message, binding, audience string, scopes ...any) (protoreflect.Message, error) {
 	return sp.issue(map[string]any{"parent_token": str(parent, "token"), "actor": map[string]any{"credential": sp.f.StoreCredential},
-		"operation_binding_id": "self", "audience": sp.f.Store, "scopes": scopes})
+		"operation_binding_id": binding, "audience": audience, "scopes": scopes})
 }
 
 // agent is the installation of s acting for itself through binding ("" names none).
