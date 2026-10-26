@@ -293,7 +293,7 @@ export class Verifier {
   keysError?: unknown;
 
   constructor(private readonly source: KeySource, private readonly audience: string, private readonly proof: string,
-              private readonly now: () => number = Date.now) {
+              private readonly now: () => number = Date.now, private readonly timeoutMs: number = KEY_TIMEOUT_MS) {
     if (!source || !audience || !proof) throw new Unauthenticated("a verifier needs the authority's Keys, this module's audience and the run's hop proof");
     void this.refresh();
   }
@@ -337,8 +337,8 @@ export class Verifier {
     const held = this.trust?.keys.has(keyId) ?? false;
     if ((!held || now - this.fetched > KEY_MAX_AGE_MS) && now - this.tried >= KEY_RETRY_MS) void this.refresh();
     // A key not held, or held keys past the stale window, cannot judge this call:
-    // it waits for the read (bounded by the read's own timeout), so an idle
-    // replica's first call is judged on fresh keys, not refused while they arrive.
+    // it waits for the read, which ends within the verifier's own timeout, so an
+    // idle replica's first call is judged on fresh keys, not refused while they arrive.
     if ((!held || now - this.fetched > KEY_STALE_MS) && this.inflight) await this.inflight;
     if (!this.trust || this.now() - this.fetched > KEY_STALE_MS) {
       throw new Unauthenticated("the authority's published keys are unavailable");
@@ -346,11 +346,15 @@ export class Verifier {
     return { ...this.trust, now: this.now };
   }
 
-  /** One read at a time, on its own timeout: no caller's signal or failure delays the next. */
+  /** One read at a time, on its own timeout: no caller's signal or failure delays
+   * the next. The read ends at the timeout whether or not the source honours it,
+   * so no waiting call and no later read is held by a source that never answers. */
   private refresh(): Promise<void> {
     if (this.inflight) return this.inflight;
     this.tried = this.now();
-    this.inflight = this.source.keys({}, { timeoutMs: KEY_TIMEOUT_MS })
+    const signal = AbortSignal.timeout(this.timeoutMs);
+    const deadline = new Promise<never>((_, reject) => signal.addEventListener("abort", () => reject(signal.reason), { once: true }));
+    this.inflight = Promise.race([this.source.keys({}, { timeoutMs: this.timeoutMs, signal }), deadline])
       .then(response => { this.trust = trustFromKeys(response); this.fetched = this.now(); this.keysError = undefined; })
       .catch(error => { this.keysError = error; })
       .finally(() => { this.inflight = undefined; });
