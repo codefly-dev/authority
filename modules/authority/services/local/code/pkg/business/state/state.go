@@ -530,8 +530,9 @@ func (s *State) Caller(sessionID string) (authority.Person, error) {
 	return authority.Person{ID: sess.Person, Organization: sess.Organization, SessionID: sess.ID, Teams: slices.Clone(sess.Teams)}, nil
 }
 
-// ApplyManifest records one module instance at a newer generation, through
-// the core. A module owned by a signed delivery is never replaced by a sketch.
+// ApplyManifest is trusted host fixture setup, never a public request path.
+// It records one module instance through the core at a newer generation.
+// A module owned by a signed delivery is never replaced by a fixture.
 func (s *State) ApplyManifest(m Manifest) ([]string, error) {
 	s.mu.Lock()
 	for _, record := range s.deliveries {

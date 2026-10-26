@@ -157,9 +157,10 @@ coordinate against which it is checked.
 
 An identical replay returns the original receipt without advancing revisions or
 reapplying grants. Changing, adding or removing the authority policy at the same
-generation is refused. Once an alias is delivered as a signed carrier, the
-transitional unsigned sketch cannot overwrite or resurrect it. Sketch-only
-composition retains its existing strictly newer generation rule.
+generation is refused. Every public composition call requires a signed carrier
+and the authenticated delivery workload; unsigned manifests are refused before
+any host operation, including pending fixture installations. Trusted fixture
+setup uses the host-only state API and cannot overwrite a signed alias.
 
 A workload must still be declared by the current signed manifest to obtain new
 authority. Withdrawal removes the module and its principal, revokes its
@@ -199,3 +200,16 @@ explicitly enabled only by the local runner.
 HTTP Check uses the concrete verb and canonical path, with literal precedence
 and ambiguity refusal over the delivered manifest. Published Connect calls use
 the protobuf procedure spelling; a dotted HTTP URL cannot borrow gRPC policy.
+
+## Artifact consent admission
+
+Approve, Authorize and Revoke check effective scope coverage against the target
+installation's stored principal before accessing approvals. An owner-selected
+capability cannot access another installation's consent. Module installations
+without a solution principal require owner-unrestricted coverage. Artifact identities
+must name that installation's host-defined namespace as their source.
+
+The policy resource id is not established by the opaque identity subject or an
+approval id. Resource-limited scopes are therefore refused with that reason;
+consent requires the policy action over the installation owner's whole kind.
+The shared scope algebra enforces both owner and resource restrictions.

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"github.com/codefly-dev/core/workcontext"
 	"google.golang.org/protobuf/proto"
 
@@ -30,6 +31,9 @@ func (i *Issuer) Artifact(ctx context.Context, action string, req *artifactv1.Ar
 	inst, err := i.artifactCaller(ctx, req.GetParentToken(), req.GetActorCredential(), req.GetInstallationId(), req.GetPolicy(), action)
 	if err != nil {
 		return nil, err
+	}
+	if req.GetIdentity().GetSource() != state.Namespace(inst) {
+		return nil, fmt.Errorf("%w: artifact source %q is not installation %s's namespace %q", ErrRefused, req.GetIdentity().GetSource(), inst.ID, state.Namespace(inst))
 	}
 	digest, err := identityDigest(req.GetIdentity())
 	if err != nil {
@@ -62,7 +66,7 @@ func (i *Issuer) RevokeArtifact(ctx context.Context, req *artifactv1.RevokeReque
 
 // artifactCaller checks who asks and what they hold: the parent is addressed to
 // the module proving itself, its owner's organisation is the installation's,
-// and it holds the policy kind's action at the module. Consent (activate) is
+// and it holds the policy action for that installation's owner. Consent (activate) is
 // the person's own: a human owner, with no module acting between.
 func (i *Issuer) artifactCaller(ctx context.Context, parent, credential, installation, policy, action string) (state.Installation, error) {
 	if policy == "" {
@@ -91,8 +95,15 @@ func (i *Issuer) artifactCaller(ctx context.Context, parent, credential, install
 	if action == "activate" && (claims.GetOwnerPrincipalKind() != "human" || verified.Actor() != nil) {
 		return state.Installation{}, fmt.Errorf("%w: consent to an artifact is given by a person present, not through a module acting for them", ErrRefused)
 	}
-	if !state.HoldsAction(verified.EffectiveScopes(), policy, action) {
-		return state.Installation{}, fmt.Errorf("%w: %s does not hold %s:%s at %s", ErrRefused, claims.GetOwnerPrincipalId(), policy, action, actor.Name)
+	// The installation record establishes the owner of its consent records.
+	// Identity.Subject is opaque and Revoke carries only an approval id: neither
+	// establishes a policy resource id. Require coverage of the owner's whole
+	// policy kind, refusing resource-limited scopes rather than dropping ids.
+	// Module installations have no solution principal. An empty owner in needed
+	// requires owner-unrestricted coverage; it never admits an owned scope.
+	needed := []*basev0.WorkScopeV1{{ResourceKind: policy, Actions: []string{action}, ResourceOwnerId: inst.PrincipalID}}
+	if !state.Attenuates(needed, verified.EffectiveScopes()) {
+		return state.Installation{}, fmt.Errorf("%w: %s does not hold %s:%s for installation owner %q without resource-id restrictions; artifact identity does not establish a policy resource id", ErrRefused, claims.GetOwnerPrincipalId(), policy, action, inst.PrincipalID)
 	}
 	return inst, nil
 }

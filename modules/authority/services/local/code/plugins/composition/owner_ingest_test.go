@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"gateway/pkg/business/issuer"
+	"gateway/pkg/business/state"
 	"github.com/codefly-dev/core/solutionhost"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -34,8 +36,8 @@ func TestADeliveryNamingAnOwnerIsRefused(t *testing.T) {
 	}
 	t.Run("a binding", func(t *testing.T) {
 		_, k := verifying(t)
-		m := Manifest(&compositionv1.ModuleManifestV1{Module: "owned-binding", Principal: "owned-binding", Kind: "module", Generation: 1,
-			Bindings: []*compositionv1.BindingV1{{Id: "store", Audience: "documents", InvokeScopes: []*authorityv1.WorkScopeV1{owned("documents", "read")}}}})
+		m := state.Manifest{Name: "owned-binding", Principal: "owned-binding", Kind: "module", Generation: 1,
+			Bindings: map[string]state.Binding{"store": {ID: "store", Audience: "documents", InvokeScopes: issuer.FromWire([]*authorityv1.WorkScopeV1{owned("documents", "read")})}}}
 		if _, err := k.State.ApplyManifest(m); err == nil || !strings.Contains(err.Error(), "owner") {
 			t.Fatalf("an owner-selected binding was accepted: %v", err)
 		}

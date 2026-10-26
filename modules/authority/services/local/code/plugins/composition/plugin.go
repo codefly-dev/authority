@@ -54,64 +54,51 @@ func (p *Plugin) RegisterREST(context.Context, *runtime.ServeMux, string, []grpc
 // Migrations: none.
 func (p *Plugin) Migrations() []string { return nil }
 
-// ApplyManifest admits a signed delivery or a transitional sketch. Signed
-// delivery supports immutable replay and terminal withdrawal through Core.
+// ApplyManifest admits only signed deliveries carried by the authenticated
+// delivery workload. Core supports immutable replay and terminal withdrawal.
 func (p *Plugin) ApplyManifest(ctx context.Context, req *compositionv1.ApplyManifestRequest) (*compositionv1.ApplyManifestResponse, error) {
-	var m state.Manifest
-	var verified *solutionhost.Delivered
+	if req.GetCarrier() == nil {
+		return nil, status.Error(codes.PermissionDenied, "a manifest requires a signed carrier and an authenticated delivery workload")
+	}
+	carrier, err := p.verified(ctx, req.GetCarrier(), req.GetCredential())
+	if err != nil {
+		return nil, err
+	}
 	var sidecar []byte
-	if req.GetCarrier() != nil {
-		carrier, err := p.verified(ctx, req.GetCarrier(), req.GetCredential())
+	delivered, err := carrier.Manifest()
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "manifest: %v", err)
+	}
+	m := FromCore(delivered)
+	if req.GetAuthority() != nil {
+		doc, err := p.document(req.GetAuthority(), req.GetCarrier(), delivered, carrier.Signer().KeyID)
 		if err != nil {
 			return nil, err
 		}
-		verified = carrier
-		delivered, err := carrier.Manifest()
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "manifest: %v", err)
+		if delivered.Removed && (len(doc.GetMethods()) > 0 || len(doc.GetRoles()) > 0 || len(doc.GetScopeCeilings()) > 0) {
+			return nil, status.Error(codes.InvalidArgument, "a withdrawal carries no live authority declarations")
 		}
-		m = FromCore(delivered)
-		if req.GetAuthority() != nil {
-			doc, err := p.document(req.GetAuthority(), req.GetCarrier(), delivered, carrier.Signer().KeyID)
-			if err != nil {
-				return nil, err
-			}
-			if delivered.Removed && (len(doc.GetMethods()) > 0 || len(doc.GetRoles()) > 0 || len(doc.GetScopeCeilings()) > 0) {
-				return nil, status.Error(codes.InvalidArgument, "a withdrawal carries no live authority declarations")
-			}
-			sidecar = req.GetAuthority().GetDocument()
-			if sidecar == nil {
-				sidecar = []byte{}
-			}
-			if m.Methods, err = methodsOf(doc); err != nil {
-				return nil, err
-			}
-			for _, ceiling := range doc.GetScopeCeilings() {
-				if ceiling.GetResourceOwnerId() != "" {
-					return nil, status.Errorf(codes.PermissionDenied, "%s: scope ceiling %s names resource owner %q; a delivery never selects an owner", m.Name, ceiling.GetResourceKind(), ceiling.GetResourceOwnerId())
-				}
-			}
-			if m, err = ceiled(m, issuer.FromWire(doc.GetScopeCeilings())); err != nil {
-				return nil, err
-			}
-			if m.Roles, err = rolesOf(doc); err != nil {
-				return nil, err
-			}
-			m.OwnerAware = doc.GetOwnerAware()
+		sidecar = req.GetAuthority().GetDocument()
+		if sidecar == nil {
+			sidecar = []byte{}
 		}
-	} else {
-		if req.GetAuthority() != nil {
-			return nil, status.Error(codes.InvalidArgument, "the authority's document travels only with a signed carrier")
+		if m.Methods, err = methodsOf(doc); err != nil {
+			return nil, err
 		}
-		m = Manifest(req.GetManifest())
+		for _, ceiling := range doc.GetScopeCeilings() {
+			if ceiling.GetResourceOwnerId() != "" {
+				return nil, status.Errorf(codes.PermissionDenied, "%s: scope ceiling %s names resource owner %q; a delivery never selects an owner", m.Name, ceiling.GetResourceKind(), ceiling.GetResourceOwnerId())
+			}
+		}
+		if m, err = ceiled(m, issuer.FromWire(doc.GetScopeCeilings())); err != nil {
+			return nil, err
+		}
+		if m.Roles, err = rolesOf(doc); err != nil {
+			return nil, err
+		}
+		m.OwnerAware = doc.GetOwnerAware()
 	}
-	var ids []string
-	var err error
-	if verified != nil {
-		ids, err = p.State.ApplyDelivered(ctx, p.Coordinate, verified, sidecar, m)
-	} else {
-		ids, err = p.State.ApplyManifest(m)
-	}
+	ids, err := p.State.ApplyDelivered(ctx, p.Coordinate, carrier, sidecar, m)
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}
@@ -121,28 +108,12 @@ func (p *Plugin) ApplyManifest(ctx context.Context, req *compositionv1.ApplyMani
 	return &compositionv1.ApplyManifestResponse{Principal: m.Principal, Generation: m.Generation, InstallationIds: ids}, nil
 }
 
-// Manifest converts the wire manifest to the state's.
-func Manifest(in *compositionv1.ModuleManifestV1) state.Manifest {
-	m := state.Manifest{Name: in.GetModule(), Principal: in.GetPrincipal(), Kind: in.GetKind(), Generation: in.GetGeneration(), Bindings: map[string]state.Binding{}}
-	for _, rk := range in.GetResourceKinds() {
-		m.ResourceKinds = append(m.ResourceKinds, &basev0.WorkScopeV1{ResourceKind: rk.GetKind(), Actions: rk.GetActions()})
-	}
-	m.ResourceKinds = state.Normalize(m.ResourceKinds)
-	for _, b := range in.GetBindings() {
-		m.Bindings[b.GetId()] = state.Binding{ID: b.GetId(), Audience: b.GetAudience(), InvokeScopes: issuer.FromWire(b.GetInvokeScopes()), HeadlessScopes: issuer.FromWire(b.GetHeadlessScopes()), LookupScopes: issuer.FromWire(b.GetLookupScopes())}
-	}
-	for _, r := range in.GetRoles() {
-		if m.Roles == nil {
-			m.Roles = map[string][]*basev0.WorkScopeV1{}
-		}
-		m.Roles[r.GetName()] = state.Normalize(issuer.FromWire(r.GetScopes()))
-	}
-	return m
-}
-
 // verified reads the manifest from the carrier's verified document and admits
 // the delivery only from the module's own delivery workload.
 func (p *Plugin) verified(ctx context.Context, carrier *compositionv1.SignedManifestV1, credential string) (*solutionhost.Delivered, error) {
+	if credential == "" {
+		return nil, status.Error(codes.PermissionDenied, "a signed delivery requires its delivery workload credential")
+	}
 	if p.Verifier == nil || p.Carrier == nil {
 		return nil, status.Error(codes.FailedPrecondition, "this implementation verifies no delivery: no release keys are pinned")
 	}

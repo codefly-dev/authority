@@ -360,7 +360,7 @@ role through a granted team, and nothing from the organisation's roles. Another
 organisation's installation grants nothing. The values of real roles belong to
 each solution's manifest and arrive through the carrier: core's manifest carries
 no roles, so they travel in the authority's own document delivered with it
-(`AuthorityManifestV1.roles`, as the sketch's `ModuleManifestV1.roles`), bounded
+(`AuthorityManifestV1.roles`), bounded
 by the solution's own scope ceilings and the invoke/lookup scopes in the paired
 Core manifest. Consumed kinds do not become kinds the solution serves. This repository holds
 the contract and its evaluation, never a product's roles.
@@ -439,9 +439,8 @@ for exactly that scope and expects the answer. The local authority's fixture car
 two organisations, a person with no roles or teams and an automatically generated
 developer role; the test kit's composition document installs a solution under
 different roles in each. The host supplies its own matrix from its
-own fixture. When the fixture signs, the suite composes its solution as a carrier
-with the authority's document carrying its roles; the sketch remains for a
-fixture that does not sign.
+own fixture. The suite requires a signed carrier and authenticated delivery
+workload, with the paired authority document carrying the solution's roles.
 
 The fixture names only the authority's own vocabulary. A composing workspace
 adds what its modules and solutions need: grants on the fixture's roles,
@@ -876,8 +875,10 @@ results do not qualify later suite additions.
   keys it pins and reads the manifest from the verified document. The mini
   local authority pins the kit's release key and attests the carrier by the launcher's
   anchor; the host pins its release keys and attests the delivery service
-  account. The sketch (`manifest`) stays through the transition and is ignored
-  when a carrier is present. Not yet done: the host adapter behind it.
+  account. Public requests without a signed carrier and authenticated delivery
+  credential are refused before composition or pending installation work. The
+  old `manifest` wire field grants no authority. Trusted fixture seeding is a
+  host-only state API. Not yet done: the host adapter behind it.
 
 ## Local service name (2026-10-25)
 

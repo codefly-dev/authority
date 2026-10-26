@@ -64,10 +64,9 @@ type Fixture struct {
 	// SolutionTools exercises a module binding to a solution with distinct person entitlements.
 	SolutionTools *SolutionToolsCase
 
-	// A delivery, as Codefly signs it. When SignManifest is set the suite applies
-	// manifests as signed carriers: core's module manifest for HostCoordinate and
-	// HostDomain, signed by SignManifest, carried by DeliveryCredential(module).
-	// Nil applies the sketch, which the transition still allows.
+	// A delivery, as Codefly signs it. The suite requires signed carriers:
+	// core's module manifest for HostCoordinate and HostDomain, signed by
+	// SignManifest, carried by DeliveryCredential(module).
 	HostCoordinate     string
 	HostDomain         string
 	SignManifest       func(document []byte) (envelope []byte, err error)
@@ -160,10 +159,9 @@ type Expectation struct {
 	Allowed  bool
 }
 
-// applyManifest composes one module at one generation, as a signed carrier when
-// the fixture signs, as the sketch otherwise. A solution declares its installer
-// and viewer roles over what it serves: in the authority's document when it is
-// carried, in the sketch otherwise, since core's manifest carries no roles.
+// applyManifest composes one module at one generation as a signed carrier.
+// A solution declares its installer and viewer roles in the paired authority
+// document, since core's manifest carries no roles.
 func (c *client) applyManifest(ctx context.Context, f Fixture, alias, kind string, generation uint64, kinds []string) (protoreflect.Message, error) {
 	var roles, ceilings []any
 	if kind == "solution" {
@@ -174,17 +172,6 @@ func (c *client) applyManifest(ctx context.Context, f Fixture, alias, kind strin
 		}
 		roles = []any{map[string]any{"name": "installer", "scopes": all}, map[string]any{"name": "viewer", "scopes": reads}}
 		ceilings = all
-	}
-	if f.SignManifest == nil {
-		var rks []any
-		for _, k := range kinds {
-			rks = append(rks, map[string]any{"kind": k, "actions": []any{"read", "write"}})
-		}
-		manifest := map[string]any{"module": alias, "principal": alias, "kind": kind, "generation": generation, "resource_kinds": rks}
-		if roles != nil {
-			manifest["roles"] = roles
-		}
-		return c.call(ctx, "host.composition.v1.CompositionService", "ApplyManifest", map[string]any{"manifest": manifest})
 	}
 	if roles == nil {
 		return c.deliver(ctx, f, alias, kind, generation, kinds, nil, 0)
@@ -207,6 +194,12 @@ func (c *client) deliverWithMethods(ctx context.Context, f Fixture, alias string
 // when document names any field, the authority's own document signed by the same
 // key and bound to the manifest by module, generation and digest.
 func (c *client) deliver(ctx context.Context, f Fixture, alias, kind string, generation uint64, kinds []string, document map[string]any, skew uint64, bindings ...solutionhost.AuthorityBinding) (protoreflect.Message, error) {
+	if f.SignManifest == nil || f.DeliveryCredential == nil {
+		return nil, fmt.Errorf("composition requires a release signer and delivery workload credential")
+	}
+	if document != nil && f.SignAuthority == nil {
+		return nil, fmt.Errorf("composition with an authority document requires its release signer")
+	}
 	manifest := &solutionhost.ModuleManifest{
 		Schema: solutionhost.SchemaModuleManifestV1, Binding: alias, Alias: alias, Kind: solutionhost.Kind(kind), Generation: generation,
 		Host:      solutionhost.HostTarget{Coordinate: f.HostCoordinate, Domain: f.HostDomain},
