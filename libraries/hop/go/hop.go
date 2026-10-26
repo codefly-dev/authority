@@ -35,6 +35,7 @@ import (
 	"time"
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
+	"github.com/codefly-dev/authority/libraries/authority-client/go/refusal"
 	"github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
 	"github.com/codefly-dev/authority/libraries/authority-client/go/workcontext"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
@@ -228,7 +229,7 @@ const (
 // errKeysUnavailable is the one reason a caller is given when keys are
 // missing or stale: the read's own failure may name the authority's address,
 // so it goes to KeysError, for the module's logs, never to a caller.
-var errKeysUnavailable = fmt.Errorf("%w: the authority's published keys are unavailable", workcontext.ErrUnauthenticated)
+var errKeysUnavailable = fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.KeysUnavailable)
 
 // Verifier is the one module-side entry point: it authenticates every call the
 // hop forwards before anything reads it. Build it once, at startup.
@@ -257,13 +258,22 @@ type Verifier struct {
 // module starts before its authority serves keys, and refuses calls, with the
 // reason, until they are read.
 func NewVerifier(ctx context.Context, keys KeySource, audience, proof string) (*Verifier, error) {
-	switch {
-	case keys == nil:
-		return nil, errors.New("hop: a verifier needs the authority's Keys")
-	case audience == "":
-		return nil, errors.New("hop: a verifier needs this module's audience")
-	case proof == "":
-		return nil, errors.New("hop: a verifier needs the run's hop proof (codefly config generate hop PROOF)")
+	if proof == "" {
+		return nil, refusal.Configuration
+	}
+	return newVerifier(ctx, keys, audience, proof)
+}
+
+// NewTokenVerifier builds a verifier for Issue responses in a process that does
+// not receive hop calls. It needs no hop proof. Verify always refuses stamps;
+// VerifyToken uses the same key cache and validation as NewVerifier.
+func NewTokenVerifier(ctx context.Context, keys KeySource, audience string) (*Verifier, error) {
+	return newVerifier(ctx, keys, audience, "")
+}
+
+func newVerifier(ctx context.Context, keys KeySource, audience, proof string) (*Verifier, error) {
+	if keys == nil || audience == "" {
+		return nil, refusal.Configuration
 	}
 	v := &Verifier{source: keys, audience: audience, proof: proof, now: time.Now, timeout: keyTimeout}
 	v.mu.Lock()
@@ -313,19 +323,31 @@ func (v *Verifier) Verify(ctx context.Context, md metadata.MD) (Identity, error)
 	if err != nil {
 		return Identity{}, fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, err)
 	}
+	id, err := v.VerifyToken(ctx, token)
+	if err != nil {
+		return Identity{}, err
+	}
+	if err := sameAsStamped(md, id); err != nil {
+		return Identity{}, err
+	}
+	id.Advisory = first(md, AdvisoryKey)
+	return id, nil
+}
+
+// VerifyToken authenticates a bare Work Context using the same published keys
+// and fail-closed refresh policy as Verify. It does not establish hop admission,
+// consume a single-use nonce, or check live revocation or method permissions.
+func (v *Verifier) VerifyToken(ctx context.Context, token string) (Identity, error) {
 	trust, err := v.trustFor(ctx, keyIDOf(token))
 	if err != nil {
 		return Identity{}, err
 	}
-	claims, err := workcontext.Authenticate(md, v.proof, v.audience, trust)
+	claims, err := workcontext.AuthenticateToken(token, v.audience, trust)
 	if err != nil {
 		return Identity{}, err
 	}
 	id := IdentityOf(claims.Context())
-	if err := sameAsStamped(md, id); err != nil {
-		return Identity{}, err
-	}
-	id.Context, id.Claims, id.Advisory = token, claims, first(md, AdvisoryKey)
+	id.Context, id.Claims = token, claims
 	return id, nil
 }
 
@@ -348,12 +370,15 @@ func (v *Verifier) trustFor(ctx context.Context, keyID string) (workcontext.Trus
 		select {
 		case <-wait:
 		case <-ctx.Done():
-			return workcontext.Trust{}, fmt.Errorf("%w: the call ended while the authority's keys were being read", workcontext.ErrUnauthenticated)
+			return workcontext.Trust{}, fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.Cancelled)
 		}
 	}
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if v.fetched.IsZero() || v.now().Sub(v.fetched) > keyStale {
+		if errors.Is(v.failure, refusal.InvalidKey) {
+			return workcontext.Trust{}, fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.InvalidKey)
+		}
 		return workcontext.Trust{}, errKeysUnavailable
 	}
 	return workcontext.Trust{Issuer: v.trust.Issuer, Keys: v.trust.Keys, Now: v.now}, nil
@@ -394,12 +419,12 @@ func (v *Verifier) read(ctx context.Context) (workcontext.Trust, error) {
 			continue
 		}
 		if key.GetKeyId() == "" || len(key.GetPublicKey()) != ed25519.PublicKeySize || trust.Keys[key.GetKeyId()] != nil {
-			return workcontext.Trust{}, errors.New("hop: the authority publishes an unnamed, repeated or malformed key")
+			return workcontext.Trust{}, refusal.InvalidKey
 		}
 		trust.Keys[key.GetKeyId()] = ed25519.PublicKey(slices.Clone(key.GetPublicKey()))
 	}
 	if trust.Issuer == "" || len(trust.Keys) == 0 {
-		return workcontext.Trust{}, errors.New("hop: the authority publishes no issuer or no Ed25519 key")
+		return workcontext.Trust{}, refusal.InvalidKey
 	}
 	return trust, nil
 }
@@ -428,7 +453,7 @@ func sameAsStamped(md metadata.MD, id Identity) error {
 		{BindingKey, id.Binding}, {TaskKey, id.Task}, {ExpiresKey, expires},
 	} {
 		if got := md.Get(field.key); len(got) > 1 || first(md, field.key) != field.want {
-			return fmt.Errorf("%w: the stamp's %s does not match the authenticated Work Context", workcontext.ErrUnauthenticated, strings.TrimPrefix(field.key, StampPrefix))
+			return fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.StampIdentity)
 		}
 	}
 	return nil

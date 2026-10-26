@@ -40,6 +40,11 @@ class InstallationServiceStub(object):
                 request_serializer=host_dot_installation_dot_v1_dot_installation__pb2.InstallRequest.SerializeToString,
                 response_deserializer=host_dot_installation_dot_v1_dot_installation__pb2.Installation.FromString,
                 _registered_method=True)
+        self.Review = channel.unary_unary(
+                '/host.installation.v1.InstallationService/Review',
+                request_serializer=host_dot_installation_dot_v1_dot_installation__pb2.ReviewRequest.SerializeToString,
+                response_deserializer=host_dot_installation_dot_v1_dot_installation__pb2.ConsentApproval.FromString,
+                _registered_method=True)
         self.GrantRole = channel.unary_unary(
                 '/host.installation.v1.InstallationService/GrantRole',
                 request_serializer=host_dot_installation_dot_v1_dot_installation__pb2.GrantRoleRequest.SerializeToString,
@@ -69,6 +74,13 @@ class InstallationServiceServicer(object):
     def Install(self, request, context):
         """Install composes an installation: its agent principal, its root scope and
         the row, pending until the target acknowledges its install step.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Review(self, request, context):
+        """Review reads the current offer and installation revision without granting consent.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -116,6 +128,11 @@ def add_InstallationServiceServicer_to_server(servicer, server):
                     servicer.Install,
                     request_deserializer=host_dot_installation_dot_v1_dot_installation__pb2.InstallRequest.FromString,
                     response_serializer=host_dot_installation_dot_v1_dot_installation__pb2.Installation.SerializeToString,
+            ),
+            'Review': grpc.unary_unary_rpc_method_handler(
+                    servicer.Review,
+                    request_deserializer=host_dot_installation_dot_v1_dot_installation__pb2.ReviewRequest.FromString,
+                    response_serializer=host_dot_installation_dot_v1_dot_installation__pb2.ConsentApproval.SerializeToString,
             ),
             'GrantRole': grpc.unary_unary_rpc_method_handler(
                     servicer.GrantRole,
@@ -166,6 +183,33 @@ class InstallationService(object):
             '/host.installation.v1.InstallationService/Install',
             host_dot_installation_dot_v1_dot_installation__pb2.InstallRequest.SerializeToString,
             host_dot_installation_dot_v1_dot_installation__pb2.Installation.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Review(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/host.installation.v1.InstallationService/Review',
+            host_dot_installation_dot_v1_dot_installation__pb2.ReviewRequest.SerializeToString,
+            host_dot_installation_dot_v1_dot_installation__pb2.ConsentApproval.FromString,
             options,
             channel_credentials,
             insecure,

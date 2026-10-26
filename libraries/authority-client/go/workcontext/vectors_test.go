@@ -1,6 +1,7 @@
 package workcontext_test
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
@@ -11,9 +12,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/codefly-dev/authority/libraries/authority-client/go/refusal"
 	reader "github.com/codefly-dev/authority/libraries/authority-client/go/workcontext"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	core "github.com/codefly-dev/core/workcontext"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 var updateVectors = flag.Bool("update-vectors", false, "rewrite ../testdata/vectors.json")
@@ -63,17 +66,17 @@ func vectors(t *testing.T) []vector {
 			c.AuthorityScopes = []*basev0.WorkScopeV1{{ResourceKind: "record", Actions: []string{"read"}, ResourceIds: []string{"a"}}, {ResourceKind: "record", Actions: []string{"write"}, ResourceIds: []string{"b"}}}
 		}, nil, ""),
 		build("an actor granted nothing", "delegated", func(c *basev0.WorkContextV1) { c.ActorChain[0].GrantedScopes = nil }, nil, ""),
-		build("an actor widens the owner", "delegated", widen, nil, "widens authority"),
-		build("no seal", "session", func(c *basev0.WorkContextV1) { c.Seal = nil }, nil, "seal"),
-		build("seal epoch zero", "session", func(c *basev0.WorkContextV1) { c.Seal.PrincipalEpoch = 0 }, nil, "principal_epoch"),
-		build("empty tenant", "session", func(c *basev0.WorkContextV1) { c.TenantId = "" }, nil, "tenant_id"),
-		build("wrong type", "session", func(c *basev0.WorkContextV1) { c.Typ = "codefly.work-context/v0" }, nil, "typ"),
-		build("unknown replay policy", "session", func(c *basev0.WorkContextV1) { c.ReplayPolicy = "forever" }, nil, "replay_policy"),
-		build("actor without an epoch", "delegated", func(c *basev0.WorkContextV1) { c.ActorChain[0].PrincipalEpoch = 0 }, nil, "principal_epoch"),
+		build("an actor widens the owner", "delegated", widen, nil, "attenuation"),
+		build("no seal", "session", func(c *basev0.WorkContextV1) { c.Seal = nil }, nil, "malformed"),
+		build("seal epoch zero", "session", func(c *basev0.WorkContextV1) { c.Seal.PrincipalEpoch = 0 }, nil, "malformed"),
+		build("empty tenant", "session", func(c *basev0.WorkContextV1) { c.TenantId = "" }, nil, "malformed"),
+		build("wrong type", "session", func(c *basev0.WorkContextV1) { c.Typ = "codefly.work-context/v0" }, nil, "malformed"),
+		build("unknown replay policy", "session", func(c *basev0.WorkContextV1) { c.ReplayPolicy = "forever" }, nil, "malformed"),
+		build("actor without an epoch", "delegated", func(c *basev0.WorkContextV1) { c.ActorChain[0].PrincipalEpoch = 0 }, nil, "malformed"),
 		build("lifetime beyond a day", "session", func(c *basev0.WorkContextV1) { c.ExpiresAtUnix = c.NotBeforeUnix + 25*3600 }, nil, "lifetime"),
-		build("grant without single use", "grant", func(c *basev0.WorkContextV1) { c.ReplayPolicy = core.ReplayIdempotent }, nil, "replayable"),
+		build("grant without single use", "grant", func(c *basev0.WorkContextV1) { c.ReplayPolicy = core.ReplayIdempotent }, nil, "grant"),
 		build("grant to another hop", "grant", func(c *basev0.WorkContextV1) { c.GrantHop.GrantId = "another-grant" }, nil, "grant"),
-		build("signed with Core's public conformance key", "session", nil, fixturePrivate, "conformance fixture key"),
+		build("signed with Core's public conformance key", "session", nil, fixturePrivate, "fixture_key"),
 	}
 	forged := build("forged signature", "session", nil, nil, "signature")
 	other := ed25519.NewKeyFromSeed([]byte("a forger, not the authority, 32b"))
@@ -82,17 +85,83 @@ func vectors(t *testing.T) []vector {
 	forged.Token = payload + "." + base64.RawURLEncoding.EncodeToString(ed25519.Sign(other, raw))
 	unsigned := build("unsigned", "session", nil, nil, "signature")
 	unsigned.Token = payload + "." + base64.RawURLEncoding.EncodeToString(make([]byte, 64))
-	elsewhere := build("another audience", "session", nil, nil, "minted for audience")
+	elsewhere := build("another audience", "session", nil, nil, "audience")
 	elsewhere.Audience = "another-module"
 	expired := build("expired", "session", nil, nil, "expired")
 	expired.Now = body(t, "session").GetExpiresAtUnix() + 3600
-	early := build("not yet valid", "session", nil, nil, "not valid before")
+	early := build("not yet valid", "session", nil, nil, "not_yet_valid")
 	early.Now = body(t, "session").GetNotBeforeUnix() - 3600
-	issuer := build("another issuer", "session", nil, nil, "issued by")
+	issuer := build("another issuer", "session", nil, nil, "issuer")
 	issuer.Issuer = "https://forger.example"
-	unknown := build("a key the authority does not publish", "session", nil, nil, "no verification key")
+	unknown := build("a key the authority does not publish", "session", nil, nil, "unknown_key")
 	unknown.Keys = map[string]string{"rotated": unknown.Keys[body(t, "session").GetKeyId()]}
-	return append(out, forged, unsigned, elsewhere, expired, early, issuer, unknown)
+	emptySignature := unsigned
+	emptySignature.Name, emptySignature.Token = "empty signature", payload+"."
+	out = append(out, forged, unsigned, emptySignature, elsewhere, expired, early, issuer, unknown)
+	return append(out, encodingVectors(t, out[0])...)
+}
+
+// Encoding variants share a valid signed control. Text variants preserve the
+// decoded bytes; protobuf variants are signed over the altered payload so a
+// signature failure cannot disguise a missing canonical-encoding check.
+func encodingVectors(t *testing.T, control vector) []vector {
+	t.Helper()
+	var out []vector
+	add := func(name, token string) {
+		v := control
+		v.Name, v.Token, v.Accept, v.Reason = name, token, false, "malformed"
+		out = append(out, v)
+	}
+	payload, signature, _ := strings.Cut(control.Token, ".")
+	for _, segment := range []struct{ name, text string }{{"payload", payload}, {"signature", signature}} {
+		join := func(text string) string {
+			if segment.name == "payload" {
+				return text + "." + signature
+			}
+			return payload + "." + text
+		}
+		for _, variant := range []struct{ name, text string }{
+			{"padding", segment.text + "="},
+			{"double padding", segment.text + "=="},
+			{"CR", segment.text[:1] + "\r" + segment.text[1:]},
+			{"LF", segment.text[:1] + "\n" + segment.text[1:]},
+			{"CRLF", segment.text[:1] + "\r\n" + segment.text[1:]},
+		} {
+			add(segment.name+" "+variant.name, join(variant.text))
+		}
+		const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+		if len(segment.text)%4 == 0 {
+			t.Fatalf("%s fixture needs unused base64 bits", segment.name)
+		}
+		last := len(segment.text) - 1
+		changed := segment.text[:last] + string(alphabet[strings.IndexByte(alphabet, segment.text[last])^1])
+		add(segment.name+" unused bit", join(changed))
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signed := func(name string, altered []byte) {
+		add(name, base64.RawURLEncoding.EncodeToString(altered)+"."+base64.RawURLEncoding.EncodeToString(ed25519.Sign(signer, altered)))
+	}
+	// The canonical first field is the type string (tag 1, length-delimited).
+	end := 2 + int(raw[1])
+	signed("protobuf duplicate field", append(append([]byte{}, raw...), raw[:end]...))
+	signed("protobuf reordered field", append(append([]byte{}, raw[end:]...), raw[:end]...))
+	signed("protobuf overlong varint", append([]byte{raw[0], raw[1] | 0x80, 0}, raw[2:]...))
+	signed("protobuf unknown field", append(append([]byte{}, raw...), 0xf8, 0x07, 0x01))
+	jsonPayload, err := protojson.Marshal(body(t, "session"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// protojson may vary insignificant whitespace; keep the fixture reproducible.
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, jsonPayload); err != nil {
+		t.Fatal(err)
+	}
+	// Work Context accepts protobuf only, including when JSON contains the same claims.
+	signed("JSON claims", compact.Bytes())
+	return out
 }
 
 // Every verdict in ../testdata/vectors.json is Go's, reached by the one check a
@@ -121,12 +190,26 @@ func TestTheSharedVectorsAreGosVerdicts(t *testing.T) {
 				keys[id] = raw
 			}
 			at := time.Unix(v.Now, 0)
-			_, err := reader.Authenticate(stampedToken(v.Token), "test-proof", v.Audience, reader.Trust{Issuer: v.Issuer, Keys: keys, Now: func() time.Time { return at }})
-			if v.Accept && err != nil {
-				t.Fatalf("Go refuses a vector it should accept: %v", err)
-			}
-			if !v.Accept && (!errors.Is(err, reader.ErrUnauthenticated) || !strings.Contains(err.Error(), v.Reason)) {
-				t.Fatalf("want a refusal naming %q: %v", v.Reason, err)
+			trust := reader.Trust{Issuer: v.Issuer, Keys: keys, Now: func() time.Time { return at }}
+			for _, mode := range []string{"stamped", "bare"} {
+				t.Run(mode, func(t *testing.T) {
+					var err error
+					if mode == "stamped" {
+						_, err = reader.Authenticate(stampedToken(v.Token), "test-proof", v.Audience, trust)
+					} else {
+						_, err = reader.AuthenticateToken(v.Token, v.Audience, trust)
+					}
+					if v.Accept {
+						if err != nil {
+							t.Fatalf("Go refuses a vector it should accept: %v", err)
+						}
+					} else {
+						var reason refusal.Reason
+						if !errors.Is(err, reader.ErrUnauthenticated) || !errors.As(err, &reason) || reason.Code() != v.Reason {
+							t.Fatalf("want a refusal naming %q: %v", v.Reason, err)
+						}
+					}
+				})
 			}
 		})
 	}

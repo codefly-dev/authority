@@ -45,7 +45,7 @@ func TestMissingCallerCannotSelectHostPower(t *testing.T) {
 	if h.inst(acme, "store") != before {
 		t.Fatal("empty caller retired module")
 	}
-	_, err := h.svc.Install(h.ctx, authority.Person{}, globex, "b", "author", h.admin(globex).ID, nil)
+	_, err := h.svc.Install(h.ctx, authority.Person{}, globex, "b", "author", h.admin(globex).ID, h.approval(globex, "b"), nil)
 	code(t, err, domain.Denied)
 	if err := h.store.Read(h.ctx, func(tx authority.Tx) error {
 		_, err := tx.Installation(authority.StableInstallationID(globex, "b"))
@@ -118,7 +118,7 @@ func TestLifecycleStoreFailuresAreReturnedWithoutMutation(t *testing.T) {
 			if h.inst(acme, "store") != before {
 				t.Fatal("outage mutated installation")
 			}
-			_, err = svc.Install(h.ctx, h.admin(globex), globex, "b", "author", h.admin(globex).ID, nil)
+			_, err = svc.Install(h.ctx, h.admin(globex), globex, "b", "author", h.admin(globex).ID, h.approval(globex, "b"), nil)
 			if !errors.Is(err, outage) {
 				t.Fatalf("install hid outage: %v", err)
 			}

@@ -66,12 +66,12 @@ func TestAModuleHoldingTheProofCannotForgeAContext(t *testing.T) {
 	}{
 		"forged signature":   {stampedAs(t, a, forged, genuine), "signature"},
 		"unsigned":           {stampedAs(t, a, unsigned, genuine), "signature"},
-		"another audience":   {hoptest.Forward(t, elsewhere, proof), "minted for audience"},
+		"another audience":   {hoptest.Forward(t, elsewhere, proof), "audience"},
 		"no stamp":           {metadata.Pairs(hop.WorkContextKey, genuine), "proof"},
 		"another run's hop":  {hoptest.Forward(t, genuine, "another-run"), "proof"},
 		"swapped token":      {swapped(hoptest.Forward(t, genuine, proof), a.Issue(t, "documents", read)), "does not match the hop stamp"},
-		"stamped tenant lie": {with(hoptest.Forward(t, genuine, proof), hop.TenantKey, "globex"), "tenant"},
-		"stamped scope lie":  {with(hoptest.Forward(t, genuine, proof), hop.ScopesKey, "documents:read,documents:admin"), "scopes"},
+		"stamped tenant lie": {with(hoptest.Forward(t, genuine, proof), hop.TenantKey, "globex"), "stamp_identity"},
+		"stamped scope lie":  {with(hoptest.Forward(t, genuine, proof), hop.ScopesKey, "documents:read,documents:admin"), "stamp_identity"},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {

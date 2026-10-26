@@ -44,6 +44,9 @@ const (
 	// InstallationServiceInstallProcedure is the fully-qualified name of the InstallationService's
 	// Install RPC.
 	InstallationServiceInstallProcedure = "/host.installation.v1.InstallationService/Install"
+	// InstallationServiceReviewProcedure is the fully-qualified name of the InstallationService's
+	// Review RPC.
+	InstallationServiceReviewProcedure = "/host.installation.v1.InstallationService/Review"
 	// InstallationServiceGrantRoleProcedure is the fully-qualified name of the InstallationService's
 	// GrantRole RPC.
 	InstallationServiceGrantRoleProcedure = "/host.installation.v1.InstallationService/GrantRole"
@@ -66,6 +69,8 @@ type InstallationServiceClient interface {
 	// Install composes an installation: its agent principal, its root scope and
 	// the row, pending until the target acknowledges its install step.
 	Install(context.Context, *connect.Request[v1.InstallRequest]) (*connect.Response[v1.Installation], error)
+	// Review reads the current offer and installation revision without granting consent.
+	Review(context.Context, *connect.Request[v1.ReviewRequest]) (*connect.Response[v1.ConsentApproval], error)
 	// GrantRole grants a person or a team one of the solution's roles on the
 	// installation: the access. Idempotent; it leaves existing capabilities
 	// valid. An administrator of the installation's organization, or a holder
@@ -100,6 +105,12 @@ func NewInstallationServiceClient(httpClient connect.HTTPClient, baseURL string,
 			connect.WithSchema(installationServiceMethods.ByName("Install")),
 			connect.WithClientOptions(opts...),
 		),
+		review: connect.NewClient[v1.ReviewRequest, v1.ConsentApproval](
+			httpClient,
+			baseURL+InstallationServiceReviewProcedure,
+			connect.WithSchema(installationServiceMethods.ByName("Review")),
+			connect.WithClientOptions(opts...),
+		),
 		grantRole: connect.NewClient[v1.GrantRoleRequest, v1.Installation](
 			httpClient,
 			baseURL+InstallationServiceGrantRoleProcedure,
@@ -130,6 +141,7 @@ func NewInstallationServiceClient(httpClient connect.HTTPClient, baseURL string,
 // installationServiceClient implements InstallationServiceClient.
 type installationServiceClient struct {
 	install        *connect.Client[v1.InstallRequest, v1.Installation]
+	review         *connect.Client[v1.ReviewRequest, v1.ConsentApproval]
 	grantRole      *connect.Client[v1.GrantRoleRequest, v1.Installation]
 	revokeRole     *connect.Client[v1.RevokeRoleRequest, v1.Installation]
 	listRoleGrants *connect.Client[v1.ListRoleGrantsRequest, v1.ListRoleGrantsResponse]
@@ -139,6 +151,11 @@ type installationServiceClient struct {
 // Install calls host.installation.v1.InstallationService.Install.
 func (c *installationServiceClient) Install(ctx context.Context, req *connect.Request[v1.InstallRequest]) (*connect.Response[v1.Installation], error) {
 	return c.install.CallUnary(ctx, req)
+}
+
+// Review calls host.installation.v1.InstallationService.Review.
+func (c *installationServiceClient) Review(ctx context.Context, req *connect.Request[v1.ReviewRequest]) (*connect.Response[v1.ConsentApproval], error) {
+	return c.review.CallUnary(ctx, req)
 }
 
 // GrantRole calls host.installation.v1.InstallationService.GrantRole.
@@ -167,6 +184,8 @@ type InstallationServiceHandler interface {
 	// Install composes an installation: its agent principal, its root scope and
 	// the row, pending until the target acknowledges its install step.
 	Install(context.Context, *connect.Request[v1.InstallRequest]) (*connect.Response[v1.Installation], error)
+	// Review reads the current offer and installation revision without granting consent.
+	Review(context.Context, *connect.Request[v1.ReviewRequest]) (*connect.Response[v1.ConsentApproval], error)
 	// GrantRole grants a person or a team one of the solution's roles on the
 	// installation: the access. Idempotent; it leaves existing capabilities
 	// valid. An administrator of the installation's organization, or a holder
@@ -197,6 +216,12 @@ func NewInstallationServiceHandler(svc InstallationServiceHandler, opts ...conne
 		connect.WithSchema(installationServiceMethods.ByName("Install")),
 		connect.WithHandlerOptions(opts...),
 	)
+	installationServiceReviewHandler := connect.NewUnaryHandler(
+		InstallationServiceReviewProcedure,
+		svc.Review,
+		connect.WithSchema(installationServiceMethods.ByName("Review")),
+		connect.WithHandlerOptions(opts...),
+	)
 	installationServiceGrantRoleHandler := connect.NewUnaryHandler(
 		InstallationServiceGrantRoleProcedure,
 		svc.GrantRole,
@@ -225,6 +250,8 @@ func NewInstallationServiceHandler(svc InstallationServiceHandler, opts ...conne
 		switch r.URL.Path {
 		case InstallationServiceInstallProcedure:
 			installationServiceInstallHandler.ServeHTTP(w, r)
+		case InstallationServiceReviewProcedure:
+			installationServiceReviewHandler.ServeHTTP(w, r)
 		case InstallationServiceGrantRoleProcedure:
 			installationServiceGrantRoleHandler.ServeHTTP(w, r)
 		case InstallationServiceRevokeRoleProcedure:
@@ -244,6 +271,10 @@ type UnimplementedInstallationServiceHandler struct{}
 
 func (UnimplementedInstallationServiceHandler) Install(context.Context, *connect.Request[v1.InstallRequest]) (*connect.Response[v1.Installation], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.installation.v1.InstallationService.Install is not implemented"))
+}
+
+func (UnimplementedInstallationServiceHandler) Review(context.Context, *connect.Request[v1.ReviewRequest]) (*connect.Response[v1.ConsentApproval], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.installation.v1.InstallationService.Review is not implemented"))
 }
 
 func (UnimplementedInstallationServiceHandler) GrantRole(context.Context, *connect.Request[v1.GrantRoleRequest]) (*connect.Response[v1.Installation], error) {

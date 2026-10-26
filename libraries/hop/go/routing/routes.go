@@ -98,6 +98,13 @@ func (r *Routing) Validate() error {
 				return fmt.Errorf("hop routes: ambiguous destination for %s %s", e.Audience, method)
 			}
 			seen[key] = true
+			if e.Transport == "connect" {
+				grpcKey := e.Audience + "\x00grpc\x00" + method
+				if seen[grpcKey] {
+					return fmt.Errorf("hop routes: ambiguous destination for %s %s", e.Audience, method)
+				}
+				seen[grpcKey] = true
+			}
 		}
 	}
 	return nil
@@ -134,12 +141,12 @@ func (r *Routing) Resolve(audience, transport, method string) (RouteEndpoint, st
 	}
 	var matched []match
 	for _, endpoint := range r.Endpoints {
-		if endpoint.Audience != audience || (endpoint.Transport != transport && !(transport == "http" && endpoint.Transport == "connect")) {
+		if endpoint.Audience != audience || (endpoint.Transport != transport && !((transport == "http" || transport == "grpc") && endpoint.Transport == "connect")) {
 			continue
 		}
 		for _, declared := range endpoint.Methods {
 			policy := method
-			if endpoint.Transport == "connect" {
+			if endpoint.Transport == "connect" && transport == "http" {
 				policy = declared
 				declared = "POST " + declared
 			}

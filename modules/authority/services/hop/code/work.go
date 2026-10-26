@@ -80,7 +80,14 @@ func standInFront(ctx context.Context, config *adapters.Configuration) (Clean, e
 		}
 		covered[route.Audience] = true
 		switch route.Transport {
-		case "grpc":
+		case "grpc", "connect":
+			if route.Transport == "connect" {
+				target, urlErr := route.ResolvedURL()
+				if urlErr != nil {
+					return nil, urlErr
+				}
+				webs[route.Address] = target
+			}
 			if strings.Contains(route.Address, "${") {
 				return nil, fmt.Errorf("hop routes: unresolved endpoint for %s/%s", route.Audience, route.Service)
 			}

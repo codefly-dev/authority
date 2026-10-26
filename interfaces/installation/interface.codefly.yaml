@@ -8,4 +8,4 @@ protobuf:
     package: host.installation.v1
     services:
         - name: InstallationService
-          methods: [Install, GrantRole, RevokeRole, ListRoleGrants, List]
+          methods: [Install, Review, GrantRole, RevokeRole, ListRoleGrants, List]

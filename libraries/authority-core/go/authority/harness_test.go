@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/codefly-dev/core/workcontext"
+	"github.com/google/uuid"
 	"strings"
 	"testing"
 	"time"
@@ -135,7 +136,7 @@ func (h *harness) admin(org string) authority.Person {
 func (h *harness) install(org, target string) domain.Installation {
 	h.t.Helper()
 	admin := h.admin(org)
-	inst, err := h.svc.Install(h.ctx, admin, org, target, "author", admin.ID, nil)
+	inst, err := h.svc.Install(h.ctx, admin, org, target, "author", admin.ID, h.approval(org, target), nil)
 	if err != nil {
 		h.t.Fatal(err)
 	}
@@ -247,3 +248,13 @@ func exactly(t *testing.T, i authority.Issued, k, owner string, actions []string
 }
 
 var _ = errors.New
+
+func (h *harness) approval(org, target string) *domain.ConsentApproval {
+	h.t.Helper()
+	a, err := h.svc.Review(h.ctx, h.admin(org), org, target)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	a.OperationID = uuid.NewString()
+	return &a
+}

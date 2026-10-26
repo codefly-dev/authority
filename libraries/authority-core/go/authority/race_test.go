@@ -129,7 +129,7 @@ func TestAnUninstalledAgentsHopStaysDeadAfterReinstall(t *testing.T) {
 		t.Fatal("the uninstalled agent's hop checks")
 	}
 	admin := h.admin(acme)
-	if _, err := h.svc.Install(h.ctx, admin, acme, "a", "viewer", admin.ID, nil); err != nil {
+	if _, err := h.svc.Install(h.ctx, admin, acme, "a", "viewer", admin.ID, h.approval(acme, "a"), nil); err != nil {
 		t.Fatal(err)
 	}
 	if h.check(deeper) == nil {
