@@ -49,4 +49,11 @@ func TestAnOwnerSelectedScopeNeverReadsAsTheWholeKind(t *testing.T) {
 	if id.Claims.Allows("documents", "read", "") || id.Claims.Allows("documents", "read", "any") {
 		t.Fatal("target: Claims.Allows admits an owner-selected scope without the resource's owner")
 	}
+	// The scope is not stripped: the module admits the owner's resources.
+	owned, ok := any(id.Claims).(interface {
+		AllowsOwned(kind, action, resourceID, ownerID string) bool
+	})
+	if !ok || !owned.AllowsOwned("documents", "read", "any", "principal-u") || owned.AllowsOwned("documents", "read", "any", "principal-v") {
+		t.Fatal("target: the hop's claims must admit the owner's resource and refuse another owner's")
+	}
 }

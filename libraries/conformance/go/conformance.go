@@ -194,7 +194,13 @@ func (c *client) applyManifest(ctx context.Context, f Fixture, alias, kind strin
 	if roles == nil {
 		return c.deliver(ctx, f, alias, kind, generation, kinds, nil, 0)
 	}
-	return c.deliver(ctx, f, alias, kind, generation, kinds, map[string]any{"scope_ceilings": ceilings, "roles": roles}, 0)
+	document := map[string]any{"scope_ceilings": ceilings, "roles": roles}
+	if c.solutionPrincipal() {
+		// A solution receives owner-selected scopes, so it declares owner-aware
+		// checking under the solution-principal contract.
+		document["owner_aware"] = true
+	}
+	return c.deliver(ctx, f, alias, kind, generation, kinds, document, 0)
 }
 
 // deliverWithMethods delivers a signed module manifest with the authority's
@@ -357,8 +363,11 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 				sess = c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": e.Token})
 				sessions[e.Token] = sess
 			}
+			// Under the solution-principal contract a solution audience's scopes
+			// are owned by its principal: the row asks within that owner.
+			ask := ownedBy(map[string]any{"resource_kind": e.Kind, "actions": []any{e.Action}}, c.heldOwner(ctx, sess, e.Audience, e.Kind))
 			_, err := c.call(as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": e.Audience,
-				"scopes": []any{map[string]any{"resource_kind": e.Kind, "actions": []any{e.Action}}}})
+				"scopes": []any{ask}})
 			switch {
 			case e.Allowed && err != nil:
 				t.Errorf("%s at %s: %s %s must be allowed: %v", e.Token, e.Audience, e.Kind, e.Action, err)
@@ -403,6 +412,20 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		}
 		admin := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.AdminToken})
 		c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": token, "audience": f.Audience})
+		if c.solutionPrincipal() {
+			// Under the solution-principal contract a grant moves only its
+			// subject's authority: the callee refuses the capability whose own
+			// role was revoked, then the fixture's grant is restored.
+			viewer := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
+			role := map[string]any{"organization_id": f.Organization, "installation_id": f.InstalledSolution, "role": "viewer", "person_id": str(viewer, "person_id")}
+			c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "GrantRole", role)
+			held := str(c.must(t, as(ctx, viewer), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.InstalledAudience}), "token")
+			c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "RevokeRole", role)
+			_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": held, "audience": f.InstalledAudience})
+			refused(t, err, codes.PermissionDenied, "revoked")
+			c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "GrantRole", role)
+			return
+		}
 		// A team the installation already reaches moves nothing, as a second run
 		// against a long-lived authority finds: that is the fixture's failure.
 		listed := c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "List", map[string]any{"organization_id": f.Organization})
@@ -521,7 +544,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		if f.SolutionTools == nil {
 			t.Fatal("required conformance fixture missing: fixture supplies no module-to-solution tool case")
 		}
-		c.solutionTools(t, ctx, *f.SolutionTools)
+		c.solutionTools(t, ctx, f, *f.SolutionTools)
 	})
 	t.Run("a child hop attenuates and names its actor and its binding", func(t *testing.T) {
 		// The hop rule: a module hops only on a token addressed to it, and the hop
@@ -611,7 +634,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		if f.InstallationChain == nil {
 			t.Fatal("required conformance fixture missing: the fixture states no installation-owned chain")
 		}
-		c.installationChain(t, ctx, *f.InstallationChain)
+		c.installationChain(t, ctx, f, *f.InstallationChain)
 	})
 	t.Run("a check naming a method applies what the module's delivery declares", func(t *testing.T) {
 		if f.SignManifest == nil || f.SignAuthority == nil {

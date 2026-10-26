@@ -35,13 +35,18 @@ type ownerChecker interface {
 // TARGET (solution principal; conformance RunSolutionPrincipalTarget): run
 // with AUTHORITY_TARGET=solution-principal. Claims take the resource's owner
 // and refuse a mismatch; the owner-blind Allows never admits an owner-selected
-// scope; an owner with ids admits only when both match.
+// scope; an owner with ids admits only when both match; a whole-kind ask with
+// an owner (the list path) is admitted by an owner-selected scope; a plain
+// scope (an organization grant) names resources, not owners, so it admits
+// whatever the owner. The method gate is coarse (kind and action): this check
+// is the module's, comparing the scope's owner with the resource's.
 func TestClaimsAdmitAnOwnerSelectedScopeOnlyForItsOwner(t *testing.T) {
 	if os.Getenv("AUTHORITY_TARGET") != "solution-principal" {
 		t.Skip("target contract, not yet implemented: run with AUTHORITY_TARGET=solution-principal")
 	}
 	c := body(t, "session")
-	c.AuthorityScopes = []*basev0.WorkScopeV1{ownedScope(t, "record", "read", "principal-u"), ownedScope(t, "note", "read", "principal-u", "n1")}
+	c.AuthorityScopes = []*basev0.WorkScopeV1{ownedScope(t, "record", "read", "principal-u"), ownedScope(t, "note", "read", "principal-u", "n1"),
+		{ResourceKind: "plain", Actions: []string{"read"}}}
 	claims := read(t, c)
 	if claims.Allows("record", "read", "") || claims.Allows("record", "read", "r1") || claims.Allows("note", "read", "n1") {
 		t.Fatal("target: the owner-blind Allows admits an owner-selected scope")
@@ -56,6 +61,8 @@ func TestClaimsAdmitAnOwnerSelectedScopeOnlyForItsOwner(t *testing.T) {
 	}{
 		{"record", "r1", "principal-u", true}, {"record", "r1", "principal-v", false}, {"record", "r1", "", false},
 		{"note", "n1", "principal-u", true}, {"note", "n2", "principal-u", false}, {"note", "n1", "principal-v", false},
+		{"record", "", "principal-u", true}, {"record", "", "principal-v", false}, {"note", "", "principal-u", false},
+		{"plain", "p1", "principal-u", true}, {"plain", "p1", "", true},
 	} {
 		if owned.AllowsOwned(q.kind, "read", q.id, q.owner) != q.allowed {
 			t.Fatalf("target: AllowsOwned(%s, read, %s, %s) want %v", q.kind, q.id, q.owner, q.allowed)

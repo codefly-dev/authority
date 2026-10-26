@@ -16,16 +16,19 @@ type InstallationChainCase struct {
 	Hops                             []Hop
 }
 
-func (c *client) installationChain(t *testing.T, ctx context.Context, f InstallationChainCase) {
+func (c *client) installationChain(t *testing.T, ctx context.Context, fixture Fixture, f InstallationChainCase) {
 	if f.Installation == "" || f.Source == "" || f.Credential == "" || len(f.Hops) < 2 {
 		t.Fatal("installation chain requires an installed source and at least two hops")
 	}
+	// Under the solution-principal contract the installation acting for itself
+	// is its principal, and every hop is confined to that principal's data.
+	owner := c.installationOwnerByID(t, ctx, fixture, f.Installation)
 	parent := c.must(t, ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{
 		"installation": map[string]any{"installation_id": f.Installation},
 		"actor":        map[string]any{"credential": f.Credential}, "audience": f.Source,
 	})
 	root := msg(parent, "context")
-	if str(root, "owner_principal_kind") != "agent" || len(listMsgs(root, "actor_chain")) != 0 {
+	if str(root, "owner_principal_kind") != "agent" || len(listMsgs(root, "actor_chain")) != 0 || (owner != "" && str(root, "owner_principal_id") != owner) {
 		t.Fatalf("installation root is not owned by its agent: %v", root)
 	}
 	for n, hop := range f.Hops {
@@ -33,7 +36,7 @@ func (c *client) installationChain(t *testing.T, ctx context.Context, f Installa
 		out := c.must(t, ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{
 			"parent_token": str(parent, "token"), "actor": map[string]any{"credential": hop.Credential},
 			"audience": hop.Audience, "operation_binding_id": hop.Binding,
-			"scopes": []any{scopeAsk(hop.AskKind, []string{hop.AskAction}, nil)},
+			"scopes": []any{ownedBy(scopeAsk(hop.AskKind, []string{hop.AskAction}, nil), owner)},
 		})
 		wc := msg(out, "context")
 		actors := listMsgs(wc, "actor_chain")
@@ -53,7 +56,7 @@ func (c *client) installationChain(t *testing.T, ctx context.Context, f Installa
 				t.Fatalf("hop %d actor %d: %v", n+1, a, actor)
 			}
 		}
-		exactEffectiveScope(t, wc, hop.AskKind, []string{hop.AskAction}, nil)
+		exactScopeOwnedBy(t, wc, hop.AskKind, []string{hop.AskAction}, nil, owner)
 		c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(out, "token"), "audience": hop.Audience})
 		parent = out
 	}

@@ -43,6 +43,10 @@ func (c *client) solutionRoleCases(t *testing.T, ctx context.Context, f Fixture)
 			own := scopeAsk(r.OwnKind, r.OwnActions, nil)
 			viewer := scopeAsk(r.OwnKind, []string{"read"}, nil)
 			consumed := scopeAsk(r.ConsumedKind, []string{r.ConsumedAction}, nil)
+			// Under the solution-principal contract every scope a person holds
+			// through the solution is owned by its principal (RunSolutionPrincipalTarget).
+			owner := c.solutionOwner(t, ctx, f, r.Solution)
+			asked := ownedBy(scopeAsk(r.ConsumedKind, []string{r.ConsumedAction}, nil), owner)
 			// Replaying the identical signed delivery is intentional: each behaviour
 			// can run alone, and no earlier test's success is its precondition.
 			bindings := []solutionhost.AuthorityBinding{{ID: r.Binding, Audience: r.Audience, Operations: map[string][]string{
@@ -61,6 +65,9 @@ func (c *client) solutionRoleCases(t *testing.T, ctx context.Context, f Fixture)
 					map[string]any{"method": "GET /open/{path=**}", "any_checked_caller": true},
 				},
 			}
+			if c.solutionPrincipal() {
+				doc["owner_aware"] = true
+			}
 			if _, err := c.deliver(ctx, f, r.Solution, "solution", r.Generation, []string{r.OwnKind}, doc, 0, bindings...); err != nil {
 				t.Fatalf("deliver solution roles and ceiling: %v", err)
 			}
@@ -74,36 +81,36 @@ func (c *client) solutionRoleCases(t *testing.T, ctx context.Context, f Fixture)
 				if err != nil {
 					t.Fatal(err)
 				}
-				exactScope(t, msg(out, "context"), "authority_scopes", r.OwnKind, []string{"read"}, nil)
+				exactScopeOwnedBy(t, msg(out, "context"), r.OwnKind, []string{"read"}, nil, owner)
 				c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(out, "token"), "audience": r.Solution})
 			case names[1]:
-				_, err := person(r.Audience, "", []any{consumed})
+				_, err := person(r.Audience, "", []any{asked})
 				refused(t, err, codes.PermissionDenied, "beyond")
 				root, err := person(r.Solution, "", nil)
 				if err != nil {
 					t.Fatal(err)
 				}
-				out := c.must(t, ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"parent_token": str(root, "token"), "actor": map[string]any{"credential": r.Credential}, "operation_binding_id": r.Binding, "audience": r.Audience, "scopes": []any{consumed}})
+				out := c.must(t, ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"parent_token": str(root, "token"), "actor": map[string]any{"credential": r.Credential}, "operation_binding_id": r.Binding, "audience": r.Audience, "scopes": []any{asked}})
 				wc := msg(out, "context")
-				exactEffectiveScope(t, wc, r.ConsumedKind, []string{r.ConsumedAction}, nil)
+				exactScopeOwnedBy(t, wc, r.ConsumedKind, []string{r.ConsumedAction}, nil, owner)
 				if str(wc, "owner_principal_id") != str(sess, "person_id") || str(wc, "tenant_id") != f.Organization || str(msg(wc, "operation_binding"), "binding_id") != f.Organization+"/"+r.Solution+"/"+r.Binding {
 					t.Fatal("solution child lost owner, tenant or canonical binding identity")
 				}
 				c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(out, "token"), "audience": r.Audience})
 			case names[2]:
-				out, err := person(r.Solution, r.Binding, []any{consumed})
+				out, err := person(r.Solution, r.Binding, []any{asked})
 				if err != nil {
 					t.Fatal(err)
 				}
-				exactEffectiveScope(t, msg(out, "context"), r.ConsumedKind, []string{r.ConsumedAction}, nil)
+				exactScopeOwnedBy(t, msg(out, "context"), r.ConsumedKind, []string{r.ConsumedAction}, nil, owner)
 			case names[3]:
 				outsider := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": r.Outsider})
 				_, err := c.call(as(ctx, outsider), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": r.Solution})
-				refused(t, err, codes.PermissionDenied, "holds nothing")
+				refused(t, err, codes.PermissionDenied, c.noRole())
 				_, err = c.call(as(ctx, outsider), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": r.Solution, "operation_binding_id": r.Binding})
-				refused(t, err, codes.PermissionDenied, "holds nothing")
+				refused(t, err, codes.PermissionDenied, c.noRole())
 			case names[4]:
-				_, err := person(r.Solution, r.Binding, []any{scopeAsk(r.ConsumedKind, []string{r.ForbiddenAction}, nil)})
+				_, err := person(r.Solution, r.Binding, []any{ownedBy(scopeAsk(r.ConsumedKind, []string{r.ForbiddenAction}, nil), owner)})
 				refused(t, err, codes.PermissionDenied, "beyond")
 				// A correctly signed role cannot manufacture an undeclared permission.
 				doc["roles"] = []any{map[string]any{"name": "installer", "scopes": []any{own}}, map[string]any{"name": "viewer", "scopes": []any{scopeAsk(r.ConsumedKind, []string{r.ForbiddenAction}, nil)}}}

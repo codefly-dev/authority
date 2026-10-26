@@ -44,6 +44,10 @@ func TestTheLocalAuthorityMeetsTheSolutionPrincipalTarget(t *testing.T) {
     name: principal-store-reader
     scopes:
       - {kind: principal.collection, actions: [read], resources: [{id: store-x}]}
+  - organization: acme
+    name: principal-note-reader
+    scopes:
+      - {kind: principal-a.note, actions: [read]}
 people:
   - {id: store-administrator, fixture_token: fixture-store-administrator, organization: acme, roles: [principal-store-admin]}
   - {id: store-reader, fixture_token: fixture-store-reader, organization: acme, roles: [principal-store-reader]}
@@ -51,6 +55,7 @@ people:
   - {id: principal-team-member, fixture_token: fixture-principal-team-member, organization: acme, roles: [], teams: [principal-team]}
   - {id: principal-team-leaver, fixture_token: fixture-principal-team-leaver, organization: acme, roles: [], teams: [principal-team]}
   - {id: principal-org-leaver, fixture_token: fixture-principal-org-leaver, organization: acme, roles: []}
+  - {id: principal-note-reader, fixture_token: fixture-principal-note-reader, organization: acme, roles: [principal-note-reader]}
 `)); err != nil {
 		t.Fatal(err)
 	}
@@ -84,11 +89,13 @@ people:
 		Organization: "acme", OtherOrganization: "globex", Generation: 1,
 		A:     conformance.SolutionUnderTest{Solution: "principal-a", Credential: k.Credential(t, "principal-a")},
 		B:     conformance.SolutionUnderTest{Solution: "principal-b", Credential: k.Credential(t, "principal-b")},
+		C:     conformance.SolutionUnderTest{Solution: "principal-c", Credential: k.Credential(t, "principal-c")},
 		Store: "principal-store", StoreCredential: k.Credential(t, "principal-store"), Kind: "principal.collection",
 		LegacyStore: "principal-legacy-store", LegacyStoreCredential: k.Credential(t, "principal-legacy-store"), LegacyKind: "principal.legacy",
 		Admin: "fixture-alex", Viewer: "fixture-maya", Editor: "fixture-remi", Member: "fixture-dev", Installer: "fixture-principal-installer",
 		Team: "principal-team", TeamMember: "fixture-principal-team-member", TeamLeaver: "fixture-principal-team-leaver", OrgLeaver: "fixture-principal-org-leaver",
-		Administrator: "fixture-store-administrator", Reader: "fixture-store-reader", OtherAdmin: "fixture-zoe", OtherMember: "fixture-omar",
+		Administrator: "fixture-store-administrator", Reader: "fixture-store-reader", NoteReader: "fixture-principal-note-reader",
+		OtherAdmin: "fixture-zoe", OtherMember: "fixture-omar", OtherTeam: "ops",
 		Existing:               "store-x",
 		Uninstall:              func(_ context.Context, id string) error { return k.State.Revoke(id) },
 		RemoveFromTeam:         func(context.Context, string, string) error { return notYet("remove a person from a team") },

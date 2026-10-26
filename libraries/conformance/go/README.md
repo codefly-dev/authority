@@ -72,52 +72,84 @@ single-organization inference remains a local convenience, not a shared promise.
 
 `RunSolutionPrincipalTarget` specifies solution identity before any host
 implements it. The model, in full, is the doc comment on
-`SolutionPrincipalCase`: an installed solution is a principal U of its
-organisation (a stable UUID, reused by a reinstall, disabled by an uninstall,
-distinct per organisation); the installation acting for itself is U, with the
-install request's role; the solution's roles are levels on U's data, granted
-and revoked by an organisation administrator or the solution's installer
-(`GrantRole`, `RevokeRole`, `ListRoleGrants`); a capability through the
-solution is confined to U's data, by owner-selected scopes
-(`WorkScopeV1.resource_owner_id`, field 4), issued only to an audience that
-declares owner-aware checking; an existing person- or organisation-owned
-resource joins U only by `AuthorizeTransfer`, with the person's own admin on it
-and at least editor on U. The target deletes `GrantToTeam`, `team_ids` and
-`agent_principal_id`.
+`SolutionPrincipalCase`. In short:
 
-The suite first names what the published contract lacks and what it still
-carries, then runs these cases, each making its own grants:
+- an installed solution is a principal U of its organization: a stable UUID,
+  reused by a reinstall, disabled by an uninstall, distinct per organization;
+- the installation acting for itself is U, with the install request's role;
+- the solution's roles are levels on U's data, and role names carry no rank;
+  they are granted, revoked (both idempotent) and listed by an administrator
+  of the installation's organization or a holder of that installation's
+  installer role (`GrantRole`, `RevokeRole`, `ListRoleGrants`);
+- a capability through the solution, a person's or U's own, is confined to U's
+  data by owner-selected scopes (`WorkScopeV1.resource_owner_id`, field 4),
+  issued only to audiences declaring owner-aware checking, solutions included;
+- Check with a method admits an owner-selected scope by kind and action, and
+  the module enforces owner == the resource's owner (`AllowsOwned`,
+  `allows_owned`, `allowsOwned`);
+- an existing resource owned by the organization or a person of it joins U
+  only by `AuthorizeTransfer`, with the person's own admin on that resource
+  and write on U's data through their current roles, read live.
 
-1. install creates the solution principal and its roles; a reinstall keeps its UUID; another organisation's is another principal
-2. the install request's role is the agent's, and no person's: the owner and the organisation administrator hold no role (the agent's owner id is U; it needs its operation binding)
+The target deletes `GrantToTeam`, `team_ids` and `agent_principal_id`, and
+changes the composition contract's text that the installing person holds the
+installer role.
+
+The suite first names what the published contract lacks and still carries,
+then runs these cases, each making its own grants:
+
+1. install creates the solution principal and its roles; a reinstall keeps its UUID; another organization's is another principal
+2. the install request's role is the agent's, and no person's; the agent is confined to the principal's data (eight widening asks refused)
 3. without a role on the solution a person is refused, naming the reason
-4. a viewer reads exactly what the principal owns (root, child, Check, `ListResources` with owner, owner with ids), and nothing a person, an installation, the organisation or another principal owns
-5. a capability through the solution is confined to the principal's data; the person's own grants never flow in
-6. owner-selected scopes are issued only to an audience that checks owners
-7. a resource created through the solution is owned by its principal, the person its author
-8. an editor writes and a viewer cannot, each by name
-9. an organisation administrator or the solution's installer grants; anyone else, and every malformed grant, is refused by name
-10. another installation's and another organisation's members never reach the principal's data
-11. a child never widens the owner, the actions or the ids it narrowed to
-12. an existing resource joins the principal only by a transfer from a person or the organisation, administered through the person's own grants, by an editor of the principal (and nine named refusals)
-13. revoking a person's role stops their access at once, theirs alone; their old capabilities stay dead after a re-grant
-14. a team's role is its members' access; revoking it or leaving the team stops them at once; old capabilities stay dead after a re-grant
-15. a person leaving the organisation loses the solution's data at once
-16. uninstalling disables the principal at once and its data stays owned; old capabilities stay dead after reinstall and re-grant
+4. a viewer reads exactly what the principal owns, and nothing a person, an installation or another principal owns
+5. a route requiring the kind admits an owner-selected scope; the module enforces the owner
+6. a capability through the solution is confined to the principal's data; the person's own grants never flow in (the store's kind and the solution's own kind)
+7. every audience receiving owner-selected scopes declares owner-aware checking, solutions included
+8. withdrawing owner-aware checking refuses the owner-selected capabilities issued before
+9. a resource created through the solution is owned by its principal, the person its author
+10. a role writes when its scopes hold write, whatever it is called; a viewer cannot
+11. an administrator of the organization or the installation's installer grants, revokes and lists; anyone else (another organization's administrator, another installation's installer), and every malformed grant, is refused by name; grants are idempotent
+12. another installation's and another organization's members never reach the principal's data
+13. a child never widens the owner, the actions or the ids it narrowed to
+14. an existing resource joins the principal only by a transfer from the organization or its person, administered on that resource through the person's own grants, by a holder of write on the principal's data (fourteen named refusals)
+15. revoking a person's role stops their access at once, theirs alone; their old capabilities stay dead after a re-grant
+16. a team's role is its members' access; revoking it or leaving the team stops them at once; a direct grant survives the team's revoke
+17. a person leaving the organization loses the solution's data at once
+18. uninstalling disables the principal at once and its data stays owned; old capabilities (a person's, the agent's, a parent's children) stay dead after reinstall and re-grant
 
-Two library targets pin the modules' side: `libraries/hop/go`
-`TestAnOwnerSelectedScopeNeverReadsAsTheWholeKind` (the stamp never flattens an
-owner-selected scope into a whole-kind one, and owner-blind `Allows` refuses
-it) and `libraries/authority-client/go/workcontext`
-`TestClaimsAdmitAnOwnerSelectedScopeOnlyForItsOwner` (`AllowsOwned` takes the
-resource's owner; owner and ids both match).
+Library targets pin the modules' side: `libraries/hop/go`
+`TestAnOwnerSelectedScopeNeverReadsAsTheWholeKind`,
+`libraries/authority-client/go/workcontext`
+`TestClaimsAdmitAnOwnerSelectedScopeOnlyForItsOwner`,
+`libraries/authority-client/python/tests/test_owner_target.py` and
+`libraries/authority-client/typescript/tests/owner-target.test.mjs`.
 
-When the target joins `Run`, it supersedes Run's `GrantToTeam`/`team_ids`
-steps (the installation lifecycle's exposure, the callee-staleness probe's
-grant), and Run reads the installation's acting principal through
-`installationPrincipal`, so one host passes both.
+### Run cases the target supersedes, and how one host passes both
+
+Each asserts the earlier model while the published contract is the earlier
+one, and the target's model once it carries `Installation.principal_id`
+(`client.solutionPrincipal`):
+
+| Run case | Under the target |
+| --- | --- |
+| `conformance.go` an installation acts for itself | its owner is `principal_id` (`installationPrincipal`) |
+| `conformance.go` the permission matrix | a row at a solution audience asks within the owner the person holds there |
+| `conformance.go` a callee refuses what does not verify (staleness) | the viewer's own role is revoked and restored (`RevokeRole`), not a team exposure |
+| `conformance.go` `applyManifest` | a solution delivery declares `owner_aware` |
+| `solution_roles.go` [0] own audience, [1] consumed child, [2] binding root, [4] binding ceiling | owner-selected asks and scopes; the delivery declares `owner_aware` |
+| `solution_roles.go` [3] no solution role | refused "holds no role" |
+| `installation_chain.go` | the agent root's owner is U; every hop is owner-selected |
+| `solution_tools.go` | the asks at the solution audience are owner-selected |
+| `installation_lifecycle.go` exposure | a team's `GrantRole`, read back through `ListRoleGrants` |
+
+A host fixture under the target grants roles with `GrantRole` (the
+installing person holds no role unless granted, so a Matrix row such as the
+installer publishing at a solution needs an explicit installer grant), and
+declares `owner_aware` on the modules solutions consume.
 
 Run everything with `AUTHORITY_TARGET=solution-principal`: from
 `modules/authority/services/local/code`,
-`go test ./plugins/registry_test -run SolutionPrincipal`, and `go test ./...`
-in `libraries/hop/go` and `libraries/authority-client/go`. Each skips without it.
+`go test ./plugins/registry_test -run SolutionPrincipal`; `go test ./...` in
+`libraries/hop/go` and `libraries/authority-client/go`; `pytest` in
+`libraries/authority-client/python`; `npm test` in
+`libraries/authority-client/typescript`. Each target skips without it.
