@@ -41,8 +41,7 @@ func (c *client) forwardedContext(t *testing.T, ctx context.Context, f Fixture) 
 		at := time.Unix(i64(msg(issued, "context"), "issued_at_unix"), 0).Add(time.Second)
 		trust.Now = func() time.Time { return at }
 
-		const proof = "conformance-proof"
-		if claims, err := forwarded.Authenticate(stamped(token, proof), proof, f.Audience, trust); err != nil || claims.Audience() != f.Audience {
+		if claims, err := forwarded.Authenticate(stamped(token), f.Audience, trust); err != nil || claims.Audience() != f.Audience {
 			t.Fatalf("the host's own context, under its published keys, is accepted: %v", err)
 		}
 		payload, _, _ := strings.Cut(token, ".")
@@ -71,7 +70,7 @@ func (c *client) forwardedContext(t *testing.T, ctx context.Context, f Fixture) 
 			"expired":        {token, f.Audience, "expired", later},
 		} {
 			t.Run(name+" is refused by name", func(t *testing.T) {
-				_, err := forwarded.Authenticate(stamped(probe.token, proof), proof, probe.audience, probe.trust)
+				_, err := forwarded.Authenticate(stamped(probe.token), probe.audience, probe.trust)
 				if !errors.Is(err, forwarded.ErrUnauthenticated) || !strings.Contains(err.Error(), probe.reason) {
 					t.Fatalf("want a refusal naming %q: %v", probe.reason, err)
 				}
@@ -80,9 +79,9 @@ func (c *client) forwardedContext(t *testing.T, ctx context.Context, f Fixture) 
 	})
 }
 
-// stamped is the incoming metadata of a call the hop let through carrying
-// token: the token, this run's proof and the stamp's digest of the token.
-func stamped(token, proof string) metadata.MD {
+// stamped supplies a digest-bound token to the identity reader. Admission
+// requires a signed hop proof and replay consumption, tested in libraries/hop.
+func stamped(token string) metadata.MD {
 	sum := sha256.Sum256([]byte(token))
-	return metadata.Pairs("x-codefly-work-context", token, "x-codefly-hop-proof", proof, "x-codefly-hop-context", hex.EncodeToString(sum[:]))
+	return metadata.Pairs("x-codefly-work-context", token, "x-codefly-hop-context", hex.EncodeToString(sum[:]))
 }

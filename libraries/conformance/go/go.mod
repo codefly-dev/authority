@@ -3,7 +3,7 @@ module github.com/codefly-dev/authority/libraries/conformance/go
 go 1.27.3
 
 require (
-	github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0-20261025234644-fff5385f9203
+	github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0-20261026091034-d87cc7e56e4f
 	github.com/codefly-dev/authority/libraries/resources/go v0.0.0-20261023203940-e720ad2851c7
 	github.com/codefly-dev/core v0.19.7-0.20261026034911-b57347f09515
 	google.golang.org/grpc v1.84.0
