@@ -19,14 +19,17 @@ This repository holds two things, and only these two:
 2. **The local authority** (`modules/authority/services/local`): the development
    implementation. One process that signs in fixture people with their roles,
    issues and verifies Work Contexts, knows the composition from the rendered
-   manifests, and holds the fixture installations in memory. No accounts
+   manifests, and holds the installations its composition declares in memory. No accounts
    service, no stores, no platform frontend. Running a solution locally is the
    solution, the modules it consumes, and this.
 
 **What is reused today.** The local implementation uses Core's Work Context
 authority/verifier, workload attestation and signed composition machinery.
-Its issuer/state resolves fixture grants; it does not currently link Accounts'
-sign-in or grant-derivation packages. The original host-package reuse requirement
+Its local issuer delegates issuance and grant derivation to this repository's
+shared authority core; the state adapter supplies fixture roles and delivery data.
+It does not currently link Accounts' sign-in or grant-derivation packages, and
+this adapter migration does not establish Accounts adoption of that core.
+The original host-package reuse requirement
 remains an unresolved design obligation with the host owner, not a guarantee
 established by this checkout. The shared conformance suite must run against both
 implementations; a local pass or a skipped provider scenario does not prove parity.
@@ -130,7 +133,7 @@ design.
 |---|---|
 | The solution registers its backend and page | `/modules/_register`, `/modules/_registration-token` (gateway `gateway_module_routes.go`); `/.well-known/solution.json` and `/.well-known/capabilities` served by the runtime and proxied |
 | Routes to the solution | `/solutions/<id>/*` (gateway), `/api/solutions/<id>/proxy/*` (frontend), module-federation assets, the registry snapshot, the 120 s lease |
-| Who may use it | `ListSolutionEntitlements` (gateway `handleSolutionEntitlements`); `InstallationService`: `InstallSolution`, `GrantInstallationToTeam`, `ListInstallations`; installations come from the fixture file |
+| Who may use it | `ListSolutionEntitlements` (gateway `handleSolutionEntitlements`); `InstallationService`: `InstallSolution`, `GrantInstallationToTeam`, `ListInstallations`; installations come from the composition's fixture-composition document |
 | The solution is installed | host → solution `POST /_codefly/installations` with a Work Context, retried until acknowledged |
 | The solution acts for a viewer against a module | `StartTask` under resource and installation confinement (`x-codefly-resource`, installation header) |
 
@@ -173,8 +176,10 @@ talks to. Against that:
   an endpoint on a cell), installations with the install step, module routes.
 
 **What remains is the interface.** Authority: `Issue`, `Check`, `Keys`.
-Composition: `ApplyManifest`. Installation: `Install`, `GrantToTeam`, `List`, and
-the install step callback. Sign-in at the browser edge only. Routing is the data
+Composition: `ApplyManifest`. Installation: `Install`, `GrantRole`, `RevokeRole`,
+`ListRoleGrants`, `List`, and the install step callback (installation 0.2.0: an
+installed solution is a principal, and a role grant to a person or a team is
+the access; `GrantToTeam` is gone). Sign-in at the browser edge only. Routing is the data
 plane, not a contract. 0.1.0 mirrors today's spellings so the local authority serves
 the SDKs as they are; the reduced shape is 0.2.0, a host contract change through a
 handbook proposal, after which the SDKs move once.
@@ -224,7 +229,7 @@ staging validated.
 **Rung 1 first; it is the one that matters (owner, 2026-10-21).** The loop:
 
 1. Cut a branch in module-saas-starter. accounts declares in its module
-   interface that it implements `codefly.dev/authority@0.3.0`, `codefly.dev/composition@0.2.0`,
+   interface that it implements `codefly.dev/authority@0.3.1`, `codefly.dev/composition@0.2.0`,
    `codefly.dev/installation@0.1.0` and `codefly.dev/session@0.2.0`, takes this repo's
    protos (bindings via `codefly generate proto`), and serves the four services as
    adapters over what it already has: `Issue` → StartTask / StartInstallationTask /
@@ -271,7 +276,7 @@ Gap 7 was a decision, taken on 2026-10-22: the interface carries the host's name
 ## The namespace, settled (2026-10-22)
 
 The interfaces are the host's contract, so they carry the host's names: publisher
-`codefly.dev` (ids `codefly.dev/authority@0.3.0`, `composition`, `installation`,
+`codefly.dev` (ids `codefly.dev/authority@0.3.1`, `composition`, `installation`,
 `installable`, `session`) and protobuf packages `host.authority.v1`,
 `host.composition.v1`, `host.installation.v1`, `host.session.v1` under `proto/host/`.
 Not `codefly.*`: the host's buf configuration excludes a `codefly/` proto directory
@@ -355,7 +360,7 @@ role through a granted team, and nothing from the organisation's roles. Another
 organisation's installation grants nothing. The values of real roles belong to
 each solution's manifest and arrive through the carrier: core's manifest carries
 no roles, so they travel in the authority's own document delivered with it
-(`AuthorityManifestV1.roles`, as the sketch's `ModuleManifestV1.roles`), bounded
+(`AuthorityManifestV1.roles`), bounded
 by the solution's own scope ceilings and the invoke/lookup scopes in the paired
 Core manifest. Consumed kinds do not become kinds the solution serves. This repository holds
 the contract and its evaluation, never a product's roles.
@@ -413,10 +418,14 @@ role narrowing/removal and binding narrowing/removal before resolution, during
 minting and after issuance. These checks do not choose a child-scope policy or
 qualify the separate accounts implementation.
 
-Installation administration (`List`, `Install`, `GrantToTeam`) requires an open
-session whose current person is an administrator or owner of the requested
-organization. Anonymous and invalid sessions are `Unauthenticated`; a member or
-an administrator of another organization receives `PermissionDenied`. This is
+Installation administration (`List`, `Install`) requires an open session whose
+current person is an administrator or owner of the requested organization; role
+grants (`GrantRole`, `RevokeRole`, `ListRoleGrants`) also admit the holder of the
+installer role on that installation. Anonymous and invalid sessions are
+`Unauthenticated`; anyone else receives `PermissionDenied`, and a caller of
+another organization is answered as if the installation did not exist. Every
+decision is the generic authority core's (`libraries/authority-core/go`); the
+local authority is a host over it. This is
 not the navigation API: a member probes each target with an empty-scope `Issue`.
 That call returns `FailedPrecondition` when the audience has no active
 installation in the person's organization, and `PermissionDenied` when installed
@@ -427,12 +436,16 @@ The local fixture includes `no-roles` in Acme for that case.
 The suite proves it as a matrix: the fixture states, for each person at each
 audience, which kind and action is allowed and which refused, and the suite asks
 for exactly that scope and expects the answer. The local authority's fixture carries
-two organisations, a person with no roles or teams, an automatically generated
-developer role, and a solution installed under different roles. The host supplies its own matrix from its
-own fixture. When the fixture signs, the suite composes its solution as a carrier
-with the authority's document carrying its roles; the sketch remains for a
-fixture that does not sign.
+two organisations, a person with no roles or teams and an automatically generated
+developer role; the test kit's composition document installs a solution under
+different roles in each. The host supplies its own matrix from its
+own fixture. The suite requires a signed carrier and authenticated delivery
+workload, with the paired authority document carrying the solution's roles.
 
+The fixture names only the authority's own vocabulary. A composing workspace
+adds what its modules and solutions need: grants on the fixture's roles,
+installations and stand-in modules, through the versioned `fixture-composition`
+document ([what a composition adds to the fixture](modules/authority/services/local/README.md#what-a-composition-adds-to-the-fixture)).
 The local authority also logs a delivery-time role × method report and
 generates its local developer role from concrete delivered permissions. See
 [local permission diagnostics](modules/authority/services/local/README.md#permission-diagnostics-during-local-development)
@@ -862,8 +875,10 @@ results do not qualify later suite additions.
   keys it pins and reads the manifest from the verified document. The mini
   local authority pins the kit's release key and attests the carrier by the launcher's
   anchor; the host pins its release keys and attests the delivery service
-  account. The sketch (`manifest`) stays through the transition and is ignored
-  when a carrier is present. Not yet done: the host adapter behind it.
+  account. Public requests without a signed carrier and authenticated delivery
+  credential are refused before composition or pending installation work. The
+  old `manifest` wire field grants no authority. Trusted fixture seeding is a
+  host-only state API. Not yet done: the host adapter behind it.
 
 ## Local service name (2026-10-25)
 
@@ -942,7 +957,7 @@ All consumers and implementations must select the updated interface versions;
 this repository updates its module, edge, hop and console declarations. SaaS
 must adopt the version and fields before claiming this contract.
 
-`codefly.dev/authority@0.3.0` adds `AttachResource` and `DetachResource`, and
+`codefly.dev/authority@0.3.1` adds `AttachResource` and `DetachResource`, and
 `codefly.dev/composition@0.2.0` adds `RoleV1.installation_owned_scopes`: a role
 scope held only on the resources its installation owns. The kind's one serving
 module attaches a resource from a capability holding `create` on the whole kind
@@ -950,7 +965,7 @@ module attaches a resource from a capability holding `create` on the whole kind
 resource); reading attaches nothing. A resource has one owner per organisation,
 an installation owns at most 32 of a kind at a time, and the serving module
 detaches what it deletes and rolls back a create whose attach is refused. Both
-are additive. The local authority implements 0.3.0 and 0.2.0; the edge, hop and
+are additive. The local authority implements authority 0.3.1 and composition 0.2.0; the edge, hop and
 console call nothing new, so they require `>=0.2.0 <0.4.0` and resolve against
 a host still at 0.2.0. Shared conformance requires `InstallationResources`, so
 a host must implement both before it passes.
@@ -959,3 +974,15 @@ The local authority keeps installation ownership in memory, for development
 only: a restart (a hot reload included) re-derives installations from the
 fixture but not what they own, so viewers lose owned resources until the store
 attaches them again. A host keeps ownership durably.
+
+The installation-owned resolver and ownership transactions live in
+`libraries/authority-core/go`, alongside the ordinary role resolver. Hosts
+persist `domain.Module.OwnedRoles` and `domain.Installation.Owned` through the
+shared Store contract. Ordinary roles retain main's resource-owner selection;
+installation-owned rows contain only attached ids, and an empty owned set emits
+no grant. The local host is an adapter to that core. Accounts adoption and
+its durable adapter are not qualified by a local authority test.
+
+The 0.3.1 authority version is an additive pre-stable revision selected for
+this refresh so existing `>=0.2.0 <0.4.0` consumers admit it. It retains 0.3.0's
+`AuthorizeTransfer` and adds attachment operations. Composition remains 0.2.0.

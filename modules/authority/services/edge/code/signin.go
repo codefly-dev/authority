@@ -38,6 +38,8 @@ var signInPage = template.Must(template.ParseFS(signInBuild, "signin/out/index.h
 
 // fixturePerson is one person as the page reads them (web/src/sign-in.tsx).
 type fixturePerson struct {
+	Description    string   `json:"description,omitempty"`
+	StartHere      bool     `json:"startHere,omitempty"`
 	PersonID       string   `json:"personId"`
 	Email          string   `json:"email"`
 	OrganizationID string   `json:"organizationId"`
@@ -65,6 +67,11 @@ func (e *Edge) signInPage(w http.ResponseWriter, r *http.Request) {
 			roles = []string{}
 		}
 		data.People = append(data.People, fixturePerson{PersonID: p.GetPersonId(), Email: p.GetEmail(), OrganizationID: p.GetOrganizationId(), Roles: roles, FixtureToken: p.GetFixtureToken()})
+	}
+	data.People, err = selectSignInPeople(data.People, e.SignInChoices)
+	if err != nil {
+		refuse(w, http.StatusInternalServerError, "the sign-in choices are invalid: "+err.Error())
+		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")

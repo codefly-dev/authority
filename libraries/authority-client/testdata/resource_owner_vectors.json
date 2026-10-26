@@ -1,0 +1,175 @@
+{
+  "_comment": "resource_owner_id vectors: every protovalidate implementation must accept the first list and refuse the second. Read by workcontext/owner_test.go.",
+  "accepted": [
+    {
+      "name": "no owner",
+      "owner": ""
+    },
+    {
+      "name": "512 ASCII bytes",
+      "owner": "u",
+      "repeat": 512
+    },
+    {
+      "name": "a principal UUID",
+      "owner": "5f0c8a2e-3b1d-4c7a-9e2f-6a1b0c3d4e5f"
+    },
+    {
+      "name": "a path-like principal",
+      "owner": "solutions/org-1/wiki:principal"
+    },
+    {
+      "name": "every allowed punctuation",
+      "owner": "!\"#$%&'()+,-./:;<=>?@[\\]^_`{|}~"
+    }
+  ],
+  "refused": [
+    {
+      "name": "513 ASCII bytes",
+      "owner": "u",
+      "repeat": 513
+    },
+    {
+      "name": "512 bytes of four-byte runes",
+      "owner": "\ud83d\ude00",
+      "repeat": 128
+    },
+    {
+      "name": "2048 bytes in 512 runes",
+      "owner": "\ud83d\ude00",
+      "repeat": 512
+    },
+    {
+      "name": "a leading space",
+      "owner": " principal-u"
+    },
+    {
+      "name": "an inner space",
+      "owner": "principal u"
+    },
+    {
+      "name": "a trailing newline",
+      "owner": "principal-u\n"
+    },
+    {
+      "name": "a tab",
+      "owner": "principal\tu"
+    },
+    {
+      "name": "a vertical tab",
+      "owner": "principal\u000bu"
+    },
+    {
+      "name": "a form feed",
+      "owner": "principal\fu"
+    },
+    {
+      "name": "a NUL",
+      "owner": "principal\u0000u"
+    },
+    {
+      "name": "a start-of-heading control",
+      "owner": "principal\u0001u"
+    },
+    {
+      "name": "DEL",
+      "owner": "principal\u007fu"
+    },
+    {
+      "name": "a C1 control",
+      "owner": "principal\u0085u"
+    },
+    {
+      "name": "a non-breaking space",
+      "owner": "principal-u\u00a0"
+    },
+    {
+      "name": "an ideographic space",
+      "owner": "principal\u3000u"
+    },
+    {
+      "name": "a line separator",
+      "owner": "principal\u2028u"
+    },
+    {
+      "name": "a zero-width space",
+      "owner": "principal-u\u200b"
+    },
+    {
+      "name": "a zero-width joiner",
+      "owner": "principal\u200du"
+    },
+    {
+      "name": "a byte-order mark",
+      "owner": "\ufeffprincipal-u"
+    },
+    {
+      "name": "a soft hyphen",
+      "owner": "principal\u00adu"
+    },
+    {
+      "name": "a right-to-left override",
+      "owner": "principal\u202eu"
+    },
+    {
+      "name": "a private-use character",
+      "owner": "principal\ue000u"
+    },
+    {
+      "name": "a combining grapheme joiner",
+      "owner": "principal-u\u034f"
+    },
+    {
+      "name": "variation selector-16",
+      "owner": "principal-u\ufe0f"
+    },
+    {
+      "name": "a Hangul filler",
+      "owner": "principal\u3164u"
+    },
+    {
+      "name": "a Hangul choseong filler",
+      "owner": "principal\u115fu"
+    },
+    {
+      "name": "a Braille blank",
+      "owner": "principal\u2800u"
+    },
+    {
+      "name": "an NFC accent",
+      "owner": "principal-\u00e9"
+    },
+    {
+      "name": "an NFD accent",
+      "owner": "principal-e\u0301"
+    },
+    {
+      "name": "a Cyrillic lookalike",
+      "owner": "\u0440rincipal-u"
+    },
+    {
+      "name": "a fullwidth lookalike",
+      "owner": "\uff50rincipal-u"
+    },
+    {
+      "name": "an unassigned code point",
+      "owner": "a\u0378b"
+    },
+    {
+      "name": "the noncharacter U+FFFF",
+      "owner": "a\uffffb"
+    },
+    {
+      "name": "the noncharacter U+FDD0",
+      "owner": "a\ufdd0b"
+    },
+    {
+      "name": "the wildcard",
+      "owner": "*"
+    },
+    {
+      "name": "a wildcard inside",
+      "owner": "principal-*"
+    }
+  ]
+}

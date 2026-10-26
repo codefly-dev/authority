@@ -19,7 +19,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file host/authority/v1/authority.proto.
  */
 export const file_host_authority_v1_authority: GenFile = /*@__PURE__*/
-  fileDesc("CiFob3N0L2F1dGhvcml0eS92MS9hdXRob3JpdHkucHJvdG8SEWhvc3QuYXV0aG9yaXR5LnYxIuYDCgxJc3N1ZVJlcXVlc3QSMgoGcGVyc29uGAEgASgLMiAuaG9zdC5hdXRob3JpdHkudjEuUGVyc29uU2Vzc2lvbkgAEjkKCHdvcmtsb2FkGAIgASgLMiUuaG9zdC5hdXRob3JpdHkudjEuV29ya2xvYWRDcmVkZW50aWFsSAASOgoMaW5zdGFsbGF0aW9uGAMgASgLMiIuaG9zdC5hdXRob3JpdHkudjEuSW5zdGFsbGF0aW9uUmVmSAASFgoMcGFyZW50X3Rva2VuGAQgASgJSAASNgoKZGVsZWdhdGlvbhgLIAEoCzIgLmhvc3QuYXV0aG9yaXR5LnYxLkRlbGVnYXRpb25SZWZIABIQCghhdWRpZW5jZRgFIAEoCRIuCgZzY29wZXMYBiADKAsyHi5ob3N0LmF1dGhvcml0eS52MS5Xb3JrU2NvcGVWMRITCgt0dGxfc2Vjb25kcxgHIAEoAxIcChRvcGVyYXRpb25fYmluZGluZ19pZBgIIAEoCRIXCg9vcmdhbml6YXRpb25faWQYCSABKAkSNAoFYWN0b3IYCiABKAsyJS5ob3N0LmF1dGhvcml0eS52MS5Xb3JrbG9hZENyZWRlbnRpYWwSEQoJb3BlcmF0aW9uGAwgASgJQgQKAmFzIiYKDURlbGVnYXRpb25SZWYSFQoNZGVsZWdhdGlvbl9pZBgBIAEoCSJiCg9EZWxlZ2F0ZVJlcXVlc3QSDgoGbW9kdWxlGAEgASgJEi4KBnNjb3BlcxgCIAMoCzIeLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtTY29wZVYxEg8KB3B1cnBvc2UYAyABKAkirgEKCkRlbGVnYXRpb24SFQoNZGVsZWdhdGlvbl9pZBgBIAEoCRIXCg9vcmdhbml6YXRpb25faWQYAiABKAkSDwoHZ3JhbnRvchgDIAEoCRIOCgZtb2R1bGUYBCABKAkSLgoGc2NvcGVzGAUgAygLMh4uaG9zdC5hdXRob3JpdHkudjEuV29ya1Njb3BlVjESDwoHcHVycG9zZRgGIAEoCRIOCgZhY3RpdmUYByABKAgiYwoUR2V0RGVsZWdhdGlvblJlcXVlc3QSFQoNZGVsZWdhdGlvbl9pZBgBIAEoCRI0CgVhY3RvchgCIAEoCzIlLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtsb2FkQ3JlZGVudGlhbCIwChdSZXZva2VEZWxlZ2F0aW9uUmVxdWVzdBIVCg1kZWxlZ2F0aW9uX2lkGAEgASgJIk0KGFJldm9rZURlbGVnYXRpb25SZXNwb25zZRIxCgpkZWxlZ2F0aW9uGAEgASgLMh0uaG9zdC5hdXRob3JpdHkudjEuRGVsZWdhdGlvbiIhCg1QZXJzb25TZXNzaW9uSgQIARACUgpzZXNzaW9uX2lkIigKEldvcmtsb2FkQ3JlZGVudGlhbBISCgpjcmVkZW50aWFsGAEgASgJIioKD0luc3RhbGxhdGlvblJlZhIXCg9pbnN0YWxsYXRpb25faWQYASABKAkiagoNSXNzdWVSZXNwb25zZRINCgV0b2tlbhgBIAEoCRIXCg9leHBpcmVzX2F0X3VuaXgYAiABKAMSMQoHY29udGV4dBgDIAEoCzIgLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtDb250ZXh0VjEiUQoMQ2hlY2tSZXF1ZXN0Eg0KBXRva2VuGAEgASgJEhAKCGF1ZGllbmNlGAIgASgJEg4KBm1ldGhvZBgDIAEoCRIQCghhZHZpc29yeRgEIAEoCCJzCg1DaGVja1Jlc3BvbnNlEjEKB2NvbnRleHQYASABKAsyIC5ob3N0LmF1dGhvcml0eS52MS5Xb3JrQ29udGV4dFYxEh4KFmF1dGhvcml6YXRpb25fcmV2aXNpb24YAiABKAQSDwoHcmVmdXNhbBgDIAEoCSINCgtLZXlzUmVxdWVzdCJKCgxLZXlzUmVzcG9uc2USDgoGaXNzdWVyGAEgASgJEioKBGtleXMYAiADKAsyHC5ob3N0LmF1dGhvcml0eS52MS5QdWJsaWNLZXkiQgoJUHVibGljS2V5Eg4KBmtleV9pZBgBIAEoCRIRCglhbGdvcml0aG0YAiABKAkSEgoKcHVibGljX2tleRgDIAEoDCJeChRMaXN0UmVzb3VyY2VzUmVxdWVzdBINCgV0b2tlbhgBIAEoCRIQCghhdWRpZW5jZRgCIAEoCRIVCg1yZXNvdXJjZV9raW5kGAMgASgJEg4KBmFjdGlvbhgEIAEoCSJJChVMaXN0UmVzb3VyY2VzUmVzcG9uc2USMAoGZ3JhbnRzGAEgAygLMiAuaG9zdC5hdXRob3JpdHkudjEuUmVzb3VyY2VHcmFudCKIAQoVQXR0YWNoUmVzb3VyY2VSZXF1ZXN0Eg0KBXRva2VuGAEgASgJEjQKBWFjdG9yGAIgASgLMiUuaG9zdC5hdXRob3JpdHkudjEuV29ya2xvYWRDcmVkZW50aWFsEhUKDXJlc291cmNlX2tpbmQYAyABKAkSEwoLcmVzb3VyY2VfaWQYBCABKAkiMQoWQXR0YWNoUmVzb3VyY2VSZXNwb25zZRIXCg9pbnN0YWxsYXRpb25faWQYASABKAkikgEKFURldGFjaFJlc291cmNlUmVxdWVzdBI0CgVhY3RvchgBIAEoCzIlLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtsb2FkQ3JlZGVudGlhbBIXCg9vcmdhbml6YXRpb25faWQYAiABKAkSFQoNcmVzb3VyY2Vfa2luZBgDIAEoCRITCgtyZXNvdXJjZV9pZBgEIAEoCSIxChZEZXRhY2hSZXNvdXJjZVJlc3BvbnNlEhcKD2luc3RhbGxhdGlvbl9pZBgBIAEoCSJaCg1SZXNvdXJjZUdyYW50Eg0KA2FsbBgBIAEoCEgAEgwKAmlkGAIgASgJSAASEAoGcHJlZml4GAMgASgJSAASEQoHcGF0dGVybhgEIAEoCUgAQgcKBW1hdGNoMvoGChBBdXRob3JpdHlTZXJ2aWNlEmoKBUlzc3VlEh8uaG9zdC5hdXRob3JpdHkudjEuSXNzdWVSZXF1ZXN0GiAuaG9zdC5hdXRob3JpdHkudjEuSXNzdWVSZXNwb25zZSIegtPkkwIYOgEqIhMvdjEvYXV0aG9yaXR5Omlzc3VlEmoKBUNoZWNrEh8uaG9zdC5hdXRob3JpdHkudjEuQ2hlY2tSZXF1ZXN0GiAuaG9zdC5hdXRob3JpdHkudjEuQ2hlY2tSZXNwb25zZSIegtPkkwIYOgEqIhMvdjEvYXV0aG9yaXR5OmNoZWNrEkcKBEtleXMSHi5ob3N0LmF1dGhvcml0eS52MS5LZXlzUmVxdWVzdBofLmhvc3QuYXV0aG9yaXR5LnYxLktleXNSZXNwb25zZRJiCg1MaXN0UmVzb3VyY2VzEicuaG9zdC5hdXRob3JpdHkudjEuTGlzdFJlc291cmNlc1JlcXVlc3QaKC5ob3N0LmF1dGhvcml0eS52MS5MaXN0UmVzb3VyY2VzUmVzcG9uc2USZQoOQXR0YWNoUmVzb3VyY2USKC5ob3N0LmF1dGhvcml0eS52MS5BdHRhY2hSZXNvdXJjZVJlcXVlc3QaKS5ob3N0LmF1dGhvcml0eS52MS5BdHRhY2hSZXNvdXJjZVJlc3BvbnNlEmUKDkRldGFjaFJlc291cmNlEiguaG9zdC5hdXRob3JpdHkudjEuRGV0YWNoUmVzb3VyY2VSZXF1ZXN0GikuaG9zdC5hdXRob3JpdHkudjEuRGV0YWNoUmVzb3VyY2VSZXNwb25zZRJNCghEZWxlZ2F0ZRIiLmhvc3QuYXV0aG9yaXR5LnYxLkRlbGVnYXRlUmVxdWVzdBodLmhvc3QuYXV0aG9yaXR5LnYxLkRlbGVnYXRpb24SawoQUmV2b2tlRGVsZWdhdGlvbhIqLmhvc3QuYXV0aG9yaXR5LnYxLlJldm9rZURlbGVnYXRpb25SZXF1ZXN0GisuaG9zdC5hdXRob3JpdHkudjEuUmV2b2tlRGVsZWdhdGlvblJlc3BvbnNlElcKDUdldERlbGVnYXRpb24SJy5ob3N0LmF1dGhvcml0eS52MS5HZXREZWxlZ2F0aW9uUmVxdWVzdBodLmhvc3QuYXV0aG9yaXR5LnYxLkRlbGVnYXRpb25CL1otZ2F0ZXdheS9wa2cvZ2VuL2hvc3QvYXV0aG9yaXR5L3YxO2F1dGhvcml0eXYxYgZwcm90bzM", [file_google_api_annotations, file_host_authority_v1_work_context]);
+  fileDesc("CiFob3N0L2F1dGhvcml0eS92MS9hdXRob3JpdHkucHJvdG8SEWhvc3QuYXV0aG9yaXR5LnYxIuYDCgxJc3N1ZVJlcXVlc3QSMgoGcGVyc29uGAEgASgLMiAuaG9zdC5hdXRob3JpdHkudjEuUGVyc29uU2Vzc2lvbkgAEjkKCHdvcmtsb2FkGAIgASgLMiUuaG9zdC5hdXRob3JpdHkudjEuV29ya2xvYWRDcmVkZW50aWFsSAASOgoMaW5zdGFsbGF0aW9uGAMgASgLMiIuaG9zdC5hdXRob3JpdHkudjEuSW5zdGFsbGF0aW9uUmVmSAASFgoMcGFyZW50X3Rva2VuGAQgASgJSAASNgoKZGVsZWdhdGlvbhgLIAEoCzIgLmhvc3QuYXV0aG9yaXR5LnYxLkRlbGVnYXRpb25SZWZIABIQCghhdWRpZW5jZRgFIAEoCRIuCgZzY29wZXMYBiADKAsyHi5ob3N0LmF1dGhvcml0eS52MS5Xb3JrU2NvcGVWMRITCgt0dGxfc2Vjb25kcxgHIAEoAxIcChRvcGVyYXRpb25fYmluZGluZ19pZBgIIAEoCRIXCg9vcmdhbml6YXRpb25faWQYCSABKAkSNAoFYWN0b3IYCiABKAsyJS5ob3N0LmF1dGhvcml0eS52MS5Xb3JrbG9hZENyZWRlbnRpYWwSEQoJb3BlcmF0aW9uGAwgASgJQgQKAmFzIiYKDURlbGVnYXRpb25SZWYSFQoNZGVsZWdhdGlvbl9pZBgBIAEoCSJiCg9EZWxlZ2F0ZVJlcXVlc3QSDgoGbW9kdWxlGAEgASgJEi4KBnNjb3BlcxgCIAMoCzIeLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtTY29wZVYxEg8KB3B1cnBvc2UYAyABKAkirgEKCkRlbGVnYXRpb24SFQoNZGVsZWdhdGlvbl9pZBgBIAEoCRIXCg9vcmdhbml6YXRpb25faWQYAiABKAkSDwoHZ3JhbnRvchgDIAEoCRIOCgZtb2R1bGUYBCABKAkSLgoGc2NvcGVzGAUgAygLMh4uaG9zdC5hdXRob3JpdHkudjEuV29ya1Njb3BlVjESDwoHcHVycG9zZRgGIAEoCRIOCgZhY3RpdmUYByABKAgiYwoUR2V0RGVsZWdhdGlvblJlcXVlc3QSFQoNZGVsZWdhdGlvbl9pZBgBIAEoCRI0CgVhY3RvchgCIAEoCzIlLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtsb2FkQ3JlZGVudGlhbCIwChdSZXZva2VEZWxlZ2F0aW9uUmVxdWVzdBIVCg1kZWxlZ2F0aW9uX2lkGAEgASgJIk0KGFJldm9rZURlbGVnYXRpb25SZXNwb25zZRIxCgpkZWxlZ2F0aW9uGAEgASgLMh0uaG9zdC5hdXRob3JpdHkudjEuRGVsZWdhdGlvbiIhCg1QZXJzb25TZXNzaW9uSgQIARACUgpzZXNzaW9uX2lkIigKEldvcmtsb2FkQ3JlZGVudGlhbBISCgpjcmVkZW50aWFsGAEgASgJIioKD0luc3RhbGxhdGlvblJlZhIXCg9pbnN0YWxsYXRpb25faWQYASABKAkiagoNSXNzdWVSZXNwb25zZRINCgV0b2tlbhgBIAEoCRIXCg9leHBpcmVzX2F0X3VuaXgYAiABKAMSMQoHY29udGV4dBgDIAEoCzIgLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtDb250ZXh0VjEiUQoMQ2hlY2tSZXF1ZXN0Eg0KBXRva2VuGAEgASgJEhAKCGF1ZGllbmNlGAIgASgJEg4KBm1ldGhvZBgDIAEoCRIQCghhZHZpc29yeRgEIAEoCCJzCg1DaGVja1Jlc3BvbnNlEjEKB2NvbnRleHQYASABKAsyIC5ob3N0LmF1dGhvcml0eS52MS5Xb3JrQ29udGV4dFYxEh4KFmF1dGhvcml6YXRpb25fcmV2aXNpb24YAiABKAQSDwoHcmVmdXNhbBgDIAEoCSINCgtLZXlzUmVxdWVzdCJKCgxLZXlzUmVzcG9uc2USDgoGaXNzdWVyGAEgASgJEioKBGtleXMYAiADKAsyHC5ob3N0LmF1dGhvcml0eS52MS5QdWJsaWNLZXkiQgoJUHVibGljS2V5Eg4KBmtleV9pZBgBIAEoCRIRCglhbGdvcml0aG0YAiABKAkSEgoKcHVibGljX2tleRgDIAEoDCJeChRMaXN0UmVzb3VyY2VzUmVxdWVzdBINCgV0b2tlbhgBIAEoCRIQCghhdWRpZW5jZRgCIAEoCRIVCg1yZXNvdXJjZV9raW5kGAMgASgJEg4KBmFjdGlvbhgEIAEoCSJJChVMaXN0UmVzb3VyY2VzUmVzcG9uc2USMAoGZ3JhbnRzGAEgAygLMiAuaG9zdC5hdXRob3JpdHkudjEuUmVzb3VyY2VHcmFudCKIAQoVQXR0YWNoUmVzb3VyY2VSZXF1ZXN0Eg0KBXRva2VuGAEgASgJEjQKBWFjdG9yGAIgASgLMiUuaG9zdC5hdXRob3JpdHkudjEuV29ya2xvYWRDcmVkZW50aWFsEhUKDXJlc291cmNlX2tpbmQYAyABKAkSEwoLcmVzb3VyY2VfaWQYBCABKAkiMQoWQXR0YWNoUmVzb3VyY2VSZXNwb25zZRIXCg9pbnN0YWxsYXRpb25faWQYASABKAkikgEKFURldGFjaFJlc291cmNlUmVxdWVzdBI0CgVhY3RvchgBIAEoCzIlLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtsb2FkQ3JlZGVudGlhbBIXCg9vcmdhbml6YXRpb25faWQYAiABKAkSFQoNcmVzb3VyY2Vfa2luZBgDIAEoCRITCgtyZXNvdXJjZV9pZBgEIAEoCSIxChZEZXRhY2hSZXNvdXJjZVJlc3BvbnNlEhcKD2luc3RhbGxhdGlvbl9pZBgBIAEoCSK7AQoYQXV0aG9yaXplVHJhbnNmZXJSZXF1ZXN0Eg0KBXRva2VuGAEgASgJEjQKBWFjdG9yGAIgASgLMiUuaG9zdC5hdXRob3JpdHkudjEuV29ya2xvYWRDcmVkZW50aWFsEhUKDXJlc291cmNlX2tpbmQYAyABKAkSEwoLcmVzb3VyY2VfaWQYBCABKAkSFQoNZnJvbV9vd25lcl9pZBgFIAEoCRIXCg90b19wcmluY2lwYWxfaWQYBiABKAkiSAoZQXV0aG9yaXplVHJhbnNmZXJSZXNwb25zZRIUCgxwcmluY2lwYWxfaWQYASABKAkSFQoNYXV0aG9yaXplZF9ieRgCIAEoCSJ1Cg1SZXNvdXJjZUdyYW50Eg0KA2FsbBgBIAEoCEgAEgwKAmlkGAIgASgJSAASEAoGcHJlZml4GAMgASgJSAASEQoHcGF0dGVybhgEIAEoCUgAEhkKEXJlc291cmNlX293bmVyX2lkGAUgASgJQgcKBW1hdGNoMuoHChBBdXRob3JpdHlTZXJ2aWNlEmoKBUlzc3VlEh8uaG9zdC5hdXRob3JpdHkudjEuSXNzdWVSZXF1ZXN0GiAuaG9zdC5hdXRob3JpdHkudjEuSXNzdWVSZXNwb25zZSIegtPkkwIYOgEqIhMvdjEvYXV0aG9yaXR5Omlzc3VlEmoKBUNoZWNrEh8uaG9zdC5hdXRob3JpdHkudjEuQ2hlY2tSZXF1ZXN0GiAuaG9zdC5hdXRob3JpdHkudjEuQ2hlY2tSZXNwb25zZSIegtPkkwIYOgEqIhMvdjEvYXV0aG9yaXR5OmNoZWNrEkcKBEtleXMSHi5ob3N0LmF1dGhvcml0eS52MS5LZXlzUmVxdWVzdBofLmhvc3QuYXV0aG9yaXR5LnYxLktleXNSZXNwb25zZRJiCg1MaXN0UmVzb3VyY2VzEicuaG9zdC5hdXRob3JpdHkudjEuTGlzdFJlc291cmNlc1JlcXVlc3QaKC5ob3N0LmF1dGhvcml0eS52MS5MaXN0UmVzb3VyY2VzUmVzcG9uc2USZQoOQXR0YWNoUmVzb3VyY2USKC5ob3N0LmF1dGhvcml0eS52MS5BdHRhY2hSZXNvdXJjZVJlcXVlc3QaKS5ob3N0LmF1dGhvcml0eS52MS5BdHRhY2hSZXNvdXJjZVJlc3BvbnNlEmUKDkRldGFjaFJlc291cmNlEiguaG9zdC5hdXRob3JpdHkudjEuRGV0YWNoUmVzb3VyY2VSZXF1ZXN0GikuaG9zdC5hdXRob3JpdHkudjEuRGV0YWNoUmVzb3VyY2VSZXNwb25zZRJuChFBdXRob3JpemVUcmFuc2ZlchIrLmhvc3QuYXV0aG9yaXR5LnYxLkF1dGhvcml6ZVRyYW5zZmVyUmVxdWVzdBosLmhvc3QuYXV0aG9yaXR5LnYxLkF1dGhvcml6ZVRyYW5zZmVyUmVzcG9uc2USTQoIRGVsZWdhdGUSIi5ob3N0LmF1dGhvcml0eS52MS5EZWxlZ2F0ZVJlcXVlc3QaHS5ob3N0LmF1dGhvcml0eS52MS5EZWxlZ2F0aW9uEmsKEFJldm9rZURlbGVnYXRpb24SKi5ob3N0LmF1dGhvcml0eS52MS5SZXZva2VEZWxlZ2F0aW9uUmVxdWVzdBorLmhvc3QuYXV0aG9yaXR5LnYxLlJldm9rZURlbGVnYXRpb25SZXNwb25zZRJXCg1HZXREZWxlZ2F0aW9uEicuaG9zdC5hdXRob3JpdHkudjEuR2V0RGVsZWdhdGlvblJlcXVlc3QaHS5ob3N0LmF1dGhvcml0eS52MS5EZWxlZ2F0aW9uQi9aLWdhdGV3YXkvcGtnL2dlbi9ob3N0L2F1dGhvcml0eS92MTthdXRob3JpdHl2MWIGcHJvdG8z", [file_google_api_annotations, file_host_authority_v1_work_context]);
 
 /**
  * IssueRequest names on whose behalf the capability is issued.
@@ -774,7 +774,93 @@ export const DetachResourceResponseSchema: GenMessage<DetachResourceResponse> = 
   messageDesc(file_host_authority_v1_authority, 21);
 
 /**
- * ResourceGrant is one way of naming covered resources. Exactly one is set.
+ * AuthorizeTransferRequest names one existing resource and where it moves.
+ *
+ * @generated from message host.authority.v1.AuthorizeTransferRequest
+ */
+export type AuthorizeTransferRequest = Message<"host.authority.v1.AuthorizeTransferRequest"> & {
+  /**
+   * The capability of the person asking, addressed to the caller.
+   *
+   * @generated from field: string token = 1;
+   */
+  token: string;
+
+  /**
+   * The module serving resource_kind, proving which module it is.
+   *
+   * @generated from field: host.authority.v1.WorkloadCredential actor = 2;
+   */
+  actor?: WorkloadCredential;
+
+  /**
+   * The resource kind, as the caller serves it.
+   *
+   * @generated from field: string resource_kind = 3;
+   */
+  resourceKind: string;
+
+  /**
+   * The resource id, as the caller knows it.
+   *
+   * @generated from field: string resource_id = 4;
+   */
+  resourceId: string;
+
+  /**
+   * The resource's current owner, as the caller records it: the organization
+   * or a person of it.
+   *
+   * @generated from field: string from_owner_id = 5;
+   */
+  fromOwnerId: string;
+
+  /**
+   * The solution principal the resource joins.
+   *
+   * @generated from field: string to_principal_id = 6;
+   */
+  toPrincipalId: string;
+};
+
+/**
+ * Describes the message host.authority.v1.AuthorizeTransferRequest.
+ * Use `create(AuthorizeTransferRequestSchema)` to create a new message.
+ */
+export const AuthorizeTransferRequestSchema: GenMessage<AuthorizeTransferRequest> = /*@__PURE__*/
+  messageDesc(file_host_authority_v1_authority, 22);
+
+/**
+ * AuthorizeTransferResponse is the decision the store records.
+ *
+ * @generated from message host.authority.v1.AuthorizeTransferResponse
+ */
+export type AuthorizeTransferResponse = Message<"host.authority.v1.AuthorizeTransferResponse"> & {
+  /**
+   * The principal that now owns the resource.
+   *
+   * @generated from field: string principal_id = 1;
+   */
+  principalId: string;
+
+  /**
+   * The person who authorized the transfer.
+   *
+   * @generated from field: string authorized_by = 2;
+   */
+  authorizedBy: string;
+};
+
+/**
+ * Describes the message host.authority.v1.AuthorizeTransferResponse.
+ * Use `create(AuthorizeTransferResponseSchema)` to create a new message.
+ */
+export const AuthorizeTransferResponseSchema: GenMessage<AuthorizeTransferResponse> = /*@__PURE__*/
+  messageDesc(file_host_authority_v1_authority, 23);
+
+/**
+ * ResourceGrant is one way of naming covered resources. Exactly one match is
+ * set; resource_owner_id, when set, qualifies it.
  *
  * @generated from message host.authority.v1.ResourceGrant
  */
@@ -816,6 +902,14 @@ export type ResourceGrant = Message<"host.authority.v1.ResourceGrant"> & {
     value: string;
     case: "pattern";
   } | { case: undefined; value?: undefined };
+
+  /**
+   * The owner the covered resources must have: a resource is covered when
+   * the match covers its id and it is owned by this principal.
+   *
+   * @generated from field: string resource_owner_id = 5;
+   */
+  resourceOwnerId: string;
 };
 
 /**
@@ -823,7 +917,7 @@ export type ResourceGrant = Message<"host.authority.v1.ResourceGrant"> & {
  * Use `create(ResourceGrantSchema)` to create a new message.
  */
 export const ResourceGrantSchema: GenMessage<ResourceGrant> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 22);
+  messageDesc(file_host_authority_v1_authority, 24);
 
 /**
  * AuthorityService is implemented by the host (accounts) and by the local authority.
@@ -924,6 +1018,27 @@ export const AuthorityService: GenService<{
     methodKind: "unary";
     input: typeof DetachResourceRequestSchema;
     output: typeof DetachResourceResponseSchema;
+  },
+  /**
+   * AuthorizeTransfer decides whether an existing resource may join an
+   * installed solution's principal. The caller is the kind's one serving
+   * module, which attests the resource exists and who owns it now
+   * (from_owner_id), presenting the capability of the person asking: issued
+   * through the target principal's installation and addressed to the caller.
+   * It is allowed when the current owner is the organization or a person of
+   * it (never another solution principal, another organization or an unknown
+   * owner), the person holds admin on that resource from their own
+   * organization grants, and the person's current roles on the principal hold
+   * write on the kind, all read live. An installation acting for itself never
+   * transfers. The store then records the principal as owner; the original
+   * creator stays the author.
+   *
+   * @generated from rpc host.authority.v1.AuthorityService.AuthorizeTransfer
+   */
+  authorizeTransfer: {
+    methodKind: "unary";
+    input: typeof AuthorizeTransferRequestSchema;
+    output: typeof AuthorizeTransferResponseSchema;
   },
   /**
    * Delegate records a signed-in person's grant to a module (the caller's

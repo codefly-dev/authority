@@ -8,6 +8,7 @@ package conformance
 
 import (
 	"context"
+	"slices"
 
 	"crypto/sha256"
 	"encoding/hex"
@@ -63,10 +64,9 @@ type Fixture struct {
 	// SolutionTools exercises a module binding to a solution with distinct person entitlements.
 	SolutionTools *SolutionToolsCase
 
-	// A delivery, as Codefly signs it. When SignManifest is set the suite applies
-	// manifests as signed carriers: core's module manifest for HostCoordinate and
-	// HostDomain, signed by SignManifest, carried by DeliveryCredential(module).
-	// Nil applies the sketch, which the transition still allows.
+	// A delivery, as Codefly signs it. The suite requires signed carriers:
+	// core's module manifest for HostCoordinate and HostDomain, signed by
+	// SignManifest, carried by DeliveryCredential(module).
 	HostCoordinate     string
 	HostDomain         string
 	SignManifest       func(document []byte) (envelope []byte, err error)
@@ -163,10 +163,9 @@ type Expectation struct {
 	Allowed  bool
 }
 
-// applyManifest composes one module at one generation, as a signed carrier when
-// the fixture signs, as the sketch otherwise. A solution declares its installer
-// and viewer roles over what it serves: in the authority's document when it is
-// carried, in the sketch otherwise, since core's manifest carries no roles.
+// applyManifest composes one module at one generation as a signed carrier.
+// A solution declares its installer and viewer roles in the paired authority
+// document, since core's manifest carries no roles.
 func (c *client) applyManifest(ctx context.Context, f Fixture, alias, kind string, generation uint64, kinds []string) (protoreflect.Message, error) {
 	var roles, ceilings []any
 	if kind == "solution" {
@@ -178,21 +177,13 @@ func (c *client) applyManifest(ctx context.Context, f Fixture, alias, kind strin
 		roles = []any{map[string]any{"name": "installer", "scopes": all}, map[string]any{"name": "viewer", "scopes": reads}}
 		ceilings = all
 	}
-	if f.SignManifest == nil {
-		var rks []any
-		for _, k := range kinds {
-			rks = append(rks, map[string]any{"kind": k, "actions": []any{"read", "write"}})
-		}
-		manifest := map[string]any{"module": alias, "principal": alias, "kind": kind, "generation": generation, "resource_kinds": rks}
-		if roles != nil {
-			manifest["roles"] = roles
-		}
-		return c.call(ctx, "host.composition.v1.CompositionService", "ApplyManifest", map[string]any{"manifest": manifest})
-	}
 	if roles == nil {
 		return c.deliver(ctx, f, alias, kind, generation, kinds, nil, 0)
 	}
-	return c.deliver(ctx, f, alias, kind, generation, kinds, map[string]any{"scope_ceilings": ceilings, "roles": roles}, 0)
+	// A solution receives owner-selected scopes, so it declares owner-aware
+	// checking.
+	document := map[string]any{"scope_ceilings": ceilings, "roles": roles, "owner_aware": true}
+	return c.deliver(ctx, f, alias, kind, generation, kinds, document, 0)
 }
 
 // deliverWithMethods delivers a signed module manifest with the authority's
@@ -207,6 +198,12 @@ func (c *client) deliverWithMethods(ctx context.Context, f Fixture, alias string
 // when document names any field, the authority's own document signed by the same
 // key and bound to the manifest by module, generation and digest.
 func (c *client) deliver(ctx context.Context, f Fixture, alias, kind string, generation uint64, kinds []string, document map[string]any, skew uint64, bindings ...solutionhost.AuthorityBinding) (protoreflect.Message, error) {
+	if f.SignManifest == nil || f.DeliveryCredential == nil {
+		return nil, fmt.Errorf("composition requires a release signer and delivery workload credential")
+	}
+	if document != nil && f.SignAuthority == nil {
+		return nil, fmt.Errorf("composition with an authority document requires its release signer")
+	}
 	manifest := &solutionhost.ModuleManifest{
 		Schema: solutionhost.SchemaModuleManifestV1, Binding: alias, Alias: alias, Kind: solutionhost.Kind(kind), Generation: generation,
 		Host:      solutionhost.HostTarget{Coordinate: f.HostCoordinate, Domain: f.HostDomain},
@@ -268,6 +265,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 	c.installationIdentity(t, ctx, f)
 	c.sessionDisplayNames(t, ctx, f)
 	c.bindingRefusals(t, ctx, f)
+	c.forwardedContext(t, ctx, f)
 	t.Run("parent per-kind limits survive audience changes", func(t *testing.T) {
 		if f.ParentLimits == nil {
 			t.Fatal("fixture supplies no parent-limit round trip")
@@ -354,8 +352,11 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 				sess = c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": e.Token})
 				sessions[e.Token] = sess
 			}
+			// Under the solution-principal contract a solution audience's scopes
+			// are owned by its principal: the row asks within that owner.
+			ask := ownedBy(map[string]any{"resource_kind": e.Kind, "actions": []any{e.Action}}, c.heldOwner(ctx, sess, e.Audience, e.Kind))
 			_, err := c.call(as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": e.Audience,
-				"scopes": []any{map[string]any{"resource_kind": e.Kind, "actions": []any{e.Action}}}})
+				"scopes": []any{ask}})
 			switch {
 			case e.Allowed && err != nil:
 				t.Errorf("%s at %s: %s %s must be allowed: %v", e.Token, e.Audience, e.Kind, e.Action, err)
@@ -396,14 +397,41 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			refused(t, err, codes.Unauthenticated, "expired")
 		})
 		if f.InstalledSolution == "" {
-			t.Fatal("required conformance fixture missing: staleness needs an installation whose grant can move")
+			t.Fatal("required conformance fixture missing: staleness needs an installation")
 		}
 		admin := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.AdminToken})
-		before := c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": token, "audience": f.Audience})
-		c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "GrantToTeam", map[string]any{"organization_id": f.Organization, "installation_id": f.InstalledSolution, "team_id": "callee-probe-" + str(before, "authorization_revision")})
-		_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": token, "audience": f.Audience})
-		if status.Code(err) != codes.PermissionDenied {
-			t.Fatalf("a token sealed before the organisation's authority moved is stale, refused as PermissionDenied: %v", err)
+		c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": token, "audience": f.Audience})
+		// A grant moves only its subject's authority: the callee refuses a
+		// capability once its person's roles are revoked. The fixture's grants are restored
+		// exactly, and a viewer reaching the installation through a team
+		// would keep access, so the fixture must not grant one.
+		viewer := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
+		installation := map[string]any{"organization_id": f.Organization, "installation_id": f.InstalledSolution}
+		held := c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "ListRoleGrants", installation)
+		teams := listStrings(viewer, "team_ids")
+		var direct []string
+		for _, g := range listMsgs(held, "grants") {
+			if slices.Contains(teams, str(g, "team_id")) {
+				t.Fatalf("required conformance fixture invalid: the staleness probe needs the viewer to hold %s's roles only directly; team %s holds %s", f.InstalledSolution, str(g, "team_id"), str(g, "role"))
+			}
+			if str(g, "person_id") == str(viewer, "person_id") {
+				direct = append(direct, str(g, "role"))
+			}
+		}
+		role := func(name string) map[string]any {
+			return map[string]any{"organization_id": f.Organization, "installation_id": f.InstalledSolution, "role": name, "person_id": str(viewer, "person_id")}
+		}
+		if len(direct) == 0 {
+			c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "GrantRole", role("viewer"))
+		}
+		revokedToken := str(c.must(t, as(ctx, viewer), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.InstalledAudience}), "token")
+		for _, name := range append(slices.Clone(direct), "viewer") {
+			c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "RevokeRole", role(name))
+		}
+		_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": revokedToken, "audience": f.InstalledAudience})
+		refused(t, err, codes.PermissionDenied, "revoked")
+		for _, name := range direct {
+			c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "GrantRole", role(name))
 		}
 	})
 	t.Run("every refusal reaches the caller with a reason", func(t *testing.T) {
@@ -469,11 +497,12 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 				installation = i
 			}
 		}
-		if installation == nil || enumName(installation, "status") != "STATUS_ACTIVE" || str(installation, "agent_principal_id") == "" {
+		// The principal the installation acts as for itself.
+		if installation == nil || enumName(installation, "status") != "STATUS_ACTIVE" || installationPrincipal(installation) == "" {
 			t.Fatalf("installed solution = %v", installation)
 		}
 		out := c.must(t, ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"installation": map[string]any{"installation_id": str(installation, "id")}, "audience": f.InstalledAudience, "actor": map[string]any{"credential": f.InstalledCredential}})
-		if str(msg(out, "context"), "owner_principal_id") != str(installation, "agent_principal_id") {
+		if str(msg(out, "context"), "owner_principal_id") != installationPrincipal(installation) {
 			t.Fatalf("installation issue: %v", out)
 		}
 		c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(out, "token"), "audience": f.InstalledAudience})
@@ -501,7 +530,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		if f.SolutionTools == nil {
 			t.Fatal("required conformance fixture missing: fixture supplies no module-to-solution tool case")
 		}
-		c.solutionTools(t, ctx, *f.SolutionTools)
+		c.solutionTools(t, ctx, f, *f.SolutionTools)
 	})
 	t.Run("a child hop attenuates and names its actor and its binding", func(t *testing.T) {
 		// The hop rule: a module hops only on a token addressed to it, and the hop
@@ -591,7 +620,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		if f.InstallationChain == nil {
 			t.Fatal("required conformance fixture missing: the fixture states no installation-owned chain")
 		}
-		c.installationChain(t, ctx, *f.InstallationChain)
+		c.installationChain(t, ctx, f, *f.InstallationChain)
 	})
 	t.Run("installation-owned role scopes cover only what the installation owns", func(t *testing.T) {
 		c.installationResources(t, ctx, f)

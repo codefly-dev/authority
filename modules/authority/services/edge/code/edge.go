@@ -15,6 +15,7 @@ import (
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
 	installationv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/installation/v1"
 	sessionv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/session/v1"
+	"github.com/codefly-dev/authority/libraries/authority-client/go/host"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -67,6 +68,7 @@ type Module struct {
 
 // Edge serves the browser.
 type Edge struct {
+	SignInChoices []signInChoice
 	Sessions      Sessions
 	Authority     Issuer
 	Installations Installations
@@ -418,6 +420,9 @@ func sameOrigin(r *http.Request) bool {
 // x-codefly-* header leaves the edge unless the edge set it.
 func proxy(target *url.URL, token string, w http.ResponseWriter, r *http.Request) {
 	(&httputil.ReverseProxy{
+		// Never through a proxy from the environment, which would read the
+		// person's Work Context.
+		Transport: host.HTTPTransport(),
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(target)
 			pr.Out.Host = target.Host

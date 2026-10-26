@@ -11,9 +11,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strings"
+	"time"
 
+	"connectrpc.com/connect"
 	"connectrpc.com/vanguard"
 	"connectrpc.com/vanguard/vanguardgrpc"
 	"golang.org/x/net/http2"
@@ -29,9 +32,9 @@ import (
 	// for, and refuses it as Unimplemented, so without this a client that
 	// compresses its requests is told the method does not exist — the very
 	// error this listener stopped returning. Decompressing inside gRPC is also
-	// what keeps Configuration.GRPCServerOptions' receive bound meaningful: it
-	// is applied to the decompressed message, whereas a transcoder that
-	// inflated the payload itself would buffer it outside that bound.
+	// what keeps Configuration.MaxMessageBytes meaningful: gRPC applies it to
+	// the decompressed message, whereas a transcoder that inflated the payload
+	// itself would buffer it outside that bound.
 	_ "google.golang.org/grpc/encoding/gzip"
 )
 
@@ -42,7 +45,8 @@ import (
 // Dispatch therefore has one source: the implementation installed as
 // Configuration.Service answers a Connect call exactly as it answers a gRPC
 // one, every grpc.ServerOption in Configuration.GRPCServerOptions — authority
-// and operations interceptors, message bounds — runs before it, and the gRPC
+// and operations interceptors — and Configuration.MaxMessageBytes apply before
+// it, the bound before the listener has read more than it, and the gRPC
 // status it returns, error details included, is translated into the equivalent
 // Connect error. A service never writes a second, Connect-shaped copy of its
 // API, and no transport policy applies to one listener alone.
@@ -60,7 +64,7 @@ func NewConnectServer(c *Configuration, grpcServer *grpc.Server) (*ConnectServer
 	var transcoder http.Handler
 	var err error
 	if len(c.GatewayDialOptions) == 0 {
-		transcoder, err = vanguardgrpc.NewTranscoder(grpcServer)
+		transcoder, err = vanguardgrpc.NewTranscoder(grpcServer, vanguard.WithDefaultServiceOptions(messageBound(c)))
 	} else {
 		transcoder, err = dialledTranscoder(c, grpcServer)
 	}
@@ -71,16 +75,98 @@ func NewConnectServer(c *Configuration, grpcServer *grpc.Server) (*ConnectServer
 	// the RPC protocols alone. The transcoder also serves the REST paths of a
 	// service's google.api.http annotations, and those belong to the REST
 	// listener, behind its CORS policy and its body bounds.
+	bounded := refuseDeclaredOversize(transcoder, messageBufferBytes(c))
+	bounded = boundBodyRead(bounded, connectTimeout(c.ConnectReadTimeout, defaultConnectReadTimeout), clientStreamed(grpcServer))
 	mux := http.NewServeMux()
 	for name := range grpcServer.GetServiceInfo() {
-		mux.Handle(fmt.Sprintf("/%s/", name), transcoder)
+		mux.Handle(fmt.Sprintf("/%s/", name), bounded)
 	}
+	idle := connectTimeout(c.ConnectIdleTimeout, defaultConnectIdleTimeout)
 	return &ConnectServer{
 		config: c,
-		server: &http.Server{Addr: fmt.Sprintf(":%d", *c.EndpointConnectPort)},
+		// No ReadTimeout, deliberately: net/http applies it to a whole HTTP/1.1
+		// request and x/net/http2 to every HTTP/2 stream's body, so it would cut
+		// each client stream at a fixed age. boundBodyRead applies the same
+		// deadline per request instead, to the methods whose caller sends one
+		// message.
+		server: &http.Server{
+			Addr:              fmt.Sprintf(":%d", *c.EndpointConnectPort),
+			ReadHeaderTimeout: connectTimeout(c.ConnectReadHeaderTimeout, defaultConnectReadHeaderTimeout),
+			IdleTimeout:       idle,
+		},
 		// h2c for HTTP/2 without TLS, which a gRPC client on this port requires.
-		handler: h2c.NewHandler(mux, &http2.Server{}),
+		// The HTTP/2 server takes the idle timeout itself: h2c hands it the
+		// connection without the configuration that would copy it from the
+		// HTTP/1.1 server.
+		handler: h2c.NewHandler(mux, &http2.Server{IdleTimeout: idle}),
 	}, nil
+}
+
+// The Connect listener's timeouts when Configuration leaves them at zero.
+const (
+	defaultConnectReadHeaderTimeout = 10 * time.Second
+	defaultConnectReadTimeout       = 30 * time.Second
+	defaultConnectIdleTimeout       = 120 * time.Second
+)
+
+// connectTimeout is a configured Connect listener timeout: zero keeps
+// fallback, and a negative value is no bound, which net/http spells zero.
+func connectTimeout(configured, fallback time.Duration) time.Duration {
+	switch {
+	case configured < 0:
+		return 0
+	case configured == 0:
+		return fallback
+	}
+	return configured
+}
+
+// clientStreamed is the set of method paths whose caller streams its request
+// (client-streaming and bidirectional), the same on every protocol the
+// listener serves: /package.Service/Method.
+func clientStreamed(grpcServer *grpc.Server) map[string]bool {
+	streamed := map[string]bool{}
+	for name, info := range grpcServer.GetServiceInfo() {
+		for _, method := range info.Methods {
+			if method.IsClientStream {
+				streamed[fmt.Sprintf("/%s/%s", name, method.Name)] = true
+			}
+		}
+	}
+	return streamed
+}
+
+// boundBodyRead gives a caller timeout to send the body of a request whose
+// method takes one message, over HTTP/1.1 and HTTP/2 alike: a caller that
+// drips it is cut off — the HTTP/1.1 connection ends, the HTTP/2 stream's
+// body fails — rather than keeping the listener busy for as long as it drips.
+//
+// It bounds the caller's sending, never the handler's answer or a server
+// stream: net/http lifts an HTTP/1.1 connection's read deadline once the body
+// has been read to its end, and an HTTP/2 stream's deadline fails only a body
+// that is still open. The deadline also bounds the listener's drain of what
+// is left of a body it refused. A client stream, and a request with no body,
+// are left alone. The transcoder sets no timeout of its own (vanguard reads a
+// body for as long as it arrives), so this deadline is the only one between a
+// dripping caller and the buffer it fills.
+func boundBodyRead(next http.Handler, timeout time.Duration, streamed map[string]bool) http.Handler {
+	if timeout <= 0 {
+		return next
+	}
+	refusal := connect.NewErrorWriter()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if streamed[r.URL.Path] || r.Body == nil || r.Body == http.NoBody {
+			next.ServeHTTP(w, r)
+			return
+		}
+		deadline := http.NewResponseController(w)
+		if err := deadline.SetReadDeadline(time.Now().Add(timeout)); err != nil {
+			_ = refusal.Write(w, r, connect.NewError(connect.CodeInternal,
+				fmt.Errorf("the Connect listener cannot bound the request body: %w", err)))
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *ConnectServer) Run(ctx context.Context) error {
@@ -103,18 +189,19 @@ func (s *ConnectServer) Shutdown(ctx context.Context) error {
 
 // dialledTranscoder is the transcoder for a service whose HTTP faces reach its
 // gRPC methods by dialling rather than in process: the REST face dials the gRPC
-// endpoint with Configuration.GatewayDialOptions, and a dial option there can
-// send the call somewhere first (a hop in front of the service, which decides
-// and stamps every call). The Connect face then dials the same way, so the two
-// faces cannot disagree about the path a call takes. Each call is transcoded to
-// gRPC and forwarded as opaque frames, so the service's own gRPC server, and
-// every interceptor it holds, is still what answers it.
+// endpoint with Configuration.GatewayDialOptions, and the Connect face then
+// dials the same way, so the two faces cannot disagree about the path a call
+// takes. Each call is transcoded to gRPC and forwarded as opaque frames, so the
+// service's own gRPC server, and every interceptor it holds, is still what
+// answers it. The dial is plaintext, so it never leaves this host: whatever
+// dialer those options carry, gatewayDialOptions refuses a connection whose
+// remote address is not loopback.
 func dialledTranscoder(c *Configuration, grpcServer *grpc.Server) (http.Handler, error) {
-	conn, err := grpc.NewClient(fmt.Sprintf("0.0.0.0:%d", c.EndpointGrpcPort), gatewayDialOptions(c.GatewayDialOptions...)...)
+	conn, err := grpc.NewClient(fmt.Sprintf("127.0.0.1:%d", c.EndpointGrpcPort), gatewayDialOptions(c.GatewayDialOptions...)...)
 	if err != nil {
 		return nil, err
 	}
-	forwarder := grpc.NewServer(grpc.ForceServerCodec(frameCodec{}), grpc.UnknownServiceHandler(func(_ any, in grpc.ServerStream) error {
+	forwarder := grpc.NewServer(grpc.ForceServerCodec(frameCodec{}), grpc.MaxRecvMsgSize(c.maxMessageBytes()), grpc.UnknownServiceHandler(func(_ any, in grpc.ServerStream) error {
 		return forwardCall(conn, in)
 	}))
 	codecs := []string{vanguard.CodecProto}
@@ -128,7 +215,55 @@ func dialledTranscoder(c *Configuration, grpcServer *grpc.Server) (http.Handler,
 	return vanguard.NewTranscoder(services, vanguard.WithDefaultServiceOptions(
 		vanguard.WithTargetCodecs(codecs...),
 		vanguard.WithTargetProtocols(vanguard.ProtocolGRPC),
+		messageBound(c),
 	))
+}
+
+// messageBound holds the transcoder to the gRPC server's receive bound,
+// Configuration.MaxMessageBytes. Left at vanguard's default the listener would
+// buffer a request of undeclared length up to 4 GiB before gRPC's bound, or any
+// interceptor, saw it; with it, a message is refused as resource_exhausted as
+// soon as it passes the bound, never after the rest of it is read.
+func messageBound(c *Configuration) vanguard.ServiceOption {
+	return vanguard.WithMaxMessageBufferBytes(messageBufferBytes(c))
+}
+
+// messageBufferBytes is Configuration.MaxMessageBytes as the transcoder counts
+// it. A gRPC message cannot exceed 4 GiB, so neither can this.
+func messageBufferBytes(c *Configuration) uint32 {
+	if n := c.maxMessageBytes(); uint64(n) < math.MaxUint32 {
+		return uint32(n)
+	}
+	return math.MaxUint32
+}
+
+// refuseDeclaredOversize refuses a Connect unary request whose declared length
+// is already over the message bound, as resource_exhausted and before reading
+// any of it. The transcoder checks that length too, but vanguard v0.4.0
+// returns the refusal from the body it hands the gRPC server without reporting
+// it, so the caller is told unavailable instead. An undeclared length, and the
+// enveloped protocols (gRPC, gRPC-Web, Connect streaming), it reports
+// correctly; their declared length is a whole stream rather than one message,
+// so they are left to its per-message bound.
+func refuseDeclaredOversize(next http.Handler, limit uint32) http.Handler {
+	refusal := connect.NewErrorWriter()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.ContentLength > int64(limit) && connectUnary(r) {
+			_ = refusal.Write(w, r, connect.NewError(connect.CodeResourceExhausted,
+				fmt.Errorf("content length (%d) exceeds the message bound (%d)", r.ContentLength, limit)))
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// connectUnary reports whether r is a Connect unary call, whose body is one
+// message: a POST that is neither gRPC, gRPC-Web nor Connect streaming.
+func connectUnary(r *http.Request) bool {
+	contentType := r.Header.Get("Content-Type")
+	return r.Method == http.MethodPost &&
+		!strings.HasPrefix(contentType, "application/grpc") &&
+		!strings.HasPrefix(contentType, "application/connect+")
 }
 
 // forwardCall relays one call to conn: the caller's metadata, every message

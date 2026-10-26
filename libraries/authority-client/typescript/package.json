@@ -1,6 +1,6 @@
 {
   "name": "@codefly-dev/authority-client",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
   "exports": {
     ".": {
@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.0.0",
+    "@bufbuild/protovalidate": "^1.3.0",
     "@connectrpc/connect": "^2.0.0"
   },
   "devDependencies": {

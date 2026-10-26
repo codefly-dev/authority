@@ -2,6 +2,7 @@ package conformance
 
 import (
 	"context"
+	"github.com/google/uuid"
 	"testing"
 	"time"
 
@@ -23,7 +24,9 @@ func (c *client) installationIdentity(t *testing.T, ctx context.Context, f Fixtu
 		name, id, credential, org, reason string
 		code                              codes.Code
 	}{
-		{"an installation issue verifies the installation exists", "conformance-missing-installation", f.InstalledCredential, "", "installation", codes.NotFound},
+		// An absent installation answers as another organization's does: a
+		// solution learns nothing of which organizations installed what.
+		{"an installation issue verifies the installation exists", "conformance-missing-installation", f.InstalledCredential, "", "installation", codes.PermissionDenied},
 		{"an installation issue authenticates the installed solution", f.InstalledSolution, f.WorkloadCredential, "", "installed solution", codes.PermissionDenied},
 		{"an installation issue cannot name a different organization", f.InstalledSolution, f.InstalledCredential, "conformance-foreign-org", "organization", codes.PermissionDenied},
 	} {
@@ -62,7 +65,28 @@ func (c *client) installationLifecycle(t *testing.T, ctx context.Context, f Fixt
 		resultCh := make(chan result, 1)
 		installCtx, cancel := context.WithTimeout(adminCtx, 10*time.Second)
 		defer cancel()
-		request := map[string]any{"organization_id": f.Organization, "target": l.Target, "role": "viewer", "owner_person_id": str(admin, "person_id")}
+		request := map[string]any{"organization_id": f.Organization, "target": l.Target, "role": "viewer", "owner_person_id": str(admin, "person_id"), "approval": c.reviewInstallation(t, adminCtx, f.Organization, l.Target)}
+		for _, tc := range []struct {
+			field  string
+			value  any
+			reason string
+		}{
+			{"target_id", "unreviewed-target", "GENERATION_CHANGED"},
+			{"generation", uint64(2), "GENERATION_CHANGED"},
+			{"expected_revision", uint64(1), "REVISION_CHANGED"},
+			{"digest", "sha256:unreviewed", "DIGEST_CHANGED"},
+		} {
+			bad := clone(request)
+			approval := clone(request["approval"].(map[string]any))
+			approval[tc.field] = tc.value
+			bad["approval"] = approval
+			_, err := c.call(adminCtx, "host.installation.v1.InstallationService", "Install", bad)
+			refused(t, err, codes.FailedPrecondition, "INSTALLATION_APPROVAL_"+tc.reason)
+		}
+		missing := clone(request)
+		delete(missing, "approval")
+		_, err := c.call(adminCtx, "host.installation.v1.InstallationService", "Install", missing)
+		refused(t, err, codes.FailedPrecondition, "INSTALLATION_APPROVAL_REQUIRED")
 		go func() {
 			inst, err := c.call(installCtx, "host.installation.v1.InstallationService", "Install", request)
 			resultCh <- result{inst, err}
@@ -78,7 +102,11 @@ func (c *client) installationLifecycle(t *testing.T, ctx context.Context, f Fixt
 				}
 			}
 			if pending == nil {
-				time.Sleep(10 * time.Millisecond)
+				select {
+				case early := <-resultCh:
+					t.Fatalf("install finished before a pending row was visible: %v", early.err)
+				case <-time.After(10 * time.Millisecond):
+				}
 			}
 		}
 		if pending == nil {
@@ -88,15 +116,19 @@ func (c *client) installationLifecycle(t *testing.T, ctx context.Context, f Fixt
 		issue := func() (protoreflect.Message, error) {
 			return c.call(ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"installation": map[string]any{"installation_id": id}, "actor": map[string]any{"credential": l.Credential}, "audience": l.Target})
 		}
-		grant := map[string]any{"organization_id": f.Organization, "installation_id": id, "team_id": l.Team}
+		// Exposure is a team's role grant.
+		grant := map[string]any{"organization_id": f.Organization, "installation_id": id, "team_id": l.Team, "role": "viewer"}
+		const expose = "GrantRole"
 		t.Run("pending installation cannot issue or be exposed", func(t *testing.T) {
 			if enumName(pending, "status") != "STATUS_PENDING" {
 				t.Fatal("installation became active before acknowledgement")
 			}
 			_, err := issue()
-			refused(t, err, codes.PermissionDenied, "pending")
-			_, err = c.call(adminCtx, "host.installation.v1.InstallationService", "GrantToTeam", grant)
-			refused(t, err, codes.PermissionDenied, "pending")
+			// The installation is not installed yet: a state that may still
+			// change, as the solution-principal target names it.
+			refused(t, err, codes.FailedPrecondition, "pending")
+			_, err = c.call(adminCtx, "host.installation.v1.InstallationService", expose, grant)
+			refused(t, err, codes.FailedPrecondition, "pending")
 		})
 		resume()
 		select {
@@ -108,15 +140,19 @@ func (c *client) installationLifecycle(t *testing.T, ctx context.Context, f Fixt
 			t.Fatal("acknowledged install did not finish")
 		}
 		t.Run("acknowledged installation is exposed to its team", func(t *testing.T) {
-			exposed := c.must(t, adminCtx, "host.installation.v1.InstallationService", "GrantToTeam", grant)
-			if enumName(exposed, "status") != "STATUS_ACTIVE" || count(exposed, "team_ids") != 1 || u64(exposed, "revision") != u64(pending, "revision")+1 {
-				t.Fatal("acknowledged installation was not exposed exactly once")
+			c.must(t, adminCtx, "host.installation.v1.InstallationService", expose, grant)
+			listed := c.must(t, adminCtx, "host.installation.v1.InstallationService", "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": id})
+			if grants := listMsgs(listed, "grants"); len(grants) != 1 || str(grants[0], "team_id") != l.Team || str(grants[0], "role") != "viewer" {
+				t.Fatalf("acknowledged installation was not granted to its team exactly once: %v", grants)
 			}
-			_, err := c.call(adminCtx, "host.installation.v1.InstallationService", "Install", request)
-			refused(t, err, codes.PermissionDenied, "already installed")
+			// Role grants do not change the installation consent revision.
+			retried := c.must(t, adminCtx, "host.installation.v1.InstallationService", "Install", request)
+			if str(retried, "id") != id {
+				t.Fatal("unchanged approval retry created another installation")
+			}
 			foreignGrant := clone(grant)
 			foreignGrant["organization_id"] = "conformance-foreign-org"
-			_, err = c.call(adminCtx, "host.installation.v1.InstallationService", "GrantToTeam", foreignGrant)
+			_, err := c.call(adminCtx, "host.installation.v1.InstallationService", expose, foreignGrant)
 			refused(t, err, codes.PermissionDenied, "organization")
 		})
 		out, err := issue()
@@ -128,10 +164,18 @@ func (c *client) installationLifecycle(t *testing.T, ctx context.Context, f Fixt
 			if err := l.Revoke(ctx, id); err != nil {
 				t.Fatal(err)
 			}
-			_, err := issue()
-			refused(t, err, codes.PermissionDenied, "revoked")
+			_, err := c.call(adminCtx, "host.installation.v1.InstallationService", "Install", request)
+			refused(t, err, codes.FailedPrecondition, "INSTALLATION_APPROVAL_REVISION_CHANGED")
+			_, err = issue()
+			refused(t, err, codes.FailedPrecondition, "revoked")
 			_, err = c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(out, "token"), "audience": l.Target})
 			refused(t, err, codes.PermissionDenied, "")
 		})
 	})
+}
+
+func (c *client) reviewInstallation(t *testing.T, ctx context.Context, org, target string) map[string]any {
+	t.Helper()
+	a := c.must(t, ctx, "host.installation.v1.InstallationService", "Review", map[string]any{"organization_id": org, "target": target})
+	return map[string]any{"target_id": str(a, "target_id"), "generation": u64(a, "generation"), "expected_revision": u64(a, "expected_revision"), "digest": str(a, "digest"), "operation_id": uuid.NewString()}
 }

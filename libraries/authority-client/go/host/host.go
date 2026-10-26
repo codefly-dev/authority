@@ -6,7 +6,9 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	codefly "github.com/codefly-dev/sdk-go"
@@ -34,9 +36,48 @@ func Dial(ctx context.Context) (*grpc.ClientConn, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(transport))
+	conn, err := grpc.NewClient(target, DialOptions(transport)...)
 	return conn, target, err
 }
+
+// DialOptions are how an address Target or Endpoint admitted is dialled: over
+// its transport, and never through a proxy from the environment (HTTPS_PROXY,
+// HTTP_PROXY), which would see the workload credential and could swap the
+// published keys on a plaintext mesh hop. Dial uses them; a caller dialling an
+// admitted address itself (the hop's upstreams, a module's own clients) does too.
+func DialOptions(transport credentials.TransportCredentials) []grpc.DialOption {
+	return []grpc.DialOption{grpc.WithTransportCredentials(transport), grpc.WithNoProxy()}
+}
+
+// noProxy is Go's default HTTP transport minus any proxy from the environment,
+// held in an unexported field: callers get a RoundTripper they cannot unwrap,
+// so no one can turn proxies back on for every caller with one assignment.
+type noProxy struct{ transport *http.Transport }
+
+func (n noProxy) RoundTrip(request *http.Request) (*http.Response, error) {
+	return n.transport.RoundTrip(request)
+}
+
+// httpTransport is shared so its connections are pooled.
+var httpTransport = func() noProxy {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = nil
+	return noProxy{transport: transport}
+}()
+
+// HTTPTransport is DialOptions for HTTP: the one RoundTripper every HTTP request
+// carrying a Work Context, a stamp or the run's proof is sent over (the hop's
+// HTTP face, the edge's reverse proxy). It never consults HTTP_PROXY or
+// HTTPS_PROXY, and it exposes no *http.Transport to reconfigure. The
+// repository's no-proxy gate (tools/noproxygate) checks production packages,
+// including hidden/testdata directories, and refuses build constraints and
+// unjudged files. It refuses specific source forms that bypass the seams; it
+// does not prove whole-program transport safety. Blind spots: tests, raw
+// sockets, reflection, unlisted process APIs, third-party clients, option
+// callbacks, dependency internals, pointer replacement, aliased slice mutation
+// and interface-hidden values. Generated exceptions require reviewed content
+// digests, and generated adapter self-dials have their own object-identity rule.
+func HTTPTransport() http.RoundTripper { return httpTransport }
 
 // Target is the gRPC target and transport for the host at endpoint:
 // HTTPS uses verified TLS. Plaintext requires a local loopback or the
@@ -58,6 +99,11 @@ func targetFor(ctx context.Context, endpoint string, fallback func() (string, er
 		return "", nil, err
 	}
 
+	// Control characters are refused in the raw value, before any trimming, so
+	// Go and Python (whose strip also removes \x1c-\x1f) judge the same bytes.
+	if strings.ContainsFunc(endpoint, func(r rune) bool { return r < 0x20 || r == 0x7f }) {
+		return "", nil, fmt.Errorf("authority/endpoint carries a control character (value not shown: it may carry a credential)")
+	}
 	endpoint = strings.TrimSpace(endpoint)
 	if endpoint == "" {
 		if fallback == nil {
@@ -71,22 +117,49 @@ func targetFor(ctx context.Context, endpoint string, fallback func() (string, er
 	}
 	if !strings.Contains(endpoint, "://") {
 		if _, _, err := net.SplitHostPort(endpoint); err != nil {
-			return "", nil, fmt.Errorf("authority/endpoint %q is neither host:port nor a URL", endpoint)
+			return "", nil, fmt.Errorf("authority/endpoint is neither host:port nor a URL (value not shown: it may carry a credential)")
 		}
 		return plaintext(endpoint, codefly.IsLocal(), mesh)
 	}
 	u, err := url.Parse(endpoint)
+	if err == nil && u.Host != "" && u.Hostname() == "" {
+		return "", nil, fmt.Errorf("authority/endpoint %s names no host", hostOnly(u))
+	}
 	if err != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
-		return "", nil, fmt.Errorf("authority/endpoint %q is not an origin", endpoint)
+		return "", nil, fmt.Errorf("authority/endpoint %s is not an origin: it must carry no credential, path, query or fragment", hostOnly(u))
 	}
 	switch u.Scheme {
 	case "https":
+		if !validPort(withPort(u, "443")) {
+			return "", nil, fmt.Errorf("authority/endpoint %s names no port in 1-65535", hostOnly(u))
+		}
 		return withPort(u, "443"), credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS12}), nil
 	case "http", "grpc", "tcp":
 		return plaintext(withPort(u, "80"), codefly.IsLocal(), mesh)
 	default:
-		return "", nil, fmt.Errorf("authority/endpoint %q names scheme %q; the host is reached over http:// (h2c) or https://", endpoint, u.Scheme)
+		return "", nil, fmt.Errorf("authority/endpoint %s names scheme %q; the host is reached over http:// (h2c) or https://", hostOnly(u), u.Scheme)
 	}
+}
+
+// hostOnly names an endpoint in an error by its host and port alone: never the
+// raw value, its userinfo, path or query, which may carry a credential.
+func hostOnly(u *url.URL) string {
+	if u == nil || u.Host == "" {
+		return "(unparseable)"
+	}
+	return u.Host
+}
+
+// validPort reports whether target names a decimal port in 1..65535 written in
+// at most five digits: never an empty port (the dialer reads it as 0), a sign,
+// a space, a zero-padded longer spelling or an out-of-range one.
+func validPort(target string) bool {
+	_, port, err := net.SplitHostPort(target)
+	if err != nil || port == "" || len(port) > 5 || strings.TrimLeft(port, "0123456789") != "" {
+		return false
+	}
+	number, err := strconv.Atoi(port)
+	return err == nil && number >= 1 && number <= 65535
 }
 
 func withPort(u *url.URL, port string) string {
@@ -100,6 +173,9 @@ func plaintext(target string, local, mesh bool) (string, credentials.TransportCr
 	hostname, _, err := net.SplitHostPort(target)
 	if err != nil {
 		return "", nil, fmt.Errorf("authority endpoint must name host:port")
+	}
+	if !validPort(target) {
+		return "", nil, fmt.Errorf("authority endpoint names no port in 1-65535")
 	}
 	ip := net.ParseIP(hostname)
 	loopback := strings.EqualFold(hostname, "localhost") || ip != nil && ip.IsLoopback()

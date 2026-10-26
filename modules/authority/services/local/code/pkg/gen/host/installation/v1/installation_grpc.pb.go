@@ -5,8 +5,10 @@
 // source: host/installation/v1/installation.proto
 
 // The installation interface: what is installed at an organisation and who may
-// use it. Three operations on the host, and one the solution implements, the
-// install step the host calls once per installation.
+// use it. An installed solution is a principal of its organisation; its roles
+// are levels on the data that principal owns, and a grant of a role is the
+// access. Operations on the host, and one the solution implements, the install
+// step the host calls once per installation.
 
 package installationv1
 
@@ -24,9 +26,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	InstallationService_Install_FullMethodName     = "/host.installation.v1.InstallationService/Install"
-	InstallationService_GrantToTeam_FullMethodName = "/host.installation.v1.InstallationService/GrantToTeam"
-	InstallationService_List_FullMethodName        = "/host.installation.v1.InstallationService/List"
+	InstallationService_Install_FullMethodName        = "/host.installation.v1.InstallationService/Install"
+	InstallationService_Review_FullMethodName         = "/host.installation.v1.InstallationService/Review"
+	InstallationService_GrantRole_FullMethodName      = "/host.installation.v1.InstallationService/GrantRole"
+	InstallationService_RevokeRole_FullMethodName     = "/host.installation.v1.InstallationService/RevokeRole"
+	InstallationService_ListRoleGrants_FullMethodName = "/host.installation.v1.InstallationService/ListRoleGrants"
+	InstallationService_List_FullMethodName           = "/host.installation.v1.InstallationService/List"
 )
 
 // InstallationServiceClient is the client API for InstallationService service.
@@ -38,8 +43,19 @@ type InstallationServiceClient interface {
 	// Install composes an installation: its agent principal, its root scope and
 	// the row, pending until the target acknowledges its install step.
 	Install(ctx context.Context, in *InstallRequest, opts ...grpc.CallOption) (*Installation, error)
-	// GrantToTeam exposes an installation to a team under the installation's role.
-	GrantToTeam(ctx context.Context, in *GrantToTeamRequest, opts ...grpc.CallOption) (*Installation, error)
+	// Review reads the current offer and installation revision without granting consent.
+	Review(ctx context.Context, in *ReviewRequest, opts ...grpc.CallOption) (*ConsentApproval, error)
+	// GrantRole grants a person or a team one of the solution's roles on the
+	// installation: the access. Idempotent; it leaves existing capabilities
+	// valid. An administrator of the installation's organization, or a holder
+	// of the installer role on that installation, grants.
+	GrantRole(ctx context.Context, in *GrantRoleRequest, opts ...grpc.CallOption) (*Installation, error)
+	// RevokeRole ends one grant; every capability its subject holds from it is
+	// refused at once. Idempotent; the same callers as GrantRole.
+	RevokeRole(ctx context.Context, in *RevokeRoleRequest, opts ...grpc.CallOption) (*Installation, error)
+	// ListRoleGrants answers who holds which role on the installation; the same
+	// callers as GrantRole.
+	ListRoleGrants(ctx context.Context, in *ListRoleGrantsRequest, opts ...grpc.CallOption) (*ListRoleGrantsResponse, error)
 	// List answers what one organisation has installed: an administrator's read. A
 	// member's view, which installed solutions they may use, is their navigation and
 	// belongs to the entitlement read, not here.
@@ -64,10 +80,40 @@ func (c *installationServiceClient) Install(ctx context.Context, in *InstallRequ
 	return out, nil
 }
 
-func (c *installationServiceClient) GrantToTeam(ctx context.Context, in *GrantToTeamRequest, opts ...grpc.CallOption) (*Installation, error) {
+func (c *installationServiceClient) Review(ctx context.Context, in *ReviewRequest, opts ...grpc.CallOption) (*ConsentApproval, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ConsentApproval)
+	err := c.cc.Invoke(ctx, InstallationService_Review_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *installationServiceClient) GrantRole(ctx context.Context, in *GrantRoleRequest, opts ...grpc.CallOption) (*Installation, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Installation)
-	err := c.cc.Invoke(ctx, InstallationService_GrantToTeam_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, InstallationService_GrantRole_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *installationServiceClient) RevokeRole(ctx context.Context, in *RevokeRoleRequest, opts ...grpc.CallOption) (*Installation, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Installation)
+	err := c.cc.Invoke(ctx, InstallationService_RevokeRole_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *installationServiceClient) ListRoleGrants(ctx context.Context, in *ListRoleGrantsRequest, opts ...grpc.CallOption) (*ListRoleGrantsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListRoleGrantsResponse)
+	err := c.cc.Invoke(ctx, InstallationService_ListRoleGrants_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -93,8 +139,19 @@ type InstallationServiceServer interface {
 	// Install composes an installation: its agent principal, its root scope and
 	// the row, pending until the target acknowledges its install step.
 	Install(context.Context, *InstallRequest) (*Installation, error)
-	// GrantToTeam exposes an installation to a team under the installation's role.
-	GrantToTeam(context.Context, *GrantToTeamRequest) (*Installation, error)
+	// Review reads the current offer and installation revision without granting consent.
+	Review(context.Context, *ReviewRequest) (*ConsentApproval, error)
+	// GrantRole grants a person or a team one of the solution's roles on the
+	// installation: the access. Idempotent; it leaves existing capabilities
+	// valid. An administrator of the installation's organization, or a holder
+	// of the installer role on that installation, grants.
+	GrantRole(context.Context, *GrantRoleRequest) (*Installation, error)
+	// RevokeRole ends one grant; every capability its subject holds from it is
+	// refused at once. Idempotent; the same callers as GrantRole.
+	RevokeRole(context.Context, *RevokeRoleRequest) (*Installation, error)
+	// ListRoleGrants answers who holds which role on the installation; the same
+	// callers as GrantRole.
+	ListRoleGrants(context.Context, *ListRoleGrantsRequest) (*ListRoleGrantsResponse, error)
 	// List answers what one organisation has installed: an administrator's read. A
 	// member's view, which installed solutions they may use, is their navigation and
 	// belongs to the entitlement read, not here.
@@ -112,8 +169,17 @@ type UnimplementedInstallationServiceServer struct{}
 func (UnimplementedInstallationServiceServer) Install(context.Context, *InstallRequest) (*Installation, error) {
 	return nil, status.Error(codes.Unimplemented, "method Install not implemented")
 }
-func (UnimplementedInstallationServiceServer) GrantToTeam(context.Context, *GrantToTeamRequest) (*Installation, error) {
-	return nil, status.Error(codes.Unimplemented, "method GrantToTeam not implemented")
+func (UnimplementedInstallationServiceServer) Review(context.Context, *ReviewRequest) (*ConsentApproval, error) {
+	return nil, status.Error(codes.Unimplemented, "method Review not implemented")
+}
+func (UnimplementedInstallationServiceServer) GrantRole(context.Context, *GrantRoleRequest) (*Installation, error) {
+	return nil, status.Error(codes.Unimplemented, "method GrantRole not implemented")
+}
+func (UnimplementedInstallationServiceServer) RevokeRole(context.Context, *RevokeRoleRequest) (*Installation, error) {
+	return nil, status.Error(codes.Unimplemented, "method RevokeRole not implemented")
+}
+func (UnimplementedInstallationServiceServer) ListRoleGrants(context.Context, *ListRoleGrantsRequest) (*ListRoleGrantsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListRoleGrants not implemented")
 }
 func (UnimplementedInstallationServiceServer) List(context.Context, *ListRequest) (*ListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method List not implemented")
@@ -157,20 +223,74 @@ func _InstallationService_Install_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _InstallationService_GrantToTeam_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GrantToTeamRequest)
+func _InstallationService_Review_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReviewRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(InstallationServiceServer).GrantToTeam(ctx, in)
+		return srv.(InstallationServiceServer).Review(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: InstallationService_GrantToTeam_FullMethodName,
+		FullMethod: InstallationService_Review_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(InstallationServiceServer).GrantToTeam(ctx, req.(*GrantToTeamRequest))
+		return srv.(InstallationServiceServer).Review(ctx, req.(*ReviewRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _InstallationService_GrantRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GrantRoleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InstallationServiceServer).GrantRole(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: InstallationService_GrantRole_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(InstallationServiceServer).GrantRole(ctx, req.(*GrantRoleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _InstallationService_RevokeRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeRoleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InstallationServiceServer).RevokeRole(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: InstallationService_RevokeRole_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(InstallationServiceServer).RevokeRole(ctx, req.(*RevokeRoleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _InstallationService_ListRoleGrants_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRoleGrantsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InstallationServiceServer).ListRoleGrants(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: InstallationService_ListRoleGrants_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(InstallationServiceServer).ListRoleGrants(ctx, req.(*ListRoleGrantsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -205,8 +325,20 @@ var InstallationService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _InstallationService_Install_Handler,
 		},
 		{
-			MethodName: "GrantToTeam",
-			Handler:    _InstallationService_GrantToTeam_Handler,
+			MethodName: "Review",
+			Handler:    _InstallationService_Review_Handler,
+		},
+		{
+			MethodName: "GrantRole",
+			Handler:    _InstallationService_GrantRole_Handler,
+		},
+		{
+			MethodName: "RevokeRole",
+			Handler:    _InstallationService_RevokeRole_Handler,
+		},
+		{
+			MethodName: "ListRoleGrants",
+			Handler:    _InstallationService_ListRoleGrants_Handler,
 		},
 		{
 			MethodName: "List",

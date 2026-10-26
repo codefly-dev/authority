@@ -510,6 +510,10 @@
             "type": "string"
           },
           "description": "resource_ids narrows the scope to specific resources. Empty means every\nresource of resource_kind."
+        },
+        "resourceOwnerId": {
+          "type": "string",
+          "description": "resource_owner_id narrows the scope to the resources this principal owns\n(an installed solution's principal). Empty means the scope selects no\nowner. With resource_ids, a resource is covered only when both match. A\nreader that cannot compare a resource's owner must not treat an\nowner-selected scope as covering the whole kind. It is at most 512 bytes\nof printable ASCII other than space and \"*\" (0x21-0x29, 0x2B-0x7E): no\nwhitespace, control, non-ASCII, invisible or lookalike character, so two\nowners that print alike are the same bytes and every regex engine answers\nthe rule the same way."
         }
       },
       "description": "WorkScopeV1 is a structured, product-neutral capability scope. Empty\nresource_ids means every resource of resource_kind; a child may narrow that\nwildcard to explicit IDs but may never widen an explicit parent set."

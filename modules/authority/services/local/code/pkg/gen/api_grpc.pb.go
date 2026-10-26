@@ -20,101 +20,101 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	GatewayService_Version_FullMethodName = "/api.GatewayService/Version"
+	LocalService_Version_FullMethodName = "/api.LocalService/Version"
 )
 
-// GatewayServiceClient is the client API for GatewayService service.
+// LocalServiceClient is the client API for LocalService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type GatewayServiceClient interface {
+type LocalServiceClient interface {
 	Version(ctx context.Context, in *VersionRequest, opts ...grpc.CallOption) (*VersionResponse, error)
 }
 
-type gatewayServiceClient struct {
+type localServiceClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewGatewayServiceClient(cc grpc.ClientConnInterface) GatewayServiceClient {
-	return &gatewayServiceClient{cc}
+func NewLocalServiceClient(cc grpc.ClientConnInterface) LocalServiceClient {
+	return &localServiceClient{cc}
 }
 
-func (c *gatewayServiceClient) Version(ctx context.Context, in *VersionRequest, opts ...grpc.CallOption) (*VersionResponse, error) {
+func (c *localServiceClient) Version(ctx context.Context, in *VersionRequest, opts ...grpc.CallOption) (*VersionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(VersionResponse)
-	err := c.cc.Invoke(ctx, GatewayService_Version_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, LocalService_Version_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// GatewayServiceServer is the server API for GatewayService service.
-// All implementations must embed UnimplementedGatewayServiceServer
+// LocalServiceServer is the server API for LocalService service.
+// All implementations must embed UnimplementedLocalServiceServer
 // for forward compatibility.
-type GatewayServiceServer interface {
+type LocalServiceServer interface {
 	Version(context.Context, *VersionRequest) (*VersionResponse, error)
-	mustEmbedUnimplementedGatewayServiceServer()
+	mustEmbedUnimplementedLocalServiceServer()
 }
 
-// UnimplementedGatewayServiceServer must be embedded to have
+// UnimplementedLocalServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
 // pointer dereference when methods are called.
-type UnimplementedGatewayServiceServer struct{}
+type UnimplementedLocalServiceServer struct{}
 
-func (UnimplementedGatewayServiceServer) Version(context.Context, *VersionRequest) (*VersionResponse, error) {
+func (UnimplementedLocalServiceServer) Version(context.Context, *VersionRequest) (*VersionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Version not implemented")
 }
-func (UnimplementedGatewayServiceServer) mustEmbedUnimplementedGatewayServiceServer() {}
-func (UnimplementedGatewayServiceServer) testEmbeddedByValue()                        {}
+func (UnimplementedLocalServiceServer) mustEmbedUnimplementedLocalServiceServer() {}
+func (UnimplementedLocalServiceServer) testEmbeddedByValue()                      {}
 
-// UnsafeGatewayServiceServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to GatewayServiceServer will
+// UnsafeLocalServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to LocalServiceServer will
 // result in compilation errors.
-type UnsafeGatewayServiceServer interface {
-	mustEmbedUnimplementedGatewayServiceServer()
+type UnsafeLocalServiceServer interface {
+	mustEmbedUnimplementedLocalServiceServer()
 }
 
-func RegisterGatewayServiceServer(s grpc.ServiceRegistrar, srv GatewayServiceServer) {
-	// If the following call panics, it indicates UnimplementedGatewayServiceServer was
+func RegisterLocalServiceServer(s grpc.ServiceRegistrar, srv LocalServiceServer) {
+	// If the following call panics, it indicates UnimplementedLocalServiceServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
 	// time to prevent it from happening at runtime later due to I/O.
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	s.RegisterService(&GatewayService_ServiceDesc, srv)
+	s.RegisterService(&LocalService_ServiceDesc, srv)
 }
 
-func _GatewayService_Version_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _LocalService_Version_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(VersionRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GatewayServiceServer).Version(ctx, in)
+		return srv.(LocalServiceServer).Version(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GatewayService_Version_FullMethodName,
+		FullMethod: LocalService_Version_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GatewayServiceServer).Version(ctx, req.(*VersionRequest))
+		return srv.(LocalServiceServer).Version(ctx, req.(*VersionRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// GatewayService_ServiceDesc is the grpc.ServiceDesc for GatewayService service.
+// LocalService_ServiceDesc is the grpc.ServiceDesc for LocalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var GatewayService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "api.GatewayService",
-	HandlerType: (*GatewayServiceServer)(nil),
+var LocalService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "api.LocalService",
+	HandlerType: (*LocalServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "Version",
-			Handler:    _GatewayService_Version_Handler,
+			Handler:    _LocalService_Version_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

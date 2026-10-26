@@ -3,6 +3,7 @@ package issuer_test
 import (
 	"context"
 	"errors"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"testing"
 
 	resources "github.com/codefly-dev/authority/libraries/resources/go"
@@ -24,8 +25,15 @@ func issued(t *testing.T, k *testkit.Kit, fixtureToken string, scopes []*authori
 	return out.GetToken()
 }
 
-func covered(t *testing.T, grants []resources.Grant) *resources.Matcher {
+func covered(t *testing.T, owned []authority.Grant) *resources.Matcher {
 	t.Helper()
+	var grants []resources.Grant
+	for _, g := range owned {
+		if g.Owner != "" {
+			t.Fatalf("an organisation grant names an owner: %+v", g)
+		}
+		grants = append(grants, g.Grant)
+	}
 	m, err := resources.Compile(grants)
 	if err != nil {
 		t.Fatal(err)

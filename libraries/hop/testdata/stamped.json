@@ -1,17 +1,41 @@
 {
+  "proof": "fixture-proof",
+  "audience": "documents",
+  "now": 1792818060,
+  "keys": {
+    "issuer": "https://authority.hop.test",
+    "keys": [
+      {
+        "keyId": "hop-fixture",
+        "algorithm": "Ed25519",
+        "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc="
+      }
+    ]
+  },
   "headers": {
-    "x-codefly-hop-actors": "robin",
-    "x-codefly-hop-advisory": "documents.collection:read is not held",
-    "x-codefly-hop-binding": "acme/robin/model",
-    "x-codefly-hop-context": "cde194a7f3368961e48f1937c63fc67e058b2717d9c0581ac0eb08874ca8b714",
-    "x-codefly-hop-expires": "1792818000",
-    "x-codefly-hop-owner": "remi",
+    "x-codefly-hop-actors": "",
+    "x-codefly-hop-advisory": "documents.collection:write is not held",
+    "x-codefly-hop-context": "cfaa9f0a79b969b344d63c29cded67e41791cee66339a9e59881708433b90c1b",
+    "x-codefly-hop-expires": "1792818600",
+    "x-codefly-hop-owner": "principal-owner",
     "x-codefly-hop-owner-kind": "human",
     "x-codefly-hop-proof": "fixture-proof",
-    "x-codefly-hop-scopes": "modelservice.profiles:read,modelservice.profiles:invoke",
-    "x-codefly-hop-task": "task-7",
-    "x-codefly-hop-tenant": "acme",
-    "x-codefly-work-context": "eyJ3YyI6ImZpeHR1cmUifQ.c2lnbmF0dXJl"
+    "x-codefly-hop-scopes": "documents.collection:read",
+    "x-codefly-hop-task": "task-conformance",
+    "x-codefly-hop-tenant": "tenant-conformance",
+    "x-codefly-work-context": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGJmZDRhNmM3LTcyNDAtNGUxNy1hZThhLTA4YjMxMWIyZDNhMVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokYzQ1N2YxM2UtMzM3Ny00ODYyLThiMjEtODliZmU3YmQ5ZWJmigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.lRL9AGY2xuV56DtmS9vOXkaCPgtaVHlrnkzmdg9GBOvRjuQt8j8adscKdUGrsmX3vxCPmhCHi0vWp0t6noilAw"
   },
-  "proof": "fixture-proof"
+  "identity": {
+    "actors": null,
+    "advisory": "documents.collection:write is not held",
+    "binding": "",
+    "expires": 1792818600,
+    "owner": "principal-owner",
+    "owner_kind": "human",
+    "scopes": [
+      "documents.collection:read"
+    ],
+    "task": "task-conformance",
+    "tenant": "tenant-conformance"
+  }
 }

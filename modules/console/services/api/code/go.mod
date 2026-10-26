@@ -6,8 +6,9 @@ require (
 	buf.build/go/protovalidate v1.4.0
 	connectrpc.com/connect v1.21.0
 	connectrpc.com/vanguard v0.4.0
+	github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0
 	github.com/codefly-dev/authority/libraries/hop/go v0.0.0
-	github.com/codefly-dev/core v0.19.7-0.20261025185759-e501458995d0
+	github.com/codefly-dev/core v0.19.7-0.20261026092055-b23dc13543b2
 	github.com/codefly-dev/sdk-go v0.4.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.31.0
 	github.com/rs/cors v1.11.1
@@ -24,7 +25,6 @@ require (
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
-	github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0 // indirect
 	github.com/go-openapi/analysis v1.0.0 // indirect
 	github.com/go-openapi/errors v0.22.9 // indirect
 	github.com/go-openapi/jsonpointer v1.0.1 // indirect

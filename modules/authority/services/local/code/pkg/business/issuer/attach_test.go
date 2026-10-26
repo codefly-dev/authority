@@ -3,6 +3,8 @@ package issuer_test
 import (
 	"context"
 	"errors"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"slices"
 	"strings"
 	"testing"
@@ -18,7 +20,7 @@ import (
 // was created, so neither attaches anything of it.
 func TestAttachmentNeedsTheKindsOneServingModule(t *testing.T) {
 	k := testkit.New(t)
-	decoy := state.Manifest{Module: "robin", Principal: "robin", Kind: "module", Generation: 1,
+	decoy := state.Manifest{Name: "robin", Principal: "robin", Kind: "module", Generation: 1,
 		ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope("documents.collection", "read")}}
 	if _, err := k.State.ApplyManifest(decoy); err != nil {
 		t.Fatal(err)
@@ -36,7 +38,7 @@ func TestAttachmentNeedsTheKindsOneServingModule(t *testing.T) {
 // documents, and reads the collections its installation owns.
 func ownKindSolution(t *testing.T, k *testkit.Kit) string {
 	t.Helper()
-	m := state.Manifest{Module: "proposals", Principal: "proposals", Kind: "solution", Generation: 1,
+	m := state.Manifest{Name: "proposals", Principal: "proposals", Kind: "solution", OwnerAware: true, Generation: 1,
 		ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope("proposals.item", "create", "read")},
 		Bindings: map[string]state.Binding{"documents": {ID: "documents", Audience: "documents",
 			InvokeScopes: []*basev0.WorkScopeV1{testkit.Scope("documents.collection", "read", "admin")}}},
@@ -51,11 +53,14 @@ func ownKindSolution(t *testing.T, k *testkit.Kit) string {
 	if _, err := k.State.ApplyManifest(m); err != nil {
 		t.Fatal(err)
 	}
-	inst, err := k.State.Install(context.Background(), "acme", "proposals", "viewer", "alex")
+	inst, err := k.State.InstallAsHost(context.Background(), "acme", "proposals", "viewer", "alex")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := k.State.GrantToTeam(context.Background(), "acme", inst.ID, "finance"); err != nil {
+	if err := k.State.GrantRole(domain.RoleGrant{InstallationID: inst.ID, Role: "viewer", TeamID: "finance"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := k.State.GrantRole(domain.RoleGrant{InstallationID: inst.ID, Role: state.InstallerRole, PersonID: "alex"}); err != nil {
 		t.Fatal(err)
 	}
 	return inst.ID
@@ -84,7 +89,12 @@ func TestASolutionAttachesItsOwnKindThroughAPersonsCapability(t *testing.T) {
 	if err != nil || got != id {
 		t.Fatalf("attached to %q (%v), want %s", got, err, id)
 	}
-	held, err := k.State.PersonSolutionScopes("maya", "proposals")
+	m, err := k.State.ModuleByPrincipal("proposals")
+	if err != nil {
+		t.Fatal(err)
+	}
+	inst, _ := k.State.Installation(id)
+	held, err := decide.RoleScopes(m, inst, []string{"viewer"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +109,7 @@ func TestAnInstallationAgentAttachesIntoItsInstallation(t *testing.T) {
 	id := ownKindSolution(t, k)
 	agent, err := k.Issuer.Issue(context.Background(), &authorityv1.IssueRequest{
 		As:    &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: id}},
-		Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, "proposals")}, Audience: "documents"})
+		Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, "proposals")}, Audience: "documents", OperationBindingId: "documents"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +120,12 @@ func TestAnInstallationAgentAttachesIntoItsInstallation(t *testing.T) {
 	if err != nil || got != id {
 		t.Fatalf("attached to %q (%v), want %s", got, err, id)
 	}
-	held, err := k.State.PersonSolutionScopes("maya", "proposals")
+	m, err := k.State.ModuleByPrincipal("proposals")
+	if err != nil {
+		t.Fatal(err)
+	}
+	inst, _ := k.State.Installation(id)
+	held, err := decide.RoleScopes(m, inst, []string{"viewer"})
 	if err != nil {
 		t.Fatal(err)
 	}

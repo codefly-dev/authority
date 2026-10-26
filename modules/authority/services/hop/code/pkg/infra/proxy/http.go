@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/codefly-dev/authority/libraries/authority-client/go/host"
 	"github.com/codefly-dev/authority/libraries/hop/go"
 	"github.com/codefly-dev/authority/libraries/hop/go/routing"
 	"google.golang.org/grpc/codes"
@@ -64,6 +65,9 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	stamp.Set(hop.WorkContextKey, md.Get(hop.WorkContextKey)...)
 	hop.Stamp(stamp, id, h.Proof)
 	(&httputil.ReverseProxy{
+		// Never through a proxy from the environment, which would see the stamp,
+		// the run's proof and the forwarded Work Context.
+		Transport: host.HTTPTransport(),
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(target)
 			pr.Out.Host = target.Host

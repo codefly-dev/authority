@@ -298,5 +298,577 @@
         "allowed": false
       }
     ]
+  },
+  {
+    "name": "owner-selected",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZAsOH11gZKJDE1NzA2ZWY2LTlkYTgtNGJmMi04M2YzLTVlZWVjNGE5MWI5ZFAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokOTdhOGI2N2QtMzAwZC00Nzk0LTk3MjUtOGViZDAwMTQ0MmJiigEbCgZyZWNvcmQSBHJlYWQiC3ByaW5jaXBhbC11igEdCgRub3RlEgRyZWFkGgJuMSILcHJpbmNpcGFsLXWKAQ0KBXBsYWluEgRyZWFksgEFaHVtYW7KARhvcmdhbml6YXRpb24tY29uZm9ybWFuY2XSAR4IAhIYaW5zdGFsbGF0aW9uLWNvbmZvcm1hbmNlGAM.mnEA_zKLFKZy0GDHXdBHzLH-IohrrMHt6jfpTiKAR137EcQBZns2NeaeM3QI4CERRTEEyoEeP2x_USEd2QB5BA",
+    "audience": "codefly.test/conformance",
+    "scopes": [
+      {
+        "resource_kind": "record",
+        "actions": [
+          "read"
+        ],
+        "resource_owner_id": "principal-u"
+      },
+      {
+        "resource_kind": "note",
+        "actions": [
+          "read"
+        ],
+        "resource_ids": [
+          "n1"
+        ],
+        "resource_owner_id": "principal-u"
+      },
+      {
+        "resource_kind": "plain",
+        "actions": [
+          "read"
+        ]
+      }
+    ],
+    "probes": [
+      {
+        "kind": "record",
+        "action": "read",
+        "resource_id": "",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "read",
+        "resource_id": "",
+        "owner": "principal-u",
+        "allowed": true
+      },
+      {
+        "kind": "record",
+        "action": "read",
+        "resource_id": "",
+        "owner": "principal-other",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "read",
+        "resource_id": "",
+        "owner": "",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "read",
+        "resource_id": "other-resource",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "read",
+        "resource_id": "other-resource",
+        "owner": "principal-u",
+        "allowed": true
+      },
+      {
+        "kind": "record",
+        "action": "read",
+        "resource_id": "other-resource",
+        "owner": "principal-other",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "read",
+        "resource_id": "other-resource",
+        "owner": "",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "read",
+        "resource_id": "record-conformance",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "read",
+        "resource_id": "record-conformance",
+        "owner": "principal-u",
+        "allowed": true
+      },
+      {
+        "kind": "record",
+        "action": "read",
+        "resource_id": "record-conformance",
+        "owner": "principal-other",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "read",
+        "resource_id": "record-conformance",
+        "owner": "",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "",
+        "owner": "principal-u",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "",
+        "owner": "principal-other",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "",
+        "owner": "",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "other-resource",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "other-resource",
+        "owner": "principal-u",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "other-resource",
+        "owner": "principal-other",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "other-resource",
+        "owner": "",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "record-conformance",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "record-conformance",
+        "owner": "principal-u",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "record-conformance",
+        "owner": "principal-other",
+        "allowed": false
+      },
+      {
+        "kind": "record",
+        "action": "undeclared",
+        "resource_id": "record-conformance",
+        "owner": "",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "read",
+        "resource_id": "",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "read",
+        "resource_id": "",
+        "owner": "principal-u",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "read",
+        "resource_id": "",
+        "owner": "principal-other",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "read",
+        "resource_id": "",
+        "owner": "",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "read",
+        "resource_id": "other-resource",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "read",
+        "resource_id": "other-resource",
+        "owner": "principal-u",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "read",
+        "resource_id": "other-resource",
+        "owner": "principal-other",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "read",
+        "resource_id": "other-resource",
+        "owner": "",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "read",
+        "resource_id": "n1",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "read",
+        "resource_id": "n1",
+        "owner": "principal-u",
+        "allowed": true
+      },
+      {
+        "kind": "note",
+        "action": "read",
+        "resource_id": "n1",
+        "owner": "principal-other",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "read",
+        "resource_id": "n1",
+        "owner": "",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "read",
+        "resource_id": "record-conformance",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "read",
+        "resource_id": "record-conformance",
+        "owner": "principal-u",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "read",
+        "resource_id": "record-conformance",
+        "owner": "principal-other",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "read",
+        "resource_id": "record-conformance",
+        "owner": "",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "undeclared",
+        "resource_id": "",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "undeclared",
+        "resource_id": "",
+        "owner": "principal-u",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "undeclared",
+        "resource_id": "",
+        "owner": "principal-other",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "undeclared",
+        "resource_id": "",
+        "owner": "",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "undeclared",
+        "resource_id": "other-resource",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "undeclared",
+        "resource_id": "other-resource",
+        "owner": "principal-u",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "undeclared",
+        "resource_id": "other-resource",
+        "owner": "principal-other",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "undeclared",
+        "resource_id": "other-resource",
+        "owner": "",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "undeclared",
+        "resource_id": "n1",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "undeclared",
+        "resource_id": "n1",
+        "owner": "principal-u",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "undeclared",
+        "resource_id": "n1",
+        "owner": "principal-other",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "undeclared",
+        "resource_id": "n1",
+        "owner": "",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "undeclared",
+        "resource_id": "record-conformance",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "undeclared",
+        "resource_id": "record-conformance",
+        "owner": "principal-u",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "undeclared",
+        "resource_id": "record-conformance",
+        "owner": "principal-other",
+        "allowed": false
+      },
+      {
+        "kind": "note",
+        "action": "undeclared",
+        "resource_id": "record-conformance",
+        "owner": "",
+        "allowed": false
+      },
+      {
+        "kind": "plain",
+        "action": "read",
+        "resource_id": "",
+        "allowed": true
+      },
+      {
+        "kind": "plain",
+        "action": "read",
+        "resource_id": "",
+        "owner": "principal-u",
+        "allowed": true
+      },
+      {
+        "kind": "plain",
+        "action": "read",
+        "resource_id": "",
+        "owner": "principal-other",
+        "allowed": true
+      },
+      {
+        "kind": "plain",
+        "action": "read",
+        "resource_id": "",
+        "owner": "",
+        "allowed": true
+      },
+      {
+        "kind": "plain",
+        "action": "read",
+        "resource_id": "other-resource",
+        "allowed": true
+      },
+      {
+        "kind": "plain",
+        "action": "read",
+        "resource_id": "other-resource",
+        "owner": "principal-u",
+        "allowed": true
+      },
+      {
+        "kind": "plain",
+        "action": "read",
+        "resource_id": "other-resource",
+        "owner": "principal-other",
+        "allowed": true
+      },
+      {
+        "kind": "plain",
+        "action": "read",
+        "resource_id": "other-resource",
+        "owner": "",
+        "allowed": true
+      },
+      {
+        "kind": "plain",
+        "action": "read",
+        "resource_id": "record-conformance",
+        "allowed": true
+      },
+      {
+        "kind": "plain",
+        "action": "read",
+        "resource_id": "record-conformance",
+        "owner": "principal-u",
+        "allowed": true
+      },
+      {
+        "kind": "plain",
+        "action": "read",
+        "resource_id": "record-conformance",
+        "owner": "principal-other",
+        "allowed": true
+      },
+      {
+        "kind": "plain",
+        "action": "read",
+        "resource_id": "record-conformance",
+        "owner": "",
+        "allowed": true
+      },
+      {
+        "kind": "plain",
+        "action": "undeclared",
+        "resource_id": "",
+        "allowed": false
+      },
+      {
+        "kind": "plain",
+        "action": "undeclared",
+        "resource_id": "",
+        "owner": "principal-u",
+        "allowed": false
+      },
+      {
+        "kind": "plain",
+        "action": "undeclared",
+        "resource_id": "",
+        "owner": "principal-other",
+        "allowed": false
+      },
+      {
+        "kind": "plain",
+        "action": "undeclared",
+        "resource_id": "",
+        "owner": "",
+        "allowed": false
+      },
+      {
+        "kind": "plain",
+        "action": "undeclared",
+        "resource_id": "other-resource",
+        "allowed": false
+      },
+      {
+        "kind": "plain",
+        "action": "undeclared",
+        "resource_id": "other-resource",
+        "owner": "principal-u",
+        "allowed": false
+      },
+      {
+        "kind": "plain",
+        "action": "undeclared",
+        "resource_id": "other-resource",
+        "owner": "principal-other",
+        "allowed": false
+      },
+      {
+        "kind": "plain",
+        "action": "undeclared",
+        "resource_id": "other-resource",
+        "owner": "",
+        "allowed": false
+      },
+      {
+        "kind": "plain",
+        "action": "undeclared",
+        "resource_id": "record-conformance",
+        "allowed": false
+      },
+      {
+        "kind": "plain",
+        "action": "undeclared",
+        "resource_id": "record-conformance",
+        "owner": "principal-u",
+        "allowed": false
+      },
+      {
+        "kind": "plain",
+        "action": "undeclared",
+        "resource_id": "record-conformance",
+        "owner": "principal-other",
+        "allowed": false
+      },
+      {
+        "kind": "plain",
+        "action": "undeclared",
+        "resource_id": "record-conformance",
+        "owner": "",
+        "allowed": false
+      }
+    ]
   }
 ]

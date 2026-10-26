@@ -107,3 +107,67 @@ func TestUpstreamEndpointUsesTheSharedTransportGate(t *testing.T) {
 		}
 	}
 }
+
+// A credential pasted into authority/endpoint never reaches an error: a
+// refusal names the host and port alone.
+func TestARefusalNeverEchoesTheEndpointValue(t *testing.T) {
+	const secret = "s3cr3t-token"
+	for _, endpoint := range []string{
+		"https://user:" + secret + "@authority.example:8443",
+		"https://authority.example:8443/?token=" + secret,
+		"https://authority.example:8443/" + secret,
+		"https://authority.example:8443/#" + secret,
+		"ftp://authority.example:21?k=" + secret,
+		"ftp://" + secret + "@authority.example:21",
+		secret + "-not-an-address",
+		"https://[" + secret,
+	} {
+		_, _, err := Target(endpoint, nil)
+		if err == nil {
+			t.Fatalf("%q accepted", endpoint)
+		}
+		if strings.Contains(err.Error(), secret) {
+			t.Fatalf("the refusal echoes the endpoint's credential: %v", err)
+		}
+	}
+	if _, _, err := Target("https://user:"+secret+"@authority.example:8443", nil); err == nil || !strings.Contains(err.Error(), "authority.example:8443") {
+		t.Fatalf("the refusal names the host and port: %v", err)
+	}
+}
+
+// Loopback is admitted in the environment named exactly "local", the SDK's
+// IsLocal, and nowhere else: no name prefix is reserved for local runs, and a
+// playground's local-authority is a configuration profile of "local", not an
+// environment (review r74 B2).
+func TestLoopbackIsAdmittedOnlyInTheLocalEnvironment(t *testing.T) {
+	for environment, admitted := range map[string]bool{"local": true, "local-authority": false, "locale-eu": false, "localhost-prod": false, "staging": false, "": false} {
+		t.Setenv(resources.EnvironmentPrefix, environment)
+		for _, endpoint := range []string{"localhost:7000", "http://127.0.0.1:7000", "grpc://[::1]:7000"} {
+			if _, _, err := Target(endpoint, nil); (err == nil) != admitted {
+				t.Errorf("%q in %q: admitted=%v, want %v (%v)", endpoint, environment, err == nil, admitted, err)
+			}
+		}
+	}
+}
+
+// Review r61 m1 and r74 m1, the table held identical in Python
+// (tests/test_host.py): control characters, a zone id on a loopback address, and
+// any port that is not a decimal 1..65535 (empty, signed, spaced, 0, too large).
+func TestControlCharactersZoneIDsAndInvalidPortsAreRefused(t *testing.T) {
+	t.Setenv(resources.EnvironmentPrefix, "local")
+	for _, endpoint := range []string{"http://127.0.0.1\t:80", "http://local\nhost:80", "127.0.0.1\t:80", "localhost:80\x7f", "\x1clocalhost:7000", "\x1flocalhost:7000", "\tlocalhost:7000", "localhost:7000\n", "http://[::1%25lo0]:80", "[::1%lo0]:80", "http://127.0.0.1:0", "127.0.0.1:0", "localhost:00", "https://accounts.example.test:0", "localhost:", "127.0.0.1:", "localhost:+80", "localhost: 80", "localhost:-1", "localhost:65536", "http://localhost:+80", "https://accounts.example.test:65536", "localhost:\u0663\u0663", "localhost:000080", "http://localhost:000080", "https://accounts.example.test:000443", "https://:443", "http://:80"} {
+		if target, _, err := Target(endpoint, nil); err == nil {
+			t.Errorf("%q was admitted as %q", endpoint, target)
+		}
+	}
+}
+
+// Review r83 m1: an empty host and an over-long port are refused, each by name.
+func TestAnEmptyHostAndAnOverlongPortAreRefusedByName(t *testing.T) {
+	t.Setenv(resources.EnvironmentPrefix, "local")
+	for endpoint, reason := range map[string]string{"https://:443": "names no host", "http://:80": "names no host", "https://accounts.example.test:000443": "no port in 1-65535", "http://localhost:000080": "no port in 1-65535"} {
+		if _, _, err := Target(endpoint, nil); err == nil || !strings.Contains(err.Error(), reason) {
+			t.Errorf("%q: want a refusal naming %q, got %v", endpoint, reason, err)
+		}
+	}
+}

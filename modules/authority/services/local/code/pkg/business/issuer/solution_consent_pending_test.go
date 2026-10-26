@@ -48,7 +48,7 @@ func TestInstallationToolRequiresTargetSolutionConsent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("source-to-module precondition must work before testing target consent: %v", err)
 		}
-		_, err = k.Issuer.Issue(ctx, &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_ParentToken{ParentToken: middle.Token}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, "robin")}, Audience: "proposals", OperationBindingId: "tools", Scopes: scopes(testkit.Scope("proposals.item", "read"))})
+		_, err = k.Issuer.Issue(ctx, &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_ParentToken{ParentToken: middle.Token}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, "robin")}, Audience: "proposals", OperationBindingId: testkit.SolutionToolBinding, Scopes: scopes(testkit.Scope("proposals.item", "read"))})
 		if err == nil || !strings.Contains(err.Error(), "consent") {
 			t.Fatalf("pending target consent: require a target-consent refusal, not generic seal failure: %v", err)
 		}

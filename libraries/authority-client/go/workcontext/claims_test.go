@@ -1,6 +1,7 @@
 package workcontext_test
 
 import (
+	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	reader "github.com/codefly-dev/authority/libraries/authority-client/go/workcontext"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
@@ -23,7 +25,9 @@ type fixture struct {
 	Probes                []struct {
 		Kind, Action string
 		ResourceID   string `json:"resource_id"`
-		Allowed      bool
+		// Owner, when the probe names one, asks the owner-aware AllowsOwned.
+		Owner   *string
+		Allowed bool
 	}
 }
 
@@ -54,18 +58,28 @@ func body(t *testing.T, name string) *basev0.WorkContextV1 {
 	return nil
 }
 
-// Synthetic signatures test projection only; they are not authenticated tokens.
-func tokenFor(t *testing.T, c *basev0.WorkContextV1) string {
+// The test authority: a key of the test's own, never Core's public fixture key.
+var signer = ed25519.NewKeyFromSeed(make([]byte, ed25519.SeedSize))
+
+func trustFor(c *basev0.WorkContextV1) reader.Trust {
+	at := time.Unix(c.GetNotBeforeUnix(), 0).Add(time.Second)
+	return reader.Trust{Issuer: c.GetIssuer(), Keys: map[string]ed25519.PublicKey{c.GetKeyId(): signer.Public().(ed25519.PublicKey)}, Now: func() time.Time { return at }}
+}
+
+func signWith(t *testing.T, key ed25519.PrivateKey, c *basev0.WorkContextV1) string {
 	t.Helper()
 	b, err := (proto.MarshalOptions{Deterministic: true}).Marshal(c)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return base64.RawURLEncoding.EncodeToString(b) + "." + base64.RawURLEncoding.EncodeToString(make([]byte, 64))
+	return base64.RawURLEncoding.EncodeToString(b) + "." + base64.RawURLEncoding.EncodeToString(ed25519.Sign(key, b))
 }
+
+func tokenFor(t *testing.T, c *basev0.WorkContextV1) string { return signWith(t, signer, c) }
+
 func read(t *testing.T, c *basev0.WorkContextV1) *reader.Claims {
 	t.Helper()
-	out, err := readToken(tokenFor(t, c))
+	out, err := reader.Authenticate(stampedToken(tokenFor(t, c)), "test-proof", c.GetAudience(), trustFor(c))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,10 +88,7 @@ func read(t *testing.T, c *basev0.WorkContextV1) *reader.Claims {
 func TestCoreFixtures(t *testing.T) {
 	for _, f := range fixtures(t) {
 		t.Run(f.Name, func(t *testing.T) {
-			c, err := readToken(f.Token)
-			if err != nil {
-				t.Fatal(err)
-			}
+			c := read(t, body(t, f.Name))
 			if c.Audience() != f.Audience {
 				t.Fatal("audience differs")
 			}
@@ -91,8 +102,12 @@ func TestCoreFixtures(t *testing.T) {
 				}
 			}
 			for _, p := range f.Probes {
-				if c.Allows(p.Kind, p.Action, p.ResourceID) != p.Allowed {
-					t.Fatalf("probe %s %s %s", p.Kind, p.Action, p.ResourceID)
+				got := c.Allows(p.Kind, p.Action, p.ResourceID)
+				if p.Owner != nil {
+					got = c.AllowsOwned(p.Kind, p.Action, p.ResourceID, *p.Owner)
+				}
+				if got != p.Allowed {
+					t.Fatalf("probe %s %s %s owner %v", p.Kind, p.Action, p.ResourceID, p.Owner)
 				}
 			}
 		})
@@ -137,11 +152,12 @@ func TestEmptyFinalActorGrantsNothing(t *testing.T) {
 		t.Fatal("earlier scopes leaked")
 	}
 }
-func TestUnreadableContexts(t *testing.T) {
-	valid := tokenFor(t, body(t, "session"))
+func TestEnvelopesAndClaimsCoreRefuses(t *testing.T) {
+	session := body(t, "session")
+	valid := tokenFor(t, session)
 	payload, _, _ := strings.Cut(valid, ".")
-	for _, token := range []string{"", "abc", "a.b.c", ".", "é.x", strings.Repeat("a", 32*1024+1), valid + "=", payload + ".AA", payload + "." + strings.Repeat("A", 85) + "B"} {
-		if _, err := readToken(token); !errors.Is(err, reader.ErrUnreadableContext) {
+	for _, token := range []string{"abc", "a.b.c", ".", "é.x", strings.Repeat("a", 32*1024+1), valid + "=", payload + ".AA", payload + "." + strings.Repeat("A", 85) + "B"} {
+		if _, err := reader.Authenticate(stampedToken(token), "test-proof", session.GetAudience(), trustFor(session)); !errors.Is(err, reader.ErrUnauthenticated) {
 			t.Fatalf("envelope not refused: %v", err)
 		}
 	}
@@ -160,12 +176,47 @@ func TestUnreadableContexts(t *testing.T) {
 			}
 			token := tokenFor(t, c)
 			if where == "duplicate" {
-				p, s, _ := strings.Cut(token, ".")
+				p, _, _ := strings.Cut(token, ".")
 				b, _ := base64.RawURLEncoding.DecodeString(p)
-				token = base64.RawURLEncoding.EncodeToString(append(b, b...)) + "." + s
+				b = append(b, b...)
+				token = base64.RawURLEncoding.EncodeToString(b) + "." + base64.RawURLEncoding.EncodeToString(ed25519.Sign(signer, b))
 			}
-			if _, err := readToken(token); !errors.Is(err, reader.ErrUnreadableContext) {
+			if _, err := reader.Authenticate(stampedToken(token), "test-proof", session.GetAudience(), trustFor(session)); !errors.Is(err, reader.ErrUnauthenticated) {
 				t.Fatalf("malformed claims not refused: %v", err)
+			}
+		})
+	}
+}
+
+// The defect this package exists to close: a party holding the run's proof
+// writes the proof and the digest of any token it likes. Only the signature,
+// the issuer, the audience and the window make the token one the authority
+// issued for this module, now.
+func TestAForgedOrMisaddressedContextIsRefusedByName(t *testing.T) {
+	session := body(t, "session")
+	trust := trustFor(session)
+	_, other, _ := ed25519.GenerateKey(nil)
+	payload, _, _ := strings.Cut(tokenFor(t, session), ".")
+	foreign := proto.Clone(session).(*basev0.WorkContextV1)
+	foreign.Issuer = "https://forger.example"
+	for name, c := range map[string]struct {
+		token, audience, reason string
+		trust                   reader.Trust
+	}{
+		"forged":         {signWith(t, other, session), session.GetAudience(), "signature", trust},
+		"unsigned":       {payload + "." + base64.RawURLEncoding.EncodeToString(make([]byte, 64)), session.GetAudience(), "signature", trust},
+		"another issuer": {tokenFor(t, foreign), session.GetAudience(), "issued by", trust},
+		"wrong audience": {tokenFor(t, session), "another-module", "audience", trust},
+		"expired":        {tokenFor(t, session), session.GetAudience(), "expired", reader.Trust{Issuer: trust.Issuer, Keys: trust.Keys, Now: func() time.Time { return time.Unix(session.GetExpiresAtUnix(), 0).Add(time.Hour) }}},
+		"not yet valid":  {tokenFor(t, session), session.GetAudience(), "not valid before", reader.Trust{Issuer: trust.Issuer, Keys: trust.Keys, Now: func() time.Time { return time.Unix(session.GetNotBeforeUnix(), 0).Add(-time.Hour) }}},
+		"unknown key":    {tokenFor(t, session), session.GetAudience(), "no verification key", reader.Trust{Issuer: trust.Issuer, Keys: map[string]ed25519.PublicKey{"rotated": trust.Keys[session.GetKeyId()]}, Now: trust.Now}},
+		"no trust":       {tokenFor(t, session), session.GetAudience(), "invalid_key", reader.Trust{}},
+		"configuration":  {tokenFor(t, session), "", "configuration", trust},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := reader.Authenticate(stampedToken(c.token), "test-proof", c.audience, c.trust)
+			if !errors.Is(err, reader.ErrUnauthenticated) || !strings.Contains(err.Error(), c.reason) {
+				t.Fatalf("want a refusal naming %q, got %v", c.reason, err)
 			}
 		})
 	}
@@ -175,25 +226,26 @@ func stampedToken(token string) metadata.MD {
 	sum := sha256.Sum256([]byte(token))
 	return metadata.Pairs("x-codefly-work-context", token, "x-codefly-hop-proof", "test-proof", "x-codefly-hop-context", hex.EncodeToString(sum[:]))
 }
-func readToken(token string) (*reader.Claims, error) {
-	return reader.ReadClaims(stampedToken(token), "test-proof")
-}
-func TestReadClaimsRequiresTheStamp(t *testing.T) {
-	token := fixtures(t)[0].Token
+func TestAuthenticateRequiresTheStamp(t *testing.T) {
+	session := body(t, "session")
+	token := tokenFor(t, session)
 	for _, change := range []func(metadata.MD){
 		func(md metadata.MD) { md.Delete("x-codefly-hop-proof") },
 		func(md metadata.MD) { md.Set("x-codefly-hop-proof", "forged") },
 		func(md metadata.MD) { md.Delete("x-codefly-hop-context") },
-		func(md metadata.MD) { md.Set("x-codefly-work-context", token+"forged") },
+		func(md metadata.MD) { md.Set("x-codefly-work-context", tokenFor(t, body(t, "operation"))) },
 		func(md metadata.MD) { md.Append("x-codefly-work-context", token) },
 	} {
 		md := stampedToken(token)
 		change(md)
-		if _, err := reader.ReadClaims(md, "test-proof"); !errors.Is(err, reader.ErrUnreadableContext) {
+		if _, err := reader.Authenticate(md, "test-proof", session.GetAudience(), trustFor(session)); !errors.Is(err, reader.ErrUnauthenticated) {
 			t.Fatalf("unbound claims accepted: %v", err)
 		}
 	}
-	if _, err := reader.ReadClaims(stampedToken(token), ""); err == nil {
+	if _, err := reader.Authenticate(stampedToken(token), "", session.GetAudience(), trustFor(session)); err == nil {
 		t.Fatal("empty proof accepted")
+	}
+	if c, err := reader.Authenticate(stampedToken(token), "test-proof", session.GetAudience(), trustFor(session)); err != nil || c.Context().GetTenantId() != session.GetTenantId() {
+		t.Fatalf("an authentic, bound context: %v", err)
 	}
 }

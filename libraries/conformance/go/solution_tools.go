@@ -14,10 +14,13 @@ type SolutionToolsCase struct {
 	Token, Outsider, Module, Credential, Binding, Audience, Kind, Action, Method string
 }
 
-func (c *client) solutionTools(t *testing.T, ctx context.Context, f SolutionToolsCase) {
+func (c *client) solutionTools(t *testing.T, ctx context.Context, fixture Fixture, f SolutionToolsCase) {
+	// Under the solution-principal contract a person reaches the solution's
+	// data as its principal's: the ask is owner-selected.
+	owner := c.solutionOwner(t, ctx, fixture, f.Audience)
 	for _, token := range []string{f.Token, f.Outsider} {
 		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": token})
-		read := []any{map[string]any{"resource_kind": f.Kind, "actions": []any{f.Action}}}
+		read := []any{ownedBy(map[string]any{"resource_kind": f.Kind, "actions": []any{f.Action}}, owner)}
 		// Row 15 proves the binding contributes its scope to person issuance.
 		root, err := c.call(as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.Module, "operation_binding_id": f.Binding})
 		if token == f.Outsider {

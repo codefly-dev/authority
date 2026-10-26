@@ -26,15 +26,16 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AuthorityService_Issue_FullMethodName            = "/host.authority.v1.AuthorityService/Issue"
-	AuthorityService_Check_FullMethodName            = "/host.authority.v1.AuthorityService/Check"
-	AuthorityService_Keys_FullMethodName             = "/host.authority.v1.AuthorityService/Keys"
-	AuthorityService_ListResources_FullMethodName    = "/host.authority.v1.AuthorityService/ListResources"
-	AuthorityService_AttachResource_FullMethodName   = "/host.authority.v1.AuthorityService/AttachResource"
-	AuthorityService_DetachResource_FullMethodName   = "/host.authority.v1.AuthorityService/DetachResource"
-	AuthorityService_Delegate_FullMethodName         = "/host.authority.v1.AuthorityService/Delegate"
-	AuthorityService_RevokeDelegation_FullMethodName = "/host.authority.v1.AuthorityService/RevokeDelegation"
-	AuthorityService_GetDelegation_FullMethodName    = "/host.authority.v1.AuthorityService/GetDelegation"
+	AuthorityService_Issue_FullMethodName             = "/host.authority.v1.AuthorityService/Issue"
+	AuthorityService_Check_FullMethodName             = "/host.authority.v1.AuthorityService/Check"
+	AuthorityService_Keys_FullMethodName              = "/host.authority.v1.AuthorityService/Keys"
+	AuthorityService_ListResources_FullMethodName     = "/host.authority.v1.AuthorityService/ListResources"
+	AuthorityService_AttachResource_FullMethodName    = "/host.authority.v1.AuthorityService/AttachResource"
+	AuthorityService_DetachResource_FullMethodName    = "/host.authority.v1.AuthorityService/DetachResource"
+	AuthorityService_AuthorizeTransfer_FullMethodName = "/host.authority.v1.AuthorityService/AuthorizeTransfer"
+	AuthorityService_Delegate_FullMethodName          = "/host.authority.v1.AuthorityService/Delegate"
+	AuthorityService_RevokeDelegation_FullMethodName  = "/host.authority.v1.AuthorityService/RevokeDelegation"
+	AuthorityService_GetDelegation_FullMethodName     = "/host.authority.v1.AuthorityService/GetDelegation"
 )
 
 // AuthorityServiceClient is the client API for AuthorityService service.
@@ -89,6 +90,19 @@ type AuthorityServiceClient interface {
 	// It narrows the owner's roles, so the organisation's authorization revision
 	// moves. Detaching an id no installation owns answers no installation.
 	DetachResource(ctx context.Context, in *DetachResourceRequest, opts ...grpc.CallOption) (*DetachResourceResponse, error)
+	// AuthorizeTransfer decides whether an existing resource may join an
+	// installed solution's principal. The caller is the kind's one serving
+	// module, which attests the resource exists and who owns it now
+	// (from_owner_id), presenting the capability of the person asking: issued
+	// through the target principal's installation and addressed to the caller.
+	// It is allowed when the current owner is the organization or a person of
+	// it (never another solution principal, another organization or an unknown
+	// owner), the person holds admin on that resource from their own
+	// organization grants, and the person's current roles on the principal hold
+	// write on the kind, all read live. An installation acting for itself never
+	// transfers. The store then records the principal as owner; the original
+	// creator stays the author.
+	AuthorizeTransfer(ctx context.Context, in *AuthorizeTransferRequest, opts ...grpc.CallOption) (*AuthorizeTransferResponse, error)
 	// Delegate records a signed-in person's grant to a module (the caller's
 	// bearer is the person); Issue with a delegation acts on it.
 	Delegate(ctx context.Context, in *DelegateRequest, opts ...grpc.CallOption) (*Delegation, error)
@@ -163,6 +177,16 @@ func (c *authorityServiceClient) DetachResource(ctx context.Context, in *DetachR
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DetachResourceResponse)
 	err := c.cc.Invoke(ctx, AuthorityService_DetachResource_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authorityServiceClient) AuthorizeTransfer(ctx context.Context, in *AuthorizeTransferRequest, opts ...grpc.CallOption) (*AuthorizeTransferResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AuthorizeTransferResponse)
+	err := c.cc.Invoke(ctx, AuthorityService_AuthorizeTransfer_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -251,6 +275,19 @@ type AuthorityServiceServer interface {
 	// It narrows the owner's roles, so the organisation's authorization revision
 	// moves. Detaching an id no installation owns answers no installation.
 	DetachResource(context.Context, *DetachResourceRequest) (*DetachResourceResponse, error)
+	// AuthorizeTransfer decides whether an existing resource may join an
+	// installed solution's principal. The caller is the kind's one serving
+	// module, which attests the resource exists and who owns it now
+	// (from_owner_id), presenting the capability of the person asking: issued
+	// through the target principal's installation and addressed to the caller.
+	// It is allowed when the current owner is the organization or a person of
+	// it (never another solution principal, another organization or an unknown
+	// owner), the person holds admin on that resource from their own
+	// organization grants, and the person's current roles on the principal hold
+	// write on the kind, all read live. An installation acting for itself never
+	// transfers. The store then records the principal as owner; the original
+	// creator stays the author.
+	AuthorizeTransfer(context.Context, *AuthorizeTransferRequest) (*AuthorizeTransferResponse, error)
 	// Delegate records a signed-in person's grant to a module (the caller's
 	// bearer is the person); Issue with a delegation acts on it.
 	Delegate(context.Context, *DelegateRequest) (*Delegation, error)
@@ -288,6 +325,9 @@ func (UnimplementedAuthorityServiceServer) AttachResource(context.Context, *Atta
 }
 func (UnimplementedAuthorityServiceServer) DetachResource(context.Context, *DetachResourceRequest) (*DetachResourceResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DetachResource not implemented")
+}
+func (UnimplementedAuthorityServiceServer) AuthorizeTransfer(context.Context, *AuthorizeTransferRequest) (*AuthorizeTransferResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AuthorizeTransfer not implemented")
 }
 func (UnimplementedAuthorityServiceServer) Delegate(context.Context, *DelegateRequest) (*Delegation, error) {
 	return nil, status.Error(codes.Unimplemented, "method Delegate not implemented")
@@ -427,6 +467,24 @@ func _AuthorityService_DetachResource_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthorityService_AuthorizeTransfer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AuthorizeTransferRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthorityServiceServer).AuthorizeTransfer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthorityService_AuthorizeTransfer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthorityServiceServer).AuthorizeTransfer(ctx, req.(*AuthorizeTransferRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthorityService_Delegate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DelegateRequest)
 	if err := dec(in); err != nil {
@@ -511,6 +569,10 @@ var AuthorityService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DetachResource",
 			Handler:    _AuthorityService_DetachResource_Handler,
+		},
+		{
+			MethodName: "AuthorizeTransfer",
+			Handler:    _AuthorityService_AuthorizeTransfer_Handler,
 		},
 		{
 			MethodName: "Delegate",

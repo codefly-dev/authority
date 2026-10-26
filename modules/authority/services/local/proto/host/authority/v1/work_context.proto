@@ -203,6 +203,16 @@ message WorkScopeV1 {
   // resource_ids narrows the scope to specific resources. Empty means every
   // resource of resource_kind.
   repeated string resource_ids = 3;
+  // resource_owner_id narrows the scope to the resources this principal owns
+  // (an installed solution's principal). Empty means the scope selects no
+  // owner. With resource_ids, a resource is covered only when both match. A
+  // reader that cannot compare a resource's owner must not treat an
+  // owner-selected scope as covering the whole kind. It is at most 512 bytes
+  // of printable ASCII other than space and "*" (0x21-0x29, 0x2B-0x7E): no
+  // whitespace, control, non-ASCII, invisible or lookalike character, so two
+  // owners that print alike are the same bytes and every regex engine answers
+  // the rule the same way.
+  string resource_owner_id = 4 [(buf.validate.field).string.max_bytes = 512, (buf.validate.field).string.pattern = "^[!-)+-~]*$"];
 }
 
 // WorkActorV1 is one verified delegated actor. granted_scopes are the actor's

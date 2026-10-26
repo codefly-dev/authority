@@ -7,16 +7,17 @@ package decide
 import (
 	"context"
 	"github.com/codefly-dev/authority/libraries/hop/go/routing"
-	"slices"
 	"strings"
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
 	"github.com/codefly-dev/authority/libraries/hop/go"
+	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"github.com/codefly-dev/core/workcontext"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 // Checker is the authority's Check, as the interface's generated client serves it.
@@ -118,41 +119,17 @@ func (d Decider) decide(ctx context.Context, method string, md metadata.MD) (Dec
 	return Decision{Module: module, Identity: id, Route: route}, nil
 }
 
-// IdentityOf reads who a checked Work Context is for. Its scopes are the
-// effective ones: the owner's authority narrowed by every actor's grant. A scope
-// limited to named resources is left out rather than widened to its whole kind.
+// IdentityOf reads who the authority's checked context is for, with the one
+// derivation the module's Verifier also applies to the token it authenticates
+// (hop.IdentityOf); the two must agree or the module refuses the call.
 func IdentityOf(wc *authorityv1.WorkContextV1) hop.Identity {
-	id := hop.Identity{
-		Owner:     wc.GetOwnerPrincipalId(),
-		OwnerKind: wc.GetOwnerPrincipalKind(),
-		Tenant:    wc.GetTenantId(),
-		Binding:   wc.GetOperationBinding().GetBindingId(),
-		Task:      wc.GetTaskId(),
-		Expires:   wc.GetExpiresAtUnix(),
+	wire, err := proto.Marshal(wc)
+	if err != nil {
+		return hop.Identity{}
 	}
-	scopes := flatten(wc.GetAuthorityScopes())
-	for _, actor := range wc.GetActorChain() {
-		id.Actors = append(id.Actors, actor.GetPrincipalId())
-		if granted := actor.GetGrantedScopes(); len(granted) > 0 {
-			held := flatten(granted)
-			scopes = slices.DeleteFunc(scopes, func(s string) bool { return !slices.Contains(held, s) })
-		}
+	claims := &basev0.WorkContextV1{}
+	if err := proto.Unmarshal(wire, claims); err != nil {
+		return hop.Identity{}
 	}
-	id.Scopes = scopes
-	return id
-}
-
-func flatten(scopes []*authorityv1.WorkScopeV1) []string {
-	var out []string
-	for _, s := range scopes {
-		if len(s.GetResourceIds()) > 0 {
-			continue
-		}
-		for _, action := range s.GetActions() {
-			if scope := s.GetResourceKind() + ":" + action; !slices.Contains(out, scope) {
-				out = append(out, scope)
-			}
-		}
-	}
-	return out
+	return hop.IdentityOf(claims)
 }

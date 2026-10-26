@@ -11,7 +11,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file api.proto.
  */
 export const file_api: GenFile = /*@__PURE__*/
-  fileDesc("CglhcGkucHJvdG8SA2FwaSIQCg5WZXJzaW9uUmVxdWVzdCIiCg9WZXJzaW9uUmVzcG9uc2USDwoHdmVyc2lvbhgBIAEoCTJYCg5HYXRld2F5U2VydmljZRJGCgdWZXJzaW9uEhMuYXBpLlZlcnNpb25SZXF1ZXN0GhQuYXBpLlZlcnNpb25SZXNwb25zZSIQgtPkkwIKEggvdmVyc2lvbkIVWhNnYXRld2F5L3BrZy9nZW47Z2VuYgZwcm90bzM", [file_google_api_annotations]);
+  fileDesc("CglhcGkucHJvdG8SA2FwaSIQCg5WZXJzaW9uUmVxdWVzdCIiCg9WZXJzaW9uUmVzcG9uc2USDwoHdmVyc2lvbhgBIAEoCTJWCgxMb2NhbFNlcnZpY2USRgoHVmVyc2lvbhITLmFwaS5WZXJzaW9uUmVxdWVzdBoULmFwaS5WZXJzaW9uUmVzcG9uc2UiEILT5JMCChIIL3ZlcnNpb25CFVoTZ2F0ZXdheS9wa2cvZ2VuO2dlbmIGcHJvdG8z", [file_google_api_annotations]);
 
 /**
  * @generated from message api.VersionRequest
@@ -44,11 +44,11 @@ export const VersionResponseSchema: GenMessage<VersionResponse> = /*@__PURE__*/
   messageDesc(file_api, 1);
 
 /**
- * @generated from service api.GatewayService
+ * @generated from service api.LocalService
  */
-export const GatewayService: GenService<{
+export const LocalService: GenService<{
   /**
-   * @generated from rpc api.GatewayService.Version
+   * @generated from rpc api.LocalService.Version
    */
   version: {
     methodKind: "unary";

@@ -45,7 +45,7 @@ func (c *client) installationResources(t *testing.T, ctx context.Context, fixtur
 	// Store serves Kind; its self binding lets it hop on, and work headless.
 	both := []string{f.Kind + ":create", f.Kind + ":read"}
 	if _, err := c.deliver(ctx, fixture, f.Store, "module", f.Generation, []string{f.Kind},
-		map[string]any{"scope_ceilings": []any{scopeAsk(f.Kind, []string{"admin", "create", "read"}, nil)}}, 0,
+		map[string]any{"owner_aware": true, "scope_ceilings": []any{scopeAsk(f.Kind, []string{"admin", "create", "read"}, nil)}}, 0,
 		solutionhost.AuthorityBinding{ID: self, Audience: f.Store, Operations: map[string][]string{"invoke": both, "headless": both}}); err != nil {
 		t.Fatalf("deliver %s: %v", f.Store, err)
 	}
@@ -54,6 +54,7 @@ func (c *client) installationResources(t *testing.T, ctx context.Context, fixtur
 	for _, s := range []OwnedInstallation{f.A, f.B} {
 		own := scopeAsk(s.Solution+".note", []string{"read"}, nil)
 		doc := map[string]any{
+			"owner_aware":    true,
 			"scope_ceilings": []any{own},
 			"roles": []any{
 				map[string]any{"name": "installer", "scopes": []any{own, create, read, admin}},
@@ -76,6 +77,25 @@ func (c *client) installationResources(t *testing.T, ctx context.Context, fixtur
 	through := func(t *testing.T, person context.Context, s OwnedInstallation, scopes ...any) (protoreflect.Message, error) {
 		t.Helper()
 		root := c.must(t, person, "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": s.Solution})
+		// Ordinary installer scopes retain main's resource-owner selection.
+		// Exact installation-owned viewer scopes are already bounded by their ids.
+		if person == owner {
+			principal := ""
+			rows := field(msg(root, "context"), "authority_scopes").List()
+			if rows.Len() > 0 {
+				principal = str(rows.Get(0).Message(), "resource_owner_id")
+			}
+			selected := make([]any, 0, len(scopes))
+			for _, ask := range scopes {
+				fields := map[string]any{}
+				for key, value := range ask.(map[string]any) {
+					fields[key] = value
+				}
+				fields["resource_owner_id"] = principal
+				selected = append(selected, fields)
+			}
+			scopes = selected
+		}
 		return issue(map[string]any{"parent_token": str(root, "token"), "actor": map[string]any{"credential": s.Credential},
 			"operation_binding_id": binding, "audience": f.Store, "scopes": scopes})
 	}
@@ -173,7 +193,7 @@ func (c *client) installationResources(t *testing.T, ctx context.Context, fixtur
 		_, err = through(t, viewer, f.A, read)
 		refused(t, err, codes.PermissionDenied, "widens")
 		_, err = c.call(viewer, "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.B.Solution})
-		refused(t, err, codes.PermissionDenied, "holds nothing")
+		refused(t, err, codes.PermissionDenied, "holds no role")
 	})
 	t.Run("a child context never widens an installation-owned grant it narrowed", func(t *testing.T) {
 		narrowed, err := through(t, viewer, f.A, scopeAsk(f.Kind, []string{"read"}, []string{f.ResourceA}))
