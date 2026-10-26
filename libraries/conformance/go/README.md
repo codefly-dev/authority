@@ -95,9 +95,8 @@ implements it. The model, in full, is the doc comment on
   only by `AuthorizeTransfer`, with the person's own admin on that resource
   and write on U's data through their current roles, read live.
 
-The target deletes `GrantToTeam`, `team_ids` and `agent_principal_id`, and
-changes the composition contract's text that the installing person holds the
-installer role.
+The contract has no `GrantToTeam`, `team_ids` or `agent_principal_id`, and the
+installing person holds no role unless granted one.
 
 The suite first names what the published contract lacks and still carries,
 then runs these cases, each making its own grants:
@@ -152,7 +151,6 @@ installing person holds no role unless granted, so a Matrix row such as the
 installer publishing at a solution needs an explicit installer grant), and
 declares `owner_aware` on the modules solutions consume.
 
-Run the conformance target with `AUTHORITY_TARGET=solution-principal` from
-`modules/authority/services/local/code`:
-`go test ./plugins/registry_test -run SolutionPrincipal`. It skips without it
-until the local authority implements it.
+The local authority runs `Run` and `RunSolutionPrincipalTarget` with every
+`go test ./plugins/registry_test` from `modules/authority/services/local/code`;
+`Run`'s cases assert the same model the target does.

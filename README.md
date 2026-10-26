@@ -173,8 +173,10 @@ talks to. Against that:
   an endpoint on a cell), installations with the install step, module routes.
 
 **What remains is the interface.** Authority: `Issue`, `Check`, `Keys`.
-Composition: `ApplyManifest`. Installation: `Install`, `GrantToTeam`, `List`, and
-the install step callback. Sign-in at the browser edge only. Routing is the data
+Composition: `ApplyManifest`. Installation: `Install`, `GrantRole`, `RevokeRole`,
+`ListRoleGrants`, `List`, and the install step callback (installation 0.2.0: an
+installed solution is a principal, and a role grant to a person or a team is
+the access; `GrantToTeam` is gone). Sign-in at the browser edge only. Routing is the data
 plane, not a contract. 0.1.0 mirrors today's spellings so the local authority serves
 the SDKs as they are; the reduced shape is 0.2.0, a host contract change through a
 handbook proposal, after which the SDKs move once.
@@ -413,10 +415,14 @@ role narrowing/removal and binding narrowing/removal before resolution, during
 minting and after issuance. These checks do not choose a child-scope policy or
 qualify the separate accounts implementation.
 
-Installation administration (`List`, `Install`, `GrantToTeam`) requires an open
-session whose current person is an administrator or owner of the requested
-organization. Anonymous and invalid sessions are `Unauthenticated`; a member or
-an administrator of another organization receives `PermissionDenied`. This is
+Installation administration (`List`, `Install`) requires an open session whose
+current person is an administrator or owner of the requested organization; role
+grants (`GrantRole`, `RevokeRole`, `ListRoleGrants`) also admit the holder of the
+installer role on that installation. Anonymous and invalid sessions are
+`Unauthenticated`; anyone else receives `PermissionDenied`, and a caller of
+another organization is answered as if the installation did not exist. Every
+decision is the generic authority core's (`libraries/authority-core/go`); the
+local authority is a host over it. This is
 not the navigation API: a member probes each target with an empty-scope `Issue`.
 That call returns `FailedPrecondition` when the audience has no active
 installation in the person's organization, and `PermissionDenied` when installed

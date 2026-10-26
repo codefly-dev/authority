@@ -6,11 +6,20 @@ composition from the manifests the run delivers, and answers the installation
 and artifact interfaces. The repository's [README](../../../../README.md) is the
 story and the rules; this page is what the process keeps and where.
 
+**A host over the core.** Every decision and every signature is the generic
+authority core's (`libraries/authority-core/go`), over its in-memory store
+(`memstore`): modules, installations, role grants, delegations, revisions and
+issuance. This service keeps what a host owns: the fixture and its sign-in
+tokens (`pkg/business/state` seeds the core's store from them), sessions,
+workload attestation against the launcher's anchor, signed delivery
+admission, method admission on `Check`, and approvals. The plugins translate
+the wire to the core's calls (`pkg/business/issuer`, `plugins/installation`).
+
 | State | Where | Across a restart |
 |---|---|---|
 | who exists, what they hold, what is installed by fixture | `code/fixtures/<name>.yaml`, selected by the run | re-read: fixture, not state |
 | the composition: each module's manifest, generation and bindings | memory, re-delivered by the run | re-delivered |
-| sessions, delegations, installations made at runtime | memory | forgotten |
+| sessions, delegations, installations and role grants made at runtime | memory (the core's `memstore`) | forgotten |
 | **approvals**: a person's consent to one exact artifact for one installation | **the module's [store](../store/README.md)**, `approvals` table, when the run composes it; memory otherwise | **kept**: a run of the approved artifact is answered after a restart, and a revoked one stays refused |
 
 **How it chooses.** `code/work.go` (`approvalsFor`) reads the store's
@@ -54,6 +63,8 @@ roles:          # grants added to roles the fixture defines
     scopes:
       - {kind: ledger.entry, actions: [read, write]}
 installations:  # installations of a solution the run composes, the fixture's own path
+  # role: the installation's own (its agent's) role; owner: who installed it,
+  # granted the installer role; teams: each granted role on the installation.
   - {organization: acme, target: atlas, role: viewer, owner: alex, teams: [finance]}
 modules:        # a module the run supervises itself, until its own delivery
   - module: oracle
