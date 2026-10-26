@@ -74,12 +74,18 @@ type Issuer struct {
 	// admission are the hop admission keys registered and not yet lapsed, by
 	// key id (RegisterAdmissionKey).
 	admission map[string]admission
+	// nonces are the registration proofs accepted and still fresh, each until
+	// it is forgotten, so none is accepted twice.
+	nonces map[string]time.Time
+	// trustDomain is the host's: only a hop attested in it registers a key.
+	trustDomain string
 }
 
 // New builds the issuer for a host whose core signs as issuer with keyID, its
 // public half published by Keys.
 func New(st *state.State, issuer, keyID string, public ed25519.PublicKey) *Issuer {
-	return &Issuer{state: st, svc: st.Service(), issuer: issuer, keyID: keyID, public: public, now: time.Now, admission: map[string]admission{}}
+	return &Issuer{state: st, svc: st.Service(), issuer: issuer, keyID: keyID, public: public, now: time.Now,
+		admission: map[string]admission{}, nonces: map[string]time.Time{}, trustDomain: st.TrustDomain()}
 }
 
 // Config is the core configuration for one signing key: what state.New

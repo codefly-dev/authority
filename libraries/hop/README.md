@@ -203,7 +203,12 @@ never trusts a hop key to sign a Work Context, and each verifier uses a key for
 its own purpose only. **The hop registers its key** with the authority
 (`RegisterAdmissionKey`, `codefly.dev/authority@0.3.3`, through
 `hop.Registration`): it presents the public half under its own workload
-credential, and the authority refuses any other workload by name. A registration
+credential, and the authority refuses any other workload by name. Since
+`codefly.dev/authority@0.3.4` each registration also carries a fresh proof
+signed by the admission key over that credential, the key and the audience the
+credential names (`stamp.ProveRegistration`), so a captured credential alone
+registers nothing; the authority refuses a stale or replayed proof, and a hop
+outside its own trust domain. The hop logs the published key by its id. A registration
 lapses after `AdmissionLease` unless renewed, and the hop renews it while it runs,
 so a restarted authority learns the key again at the next renewal and a key no
 running hop signs with is withdrawn. The seed never leaves the hop. A run with no

@@ -1044,6 +1044,17 @@ never leaves the hop; nothing about the hop is configured on the authority. It
 is additive too. The local authority implements it; `accounts` implementing the
 same registration is follow-up work in the host.
 
+`codefly.dev/authority@0.3.4` makes the registration prove possession of the
+key: `RegisterAdmissionKeyRequest.proof` is an Ed25519 signature by the
+admission key itself over the authority's audience, the SHA-256 of the
+presented credential, the key and a fresh nonce and second
+(`stamp.ProveRegistration`, `stamp.CheckRegistration`). The authority refuses a
+missing, mismatched, stale (over 30 seconds) or replayed proof, and a hop
+attested in any trust domain but its own (the one the run's anchor declares its
+workloads under), so a captured hop credential alone registers nothing. The
+field is additive on the wire; an authority at 0.3.4 refuses a 0.3.3 hop's
+unproved registration, so the hop and the authority move together.
+
 The 0.3.1 authority version is an additive pre-stable revision selected for
 this refresh so existing `>=0.2.0 <0.4.0` consumers admit it. It retains 0.3.0's
 `AuthorizeTransfer` and adds attachment operations. Composition remains 0.2.0.

@@ -75,7 +75,44 @@ var setupNotices = map[string]string{
 	"revoked":   "Role revoked. What it gave is refused from the next call.",
 }
 
+// servesSetup is whether the host serves OfferService, the setup page's read:
+// the local authority does, a hosted authority does not, and the page (its
+// installs and grants included) is mounted only where it does. The host is
+// asked once, with no credential: Unimplemented is a definite no; any other
+// answer, a refusal of the unauthenticated read included, is a yes. An
+// unreachable host is no answer, and it is asked again.
+func (e *Edge) servesSetup(ctx context.Context) (bool, error) {
+	if e.Offers == nil || e.Installer == nil {
+		return false, nil
+	}
+	e.mu.Lock()
+	known, served := e.setupKnown, e.setupServed
+	e.mu.Unlock()
+	if known {
+		return served, nil
+	}
+	_, err := e.Offers.ListOffers(ctx, &installationv1.ListOffersRequest{})
+	switch status.Code(err) {
+	case codes.Unavailable, codes.DeadlineExceeded, codes.Canceled:
+		return false, err
+	}
+	served = status.Code(err) != codes.Unimplemented
+	e.mu.Lock()
+	e.setupKnown, e.setupServed = true, served
+	e.mu.Unlock()
+	return served, nil
+}
+
+// forbidFraming keeps a page out of every frame: a page that changes
+// authority on a click (sign-in, setup) must not be overlaid by another
+// page, a same-site one on another local port included.
+func forbidFraming(w http.ResponseWriter) {
+	w.Header().Set("X-Frame-Options", "DENY")
+	w.Header().Set("Content-Security-Policy", "frame-ancestors 'none'")
+}
+
 func (e *Edge) setup(w http.ResponseWriter, r *http.Request) {
+	forbidFraming(w)
 	if r.Method != http.MethodGet && r.Method != http.MethodPost {
 		refuse(w, http.StatusMethodNotAllowed, "the setup page is read with GET and changed with POST")
 		return
