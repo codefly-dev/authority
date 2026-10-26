@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -12,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"connectrpc.com/connect"
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
 	installationv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/installation/v1"
 	sessionv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/session/v1"
@@ -72,7 +74,10 @@ type Edge struct {
 	Sessions      Sessions
 	Authority     Issuer
 	Installations Installations
-	Modules       map[string]Module
+	// Offers and Installer serve the setup page; nil serves none.
+	Offers    Offers
+	Installer Installer
+	Modules   map[string]Module
 	// Frontend serves every path no module claims; nil serves none.
 	Frontend *url.URL
 	Now      func() time.Time
@@ -108,6 +113,11 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/auth/sign-out":
 		e.signOut(w, r)
 		return
+	case "/auth/setup":
+		if e.Offers != nil && e.Installer != nil {
+			e.setup(w, r)
+			return
+		}
 	}
 	if strings.HasPrefix(r.URL.Path, "/auth/assets/") {
 		e.signInAsset(w, r)
@@ -147,7 +157,7 @@ func (e *Edge) route(path string) (Module, *url.URL, bool) {
 func (e *Edge) toModule(w http.ResponseWriter, r *http.Request, module Module, target *url.URL) {
 	bearer, fromCookie := bearerOf(r)
 	if bearer == "" {
-		refuse(w, http.StatusUnauthorized, "no session: sign in at /auth/sign-in")
+		refuseCall(w, r, http.StatusUnauthorized, "no session: sign in at /auth/sign-in")
 		return
 	}
 	// A cookie rides every request the browser makes to this origin, including
@@ -155,7 +165,7 @@ func (e *Edge) toModule(w http.ResponseWriter, r *http.Request, module Module, t
 	// from this origin. A caller presenting its bearer itself is not a browser
 	// being steered.
 	if fromCookie && r.Method != http.MethodGet && r.Method != http.MethodHead && !sameOrigin(r) {
-		refuse(w, http.StatusForbidden, "a write must come from this origin")
+		refuseCall(w, r, http.StatusForbidden, "a write must come from this origin")
 		return
 	}
 	wc, err := e.workContext(r.Context(), bearer, module.Name)
@@ -164,7 +174,7 @@ func (e *Edge) toModule(w http.ResponseWriter, r *http.Request, module Module, t
 		if status.Code(err) == codes.Unauthenticated {
 			code = http.StatusUnauthorized
 		}
-		refuse(w, code, "the authority refused this person at "+module.Name+": "+status.Convert(err).Message())
+		refuseCall(w, r, code, "the authority refused this person at "+module.Name+": "+status.Convert(err).Message())
 		return
 	}
 	proxy(target, wc.token, w, r)
@@ -441,6 +451,20 @@ func proxy(target *url.URL, token string, w http.ResponseWriter, r *http.Request
 			refuse(w, http.StatusBadGateway, "the module did not answer: "+err.Error())
 		},
 	}).ServeHTTP(w, r)
+}
+
+// refuseCall refuses a routed call; a Connect caller is answered in Connect's
+// words, so its client keeps the authority's reason.
+func refuseCall(w http.ResponseWriter, r *http.Request, code int, reason string) {
+	if writer := connect.NewErrorWriter(); writer.IsSupported(r) {
+		c := connect.CodePermissionDenied
+		if code == http.StatusUnauthorized {
+			c = connect.CodeUnauthenticated
+		}
+		_ = writer.Write(w, r, connect.NewError(c, errors.New(reason)))
+		return
+	}
+	refuse(w, code, reason)
 }
 
 func refuse(w http.ResponseWriter, code int, reason string) {

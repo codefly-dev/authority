@@ -731,6 +731,39 @@ The document store's Connect face still transcodes in process at go-grpc agent
 is refused as unauthenticated: it fails closed, and works once the store is
 synced to the agent whose Connect face dials the hop, as the record store is.
 
+## The setup page: install a solution and grant its roles (2026-10-26)
+
+`/auth/setup` on the edge is the run's installation screen, with the words of
+the host's install dialog. An administrator sees the solutions the run delivered
+(**Modules & solutions**). They review one, choose its **Agent role**, consent to
+that exact version and install it. Under **Who may reach it?** they grant and
+remove its roles for the organisation's people and teams. A person who is not an
+administrator sees the authority's refusal and its reason.
+
+The review is the mapping from a role to tools. For each role the solution
+declares, it shows the role's scopes, confined to what the installation owns (or
+to the resources attached to it). It lists every composed module operation those
+scopes cover, from the delivered authority documents. For each operation it names
+the Robin tools composed for it: the tool-exposed Connect bindings
+`codefly generate runnable-bindings` prepared for that operation. Installing a
+solution and granting a role is what makes those tools available to the people
+granted it. An agent's intent declares which of them it uses. The authority still
+decides every call from the person's current grants and the binding. No table is
+maintained by hand: the page joins the authority's own records to the composed
+bindings when the person reviews.
+
+The read is `host.installation.v1.OfferService` (`ListOffers`, `ReviewOffer`),
+served by the local authority beside `InstallationService`. It is not part of
+`codefly.dev/installation`: a host answers its own product's reads, and
+conformance is unchanged. `ReviewOffer` returns the consent tuple from the same
+read as the roles it shows. The page posts that tuple to `Install` with a fresh
+`operation_id`; a changed offer is refused and reviewed again. An install the
+authority did not confirm keeps its exact request, so a retry is the same
+operation. Changes are plain forms posted to the edge, from this origin only,
+and sent through the generated clients with the person's own session.
+[The edge page](modules/authority/services/edge/README.md#the-setup-page) has
+the details.
+
 ## Which resources a context covers (2026-10-23)
 
 `Check` answers for one call. Which resources of a kind a caller may touch,

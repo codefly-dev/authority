@@ -406,3 +406,139 @@ class InstallableService(object):
             timeout,
             metadata,
             _registered_method=True)
+
+
+class OfferServiceStub(object):
+    """OfferService is the local authority's setup read, served beside
+    InstallationService and not part of codefly.dev/installation: what solutions
+    this run delivered and, for one, what installing it would grant. A host
+    answers its own product's reads. It grants nothing; Install, GrantRole and
+    RevokeRole stay the only changes, each decided by the authority.
+    """
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.ListOffers = channel.unary_unary(
+                '/host.installation.v1.OfferService/ListOffers',
+                request_serializer=host_dot_installation_dot_v1_dot_installation__pb2.ListOffersRequest.SerializeToString,
+                response_deserializer=host_dot_installation_dot_v1_dot_installation__pb2.ListOffersResponse.FromString,
+                _registered_method=True)
+        self.ReviewOffer = channel.unary_unary(
+                '/host.installation.v1.OfferService/ReviewOffer',
+                request_serializer=host_dot_installation_dot_v1_dot_installation__pb2.ReviewRequest.SerializeToString,
+                response_deserializer=host_dot_installation_dot_v1_dot_installation__pb2.ReviewedOffer.FromString,
+                _registered_method=True)
+
+
+class OfferServiceServicer(object):
+    """OfferService is the local authority's setup read, served beside
+    InstallationService and not part of codefly.dev/installation: what solutions
+    this run delivered and, for one, what installing it would grant. A host
+    answers its own product's reads. It grants nothing; Install, GrantRole and
+    RevokeRole stay the only changes, each decided by the authority.
+    """
+
+    def ListOffers(self, request, context):
+        """ListOffers lists the solutions delivered to this run that an administrator
+        of the organization may install. A module is installed by composition and
+        is never offered.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ReviewOffer(self, request, context):
+        """ReviewOffer reads one solution's roles, what each grants and the tools
+        those grants make eligible, with the consent Install takes, from one read
+        of the authority: the approval names exactly the offer displayed.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_OfferServiceServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'ListOffers': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListOffers,
+                    request_deserializer=host_dot_installation_dot_v1_dot_installation__pb2.ListOffersRequest.FromString,
+                    response_serializer=host_dot_installation_dot_v1_dot_installation__pb2.ListOffersResponse.SerializeToString,
+            ),
+            'ReviewOffer': grpc.unary_unary_rpc_method_handler(
+                    servicer.ReviewOffer,
+                    request_deserializer=host_dot_installation_dot_v1_dot_installation__pb2.ReviewRequest.FromString,
+                    response_serializer=host_dot_installation_dot_v1_dot_installation__pb2.ReviewedOffer.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'host.installation.v1.OfferService', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('host.installation.v1.OfferService', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class OfferService(object):
+    """OfferService is the local authority's setup read, served beside
+    InstallationService and not part of codefly.dev/installation: what solutions
+    this run delivered and, for one, what installing it would grant. A host
+    answers its own product's reads. It grants nothing; Install, GrantRole and
+    RevokeRole stay the only changes, each decided by the authority.
+    """
+
+    @staticmethod
+    def ListOffers(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/host.installation.v1.OfferService/ListOffers',
+            host_dot_installation_dot_v1_dot_installation__pb2.ListOffersRequest.SerializeToString,
+            host_dot_installation_dot_v1_dot_installation__pb2.ListOffersResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ReviewOffer(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/host.installation.v1.OfferService/ReviewOffer',
+            host_dot_installation_dot_v1_dot_installation__pb2.ReviewRequest.SerializeToString,
+            host_dot_installation_dot_v1_dot_installation__pb2.ReviewedOffer.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)

@@ -95,3 +95,19 @@ func TestAnHTTPRefusalNeverReachesTheModule(t *testing.T) {
 		t.Fatal("a refused request reached the module")
 	}
 }
+
+// A Connect caller is refused in Connect's words: its client reads the code
+// and the authority's reason, not a status line.
+func TestAConnectRefusalKeepsTheAuthoritysReason(t *testing.T) {
+	h := &HTTP{Proof: "p", Decide: func(context.Context, string, metadata.MD) (decide.Decision, error) {
+		return decide.Decision{}, status.Error(codes.PermissionDenied, "the role lacks robin.tools:read")
+	}}
+	req := httptest.NewRequest(http.MethodPost, "/robin.chat.v1.ChatService/GetRunnableTools", strings.NewReader("{}"))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Connect-Protocol-Version", "1")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden || !strings.Contains(rec.Body.String(), `"code":"permission_denied"`) || !strings.Contains(rec.Body.String(), "the role lacks robin.tools:read") {
+		t.Fatalf("answered %d %s", rec.Code, rec.Body.String())
+	}
+}

@@ -458,3 +458,167 @@ var InstallableService_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "host/installation/v1/installation.proto",
 }
+
+const (
+	OfferService_ListOffers_FullMethodName  = "/host.installation.v1.OfferService/ListOffers"
+	OfferService_ReviewOffer_FullMethodName = "/host.installation.v1.OfferService/ReviewOffer"
+)
+
+// OfferServiceClient is the client API for OfferService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// OfferService is the local authority's setup read, served beside
+// InstallationService and not part of codefly.dev/installation: what solutions
+// this run delivered and, for one, what installing it would grant. A host
+// answers its own product's reads. It grants nothing; Install, GrantRole and
+// RevokeRole stay the only changes, each decided by the authority.
+type OfferServiceClient interface {
+	// ListOffers lists the solutions delivered to this run that an administrator
+	// of the organization may install. A module is installed by composition and
+	// is never offered.
+	ListOffers(ctx context.Context, in *ListOffersRequest, opts ...grpc.CallOption) (*ListOffersResponse, error)
+	// ReviewOffer reads one solution's roles, what each grants and the tools
+	// those grants make eligible, with the consent Install takes, from one read
+	// of the authority: the approval names exactly the offer displayed.
+	ReviewOffer(ctx context.Context, in *ReviewRequest, opts ...grpc.CallOption) (*ReviewedOffer, error)
+}
+
+type offerServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewOfferServiceClient(cc grpc.ClientConnInterface) OfferServiceClient {
+	return &offerServiceClient{cc}
+}
+
+func (c *offerServiceClient) ListOffers(ctx context.Context, in *ListOffersRequest, opts ...grpc.CallOption) (*ListOffersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListOffersResponse)
+	err := c.cc.Invoke(ctx, OfferService_ListOffers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *offerServiceClient) ReviewOffer(ctx context.Context, in *ReviewRequest, opts ...grpc.CallOption) (*ReviewedOffer, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReviewedOffer)
+	err := c.cc.Invoke(ctx, OfferService_ReviewOffer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// OfferServiceServer is the server API for OfferService service.
+// All implementations must embed UnimplementedOfferServiceServer
+// for forward compatibility.
+//
+// OfferService is the local authority's setup read, served beside
+// InstallationService and not part of codefly.dev/installation: what solutions
+// this run delivered and, for one, what installing it would grant. A host
+// answers its own product's reads. It grants nothing; Install, GrantRole and
+// RevokeRole stay the only changes, each decided by the authority.
+type OfferServiceServer interface {
+	// ListOffers lists the solutions delivered to this run that an administrator
+	// of the organization may install. A module is installed by composition and
+	// is never offered.
+	ListOffers(context.Context, *ListOffersRequest) (*ListOffersResponse, error)
+	// ReviewOffer reads one solution's roles, what each grants and the tools
+	// those grants make eligible, with the consent Install takes, from one read
+	// of the authority: the approval names exactly the offer displayed.
+	ReviewOffer(context.Context, *ReviewRequest) (*ReviewedOffer, error)
+	mustEmbedUnimplementedOfferServiceServer()
+}
+
+// UnimplementedOfferServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedOfferServiceServer struct{}
+
+func (UnimplementedOfferServiceServer) ListOffers(context.Context, *ListOffersRequest) (*ListOffersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListOffers not implemented")
+}
+func (UnimplementedOfferServiceServer) ReviewOffer(context.Context, *ReviewRequest) (*ReviewedOffer, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReviewOffer not implemented")
+}
+func (UnimplementedOfferServiceServer) mustEmbedUnimplementedOfferServiceServer() {}
+func (UnimplementedOfferServiceServer) testEmbeddedByValue()                      {}
+
+// UnsafeOfferServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to OfferServiceServer will
+// result in compilation errors.
+type UnsafeOfferServiceServer interface {
+	mustEmbedUnimplementedOfferServiceServer()
+}
+
+func RegisterOfferServiceServer(s grpc.ServiceRegistrar, srv OfferServiceServer) {
+	// If the following call panics, it indicates UnimplementedOfferServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&OfferService_ServiceDesc, srv)
+}
+
+func _OfferService_ListOffers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListOffersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OfferServiceServer).ListOffers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OfferService_ListOffers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OfferServiceServer).ListOffers(ctx, req.(*ListOffersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _OfferService_ReviewOffer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReviewRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OfferServiceServer).ReviewOffer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OfferService_ReviewOffer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OfferServiceServer).ReviewOffer(ctx, req.(*ReviewRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// OfferService_ServiceDesc is the grpc.ServiceDesc for OfferService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var OfferService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "host.installation.v1.OfferService",
+	HandlerType: (*OfferServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListOffers",
+			Handler:    _OfferService_ListOffers_Handler,
+		},
+		{
+			MethodName: "ReviewOffer",
+			Handler:    _OfferService_ReviewOffer_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "host/installation/v1/installation.proto",
+}
