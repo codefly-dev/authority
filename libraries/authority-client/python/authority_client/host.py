@@ -12,10 +12,12 @@ carry a credential.
 
 Where the two inputs come from, as the Go library reads them from its own SDK:
 
-- ``local``: whether the run is in the environment named exactly ``local``, as Go's
-  ``codefly.IsLocal()`` decides it: ``os.environ.get("CODEFLY__ENVIRONMENT") ==
-  "local"``. No name prefix is reserved for local runs (a playground's
-  ``local-authority`` is a configuration profile of ``local``). Do not use the Python
+- ``local``: whether the run is in the environment named exactly ``local``:
+  ``os.environ.get("CODEFLY__ENVIRONMENT") == "local"``. This is stricter than Go's
+  ``codefly.IsLocal()``, which also accepts ``LOCAL`` and ``Local`` (it compares
+  case-insensitively); the stricter rule is the safer one for admitting loopback.
+  No name prefix is reserved for local runs (a playground's ``local-authority`` is
+  a configuration profile of ``local``). Do not use the Python
   SDK's ``is_local``, which reads the wrong variable (codefly-dev/sdk-python#8).
 - ``mesh``: the raw workspace value ``internal-transport/mesh-protected``, as the
   Codefly Python SDK delivers it (``codefly.configuration(name="internal-transport",
@@ -101,6 +103,10 @@ def endpoint(value: str, *, local: bool, mesh: str | None) -> Target:
     except ValueError:
         raise Refused("authority/endpoint (unparseable) is not an origin") from None
     named = _host_only(parts.netloc)
+    if parts.netloc and not hostname:
+        raise Refused(f"authority/endpoint {named} names no host")
+    if port is not None and len(parts.netloc.rsplit(":", 1)[1]) > 5:
+        raise Refused(f"authority/endpoint {named} names no port in 1-65535")
     if (
         not hostname
         or parts.username is not None
@@ -129,6 +135,7 @@ def endpoint(value: str, *, local: bool, mesh: str | None) -> Target:
 def dial(value: str, *, local: bool, mesh: str | None, options=()) -> grpc.Channel:
     """A channel to ``value`` under the transport rule (``endpoint``). ``options`` may
     only be ``ALLOWED_OPTIONS``: nothing that routes or verifies the channel otherwise."""
+    options = tuple(options)  # validated and handed to grpc as one copy: a generator is read once
     for key, _ in options:
         if key not in ALLOWED_OPTIONS:
             raise Refused(f"channel option {key} is not one a caller may set (ALLOWED_OPTIONS)")
