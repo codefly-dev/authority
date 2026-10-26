@@ -25,8 +25,11 @@ This repository holds two things, and only these two:
 
 **What is reused today.** The local implementation uses Core's Work Context
 authority/verifier, workload attestation and signed composition machinery.
-Its issuer/state resolves fixture grants; it does not currently link Accounts'
-sign-in or grant-derivation packages. The original host-package reuse requirement
+Its local issuer delegates issuance and grant derivation to this repository's
+shared authority core; the state adapter supplies fixture roles and delivery data.
+It does not currently link Accounts' sign-in or grant-derivation packages, and
+this adapter migration does not establish Accounts adoption of that core.
+The original host-package reuse requirement
 remains an unresolved design obligation with the host owner, not a guarantee
 established by this checkout. The shared conformance suite must run against both
 implementations; a local pass or a skipped provider scenario does not prove parity.
