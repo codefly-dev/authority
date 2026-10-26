@@ -258,8 +258,18 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 			// The same install asked again resumes its pending attempt: its
 			// step converges idempotently, and its revision stays the one the
 			// first attempt took, so a revoke or a reinstall since is told apart.
+			// A fresh approval supersedes the unfinished attempt instead: checkConsent
+			// held it to the current generation, digest and the pending revision, so
+			// it consents to exactly what is pending now. The revision moves with its
+			// receipt, so the superseded operation can neither resume nor acknowledge.
 			if approval != nil && existing.Consent.OperationID != approval.OperationID {
-				return domain.NotNow("INSTALLATION_APPROVAL_OPERATION_CONFLICT: only the original operation resumes a pending installation")
+				existing.Revision++
+				existing.Consent = domain.ConsentReceipt{OperationID: approval.OperationID, Intent: intent, Revision: existing.Revision}
+				if err := tx.DeleteRoleGrants(id); err != nil {
+					return err
+				}
+				inst = existing
+				return tx.PutInstallation(existing)
 			}
 			inst = existing
 			return nil

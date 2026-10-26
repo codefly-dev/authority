@@ -103,3 +103,33 @@ func TestInstallationConsentIsRecheckedAtAcknowledgement(t *testing.T) {
 		})
 	}
 }
+
+// A pending attempt whose solution was redelivered is not stuck: its own
+// operation is refused for the changed generation, a fresh review supersedes it,
+// and the superseded operation can no longer resume it.
+func TestAFreshApprovalSupersedesAPendingAttemptAfterRedelivery(t *testing.T) {
+	h := newHarness(t)
+	admin := h.admin(globex)
+	stale := h.approval(globex, "b")
+	redeliver := func(ctx context.Context, _ domain.Installation) error {
+		m := solution("b", false)
+		m.Generation++
+		_, err := h.svc.ApplyModule(ctx, m)
+		return err
+	}
+	if _, err := h.svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, stale, redeliver); err == nil {
+		t.Fatal("a redelivery during the step activated the stale approval")
+	}
+	ok := func(context.Context, domain.Installation) error { return nil }
+	_, err := h.svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, stale, ok)
+	refused(t, err, "INSTALLATION_APPROVAL_GENERATION_CHANGED")
+	fresh := h.approval(globex, "b")
+	inst, err := h.svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, fresh, ok)
+	if err != nil || inst.Status != domain.Active || inst.Consent.OperationID != fresh.OperationID {
+		t.Fatalf("fresh approval after redelivery: %+v %v", inst, err)
+	}
+	_, err = h.svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, stale, ok)
+	if err == nil {
+		t.Fatal("the superseded operation was accepted")
+	}
+}
