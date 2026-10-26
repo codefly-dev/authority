@@ -59,8 +59,9 @@ func answerFromTheStamp(ctx context.Context, config *adapters.Configuration) (Cl
 		return nil, fmt.Errorf("console: %w", err)
 	}
 	config.GRPCServerOptions = append(config.GRPCServerOptions,
-		// TapHandle records when each call arrived, so the admission window is
-		// judged at call start rather than after a request body has decoded.
+		// TapHandle judges the admission window and reserves its single-use
+		// nonce when each call arrives, not after a request body has decoded;
+		// the interceptors hold the reservation until the handler returns.
 		grpc.InTapHandle(verifier.TapHandle()),
 		grpc.ChainUnaryInterceptor(verifier.UnaryServerInterceptor()),
 		grpc.ChainStreamInterceptor(verifier.StreamServerInterceptor()))
@@ -68,9 +69,10 @@ func answerFromTheStamp(ctx context.Context, config *adapters.Configuration) (Cl
 	return func() { _ = conn.Close(); closeReplay() }, nil
 }
 
-// collectEvery is how often aged-out reservations are removed. Retention is the
-// admission's expiry plus the clock allowance, so anything this removes would
-// already be refused on its window.
+// collectEvery is how often aged-out reservations are removed. Collection
+// removes only a finished call's reservation past the admission's expiry plus
+// the clock allowance, and the store refuses any reservation past that, so
+// nothing it removes can be reserved again.
 const collectEvery = time.Minute
 
 // reservations opens the console's hop admission reservations in its own store.

@@ -6,17 +6,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/codefly-dev/authority/libraries/authority-client/go/refusal"
 	core "github.com/codefly-dev/core/workcontext"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // pool is a Postgres that holds one nonce per primary key, as the real table's
 // ON CONFLICT DO NOTHING does: the first insert affects a row, a repeat none.
 type pool struct {
-	held map[string]time.Time
-	fail error
-	sql  []string
-	args [][]any
+	held   map[string]time.Time
+	active map[string]bool
+	fail   error
+	sql    []string
+	args   [][]any
 }
 
 func (p *pool) Exec(_ context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
@@ -27,11 +30,16 @@ func (p *pool) Exec(_ context.Context, sql string, args ...any) (pgconn.CommandT
 	if p.held == nil {
 		p.held = map[string]time.Time{}
 	}
+	if len(args) == 1 {
+		// Finish: the call has returned.
+		delete(p.active, args[0].(string))
+		return pgconn.NewCommandTag("UPDATE 1"), nil
+	}
 	if len(args) != 2 {
-		// The collection statement; remove what has aged out.
+		// The collection statement; remove what has aged out and is not running.
 		removed := 0
 		for nonce, until := range p.held {
-			if until.Before(time.Now()) {
+			if until.Before(time.Now()) && !p.active[nonce] {
 				delete(p.held, nonce)
 				removed++
 			}
@@ -44,6 +52,41 @@ func (p *pool) Exec(_ context.Context, sql string, args ...any) (pgconn.CommandT
 	}
 	p.held[nonce] = until
 	return pgconn.NewCommandTag("INSERT 0 1"), nil
+}
+
+// QueryRow is the reservation statement: the insert happens only while the
+// retention has not passed, and the answer says which way it went.
+func (p *pool) QueryRow(_ context.Context, sql string, args ...any) pgx.Row {
+	p.sql, p.args = append(p.sql, sql), append(p.args, args)
+	if p.fail != nil {
+		return row{err: p.fail}
+	}
+	if p.held == nil {
+		p.held, p.active = map[string]time.Time{}, map[string]bool{}
+	}
+	nonce, until := args[0].(string), args[1].(time.Time)
+	_, taken := p.held[nonce]
+	switch {
+	case !until.After(time.Now()):
+		return row{outcome: "expired"}
+	case taken:
+		return row{outcome: "replayed"}
+	}
+	p.held[nonce], p.active[nonce] = until, true
+	return row{outcome: "reserved"}
+}
+
+type row struct {
+	outcome string
+	err     error
+}
+
+func (r row) Scan(dest ...any) error {
+	if r.err != nil {
+		return r.err
+	}
+	*dest[0].(*string) = r.outcome
+	return nil
 }
 
 func itoa(n int) string {
@@ -127,10 +170,49 @@ func TestCollectRemovesOnlyReservationsPastTheirRetention(t *testing.T) {
 	}
 }
 
+// A reservation is held while its call runs, past its retention, and refused
+// to anyone else; once the call finishes, collection removes it after its
+// retention. A reservation whose retention has already passed is refused as
+// the window, never inserted, so it cannot revive a collected nonce.
+func TestAReservationIsHeldWhileItsCallRuns(t *testing.T) {
+	p := &pool{}
+	store, _ := New(p)
+	ctx := context.Background()
+	if err := store.Reserve(ctx, "running", time.Now().Add(50*time.Millisecond)); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Reserve(ctx, "running", time.Now().Add(time.Minute)); !errors.Is(err, core.ErrReplayed) {
+		t.Fatalf("a second reservation was not refused: %v", err)
+	}
+	time.Sleep(60 * time.Millisecond)
+	if removed, err := store.Collect(ctx); err != nil || removed != 0 {
+		t.Fatalf("collection removed %d running reservations: %v", removed, err)
+	}
+	if err := store.Finish(ctx, "running"); err != nil {
+		t.Fatal(err)
+	}
+	if removed, err := store.Collect(ctx); err != nil || removed != 1 {
+		t.Fatalf("collected %d finished reservations: %v", removed, err)
+	}
+	if err := store.Reserve(ctx, "running", time.Now().Add(-time.Second)); !errors.Is(err, refusal.StampWindow) {
+		t.Fatalf("a reservation past its retention was not refused as the window: %v", err)
+	}
+	if _, held := p.held["running"]; held {
+		t.Fatal("a reservation past its retention revived a collected nonce")
+	}
+	outage := errors.New("connection refused")
+	if err := (&Store{pool: &pool{fail: outage}}).Reserve(ctx, "n", time.Now().Add(time.Minute)); !errors.Is(err, outage) {
+		t.Fatalf("an outage must not read as a replay: %v", err)
+	}
+	if err := store.Reserve(ctx, "", time.Now().Add(time.Minute)); err == nil {
+		t.Fatal("a reservation with no nonce was accepted")
+	}
+}
+
 // The migration is the module's own, and the primary key is what makes the
 // reservation atomic across replicas.
 func TestTheMigrationReservesTheNonceAsAPrimaryKey(t *testing.T) {
-	for _, want := range []string{"hop_admissions", "nonce TEXT PRIMARY KEY", "retain_until"} {
+	for _, want := range []string{"hop_admissions", "nonce TEXT PRIMARY KEY", "retain_until", "active BOOLEAN NOT NULL DEFAULT FALSE"} {
 		if !contains(Migration, want) {
 			t.Fatalf("the migration does not declare %q: %s", want, Migration)
 		}

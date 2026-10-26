@@ -44,6 +44,9 @@ func TestMain(m *testing.M) {
 	}
 	_ = os.Unsetenv("NO_PROXY")
 	_ = os.Unsetenv("no_proxy")
+	// The modules these tests stand up keep their admissions in hoptest.Replay,
+	// a process-local store that only the run named exactly "local" may use.
+	_ = os.Setenv("CODEFLY__ENVIRONMENT", "local")
 	code := m.Run()
 	_ = listener.Close()
 	os.Exit(code)

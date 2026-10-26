@@ -22,11 +22,16 @@ from codefly_hop import Unauthenticated, Verifier
 verifier = Verifier(AuthorityServiceStub(channel), audience=os.environ["CODEFLY__MODULE"], public_key=public_key, replay=shared_replay_store)  # once
 identity = verifier.verify(request.headers, full_procedure)              # a sync handler
 identity = await verifier.verify_async(request.headers, full_procedure)  # an asyncio handler: a key wait runs off the loop
+with verifier.admit(request.headers, full_procedure) as identity: ...    # holds the single-use reservation while the handler runs
+async with verifier.admit_async(request.headers, full_procedure) as identity: ...
 identity.tenant, identity.has(kind, action), identity.claims.allows(kind, action, resource_id)
 ```
 
 The verifier requires the [signed admission protocol](../../hop/README.md),
-including an atomic durable replay store shared across replicas. It checks the stamp first, then reads the published keys through `Keys`
+including an atomic durable replay store shared across replicas, and refuses at
+construction, outside the run named exactly `local`, a store whose `shared` is
+not true (`replay_store_not_shared`). It checks the stamp first and reserves its
+single-use nonce, then reads the published keys through `Keys`
 on a thread of its own with a 5 s timeout, one read at a time; it re-reads them
 on an unknown key (at most every 10 s) and when older than 5 minutes; keys that
 cannot be re-read are trusted for 15 minutes at most, and a call on keys older than

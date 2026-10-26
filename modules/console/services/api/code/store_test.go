@@ -21,13 +21,18 @@ func TestTheStoreMigrationCarriesTheAdaptersTable(t *testing.T) {
 	if !strings.Contains(string(migration), replaypg.Migration) {
 		t.Fatalf("%s no longer carries replaypg.Migration:\n%s", path, replaypg.Migration)
 	}
-	// The verifier reserves, reads back and collects; it never updates, because
-	// a refreshed reservation would let a replay extend its own window.
-	grant := "GRANT SELECT, INSERT, DELETE ON hop_admissions TO app_console;"
-	if !strings.Contains(string(migration), grant) {
-		t.Fatalf("%s does not grant exactly %q", path, grant)
+	// The verifier reserves, reads back, ends a finished call's hold and
+	// collects. It updates active and nothing else, because a refreshed
+	// reservation would let a replay extend its own window.
+	for _, grant := range []string{
+		"GRANT SELECT, INSERT, DELETE ON hop_admissions TO app_console;",
+		"GRANT UPDATE (active) ON hop_admissions TO app_console;",
+	} {
+		if !strings.Contains(string(migration), grant) {
+			t.Fatalf("%s does not grant exactly %q", path, grant)
+		}
 	}
 	if strings.Contains(string(migration), "UPDATE ON hop_admissions") {
-		t.Fatalf("%s grants UPDATE on the reservations", path)
+		t.Fatalf("%s grants UPDATE on every column of the reservations", path)
 	}
 }

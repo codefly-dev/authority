@@ -1,8 +1,9 @@
 -- Hop admission reservations: one row per admitted call, keyed by the nonce the
--- hop signed into its admission. The verifier consumes a nonce before it enters
--- a handler, so a captured admission is refused the second time it is
--- presented. This has to hold across every replica of the console and across a
--- restart, which is why it is a table and not a set in the process.
+-- hop signed into its admission. The verifier consumes a nonce when the call
+-- arrives, before its body is read, and holds it while the handler runs, so a
+-- captured admission is refused the second time it is presented. This has to
+-- hold across every replica of the console and across a restart, which is why
+-- it is a table and not a set in the process.
 --
 -- The runtime read-write role first: service.codefly.yaml declares
 -- `runtime-read-write-roles: [app_console]`, the postgres agent reconciles its
@@ -29,10 +30,13 @@ END $$;
 -- is the reservation: Postgres decides one winner among concurrent inserts.
 CREATE TABLE IF NOT EXISTS hop_admissions (
 	nonce TEXT PRIMARY KEY,
-	retain_until TIMESTAMPTZ NOT NULL
+	retain_until TIMESTAMPTZ NOT NULL,
+	active BOOLEAN NOT NULL DEFAULT FALSE
 );
 CREATE INDEX IF NOT EXISTS hop_admissions_retain_until ON hop_admissions (retain_until);
 
--- Exactly what the verifier does: reserve, read back, and collect what has
--- aged out. No UPDATE: a reservation is never refreshed.
+-- Exactly what the verifier does: reserve, read back, end a finished call's
+-- hold, and collect what has aged out. The only UPDATE is of active: a
+-- reservation's retention is never refreshed.
 GRANT SELECT, INSERT, DELETE ON hop_admissions TO app_console;
+GRANT UPDATE (active) ON hop_admissions TO app_console;

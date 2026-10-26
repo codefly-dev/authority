@@ -68,9 +68,11 @@ The verifier checks the signature, method, audience, token digest and admission
 window before reading authority keys. It then verifies the Work Context signature,
 issuer, audience, window and attenuation, and compares identity metadata with the
 claims. Advisory policy refusals cannot be signed as admission; legacy warning mode
-is refused at hop startup. Finally it atomically
-consumes `codefly-hop-v1:<public-key-hex>:<nonce-hex>` before entering the handler.
-Any replay-store error refuses the call. Invalid stamps do not reserve nonces.
+is refused at hop startup. It atomically reserves
+`codefly-hop-v1:<public-key-hex>:<nonce-hex>` as soon as the admission checks,
+before the keys are read and before the request body is read, and holds the
+reservation until the handler has returned. Any replay-store error refuses the
+call. Invalid stamps do not reserve nonces.
 
 The nonce is consumed for **every** stamp, including stamps on idempotent Work
 Contexts. A single-use Work Context is consumed once by the hop's existing live
@@ -82,24 +84,34 @@ buffering its body. Expiry bounds starting a call, not the lifetime of its strea
 This is admission replay protection, not transactional exactly-once effects.
 
 The window is judged exactly once, at the instant the call starts, and not again
-while the admitted call runs. Python's interceptors already run before the
-request is read. Go's do not: grpc-go decodes a unary request fully before it
-invokes the unary interceptor, and the Connect and REST faces buffer the message
-too, so a module serving large or slow unary requests refused admissions the
-authority had granted. `Verifier.TapHandle`, installed with
+while the admitted call runs; the reservation is taken at that instant too.
+Python's and TypeScript's verifiers run before the request is read. Go's
+interceptors do not: grpc-go decodes a unary request fully before it invokes
+the unary interceptor, and the Connect and REST faces buffer the message too.
+Judging the window there refused admissions the authority had granted to slow
+uploads; consuming the nonce there let a second delivery of one admission, held
+back while its body arrived, find the nonce collected after its retention and
+run the handler a second time. `Verifier.TapHandle`, installed with
 `grpc.InTapHandle`, records the arrival instant when the stream is accepted and
-`Verify` judges the window against it. The handle reads no header and runs no
-cryptography, because it runs on the connection's I/O goroutine where a
-signature check would serialise every stream on that connection; admission stays
-in the interceptor. A server that installs no handle judges the window when
-`Verify` runs, as before, so nothing is admitted by its absence.
+starts the admission check and the reservation beside the call, so neither
+waits for the body; the interceptor awaits them and refuses with the reason. It
+does no work on the connection's I/O goroutine itself, where it would serialise
+every stream on that connection. A server that installs no handle judges and
+reserves when the interceptor runs, so nothing is admitted by its absence.
 
-A reservation is retained to expiry plus the allowance, and no longer. That
-horizon is sound because the window is judged at arrival: a replay of a stamp
-can only be admitted if it too arrives inside the window, and inside the window
-the nonce is still retained. A store evicting on its own clock therefore
-releases a nonce only once every call carrying it would already be refused on
-its window.
+A single-use admission is consumed exactly once. Its reservation is retained at
+least to expiry plus the allowance, and for as long as a call holding it runs: a
+store with a completion operation (Go's `hop.ReservationStore`, Python's
+`ReservationStore`, TypeScript's `reserve`/`finish`) keeps it until the handler
+has returned AND its retention has passed, and refuses a reservation that only
+reaches it after its retention (`stamp_window`), so a delayed delivery can never
+revive a collected nonce. A store with only `consume` keeps a nonce to its
+retention; a consumption that completes after that retention found an evicted
+nonce, not a new one, and is refused on the window. Every later delivery of the
+admission is refused by name: `stamp_replayed` while the reservation is held,
+`stamp_window` after. `Verify`/`verify` end the in-flight hold before returning;
+a caller that runs the call's work itself holds it with `Admit` (Go) or `admit`
+(Python and TypeScript) until that work has ended.
 
 ## Replicas and durable replay storage
 
@@ -117,7 +129,9 @@ clock differences and prevent clock rollback. Synchronize deployment clocks.
 
 `replaypg.New` is the adapter to prefer: a module's own Postgres, where
 `INSERT ... ON CONFLICT (nonce) DO NOTHING` over a primary key is the atomic
-reservation and the database is already shared by every replica. Codefly
+reservation, conditioned on the retention not having passed by the database's
+clock, and the database is already shared by every replica. Its `active` column
+holds a running call's reservation; `Collect` never removes one. Codefly
 delivers a store, so this needs nothing the platform cannot provide.
 `replaypg.Migration` is the table, `Collect` removes reservations whose
 retention has passed, and the console composes exactly this
@@ -125,9 +139,13 @@ retention has passed, and the console composes exactly this
 
 Outside a local run, `NewVerifier` now **refuses** a store that does not declare
 itself the shared one (`hop.ErrReplayStoreNotShared`), rather than leaving the
-rule to documentation. Core's in-memory store and `hoptest.Replay` never
-declare it, so a laptop and a test keep working while a deployment cannot
-quietly run per-replica. `CODEFLY__ENVIRONMENT` decides which run this is.
+rule to documentation; Python and TypeScript refuse it the same way
+(`replay_store_not_shared`), reading a store's `shared` attribute. Core's
+in-memory store and `hoptest.Replay` never declare it, so a laptop and a test
+keep working while a deployment cannot quietly run per-replica.
+`CODEFLY__ENVIRONMENT` decides which run this is: only the name exactly `local`
+is a local run. An unset or empty environment, and any other name beginning
+with `local`, is not.
 
 `hop.FileReplayStore` implements this contract for a shared durable filesystem
 with atomic exclusive creation and file/directory fsync. Nothing in the library

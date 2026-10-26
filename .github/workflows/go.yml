@@ -50,6 +50,15 @@ jobs:
         with:
           go-version-file: ${{ matrix.module }}/go.mod
           cache-dependency-path: ${{ matrix.module }}/go.sum
+      # The hop library's single-use admission regressions run over the real
+      # transport and a real Postgres: the runner's own, started here, reached
+      # over its socket as the runner's user, with no password written down.
+      - name: start Postgres for the hop admission regressions
+        if: matrix.module == 'libraries/hop/go'
+        run: |
+          sudo systemctl start postgresql.service
+          sudo -u postgres createuser --superuser "$USER"
+          echo "HOP_TEST_POSTGRES=host=/var/run/postgresql dbname=postgres" >> "$GITHUB_ENV"
       - name: go vet
         run: go vet ./...
       - name: go test -race

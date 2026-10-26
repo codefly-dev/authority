@@ -11,7 +11,24 @@ export const LIFETIME = 30, SKEW = 2;
  * retainUntil is Unix seconds. Successful reservations must survive restart. */
 export class Replayed extends Error { override name = "Replayed"; }
 
-export interface ReplayStore { consume(nonce: string, retainUntil: number): Promise<void>; }
+/** The reservation's retention had already passed when the store decided. */
+export class Expired extends Error { override name = "Expired"; }
+
+export interface ReplayStore {
+  /** True only for the durable store every replica shares; required outside local. */
+  readonly shared?: boolean;
+  consume(nonce: string, retainUntil: number): Promise<void>;
+  /** A reservation store holds a single-use admission while the call carrying
+   * it runs: the verifier reserves when the call arrives and finishes when its
+   * handler has returned, and the store keeps the reservation until finish AND
+   * retainUntil have both passed. reserve refuses atomically, across every
+   * replica, a nonce already held (Replayed), including one held by a call still
+   * running past its retention, and refuses a reservation whose retainUntil has
+   * already passed by the store's clock (Expired), so a delayed reservation
+   * never revives a collected nonce. A finish that fails leaves it held. */
+  reserve?(nonce: string, retainUntil: number): Promise<void>;
+  finish?(nonce: string): Promise<void>;
+}
 
 export function checkCall(pairs: readonly (readonly [string, string])[], publicKey: string, method: string, audience: string, now: number): { nonce: string; expires: number } {
   const fail = (reason: Reason): never => { throw new Unauthenticated(reason); };

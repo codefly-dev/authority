@@ -1,5 +1,5 @@
-import { checkCall, Replayed, SKEW, type ReplayStore } from "./hop-call.js";
-export { Replayed, LIFETIME, SKEW } from "./hop-call.js";
+import { checkCall, Expired, Replayed, SKEW, type ReplayStore } from "./hop-call.js";
+export { Expired, Replayed, LIFETIME, SKEW } from "./hop-call.js";
 export type { ReplayStore } from "./hop-call.js";
 /** Work Context identity readers and method-bound, single-use hop admission.
  * Verifier consumes signed call nonces in a required durable shared ReplayStore.
@@ -303,6 +303,12 @@ export class Verifier {
     if ((publicKey !== undefined || replay !== undefined) && (!replay || !/^[0-9a-f]{64}$/.test(publicKey ?? ""))) {
       throw new Unauthenticated(Reason.Configuration);
     }
+    // A process-local store answers only for its own process: a captured
+    // admission would replay once per replica, and a restart would forget every
+    // reservation. Only the run named exactly "local" may use one.
+    if (replay && process.env.CODEFLY__ENVIRONMENT !== "local" && replay.shared !== true) {
+      throw new Unauthenticated(Reason.StoreNotShared);
+    }
     void this.refresh();
   }
 
@@ -318,8 +324,27 @@ export class Verifier {
     return this.trust !== undefined && now - this.fetched <= KEY_STALE_MS;
   }
 
-  /** Who the call is for, or Unauthenticated naming why it is refused. */
+  /** Who the call is for, or Unauthenticated naming why it is refused. The
+   * admission is checked first, and its single-use nonce is reserved before the
+   * keys are read. The reservation's in-flight hold ends when verify returns, so
+   * it lasts to the admission's expiry plus the clock allowance; a handler whose
+   * work follows uses admit, which holds it until that work has ended. */
   async verify(headers: StampHeaders, method: string): Promise<Identity> {
+    const admission = await this.begin(headers, method);
+    await admission.finish();
+    return admission.identity;
+  }
+
+  /** verify that holds the single-use reservation until handler has settled,
+   * however it settles. Call it as soon as the request's headers have arrived,
+   * before its body is read. */
+  async admit<T>(headers: StampHeaders, method: string, handler: (identity: Identity) => Promise<T>): Promise<T> {
+    const admission = await this.begin(headers, method);
+    try { return await handler(admission.identity); }
+    finally { await admission.finish(); }
+  }
+
+  private async begin(headers: StampHeaders, method: string): Promise<{ identity: Identity; finish: () => Promise<void> }> {
     const pairs = [...(Symbol.iterator in Object(headers) ? headers as Iterable<readonly [string, string]> : Object.entries(headers))]
       .flatMap(([key, value]) => (typeof value === "string" ? [value] : [...value]).map(v => [key.toLowerCase(), v] as const));
     if (this.publicKey === undefined || this.replay === undefined) {
@@ -329,30 +354,56 @@ export class Verifier {
     }
     // The admission first: nothing signed for another procedure, another
     // audience or another token reaches the key read.
-    const call = checkCall(pairs, this.publicKey, method, this.audience, this.now());
-    const token = boundToken(pairs);
-    const id = await this.verifyToken(token);
-    const stamped: Record<string, string> = {
-      "x-codefly-hop-owner": id.owner, "x-codefly-hop-owner-kind": id.ownerKind, "x-codefly-hop-tenant": id.tenant,
-      "x-codefly-hop-actors": id.actors.join(","), "x-codefly-hop-scopes": id.scopes.join(","),
-      "x-codefly-hop-binding": id.binding, "x-codefly-hop-task": id.task, "x-codefly-hop-expires": id.expires > 0 ? String(id.expires) : "",
-    };
-    for (const [key, want] of Object.entries(stamped)) {
-      const got = pairs.filter(([name]) => name === key).map(([, value]) => value);
-      if (got.length > 1 || (got[0] ?? "") !== want) {
-        throw new Unauthenticated(Reason.StampIdentity);
+    const arrival = this.now(), mark = performance.now();
+    const call = checkCall(pairs, this.publicKey, method, this.audience, arrival);
+    const finish = await this.reserve(call.nonce, call.expires + SKEW, arrival, mark);
+    try {
+      const token = boundToken(pairs);
+      const id = await this.verifyToken(token);
+      const stamped: Record<string, string> = {
+        "x-codefly-hop-owner": id.owner, "x-codefly-hop-owner-kind": id.ownerKind, "x-codefly-hop-tenant": id.tenant,
+        "x-codefly-hop-actors": id.actors.join(","), "x-codefly-hop-scopes": id.scopes.join(","),
+        "x-codefly-hop-binding": id.binding, "x-codefly-hop-task": id.task, "x-codefly-hop-expires": id.expires > 0 ? String(id.expires) : "",
+      };
+      for (const [key, want] of Object.entries(stamped)) {
+        const got = pairs.filter(([name]) => name === key).map(([, value]) => value);
+        if (got.length > 1 || (got[0] ?? "") !== want) {
+          throw new Unauthenticated(Reason.StampIdentity);
+        }
       }
+      // An admission carrying an advisory refusal is refused by checkCall, so an
+      // admitted call never has one: diagnostic identity is never authority.
+      return { identity: Object.freeze({ ...id, advisory: "" }), finish };
+    } catch (error) {
+      await finish();
+      throw error;
     }
-    // checkCall judged the admission window when the call started, and the
-    // window bounds a call's start, so it is judged once and not again here.
-    // The reservation is retained to expiry plus the allowance and no longer:
-    // a replay can only be admitted if it too arrives inside the window, and
-    // inside the window the nonce is still retained.
-    try { await this.replay.consume(call.nonce, call.expires + SKEW); }
-    catch (error) { throw new Unauthenticated(error instanceof Replayed ? Reason.StampReplayed : Reason.StampStore); }
-    // An admission carrying an advisory refusal is refused by checkCall, so an
-    // admitted call never has one: diagnostic identity is never authority.
-    return Object.freeze({ ...id, advisory: "" });
+  }
+
+  /** Consume the admission's nonce, retained to its expiry plus the clock
+   * allowance at least, and answer the release that ends its in-flight hold. */
+  private async reserve(nonce: string, until: number, arrival: number, mark: number): Promise<() => Promise<void>> {
+    const store = this.replay!;
+    const managed = typeof store.reserve === "function" && typeof store.finish === "function";
+    try {
+      if (managed) await store.reserve!(nonce, until);
+      else await store.consume(nonce, until);
+    } catch (error) {
+      if (error instanceof Unauthenticated) throw error;
+      throw new Unauthenticated(error instanceof Replayed ? Reason.StampReplayed : error instanceof Expired ? Reason.StampWindow : Reason.StampStore);
+    }
+    // A store without reserve keeps a nonce to its retention and may then evict
+    // it. A consumption that only succeeded because that retention had passed
+    // found an evicted nonce, not a new one: it is refused on the window, so a
+    // second delivery never runs.
+    if (!managed && arrival + (performance.now() - mark) >= until * 1000) throw new Unauthenticated(Reason.StampWindow);
+    let released = false;
+    return async () => {
+      if (!managed || released) return;
+      released = true;
+      // A failed release keeps the reservation held: nothing reopens admission.
+      try { await store.finish!(nonce); } catch { /* held */ }
+    };
   }
 
   /** Authenticate a bare token with the stamped path's fail-closed key cache.

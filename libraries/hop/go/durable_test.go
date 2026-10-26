@@ -10,6 +10,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/hop/go/replaypg"
 	"github.com/codefly-dev/core/resources"
 	core "github.com/codefly-dev/core/workcontext"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -18,6 +19,8 @@ type insertingPool struct{}
 func (insertingPool) Exec(context.Context, string, ...any) (pgconn.CommandTag, error) {
 	return pgconn.NewCommandTag("INSERT 0 1"), nil
 }
+
+func (insertingPool) QueryRow(context.Context, string, ...any) pgx.Row { return nil }
 
 // Review r164 B1: the contract forbids a per-replica replay store outside a
 // local run, but nothing refused one. A hand-written path to per-pod storage,
@@ -43,8 +46,8 @@ func TestAReplayStoreThatIsNotSharedIsRefusedOutsideALocalRun(t *testing.T) {
 	}
 
 	// A laptop and a test keep working with any store, including Core's
-	// in-memory one, and so does a run that names no environment.
-	for _, environment := range []string{"", "local", "local-docker"} {
+	// in-memory one, only under the exact local environment name.
+	for _, environment := range []string{"local"} {
 		t.Setenv(resources.EnvironmentPrefix, environment)
 		for name, store := range map[string]core.ReplayStore{
 			"in-memory": hoptest.Replay(), "a directory": directory,
@@ -56,7 +59,7 @@ func TestAReplayStoreThatIsNotSharedIsRefusedOutsideALocalRun(t *testing.T) {
 		}
 	}
 
-	for _, environment := range []string{"staging", "production"} {
+	for _, environment := range []string{"", "staging", "production", "local-docker", "local-production", " local", "local "} {
 		t.Setenv(resources.EnvironmentPrefix, environment)
 		for name, store := range map[string]core.ReplayStore{
 			"in-memory": hoptest.Replay(), "a directory not stated to be shared": directory,

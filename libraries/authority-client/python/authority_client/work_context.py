@@ -84,6 +84,7 @@ class Reason(str, Enum):
     STAMPADVISORY = "stamp_advisory"
     STAMPREPLAYED = "stamp_replayed"
     STAMPSTORE = "stamp_store"
+    STORENOTSHARED = "replay_store_not_shared"
     KEYSUNAVAILABLE = "keys_unavailable"
     CANCELLED = "cancelled"
     MALFORMED = "malformed"
@@ -112,6 +113,7 @@ _REASON_TEXT = {
     Reason.STAMPISSUED: 'the hop admission is issued further ahead than the clock allowance',
     Reason.STAMPADVISORY: 'an advisory policy refusal cannot admit a call',
     Reason.STAMPREPLAYED: 'the hop admission has already been used',
+    Reason.STORENOTSHARED: "the admission store must be durable and shared outside local",
     Reason.STAMPSTORE: 'the hop admission store is unavailable',
     Reason.KEYSUNAVAILABLE: "the authority's published keys are unavailable",
     Reason.CANCELLED: "the call ended while the authority's keys were being read",

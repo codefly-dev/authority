@@ -297,8 +297,8 @@ var ErrReplayStoreNotShared = errors.New("hop: this replay store is not the dura
 // durableOutsideLocal refuses a store that does not declare itself shared,
 // unless this process runs in a local environment.
 func durableOutsideLocal(replay core.ReplayStore) error {
-	environment := strings.TrimSpace(os.Getenv(resources.EnvironmentPrefix))
-	if environment == "" || strings.HasPrefix(environment, "local") {
+	environment := os.Getenv(resources.EnvironmentPrefix)
+	if environment == "local" {
 		return nil
 	}
 	if shared, ok := replay.(SharedReplayStore); ok && shared.Shared() {
@@ -363,49 +363,42 @@ func (v *Verifier) Ready() bool {
 // carries a caller-safe refusal.Reason. The admission is checked first: a call
 // that does not carry a hop admission signed for this exact procedure and
 // audience, binding this token, never reaches the keys.
+//
+// Verify consumes the admission and ends its in-flight hold before returning,
+// so the reservation lasts to the admission's expiry plus the clock allowance.
+// A caller that runs work for the call afterwards uses Admit, which holds the
+// reservation until that work has finished.
 func (v *Verifier) Verify(ctx context.Context, md metadata.MD, method string) (Identity, error) {
-	if v.publicKey == "" || v.replay == nil {
-		// A token-only verifier (NewTokenVerifier) holds neither the hop's
-		// public key nor a replay store, so it can establish no admission.
-		return Identity{}, fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.Configuration)
-	}
-	// The window is judged at the instant the call arrived, which TapHandle
-	// recorded when the stream was accepted. grpc-go decodes a unary request
-	// before it runs the interceptor, so judging at this point would refuse a
-	// genuinely admitted upload that simply took longer than Lifetime to
-	// arrive. Without a tap handle the arrival instant is now, as before.
-	arrival := arrivalFrom(ctx, v.now)
-	call, err := stamp.Check(md, v.publicKey, method, v.audience, arrival)
-	if err != nil {
-		return Identity{}, fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, err)
-	}
-	id, err := v.VerifyToken(ctx, first(md, WorkContextKey))
+	id, done, err := v.Admit(ctx, md, method)
 	if err != nil {
 		return Identity{}, err
 	}
-	if err := sameAsStamped(md, id); err != nil {
-		return Identity{}, err
-	}
-	// stamp.Check judged the admission window against arrival above, and the
-	// window bounds when a call may start, so it is judged once and not again
-	// here: the key read and the reservation below happen while the admitted
-	// call is already running.
-	skew := int64(stamp.Skew / time.Second)
-	// The reservation is retained to expiry plus the same allowance, and no
-	// longer. That horizon is sound because the window above is judged at
-	// arrival: a replay of this stamp can only be admitted if it too arrives
-	// inside the window, and inside the window the nonce is still retained. A
-	// store evicting on its own clock therefore releases a nonce only once
-	// every call carrying it would already be refused on its window.
-	if err := v.replay.Consume(ctx, call.ReplayKey(v.publicKey), time.Unix(call.Expires+skew, 0)); err != nil {
-		if errors.Is(err, core.ErrReplayed) {
-			return Identity{}, fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.StampReplayed)
-		}
-		return Identity{}, fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.StampStore)
-	}
-	// An admission carrying an advisory refusal is refused by stamp.Check, so
-	// an admitted call never has one: diagnostic identity is never authority.
+	done()
 	return id, nil
+}
+
+// Admit is Verify for a caller that runs the call's work itself, such as an
+// HTTP module: it reserves the single-use admission before any key read, and
+// holds the reservation, past its retention if need be, until done is called.
+// Call done once the work has returned, whatever its outcome:
+//
+//	id, done, err := verifier.Admit(ctx, md, procedure)
+//	if err != nil { return err }
+//	defer done()
+//
+// The window is judged now. Call Admit as soon as the request's headers have
+// arrived, before its body is read, so a slow body neither fails the window
+// nor delays the reservation.
+func (v *Verifier) Admit(ctx context.Context, md metadata.MD, method string) (Identity, func(), error) {
+	release, err := v.reserve(ctx, md, method, v.instant())
+	if err != nil {
+		return Identity{}, nil, err
+	}
+	id, err := v.establish(ctx, md, release)
+	if err != nil {
+		return Identity{}, nil, err
+	}
+	return id, release, nil
 }
 
 // VerifyToken authenticates a bare Work Context using the same published keys
@@ -555,6 +548,7 @@ func (v *Verifier) UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 		if err != nil {
 			return nil, err
 		}
+		defer finishAdmission(ctx)
 		return handler(ctx, req)
 	}
 }
@@ -566,6 +560,7 @@ func (v *Verifier) StreamServerInterceptor() grpc.StreamServerInterceptor {
 		if err != nil {
 			return err
 		}
+		defer finishAdmission(ctx)
 		return handler(srv, &stamped{ServerStream: ss, ctx: ctx})
 	}
 }
@@ -574,12 +569,31 @@ func (v *Verifier) admit(ctx context.Context, method string) (context.Context, e
 	if strings.HasPrefix(method, "/grpc.health.v1.Health/") {
 		return ctx, nil
 	}
-	md, _ := metadata.FromIncomingContext(ctx)
-	id, err := v.Verify(ctx, md, method)
+	held, ok := ctx.Value(admissionKey{}).(*admission)
+	if !ok || held.verifier != v || held.method != method {
+		// No tap handle reserved this call: it is reserved now, judged at now.
+		md, _ := metadata.FromIncomingContext(ctx)
+		release, err := v.reserve(ctx, md, method, v.instant())
+		held = &admission{verifier: v, method: method, md: md, reserved: make(chan struct{}), release: release, err: err}
+		close(held.reserved)
+	}
+	select {
+	case <-held.reserved:
+	case <-ctx.Done():
+		return nil, status.Error(codes.Unauthenticated, fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.Cancelled).Error())
+	}
+	if held.err != nil {
+		return nil, status.Error(codes.Unauthenticated, held.err.Error())
+	}
+	if !held.start() {
+		return nil, status.Error(codes.Unauthenticated, fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.Cancelled).Error())
+	}
+	id, err := v.establish(ctx, held.md, held.release)
 	if err != nil {
+		held.finish()
 		return nil, status.Error(codes.Unauthenticated, err.Error())
 	}
-	return context.WithValue(ctx, identityKey{}, id), nil
+	return context.WithValue(context.WithValue(ctx, admissionKey{}, held), identityKey{}, id), nil
 }
 
 type stamped struct {
@@ -596,27 +610,20 @@ func first(md metadata.MD, key string) string {
 	return ""
 }
 
-type arrivalKey struct{}
-
-// arrivalFrom is the instant the call arrived, as TapHandle recorded it, or
-// now when the server runs no tap handle.
-func arrivalFrom(ctx context.Context, now func() time.Time) time.Time {
-	if at, ok := ctx.Value(arrivalKey{}).(time.Time); ok {
-		return at
-	}
-	return now()
-}
-
-// TapHandle records when each call arrived, before its body is read, so Verify
-// judges the admission window at call start.
+// TapHandle reserves each call's single-use admission when the call arrives,
+// before its body is read, and the interceptors hold that reservation until
+// the handler returns.
 //
 // grpc-go decodes a unary request fully before it invokes the unary
-// interceptor, and the Connect and REST faces buffer the message too. A module
-// that serves large or slow unary requests would therefore refuse an admission
-// the authority granted, because more than stamp.Lifetime passed while the
-// body arrived. Installing this handle moves that judgement to the instant the
-// stream was accepted, which is also where Python's interceptors already run,
-// so the three languages agree on when a call starts.
+// interceptor, and the Connect and REST faces buffer the message too. Judging
+// the admission there would refuse a genuinely admitted upload that took
+// longer than stamp.Lifetime to arrive; consuming its nonce there would let a
+// second delivery of the same admission, held back while its body arrived,
+// consume a nonce that had since been released, and run the handler twice.
+// Installing this handle judges the window at the instant the stream was
+// accepted and reserves the nonce then, so every delivery that arrives inside
+// the window meets the reservation and is refused as stamp_replayed. Python's
+// and TypeScript's verifiers run at the same point, before the body is read.
 //
 // Install it beside the interceptors:
 //
@@ -624,12 +631,23 @@ func arrivalFrom(ctx context.Context, now func() time.Time) time.Time {
 //		grpc.ChainUnaryInterceptor(verifier.UnaryServerInterceptor()),
 //		grpc.ChainStreamInterceptor(verifier.StreamServerInterceptor()))
 //
-// It authenticates nothing and refuses nothing: it reads no header and runs no
-// cryptography, because it runs on the connection's I/O goroutine, where a
-// signature check would serialise every stream on that connection. Admission
-// stays in the interceptor.
+// It runs on the connection's I/O goroutine, so it does no work there: it
+// records the arrival instant and starts the check and the reservation beside
+// the call, which the interceptor awaits and which refuses with the reason. A
+// call that ends before its handler starts releases its hold; one whose handler
+// started is released when the handler returns.
 func (v *Verifier) TapHandle() tap.ServerInHandle {
-	return func(ctx context.Context, _ *tap.Info) (context.Context, error) {
-		return context.WithValue(ctx, arrivalKey{}, v.now()), nil
+	return func(ctx context.Context, info *tap.Info) (context.Context, error) {
+		if strings.HasPrefix(info.FullMethodName, "/grpc.health.v1.Health/") {
+			return ctx, nil
+		}
+		arrival := v.instant()
+		held := &admission{verifier: v, method: info.FullMethodName, md: info.Header, reserved: make(chan struct{})}
+		go func() {
+			defer close(held.reserved)
+			held.release, held.err = v.reserve(ctx, info.Header, info.FullMethodName, arrival)
+		}()
+		context.AfterFunc(ctx, held.abandon)
+		return context.WithValue(ctx, admissionKey{}, held), nil
 	}
 }

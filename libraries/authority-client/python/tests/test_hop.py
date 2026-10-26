@@ -14,7 +14,7 @@ from authority_client._gen.host.authority.v1.work_context_pb2 import WorkContext
 from codefly_hop.call import SKEW
 from codefly_hop import (
     ACTORS_KEY, CONTEXT_KEY, KEY_RETRY, KEY_STALE, SCOPES_KEY, TENANT_KEY, WORK_CONTEXT_KEY, Identity, Unauthenticated,
-    Verifier, Replayed, identity_of,
+    Verifier, Replayed, Expired, identity_of,
 )
 
 FIXTURE = json.loads((Path(__file__).parents[3] / "hop/testdata/stamped.json").read_text())
@@ -543,3 +543,159 @@ def test_invalid_publication_and_unreadable_keys_have_distinct_safe_codes():
             v.verify_token(FIXTURE["headers"][WORK_CONTEXT_KEY])
         assert refused.value.code == code
         assert "private-" not in str(refused.value)
+
+
+class Reservations:
+    """A reservation store as replaypg is: a nonce is held until it is finished
+    AND its retention has passed, and a reservation past its retention is
+    refused rather than inserted. ``collect`` removes what has aged out."""
+
+    shared = True
+
+    def __init__(self, clock):
+        self.clock, self.held, self.active = clock, {}, set()
+
+    def reserve(self, nonce, until):
+        if until <= self.clock():
+            raise Expired()
+        if nonce in self.held:
+            raise Replayed()
+        self.held[nonce] = until
+        self.active.add(nonce)
+
+    def finish(self, nonce):
+        self.active.discard(nonce)
+
+    async def reserve_async(self, nonce, until):
+        self.reserve(nonce, until)
+
+    async def finish_async(self, nonce):
+        self.finish(nonce)
+
+    def consume(self, nonce, until):
+        raise AssertionError("a reservation store is reserved, never consumed")
+
+    async def consume_async(self, nonce, until):
+        self.consume(nonce, until)
+
+    def collect(self):
+        for nonce, until in list(self.held.items()):
+            if nonce not in self.active and until < self.clock():
+                del self.held[nonce]
+
+
+# Review of #28 at 8a3e953b: a single-use admission is consumed exactly once.
+# Two deliveries of one admission arrive inside its window; the first holds its
+# reservation while its handler runs, past its retention and collection; the
+# second is refused by name, and so is a delivery after the handler returned.
+def test_a_second_delivery_of_one_admission_is_refused_while_and_after_the_first_runs():
+    clock = [FIXTURE["now"]]
+    store = Reservations(lambda: clock[0])
+    v = Verifier(Keys(published()), audience=FIXTURE["audience"], public_key=FIXTURE["public_key"], replay=store,
+                 now=lambda: clock[0])
+    headers = fresh(FIXTURE["now"])
+    ran = 0
+    with v.admit(headers, METHOD) as identity:
+        ran += 1
+        assert identity.owner == FIXTURE["identity"]["owner"]
+        with pytest.raises(Unauthenticated, match="stamp_replayed"):
+            v.verify(headers, METHOD)
+        clock[0] += 30 + SKEW + 5  # past the retention while the handler still runs
+        store.collect()
+        assert store.held, "collection removed the reservation of a running call"
+        with pytest.raises(Unauthenticated) as refused:
+            with v.admit(headers, METHOD):
+                ran += 1
+        assert refused.value.code == "stamp_window"
+    store.collect()
+    assert not store.held and ran == 1
+
+
+# The reservation is taken before the keys are read, so a delivery that arrives
+# while the first one waits for the keys meets it; and a refusal after the
+# reservation ends the hold rather than leaving it pinned.
+def test_the_reservation_is_taken_before_the_key_read_and_released_on_refusal():
+    clock = [FIXTURE["now"]]
+    store = Reservations(lambda: clock[0])
+    source = Keys(error=RuntimeError("authority down"))
+    v = Verifier(source, audience=FIXTURE["audience"], public_key=FIXTURE["public_key"], replay=store,
+                 now=lambda: clock[0], timeout=0.05)
+    headers = fresh(FIXTURE["now"])
+    with pytest.raises(Unauthenticated, match="keys"):
+        v.verify(headers, METHOD)
+    assert list(store.held) and not store.active, "a refused call kept its hold, or never reserved"
+    with pytest.raises(Unauthenticated, match="stamp_replayed"):
+        v.verify(headers, METHOD)
+
+
+def test_admit_releases_its_hold_however_the_handler_ends():
+    clock = [FIXTURE["now"]]
+    store = Reservations(lambda: clock[0])
+    v = Verifier(Keys(published()), audience=FIXTURE["audience"], public_key=FIXTURE["public_key"], replay=store,
+                 now=lambda: clock[0])
+    with pytest.raises(ZeroDivisionError):
+        with v.admit(fresh(FIXTURE["now"]), METHOD):
+            assert store.active
+            1 / 0
+    assert store.held and not store.active
+
+
+def test_admit_async_holds_the_reservation_until_the_handler_returns():
+    import asyncio
+    clock = [FIXTURE["now"]]
+    store = Reservations(lambda: clock[0])
+    v = Verifier(Keys(published()), audience=FIXTURE["audience"], public_key=FIXTURE["public_key"], replay=store,
+                 now=lambda: clock[0])
+    headers = fresh(FIXTURE["now"])
+
+    async def run():
+        async with v.admit_async(headers, METHOD):
+            assert store.active
+            with pytest.raises(Unauthenticated, match="stamp_replayed"):
+                await v.verify_async(headers, METHOD)
+        assert not store.active
+    asyncio.run(run())
+
+
+# A store without reserve keeps a nonce to its retention and may then evict it.
+# A delivery that arrived inside the window, but whose consumption completed
+# after the retention, found an evicted nonce: it is refused on the window.
+def test_a_consumption_completing_past_its_retention_is_refused(monkeypatch):
+    import time as clock_module
+    real, slow = clock_module.monotonic, [0]
+    monkeypatch.setattr(clock_module, "monotonic", lambda: real() + slow[0])
+
+    class Evicted:
+        """Every nonce has been evicted; the second consumption takes a minute."""
+        def __init__(self):
+            self.calls = 0
+        def consume(self, nonce, until):
+            self.calls += 1
+            slow[0] = 60 if self.calls == 2 else slow[0]
+
+    v = verifier()
+    v._replay = Evicted()
+    v.verify(fresh(FIXTURE["now"]), METHOD)
+    with pytest.raises(Unauthenticated) as refused:
+        v.verify(fresh(FIXTURE["now"]), METHOD)
+    assert refused.value.code == "stamp_window"
+
+
+# Outside the run named exactly "local", a store that does not declare itself
+# the durable one every replica shares is refused at startup, as Go refuses it.
+@pytest.mark.parametrize("environment", [None, "", "production", "staging", "local-production", "local-docker", " local", "local ", "local"])
+def test_startup_requires_a_shared_store_outside_exactly_local(monkeypatch, environment):
+    if environment is None:
+        monkeypatch.delenv("CODEFLY__ENVIRONMENT", raising=False)
+    else:
+        monkeypatch.setenv("CODEFLY__ENVIRONMENT", environment)
+    if environment == "local":
+        verifier()
+    else:
+        with pytest.raises(Unauthenticated) as refused:
+            verifier()
+        assert refused.value.code == "replay_store_not_shared"
+    store = Replay()
+    store.shared = True
+    Verifier(Keys(published()), audience=FIXTURE["audience"], public_key=FIXTURE["public_key"], replay=store)
+    Verifier(Keys(published()), audience=FIXTURE["audience"])  # a token-only verifier holds no store

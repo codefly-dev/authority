@@ -5,7 +5,11 @@ import { createHash, createPrivateKey, generateKeyPairSync, sign } from 'node:cr
 import { test } from 'node:test';
 import { create, fromBinary, fromJson, toBinary } from '@bufbuild/protobuf';
 import { KeysResponseSchema, PublicKeySchema, WorkContextV1Schema, WorkScopeV1Schema } from '@codefly-dev/authority-client';
-import { authenticateToken, boundToken, identityOf, trustFromKeys, Unauthenticated, Verifier, Replayed, Reason, SKEW } from '@codefly-dev/authority-client/work-context';
+import { authenticateToken, boundToken, identityOf, trustFromKeys, Unauthenticated, Verifier, Replayed, Expired, Reason, SKEW } from '@codefly-dev/authority-client/work-context';
+
+// Every verifier here runs in the local run, which alone may use a
+// process-local replay store; the startup guard's test sets its own.
+process.env.CODEFLY__ENVIRONMENT = 'local';
 
 const fixtures = JSON.parse(readFileSync(new URL('../../testdata/claims.json',import.meta.url),'utf8'));
 const encode = bytes => Buffer.from(bytes).toString('base64url');
@@ -118,7 +122,7 @@ test('the Verifier reads the hop fixture as Go reads it', async () => {
   assert.equal(id.advisory, fixture.identity.advisory);
   assert.ok(id.claims.allows('documents.collection','write','c-1'));
   for (const [key, value, reason] of [['x-codefly-hop-tenant','globex',/stamp_identity/],['x-codefly-hop-scopes','documents.collection:admin',/stamp_identity/],['x-codefly-hop-proof','another-run',/stamp_proof/]]) {
-    await assert.rejects(v.verify({...fixture.headers, [key]: value}, METHOD), e => e instanceof Unauthenticated && reason.test(e.message));
+    await assert.rejects(v.verify({...fresh(v.now()), [key]: value}, METHOD), e => e instanceof Unauthenticated && reason.test(e.message));
   }
 });
 
@@ -377,4 +381,96 @@ test('a reservation is retained past expiry by the allowance', async () => {
  const payload = JSON.parse(Buffer.from(headers['x-codefly-hop-proof'].split('.')[0], 'base64url').toString('utf8'));
  await v.verify(headers, METHOD);
  assert.deepEqual(retained, [payload[6] + SKEW]);
+});
+
+// A reservation store as replaypg is: a nonce is held until it is finished AND
+// its retention has passed, and a reservation past its retention is refused
+// rather than inserted. collect removes what has aged out.
+const reservations = clock => {
+ const store = { shared: true, held: new Map(), active: new Set(),
+  async reserve(nonce, until) {
+   if (until * 1000 <= clock()) throw new Expired();
+   if (store.held.has(nonce)) throw new Replayed();
+   store.held.set(nonce, until); store.active.add(nonce);
+  },
+  async finish(nonce) { store.active.delete(nonce); },
+  async consume() { throw new Error('a reservation store is reserved, never consumed'); },
+  collect() { for (const [nonce, until] of store.held) if (!store.active.has(nonce) && until * 1000 < clock()) store.held.delete(nonce); },
+ };
+ return store;
+};
+
+// Review of #28 at 8a3e953b: a single-use admission is consumed exactly once.
+// Two deliveries of one admission arrive inside its window; the first holds its
+// reservation while its handler runs, past its retention and collection; the
+// second is refused by name, and so is a delivery after the handler returned.
+test('a second delivery of one admission is refused while and after the first runs', async () => {
+ let now = fixture.now * 1000;
+ const store = reservations(() => now);
+ const v = new Verifier(source(), fixture.audience, fixture.public_key, store, () => now);
+ const headers = fresh(now);
+ let ran = 0;
+ await v.admit(headers, METHOD, async identity => {
+  ran++;
+  assert.equal(identity.owner, fixture.identity.owner);
+  await assert.rejects(v.verify(headers, METHOD), e => e.code === Reason.StampReplayed);
+  now += (30 + SKEW + 5) * 1000; // past the retention while the handler still runs
+  store.collect();
+  assert.equal(store.held.size, 1, 'collection removed the reservation of a running call');
+  await assert.rejects(v.admit(headers, METHOD, async () => { ran++; }), e => e.code === Reason.StampWindow);
+ });
+ store.collect();
+ assert.equal(store.held.size, 0);
+ assert.equal(ran, 1);
+});
+
+// The reservation is taken before the keys are read, and a refusal after it
+// ends the hold rather than leaving it pinned.
+test('the reservation is taken before the key read and released on refusal', async () => {
+ const now = fixture.now * 1000;
+ const store = reservations(() => now);
+ const v = new Verifier(source(() => Promise.reject(new Error('authority down'))), fixture.audience, fixture.public_key, store, () => now, 50);
+ const headers = fresh(now);
+ await assert.rejects(v.verify(headers, METHOD), e => e instanceof Unauthenticated && /keys/.test(e.code));
+ assert.equal(store.held.size, 1, 'the call never reserved');
+ assert.equal(store.active.size, 0, 'a refused call kept its hold');
+ await assert.rejects(v.verify(headers, METHOD), e => e.code === Reason.StampReplayed);
+});
+
+test('admit releases its hold however the handler ends', async () => {
+ const now = fixture.now * 1000;
+ const store = reservations(() => now);
+ const v = new Verifier(source(), fixture.audience, fixture.public_key, store, () => now);
+ await assert.rejects(v.admit(fresh(now), METHOD, async () => { assert.equal(store.active.size, 1); throw new Error('handler failed'); }), /handler failed/);
+ assert.equal(store.held.size, 1);
+ assert.equal(store.active.size, 0);
+});
+
+// A store without reserve keeps a nonce to its retention and may then evict it.
+// A delivery that arrived inside the window, but whose consumption completed
+// after the retention, found an evicted nonce: it is refused on the window.
+test('a consumption completing past its retention is refused', async t => {
+ let slow = 0, calls = 0;
+ const real = performance.now.bind(performance);
+ t.mock.method(performance, 'now', () => real() + slow);
+ const evicted = { async consume() { if (++calls === 2) slow = 60_000; } };
+ const v = new Verifier(source(), fixture.audience, fixture.public_key, evicted, () => fixture.now * 1000);
+ await v.verify(fresh(fixture.now * 1000), METHOD);
+ await assert.rejects(v.verify(fresh(fixture.now * 1000), METHOD), e => e.code === Reason.StampWindow);
+});
+
+// Outside the run named exactly "local", a store that does not declare itself
+// the durable one every replica shares is refused at startup, as Go refuses it.
+test('startup requires a shared store outside exactly local', () => {
+ try {
+  for (const environment of [undefined, '', 'production', 'staging', 'local-production', 'local-docker', ' local', 'local ', 'local']) {
+   if (environment === undefined) delete process.env.CODEFLY__ENVIRONMENT;
+   else process.env.CODEFLY__ENVIRONMENT = environment;
+   const build = store => new Verifier(source(), fixture.audience, fixture.public_key, store);
+   if (environment === 'local') build(replay());
+   else assert.throws(() => build(replay()), e => e.code === Reason.StoreNotShared);
+   build({ ...replay(), shared: true });
+   new Verifier(source(), fixture.audience); // a token-only verifier holds no store
+  }
+ } finally { process.env.CODEFLY__ENVIRONMENT = 'local'; }
 });

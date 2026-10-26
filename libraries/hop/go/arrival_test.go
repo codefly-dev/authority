@@ -130,3 +130,27 @@ func (r *retention) Consume(_ context.Context, _ string, until time.Time) error 
 	r.until = until
 	return nil
 }
+
+// accepting is a store that has evicted every nonce: each consumption succeeds.
+type accepting struct{}
+
+func (accepting) Consume(context.Context, string, time.Time) error { return nil }
+
+// A store with no completion operation keeps a nonce only to its retention. A
+// delivery whose consumption completes past that retention found an evicted
+// nonce, so it is refused on the window rather than run a second time.
+func TestAConsumptionCompletingPastItsRetentionIsRefused(t *testing.T) {
+	clock := time.Unix(1792818000, 0)
+	v, s := arrivalVerifier(t, &clock)
+	v.replay = accepting{}
+	md := forwarded(t, s.issue(t, clock, "documents"), "proof", "")
+	if _, err := v.reserve(context.Background(), md, arrivalMethod, instant{at: clock, mark: time.Now()}); err != nil {
+		t.Fatalf("a delivery consumed inside its retention was refused: %v", err)
+	}
+	// Arrived inside the window, but its consumption completed a minute later.
+	_, err := v.reserve(context.Background(), md, arrivalMethod, instant{at: clock, mark: time.Now().Add(-time.Minute)})
+	var reason refusal.Reason
+	if !errors.As(err, &reason) || reason != refusal.StampWindow {
+		t.Fatalf("want %s for a consumption past its retention: %v", refusal.StampWindow, err)
+	}
+}

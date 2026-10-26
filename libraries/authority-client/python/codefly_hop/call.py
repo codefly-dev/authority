@@ -15,6 +15,8 @@ class Replayed(Exception):
 
 
 class ReplayStore(Protocol):
+    shared: bool  # true only for durable storage shared by every replica
+
     def consume(self, nonce: str, retain_until: int) -> None:
         """Atomically reserve nonce until Unix seconds; raise Replayed on reuse, another exception on unavailability.
 
@@ -92,3 +94,25 @@ def check(headers, public_key: str, method: str, audience: str, now: float) -> C
     if "x-codefly-hop-advisory" in values:
         raise Unauthenticated(Reason.STAMPADVISORY)
     return Call("codefly-hop-v1:" + public_key + ":" + nonce, expires)
+
+
+class Expired(Exception):
+    """The reservation's retention had already passed when the store decided."""
+
+
+class ReservationStore(ReplayStore, Protocol):
+    """A store that holds a single-use admission while the call carrying it runs.
+
+    The verifier reserves when the call arrives and finishes when its handler
+    has returned; the store keeps the reservation until ``finish`` AND
+    ``retain_until`` have both passed. ``reserve`` refuses atomically, across
+    every replica, a nonce already held (``Replayed``), including one held by a
+    call still running past its retention, and refuses a reservation whose
+    ``retain_until`` has already passed by the store's clock (``Expired``): a
+    reservation delayed past its own retention must never revive a nonce that
+    was collected. A ``finish`` that fails leaves the reservation held.
+    """
+    def reserve(self, nonce: str, retain_until: int) -> None: ...
+    def finish(self, nonce: str) -> None: ...
+    async def reserve_async(self, nonce: str, retain_until: int) -> None: ...
+    async def finish_async(self, nonce: str) -> None: ...

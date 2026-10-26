@@ -10,6 +10,7 @@ import { Unauthenticated, Verifier } from '@codefly-dev/authority-client/work-co
 
 const verifier = new Verifier(createClient(AuthorityService, transport), audience, publicKey, sharedReplayStore);
 const id = await verifier.verify(requestHeaders, fullProcedure);   // throws Unauthenticated, naming why
+await verifier.admit(requestHeaders, fullProcedure, async id => handle(id));  // holds the single-use reservation while handle runs
 id.tenant; id.scopes; id.claims.allows(resourceKind, action, exactResourceID);
 ```
 
@@ -30,9 +31,11 @@ caller. **Readiness uses `verifier.ready()`**: true while trusted keys are held,
 through failed re-reads inside the 15-minute window; false before the first read
 or once they are stale. It also starts the same rate-limited, non-blocking
 re-read a call would, so an unready replica recovers and an idle one never goes
-stale. Never gate readiness on `keysError`. After authenticating the identity,
-it consumes the nonce through the required durable replay store shared across
-replicas. See the [admission protocol](../../hop/README.md).
+stale. Never gate readiness on `keysError`. Before reading the keys, it reserves
+the nonce through the required durable replay store shared across replicas, and
+outside the run named exactly `local` the constructor refuses a store whose
+`shared` is not true (`replay_store_not_shared`). See the [admission
+protocol](../../hop/README.md).
 
 `claims.scopes` contains frozen copies of the final actor's grants, or the owner's
 when no actor exists. Each scope is evaluated independently; an omitted resource

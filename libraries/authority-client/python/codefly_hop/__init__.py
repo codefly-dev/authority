@@ -9,20 +9,22 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import os
 import re
 import threading
 import time
 from collections.abc import Callable, Iterable, Mapping
 from concurrent import futures
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from .call import SKEW, Replayed, ReplayStore, check
+from .call import SKEW, Expired, Replayed, ReplayStore, ReservationStore, check
 from authority_client._gen.host.authority.v1.authority_pb2 import KeysRequest
 from authority_client._gen.host.authority.v1.work_context_pb2 import WorkContextV1
 from authority_client.work_context import Claims, Trust, Unauthenticated, Reason, authenticate_token, bound_token, collect
 
-__all__ = ["Identity", "Verifier", "Unauthenticated", "Reason", "identity_of", "ReplayStore", "Replayed"]
+__all__ = ["Identity", "Verifier", "Unauthenticated", "Reason", "identity_of", "ReplayStore", "ReservationStore", "Replayed", "Expired"]
 
 WORK_CONTEXT_KEY = "x-codefly-work-context"
 STAMP_PREFIX = "x-codefly-hop-"
@@ -90,6 +92,26 @@ def identity_of(context) -> Identity:
     )
 
 
+def _store_refusal(error: Exception) -> Unauthenticated:
+    """The refusal a failed reservation answers: never the backend's error."""
+    if isinstance(error, Unauthenticated):
+        return error
+    if isinstance(error, Replayed):
+        return Unauthenticated(Reason.STAMPREPLAYED)
+    if isinstance(error, Expired):
+        return Unauthenticated(Reason.STAMPWINDOW)
+    return Unauthenticated(Reason.STAMPSTORE)
+
+
+def _within(until: int, arrival: float, mark: float) -> None:
+    """A store without ``reserve`` keeps a nonce to its retention and may then
+    evict it. A consumption that only succeeded because that retention had
+    passed found an evicted nonce, not a new one: it is refused on the window,
+    so a second delivery never runs."""
+    if arrival + (time.monotonic() - mark) >= until:
+        raise Unauthenticated(Reason.STAMPWINDOW)
+
+
 class Verifier:
     """The one module-side entry point: authenticates every call the hop forwards.
 
@@ -108,6 +130,11 @@ class Verifier:
             # Admission needs both the delivered hop public key and a store
             # every replica shares; one without the other admits nothing.
             raise Unauthenticated(Reason.CONFIGURATION)
+        if admitting and os.environ.get("CODEFLY__ENVIRONMENT") != "local" and getattr(replay, "shared", False) is not True:
+            # A process-local store answers only for its own process: a captured
+            # admission would replay once per replica, and a restart would
+            # forget every reservation. Only the run named exactly "local" may.
+            raise Unauthenticated(Reason.STORENOTSHARED)
         self._source, self._audience, self._timeout = keys, audience, timeout
         self._public_key, self._replay = public_key, replay
         self._now = now or time.time
@@ -139,36 +166,112 @@ class Verifier:
     def verify(self, headers: Mapping[str, str] | Iterable[tuple[str, str]], method: str) -> Identity:
         """Who the call is for, or ``Unauthenticated`` naming why it is refused.
         The admission is checked first: nothing that is not signed for this exact
-        method and audience reaches the key read. It may wait up to the read's
-        timeout for a key it does not hold yet, or for keys past the stale
-        window; an asyncio handler uses ``verify_async``."""
-        pairs, token, call = self._bound(headers, method)
-        wait = self._start(_key_id(token))
-        if wait is not None:
-            futures.wait((wait,), self._timeout)
-        return self._finish(pairs, token, call)
+        method and audience reaches the key read, and its single-use nonce is
+        reserved before the keys are read. It may wait up to the read's timeout
+        for a key it does not hold yet, or for keys past the stale window; an
+        asyncio handler uses ``verify_async``.
+
+        The reservation's in-flight hold ends when ``verify`` returns, so it
+        lasts to the admission's expiry plus the clock allowance. A handler
+        whose work follows uses ``admit``, which holds it until that work ends."""
+        identity, finish = self._admit(headers, method)
+        finish()
+        return identity
+
+    @contextmanager
+    def admit(self, headers: Mapping[str, str] | Iterable[tuple[str, str]], method: str):
+        """``verify`` that holds the single-use reservation until the block
+        exits, however it exits. Enter it as soon as the call's headers have
+        arrived, before its body is read::
+
+            with verifier.admit(metadata, method) as identity:
+                ...  # the handler
+        """
+        identity, finish = self._admit(headers, method)
+        try:
+            yield identity
+        finally:
+            finish()
 
     async def verify_async(self, headers: Mapping[str, str] | Iterable[tuple[str, str]], method: str) -> Identity:
         """``verify`` for an asyncio handler: a wait for the keys is awaited on the
         event loop and holds no thread, so any number of waiting calls leave the
         loop's executor free; a call whose key is held never waits."""
-        pairs, token, call = self._bound(headers, method)
-        wait = self._start(_key_id(token))
-        if wait is not None:
-            try:
-                await asyncio.wait_for(asyncio.wrap_future(wait), self._timeout)
-            except asyncio.TimeoutError:
-                pass  # judged below on the keys held: stale ones are refused with the reason
-        identity = self._finish(pairs, token, call, consume=False)
-        try:
-            await self._replay.consume_async(call.nonce, call.expires + SKEW)
-        except Replayed as error:
-            raise Unauthenticated(Reason.STAMPREPLAYED) from error
-        except Unauthenticated:
-            raise
-        except Exception as error:
-            raise Unauthenticated(Reason.STAMPSTORE) from error
+        identity, finish = await self._admit_async(headers, method)
+        await finish()
         return identity
+
+    @asynccontextmanager
+    async def admit_async(self, headers: Mapping[str, str] | Iterable[tuple[str, str]], method: str):
+        """``admit`` for an asyncio handler."""
+        identity, finish = await self._admit_async(headers, method)
+        try:
+            yield identity
+        finally:
+            await finish()
+
+    def _admit(self, headers, method):
+        pairs, token, call = self._bound(headers, method)
+        arrival, mark = self._now(), time.monotonic()
+        managed = callable(getattr(self._replay, "reserve", None))
+        until = call.expires + SKEW
+        try:
+            if managed:
+                self._replay.reserve(call.nonce, until)
+            else:
+                self._replay.consume(call.nonce, until)
+        except Exception as error:
+            raise _store_refusal(error) from error
+        if not managed:
+            _within(until, arrival, mark)
+
+        def finish():
+            if managed:
+                try:
+                    self._replay.finish(call.nonce)
+                except Exception:
+                    pass  # a failed release keeps the reservation held: never reopen
+        try:
+            wait = self._start(_key_id(token))
+            if wait is not None:
+                futures.wait((wait,), self._timeout)
+            return self._finish(pairs, token), finish
+        except BaseException:
+            finish()
+            raise
+
+    async def _admit_async(self, headers, method):
+        pairs, token, call = self._bound(headers, method)
+        arrival, mark = self._now(), time.monotonic()
+        managed = callable(getattr(self._replay, "reserve_async", None))
+        until = call.expires + SKEW
+        try:
+            if managed:
+                await self._replay.reserve_async(call.nonce, until)
+            else:
+                await self._replay.consume_async(call.nonce, until)
+        except Exception as error:
+            raise _store_refusal(error) from error
+        if not managed:
+            _within(until, arrival, mark)
+
+        async def finish():
+            if managed:
+                try:
+                    await self._replay.finish_async(call.nonce)
+                except Exception:
+                    pass  # a failed release keeps the reservation held: never reopen
+        try:
+            wait = self._start(_key_id(token))
+            if wait is not None:
+                try:
+                    await asyncio.wait_for(asyncio.wrap_future(wait), self._timeout)
+                except asyncio.TimeoutError:
+                    pass  # judged below on the keys held: stale ones are refused with the reason
+            return self._finish(pairs, token), finish
+        except BaseException:
+            await finish()
+            raise
 
     def verify_token(self, token: str) -> Identity:
         """Authenticate a bare token with the same fail-closed key cache. It
@@ -223,7 +326,7 @@ class Verifier:
         identity = identity_of(claims.context)
         return Identity(**{**identity.__dict__, "context": token, "claims": claims})
 
-    def _finish(self, pairs: list[tuple[str, str]], token: str, call, consume=True) -> Identity:
+    def _finish(self, pairs: list[tuple[str, str]], token: str) -> Identity:
         identity = self._token_identity(token)
         values = collect(pairs)
         stamped = {
@@ -236,21 +339,6 @@ class Verifier:
             got = values.get(key, [])
             if len(got) > 1 or (got[0] if got else "") != want:
                 raise Unauthenticated(Reason.STAMPIDENTITY)
-        # ``check`` judged the admission window when the call started, which in
-        # Python is before the request is read; the window bounds a call's
-        # start, so it is judged once and not again here. The reservation is
-        # retained to expiry plus the allowance and no longer: a replay can
-        # only be admitted if it too arrives inside the window, and inside the
-        # window the nonce is still retained.
-        if consume:
-            try:
-                self._replay.consume(call.nonce, call.expires + SKEW)
-            except Replayed as error:
-                raise Unauthenticated(Reason.STAMPREPLAYED) from error
-            except Unauthenticated:
-                raise
-            except Exception as error:
-                raise Unauthenticated(Reason.STAMPSTORE) from error
         # An admission carrying an advisory refusal is refused by ``check``, so
         # an admitted call never has one: diagnostic identity is never authority.
         return Identity(**{**identity.__dict__, "context": token, "advisory": "", "claims": identity.claims})

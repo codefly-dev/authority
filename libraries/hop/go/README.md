@@ -22,19 +22,22 @@ conn, _, err := host.Dial(ctx) // the local authority on a laptop, the host on a
 audience, err := hop.Audience() // the module the composition started this process as (CODEFLY__MODULE)
 verifier, err := hop.NewVerifier(ctx, authorityv1.NewAuthorityServiceClient(conn), audience, publicKey, replay)
 config.GRPCServerOptions = append(config.GRPCServerOptions,
-	// Records when each call arrived, so the admission window is judged at
-	// call start and not after a large request body has decoded.
+	// Judges the admission window and reserves its single-use nonce when each
+	// call arrives, not after a large request body has decoded.
 	grpc.InTapHandle(verifier.TapHandle()),
 	grpc.ChainUnaryInterceptor(verifier.UnaryServerInterceptor()),
 	grpc.ChainStreamInterceptor(verifier.StreamServerInterceptor()))
 // in a handler: id, _ := hop.FromContext(ctx); id.Tenant, id.Has(kind, action), id.Claims.Allows(kind, action, resourceID)
-// an HTTP module: id, err := verifier.Verify(ctx, metadataFromHeaders, observedFullProcedure)
+// an HTTP module, once the headers arrive and before reading the body:
+//	id, done, err := verifier.Admit(ctx, metadataFromHeaders, observedFullProcedure); defer done()
 ```
 
 `Verify` authenticates the signed method, audience, token digest and 30-second
 admission window (with a two-second clock allowance, `stamp.Skew`, judged at the
 instant the call arrived), authenticates the Work Context, compares identity
-metadata, and atomically consumes the call nonce in the shared replay store. It
+metadata, and atomically reserves the call nonce in the shared replay store
+before the keys are read. `Admit` does the same and holds the reservation until
+the caller's work has ended, as the interceptors do for a handler. It
 refuses replays across replicas without re-spending the Work Context's single
 use. A process that receives no hop calls authenticates a bare Work Context with
 `NewTokenVerifier` and `VerifyToken` instead, which establishes identity and no
