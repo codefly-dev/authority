@@ -140,8 +140,8 @@ class Verifier:
     def verify(self, headers: Mapping[str, str] | Iterable[tuple[str, str]]) -> Identity:
         """Who the call is for, or ``Unauthenticated`` naming why it is refused.
         The stamp is checked first: nothing unbound reaches the key read. It may
-        wait up to the read's timeout for a key it does not hold yet; an asyncio
-        handler uses ``verify_async``."""
+        wait up to the read's timeout for a key it does not hold yet, or for keys
+        past the stale window; an asyncio handler uses ``verify_async``."""
         pairs, token = self._bound(headers)
         wait = self._start(_key_id(token))
         if wait is not None:
@@ -162,13 +162,18 @@ class Verifier:
         return pairs, bound_token(pairs, self._proof)
 
     def _start(self, key_id: str) -> threading.Event | None:
-        """Start a read when one is due; return it when this call must wait for it."""
+        """Start a read when one is due; return it when this call must wait for it:
+        its key is not held, or the held keys are past ``KEY_STALE`` (an idle
+        replica's first call is judged on fresh keys, not refused while they
+        arrive). Keys older than ``KEY_MAX_AGE`` but inside ``KEY_STALE`` are used
+        while the read runs."""
         with self._lock:
             now = self._now()
             held = self._trust is not None and key_id in self._trust.keys
             if (not held or now - self._fetched > KEY_MAX_AGE) and self._inflight is None and now - self._tried >= KEY_RETRY:
                 self._refresh()
-            return None if held else self._inflight
+            judgeable = held and now - self._fetched <= KEY_STALE
+            return None if judgeable else self._inflight
 
     def _finish(self, pairs: list[tuple[str, str]], token: str) -> Identity:
         with self._lock:

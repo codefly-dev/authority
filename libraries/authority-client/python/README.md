@@ -28,7 +28,8 @@ identity.tenant, identity.has(kind, action), identity.claims.allows(kind, action
 The verifier checks the stamp first, then reads the published keys through `Keys`
 on a thread of its own with a 5 s timeout, one read at a time; it re-reads them
 on an unknown key (at most every 10 s) and when older than 5 minutes; keys that
-cannot be re-read are trusted for 15 minutes at most. It never fails to
+cannot be re-read are trusted for 15 minutes at most, and a call on keys older than
+that waits for the re-read as a call on an unknown key does. It never fails to
 construct on an authority that is not serving yet, and refuses calls with a
 fixed reason until it is; `verifier.keys_error` holds the read's failure for
 logs. **Readiness uses `verifier.ready()`**: true while trusted keys are held,
