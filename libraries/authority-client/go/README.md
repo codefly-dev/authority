@@ -50,7 +50,17 @@ plaintext mesh hop: `host.DialOptions(transport)` is the transport plus
 admitted uses it too (the hop does for its upstreams). `host.HTTPTransport()` is
 the same for HTTP: Go's default transport with no environment proxy, the one
 transport every request carrying a Work Context, a stamp or the run's proof goes
-over (the hop's HTTP face and the edge's reverse proxy both use it). Remote endpoints
+over (the hop's HTTP face and the edge's reverse proxy both use it). It is an
+`http.RoundTripper` that cannot be unwrapped into the shared `*http.Transport`, so
+no caller can turn proxies back on for everyone. **The no-proxy gate**
+(`host/gate_test.go`, run by `go test ./...` here) parses every non-test Go file
+in the repository and fails, naming the file and line, on `http.DefaultTransport`,
+`http.DefaultClient`, `http.Get`/`Head`/`Post`/`PostForm`,
+`httputil.NewSingleHostReverseProxy`, an `http.Client` or `httputil.ReverseProxy`
+whose `Transport` is not `host.HTTPTransport()`, and a `grpc.NewClient`/`Dial`
+without `host.DialOptions(...)`. Only the go-grpc agent's generated self-dials are
+allowlisted, until its template carries `grpc.WithNoProxy()`; an entry must be
+removed once its regenerated file does. Remote endpoints
 use verified HTTPS/TLS unless the composition asserts
 `internal-transport/mesh-protected=true` and the target is an in-cluster Service
 DNS name. Plaintext loopback is accepted only in a local Codefly environment: the one named exactly `local` (the SDK's `IsLocal`); no name prefix is reserved for local runs.
