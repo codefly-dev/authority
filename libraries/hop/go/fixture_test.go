@@ -344,3 +344,36 @@ func TestAnActorGrantedNothingNarrowsToNothing(t *testing.T) {
 		t.Fatalf("identity: %+v", id)
 	}
 }
+
+// Readiness follows trust, not the last read: a failed re-read keeps a replica
+// ready while its keys are inside keyStale.
+func TestReadyHoldsWhileKeysAreTrusted(t *testing.T) {
+	first := newSigner("first")
+	source := &keys{err: errors.New("authority not serving yet")}
+	clock := time.Unix(1792818000, 0)
+	v, _ := NewVerifier(context.Background(), source, "documents", "proof")
+	v.now = func() time.Time { return clock }
+	if v.Ready() {
+		t.Fatal("ready before any key was read")
+	}
+	source.set(&authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{first.published()}}, nil, nil)
+	v.mu.Lock()
+	v.tried = clock.Add(-keyRetry)
+	v.refresh()
+	v.mu.Unlock()
+	settled(v)
+	if !v.Ready() {
+		t.Fatalf("not ready after a successful read: %v", v.KeysError())
+	}
+	source.set(nil, errors.New("authority down"), nil)
+	clock = clock.Add(keyMaxAge + time.Second)
+	_, _ = v.Verify(context.Background(), forwarded(t, first.issue(t, clock, "documents"), "proof", ""))
+	settled(v)
+	if v.KeysError() == nil || !v.Ready() {
+		t.Fatalf("a failed re-read inside keyStale keeps the replica ready: ready=%v err=%v", v.Ready(), v.KeysError())
+	}
+	clock = clock.Add(keyStale)
+	if v.Ready() {
+		t.Fatal("ready with stale keys")
+	}
+}

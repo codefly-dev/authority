@@ -150,3 +150,23 @@ test('an actor granted nothing narrows the identity to nothing', () => {
   context.actorChain[0].grantedScopes = [];
   assert.deepEqual(identityOf(context).scopes, []);
 });
+
+test('readiness follows trust, not the last read', async () => {
+  let failing = true;
+  const keys = source(() => failing ? Promise.reject(new Error('authority down')) : Promise.resolve(published));
+  let clock = fixture.now*1000;
+  const v = new Verifier(keys, fixture.audience, fixture.proof, () => clock);
+  await settle();
+  assert.equal(v.ready(), false);
+  failing = false;
+  clock += 11_000;
+  await v.verify(fixture.headers);
+  assert.equal(v.ready(), true);
+  failing = true;
+  clock += 400_000; // old keys: a re-read starts and fails
+  await v.verify(fixture.headers);
+  await settle();
+  assert.ok(v.keysError && v.ready());
+  clock += 900_000;
+  assert.equal(v.ready(), false);
+});

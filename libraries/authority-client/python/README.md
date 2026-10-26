@@ -31,7 +31,9 @@ on an unknown key (at most every 10 s) and when older than 5 minutes; keys that
 cannot be re-read are trusted for 15 minutes at most. It never fails to
 construct on an authority that is not serving yet, and refuses calls with a
 fixed reason until it is; `verifier.keys_error` holds the read's failure for
-logs. `codefly_hop` reads the hop's signed fixture (`../../hop/testdata/stamped.json`)
+logs. **Readiness uses `verifier.ready()`**: true while trusted keys are held,
+through failed re-reads inside the 15-minute window; false before the first read
+or once they are stale. Never gate readiness on `keys_error`. `codefly_hop` reads the hop's signed fixture (`../../hop/testdata/stamped.json`)
 as the Go library writes it.
 
 `codefly_hop` and `authority_client` are one distribution so that one pinned

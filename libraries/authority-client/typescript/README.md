@@ -23,7 +23,9 @@ signature, the audience, the window, and attenuation and grant shape. Who the
 call is for comes from the claims; a stamp that disagrees is refused. The shared
 `../testdata/vectors.json`, written by Go, holds every rule to Go's verdict. A
 read's own failure is kept in `verifier.keysError` for logs, never sent to a
-caller. Do not send the proof to a browser.
+caller. **Readiness uses `verifier.ready()`**: true while trusted keys are held,
+through failed re-reads inside the 15-minute window; false before the first read
+or once they are stale. Never gate readiness on `keysError`. Do not send the proof to a browser.
 
 `claims.scopes` contains frozen copies of the final actor's grants, or the owner's
 when no actor exists. Each scope is evaluated independently; an omitted resource

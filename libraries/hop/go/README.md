@@ -41,7 +41,11 @@ than 5 minutes (the held keys serve meanwhile); keys that cannot be re-read are
 trusted for 15 minutes at most. `NewVerifier` never fails on an authority that
 is not serving yet: calls are refused with "the authority's published keys are
 unavailable" until it is, and `KeysError()` gives the read's own failure to the
-module's logs, never to a caller.
+module's logs, never to a caller. **Readiness uses `Ready()`**: true while
+trusted keys are held, through failed re-reads inside the 15-minute window;
+false before the first read or once the keys are stale. Never gate readiness on
+`KeysError()`: a brief authority outage would take every replica out of rotation
+while its keys are still trusted.
 
 The proof is shared by every hop-fronted module: it keeps out a caller that is
 not a composed workload, and it does not show that a composed workload came

@@ -122,6 +122,15 @@ class Verifier:
             started = self._refresh()
         started.wait(timeout)
 
+    def ready(self) -> bool:
+        """Whether trusted keys are held: true from the first successful read and
+        through failed re-reads inside the 15-minute window; false before any read
+        succeeded or once the keys are stale. Readiness uses this, never
+        ``keys_error``: a brief authority outage must not take a replica out of
+        rotation while its keys are still trusted."""
+        with self._lock:
+            return self._trust is not None and self._now() - self._fetched <= KEY_STALE
+
     def verify(self, headers: Mapping[str, str] | Iterable[tuple[str, str]]) -> Identity:
         """Who the call is for, or ``Unauthenticated`` naming why it is refused.
         The stamp is checked first: nothing unbound reaches the key read. It may

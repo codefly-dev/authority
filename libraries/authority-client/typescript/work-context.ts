@@ -285,6 +285,13 @@ export class Verifier {
     void this.refresh();
   }
 
+  /** Whether trusted keys are held: true from the first successful read and
+   * through failed re-reads inside the 15-minute window; false before any read
+   * succeeded or once the keys are stale. Readiness uses this, never keysError. */
+  ready(): boolean {
+    return this.trust !== undefined && this.now() - this.fetched <= KEY_STALE_MS;
+  }
+
   /** Who the call is for, or Unauthenticated naming why it is refused. */
   async verify(headers: StampHeaders): Promise<Identity> {
     const pairs = [...(Symbol.iterator in Object(headers) ? headers as Iterable<readonly [string, string]> : Object.entries(headers))]

@@ -196,3 +196,22 @@ def test_verify_async_waits_for_keys_off_the_event_loop():
     ticks, identity = asyncio.run(scenario())
     assert ticks >= 10, "the event loop was blocked while the keys were read"
     assert identity.owner == FIXTURE["identity"]["owner"]
+
+
+# Readiness follows trust, not the last read.
+def test_ready_holds_while_keys_are_trusted():
+    clock = [FIXTURE["now"]]
+    source = Keys(error=RuntimeError("not serving yet"))
+    v = Verifier(source, audience=FIXTURE["audience"], proof=FIXTURE["proof"], now=lambda: clock[0])
+    assert not v.ready()
+    source.error, source.response = None, published()
+    clock[0] += 11
+    v.verify(FIXTURE["headers"])
+    assert v.ready()
+    source.error = RuntimeError("authority down")
+    clock[0] += 400  # old keys: a re-read starts and fails
+    v.verify(FIXTURE["headers"])
+    settle(v)
+    assert v.keys_error is not None and v.ready()
+    clock[0] += 900
+    assert not v.ready()
