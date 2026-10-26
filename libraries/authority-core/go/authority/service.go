@@ -277,8 +277,11 @@ func (src sources) fenceIn(tx Tx, organization, owner, installationID string) (f
 		return fence{}, err
 	}
 	seal, err := src.sealIn(tx, owner, installationID)
-	if err != nil {
+	if errors.Is(err, workcontext.ErrNoSeal) {
 		return fence{}, domain.Refuse("%s may not use installation %s now", owner, installationID)
+	}
+	if err != nil {
+		return fence{}, err // the store's own failure, named as such
 	}
 	epoch, err := src.epochIn(tx, owner)
 	if err != nil {

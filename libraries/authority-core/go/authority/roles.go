@@ -136,10 +136,12 @@ func (s *Service) PersonChanged(ctx context.Context, person string) error {
 }
 
 // callerOrganization is the organization the caller belongs to now, read from
-// the store; a caller the store no longer knows keeps the session's.
+// the store.
 func callerOrganization(tx Tx, caller Person) string {
 	if p, err := tx.Person(caller.ID); err == nil {
 		return p.Organization
 	}
-	return caller.Organization
+	// A caller the store no longer knows belongs to no organization: they get
+	// the foreign answer, whatever their session says.
+	return ""
 }
