@@ -35,6 +35,7 @@ type harness struct {
 	t     *testing.T
 	store *memstore.Store
 	svc   *authority.Service
+	cfg   authority.Config
 	now   time.Time
 	ctx   context.Context
 }
@@ -73,8 +74,9 @@ func newHarness(t *testing.T) *harness {
 	n := 0
 	replay := workcontext.NewMemoryReplayStore()
 	replay.Now = func() time.Time { return h.now }
-	h.svc, err = authority.New(h.store, authority.Config{Issuer: "https://authority.test", KeyID: "k1", Signer: private, Keys: keys{public}, Replay: replay,
-		Clock: func() time.Time { return h.now }, NewID: func() string { n++; return fmt.Sprintf("id-%d", n) }})
+	h.cfg = authority.Config{Issuer: "https://authority.test", KeyID: "k1", Signer: private, Keys: keys{public}, Replay: replay,
+		Clock: func() time.Time { return h.now }, NewID: func() string { n++; return fmt.Sprintf("id-%d", n) }}
+	h.svc, err = authority.New(h.store, h.cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,6 +169,44 @@ func (h *harness) revoke(target, role, person, team string) {
 	}
 }
 
+func (h *harness) root(person, target string, scopes ...*basev0.WorkScopeV1) (authority.Issued, error) {
+	return h.svc.IssueForPerson(h.ctx, h.person(person), authority.IssueRequest{Audience: target, Scopes: scopes})
+}
+
+// through is a person at target, then target's hop to the store (or binding).
+func (h *harness) through(person, target, binding string, scopes ...*basev0.WorkScopeV1) (authority.Issued, error) {
+	r, err := h.root(person, target)
+	if err != nil {
+		return r, err
+	}
+	return h.svc.IssueChild(h.ctx, r.Token, authority.Workload{Module: target}, authority.IssueRequest{Binding: binding, Scopes: scopes})
+}
+
+func (h *harness) hop(parent authority.Issued, binding string, scopes ...*basev0.WorkScopeV1) (authority.Issued, error) {
+	return h.svc.IssueChild(h.ctx, parent.Token, authority.Workload{Module: "store"}, authority.IssueRequest{Binding: binding, Scopes: scopes})
+}
+
+func (h *harness) agent(target, binding string, scopes ...*basev0.WorkScopeV1) (authority.Issued, error) {
+	audience := target
+	if binding != "" {
+		audience = map[string]string{"store": "store", "legacy": "legacy-store"}[binding]
+	}
+	return h.svc.IssueForInstallation(h.ctx, authority.Workload{Module: target}, h.inst(acme, target).ID, authority.IssueRequest{Audience: audience, Binding: binding, Scopes: scopes})
+}
+
+func (h *harness) check(i authority.Issued) error {
+	_, _, err := h.svc.Check(h.ctx, i.Token, i.Context.GetAudience())
+	return err
+}
+
+func (h *harness) must(i authority.Issued, err error) authority.Issued {
+	h.t.Helper()
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	return i
+}
+
 // refused requires a refusal naming reason.
 func refused(t *testing.T, err error, reason string) {
 	t.Helper()
@@ -179,6 +219,30 @@ func code(t *testing.T, err error, want domain.Code) {
 	t.Helper()
 	if got, ok := domain.CodeOf(err); !ok || got != want {
 		t.Fatalf("want code %v, got %v (%v)", want, got, err)
+	}
+}
+
+// effective is a capability's effective scopes.
+func effective(i authority.Issued) []*basev0.WorkScopeV1 {
+	if chain := i.Context.GetActorChain(); len(chain) > 0 {
+		return chain[len(chain)-1].GetGrantedScopes()
+	}
+	return i.Context.GetAuthorityScopes()
+}
+
+// exactly requires the effective scopes to be exactly one row of k with
+// actions, owner and ids.
+func exactly(t *testing.T, i authority.Issued, k, owner string, actions []string, ids ...string) {
+	t.Helper()
+	var rows []*basev0.WorkScopeV1
+	for _, s := range effective(i) {
+		if len(s.GetActions()) > 0 {
+			rows = append(rows, s)
+		}
+	}
+	if len(rows) != 1 || rows[0].GetResourceKind() != k || rows[0].GetResourceOwnerId() != owner ||
+		strings.Join(rows[0].GetActions(), ",") != strings.Join(actions, ",") || strings.Join(rows[0].GetResourceIds(), ",") != strings.Join(ids, ",") {
+		t.Fatalf("effective %v, want %s %v owned by %q ids %v", rows, k, actions, owner, ids)
 	}
 }
 
