@@ -1,7 +1,5 @@
-// The solution-principal target, against the local authority. It is the
-// contract the local authority does not meet yet (conformance
-// RunSolutionPrincipalTarget): run it with AUTHORITY_TARGET=solution-principal
-// and it fails, naming what the published contract lacks first.
+// The solution-principal contract (conformance RunSolutionPrincipalTarget),
+// against the local authority: run with every go test.
 package registry_test
 
 import (
@@ -27,9 +25,6 @@ import (
 )
 
 func TestTheLocalAuthorityMeetsTheSolutionPrincipalTarget(t *testing.T) {
-	if os.Getenv("AUTHORITY_TARGET") != "solution-principal" {
-		t.Skip("target contract, not yet implemented: run with AUTHORITY_TARGET=solution-principal to see what it lacks")
-	}
 	k := testkit.New(t)
 	// Two people whose own organisation grants reach one existing resource of
 	// the store's kind (one administers it, one reads it), and a member of a
