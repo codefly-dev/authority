@@ -39,9 +39,10 @@ func (p *Proxy) ServerOptions() []grpc.ServerOption {
 	return []grpc.ServerOption{grpc.UnknownServiceHandler(p.handle), grpc.ForceServerCodec(Codec{})}
 }
 
-// DialOptions make a client connection carry opaque frames to the module.
-func DialOptions() []grpc.DialOption {
-	return []grpc.DialOption{grpc.WithDefaultCallOptions(grpc.ForceCodec(Codec{}))}
+// CallOptions carry opaque frames to the module without choosing a transport.
+// The caller's host.DialOptions remains the sole transport authority.
+func CallOptions() []grpc.CallOption {
+	return []grpc.CallOption{grpc.ForceCodec(Codec{})}
 }
 
 func (p *Proxy) handle(_ any, in grpc.ServerStream) error {
