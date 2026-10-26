@@ -13,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"golang.org/x/tools/go/packages"
 )
 
 // agentTemplates are the adapter files the go-grpc agent renders
@@ -73,6 +75,16 @@ func isAgentAdapter(file *ast.File, relative string) bool {
 //   - loopbackTransport and its ClientHandshake are declared in a generated
 //     adapter.
 func checkSelfDials(t *testing.T, root, directory string) []string {
+	// Real modules need complete type identities, including imported plugin bodies.
+	for dir := directory; ; dir = filepath.Dir(dir) {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return loadSelfDialModule(t, root, dir, directory).violations()
+		}
+		if dir == root || dir == filepath.Dir(dir) {
+			break
+		}
+	}
+	// Single-package syntax fixtures deliberately include ill-typed refusals.
 	files := token.NewFileSet()
 	var parsed []*ast.File
 	generated := map[*ast.File]bool{}
@@ -115,6 +127,47 @@ type selfDials struct {
 	generated map[*ast.File]bool
 	info      *types.Info
 	pkg       *types.Package
+	module    map[*types.Package]*selfDials
+	refusals  map[string]bool
+}
+
+// Preserve the Go tool's environment before TestMain installs its hostile HTTP
+// proxy for transport tests. Loading source dependencies is not a host request.
+var selfDialToolEnv = os.Environ()
+
+// Load all packages, not just the adapter's import closure: an unregistered
+// concrete implementation must be checked too. Type/load errors fail closed.
+func loadSelfDialModule(t *testing.T, root, moduleDir, directory string) *selfDials {
+	t.Helper()
+	loaded, err := packages.Load(&packages.Config{Dir: moduleDir, Env: selfDialToolEnv,
+		Mode: packages.LoadSyntax | packages.NeedModule}, "./...")
+	if err != nil {
+		t.Fatal(err)
+	}
+	module := map[*types.Package]*selfDials{}
+	refusals := map[string]bool{}
+	var adapter *selfDials
+	for _, pkg := range loaded {
+		if len(pkg.Errors) != 0 {
+			t.Fatalf("self-dial module type check: %v", pkg.Errors)
+		}
+		c := &selfDials{root: root, files: pkg.Fset, parsed: pkg.Syntax,
+			generated: map[*ast.File]bool{}, info: pkg.TypesInfo, pkg: pkg.Types,
+			module: module, refusals: refusals}
+		module[pkg.Types] = c
+		for _, file := range pkg.Syntax {
+			filename := pkg.Fset.Position(file.Pos()).Filename
+			relative, _ := filepath.Rel(root, filename)
+			c.generated[file] = isAgentAdapter(file, filepath.ToSlash(relative))
+			if filepath.Dir(filename) == directory {
+				adapter = c
+			}
+		}
+	}
+	if adapter == nil {
+		t.Fatalf("self-dial adapter package not loaded: %s", directory)
+	}
+	return adapter
 }
 
 func (c selfDials) where(node ast.Node) string {
@@ -146,13 +199,29 @@ func (c selfDials) violations() []string {
 			if !ok {
 				return true
 			}
+			if seam != nil && c.callsFunc(call, seam) {
+				return true
+			}
 			options, ok := c.dialOptions(call)
 			if !ok {
-				return true
+				options, _ = c.forwardedOptions(call)
+				if options == nil && c.pluginInterface(call) != nil && len(call.Args) > 0 {
+					options = call.Args[len(call.Args)-1]
+					if !c.pluginOptions(call, map[*types.Var]bool{}) {
+						options = nil
+					}
+				} else if options != nil {
+					_, parameter := c.forwardedOptions(call)
+					if !c.optionsUses(parameter, map[*types.Var]bool{}) {
+						options = nil
+					}
+				} else {
+					return true
+				}
 			}
 			dials = append(dials, call)
 			if seam == nil || !c.fromSeam(options, seam) {
-				violations = append(violations, fmt.Sprintf("%s: a generated self-dial must pass gatewayDialOptions(…), or a local defined once from it and used only as dial options or unchanged through a generated same-package forwarder (no aliases, indexing, slicing, unchecked calls or address-taking), as its options", c.where(call)))
+				violations = append(violations, fmt.Sprintf("%s: a generated self-dial must pass gatewayDialOptions(…), or a local defined once from it and used only as dial options or unchanged through a generated same-package forwarder or verified plugin implementation (no aliases, indexing, slicing, unchecked calls or address-taking), as its options", c.where(call)))
 			}
 			return true
 		})
@@ -162,6 +231,9 @@ func (c selfDials) violations() []string {
 	}
 	if reason := c.seamRefusal(seam); reason != "" {
 		violations = append(violations, fmt.Sprintf("%s: gatewayDialOptions %s; regenerate with go-grpc 0.1.67 or later", c.where(dials[0]), reason))
+	}
+	for refusal := range c.refusals {
+		violations = append(violations, refusal)
 	}
 	sort.Strings(violations)
 	return violations
@@ -304,8 +376,8 @@ func (c selfDials) fromSeamSeen(options ast.Expr, seam *types.Func, visiting map
 }
 
 // calledFunction resolves local functions and concrete methods by object
-// identity. Imported functions, interface dispatch and function values cannot
-// supply a generated body in this package and are refused by finalParameter.
+// identity. Interface dispatch is checked separately against module-wide method
+// sets; imported functions and function values are not generated forwarders.
 func (c selfDials) calledFunction(call *ast.CallExpr) (*types.Func, *ast.Ident) {
 	var id *ast.Ident
 	switch fun := call.Fun.(type) {
@@ -330,6 +402,24 @@ func (c selfDials) finalParameter(function *types.Func) *types.Var {
 	}
 	declaration := c.funcDecl(function)
 	if declaration == nil || declaration.Body == nil {
+		return nil
+	}
+	// Only options-consuming functions are forwarding candidates.
+	fields := declaration.Type.Params.List
+	if len(fields) == 0 {
+		return nil
+	}
+	var element ast.Expr
+	switch typ := fields[len(fields)-1].Type.(type) {
+	case *ast.ArrayType:
+		if typ.Len == nil {
+			element = typ.Elt
+		}
+	case *ast.Ellipsis:
+		element = typ.Elt
+	}
+	selector, ok := element.(*ast.SelectorExpr)
+	if !ok || !c.isGRPC(selector, "DialOption") {
 		return nil
 	}
 	signature := function.Type().(*types.Signature)
@@ -374,16 +464,160 @@ func (c selfDials) optionsUses(variable *types.Var, visiting map[*types.Var]bool
 			var parameter *types.Var
 			if !dial {
 				argument, parameter = c.forwardedOptions(call)
+				if argument == nil && c.pluginInterface(call) != nil && len(call.Args) > 0 {
+					argument = call.Args[len(call.Args)-1]
+				}
 			}
 			id, ok := argument.(*ast.Ident)
 			if ok && c.info.Uses[id] == variable && (dial ||
-				(parameter != nil && c.optionsUses(parameter, visiting))) {
+				(parameter != nil && c.optionsUses(parameter, visiting)) || c.pluginOptions(call, visiting)) {
 				allowed[id] = true
 			}
 			return true
 		})
 	}
-	return c.onlyUses(variable, allowed)
+	return len(allowed) > 0 && c.onlyUses(variable, allowed)
+}
+
+// pluginInterface resolves the template's named framework.Plugin interface by
+// object identity. Its plugin.go template has no generated marker; anonymous or
+// same-spelled unrelated interfaces do not acquire this privilege.
+func (c selfDials) pluginInterface(call *ast.CallExpr) *types.Interface {
+	selector, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return nil
+	}
+	selection := c.info.Selections[selector]
+	if selection == nil || selection.Kind() != types.MethodVal {
+		return nil
+	}
+	named, ok := selection.Recv().(*types.Named)
+	if !ok {
+		return nil
+	}
+	owner := c.module[named.Obj().Pkg()]
+	if owner == nil || named.Obj() != owner.pkg.Scope().Lookup("Plugin") ||
+		!strings.HasSuffix(owner.pkg.Path(), "/pkg/framework") {
+		return nil
+	}
+	iface, _ := named.Underlying().(*types.Interface)
+	signature := selection.Obj().Type().(*types.Signature)
+	if signature.Params().Len() == 0 {
+		return nil
+	}
+	slice, ok := signature.Params().At(signature.Params().Len() - 1).Type().(*types.Slice)
+	if !ok {
+		return nil
+	}
+	option, ok := slice.Elem().(*types.Named)
+	if !ok || option.Obj().Pkg() == nil || option.Obj().Pkg().Path() != grpcImport || option.Obj().Name() != "DialOption" {
+		return nil
+	}
+	return iface
+}
+
+// Interface dispatch is a closed module-wide proof. Both value and pointer
+// method sets participate, including promoted methods and unregistered types.
+func (c selfDials) pluginOptions(call *ast.CallExpr, visiting map[*types.Var]bool) bool {
+	iface := c.pluginInterface(call)
+	if iface == nil {
+		return false
+	}
+	function, _ := c.calledFunction(call)
+	if function == nil {
+		return false
+	}
+	signature := function.Type().(*types.Signature)
+	if len(call.Args) == 0 || len(call.Args) != signature.Params().Len() ||
+		call.Ellipsis.IsValid() != signature.Variadic() {
+		return false
+	}
+	valid := true
+	for _, owner := range c.module {
+		for concrete := range owner.concreteTypes() {
+			if !types.Implements(concrete, iface) {
+				continue
+			}
+			selection := types.NewMethodSet(concrete).Lookup(function.Pkg(), function.Name())
+			method := selection.Obj().(*types.Func).Origin()
+			bodyOwner := c.module[method.Pkg()]
+			if bodyOwner == nil || !bodyOwner.pluginMethodSafe(method, visiting) {
+				reason := fmt.Sprintf("%s: %s.%s refuses self-dial options: parameter must be forwarded unchanged to every dial; mutation, replacement, escape or dropping options is forbidden",
+					c.where(call), types.TypeString(concrete, nil), function.Name())
+				c.refusals[reason] = true
+				valid = false
+			}
+		}
+	}
+	return valid
+}
+
+// Include unnamed structs, aliases and generic instantiations as well as
+// declarations. An embedded interface's promoted method has no concrete body
+// and therefore refuses, rather than silently escaping the implementation scan.
+func (c selfDials) concreteTypes() map[types.Type]bool {
+	result := map[types.Type]bool{}
+	add := func(typ types.Type) {
+		typ = types.Unalias(typ)
+		if pointer, ok := typ.(*types.Pointer); ok {
+			typ = types.Unalias(pointer.Elem())
+		}
+		if result[typ] {
+			return
+		}
+		switch typ.(type) {
+		case *types.Named, *types.Struct:
+			if _, iface := typ.Underlying().(*types.Interface); !iface {
+				result[typ] = true
+				result[types.NewPointer(typ)] = true
+			}
+		}
+	}
+	for _, object := range c.info.Defs {
+		if name, ok := object.(*types.TypeName); ok {
+			add(name.Type())
+		}
+	}
+	for _, value := range c.info.Types {
+		if value.Type != nil {
+			add(value.Type)
+		}
+	}
+	return result
+}
+
+func (c selfDials) pluginMethodSafe(method *types.Func, visiting map[*types.Var]bool) bool {
+	declaration := c.funcDecl(method)
+	if declaration == nil || declaration.Body == nil {
+		return false
+	}
+	signature := method.Type().(*types.Signature)
+	if signature.Params().Len() == 0 {
+		return false
+	}
+	parameter := signature.Params().At(signature.Params().Len() - 1)
+	// A gRPC-only plugin registers no REST endpoint. Admit only a literal no-op,
+	// with no calls, aliases or dials hidden behind the unused parameter.
+	if len(declaration.Body.List) == 1 {
+		if ret, ok := declaration.Body.List[0].(*ast.ReturnStmt); ok && len(ret.Results) == 1 {
+			if id, ok := ret.Results[0].(*ast.Ident); ok && c.info.Uses[id] == types.Universe.Lookup("nil") {
+				return true
+			}
+		}
+	}
+	valid := c.optionsUses(parameter, visiting)
+	ast.Inspect(declaration.Body, func(node ast.Node) bool {
+		if call, ok := node.(*ast.CallExpr); ok {
+			if options, dial := c.dialOptions(call); dial {
+				id, ok := options.(*ast.Ident)
+				if !ok || c.info.Uses[id] != parameter {
+					valid = false
+				}
+			}
+		}
+		return true
+	})
+	return valid
 }
 
 // onlyUses refuses any occurrence outside the explicitly permitted positions,
@@ -894,8 +1128,8 @@ func TestSelfDialOptionsAcceptsEachDial(t *testing.T) {
 }
 
 // The generated forwarding shape is accepted by declaration identity, never
-// by the spelling RegisterREST. The actual plugin interface call is different:
-// it has no generated same-package body, so it must continue to refuse.
+// by the spelling RegisterREST. Anonymous interfaces remain unchecked escapes;
+// the module-wide named plugin-interface proof is exercised separately.
 func TestGeneratedOptionsForwarders(t *testing.T) {
 	const forwarder = `
 func RegisterREST(ctx context.Context, mux interface{}, endpoint string, opts []grpc.DialOption) error {
@@ -970,6 +1204,128 @@ func unsafe(ctx context.Context, raw []grpc.DialOption) { _ = RegisterREST(ctx, 
 			got := judge(t, map[string]string{"grpc_gen.go": fixtureSeam, "rest_gen.go": base + body})
 			if !strings.Contains(strings.Join(got, "\n"), "a generated self-dial must pass gatewayDialOptions") {
 				t.Fatalf("want refusal of modified forwarded options, got %q", got)
+			}
+		})
+	}
+}
+
+// These fixtures use the production module loader and real grpc types. The
+// generated interface is imported across packages; Hidden is never registered.
+func TestModulePluginOptions(t *testing.T) {
+	const terminal = `return gen.RegisterSvcServiceHandlerFromEndpoint(ctx, mux, endpoint, opts)`
+	const ownDial = `_, err := grpc.NewClient(endpoint, grpc.WithTransportCredentials(insecure.NewCredentials())); return err`
+	for _, tc := range []struct {
+		name, body, extra string
+		pass              bool
+	}{
+		{"unchanged endpoint registration", terminal, "", true},
+		{"unchanged grpc dial", `_, err := grpc.NewClient(endpoint, opts...); return err`, "", true},
+		{"grpc-only no-op", `return nil`, "", true},
+		{"direct seam", terminal, "", true},
+		{"direct seam mutation", `opts = nil; ` + terminal, "", false},
+		{"blank options with own dial", ownDial, "", false},
+		{"append insecure credentials", `opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials())); ` + terminal, "", false},
+		{"ignore options and dial independently", ownDial, "", false},
+		{"forward once then dial independently", `_ = gen.RegisterSvcServiceHandlerFromEndpoint(ctx, mux, endpoint, opts); ` + ownDial, "", false},
+		{"replace", `opts = nil; ` + terminal, "", false},
+		{"alias", `alias := opts; alias[0] = nil; ` + terminal, "", false},
+		{"index", `opts[0] = nil; ` + terminal, "", false},
+		{"copy", `copy(opts, []grpc.DialOption{nil}); ` + terminal, "", false},
+		{"reslice append overwrite", `opts = append(opts[:0], nil); ` + terminal, "", false},
+		{"address", `_ = &opts; ` + terminal, "", false},
+		{"handwritten forwarder", `return forward(ctx, mux, endpoint, opts)`, `
+func forward(ctx context.Context, mux interface{}, endpoint string, opts []grpc.DialOption) error {
+ return gen.RegisterSvcServiceHandlerFromEndpoint(ctx, mux, endpoint, opts)
+}`, false},
+		{"unregistered implementation", terminal, `
+type Hidden struct{}
+func (Hidden) RegisterREST(ctx context.Context, mux interface{}, endpoint string, opts []grpc.DialOption) error {
+ opts = nil
+ return gen.RegisterSvcServiceHandlerFromEndpoint(ctx, mux, endpoint, opts)
+}`, false},
+		{"promoted method", terminal, `
+type Hidden struct{ Plugin }
+`, true},
+		{"promoted unsafe method", `opts = nil; ` + terminal, "type Hidden struct{ Plugin }", false},
+		{"anonymous promoted method", terminal, "var _ = struct{ *Plugin }{}", true},
+		{"anonymous interface embedding", terminal, "var _ = struct{ framework.Plugin }{}", false},
+		{"generic implementation", terminal, `
+type Hidden[T any] struct{}
+func (*Hidden[T]) RegisterREST(ctx context.Context, mux interface{}, endpoint string, opts []grpc.DialOption) error {
+ return gen.RegisterSvcServiceHandlerFromEndpoint(ctx, mux, endpoint, opts)
+}
+var _ = new(Hidden[int])
+`, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			moduleDir := filepath.Join(root, "svc")
+			directory := filepath.Join(moduleDir, "pkg", "adapters")
+			dials := strings.Replace(fixtureDials, `gen "svc/pkg/gen"`, `gen "svc/pkg/gen"
+ "svc/pkg/framework"
+ "svc/plugins/example"`, 1)
+			dials = strings.Replace(dials, "opts := gatewayDialOptions(extra...)", `opts := gatewayDialOptions(extra...)
+ var p framework.Plugin = new(example.Plugin)
+ _ = p.RegisterREST(ctx, nil, "", opts)`, 1)
+			sources := map[string]string{
+				"go.mod":                   "module svc\n\ngo 1.27.3\n\nrequire google.golang.org/grpc v1.84.0\n",
+				"pkg/adapters/grpc_gen.go": fixtureSeam,
+				"pkg/adapters/rest_gen.go": dials,
+				"pkg/framework/plugin.go": `package framework
+import ("context"; "google.golang.org/grpc")
+type Plugin interface { RegisterREST(context.Context, interface{}, string, []grpc.DialOption) error }
+`,
+				"pkg/gen/handler.go": `package gen
+import ("context"; "google.golang.org/grpc")
+func RegisterSvcServiceHandlerFromEndpoint(context.Context, interface{}, string, []grpc.DialOption) error { return nil }
+`,
+				"plugins/example/plugin.go": `package example
+import ("context"; "google.golang.org/grpc"; "google.golang.org/grpc/credentials/insecure"; gen "svc/pkg/gen"; "svc/pkg/framework")
+var _ framework.Plugin = new(Plugin)
+var _ = gen.RegisterSvcServiceHandlerFromEndpoint
+var _ = insecure.NewCredentials
+type Plugin struct{}
+func (*Plugin) RegisterREST(ctx context.Context, mux interface{}, endpoint string, opts []grpc.DialOption) error {
+` + tc.body + "\n}\n" + tc.extra,
+			}
+
+			if strings.HasPrefix(tc.name, "direct seam") {
+				sources["pkg/adapters/rest_gen.go"] = dials[:strings.Index(dials, "func rest(")] + `
+func rest(ctx context.Context, extra []grpc.DialOption) {
+ var p framework.Plugin = new(example.Plugin)
+ _ = p.RegisterREST(ctx, nil, "", gatewayDialOptions(extra...))
+}
+var _ = gen.RegisterSvcServiceHandlerFromEndpoint
+`
+			}
+			if tc.name == "blank options with own dial" {
+				sources["plugins/example/plugin.go"] = strings.Replace(sources["plugins/example/plugin.go"], "opts []grpc.DialOption", "_ []grpc.DialOption", 1)
+			}
+			for name, source := range sources {
+				filename := filepath.Join(moduleDir, name)
+				if err := os.MkdirAll(filepath.Dir(filename), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filename, []byte(source), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			got := checkSelfDials(t, root, directory)
+			if (len(got) == 0) != tc.pass {
+				t.Fatalf("want pass=%v, got %q", tc.pass, got)
+			}
+			if !tc.pass {
+				typeName := "Plugin"
+				if tc.name == "unregistered implementation" || tc.name == "promoted unsafe method" {
+					typeName = "Hidden"
+				}
+				expected := "svc/plugins/example." + typeName + ".RegisterREST refuses"
+				if tc.name == "anonymous interface embedding" {
+					expected = "struct{svc/pkg/framework.Plugin}.RegisterREST refuses"
+				}
+				if !strings.Contains(strings.Join(got, "\n"), expected) {
+					t.Fatalf("refusal must name concrete type and method: %q", got)
+				}
 			}
 		})
 	}
