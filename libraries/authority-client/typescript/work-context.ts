@@ -324,12 +324,13 @@ export class Verifier {
   /** Whether trusted keys are held: true from the first successful read and
    * through failed re-reads inside the 15-minute window; false before any read
    * succeeded or once the keys are stale. Readiness uses this, never keysError.
-   * It also starts the read a call would (keys missing or older than 5 min, at
-   * most every 10 s, never waiting), so an unready replica, which gets no calls,
+   * It also starts the read a call would (keys missing or older than 5 min, or
+   * no admission key published, at most every 10 s, never waiting), so an unready replica, which gets no calls,
    * recovers, and an idle one never goes stale. */
   ready(): boolean {
     const now = this.now();
-    if ((!this.trust || now - this.fetched > KEY_MAX_AGE_MS) && !this.inflight && now - this.tried >= KEY_RETRY_MS) void this.refresh();
+    const unadmitting = this.replay !== undefined && this.admission.length === 0;
+    if ((!this.trust || now - this.fetched > KEY_MAX_AGE_MS || unadmitting) && !this.inflight && now - this.tried >= KEY_RETRY_MS) void this.refresh();
     return this.trust !== undefined && now - this.fetched <= KEY_STALE_MS;
   }
 
@@ -394,13 +395,15 @@ export class Verifier {
    * on the keys held: neither a stamp signed by no published key nor keys past
    * KEY_MAX_AGE start a read here, so a caller without an admission can neither
    * drive the authority's keys nor delay a genuine call's read. Only when no
-   * trusted keys are held at all (never read, or past KEY_STALE) does it start
-   * one, at most every KEY_RETRY as readiness does, and wait for it. */
+   * trusted keys are held at all (never read, or past KEY_STALE), or the last
+   * read published no admission key (the hop had not registered yet), does it
+   * start one, at most every KEY_RETRY as readiness does, and wait for it. */
   private async admissionKey(pairs: readonly (readonly [string, string])[]): Promise<string> {
     const now = this.now();
     const trusted = () => this.trust !== undefined && this.now() - this.fetched <= KEY_STALE_MS;
-    if (!trusted() && !this.inflight && now - this.tried >= KEY_RETRY_MS) void this.refresh();
-    if (!trusted() && this.inflight) await this.inflight;
+    const judgeable = () => trusted() && this.admission.length > 0;
+    if (!judgeable() && !this.inflight && now - this.tried >= KEY_RETRY_MS) void this.refresh();
+    if (!judgeable() && this.inflight) await this.inflight;
     if (!trusted()) {
       if (this.keysError instanceof Unauthenticated && this.keysError.code === Reason.InvalidKey) throw new Unauthenticated(Reason.InvalidKey);
       throw new Unauthenticated(Reason.KeysUnavailable);

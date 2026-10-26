@@ -133,13 +133,17 @@ clock differences and prevent clock rollback. Synchronize deployment clocks.
 `INSERT ... ON CONFLICT (nonce) DO NOTHING` over a primary key is the atomic
 reservation, conditioned on the retention not having passed by the database's
 clock, and the database is already shared by every replica. Its `active` column
-marks a running call, for diagnosis; `Collect` removes every reservation past its
-retention by the database's clock, running or not, because `Reserve` refuses any
-reservation past it on that clock, so a holder that crashed before finishing
-leaves no permanent row. Codefly
+marks a running call, for diagnosis; `Collect` removes every reservation more
+than `replaypg.CollectMargin` (a minute) past its retention by the database's
+clock, running or not, because `Reserve` refuses any reservation past it on that
+clock, so a holder that crashed before finishing leaves no permanent row. The
+margin is what makes that refusal hold under concurrency: `Reserve`'s clock
+check and its insert are one statement but not one instant, and a collection
+removing a row the moment its retention passed could commit between them and
+let the insert revive the nonce. Codefly
 delivers a store, so this needs nothing the platform cannot provide.
-`replaypg.Migration` is the table, `Collect` removes reservations whose
-retention has passed, and the console composes exactly this
+`replaypg.Migration` is the table, `Collect` removes reservations a margin past
+their retention, and the console composes exactly this
 (`modules/console/services/store`).
 
 Outside a local run, `NewVerifier` now **refuses** a store that does not declare
@@ -196,12 +200,19 @@ refreshes with a fail-closed staleness policy, so no consumer is configured with
 a hop key and none can drift from the seed. They are a field of their own, so a
 verifier that reads `keys` alone (an earlier release, or the JSON Web Key Set)
 never trusts a hop key to sign a Work Context, and each verifier uses a key for
-its own purpose only. The local authority derives the public half from the hop's
-`hop-signing/SEED` in code (`modules/authority/services/local/code/work.go`,
-`hopAdmissionKey`); the seed never leaves it. A run with no hop publishes none,
-and an authority that publishes none leaves every admission refused as
-`keys_unavailable`, with `ErrNoAdmissionKeys`/`NoAdmissionKeys` in the module's
-key error saying why.
+its own purpose only. **The hop registers its key** with the authority
+(`RegisterAdmissionKey`, `codefly.dev/authority@0.3.3`, through
+`hop.Registration`): it presents the public half under its own workload
+credential, and the authority refuses any other workload by name. A registration
+lapses after `AdmissionLease` unless renewed, and the hop renews it while it runs,
+so a restarted authority learns the key again at the next renewal and a key no
+running hop signs with is withdrawn. The seed never leaves the hop. A run with no
+hop publishes none, and an authority that publishes none leaves every admission
+refused as `keys_unavailable`, with `ErrNoAdmissionKeys`/`NoAdmissionKeys` in the
+module's key error saying why. A verifier whose last read published no admission
+key (it read before the hop registered) reads again on the next call or
+readiness check, at most once per `keyRetry`, so it admits within seconds of the
+registration rather than after the five-minute key age.
 
 Every published admission key is trusted, so a rotation overlaps: the authority
 publishes the new key beside the retiring one, then the hop signs with the new
@@ -209,9 +220,13 @@ one, then the retiring key is withdrawn. A stamp signed by no published key is
 refused as `stamp_proof` and starts no key read, so a caller without an
 admission cannot drive the authority's keys; a verifier learns a new key on the
 next read an admitted call or readiness starts, within the five-minute key age.
-Publish the new key at least that long before the hop signs with it.
+Publish the new key at least that long before the hop signs with it: start a
+hop with the new seed (it registers its key at boot) that long before calls are
+routed to it, while a hop with the retiring seed keeps renewing the retiring
+key; the retiring key lapses `AdmissionLease` after the last hop signing with
+it stops.
 
-`accounts` adopting this (publishing its hop's key from the hop's seed) is
+`accounts` adopting this (implementing `RegisterAdmissionKey` and publishing what its hop registers) is
 follow-up work in the host; until it does, a cell's modules on this verifier
 refuse every admission as `keys_unavailable`.
 

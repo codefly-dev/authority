@@ -13,10 +13,10 @@ codefly config generate hop-signing SEED --service authority/hop
 codefly config generate internal-auth CODEFLY_INTERNAL_TOKEN
 ```
 
-Nothing else about the hop is configured here. The local authority derives the
-public half of that seed and publishes it in `Keys` (`admission_keys`), which
-every module behind the hop already reads, so no verification key is written by
-hand ([hop admission migration](../../libraries/hop/README.md), "Delivering the
+Nothing else about the hop is configured here. The hop registers the public
+half of that seed with the local authority under its own workload credential,
+and the authority publishes it in `Keys` (`admission_keys`), which every module
+behind the hop already reads, so no verification key is written by hand ([hop admission migration](../../libraries/hop/README.md), "Delivering the
 verification key").
 
 No replay volume is configured here any more. Admission reservations live in the

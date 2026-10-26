@@ -357,14 +357,15 @@ func (v *Verifier) KeysError() error {
 // replica out of rotation while its keys are still trusted.
 //
 // It also starts the read a call would (keys missing or older than keyMaxAge,
-// at most once per keyRetry, never waiting for it): an unready replica gets no
-// calls, so without this it would never read again and never become ready, and
-// an idle one would go stale.
+// or no admission key published, at most once per keyRetry, never waiting for
+// it): an unready replica gets no calls, so without this it would never read
+// again and never become ready, and an idle one would go stale.
 func (v *Verifier) Ready() bool {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	now := v.now()
-	if (v.fetched.IsZero() || now.Sub(v.fetched) > keyMaxAge) && v.inflight == nil && now.Sub(v.tried) >= keyRetry {
+	unadmitting := v.replay != nil && len(v.admission) == 0
+	if (v.fetched.IsZero() || now.Sub(v.fetched) > keyMaxAge || unadmitting) && v.inflight == nil && now.Sub(v.tried) >= keyRetry {
 		v.refresh()
 	}
 	return !v.fetched.IsZero() && now.Sub(v.fetched) <= keyStale
@@ -464,14 +465,18 @@ func (v *Verifier) trustFor(ctx context.Context, keyID string) (workcontext.Trus
 // keyMaxAge start a read here, and a caller without an admission can neither
 // drive the authority's keys nor delay the read a genuine call needs. Only
 // when no trusted keys are held at all (never read, or past keyStale, as on an
-// idle replica's first call) does it start a read, at most once per keyRetry
+// idle replica's first call), or the last read published no admission key (the
+// hop had not registered yet), does it start a read, at most once per keyRetry
 // as readiness does, and wait for it. A hop's new key is therefore learnt on
 // the next read an admitted call or readiness starts, within keyMaxAge, so an
 // authority publishes it that long before its hop signs with it, beside the
 // retiring key.
 func (v *Verifier) admissionKey(ctx context.Context, md metadata.MD) (string, error) {
 	v.mu.Lock()
-	untrusted := v.trusted() != nil
+	// Holding no published admission key is holding no key to judge by: the
+	// authority publishes the hop's once the hop registers it, which may be
+	// after this verifier first read Keys.
+	untrusted := v.trusted() != nil || len(v.admission) == 0
 	if untrusted && v.inflight == nil && v.now().Sub(v.tried) >= keyRetry {
 		v.refresh()
 	}

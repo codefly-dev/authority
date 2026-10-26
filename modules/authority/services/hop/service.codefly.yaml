@@ -36,6 +36,10 @@ spec:
 # accounts, say), and the local authority when it names none (code/host.go).
 service-dependencies:
     - interface: codefly.dev/authority@>=0.2.0 <0.4.0
+# The hop is a workload of its own: the run vouches for it, and it registers
+# its admission key with the authority under that credential
+# (RegisterAdmissionKey), so Keys publishes it to every module behind the hop.
+module-identity: true
 # The hop group names the modules this hop fronts (MODULES). Its signing seed
 # is service-scoped hop-signing/SEED, never a workspace secret. hop-routes is generated
 # by Codefly from their published API catalogs, resolved only for this hop.

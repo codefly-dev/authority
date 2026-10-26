@@ -155,14 +155,19 @@ func (tr *transport) deliver(t *testing.T, ctx context.Context) (send func() err
 	}
 }
 
-// pastRetention waits until the admission's retention has passed and runs
-// collection, as the console's schedule does.
-func (tr *transport) pastRetention(t *testing.T, ctx context.Context, store *replaypg.Store) {
+// pastRetention waits until the admission's retention has passed, ages its
+// reservation by replaypg.CollectMargin as if that much more time had passed
+// (a database's clock cannot be advanced), and runs collection, as the
+// console's schedule does.
+func (tr *transport) pastRetention(t *testing.T, ctx context.Context, pool *pgxpool.Pool, store *replaypg.Store) {
 	t.Helper()
 	select {
 	case <-time.After(time.Until(tr.expires) + 200*time.Millisecond):
 	case <-ctx.Done():
 		t.Fatal(ctx.Err())
+	}
+	if _, err := pool.Exec(ctx, `UPDATE hop_admissions SET retain_until = retain_until - make_interval(secs => $2) WHERE nonce = $1`, tr.nonce, replaypg.CollectMargin.Seconds()); err != nil {
+		t.Fatal(err)
 	}
 	if _, err := store.Collect(ctx); err != nil {
 		t.Fatal(err)
@@ -205,7 +210,7 @@ func TestASecondDeliveryHeldPastCollectionIsRefusedOverTheRealTransport(t *testi
 	if err := first(); err != nil {
 		t.Fatalf("the first delivery was refused: %v", err)
 	}
-	tr.pastRetention(t, ctx, store)
+	tr.pastRetention(t, ctx, pool, store)
 	err := second()
 	if err == nil || !strings.Contains(err.Error(), "stamp_replayed") {
 		t.Errorf("the second delivery was not refused as stamp_replayed: %v", err)
@@ -235,7 +240,7 @@ func TestCollectingARunningCallsReservationReopensNothing(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal(ctx.Err())
 	}
-	tr.pastRetention(t, ctx, store)
+	tr.pastRetention(t, ctx, pool, store)
 	if held(t, ctx, pool, tr.nonce) {
 		t.Fatal("a reservation past its retention outlived collection")
 	}
@@ -273,7 +278,7 @@ func TestACallCancelledBeforeItsBodyReleasesItsHold(t *testing.T) {
 		t.Errorf("a second delivery inside the window was not refused as stamp_replayed: %v", err)
 	}
 	for {
-		tr.pastRetention(t, ctx, store)
+		tr.pastRetention(t, ctx, pool, store)
 		if !held(t, ctx, pool, tr.nonce) {
 			break
 		}

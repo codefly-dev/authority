@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc"
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
+	hop "github.com/codefly-dev/authority/libraries/hop/go"
 	"github.com/codefly-dev/authority/libraries/hop/go/routing"
 
 	"hop/pkg/adapters"
@@ -126,7 +127,22 @@ func standInFront(ctx context.Context, config *adapters.Configuration) (Clean, e
 	if err := requireEnforcement(enforcement); err != nil {
 		return nil, err
 	}
-	decider := decide.Decider{Routes: routes, Authority: authorityv1.NewAuthorityServiceClient(authority), Modules: modules}
+	client := authorityv1.NewAuthorityServiceClient(authority)
+	// The authority publishes this hop's admission key once the hop registers
+	// it, proving itself with its workload credential: the seed stays here.
+	unregister := hop.Registration{Authority: client, Signer: signer, Credential: hop.RunCredential, Report: func(key *authorityv1.PublicKey, expires time.Time, err error) {
+		if err != nil {
+			w.Warn("the authority does not publish this hop's admission key, so modules behind it admit no call; retrying", wool.Field("reason", err.Error()))
+			return
+		}
+		w.Info("the authority publishes this hop's admission key", wool.Field("key", key.GetKeyId()), wool.Field("renewed-before", expires.UTC().Format(time.RFC3339)))
+	}}.Keep(context.WithoutCancel(ctx))
+	defer func() {
+		if !configured {
+			unregister()
+		}
+	}()
+	decider := decide.Decider{Routes: routes, Authority: client, Modules: modules}
 	decision := decider.Decide
 	p := &proxy.Proxy{Decide: decision, Upstreams: upstreams, Signer: signer, Refused: refused}
 	config.GRPCServerOptions = append(config.GRPCServerOptions, p.ServerOptions()...)
@@ -141,6 +157,7 @@ func standInFront(ctx context.Context, config *adapters.Configuration) (Clean, e
 	configured = true
 	return func() {
 		stopWeb()
+		unregister()
 		_ = authority.Close()
 		for _, conn := range upstreams {
 			_ = conn.Close()

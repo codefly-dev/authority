@@ -86,18 +86,26 @@ func (s *Store) Consume(ctx context.Context, nonce string, retainUntil time.Time
 	return nil
 }
 
-// Collect removes reservations whose retention has passed, by the database's
-// own clock, and answers how many it removed. Run it on a schedule: without it
-// the table grows by one row per admitted call.
+// CollectMargin is how long past its retention a reservation is kept before
+// Collect removes it. Reserve's check that the retention has not passed and
+// its insert are one statement but not one instant: a Collect that removed a
+// row the moment its retention passed could commit between them and let the
+// insert revive the nonce. Collecting only rows a whole margin past retention
+// leaves no such instant.
+const CollectMargin = time.Minute
+
+// Collect removes reservations more than CollectMargin past their retention,
+// by the database's own clock, and answers how many it removed. Run it on a
+// schedule: without it the table grows by one row per admitted call.
 //
-// A reservation is removed once its retention has passed whether or not its
-// call has finished: Reserve refuses, on the same clock, any reservation past
-// that retention, and a delivery past it is refused on the window too, so
-// removing it can never revive the nonce. A holder that stopped between
-// Reserve and Finish (a crash, a failed or timed-out Finish, a Reserve that
-// committed after its caller gave up) therefore leaves no permanent row.
+// A reservation is removed then whether or not its call has finished: Reserve
+// refuses, on the same clock, any reservation past that retention, and a
+// delivery past it is refused on the window too, so removing it can never
+// revive the nonce. A holder that stopped between Reserve and Finish (a crash,
+// a failed or timed-out Finish, a Reserve that committed after its caller gave
+// up) therefore leaves no permanent row.
 func (s *Store) Collect(ctx context.Context) (int64, error) {
-	tag, err := s.pool.Exec(ctx, `DELETE FROM hop_admissions WHERE retain_until < now()`)
+	tag, err := s.pool.Exec(ctx, `DELETE FROM hop_admissions WHERE retain_until < now() - make_interval(secs => $1)`, CollectMargin.Seconds())
 	if err != nil {
 		return 0, err
 	}

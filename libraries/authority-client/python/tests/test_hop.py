@@ -790,6 +790,38 @@ def test_no_published_admission_key_refuses_every_call_and_says_why():
     assert isinstance(v.keys_error, NoAdmissionKeys)
 
 
+# Review r5: a verifier that first read the keys before the hop registered its
+# key holds no admission key; once the authority publishes one, the next call
+# or readiness check after KEY_RETRY reads it, without waiting out KEY_MAX_AGE,
+# and callers inside KEY_RETRY drive no read.
+def test_a_verifier_that_read_before_the_hop_registered_learns_its_key_within_key_retry():
+    clock = [FIXTURE["now"]]
+    source = Keys(publishing())
+    v = Verifier(source, audience=FIXTURE["audience"], replay=Replay(), now=lambda: clock[0])
+    with pytest.raises(Unauthenticated) as refused:
+        v.verify(fresh(clock[0], hop=b"the-hop"), METHOD)
+    assert refused.value.code == "keys_unavailable"
+    settle(v)
+    reads = source.reads
+    for _ in range(5):
+        with pytest.raises(Unauthenticated):
+            v.verify(fresh(clock[0], hop=b"the-hop"), METHOD)
+    settle(v)
+    assert source.reads == reads
+    source.response = publishing(b"the-hop")
+    clock[0] += KEY_RETRY
+    assert v.verify(fresh(clock[0], hop=b"the-hop"), METHOD).owner == FIXTURE["identity"]["owner"]
+    idle_source = Keys(publishing())
+    idle = Verifier(idle_source, audience=FIXTURE["audience"], replay=Replay(), now=lambda: clock[0])
+    idle.ready()
+    settle(idle)
+    idle_source.response = publishing(b"the-hop")
+    clock[0] += KEY_RETRY
+    idle.ready()
+    settle(idle)
+    assert idle.keys_error is None
+
+
 # Review r3 M3: a store with reserve and no finish is not a reservation store
 # (TypeScript's rule): it is consumed, so no reservation is left that nothing
 # finishes.

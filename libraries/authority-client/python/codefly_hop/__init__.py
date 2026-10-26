@@ -154,12 +154,13 @@ class Verifier:
         succeeded or once the keys are stale. Readiness uses this, never
         ``keys_error``: a brief authority outage must not take a replica out of
         rotation while its keys are still trusted. It also starts the read a call
-        would (keys missing or older than 5 min, at most every 10 s, never waiting),
-        so an unready replica, which gets no calls, recovers, and an idle one never
+        would (keys missing or older than 5 min, or no admission key published, at
+        most every 10 s, never waiting), so an unready replica, which gets no calls, recovers, and an idle one never
         goes stale."""
         with self._lock:
             now = self._now()
-            if (self._trust is None or now - self._fetched > KEY_MAX_AGE) and self._inflight is None and now - self._tried >= KEY_RETRY:
+            unadmitting = self._replay is not None and not self._admission
+            if (self._trust is None or now - self._fetched > KEY_MAX_AGE or unadmitting) and self._inflight is None and now - self._tried >= KEY_RETRY:
                 self._refresh()
             return self._trust is not None and now - self._fetched <= KEY_STALE
 
@@ -316,11 +317,12 @@ class Verifier:
         the keys held: neither a stamp signed by no published key nor keys past
         ``KEY_MAX_AGE`` start a read here, so a caller without an admission can
         neither drive the authority's keys nor delay a genuine call's read. Only
-        when no trusted keys are held at all (never read, or past ``KEY_STALE``)
-        does it start one, at most every ``KEY_RETRY`` as readiness does."""
+        when no trusted keys are held at all (never read, or past ``KEY_STALE``),
+        or the last read published no admission key (the hop had not registered
+        yet), does it start one, at most every ``KEY_RETRY`` as readiness does."""
         with self._lock:
             now = self._now()
-            trusted = self._trust is not None and now - self._fetched <= KEY_STALE
+            trusted = self._trust is not None and now - self._fetched <= KEY_STALE and bool(self._admission)
             if not trusted and self._inflight is None and now - self._tried >= KEY_RETRY:
                 self._refresh()
             return None if trusted else self._inflight

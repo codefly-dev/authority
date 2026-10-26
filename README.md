@@ -1028,11 +1028,21 @@ read it already caches and refreshes, so no consumer is configured with a hop
 public key. The admission keys are a field of their own, never entries of
 `keys`, so a verifier that reads `keys` alone (an earlier release, or the JSON
 Web Key Set) can never trust a hop key to sign a Work Context. More than one is
-published while a hop key rotates. The local authority derives the public half
-from the hop's own `hop-signing/SEED`. It is additive, so `>=0.2.0 <0.4.0`
+published while a hop key rotates. It is additive, so `>=0.2.0 <0.4.0`
 consumers admit it; a host that publishes no admission key leaves every hop
 admission refused (`keys_unavailable`), so `accounts` must publish its hop's key
 before a cell's modules adopt this verifier.
+
+`codefly.dev/authority@0.3.3` adds `RegisterAdmissionKey`: the hop presents its
+public key under its own workload credential (it declares `module-identity`),
+the authority refuses any other workload by name, and `Keys` publishes the key
+until its registration lapses (`AdmissionLease`, two minutes) unless the hop
+renews it, which it does while it runs. A restarted authority therefore learns
+the key again at the next renewal, a restarted hop re-registers the same entry,
+and a key no running hop signs with is withdrawn without being named. The seed
+never leaves the hop; nothing about the hop is configured on the authority. It
+is additive too. The local authority implements it; `accounts` implementing the
+same registration is follow-up work in the host.
 
 The 0.3.1 authority version is an additive pre-stable revision selected for
 this refresh so existing `>=0.2.0 <0.4.0` consumers admit it. It retains 0.3.0's

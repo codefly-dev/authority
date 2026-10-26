@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -23,7 +24,11 @@ type pool struct {
 	fail   error
 	sql    []string
 	args   [][]any
+	// ahead is how far the database's clock runs ahead of this process's.
+	ahead time.Duration
 }
+
+func (p *pool) now() time.Time { return time.Now().Add(p.ahead) }
 
 func (p *pool) Exec(_ context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
 	p.sql, p.args = append(p.sql, sql), append(p.args, args)
@@ -33,16 +38,18 @@ func (p *pool) Exec(_ context.Context, sql string, args ...any) (pgconn.CommandT
 	if p.held == nil {
 		p.held = map[string]time.Time{}
 	}
-	if len(args) == 1 {
+	switch strings.Fields(sql)[0] {
+	case "UPDATE":
 		// Finish: the call has returned.
 		delete(p.active, args[0].(string))
 		return pgconn.NewCommandTag("UPDATE 1"), nil
-	}
-	if len(args) != 2 {
-		// The collection statement; remove what has aged out, running or not.
+	case "DELETE":
+		// The collection statement; remove what is a margin past its
+		// retention, running or not.
+		margin := time.Duration(args[0].(float64) * float64(time.Second))
 		removed := 0
 		for nonce, until := range p.held {
-			if until.Before(time.Now()) {
+			if until.Before(p.now().Add(-margin)) {
 				delete(p.held, nonce)
 				removed++
 			}
@@ -70,7 +77,7 @@ func (p *pool) QueryRow(_ context.Context, sql string, args ...any) pgx.Row {
 	nonce, until := args[0].(string), args[1].(time.Time)
 	_, taken := p.held[nonce]
 	switch {
-	case !until.After(time.Now()):
+	case !until.After(p.now()):
 		return row{outcome: "expired"}
 	case taken:
 		return row{outcome: "replayed"}
@@ -158,7 +165,10 @@ func TestAnUnavailableStoreIsNeitherAdmissionNorReplay(t *testing.T) {
 func TestCollectRemovesOnlyReservationsPastTheirRetention(t *testing.T) {
 	p := &pool{}
 	store, _ := New(p)
-	if err := store.Consume(context.Background(), "aged", time.Now().Add(-time.Minute)); err != nil {
+	if err := store.Consume(context.Background(), "aged", time.Now().Add(-CollectMargin-time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Consume(context.Background(), "inside-the-margin", time.Now().Add(-time.Second)); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Consume(context.Background(), "current", time.Now().Add(time.Minute)); err != nil {
@@ -168,8 +178,10 @@ func TestCollectRemovesOnlyReservationsPastTheirRetention(t *testing.T) {
 	if err != nil || removed != 1 {
 		t.Fatalf("collected %d: %v", removed, err)
 	}
-	if _, held := p.held["current"]; !held {
-		t.Fatal("collection removed a reservation still retained")
+	for _, kept := range []string{"current", "inside-the-margin"} {
+		if _, held := p.held[kept]; !held {
+			t.Fatalf("collection removed %s", kept)
+		}
 	}
 }
 
@@ -191,6 +203,11 @@ func TestAReservationIsHeldToItsRetentionWhetherOrNotItsCallFinished(t *testing.
 		t.Fatalf("collection removed %d reservations still retained: %v", removed, err)
 	}
 	time.Sleep(60 * time.Millisecond)
+	// Past its retention but inside the margin: still held.
+	if removed, err := store.Collect(ctx); err != nil || removed != 0 {
+		t.Fatalf("collection removed %d reservations inside the margin: %v", removed, err)
+	}
+	p.ahead = CollectMargin + time.Second
 	// Never finished: its holder stopped between Reserve and Finish.
 	if removed, err := store.Collect(ctx); err != nil || removed != 1 {
 		t.Fatalf("collected %d reservations past their retention: %v", removed, err)
@@ -231,45 +248,94 @@ func contains(haystack, needle string) bool {
 
 // Review r3 M2, on a real Postgres (HOP_TEST_POSTGRES): a holder that stops
 // between Reserve and Finish leaves its row active for good, and collection
-// still removes it once its retention has passed by the database's clock;
-// the nonce is not revived, since a reservation past its retention is refused.
+// still removes it once it is a margin past its retention by the database's
+// clock; the nonce is not revived, since a reservation past its retention is
+// refused. A row past its retention but inside the margin is kept.
 func TestACrashedHoldersReservationIsCollectedOnTheDatabaseClock(t *testing.T) {
+	pg := postgres(t)
+	ctx := context.Background()
+	store, _ := New(pg)
+	crashed := fmt.Sprintf("crashed-holder-%d", time.Now().UnixNano())
+	recent := crashed + "-recent"
+	// Rows as a crashed holder leaves them, aged by the database's own clock.
+	for nonce, age := range map[string]string{crashed: "61 seconds", recent: "30 seconds"} {
+		if _, err := pg.Exec(ctx, `INSERT INTO hop_admissions (nonce, retain_until, active) VALUES ($1, now() - $2::interval, TRUE)`, nonce, age); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := store.Collect(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if held(t, pg, crashed) {
+		t.Fatal("a crashed holder's reservation outlived its retention and the margin")
+	}
+	if !held(t, pg, recent) {
+		t.Fatal("collection removed a reservation inside the margin past its retention")
+	}
+	if err := store.Reserve(ctx, crashed, time.Now().Add(-time.Second)); !errors.Is(err, refusal.StampWindow) {
+		t.Fatalf("the collected nonce was reserved again: %v", err)
+	}
+}
+
+// Review r4 N1, on a real Postgres: Reserve checks the retention and inserts
+// in one statement but not one instant, so a Collect that removed a row the
+// moment its retention passed could commit between the two and let the insert
+// revive the nonce. With the margin, concurrent collection and reservation of
+// a nonce near its expiry never admit it a second time.
+func TestConcurrentCollectionNeverRevivesANonceNearItsExpiry(t *testing.T) {
+	pg := postgres(t)
+	ctx := context.Background()
+	store, _ := New(pg)
+	for round := range 20 {
+		nonce := fmt.Sprintf("near-expiry-%d-%d", time.Now().UnixNano(), round)
+		until := time.Now().Add(150 * time.Millisecond)
+		if err := store.Reserve(ctx, nonce, until); err != nil {
+			t.Fatal(err)
+		}
+		stop := time.Now().Add(400 * time.Millisecond)
+		done := make(chan error, 1)
+		go func() {
+			for time.Now().Before(stop) {
+				if _, err := store.Collect(ctx); err != nil {
+					done <- err
+					return
+				}
+			}
+			done <- nil
+		}()
+		for time.Now().Before(stop) {
+			switch err := store.Reserve(ctx, nonce, until); {
+			case err == nil:
+				t.Fatalf("round %d: a replay of a nonce near its expiry was admitted", round)
+			case errors.Is(err, core.ErrReplayed), errors.Is(err, refusal.StampWindow):
+			default:
+				t.Fatal(err)
+			}
+		}
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		if !held(t, pg, nonce) {
+			t.Fatalf("round %d: the reservation was collected inside the margin", round)
+		}
+	}
+}
+
+func postgres(t *testing.T) *pgxpool.Pool {
+	t.Helper()
 	dsn := os.Getenv("HOP_TEST_POSTGRES")
 	if dsn == "" {
 		t.Skip("HOP_TEST_POSTGRES names no Postgres")
 	}
-	ctx := context.Background()
-	pg, err := pgxpool.New(ctx, dsn)
+	pg, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer pg.Close()
-	if _, err := pg.Exec(ctx, Migration); err != nil {
+	t.Cleanup(pg.Close)
+	if _, err := pg.Exec(context.Background(), Migration); err != nil {
 		t.Fatal(err)
 	}
-	store, _ := New(pg)
-	nonce := fmt.Sprintf("crashed-holder-%d", time.Now().UnixNano())
-	until := time.Now().Add(time.Second)
-	if err := store.Reserve(ctx, nonce, until); err != nil {
-		t.Fatal(err)
-	}
-	// The holder stops here: no Finish, so the row stays active.
-	if _, err := store.Collect(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if !held(t, pg, nonce) {
-		t.Fatal("collection removed a reservation still inside its retention")
-	}
-	time.Sleep(time.Until(until) + 200*time.Millisecond)
-	if _, err := store.Collect(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if held(t, pg, nonce) {
-		t.Fatal("a crashed holder's reservation outlived its retention")
-	}
-	if err := store.Reserve(ctx, nonce, until); !errors.Is(err, refusal.StampWindow) {
-		t.Fatalf("the collected nonce was reserved again: %v", err)
-	}
+	return pg
 }
 
 func held(t *testing.T, pg *pgxpool.Pool, nonce string) bool {

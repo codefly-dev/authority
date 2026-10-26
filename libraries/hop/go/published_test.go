@@ -119,3 +119,53 @@ func TestNoPublishedAdmissionKeyRefusesEveryCallAndSaysWhy(t *testing.T) {
 		t.Fatalf("the module's logs are not told why: %v", v.KeysError())
 	}
 }
+
+// Review r5: a verifier that first read Keys before the hop registered its
+// key holds no admission key; once the authority publishes one, the next call
+// or readiness check after keyRetry reads it, so the module admits a genuine
+// stamp without waiting out keyMaxAge. Until then every call is refused as
+// keys_unavailable, and an unknown caller drives at most one read per
+// keyRetry.
+func TestAVerifierThatReadBeforeTheHopRegisteredLearnsItsKeyWithinKeyRetry(t *testing.T) {
+	authority := newSigner("published")
+	// No admission key published (the double publishes one when the field is
+	// empty, so it carries only an entry of another purpose, which is dropped).
+	unregistered := func() *authorityv1.KeysResponse {
+		return &authorityv1.KeysResponse{Issuer: authority.issuer, Keys: []*authorityv1.PublicKey{authority.published()},
+			AdmissionKeys: []*authorityv1.PublicKey{{Algorithm: core.Algorithm, PublicKey: make([]byte, 32), Purpose: "work-context"}}}
+	}
+	source := &keys{response: unregistered()}
+	v, _ := NewVerifier(context.Background(), source, "documents", core.NewMemoryReplayStore())
+	settled(v)
+	clock := time.Now()
+	v.now = func() time.Time { return clock }
+	var reason refusal.Reason
+	if _, err := v.Verify(context.Background(), forwarded(t, authority.issue(t, clock, "documents"), "the-hop", ""), "/test.Service/Read"); !errors.As(err, &reason) || reason != refusal.KeysUnavailable {
+		t.Fatalf("before the hop registered: %v", err)
+	}
+	reads := source.count()
+	for range 5 {
+		_, _ = v.Verify(context.Background(), forwarded(t, authority.issue(t, clock, "documents"), "the-hop", ""), "/test.Service/Read")
+	}
+	settled(v)
+	if source.count() != reads {
+		t.Fatalf("callers inside keyRetry drove %d key reads", source.count()-reads)
+	}
+	source.set(&authorityv1.KeysResponse{Issuer: authority.issuer, Keys: []*authorityv1.PublicKey{authority.published()},
+		AdmissionKeys: []*authorityv1.PublicKey{publishedHop("the-hop")}}, nil, nil)
+	clock = clock.Add(keyRetry)
+	if id, err := v.Verify(context.Background(), forwarded(t, authority.issue(t, clock, "documents"), "the-hop", ""), "/test.Service/Read"); err != nil || id.Owner != core.FixturePrincipal {
+		t.Fatalf("after the hop registered: %+v %v", id, err)
+	}
+	// Readiness reads too, for a replica that gets no call meanwhile.
+	idle, _ := NewVerifier(context.Background(), &keys{response: unregistered()}, "documents", core.NewMemoryReplayStore())
+	idle.now = func() time.Time { return clock }
+	settled(idle)
+	idle.source.(*keys).set(source.response, nil, nil)
+	clock = clock.Add(keyRetry)
+	idle.Ready()
+	settled(idle)
+	if idle.KeysError() != nil {
+		t.Fatalf("readiness did not learn the registered key: %v", idle.KeysError())
+	}
+}

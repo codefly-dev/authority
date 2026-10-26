@@ -501,6 +501,35 @@ test('no published admission key refuses every call and says why', async () => {
  assert.ok(v.keysError instanceof NoAdmissionKeys);
 });
 
+// Review r5: a verifier that first read the keys before the hop registered its
+// key holds no admission key; once the authority publishes one, the next call
+// or readiness check after KEY_RETRY reads it, without waiting out
+// KEY_MAX_AGE, and callers inside KEY_RETRY drive no read.
+test('a verifier that read before the hop registered learns its key within KEY_RETRY', async () => {
+ let now = fixture.now * 1000, answer = publishing();
+ const keys = source(() => Promise.resolve(answer));
+ const v = new Verifier(keys, fixture.audience, replay(), () => now);
+ await assert.rejects(v.verify(fresh(now, METHOD, fixture.audience, fixture.headers, 'the-hop'), METHOD), e => e.code === Reason.KeysUnavailable);
+ await settle();
+ const reads = keys.reads;
+ for (let n = 0; n < 5; n++) await assert.rejects(v.verify(fresh(now, METHOD, fixture.audience, fixture.headers, 'the-hop'), METHOD), e => e.code === Reason.KeysUnavailable);
+ await settle();
+ assert.equal(keys.reads, reads, 'callers inside KEY_RETRY drove a read');
+ answer = publishing('the-hop');
+ now += 10_000;
+ const id = await v.verify(fresh(now, METHOD, fixture.audience, fixture.headers, 'the-hop'), METHOD);
+ assert.equal(id.owner, fixture.identity.owner);
+ let idleAnswer = publishing();
+ const idle = new Verifier(source(() => Promise.resolve(idleAnswer)), fixture.audience, replay(), () => now);
+ idle.ready();
+ await settle();
+ idleAnswer = publishing('the-hop');
+ now += 10_000;
+ idle.ready();
+ await settle();
+ assert.equal(idle.keysError, undefined);
+});
+
 test('admit releases its hold however the handler ends', async () => {
  const now = fixture.now * 1000;
  const store = reservations(() => now);
