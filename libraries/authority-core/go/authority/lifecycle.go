@@ -288,7 +288,11 @@ func (s *Service) Uninstall(ctx context.Context, caller *Person, organization, i
 		if err != nil {
 			return err
 		}
-		if m, err := tx.ModuleNamed(inst.Target); err == nil && m.Kind != domain.KindSolution {
+		// A module is installed by composition: no person uninstalls it. The
+		// host's own setup (no caller) may retire it at one organization; it
+		// stays retired, since only a withdrawal and a redelivery reactivate
+		// a module's installations.
+		if m, err := tx.ModuleNamed(inst.Target); caller != nil && err == nil && m.Kind != domain.KindSolution {
 			return domain.Refuse("%s is a module, installed by composition: it is withdrawn, never uninstalled", inst.Target)
 		}
 		return s.revoke(tx, inst)
