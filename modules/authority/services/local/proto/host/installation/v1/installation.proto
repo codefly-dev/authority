@@ -1,7 +1,9 @@
 syntax = "proto3";
 // The installation interface: what is installed at an organisation and who may
-// use it. Three operations on the host, and one the solution implements, the
-// install step the host calls once per installation.
+// use it. An installed solution is a principal of its organisation; its roles
+// are levels on the data that principal owns, and a grant of a role is the
+// access. Operations on the host, and one the solution implements, the install
+// step the host calls once per installation.
 package host.installation.v1;
 
 option go_package = "gateway/pkg/gen/host/installation/v1;installationv1";
@@ -11,8 +13,17 @@ service InstallationService {
   // Install composes an installation: its agent principal, its root scope and
   // the row, pending until the target acknowledges its install step.
   rpc Install(InstallRequest) returns (Installation);
-  // GrantToTeam exposes an installation to a team under the installation's role.
-  rpc GrantToTeam(GrantToTeamRequest) returns (Installation);
+  // GrantRole grants a person or a team one of the solution's roles on the
+  // installation: the access. Idempotent; it leaves existing capabilities
+  // valid. An administrator of the installation's organization, or a holder
+  // of the installer role on that installation, grants.
+  rpc GrantRole(GrantRoleRequest) returns (Installation);
+  // RevokeRole ends one grant; every capability its subject holds from it is
+  // refused at once. Idempotent; the same callers as GrantRole.
+  rpc RevokeRole(RevokeRoleRequest) returns (Installation);
+  // ListRoleGrants answers who holds which role on the installation; the same
+  // callers as GrantRole.
+  rpc ListRoleGrants(ListRoleGrantsRequest) returns (ListRoleGrantsResponse);
   // List answers what one organisation has installed: an administrator's read. A
   // member's view, which installed solutions they may use, is their navigation and
   // belongs to the entitlement read, not here.
@@ -38,16 +49,59 @@ message InstallRequest {
   string owner_person_id = 4;
 }
 
-// GrantToTeamRequest exposes an installation to a team.
-message GrantToTeamRequest {
+// GrantRoleRequest grants one role to exactly one person or team.
+message GrantRoleRequest {
+  // The organization the installation belongs to; a request naming another
+  // organization's installation is refused naming the organization, before
+  // the caller's authority is read.
+  string organization_id = 1;
   // The installation.
-  string installation_id = 1;
-  // The team granted the installation's role at its root.
-  string team_id = 2;
-  // The organisation the installation belongs to; a grant is an organisation
-  // administrator's act, and the host checks the actor against it before it
-  // reads the installation. Learned from the second implementation (the host).
-  string organization_id = 3;
+  string installation_id = 2;
+  // One of the roles the solution declares.
+  string role = 3;
+  // The person granted, a member of the organization; exactly one of
+  // person_id and team_id is set.
+  string person_id = 4;
+  // The team granted, a team of the organization.
+  string team_id = 5;
+}
+
+// RevokeRoleRequest ends one grant, named as GrantRole named it.
+message RevokeRoleRequest {
+  // The organization the installation belongs to.
+  string organization_id = 1;
+  // The installation.
+  string installation_id = 2;
+  // The role.
+  string role = 3;
+  // The person; exactly one of person_id and team_id is set.
+  string person_id = 4;
+  // The team.
+  string team_id = 5;
+}
+
+// ListRoleGrantsRequest names one installation.
+message ListRoleGrantsRequest {
+  // The organization the installation belongs to.
+  string organization_id = 1;
+  // The installation.
+  string installation_id = 2;
+}
+
+// ListRoleGrantsResponse is every grant on the installation.
+message ListRoleGrantsResponse {
+  // The grants.
+  repeated RoleGrant grants = 1;
+}
+
+// RoleGrant is one role held by one person or team.
+message RoleGrant {
+  // The role.
+  string role = 1;
+  // The person, when a person holds it.
+  string person_id = 2;
+  // The team, when a team holds it.
+  string team_id = 3;
 }
 
 // ListRequest asks for one organisation's installations.
@@ -74,17 +128,22 @@ message Installation {
   Status status = 4;
   // Bumped on every change that narrows or widens the installation.
   uint64 revision = 5;
-  // The role the installation holds.
+  // The role the installation holds when it acts for itself (its agent's
+  // role); no person or team inherits it.
   string role = 6;
-  // The teams granted it.
-  repeated string team_ids = 7;
-  // The principal the installation acts as for itself.
-  string agent_principal_id = 8;
+  reserved 7, 8;
+  reserved "team_ids", "agent_principal_id";
   // The namespace the installation's own authored content belongs to (an
   // agent's source): the host names it, so a module never chooses which source
   // an installation may run. A module installed by composition is
   // "<organization>.<target>".
   string namespace = 9;
+  // The solution principal: the identity the installation's data is owned by
+  // and the installation acts as for itself, a stable UUID per organization
+  // and target, reused by a reinstall. Empty for a module installation.
+  string principal_id = 10;
+  // The roles the solution declares, sorted.
+  repeated string roles = 11;
 
   // Status is the installation's lifecycle.
   enum Status {

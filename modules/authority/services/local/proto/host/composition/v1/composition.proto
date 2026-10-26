@@ -62,6 +62,11 @@ message AuthorityManifestV1 {
   // Core's manifest carries no roles, so they travel here until it does. A
   // module declares none; a module's delivery listing any is refused.
   repeated RoleV1 roles = 6;
+  // The module checks a resource's owner against an owner-selected scope
+  // (Claims.AllowsOwned): only an audience declaring it receives one, and a
+  // delivery withdrawing it refuses the owner-selected capabilities issued
+  // before. Every solution receiving its roles' scopes declares it.
+  bool owner_aware = 7;
 }
 
 // MethodPolicyV1 is what a call to one method must hold, as the module's
@@ -112,7 +117,7 @@ message ModuleManifestV1 {
   PageV1 page = 7;
   // The roles a solution declares a person may hold on an installation of it,
   // each within what the solution serves or explicitly consumes through
-  // invoke/lookup bindings; one is named installer, held by whoever installs it.
+  // invoke/lookup bindings; one is named installer, held only by whom it is granted to.
   // Headless-only scopes cannot supply a role grant. A module declares none.
   repeated RoleV1 roles = 8;
 }

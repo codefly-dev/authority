@@ -3,8 +3,10 @@
 // Source: host/installation/v1/installation.proto
 
 // The installation interface: what is installed at an organisation and who may
-// use it. Three operations on the host, and one the solution implements, the
-// install step the host calls once per installation.
+// use it. An installed solution is a principal of its organisation; its roles
+// are levels on the data that principal owns, and a grant of a role is the
+// access. Operations on the host, and one the solution implements, the install
+// step the host calls once per installation.
 package installationv1connect
 
 import (
@@ -42,9 +44,15 @@ const (
 	// InstallationServiceInstallProcedure is the fully-qualified name of the InstallationService's
 	// Install RPC.
 	InstallationServiceInstallProcedure = "/host.installation.v1.InstallationService/Install"
-	// InstallationServiceGrantToTeamProcedure is the fully-qualified name of the InstallationService's
-	// GrantToTeam RPC.
-	InstallationServiceGrantToTeamProcedure = "/host.installation.v1.InstallationService/GrantToTeam"
+	// InstallationServiceGrantRoleProcedure is the fully-qualified name of the InstallationService's
+	// GrantRole RPC.
+	InstallationServiceGrantRoleProcedure = "/host.installation.v1.InstallationService/GrantRole"
+	// InstallationServiceRevokeRoleProcedure is the fully-qualified name of the InstallationService's
+	// RevokeRole RPC.
+	InstallationServiceRevokeRoleProcedure = "/host.installation.v1.InstallationService/RevokeRole"
+	// InstallationServiceListRoleGrantsProcedure is the fully-qualified name of the
+	// InstallationService's ListRoleGrants RPC.
+	InstallationServiceListRoleGrantsProcedure = "/host.installation.v1.InstallationService/ListRoleGrants"
 	// InstallationServiceListProcedure is the fully-qualified name of the InstallationService's List
 	// RPC.
 	InstallationServiceListProcedure = "/host.installation.v1.InstallationService/List"
@@ -58,8 +66,17 @@ type InstallationServiceClient interface {
 	// Install composes an installation: its agent principal, its root scope and
 	// the row, pending until the target acknowledges its install step.
 	Install(context.Context, *connect.Request[v1.InstallRequest]) (*connect.Response[v1.Installation], error)
-	// GrantToTeam exposes an installation to a team under the installation's role.
-	GrantToTeam(context.Context, *connect.Request[v1.GrantToTeamRequest]) (*connect.Response[v1.Installation], error)
+	// GrantRole grants a person or a team one of the solution's roles on the
+	// installation: the access. Idempotent; it leaves existing capabilities
+	// valid. An administrator of the installation's organization, or a holder
+	// of the installer role on that installation, grants.
+	GrantRole(context.Context, *connect.Request[v1.GrantRoleRequest]) (*connect.Response[v1.Installation], error)
+	// RevokeRole ends one grant; every capability its subject holds from it is
+	// refused at once. Idempotent; the same callers as GrantRole.
+	RevokeRole(context.Context, *connect.Request[v1.RevokeRoleRequest]) (*connect.Response[v1.Installation], error)
+	// ListRoleGrants answers who holds which role on the installation; the same
+	// callers as GrantRole.
+	ListRoleGrants(context.Context, *connect.Request[v1.ListRoleGrantsRequest]) (*connect.Response[v1.ListRoleGrantsResponse], error)
 	// List answers what one organisation has installed: an administrator's read. A
 	// member's view, which installed solutions they may use, is their navigation and
 	// belongs to the entitlement read, not here.
@@ -83,10 +100,22 @@ func NewInstallationServiceClient(httpClient connect.HTTPClient, baseURL string,
 			connect.WithSchema(installationServiceMethods.ByName("Install")),
 			connect.WithClientOptions(opts...),
 		),
-		grantToTeam: connect.NewClient[v1.GrantToTeamRequest, v1.Installation](
+		grantRole: connect.NewClient[v1.GrantRoleRequest, v1.Installation](
 			httpClient,
-			baseURL+InstallationServiceGrantToTeamProcedure,
-			connect.WithSchema(installationServiceMethods.ByName("GrantToTeam")),
+			baseURL+InstallationServiceGrantRoleProcedure,
+			connect.WithSchema(installationServiceMethods.ByName("GrantRole")),
+			connect.WithClientOptions(opts...),
+		),
+		revokeRole: connect.NewClient[v1.RevokeRoleRequest, v1.Installation](
+			httpClient,
+			baseURL+InstallationServiceRevokeRoleProcedure,
+			connect.WithSchema(installationServiceMethods.ByName("RevokeRole")),
+			connect.WithClientOptions(opts...),
+		),
+		listRoleGrants: connect.NewClient[v1.ListRoleGrantsRequest, v1.ListRoleGrantsResponse](
+			httpClient,
+			baseURL+InstallationServiceListRoleGrantsProcedure,
+			connect.WithSchema(installationServiceMethods.ByName("ListRoleGrants")),
 			connect.WithClientOptions(opts...),
 		),
 		list: connect.NewClient[v1.ListRequest, v1.ListResponse](
@@ -100,9 +129,11 @@ func NewInstallationServiceClient(httpClient connect.HTTPClient, baseURL string,
 
 // installationServiceClient implements InstallationServiceClient.
 type installationServiceClient struct {
-	install     *connect.Client[v1.InstallRequest, v1.Installation]
-	grantToTeam *connect.Client[v1.GrantToTeamRequest, v1.Installation]
-	list        *connect.Client[v1.ListRequest, v1.ListResponse]
+	install        *connect.Client[v1.InstallRequest, v1.Installation]
+	grantRole      *connect.Client[v1.GrantRoleRequest, v1.Installation]
+	revokeRole     *connect.Client[v1.RevokeRoleRequest, v1.Installation]
+	listRoleGrants *connect.Client[v1.ListRoleGrantsRequest, v1.ListRoleGrantsResponse]
+	list           *connect.Client[v1.ListRequest, v1.ListResponse]
 }
 
 // Install calls host.installation.v1.InstallationService.Install.
@@ -110,9 +141,19 @@ func (c *installationServiceClient) Install(ctx context.Context, req *connect.Re
 	return c.install.CallUnary(ctx, req)
 }
 
-// GrantToTeam calls host.installation.v1.InstallationService.GrantToTeam.
-func (c *installationServiceClient) GrantToTeam(ctx context.Context, req *connect.Request[v1.GrantToTeamRequest]) (*connect.Response[v1.Installation], error) {
-	return c.grantToTeam.CallUnary(ctx, req)
+// GrantRole calls host.installation.v1.InstallationService.GrantRole.
+func (c *installationServiceClient) GrantRole(ctx context.Context, req *connect.Request[v1.GrantRoleRequest]) (*connect.Response[v1.Installation], error) {
+	return c.grantRole.CallUnary(ctx, req)
+}
+
+// RevokeRole calls host.installation.v1.InstallationService.RevokeRole.
+func (c *installationServiceClient) RevokeRole(ctx context.Context, req *connect.Request[v1.RevokeRoleRequest]) (*connect.Response[v1.Installation], error) {
+	return c.revokeRole.CallUnary(ctx, req)
+}
+
+// ListRoleGrants calls host.installation.v1.InstallationService.ListRoleGrants.
+func (c *installationServiceClient) ListRoleGrants(ctx context.Context, req *connect.Request[v1.ListRoleGrantsRequest]) (*connect.Response[v1.ListRoleGrantsResponse], error) {
+	return c.listRoleGrants.CallUnary(ctx, req)
 }
 
 // List calls host.installation.v1.InstallationService.List.
@@ -126,8 +167,17 @@ type InstallationServiceHandler interface {
 	// Install composes an installation: its agent principal, its root scope and
 	// the row, pending until the target acknowledges its install step.
 	Install(context.Context, *connect.Request[v1.InstallRequest]) (*connect.Response[v1.Installation], error)
-	// GrantToTeam exposes an installation to a team under the installation's role.
-	GrantToTeam(context.Context, *connect.Request[v1.GrantToTeamRequest]) (*connect.Response[v1.Installation], error)
+	// GrantRole grants a person or a team one of the solution's roles on the
+	// installation: the access. Idempotent; it leaves existing capabilities
+	// valid. An administrator of the installation's organization, or a holder
+	// of the installer role on that installation, grants.
+	GrantRole(context.Context, *connect.Request[v1.GrantRoleRequest]) (*connect.Response[v1.Installation], error)
+	// RevokeRole ends one grant; every capability its subject holds from it is
+	// refused at once. Idempotent; the same callers as GrantRole.
+	RevokeRole(context.Context, *connect.Request[v1.RevokeRoleRequest]) (*connect.Response[v1.Installation], error)
+	// ListRoleGrants answers who holds which role on the installation; the same
+	// callers as GrantRole.
+	ListRoleGrants(context.Context, *connect.Request[v1.ListRoleGrantsRequest]) (*connect.Response[v1.ListRoleGrantsResponse], error)
 	// List answers what one organisation has installed: an administrator's read. A
 	// member's view, which installed solutions they may use, is their navigation and
 	// belongs to the entitlement read, not here.
@@ -147,10 +197,22 @@ func NewInstallationServiceHandler(svc InstallationServiceHandler, opts ...conne
 		connect.WithSchema(installationServiceMethods.ByName("Install")),
 		connect.WithHandlerOptions(opts...),
 	)
-	installationServiceGrantToTeamHandler := connect.NewUnaryHandler(
-		InstallationServiceGrantToTeamProcedure,
-		svc.GrantToTeam,
-		connect.WithSchema(installationServiceMethods.ByName("GrantToTeam")),
+	installationServiceGrantRoleHandler := connect.NewUnaryHandler(
+		InstallationServiceGrantRoleProcedure,
+		svc.GrantRole,
+		connect.WithSchema(installationServiceMethods.ByName("GrantRole")),
+		connect.WithHandlerOptions(opts...),
+	)
+	installationServiceRevokeRoleHandler := connect.NewUnaryHandler(
+		InstallationServiceRevokeRoleProcedure,
+		svc.RevokeRole,
+		connect.WithSchema(installationServiceMethods.ByName("RevokeRole")),
+		connect.WithHandlerOptions(opts...),
+	)
+	installationServiceListRoleGrantsHandler := connect.NewUnaryHandler(
+		InstallationServiceListRoleGrantsProcedure,
+		svc.ListRoleGrants,
+		connect.WithSchema(installationServiceMethods.ByName("ListRoleGrants")),
 		connect.WithHandlerOptions(opts...),
 	)
 	installationServiceListHandler := connect.NewUnaryHandler(
@@ -163,8 +225,12 @@ func NewInstallationServiceHandler(svc InstallationServiceHandler, opts ...conne
 		switch r.URL.Path {
 		case InstallationServiceInstallProcedure:
 			installationServiceInstallHandler.ServeHTTP(w, r)
-		case InstallationServiceGrantToTeamProcedure:
-			installationServiceGrantToTeamHandler.ServeHTTP(w, r)
+		case InstallationServiceGrantRoleProcedure:
+			installationServiceGrantRoleHandler.ServeHTTP(w, r)
+		case InstallationServiceRevokeRoleProcedure:
+			installationServiceRevokeRoleHandler.ServeHTTP(w, r)
+		case InstallationServiceListRoleGrantsProcedure:
+			installationServiceListRoleGrantsHandler.ServeHTTP(w, r)
 		case InstallationServiceListProcedure:
 			installationServiceListHandler.ServeHTTP(w, r)
 		default:
@@ -180,8 +246,16 @@ func (UnimplementedInstallationServiceHandler) Install(context.Context, *connect
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.installation.v1.InstallationService.Install is not implemented"))
 }
 
-func (UnimplementedInstallationServiceHandler) GrantToTeam(context.Context, *connect.Request[v1.GrantToTeamRequest]) (*connect.Response[v1.Installation], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.installation.v1.InstallationService.GrantToTeam is not implemented"))
+func (UnimplementedInstallationServiceHandler) GrantRole(context.Context, *connect.Request[v1.GrantRoleRequest]) (*connect.Response[v1.Installation], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.installation.v1.InstallationService.GrantRole is not implemented"))
+}
+
+func (UnimplementedInstallationServiceHandler) RevokeRole(context.Context, *connect.Request[v1.RevokeRoleRequest]) (*connect.Response[v1.Installation], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.installation.v1.InstallationService.RevokeRole is not implemented"))
+}
+
+func (UnimplementedInstallationServiceHandler) ListRoleGrants(context.Context, *connect.Request[v1.ListRoleGrantsRequest]) (*connect.Response[v1.ListRoleGrantsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.installation.v1.InstallationService.ListRoleGrants is not implemented"))
 }
 
 func (UnimplementedInstallationServiceHandler) List(context.Context, *connect.Request[v1.ListRequest]) (*connect.Response[v1.ListResponse], error) {
