@@ -107,3 +107,30 @@ func TestUpstreamEndpointUsesTheSharedTransportGate(t *testing.T) {
 		}
 	}
 }
+
+// A credential pasted into authority/endpoint never reaches an error: a
+// refusal names the host and port alone.
+func TestARefusalNeverEchoesTheEndpointValue(t *testing.T) {
+	const secret = "s3cr3t-token"
+	for _, endpoint := range []string{
+		"https://user:" + secret + "@authority.example:8443",
+		"https://authority.example:8443/?token=" + secret,
+		"https://authority.example:8443/" + secret,
+		"https://authority.example:8443/#" + secret,
+		"ftp://authority.example:21?k=" + secret,
+		"ftp://" + secret + "@authority.example:21",
+		secret + "-not-an-address",
+		"https://[" + secret,
+	} {
+		_, _, err := Target(endpoint, nil)
+		if err == nil {
+			t.Fatalf("%q accepted", endpoint)
+		}
+		if strings.Contains(err.Error(), secret) {
+			t.Fatalf("the refusal echoes the endpoint's credential: %v", err)
+		}
+	}
+	if _, _, err := Target("https://user:"+secret+"@authority.example:8443", nil); err == nil || !strings.Contains(err.Error(), "authority.example:8443") {
+		t.Fatalf("the refusal names the host and port: %v", err)
+	}
+}

@@ -56,9 +56,16 @@ func TestAnHTTPRequestIsDecidedThenStampedAndForwarded(t *testing.T) {
 	for key, values := range seen.Header {
 		md[strings.ToLower(key)] = values
 	}
-	id, err := hop.Read(md, "run-proof")
-	if err != nil || id.Tenant != "acme" || id.Owner != "remi" || id.Context != "wc-model" {
-		t.Fatalf("the module read %+v, %v", id, err)
+	// The stamp as the hop wrote it (the caller's tenant replaced); the module's
+	// Verifier authenticates it against the token, proven in libraries/hop/go.
+	if first := func(k string) string {
+		v := md.Get(k)
+		if len(v) != 1 {
+			return ""
+		}
+		return v[0]
+	}; first(hop.TenantKey) != "acme" || first(hop.OwnerKey) != "remi" || first(hop.WorkContextKey) != "wc-model" || first(hop.ProofKey) != "run-proof" || first(hop.ContextKey) == "" {
+		t.Fatalf("the hop stamped %v", md)
 	}
 }
 

@@ -270,6 +270,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 	c.installationIdentity(t, ctx, f)
 	c.sessionDisplayNames(t, ctx, f)
 	c.bindingRefusals(t, ctx, f)
+	c.forwardedContext(t, ctx, f)
 	t.Run("parent per-kind limits survive audience changes", func(t *testing.T) {
 		if f.ParentLimits == nil {
 			t.Fatal("fixture supplies no parent-limit round trip")

@@ -71,13 +71,13 @@ func targetFor(ctx context.Context, endpoint string, fallback func() (string, er
 	}
 	if !strings.Contains(endpoint, "://") {
 		if _, _, err := net.SplitHostPort(endpoint); err != nil {
-			return "", nil, fmt.Errorf("authority/endpoint %q is neither host:port nor a URL", endpoint)
+			return "", nil, fmt.Errorf("authority/endpoint is neither host:port nor a URL (value not shown: it may carry a credential)")
 		}
 		return plaintext(endpoint, codefly.IsLocal(), mesh)
 	}
 	u, err := url.Parse(endpoint)
 	if err != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
-		return "", nil, fmt.Errorf("authority/endpoint %q is not an origin", endpoint)
+		return "", nil, fmt.Errorf("authority/endpoint %s is not an origin: it must carry no credential, path, query or fragment", hostOnly(u))
 	}
 	switch u.Scheme {
 	case "https":
@@ -85,8 +85,17 @@ func targetFor(ctx context.Context, endpoint string, fallback func() (string, er
 	case "http", "grpc", "tcp":
 		return plaintext(withPort(u, "80"), codefly.IsLocal(), mesh)
 	default:
-		return "", nil, fmt.Errorf("authority/endpoint %q names scheme %q; the host is reached over http:// (h2c) or https://", endpoint, u.Scheme)
+		return "", nil, fmt.Errorf("authority/endpoint %s names scheme %q; the host is reached over http:// (h2c) or https://", hostOnly(u), u.Scheme)
 	}
+}
+
+// hostOnly names an endpoint in an error by its host and port alone: never the
+// raw value, its userinfo, path or query, which may carry a credential.
+func hostOnly(u *url.URL) string {
+	if u == nil || u.Host == "" {
+		return "(unparseable)"
+	}
+	return u.Host
 }
 
 func withPort(u *url.URL, port string) string {

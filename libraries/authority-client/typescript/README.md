@@ -1,37 +1,33 @@
 # Authority TypeScript client
 
 Codefly generates the RPC bindings exported by `@codefly-dev/authority-client`.
-The handwritten, non-verifying claims reader has a separate public export:
+The handwritten module side has a separate public export. A module builds one
+`Verifier` at startup from the generated client of the authority interface it
+depends on:
 
 ```ts
-import { readClaims } from '@codefly-dev/authority-client/work-context';
+import { Unauthenticated, Verifier } from '@codefly-dev/authority-client/work-context';
 
-const claims = readClaims(requestHeaders, proof);
-// Compare claims.audience to the delivered module audience.
-const allowed = claims.allows(resourceKind, action, exactResourceID);
+const verifier = new Verifier(createClient(AuthorityService, transport), audience, proof);
+const id = await verifier.verify(requestHeaders);   // throws Unauthenticated, naming why
+id.tenant; id.scopes; id.claims.allows(resourceKind, action, exactResourceID);
 ```
 
-The server-side Node reader takes header pairs (preserving repeats) or a header
-map and the run-delivered proof. It requires exactly one proof, token and digest,
-checks the proof and SHA-256 binding, then projects. Do not send the proof to a
-browser. Readable claims alone are not proof of authentication. The
-projection verifies neither signatures, current time, live revisions nor replay.
-A warning-mode hop can bind a context the authority refused. Preserve the
-integration's authentication and the module's audience, installed-definition,
-ownership and live resource-visibility checks.
+It is the Go library's `hop.Verifier`: the stamp first (proof and digest), then
+the keys read through `Keys` (re-read on an unknown key at most every 10 s and
+when older than 5 minutes, on a read of its own bounded by 5 s; stale after 15
+minutes), then `authenticateClaims`: Core's decode path (size, the contract's
+`buf.validate` rules run by protovalidate, unknown fields, canonical encoding,
+lifetime), the issuer, the key (never Core's public conformance key), the Ed25519
+signature, the audience, the window, and attenuation and grant shape. Who the
+call is for comes from the claims; a stamp that disagrees is refused. The shared
+`../testdata/vectors.json`, written by Go, holds every rule to Go's verdict. A
+read's own failure is kept in `verifier.keysError` for logs, never sent to a
+caller. Do not send the proof to a browser.
 
 `claims.scopes` contains frozen copies of the final actor's grants, or the owner's
-when no actor exists. Empty final grants stay empty. Each scope is evaluated
-independently. An omitted/empty resource ID asks for the whole kind; a restricted
-grant cannot satisfy it. Whole-kind grants include named IDs. No wildcard or
-admin implication, prefix/pattern match or cross-scope action/ID merging occurs.
-
-`UnreadableContext` names malformed/oversized envelopes, noncanonical base64url,
-wrong signature length, unreadable protobuf, absent audience, unknown fields and
-noncanonical protobuf bytes. This is a projection through the generated schema,
-not Core's structural validator. Go also applies Core Decode's stronger schema
-and attenuation checks. Shared Core-produced fixtures prove equal audience,
-effective scope and exact-resource answers across the three language readers.
+when no actor exists. Each scope is evaluated independently; an omitted resource
+ID asks for the whole kind; no wildcard or admin implication occurs.
 
 Run `npm ci --ignore-scripts` and `npm test`. Tests import the built public package
 exports, including the generated schema. No running SaaS, service or provider is

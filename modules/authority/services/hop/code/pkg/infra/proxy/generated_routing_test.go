@@ -176,7 +176,9 @@ func TestGeneratedGRPCRoutesKeepSiblingAndAudienceSeparate(t *testing.T) {
 func routedBackend(t *testing.T, register func(*grpc.Server)) *grpc.ClientConn {
 	t.Helper()
 	listener := bufconn.Listen(1 << 20)
-	server := grpc.NewServer(grpc.UnaryInterceptor(hop.UnaryServerInterceptor(proof)))
+	// Routing only: which backend is reached. Module-side authentication is
+	// proxy_test.go's, over signed contexts.
+	server := grpc.NewServer()
 	register(server)
 	go func() { _ = server.Serve(listener) }()
 	t.Cleanup(server.Stop)

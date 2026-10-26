@@ -1,24 +1,45 @@
 // Package hop is the stamp's contract: what the hop in front of a module writes
-// onto a call it let through, and how the module reads it.
+// onto a call it let through, and how the module authenticates it.
 //
-// The hop has checked the call's Work Context with the authority. The module
-// believes the stamp only when it carries this run's proof; any other call did
-// not come through the hop, and the module's interceptor refuses it by name. A
-// module that reads the stamp verifies no token and asks no authority: the hop
-// did both. In a cell the mesh is why nothing reaches the module around the hop;
-// on a laptop, with no mesh, the proof is.
+// The hop asked the authority's Check, which verified the caller's Work Context
+// live (revision, seal, single use) and applied the method's policy, then wrote
+// who the call is for, this run's proof and the digest of the checked token.
+// The module re-checks no permission the hop decided, but believes nothing it
+// has not authenticated: Verifier checks the token's signature under the
+// authority's published keys, its issuer, that it is addressed to this module,
+// its window and structure, and that it is the token the stamp's digest binds;
+// who the call is for is read from the authenticated claims, never a header.
+//
+// What the proof does NOT establish: it is one secret every hop-fronted module
+// in the run holds. It keeps out a caller that is not a composed workload (a
+// person's client on a laptop, where no mesh stands in front of the module).
+// It does not show that a composed workload came through the hop: a module
+// holding a genuine context addressed to another can call it directly, with
+// the proof, past the method policy and the live check, until the context
+// expires. Closing that needs a proof per audience or a stamp the hop signs:
+// codefly-dev/authority#5. On a cell, the mesh admits only the hop.
 package hop
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/hex"
 	"errors"
-	"github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
+	"fmt"
+	"os"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
+	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
+	"github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
+	"github.com/codefly-dev/authority/libraries/authority-client/go/workcontext"
+	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	"github.com/codefly-dev/core/resources"
+	core "github.com/codefly-dev/core/workcontext"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -70,10 +91,12 @@ type Identity struct {
 	// (unix seconds), when the hop stamped them.
 	Task    string
 	Expires int64
-	// Context is the Work Context the authority checked, as forwarded. A module
-	// that needs its full claims decodes them from it without verifying again:
-	// the stamp's proof and digest are what vouch for it.
+	// Context is the authenticated Work Context, as forwarded: the parent a
+	// module asks a child of when it acts onward.
 	Context string
+	// Claims are the authenticated claims, for resource-exact questions
+	// (Claims.Allows) the flat Scopes cannot answer.
+	Claims *workcontext.Claims
 	// Advisory is what the authority would have refused, when the hop let the
 	// call through anyway (permissive mode); "" when the call was admitted.
 	Advisory string
@@ -88,9 +111,6 @@ func (i Identity) Has(kind, action string) bool {
 	}
 	return false
 }
-
-// ErrNoStamp is a call that did not come through this run's hop.
-var ErrNoStamp = errors.New("the call did not come through the hop: it carries no stamp with this run's proof")
 
 // Strip removes every stamp key a caller may have sent: a stamp is the hop's to
 // write and no one else's.
@@ -129,36 +149,262 @@ func Stamp(md metadata.MD, id Identity, proof string) {
 	}
 }
 
-// Read returns the identity the hop stamped, or ErrNoStamp when md does not
-// carry this run's proof. An empty proof is never accepted: a module with no
-// proof delivered reads every call as one that bypassed the hop.
-func Read(md metadata.MD, proof string) (Identity, error) {
-	got := first(md, ProofKey)
-	if proof == "" || got == "" || subtle.ConstantTimeCompare([]byte(got), []byte(proof)) != 1 {
-		return Identity{}, ErrNoStamp
+// IdentityOf reads who an authenticated Work Context is for. Its scopes are the
+// effective ones: the owner's authority narrowed by every actor's grant. A
+// scope limited to named resources is left out rather than widened to its whole
+// kind; Claims.Allows answers those. It is the one derivation: the hop stamps
+// it from the authority's checked context and the module derives it from the
+// token it authenticated, so the two agree or the call is refused.
+func IdentityOf(wc *basev0.WorkContextV1) Identity {
+	id := Identity{
+		Owner:     wc.GetOwnerPrincipalId(),
+		OwnerKind: wc.GetOwnerPrincipalKind(),
+		Tenant:    wc.GetTenantId(),
+		Binding:   wc.GetOperationBinding().GetBindingId(),
+		Task:      wc.GetTaskId(),
+		Expires:   wc.GetExpiresAtUnix(),
 	}
-	id := Identity{Owner: first(md, OwnerKey), OwnerKind: first(md, OwnerKindKey), Tenant: first(md, TenantKey), Binding: first(md, BindingKey), Task: first(md, TaskKey)}
-	if id.Owner == "" || id.Tenant == "" {
-		return Identity{}, ErrNoStamp
+	scopes := flatten(wc.GetAuthorityScopes())
+	for _, actor := range wc.GetActorChain() {
+		id.Actors = append(id.Actors, actor.GetPrincipalId())
+		held := flatten(actor.GetGrantedScopes()) // an actor granted nothing narrows to nothing, as Core's EffectiveScopes
+		scopes = slices.DeleteFunc(scopes, func(s string) bool { return !slices.Contains(held, s) })
 	}
-	if expires := first(md, ExpiresKey); expires != "" {
-		at, err := strconv.ParseInt(expires, 10, 64)
-		if err != nil || at <= 0 {
-			return Identity{}, ErrNoStamp
+	id.Scopes = scopes
+	return id
+}
+
+func flatten(scopes []*basev0.WorkScopeV1) []string {
+	var out []string
+	for _, s := range scopes {
+		if len(s.GetResourceIds()) > 0 {
+			continue
 		}
-		id.Expires = at
-	}
-	id.Actors = split(first(md, ActorsKey))
-	id.Scopes = split(first(md, ScopesKey))
-	id.Advisory = first(md, AdvisoryKey)
-	if bound := first(md, ContextKey); bound != "" {
-		token, err := stamp.Context(md, proof)
-		if err != nil {
-			return Identity{}, ErrNoStamp
+		for _, action := range s.GetActions() {
+			if scope := s.GetResourceKind() + ":" + action; !slices.Contains(out, scope) {
+				out = append(out, scope)
+			}
 		}
-		id.Context = token
 	}
+	return out
+}
+
+// Audience is this module's audience: the module the composition started this
+// process as (CODEFLY__MODULE, the identity a manifest names), which is the
+// name a Work Context is addressed to and the hop routes by. Read it rather
+// than typing the module's name.
+func Audience() (string, error) {
+	module := strings.TrimSpace(os.Getenv(resources.ModulePrefix))
+	if module == "" {
+		return "", fmt.Errorf("hop: %s is not set: the composition names no module for this process", resources.ModulePrefix)
+	}
+	return module, nil
+}
+
+// KeySource is the authority interface's Keys, as its generated client serves
+// it: the issuer and the public keys every Work Context is signed with.
+type KeySource interface {
+	Keys(ctx context.Context, in *authorityv1.KeysRequest, opts ...grpc.CallOption) (*authorityv1.KeysResponse, error)
+}
+
+// How the published keys are kept: re-read when a token names a key the
+// verifier does not hold (at most once per keyRetry), and when they are older
+// than keyMaxAge, so a removed key stops verifying. A read runs on its own,
+// detached from any call, bounded by keyTimeout, one at a time; no caller can
+// cancel it, fail it or make it wait. A failed read keeps the last keys until
+// they are keyStale old; then every call is refused, as the hop refuses a call
+// it cannot check.
+const (
+	keyRetry   = 10 * time.Second
+	keyMaxAge  = 5 * time.Minute
+	keyStale   = 15 * time.Minute
+	keyTimeout = 5 * time.Second
+)
+
+// errKeysUnavailable is the one reason a caller is given when keys are
+// missing or stale: the read's own failure may name the authority's address,
+// so it goes to KeysError, for the module's logs, never to a caller.
+var errKeysUnavailable = fmt.Errorf("%w: the authority's published keys are unavailable", workcontext.ErrUnauthenticated)
+
+// Verifier is the one module-side entry point: it authenticates every call the
+// hop forwards before anything reads it. Build it once, at startup.
+type Verifier struct {
+	source   KeySource
+	audience string
+	proof    string
+	now      func() time.Time
+	timeout  time.Duration
+
+	mu       sync.Mutex
+	trust    workcontext.Trust
+	fetched  time.Time     // when trust was read
+	tried    time.Time     // when the last read started
+	inflight chan struct{} // closed when the running read ends; nil when none runs
+	failure  error         // the last read's failure, for KeysError
+}
+
+// NewVerifier pins this module's audience and the run's hop proof, and starts
+// reading the authority's published keys through the interface's Keys. keys is
+// the generated client of the authority the module already depends on
+// (authorityv1.NewAuthorityServiceClient over host.Dial): the local authority
+// on a laptop, the host on a cell. A key is never typed in or mounted.
+//
+// It waits for that first read while ctx allows, and never fails on it: a
+// module starts before its authority serves keys, and refuses calls, with the
+// reason, until they are read.
+func NewVerifier(ctx context.Context, keys KeySource, audience, proof string) (*Verifier, error) {
+	switch {
+	case keys == nil:
+		return nil, errors.New("hop: a verifier needs the authority's Keys")
+	case audience == "":
+		return nil, errors.New("hop: a verifier needs this module's audience")
+	case proof == "":
+		return nil, errors.New("hop: a verifier needs the run's hop proof (codefly config generate hop PROOF)")
+	}
+	v := &Verifier{source: keys, audience: audience, proof: proof, now: time.Now, timeout: keyTimeout}
+	v.mu.Lock()
+	done := v.refresh()
+	v.mu.Unlock()
+	select {
+	case <-done:
+	case <-ctx.Done():
+	}
+	return v, nil
+}
+
+// KeysError is the last failure to read the published keys, nil after a
+// successful read: for the module's logs and readiness, never for a caller.
+func (v *Verifier) KeysError() error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	return v.failure
+}
+
+// Verify authenticates the call md carries and returns who it is for, from the
+// authenticated claims. The error wraps workcontext.ErrUnauthenticated and
+// names the reason. The stamp is checked first: a call that does not carry this
+// run's proof and a bound token never reaches the keys.
+func (v *Verifier) Verify(ctx context.Context, md metadata.MD) (Identity, error) {
+	token, err := stamp.Context(md, v.proof)
+	if err != nil {
+		return Identity{}, fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, err)
+	}
+	trust, err := v.trustFor(ctx, keyIDOf(token))
+	if err != nil {
+		return Identity{}, err
+	}
+	claims, err := workcontext.Authenticate(md, v.proof, v.audience, trust)
+	if err != nil {
+		return Identity{}, err
+	}
+	id := IdentityOf(claims.Context())
+	if err := sameAsStamped(md, id); err != nil {
+		return Identity{}, err
+	}
+	id.Context, id.Claims, id.Advisory = token, claims, first(md, AdvisoryKey)
 	return id, nil
+}
+
+// trustFor returns the keys to judge a token naming keyID by. A key not held
+// starts a read (at most once per keyRetry) and waits for it, as long as the
+// caller does; old keys start a read and are used meanwhile.
+func (v *Verifier) trustFor(ctx context.Context, keyID string) (workcontext.Trust, error) {
+	v.mu.Lock()
+	now := v.now()
+	_, held := v.trust.Keys[keyID]
+	if (!held || now.Sub(v.fetched) > keyMaxAge) && v.inflight == nil && now.Sub(v.tried) >= keyRetry {
+		v.refresh()
+	}
+	wait := v.inflight
+	v.mu.Unlock()
+	if !held && wait != nil {
+		select {
+		case <-wait:
+		case <-ctx.Done():
+			return workcontext.Trust{}, fmt.Errorf("%w: the call ended while the authority's keys were being read", workcontext.ErrUnauthenticated)
+		}
+	}
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.fetched.IsZero() || v.now().Sub(v.fetched) > keyStale {
+		return workcontext.Trust{}, errKeysUnavailable
+	}
+	return workcontext.Trust{Issuer: v.trust.Issuer, Keys: v.trust.Keys, Now: v.now}, nil
+}
+
+// refresh starts the one read, detached from every call; v.mu is held. It
+// returns the channel closed when the read ends.
+func (v *Verifier) refresh() chan struct{} {
+	if v.inflight != nil {
+		return v.inflight
+	}
+	done := make(chan struct{})
+	v.inflight, v.tried = done, v.now()
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), v.timeout)
+		defer cancel()
+		trust, err := v.read(ctx)
+		v.mu.Lock()
+		defer v.mu.Unlock()
+		if err == nil {
+			v.trust, v.fetched = trust, v.now()
+		}
+		v.failure, v.inflight = err, nil
+		close(done)
+	}()
+	return done
+}
+
+// read asks the authority for its published keys.
+func (v *Verifier) read(ctx context.Context) (workcontext.Trust, error) {
+	response, err := v.source.Keys(ctx, &authorityv1.KeysRequest{})
+	if err != nil {
+		return workcontext.Trust{}, fmt.Errorf("hop: the authority's published keys cannot be read: %w", err)
+	}
+	trust := workcontext.Trust{Issuer: response.GetIssuer(), Keys: map[string]ed25519.PublicKey{}}
+	for _, key := range response.GetKeys() {
+		if key.GetAlgorithm() != core.Algorithm {
+			continue
+		}
+		if key.GetKeyId() == "" || len(key.GetPublicKey()) != ed25519.PublicKeySize || trust.Keys[key.GetKeyId()] != nil {
+			return workcontext.Trust{}, errors.New("hop: the authority publishes an unnamed, repeated or malformed key")
+		}
+		trust.Keys[key.GetKeyId()] = ed25519.PublicKey(slices.Clone(key.GetPublicKey()))
+	}
+	if trust.Issuer == "" || len(trust.Keys) == 0 {
+		return workcontext.Trust{}, errors.New("hop: the authority publishes no issuer or no Ed25519 key")
+	}
+	return trust, nil
+}
+
+// keyIDOf is the key a token names, read only to choose the keys it is judged
+// by; "" when it does not decode, which Authenticate then refuses.
+func keyIDOf(token string) string {
+	decoded, err := core.Decode(token)
+	if err != nil {
+		return ""
+	}
+	return decoded.Context().GetKeyId()
+}
+
+// sameAsStamped refuses a stamp that says anything the authenticated claims do
+// not: the identity is the token's, and a disagreeing header is a forgery or a
+// broken hop, either way not a call to serve.
+func sameAsStamped(md metadata.MD, id Identity) error {
+	expires := ""
+	if id.Expires > 0 {
+		expires = strconv.FormatInt(id.Expires, 10)
+	}
+	for _, field := range []struct{ key, want string }{
+		{OwnerKey, id.Owner}, {OwnerKindKey, id.OwnerKind}, {TenantKey, id.Tenant},
+		{ActorsKey, strings.Join(id.Actors, ",")}, {ScopesKey, strings.Join(id.Scopes, ",")},
+		{BindingKey, id.Binding}, {TaskKey, id.Task}, {ExpiresKey, expires},
+	} {
+		if got := md.Get(field.key); len(got) > 1 || first(md, field.key) != field.want {
+			return fmt.Errorf("%w: the stamp's %s does not match the authenticated Work Context", workcontext.ErrUnauthenticated, strings.TrimPrefix(field.key, StampPrefix))
+		}
+	}
+	return nil
 }
 
 func digest(token string) string {
@@ -168,18 +414,18 @@ func digest(token string) string {
 
 type identityKey struct{}
 
-// FromContext returns the identity the module's interceptor read off the call.
+// FromContext returns the identity the module's interceptor authenticated.
 func FromContext(ctx context.Context) (Identity, bool) {
 	id, ok := ctx.Value(identityKey{}).(Identity)
 	return id, ok
 }
 
-// UnaryServerInterceptor gives each call the identity the hop stamped, and
-// refuses a call that bypassed the hop. Health checks pass unstamped: the run
-// probes the module directly, and they read no data.
-func UnaryServerInterceptor(proof string) grpc.UnaryServerInterceptor {
+// UnaryServerInterceptor gives each call the identity Verify authenticated,
+// and refuses, naming the reason, a call it does not. Health checks pass
+// unstamped: the run probes the module directly, and they read no data.
+func (v *Verifier) UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		ctx, err := admit(ctx, info.FullMethod, proof)
+		ctx, err := v.admit(ctx, info.FullMethod)
 		if err != nil {
 			return nil, err
 		}
@@ -188,9 +434,9 @@ func UnaryServerInterceptor(proof string) grpc.UnaryServerInterceptor {
 }
 
 // StreamServerInterceptor is UnaryServerInterceptor for streams.
-func StreamServerInterceptor(proof string) grpc.StreamServerInterceptor {
+func (v *Verifier) StreamServerInterceptor() grpc.StreamServerInterceptor {
 	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		ctx, err := admit(ss.Context(), info.FullMethod, proof)
+		ctx, err := v.admit(ss.Context(), info.FullMethod)
 		if err != nil {
 			return err
 		}
@@ -198,12 +444,12 @@ func StreamServerInterceptor(proof string) grpc.StreamServerInterceptor {
 	}
 }
 
-func admit(ctx context.Context, method, proof string) (context.Context, error) {
+func (v *Verifier) admit(ctx context.Context, method string) (context.Context, error) {
 	if strings.HasPrefix(method, "/grpc.health.v1.Health/") {
 		return ctx, nil
 	}
 	md, _ := metadata.FromIncomingContext(ctx)
-	id, err := Read(md, proof)
+	id, err := v.Verify(ctx, md)
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, err.Error())
 	}
@@ -222,11 +468,4 @@ func first(md metadata.MD, key string) string {
 		return v[0]
 	}
 	return ""
-}
-
-func split(s string) []string {
-	if s == "" {
-		return nil
-	}
-	return strings.Split(s, ",")
 }
