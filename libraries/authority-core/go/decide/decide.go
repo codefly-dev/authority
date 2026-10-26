@@ -80,17 +80,26 @@ func HeldRoles(p domain.Person, inst domain.Installation, grants []domain.RoleGr
 // owns. An installation with no principal grants nothing: its scopes would
 // select every owner's resources.
 func RoleScopes(solution domain.Module, inst domain.Installation, roles []string) (Scopes, error) {
-	var held Scopes
+	var literal, attached Scopes
 	for _, role := range roles {
-		held = append(held, solution.Roles[role]...)
+		literal = append(literal, solution.Roles[role]...)
+		for _, sc := range solution.OwnedRoles[role] {
+			if ids := inst.Owned[sc.GetResourceKind()]; len(ids) > 0 {
+				attached = append(attached, &basev0.WorkScopeV1{ResourceKind: sc.GetResourceKind(), Actions: slices.Clone(sc.GetActions()), ResourceIds: slices.Clone(ids)})
+			}
+		}
 	}
-	if len(held) == 0 {
-		return nil, nil
+	if len(literal) > 0 {
+		if inst.PrincipalID == "" {
+			return nil, domain.Refuse("installation %s has no principal, so its roles grant nothing", inst.ID)
+		}
+		var err error
+		literal, err = scope.Owned(literal, inst.PrincipalID)
+		if err != nil {
+			return nil, err
+		}
 	}
-	if inst.PrincipalID == "" {
-		return nil, domain.Refuse("installation %s has no principal, so its roles grant nothing", inst.ID)
-	}
-	return scope.Owned(held, inst.PrincipalID)
+	return scope.Normalize(append(literal, attached...)), nil
 }
 
 // Issue is asked within held: held when nothing is asked; refused, naming

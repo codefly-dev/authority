@@ -25,13 +25,14 @@ type TransferDecision struct {
 	PrincipalID, AuthorizedBy string
 }
 
-// AuthorizeTransfer decides a transfer, reading everything live. The caller
+// AuthorizeTransfer authorizes a transfer and records the installation-owned id
+// atomically, reading everything live. The caller
 // is the kind's one serving module; the capability is addressed to it.
 func (s *Service) AuthorizeTransfer(ctx context.Context, r TransferRequest) (TransferDecision, error) {
 	if err := decide.ValidResourceID(r.ResourceID); err != nil {
 		return TransferDecision{}, err
 	}
-	var store string
+	var store domain.Module
 	err := s.store.Read(ctx, func(tx Tx) error {
 		m, err := tx.ModuleNamed(r.Store.Module)
 		if err != nil {
@@ -44,19 +45,29 @@ func (s *Service) AuthorizeTransfer(ctx context.Context, r TransferRequest) (Tra
 		if !slices.Contains(servers, m.Name) || len(servers) != 1 {
 			return domain.Refuse("%s does not serve %s alone, so it attests none of its resources", m.Name, r.Kind)
 		}
-		store = m.Principal
+		store = m
 		return nil
 	})
 	if err != nil {
 		return TransferDecision{}, err
 	}
-	verified, err := s.Verify(ctx, r.Token, store)
+	verified, err := s.Verify(ctx, r.Token, store.Principal)
 	if err != nil {
 		return TransferDecision{}, err
 	}
 	wc := verified.Context()
 	var decision TransferDecision
-	err = s.store.Read(ctx, func(tx Tx) error {
+	err = s.store.Write(ctx, func(tx Tx) error {
+		current, err := attachmentServer(tx, r.Store, r.Kind)
+		if err != nil {
+			return err
+		}
+		if current.Principal != store.Principal || current.Generation != store.Generation {
+			return domain.Refuse("serving module changed during transfer")
+		}
+		if err := s.attachmentFresh(tx, wc); err != nil {
+			return err
+		}
 		t := decide.Transfer{OwnerKind: wc.GetOwnerPrincipalKind(), From: r.From, To: r.To}
 		if t.OwnerKind != "human" {
 			return decide.AuthorizeTransfer(t)
@@ -64,6 +75,9 @@ func (s *Service) AuthorizeTransfer(ctx context.Context, r TransferRequest) (Tra
 		p, err := tx.Person(wc.GetOwnerPrincipalId())
 		if err != nil {
 			return domain.Refuse("the owner %s is no longer a member", wc.GetOwnerPrincipalId())
+		}
+		if p.Organization != wc.GetTenantId() {
+			return domain.Refuse("the person no longer belongs to the capability's organization")
 		}
 		t.Person = p
 		for _, principal := range solutionPrincipals(wc, wc.GetAudience()) {
@@ -89,22 +103,30 @@ func (s *Service) AuthorizeTransfer(ctx context.Context, r TransferRequest) (Tra
 			covered, err := resources.Compile(matchers)
 			t.Administers = err == nil && covered.Matches(r.ResourceID)
 		}
-		if target, err := tx.InstallationByPrincipal(r.To); err == nil {
-			solution, err := tx.ModuleNamed(target.Target)
-			if err != nil {
-				return notFound(err)
-			}
-			grants, err := tx.RoleGrants(target.ID)
-			if err != nil {
-				return err
-			}
-			role, err := decide.RoleScopes(solution, target, decide.HeldRoles(p, target, grants))
-			if err != nil {
-				return err
-			}
-			t.Writes = scope.HoldsAction(role, r.Kind, "write")
+		target, err := tx.InstallationByPrincipal(r.To)
+		if err != nil {
+			return notFound(err)
 		}
+		if target.Organization != wc.GetTenantId() || target.Status != domain.Active {
+			return domain.Refuse("target installation %s is not active at %s", target.ID, wc.GetTenantId())
+		}
+		solution, err := tx.ModuleNamed(target.Target)
+		if err != nil {
+			return notFound(err)
+		}
+		grants, err := tx.RoleGrants(target.ID)
+		if err != nil {
+			return err
+		}
+		role, err := decide.RoleScopes(solution, target, decide.HeldRoles(p, target, grants))
+		if err != nil {
+			return err
+		}
+		t.Writes = scope.HoldsAction(role, r.Kind, "write")
 		if err := decide.AuthorizeTransfer(t); err != nil {
+			return err
+		}
+		if err := attachOwned(tx, target, r.Kind, r.ResourceID); err != nil {
 			return err
 		}
 		decision = TransferDecision{PrincipalID: r.To, AuthorizedBy: p.ID}

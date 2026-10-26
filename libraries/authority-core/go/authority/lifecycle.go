@@ -406,6 +406,7 @@ func installationIn(tx Tx, organization, installationID string) (domain.Installa
 // revoke disables inst: its revision and its organization's authorization
 // revision both move, and its grants are cleared.
 func (s *Service) revoke(tx Tx, inst domain.Installation) error {
+	inst.Owned = nil
 	inst.Status = domain.Revoked
 	inst.Revision++
 	if err := tx.PutInstallation(inst); err != nil {

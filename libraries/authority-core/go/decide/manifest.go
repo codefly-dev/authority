@@ -45,6 +45,9 @@ func ValidateModule(m domain.Module) error {
 		}
 	}
 	if m.Kind != domain.KindSolution {
+		if len(m.OwnedRoles) > 0 {
+			return domain.Refuse("module %q declares installation-owned roles; only a solution declares them", m.Name)
+		}
 		if len(m.Roles) > 0 {
 			return domain.Refuse("module %q declares roles; a module's access is the organization's roles", m.Name)
 		}
@@ -61,7 +64,7 @@ func ValidateModule(m domain.Module) error {
 	}
 	for _, name := range slices.Sorted(maps.Keys(m.Roles)) {
 		scopes := m.Roles[name]
-		if len(scopes) == 0 {
+		if len(scopes) == 0 && len(m.OwnedRoles[name]) == 0 {
 			return domain.Refuse("role %q of %s grants nothing", name, m.Name)
 		}
 		if scope.HasOwner(scopes) {
@@ -69,6 +72,19 @@ func ValidateModule(m domain.Module) error {
 		}
 		if !scope.Attenuates(scopes, grantable) {
 			return domain.Refuse("role %q of %s grants beyond what %s serves or explicitly consumes through invoke/lookup bindings", name, m.Name, m.Name)
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(m.OwnedRoles)) {
+		if _, ok := m.Roles[name]; !ok {
+			return domain.Refuse("installation-owned role %q of %s is not declared", name, m.Name)
+		}
+		for _, sc := range m.OwnedRoles[name] {
+			if len(sc.GetResourceIds()) > 0 || sc.GetResourceOwnerId() != "" {
+				return domain.Refuse("installation-owned role %q names resource ids or an owner; its installation supplies the ids", name)
+			}
+		}
+		if !scope.Attenuates(m.OwnedRoles[name], grantable) {
+			return domain.Refuse("installation-owned role %q grants beyond what %s serves or explicitly consumes", name, m.Name)
 		}
 	}
 	return nil
@@ -90,6 +106,11 @@ func Narrowed(previous, next domain.Module) bool {
 	}
 	if previous.Kind != domain.KindSolution {
 		return false
+	}
+	for name, scopes := range previous.OwnedRoles {
+		if !scope.Attenuates(scopes, next.OwnedRoles[name]) {
+			return true
+		}
 	}
 	for name, scopes := range previous.Roles {
 		if !scope.Attenuates(scopes, next.Roles[name]) {

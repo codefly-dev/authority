@@ -2,6 +2,7 @@ package authority_test
 
 import (
 	"context"
+	"reflect"
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
@@ -41,7 +42,7 @@ func TestInstallationConsentBindsReviewedStateAndOperation(t *testing.T) {
 		t.Fatal(err)
 	}
 	retry, err := install(a, "author")
-	if err != nil || first != retry || steps != 1 {
+	if err != nil || !reflect.DeepEqual(first, retry) || steps != 1 {
 		t.Fatalf("unchanged retry: %+v, steps=%d, err=%v", retry, steps, err)
 	}
 	_, err = install(a, "viewer")

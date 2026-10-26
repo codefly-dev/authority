@@ -63,6 +63,8 @@ type Module struct {
 	Bindings      map[string]Binding
 	// Roles are a solution's roles: levels on the data its principal owns.
 	Roles map[string][]*basev0.WorkScopeV1
+	// OwnedRoles resolve only to the exact ids attached to this installation.
+	OwnedRoles map[string][]*basev0.WorkScopeV1
 	// OwnerAware: the module compares a resource's owner with an
 	// owner-selected scope, so it may receive one.
 	OwnerAware bool
@@ -108,6 +110,8 @@ type Installation struct {
 	InstalledBy              string
 	// Consent is the last reviewed operation; a later revision invalidates its receipt.
 	Consent ConsentReceipt
+	// Owned is the bounded set of attached resource ids, by kind.
+	Owned map[string][]string
 }
 
 // RoleGrant is one role on one installation held by exactly one person or team.

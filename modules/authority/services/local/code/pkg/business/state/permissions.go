@@ -134,7 +134,9 @@ func (s *State) PermissionReport() []string {
 		roles := map[string][]*basev0.WorkScopeV1{}
 		if m.Kind == domain.KindSolution {
 			for name, scopes := range m.Roles {
-				roles["installation/"+name] = scopes
+				// Statically an installation-owned scope covers its kind; which
+				// ids is each installation's, decided at issue.
+				roles["installation/"+name] = Normalize(append(slices.Clone(scopes), m.OwnedRoles[name]...))
 			}
 		} else {
 			for _, role := range orgRoles {
