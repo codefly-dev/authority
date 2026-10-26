@@ -8,12 +8,12 @@ depends on:
 ```ts
 import { Unauthenticated, Verifier } from '@codefly-dev/authority-client/work-context';
 
-const verifier = new Verifier(createClient(AuthorityService, transport), audience, proof);
-const id = await verifier.verify(requestHeaders);   // throws Unauthenticated, naming why
+const verifier = new Verifier(createClient(AuthorityService, transport), audience, publicKey, sharedReplayStore);
+const id = await verifier.verify(requestHeaders, fullProcedure);   // throws Unauthenticated, naming why
 id.tenant; id.scopes; id.claims.allows(resourceKind, action, exactResourceID);
 ```
 
-It is the Go library's `hop.Verifier`: the stamp first (proof and digest), then
+It is the Go library's `hop.Verifier`: the signed method, audience, token digest and admission window first, then
 the keys read through `Keys` (re-read on an unknown key at most every 10 s and
 when older than 5 minutes, on a read of its own bounded by 5 s; stale after 15
 minutes, when a call waits for the re-read as it does on an unknown key), then
@@ -28,7 +28,9 @@ caller. **Readiness uses `verifier.ready()`**: true while trusted keys are held,
 through failed re-reads inside the 15-minute window; false before the first read
 or once they are stale. It also starts the same rate-limited, non-blocking
 re-read a call would, so an unready replica recovers and an idle one never goes
-stale. Never gate readiness on `keysError`. Do not send the proof to a browser.
+stale. Never gate readiness on `keysError`. After authenticating the identity,
+it consumes the nonce through the required durable replay store shared across
+replicas. See the [admission protocol](../../hop/README.md).
 
 `claims.scopes` contains frozen copies of the final actor's grants, or the owner's
 when no actor exists. Each scope is evaluated independently; an omitted resource

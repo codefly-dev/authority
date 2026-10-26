@@ -1,15 +1,9 @@
-/** Authenticate the Work Context the hop forwarded to a Node module, then read it.
- *
- * `Verifier` is the Go library's `hop.Verifier`, and `authenticateClaims` is
- * `workcontext.Authenticate`, rule for rule: the stamp binds exactly one token to
- * this run's proof by its digest; the token passes Core's decode path (size,
- * schema, unknown fields, canonical encoding, lifetime), the issuer pin, the key
- * (never Core's public conformance key), the Ed25519 signature, the audience, the
- * window, and the chain's attenuation and grant shape. The schema rules are the
- * contract's own buf.validate declarations, run by protovalidate. The shared
- * `testdata/vectors.json`, written by the Go test, holds every rule to Go's
- * verdict. Nothing here consumes a nonce: liveness is the hop's Check, which the
- * digest binds to this call. */
+import { checkCall, Replayed, type ReplayStore } from "./hop-call.js";
+export { Replayed } from "./hop-call.js";
+export type { ReplayStore } from "./hop-call.js";
+/** Work Context identity readers and method-bound, single-use hop admission.
+ * Verifier consumes signed call nonces in a required durable shared ReplayStore.
+ * authenticateClaims alone authenticates identity, not admission. */
 import { createHash, createPrivateKey, createPublicKey, timingSafeEqual, verify } from "node:crypto";
 import { equals, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { createValidator } from "@bufbuild/protovalidate";
@@ -78,9 +72,9 @@ export type StampHeaders = Readonly<Record<string, string | readonly string[]>> 
 
 /** The claims of the Work Context the hop forwarded to this module (audience), or
  * Unauthenticated naming why it must not be believed. */
-export function authenticateClaims(headers: StampHeaders, proof: string, audience: string, trust: Trust): Claims {
+export function authenticateClaims(headers: StampHeaders, audience: string, trust: Trust): Claims {
   if (!audience) throw new Unauthenticated("no audience: a module authenticates a context for itself");
-  const token = boundToken(headers, proof);
+  const token = boundToken(headers);
   if (token.length > MAX_TOKEN_BYTES || token.split(".").length !== 2) {
     throw new Unauthenticated("expected a bounded payload.signature context");
   }
@@ -192,11 +186,10 @@ function checkStructure(context: WorkContextV1): void {
   if (identityKey(context, last) !== actor) throw new Unauthenticated(`grant ${name} hands authority to another principal rather than elevating it`);
 }
 
-/** The one token the stamp's digest binds under this run's proof. Bound, not
- * authenticated: whoever holds the proof can write both. */
-export function boundToken(headers: StampHeaders, proof: string): string {
-  if (headers === null || typeof headers !== "object" || typeof proof !== "string") {
-    throw new Unauthenticated("context requires request headers and a run proof");
+/** Extract one digest-bound token. This is not hop admission authentication. */
+export function boundToken(headers: StampHeaders): string {
+  if (headers === null || typeof headers !== "object") {
+    throw new Unauthenticated("context requires request headers");
   }
   const values = new Map<string, string[]>();
   const pairs = Symbol.iterator in Object(headers) ? headers as Iterable<readonly [string, string]> : Object.entries(headers);
@@ -210,9 +203,6 @@ export function boundToken(headers: StampHeaders, proof: string): string {
     return left.length === right.length && timingSafeEqual(left, right);
   };
   const token = one("x-codefly-work-context");
-  if (!proof || !equal(proof, one("x-codefly-hop-proof"))) {
-    throw new Unauthenticated("the call did not come through the hop: it carries no stamp with this run's proof");
-  }
   if (!token || !equal(createHash("sha256").update(token).digest("hex"), one("x-codefly-hop-context"))) {
     throw new Unauthenticated("the Work Context is not the one the hop's stamp binds");
   }
@@ -292,9 +282,9 @@ export class Verifier {
   /** The last key-read failure, for the module's own logs; never sent to a caller. */
   keysError?: unknown;
 
-  constructor(private readonly source: KeySource, private readonly audience: string, private readonly proof: string,
+  constructor(private readonly source: KeySource, private readonly audience: string, private readonly publicKey: string, private readonly replay: ReplayStore,
               private readonly now: () => number = Date.now, private readonly timeoutMs: number = KEY_TIMEOUT_MS) {
-    if (!source || !audience || !proof) throw new Unauthenticated("a verifier needs the authority's Keys, this module's audience and the run's hop proof");
+    if (!source || !audience || !/^[0-9a-f]{64}$/.test(publicKey) || !replay) throw new Unauthenticated("a verifier needs the authority's Keys, this module's audience and the hop public key and shared replay store");
     void this.refresh();
   }
 
@@ -311,11 +301,14 @@ export class Verifier {
   }
 
   /** Who the call is for, or Unauthenticated naming why it is refused. */
-  async verify(headers: StampHeaders): Promise<Identity> {
+  async verify(headers: StampHeaders, method: string): Promise<Identity> {
     const pairs = [...(Symbol.iterator in Object(headers) ? headers as Iterable<readonly [string, string]> : Object.entries(headers))]
       .flatMap(([key, value]) => (typeof value === "string" ? [value] : [...value]).map(v => [key.toLowerCase(), v] as const));
-    const token = boundToken(pairs, this.proof); // the stamp first: nothing unbound reaches the key read
-    const claims = authenticateClaims(pairs, this.proof, this.audience, await this.trustFor(keyIdOf(token)));
+    let call: { nonce: string; expires: number };
+    try { call = checkCall(pairs, this.publicKey, method, this.audience, this.now()); }
+    catch (error) { throw new Unauthenticated(error instanceof Error ? error.message : "invalid hop proof"); }
+    const token = boundToken(pairs); // the stamp first: nothing unbound reaches the key read
+    const claims = authenticateClaims(pairs, this.audience, await this.trustFor(keyIdOf(token)));
     const id = identityOf(claims.context);
     const stamped: Record<string, string> = {
       "x-codefly-hop-owner": id.owner, "x-codefly-hop-owner-kind": id.ownerKind, "x-codefly-hop-tenant": id.tenant,
@@ -328,7 +321,11 @@ export class Verifier {
         throw new Unauthenticated(`the stamp's ${key.slice("x-codefly-hop-".length)} does not match the authenticated Work Context`);
       }
     }
-    const advisory = pairs.find(([name]) => name === "x-codefly-hop-advisory")?.[1] ?? "";
+    if (call.expires <= Math.floor(this.now() / 1000)) throw new Unauthenticated("hop proof expired while authenticating");
+    try { await this.replay.consume(call.nonce, call.expires); }
+    catch (error) { throw new Unauthenticated(error instanceof Replayed ? "hop admission replayed" : "hop replay store unavailable"); }
+    if (call.expires <= Math.floor(this.now() / 1000)) throw new Unauthenticated("hop proof expired during replay reservation");
+    const advisory = "";
     return Object.freeze({ ...id, context: token, advisory, claims });
   }
 

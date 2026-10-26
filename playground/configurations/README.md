@@ -6,9 +6,13 @@ the repository root, because a module's checkout root provides its groups to
 every workspace that composes it. The authority module provides none, so a
 workspace composing it owns its edge and hop groups whole.
 
-The run's proof and internal token are generated, never committed:
+The hop's service-only signing seed and internal token are generated, never committed:
 
 ```bash
-codefly config generate hop PROOF
+codefly config generate hop-signing SEED --service authority/hop
 codefly config generate internal-auth CODEFLY_INTERNAL_TOKEN
 ```
+
+Deliver the derived public key and shared replay volume as described in the
+[hop admission migration](../../libraries/hop/README.md). The old shared PROOF
+and warning mode cannot authorize calls.

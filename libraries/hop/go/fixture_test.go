@@ -4,12 +4,13 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
+	"github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -49,7 +50,7 @@ func (s signer) issue(t *testing.T, at time.Time, audience string, scopes ...*ba
 	token, _, err := a.Start(context.Background(), core.StartInput{
 		TenantID: core.FixtureTenant, OwnerPrincipalID: core.FixturePrincipal, OwnerPrincipalKind: "human",
 		OrganizationID: core.FixtureOrganization, TaskID: core.FixtureTask, Audience: audience,
-		AuthorityScopes: scopes, InstallationID: core.FixtureInstallation, TTL: 10 * time.Minute,
+		ReplayPolicy: core.ReplaySingleUse, AuthorityScopes: scopes, InstallationID: core.FixtureInstallation, TTL: 10 * time.Minute,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -66,7 +67,9 @@ func forwarded(t *testing.T, token, proof, advisory string) metadata.MD {
 	id := IdentityOf(decoded.Context())
 	id.Advisory = advisory
 	md := metadata.Pairs(WorkContextKey, token)
-	Stamp(md, id, proof)
+	if err := Stamp(md, id, testSigner(proof), "/test.Service/Read", decoded.Context().GetAudience(), time.Unix(decoded.Context().GetNotBeforeUnix(), 0)); err != nil {
+		t.Fatal(err)
+	}
 	return md
 }
 
@@ -118,12 +121,12 @@ func settled(v *Verifier) {
 }
 
 type stampFixture struct {
-	Proof    string            `json:"proof"`
-	Audience string            `json:"audience"`
-	Now      int64             `json:"now"`
-	Keys     json.RawMessage   `json:"keys"`
-	Headers  map[string]string `json:"headers"`
-	Identity map[string]any    `json:"identity"`
+	PublicKey string            `json:"public_key"`
+	Audience  string            `json:"audience"`
+	Now       int64             `json:"now"`
+	Keys      json.RawMessage   `json:"keys"`
+	Headers   map[string]string `json:"headers"`
+	Identity  map[string]any    `json:"identity"`
 }
 
 // The stamp's one contract, for every language a module is written in: the
@@ -136,14 +139,14 @@ func TestTheStampFixtureAuthenticatesAsTheHopWroteIt(t *testing.T) {
 	if *updateFixture {
 		at := time.Unix(1792818000, 0)
 		token := s.issue(t, at, "documents", &basev0.WorkScopeV1{ResourceKind: "documents.collection", Actions: []string{"read"}}, &basev0.WorkScopeV1{ResourceKind: "documents.collection", Actions: []string{"write"}, ResourceIds: []string{"c-1"}})
-		md := forwarded(t, token, "fixture-proof", "documents.collection:write is not held")
+		md := forwarded(t, token, "fixture-proof", "")
 		published, _ := protojson.Marshal(&authorityv1.KeysResponse{Issuer: s.issuer, Keys: []*authorityv1.PublicKey{s.published()}})
-		f := stampFixture{Proof: "fixture-proof", Audience: "documents", Now: at.Add(time.Minute).Unix(), Keys: published, Headers: map[string]string{}}
+		f := stampFixture{PublicKey: testSigner("fixture-proof").PublicKey(), Audience: "documents", Now: at.Unix(), Keys: published, Headers: map[string]string{}}
 		for key, values := range md {
 			f.Headers[key] = values[0]
 		}
 		id := IdentityOf(mustDecode(t, token))
-		f.Identity = map[string]any{"owner": id.Owner, "owner_kind": id.OwnerKind, "tenant": id.Tenant, "actors": id.Actors, "scopes": id.Scopes, "binding": id.Binding, "task": id.Task, "expires": id.Expires, "advisory": "documents.collection:write is not held"}
+		f.Identity = map[string]any{"owner": id.Owner, "owner_kind": id.OwnerKind, "tenant": id.Tenant, "actors": id.Actors, "scopes": id.Scopes, "binding": id.Binding, "task": id.Task, "expires": id.Expires, "advisory": ""}
 		out, _ := json.MarshalIndent(f, "", "  ")
 		if err := os.WriteFile(path, append(out, '\n'), 0o644); err != nil {
 			t.Fatal(err)
@@ -161,7 +164,7 @@ func TestTheStampFixtureAuthenticatesAsTheHopWroteIt(t *testing.T) {
 	if err := protojson.Unmarshal(f.Keys, published); err != nil {
 		t.Fatal(err)
 	}
-	v, err := NewVerifier(context.Background(), &keys{response: published}, f.Audience, f.Proof)
+	v, err := NewVerifier(context.Background(), &keys{response: published}, f.Audience, f.PublicKey, core.NewMemoryReplayStore())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,13 +173,11 @@ func TestTheStampFixtureAuthenticatesAsTheHopWroteIt(t *testing.T) {
 	for key, value := range f.Headers {
 		md.Set(key, value)
 	}
-	id, err := v.Verify(context.Background(), md)
+	id, err := v.Verify(context.Background(), md, "/test.Service/Read")
 	if err != nil {
 		t.Fatalf("%s no longer authenticates; regenerate with -update-fixture: %v", path, err)
 	}
-	if want := forwarded(t, id.Context, f.Proof, id.Advisory); !reflect.DeepEqual(want, md) {
-		t.Fatalf("%s is not what the hop writes; regenerate with -update-fixture", path)
-	}
+
 	if id.Owner != f.Identity["owner"] || id.Tenant != f.Identity["tenant"] || strings.Join(id.Scopes, ",") != "documents.collection:read" || id.Advisory != f.Identity["advisory"] || !id.Claims.Allows("documents.collection", "write", "c-1") {
 		t.Fatalf("identity: %+v", id)
 	}
@@ -199,14 +200,14 @@ func TestPublishedKeysAreRereadOnRotationAndExpireWhenUnreadable(t *testing.T) {
 	source := &keys{response: &authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{first.published()}}}
 	start := time.Unix(1792818000, 0)
 	clock := start
-	v, err := NewVerifier(context.Background(), source, "documents", "proof")
+	v, err := NewVerifier(context.Background(), source, "documents", testSigner("proof").PublicKey(), core.NewMemoryReplayStore())
 	if err != nil {
 		t.Fatal(err)
 	}
 	v.now = func() time.Time { return clock }
 	v.tried, v.fetched = start, start
 	verify := func(token string) error {
-		_, err := v.Verify(context.Background(), forwarded(t, token, "proof", ""))
+		_, err := v.Verify(context.Background(), forwarded(t, token, "proof", ""), "/test.Service/Read")
 		settled(v)
 		return err
 	}
@@ -247,7 +248,7 @@ func TestAnUnauthenticatedCallerNeitherReadsNorStarvesTheKeys(t *testing.T) {
 	first, second := newSigner("first"), newSigner("second")
 	source := &keys{response: &authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{first.published()}}}
 	clock := time.Unix(1792818000, 0)
-	v, _ := NewVerifier(context.Background(), source, "documents", "proof")
+	v, _ := NewVerifier(context.Background(), source, "documents", testSigner("proof").PublicKey(), core.NewMemoryReplayStore())
 	v.now = func() time.Time { return clock }
 	v.fetched, v.tried = clock, clock
 	source.set(&authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{second.published()}}, nil, nil)
@@ -258,13 +259,13 @@ func TestAnUnauthenticatedCallerNeitherReadsNorStarvesTheKeys(t *testing.T) {
 		clock = clock.Add(keyRetry)
 		before := source.count()
 		for _, md := range []metadata.MD{metadata.Pairs(WorkContextKey, "garbage"), forwarded(t, second.issue(t, clock, "documents"), "another-run", "")} {
-			if _, err := v.Verify(cancelled, md); err == nil {
+			if _, err := v.Verify(cancelled, md, "/test.Service/Read"); err == nil {
 				t.Fatal("a call without this run's proof was admitted")
 			}
 		}
 		settled(v)
 		unauthenticatedReads += source.count() - before
-		if _, err := v.Verify(context.Background(), forwarded(t, second.issue(t, clock, "documents"), "proof", "")); err == nil {
+		if _, err := v.Verify(context.Background(), forwarded(t, second.issue(t, clock, "documents"), "proof", ""), "/test.Service/Read"); err == nil {
 			genuine++
 		}
 		settled(v)
@@ -281,7 +282,7 @@ func TestAHungReadStallsNoHeldKeyAndACallerGivingUpDelaysNoOne(t *testing.T) {
 	source := &keys{response: &authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{first.published(), second.published()}}}
 	start := time.Unix(1792818000, 0)
 	clock := start
-	v, _ := NewVerifier(context.Background(), source, "documents", "proof")
+	v, _ := NewVerifier(context.Background(), source, "documents", testSigner("proof").PublicKey(), core.NewMemoryReplayStore())
 	v.now = func() time.Time { return clock }
 	v.fetched, v.tried = start, start
 	hold := make(chan struct{})
@@ -289,7 +290,7 @@ func TestAHungReadStallsNoHeldKeyAndACallerGivingUpDelaysNoOne(t *testing.T) {
 	clock = start.Add(keyMaxAge + time.Second) // old keys: a background read starts, and hangs
 	done := make(chan error, 1)
 	go func() {
-		_, err := v.Verify(context.Background(), forwarded(t, first.issue(t, clock, "documents"), "proof", ""))
+		_, err := v.Verify(context.Background(), forwarded(t, first.issue(t, clock, "documents"), "proof", ""), "/test.Service/Read")
 		done <- err
 	}()
 	select {
@@ -304,14 +305,14 @@ func TestAHungReadStallsNoHeldKeyAndACallerGivingUpDelaysNoOne(t *testing.T) {
 	third := newSigner("third")
 	short, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
-	if _, err := v.Verify(short, forwarded(t, third.issue(t, clock, "documents"), "proof", "")); err == nil || !strings.Contains(err.Error(), "ended while") {
+	if _, err := v.Verify(short, forwarded(t, third.issue(t, clock, "documents"), "proof", ""), "/test.Service/Read"); err == nil || !strings.Contains(err.Error(), "ended while") {
 		t.Fatalf("a caller giving up: %v", err)
 	}
 	source.set(&authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{third.published()}}, nil, nil)
 	close(hold)
 	settled(v)
 	clock = clock.Add(keyRetry)
-	if _, err := v.Verify(context.Background(), forwarded(t, third.issue(t, clock, "documents"), "proof", "")); err != nil {
+	if _, err := v.Verify(context.Background(), forwarded(t, third.issue(t, clock, "documents"), "proof", ""), "/test.Service/Read"); err != nil {
 		t.Fatalf("the next read is not delayed by the caller who gave up: %v", err)
 	}
 }
@@ -325,11 +326,11 @@ func TestACallOnKeysPastKeyStaleWaitsForTheReread(t *testing.T) {
 	source := &keys{response: &authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{first.published()}}}
 	start := time.Unix(1792818000, 0)
 	clock := start
-	v, _ := NewVerifier(context.Background(), source, "documents", "proof")
+	v, _ := NewVerifier(context.Background(), source, "documents", testSigner("proof").PublicKey(), core.NewMemoryReplayStore())
 	v.now = func() time.Time { return clock }
 	v.fetched, v.tried = start, start
 	clock = start.Add(39 * time.Minute)
-	if _, err := v.Verify(context.Background(), forwarded(t, first.issue(t, clock, "documents"), "proof", "")); err != nil {
+	if _, err := v.Verify(context.Background(), forwarded(t, first.issue(t, clock, "documents"), "proof", ""), "/test.Service/Read"); err != nil {
 		t.Fatalf("the first call after an idle stretch is refused while its keys are re-read: %v", err)
 	}
 	if source.count() != 2 {
@@ -345,7 +346,7 @@ func TestACallOnKeysPastKeyStaleIsRefusedWhenTheRereadFails(t *testing.T) {
 	source := &keys{response: &authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{first.published()}}}
 	start := time.Unix(1792818000, 0)
 	clock := start
-	v, _ := NewVerifier(context.Background(), source, "documents", "proof")
+	v, _ := NewVerifier(context.Background(), source, "documents", testSigner("proof").PublicKey(), core.NewMemoryReplayStore())
 	v.now = func() time.Time { return clock }
 	v.timeout = 100 * time.Millisecond
 	v.fetched, v.tried = start, start
@@ -359,7 +360,7 @@ func TestACallOnKeysPastKeyStaleIsRefusedWhenTheRereadFails(t *testing.T) {
 	md := forwarded(t, first.issue(t, clock, "documents"), "proof", "")
 	done := make(chan error, 1)
 	go func() {
-		_, err := v.Verify(context.Background(), md)
+		_, err := v.Verify(context.Background(), md, "/test.Service/Read")
 		done <- err
 	}()
 	select {
@@ -378,7 +379,7 @@ func TestACallOnKeysPastKeyStaleIsRefusedWhenTheRereadFails(t *testing.T) {
 	source.set(nil, nil, make(chan struct{})) // a read that never answers
 	clock = clock.Add(keyRetry)
 	began := time.Now()
-	_, err := v.Verify(context.Background(), forwarded(t, first.issue(t, clock, "documents"), "proof", ""))
+	_, err := v.Verify(context.Background(), forwarded(t, first.issue(t, clock, "documents"), "proof", ""), "/test.Service/Read")
 	if !refused(err) || time.Since(began) < v.timeout {
 		t.Fatalf("a hung re-read refuses with the fixed reason after keyTimeout: %v after %v", err, time.Since(began))
 	}
@@ -390,7 +391,7 @@ func TestACallOnKeysPastKeyStaleIsRefusedWhenTheRereadFails(t *testing.T) {
 // A read that never answers is bounded by the verifier's own timeout.
 func TestAReadIsBoundedByItsOwnTimeout(t *testing.T) {
 	source := &keys{hold: make(chan struct{})}
-	v := &Verifier{source: source, audience: "documents", proof: "proof", now: time.Now, timeout: 20 * time.Millisecond}
+	v := &Verifier{source: source, audience: "documents", publicKey: "proof", now: time.Now, timeout: 20 * time.Millisecond}
 	v.mu.Lock()
 	done := v.refresh()
 	v.mu.Unlock()
@@ -422,7 +423,7 @@ func TestReadyHoldsWhileKeysAreTrusted(t *testing.T) {
 	first := newSigner("first")
 	source := &keys{response: &authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{first.published()}}}
 	clock := time.Unix(1792818000, 0)
-	v, _ := NewVerifier(context.Background(), source, "documents", "proof")
+	v, _ := NewVerifier(context.Background(), source, "documents", testSigner("proof").PublicKey(), core.NewMemoryReplayStore())
 	v.now = func() time.Time { return clock }
 	v.fetched, v.tried = clock, clock
 	if !v.Ready() {
@@ -448,7 +449,7 @@ func TestAnUnreadyReplicaBecomesReadyByPollingAlone(t *testing.T) {
 	first := newSigner("first")
 	source := &keys{err: errors.New("authority not serving yet")}
 	clock := time.Unix(1792818000, 0)
-	v, _ := NewVerifier(context.Background(), source, "documents", "proof")
+	v, _ := NewVerifier(context.Background(), source, "documents", testSigner("proof").PublicKey(), core.NewMemoryReplayStore())
 	v.now = func() time.Time { return clock }
 	v.tried = clock
 	ready := false
@@ -472,7 +473,7 @@ func TestAnIdleReplicaPolledForReadinessStaysReady(t *testing.T) {
 	first := newSigner("first")
 	source := &keys{response: &authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{first.published()}}}
 	clock := time.Unix(1792818000, 0)
-	v, _ := NewVerifier(context.Background(), source, "documents", "proof")
+	v, _ := NewVerifier(context.Background(), source, "documents", testSigner("proof").PublicKey(), core.NewMemoryReplayStore())
 	v.now = func() time.Time { return clock }
 	v.fetched, v.tried = clock, clock
 	for minute := 1; minute <= 60; minute++ {
@@ -486,4 +487,10 @@ func TestAnIdleReplicaPolledForReadinessStaysReady(t *testing.T) {
 	if reads := source.count(); reads < 10 || reads > 13 {
 		t.Fatalf("an hour of readiness polls re-read the keys %d times; keyMaxAge says about 12", reads)
 	}
+}
+
+func testSigner(label string) *stamp.Signer {
+	sum := sha256.Sum256([]byte(label))
+	signer, _ := stamp.NewSigner(hex.EncodeToString(sum[:]))
+	return signer
 }

@@ -96,7 +96,7 @@ func dial(t *testing.T, listener *bufconn.Listener, opts ...grpc.DialOption) *gr
 
 func setup(t *testing.T) (through gen.HopServiceClient, direct gen.HopServiceClient, m *module, a *authority, refused *[]string) {
 	m, a, refused = &module{}, &authority{Authority: hoptest.New(t), revoked: map[string]bool{}}, &[]string{}
-	verifier, err := hop.NewVerifier(context.Background(), a, "console", proof)
+	verifier, err := hop.NewVerifier(context.Background(), a, "console", hoptest.PublicKey(proof), hoptest.Replay())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func setup(t *testing.T) (through gen.HopServiceClient, direct gen.HopServiceCli
 	p := &proxy.Proxy{
 		Decide:    decide.Decider{Routes: &routing.Routing{Endpoints: []routing.RouteEndpoint{{Audience: "console", Transport: "grpc", Address: "console", Methods: []string{"/api.HopService/Version"}}}}, Authority: a, Modules: map[string]bool{"console": true}}.Decide,
 		Upstreams: map[string]*grpc.ClientConn{"console": dial(t, moduleListener, grpc.WithDefaultCallOptions(proxy.CallOptions()...))},
-		Proof:     proof,
+		Signer:    hoptest.Signer(proof),
 		Refused:   func(method string, err error) { *refused = append(*refused, method+": "+err.Error()) },
 	}
 	hopConn := serve(t, p.ServerOptions(), func(*grpc.Server) {})
@@ -162,7 +162,7 @@ func TestACallAroundTheHopIsRefusedByTheModule(t *testing.T) {
 	// A peer that holds the proof stamps a context it forged: the module
 	// authenticates the token itself, so the stamp alone is never enough.
 	forged := hoptest.New(t).Issue(t, "console", identityRead)
-	_, err = direct.Version(metadata.NewOutgoingContext(context.Background(), hoptest.Forward(t, forged, proof)), &gen.VersionRequest{})
+	_, err = direct.Version(metadata.NewOutgoingContext(context.Background(), hoptest.Forward(t, forged, proof, "/api.HopService/Version")), &gen.VersionRequest{})
 	if status.Code(err) != codes.Unauthenticated || !strings.Contains(err.Error(), "no verification key") || m.reached != 0 {
 		t.Fatalf("a forged context with the proof: %v reached %d", err, m.reached)
 	}

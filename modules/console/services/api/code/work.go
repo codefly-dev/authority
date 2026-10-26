@@ -26,9 +26,17 @@ func init() {
 // a call that did not come through the hop or carries a context the authority
 // did not issue for the console. It re-checks no permission the hop decided.
 func answerFromTheStamp(ctx context.Context, config *adapters.Configuration) (Clean, error) {
-	proof, err := codefly.For(ctx).WorkspaceSecret("hop", "PROOF")
-	if err != nil || proof == "" {
-		return nil, fmt.Errorf("console: no run proof delivered (codefly config generate hop PROOF): %v", err)
+	publicKey, err := codefly.For(ctx).WorkspaceConfiguration("hop-verification", "PUBLIC_KEY")
+	if err != nil || publicKey == "" {
+		return nil, fmt.Errorf("console: no hop verification public key delivered: %v", err)
+	}
+	directory, err := codefly.For(ctx).WorkspaceConfiguration("hop-verification", "REPLAY_DIRECTORY")
+	if err != nil {
+		return nil, fmt.Errorf("console: replay directory not delivered: %w", err)
+	}
+	replay, err := hop.NewFileReplayStore(directory)
+	if err != nil {
+		return nil, err
 	}
 	audience, err := hop.Audience()
 	if err != nil {
@@ -40,7 +48,7 @@ func answerFromTheStamp(ctx context.Context, config *adapters.Configuration) (Cl
 	}
 	// It starts whether or not the authority serves its keys yet, and refuses
 	// calls with the reason until it does.
-	verifier, err := hop.NewVerifier(ctx, authorityv1.NewAuthorityServiceClient(conn), audience, proof)
+	verifier, err := hop.NewVerifier(ctx, authorityv1.NewAuthorityServiceClient(conn), audience, publicKey, replay)
 	if err != nil {
 		_ = conn.Close()
 		return nil, fmt.Errorf("console: %w", err)

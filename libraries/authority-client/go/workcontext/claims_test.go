@@ -79,7 +79,7 @@ func tokenFor(t *testing.T, c *basev0.WorkContextV1) string { return signWith(t,
 
 func read(t *testing.T, c *basev0.WorkContextV1) *reader.Claims {
 	t.Helper()
-	out, err := reader.Authenticate(stampedToken(tokenFor(t, c)), "test-proof", c.GetAudience(), trustFor(c))
+	out, err := reader.Authenticate(stampedToken(tokenFor(t, c)), c.GetAudience(), trustFor(c))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +157,7 @@ func TestEnvelopesAndClaimsCoreRefuses(t *testing.T) {
 	valid := tokenFor(t, session)
 	payload, _, _ := strings.Cut(valid, ".")
 	for _, token := range []string{"abc", "a.b.c", ".", "é.x", strings.Repeat("a", 32*1024+1), valid + "=", payload + ".AA", payload + "." + strings.Repeat("A", 85) + "B"} {
-		if _, err := reader.Authenticate(stampedToken(token), "test-proof", session.GetAudience(), trustFor(session)); !errors.Is(err, reader.ErrUnauthenticated) {
+		if _, err := reader.Authenticate(stampedToken(token), session.GetAudience(), trustFor(session)); !errors.Is(err, reader.ErrUnauthenticated) {
 			t.Fatalf("envelope not refused: %v", err)
 		}
 	}
@@ -181,7 +181,7 @@ func TestEnvelopesAndClaimsCoreRefuses(t *testing.T) {
 				b = append(b, b...)
 				token = base64.RawURLEncoding.EncodeToString(b) + "." + base64.RawURLEncoding.EncodeToString(ed25519.Sign(signer, b))
 			}
-			if _, err := reader.Authenticate(stampedToken(token), "test-proof", session.GetAudience(), trustFor(session)); !errors.Is(err, reader.ErrUnauthenticated) {
+			if _, err := reader.Authenticate(stampedToken(token), session.GetAudience(), trustFor(session)); !errors.Is(err, reader.ErrUnauthenticated) {
 				t.Fatalf("malformed claims not refused: %v", err)
 			}
 		})
@@ -214,7 +214,7 @@ func TestAForgedOrMisaddressedContextIsRefusedByName(t *testing.T) {
 		"no audience":    {tokenFor(t, session), "", "no audience", trust},
 	} {
 		t.Run(name, func(t *testing.T) {
-			_, err := reader.Authenticate(stampedToken(c.token), "test-proof", c.audience, c.trust)
+			_, err := reader.Authenticate(stampedToken(c.token), c.audience, c.trust)
 			if !errors.Is(err, reader.ErrUnauthenticated) || !strings.Contains(err.Error(), c.reason) {
 				t.Fatalf("want a refusal naming %q, got %v", c.reason, err)
 			}
@@ -230,22 +230,18 @@ func TestAuthenticateRequiresTheStamp(t *testing.T) {
 	session := body(t, "session")
 	token := tokenFor(t, session)
 	for _, change := range []func(metadata.MD){
-		func(md metadata.MD) { md.Delete("x-codefly-hop-proof") },
-		func(md metadata.MD) { md.Set("x-codefly-hop-proof", "forged") },
 		func(md metadata.MD) { md.Delete("x-codefly-hop-context") },
 		func(md metadata.MD) { md.Set("x-codefly-work-context", tokenFor(t, body(t, "operation"))) },
 		func(md metadata.MD) { md.Append("x-codefly-work-context", token) },
 	} {
 		md := stampedToken(token)
 		change(md)
-		if _, err := reader.Authenticate(md, "test-proof", session.GetAudience(), trustFor(session)); !errors.Is(err, reader.ErrUnauthenticated) {
+		if _, err := reader.Authenticate(md, session.GetAudience(), trustFor(session)); !errors.Is(err, reader.ErrUnauthenticated) {
 			t.Fatalf("unbound claims accepted: %v", err)
 		}
 	}
-	if _, err := reader.Authenticate(stampedToken(token), "", session.GetAudience(), trustFor(session)); err == nil {
-		t.Fatal("empty proof accepted")
-	}
-	if c, err := reader.Authenticate(stampedToken(token), "test-proof", session.GetAudience(), trustFor(session)); err != nil || c.Context().GetTenantId() != session.GetTenantId() {
+
+	if c, err := reader.Authenticate(stampedToken(token), session.GetAudience(), trustFor(session)); err != nil || c.Context().GetTenantId() != session.GetTenantId() {
 		t.Fatalf("an authentic, bound context: %v", err)
 	}
 }

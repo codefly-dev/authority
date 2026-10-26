@@ -18,7 +18,7 @@ const body = name => fromBinary(WorkContextV1Schema, Buffer.from(fixtures.find(f
 const signed = context => { const payload = toBinary(WorkContextV1Schema,context); return encode(payload)+'.'+encode(sign(null,payload,signer)); };
 const trustFor = context => trustFromKeys(create(KeysResponseSchema,{issuer:context.issuer,keys:[create(PublicKeySchema,{keyId:context.keyId,algorithm:'Ed25519',publicKey})]}), ()=>(Number(context.notBeforeUnix)+1)*1000);
 const stamped = token => ({'x-codefly-work-context':token,'x-codefly-hop-proof':'test-proof','x-codefly-hop-context':createHash('sha256').update(token).digest('hex')});
-const read = context => authenticateClaims(stamped(signed(context)),'test-proof',context.audience,trustFor(context));
+const read = context => authenticateClaims(stamped(signed(context)), context.audience, trustFor(context));
 const scope = fields => create(WorkScopeV1Schema, fields);
 
 // The owner-selected rows (allows refusing, allowsOwned admitting only the

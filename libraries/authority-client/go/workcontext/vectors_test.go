@@ -121,7 +121,7 @@ func TestTheSharedVectorsAreGosVerdicts(t *testing.T) {
 				keys[id] = raw
 			}
 			at := time.Unix(v.Now, 0)
-			_, err := reader.Authenticate(stampedToken(v.Token), "test-proof", v.Audience, reader.Trust{Issuer: v.Issuer, Keys: keys, Now: func() time.Time { return at }})
+			_, err := reader.Authenticate(stampedToken(v.Token), v.Audience, reader.Trust{Issuer: v.Issuer, Keys: keys, Now: func() time.Time { return at }})
 			if v.Accept && err != nil {
 				t.Fatalf("Go refuses a vector it should accept: %v", err)
 			}

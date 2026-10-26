@@ -1,10 +1,11 @@
+import { createPrivateKey as hopPrivateKey, randomBytes as hopRandom, sign as hopSign } from "node:crypto";
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash, createPrivateKey, generateKeyPairSync, sign } from 'node:crypto';
 import { test } from 'node:test';
 import { create, fromBinary, fromJson, toBinary } from '@bufbuild/protobuf';
 import { KeysResponseSchema, PublicKeySchema, WorkContextV1Schema, WorkScopeV1Schema } from '@codefly-dev/authority-client';
-import { authenticateClaims, identityOf, trustFromKeys, Unauthenticated, Verifier } from '@codefly-dev/authority-client/work-context';
+import { authenticateClaims, identityOf, trustFromKeys, Unauthenticated, Verifier, Replayed } from '@codefly-dev/authority-client/work-context';
 
 const fixtures = JSON.parse(readFileSync(new URL('../../testdata/claims.json',import.meta.url),'utf8'));
 const encode = bytes => Buffer.from(bytes).toString('base64url');
@@ -15,7 +16,7 @@ const body = name => fromBinary(WorkContextV1Schema, Buffer.from(fixtures.find(f
 const signed = (context, key=signer) => { const payload = toBinary(WorkContextV1Schema,context); return encode(payload)+'.'+encode(sign(null,payload,key)); };
 const trustFor = (context, at=(Number(context.notBeforeUnix)+1)*1000) => trustFromKeys(create(KeysResponseSchema,{issuer:context.issuer,keys:[create(PublicKeySchema,{keyId:context.keyId,algorithm:'Ed25519',publicKey})]}), ()=>at);
 const stamped = (token, proof='test-proof') => ({'x-codefly-work-context':token,'x-codefly-hop-proof':proof,'x-codefly-hop-context':createHash('sha256').update(token).digest('hex')});
-const read = context => authenticateClaims(stamped(signed(context)),'test-proof',context.audience,trustFor(context));
+const read = context => authenticateClaims(stamped(signed(context)), context.audience, trustFor(context));
 const scope = (actions, resourceIds=[]) => create(WorkScopeV1Schema,{resourceKind:'profiles',actions,resourceIds});
 
 for (const fixture of fixtures) {
@@ -55,21 +56,19 @@ test('a forged, unsigned, misaddressed or expired context is refused by name', (
     [signed(create(WorkContextV1Schema,{...context, keyId:'rotated'})), context.audience, trust, /no verification key/],
     [signed(context), '', trust, /no audience/],
   ]) {
-    assert.throws(()=>authenticateClaims(stamped(token),'test-proof',audience,use), e => e instanceof Unauthenticated && reason.test(e.message));
+    assert.throws(()=>authenticateClaims(stamped(token), audience, use), e => e instanceof Unauthenticated && reason.test(e.message));
   }
 });
 
 test('the stamp must bind the token under this run\'s proof', () => {
   const context = body('session'), token = signed(context), trust = trustFor(context);
   for (const headers of [
-    {...stamped(token), 'x-codefly-hop-proof':'forged'},
     {...stamped(token), 'x-codefly-hop-context':'0'.repeat(64)},
     {...stamped(token), 'x-codefly-work-context':signed(body('operation'))},
     [...Object.entries(stamped(token)), ['x-codefly-work-context',token]],
-  ]) assert.throws(()=>authenticateClaims(headers,'test-proof',context.audience,trust),Unauthenticated);
-  assert.throws(()=>authenticateClaims(stamped(token),'',context.audience,trust),Unauthenticated);
+  ]) assert.throws(()=>authenticateClaims(headers, context.audience, trust),Unauthenticated);
   for (const bad of ['abc','a.b.c','é.x', payloadOnly(token)+'.AA']) {
-    assert.throws(()=>authenticateClaims(stamped(bad),'test-proof',context.audience,trust),Unauthenticated);
+    assert.throws(()=>authenticateClaims(stamped(bad), context.audience, trust),Unauthenticated);
   }
 });
 
@@ -88,28 +87,36 @@ const vectors = JSON.parse(readFileSync(new URL('../../testdata/vectors.json',im
 for (const v of vectors) {
   test(`shared vector, Go's verdict: ${v.name}`, () => {
     const trust = {issuer: v.issuer, keys: new Map(Object.entries(v.keys).map(([kid, raw]) => [kid, new Uint8Array(Buffer.from(raw,'base64'))])), now: () => v.now*1000};
-    const run = () => authenticateClaims(stamped(v.token),'test-proof',v.audience,trust);
+    const run = () => authenticateClaims(stamped(v.token), v.audience, trust);
     if (v.accept) run();
     else assert.throws(run, e => e instanceof Unauthenticated && e.message.includes(v.reason), v.reason);
   });
 }
 
 const fixture = JSON.parse(readFileSync(new URL('../../../hop/testdata/stamped.json',import.meta.url),'utf8'));
+const METHOD = "/test.Service/Read";
+const replay = () => { const seen = new Set(); return { async consume(nonce) { if (seen.has(nonce)) throw new Replayed(); seen.add(nonce); } }; };
+const fresh = (now, method = METHOD, audience = fixture.audience) => {
+ const key = hopPrivateKey({key: Buffer.concat([Buffer.from("302e020100300506032b657004220420", "hex"), createHash("sha256").update("fixture-proof").digest()]), format: "der", type: "pkcs8"});
+ const payload = Buffer.from(JSON.stringify(["codefly-hop-v1", method, audience, fixture.headers["x-codefly-hop-context"], hopRandom(32).toString("hex"), Math.floor(now/1000), Math.floor(now/1000)+30]));
+ return {...fixture.headers, "x-codefly-hop-proof": payload.toString("base64url")+"."+hopSign(null,payload,key).toString("base64url")};
+};
+
 const published = fromJson(KeysResponseSchema, fixture.keys);
 const source = (answer = () => Promise.resolve(published)) => { const s = {reads: 0, keys: () => { s.reads++; return answer(); }}; return s; };
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
 test('the Verifier reads the hop fixture as Go reads it', async () => {
   const keys = source();
-  const v = new Verifier(keys, fixture.audience, fixture.proof, () => fixture.now*1000);
-  const id = await v.verify(fixture.headers);
+  const v = new Verifier(keys, fixture.audience, fixture.public_key, replay(), () => fixture.now*1000);
+  const id = await v.verify(fresh(v.now()), METHOD);
   assert.equal(id.owner, fixture.identity.owner);
   assert.equal(id.tenant, fixture.identity.tenant);
   assert.deepEqual([...id.scopes], fixture.identity.scopes);
   assert.equal(id.advisory, fixture.identity.advisory);
   assert.ok(id.claims.allows('documents.collection','write','c-1'));
   for (const [key, value, reason] of [['x-codefly-hop-tenant','globex',/tenant/],['x-codefly-hop-scopes','documents.collection:admin',/scopes/],['x-codefly-hop-proof','another-run',/proof/]]) {
-    await assert.rejects(v.verify({...fixture.headers, [key]: value}), e => e instanceof Unauthenticated && reason.test(e.message));
+    await assert.rejects(v.verify({...fixture.headers, [key]: value}, METHOD), e => e instanceof Unauthenticated && reason.test(e.message));
   }
 });
 
@@ -120,17 +127,17 @@ test('a call without the proof never reads the keys, and a hung read stalls no h
   let hang = false;
   const keys = source(() => hang ? new Promise(resolve => { release = () => resolve(published); }) : Promise.resolve(published));
   let clock = fixture.now*1000;
-  const v = new Verifier(keys, fixture.audience, fixture.proof, () => clock);
+  const v = new Verifier(keys, fixture.audience, fixture.public_key, replay(), () => clock);
   await settle();
   assert.equal(keys.reads, 1);
   for (let i = 0; i < 20; i++) {
     clock += 11_000;
-    await assert.rejects(v.verify({'x-codefly-work-context': 'garbage'}), Unauthenticated);
+    await assert.rejects(v.verify({'x-codefly-work-context': 'garbage'}, METHOD), Unauthenticated);
   }
   assert.equal(keys.reads, 1, 'a proof-less call read the keys');
   hang = true;
   clock = fixture.now*1000 + 400_000; // keys older than max age: a background re-read starts and hangs
-  const id = await v.verify(fixture.headers);
+  const id = await v.verify(fresh(v.now()), METHOD);
   assert.equal(id.owner, fixture.identity.owner);
   assert.equal(keys.reads, 2);
   release();
@@ -140,12 +147,12 @@ test('a Verifier starts before the authority serves keys and refuses with a reas
   let up = false;
   const keys = source(() => up ? Promise.resolve(published) : Promise.reject(new Error('dial authority:4000: connection refused')));
   let clock = fixture.now*1000;
-  const v = new Verifier(keys, fixture.audience, fixture.proof, () => clock);
+  const v = new Verifier(keys, fixture.audience, fixture.public_key, replay(), () => clock);
   await settle();
-  await assert.rejects(v.verify(fixture.headers), e => e instanceof Unauthenticated && /unavailable/.test(e.message) && !/4000/.test(e.message));
+  await assert.rejects(v.verify(fresh(v.now()), METHOD), e => e instanceof Unauthenticated && /unavailable/.test(e.message) && !/4000/.test(e.message));
   up = true;
   clock += 11_000;
-  assert.equal((await v.verify(fixture.headers)).owner, fixture.identity.owner);
+  assert.equal((await v.verify(fresh(v.now()), METHOD)).owner, fixture.identity.owner);
 });
 
 // The robin playground's model gateway, live: its first call after 39 idle
@@ -156,10 +163,10 @@ test('a Verifier starts before the authority serves keys and refuses with a reas
 test('a call on keys past the stale window waits for the re-read', async () => {
   const keys = source();
   let clock = (fixture.now - 960)*1000;
-  const v = new Verifier(keys, fixture.audience, fixture.proof, () => clock);
+  const v = new Verifier(keys, fixture.audience, fixture.public_key, replay(), () => clock);
   await settle();
   clock = fixture.now*1000;
-  assert.equal((await v.verify(fixture.headers)).owner, fixture.identity.owner);
+  assert.equal((await v.verify(fresh(v.now()), METHOD)).owner, fixture.identity.owner);
   assert.equal(keys.reads, 2);
 });
 
@@ -169,11 +176,11 @@ test('a call on keys past the stale window is refused when the re-read fails', a
   let fail;
   const keys = source(() => keys.reads === 1 ? Promise.resolve(published) : new Promise((_, reject) => { fail = reject; }));
   let clock = (fixture.now - 960)*1000;
-  const v = new Verifier(keys, fixture.audience, fixture.proof, () => clock);
+  const v = new Verifier(keys, fixture.audience, fixture.public_key, replay(), () => clock);
   await settle();
   clock = fixture.now*1000;
   let judged = false;
-  const call = v.verify(fixture.headers).finally(() => { judged = true; });
+  const call = v.verify(fresh(v.now()), METHOD).finally(() => { judged = true; });
   for (let i = 0; i < 5; i++) await settle();
   assert.equal(judged, false, 'the call was judged before its re-read ended');
   fail(new Error('dial authority.internal:4000: connection refused'));
@@ -188,17 +195,17 @@ test('a call on keys past the stale window is refused when the re-read hangs', {
   let hang = false;
   const keys = source(() => hang ? new Promise(() => {}) : Promise.resolve(published));
   let clock = (fixture.now - 960)*1000;
-  const v = new Verifier(keys, fixture.audience, fixture.proof, () => clock, 100);
+  const v = new Verifier(keys, fixture.audience, fixture.public_key, replay(), () => clock, 100);
   await settle();
   hang = true;
   clock = fixture.now*1000;
   const started = performance.now();
-  await assert.rejects(v.verify(fixture.headers), e => e instanceof Unauthenticated && /unavailable/.test(e.message));
+  await assert.rejects(v.verify(fresh(v.now()), METHOD), e => e instanceof Unauthenticated && /unavailable/.test(e.message));
   assert.ok(performance.now() - started >= 90, 'refused before the read timed out');
   assert.equal(v.keysError?.name, 'TimeoutError');
   hang = false;
   clock += 11_000;
-  assert.equal((await v.verify(fixture.headers)).owner, fixture.identity.owner);
+  assert.equal((await v.verify(fresh(v.now()), METHOD)).owner, fixture.identity.owner);
   assert.equal(keys.reads, 3);
 });
 
@@ -212,7 +219,7 @@ test('readiness follows trust, not the last read', async () => {
   let failing = false;
   const keys = source(() => failing ? Promise.reject(new Error('authority down')) : Promise.resolve(published));
   let clock = fixture.now*1000;
-  const v = new Verifier(keys, fixture.audience, fixture.proof, () => clock);
+  const v = new Verifier(keys, fixture.audience, fixture.public_key, replay(), () => clock);
   await settle();
   assert.equal(v.ready(), true);
   failing = true;
@@ -230,7 +237,7 @@ test('an unready replica becomes ready by polling alone', async () => {
   let serving = false;
   const keys = source(() => serving ? Promise.resolve(published) : Promise.reject(new Error('not serving yet')));
   let clock = fixture.now*1000;
-  const v = new Verifier(keys, fixture.audience, fixture.proof, () => clock);
+  const v = new Verifier(keys, fixture.audience, fixture.public_key, replay(), () => clock);
   await settle();
   let ready = false;
   for (let poll = 0; poll < 30 && !ready; poll++) {
@@ -248,7 +255,7 @@ test('an unready replica becomes ready by polling alone', async () => {
 test('an idle replica polled for readiness stays ready', async () => {
   const keys = source();
   let clock = fixture.now*1000;
-  const v = new Verifier(keys, fixture.audience, fixture.proof, () => clock);
+  const v = new Verifier(keys, fixture.audience, fixture.public_key, replay(), () => clock);
   await settle();
   for (let minute = 1; minute <= 60; minute++) {
     clock += 60_000;
@@ -257,4 +264,38 @@ test('an idle replica polled for readiness stays ready', async () => {
     assert.ok(v.ready(), `unready at minute ${minute}`);
   }
   assert.ok(keys.reads >= 10 && keys.reads <= 14, `reads=${keys.reads}`);
+});
+
+test('review probes: read stamp cannot retarget, cross audiences or replay across replicas', async () => {
+  const store = replay();
+  const first = new Verifier(source(), fixture.audience, fixture.public_key, store, () => fixture.now*1000);
+  const second = new Verifier(source(), fixture.audience, fixture.public_key, store, () => fixture.now*1000);
+  for (const method of ['/documents.v1.Service/Delete','/datasets.v1.Service/Register','Read','','POST '+METHOD]) {
+    await assert.rejects(first.verify(fixture.headers, method), /method mismatch/);
+  }
+  const other = new Verifier(source(), 'records', fixture.public_key, store, () => fixture.now*1000);
+  await assert.rejects(other.verify(fixture.headers, METHOD), /audience mismatch/);
+  assert.equal((await first.verify(fixture.headers, METHOD)).claims.context.replayPolicy, "single-use");
+  await assert.rejects(first.verify(fixture.headers, METHOD), /replay/);
+  await assert.rejects(second.verify(fixture.headers, METHOD), /replay/);
+  await assert.rejects(second.verify({...fixture.headers, 'x-codefly-hop-proof': 'fixture-proof'}, METHOD), /proof/);
+});
+
+test('concurrent replay has one winner and a failed store refuses admission', async () => {
+  const store = replay();
+  const replicas = [0,1].map(() => new Verifier(source(), fixture.audience, fixture.public_key, store, () => fixture.now*1000));
+  const results = await Promise.allSettled(Array.from({length:32}, (_,n) => replicas[n%2].verify(fixture.headers, METHOD)));
+  assert.equal(results.filter(result => result.status === 'fulfilled').length, 1);
+  const v = new Verifier(source(), fixture.audience, fixture.public_key, {async consume(){throw Error('store down');}}, () => fixture.now*1000);
+  await assert.rejects(v.verify(fixture.headers, METHOD), /store unavailable/);
+});
+
+test('expired stamps and repeated binding headers refuse before consumption', async () => {
+  const expired = new Verifier(source(), fixture.audience, fixture.public_key, replay(), () => (fixture.now+30)*1000);
+  await assert.rejects(expired.verify(fixture.headers, METHOD), /expired/);
+  for (const key of ['x-codefly-hop-proof', 'x-codefly-work-context','x-codefly-hop-context']) {
+    const v = new Verifier(source(), fixture.audience, fixture.public_key, replay(), () => fixture.now*1000);
+    await assert.rejects(v.verify([...Object.entries(fixture.headers),[key,fixture.headers[key]]], METHOD), Unauthenticated);
+    await v.verify(fixture.headers, METHOD);
+  }
 });

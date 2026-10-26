@@ -8,7 +8,10 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
 	"testing"
 	"time"
 
@@ -64,11 +67,20 @@ func (a *Authority) Keys(context.Context, *authorityv1.KeysRequest, ...grpc.Call
 // Issue signs a ten-minute Work Context for Core's fixture owner, addressed to
 // audience, carrying scopes.
 func (a *Authority) Issue(t testing.TB, audience string, scopes ...*basev0.WorkScopeV1) string {
+	return a.issue(t, audience, core.ReplayIdempotent, scopes...)
+}
+
+// IssueSingleUse reproduces admission probes with a genuine single-use capability.
+func (a *Authority) IssueSingleUse(t testing.TB, audience string, scopes ...*basev0.WorkScopeV1) string {
+	return a.issue(t, audience, core.ReplaySingleUse, scopes...)
+}
+
+func (a *Authority) issue(t testing.TB, audience, replay string, scopes ...*basev0.WorkScopeV1) string {
 	t.Helper()
 	token, _, err := a.signer.Start(context.Background(), core.StartInput{
 		TenantID: core.FixtureTenant, OwnerPrincipalID: core.FixturePrincipal, OwnerPrincipalKind: "human",
 		OrganizationID: core.FixtureOrganization, TaskID: core.FixtureTask, Audience: audience,
-		AuthorityScopes: scopes, InstallationID: core.FixtureInstallation, TTL: 10 * time.Minute,
+		ReplayPolicy: replay, AuthorityScopes: scopes, InstallationID: core.FixtureInstallation, TTL: 10 * time.Minute,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -78,13 +90,26 @@ func (a *Authority) Issue(t testing.TB, audience string, scopes ...*basev0.WorkS
 
 // Forward is the incoming metadata of a call the hop let through carrying
 // token: the token, and the stamp the hop writes for it under proof.
-func Forward(t testing.TB, token, proof string) metadata.MD {
+func Forward(t testing.TB, token, proof, method string) metadata.MD {
 	t.Helper()
 	decoded, err := core.Decode(token)
 	if err != nil {
 		t.Fatal(err)
 	}
 	md := metadata.Pairs(hop.WorkContextKey, token)
-	hop.Stamp(md, hop.IdentityOf(decoded.Context()), proof)
+	if err := hop.Stamp(md, hop.IdentityOf(decoded.Context()), Signer(proof), method, decoded.Context().GetAudience(), time.Now()); err != nil {
+		t.Fatal(err)
+	}
 	return md
 }
+
+// Signer derives a public test key. Production seeds come only from Codefly.
+func Signer(label string) *stamp.Signer {
+	sum := sha256.Sum256([]byte(label))
+	signer, _ := stamp.NewSigner(hex.EncodeToString(sum[:]))
+	return signer
+}
+func PublicKey(label string) string { return Signer(label).PublicKey() }
+
+// Replay is for single-process tests only; deployments supply a shared store.
+func Replay() core.ReplayStore { return core.NewMemoryReplayStore() }

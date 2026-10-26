@@ -50,3 +50,5 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20261012220534-4341edf3f941 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/codefly-dev/authority/libraries/authority-client/go => ../../authority-client/go

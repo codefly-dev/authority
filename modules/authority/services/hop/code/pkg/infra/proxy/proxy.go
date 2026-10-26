@@ -7,8 +7,10 @@ package proxy
 import (
 	"context"
 	"errors"
+	callstamp "github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/codefly-dev/authority/libraries/hop/go"
 	"google.golang.org/grpc"
@@ -27,7 +29,7 @@ type Decide func(ctx context.Context, method string, md metadata.MD) (decide.Dec
 type Proxy struct {
 	Decide    Decide
 	Upstreams map[string]*grpc.ClientConn
-	Proof     string
+	Signer    *callstamp.Signer
 	// Refused is told every refusal, so the hop's log names it.
 	Refused func(method string, err error)
 }
@@ -62,7 +64,9 @@ func (p *Proxy) handle(_ any, in grpc.ServerStream) error {
 			out[key] = values
 		}
 	}
-	hop.Stamp(out, id, p.Proof)
+	if err := hop.Stamp(out, id, p.Signer, method, module, time.Now()); err != nil {
+		return status.Error(codes.Unauthenticated, err.Error())
+	}
 	ctx, cancel := context.WithCancel(metadata.NewOutgoingContext(in.Context(), out))
 	defer cancel()
 	if decision.Route == nil {

@@ -41,26 +41,14 @@ type Claims struct {
 	context  *basev0.WorkContextV1
 }
 
-// Authenticate returns the claims of the Work Context the hop forwarded with
-// md to this module (audience), after two checks, in order:
-//
-//  1. the stamp: md carries this run's hop proof, exactly one token, and the
-//     stamp's digest of that token, so the token is the one the authority's
-//     Check admitted for this call (stamp.Context);
-//  2. the token itself, with Core's Inspector: canonical decode, the issuer
-//     pin, the Ed25519 signature under the published key the token names, the
-//     audience is this module, not-before and expiry within Core's skew, and
-//     the chain's structure and attenuation.
-//
-// It consumes nothing and asks the authority nothing: liveness (revision,
-// seal, single-use) is the authority's Check the hop made, which the digest
-// binds to this call. A proof alone, or a digest alone, authenticates nothing:
-// whoever holds the proof can write both, but cannot sign.
-func Authenticate(md metadata.MD, proof, audience string, trust Trust) (*Claims, error) {
+// Authenticate verifies a digest-bound token's signature, issuer, audience,
+// validity and attenuation. This is identity authentication only, not method
+// authorization or replay protection. Services must use hop.Verifier for admission.
+func Authenticate(md metadata.MD, audience string, trust Trust) (*Claims, error) {
 	if audience == "" {
 		return nil, fmt.Errorf("%w: no audience: a module authenticates a context for itself", ErrUnauthenticated)
 	}
-	token, err := stamp.Context(md, proof)
+	token, err := stamp.Context(md)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrUnauthenticated, err)
 	}

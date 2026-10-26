@@ -3,21 +3,16 @@
 //
 // The hop asked the authority's Check, which verified the caller's Work Context
 // live (revision, seal, single use) and applied the method's policy, then wrote
-// who the call is for, this run's proof and the digest of the checked token.
+// who the call is for and a signed admission for this call.
 // The module re-checks no permission the hop decided, but believes nothing it
 // has not authenticated: Verifier checks the token's signature under the
 // authority's published keys, its issuer, that it is addressed to this module,
 // its window and structure, and that it is the token the stamp's digest binds;
 // who the call is for is read from the authenticated claims, never a header.
 //
-// What the proof does NOT establish: it is one secret every hop-fronted module
-// in the run holds. It keeps out a caller that is not a composed workload (a
-// person's client on a laptop, where no mesh stands in front of the module).
-// It does not show that a composed workload came through the hop: a module
-// holding a genuine context addressed to another can call it directly, with
-// the proof, past the method policy and the live check, until the context
-// expires. Closing that needs a proof per audience or a stamp the hop signs:
-// codefly-dev/authority#5. On a cell, the mesh admits only the hop.
+// The hop signs each admission with a service-only key. Verifiers pin its public
+// key and atomically consume the signed nonce in a shared ReplayStore. Method,
+// audience and token digest are authenticated; a captured stamp is single-use.
 package hop
 
 import (
@@ -70,9 +65,7 @@ const (
 	// the digest of the forwarded token. A module reading that token's claims
 	// reads exactly what was checked, and nothing a caller swapped in after.
 	ContextKey = StampPrefix + "context"
-	// AdvisoryKey carries what the authority would have refused when the hop
-	// runs permissive (hop/ENFORCEMENT=warn): the call went through, this says
-	// why it would not have. Empty, or absent, when nothing was refused.
+	// AdvisoryKey is always refused at admission. Diagnostic identity is never authority.
 	AdvisoryKey = StampPrefix + "advisory"
 )
 
@@ -97,8 +90,7 @@ type Identity struct {
 	// Claims are the authenticated claims, for resource-exact questions
 	// (Claims.Allows) the flat Scopes cannot answer.
 	Claims *workcontext.Claims
-	// Advisory is what the authority would have refused, when the hop let the
-	// call through anyway (permissive mode); "" when the call was admitted.
+	// Advisory is diagnostic only. Stamp refuses an identity carrying a refusal.
 	Advisory string
 }
 
@@ -122,9 +114,15 @@ func Strip(md metadata.MD) {
 	}
 }
 
-// Stamp writes identity and the run's proof onto md, after stripping whatever
-// stamp a caller sent.
-func Stamp(md metadata.MD, id Identity, proof string) {
+// Stamp writes identity and a signed call admission, stripping caller stamps.
+func Stamp(md metadata.MD, id Identity, signer *stamp.Signer, method, audience string, now time.Time) error {
+	if id.Advisory != "" {
+		return errors.New("hop: an advisory policy refusal cannot be signed as admission")
+	}
+	proof, err := signer.Sign(first(md, WorkContextKey), method, audience, now, id.Expires)
+	if err != nil {
+		return err
+	}
 	Strip(md)
 	md.Set(ProofKey, proof)
 	md.Set(OwnerKey, id.Owner)
@@ -147,6 +145,7 @@ func Stamp(md metadata.MD, id Identity, proof string) {
 	if token := first(md, WorkContextKey); token != "" {
 		md.Set(ContextKey, digest(token))
 	}
+	return nil
 }
 
 // IdentityOf reads who an authenticated Work Context is for. Its scopes are the
@@ -233,11 +232,12 @@ var errKeysUnavailable = fmt.Errorf("%w: the authority's published keys are unav
 // Verifier is the one module-side entry point: it authenticates every call the
 // hop forwards before anything reads it. Build it once, at startup.
 type Verifier struct {
-	source   KeySource
-	audience string
-	proof    string
-	now      func() time.Time
-	timeout  time.Duration
+	source    KeySource
+	audience  string
+	publicKey string
+	replay    core.ReplayStore
+	now       func() time.Time
+	timeout   time.Duration
 
 	mu       sync.Mutex
 	trust    workcontext.Trust
@@ -247,25 +247,26 @@ type Verifier struct {
 	failure  error         // the last read's failure, for KeysError
 }
 
-// NewVerifier pins this module's audience and the run's hop proof, and starts
-// reading the authority's published keys through the interface's Keys. keys is
-// the generated client of the authority the module already depends on
-// (authorityv1.NewAuthorityServiceClient over host.Dial): the local authority
-// on a laptop, the host on a cell. A key is never typed in or mounted.
+// NewVerifier pins this module's audience and the delivered hop public key.
+// replay must atomically reserve nonces across all replicas and survive restart.
+// Keys is the generated authority client; no signing seed is delivered here.
 //
 // It waits for that first read while ctx allows, and never fails on it: a
 // module starts before its authority serves keys, and refuses calls, with the
 // reason, until they are read.
-func NewVerifier(ctx context.Context, keys KeySource, audience, proof string) (*Verifier, error) {
+func NewVerifier(ctx context.Context, keys KeySource, audience, publicKey string, replay core.ReplayStore) (*Verifier, error) {
+	raw, keyErr := hex.DecodeString(publicKey)
 	switch {
 	case keys == nil:
 		return nil, errors.New("hop: a verifier needs the authority's Keys")
 	case audience == "":
 		return nil, errors.New("hop: a verifier needs this module's audience")
-	case proof == "":
-		return nil, errors.New("hop: a verifier needs the run's hop proof (codefly config generate hop PROOF)")
+	case replay == nil:
+		return nil, errors.New("hop: a verifier requires an atomic shared replay store")
+	case keyErr != nil || len(raw) != ed25519.PublicKeySize || hex.EncodeToString(raw) != publicKey:
+		return nil, errors.New("hop: a verifier needs the hop signing public key")
 	}
-	v := &Verifier{source: keys, audience: audience, proof: proof, now: time.Now, timeout: keyTimeout}
+	v := &Verifier{source: keys, audience: audience, publicKey: publicKey, replay: replay, now: time.Now, timeout: keyTimeout}
 	v.mu.Lock()
 	done := v.refresh()
 	v.mu.Unlock()
@@ -307,9 +308,10 @@ func (v *Verifier) Ready() bool {
 // Verify authenticates the call md carries and returns who it is for, from the
 // authenticated claims. The error wraps workcontext.ErrUnauthenticated and
 // names the reason. The stamp is checked first: a call that does not carry this
-// run's proof and a bound token never reaches the keys.
-func (v *Verifier) Verify(ctx context.Context, md metadata.MD) (Identity, error) {
-	token, err := stamp.Context(md, v.proof)
+// signed method/audience binding and a bound token never reaches the keys.
+func (v *Verifier) Verify(ctx context.Context, md metadata.MD, method string) (Identity, error) {
+	call, err := stamp.Check(md, v.publicKey, method, v.audience, v.now())
+	token := first(md, WorkContextKey)
 	if err != nil {
 		return Identity{}, fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, err)
 	}
@@ -317,7 +319,7 @@ func (v *Verifier) Verify(ctx context.Context, md metadata.MD) (Identity, error)
 	if err != nil {
 		return Identity{}, err
 	}
-	claims, err := workcontext.Authenticate(md, v.proof, v.audience, trust)
+	claims, err := workcontext.Authenticate(md, v.audience, trust)
 	if err != nil {
 		return Identity{}, err
 	}
@@ -325,7 +327,19 @@ func (v *Verifier) Verify(ctx context.Context, md metadata.MD) (Identity, error)
 	if err := sameAsStamped(md, id); err != nil {
 		return Identity{}, err
 	}
-	id.Context, id.Claims, id.Advisory = token, claims, first(md, AdvisoryKey)
+	if call.Expires <= v.now().Unix() {
+		return Identity{}, fmt.Errorf("%w: hop proof expired while authenticating", workcontext.ErrUnauthenticated)
+	}
+	if err := v.replay.Consume(ctx, call.ReplayKey(v.publicKey), time.Unix(call.Expires, 0)); err != nil {
+		if errors.Is(err, core.ErrReplayed) {
+			return Identity{}, fmt.Errorf("%w: hop admission replayed", workcontext.ErrUnauthenticated)
+		}
+		return Identity{}, fmt.Errorf("%w: hop replay store unavailable", workcontext.ErrUnauthenticated)
+	}
+	if call.Expires <= v.now().Unix() {
+		return Identity{}, fmt.Errorf("%w: hop proof expired during replay reservation", workcontext.ErrUnauthenticated)
+	}
+	id.Context, id.Claims = token, claims
 	return id, nil
 }
 
@@ -476,7 +490,7 @@ func (v *Verifier) admit(ctx context.Context, method string) (context.Context, e
 		return ctx, nil
 	}
 	md, _ := metadata.FromIncomingContext(ctx)
-	id, err := v.Verify(ctx, md)
+	id, err := v.Verify(ctx, md, method)
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, err.Error())
 	}

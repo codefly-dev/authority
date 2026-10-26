@@ -149,13 +149,13 @@ class Claims:
 
 
 def authenticate(
-    headers: Mapping[str, str] | Iterable[tuple[str, str]], proof: str, audience: str, trust: Trust
+    headers: Mapping[str, str] | Iterable[tuple[str, str]], audience: str, trust: Trust
 ) -> Claims:
     """The claims of the Work Context the hop forwarded with headers to this module
     (audience), or ``Unauthenticated`` naming why it must not be believed."""
     if not audience:
         raise Unauthenticated("no audience: a module authenticates a context for itself")
-    token = bound_token(headers, proof)
+    token = bound_token(headers)
     if len(token) > MAX_TOKEN_BYTES or not token.isascii() or token.count(".") != 1:
         raise Unauthenticated("expected a bounded <payload>.<signature> context")
     payload_segment, signature_segment = token.split(".")
@@ -263,13 +263,10 @@ def _check_structure(context) -> None:
         raise Unauthenticated(f"grant {name!r} hands authority to another principal rather than elevating it")
 
 
-def bound_token(headers: Mapping[str, str] | Iterable[tuple[str, str]], proof: str) -> str:
-    """The one token the stamp's digest binds under this run's proof. Bound, not
-    authenticated: whoever holds the proof can write both."""
+def bound_token(headers: Mapping[str, str] | Iterable[tuple[str, str]]) -> str:
+    """Extract a digest-bound token; this does not authenticate hop admission."""
     values = collect(headers)
-    proofs, tokens, digests = values.get(PROOF_KEY, []), values.get(WORK_CONTEXT_KEY, []), values.get(CONTEXT_KEY, [])
-    if not proof or len(proofs) != 1 or not hmac.compare_digest(proofs[0].encode(), proof.encode()):
-        raise Unauthenticated("the call did not come through the hop: it carries no stamp with this run's proof")
+    tokens, digests = values.get(WORK_CONTEXT_KEY, []), values.get(CONTEXT_KEY, [])
     if len(tokens) != 1 or not tokens[0] or len(digests) != 1:
         raise Unauthenticated("the stamp binds no single Work Context")
     digest = hashlib.sha256(tokens[0].encode(errors="surrogatepass")).hexdigest()

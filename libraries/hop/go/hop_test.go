@@ -27,7 +27,7 @@ var read = &basev0.WorkScopeV1{ResourceKind: "documents", Actions: []string{"rea
 
 func verifier(t *testing.T, a *hoptest.Authority, audience string) *hop.Verifier {
 	t.Helper()
-	v, err := hop.NewVerifier(context.Background(), a, audience, proof)
+	v, err := hop.NewVerifier(context.Background(), a, audience, hoptest.PublicKey(proof), hoptest.Replay())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func verifier(t *testing.T, a *hoptest.Authority, audience string) *hop.Verifier
 func TestTheModuleReadsWhoTheCallIsForFromTheAuthenticatedToken(t *testing.T) {
 	a := hoptest.New(t)
 	token := a.Issue(t, "documents", read)
-	id, err := verifier(t, a, "documents").Verify(context.Background(), hoptest.Forward(t, token, proof))
+	id, err := verifier(t, a, "documents").Verify(context.Background(), hoptest.Forward(t, token, proof, "/test.Service/Read"), "/test.Service/Read")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,18 +64,18 @@ func TestAModuleHoldingTheProofCannotForgeAContext(t *testing.T) {
 		md     metadata.MD
 		reason string
 	}{
-		"forged signature":   {stampedAs(t, a, forged, genuine), "signature"},
-		"unsigned":           {stampedAs(t, a, unsigned, genuine), "signature"},
-		"another audience":   {hoptest.Forward(t, elsewhere, proof), "minted for audience"},
+		"forged signature":   {stampedAs(t, a, forged, genuine), "digest mismatch"},
+		"unsigned":           {stampedAs(t, a, unsigned, genuine), "digest mismatch"},
+		"another audience":   {hoptest.Forward(t, elsewhere, proof, "/test.Service/Read"), "audience mismatch"},
 		"no stamp":           {metadata.Pairs(hop.WorkContextKey, genuine), "proof"},
-		"another run's hop":  {hoptest.Forward(t, genuine, "another-run"), "proof"},
-		"swapped token":      {swapped(hoptest.Forward(t, genuine, proof), a.Issue(t, "documents", read)), "does not match the hop stamp"},
-		"stamped tenant lie": {with(hoptest.Forward(t, genuine, proof), hop.TenantKey, "globex"), "tenant"},
-		"stamped scope lie":  {with(hoptest.Forward(t, genuine, proof), hop.ScopesKey, "documents:read,documents:admin"), "scopes"},
+		"another run's hop":  {hoptest.Forward(t, genuine, "another-run", "/test.Service/Read"), "proof"},
+		"swapped token":      {swapped(hoptest.Forward(t, genuine, proof, "/test.Service/Read"), a.Issue(t, "documents", read)), "digest mismatch"},
+		"stamped tenant lie": {with(hoptest.Forward(t, genuine, proof, "/test.Service/Read"), hop.TenantKey, "globex"), "tenant"},
+		"stamped scope lie":  {with(hoptest.Forward(t, genuine, proof, "/test.Service/Read"), hop.ScopesKey, "documents:read,documents:admin"), "scopes"},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			_, err := v.Verify(context.Background(), c.md)
+			_, err := v.Verify(context.Background(), c.md, "/test.Service/Read")
 			if !errors.Is(err, workcontext.ErrUnauthenticated) || !strings.Contains(err.Error(), c.reason) {
 				t.Fatalf("want a refusal naming %q, got %v", c.reason, err)
 			}
@@ -86,7 +86,7 @@ func TestAModuleHoldingTheProofCannotForgeAContext(t *testing.T) {
 // stampedAs forwards token under the stamp the hop wrote for genuine, with the
 // digest rewritten, as any holder of the proof can.
 func stampedAs(t *testing.T, _ *hoptest.Authority, token, genuine string) metadata.MD {
-	md := hoptest.Forward(t, genuine, proof)
+	md := hoptest.Forward(t, genuine, proof, "/test.Service/Read")
 	sum := sha256.Sum256([]byte(token))
 	md.Set(hop.WorkContextKey, token)
 	md.Set(hop.ContextKey, hex.EncodeToString(sum[:]))
@@ -117,7 +117,7 @@ func TestTheInterceptorRefusesByNameAndLetsHealthThrough(t *testing.T) {
 	if _, err := call(metadata.MD{}, "/api.ApiService/WhoAmI"); status.Code(err) != codes.Unauthenticated || !strings.Contains(err.Error(), "proof") {
 		t.Fatalf("no stamp: %v", err)
 	}
-	if got, err := call(hoptest.Forward(t, a.Issue(t, "console", read), proof), "/api.ApiService/WhoAmI"); err != nil || got != "principal-owner" {
+	if got, err := call(hoptest.Forward(t, a.Issue(t, "console", read), proof, "/api.ApiService/WhoAmI"), "/api.ApiService/WhoAmI"); err != nil || got != "principal-owner" {
 		t.Fatalf("forwarded: %v %v", got, err)
 	}
 	if _, err := call(metadata.MD{}, "/grpc.health.v1.Health/Check"); err != nil {
@@ -133,9 +133,15 @@ func TestTheInterceptorRefusesByNameAndLetsHealthThrough(t *testing.T) {
 func TestAVerifierNeedsPublishedKeysAnAudienceAndAProof(t *testing.T) {
 	a := hoptest.New(t)
 	for name, build := range map[string]func() (*hop.Verifier, error){
-		"no keys":     func() (*hop.Verifier, error) { return hop.NewVerifier(context.Background(), nil, "documents", proof) },
-		"no audience": func() (*hop.Verifier, error) { return hop.NewVerifier(context.Background(), a, "", proof) },
-		"no proof":    func() (*hop.Verifier, error) { return hop.NewVerifier(context.Background(), a, "documents", "") },
+		"no keys": func() (*hop.Verifier, error) {
+			return hop.NewVerifier(context.Background(), nil, "documents", hoptest.PublicKey(proof), hoptest.Replay())
+		},
+		"no audience": func() (*hop.Verifier, error) {
+			return hop.NewVerifier(context.Background(), a, "", hoptest.PublicKey(proof), hoptest.Replay())
+		},
+		"no proof": func() (*hop.Verifier, error) {
+			return hop.NewVerifier(context.Background(), a, "documents", "", hoptest.Replay())
+		},
 	} {
 		if _, err := build(); err == nil {
 			t.Fatalf("%s: accepted", name)

@@ -85,7 +85,7 @@ func TestAChainThatDropsOrChangesTheOwnerIsRefused(t *testing.T) {
 				actor.GrantedScopes = []*basev0.WorkScopeV1{owned}
 			}
 			c.ActorChain[len(c.ActorChain)-1].GrantedScopes = []*basev0.WorkScopeV1{tc.last}
-			_, err := reader.Authenticate(stampedToken(tokenFor(t, c)), "test-proof", c.GetAudience(), trustFor(c))
+			_, err := reader.Authenticate(stampedToken(tokenFor(t, c)), c.GetAudience(), trustFor(c))
 			if (err == nil) != tc.ok {
 				t.Fatalf("authenticate: %v", err)
 			}

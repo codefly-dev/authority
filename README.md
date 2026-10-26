@@ -497,24 +497,20 @@ gRPC-only composition. An empty HTTP routing table does not remove that
 endpoint from Codefly's readiness checks. Requests still pass through the
 authority decision and are refused when no corresponding HTTP upstream exists.
 
-The module behind it carries one interceptor from `libraries/hop/go` and no
-other authority code. The stamp binds the digest of the Work Context the hop
-checked, so a module that needs the full claims decodes that exact token
-without verifying it again. The interceptor gives each call the identity the hop
-stamped, and refuses a call that did not come through the hop. It verifies no
-token and asks no authority. The stamp is believed only with the run's proof,
-which Codefly generates and delivers to the hop and the module alone. In a cell
-the mesh plays that part.
+The module behind it carries the interceptor from `libraries/hop/go`. It
+verifies a short-lived Ed25519 admission bound to the exact method, audience and
+token digest, authenticates the identity, and atomically consumes the call nonce
+in a durable store shared by replicas. The hop alone receives the Codefly-generated
+signing seed; modules receive its public key. See the breaking
+[admission protocol and delivery migration](libraries/hop/README.md).
 
 The hop and the edge ask the host the composition names in the `authority`
 group's `endpoint`, the key every module reads for the same host, so pointing
 that key at saas accounts' Connect listener moves them with the modules:
 `host:port` and `http://` are the run's plaintext transport (h2c), `https://` is
 TLS. A composition that names none reaches the authority module's local service.
-Under `hop/ENFORCEMENT=warn` the hop lets through a call the authority verified
-and the method's policy would have refused, stamped with that refusal as its
-advisory; a call with a missing, unsound or misaddressed Work Context, or one
-the authority could not be asked about, is refused in either mode.
+Signed admissions require enforced method policy in every environment.
+Legacy `hop/ENFORCEMENT=warn` configuration is refused with a reason.
 
 This run's hop fronts the console, whose one operation answers who the call is
 for. Run it from the playground workspace, `playground/`, which composes this
@@ -522,7 +518,7 @@ repository's modules with the platform's stores and the directory's page:
 
 ```bash
 cd playground
-codefly config generate hop PROOF
+codefly config generate hop-signing SEED --service authority/hop
 codefly config generate internal-auth CODEFLY_INTERNAL_TOKEN
 codefly run service console/api authority/hop --local-agents
 ```
@@ -587,7 +583,8 @@ resource IDs does not satisfy that requirement, even with a wildcard action;
 several restricted scopes do not become a whole-kind grant. A whole-kind grant
 alongside restricted scopes still satisfies its declared action. Refusals mark
 resource-limited holdings in the diagnostic. `Advise` reports the same refusal
-without widening or discarding the checked capability, so warn mode can log it.
+without widening or discarding the checked capability. An advisory result is
+not sufficient to issue a hop admission.
 Checking a capability without a method and reading its resource scope remain
 supported. Modules still own resource visibility, ownership and installation
 checks; method admission does not replace them.
@@ -936,7 +933,7 @@ interface evolution rules require a minor bump below 1.0. Installation Issue
 requires its installed caller's workload credential; an installation ID alone
 is never authority. Workloads name the work item's organization; the local
 sole-installation convenience is not required of other hosts. Advisory Check
-is a local development extension, and the hop rejects warn outside local runs.
+is a local diagnostic extension; the hop requires enforcing Check in every environment.
 
 `codefly.dev/session@0.2.0` adds person and organization display names to Current
 and SignIn (fields 7 and 8). Missing fields fail conformance. These implement the

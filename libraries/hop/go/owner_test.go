@@ -21,7 +21,7 @@ func ownedScope(t *testing.T, kind, action, owner string, ids ...string) *basev0
 func TestAnOwnerSelectedScopeNeverReadsAsTheWholeKind(t *testing.T) {
 	a := hoptest.New(t)
 	token := a.Issue(t, "documents", ownedScope(t, "documents", "read", "principal-u"))
-	id, err := verifier(t, a, "documents").Verify(context.Background(), hoptest.Forward(t, token, proof))
+	id, err := verifier(t, a, "documents").Verify(context.Background(), hoptest.Forward(t, token, proof, "/test.Service/Read"), "/test.Service/Read")
 	if err != nil {
 		t.Fatalf("a capability with an owner-selected scope must verify: %v", err)
 	}

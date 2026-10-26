@@ -1,6 +1,7 @@
 package proxy_test
 
 import (
+	"github.com/codefly-dev/authority/libraries/hop/go/hoptest"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -15,7 +16,7 @@ import (
 // This is a hermetic transport probe, not a replacement module or playground.
 // A routing failure may be reported, but a Records request must never go to
 // Documents merely because its name sorts first in the hop's module list.
-func TestWarnModeDoesNotSendRecordsToDocuments(t *testing.T) {
+func TestMissingContextDoesNotSendRecordsToDocuments(t *testing.T) {
 	var documentsCalls atomic.Int32
 	documents := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		documentsCalls.Add(1)
@@ -28,8 +29,8 @@ func TestWarnModeDoesNotSendRecordsToDocuments(t *testing.T) {
 	defer records.Close()
 	docsURL, _ := url.Parse(documents.URL)
 	recordsURL, _ := url.Parse(records.URL)
-	decision := decide.Decider{Permissive: true, Modules: map[string]bool{"documents": true, "records": true}}
-	face := proxy.HTTP{Proof: "test-run-proof", Decide: decision.Decide,
+	decision := decide.Decider{Modules: map[string]bool{"documents": true, "records": true}}
+	face := proxy.HTTP{Signer: hoptest.Signer("test-run-proof"), Decide: decision.Decide,
 		Upstreams: map[string]*url.URL{"documents": docsURL, "records": recordsURL}}
 	req := httptest.NewRequest(http.MethodPost, "/records.v1.RecordsService/ReadRecord", strings.NewReader(`{}`))
 	req.Header.Set("Content-Type", "application/json")

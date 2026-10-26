@@ -17,7 +17,7 @@ from test_work_context import PROOF, body, sign, stamped, trust_for
 
 
 def claims_of(context):
-    return authenticate(stamped(sign(context)), PROOF, context.audience, trust_for(context))
+    return authenticate(stamped(sign(context)), context.audience, trust_for(context))
 
 
 # The owner-selected rows (allows refusing, allows_owned admitting only the

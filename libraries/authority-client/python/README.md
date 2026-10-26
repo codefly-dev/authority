@@ -7,7 +7,7 @@ Context the hop forwarded:
 from authority_client.work_context import Trust, authenticate
 
 trust = Trust.from_keys(stub.Keys(KeysRequest()))  # the authority interface's published keys
-claims = authenticate(request.headers, proof, audience, trust)  # raises Unauthenticated, naming why
+claims = authenticate(request.headers, audience, trust)  # raises Unauthenticated, naming why
 allowed = claims.allows(resource_kind, action, installed_resource_id)
 ```
 
@@ -19,13 +19,14 @@ for:
 from authority_client._gen.host.authority.v1.authority_pb2_grpc import AuthorityServiceStub
 from codefly_hop import Unauthenticated, Verifier
 
-verifier = Verifier(AuthorityServiceStub(channel), audience=os.environ["CODEFLY__MODULE"], proof=proof)  # once
-identity = verifier.verify(request.headers)              # a sync handler
-identity = await verifier.verify_async(request.headers)  # an asyncio handler: a key wait runs off the loop
+verifier = Verifier(AuthorityServiceStub(channel), audience=os.environ["CODEFLY__MODULE"], public_key=public_key, replay=shared_replay_store)  # once
+identity = verifier.verify(request.headers, full_procedure)              # a sync handler
+identity = await verifier.verify_async(request.headers, full_procedure)  # an asyncio handler: a key wait runs off the loop
 identity.tenant, identity.has(kind, action), identity.claims.allows(kind, action, resource_id)
 ```
 
-The verifier checks the stamp first, then reads the published keys through `Keys`
+The verifier requires the [signed admission protocol](../../hop/README.md),
+including an atomic durable replay store shared across replicas. It checks the stamp first, then reads the published keys through `Keys`
 on a thread of its own with a 5 s timeout, one read at a time; it re-reads them
 on an unknown key (at most every 10 s) and when older than 5 minutes; keys that
 cannot be re-read are trusted for 15 minutes at most, and a call on keys older than
@@ -43,8 +44,8 @@ as the Go library writes it.
 commit installs both, and no dependency is ever resolved by name from a public
 index.
 
-`authenticate` checks the run's hop proof, exactly one token and the stamp's
-digest of it; then Core's rules in Core's order: the decode path (size, the
+`authenticate` is an identity reader, not admission. It checks one token and its
+digest; then Core's rules in Core's order: the decode path (size, the
 contract's `buf.validate` schema rules run by protovalidate against the packaged
 contract descriptor, unknown fields, canonical encoding, a lifetime of at most a
 day), the issuer pin, the key (never Core's public conformance key), the Ed25519

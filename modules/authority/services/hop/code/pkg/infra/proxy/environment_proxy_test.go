@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"github.com/codefly-dev/authority/libraries/hop/go/hoptest"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -53,10 +54,10 @@ func TestMain(m *testing.M) {
 func TestTheHTTPFaceNeverForwardsThroughAnEnvironmentProxy(t *testing.T) {
 	target, _ := url.Parse("http://documents.ns.svc.cluster.local:8080")
 	h := &HTTP{
-		Proof:     "run-proof",
+		Signer:    hoptest.Signer("run-proof"),
 		Upstreams: map[string]*url.URL{target.String(): target},
 		Decide: func(context.Context, string, metadata.MD) (decide.Decision, error) {
-			return decide.Decision{Route: &routing.RouteEndpoint{Address: target.String()}, Module: "documents", Identity: hop.Identity{Owner: "maya", Tenant: "acme"}}, nil
+			return decide.Decision{Route: &routing.RouteEndpoint{Address: target.String()}, Module: "documents", Identity: hop.Identity{Expires: time.Now().Add(time.Minute).Unix(), Owner: "maya", Tenant: "acme"}}, nil
 		},
 	}
 	before := proxied.Load()

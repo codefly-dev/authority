@@ -41,15 +41,6 @@ type Decider struct {
 	Routes    *routing.Routing
 	Authority Checker
 	Modules   map[string]bool
-	// Permissive is hop/ENFORCEMENT=warn: the authority is asked for advice,
-	// verifies the Work Context as always, and answers what the method's
-	// policy would have refused beside the verified identity; the call goes
-	// through stamped with that identity and the refusal as its advisory,
-	// which the hop also logs. An unsound or missing Work Context is still
-	// refused. The composition says so; a cell never does.
-	Permissive bool
-	// Warned is told each policy refusal the permissive hop let through.
-	Warned func(method string, err error)
 	// AudienceOf reads the module a token is addressed to; nil decodes it with
 	// core, unverified, which is all the hop needs before the authority checks.
 	AudienceOf func(token string) (string, error)
@@ -64,10 +55,6 @@ func coreAudience(token string) (string, error) {
 }
 
 // Decide returns the module a call is for and who it acts for, or the refusal.
-// Permissive changes one answer only: the authority verified the Work Context
-// and the method's policy would have refused it (decide's advisory path). A
-// call whose Work Context is missing, unsound or addressed elsewhere, or that
-// the authority could not be asked about, is refused in either mode.
 func (d Decider) Decide(ctx context.Context, method string, md metadata.MD) (Decision, error) {
 	return d.decide(ctx, method, md)
 }
@@ -101,7 +88,7 @@ func (d Decider) decide(ctx context.Context, method string, md metadata.MD) (Dec
 		return Decision{}, status.Error(codes.NotFound, routeErr.Error())
 	}
 	route := &selected
-	checked, err := d.Authority.Check(ctx, &authorityv1.CheckRequest{Token: tokens[0], Audience: module, Method: policy, Advisory: d.Permissive})
+	checked, err := d.Authority.Check(ctx, &authorityv1.CheckRequest{Token: tokens[0], Audience: module, Method: policy})
 	if err != nil {
 		refusal := status.Convert(err)
 		if refusal.Code() == codes.Unavailable || refusal.Code() == codes.DeadlineExceeded {
@@ -109,13 +96,10 @@ func (d Decider) decide(ctx context.Context, method string, md metadata.MD) (Dec
 		}
 		return Decision{}, status.Errorf(refusal.Code(), "the authority refused the call to %s: %s", module, refusal.Message())
 	}
-	id := IdentityOf(checked.GetContext())
-	if d.Permissive && checked.GetRefusal() != "" {
-		id.Advisory = checked.GetRefusal()
-		if d.Warned != nil {
-			d.Warned(method, status.Error(codes.PermissionDenied, id.Advisory))
-		}
+	if checked.GetRefusal() != "" {
+		return Decision{}, status.Error(codes.PermissionDenied, "the authority refused the method policy")
 	}
+	id := IdentityOf(checked.GetContext())
 	return Decision{Module: module, Identity: id, Route: route}, nil
 }
 

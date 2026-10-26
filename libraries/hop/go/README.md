@@ -12,25 +12,23 @@ import (
 	hop "github.com/codefly-dev/authority/libraries/hop/go"
 )
 
-proof, _ := codefly.For(ctx).WorkspaceSecret("hop", "PROOF")
+publicKey, _ := codefly.For(ctx).WorkspaceConfiguration("hop-verification", "PUBLIC_KEY")
+// replay is the host's durable shared Core ReplayStore; never a per-replica cache.
 conn, _, err := host.Dial(ctx) // the local authority on a laptop, the host on a cell
 audience, err := hop.Audience() // the module the composition started this process as (CODEFLY__MODULE)
-verifier, err := hop.NewVerifier(ctx, authorityv1.NewAuthorityServiceClient(conn), audience, proof)
+verifier, err := hop.NewVerifier(ctx, authorityv1.NewAuthorityServiceClient(conn), audience, publicKey, replay)
 config.GRPCServerOptions = append(config.GRPCServerOptions,
 	grpc.ChainUnaryInterceptor(verifier.UnaryServerInterceptor()),
 	grpc.ChainStreamInterceptor(verifier.StreamServerInterceptor()))
 // in a handler: id, _ := hop.FromContext(ctx); id.Tenant, id.Has(kind, action), id.Claims.Allows(kind, action, resourceID)
-// an HTTP module: id, err := verifier.Verify(ctx, metadataFromHeaders)
+// an HTTP module: id, err := verifier.Verify(ctx, metadataFromHeaders, observedFullProcedure)
 ```
 
-`Verify` checks this run's proof and that the stamp's digest binds the one
-forwarded token first (a call without them never reaches the keys), and then the token itself (Core's `Inspector`): the issuer pin,
-the Ed25519 signature under the authority's published key, the audience is this
-module, not-before and expiry, structure and attenuation. Who the call is for is
-read from the authenticated claims (`IdentityOf`); a stamp that says otherwise
-is refused, naming the field. It re-checks no permission the hop decided and
-consumes nothing: liveness (revision, seal, single use) is the authority's Check
-the hop made, bound to this call by the digest.
+`Verify` authenticates the signed method, audience, token digest and 30-second
+admission window, authenticates the Work Context, compares identity metadata,
+and atomically consumes the call nonce in the shared replay store. It refuses
+replays across replicas without re-spending the Work Context's single use.
+See the [wire protocol and migration contract](../README.md).
 
 The keys come from the interface's `Keys`, through the generated client: never
 typed in, never mounted. A read runs on its own, detached from every call and
@@ -50,10 +48,6 @@ call would, so an unready replica (which gets no calls) recovers once the
 authority serves keys, and an idle one never goes stale. Never gate readiness on
 `KeysError()`: a brief authority outage would take every replica out of rotation
 while its keys are still trusted.
-
-The proof is shared by every hop-fronted module: it keeps out a caller that is
-not a composed workload, and it does not show that a composed workload came
-through the hop (codefly-dev/authority#5).
 
 `hoptest` is a real authority for a module's own tests: `hoptest.New(t)` signs
 with a fresh key and answers `Keys`; `Issue` mints a Work Context and
