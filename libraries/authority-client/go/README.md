@@ -42,7 +42,12 @@ their own (Core refuses its public fixture key outside its kit).
 Handwritten code lives outside `gen/`, the directory Codefly replaces. The root
 module scaffold is preserved by `codefly generate client`.
 
-The shared `host.Dial` resolves the authority for edge and hop. Remote endpoints
+The shared `host.Dial` resolves the authority for edge and hop. Every dial
+never follows a proxy from the environment (`HTTPS_PROXY`, `HTTP_PROXY`), which
+would see the workload credential and could swap the published keys on a
+plaintext mesh hop: `host.DialOptions(transport)` is the transport plus
+`grpc.WithNoProxy()`, and a caller dialling an address `Target` or `Endpoint`
+admitted uses it too (the hop does for its upstreams). Remote endpoints
 use verified HTTPS/TLS unless the composition asserts
 `internal-transport/mesh-protected=true` and the target is an in-cluster Service
 DNS name. Plaintext loopback is accepted only in a local Codefly environment: the one named exactly `local` (the SDK's `IsLocal`); no name prefix is reserved for local runs.

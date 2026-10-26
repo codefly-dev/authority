@@ -35,8 +35,17 @@ func Dial(ctx context.Context) (*grpc.ClientConn, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(transport))
+	conn, err := grpc.NewClient(target, DialOptions(transport)...)
 	return conn, target, err
+}
+
+// DialOptions are how an address Target or Endpoint admitted is dialled: over
+// its transport, and never through a proxy from the environment (HTTPS_PROXY,
+// HTTP_PROXY), which would see the workload credential and could swap the
+// published keys on a plaintext mesh hop. Dial uses them; a caller dialling an
+// admitted address itself (the hop's upstreams, a module's own clients) does too.
+func DialOptions(transport credentials.TransportCredentials) []grpc.DialOption {
+	return []grpc.DialOption{grpc.WithTransportCredentials(transport), grpc.WithNoProxy()}
 }
 
 // Target is the gRPC target and transport for the host at endpoint:

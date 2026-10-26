@@ -103,4 +103,6 @@ stub = AuthorityServiceStub(channel)  # Keys for codefly_hop.Verifier, Issue
 `options` is an allowlist (`host.ALLOWED_OPTIONS`: keepalive, message sizes,
 reconnect backoff, user agent). Anything else is refused: a proxy, a TLS or
 authority override or a service config would route or verify the channel
-otherwise.
+otherwise. `dial` itself sets `grpc.enable_http_proxy=0`: the channel never
+follows `https_proxy` / `http_proxy` / `grpc_proxy` from the environment, as
+Go's `host.DialOptions` (`grpc.WithNoProxy()`) does.

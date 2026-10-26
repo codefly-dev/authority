@@ -141,4 +141,53 @@ def test_dial_hands_grpc_every_option_of_a_generator(monkeypatch):
     monkeypatch.setattr(host.grpc, "secure_channel", lambda address, credentials, options: seen.setdefault("options", options))
     dial("https://accounts.example.test", local=False, mesh=None,
          options=(option for option in [("grpc.keepalive_time_ms", 30000), ("grpc.max_receive_message_length", 1 << 20)]))
-    assert list(seen["options"]) == [("grpc.keepalive_time_ms", 30000), ("grpc.max_receive_message_length", 1 << 20)]
+    assert list(seen["options"]) == [("grpc.keepalive_time_ms", 30000), ("grpc.max_receive_message_length", 1 << 20),
+                                     ("grpc.enable_http_proxy", 0)]
+
+
+# A dial never follows a proxy from the environment: the workload credential and
+# the verifier's key reads go to the admitted address, or nowhere.
+@pytest.mark.parametrize("value, local, mesh", [
+    ("documents.ns.svc.cluster.local:8080", False, "true"),
+    ("https://accounts.example.test", False, None),
+])
+def test_dial_never_contacts_an_environment_proxy(monkeypatch, value, local, mesh):
+    import socket
+    import threading
+
+    import grpc as grpc_module
+
+    proxy = socket.socket()
+    proxy.bind(("127.0.0.1", 0))
+    proxy.listen()
+    proxy.settimeout(0.1)
+    contacted = []
+    stop = threading.Event()
+
+    def accept():
+        while not stop.is_set():
+            try:
+                conn, _ = proxy.accept()
+            except OSError:
+                continue
+            contacted.append(True)
+            conn.close()
+
+    thread = threading.Thread(target=accept, daemon=True)
+    thread.start()
+    address = f"http://127.0.0.1:{proxy.getsockname()[1]}"
+    for key in ("https_proxy", "HTTPS_PROXY", "http_proxy", "HTTP_PROXY", "grpc_proxy"):
+        monkeypatch.setenv(key, address)
+    monkeypatch.delenv("no_proxy", raising=False)
+    monkeypatch.delenv("NO_PROXY", raising=False)
+    channel = dial(value, local=local, mesh=mesh)
+    try:
+        grpc_module.channel_ready_future(channel).result(timeout=1)
+    except grpc_module.FutureTimeoutError:
+        pass
+    finally:
+        channel.close()
+        stop.set()
+        thread.join(1)
+        proxy.close()
+    assert not contacted, "the dial contacted the environment proxy"
