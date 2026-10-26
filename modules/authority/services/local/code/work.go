@@ -19,10 +19,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"gateway/pkg/adapters"
-	authorityv1 "gateway/pkg/gen/host/authority/v1"
 	"gateway/pkg/business/delivery"
 	"gateway/pkg/business/issuer"
 	"gateway/pkg/business/state"
+	authorityv1 "gateway/pkg/gen/host/authority/v1"
 	"gateway/pkg/infra/postgres"
 	"gateway/pkg/wiring"
 )
