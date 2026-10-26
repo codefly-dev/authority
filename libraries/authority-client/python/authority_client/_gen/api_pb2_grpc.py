@@ -25,7 +25,7 @@ if _version_not_supported:
     )
 
 
-class GatewayServiceStub(object):
+class LocalServiceStub(object):
     """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
@@ -35,13 +35,13 @@ class GatewayServiceStub(object):
             channel: A grpc.Channel.
         """
         self.Version = channel.unary_unary(
-                '/api.GatewayService/Version',
+                '/api.LocalService/Version',
                 request_serializer=api__pb2.VersionRequest.SerializeToString,
                 response_deserializer=api__pb2.VersionResponse.FromString,
                 _registered_method=True)
 
 
-class GatewayServiceServicer(object):
+class LocalServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def Version(self, request, context):
@@ -51,7 +51,7 @@ class GatewayServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
 
-def add_GatewayServiceServicer_to_server(servicer, server):
+def add_LocalServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'Version': grpc.unary_unary_rpc_method_handler(
                     servicer.Version,
@@ -60,13 +60,13 @@ def add_GatewayServiceServicer_to_server(servicer, server):
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'api.GatewayService', rpc_method_handlers)
+            'api.LocalService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('api.GatewayService', rpc_method_handlers)
+    server.add_registered_method_handlers('api.LocalService', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
-class GatewayService(object):
+class LocalService(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
@@ -83,7 +83,7 @@ class GatewayService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/api.GatewayService/Version',
+            '/api.LocalService/Version',
             api__pb2.VersionRequest.SerializeToString,
             api__pb2.VersionResponse.FromString,
             options,

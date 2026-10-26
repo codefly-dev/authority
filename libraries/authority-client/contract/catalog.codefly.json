@@ -10,13 +10,13 @@
       "kind": "protobuf",
       "package": "api",
       "path": "contract.binpb",
-      "digest": "sha256:9fcee9f110613a97881cfdfd035de3b82b7b58cac138e1093a47ba4460436d72",
+      "digest": "sha256:05b735abdd6a67ad7365c54fcbd82b8b8412796735ada6323dd43d51bd5f3044",
       "services": [
         {
-          "name": "GatewayService",
-          "fullName": "api.GatewayService",
+          "name": "LocalService",
+          "fullName": "api.LocalService",
           "procedures": [
-            "/api.GatewayService/Version"
+            "/api.LocalService/Version"
           ]
         }
       ]

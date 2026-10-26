@@ -11,10 +11,13 @@ implement your APIs there.
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	gen "hop/pkg/gen"
 	"net"
 	"net/http"
+	"net/netip"
+	"time"
 
 	"buf.build/go/protovalidate"
 
@@ -29,6 +32,8 @@ import (
 
 	codefly "github.com/codefly-dev/sdk-go"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
@@ -67,6 +72,44 @@ type Configuration struct {
 	// GRPCServerOptions installs transport policy such as authentication,
 	// authorization, telemetry, and rate limiting before the listener starts.
 	GRPCServerOptions []grpc.ServerOption
+	// MaxMessageBytes bounds one message a caller sends, on every face: it is
+	// the gRPC server's receive bound (grpc.MaxRecvMsgSize) and the bound the
+	// Connect listener buffers a request to before it reaches that server, so a
+	// larger request is refused with resource_exhausted before the listener
+	// reads the rest of it. Zero keeps gRPC's own 4 MiB default on both faces.
+	//
+	// Raise it here, so that both faces move together. A grpc.MaxRecvMsgSize
+	// among GRPCServerOptions still wins on the gRPC face, because the server
+	// applies this bound before the service's own options and never overrides
+	// them; it reaches the gRPC server alone, though, so the Connect listener
+	// keeps this bound.
+	//
+	// The Connect listener measures what is on the wire, in the caller's codec:
+	// a JSON or compressed request body, and a transcoded response, are held to
+	// this bound as sent, the way gRPC's 4 MiB call default bounds what a
+	// client of this server receives.
+	MaxMessageBytes int
+	// ConnectReadHeaderTimeout, ConnectReadTimeout and ConnectIdleTimeout
+	// bound how long the Connect listener waits on a caller, so a client that
+	// drips its request cannot hold a connection, and the buffer behind it,
+	// for as long as it likes. Zero keeps the default (10 s, 30 s and 120 s);
+	// a negative value removes that bound.
+	//
+	// ConnectReadHeaderTimeout bounds reading an HTTP/1.1 request's headers.
+	//
+	// ConnectReadTimeout bounds reading a request's body, from the moment the
+	// listener starts on it to its end, for every method whose caller sends
+	// one message: unary and server-streaming. It ends with the body, so a
+	// handler slower than it, or a server stream that runs past it, is never
+	// cut. A method whose caller streams (client-streaming, bidirectional) is
+	// not bounded here: its body is the stream, and a fixed time would end a
+	// healthy one, so such a method bounds its stream itself.
+	//
+	// ConnectIdleTimeout closes a connection, HTTP/1.1 or HTTP/2, that has
+	// had no request in flight for that long.
+	ConnectReadHeaderTimeout time.Duration
+	ConnectReadTimeout       time.Duration
+	ConnectIdleTimeout       time.Duration
 	// Service replaces the generated Version-only implementation when the
 	// service owns substantive RPCs with constructor-injected dependencies.
 	Service gen.HopServiceServer
@@ -103,13 +146,44 @@ type Configuration struct {
 	// headers a browser needs to read it, and inside the generated request
 	// logging so that it is recorded like any other outcome.
 	Middleware []func(http.Handler) http.Handler
-	// GatewayDialOptions are appended to the options the REST listener dials the
-	// gRPC server with, for the gateway's hop and the health probe's client.
-	// Where a service raises gRPC's 4 MiB default call bounds:
+	// GatewayDialOptions are appended to the options the HTTP faces dial the
+	// gRPC server with: the REST listener's gateway and health probe, and the
+	// Connect listener's transcoder. Where a service raises gRPC's 4 MiB
+	// default call bounds:
 	// grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(n), grpc.MaxCallSendMsgSize(n)).
 	// A bound set only on the server leaves the proxy refusing the message the
 	// server would have accepted.
+	//
+	// The hop is plaintext and carries every caller's metadata and messages, so
+	// it ends on this host's loopback whatever these options say. A custom
+	// dialer is still the one that connects, but a connection whose remote
+	// address is not loopback is refused, with that reason, before any of the
+	// call is written to it. The hop's transport credentials are applied after
+	// these options, so an option that sets its own does not take effect.
 	GatewayDialOptions []grpc.DialOption
+}
+
+// defaultMaxMessageBytes is gRPC's own server receive bound, which every face
+// keeps unless the service sets Configuration.MaxMessageBytes.
+const defaultMaxMessageBytes = 4 << 20
+
+// maxMessageBytes is the one bound every face applies to a message a caller
+// sends.
+func (c *Configuration) maxMessageBytes() int {
+	if c.MaxMessageBytes > 0 {
+		return c.MaxMessageBytes
+	}
+	return defaultMaxMessageBytes
+}
+
+// serverOptions are the message bound followed by the service's
+// GRPCServerOptions. gRPC applies options in order and the last one wins, so a
+// grpc.MaxRecvMsgSize the service set itself stays the receive bound in force:
+// the generated default never overrides an option the service chose.
+func (c *Configuration) serverOptions() []grpc.ServerOption {
+	options := make([]grpc.ServerOption, 0, len(c.GRPCServerOptions)+1)
+	options = append(options, grpc.MaxRecvMsgSize(c.maxMessageBytes()))
+	return append(options, c.GRPCServerOptions...)
 }
 
 type GrpcServer struct {
@@ -121,7 +195,7 @@ type GrpcServer struct {
 }
 
 func NewGrpServer(c *Configuration) (*GrpcServer, error) {
-	grpcServer := grpc.NewServer(c.GRPCServerOptions...)
+	grpcServer := grpc.NewServer(c.serverOptions()...)
 	v, err := protovalidate.New()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create validator: %w", err)
@@ -160,4 +234,59 @@ func (s *GrpcServer) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to serve: %s", err)
 	}
 	return nil
+}
+
+// gatewayDialOptions is how an HTTP face (the REST listener's gateway and
+// health probe, the Connect listener's transcoder) reaches the gRPC server,
+// with extra appended to the generated options. The hop carries whatever an
+// RPC carries, so a service whose messages exceed gRPC's 4 MiB default call
+// bounds raises them here with grpc.WithDefaultCallOptions rather than losing
+// the hop at the proxy. Environment proxies must never receive this local
+// traffic, which carries caller metadata and messages.
+//
+// The transport credentials come last. gRPC applies options in order and the
+// last one wins, so no option in extra can replace them, and a credentials
+// bundle in extra makes the dial fail rather than take over. They hold the hop
+// to loopback even when extra carries a dialer that ignores the target.
+func gatewayDialOptions(extra ...grpc.DialOption) []grpc.DialOption {
+	options := []grpc.DialOption{grpc.WithNoProxy()}
+	options = append(options, extra...)
+	return append(options, grpc.WithTransportCredentials(loopbackTransport{insecure.NewCredentials()}))
+}
+
+// errGatewayHopOffLoopback is why the gateway refuses a connection to the gRPC
+// server: the hop is plaintext and carries caller metadata and messages, so it
+// must end on this host's loopback.
+var errGatewayHopOffLoopback = errors.New("gateway hop refused: the plaintext hop to the gRPC server must stay on loopback")
+
+// loopbackTransport is the gateway hop's transport: plaintext, and only to a
+// loopback peer. It checks the connection gRPC dialled, not the target string,
+// so a dialer that connects somewhere other than its address is caught.
+type loopbackTransport struct {
+	credentials.TransportCredentials
+}
+
+func (t loopbackTransport) ClientHandshake(ctx context.Context, authority string, conn net.Conn) (net.Conn, credentials.AuthInfo, error) {
+	if !isLoopback(conn.RemoteAddr()) {
+		return nil, nil, fmt.Errorf("%w: the connection reached %s", errGatewayHopOffLoopback, conn.RemoteAddr())
+	}
+	return t.TransportCredentials.ClientHandshake(ctx, authority, conn)
+}
+
+func (t loopbackTransport) Clone() credentials.TransportCredentials {
+	return loopbackTransport{t.TransportCredentials.Clone()}
+}
+
+// isLoopback reports whether addr is an IP address on the loopback network,
+// IPv4 or IPv6, including an IPv4 loopback address written in IPv6 form.
+func isLoopback(addr net.Addr) bool {
+	if addr == nil {
+		return false
+	}
+	host, _, err := net.SplitHostPort(addr.String())
+	if err != nil {
+		return false
+	}
+	ip, err := netip.ParseAddr(host)
+	return err == nil && ip.Unmap().IsLoopback()
 }

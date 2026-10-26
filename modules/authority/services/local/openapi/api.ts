@@ -11,7 +11,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["GatewayService_Version"];
+        get: operations["LocalService_Version"];
         put?: never;
         post?: never;
         delete?: never;
@@ -47,7 +47,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    GatewayService_Version: {
+    LocalService_Version: {
         parameters: {
             query?: never;
             header?: never;

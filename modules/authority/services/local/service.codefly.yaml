@@ -3,7 +3,7 @@ version: 0.0.1
 agent:
     kind: codefly:service
     name: go-grpc
-    version: 0.1.59
+    version: 0.1.67
     publisher: codefly.dev
 # The authority's own store, where approvals persist (code/pkg/infra/postgres).
 # Declared, so a run starts the store first and delivers its read-write
