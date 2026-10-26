@@ -21,9 +21,11 @@ func (r RoleRequest) grant() domain.RoleGrant {
 
 // decideRoleChange reads what decide.ChangeRole needs.
 func decideRoleChange(tx Tx, caller Person, r RoleRequest, list, revoke bool) (domain.Installation, error) {
+	// The installation is resolved by (organization, id) before anything else
+	// is read: another organization's and an absent one answer alike, having
+	// done the same work.
 	inst, err := tx.Installation(r.InstallationID)
-	if errors.Is(err, domain.ErrNotFound) {
-		// An absent installation answers as another organization's does.
+	if errors.Is(err, domain.ErrNotFound) || (err == nil && inst.Organization != r.Organization) {
 		return inst, decide.ForeignInstallation(r.InstallationID, r.Organization)
 	}
 	if err != nil {
@@ -41,7 +43,7 @@ func decideRoleChange(tx Tx, caller Person, r RoleRequest, list, revoke bool) (d
 	if err != nil && !errors.Is(err, domain.ErrNotFound) {
 		return inst, err
 	}
-	change := decide.RoleChange{RequestOrganization: r.Organization, Installation: inst, Solution: solution,
+	change := decide.RoleChange{RequestOrganization: r.Organization, RequestedID: r.InstallationID, Installation: inst, Solution: solution,
 		Caller: c, CallerRoles: decide.HeldRoles(c, inst, grants), List: list, Revoke: revoke, Role: r.Role, PersonID: r.PersonID, TeamID: r.TeamID}
 	if r.PersonID != "" {
 		if p, err := tx.Person(r.PersonID); err == nil {

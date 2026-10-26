@@ -157,10 +157,11 @@ func ScopesFor(b domain.Binding, operation, def string) (Scopes, error) {
 // RoleChange is one GrantRole, RevokeRole or ListRoleGrants request with the
 // state it is decided against.
 type RoleChange struct {
-	// RequestOrganization is the organization the request names.
-	RequestOrganization string
-	Installation        domain.Installation
-	Solution            domain.Module
+	// RequestOrganization and RequestedID are the organization and the
+	// installation id the request names, echoed by a refusal as asked.
+	RequestOrganization, RequestedID string
+	Installation                     domain.Installation
+	Solution                         domain.Module
 	// Caller is the authenticated person; CallerRoles what they hold on the installation.
 	Caller      domain.Person
 	CallerRoles []string
@@ -177,18 +178,28 @@ type RoleChange struct {
 // ChangeRole decides a role change, in order: the organization the request
 // names must be the installation's, before the caller's authority is read;
 // then the caller must administer that organization or hold the installer
-// role on that installation; then the installation must be active, the role
-// declared, exactly one subject named, and that subject of the organization.
+// role on that installation. A revoke then needs only exactly one subject; a
+// grant needs the installation active, the role declared, exactly one subject
+// named, and that subject of the organization.
 func ChangeRole(r RoleChange) error {
 	inst := r.Installation
 	if r.RequestOrganization != inst.Organization {
-		return ForeignInstallation(inst.ID, r.RequestOrganization)
+		return ForeignInstallation(r.RequestedID, r.RequestOrganization)
 	}
 	if r.Caller.Organization != inst.Organization || (!IsAdministrator(r.Caller) && !slices.Contains(r.CallerRoles, domain.InstallerRole)) {
 		if r.List {
 			return domain.Refuse("%s may not list the role grants of %s", r.Caller.ID, inst.ID)
 		}
 		return domain.Refuse("%s may not grant roles on %s: an administrator of %s or its installer grants", r.Caller.ID, inst.ID, inst.Organization)
+	}
+	if r.Revoke {
+		// A grant stays revocable whatever happened since: an installation
+		// uninstalled (a reinstall reuses its id), a role no longer declared
+		// (a later generation may declare it again), a person who left.
+		if (r.PersonID == "") == (r.TeamID == "") {
+			return domain.Malformed("a role grant names exactly one person or team")
+		}
+		return nil
 	}
 	if inst.Status != domain.Active {
 		return domain.NotNow("installation %s is %s: %s is not installed", inst.ID, inst.Status, inst.Target)
@@ -202,9 +213,6 @@ func ChangeRole(r RoleChange) error {
 	if (r.PersonID == "") == (r.TeamID == "") {
 		return domain.Malformed("a role grant names exactly one person or team")
 	}
-	if r.Revoke {
-		return nil
-	}
 	if r.PersonID != "" && (r.Subject == nil || r.Subject.Organization != inst.Organization) {
 		return domain.Refuse("%q is not a member of %s", r.PersonID, inst.Organization)
 	}
@@ -216,7 +224,10 @@ func ChangeRole(r RoleChange) error {
 
 // ForeignInstallation is the one answer for an installation the request's
 // organization does not have, whether another organization has it or nobody
-// does: a person learns nothing of another organization's installations.
+// does: a person learns nothing of another organization's installations. It
+// echoes the id as requested. A host resolves the installation by
+// (organization, id), or answers this before any other lookup, so the two
+// cases also do the same work.
 func ForeignInstallation(id, organization string) error {
 	return domain.Refuse("installation %s belongs to another organization than %q", id, organization)
 }
