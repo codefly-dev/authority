@@ -77,6 +77,13 @@ type MethodPolicy struct {
 	AnyCheckedCaller bool
 }
 
+// Tombstone is what stays of a withdrawn module: its principal, which it
+// keeps for life, and the generation a redelivery must exceed.
+type Tombstone struct {
+	Name, Principal string
+	Generation      uint64
+}
+
 // Status is an installation's lifecycle.
 type Status string
 

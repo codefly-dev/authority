@@ -151,12 +151,14 @@ func (noGrants) Grant(_ context.Context, id string) (*workcontext.Grant, error) 
 // capability sealed to it: the installation's own revision, the owner's
 // grant epoch on it, and the installed solution's owner-aware revision.
 //
-// The sum never repeats a value it held before, because each term only grows
-// and is keyed stably: an installation's revision grows on install,
-// uninstall and narrowing; a grant epoch grows on revoke; an owner-aware
-// revision grows on withdrawal and is keyed by the module's principal, which
-// a module keeps for life (ApplyModule refuses a change). A capability sealed
-// at an earlier sum is therefore refused for good.
+// The sum never goes back to a value it held before, because each term only
+// grows and is keyed stably: an installation's revision grows on install,
+// uninstall, narrowing and a withdrawn module's redelivery; a grant epoch
+// grows on revoke; an owner-aware revision grows on withdrawal and is keyed
+// by the module's principal, which a module keeps for life, withdrawn and
+// delivered again included (ApplyModule refuses a rename, against its
+// tombstone once withdrawn). A module's generation never rewinds either. A
+// capability sealed at an earlier sum is therefore refused for good.
 type sources struct{ s *Service }
 
 func (src sources) AuthorizationRevision(ctx context.Context, tenant string) (uint64, error) {
@@ -179,10 +181,17 @@ func (src sources) Seal(ctx context.Context, principal, installationID string) (
 
 func (src sources) sealIn(tx Tx, principal, installationID string) (workcontext.Seal, error) {
 	inst, err := tx.Installation(installationID)
-	if err != nil || inst.Status != domain.Active {
+	if errors.Is(err, domain.ErrNotFound) || (err == nil && inst.Status != domain.Active) {
 		return workcontext.Seal{}, workcontext.ErrNoSeal
 	}
-	if !src.holds(tx, principal, inst) {
+	if err != nil {
+		return workcontext.Seal{}, err // the store's own failure, named as such
+	}
+	held, err := src.holds(tx, principal, inst)
+	if err != nil {
+		return workcontext.Seal{}, err
+	}
+	if !held {
 		return workcontext.Seal{}, workcontext.ErrNoSeal
 	}
 	epoch, err := tx.GrantEpoch(principal, inst.ID)
@@ -201,18 +210,28 @@ func (src sources) sealIn(tx Tx, principal, installationID string) (workcontext.
 // holds: the principal may use the installation: a person of its
 // organization, a composed module, its own principal, or a solution
 // principal of the same organization reaching a module installation.
-func (src sources) holds(tx Tx, principal string, inst domain.Installation) bool {
+func (src sources) holds(tx Tx, principal string, inst domain.Installation) (bool, error) {
 	if principal == inst.PrincipalID && principal != "" {
-		return true
+		return true, nil
 	}
 	if _, err := tx.Module(principal); err == nil {
-		return true
+		return true, nil
+	} else if !errors.Is(err, domain.ErrNotFound) {
+		return false, err
 	}
 	if p, err := tx.Person(principal); err == nil {
-		return p.Organization == inst.Organization
+		return p.Organization == inst.Organization, nil
+	} else if !errors.Is(err, domain.ErrNotFound) {
+		return false, err
 	}
 	source, err := tx.InstallationByPrincipal(principal)
-	return err == nil && source.Status == domain.Active && source.Organization == inst.Organization
+	if errors.Is(err, domain.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return source.Status == domain.Active && source.Organization == inst.Organization, nil
 }
 
 func (src sources) PrincipalEpoch(ctx context.Context, principal string) (uint64, error) {
@@ -271,9 +290,10 @@ func (f fence) holds(signed *basev0.WorkContextV1) error {
 }
 
 // OperationBinding answers "<organization>/<module>/<binding>". Its
-// incarnation is the binding's audience's owner-aware revision, plus one: a
-// capability through it issued before the audience last withdrew owner-aware
-// checking is refused for good.
+// incarnation is the binding's audience's owner-aware revision plus the
+// acting module's installation revision, both only growing: a capability
+// through it issued before the audience last withdrew owner-aware checking,
+// or before the installation was last uninstalled, is refused for good.
 func (src sources) OperationBinding(ctx context.Context, id string) (workcontext.OperationBinding, error) {
 	var out workcontext.OperationBinding
 	err := src.s.store.Read(ctx, func(tx Tx) error {
@@ -298,7 +318,7 @@ func (src sources) OperationBinding(ctx context.Context, id string) (workcontext
 			return err
 		}
 		out = workcontext.OperationBinding{ID: id, PrincipalID: m.Principal, InstallationID: inst.ID,
-			Revision: m.Generation, Incarnation: aware + 1, Revoked: inst.Status == domain.Revoked}
+			Revision: m.Generation, Incarnation: aware + inst.Revision, Revoked: inst.Status == domain.Revoked}
 		return nil
 	})
 	return out, err

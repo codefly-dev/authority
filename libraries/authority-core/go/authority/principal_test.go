@@ -198,7 +198,7 @@ func TestWhoMayGrantAndEveryMalformedGrant(t *testing.T) {
 		reason string
 	}{
 		"a viewer granting itself":             {h.person("maya"), authority.RoleRequest{Organization: acme, InstallationID: instA, Role: domain.InstallerRole, PersonID: "maya"}, domain.Denied, "may not grant"},
-		"another organization's administrator": {h.person("zoe"), authority.RoleRequest{Organization: acme, InstallationID: instA, Role: "viewer", PersonID: "dev"}, domain.Denied, "may not grant"},
+		"another organization's administrator": {h.person("zoe"), authority.RoleRequest{Organization: acme, InstallationID: instA, Role: "viewer", PersonID: "dev"}, domain.Denied, "belongs to another organization"},
 		"A's installer on B":                   {ines, authority.RoleRequest{Organization: acme, InstallationID: instB, Role: "author", PersonID: "ines"}, domain.Denied, "may not grant"},
 		"another organization named":           {h.person("alex"), authority.RoleRequest{Organization: globex, InstallationID: instA, Role: "viewer", PersonID: "dev"}, domain.Denied, "organization"},
 		"another organization's installation":  {h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: elsewhere, Role: "viewer", PersonID: "dev"}, domain.Denied, "organization"},
