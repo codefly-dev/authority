@@ -15,6 +15,16 @@ workload attestation against the launcher's anchor, signed delivery
 admission, method admission on `Check`, and approvals. The plugins translate
 the wire to the core's calls (`pkg/business/issuer`, `plugins/installation`).
 
+Child issuance preserves the verified parent's workspace/project identifiers
+and each prior actor's agent/organization identifiers while deriving the new
+target's grants. These fields remain absent when the parent omitted them;
+replaying an actor does not substitute the task's organization for that actor's.
+The shared core's `TestChildPreservesVerifiedTaskAndActorProvenance` exercises
+populated parents through its production minter, child issuance and Check over
+two exchanges, including action/resource limits. The ordinary Issue request
+does not originate these optional fields. This test does not establish a live
+populated-parent fixture or cross-host conformance coverage.
+
 | State | Where | Across a restart |
 |---|---|---|
 | who exists, what they hold, what is installed by fixture | `code/fixtures/<name>.yaml`, selected by the run | re-read: fixture, not state |
