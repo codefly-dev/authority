@@ -46,3 +46,15 @@ for (const [name, last, ok] of [
     else assert.throws(() => read(context), e => e instanceof Unauthenticated);
   });
 }
+
+// Core's resource_owner_id rule, read from core's own vectors: every owner
+// core accepts authenticates, every one it refuses does not.
+const vectors = JSON.parse(readFileSync(new URL('../../testdata/resource_owner_vectors.json',import.meta.url),'utf8'));
+const ownerOf = v => v.repeat ? v.owner.repeat(v.repeat) : v.owner;
+const withOwner = owner => {
+  const context = body('session');
+  context.authorityScopes = [scope({resourceKind:'record',actions:['read'],resourceOwnerId:owner})];
+  return () => read(context);
+};
+for (const v of vectors.accepted) test(`core accepts owner: ${v.name}`, () => { withOwner(ownerOf(v))(); });
+for (const v of vectors.refused) test(`core refuses owner: ${v.name}`, () => { assert.throws(withOwner(ownerOf(v))); });

@@ -7,6 +7,9 @@ owner-selected scope, ``allows_owned`` admits a resource only for its owner,
 the hop's identity leaves owner-selected scopes out, and a chain whose hop
 drops or changes the owner is refused.
 """
+import json
+from pathlib import Path
+
 import pytest
 
 from authority_client._gen.host.authority.v1.work_context_pb2 import WorkContextV1
@@ -51,3 +54,29 @@ def test_a_chain_that_drops_or_changes_the_owner_is_refused(last, ok):
     else:
         with pytest.raises(Unauthenticated):
             claims_of(context)
+
+
+VECTORS = json.loads((Path(__file__).parents[2] / "testdata/resource_owner_vectors.json").read_text())
+
+
+def _owner(vector):
+    return vector["owner"] * vector.get("repeat", 1) if vector.get("repeat") else vector["owner"]
+
+
+def _authenticates(owner):
+    context = body("session")
+    del context.authority_scopes[:]
+    context.authority_scopes.add(resource_kind="record", actions=["read"], resource_owner_id=owner)
+    claims_of(context)
+
+
+@pytest.mark.parametrize("vector", VECTORS["accepted"], ids=lambda v: v["name"])
+def test_core_accepted_owners_authenticate(vector):
+    """Core's resource_owner_id rule, read from core's own vectors."""
+    _authenticates(_owner(vector))
+
+
+@pytest.mark.parametrize("vector", VECTORS["refused"], ids=lambda v: v["name"])
+def test_core_refused_owners_do_not_authenticate(vector):
+    with pytest.raises(Unauthenticated):
+        _authenticates(_owner(vector))

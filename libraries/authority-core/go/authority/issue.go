@@ -3,6 +3,7 @@ package authority
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"time"
 
@@ -278,7 +279,7 @@ func (s *Service) IssueForWorkload(ctx context.Context, w Workload, r IssueReque
 		}
 		binding, ok := module.Bindings[r.Binding]
 		if !ok {
-			return workcontext.ErrNoBinding
+			return fmt.Errorf("%w: operation binding %q is not one %s declares", workcontext.ErrNoBinding, r.Binding, module.Name)
 		}
 		if binding.Audience != audience.Principal {
 			return domain.Refuse("binding %s is addressed to %s, not %s", r.Binding, binding.Audience, audience.Principal)
@@ -561,6 +562,7 @@ func (s *Service) derive(ctx context.Context, verified *workcontext.Verified, am
 	}
 	token, _, err := s.authority.Start(ctx, workcontext.StartInput{
 		TenantID: tenant, OrganizationID: claims.GetOrganizationId(),
+		WorkspaceID: claims.GetWorkspaceId(), ProjectID: claims.GetProjectId(),
 		OwnerPrincipalID: claims.GetOwnerPrincipalId(), OwnerPrincipalKind: claims.GetOwnerPrincipalKind(), OwnerAgentID: claims.GetOwnerAgentId(),
 		TaskID: claims.GetTaskId(), Audience: audience.Principal, AuthorityScopes: authorityScopes, AttributionTeamIDs: claims.GetAttributionTeamIds(),
 		InstallationID: sealTo, SessionID: rootSession, TTL: ttl, ReplayPolicy: workcontext.ReplayIdempotent,
@@ -577,6 +579,7 @@ func (s *Service) derive(ctx context.Context, verified *workcontext.Verified, am
 		if n < len(hops) {
 			in.GrantedScopes = authorityScopes
 			in.PrincipalID, in.PrincipalKind, in.DelegationID = hops[n].GetPrincipalId(), hops[n].GetPrincipalKind(), hops[n].GetDelegationId()
+			in.AgentID, in.OrganizationID = hops[n].GetAgentId(), hops[n].GetOrganizationId()
 			if n == len(hops)-1 {
 				in.SessionID = parentSession
 			}

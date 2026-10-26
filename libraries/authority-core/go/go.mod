@@ -5,7 +5,7 @@ go 1.27.3
 require (
 	github.com/codefly-dev/authority/libraries/delivery/go v0.0.0-20261026023425-000d44495d93
 	github.com/codefly-dev/authority/libraries/resources/go v0.0.0-20261026023425-000d44495d93
-	github.com/codefly-dev/core v0.19.7-0.20261026022918-8af4b787a435
+	github.com/codefly-dev/core v0.19.7-0.20261026034911-b57347f09515
 	github.com/google/uuid v1.6.0
 	google.golang.org/protobuf v1.36.12
 )

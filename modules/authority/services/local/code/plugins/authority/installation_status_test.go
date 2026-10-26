@@ -3,6 +3,7 @@ package authority_test
 import (
 	"context"
 	"errors"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"testing"
 
 	"gateway/pkg/business/state"
@@ -28,7 +29,7 @@ func TestPersonIssueDistinguishesInstallationAndEntitlement(t *testing.T) {
 		t.Run(tc.state+"/"+tc.person, func(t *testing.T) {
 			k := testkit.New(t)
 			m := testkit.Wiki(1)
-			m.Module, m.Principal = "new-solution", "new-solution"
+			m.Name, m.Principal = "new-solution", "new-solution"
 			if _, err := k.State.ApplyManifest(m); err != nil {
 				t.Fatal(err)
 			}
@@ -36,7 +37,7 @@ func TestPersonIssueDistinguishesInstallationAndEntitlement(t *testing.T) {
 				k.State.OnInstall(func(context.Context, state.Installation) error { return errors.New("install not acknowledged") })
 			}
 			if tc.state != "absent" {
-				inst, err := k.State.Install(t.Context(), "acme", m.Module, "viewer", "alex")
+				inst, err := k.State.InstallAsHost(t.Context(), "acme", m.Name, "viewer", "alex")
 				if tc.state != "pending" && err != nil {
 					t.Fatal(err)
 				}
@@ -44,7 +45,14 @@ func TestPersonIssueDistinguishesInstallationAndEntitlement(t *testing.T) {
 					t.Fatal("fixture is not pending")
 				}
 				if tc.state == "revoked" {
-					if err := k.State.Revoke(inst.ID); err != nil {
+					if err := k.State.UninstallAsHost(inst.ID); err != nil {
+						t.Fatal(err)
+					}
+				}
+				// Installing grants nobody a role, the installer included:
+				// alex is granted one, maya is not.
+				if tc.state == "active" && tc.person == "alex" {
+					if err := k.State.GrantRole(domain.RoleGrant{InstallationID: inst.ID, Role: "viewer", PersonID: "alex"}); err != nil {
 						t.Fatal(err)
 					}
 				}

@@ -55,6 +55,11 @@ class AuthorityServiceStub(object):
                 request_serializer=host_dot_authority_dot_v1_dot_authority__pb2.ListResourcesRequest.SerializeToString,
                 response_deserializer=host_dot_authority_dot_v1_dot_authority__pb2.ListResourcesResponse.FromString,
                 _registered_method=True)
+        self.AuthorizeTransfer = channel.unary_unary(
+                '/host.authority.v1.AuthorityService/AuthorizeTransfer',
+                request_serializer=host_dot_authority_dot_v1_dot_authority__pb2.AuthorizeTransferRequest.SerializeToString,
+                response_deserializer=host_dot_authority_dot_v1_dot_authority__pb2.AuthorizeTransferResponse.FromString,
+                _registered_method=True)
         self.Delegate = channel.unary_unary(
                 '/host.authority.v1.AuthorityService/Delegate',
                 request_serializer=host_dot_authority_dot_v1_dot_authority__pb2.DelegateRequest.SerializeToString,
@@ -112,6 +117,24 @@ class AuthorityServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def AuthorizeTransfer(self, request, context):
+        """AuthorizeTransfer decides whether an existing resource may join an
+        installed solution's principal. The caller is the kind's one serving
+        module, which attests the resource exists and who owns it now
+        (from_owner_id), presenting the capability of the person asking: issued
+        through the target principal's installation and addressed to the caller.
+        It is allowed when the current owner is the organization or a person of
+        it (never another solution principal, another organization or an unknown
+        owner), the person holds admin on that resource from their own
+        organization grants, and the person's current roles on the principal hold
+        write on the kind, all read live. An installation acting for itself never
+        transfers. The store then records the principal as owner; the original
+        creator stays the author.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def Delegate(self, request, context):
         """Delegate records a signed-in person's grant to a module (the caller's
         bearer is the person); Issue with a delegation acts on it.
@@ -159,6 +182,11 @@ def add_AuthorityServiceServicer_to_server(servicer, server):
                     servicer.ListResources,
                     request_deserializer=host_dot_authority_dot_v1_dot_authority__pb2.ListResourcesRequest.FromString,
                     response_serializer=host_dot_authority_dot_v1_dot_authority__pb2.ListResourcesResponse.SerializeToString,
+            ),
+            'AuthorizeTransfer': grpc.unary_unary_rpc_method_handler(
+                    servicer.AuthorizeTransfer,
+                    request_deserializer=host_dot_authority_dot_v1_dot_authority__pb2.AuthorizeTransferRequest.FromString,
+                    response_serializer=host_dot_authority_dot_v1_dot_authority__pb2.AuthorizeTransferResponse.SerializeToString,
             ),
             'Delegate': grpc.unary_unary_rpc_method_handler(
                     servicer.Delegate,
@@ -285,6 +313,33 @@ class AuthorityService(object):
             '/host.authority.v1.AuthorityService/ListResources',
             host_dot_authority_dot_v1_dot_authority__pb2.ListResourcesRequest.SerializeToString,
             host_dot_authority_dot_v1_dot_authority__pb2.ListResourcesResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def AuthorizeTransfer(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/host.authority.v1.AuthorityService/AuthorizeTransfer',
+            host_dot_authority_dot_v1_dot_authority__pb2.AuthorizeTransferRequest.SerializeToString,
+            host_dot_authority_dot_v1_dot_authority__pb2.AuthorizeTransferResponse.FromString,
             options,
             channel_credentials,
             insecure,

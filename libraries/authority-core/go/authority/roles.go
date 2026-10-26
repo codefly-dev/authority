@@ -25,7 +25,11 @@ func decideRoleChange(tx Tx, caller Person, r RoleRequest, list, revoke bool) (d
 	// it: the foreign answer comes before any installation is read. Then the
 	// installation is resolved by (organization, id): another organization's
 	// and an absent one answer alike, having done the same work.
-	if callerOrganization(tx, caller) != r.Organization {
+	c, err := tx.Person(caller.ID)
+	if err != nil && !errors.Is(err, domain.ErrNotFound) {
+		return domain.Installation{}, err
+	}
+	if caller.ID == "" || err != nil || c.Organization != r.Organization {
 		return domain.Installation{}, decide.ForeignInstallation(r.InstallationID, r.Organization)
 	}
 	inst, err := tx.Installation(r.InstallationID)
@@ -34,10 +38,6 @@ func decideRoleChange(tx Tx, caller Person, r RoleRequest, list, revoke bool) (d
 	}
 	if err != nil {
 		return inst, err
-	}
-	c, err := tx.Person(caller.ID)
-	if err != nil {
-		c = domain.Person{ID: caller.ID, Organization: caller.Organization}
 	}
 	grants, err := tx.RoleGrants(inst.ID)
 	if err != nil {

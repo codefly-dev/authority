@@ -3,6 +3,8 @@ package testkit
 import (
 	"context"
 	"gateway/pkg/business/state"
+
+	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"testing"
 )
@@ -27,7 +29,7 @@ func SolutionTools(t *testing.T, k *Kit) {
 	read := []*basev0.WorkScopeV1{Scope("proposals.item", "read")}
 	target := Proposals(1)
 	target.Methods = map[string]state.MethodPolicy{SolutionToolMethod: {Requires: read}}
-	actor := state.Manifest{Module: "robin", Principal: "robin", Kind: "module", Generation: 1,
+	actor := state.Manifest{Name: "robin", Principal: "robin", Kind: "module", Generation: 1, OwnerAware: true,
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("robin.conversations", "read")},
 		Bindings:      map[string]state.Binding{SolutionToolBinding: {ID: SolutionToolBinding, Audience: "proposals", InvokeScopes: read}},
 	}
@@ -36,11 +38,11 @@ func SolutionTools(t *testing.T, k *Kit) {
 			t.Fatal(err)
 		}
 	}
-	inst, err := k.State.Install(context.Background(), "acme", "proposals", "viewer", "alex")
+	inst, err := k.State.InstallAsHost(context.Background(), "acme", "proposals", "viewer", "alex")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := k.State.GrantToTeam(context.Background(), "acme", inst.ID, "finance"); err != nil {
+	if err := k.State.GrantRole(domain.RoleGrant{InstallationID: inst.ID, Role: "viewer", TeamID: "finance"}); err != nil {
 		t.Fatal(err)
 	}
 }

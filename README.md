@@ -25,8 +25,11 @@ This repository holds two things, and only these two:
 
 **What is reused today.** The local implementation uses Core's Work Context
 authority/verifier, workload attestation and signed composition machinery.
-Its issuer/state resolves fixture grants; it does not currently link Accounts'
-sign-in or grant-derivation packages. The original host-package reuse requirement
+Its local issuer delegates issuance and grant derivation to this repository's
+shared authority core; the state adapter supplies fixture roles and delivery data.
+It does not currently link Accounts' sign-in or grant-derivation packages, and
+this adapter migration does not establish Accounts adoption of that core.
+The original host-package reuse requirement
 remains an unresolved design obligation with the host owner, not a guarantee
 established by this checkout. The shared conformance suite must run against both
 implementations; a local pass or a skipped provider scenario does not prove parity.
@@ -173,8 +176,10 @@ talks to. Against that:
   an endpoint on a cell), installations with the install step, module routes.
 
 **What remains is the interface.** Authority: `Issue`, `Check`, `Keys`.
-Composition: `ApplyManifest`. Installation: `Install`, `GrantToTeam`, `List`, and
-the install step callback. Sign-in at the browser edge only. Routing is the data
+Composition: `ApplyManifest`. Installation: `Install`, `GrantRole`, `RevokeRole`,
+`ListRoleGrants`, `List`, and the install step callback (installation 0.2.0: an
+installed solution is a principal, and a role grant to a person or a team is
+the access; `GrantToTeam` is gone). Sign-in at the browser edge only. Routing is the data
 plane, not a contract. 0.1.0 mirrors today's spellings so the local authority serves
 the SDKs as they are; the reduced shape is 0.2.0, a host contract change through a
 handbook proposal, after which the SDKs move once.
@@ -355,7 +360,7 @@ role through a granted team, and nothing from the organisation's roles. Another
 organisation's installation grants nothing. The values of real roles belong to
 each solution's manifest and arrive through the carrier: core's manifest carries
 no roles, so they travel in the authority's own document delivered with it
-(`AuthorityManifestV1.roles`, as the sketch's `ModuleManifestV1.roles`), bounded
+(`AuthorityManifestV1.roles`), bounded
 by the solution's own scope ceilings and the invoke/lookup scopes in the paired
 Core manifest. Consumed kinds do not become kinds the solution serves. This repository holds
 the contract and its evaluation, never a product's roles.
@@ -413,10 +418,14 @@ role narrowing/removal and binding narrowing/removal before resolution, during
 minting and after issuance. These checks do not choose a child-scope policy or
 qualify the separate accounts implementation.
 
-Installation administration (`List`, `Install`, `GrantToTeam`) requires an open
-session whose current person is an administrator or owner of the requested
-organization. Anonymous and invalid sessions are `Unauthenticated`; a member or
-an administrator of another organization receives `PermissionDenied`. This is
+Installation administration (`List`, `Install`) requires an open session whose
+current person is an administrator or owner of the requested organization; role
+grants (`GrantRole`, `RevokeRole`, `ListRoleGrants`) also admit the holder of the
+installer role on that installation. Anonymous and invalid sessions are
+`Unauthenticated`; anyone else receives `PermissionDenied`, and a caller of
+another organization is answered as if the installation did not exist. Every
+decision is the generic authority core's (`libraries/authority-core/go`); the
+local authority is a host over it. This is
 not the navigation API: a member probes each target with an empty-scope `Issue`.
 That call returns `FailedPrecondition` when the audience has no active
 installation in the person's organization, and `PermissionDenied` when installed
@@ -430,9 +439,8 @@ for exactly that scope and expects the answer. The local authority's fixture car
 two organisations, a person with no roles or teams and an automatically generated
 developer role; the test kit's composition document installs a solution under
 different roles in each. The host supplies its own matrix from its
-own fixture. When the fixture signs, the suite composes its solution as a carrier
-with the authority's document carrying its roles; the sketch remains for a
-fixture that does not sign.
+own fixture. The suite requires a signed carrier and authenticated delivery
+workload, with the paired authority document carrying the solution's roles.
 
 The fixture names only the authority's own vocabulary. A composing workspace
 adds what its modules and solutions need: grants on the fixture's roles,
@@ -867,8 +875,10 @@ results do not qualify later suite additions.
   keys it pins and reads the manifest from the verified document. The mini
   local authority pins the kit's release key and attests the carrier by the launcher's
   anchor; the host pins its release keys and attests the delivery service
-  account. The sketch (`manifest`) stays through the transition and is ignored
-  when a carrier is present. Not yet done: the host adapter behind it.
+  account. Public requests without a signed carrier and authenticated delivery
+  credential are refused before composition or pending installation work. The
+  old `manifest` wire field grants no authority. Trusted fixture seeding is a
+  host-only state API. Not yet done: the host adapter behind it.
 
 ## Local service name (2026-10-25)
 

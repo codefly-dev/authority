@@ -23,7 +23,9 @@ func (c *client) installationIdentity(t *testing.T, ctx context.Context, f Fixtu
 		name, id, credential, org, reason string
 		code                              codes.Code
 	}{
-		{"an installation issue verifies the installation exists", "conformance-missing-installation", f.InstalledCredential, "", "installation", codes.NotFound},
+		// An absent installation answers as another organization's does: a
+		// solution learns nothing of which organizations installed what.
+		{"an installation issue verifies the installation exists", "conformance-missing-installation", f.InstalledCredential, "", "installation", codes.PermissionDenied},
 		{"an installation issue authenticates the installed solution", f.InstalledSolution, f.WorkloadCredential, "", "installed solution", codes.PermissionDenied},
 		{"an installation issue cannot name a different organization", f.InstalledSolution, f.InstalledCredential, "conformance-foreign-org", "organization", codes.PermissionDenied},
 	} {
@@ -88,22 +90,19 @@ func (c *client) installationLifecycle(t *testing.T, ctx context.Context, f Fixt
 		issue := func() (protoreflect.Message, error) {
 			return c.call(ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"installation": map[string]any{"installation_id": id}, "actor": map[string]any{"credential": l.Credential}, "audience": l.Target})
 		}
-		grant := map[string]any{"organization_id": f.Organization, "installation_id": id, "team_id": l.Team}
-		// Exposure is GrantToTeam before the solution-principal contract and a
-		// team's role grant (GrantRole) under it, which deletes GrantToTeam.
-		expose := "GrantToTeam"
-		if c.solutionPrincipal() {
-			expose = "GrantRole"
-			grant["role"] = "viewer"
-		}
+		// Exposure is a team's role grant.
+		grant := map[string]any{"organization_id": f.Organization, "installation_id": id, "team_id": l.Team, "role": "viewer"}
+		const expose = "GrantRole"
 		t.Run("pending installation cannot issue or be exposed", func(t *testing.T) {
 			if enumName(pending, "status") != "STATUS_PENDING" {
 				t.Fatal("installation became active before acknowledgement")
 			}
 			_, err := issue()
-			refused(t, err, codes.PermissionDenied, "pending")
+			// The installation is not installed yet: a state that may still
+			// change, as the solution-principal target names it.
+			refused(t, err, codes.FailedPrecondition, "pending")
 			_, err = c.call(adminCtx, "host.installation.v1.InstallationService", expose, grant)
-			refused(t, err, codes.PermissionDenied, "pending")
+			refused(t, err, codes.FailedPrecondition, "pending")
 		})
 		resume()
 		select {
@@ -115,14 +114,10 @@ func (c *client) installationLifecycle(t *testing.T, ctx context.Context, f Fixt
 			t.Fatal("acknowledged install did not finish")
 		}
 		t.Run("acknowledged installation is exposed to its team", func(t *testing.T) {
-			exposed := c.must(t, adminCtx, "host.installation.v1.InstallationService", expose, grant)
-			if c.solutionPrincipal() {
-				listed := c.must(t, adminCtx, "host.installation.v1.InstallationService", "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": id})
-				if grants := listMsgs(listed, "grants"); len(grants) != 1 || str(grants[0], "team_id") != l.Team || str(grants[0], "role") != "viewer" {
-					t.Fatalf("acknowledged installation was not granted to its team exactly once: %v", grants)
-				}
-			} else if enumName(exposed, "status") != "STATUS_ACTIVE" || count(exposed, "team_ids") != 1 || u64(exposed, "revision") != u64(pending, "revision")+1 {
-				t.Fatal("acknowledged installation was not exposed exactly once")
+			c.must(t, adminCtx, "host.installation.v1.InstallationService", expose, grant)
+			listed := c.must(t, adminCtx, "host.installation.v1.InstallationService", "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": id})
+			if grants := listMsgs(listed, "grants"); len(grants) != 1 || str(grants[0], "team_id") != l.Team || str(grants[0], "role") != "viewer" {
+				t.Fatalf("acknowledged installation was not granted to its team exactly once: %v", grants)
 			}
 			_, err := c.call(adminCtx, "host.installation.v1.InstallationService", "Install", request)
 			refused(t, err, codes.PermissionDenied, "already installed")
@@ -141,7 +136,7 @@ func (c *client) installationLifecycle(t *testing.T, ctx context.Context, f Fixt
 				t.Fatal(err)
 			}
 			_, err := issue()
-			refused(t, err, codes.PermissionDenied, "revoked")
+			refused(t, err, codes.FailedPrecondition, "revoked")
 			_, err = c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(out, "token"), "audience": l.Target})
 			refused(t, err, codes.PermissionDenied, "")
 		})

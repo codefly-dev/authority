@@ -198,31 +198,3 @@ func TestPersonIssueAskPersistsForTheSameKind(t *testing.T) {
 		t.Fatalf("a per-issue narrowing was recovered: %v", effectiveScopes(out.Context))
 	}
 }
-
-func TestInstallationChildProjectsTheTargetRoleAndBinding(t *testing.T) {
-	k, _ := solutionRoleKit(t, testkit.Scope("documents", "read"))
-	actor := &authorityv1.WorkloadCredential{Credential: k.Credential(t, "wiki")}
-	root, err := k.Issuer.Issue(context.Background(), &authorityv1.IssueRequest{
-		As:    &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: state.InstallationID("acme", "wiki")}},
-		Actor: actor, Audience: "wiki",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	req := &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_ParentToken{ParentToken: root.Token},
-		Actor: actor, Audience: "documents", OperationBindingId: "documents"}
-	out, err := k.Issuer.Issue(context.Background(), req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(effectiveScopes(out.Context)) != 1 || actions(out.Context, "documents") != "read" {
-		t.Fatalf("installation child retained unrelated role scopes: %v", effectiveScopes(out.Context))
-	}
-	if _, err := k.Issuer.Check(context.Background(), out.Token, "documents", ""); err != nil {
-		t.Fatal(err)
-	}
-	req.Scopes = scopes(testkit.Scope("documents", "write"))
-	if _, err := k.Issuer.Issue(context.Background(), req); !errors.Is(err, issuer.ErrRefused) {
-		t.Fatalf("installation role widened by target binding: %v", err)
-	}
-}

@@ -67,6 +67,7 @@ func (s *State) ApplyComposition(ctx context.Context, data []byte) ([]string, er
 	for key, role := range roles {
 		s.roles[key] = role
 	}
+	s.refreshRolesLocked()
 	s.mu.Unlock()
 	if len(doc.Installations) > 0 || len(doc.Modules) > 0 {
 		setup, err := yaml.Marshal(fixtureFile{Installations: doc.Installations, Modules: doc.Modules})
@@ -186,15 +187,16 @@ func (s *State) checkComposedSetup(doc compositionFile) ([]string, error) {
 	var lines []string
 	for _, i := range doc.Installations {
 		owner, ok := s.people[i.Owner]
+		_, known := s.orgs[i.Organization]
 		switch {
 		case i.Target == "" || i.Role == "":
 			return nil, fmt.Errorf("an installation names no target or no role")
-		case s.orgs[i.Organization] == "":
+		case !known:
 			return nil, fmt.Errorf("installation of %s: %q is not an organisation the fixture defines", i.Target, i.Organization)
 		case !ok || owner.Organization != i.Organization:
 			return nil, fmt.Errorf("installation of %s: %q is not a person of %s in the fixture", i.Target, i.Owner, i.Organization)
 		}
-		lines = append(lines, fmt.Sprintf("installs %s at %s as %s, for %v", i.Target, i.Organization, i.Role, i.Teams))
+		lines = append(lines, fmt.Sprintf("installs %s at %s as %s, granting %s the installer role and %v the role %s", i.Target, i.Organization, i.Role, i.Owner, i.Teams, i.Role))
 	}
 	for _, m := range doc.Modules {
 		if !kindGrammar.MatchString(m.Module) || len(m.Kinds) == 0 {

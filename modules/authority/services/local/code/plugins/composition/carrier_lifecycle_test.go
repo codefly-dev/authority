@@ -280,14 +280,14 @@ func TestSignedCarrierReplayCompletesFailedInstallationWithoutReadmission(t *tes
 		t.Fatalf("replay did not finish pending work: %v", err)
 	}
 	active, _ := k.State.Installation(id)
-	if active.Status != state.Active || !slices.Equal(active.Teams, []string{"finance"}) || calls != 2 {
+	if active.Status != state.Active || !slices.Equal(k.Teams(t, active.ID), []string{"finance"}) || calls != 2 {
 		t.Fatalf("completion: %+v, calls %d", active, calls)
 	}
-	revision, _ := k.State.AuthorizationRevision(ctx, "acme")
+	revision := k.Revision(t, "acme")
 	if _, err := p.ApplyManifest(ctx, req); err != nil {
 		t.Fatal(err)
 	}
-	after, _ := k.State.AuthorizationRevision(ctx, "acme")
+	after := k.Revision(t, "acme")
 	if after != revision || calls != 2 {
 		t.Fatal("replay repeated grants or callback")
 	}
@@ -311,7 +311,7 @@ func TestSignedCarrierWithdrawalFencesAnInFlightInstallCallback(t *testing.T) {
 		t.Fatal("stale callback reported successful installation")
 	}
 	inst, _ := k.State.Installation(state.InstallationID("acme", "conformance-solution"))
-	if inst.Status != state.Revoked || len(inst.Teams) != 0 {
+	if inst.Status != state.Revoked || len(k.Teams(t, inst.ID)) != 0 {
 		t.Fatalf("callback restored access: %+v", inst)
 	}
 }
@@ -379,11 +379,11 @@ func TestSignedCarrierWithdrawalRevokesAlreadyIssuedPersonAuthority(t *testing.T
 	if _, err := k.Issuer.Issue(person, request); err == nil {
 		t.Fatal("new authority issued for withdrawn module")
 	}
-	revision, _ := k.State.AuthorizationRevision(ctx, "acme")
+	revision := k.Revision(t, "acme")
 	if _, err := p.ApplyManifest(ctx, withdrawn(t, req)); err != nil {
 		t.Fatal(err)
 	}
-	after, _ := k.State.AuthorizationRevision(ctx, "acme")
+	after := k.Revision(t, "acme")
 	if after != revision {
 		t.Fatal("withdrawal replay repeated revocation")
 	}
@@ -399,7 +399,7 @@ func TestSignedCarrierReplayCannotUndoExplicitInstallationRevocation(t *testing.
 		t.Fatal("failed callback reported success")
 	}
 	id := state.InstallationID("acme", "conformance-solution")
-	if err := k.State.Revoke(id); err != nil {
+	if err := k.State.UninstallAsHost(id); err != nil {
 		t.Fatal(err)
 	}
 	revoked, _ := k.State.Installation(id)
@@ -423,11 +423,11 @@ func TestSignedCarrierReplayCannotAttachToAnExplicitReinstallation(t *testing.T)
 	}
 	id := state.InstallationID("acme", "conformance-solution")
 	pending, _ := k.State.Installation(id)
-	if err := k.State.Revoke(id); err != nil {
+	if err := k.State.UninstallAsHost(id); err != nil {
 		t.Fatal(err)
 	}
 	k.State.OnInstall(nil)
-	fresh, err := k.State.Install(ctx, "acme", "conformance-solution", "viewer", "alex")
+	fresh, err := k.State.InstallAsHost(ctx, "acme", "conformance-solution", "viewer", "alex")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -438,7 +438,7 @@ func TestSignedCarrierReplayCannotAttachToAnExplicitReinstallation(t *testing.T)
 		t.Fatal("old intent attached to new attempt")
 	}
 	after, _ := k.State.Installation(id)
-	if len(after.Teams) != 0 || after.Revision != fresh.Revision {
+	if len(k.Teams(t, after.ID)) != 0 || after.Revision != fresh.Revision {
 		t.Fatalf("old fixture intent exposed new installation: %+v", after)
 	}
 }
@@ -488,10 +488,10 @@ func TestSignedCarrierPartialCompletionDoesNotRepeatEarlierGrants(t *testing.T) 
 	}
 	id := state.InstallationID("acme", "conformance-solution")
 	before, _ := k.State.Installation(id)
-	if before.Status != state.Active || len(before.Teams) != 1 {
+	if before.Status != state.Active || len(k.Teams(t, before.ID)) != 1 {
 		t.Fatalf("first intent did not complete: %+v", before)
 	}
-	if err := k.State.Revoke(id); err != nil {
+	if err := k.State.UninstallAsHost(id); err != nil {
 		t.Fatal(err)
 	}
 	fail = false
@@ -500,7 +500,7 @@ func TestSignedCarrierPartialCompletionDoesNotRepeatEarlierGrants(t *testing.T) 
 	}
 	first, _ := k.State.Installation(id)
 	second, _ := k.State.Installation(state.InstallationID("globex", "conformance-solution"))
-	if first.Status != state.Revoked || second.Status != state.Active || !slices.Equal(second.Teams, []string{"ops"}) {
+	if first.Status != state.Revoked || second.Status != state.Active || !slices.Equal(k.Teams(t, second.ID), []string{"ops"}) {
 		t.Fatalf("partial completion replay: first=%+v second=%+v", first, second)
 	}
 }
@@ -561,7 +561,7 @@ func TestSignedCarrierReplacementWaitsForAndFencesEarlierCompletion(t *testing.T
 		t.Fatalf("new delivery lost pending intent: %v", err)
 	}
 	inst, _ := k.State.Installation(state.InstallationID("acme", "conformance-solution"))
-	if inst.Status != state.Active || calls.Load() != 2 || !slices.Equal(inst.Teams, []string{"finance"}) {
+	if inst.Status != state.Active || calls.Load() != 2 || !slices.Equal(k.Teams(t, inst.ID), []string{"finance"}) {
 		t.Fatalf("replacement completion: %+v, calls %d", inst, calls.Load())
 	}
 }

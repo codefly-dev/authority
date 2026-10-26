@@ -20,9 +20,9 @@ type appliedDelivery struct {
 	completion chan struct{}
 }
 
-// pendingInstallation follows one fixture intent across failed callbacks and
-// superseding deliveries. Its fields are guarded by State.mu; revision fences
-// an explicit uninstall/reinstall and done prevents replay of completed grants.
+// pendingInstallation is one fixture installation waiting on a delivery:
+// revision is what its first attempt took, done prevents its replay once
+// performed. Guarded by State.mu.
 type pendingInstallation struct {
 	FixtureInstallation
 	revision uint64
@@ -91,11 +91,13 @@ func (s *State) admitDeliveryLocked(coordinate string, carrier *solutionhost.Del
 	if candidate.Removed {
 		// An unknown tombstone must not erase an unrelated transitional sketch.
 		if previous == nil {
-			if _, exists := s.modules[candidate.Alias]; exists {
+			if _, exists := s.Module(candidate.Alias); exists {
 				return nil, fmt.Errorf("%w: withdrawal has no admitted binding for %s", ErrForbidden, candidate.Alias)
 			}
 		}
-		s.withdrawLocked(candidate.Alias)
+		if err := s.withdrawLocked(candidate.Alias); err != nil {
+			return nil, err
+		}
 	} else {
 		ids, pending, err := s.applyManifestLocked(m)
 		if err != nil {
@@ -142,7 +144,7 @@ func (s *State) finishDelivery(ctx context.Context, manifest *solutionhost.Modul
 	return nil
 }
 
-func (s *State) finishFixtureInstalls(ctx context.Context, manifest *solutionhost.ModuleManifest, pending []*pendingInstallation) error {
+func (s *State) finishFixtureInstalls(ctx context.Context, _ *solutionhost.ModuleManifest, pending []*pendingInstallation) error {
 	for _, i := range pending {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -153,53 +155,25 @@ func (s *State) finishFixtureInstalls(ctx context.Context, manifest *solutionhos
 		if done {
 			continue
 		}
-		inst, err := s.install(ctx, i.Organization, i.Target, i.Role, i.Owner, manifest.Generation, i)
-		if err != nil {
-			return fmt.Errorf("fixture installation of %s: %w", i.Target, err)
+		if err := s.performInstall(ctx, i.FixtureInstallation, i); err != nil {
+			return err
 		}
 		s.mu.Lock()
-		current, live := s.modules[i.Target]
-		held := s.installations[inst.ID]
-		if !live || current.Generation != manifest.Generation || held.Status != Active || held.Revision != inst.Revision {
-			s.mu.Unlock()
-			return fmt.Errorf("%w: fixture installation changed before team grants", ErrStale)
-		}
-		for _, team := range i.Teams {
-			if !slices.Contains(held.Teams, team) {
-				held.Teams = append(held.Teams, team)
-				held.Revision++
-				s.revisions[i.Organization]++
-			}
-		}
-		s.installations[inst.ID] = held
 		i.done = true
 		s.mu.Unlock()
 	}
 	return nil
 }
 
-func (s *State) withdrawLocked(alias string) {
-	if previous, ok := s.modules[alias]; ok {
-		delete(s.principals, previous.Principal)
-	}
-	delete(s.modules, alias)
+// withdrawLocked removes a module through the core: its installations are
+// revoked and the delegations granted to it end. Caller holds mu.
+func (s *State) withdrawLocked(alias string) error {
 	s.takePendingInstalls(alias)
-	for id, installation := range s.installations {
-		if installation.Target != alias || installation.Status == Revoked {
-			continue
+	if _, ok := s.Module(alias); ok {
+		if err := s.svc.WithdrawModule(context.Background(), alias); err != nil {
+			return err
 		}
-		installation.Status = Revoked
-		installation.Revision++
-		s.installations[id] = installation
-		s.revisions[installation.Organization]++
 	}
-	for id, delegation := range s.delegations {
-		if delegation.Module != alias || delegation.Revoked {
-			continue
-		}
-		delegation.Revoked = true
-		s.delegations[id] = delegation
-		s.revisions[delegation.Organization]++
-	}
-	s.refreshDeveloperRoles()
+	s.refreshRolesLocked()
+	return nil
 }
