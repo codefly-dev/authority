@@ -33,8 +33,16 @@ func TestAModuleInstallationIsNeverUninstalled(t *testing.T) {
 	if _, err := h.svc.Seals().Seal(h.ctx, "maya", h.inst(acme, "a").ID); err == nil {
 		t.Fatal("a delivery reactivated an uninstalled installation")
 	}
+	// The host's own setup may retire a module at one organization; a
+	// routine delivery leaves it retired.
+	if err := h.svc.Uninstall(h.ctx, nil, acme, h.inst(acme, "store").ID); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := h.svc.ApplyModule(h.ctx, storeModule(2)); err != nil {
 		t.Fatal(err)
+	}
+	if _, err := h.svc.Seals().Seal(h.ctx, "maya", h.inst(acme, "store").ID); err == nil {
+		t.Fatal("a delivery reactivated a module the host retired")
 	}
 }
 
