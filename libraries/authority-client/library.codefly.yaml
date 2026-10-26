@@ -1,6 +1,6 @@
 kind: library
 name: authority-client
-version: 0.0.0
+version: 0.0.1
 languages:
     - name: go
       path: go/
@@ -16,7 +16,7 @@ languages:
         - '@codefly-dev/authority-client'
 sources:
     - package: local
-      version: 0.0.0
+      version: 0.0.1
       module: authority
       service: local
       endpoint: grpc

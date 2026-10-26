@@ -1,6 +1,7 @@
 package decide_test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -37,18 +38,33 @@ var solution = domain.Module{Name: "a", Principal: "a", Kind: domain.KindSolutio
 func TestRolesAreGrantsOnThePrincipalsData(t *testing.T) {
 	inst := domain.Installation{ID: "i", Organization: "acme", Target: "a", Status: domain.Active, PrincipalID: "u"}
 	maya := domain.Person{ID: "maya", Organization: "acme", Teams: []string{"finance"}}
-	grants := []domain.RoleGrant{{InstallationID: "i", Role: "viewer", TeamID: "finance"}, {InstallationID: "i", Role: domain.InstallerRole, PersonID: "alex"}}
-	roles := decide.HeldRoles(maya, grants)
+	grants := []domain.RoleGrant{{InstallationID: "i", Role: "viewer", TeamID: "finance"}, {InstallationID: "i", Role: domain.InstallerRole, PersonID: "alex"},
+		{InstallationID: "elsewhere", Role: domain.InstallerRole, PersonID: "maya"}}
+	roles := decide.HeldRoles(maya, inst, grants)
 	if len(roles) != 1 || roles[0] != "viewer" {
-		t.Fatalf("held %v: a team grant is its members' role, a person's grant theirs alone", roles)
+		t.Fatalf("held %v: a team grant is its members' role, a person's grant theirs alone, another installation's grant nothing here", roles)
 	}
-	for _, s := range decide.RoleScopes(solution, inst, roles) {
+	scopes, err := decide.RoleScopes(solution, inst, roles)
+	if err != nil || len(scopes) == 0 {
+		t.Fatalf("role scopes %v, %v", scopes, err)
+	}
+	for _, s := range scopes {
 		if s.GetResourceOwnerId() != "u" {
 			t.Fatalf("a role scope %v is not owned by the principal", s)
 		}
 	}
-	if decide.RoleScopes(solution, inst, nil) != nil {
+	if got, err := decide.RoleScopes(solution, inst, nil); got != nil || err != nil {
 		t.Fatal("no role grants something")
+	}
+}
+
+// An installation with no principal (a zero value, a row from before the
+// principal existed) grants nothing: an empty owner selects every owner.
+func TestAnInstallationWithoutAPrincipalGrantsNothing(t *testing.T) {
+	got, err := decide.RoleScopes(solution, domain.Installation{ID: "i"}, []string{"viewer"})
+	refused(t, err, domain.Denied, "no principal")
+	if got != nil {
+		t.Fatalf("an installation with no principal granted %v", got)
 	}
 }
 
@@ -67,13 +83,17 @@ func TestIssueNamesWhyAnAskIsRefused(t *testing.T) {
 	refused(t, err, domain.Denied, "holds nothing")
 }
 
-func TestAChildRefusalNamesConfinement(t *testing.T) {
-	ask := []*basev0.WorkScopeV1{{ResourceKind: "doc", Actions: []string{"read"}, ResourceIds: []string{"x"}}}
-	ceiling := []*basev0.WorkScopeV1{owned("doc", "u", []string{"read"})}
-	own := []*basev0.WorkScopeV1{{ResourceKind: "doc", Actions: []string{"read"}, ResourceIds: []string{"x"}}}
-	refused(t, decide.Child(ask, ceiling, own, true, "store"), domain.Denied, "confined")
-	refused(t, decide.Child(ask, ceiling, own, false, "store"), domain.Denied, "widens")
-	refused(t, decide.Child(ask, ceiling, nil, true, "store"), domain.Denied, "widens")
+// Through a solution the refusal says the capability is confined, in the
+// same words whatever the person's own grants hold, so the module asking
+// learns nothing of them; elsewhere it says the child widens.
+func TestAChildRefusalNamesConfinementAndRevealsNoGrant(t *testing.T) {
+	through := decide.Child("store", true)
+	refused(t, through, domain.Denied, "confined")
+	refused(t, through, domain.Denied, "widens")
+	refused(t, decide.Child("store", false), domain.Denied, "widens")
+	if strings.Contains(decide.Child("store", false).Error(), "confined") {
+		t.Fatal("a child through no solution is called confined")
+	}
 }
 
 func TestOwnerSelectedScopesNeedAnOwnerAwareAudience(t *testing.T) {
@@ -120,12 +140,34 @@ func TestWhoMayChangeARoleInOrder(t *testing.T) {
 		"a person of another organization": {func(r *decide.RoleChange) { r.PersonID, r.Subject = "omar", &omar }, domain.Denied, "not a member"},
 		"a team of another organization":   {func(r *decide.RoleChange) { r.PersonID, r.TeamID = "", "ops" }, domain.Denied, "not a team of"},
 		"a member listing":                 {func(r *decide.RoleChange) { r.Caller, r.List = member, true }, domain.Denied, "may not list"},
+		"a member revoking":                {func(r *decide.RoleChange) { r.Caller, r.Revoke = member, true }, domain.Denied, "may not grant"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			r := base()
 			c.mutate(&r)
 			refused(t, decide.ChangeRole(r), c.code, c.reason)
 		})
+	}
+	// A grant stays revocable after its person left or its team is gone.
+	for name, mutate := range map[string]func(*decide.RoleChange){
+		"a person who left":        func(r *decide.RoleChange) { r.Subject = nil },
+		"a person now elsewhere":   func(r *decide.RoleChange) { r.Subject = &omar },
+		"a team no member carries": func(r *decide.RoleChange) { r.PersonID, r.TeamID = "", "gone" },
+	} {
+		t.Run("revoking "+name, func(t *testing.T) {
+			r := base()
+			r.Revoke = true
+			mutate(&r)
+			if err := decide.ChangeRole(r); err != nil {
+				t.Fatalf("the grant cannot be revoked: %v", err)
+			}
+		})
+	}
+	// Another organization's installation and none at all answer alike.
+	other := base()
+	other.RequestOrganization = "globex"
+	if got, absent := decide.ChangeRole(other).Error(), decide.ForeignInstallation(inst.ID, "globex").Error(); got != absent {
+		t.Fatalf("a foreign installation answers %q, an absent one %q", got, absent)
 	}
 }
 
@@ -163,9 +205,7 @@ func TestATransferIsDecidedInOrder(t *testing.T) {
 		})
 	}
 	for _, id := range []string{"", " x", "a*b", "x\n", strings.Repeat("x", 129)} {
-		if decide.ValidResourceID(id) == nil {
-			t.Fatalf("id %q is usable", id)
-		}
+		refused(t, decide.ValidResourceID(id), domain.Invalid, "not a usable id")
 	}
 }
 
@@ -186,4 +226,38 @@ func TestOrganizationGrantsAndModules(t *testing.T) {
 	refused(t, decide.ValidateModule(bad), domain.Denied, "selects an owner")
 	module := domain.Module{Name: "m", Principal: "m", Kind: domain.KindModule, Generation: 1, Roles: solution.Roles}
 	refused(t, decide.ValidateModule(module), domain.Denied, "declares roles")
+	noInstaller := solution
+	noInstaller.Roles = map[string][]*basev0.WorkScopeV1{"viewer": solution.Roles["viewer"]}
+	if err := decide.ValidateModule(noInstaller); !errors.Is(err, domain.ErrNoInstallerRole) {
+		t.Fatalf("a solution with no installer role: %v", err)
+	}
+	for name, methods := range map[string]map[string]domain.MethodPolicy{
+		"a method naming resource ids": {"/doc.Store/Read": {Requires: []*basev0.WorkScopeV1{{ResourceKind: "doc", Actions: []string{"read"}, ResourceIds: []string{"x"}}}}},
+		"a method naming an owner":     {"/doc.Store/Read": {Requires: []*basev0.WorkScopeV1{owned("doc", "u", []string{"read"})}}},
+		"a method requiring and not":   {"/doc.Store/Read": {Requires: []*basev0.WorkScopeV1{sc("doc", "read")}, AnyCheckedCaller: true}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			m := domain.Module{Name: "m", Principal: "m", Kind: domain.KindModule, Generation: 1, Methods: methods}
+			refused(t, decide.ValidateModule(m), domain.Denied, "m:")
+		})
+	}
+	served := domain.Module{Name: "m", Principal: "m", Kind: domain.KindModule, Generation: 1,
+		Methods: map[string]domain.MethodPolicy{"/doc.Store/Read": {Requires: []*basev0.WorkScopeV1{sc("doc", "read")}}, "/doc.Store/Ping": {AnyCheckedCaller: true}}}
+	if err := decide.ValidateModule(served); err != nil {
+		t.Fatalf("a valid method policy: %v", err)
+	}
+}
+
+// Withdrawing owner-aware checking is a narrowing: owner-selected
+// capabilities already issued to the module end with it.
+func TestWithdrawingOwnerAwareIsANarrowing(t *testing.T) {
+	aware := domain.Module{Name: "store", Principal: "store", Kind: domain.KindModule, Generation: 1, OwnerAware: true}
+	blind := aware
+	blind.OwnerAware, blind.Generation = false, 2
+	if !decide.Narrowed(aware, blind) {
+		t.Fatal("withdrawing owner-aware checking is not a narrowing")
+	}
+	if decide.Narrowed(blind, aware) {
+		t.Fatal("declaring owner-aware checking is a narrowing")
+	}
 }

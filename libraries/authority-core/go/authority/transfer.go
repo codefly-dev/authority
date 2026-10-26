@@ -98,7 +98,11 @@ func (s *Service) AuthorizeTransfer(ctx context.Context, r TransferRequest) (Tra
 			if err != nil {
 				return err
 			}
-			t.Writes = scope.HoldsAction(decide.RoleScopes(solution, target, decide.HeldRoles(p, grants)), r.Kind, "write")
+			role, err := decide.RoleScopes(solution, target, decide.HeldRoles(p, target, grants))
+			if err != nil {
+				return err
+			}
+			t.Writes = scope.HoldsAction(role, r.Kind, "write")
 		}
 		if err := decide.AuthorizeTransfer(t); err != nil {
 			return err

@@ -16,7 +16,7 @@ func TestAChildHoldsOnlyWhatTheBindingAndTheOwnersGrantsShare(t *testing.T) {
 	h := newHarness(t)
 	page := domain.Module{Name: "page", Principal: "page", Kind: domain.KindModule, Generation: 1,
 		ResourceKinds: []*basev0.WorkScopeV1{sc("page.entry", "read"), sc(kind, "read", "write"), sc("profiles", "read")},
-		Bindings: map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write")}}}}
+		Bindings:      map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write")}}}}
 	if _, err := h.svc.ApplyModule(h.ctx, page); err != nil {
 		t.Fatal(err)
 	}

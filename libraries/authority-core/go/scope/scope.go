@@ -6,6 +6,7 @@
 package scope
 
 import (
+	"errors"
 	"slices"
 	"sort"
 	"strings"
@@ -108,7 +109,9 @@ func Normalize(in []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 { return coverage
 // whole kind meets named ids as those ids, two id sets meet as their common
 // ids, a row naming no owner meets an owner's row as that owner's, and two
 // different owners meet as nothing. AnyAction in b allows every action of a's
-// kind; AnyAction in a takes every action b allows on that kind.
+// kind; AnyAction in a takes every action b allows on that kind. Where several
+// rows of b allow the same (kind, owner, action), the result is the union of
+// what each allows: a repeated row adds to the answer, never replaces it.
 func Intersect(a, b []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 {
 	allowed, asked := coverageOf(b), coverageOf(a)
 	out := coverage{}
@@ -140,11 +143,13 @@ func Intersect(a, b []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 {
 					}
 					continue
 				}
-				allowedIDs, ok := allowedActs[act]
-				if !ok {
-					allowedIDs, ok = allowedActs[AnyAction]
+				// An exact row and an AnyAction row of the same kind both
+				// allow act: the result is what either allows, so the exact
+				// row never hides a wider AnyAction row.
+				if allowedIDs, ok := allowedActs[act]; ok {
+					put(k, act, meet(ids, allowedIDs))
 				}
-				if ok {
+				if allowedIDs, ok := allowedActs[AnyAction]; ok {
 					put(k, act, meet(ids, allowedIDs))
 				}
 			}
@@ -183,35 +188,79 @@ func union(a, b map[string]bool) map[string]bool {
 	return out
 }
 
-// Attenuates reports whether every scope in narrow is within wide.
+// Attenuates reports whether every scope in narrow is within wide, decided
+// per resource rather than by comparing rendered rows: for each (kind, owner,
+// action) narrow names, every resource it selects must be selected by some row
+// of wide of that kind, holding that action (or AnyAction), and naming the
+// same owner or none. A whole kind is within only a whole kind; an owner-blind
+// row is within only an owner-blind row; AnyAction in narrow is within only
+// AnyAction in wide.
 func Attenuates(narrow, wide []*basev0.WorkScopeV1) bool {
-	n := Normalize(narrow)
-	return Same(Intersect(n, wide), n)
+	held := coverageOf(wide)
+	for k, acts := range coverageOf(narrow) {
+		for act, ids := range acts {
+			if !covered(held, k, act, ids) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
-// Same reports whether two normalized scope lists are equal.
-func Same(a, b []*basev0.WorkScopeV1) bool {
-	if len(a) != len(b) {
+// covered: every resource ids selects (nil: the whole kind) is held for act at
+// k, by rows naming k's owner or no owner and holding act or AnyAction.
+func covered(held coverage, k key, act string, ids map[string]bool) bool {
+	owners, actions := []string{""}, []string{AnyAction}
+	if k.owner != "" {
+		owners = append(owners, k.owner)
+	}
+	if act != AnyAction {
+		actions = append(actions, act)
+	}
+	var selections []map[string]bool
+	for _, owner := range owners {
+		for _, a := range actions {
+			heldIDs, ok := held[key{k.kind, owner}][a]
+			if !ok {
+				continue
+			}
+			if heldIDs == nil {
+				return true
+			}
+			selections = append(selections, heldIDs)
+		}
+	}
+	if ids == nil {
 		return false
 	}
-	for i := range a {
-		if !proto.Equal(a[i], b[i]) {
+	for id := range ids {
+		if !slices.ContainsFunc(selections, func(s map[string]bool) bool { return s[id] }) {
 			return false
 		}
 	}
 	return true
 }
 
+// Same reports whether two normalized scope lists are equal row for row,
+// owners included: two rows differing only in their owner are not the same.
+func Same(a, b []*basev0.WorkScopeV1) bool {
+	return slices.EqualFunc(a, b, func(x, y *basev0.WorkScopeV1) bool { return proto.Equal(x, y) })
+}
+
 // Owned is scopes selecting only owner's resources: the shape every scope a
-// solution's role grants takes, on the data its principal owns.
-func Owned(scopes []*basev0.WorkScopeV1, owner string) []*basev0.WorkScopeV1 {
+// solution's role grants takes, on the data its principal owns. An empty owner
+// would select every owner's resources, so it is refused, never rendered.
+func Owned(scopes []*basev0.WorkScopeV1, owner string) ([]*basev0.WorkScopeV1, error) {
+	if owner == "" {
+		return nil, errors.New("scope: an owner-selected scope names its owner; an empty owner would select every owner's resources")
+	}
 	out := make([]*basev0.WorkScopeV1, 0, len(scopes))
 	for _, sc := range scopes {
 		c := proto.CloneOf(sc)
 		c.ResourceOwnerId = owner
 		out = append(out, c)
 	}
-	return Normalize(out)
+	return Normalize(out), nil
 }
 
 // HoldsAction reports whether held carries action on any resource of kind,

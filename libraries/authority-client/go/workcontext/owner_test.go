@@ -16,45 +16,9 @@ func ownedScope(t *testing.T, kind, action, owner string, ids ...string) *basev0
 	return &basev0.WorkScopeV1{ResourceKind: kind, Actions: []string{action}, ResourceIds: ids, ResourceOwnerId: owner}
 }
 
-// ownerChecker is the owner-aware question: may the claims act with
-// action on resourceID of kind, whose owner is ownerID?
-type ownerChecker interface {
-	AllowsOwned(kind, action, resourceID, ownerID string) bool
-}
-
-// The solution principal (conformance RunSolutionPrincipalTarget): Claims take
-// the resource's owner and refuse a mismatch; the owner-blind Allows never admits an owner-selected
-// scope; an owner with ids admits only when both match; a whole-kind ask with
-// an owner (the list path) is admitted by an owner-selected scope; a plain
-// scope (an organization grant) names resources, not owners, so it admits
-// whatever the owner. The method gate is coarse (kind and action): this check
-// is the module's, comparing the scope's owner with the resource's.
-func TestClaimsAdmitAnOwnerSelectedScopeOnlyForItsOwner(t *testing.T) {
-	c := body(t, "session")
-	c.AuthorityScopes = []*basev0.WorkScopeV1{ownedScope(t, "record", "read", "principal-u"), ownedScope(t, "note", "read", "principal-u", "n1"),
-		{ResourceKind: "plain", Actions: []string{"read"}}}
-	claims := read(t, c)
-	if claims.Allows("record", "read", "") || claims.Allows("record", "read", "r1") || claims.Allows("note", "read", "n1") {
-		t.Fatal("the owner-blind Allows admits an owner-selected scope")
-	}
-	owned, ok := any(claims).(ownerChecker)
-	if !ok {
-		t.Fatal("Claims has no AllowsOwned(kind, action, resourceID, ownerID)")
-	}
-	for _, q := range []struct {
-		kind, id, owner string
-		allowed         bool
-	}{
-		{"record", "r1", "principal-u", true}, {"record", "r1", "principal-v", false}, {"record", "r1", "", false},
-		{"note", "n1", "principal-u", true}, {"note", "n2", "principal-u", false}, {"note", "n1", "principal-v", false},
-		{"record", "", "principal-u", true}, {"record", "", "principal-v", false}, {"note", "", "principal-u", false},
-		{"plain", "p1", "principal-u", true}, {"plain", "p1", "", true},
-	} {
-		if owned.AllowsOwned(q.kind, "read", q.id, q.owner) != q.allowed {
-			t.Fatalf("AllowsOwned(%s, read, %s, %s) want %v", q.kind, q.id, q.owner, q.allowed)
-		}
-	}
-}
+// The owner-selected rows (Allows refusing, AllowsOwned admitting only the
+// owner) are the shared fixture's "owner-selected" entry, which TestCoreFixtures
+// runs here and the Python and TypeScript readers run on the same rows.
 
 // ownerOf reads WorkScopeV1 field 4 from scope's encoding, known or not.
 func ownerOf(t *testing.T, scope *basev0.WorkScopeV1) string {

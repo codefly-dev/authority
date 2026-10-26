@@ -66,6 +66,15 @@ type Module struct {
 	// OwnerAware: the module compares a resource's owner with an
 	// owner-selected scope, so it may receive one.
 	OwnerAware bool
+	// Methods are what each method the module serves requires of a call, from
+	// its delivered authority document; nil when it declared none.
+	Methods map[string]MethodPolicy
+}
+
+// MethodPolicy is one method's declaration: exactly one of its fields is set.
+type MethodPolicy struct {
+	Requires         []*basev0.WorkScopeV1
+	AnyCheckedCaller bool
 }
 
 // Status is an installation's lifecycle.
@@ -117,9 +126,18 @@ const (
 type Refusal struct {
 	Code   Code
 	Reason string
+	// Cause is the sentinel a caller may test with errors.Is, when one names
+	// the refusal.
+	Cause error
 }
 
 func (r *Refusal) Error() string { return r.Reason }
+
+// Unwrap is the refusal's sentinel, if any.
+func (r *Refusal) Unwrap() error { return r.Cause }
+
+// ErrNoInstallerRole names a solution that declares no installer role.
+var ErrNoInstallerRole = errors.New("a solution declares an installer role")
 
 // ErrNotFound is what a store answers for a missing record.
 var ErrNotFound = errors.New("not found")

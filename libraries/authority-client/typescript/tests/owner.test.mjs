@@ -21,22 +21,9 @@ const stamped = token => ({'x-codefly-work-context':token,'x-codefly-hop-proof':
 const read = context => authenticateClaims(stamped(signed(context)),'test-proof',context.audience,trustFor(context));
 const scope = fields => create(WorkScopeV1Schema, fields);
 
-test('claims admit an owner-selected scope only for its owner', () => {
-  const context = body('session');
-  context.authorityScopes = [
-    scope({resourceKind:'record',actions:['read'],resourceOwnerId:'principal-u'}),
-    scope({resourceKind:'note',actions:['read'],resourceIds:['n1'],resourceOwnerId:'principal-u'}),
-    scope({resourceKind:'plain',actions:['read']}),
-  ];
-  const claims = read(context);
-  assert.ok(!claims.allows('record','read') && !claims.allows('record','read','r1') && !claims.allows('note','read','n1'));
-  for (const [kind, resource, owner, allowed] of [
-    ['record','r1','principal-u',true], ['record','r1','principal-v',false], ['record','r1','',false],
-    ['note','n1','principal-u',true], ['note','n2','principal-u',false], ['note','n1','principal-v',false],
-    ['record','','principal-u',true], ['note','','principal-u',false],
-    ['plain','p1','principal-u',true],
-  ]) assert.equal(claims.allowsOwned(kind,'read',resource,owner), allowed, `${kind} ${resource} ${owner}`);
-});
+// The owner-selected rows (allows refusing, allowsOwned admitting only the
+// owner) are testdata/claims.json's "owner-selected" entry, run by
+// work-context.test.mjs on the same rows as the Go and Python readers.
 
 test('the hop identity never reads an owner-selected scope as the whole kind', () => {
   const context = body('session');
