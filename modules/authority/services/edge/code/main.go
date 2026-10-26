@@ -71,6 +71,11 @@ func compose(ctx context.Context) (*Edge, int, func(), error) {
 		v, _ := codefly.For(ctx).WorkspaceConfiguration("edge", key)
 		return strings.TrimSpace(v)
 	}
+	edge.SignInChoices, err = parseSignInChoices(value("SIGN_IN_CHOICES"))
+	if err != nil {
+		_ = conn.Close()
+		return nil, 0, nil, fmt.Errorf("edge: SIGN_IN_CHOICES: %w", err)
+	}
 	for _, name := range list(value("MODULES")) {
 		prefix := strings.ToUpper(strings.ReplaceAll(name, "-", "_")) + "_"
 		m := Module{Name: name, Services: list(value(prefix + "RPC"))}
