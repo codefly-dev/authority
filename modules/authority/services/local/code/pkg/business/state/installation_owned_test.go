@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
@@ -74,11 +75,18 @@ func TestAnInstallationOwnsOnlyWhatWasAttachedSinceItWasInstalled(t *testing.T) 
 		candidates []string
 		id         string
 	}{
-		"no installation":       {"acme", revision(), nil, "c1"},
-		"two installations":     {"acme", revision(), []string{id, other}, "c1"},
-		"another organization":  {"globex", revision(), []string{id}, "c1"},
-		"a superseded revision": {"acme", revision() - 1, []string{id}, "c1"},
-		"an id past its length": {"acme", revision(), []string{id}, string(make([]byte, state.MaxResourceIDBytes+1))},
+		"no installation":        {"acme", revision(), nil, "c1"},
+		"two installations":      {"acme", revision(), []string{id, other}, "c1"},
+		"another organization":   {"globex", revision(), []string{id}, "c1"},
+		"a superseded revision":  {"acme", revision() - 1, []string{id}, "c1"},
+		"an id past its length":  {"acme", revision(), []string{id}, strings.Repeat("x", state.MaxResourceIDBytes+1)},
+		"an empty id":            {"acme", revision(), []string{id}, ""},
+		"surrounding whitespace": {"acme", revision(), []string{id}, " c1"},
+		"a newline":              {"acme", revision(), []string{id}, "c\n1"},
+		"a NUL":                  {"acme", revision(), []string{id}, "c\x001"},
+		"a tab":                  {"acme", revision(), []string{id}, "c\t1"},
+		"the wildcard":           {"acme", revision(), []string{id}, "*"},
+		"a wildcard inside":      {"acme", revision(), []string{id}, "c*"},
 	}
 	for name, r := range refusals {
 		if _, err := k.State.AttachResource(r.tenant, r.revision, r.candidates, "documents.collection", r.id); !errors.Is(err, state.ErrForbidden) {
@@ -107,6 +115,21 @@ func TestAnInstallationOwnsOnlyWhatWasAttachedSinceItWasInstalled(t *testing.T) 
 	}
 	if _, err := k.State.AttachResource("acme", revision(), []string{id}, "documents.collection", "one-too-many"); !errors.Is(err, state.ErrForbidden) {
 		t.Fatalf("past the bound a capability carries: %v", err)
+	}
+	// The bound counts what is owned now: a detached id frees its place, and
+	// detaching narrows, so a revision from before it is superseded.
+	beforeDetach := revision()
+	if from, err := k.State.DetachResource("acme", "documents.collection", "c2"); err != nil || from != id {
+		t.Fatalf("detach: %q %v", from, err)
+	}
+	if _, err := k.State.AttachResource("acme", beforeDetach, []string{id}, "documents.collection", "one-too-many"); !errors.Is(err, state.ErrForbidden) {
+		t.Fatalf("a capability from before a detachment is superseded: %v", err)
+	}
+	if _, err := k.State.AttachResource("acme", revision(), []string{id}, "documents.collection", "one-too-many"); err != nil {
+		t.Fatalf("a detached id frees its place: %v", err)
+	}
+	if from, err := k.State.DetachResource("acme", "documents.collection", "nobody-owns-this"); err != nil || from != "" {
+		t.Fatalf("detaching an unowned id: %q %v", from, err)
 	}
 	// A capability minted before an uninstall never attaches into the
 	// reinstalled installation, though its id is the same.

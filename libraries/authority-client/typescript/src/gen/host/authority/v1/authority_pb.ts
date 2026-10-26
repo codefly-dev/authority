@@ -19,7 +19,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file host/authority/v1/authority.proto.
  */
 export const file_host_authority_v1_authority: GenFile = /*@__PURE__*/
-  fileDesc("CiFob3N0L2F1dGhvcml0eS92MS9hdXRob3JpdHkucHJvdG8SEWhvc3QuYXV0aG9yaXR5LnYxIuYDCgxJc3N1ZVJlcXVlc3QSMgoGcGVyc29uGAEgASgLMiAuaG9zdC5hdXRob3JpdHkudjEuUGVyc29uU2Vzc2lvbkgAEjkKCHdvcmtsb2FkGAIgASgLMiUuaG9zdC5hdXRob3JpdHkudjEuV29ya2xvYWRDcmVkZW50aWFsSAASOgoMaW5zdGFsbGF0aW9uGAMgASgLMiIuaG9zdC5hdXRob3JpdHkudjEuSW5zdGFsbGF0aW9uUmVmSAASFgoMcGFyZW50X3Rva2VuGAQgASgJSAASNgoKZGVsZWdhdGlvbhgLIAEoCzIgLmhvc3QuYXV0aG9yaXR5LnYxLkRlbGVnYXRpb25SZWZIABIQCghhdWRpZW5jZRgFIAEoCRIuCgZzY29wZXMYBiADKAsyHi5ob3N0LmF1dGhvcml0eS52MS5Xb3JrU2NvcGVWMRITCgt0dGxfc2Vjb25kcxgHIAEoAxIcChRvcGVyYXRpb25fYmluZGluZ19pZBgIIAEoCRIXCg9vcmdhbml6YXRpb25faWQYCSABKAkSNAoFYWN0b3IYCiABKAsyJS5ob3N0LmF1dGhvcml0eS52MS5Xb3JrbG9hZENyZWRlbnRpYWwSEQoJb3BlcmF0aW9uGAwgASgJQgQKAmFzIiYKDURlbGVnYXRpb25SZWYSFQoNZGVsZWdhdGlvbl9pZBgBIAEoCSJiCg9EZWxlZ2F0ZVJlcXVlc3QSDgoGbW9kdWxlGAEgASgJEi4KBnNjb3BlcxgCIAMoCzIeLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtTY29wZVYxEg8KB3B1cnBvc2UYAyABKAkirgEKCkRlbGVnYXRpb24SFQoNZGVsZWdhdGlvbl9pZBgBIAEoCRIXCg9vcmdhbml6YXRpb25faWQYAiABKAkSDwoHZ3JhbnRvchgDIAEoCRIOCgZtb2R1bGUYBCABKAkSLgoGc2NvcGVzGAUgAygLMh4uaG9zdC5hdXRob3JpdHkudjEuV29ya1Njb3BlVjESDwoHcHVycG9zZRgGIAEoCRIOCgZhY3RpdmUYByABKAgiYwoUR2V0RGVsZWdhdGlvblJlcXVlc3QSFQoNZGVsZWdhdGlvbl9pZBgBIAEoCRI0CgVhY3RvchgCIAEoCzIlLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtsb2FkQ3JlZGVudGlhbCIwChdSZXZva2VEZWxlZ2F0aW9uUmVxdWVzdBIVCg1kZWxlZ2F0aW9uX2lkGAEgASgJIk0KGFJldm9rZURlbGVnYXRpb25SZXNwb25zZRIxCgpkZWxlZ2F0aW9uGAEgASgLMh0uaG9zdC5hdXRob3JpdHkudjEuRGVsZWdhdGlvbiIhCg1QZXJzb25TZXNzaW9uSgQIARACUgpzZXNzaW9uX2lkIigKEldvcmtsb2FkQ3JlZGVudGlhbBISCgpjcmVkZW50aWFsGAEgASgJIioKD0luc3RhbGxhdGlvblJlZhIXCg9pbnN0YWxsYXRpb25faWQYASABKAkiagoNSXNzdWVSZXNwb25zZRINCgV0b2tlbhgBIAEoCRIXCg9leHBpcmVzX2F0X3VuaXgYAiABKAMSMQoHY29udGV4dBgDIAEoCzIgLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtDb250ZXh0VjEiUQoMQ2hlY2tSZXF1ZXN0Eg0KBXRva2VuGAEgASgJEhAKCGF1ZGllbmNlGAIgASgJEg4KBm1ldGhvZBgDIAEoCRIQCghhZHZpc29yeRgEIAEoCCJzCg1DaGVja1Jlc3BvbnNlEjEKB2NvbnRleHQYASABKAsyIC5ob3N0LmF1dGhvcml0eS52MS5Xb3JrQ29udGV4dFYxEh4KFmF1dGhvcml6YXRpb25fcmV2aXNpb24YAiABKAQSDwoHcmVmdXNhbBgDIAEoCSINCgtLZXlzUmVxdWVzdCJKCgxLZXlzUmVzcG9uc2USDgoGaXNzdWVyGAEgASgJEioKBGtleXMYAiADKAsyHC5ob3N0LmF1dGhvcml0eS52MS5QdWJsaWNLZXkiQgoJUHVibGljS2V5Eg4KBmtleV9pZBgBIAEoCRIRCglhbGdvcml0aG0YAiABKAkSEgoKcHVibGljX2tleRgDIAEoDCJeChRMaXN0UmVzb3VyY2VzUmVxdWVzdBINCgV0b2tlbhgBIAEoCRIQCghhdWRpZW5jZRgCIAEoCRIVCg1yZXNvdXJjZV9raW5kGAMgASgJEg4KBmFjdGlvbhgEIAEoCSJJChVMaXN0UmVzb3VyY2VzUmVzcG9uc2USMAoGZ3JhbnRzGAEgAygLMiAuaG9zdC5hdXRob3JpdHkudjEuUmVzb3VyY2VHcmFudCKIAQoVQXR0YWNoUmVzb3VyY2VSZXF1ZXN0Eg0KBXRva2VuGAEgASgJEjQKBWFjdG9yGAIgASgLMiUuaG9zdC5hdXRob3JpdHkudjEuV29ya2xvYWRDcmVkZW50aWFsEhUKDXJlc291cmNlX2tpbmQYAyABKAkSEwoLcmVzb3VyY2VfaWQYBCABKAkiMQoWQXR0YWNoUmVzb3VyY2VSZXNwb25zZRIXCg9pbnN0YWxsYXRpb25faWQYASABKAkiWgoNUmVzb3VyY2VHcmFudBINCgNhbGwYASABKAhIABIMCgJpZBgCIAEoCUgAEhAKBnByZWZpeBgDIAEoCUgAEhEKB3BhdHRlcm4YBCABKAlIAEIHCgVtYXRjaDKTBgoQQXV0aG9yaXR5U2VydmljZRJqCgVJc3N1ZRIfLmhvc3QuYXV0aG9yaXR5LnYxLklzc3VlUmVxdWVzdBogLmhvc3QuYXV0aG9yaXR5LnYxLklzc3VlUmVzcG9uc2UiHoLT5JMCGDoBKiITL3YxL2F1dGhvcml0eTppc3N1ZRJqCgVDaGVjaxIfLmhvc3QuYXV0aG9yaXR5LnYxLkNoZWNrUmVxdWVzdBogLmhvc3QuYXV0aG9yaXR5LnYxLkNoZWNrUmVzcG9uc2UiHoLT5JMCGDoBKiITL3YxL2F1dGhvcml0eTpjaGVjaxJHCgRLZXlzEh4uaG9zdC5hdXRob3JpdHkudjEuS2V5c1JlcXVlc3QaHy5ob3N0LmF1dGhvcml0eS52MS5LZXlzUmVzcG9uc2USYgoNTGlzdFJlc291cmNlcxInLmhvc3QuYXV0aG9yaXR5LnYxLkxpc3RSZXNvdXJjZXNSZXF1ZXN0GiguaG9zdC5hdXRob3JpdHkudjEuTGlzdFJlc291cmNlc1Jlc3BvbnNlEmUKDkF0dGFjaFJlc291cmNlEiguaG9zdC5hdXRob3JpdHkudjEuQXR0YWNoUmVzb3VyY2VSZXF1ZXN0GikuaG9zdC5hdXRob3JpdHkudjEuQXR0YWNoUmVzb3VyY2VSZXNwb25zZRJNCghEZWxlZ2F0ZRIiLmhvc3QuYXV0aG9yaXR5LnYxLkRlbGVnYXRlUmVxdWVzdBodLmhvc3QuYXV0aG9yaXR5LnYxLkRlbGVnYXRpb24SawoQUmV2b2tlRGVsZWdhdGlvbhIqLmhvc3QuYXV0aG9yaXR5LnYxLlJldm9rZURlbGVnYXRpb25SZXF1ZXN0GisuaG9zdC5hdXRob3JpdHkudjEuUmV2b2tlRGVsZWdhdGlvblJlc3BvbnNlElcKDUdldERlbGVnYXRpb24SJy5ob3N0LmF1dGhvcml0eS52MS5HZXREZWxlZ2F0aW9uUmVxdWVzdBodLmhvc3QuYXV0aG9yaXR5LnYxLkRlbGVnYXRpb25CL1otZ2F0ZXdheS9wa2cvZ2VuL2hvc3QvYXV0aG9yaXR5L3YxO2F1dGhvcml0eXYxYgZwcm90bzM", [file_google_api_annotations, file_host_authority_v1_work_context]);
+  fileDesc("CiFob3N0L2F1dGhvcml0eS92MS9hdXRob3JpdHkucHJvdG8SEWhvc3QuYXV0aG9yaXR5LnYxIuYDCgxJc3N1ZVJlcXVlc3QSMgoGcGVyc29uGAEgASgLMiAuaG9zdC5hdXRob3JpdHkudjEuUGVyc29uU2Vzc2lvbkgAEjkKCHdvcmtsb2FkGAIgASgLMiUuaG9zdC5hdXRob3JpdHkudjEuV29ya2xvYWRDcmVkZW50aWFsSAASOgoMaW5zdGFsbGF0aW9uGAMgASgLMiIuaG9zdC5hdXRob3JpdHkudjEuSW5zdGFsbGF0aW9uUmVmSAASFgoMcGFyZW50X3Rva2VuGAQgASgJSAASNgoKZGVsZWdhdGlvbhgLIAEoCzIgLmhvc3QuYXV0aG9yaXR5LnYxLkRlbGVnYXRpb25SZWZIABIQCghhdWRpZW5jZRgFIAEoCRIuCgZzY29wZXMYBiADKAsyHi5ob3N0LmF1dGhvcml0eS52MS5Xb3JrU2NvcGVWMRITCgt0dGxfc2Vjb25kcxgHIAEoAxIcChRvcGVyYXRpb25fYmluZGluZ19pZBgIIAEoCRIXCg9vcmdhbml6YXRpb25faWQYCSABKAkSNAoFYWN0b3IYCiABKAsyJS5ob3N0LmF1dGhvcml0eS52MS5Xb3JrbG9hZENyZWRlbnRpYWwSEQoJb3BlcmF0aW9uGAwgASgJQgQKAmFzIiYKDURlbGVnYXRpb25SZWYSFQoNZGVsZWdhdGlvbl9pZBgBIAEoCSJiCg9EZWxlZ2F0ZVJlcXVlc3QSDgoGbW9kdWxlGAEgASgJEi4KBnNjb3BlcxgCIAMoCzIeLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtTY29wZVYxEg8KB3B1cnBvc2UYAyABKAkirgEKCkRlbGVnYXRpb24SFQoNZGVsZWdhdGlvbl9pZBgBIAEoCRIXCg9vcmdhbml6YXRpb25faWQYAiABKAkSDwoHZ3JhbnRvchgDIAEoCRIOCgZtb2R1bGUYBCABKAkSLgoGc2NvcGVzGAUgAygLMh4uaG9zdC5hdXRob3JpdHkudjEuV29ya1Njb3BlVjESDwoHcHVycG9zZRgGIAEoCRIOCgZhY3RpdmUYByABKAgiYwoUR2V0RGVsZWdhdGlvblJlcXVlc3QSFQoNZGVsZWdhdGlvbl9pZBgBIAEoCRI0CgVhY3RvchgCIAEoCzIlLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtsb2FkQ3JlZGVudGlhbCIwChdSZXZva2VEZWxlZ2F0aW9uUmVxdWVzdBIVCg1kZWxlZ2F0aW9uX2lkGAEgASgJIk0KGFJldm9rZURlbGVnYXRpb25SZXNwb25zZRIxCgpkZWxlZ2F0aW9uGAEgASgLMh0uaG9zdC5hdXRob3JpdHkudjEuRGVsZWdhdGlvbiIhCg1QZXJzb25TZXNzaW9uSgQIARACUgpzZXNzaW9uX2lkIigKEldvcmtsb2FkQ3JlZGVudGlhbBISCgpjcmVkZW50aWFsGAEgASgJIioKD0luc3RhbGxhdGlvblJlZhIXCg9pbnN0YWxsYXRpb25faWQYASABKAkiagoNSXNzdWVSZXNwb25zZRINCgV0b2tlbhgBIAEoCRIXCg9leHBpcmVzX2F0X3VuaXgYAiABKAMSMQoHY29udGV4dBgDIAEoCzIgLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtDb250ZXh0VjEiUQoMQ2hlY2tSZXF1ZXN0Eg0KBXRva2VuGAEgASgJEhAKCGF1ZGllbmNlGAIgASgJEg4KBm1ldGhvZBgDIAEoCRIQCghhZHZpc29yeRgEIAEoCCJzCg1DaGVja1Jlc3BvbnNlEjEKB2NvbnRleHQYASABKAsyIC5ob3N0LmF1dGhvcml0eS52MS5Xb3JrQ29udGV4dFYxEh4KFmF1dGhvcml6YXRpb25fcmV2aXNpb24YAiABKAQSDwoHcmVmdXNhbBgDIAEoCSINCgtLZXlzUmVxdWVzdCJKCgxLZXlzUmVzcG9uc2USDgoGaXNzdWVyGAEgASgJEioKBGtleXMYAiADKAsyHC5ob3N0LmF1dGhvcml0eS52MS5QdWJsaWNLZXkiQgoJUHVibGljS2V5Eg4KBmtleV9pZBgBIAEoCRIRCglhbGdvcml0aG0YAiABKAkSEgoKcHVibGljX2tleRgDIAEoDCJeChRMaXN0UmVzb3VyY2VzUmVxdWVzdBINCgV0b2tlbhgBIAEoCRIQCghhdWRpZW5jZRgCIAEoCRIVCg1yZXNvdXJjZV9raW5kGAMgASgJEg4KBmFjdGlvbhgEIAEoCSJJChVMaXN0UmVzb3VyY2VzUmVzcG9uc2USMAoGZ3JhbnRzGAEgAygLMiAuaG9zdC5hdXRob3JpdHkudjEuUmVzb3VyY2VHcmFudCKIAQoVQXR0YWNoUmVzb3VyY2VSZXF1ZXN0Eg0KBXRva2VuGAEgASgJEjQKBWFjdG9yGAIgASgLMiUuaG9zdC5hdXRob3JpdHkudjEuV29ya2xvYWRDcmVkZW50aWFsEhUKDXJlc291cmNlX2tpbmQYAyABKAkSEwoLcmVzb3VyY2VfaWQYBCABKAkiMQoWQXR0YWNoUmVzb3VyY2VSZXNwb25zZRIXCg9pbnN0YWxsYXRpb25faWQYASABKAkikgEKFURldGFjaFJlc291cmNlUmVxdWVzdBI0CgVhY3RvchgBIAEoCzIlLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtsb2FkQ3JlZGVudGlhbBIXCg9vcmdhbml6YXRpb25faWQYAiABKAkSFQoNcmVzb3VyY2Vfa2luZBgDIAEoCRITCgtyZXNvdXJjZV9pZBgEIAEoCSIxChZEZXRhY2hSZXNvdXJjZVJlc3BvbnNlEhcKD2luc3RhbGxhdGlvbl9pZBgBIAEoCSJaCg1SZXNvdXJjZUdyYW50Eg0KA2FsbBgBIAEoCEgAEgwKAmlkGAIgASgJSAASEAoGcHJlZml4GAMgASgJSAASEQoHcGF0dGVybhgEIAEoCUgAQgcKBW1hdGNoMvoGChBBdXRob3JpdHlTZXJ2aWNlEmoKBUlzc3VlEh8uaG9zdC5hdXRob3JpdHkudjEuSXNzdWVSZXF1ZXN0GiAuaG9zdC5hdXRob3JpdHkudjEuSXNzdWVSZXNwb25zZSIegtPkkwIYOgEqIhMvdjEvYXV0aG9yaXR5Omlzc3VlEmoKBUNoZWNrEh8uaG9zdC5hdXRob3JpdHkudjEuQ2hlY2tSZXF1ZXN0GiAuaG9zdC5hdXRob3JpdHkudjEuQ2hlY2tSZXNwb25zZSIegtPkkwIYOgEqIhMvdjEvYXV0aG9yaXR5OmNoZWNrEkcKBEtleXMSHi5ob3N0LmF1dGhvcml0eS52MS5LZXlzUmVxdWVzdBofLmhvc3QuYXV0aG9yaXR5LnYxLktleXNSZXNwb25zZRJiCg1MaXN0UmVzb3VyY2VzEicuaG9zdC5hdXRob3JpdHkudjEuTGlzdFJlc291cmNlc1JlcXVlc3QaKC5ob3N0LmF1dGhvcml0eS52MS5MaXN0UmVzb3VyY2VzUmVzcG9uc2USZQoOQXR0YWNoUmVzb3VyY2USKC5ob3N0LmF1dGhvcml0eS52MS5BdHRhY2hSZXNvdXJjZVJlcXVlc3QaKS5ob3N0LmF1dGhvcml0eS52MS5BdHRhY2hSZXNvdXJjZVJlc3BvbnNlEmUKDkRldGFjaFJlc291cmNlEiguaG9zdC5hdXRob3JpdHkudjEuRGV0YWNoUmVzb3VyY2VSZXF1ZXN0GikuaG9zdC5hdXRob3JpdHkudjEuRGV0YWNoUmVzb3VyY2VSZXNwb25zZRJNCghEZWxlZ2F0ZRIiLmhvc3QuYXV0aG9yaXR5LnYxLkRlbGVnYXRlUmVxdWVzdBodLmhvc3QuYXV0aG9yaXR5LnYxLkRlbGVnYXRpb24SawoQUmV2b2tlRGVsZWdhdGlvbhIqLmhvc3QuYXV0aG9yaXR5LnYxLlJldm9rZURlbGVnYXRpb25SZXF1ZXN0GisuaG9zdC5hdXRob3JpdHkudjEuUmV2b2tlRGVsZWdhdGlvblJlc3BvbnNlElcKDUdldERlbGVnYXRpb24SJy5ob3N0LmF1dGhvcml0eS52MS5HZXREZWxlZ2F0aW9uUmVxdWVzdBodLmhvc3QuYXV0aG9yaXR5LnYxLkRlbGVnYXRpb25CL1otZ2F0ZXdheS9wa2cvZ2VuL2hvc3QvYXV0aG9yaXR5L3YxO2F1dGhvcml0eXYxYgZwcm90bzM", [file_google_api_annotations, file_host_authority_v1_work_context]);
 
 /**
  * IssueRequest names on whose behalf the capability is issued.
@@ -711,6 +711,69 @@ export const AttachResourceResponseSchema: GenMessage<AttachResourceResponse> = 
   messageDesc(file_host_authority_v1_authority, 19);
 
 /**
+ * DetachResourceRequest names one resource its serving module deleted.
+ *
+ * @generated from message host.authority.v1.DetachResourceRequest
+ */
+export type DetachResourceRequest = Message<"host.authority.v1.DetachResourceRequest"> & {
+  /**
+   * The module serving resource_kind, proving which module it is.
+   *
+   * @generated from field: host.authority.v1.WorkloadCredential actor = 1;
+   */
+  actor?: WorkloadCredential;
+
+  /**
+   * The organisation the resource belongs to.
+   *
+   * @generated from field: string organization_id = 2;
+   */
+  organizationId: string;
+
+  /**
+   * The resource kind, as the caller serves it.
+   *
+   * @generated from field: string resource_kind = 3;
+   */
+  resourceKind: string;
+
+  /**
+   * The resource id, as the caller knows it.
+   *
+   * @generated from field: string resource_id = 4;
+   */
+  resourceId: string;
+};
+
+/**
+ * Describes the message host.authority.v1.DetachResourceRequest.
+ * Use `create(DetachResourceRequestSchema)` to create a new message.
+ */
+export const DetachResourceRequestSchema: GenMessage<DetachResourceRequest> = /*@__PURE__*/
+  messageDesc(file_host_authority_v1_authority, 20);
+
+/**
+ * DetachResourceResponse names the installation that owned the resource.
+ *
+ * @generated from message host.authority.v1.DetachResourceResponse
+ */
+export type DetachResourceResponse = Message<"host.authority.v1.DetachResourceResponse"> & {
+  /**
+   * The installation released from it; empty when none owned it.
+   *
+   * @generated from field: string installation_id = 1;
+   */
+  installationId: string;
+};
+
+/**
+ * Describes the message host.authority.v1.DetachResourceResponse.
+ * Use `create(DetachResourceResponseSchema)` to create a new message.
+ */
+export const DetachResourceResponseSchema: GenMessage<DetachResourceResponse> = /*@__PURE__*/
+  messageDesc(file_host_authority_v1_authority, 21);
+
+/**
  * ResourceGrant is one way of naming covered resources. Exactly one is set.
  *
  * @generated from message host.authority.v1.ResourceGrant
@@ -760,7 +823,7 @@ export type ResourceGrant = Message<"host.authority.v1.ResourceGrant"> & {
  * Use `create(ResourceGrantSchema)` to create a new message.
  */
 export const ResourceGrantSchema: GenMessage<ResourceGrant> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 20);
+  messageDesc(file_host_authority_v1_authority, 22);
 
 /**
  * AuthorityService is implemented by the host (accounts) and by the local authority.
@@ -817,24 +880,29 @@ export const AuthorityService: GenService<{
     output: typeof ListResourcesResponseSchema;
   },
   /**
-   * AttachResource records that one resource was newly created through an
-   * installation, so a role scope its solution declares installation-owned
-   * (RoleV1.installation_owned_scopes) covers it. It is for what the
-   * installation creates, never for an existing resource: a resource has one
-   * owner in an organisation, and an id another installation owns is refused.
-   * The caller is the kind's one serving module (a kind two composed modules
-   * declare attaches nothing), proving itself with its workload credential,
-   * and presents the capability the creating call carried: addressed to it, at
-   * the organisation's current authorization revision, and holding create on
-   * the whole kind; a capability that only reads, or acts on named ids,
-   * attaches nothing. The owning installation is read from that capability's
+   * AttachResource records that one resource now belongs to an installation,
+   * so a role scope its solution declares installation-owned
+   * (RoleV1.installation_owned_scopes) covers it. The caller is the kind's one
+   * serving module (a kind two composed modules declare attaches nothing),
+   * proving itself with its workload credential, and presents a capability
+   * addressed to it, at the organisation's current authorization revision,
+   * holding either the action "create" on the whole kind (the call that created
+   * the resource) or the action "admin" on that resource id, by name or on the
+   * whole kind (an administrator attaching an existing resource, as an
+   * installer configuring a solution's collection). A capability that only
+   * reads attaches nothing. A resource has one owner in an organisation: an id
+   * another installation owns is refused. A store whose attach is refused fails
+   * or rolls back the create it made, and detaches what it deletes
+   * (DetachResource). The owning installation is read from the capability's
    * verified provenance and never named by the caller: the installation itself
    * when it is the owner, the installed solution when it is the caller, and
-   * each solution in its actor chain; exactly one must result. Owned ids travel
-   * in every capability holding them, so an installation owns at most 32 of one
-   * kind, each id at most 128 bytes, refused by name past either. Attaching
-   * only widens what an owned scope covers, so it moves no authorization
-   * revision; a reinstalled installation owns nothing.
+   * each solution in its actor chain; exactly one must result. Ids are opaque
+   * and compared byte for byte; an id is refused when it is empty, carries
+   * surrounding whitespace, a NUL, CR, LF, tab or "*", or exceeds 128 bytes.
+   * Owned ids travel in every capability holding them, so an installation owns
+   * at most 32 of one kind at a time, refused by name past it. Attaching only
+   * widens what an owned scope covers, so it moves no authorization revision;
+   * a reinstalled installation owns nothing.
    *
    * @generated from rpc host.authority.v1.AuthorityService.AttachResource
    */
@@ -842,6 +910,20 @@ export const AuthorityService: GenService<{
     methodKind: "unary";
     input: typeof AttachResourceRequestSchema;
     output: typeof AttachResourceResponseSchema;
+  },
+  /**
+   * DetachResource releases one resource from whichever installation of the
+   * organisation owns it, when the kind's one serving module deletes it, so the
+   * id no longer counts toward the owner's bound and may be attached again.
+   * It narrows the owner's roles, so the organisation's authorization revision
+   * moves. Detaching an id no installation owns answers no installation.
+   *
+   * @generated from rpc host.authority.v1.AuthorityService.DetachResource
+   */
+  detachResource: {
+    methodKind: "unary";
+    input: typeof DetachResourceRequestSchema;
+    output: typeof DetachResourceResponseSchema;
   },
   /**
    * Delegate records a signed-in person's grant to a module (the caller's

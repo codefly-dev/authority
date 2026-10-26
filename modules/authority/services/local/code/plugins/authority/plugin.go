@@ -194,6 +194,15 @@ func (p *Plugin) AttachResource(ctx context.Context, req *authorityv1.AttachReso
 	return &authorityv1.AttachResourceResponse{InstallationId: id}, nil
 }
 
+// DetachResource releases a resource its serving module deleted.
+func (p *Plugin) DetachResource(ctx context.Context, req *authorityv1.DetachResourceRequest) (*authorityv1.DetachResourceResponse, error) {
+	id, err := p.Issuer.DetachResource(ctx, req.GetActor().GetCredential(), req.GetOrganizationId(), req.GetResourceKind(), req.GetResourceId())
+	if err != nil {
+		return nil, Status(err)
+	}
+	return &authorityv1.DetachResourceResponse{InstallationId: id}, nil
+}
+
 // Keys returns the issuer and its keys.
 func (p *Plugin) Keys(context.Context, *authorityv1.KeysRequest) (*authorityv1.KeysResponse, error) {
 	return p.Issuer.Keys(), nil

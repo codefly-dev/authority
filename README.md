@@ -942,11 +942,20 @@ All consumers and implementations must select the updated interface versions;
 this repository updates its module, edge, hop and console declarations. SaaS
 must adopt the version and fields before claiming this contract.
 
-`codefly.dev/authority@0.3.0` adds `AttachResource` and
+`codefly.dev/authority@0.3.0` adds `AttachResource` and `DetachResource`, and
 `codefly.dev/composition@0.2.0` adds `RoleV1.installation_owned_scopes`: a role
-scope held only on the resources its installation created, recorded from the
-creating capability's provenance (one owner per resource, at most 32 per kind).
-Both are additive. The local authority implements 0.3.0 and 0.2.0; the edge,
-hop and console call nothing new, so they require `>=0.2.0 <0.4.0` and resolve
-against a host still at 0.2.0. Shared conformance requires
-`InstallationResources`, so a host must implement both before it passes.
+scope held only on the resources its installation owns. The kind's one serving
+module attaches a resource from a capability holding `create` on the whole kind
+(it created it) or `admin` on that id (an administrator attaches an existing
+resource); reading attaches nothing. A resource has one owner per organisation,
+an installation owns at most 32 of a kind at a time, and the serving module
+detaches what it deletes and rolls back a create whose attach is refused. Both
+are additive. The local authority implements 0.3.0 and 0.2.0; the edge, hop and
+console call nothing new, so they require `>=0.2.0 <0.4.0` and resolve against
+a host still at 0.2.0. Shared conformance requires `InstallationResources`, so
+a host must implement both before it passes.
+
+The local authority keeps installation ownership in memory, for development
+only: a restart (a hot reload included) re-derives installations from the
+fixture but not what they own, so viewers lose owned resources until the store
+attaches them again. A host keeps ownership durably.

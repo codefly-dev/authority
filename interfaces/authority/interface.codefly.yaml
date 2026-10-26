@@ -8,4 +8,4 @@ protobuf:
     package: host.authority.v1
     services:
         - name: AuthorityService
-          methods: [Issue, Check, Keys, ListResources, AttachResource, Delegate, RevokeDelegation, GetDelegation]
+          methods: [Issue, Check, Keys, ListResources, AttachResource, DetachResource, Delegate, RevokeDelegation, GetDelegation]

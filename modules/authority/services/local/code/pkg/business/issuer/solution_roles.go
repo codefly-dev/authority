@@ -93,37 +93,27 @@ func roleResources(scopes []*basev0.WorkScopeV1, kind, action string) []resource
 	return grants
 }
 
-// AttachResource records that the module serving kind created id under
-// token, a capability addressed to that module and holding create on the whole
-// kind: attaching is for a resource the installation creates, so a capability
-// that only reads, or acts on named ids, attaches nothing. The owning
-// installation is read from the capability's verified provenance, never named
-// by the caller: an installation owning it, the installation of each solution
-// in its actor chain, and the module's own when it is the solution. The state
-// requires exactly one, at the capability's authorization revision.
+// AttachResource records that id of kind now belongs to the installation the
+// presented capability was issued through. The caller is the kind's one
+// serving module and the capability is addressed to it, holding either
+// create on the whole kind (the module created id) or admin on id itself (an
+// administrator of an existing resource attaches it); a capability that only
+// reads attaches nothing. The owning installation is read from the
+// capability's verified provenance, never named by the caller: an
+// installation owning it, the installation of each solution in its actor
+// chain, and the module's own when it is the solution. The state requires
+// exactly one, at the capability's authorization revision.
 func (i *Issuer) AttachResource(ctx context.Context, token, credential, kind, id string) (string, error) {
-	if kind == "" || id == "" {
-		return "", fmt.Errorf("%w: an attachment names a resource kind and a resource id", ErrRefused)
-	}
-	actor, err := i.state.VerifyWorkload(ctx, credential)
+	actor, err := i.soleServer(ctx, credential, kind, id)
 	if err != nil {
 		return "", err
-	}
-	// Only the one module serving a kind is trusted to say what it created; a
-	// kind two composed modules declare has no such module, so nothing of it
-	// is attached.
-	switch servers := i.state.ServersOf(kind); {
-	case !slices.Contains(servers, actor.Module):
-		return "", fmt.Errorf("%w: %s does not serve %s, so it attaches none of its resources", ErrRefused, actor.Module, kind)
-	case len(servers) > 1:
-		return "", fmt.Errorf("%w: %s is served by %s; an attachment needs the kind's one serving module", ErrRefused, kind, strings.Join(servers, ", "))
 	}
 	verified, err := i.verifier(actor.Principal).Verify(ctx, token)
 	if err != nil {
 		return "", err
 	}
-	if !holdsCreate(verified.EffectiveScopes(), kind) {
-		return "", fmt.Errorf("%w: the capability holds no create on the whole of %s; an installation attaches only what it creates", ErrRefused, kind)
+	if !mayAttach(verified.EffectiveScopes(), kind, id) {
+		return "", fmt.Errorf("%w: the capability holds neither %s on the whole of %s nor %s on %q; reading a resource attaches nothing", ErrRefused, CreateAction, kind, AdminAction, id)
 	}
 	wc := verified.Context()
 	tenant := wc.GetTenantId()
@@ -149,15 +139,58 @@ func (i *Issuer) AttachResource(ctx context.Context, token, credential, kind, id
 	return i.state.AttachResource(tenant, wc.GetAuthorizationRevision(), candidates, kind, id)
 }
 
-// CreateAction is the action a creating call holds on the whole kind; it is
-// what AttachResource requires of the capability it is presented.
-const CreateAction = "create"
+// DetachResource releases id of kind from whichever installation of org owns
+// it, when the kind's one serving module deletes it. Detaching only narrows,
+// so it asks the module's word alone; the owner's revision moves, so no
+// capability issued before still carries the released id.
+func (i *Issuer) DetachResource(ctx context.Context, credential, org, kind, id string) (string, error) {
+	if _, err := i.soleServer(ctx, credential, kind, id); err != nil {
+		return "", err
+	}
+	if org == "" {
+		return "", fmt.Errorf("%w: a detachment names the organization the resource belongs to", ErrRefused)
+	}
+	return i.state.DetachResource(org, kind, id)
+}
 
-// holdsCreate reports whether scopes hold create (or every action) on the
-// whole of kind, not on named ids.
-func holdsCreate(scopes []*basev0.WorkScopeV1, kind string) bool {
+// soleServer authenticates the module and requires it to be the one composed
+// module serving kind: only it is trusted with what exists of the kind, and a
+// kind two modules declare has no such module, so nothing of it is attached.
+func (i *Issuer) soleServer(ctx context.Context, credential, kind, id string) (state.Manifest, error) {
+	if kind == "" || id == "" {
+		return state.Manifest{}, fmt.Errorf("%w: an ownership change names a resource kind and a resource id", ErrRefused)
+	}
+	actor, err := i.state.VerifyWorkload(ctx, credential)
+	if err != nil {
+		return state.Manifest{}, err
+	}
+	switch servers := i.state.ServersOf(kind); {
+	case !slices.Contains(servers, actor.Module):
+		return state.Manifest{}, fmt.Errorf("%w: %s does not serve %s, so it attaches none of its resources", ErrRefused, actor.Module, kind)
+	case len(servers) > 1:
+		return state.Manifest{}, fmt.Errorf("%w: %s is served by %s; an attachment needs the kind's one serving module", ErrRefused, kind, strings.Join(servers, ", "))
+	}
+	return actor, nil
+}
+
+// The actions AttachResource reads, in the serving module's vocabulary:
+// create on the whole kind is a creating call; admin on a resource (or on
+// the whole kind) administers it.
+const (
+	CreateAction = "create"
+	AdminAction  = "admin"
+)
+
+// mayAttach reports whether scopes hold create (or every action) on the whole
+// of kind, or admin (or every action) on id, by name or on the whole kind.
+func mayAttach(scopes []*basev0.WorkScopeV1, kind, id string) bool {
 	return slices.ContainsFunc(scopes, func(scope *basev0.WorkScopeV1) bool {
-		return scope.GetResourceKind() == kind && len(scope.GetResourceIds()) == 0 &&
-			(slices.Contains(scope.GetActions(), CreateAction) || slices.Contains(scope.GetActions(), state.AnyAction))
+		if scope.GetResourceKind() != kind {
+			return false
+		}
+		whole, every := len(scope.GetResourceIds()) == 0, slices.Contains(scope.GetActions(), state.AnyAction)
+		create := whole && (every || slices.Contains(scope.GetActions(), CreateAction))
+		admin := (whole || slices.Contains(scope.GetResourceIds(), id)) && (every || slices.Contains(scope.GetActions(), AdminAction))
+		return create || admin
 	})
 }

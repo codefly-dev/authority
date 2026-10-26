@@ -144,7 +144,7 @@ people:
 			A:     conformance.OwnedInstallation{Solution: "conformance-owner-a", Credential: k.Credential(t, "conformance-owner-a"), Installation: owned["conformance-owner-a"]},
 			B:     conformance.OwnedInstallation{Solution: "conformance-owner-b", Credential: k.Credential(t, "conformance-owner-b"), Installation: owned["conformance-owner-b"]},
 			Store: "conformance-store", StoreCredential: k.Credential(t, "conformance-store"), Kind: "conformance.collection",
-			ResourceA: "collection-a", ResourceA2: "collection-a2", ResourceB: "collection-b",
+			ResourceA: "collection-a", ResourceA2: "collection-a2", ResourceB: "collection-b", ResourceX: "collection-x", ResourceY: "collection-y",
 		},
 		WorkloadOrganizations: &conformance.WorkloadOrganizationsCase{
 			Ambiguous: conformance.WorkloadOrganizationCase{Credential: k.Credential(t, "org-directory"), Module: "org-directory", Binding: "records", Audience: "records"},

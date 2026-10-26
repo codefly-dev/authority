@@ -72,19 +72,17 @@ const (
 	MaxResourceIDBytes = 128
 )
 
-// AttachResource records that id of kind was created through one
-// installation. candidates are the installations the presenting capability's
+// AttachResource records that id of kind now belongs to one installation. candidates are the installations the presenting capability's
 // verified provenance names, and revision is the authorization revision it was
 // minted at; exactly one active installation at tenant must remain, at the
 // tenant's current revision, checked under the write lock so a capability from
 // before an uninstall never attaches into the reinstalled installation. A
 // resource has one owner in a tenant: an id another installation owns is
-// refused, since attaching is for what an installation creates, never for an
-// existing resource. Attaching only widens what an installation-owned scope
+// refused until its serving module detaches it. Attaching only widens what an installation-owned scope
 // covers, so no revision moves: every capability already issued names its ids.
 func (s *State) AttachResource(tenant string, revision uint64, candidates []string, kind, id string) (string, error) {
-	if len(id) > MaxResourceIDBytes {
-		return "", fmt.Errorf("%w: resource id is %d bytes; an installation-owned id is at most %d", ErrForbidden, len(id), MaxResourceIDBytes)
+	if err := validResourceID(id); err != nil {
+		return "", err
 	}
 	candidates = slices.Compact(slices.Sorted(slices.Values(candidates)))
 	switch len(candidates) {
@@ -108,7 +106,7 @@ func (s *State) AttachResource(tenant string, revision uint64, candidates []stri
 	}
 	for _, other := range s.installations {
 		if other.ID != inst.ID && other.Organization == tenant && slices.Contains(other.Owned[kind], id) {
-			return "", fmt.Errorf("%w: %s %q is owned by installation %s; an installation attaches only what it creates", ErrForbidden, kind, id, other.ID)
+			return "", fmt.Errorf("%w: %s %q is owned by installation %s; a resource has one owner in an organisation", ErrForbidden, kind, id, other.ID)
 		}
 	}
 	if len(inst.Owned[kind]) >= MaxOwnedPerKind {
@@ -122,4 +120,45 @@ func (s *State) AttachResource(tenant string, revision uint64, candidates []stri
 	inst.Owned = owned
 	s.installations[inst.ID] = inst
 	return inst.ID, nil
+}
+
+// DetachResource releases id of kind from whichever installation of tenant
+// owns it, answering that installation, or nothing when none does. Releasing
+// narrows what the owner's roles grant, so its revision and the tenant's move:
+// a capability issued before never carries the released id on.
+func (s *State) DetachResource(tenant, kind, id string) (string, error) {
+	if err := validResourceID(id); err != nil {
+		return "", err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.orgs[tenant]; !ok {
+		return "", fmt.Errorf("%w: organization %q", ErrUnknown, tenant)
+	}
+	for _, inst := range s.installations {
+		if inst.Organization != tenant || !slices.Contains(inst.Owned[kind], id) {
+			continue
+		}
+		owned := maps.Clone(inst.Owned)
+		owned[kind] = slices.DeleteFunc(slices.Clone(owned[kind]), func(held string) bool { return held == id })
+		inst.Owned = owned
+		inst.Revision++
+		s.installations[inst.ID] = inst
+		s.revisions[tenant]++
+		return inst.ID, nil
+	}
+	return "", nil
+}
+
+// validResourceID holds an owned id to core's scope-value rule (non-empty,
+// no surrounding whitespace, no NUL, CR, LF or tab), refuses the wildcard
+// character, and bounds its length. Ids are opaque and compared byte for byte.
+func validResourceID(id string) error {
+	switch {
+	case id == "" || strings.TrimSpace(id) != id || strings.ContainsAny(id, "\x00\r\n\t*"):
+		return fmt.Errorf("%w: resource id %q is not a usable id (empty, surrounding whitespace, or a NUL, CR, LF, tab or *)", ErrForbidden, id)
+	case len(id) > MaxResourceIDBytes:
+		return fmt.Errorf("%w: resource id is %d bytes; an installation-owned id is at most %d", ErrForbidden, len(id), MaxResourceIDBytes)
+	}
+	return nil
 }

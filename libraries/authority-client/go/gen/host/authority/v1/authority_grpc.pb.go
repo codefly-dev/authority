@@ -31,6 +31,7 @@ const (
 	AuthorityService_Keys_FullMethodName             = "/host.authority.v1.AuthorityService/Keys"
 	AuthorityService_ListResources_FullMethodName    = "/host.authority.v1.AuthorityService/ListResources"
 	AuthorityService_AttachResource_FullMethodName   = "/host.authority.v1.AuthorityService/AttachResource"
+	AuthorityService_DetachResource_FullMethodName   = "/host.authority.v1.AuthorityService/DetachResource"
 	AuthorityService_Delegate_FullMethodName         = "/host.authority.v1.AuthorityService/Delegate"
 	AuthorityService_RevokeDelegation_FullMethodName = "/host.authority.v1.AuthorityService/RevokeDelegation"
 	AuthorityService_GetDelegation_FullMethodName    = "/host.authority.v1.AuthorityService/GetDelegation"
@@ -58,25 +59,36 @@ type AuthorityServiceClient interface {
 	// rather than carried in the capability. A module maps the answer onto its
 	// own resources; the authority knows them only by id.
 	ListResources(ctx context.Context, in *ListResourcesRequest, opts ...grpc.CallOption) (*ListResourcesResponse, error)
-	// AttachResource records that one resource was newly created through an
-	// installation, so a role scope its solution declares installation-owned
-	// (RoleV1.installation_owned_scopes) covers it. It is for what the
-	// installation creates, never for an existing resource: a resource has one
-	// owner in an organisation, and an id another installation owns is refused.
-	// The caller is the kind's one serving module (a kind two composed modules
-	// declare attaches nothing), proving itself with its workload credential,
-	// and presents the capability the creating call carried: addressed to it, at
-	// the organisation's current authorization revision, and holding create on
-	// the whole kind; a capability that only reads, or acts on named ids,
-	// attaches nothing. The owning installation is read from that capability's
+	// AttachResource records that one resource now belongs to an installation,
+	// so a role scope its solution declares installation-owned
+	// (RoleV1.installation_owned_scopes) covers it. The caller is the kind's one
+	// serving module (a kind two composed modules declare attaches nothing),
+	// proving itself with its workload credential, and presents a capability
+	// addressed to it, at the organisation's current authorization revision,
+	// holding either the action "create" on the whole kind (the call that created
+	// the resource) or the action "admin" on that resource id, by name or on the
+	// whole kind (an administrator attaching an existing resource, as an
+	// installer configuring a solution's collection). A capability that only
+	// reads attaches nothing. A resource has one owner in an organisation: an id
+	// another installation owns is refused. A store whose attach is refused fails
+	// or rolls back the create it made, and detaches what it deletes
+	// (DetachResource). The owning installation is read from the capability's
 	// verified provenance and never named by the caller: the installation itself
 	// when it is the owner, the installed solution when it is the caller, and
-	// each solution in its actor chain; exactly one must result. Owned ids travel
-	// in every capability holding them, so an installation owns at most 32 of one
-	// kind, each id at most 128 bytes, refused by name past either. Attaching
-	// only widens what an owned scope covers, so it moves no authorization
-	// revision; a reinstalled installation owns nothing.
+	// each solution in its actor chain; exactly one must result. Ids are opaque
+	// and compared byte for byte; an id is refused when it is empty, carries
+	// surrounding whitespace, a NUL, CR, LF, tab or "*", or exceeds 128 bytes.
+	// Owned ids travel in every capability holding them, so an installation owns
+	// at most 32 of one kind at a time, refused by name past it. Attaching only
+	// widens what an owned scope covers, so it moves no authorization revision;
+	// a reinstalled installation owns nothing.
 	AttachResource(ctx context.Context, in *AttachResourceRequest, opts ...grpc.CallOption) (*AttachResourceResponse, error)
+	// DetachResource releases one resource from whichever installation of the
+	// organisation owns it, when the kind's one serving module deletes it, so the
+	// id no longer counts toward the owner's bound and may be attached again.
+	// It narrows the owner's roles, so the organisation's authorization revision
+	// moves. Detaching an id no installation owns answers no installation.
+	DetachResource(ctx context.Context, in *DetachResourceRequest, opts ...grpc.CallOption) (*DetachResourceResponse, error)
 	// Delegate records a signed-in person's grant to a module (the caller's
 	// bearer is the person); Issue with a delegation acts on it.
 	Delegate(ctx context.Context, in *DelegateRequest, opts ...grpc.CallOption) (*Delegation, error)
@@ -147,6 +159,16 @@ func (c *authorityServiceClient) AttachResource(ctx context.Context, in *AttachR
 	return out, nil
 }
 
+func (c *authorityServiceClient) DetachResource(ctx context.Context, in *DetachResourceRequest, opts ...grpc.CallOption) (*DetachResourceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DetachResourceResponse)
+	err := c.cc.Invoke(ctx, AuthorityService_DetachResource_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authorityServiceClient) Delegate(ctx context.Context, in *DelegateRequest, opts ...grpc.CallOption) (*Delegation, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Delegation)
@@ -199,25 +221,36 @@ type AuthorityServiceServer interface {
 	// rather than carried in the capability. A module maps the answer onto its
 	// own resources; the authority knows them only by id.
 	ListResources(context.Context, *ListResourcesRequest) (*ListResourcesResponse, error)
-	// AttachResource records that one resource was newly created through an
-	// installation, so a role scope its solution declares installation-owned
-	// (RoleV1.installation_owned_scopes) covers it. It is for what the
-	// installation creates, never for an existing resource: a resource has one
-	// owner in an organisation, and an id another installation owns is refused.
-	// The caller is the kind's one serving module (a kind two composed modules
-	// declare attaches nothing), proving itself with its workload credential,
-	// and presents the capability the creating call carried: addressed to it, at
-	// the organisation's current authorization revision, and holding create on
-	// the whole kind; a capability that only reads, or acts on named ids,
-	// attaches nothing. The owning installation is read from that capability's
+	// AttachResource records that one resource now belongs to an installation,
+	// so a role scope its solution declares installation-owned
+	// (RoleV1.installation_owned_scopes) covers it. The caller is the kind's one
+	// serving module (a kind two composed modules declare attaches nothing),
+	// proving itself with its workload credential, and presents a capability
+	// addressed to it, at the organisation's current authorization revision,
+	// holding either the action "create" on the whole kind (the call that created
+	// the resource) or the action "admin" on that resource id, by name or on the
+	// whole kind (an administrator attaching an existing resource, as an
+	// installer configuring a solution's collection). A capability that only
+	// reads attaches nothing. A resource has one owner in an organisation: an id
+	// another installation owns is refused. A store whose attach is refused fails
+	// or rolls back the create it made, and detaches what it deletes
+	// (DetachResource). The owning installation is read from the capability's
 	// verified provenance and never named by the caller: the installation itself
 	// when it is the owner, the installed solution when it is the caller, and
-	// each solution in its actor chain; exactly one must result. Owned ids travel
-	// in every capability holding them, so an installation owns at most 32 of one
-	// kind, each id at most 128 bytes, refused by name past either. Attaching
-	// only widens what an owned scope covers, so it moves no authorization
-	// revision; a reinstalled installation owns nothing.
+	// each solution in its actor chain; exactly one must result. Ids are opaque
+	// and compared byte for byte; an id is refused when it is empty, carries
+	// surrounding whitespace, a NUL, CR, LF, tab or "*", or exceeds 128 bytes.
+	// Owned ids travel in every capability holding them, so an installation owns
+	// at most 32 of one kind at a time, refused by name past it. Attaching only
+	// widens what an owned scope covers, so it moves no authorization revision;
+	// a reinstalled installation owns nothing.
 	AttachResource(context.Context, *AttachResourceRequest) (*AttachResourceResponse, error)
+	// DetachResource releases one resource from whichever installation of the
+	// organisation owns it, when the kind's one serving module deletes it, so the
+	// id no longer counts toward the owner's bound and may be attached again.
+	// It narrows the owner's roles, so the organisation's authorization revision
+	// moves. Detaching an id no installation owns answers no installation.
+	DetachResource(context.Context, *DetachResourceRequest) (*DetachResourceResponse, error)
 	// Delegate records a signed-in person's grant to a module (the caller's
 	// bearer is the person); Issue with a delegation acts on it.
 	Delegate(context.Context, *DelegateRequest) (*Delegation, error)
@@ -252,6 +285,9 @@ func (UnimplementedAuthorityServiceServer) ListResources(context.Context, *ListR
 }
 func (UnimplementedAuthorityServiceServer) AttachResource(context.Context, *AttachResourceRequest) (*AttachResourceResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method AttachResource not implemented")
+}
+func (UnimplementedAuthorityServiceServer) DetachResource(context.Context, *DetachResourceRequest) (*DetachResourceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DetachResource not implemented")
 }
 func (UnimplementedAuthorityServiceServer) Delegate(context.Context, *DelegateRequest) (*Delegation, error) {
 	return nil, status.Error(codes.Unimplemented, "method Delegate not implemented")
@@ -373,6 +409,24 @@ func _AuthorityService_AttachResource_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthorityService_DetachResource_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DetachResourceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthorityServiceServer).DetachResource(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthorityService_DetachResource_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthorityServiceServer).DetachResource(ctx, req.(*DetachResourceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthorityService_Delegate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DelegateRequest)
 	if err := dec(in); err != nil {
@@ -453,6 +507,10 @@ var AuthorityService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AttachResource",
 			Handler:    _AuthorityService_AttachResource_Handler,
+		},
+		{
+			MethodName: "DetachResource",
+			Handler:    _AuthorityService_DetachResource_Handler,
 		},
 		{
 			MethodName: "Delegate",

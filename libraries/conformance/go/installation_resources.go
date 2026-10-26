@@ -24,7 +24,9 @@ type InstallationResourcesCase struct {
 	// Generation the suite delivers Store, A and B at.
 	Generation uint64
 	// ResourceA and ResourceA2 are created through A, ResourceB through B.
-	ResourceA, ResourceA2, ResourceB string
+	// ResourceX and ResourceY exist and no installation owns them: Owner, as
+	// A's installer, administers both, and attaches X only.
+	ResourceA, ResourceA2, ResourceB, ResourceX, ResourceY string
 }
 
 // OwnedInstallation is one installed solution of the case.
@@ -35,31 +37,31 @@ type OwnedInstallation struct {
 func (c *client) installationResources(t *testing.T, ctx context.Context, fixture Fixture) {
 	f := fixture.InstallationResources
 	if f == nil || fixture.SignManifest == nil || fixture.SignAuthority == nil || f.Owner == "" || f.Viewer == "" || f.A.Installation == "" || f.B.Installation == "" ||
-		f.StoreCredential == "" || f.Generation == 0 || f.ResourceA == "" || f.ResourceA == f.ResourceA2 || f.ResourceA == f.ResourceB || f.ResourceA2 == f.ResourceB {
-		t.Fatal("required conformance fixture missing: signed delivery, two owned installations and three distinct resources")
+		f.StoreCredential == "" || f.Generation == 0 || len(slices.Compact(slices.Sorted(slices.Values([]string{f.ResourceA, f.ResourceA2, f.ResourceB, f.ResourceX, f.ResourceY, ""})))) != 6 {
+		t.Fatal("required conformance fixture missing: signed delivery, two owned installations and five distinct resources")
 	}
 	const binding, self = "store", "self"
-	create, read := scopeAsk(f.Kind, []string{"create"}, nil), scopeAsk(f.Kind, []string{"read"}, nil)
+	create, read, admin := scopeAsk(f.Kind, []string{"create"}, nil), scopeAsk(f.Kind, []string{"read"}, nil), scopeAsk(f.Kind, []string{"admin"}, nil)
 	// Store serves Kind; its self binding lets it hop on, and work headless.
 	both := []string{f.Kind + ":create", f.Kind + ":read"}
 	if _, err := c.deliver(ctx, fixture, f.Store, "module", f.Generation, []string{f.Kind},
-		map[string]any{"scope_ceilings": []any{scopeAsk(f.Kind, []string{"create", "read"}, nil)}}, 0,
+		map[string]any{"scope_ceilings": []any{scopeAsk(f.Kind, []string{"admin", "create", "read"}, nil)}}, 0,
 		solutionhost.AuthorityBinding{ID: self, Audience: f.Store, Operations: map[string][]string{"invoke": both, "headless": both}}); err != nil {
 		t.Fatalf("deliver %s: %v", f.Store, err)
 	}
-	// Each installer may create anywhere; each role reads only what its own
-	// installation owns.
+	// Each installer may create, and reads and administers every resource of
+	// the kind; a viewer reads only what its own installation owns.
 	for _, s := range []OwnedInstallation{f.A, f.B} {
 		own := scopeAsk(s.Solution+".note", []string{"read"}, nil)
 		doc := map[string]any{
 			"scope_ceilings": []any{own},
 			"roles": []any{
-				map[string]any{"name": "installer", "scopes": []any{own, create}, "installation_owned_scopes": []any{read}},
+				map[string]any{"name": "installer", "scopes": []any{own, create, read, admin}},
 				map[string]any{"name": "viewer", "scopes": []any{own}, "installation_owned_scopes": []any{read}},
 			},
 		}
 		if _, err := c.deliver(ctx, fixture, s.Solution, "solution", f.Generation, []string{s.Solution + ".note"}, doc, 0,
-			solutionhost.AuthorityBinding{ID: binding, Audience: f.Store, Operations: map[string][]string{"invoke": both}}); err != nil {
+			solutionhost.AuthorityBinding{ID: binding, Audience: f.Store, Operations: map[string][]string{"invoke": append(both, f.Kind+":admin")}}); err != nil {
 			t.Fatalf("deliver %s: %v", s.Solution, err)
 		}
 	}
@@ -111,24 +113,25 @@ func (c *client) installationResources(t *testing.T, ctx context.Context, fixtur
 			t.Fatal(err)
 		}
 		_, err = attach(str(viewed, "token"), f.StoreCredential, f.ResourceB)
-		refused(t, err, codes.PermissionDenied, "holds no create")
+		refused(t, err, codes.PermissionDenied, "holds neither")
 		readB, err := through(t, owner, f.B, scopeAsk(f.Kind, []string{"read"}, []string{f.ResourceB}))
 		if err != nil {
 			t.Fatal(err)
 		}
 		_, err = attach(str(readB, "token"), f.StoreCredential, f.ResourceA)
-		refused(t, err, codes.PermissionDenied, "holds no create")
-		// A creating capability attaches only what no other installation owns.
+		refused(t, err, codes.PermissionDenied, "holds neither")
+		// A creating capability, or one administering the very id, attaches
+		// only what no other installation owns.
 		for s, foreign := range map[OwnedInstallation]string{f.A: f.ResourceB, f.B: f.ResourceA} {
-			created, err := through(t, owner, s, create)
-			if err != nil {
-				t.Fatal(err)
+			for _, ask := range []any{create, scopeAsk(f.Kind, []string{"admin"}, []string{foreign})} {
+				capability, err := through(t, owner, s, ask)
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, err = attach(str(capability, "token"), f.StoreCredential, foreign)
+				refused(t, err, codes.PermissionDenied, "owned by")
 			}
-			_, err = attach(str(created, "token"), f.StoreCredential, foreign)
-			refused(t, err, codes.PermissionDenied, "owned by")
 		}
-		_, err = through(t, owner, f.B, scopeAsk(f.Kind, []string{"read"}, []string{f.ResourceA}))
-		refused(t, err, codes.PermissionDenied, "widens")
 	})
 	t.Run("an attachment is refused without a serving module or an installation, by name", func(t *testing.T) {
 		created, err := through(t, owner, f.A, create)
@@ -185,6 +188,62 @@ func (c *client) installationResources(t *testing.T, ctx context.Context, fixtur
 		for _, ask := range []any{scopeAsk(f.Kind, []string{"read"}, []string{f.ResourceA2}), scopeAsk(f.Kind, []string{"read"}, []string{f.ResourceB}), read} {
 			_, err := hop(narrowed, ask)
 			refused(t, err, codes.PermissionDenied, "widens")
+		}
+	})
+	t.Run("an administrator of an existing resource attaches it, and only it", func(t *testing.T) {
+		reads, err := through(t, owner, f.A, scopeAsk(f.Kind, []string{"read"}, []string{f.ResourceX}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = attach(str(reads, "token"), f.StoreCredential, f.ResourceX)
+		refused(t, err, codes.PermissionDenied, "holds neither")
+		administers, err := through(t, owner, f.A, scopeAsk(f.Kind, []string{"admin"}, []string{f.ResourceX}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = attach(str(administers, "token"), f.StoreCredential, f.ResourceY)
+		refused(t, err, codes.PermissionDenied, "holds neither")
+		out, err := attach(str(administers, "token"), f.StoreCredential, f.ResourceX)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := str(out, "installation_id"); got != f.A.Installation {
+			t.Fatalf("%s attached to %s, want %s", f.ResourceX, got, f.A.Installation)
+		}
+		viewed, err := through(t, viewer, f.A)
+		if err != nil {
+			t.Fatal(err)
+		}
+		exactEffectiveScope(t, msg(viewed, "context"), f.Kind, []string{"read"}, []string{f.ResourceA, f.ResourceA2, f.ResourceX})
+	})
+	t.Run("a deleted resource is detached by its serving module and may be attached again", func(t *testing.T) {
+		detach := func(credential, id string) (protoreflect.Message, error) {
+			return c.call(ctx, "host.authority.v1.AuthorityService", "DetachResource", map[string]any{"actor": map[string]any{"credential": credential},
+				"organization_id": fixture.Organization, "resource_kind": f.Kind, "resource_id": id})
+		}
+		_, err := detach(f.A.Credential, f.ResourceA2)
+		refused(t, err, codes.PermissionDenied, "does not serve")
+		out, err := detach(f.StoreCredential, f.ResourceA2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := str(out, "installation_id"); got != f.A.Installation {
+			t.Fatalf("%s detached from %q, want %s", f.ResourceA2, got, f.A.Installation)
+		}
+		viewed, err := through(t, viewer, f.A)
+		if err != nil {
+			t.Fatal(err)
+		}
+		exactEffectiveScope(t, msg(viewed, "context"), f.Kind, []string{"read"}, []string{f.ResourceA, f.ResourceX})
+		created, err := through(t, owner, f.B, create)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if out, err = attach(str(created, "token"), f.StoreCredential, f.ResourceA2); err != nil || str(out, "installation_id") != f.B.Installation {
+			t.Fatalf("a re-created id attaches to its new owner: %v %v", out, err)
+		}
+		if out, err = detach(f.StoreCredential, f.ResourceY); err != nil || str(out, "installation_id") != "" {
+			t.Fatalf("detaching an id nobody owns answers no installation: %v %v", out, err)
 		}
 	})
 }
