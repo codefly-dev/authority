@@ -41,6 +41,11 @@ then resumes acknowledgement. `Lifecycle.Revoke` calls the host's existing
 uninstall path. These hooks arrange state; the assertions use the public
 interfaces. No synthetic issuer or parallel permission resolver is allowed.
 
+`UnexposedTeam` is a real team of the organization that `InstalledSolution` is
+not yet exposed to, created or found by the host's own fixture. The staleness
+probe exposes the installation to it to move the organization's authority, so a
+host that validates team ids sees an id it issued, never one the suite invents.
+
 The authority interface returns an advisory decision, not a hop stamp. The hop
 transport additionally must preserve it while forwarding: the local hop's
 `TestPermissivePolicyUsesTheAuthorityAdvisoryIdentity` checks the decision and

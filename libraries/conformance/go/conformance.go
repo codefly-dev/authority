@@ -49,6 +49,12 @@ type Fixture struct {
 	InstalledSolution     string // an active installation the viewer is entitled to
 	InstalledCredential   string // workload credential of InstalledAudience, required for installation-owned Issue
 	InstalledAudience     string // the installed solution principal; distinct from the organisation-role module Audience
+	// UnexposedTeam is a real team of Organization that InstalledSolution is not
+	// yet exposed to, named as the host's own fixture creates or finds it. The
+	// staleness probe exposes InstalledSolution to it, which moves the
+	// organisation's authority; its members keep that role for the rest of the
+	// run, so a team with no members is the safe choice.
+	UnexposedTeam string
 
 	// LocalAdvisory enables the local-only advisory Check contract.
 	LocalAdvisory bool
@@ -391,12 +397,12 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(short, "token"), "audience": f.Audience})
 			refused(t, err, codes.Unauthenticated, "expired")
 		})
-		if f.InstalledSolution == "" {
-			t.Fatal("required conformance fixture missing: staleness needs an installation whose grant can move")
+		if f.InstalledSolution == "" || f.UnexposedTeam == "" {
+			t.Fatal("required conformance fixture missing: staleness needs an installation and a real team it is not yet exposed to")
 		}
 		admin := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.AdminToken})
-		before := c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": token, "audience": f.Audience})
-		c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "GrantToTeam", map[string]any{"organization_id": f.Organization, "installation_id": f.InstalledSolution, "team_id": "callee-probe-" + str(before, "authorization_revision")})
+		c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": token, "audience": f.Audience})
+		c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "GrantToTeam", map[string]any{"organization_id": f.Organization, "installation_id": f.InstalledSolution, "team_id": f.UnexposedTeam})
 		_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": token, "audience": f.Audience})
 		if status.Code(err) != codes.PermissionDenied {
 			t.Fatalf("a token sealed before the organisation's authority moved is stale, refused as PermissionDenied: %v", err)
