@@ -543,9 +543,15 @@ type WorkScopeV1 struct {
 	Actions []string `protobuf:"bytes,2,rep,name=actions,proto3" json:"actions,omitempty"`
 	// resource_ids narrows the scope to specific resources. Empty means every
 	// resource of resource_kind.
-	ResourceIds   []string `protobuf:"bytes,3,rep,name=resource_ids,json=resourceIds,proto3" json:"resource_ids,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	ResourceIds []string `protobuf:"bytes,3,rep,name=resource_ids,json=resourceIds,proto3" json:"resource_ids,omitempty"`
+	// resource_owner_id narrows the scope to the resources this principal owns
+	// (an installed solution's principal). Empty means the scope selects no
+	// owner. With resource_ids, a resource is covered only when both match. A
+	// reader that cannot compare a resource's owner must not treat an
+	// owner-selected scope as covering the whole kind.
+	ResourceOwnerId string `protobuf:"bytes,4,opt,name=resource_owner_id,json=resourceOwnerId,proto3" json:"resource_owner_id,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *WorkScopeV1) Reset() {
@@ -597,6 +603,13 @@ func (x *WorkScopeV1) GetResourceIds() []string {
 		return x.ResourceIds
 	}
 	return nil
+}
+
+func (x *WorkScopeV1) GetResourceOwnerId() string {
+	if x != nil {
+		return x.ResourceOwnerId
+	}
+	return ""
 }
 
 // WorkActorV1 is one verified delegated actor. granted_scopes are the actor's
@@ -1028,12 +1041,13 @@ const file_host_authority_v1_work_context_proto_rawDesc = "" +
 	"binding_id\x18\x01 \x01(\tB\n" +
 	"\xbaH\ar\x05\x10\x01\x18\x80\x04R\tbindingId\x12#\n" +
 	"\brevision\x18\x02 \x01(\x04B\a\xbaH\x042\x02(\x01R\brevision\x12)\n" +
-	"\vincarnation\x18\x03 \x01(\x04B\a\xbaH\x042\x02(\x01R\vincarnation\"{\n" +
+	"\vincarnation\x18\x03 \x01(\x04B\a\xbaH\x042\x02(\x01R\vincarnation\"\xc0\x01\n" +
 	"\vWorkScopeV1\x12/\n" +
 	"\rresource_kind\x18\x01 \x01(\tB\n" +
 	"\xbaH\ar\x05\x10\x01\x18\x80\x01R\fresourceKind\x12\x18\n" +
 	"\aactions\x18\x02 \x03(\tR\aactions\x12!\n" +
-	"\fresource_ids\x18\x03 \x03(\tR\vresourceIds\"\xd0\x03\n" +
+	"\fresource_ids\x18\x03 \x03(\tR\vresourceIds\x12C\n" +
+	"\x11resource_owner_id\x18\x04 \x01(\tB\x17\xbaH\x14r\x12\x18\x80\x042\r^[^\\s\\x00*]*$R\x0fresourceOwnerId\"\xd0\x03\n" +
 	"\vWorkActorV1\x12-\n" +
 	"\fprincipal_id\x18\x01 \x01(\tB\n" +
 	"\xbaH\ar\x05\x10\x01\x18\x80\x04R\vprincipalId\x121\n" +

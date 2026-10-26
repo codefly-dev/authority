@@ -228,7 +228,8 @@ def _key_id(token: str) -> str:
 def _flatten(scopes) -> list[str]:
     out: list[str] = []
     for scope in scopes:
-        if scope.resource_ids:
+        # A resource-limited or owner-selected scope is never a kind-wide one.
+        if scope.resource_ids or scope.resource_owner_id:
             continue
         for action in scope.actions:
             if f"{scope.resource_kind}:{action}" not in out:

@@ -109,6 +109,8 @@ class Scope:
     resource_kind: str
     actions: tuple[str, ...]
     resource_ids: tuple[str, ...]
+    # The principal whose resources the scope selects; "" selects no owner.
+    resource_owner_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -126,11 +128,21 @@ class Claims:
         scope containment; no admin implication or wildcard expansion happens
         here. A kind-wide grant includes any named resource.
         """
+        return self.allows_owned(kind, action, resource_id, "")
+
+    def allows_owned(self, kind: str, action: str, resource_id: str, owner_id: str) -> bool:
+        """``allows`` for a resource owned by owner_id, as the module's own record
+        names it: an owner-selected grant covers it only when it names that
+        owner (and, with ids, the id too); a grant naming no owner covers it
+        whatever its owner. ``allows`` names no owner, so an owner-selected
+        grant never satisfies it. An empty ID with an owner asks for every
+        resource that owner holds."""
         if not kind or not action:
             return False
         return any(
             scope.resource_kind == kind
             and action in scope.actions
+            and (not scope.resource_owner_id or scope.resource_owner_id == owner_id)
             and (not scope.resource_ids or bool(resource_id) and resource_id in scope.resource_ids)
             for scope in self.scopes
         )
@@ -184,7 +196,7 @@ def authenticate(
     scopes = context.actor_chain[-1].granted_scopes if context.actor_chain else context.authority_scopes
     return Claims(
         audience=context.audience,
-        scopes=tuple(Scope(s.resource_kind, tuple(s.actions), tuple(s.resource_ids)) for s in scopes),
+        scopes=tuple(Scope(s.resource_kind, tuple(s.actions), tuple(s.resource_ids), s.resource_owner_id) for s in scopes),
         context=context,
     )
 
@@ -197,11 +209,13 @@ def _parsed(cls, payload: bytes):
 
 def scope_contained(child, parents) -> bool:
     """Core's ScopeContained: per action, a whole-kind row covers it, or the
-    child's ids all lie within the rows of that kind holding the action."""
+    child's ids all lie within the rows of that kind holding the action. A row
+    naming an owner covers only a child naming the same owner."""
     if not any(parent.resource_kind == child.resource_kind for parent in parents):
         return False
     for action in child.actions:
-        rows = [p for p in parents if p.resource_kind == child.resource_kind and action in p.actions]
+        rows = [p for p in parents if p.resource_kind == child.resource_kind and action in p.actions
+                and (not p.resource_owner_id or p.resource_owner_id == child.resource_owner_id)]
         if any(not p.resource_ids for p in rows):
             continue
         ids = {i for p in rows for i in p.resource_ids}

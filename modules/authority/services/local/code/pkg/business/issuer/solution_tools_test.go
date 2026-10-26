@@ -21,7 +21,7 @@ func TestModuleToolBindingUsesThePersonsSolutionEntitlement(t *testing.T) {
 				testkit.SolutionTools(t, k)
 				request := &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "robin"}
 				if bindRoot {
-					request.OperationBindingId = "tools"
+					request.OperationBindingId = testkit.SolutionToolBinding
 				}
 				root, err := k.Issuer.Issue(person(t, k, "fixture-"+who), request)
 				if bindRoot && who == "remi" {
@@ -45,7 +45,7 @@ func TestModuleToolBindingUsesThePersonsSolutionEntitlement(t *testing.T) {
 						t.Fatalf("person binding omitted its scopes: %v", root.Context.AuthorityScopes)
 					}
 				}
-				child, err := k.Issuer.Issue(context.Background(), &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_ParentToken{ParentToken: root.Token}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, "robin")}, OperationBindingId: "tools", Audience: "proposals", Scopes: read})
+				child, err := k.Issuer.Issue(context.Background(), &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_ParentToken{ParentToken: root.Token}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, "robin")}, OperationBindingId: testkit.SolutionToolBinding, Audience: "proposals", Scopes: read})
 				if who == "remi" {
 					if !errors.Is(err, issuer.ErrRefused) {
 						t.Fatalf("unentitled child: %v", err)
@@ -59,7 +59,7 @@ func TestModuleToolBindingUsesThePersonsSolutionEntitlement(t *testing.T) {
 				if wc.OwnerPrincipalId != who || wc.GetOwnerPrincipalKind() != "human" || len(wc.ActorChain) != 1 || wc.ActorChain[0].PrincipalId != "robin" {
 					t.Fatalf("owner/actor changed: %v", wc)
 				}
-				if _, err := k.Issuer.Check(context.Background(), child.Token, "proposals", "/tools.Solution/Read"); err != nil {
+				if _, err := k.Issuer.Check(context.Background(), child.Token, "proposals", testkit.SolutionToolMethod); err != nil {
 					t.Fatalf("real method check: %v", err)
 				}
 			})
@@ -114,7 +114,7 @@ func TestUnentitledPersonCannotHopToSolutionWithAnEmptyAsk(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = k.Issuer.Issue(context.Background(), &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_ParentToken{ParentToken: root.Token}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, "robin")}, OperationBindingId: "tools", Audience: "proposals"})
+	_, err = k.Issuer.Issue(context.Background(), &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_ParentToken{ParentToken: root.Token}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, "robin")}, OperationBindingId: testkit.SolutionToolBinding, Audience: "proposals"})
 	if !errors.Is(err, issuer.ErrRefused) {
 		t.Fatalf("unentitled empty-ask child issued: %v", err)
 	}
