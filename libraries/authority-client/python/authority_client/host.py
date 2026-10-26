@@ -51,7 +51,11 @@ ALLOWED_OPTIONS = frozenset({
     "grpc.primary_user_agent",
 })
 # Set by dial on every channel, never by a caller: no proxy from the environment.
-_NO_PROXY = (("grpc.enable_http_proxy", 0),)
+# grpc core has two: the name-based one (https_proxy, http_proxy, grpc_proxy),
+# off with enable_http_proxy=0, and the address-based one
+# (GRPC_ADDRESS_HTTP_PROXY), which that setting does not cover and an empty
+# enabled-address list turns off.
+_NO_PROXY = (("grpc.enable_http_proxy", 0), ("grpc.address_http_proxy_enabled_addresses", ""))
 
 PLAINTEXT_SCHEMES = ("http", "grpc", "tcp")
 _LABEL = re.compile(r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$")
@@ -139,8 +143,10 @@ def dial(value: str, *, local: bool, mesh: str | None, options=()) -> grpc.Chann
     only be ``ALLOWED_OPTIONS``: nothing that routes or verifies the channel otherwise.
     The channel never follows a proxy from the environment (``https_proxy``,
     ``http_proxy``, ``grpc_proxy``), which would see the workload credential and
-    could swap the published keys on a plaintext mesh hop: ``dial`` sets
-    ``grpc.enable_http_proxy=0`` itself, and a caller cannot set it."""
+    could swap the published keys on a plaintext mesh hop, nor
+    ``GRPC_ADDRESS_HTTP_PROXY``: ``dial`` sets ``grpc.enable_http_proxy=0`` and an
+    empty ``grpc.address_http_proxy_enabled_addresses`` itself, and a caller can set
+    neither."""
     options = tuple(options)  # validated and handed to grpc as one copy: a generator is read once
     for key, _ in options:
         if key not in ALLOWED_OPTIONS:

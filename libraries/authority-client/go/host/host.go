@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -47,6 +48,20 @@ func Dial(ctx context.Context) (*grpc.ClientConn, string, error) {
 func DialOptions(transport credentials.TransportCredentials) []grpc.DialOption {
 	return []grpc.DialOption{grpc.WithTransportCredentials(transport), grpc.WithNoProxy()}
 }
+
+// httpTransport is Go's default HTTP transport minus any proxy from the
+// environment, shared so its connections are pooled.
+var httpTransport = func() *http.Transport {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = nil
+	return transport
+}()
+
+// HTTPTransport is DialOptions for HTTP: the one transport every HTTP request
+// carrying a Work Context, a stamp or the run's proof is sent over (the hop's
+// HTTP face, the edge's reverse proxy). It never consults HTTP_PROXY or
+// HTTPS_PROXY. Callers must not mutate it.
+func HTTPTransport() *http.Transport { return httpTransport }
 
 // Target is the gRPC target and transport for the host at endpoint:
 // HTTPS uses verified TLS. Plaintext requires a local loopback or the

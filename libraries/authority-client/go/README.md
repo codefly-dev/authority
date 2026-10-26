@@ -47,7 +47,10 @@ never follows a proxy from the environment (`HTTPS_PROXY`, `HTTP_PROXY`), which
 would see the workload credential and could swap the published keys on a
 plaintext mesh hop: `host.DialOptions(transport)` is the transport plus
 `grpc.WithNoProxy()`, and a caller dialling an address `Target` or `Endpoint`
-admitted uses it too (the hop does for its upstreams). Remote endpoints
+admitted uses it too (the hop does for its upstreams). `host.HTTPTransport()` is
+the same for HTTP: Go's default transport with no environment proxy, the one
+transport every request carrying a Work Context, a stamp or the run's proof goes
+over (the hop's HTTP face and the edge's reverse proxy both use it). Remote endpoints
 use verified HTTPS/TLS unless the composition asserts
 `internal-transport/mesh-protected=true` and the target is an in-cluster Service
 DNS name. Plaintext loopback is accepted only in a local Codefly environment: the one named exactly `local` (the SDK's `IsLocal`); no name prefix is reserved for local runs.

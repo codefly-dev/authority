@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/codefly-dev/authority/libraries/authority-client/go/host"
 	"github.com/codefly-dev/authority/libraries/hop/go"
 	"github.com/codefly-dev/authority/libraries/hop/go/routing"
 	"google.golang.org/grpc/codes"
@@ -64,7 +65,9 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	stamp.Set(hop.WorkContextKey, md.Get(hop.WorkContextKey)...)
 	hop.Stamp(stamp, id, h.Proof)
 	(&httputil.ReverseProxy{
-		Transport: direct,
+		// Never through a proxy from the environment, which would see the stamp,
+		// the run's proof and the forwarded Work Context.
+		Transport: host.HTTPTransport(),
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(target)
 			pr.Out.Host = target.Host
@@ -84,15 +87,6 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		},
 	}).ServeHTTP(w, r)
 }
-
-// direct is the transport to a module: Go's default, minus any proxy from the
-// environment (HTTP_PROXY, HTTPS_PROXY), which would see the stamp, the run's
-// proof and the forwarded Work Context.
-var direct = func() *http.Transport {
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.Proxy = nil
-	return transport
-}()
 
 // refuse answers a refusal in HTTP's words, its reason the decision's own.
 func refuse(w http.ResponseWriter, err error) {
