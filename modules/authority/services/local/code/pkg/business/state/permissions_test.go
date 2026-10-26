@@ -11,7 +11,7 @@ import (
 
 func TestGeneratedDeveloperTracksReplacementAndReportsBusinessGaps(t *testing.T) {
 	k := testkit.New(t)
-	m := state.Manifest{Module: "ledger", Principal: "ledger", Kind: "module", Generation: 1,
+	m := state.Manifest{Name: "ledger", Principal: "ledger", Kind: "module", Generation: 1,
 		Methods: map[string]state.MethodPolicy{
 			"/ledger/Write":   {Requires: []*basev0.WorkScopeV1{testkit.Scope("ledger.entry", "write")}},
 			"/ledger/Version": {AnyCheckedCaller: true},
@@ -21,7 +21,7 @@ func TestGeneratedDeveloperTracksReplacementAndReportsBusinessGaps(t *testing.T)
 	if _, err := k.State.ApplyManifest(m); err != nil {
 		t.Fatal(err)
 	}
-	held, err := k.State.PersonScopes("dev", "ledger")
+	held, err := k.PersonScopes(t, "dev", "ledger")
 	if err != nil || !state.Attenuates([]*basev0.WorkScopeV1{testkit.Scope("ledger.entry", "write")}, held) {
 		t.Fatalf("developer: %v %v", held, err)
 	}
@@ -36,7 +36,7 @@ func TestGeneratedDeveloperTracksReplacementAndReportsBusinessGaps(t *testing.T)
 	if _, err := k.State.ApplyManifest(m); err != nil {
 		t.Fatal(err)
 	}
-	held, err = k.State.PersonScopes("dev", "ledger")
+	held, err = k.PersonScopes(t, "dev", "ledger")
 	if err != nil || state.Attenuates([]*basev0.WorkScopeV1{testkit.Scope("ledger.entry", "write")}, held) {
 		t.Fatalf("removed write retained: %v %v", held, err)
 	}
@@ -56,7 +56,7 @@ func TestGeneratedDeveloperTracksReplacementAndReportsBusinessGaps(t *testing.T)
 
 func TestGeneratedDeveloperNeverCopiesWildcardCarrierCeilings(t *testing.T) {
 	k := testkit.New(t)
-	m := state.Manifest{Module: "unresolved", Principal: "unresolved", Kind: "module", Generation: 1,
+	m := state.Manifest{Name: "unresolved", Principal: "unresolved", Kind: "module", Generation: 1,
 		ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope("unresolved.entry", "*")},
 		Methods:       map[string]state.MethodPolicy{"/unresolved/Read": {Requires: []*basev0.WorkScopeV1{testkit.Scope("unresolved.entry", "read")}}}}
 	if _, err := k.State.ApplyManifest(m); err != nil {

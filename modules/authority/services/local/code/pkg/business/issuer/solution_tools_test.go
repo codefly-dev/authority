@@ -128,11 +128,11 @@ func TestInstallationWorkloadDeliveryCannotChangeDuringIssuance(t *testing.T) {
 			if _, err := k.State.ApplyManifest(m); err != nil {
 				t.Fatal(err)
 			}
-			inst, err := k.State.Install(context.Background(), "acme", m.Module, "viewer", "alex")
+			inst, err := k.State.Install(context.Background(), "acme", m.Name, "viewer", "alex")
 			if err != nil {
 				t.Fatal(err)
 			}
-			req := &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: inst.ID}}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, m.Module)}, Audience: m.Principal}
+			req := &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: inst.ID}}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, m.Name)}, Audience: m.Principal}
 			_, err = interleaveIssuance(t, stage, func() {
 				m.Generation++
 				if _, err := k.State.ApplyManifest(m); err != nil {

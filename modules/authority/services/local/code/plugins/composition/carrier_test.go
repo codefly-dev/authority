@@ -71,7 +71,7 @@ func verifying(t *testing.T) (*Plugin, *testkit.Kit) {
 
 func held(t *testing.T, k *testkit.Kit, person, audience string) string {
 	t.Helper()
-	scopes, err := k.State.PersonScopes(person, audience)
+	scopes, err := k.PersonScopes(t, person, audience)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestRolesInTheDocumentAreHeldToTheRoleContract(t *testing.T) {
 			}
 		})
 	}
-	if _, err := k.State.PersonScopes("alex", "conformance-solution"); !errors.Is(err, state.ErrUnknown) {
+	if _, err := k.PersonScopes(t, "alex", "conformance-solution"); !errors.Is(err, state.ErrUnknown) {
 		t.Fatalf("a refused solution composed: %v", err)
 	}
 	// The same solution with the contract met composes, and its installer and

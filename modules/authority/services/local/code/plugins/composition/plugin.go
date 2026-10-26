@@ -92,6 +92,7 @@ func (p *Plugin) ApplyManifest(ctx context.Context, req *compositionv1.ApplyMani
 			if m.Roles, err = rolesOf(doc); err != nil {
 				return nil, err
 			}
+			m.OwnerAware = doc.GetOwnerAware()
 		}
 	} else {
 		if req.GetAuthority() != nil {
@@ -117,7 +118,7 @@ func (p *Plugin) ApplyManifest(ctx context.Context, req *compositionv1.ApplyMani
 
 // Manifest converts the wire manifest to the state's.
 func Manifest(in *compositionv1.ModuleManifestV1) state.Manifest {
-	m := state.Manifest{Module: in.GetModule(), Principal: in.GetPrincipal(), Kind: in.GetKind(), Generation: in.GetGeneration(), Bindings: map[string]state.Binding{}}
+	m := state.Manifest{Name: in.GetModule(), Principal: in.GetPrincipal(), Kind: in.GetKind(), Generation: in.GetGeneration(), Bindings: map[string]state.Binding{}}
 	for _, rk := range in.GetResourceKinds() {
 		m.ResourceKinds = append(m.ResourceKinds, &basev0.WorkScopeV1{ResourceKind: rk.GetKind(), Actions: rk.GetActions()})
 	}
@@ -227,7 +228,7 @@ func ceiled(m state.Manifest, ceilings []*basev0.WorkScopeV1) (state.Manifest, e
 	ceiled := map[string]bool{}
 	for _, ceiling := range ceilings {
 		if !declared[ceiling.GetResourceKind()] {
-			return m, status.Errorf(codes.InvalidArgument, "the authority's document ceils %s, which %s's manifest does not declare", ceiling.GetResourceKind(), m.Module)
+			return m, status.Errorf(codes.InvalidArgument, "the authority's document ceils %s, which %s's manifest does not declare", ceiling.GetResourceKind(), m.Name)
 		}
 		if len(ceiling.GetActions()) == 0 {
 			return m, status.Errorf(codes.InvalidArgument, "the authority's document ceils %s with no action", ceiling.GetResourceKind())
@@ -253,7 +254,7 @@ func ceiled(m state.Manifest, ceilings []*basev0.WorkScopeV1) (state.Manifest, e
 // these by its release-signed envelope; the local authority has no second
 // document.
 func FromCore(in *solutionhost.ModuleManifest) state.Manifest {
-	m := state.Manifest{Module: in.Alias, Principal: in.Alias, Kind: string(in.Kind), Generation: in.Generation, Bindings: map[string]state.Binding{}}
+	m := state.Manifest{Name: in.Alias, Principal: in.Alias, Kind: string(in.Kind), Generation: in.Generation, Bindings: map[string]state.Binding{}}
 	if in.Authority == nil {
 		return m
 	}

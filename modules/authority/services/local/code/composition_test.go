@@ -58,7 +58,7 @@ func TestCompositionReachesBootThroughCodefly(t *testing.T) {
 				}
 			}
 			k := testkit.New(t)
-			ledger := state.Manifest{Module: "ledger", Principal: "ledger", Kind: "module", Generation: 1, ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope("ledger.entry", "write")}}
+			ledger := state.Manifest{Name: "ledger", Principal: "ledger", Kind: "module", Generation: 1, ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope("ledger.entry", "write")}}
 			if _, err := k.State.ApplyManifest(ledger); err != nil {
 				t.Fatal(err)
 			}

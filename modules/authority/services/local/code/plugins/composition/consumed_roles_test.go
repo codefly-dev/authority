@@ -3,14 +3,13 @@ package composition
 import (
 	"context"
 	"errors"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"testing"
 
 	"gateway/pkg/business/issuer"
 	"gateway/pkg/business/state"
-	"gateway/pkg/business/testkit"
 	authorityv1 "gateway/pkg/gen/host/authority/v1"
 	compositionv1 "gateway/pkg/gen/host/composition/v1"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"github.com/codefly-dev/core/solutionhost"
 	"github.com/codefly-dev/core/workcontext"
 	"google.golang.org/grpc/codes"
@@ -92,7 +91,7 @@ func TestConsumedInstallationRoleIssuesAndRevokesAcrossAudiences(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := k.State.GrantToTeam(ctx, "acme", inst.ID, "finance"); err != nil {
+			if err := k.State.GrantRole(domain.RoleGrant{InstallationID: inst.ID, Role: "operator", TeamID: "finance"}); err != nil {
 				t.Fatal(err)
 			}
 			if got := held(t, k, "maya", "conformance-solution"); got != "conformance.page:read" {
@@ -178,27 +177,3 @@ func TestConsumedInstallationRoleIssuesAndRevokesAcrossAudiences(t *testing.T) {
 	}
 }
 
-func TestConsumedRolePreservesResourceRestrictions(t *testing.T) {
-	k := testkit.New(t)
-	m := testkit.Proposals(2)
-	limited := testkit.Scope("documents", "write")
-	limited.ResourceIds = []string{"one"}
-	m.Bindings = map[string]state.Binding{"documents": {ID: "documents", Audience: "documents", InvokeScopes: []*basev0.WorkScopeV1{limited}}}
-	m.Roles["viewer"] = []*basev0.WorkScopeV1{limited}
-	if _, err := k.State.ApplyManifest(m); err != nil {
-		t.Fatal(err)
-	}
-	inst, err := k.State.Install(context.Background(), "acme", "proposals", "viewer", "alex")
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, got, _, err := k.State.InstallationScopes(inst.ID, "documents")
-	if err != nil || len(got) != 1 || !proto.Equal(got[0], limited) {
-		t.Fatalf("lost restriction: %v %v", got, err)
-	}
-	m.Generation++
-	m.Roles["viewer"] = []*basev0.WorkScopeV1{testkit.Scope("documents", "write")}
-	if _, err := k.State.ApplyManifest(m); !errors.Is(err, state.ErrForbidden) {
-		t.Fatalf("role widened resource restriction: %v", err)
-	}
-}

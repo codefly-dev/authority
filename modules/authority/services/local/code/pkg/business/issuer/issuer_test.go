@@ -236,7 +236,7 @@ func TestAnUninstallRefusesAnOutstandingTokenOnTheNextCheck(t *testing.T) {
 	if _, err := k.Issuer.Check(ctx, out.GetToken(), "wiki", ""); err != nil {
 		t.Fatalf("before: %v", err)
 	}
-	if err := k.State.Revoke(wiki.ID); err != nil {
+	if err := k.State.Uninstall(wiki.ID); err != nil {
 		t.Fatal(err)
 	}
 	_, err = k.Issuer.Check(ctx, out.GetToken(), "wiki", "")
@@ -343,7 +343,7 @@ func TestAWorkloadInfersOnlyOneActiveInstallingOrganization(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			k := testkit.New(t)
 			for _, org := range tc.revoke {
-				if err := k.State.Revoke(state.InstallationID(org, "documents")); err != nil {
+				if err := k.State.Uninstall(state.InstallationID(org, "documents")); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -445,7 +445,7 @@ func TestKeysLetAnIndependentVerifierCheckWhatWasIssued(t *testing.T) {
 	verifier := &workcontext.Verifier{
 		Issuer: keys.GetIssuer(), Audience: "documents",
 		Keys:      map[string]ed25519.PublicKey{keys.GetKeys()[0].GetKeyId(): ed25519.PublicKey(keys.GetKeys()[0].GetPublicKey())},
-		Revisions: k.State, Seals: k.State, Grants: k.State, Replay: workcontext.NewMemoryReplayStore(), Now: func() time.Time { return k.Now },
+		Revisions: k.State.Service().Revisions(), Seals: k.State.Service().Seals(), Replay: workcontext.NewMemoryReplayStore(), Now: func() time.Time { return k.Now },
 	}
 	if _, err := verifier.Verify(ctx, out.GetToken()); err != nil {
 		t.Fatalf("an independent core verifier refused what we issued: %v", err)
@@ -510,11 +510,11 @@ func TestABindingNamingIssueMayLeaveItsAudienceToTheBinding(t *testing.T) {
 // declarations arrive. The developer role never invents actions from a wildcard.
 func TestTheDeveloperRoleHoldsWhatEachComposedModuleServes(t *testing.T) {
 	k := testkit.New(t)
-	held, err := k.State.PersonScopes("dev", "records")
+	held, err := k.PersonScopes(t, "dev", "records")
 	if err != nil || len(held) != 2 {
 		t.Fatalf("dev at records: %v %v", held, err)
 	}
-	if _, err := k.State.ApplyManifest(state.Manifest{Module: "probe", Principal: "probe", Kind: "module", Generation: 1,
+	if _, err := k.State.ApplyManifest(state.Manifest{Name: "probe", Principal: "probe", Kind: "module", Generation: 1,
 		ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope("probe.items", state.AnyAction)}}); err != nil {
 		t.Fatal(err)
 	}

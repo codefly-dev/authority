@@ -15,7 +15,7 @@ import (
 
 func installationManifest(name, role string, generation uint64, actions ...string) state.Manifest {
 	kind := name + ".item"
-	return state.Manifest{Module: name, Principal: name, Kind: "solution", Generation: generation,
+	return state.Manifest{Name: name, Principal: name, Kind: "solution", Generation: generation,
 		ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope(kind, "read", "write")},
 		Roles:         map[string][]*basev0.WorkScopeV1{state.InstallerRole: {testkit.Scope(kind, "read", "write")}, role: {testkit.Scope(kind, actions...)}},
 		Bindings:      map[string]state.Binding{"self": {ID: "self", Audience: name, InvokeScopes: []*basev0.WorkScopeV1{testkit.Scope(kind, "read", "write")}}}}
@@ -68,7 +68,7 @@ func TestSolutionRoleNarrowingRevokesExistingRootsAndChildren(t *testing.T) {
 			if _, err := k.State.ApplyManifest(manifest); err != nil {
 				t.Fatal(err)
 			}
-			inst, err := k.State.Install(ctx, "acme", manifest.Module, "task_operator", "alex")
+			inst, err := k.State.Install(ctx, "acme", manifest.Name, "task_operator", "alex")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -77,7 +77,7 @@ func TestSolutionRoleNarrowingRevokesExistingRootsAndChildren(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			child, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_ParentToken{ParentToken: root.GetToken()}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, manifest.Module)}, Audience: manifest.Principal, OperationBindingId: "self", Scopes: request.Scopes})
+			child, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_ParentToken{ParentToken: root.GetToken()}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, manifest.Name)}, Audience: manifest.Principal, OperationBindingId: "self", Scopes: request.Scopes})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -123,7 +123,7 @@ func TestInstallerNarrowingRevokesTheOwnerButRoleExpansionKeepsExistingAuthority
 	if _, err := k.State.ApplyManifest(m); err != nil {
 		t.Fatal(err)
 	}
-	inst, err := k.State.Install(ctx, "acme", m.Module, "viewer", "alex")
+	inst, err := k.State.Install(ctx, "acme", m.Name, "viewer", "alex")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,12 +131,12 @@ func TestInstallerNarrowingRevokesTheOwnerButRoleExpansionKeepsExistingAuthority
 	if err != nil {
 		t.Fatal(err)
 	}
-	owner, err := k.Issuer.Issue(person(t, k, "fixture-alex"), &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: m.Principal, Scopes: scopes(testkit.Scope(m.Module+".item", "write"))})
+	owner, err := k.Issuer.Issue(person(t, k, "fixture-alex"), &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: m.Principal, Scopes: scopes(testkit.Scope(m.Name+".item", "write"))})
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Expanding the installed viewer role leaves already-issued narrow grants valid.
-	next := installationManifest(m.Module, "viewer", 2, "read", "write")
+	next := installationManifest(m.Name, "viewer", 2, "read", "write")
 	if _, err := k.State.ApplyManifest(next); err != nil {
 		t.Fatal(err)
 	}
@@ -144,8 +144,8 @@ func TestInstallerNarrowingRevokesTheOwnerButRoleExpansionKeepsExistingAuthority
 		t.Fatalf("expansion invalidated old scope: %v", err)
 	}
 	// The owner's installer role is independent of that selected viewer role.
-	next = installationManifest(m.Module, "viewer", 3, "read", "write")
-	next.Roles[state.InstallerRole] = []*basev0.WorkScopeV1{testkit.Scope(m.Module+".item", "read")}
+	next = installationManifest(m.Name, "viewer", 3, "read", "write")
+	next.Roles[state.InstallerRole] = []*basev0.WorkScopeV1{testkit.Scope(m.Name+".item", "read")}
 	if _, err := k.State.ApplyManifest(next); err != nil {
 		t.Fatal(err)
 	}

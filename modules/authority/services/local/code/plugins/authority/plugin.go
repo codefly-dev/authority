@@ -18,6 +18,8 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
+	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
+
 	"gateway/pkg/business/issuer"
 	"gateway/pkg/business/state"
 	authorityv1 "gateway/pkg/gen/host/authority/v1"
@@ -142,9 +144,9 @@ func (p *Plugin) GetDelegation(ctx context.Context, req *authorityv1.GetDelegati
 
 func delegationOf(d state.Delegation) *authorityv1.Delegation {
 	out := &authorityv1.Delegation{DelegationId: d.ID, OrganizationId: d.Organization, Grantor: d.Grantor, Module: d.Module, Purpose: d.Purpose, Active: !d.Revoked}
-	for _, sc := range d.WorkScopes() {
+	for _, sc := range d.Scopes {
 		out.Scopes = append(out.Scopes, &authorityv1.WorkScopeV1{
-			ResourceKind: sc.GetResourceKind(), Actions: sc.GetActions(), ResourceIds: sc.GetResourceIds(),
+			ResourceKind: sc.GetResourceKind(), Actions: sc.GetActions(), ResourceIds: sc.GetResourceIds(), ResourceOwnerId: sc.GetResourceOwnerId(),
 		})
 	}
 	return out
@@ -168,7 +170,7 @@ func (p *Plugin) ListResources(ctx context.Context, req *authorityv1.ListResourc
 	}
 	out := &authorityv1.ListResourcesResponse{}
 	for _, g := range grants {
-		grant := &authorityv1.ResourceGrant{}
+		grant := &authorityv1.ResourceGrant{ResourceOwnerId: g.Owner}
 		switch {
 		case g.All:
 			grant.Match = &authorityv1.ResourceGrant_All{All: true}
@@ -184,27 +186,41 @@ func (p *Plugin) ListResources(ctx context.Context, req *authorityv1.ListResourc
 	return out, nil
 }
 
+// AuthorizeTransfer decides whether an existing resource joins a solution
+// principal; the store records the answer.
+func (p *Plugin) AuthorizeTransfer(ctx context.Context, req *authorityv1.AuthorizeTransferRequest) (*authorityv1.AuthorizeTransferResponse, error) {
+	out, err := p.Issuer.AuthorizeTransfer(ctx, req)
+	return out, Status(err)
+}
+
 // Keys returns the issuer and its keys.
 func (p *Plugin) Keys(context.Context, *authorityv1.KeysRequest) (*authorityv1.KeysResponse, error) {
 	return p.Issuer.Keys(), nil
 }
 
 // Status maps a refusal to a gRPC status that names its reason: every refusal
-// reaches the caller, none stays only in a log.
+// reaches the caller, none stays only in a log. The core's refusals carry
+// their code; this host's own and core's Work Context errors map by kind.
 func Status(err error) error {
-	switch {
-	case err == nil:
+	if err == nil {
 		return nil
+	}
+	if c, ok := domain.CodeOf(err); ok {
+		return status.Error(map[domain.Code]codes.Code{
+			domain.Denied: codes.PermissionDenied, domain.NotFound: codes.NotFound,
+			domain.Invalid: codes.InvalidArgument, domain.Precondition: codes.FailedPrecondition,
+		}[c], err.Error())
+	}
+	switch {
 	case errors.Is(err, state.ErrUnknown), errors.Is(err, workcontext.ErrNoBinding):
 		return status.Error(codes.NotFound, err.Error())
 	case errors.Is(err, workcontext.ErrRevoked), errors.Is(err, workcontext.ErrNoSeal),
 		errors.Is(err, state.ErrForbidden), errors.Is(err, issuer.ErrRefused):
 		return status.Error(codes.PermissionDenied, err.Error())
-	case errors.Is(err, workcontext.ErrInvalid), errors.Is(err, workcontext.ErrNotACoreToken), errors.Is(err, workcontext.ErrReplayed):
+	case errors.Is(err, workcontext.ErrInvalid), errors.Is(err, workcontext.ErrNotACoreToken), errors.Is(err, workcontext.ErrReplayed),
+		errors.Is(err, state.ErrUnauthenticated):
 		return status.Error(codes.Unauthenticated, err.Error())
-	case errors.Is(err, state.ErrUnauthenticated):
-		return status.Error(codes.Unauthenticated, err.Error())
-	case errors.Is(err, state.ErrStale), errors.Is(err, state.ErrNotInstalled):
+	case errors.Is(err, state.ErrStale):
 		return status.Error(codes.FailedPrecondition, err.Error())
 	default:
 		return status.Error(codes.Internal, err.Error())

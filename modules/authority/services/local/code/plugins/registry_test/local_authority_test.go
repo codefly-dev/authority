@@ -43,7 +43,7 @@ people:
 		t.Fatal(err)
 	}
 	source := testkit.Wiki(1)
-	source.Module, source.Principal = "assistant", "assistant"
+	source.Name, source.Principal = "assistant", "assistant"
 	source.Bindings = map[string]state.Binding{
 		"directory": {ID: "directory", Audience: "org-directory", InvokeScopes: testkit.OrgDirectory(1).ResourceKinds},
 		"documents": testkit.OrgDirectory(1).Bindings["documents"],
@@ -53,7 +53,7 @@ people:
 	if _, err := k.State.ApplyManifest(source); err != nil {
 		t.Fatal(err)
 	}
-	installedChain, err := k.State.Install(context.Background(), "acme", source.Module, "viewer", "alex")
+	installedChain, err := k.State.Install(context.Background(), "acme", source.Name, "viewer", "alex")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,12 +109,12 @@ people:
 	// A dedicated declared workload with no active installation exercises the
 	// refusal without removing any installation other cases need.
 	absent := testkit.Documents(2)
-	absent.Module, absent.Principal = "runtime", "runtime"
+	absent.Name, absent.Principal = "runtime", "runtime"
 	if _, err := k.State.ApplyManifest(absent); err != nil {
 		t.Fatal(err)
 	}
 	for _, org := range []string{"acme", "globex"} {
-		if err := k.State.Revoke(state.InstallationID(org, "runtime")); err != nil {
+		if err := k.State.Uninstall(state.InstallationID(org, "runtime")); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -146,7 +146,7 @@ people:
 				})
 				return func() { once.Do(func() { close(done) }) }
 			},
-			Revoke: func(_ context.Context, id string) error { return k.State.Revoke(id) },
+			Revoke: func(_ context.Context, id string) error { return k.State.Uninstall(id) },
 		},
 		UnentitledToken: "fixture-no-roles",
 		Organization:    "acme", ViewerToken: "fixture-maya", AdminToken: "fixture-alex",
@@ -173,9 +173,9 @@ people:
 		ChildScopes: &conformance.ChildScopesCase{Chain: chain, FirstActions: []string{"read", "write"}, NextActions: []string{"read", "invoke"},
 			OutsideKind: "directory.entry", OutsideAction: "read", ResourceID: "a", OtherResourceID: "b", DroppedAction: "invoke"},
 		InstallationChain: &conformance.InstallationChainCase{
-			Installation: installedChain.ID, Source: source.Principal, Credential: k.Credential(t, source.Module),
+			Installation: installedChain.ID, Source: source.Principal, Credential: k.Credential(t, source.Name),
 			Hops: []conformance.Hop{
-				{Credential: k.Credential(t, source.Module), Binding: "directory", Audience: "org-directory", AskKind: "directory.entry", AskAction: "read"},
+				{Credential: k.Credential(t, source.Name), Binding: "directory", Audience: "org-directory", AskKind: "directory.entry", AskAction: "read"},
 				{Credential: k.Credential(t, "org-directory"), Binding: "documents", Audience: "documents", AskKind: "documents", AskAction: "read"},
 				{Credential: k.Credential(t, "documents"), Binding: "model", Audience: "model", AskKind: "modelservice.profiles", AskAction: "read"},
 			},

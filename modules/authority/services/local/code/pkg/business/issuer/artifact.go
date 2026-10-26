@@ -72,7 +72,7 @@ func (i *Issuer) artifactCaller(ctx context.Context, parent, credential, install
 	if err != nil {
 		return state.Installation{}, err
 	}
-	verified, err := i.verifier(decoded.Context().GetAudience()).Verify(ctx, parent)
+	verified, err := i.svc.Verify(ctx, parent, decoded.Context().GetAudience())
 	if err != nil {
 		return state.Installation{}, err
 	}
@@ -82,7 +82,7 @@ func (i *Issuer) artifactCaller(ctx context.Context, parent, credential, install
 		return state.Installation{}, fmt.Errorf("an artifact request names the module asking: %w", err)
 	}
 	if claims.GetAudience() != actor.Principal {
-		return state.Installation{}, fmt.Errorf("%w: %s asks about a context addressed to %s", ErrRefused, actor.Module, claims.GetAudience())
+		return state.Installation{}, fmt.Errorf("%w: %s asks about a context addressed to %s", ErrRefused, actor.Name, claims.GetAudience())
 	}
 	inst, ok := i.state.Installation(installation)
 	if !ok || inst.Status != state.Active || inst.Organization != claims.GetTenantId() {
@@ -92,7 +92,7 @@ func (i *Issuer) artifactCaller(ctx context.Context, parent, credential, install
 		return state.Installation{}, fmt.Errorf("%w: consent to an artifact is given by a person present, not through a module acting for them", ErrRefused)
 	}
 	if !state.HoldsAction(verified.EffectiveScopes(), policy, action) {
-		return state.Installation{}, fmt.Errorf("%w: %s does not hold %s:%s at %s", ErrRefused, claims.GetOwnerPrincipalId(), policy, action, actor.Module)
+		return state.Installation{}, fmt.Errorf("%w: %s does not hold %s:%s at %s", ErrRefused, claims.GetOwnerPrincipalId(), policy, action, actor.Name)
 	}
 	return inst, nil
 }

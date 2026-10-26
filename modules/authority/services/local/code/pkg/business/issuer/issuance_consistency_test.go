@@ -66,30 +66,30 @@ func TestRoleNarrowingBetweenResolutionAndMint(t *testing.T) {
 				if _, err := k.State.ApplyManifest(old); err != nil {
 					t.Fatal(err)
 				}
-				inst, err := k.State.Install(ctx, "acme", old.Module, "task_operator", "alex")
+				inst, err := k.State.Install(ctx, "acme", old.Name, "task_operator", "alex")
 				if err != nil {
 					t.Fatal(err)
 				}
-				req := &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: inst.ID}}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, inst.Target)}, Audience: old.Principal, Scopes: scopes(testkit.Scope(old.Module+".item", "write"))}
-				next := installationManifest(old.Module, "task_operator", 2, "read")
+				req := &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Installation{Installation: &authorityv1.InstallationRef{InstallationId: inst.ID}}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, inst.Target)}, Audience: old.Principal, Scopes: scopes(testkit.Scope(old.Name+".item", "write"))}
+				next := installationManifest(old.Name, "task_operator", 2, "read")
 				if owner == "person" {
 					ctx = person(t, k, "fixture-alex")
 					req.As = &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}
 				}
 				if owner == "person" || owner == "delegation" {
-					next.Roles[state.InstallerRole] = []*basev0.WorkScopeV1{testkit.Scope(old.Module+".item", "read")}
+					next.Roles[state.InstallerRole] = []*basev0.WorkScopeV1{testkit.Scope(old.Name+".item", "read")}
 				}
 				if owner == "installation_removed" {
 					delete(next.Roles, "task_operator")
 				}
 				if owner == "delegation" {
 					ctx = person(t, k, "fixture-alex")
-					d, err := k.Issuer.Delegate(ctx, old.Module, []*basev0.WorkScopeV1{testkit.Scope(old.Module+".item", "write")}, "consistency regression")
+					d, err := k.Issuer.Delegate(ctx, old.Name, []*basev0.WorkScopeV1{testkit.Scope(old.Name+".item", "write")}, "consistency regression")
 					if err != nil {
 						t.Fatal(err)
 					}
 					req.As = &authorityv1.IssueRequest_Delegation{Delegation: &authorityv1.DelegationRef{DelegationId: d.ID}}
-					req.Actor = &authorityv1.WorkloadCredential{Credential: k.Credential(t, old.Module)}
+					req.Actor = &authorityv1.WorkloadCredential{Credential: k.Credential(t, old.Name)}
 					req.OperationBindingId = "self"
 				}
 				if owner == "child" {
@@ -98,7 +98,7 @@ func TestRoleNarrowingBetweenResolutionAndMint(t *testing.T) {
 						t.Fatal(err)
 					}
 					req.As = &authorityv1.IssueRequest_ParentToken{ParentToken: parent.Token}
-					req.Actor = &authorityv1.WorkloadCredential{Credential: k.Credential(t, old.Module)}
+					req.Actor = &authorityv1.WorkloadCredential{Credential: k.Credential(t, old.Name)}
 					req.OperationBindingId = "self"
 				}
 				// Prove this owner can issue the exact requested scope before scheduling a change.

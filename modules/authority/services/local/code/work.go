@@ -61,7 +61,12 @@ func configureLocalAuthority(ctx context.Context, _ *adapters.Configuration) (Cl
 	if err != nil {
 		return nil, fmt.Errorf("launcher anchor: %w", err)
 	}
-	st, err := state.New(anchor, Audience)
+	_, signing, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return nil, err
+	}
+	keyID := "run-" + time.Now().UTC().Format("20060102T150405Z")
+	st, err := state.New(anchor, Audience, issuer.Config(issuerName, keyID, signing, time.Now))
 	if err != nil {
 		return nil, err
 	}
@@ -88,11 +93,7 @@ func configureLocalAuthority(ctx context.Context, _ *adapters.Configuration) (Cl
 	if err != nil {
 		return nil, err
 	}
-	_, signing, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		return nil, err
-	}
-	wiring.Set(st, issuer.New(st, issuerName, "run-"+time.Now().UTC().Format("20060102T150405Z"), signing, time.Now))
+	wiring.Set(st, issuer.New(st, issuerName, keyID, signing.Public().(ed25519.PublicKey)))
 	// A delivery is verified against the policy the run wrote for its host, and
 	// carried only by the module's own delivery workload, attested by the
 	// anchor. With no policy the carrier path refuses by name and says so.

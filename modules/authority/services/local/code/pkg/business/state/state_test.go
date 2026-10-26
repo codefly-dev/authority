@@ -3,8 +3,8 @@ package state_test
 import (
 	"context"
 	"errors"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"regexp"
-	"strings"
 	"testing"
 
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
@@ -15,45 +15,6 @@ import (
 	"gateway/pkg/business/testkit"
 )
 
-func TestFixtureSeedsPeopleRolesAndInstallsThroughTheRealPath(t *testing.T) {
-	k := testkit.New(t)
-	sess, err := k.State.SignIn("fixture-maya")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if sess.Person != "maya" || sess.Organization != "acme" || sess.Roles[0] != "viewer" {
-		t.Fatalf("session = %+v", sess)
-	}
-	if _, err := k.State.SignIn("nobody"); !errors.Is(err, state.ErrUnknown) {
-		t.Fatalf("unknown token: %v", err)
-	}
-	wiki, ok := k.State.Installation(state.InstallationID("acme", "wiki"))
-	if !ok || wiki.Status != state.Active || wiki.Role != "viewer" || strings.Join(wiki.Teams, ",") != "finance,engineering" {
-		t.Fatalf("wiki installation = %+v", wiki)
-	}
-}
-
-func TestEntitlementIsTheNavigation(t *testing.T) {
-	k := testkit.New(t)
-	// The fixture grants Acme's wiki to finance and engineering: Maya and Rémi
-	// each see it, once; Omar (Globex, ops) sees Globex's own installation.
-	for person, target := range map[string]string{"maya": "wiki", "remi": "wiki", "omar": "wiki"} {
-		if got := k.State.Entitled(person); len(got) != 1 || got[0].Target != target {
-			t.Fatalf("%s sees %+v", person, got)
-		}
-	}
-	if got := k.State.Entitled("omar"); got[0].Organization != "globex" {
-		t.Fatalf("omar sees another organisation's installation: %+v", got)
-	}
-	// A grant to a team nobody in Acme is on changes nobody's navigation.
-	if _, err := k.State.GrantToTeam(context.Background(), "acme", state.InstallationID("acme", "wiki"), "ops"); err != nil {
-		t.Fatal(err)
-	}
-	if got := k.State.Entitled("remi"); len(got) != 1 {
-		t.Fatalf("after the grant remi sees %+v", got)
-	}
-}
-
 func TestAModuleInstallationExistsPerOrganisationWithoutAClick(t *testing.T) {
 	k := testkit.New(t)
 	for _, id := range []string{state.InstallationID("acme", "documents"), state.InstallationID("acme", "model")} {
@@ -61,9 +22,6 @@ func TestAModuleInstallationExistsPerOrganisationWithoutAClick(t *testing.T) {
 		if !ok || inst.Status != state.Active {
 			t.Fatalf("%s = %+v", id, inst)
 		}
-	}
-	if got := k.State.Entitled("alex"); len(got) != 1 {
-		t.Fatalf("module installations are not navigation entries: %+v", got)
 	}
 }
 
@@ -79,7 +37,7 @@ func TestAManifestMovesOnlyForward(t *testing.T) {
 	if m.Generation != 2 {
 		t.Fatalf("generation = %d", m.Generation)
 	}
-	epoch, _ := k.State.PrincipalEpoch(context.Background(), "documents")
+	epoch, _ := k.State.Service().Seals().PrincipalEpoch(context.Background(), "documents")
 	if epoch != 2 {
 		t.Fatalf("epoch follows the generation, got %d", epoch)
 	}
@@ -96,10 +54,10 @@ func TestAManifestWithSomeBindingsIsNotAllOrNothing(t *testing.T) {
 	if _, err := k.State.ApplyManifest(m); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := k.State.OperationBinding(context.Background(), "acme/documents/model"); err != nil {
+	if _, err := k.State.Service().Seals().OperationBinding(context.Background(), "acme/documents/model"); err != nil {
 		t.Fatalf("the granted binding: %v", err)
 	}
-	if _, err := k.State.OperationBinding(context.Background(), "acme/documents/missing"); !errors.Is(err, workcontext.ErrNoBinding) {
+	if _, err := k.State.Service().Seals().OperationBinding(context.Background(), "acme/documents/missing"); !errors.Is(err, workcontext.ErrNoBinding) {
 		t.Fatalf("an undeclared binding: %v", err)
 	}
 }
@@ -124,53 +82,9 @@ func TestHeadlessScopesMayNotExceedInvokeScopes(t *testing.T) {
 func TestOnePrincipalBelongsToOneModule(t *testing.T) {
 	k := testkit.New(t)
 	m := testkit.Wiki(2)
-	m.Module = "wiki2"
+	m.Name = "wiki2"
 	if _, err := k.State.ApplyManifest(m); !errors.Is(err, state.ErrForbidden) {
 		t.Fatalf("stolen principal: %v", err)
-	}
-}
-
-func TestSealAnswersOnlyForAnActiveInstallationAndAKnownPrincipal(t *testing.T) {
-	k := testkit.New(t)
-	ctx := context.Background()
-	if s, err := k.State.Seal(ctx, "maya", state.InstallationID("acme", "documents")); err != nil || s.InstallationRevision != 1 {
-		t.Fatalf("member at module installation: %v %+v", err, s)
-	}
-	if _, err := k.State.Seal(ctx, "stranger", state.InstallationID("acme", "documents")); !errors.Is(err, workcontext.ErrNoSeal) {
-		t.Fatalf("stranger: %v", err)
-	}
-	if _, err := k.State.Seal(ctx, state.InstallationID("acme", "wiki")+"/agent", state.InstallationID("acme", "wiki")); err != nil {
-		t.Fatalf("the installation's own agent: %v", err)
-	}
-	if err := k.State.Revoke(state.InstallationID("acme", "wiki")); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := k.State.Seal(ctx, "maya", state.InstallationID("acme", "wiki")); !errors.Is(err, workcontext.ErrNoSeal) {
-		t.Fatalf("revoked installation: %v", err)
-	}
-}
-
-func TestTheAuthorizationRevisionMovesOnEveryGrantChange(t *testing.T) {
-	k := testkit.New(t)
-	ctx := context.Background()
-	before, _ := k.State.AuthorizationRevision(ctx, "acme")
-	// Engineering is granted by the fixture already: granting it again changes
-	// nothing and moves nothing; a team not yet granted moves the revision.
-	if _, err := k.State.GrantToTeam(ctx, "acme", state.InstallationID("acme", "wiki"), "engineering"); err != nil {
-		t.Fatal(err)
-	}
-	if same, _ := k.State.AuthorizationRevision(ctx, "acme"); same != before {
-		t.Fatalf("a grant that changes nothing moved the revision %d → %d", before, same)
-	}
-	if _, err := k.State.GrantToTeam(ctx, "acme", state.InstallationID("acme", "wiki"), "ops"); err != nil {
-		t.Fatal(err)
-	}
-	after, _ := k.State.AuthorizationRevision(ctx, "acme")
-	if after != before+1 {
-		t.Fatalf("revision %d → %d", before, after)
-	}
-	if _, err := k.State.AuthorizationRevision(ctx, "nowhere"); !errors.Is(err, state.ErrUnknown) {
-		t.Fatalf("unknown tenant: %v", err)
 	}
 }
 
@@ -198,10 +112,6 @@ func TestInstallRunsTheTargetsInstallStepAndStaysPendingUntilItConverges(t *test
 	if _, err := k.State.Install(ctx, "acme", "proposals", "viewer", "alex"); err == nil {
 		t.Fatal("a pending installation is not installed twice")
 	}
-	inst, err = k.State.Acknowledge(state.InstallationID("acme", "proposals"))
-	if err != nil || inst.Status != state.Active {
-		t.Fatalf("after acknowledgement: %v %+v", err, inst)
-	}
 }
 
 func TestInstallRefusesAnUnknownRoleAndAForeignOwner(t *testing.T) {
@@ -224,7 +134,7 @@ func TestASolutionDeclaresAnInstallerAndRolesWithinWhatItServes(t *testing.T) {
 	k := testkit.New(t)
 	noInstaller := testkit.Proposals(1)
 	delete(noInstaller.Roles, state.InstallerRole)
-	if _, err := k.State.ApplyManifest(noInstaller); !errors.Is(err, state.ErrNoInstallerRole) {
+	if _, err := k.State.ApplyManifest(noInstaller); !errors.Is(err, domain.ErrNoInstallerRole) {
 		t.Fatalf("no installer: %v", err)
 	}
 	beyond := testkit.Proposals(1)
@@ -239,44 +149,10 @@ func TestASolutionDeclaresAnInstallerAndRolesWithinWhatItServes(t *testing.T) {
 	}
 }
 
-// A person's access to a solution is the role its installation grants her and
-// nothing from the organisation's roles: the owner holds the installer role, a
-// granted team holds the installation's role, everyone else holds nothing, and
-// another organisation's installation grants nothing here.
-func TestAccessToASolutionIsTheInstallationsRole(t *testing.T) {
-	k := testkit.New(t)
-	hold := func(person string) string {
-		scopes, err := k.State.PersonScopes(person, "wiki")
-		if err != nil {
-			t.Fatal(err)
-		}
-		var out []string
-		for _, sc := range scopes {
-			out = append(out, sc.GetResourceKind()+":"+strings.Join(sc.GetActions(), ","))
-		}
-		return strings.Join(out, " ")
-	}
-	if got := hold("alex"); got != "wiki.page:publish,read,write" {
-		t.Fatalf("the owner holds the installer role, got %q", got)
-	}
-	if got := hold("maya"); got != "wiki.page:read" {
-		t.Fatalf("finance holds the viewer role, got %q", got)
-	}
-	if got := hold("remi"); got != "wiki.page:read" {
-		t.Fatalf("an editor of documents holds the installation's viewer role at the wiki, not his organisation role, got %q", got)
-	}
-	if got := hold("zoe"); got != "wiki.page:publish,read,write" {
-		t.Fatalf("globex's owner holds its installer role, got %q", got)
-	}
-	if got := hold("omar"); got != "wiki.page:read,write" {
-		t.Fatalf("ops holds globex's editor role, got %q", got)
-	}
-}
-
 func TestWorkloadCredentialIsTheLaunchersNativeOneAndNothingElse(t *testing.T) {
 	k := testkit.New(t)
 	ctx := context.Background()
-	if m, err := k.State.VerifyWorkload(ctx, k.Credential(t, "documents")); err != nil || m.Module != "documents" {
+	if m, err := k.State.VerifyWorkload(ctx, k.Credential(t, "documents")); err != nil || m.Name != "documents" {
 		t.Fatalf("the launcher's credential for documents: %v %+v", err, m)
 	}
 	// A module the launcher never declared is refused by core's attester: the

@@ -97,7 +97,7 @@ people:
 		Administrator: "fixture-store-administrator", Reader: "fixture-store-reader", NoteReader: "fixture-principal-note-reader",
 		OtherAdmin: "fixture-zoe", OtherMember: "fixture-omar", OtherTeam: "ops",
 		Existing:               "store-x",
-		Uninstall:              func(_ context.Context, id string) error { return k.State.Revoke(id) },
+		Uninstall:              func(_ context.Context, id string) error { return k.State.Uninstall(id) },
 		RemoveFromTeam:         func(context.Context, string, string) error { return notYet("remove a person from a team") },
 		RemoveFromOrganization: func(context.Context, string) error { return notYet("remove a person from the organisation") },
 		SignManifest:           testkit.SignDocument,

@@ -3,6 +3,8 @@ package testkit
 import (
 	"context"
 	"gateway/pkg/business/state"
+
+	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"testing"
 )
@@ -16,7 +18,7 @@ func SolutionTools(t *testing.T, k *Kit) {
 	target.Methods = map[string]state.MethodPolicy{
 		"/tools.Solution/Read": {Requires: []*basev0.WorkScopeV1{Scope("proposals.item", "read")}},
 	}
-	actor := state.Manifest{Module: "robin", Principal: "robin", Kind: "module", Generation: 1,
+	actor := state.Manifest{Name: "robin", Principal: "robin", Kind: "module", Generation: 1,
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("robin.conversations", "read")},
 		Bindings:      map[string]state.Binding{"tools": {ID: "tools", Audience: "proposals", InvokeScopes: []*basev0.WorkScopeV1{Scope("proposals.item", "read")}}},
 	}
@@ -29,7 +31,7 @@ func SolutionTools(t *testing.T, k *Kit) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := k.State.GrantToTeam(context.Background(), "acme", inst.ID, "finance"); err != nil {
+	if err := k.State.GrantRole(domain.RoleGrant{InstallationID: inst.ID, Role: "viewer", TeamID: "finance"}); err != nil {
 		t.Fatal(err)
 	}
 }
