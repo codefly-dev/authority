@@ -25,6 +25,9 @@ modules:
       module: modules/record-store
       version: "0.5.0"
     # The directory's module page, the first page run against the authority.
+    # Accepted playground-only repair for PR #25: 0.0.0 did not resolve during
+    # the load smoke check. Retain that check's immutable pin independently of
+    # the authority migration; the playground maintainer owns future updates.
     - name: org-directory
       source: obin-ai/module-directory
       module: modules/org-directory
