@@ -55,10 +55,13 @@ over (the hop's HTTP face and the edge's reverse proxy both use it). It is an
 no caller can turn proxies back on for everyone. **The no-proxy gate**
 (`host/gate_test.go`, run by `go test ./...` here) parses every non-test Go file
 in the repository and fails, naming the file and line, on `http.DefaultTransport`,
-`http.DefaultClient`, `http.Get`/`Head`/`Post`/`PostForm`,
-`httputil.NewSingleHostReverseProxy`, an `http.Client` or `httputil.ReverseProxy`
-whose `Transport` is not `host.HTTPTransport()`, and a `grpc.NewClient`/`Dial`
-without `host.DialOptions(...)`. Only the go-grpc agent's generated self-dials are
+`http.DefaultClient`, `http.ProxyFromEnvironment`, `http.Get`/`Head`/`Post`/`PostForm`,
+`httputil.NewSingleHostReverseProxy`, an `http.Transport` built outside `host.go`
+(literal or `new`), a zero-value or `new` `http.Client`/`httputil.ReverseProxy`
+(including value-typed fields), one whose `Transport` is not a call to the host
+package's own `HTTPTransport()` (resolved through the file's imports), and a
+`grpc.NewClient`/`Dial` without `host.DialOptions(...)`. It is a syntactic guard,
+not a proof: a raw `net.Dial` or a third-party client is not caught. Only the go-grpc agent's generated self-dials are
 allowlisted, until its template carries `grpc.WithNoProxy()`; an entry must be
 removed once its regenerated file does. Remote endpoints
 use verified HTTPS/TLS unless the composition asserts

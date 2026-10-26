@@ -59,7 +59,11 @@ func TestNoRequestOrDialBypassesTheNoProxySeams(t *testing.T) {
 		}
 		relative, _ := filepath.Rel(root, path)
 		relative = filepath.ToSlash(relative)
-		violations = append(violations, inspect(t, path, relative)...)
+		source, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		violations = append(violations, inspect(t, relative, source)...)
 		return nil
 	})
 	if err != nil {
@@ -70,9 +74,9 @@ func TestNoRequestOrDialBypassesTheNoProxySeams(t *testing.T) {
 	}
 }
 
-func inspect(t *testing.T, path, relative string) []string {
+func inspect(t *testing.T, relative string, source []byte) []string {
 	files := token.NewFileSet()
-	file, err := parser.ParseFile(files, path, nil, 0)
+	file, err := parser.ParseFile(files, relative, source, 0)
 	if err != nil {
 		t.Fatalf("%s: %v", relative, err)
 	}
@@ -106,6 +110,9 @@ func inspect(t *testing.T, path, relative string) []string {
 		})
 		return found
 	}
+	zeroValueType := func(expression ast.Expr) bool {
+		return is(expression, "net/http", "Client") || is(expression, "net/http/httputil", "ReverseProxy")
+	}
 	inHost := relative == "libraries/authority-client/go/host/host.go"
 	var violations []string
 	refuse := func(node ast.Node, what string) {
@@ -119,16 +126,40 @@ func inspect(t *testing.T, path, relative string) []string {
 					refuse(n, "http."+name+" follows the environment proxy; use host.HTTPTransport()")
 				}
 			}
+			if is(n, "net/http", "ProxyFromEnvironment") {
+				refuse(n, "http.ProxyFromEnvironment routes through the environment proxy; use host.HTTPTransport()")
+			}
 		case *ast.CompositeLit:
 			if is(n.Type, "net/http", "Client") || is(n.Type, "net/http/httputil", "ReverseProxy") {
-				if !transportIsHost(n, calls) {
+				if !transportIsHost(n, is, inHost) {
 					refuse(n, "an http.Client or httputil.ReverseProxy must set Transport: host.HTTPTransport()")
 				}
+			}
+			if is(n.Type, "net/http", "Transport") && !inHost {
+				refuse(n, "an http.Transport literal is a second transport; use host.HTTPTransport()")
+			}
+		case *ast.ValueSpec:
+			// var c http.Client: a zero value uses http.DefaultTransport.
+			if len(n.Values) == 0 && zeroValueType(n.Type) {
+				refuse(n, "a zero-value http.Client or httputil.ReverseProxy uses http.DefaultTransport; build it with Transport: host.HTTPTransport()")
+			}
+		case *ast.Field:
+			// A struct field (or parameter) of value type is a zero value until set.
+			if zeroValueType(n.Type) {
+				refuse(n, "a value-typed http.Client or httputil.ReverseProxy starts as a zero value on http.DefaultTransport; hold a pointer built with Transport: host.HTTPTransport()")
 			}
 		case *ast.CallExpr:
 			for _, name := range []string{"Get", "Head", "Post", "PostForm"} {
 				if is(n.Fun, "net/http", name) {
 					refuse(n, "http."+name+" uses http.DefaultClient; build a client on host.HTTPTransport()")
+				}
+			}
+			if id, ok := n.Fun.(*ast.Ident); ok && id.Name == "new" && len(n.Args) == 1 {
+				if zeroValueType(n.Args[0]) {
+					refuse(n, "new(http.Client) or new(httputil.ReverseProxy) uses http.DefaultTransport; build it with Transport: host.HTTPTransport()")
+				}
+				if is(n.Args[0], "net/http", "Transport") && !inHost {
+					refuse(n, "new(http.Transport) is a second transport; use host.HTTPTransport()")
 				}
 			}
 			if is(n.Fun, "net/http/httputil", "NewSingleHostReverseProxy") {
@@ -183,22 +214,29 @@ func TestTheSelfDialAllowlistOnlyShrinks(t *testing.T) {
 	}
 }
 
-func transportIsHost(literal *ast.CompositeLit, calls func(ast.Expr, string, string) bool) bool {
+// transportIsHost reports whether literal sets Transport to a call of the host
+// package's HTTPTransport, resolved through the file's imports: a function of
+// another package (or a local one) that happens to share the name does not count.
+// Inside host.go itself the unqualified call is the package's own.
+func transportIsHost(literal *ast.CompositeLit, is func(ast.Expr, string, string) bool, inHost bool) bool {
 	for _, element := range literal.Elts {
 		field, ok := element.(*ast.KeyValueExpr)
 		if !ok {
 			continue
 		}
-		if key, ok := field.Key.(*ast.Ident); ok && key.Name == "Transport" {
-			if call, ok := field.Value.(*ast.CallExpr); ok {
-				if s, ok := call.Fun.(*ast.SelectorExpr); ok && s.Sel.Name == "HTTPTransport" {
-					return true
-				}
-				if id, ok := call.Fun.(*ast.Ident); ok && id.Name == "HTTPTransport" {
-					return true // inside the host package itself
-				}
-			}
+		key, ok := field.Key.(*ast.Ident)
+		if !ok || key.Name != "Transport" {
+			continue
 		}
+		call, ok := field.Value.(*ast.CallExpr)
+		if !ok || len(call.Args) != 0 {
+			return false
+		}
+		if is(call.Fun, hostImport, "HTTPTransport") {
+			return true
+		}
+		id, ok := call.Fun.(*ast.Ident)
+		return ok && inHost && id.Name == "HTTPTransport"
 	}
 	return false
 }
@@ -226,5 +264,52 @@ func repositoryRoot(t *testing.T) string {
 func TestHTTPTransportCannotBeReconfigured(t *testing.T) {
 	if _, ok := HTTPTransport().(*http.Transport); ok {
 		t.Fatal("HTTPTransport exposes the shared *http.Transport")
+	}
+}
+
+// The gate itself, on sources written to bypass it (review r99, r101): each is
+// refused for its reason, and the approved forms pass.
+func TestTheGateRefusesEachBypass(t *testing.T) {
+	const imports = "package x\nimport (\n\t\"net/http\"\n\t\"net/http/httputil\"\n\thost \"" + hostImport + "\"\n)\nvar _ = httputil.ReverseProxy{Transport: host.HTTPTransport()}\n"
+	for name, c := range map[string]struct{ source, reason string }{
+		"ProxyFromEnvironment":            {"var _ = http.ProxyFromEnvironment", "ProxyFromEnvironment"},
+		"http.Transport literal":          {"var _ = &http.Transport{}", "http.Transport literal"},
+		"new(http.Transport)":             {"var _ = new(http.Transport)", "new(http.Transport)"},
+		"new(http.Client)":                {"var _ = new(http.Client)", "new(http.Client)"},
+		"new(httputil.ReverseProxy)":      {"var _ = new(httputil.ReverseProxy)", "new(http.Client) or new(httputil.ReverseProxy)"},
+		"zero-value client":               {"var c http.Client", "zero-value"},
+		"zero-value proxy":                {"var p httputil.ReverseProxy", "zero-value"},
+		"value-typed field":               {"type s struct{ c http.Client }", "value-typed"},
+		"client without a transport":      {"var _ = &http.Client{}", "must set Transport"},
+		"a local HTTPTransport":           {"func HTTPTransport() http.RoundTripper { return nil }\nvar _ = &http.Client{Transport: HTTPTransport()}", "must set Transport"},
+		"another package's HTTPTransport": {"var _ = &http.Client{Transport: other.HTTPTransport()}", "must set Transport"},
+		"DefaultClient":                   {"var _ = http.DefaultClient", "DefaultClient"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			source := imports + c.source + "\n"
+			if name == "another package's HTTPTransport" {
+				source = strings.Replace(source, "\thost \""+hostImport+"\"\n", "\thost \""+hostImport+"\"\n\tother \"example.com/other/host\"\n", 1)
+			}
+			violations := inspect(t, "x/x.go", []byte(source))
+			found := false
+			for _, violation := range violations {
+				found = found || strings.Contains(violation, c.reason)
+			}
+			if !found {
+				t.Fatalf("want a refusal naming %q, got %v", c.reason, violations)
+			}
+		})
+	}
+	for name, source := range map[string]string{
+		"the host seam":     imports + "var _ = &http.Client{Transport: host.HTTPTransport()}\n",
+		"an aliased import": strings.Replace(imports, "\thost \"", "\th \"", 1) + "var _ = &http.Client{Transport: h.HTTPTransport()}\n",
+		"a pointer field":   imports + "type s struct{ c *http.Client }\nvar p *httputil.ReverseProxy\n",
+	} {
+		if name == "an aliased import" {
+			source = strings.Replace(source, "Transport: host.HTTPTransport()}\n", "Transport: h.HTTPTransport()}\n", 1)
+		}
+		if violations := inspect(t, "x/x.go", []byte(source)); len(violations) != 0 {
+			t.Errorf("%s: refused %v", name, violations)
+		}
 	}
 }
