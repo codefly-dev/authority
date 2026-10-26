@@ -27,10 +27,20 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 		if err != nil && !errors.Is(err, domain.ErrNotFound) {
 			return err
 		}
+		withdrawn := false
 		if !exists {
 			// A module withdrawn before keeps its principal and its last
-			// generation: a redelivery never renames it or rewinds it.
+			// generation: a redelivery never renames it or rewinds it. Its
+			// principal stays its own: no other module claims it. A tombstone
+			// is never cleared; a module that must change principal is
+			// delivered under a new name.
+			if tomb, err := tx.TombstoneByPrincipal(m.Principal); err == nil && tomb.Name != m.Name {
+				return domain.Refuse("principal %q is withdrawn %s's for life; %s cannot claim it", m.Principal, tomb.Name, m.Name)
+			} else if err != nil && !errors.Is(err, domain.ErrNotFound) {
+				return err
+			}
 			tomb, err := tx.Tombstone(m.Name)
+			withdrawn = err == nil
 			switch {
 			case err == nil && tomb.Principal != m.Principal:
 				return domain.Refuse("%s is principal %q for life; a delivery cannot rename it %q", m.Name, tomb.Principal, m.Principal)
@@ -102,9 +112,12 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 				}
 			case err != nil:
 				return err
-			case inst.Status == domain.Revoked:
+			case inst.Status == domain.Revoked && withdrawn:
 				// A module withdrawn and delivered again is installed again,
-				// at a revision above every capability sealed before.
+				// at a revision above every capability sealed before. Only a
+				// withdrawal is undone this way: an installation an
+				// administrator uninstalled stays uninstalled (Uninstall
+				// refuses a module's anyway).
 				inst.Status, inst.Revision = domain.Active, inst.Revision+1
 				if err := tx.PutInstallation(inst); err != nil {
 					return err
@@ -216,6 +229,9 @@ func (s *Service) Install(ctx context.Context, caller *Person, org, target, agen
 		if other, err := tx.InstallationByPrincipal(principal); err == nil && other.ID != id {
 			return domain.Refuse("the principal %q of %s at %s is another installation's", principal, target, org)
 		}
+		if _, err := tx.TombstoneByPrincipal(principal); err == nil {
+			return domain.Refuse("the principal %q of %s at %s is a withdrawn module's", principal, target, org)
+		}
 		inst = domain.Installation{ID: id, Organization: org, Target: target, Status: domain.Pending, Revision: existing.Revision + 1,
 			AgentRole: agentRole, PrincipalID: principal, InstalledBy: installedBy}
 		if err := tx.DeleteRoleGrants(id); err != nil {
@@ -256,8 +272,14 @@ func (s *Service) Install(ctx context.Context, caller *Person, org, target, agen
 // absent one.
 func (s *Service) Uninstall(ctx context.Context, caller *Person, organization, installationID string) error {
 	return s.store.Write(ctx, func(tx Tx) error {
-		if caller != nil && callerOrganization(tx, *caller) != organization {
-			return decide.ForeignInstallation(installationID, organization)
+		// Anyone but a current administrator of the organization named learns
+		// nothing of its installations: the foreign answer comes before any
+		// installation is read.
+		if caller != nil {
+			p, err := tx.Person(caller.ID)
+			if err != nil || p.Organization != organization || !decide.IsAdministrator(p) {
+				return decide.ForeignInstallation(installationID, organization)
+			}
 		}
 		inst, err := tx.Installation(installationID)
 		if errors.Is(err, domain.ErrNotFound) || (err == nil && inst.Organization != organization) {
@@ -266,11 +288,8 @@ func (s *Service) Uninstall(ctx context.Context, caller *Person, organization, i
 		if err != nil {
 			return err
 		}
-		if caller != nil {
-			p, err := tx.Person(caller.ID)
-			if err != nil || p.Organization != organization || !decide.IsAdministrator(p) {
-				return domain.Refuse("installation administration requires an administrator or owner of organization %q", organization)
-			}
+		if m, err := tx.ModuleNamed(inst.Target); err == nil && m.Kind != domain.KindSolution {
+			return domain.Refuse("%s is a module, installed by composition: it is withdrawn, never uninstalled", inst.Target)
 		}
 		return s.revoke(tx, inst)
 	})

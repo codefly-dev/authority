@@ -233,6 +233,15 @@ func (t tx) Tombstone(name string) (domain.Tombstone, error) {
 	return tomb, nil
 }
 
+func (t tx) TombstoneByPrincipal(principal string) (domain.Tombstone, error) {
+	for _, tomb := range t.s.tombstones {
+		if tomb.Principal == principal {
+			return tomb, nil
+		}
+	}
+	return domain.Tombstone{}, missing("tombstone of principal", principal)
+}
+
 func (t tx) PutTombstone(tomb domain.Tombstone) error {
 	t.mustWrite()
 	t.s.tombstones[tomb.Name] = tomb
