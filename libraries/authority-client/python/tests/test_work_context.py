@@ -57,11 +57,15 @@ def test_core_minted_contexts_authenticate_and_project_the_owner_scopes(fixture)
     claims = read(body(fixture["name"]))
     assert claims.audience == fixture["audience"]
     assert claims.scopes == tuple(
-        Scope(s["resource_kind"], tuple(s.get("actions", [])), tuple(s.get("resource_ids", [])))
+        Scope(s["resource_kind"], tuple(s.get("actions", [])), tuple(s.get("resource_ids", [])), s.get("resource_owner_id", ""))
         for s in fixture["scopes"]
     )
     for probe in fixture["probes"]:
-        assert claims.allows(probe["kind"], probe["action"], probe["resource_id"]) == probe["allowed"]
+        if "owner" in probe:
+            got = claims.allows_owned(probe["kind"], probe["action"], probe["resource_id"], probe["owner"])
+        else:
+            got = claims.allows(probe["kind"], probe["action"], probe["resource_id"])
+        assert got == probe["allowed"], probe
     assert claims.context.tenant_id == body(fixture["name"]).tenant_id
 
 

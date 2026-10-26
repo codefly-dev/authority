@@ -45,7 +45,11 @@ func held(tx Tx, p domain.Person, audience domain.Module) (Scopes, error) {
 		if err != nil {
 			return nil, err
 		}
-		return scope.Intersect(decide.RoleScopes(audience, inst, decide.HeldRoles(p, grants)), audience.ResourceKinds), nil
+		role, err := decide.RoleScopes(audience, inst, decide.HeldRoles(p, inst, grants))
+		if err != nil {
+			return nil, err
+		}
+		return scope.Intersect(role, audience.ResourceKinds), nil
 	}
 	roles, err := orgRoles(tx, p)
 	if err != nil {
@@ -77,7 +81,9 @@ func solutionCeiling(tx Tx, p domain.Person, principals []string) (ceiling Scope
 			if gerr != nil {
 				return nil, false, gerr
 			}
-			role = decide.RoleScopes(m, inst, decide.HeldRoles(p, grants))
+			if role, err = decide.RoleScopes(m, inst, decide.HeldRoles(p, inst, grants)); err != nil {
+				return nil, false, err
+			}
 		} else if !errors.Is(err, domain.ErrNotFound) {
 			return nil, false, err
 		}
@@ -344,7 +350,11 @@ func (s *Service) IssueForInstallation(ctx context.Context, w Workload, installa
 		if err := decide.OwnerAware(audience, decide.Scopes{{ResourceKind: audience.Name, ResourceOwnerId: inst.PrincipalID}}); err != nil {
 			return err
 		}
-		heldHere = scope.Intersect(decide.RoleScopes(solution, inst, []string{inst.AgentRole}), audience.ResourceKinds)
+		agent, err := decide.RoleScopes(solution, inst, []string{inst.AgentRole})
+		if err != nil {
+			return err
+		}
+		heldHere = scope.Intersect(agent, audience.ResourceKinds)
 		if audience.Principal != solution.Principal {
 			if r.Binding == "" {
 				return domain.Refuse("the installation acting for itself reaches %s only through an operation binding its solution declares; it names no binding", audience.Principal)
@@ -456,7 +466,7 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 	}
 	err = s.store.Read(ctx, func(tx Tx) error {
 		tenant := claims.GetTenantId()
-		var heldHere, sourceCeiling, own Scopes
+		var heldHere, sourceCeiling Scopes
 		bounded := false
 		switch claims.GetOwnerPrincipalKind() {
 		case "human":
@@ -467,13 +477,6 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 			if heldHere, sourceCeiling, bounded, err = throughSolutions(tx, p, audience, solutionPrincipals(claims, am.Principal)); err != nil {
 				return err
 			}
-			if bounded {
-				roles, err := orgRoles(tx, p)
-				if err != nil {
-					return err
-				}
-				own = decide.OrgScopes(roles, audience)
-			}
 		case "agent":
 			inst, err := tx.InstallationByPrincipal(claims.GetOwnerPrincipalId())
 			if err != nil || inst.Status != domain.Active {
@@ -483,7 +486,11 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 			if err != nil {
 				return notFound(err)
 			}
-			heldHere = scope.Intersect(decide.RoleScopes(solution, inst, []string{inst.AgentRole}), audience.ResourceKinds)
+			agent, err := decide.RoleScopes(solution, inst, []string{inst.AgentRole})
+			if err != nil {
+				return err
+			}
+			heldHere = scope.Intersect(agent, audience.ResourceKinds)
 		default:
 			heldHere = verified.EffectiveScopes()
 		}
@@ -509,7 +516,7 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 		scopes = ceiling
 		if len(r.Scopes) > 0 {
 			if !scope.Attenuates(r.Scopes, ceiling) {
-				return decide.Child(r.Scopes, ceiling, scope.Intersect(own, through), bounded, r.Binding)
+				return decide.Child(r.Binding, bounded)
 			}
 			scopes = scope.Normalize(r.Scopes)
 		}

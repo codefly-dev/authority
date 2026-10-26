@@ -58,11 +58,15 @@ func ResourceGrants(roles []domain.OrgRole, kind, action string) []resources.Gra
 	return grants
 }
 
-// HeldRoles are the roles a person holds on an installation: granted to them,
-// or to a team they belong to. Holding none is holding no role.
-func HeldRoles(p domain.Person, grants []domain.RoleGrant) []string {
+// HeldRoles are the roles a person holds on one installation: granted on it
+// to them, or to a team they belong to. Grants on any other installation
+// count for nothing here, however the caller gathered them.
+func HeldRoles(p domain.Person, inst domain.Installation, grants []domain.RoleGrant) []string {
 	var roles []string
 	for _, g := range grants {
+		if g.InstallationID != inst.ID {
+			continue
+		}
 		if (g.PersonID != "" && g.PersonID == p.ID) || (g.TeamID != "" && slices.Contains(p.Teams, g.TeamID)) {
 			roles = append(roles, g.Role)
 		}
@@ -72,14 +76,19 @@ func HeldRoles(p domain.Person, grants []domain.RoleGrant) []string {
 }
 
 // RoleScopes is what roles grant on a solution's installation: the roles'
-// scopes, each selecting only the resources the installation's principal owns.
-func RoleScopes(solution domain.Module, inst domain.Installation, roles []string) Scopes {
+// scopes, each selecting only the resources the installation's principal
+// owns. An installation with no principal grants nothing: its scopes would
+// select every owner's resources.
+func RoleScopes(solution domain.Module, inst domain.Installation, roles []string) (Scopes, error) {
 	var held Scopes
 	for _, role := range roles {
 		held = append(held, solution.Roles[role]...)
 	}
 	if len(held) == 0 {
-		return nil
+		return nil, nil
+	}
+	if inst.PrincipalID == "" {
+		return nil, domain.Refuse("installation %s has no principal, so its roles grant nothing", inst.ID)
 	}
 	return scope.Owned(held, inst.PrincipalID)
 }
@@ -108,12 +117,13 @@ func Issue(asked, held Scopes) (Scopes, error) {
 	return nil, domain.Refuse("asked beyond what the owner holds")
 }
 
-// Child refuses an ask beyond a child's ceiling: "confined" when the person's
-// own organization grants would cover it but the solution the capability is
-// issued through confines it to its principal's data, "widens" otherwise.
-func Child(asked, ceiling, ownGrants Scopes, confinedBySolution bool, binding string) error {
-	if confinedBySolution && len(ownGrants) > 0 && scope.Attenuates(asked, ownGrants) {
-		return domain.Refuse("the ask is confined to the solution principal's data; the person's own grants never flow into a capability issued through a solution")
+// Child is the refusal of an ask beyond a child's ceiling. Through a solution
+// it says the capability is confined to the principal's data, the same words
+// whatever the person's own grants would cover, so the module asking learns
+// nothing of them.
+func Child(binding string, throughSolution bool) error {
+	if throughSolution {
+		return domain.Refuse("a child widens what its owner holds through binding %q: a capability issued through a solution is confined to its principal's data, and the person's own grants never flow into it", binding)
 	}
 	return domain.Refuse("a child widens what its owner holds through binding %q", binding)
 }
@@ -154,8 +164,9 @@ type RoleChange struct {
 	// Caller is the authenticated person; CallerRoles what they hold on the installation.
 	Caller      domain.Person
 	CallerRoles []string
-	// List asks only who may read the grants.
-	List                   bool
+	// List asks only who may read the grants; Revoke ends a grant, which
+	// stays revocable after its person left or its team is gone.
+	List, Revoke           bool
 	Role, PersonID, TeamID string
 	// Subject is the person granted, when PersonID names one the host knows.
 	Subject *domain.Person
@@ -171,7 +182,7 @@ type RoleChange struct {
 func ChangeRole(r RoleChange) error {
 	inst := r.Installation
 	if r.RequestOrganization != inst.Organization {
-		return domain.Refuse("installation %s belongs to another organization than %q", inst.ID, r.RequestOrganization)
+		return ForeignInstallation(inst.ID, r.RequestOrganization)
 	}
 	if r.Caller.Organization != inst.Organization || (!IsAdministrator(r.Caller) && !slices.Contains(r.CallerRoles, domain.InstallerRole)) {
 		if r.List {
@@ -191,6 +202,9 @@ func ChangeRole(r RoleChange) error {
 	if (r.PersonID == "") == (r.TeamID == "") {
 		return domain.Malformed("a role grant names exactly one person or team")
 	}
+	if r.Revoke {
+		return nil
+	}
 	if r.PersonID != "" && (r.Subject == nil || r.Subject.Organization != inst.Organization) {
 		return domain.Refuse("%q is not a member of %s", r.PersonID, inst.Organization)
 	}
@@ -198,6 +212,13 @@ func ChangeRole(r RoleChange) error {
 		return domain.Refuse("%q is not a team of %s", r.TeamID, inst.Organization)
 	}
 	return nil
+}
+
+// ForeignInstallation is the one answer for an installation the request's
+// organization does not have, whether another organization has it or nobody
+// does: a person learns nothing of another organization's installations.
+func ForeignInstallation(id, organization string) error {
+	return domain.Refuse("installation %s belongs to another organization than %q", id, organization)
 }
 
 // Transfer is one AuthorizeTransfer with what it is decided against.
@@ -242,11 +263,11 @@ func AuthorizeTransfer(t Transfer) error {
 }
 
 // ValidResourceID holds a resource id to core's scope-value rule (non-empty,
-// no surrounding whitespace, no NUL, CR, LF or tab), refuses "*", and bounds
-// it to 128 bytes. Ids are opaque and compared byte for byte.
+// no surrounding whitespace, no NUL, CR, LF or tab), refuses any id containing
+// "*", and bounds it to 128 bytes; a malformed id is Invalid. Ids are opaque and compared byte for byte.
 func ValidResourceID(id string) error {
 	if id == "" || strings.TrimSpace(id) != id || strings.ContainsAny(id, "\x00\r\n\t*") || len(id) > 128 {
-		return domain.Refuse("resource id %q is not a usable id", id)
+		return domain.Malformed("resource id %q is not a usable id", id)
 	}
 	return nil
 }

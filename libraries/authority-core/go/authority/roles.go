@@ -20,10 +20,14 @@ func (r RoleRequest) grant() domain.RoleGrant {
 }
 
 // decideRoleChange reads what decide.ChangeRole needs.
-func decideRoleChange(tx Tx, caller Person, r RoleRequest, list bool) (domain.Installation, error) {
+func decideRoleChange(tx Tx, caller Person, r RoleRequest, list, revoke bool) (domain.Installation, error) {
 	inst, err := tx.Installation(r.InstallationID)
+	if errors.Is(err, domain.ErrNotFound) {
+		// An absent installation answers as another organization's does.
+		return inst, decide.ForeignInstallation(r.InstallationID, r.Organization)
+	}
 	if err != nil {
-		return inst, notFound(err)
+		return inst, err
 	}
 	c, err := tx.Person(caller.ID)
 	if err != nil {
@@ -38,7 +42,7 @@ func decideRoleChange(tx Tx, caller Person, r RoleRequest, list bool) (domain.In
 		return inst, err
 	}
 	change := decide.RoleChange{RequestOrganization: r.Organization, Installation: inst, Solution: solution,
-		Caller: c, CallerRoles: decide.HeldRoles(c, grants), List: list, Role: r.Role, PersonID: r.PersonID, TeamID: r.TeamID}
+		Caller: c, CallerRoles: decide.HeldRoles(c, inst, grants), List: list, Revoke: revoke, Role: r.Role, PersonID: r.PersonID, TeamID: r.TeamID}
 	if r.PersonID != "" {
 		if p, err := tx.Person(r.PersonID); err == nil {
 			change.Subject = &p
@@ -60,7 +64,7 @@ func (s *Service) GrantRole(ctx context.Context, caller Person, r RoleRequest) (
 	var inst domain.Installation
 	err := s.store.Write(ctx, func(tx Tx) error {
 		var err error
-		if inst, err = decideRoleChange(tx, caller, r, false); err != nil {
+		if inst, err = decideRoleChange(tx, caller, r, false, false); err != nil {
 			return err
 		}
 		return tx.PutRoleGrant(r.grant())
@@ -75,7 +79,7 @@ func (s *Service) RevokeRole(ctx context.Context, caller Person, r RoleRequest) 
 	var inst domain.Installation
 	err := s.store.Write(ctx, func(tx Tx) error {
 		var err error
-		if inst, err = decideRoleChange(tx, caller, r, false); err != nil {
+		if inst, err = decideRoleChange(tx, caller, r, false, true); err != nil {
 			return err
 		}
 		if err := tx.DeleteRoleGrant(r.grant()); err != nil {
@@ -108,7 +112,7 @@ func (s *Service) RevokeRole(ctx context.Context, caller Person, r RoleRequest) 
 func (s *Service) ListRoleGrants(ctx context.Context, caller Person, organization, installationID string) ([]domain.RoleGrant, error) {
 	var out []domain.RoleGrant
 	err := s.store.Read(ctx, func(tx Tx) error {
-		if _, err := decideRoleChange(tx, caller, RoleRequest{Organization: organization, InstallationID: installationID}, true); err != nil {
+		if _, err := decideRoleChange(tx, caller, RoleRequest{Organization: organization, InstallationID: installationID}, true, false); err != nil {
 			return err
 		}
 		var err error

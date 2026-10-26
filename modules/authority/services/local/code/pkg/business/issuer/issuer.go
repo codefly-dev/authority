@@ -202,6 +202,9 @@ func (i *Issuer) Issue(ctx context.Context, req *authorityv1.IssueRequest) (*aut
 		return nil, err
 	}
 	asked := FromWire(req.GetScopes())
+	if err := refuseOwners(asked); err != nil {
+		return nil, err
+	}
 	ttl := time.Duration(req.GetTtlSeconds()) * time.Second
 	if ttl <= 0 || ttl > MaxTTL {
 		ttl = MaxTTL
@@ -656,6 +659,9 @@ func (i *Issuer) forDelegation(ctx context.Context, id, actorCredential, binding
 
 // Delegate records the signed-in person's grant to a module.
 func (i *Issuer) Delegate(ctx context.Context, module string, scopes []*basev0.WorkScopeV1, purpose string) (state.Delegation, error) {
+	if err := refuseOwners(scopes); err != nil {
+		return state.Delegation{}, err
+	}
 	person, err := i.signedIn(ctx)
 	if err != nil {
 		return state.Delegation{}, err
@@ -735,6 +741,19 @@ func grant(asked, held []*basev0.WorkScopeV1) ([]*basev0.WorkScopeV1, error) {
 		return nil, fmt.Errorf("%w: asked beyond what the owner holds", ErrRefused)
 	}
 	return state.Normalize(asked), nil
+}
+
+// refuseOwners refuses an owner-selected scope by name: this authority's
+// algebra cannot compare owners, so honouring one would issue the whole kind,
+// wider than asked. It mints owner-selected scopes only once it issues through
+// the owner-aware core, behind the audience's owner_aware declaration.
+func refuseOwners(scopes []*basev0.WorkScopeV1) error {
+	for _, sc := range scopes {
+		if sc.GetResourceOwnerId() != "" {
+			return fmt.Errorf("%w: %s names resource owner %q; this authority issues no owner-selected scope yet", ErrRefused, sc.GetResourceKind(), sc.GetResourceOwnerId())
+		}
+	}
+	return nil
 }
 
 // ToWire converts core's message to the interface's, byte for byte.

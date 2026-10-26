@@ -23,7 +23,10 @@ for (const fixture of fixtures) {
     const claims = read(body(fixture.name));
     assert.equal(claims.audience,fixture.audience);
     assert.deepEqual(claims.scopes, fixture.scopes.map(s=>({resourceKind:s.resource_kind,actions:s.actions??[],resourceIds:s.resource_ids??[],resourceOwnerId:s.resource_owner_id??''})));
-    for (const probe of fixture.probes) assert.equal(claims.allows(probe.kind,probe.action,probe.resource_id),probe.allowed);
+    for (const probe of fixture.probes) {
+      const got = 'owner' in probe ? claims.allowsOwned(probe.kind,probe.action,probe.resource_id,probe.owner) : claims.allows(probe.kind,probe.action,probe.resource_id);
+      assert.equal(got,probe.allowed,JSON.stringify(probe));
+    }
   });
 }
 
