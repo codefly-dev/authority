@@ -113,7 +113,7 @@ func TestWhoMayChangeARoleInOrder(t *testing.T) {
 	member := domain.Person{ID: "dev", Organization: "acme"}
 	omar := domain.Person{ID: "omar", Organization: "globex"}
 	base := func() decide.RoleChange {
-		return decide.RoleChange{RequestOrganization: "acme", Installation: inst, Solution: solution, Caller: admin, Role: "viewer", PersonID: "dev", Subject: &member}
+		return decide.RoleChange{RequestOrganization: "acme", RequestedID: inst.ID, Installation: inst, Solution: solution, Caller: admin, Role: "viewer", PersonID: "dev", Subject: &member}
 	}
 	if err := decide.ChangeRole(base()); err != nil {
 		t.Fatal(err)
@@ -148,11 +148,14 @@ func TestWhoMayChangeARoleInOrder(t *testing.T) {
 			refused(t, decide.ChangeRole(r), c.code, c.reason)
 		})
 	}
-	// A grant stays revocable after its person left or its team is gone.
+	// A grant stays revocable after its person left, its team is gone, its
+	// installation was uninstalled, or its role is no longer declared.
 	for name, mutate := range map[string]func(*decide.RoleChange){
-		"a person who left":        func(r *decide.RoleChange) { r.Subject = nil },
-		"a person now elsewhere":   func(r *decide.RoleChange) { r.Subject = &omar },
-		"a team no member carries": func(r *decide.RoleChange) { r.PersonID, r.TeamID = "", "gone" },
+		"an uninstalled installation": func(r *decide.RoleChange) { r.Installation.Status = domain.Revoked },
+		"a role no longer declared":   func(r *decide.RoleChange) { r.Role = "retired" },
+		"a person who left":           func(r *decide.RoleChange) { r.Subject = nil },
+		"a person now elsewhere":      func(r *decide.RoleChange) { r.Subject = &omar },
+		"a team no member carries":    func(r *decide.RoleChange) { r.PersonID, r.TeamID = "", "gone" },
 	} {
 		t.Run("revoking "+name, func(t *testing.T) {
 			r := base()
@@ -163,10 +166,12 @@ func TestWhoMayChangeARoleInOrder(t *testing.T) {
 			}
 		})
 	}
-	// Another organization's installation and none at all answer alike.
+	refused(t, func() error { r := base(); r.Revoke, r.TeamID = true, "t"; return decide.ChangeRole(r) }(), domain.Invalid, "exactly one")
+	// Another organization's installation and none at all answer alike, with
+	// the id as requested.
 	other := base()
-	other.RequestOrganization = "globex"
-	if got, absent := decide.ChangeRole(other).Error(), decide.ForeignInstallation(inst.ID, "globex").Error(); got != absent {
+	other.RequestOrganization, other.RequestedID = "globex", "I"
+	if got, absent := decide.ChangeRole(other).Error(), decide.ForeignInstallation("I", "globex").Error(); got != absent {
 		t.Fatalf("a foreign installation answers %q, an absent one %q", got, absent)
 	}
 }
