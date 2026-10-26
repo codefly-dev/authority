@@ -112,4 +112,6 @@ func Signer(label string) *stamp.Signer {
 func PublicKey(label string) string { return Signer(label).PublicKey() }
 
 // Replay is for single-process tests only; deployments supply a shared store.
+// It declares no Shared(), so hop.NewVerifier refuses it outside a local run
+// rather than leaving that to this comment.
 func Replay() core.ReplayStore { return core.NewMemoryReplayStore() }
