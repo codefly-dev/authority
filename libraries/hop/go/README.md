@@ -38,9 +38,10 @@ bounded by 5 s, one at a time: no caller can cancel it, fail it or delay the
 next one. Keys are re-read when a token names a key the verifier does not hold
 (at most every 10 s; that call waits for the read while it lasts) and when older
 than 5 minutes (the held keys serve meanwhile); keys that cannot be re-read are
-trusted for 15 minutes at most. `NewVerifier` never fails on an authority that
-is not serving yet: calls are refused with "the authority's published keys are
-unavailable" until it is, and `KeysError()` gives the read's own failure to the
+trusted for 15 minutes at most, and a call on keys older than that waits for the
+re-read as a call on an unknown key does, refused if the read fails.
+`NewVerifier` never fails on an authority that is not serving yet: calls are
+refused with "the authority's published keys are unavailable" until it is, and `KeysError()` gives the read's own failure to the
 module's logs, never to a caller. **Readiness uses `Ready()`**: true while
 trusted keys are held, through failed re-reads inside the 15-minute window;
 false before the first read or once the keys are stale. It also starts the same
