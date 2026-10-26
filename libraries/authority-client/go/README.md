@@ -54,16 +54,23 @@ over (the hop's HTTP face and the edge's reverse proxy both use it). It is an
 `http.RoundTripper` that cannot be unwrapped into the shared `*http.Transport`, so
 no caller can turn proxies back on for everyone. **The no-proxy gate**
 (`host/gate_test.go`, run by `go test ./...` here) parses every non-test Go file
-in the repository and fails, naming the file and line, on `http.DefaultTransport`,
-`http.DefaultClient`, `http.ProxyFromEnvironment`, `http.Get`/`Head`/`Post`/`PostForm`,
-`httputil.NewSingleHostReverseProxy`, an `http.Transport` built outside `host.go`
-(literal or `new`), a zero-value or `new` `http.Client`/`httputil.ReverseProxy`
-(including value-typed fields), one whose `Transport` is not a call to the host
-package's own `HTTPTransport()` (resolved through the file's imports), and a
-`grpc.NewClient`/`Dial` without `host.DialOptions(...)`. It is a syntactic guard,
-not a proof: a raw `net.Dial` or a third-party client is not caught. Only the go-grpc agent's generated self-dials are
-allowlisted, until its template carries `grpc.WithNoProxy()`; an entry must be
-removed once its regenerated file does. Remote endpoints
+in the repository and refuses, by file and line: (1) any use, call or method
+value, of `http.DefaultClient`, `http.ProxyFromEnvironment`, `http.Get`/`Head`/
+`Post`/`PostForm`, `httputil.NewSingleHostReverseProxy`, and of
+`http.DefaultTransport` outside `host.go`; (2) any use of `grpc.NewClient`/`Dial`/
+`DialContext` but a call with `host.DialOptions(...)`; (3) a dot-import of
+`net/http`, `net/http/httputil` or `google.golang.org/grpc`; (4) `http.Client` and
+`httputil.ReverseProxy` anywhere but behind a pointer or as a literal setting
+`Transport: host.HTTPTransport()` (no zero values in vars, fields, type
+definitions, aliases, arrays, slices or maps); (5) `http.Transport` anywhere but
+behind a pointer; (6) assigning a `.Transport` field anything but
+`host.HTTPTransport()`. The seams count only when they resolve to the host
+import (an alias counts; a same-named local function, another package or a
+shadowing variable does not). Being syntactic, it misses exactly: a raw
+`net.Dial` or any other socket API, third-party HTTP or gRPC clients, and
+reflection. Only the go-grpc agent's generated self-dials are allowlisted, until
+its template carries `grpc.WithNoProxy()`; an entry must be removed once its
+regenerated file does. Remote endpoints
 use verified HTTPS/TLS unless the composition asserts
 `internal-transport/mesh-protected=true` and the target is an in-cluster Service
 DNS name. Plaintext loopback is accepted only in a local Codefly environment: the one named exactly `local` (the SDK's `IsLocal`); no name prefix is reserved for local runs.

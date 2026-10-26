@@ -30,16 +30,36 @@ var generatedSelfDials = map[string]bool{
 	"modules/console/services/api/code/pkg/adapters/connect_gen.go":     true,
 }
 
-// The no-proxy gate (review r99): no non-test Go code in this repository makes
-// an HTTP request or a gRPC dial except through host.HTTPTransport and
-// host.DialOptions, the two seams that never follow a proxy from the
-// environment. It refuses, by file and line:
-//   - http.DefaultTransport and http.DefaultClient, and http.Get/Head/Post/PostForm
-//     (which use them), anywhere but host.go, the one place that clones it;
-//   - an http.Client or httputil.ReverseProxy literal whose Transport is not
-//     host.HTTPTransport(), and httputil.NewSingleHostReverseProxy;
-//   - grpc.NewClient, grpc.Dial and grpc.DialContext without host.DialOptions(...)
-//     among their options.
+// The no-proxy gate (reviews r99, r101, r105): no non-test Go code in this
+// repository makes an HTTP request or a gRPC dial except through
+// host.HTTPTransport and host.DialOptions, the two seams that never follow a
+// proxy from the environment. It is syntactic, over whole classes of use rather
+// than call shapes, and refuses by file and line:
+//
+//  1. Any use (a call, a method value, a reference) of http.DefaultClient,
+//     http.ProxyFromEnvironment, http.Get, http.Head, http.Post, http.PostForm
+//     and httputil.NewSingleHostReverseProxy; and of http.DefaultTransport
+//     anywhere but host.go, the one place that clones it.
+//  2. Any use of grpc.NewClient, grpc.Dial and grpc.DialContext other than a
+//     call with host.DialOptions(...) among its options (method values
+//     included); only the generated self-dials above are allowlisted.
+//  3. A dot-import of net/http, net/http/httputil or google.golang.org/grpc,
+//     which would hide every name above.
+//  4. The types http.Client and httputil.ReverseProxy anywhere except behind a
+//     pointer or as the type of a composite literal: a value of them is a zero
+//     value on http.DefaultTransport (var, new, fields, parameters, type
+//     definitions and aliases, arrays, slices, maps, make). Such a literal must
+//     set Transport: host.HTTPTransport().
+//  5. The type http.Transport anywhere except behind a pointer: no second
+//     transport is built (literal, new, var).
+//  6. An assignment to any .Transport field of anything but host.HTTPTransport().
+//
+// host.HTTPTransport and host.DialOptions count only when they resolve to this
+// package's import: an alias counts; a local function, another package's
+// function or a local variable shadowing the import name does not.
+//
+// Known misses, by design of a syntactic gate: a raw net.Dial (or any other
+// socket API), third-party HTTP or gRPC clients, and reflection.
 func TestNoRequestOrDialBypassesTheNoProxySeams(t *testing.T) {
 	root := repositoryRoot(t)
 	var violations []string
@@ -80,6 +100,10 @@ func inspect(t *testing.T, relative string, source []byte) []string {
 	if err != nil {
 		t.Fatalf("%s: %v", relative, err)
 	}
+	var violations []string
+	refuse := func(node ast.Node, what string) {
+		violations = append(violations, fmt.Sprintf("%s:%d: %s", relative, files.Position(node.Pos()).Line, what))
+	}
 	names := map[string]string{} // local package name -> import path
 	for _, spec := range file.Imports {
 		importPath, _ := strconv.Unquote(spec.Path.Value)
@@ -91,88 +115,110 @@ func inspect(t *testing.T, relative string, source []byte) []string {
 			name = spec.Name.Name
 		}
 		names[name] = importPath
+		if name == "." && (importPath == "net/http" || importPath == "net/http/httputil" || importPath == "google.golang.org/grpc") {
+			refuse(spec, "a dot-import of "+importPath+" hides the names this gate refuses; import it by name")
+		}
 	}
+	// is reports whether expression is pkg.selector for the import importPath.
+	// The identifier must be one the parser bound to no local object, so a
+	// local variable shadowing the import name is not taken for it.
 	is := func(expression ast.Expr, importPath, selector string) bool {
 		s, ok := expression.(*ast.SelectorExpr)
 		if !ok {
 			return false
 		}
 		x, ok := s.X.(*ast.Ident)
-		return ok && names[x.Name] == importPath && s.Sel.Name == selector
+		return ok && x.Obj == nil && names[x.Name] == importPath && s.Sel.Name == selector
 	}
-	calls := func(expression ast.Expr, importPath, selector string) bool {
+	inHost := relative == "libraries/authority-client/go/host/host.go"
+	// seam reports whether expression is a call of host's function name:
+	// through the import, or unqualified inside host.go itself.
+	seam := func(expression ast.Expr, name string) bool {
+		call, ok := expression.(*ast.CallExpr)
+		if !ok {
+			return false
+		}
+		if is(call.Fun, hostImport, name) {
+			return true
+		}
+		id, ok := call.Fun.(*ast.Ident)
+		return ok && inHost && id.Name == name
+	}
+	containsSeam := func(expression ast.Expr, name string) bool {
 		found := false
 		ast.Inspect(expression, func(node ast.Node) bool {
-			if call, ok := node.(*ast.CallExpr); ok && is(call.Fun, importPath, selector) {
+			if e, ok := node.(ast.Expr); ok && seam(e, name) {
 				found = true
 			}
 			return !found
 		})
 		return found
 	}
-	zeroValueType := func(expression ast.Expr) bool {
-		return is(expression, "net/http", "Client") || is(expression, "net/http/httputil", "ReverseProxy")
-	}
-	inHost := relative == "libraries/authority-client/go/host/host.go"
-	var violations []string
-	refuse := func(node ast.Node, what string) {
-		violations = append(violations, fmt.Sprintf("%s:%d: %s", relative, files.Position(node.Pos()).Line, what))
-	}
+	var stack []ast.Node
 	ast.Inspect(file, func(node ast.Node) bool {
+		if node == nil {
+			stack = stack[:len(stack)-1]
+			return true
+		}
+		var parent ast.Node
+		if len(stack) > 0 {
+			parent = stack[len(stack)-1]
+		}
+		stack = append(stack, node)
 		switch n := node.(type) {
 		case *ast.SelectorExpr:
-			for _, name := range []string{"DefaultTransport", "DefaultClient"} {
-				if is(n, "net/http", name) && !inHost {
+			// Rule 1: banned names, any use.
+			for _, name := range []string{"DefaultClient", "ProxyFromEnvironment", "Get", "Head", "Post", "PostForm"} {
+				if is(n, "net/http", name) {
 					refuse(n, "http."+name+" follows the environment proxy; use host.HTTPTransport()")
 				}
 			}
-			if is(n, "net/http", "ProxyFromEnvironment") {
-				refuse(n, "http.ProxyFromEnvironment routes through the environment proxy; use host.HTTPTransport()")
+			if is(n, "net/http", "DefaultTransport") && !inHost {
+				refuse(n, "http.DefaultTransport follows the environment proxy; use host.HTTPTransport()")
 			}
-		case *ast.CompositeLit:
-			if is(n.Type, "net/http", "Client") || is(n.Type, "net/http/httputil", "ReverseProxy") {
-				if !transportIsHost(n, is, inHost) {
-					refuse(n, "an http.Client or httputil.ReverseProxy must set Transport: host.HTTPTransport()")
-				}
+			if is(n, "net/http/httputil", "NewSingleHostReverseProxy") {
+				refuse(n, "httputil.NewSingleHostReverseProxy uses http.DefaultTransport; build a ReverseProxy with Transport: host.HTTPTransport()")
 			}
-			if is(n.Type, "net/http", "Transport") && !inHost {
-				refuse(n, "an http.Transport literal is a second transport; use host.HTTPTransport()")
-			}
-		case *ast.ValueSpec:
-			// var c http.Client: a zero value uses http.DefaultTransport.
-			if len(n.Values) == 0 && zeroValueType(n.Type) {
-				refuse(n, "a zero-value http.Client or httputil.ReverseProxy uses http.DefaultTransport; build it with Transport: host.HTTPTransport()")
-			}
-		case *ast.Field:
-			// A struct field (or parameter) of value type is a zero value until set.
-			if zeroValueType(n.Type) {
-				refuse(n, "a value-typed http.Client or httputil.ReverseProxy starts as a zero value on http.DefaultTransport; hold a pointer built with Transport: host.HTTPTransport()")
-			}
-		case *ast.CallExpr:
-			for _, name := range []string{"Get", "Head", "Post", "PostForm"} {
-				if is(n.Fun, "net/http", name) {
-					refuse(n, "http."+name+" uses http.DefaultClient; build a client on host.HTTPTransport()")
-				}
-			}
-			if id, ok := n.Fun.(*ast.Ident); ok && id.Name == "new" && len(n.Args) == 1 {
-				if zeroValueType(n.Args[0]) {
-					refuse(n, "new(http.Client) or new(httputil.ReverseProxy) uses http.DefaultTransport; build it with Transport: host.HTTPTransport()")
-				}
-				if is(n.Args[0], "net/http", "Transport") && !inHost {
-					refuse(n, "new(http.Transport) is a second transport; use host.HTTPTransport()")
-				}
-			}
-			if is(n.Fun, "net/http/httputil", "NewSingleHostReverseProxy") {
-				refuse(n, "httputil.NewSingleHostReverseProxy uses http.DefaultTransport; set Transport: host.HTTPTransport()")
-			}
+			// Rule 2: gRPC dials, any use but a call dialling with host.DialOptions.
 			for _, name := range []string{"NewClient", "Dial", "DialContext"} {
-				if is(n.Fun, "google.golang.org/grpc", name) && !generatedSelfDials[relative] {
-					dials := false
-					for _, argument := range n.Args[1:] {
-						dials = dials || calls(argument, hostImport, "DialOptions") || inHost && callsLocal(argument, "DialOptions")
+				if !is(n, "google.golang.org/grpc", name) || generatedSelfDials[relative] {
+					continue
+				}
+				dials := false
+				if call, ok := parent.(*ast.CallExpr); ok && call.Fun == n {
+					for _, argument := range call.Args[1:] {
+						dials = dials || containsSeam(argument, "DialOptions")
 					}
-					if !dials {
-						refuse(n, "grpc."+name+" must dial with host.DialOptions(transport)")
+				}
+				if !dials {
+					refuse(n, "grpc."+name+" must be called with host.DialOptions(transport)")
+				}
+			}
+			// Rules 4 and 5: the client, proxy and transport types.
+			if is(n, "net/http", "Client") || is(n, "net/http/httputil", "ReverseProxy") {
+				_, pointer := parent.(*ast.StarExpr)
+				literal, isLiteral := parent.(*ast.CompositeLit)
+				switch {
+				case pointer:
+				case isLiteral && literal.Type == n:
+					if !transportIsHost(literal, seam) {
+						refuse(literal, "an http.Client or httputil.ReverseProxy literal must set Transport: host.HTTPTransport()")
+					}
+				default:
+					refuse(n, "a value of http.Client or httputil.ReverseProxy is a zero value on http.DefaultTransport; hold a pointer to a literal with Transport: host.HTTPTransport()")
+				}
+			}
+			if is(n, "net/http", "Transport") {
+				if _, pointer := parent.(*ast.StarExpr); !pointer {
+					refuse(n, "an http.Transport value is a second transport; use host.HTTPTransport()")
+				}
+			}
+		case *ast.AssignStmt:
+			// Rule 6: a .Transport field is only ever set to the seam.
+			for index, left := range n.Lhs {
+				if s, ok := left.(*ast.SelectorExpr); ok && s.Sel.Name == "Transport" {
+					if index >= len(n.Rhs) || !seam(n.Rhs[index], "HTTPTransport") {
+						refuse(n, "a .Transport field may only be set to host.HTTPTransport()")
 					}
 				}
 			}
@@ -180,19 +226,6 @@ func inspect(t *testing.T, relative string, source []byte) []string {
 		return true
 	})
 	return violations
-}
-
-func callsLocal(expression ast.Expr, name string) bool {
-	found := false
-	ast.Inspect(expression, func(node ast.Node) bool {
-		if call, ok := node.(*ast.CallExpr); ok {
-			if id, ok := call.Fun.(*ast.Ident); ok && id.Name == name {
-				found = true
-			}
-		}
-		return !found
-	})
-	return found
 }
 
 // TestTheSelfDialAllowlistOnlyShrinks: every allowlisted file exists and still
@@ -214,29 +247,14 @@ func TestTheSelfDialAllowlistOnlyShrinks(t *testing.T) {
 	}
 }
 
-// transportIsHost reports whether literal sets Transport to a call of the host
-// package's HTTPTransport, resolved through the file's imports: a function of
-// another package (or a local one) that happens to share the name does not count.
-// Inside host.go itself the unqualified call is the package's own.
-func transportIsHost(literal *ast.CompositeLit, is func(ast.Expr, string, string) bool, inHost bool) bool {
+// transportIsHost reports whether literal sets Transport to host.HTTPTransport().
+func transportIsHost(literal *ast.CompositeLit, seam func(ast.Expr, string) bool) bool {
 	for _, element := range literal.Elts {
-		field, ok := element.(*ast.KeyValueExpr)
-		if !ok {
-			continue
+		if field, ok := element.(*ast.KeyValueExpr); ok {
+			if key, ok := field.Key.(*ast.Ident); ok && key.Name == "Transport" {
+				return seam(field.Value, "HTTPTransport")
+			}
 		}
-		key, ok := field.Key.(*ast.Ident)
-		if !ok || key.Name != "Transport" {
-			continue
-		}
-		call, ok := field.Value.(*ast.CallExpr)
-		if !ok || len(call.Args) != 0 {
-			return false
-		}
-		if is(call.Fun, hostImport, "HTTPTransport") {
-			return true
-		}
-		id, ok := call.Fun.(*ast.Ident)
-		return ok && inHost && id.Name == "HTTPTransport"
 	}
 	return false
 }
@@ -267,28 +285,58 @@ func TestHTTPTransportCannotBeReconfigured(t *testing.T) {
 	}
 }
 
-// The gate itself, on sources written to bypass it (review r99, r101): each is
-// refused for its reason, and the approved forms pass.
+// The gate itself, on sources written to bypass it (reviews r99, r101, r105):
+// each is refused for its reason, and the approved forms pass.
 func TestTheGateRefusesEachBypass(t *testing.T) {
-	const imports = "package x\nimport (\n\t\"net/http\"\n\t\"net/http/httputil\"\n\thost \"" + hostImport + "\"\n)\nvar _ = httputil.ReverseProxy{Transport: host.HTTPTransport()}\n"
+	const header = "package x\nimport (\n\t\"net/http\"\n\t\"net/http/httputil\"\n\t\"google.golang.org/grpc\"\n\thost \"" + hostImport + "\"\n)\n" +
+		"var _ = &httputil.ReverseProxy{Transport: host.HTTPTransport()}\n"
+	const zero = "zero value on http.DefaultTransport"
+	if violations := inspect(t, "x/x.go", []byte(header)); len(violations) != 0 {
+		t.Fatalf("the shared header must pass, so each refusal below is its case's own: %v", violations)
+	}
 	for name, c := range map[string]struct{ source, reason string }{
+		// Rule 1: banned names, any use.
+		"DefaultClient":                   {"var _ = http.DefaultClient", "http.DefaultClient"},
+		"DefaultTransport":                {"var _ = http.DefaultTransport", "http.DefaultTransport"},
 		"ProxyFromEnvironment":            {"var _ = http.ProxyFromEnvironment", "ProxyFromEnvironment"},
-		"http.Transport literal":          {"var _ = &http.Transport{}", "http.Transport literal"},
-		"new(http.Transport)":             {"var _ = new(http.Transport)", "new(http.Transport)"},
-		"new(http.Client)":                {"var _ = new(http.Client)", "new(http.Client)"},
-		"new(httputil.ReverseProxy)":      {"var _ = new(httputil.ReverseProxy)", "new(http.Client) or new(httputil.ReverseProxy)"},
-		"zero-value client":               {"var c http.Client", "zero-value"},
-		"zero-value proxy":                {"var p httputil.ReverseProxy", "zero-value"},
-		"value-typed field":               {"type s struct{ c http.Client }", "value-typed"},
-		"client without a transport":      {"var _ = &http.Client{}", "must set Transport"},
-		"a local HTTPTransport":           {"func HTTPTransport() http.RoundTripper { return nil }\nvar _ = &http.Client{Transport: HTTPTransport()}", "must set Transport"},
-		"another package's HTTPTransport": {"var _ = &http.Client{Transport: other.HTTPTransport()}", "must set Transport"},
-		"DefaultClient":                   {"var _ = http.DefaultClient", "DefaultClient"},
+		"http.Get called":                 {"func f() { _, _ = http.Get(\"u\") }", "http.Get"},
+		"http.Get as a method value":      {"var get = http.Get", "http.Get"},
+		"http.PostForm as a method value": {"var post = http.PostForm", "http.PostForm"},
+		"NewSingleHostReverseProxy value": {"var p = httputil.NewSingleHostReverseProxy", "NewSingleHostReverseProxy"},
+		// Rule 2: gRPC dials.
+		"grpc.NewClient without the seam": {"func f() { _, _ = grpc.NewClient(\"t\") }", "grpc.NewClient must be called"},
+		"grpc.Dial as a method value":     {"var dial = grpc.Dial", "grpc.Dial must be called"},
+		// Rule 3: dot-imports.
+		"dot-import of net/http": {"", "dot-import of net/http"},
+		// Rule 4: client and proxy values.
+		"zero-value client":                {"var c http.Client", zero},
+		"zero-value proxy":                 {"var p httputil.ReverseProxy", zero},
+		"new(http.Client)":                 {"var _ = new(http.Client)", zero},
+		"new(httputil.ReverseProxy)":       {"var _ = new(httputil.ReverseProxy)", zero},
+		"value-typed field":                {"type s struct{ c http.Client }", zero},
+		"type definition":                  {"type myC http.Client", zero},
+		"type alias":                       {"type C = http.Client", zero},
+		"array":                            {"var cs [1]http.Client", zero},
+		"make of a slice":                  {"var cs = make([]http.Client, 1)", zero},
+		"map":                              {"var m map[string]httputil.ReverseProxy", zero},
+		"client literal without transport": {"var _ = &http.Client{}", "literal must set Transport"},
+		"a local HTTPTransport":            {"func HTTPTransport() http.RoundTripper { return nil }\nvar _ = &http.Client{Transport: HTTPTransport()}", "literal must set Transport"},
+		"another package's HTTPTransport":  {"var _ = &http.Client{Transport: other.HTTPTransport()}", "literal must set Transport"},
+		"a local variable shadowing host":  {"func f() { host := evil{}; _ = &http.Client{Transport: host.HTTPTransport()} }", "literal must set Transport"},
+		// Rule 5: no second transport.
+		"http.Transport literal": {"var _ = &http.Transport{}", "second transport"},
+		"new(http.Transport)":    {"var _ = new(http.Transport)", "second transport"},
+		// Rule 6: .Transport reassigned.
+		"client Transport set to nil":    {"func f() { c := &http.Client{Transport: host.HTTPTransport()}; c.Transport = nil }", "may only be set to host.HTTPTransport()"},
+		"proxy Transport set to another": {"func f(t http.RoundTripper) { p := &httputil.ReverseProxy{Transport: host.HTTPTransport()}; p.Transport = t }", "may only be set to host.HTTPTransport()"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			source := imports + c.source + "\n"
-			if name == "another package's HTTPTransport" {
-				source = strings.Replace(source, "\thost \""+hostImport+"\"\n", "\thost \""+hostImport+"\"\n\tother \"example.com/other/host\"\n", 1)
+			source := header + c.source + "\n"
+			switch name {
+			case "another package's HTTPTransport":
+				source = strings.Replace(source, "\thost \"", "\tother \"example.com/other/host\"\n\thost \"", 1)
+			case "dot-import of net/http":
+				source = strings.Replace(source, "\t\"net/http\"\n", "\t. \"net/http\"\n", 1)
 			}
 			violations := inspect(t, "x/x.go", []byte(source))
 			found := false
@@ -300,16 +348,20 @@ func TestTheGateRefusesEachBypass(t *testing.T) {
 			}
 		})
 	}
-	for name, source := range map[string]string{
-		"the host seam":     imports + "var _ = &http.Client{Transport: host.HTTPTransport()}\n",
-		"an aliased import": strings.Replace(imports, "\thost \"", "\th \"", 1) + "var _ = &http.Client{Transport: h.HTTPTransport()}\n",
-		"a pointer field":   imports + "type s struct{ c *http.Client }\nvar p *httputil.ReverseProxy\n",
-	} {
-		if name == "an aliased import" {
-			source = strings.Replace(source, "Transport: host.HTTPTransport()}\n", "Transport: h.HTTPTransport()}\n", 1)
-		}
+	approved := map[string]string{
+		"the host seam":                "var _ = &http.Client{Transport: host.HTTPTransport()}",
+		"pointers":                     "type s struct{ c *http.Client }\nvar p *httputil.ReverseProxy\nvar t *http.Transport",
+		"Transport set to the seam":    "func f(c *http.Client) { c.Transport = host.HTTPTransport() }",
+		"a gRPC dial with DialOptions": "func f() { _, _ = grpc.NewClient(\"t\", host.DialOptions(nil)...) }",
+	}
+	for name, body := range approved {
+		source := header + body + "\n"
 		if violations := inspect(t, "x/x.go", []byte(source)); len(violations) != 0 {
 			t.Errorf("%s: refused %v", name, violations)
 		}
+	}
+	aliased := strings.NewReplacer("\thost \"", "\th \"", "host.HTTPTransport()", "h.HTTPTransport()").Replace(header) + "var _ = &http.Client{Transport: h.HTTPTransport()}\n"
+	if violations := inspect(t, "x/x.go", []byte(aliased)); len(violations) != 0 {
+		t.Errorf("an aliased host import: refused %v", violations)
 	}
 }
