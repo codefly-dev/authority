@@ -62,12 +62,12 @@ func TestTheSignInPageIsTheKitBuild(t *testing.T) {
 // closing script tag stays inside the island.
 func TestTheSignInIslandEscapesItsData(t *testing.T) {
 	var out strings.Builder
-	if err := signInPage.Execute(&out, signInData{People: []fixturePerson{{Email: "</script><script>alert(1)</script>", Roles: []string{}}}, Return: "/"}); err != nil {
+	if err := signInPage.Execute(&out, signInData{People: []fixturePerson{{Email: "</script><script>alert(1)</script>", Description: "</script><script>alert(2)</script>", Roles: []string{}}}, Return: "/"}); err != nil {
 		t.Fatal(err)
 	}
 	m := island.FindStringSubmatch(out.String())
 	var data signInData
-	if m == nil || json.Unmarshal([]byte(m[1]), &data) != nil || len(data.People) != 1 || data.People[0].Email != "</script><script>alert(1)</script>" {
+	if m == nil || json.Unmarshal([]byte(m[1]), &data) != nil || len(data.People) != 1 || data.People[0].Email != "</script><script>alert(1)</script>" || data.People[0].Description != "</script><script>alert(2)</script>" {
 		t.Fatalf("the island did not round-trip its data:\n%s", out.String())
 	}
 }
