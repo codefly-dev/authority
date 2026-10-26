@@ -1,0 +1,40 @@
+# What this playground adds to the local authority's fixture for the modules it
+# composes: the document store, the record store and the organisation
+# directory (services/local/README.md, "What a composition adds to the
+# fixture"). The fixture itself names none of their kinds.
+schema: codefly.dev/authority/fixture-composition/v1
+roles:
+  - organization: acme
+    name: viewer
+    scopes:
+      - {kind: documents, actions: [read]}
+      - {kind: records.records, actions: [read]}
+      - {kind: records.types, actions: [read]}
+      - {kind: directory.entry, actions: [read]}
+      # A viewer reads only some document collections: the directory's and every
+      # shared one. The authority answers this when asked (ListResources); the
+      # token carries the kind alone. A collection's id is the store's namespace,
+      # "derived" and its producer joined by a unit separator (\x1f).
+      - kind: documents.collection
+        actions: [read]
+        resources:
+          - {prefix: "derived\x1fdirectory"}
+          - {pattern: "shared-[a-z]+"}
+  - organization: acme
+    name: editor
+    scopes:
+      - {kind: documents, actions: [read, write]}
+      - {kind: documents.collection, actions: [read]}
+      - {kind: records.records, actions: [read, write]}
+      - {kind: records.types, actions: [read]}
+      - {kind: directory.entry, actions: [read, write]}
+  - organization: acme
+    name: admin
+    scopes:
+      - {kind: documents, actions: [read, write, ingest]}
+      - {kind: documents.collection, actions: [read, transfer, admin]}
+  - organization: globex
+    name: admin
+    scopes:
+      - {kind: documents, actions: [read, write]}
+      - {kind: documents.collection, actions: [read]}

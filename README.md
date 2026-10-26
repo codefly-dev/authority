@@ -19,7 +19,7 @@ This repository holds two things, and only these two:
 2. **The local authority** (`modules/authority/services/local`): the development
    implementation. One process that signs in fixture people with their roles,
    issues and verifies Work Contexts, knows the composition from the rendered
-   manifests, and holds the fixture installations in memory. No accounts
+   manifests, and holds the installations its composition declares in memory. No accounts
    service, no stores, no platform frontend. Running a solution locally is the
    solution, the modules it consumes, and this.
 
@@ -130,7 +130,7 @@ design.
 |---|---|
 | The solution registers its backend and page | `/modules/_register`, `/modules/_registration-token` (gateway `gateway_module_routes.go`); `/.well-known/solution.json` and `/.well-known/capabilities` served by the runtime and proxied |
 | Routes to the solution | `/solutions/<id>/*` (gateway), `/api/solutions/<id>/proxy/*` (frontend), module-federation assets, the registry snapshot, the 120 s lease |
-| Who may use it | `ListSolutionEntitlements` (gateway `handleSolutionEntitlements`); `InstallationService`: `InstallSolution`, `GrantInstallationToTeam`, `ListInstallations`; installations come from the fixture file |
+| Who may use it | `ListSolutionEntitlements` (gateway `handleSolutionEntitlements`); `InstallationService`: `InstallSolution`, `GrantInstallationToTeam`, `ListInstallations`; installations come from the composition's fixture-composition document |
 | The solution is installed | host → solution `POST /_codefly/installations` with a Work Context, retried until acknowledged |
 | The solution acts for a viewer against a module | `StartTask` under resource and installation confinement (`x-codefly-resource`, installation header) |
 
@@ -427,16 +427,17 @@ The local fixture includes `no-roles` in Acme for that case.
 The suite proves it as a matrix: the fixture states, for each person at each
 audience, which kind and action is allowed and which refused, and the suite asks
 for exactly that scope and expects the answer. The local authority's fixture carries
-two organisations, a person with no roles or teams, an automatically generated
-developer role, and a solution installed under different roles. The host supplies its own matrix from its
+two organisations, a person with no roles or teams and an automatically generated
+developer role; the test kit's composition document installs a solution under
+different roles in each. The host supplies its own matrix from its
 own fixture. When the fixture signs, the suite composes its solution as a carrier
 with the authority's document carrying its roles; the sketch remains for a
 fixture that does not sign.
 
-A composition grants the fixture's organisation roles what its modules serve
-through the `fixture-roles` workspace configuration document
-([grants a composition supplies](modules/authority/services/local/README.md#grants-a-composition-supplies)),
-so a module's permissions need not be written into this repository's fixture.
+The fixture names only the authority's own vocabulary. A composing workspace
+adds what its modules and solutions need: grants on the fixture's roles,
+installations and stand-in modules, through the versioned `fixture-composition`
+document ([what a composition adds to the fixture](modules/authority/services/local/README.md#what-a-composition-adds-to-the-fixture)).
 The local authority also logs a delivery-time role × method report and
 generates its local developer role from concrete delivered permissions. See
 [local permission diagnostics](modules/authority/services/local/README.md#permission-diagnostics-during-local-development)

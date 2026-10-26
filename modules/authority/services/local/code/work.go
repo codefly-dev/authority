@@ -48,6 +48,11 @@ func init() {
 // key for this run, and the issuer over them. The registry's plugins read the
 // result through the wiring package.
 func configureLocalAuthority(ctx context.Context, _ *adapters.Configuration) (Clean, error) {
+	// The fixture's people and the composition's grants are a laptop's: never
+	// boot them in a pod, whatever anchor it was handed.
+	if native.InPod() {
+		return nil, errors.New("the local authority runs on a laptop only: it refuses to start in a pod")
+	}
 	anchorPath := os.Getenv(native.AnchorEnvironment)
 	if anchorPath == "" {
 		return nil, fmt.Errorf("no launcher anchor: %s is unset, so no workload could be attested; run this service with codefly run", native.AnchorEnvironment)
@@ -76,7 +81,7 @@ func configureLocalAuthority(ctx context.Context, _ *adapters.Configuration) (Cl
 	if err := st.LoadFixture(ctx, data); err != nil {
 		return nil, fmt.Errorf("fixture %q: %w", name, err)
 	}
-	if err := grantCompositionRoles(ctx, st); err != nil {
+	if err := applyComposition(ctx, st); err != nil {
 		return nil, err
 	}
 	clean, err := approvalsFor(ctx, st)
@@ -119,27 +124,30 @@ func configureLocalAuthority(ctx context.Context, _ *adapters.Configuration) (Cl
 	return clean, nil
 }
 
-// grantCompositionRoles adds what the composition grants the fixture's roles:
-// the workspace configuration document fixture-roles, which a module's own
-// playground supplies for the permissions its module serves. A run that
-// supplies none keeps the fixture's roles as they are; a document that does not
-// read, or names a role the fixture does not define, refuses to boot.
-func grantCompositionRoles(ctx context.Context, st *state.State) error {
+// applyComposition adds the composition's part of the fixture: the workspace
+// configuration document fixture-composition, which a composing workspace
+// supplies for the modules and solutions it composes. The authority module
+// ships an empty default (modules/authority/configurations/local), which a
+// composition's own document replaces whole. A document that does not read, or
+// that the fixture refuses, refuses to boot.
+func applyComposition(ctx context.Context, st *state.State) error {
 	w := wool.Get(ctx).In("local")
-	document, err := codefly.For(ctx).WorkspaceConfigurationDocument(state.CompositionRolesDocument)
+	document, err := codefly.For(ctx).WorkspaceConfigurationDocument(state.CompositionDocument)
 	if errors.Is(err, codefly.ErrConfigurationDocumentMissing) {
-		w.Info("the composition grants the fixture's roles nothing (no fixture-roles document)")
-		return nil
+		return fmt.Errorf("no %s document was delivered; the authority module ships a default, so this run did not compose it", state.CompositionDocument)
 	}
 	if err != nil {
 		return err
 	}
-	granted, err := st.GrantCompositionRoles(document)
+	lines, err := st.ApplyComposition(ctx, document)
 	if err != nil {
 		return err
 	}
-	for _, line := range granted {
-		w.Info("the composition grants " + line)
+	if len(lines) == 0 {
+		w.Info("the composition adds nothing to the fixture")
+	}
+	for _, line := range lines {
+		w.Info("the composition " + line)
 	}
 	return nil
 }

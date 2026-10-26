@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"gateway/pkg/business/state"
 	"gateway/pkg/business/testkit"
 
 	"github.com/codefly-dev/core/configurations"
@@ -17,26 +18,35 @@ import (
 
 // Exercise the production boot hook through Codefly's file loader and SDK
 // document carrier, rather than passing fixture bytes straight to state.
-func TestCompositionRolesReachBootThroughCodefly(t *testing.T) {
+func TestCompositionReachesBootThroughCodefly(t *testing.T) {
 	ctx := context.Background()
 	t.Setenv(resources.EnvironmentPrefix, "local")
 	t.Cleanup(func() { _ = codefly.InjectConfigurations() })
 	for _, tc := range []struct {
-		name, document, reason string
-		granted                bool
+		name, document, path, reason string
+		granted                      bool
 	}{
-		{name: "absent"},
-		{name: "composition", document: "roles:\n  - organization: acme\n    name: editor\n    scopes:\n      - {kind: ledger.entry, actions: [write]}\n", granted: true},
-		{name: "unknown role", document: "roles: [{organization: acme, name: missing, scopes: [{kind: ledger.entry, actions: [write]}]}]", reason: "acme/missing is not a role"},
-		{name: "null", document: "null", reason: "empty or null"},
+		{name: "absent", reason: "no fixture-composition document was delivered"},
+		{name: "shipped default", path: testkit.DefaultCompositionPath()},
+		{name: "composition", document: "schema: codefly.dev/authority/fixture-composition/v1\nroles:\n  - organization: acme\n    name: editor\n    scopes:\n      - {kind: ledger.entry, actions: [write]}\n", granted: true},
+		{name: "unknown role", document: "schema: codefly.dev/authority/fixture-composition/v1\nroles: [{organization: acme, name: missing, scopes: [{kind: ledger.entry, actions: [write]}]}]", reason: "acme/missing is not a role"},
+		{name: "null", document: "null", reason: "not a mapping"},
+		{name: "unversioned", document: "{}", reason: "schema is"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if err := codefly.InjectConfigurations(); err != nil {
 				t.Fatal(err)
 			}
+			if tc.path != "" {
+				data, err := os.ReadFile(tc.path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				tc.document = string(data)
+			}
 			if tc.document != "" {
 				dir := t.TempDir()
-				if err := os.WriteFile(filepath.Join(dir, "fixture-roles.yaml"), []byte(tc.document), 0600); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, "fixture-composition.yaml"), []byte(tc.document), 0600); err != nil {
 					t.Fatal(err)
 				}
 				infos, err := configurations.LoadConfigurationInformationsFromFiles(ctx, dir)
@@ -48,7 +58,11 @@ func TestCompositionRolesReachBootThroughCodefly(t *testing.T) {
 				}
 			}
 			k := testkit.New(t)
-			err := grantCompositionRoles(ctx, k.State)
+			ledger := state.Manifest{Module: "ledger", Principal: "ledger", Kind: "module", Generation: 1, ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope("ledger.entry", "write")}}
+			if _, err := k.State.ApplyManifest(ledger); err != nil {
+				t.Fatal(err)
+			}
+			err := applyComposition(ctx, k.State)
 			if tc.reason != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.reason) {
 					t.Fatalf("got %v, want %s", err, tc.reason)
