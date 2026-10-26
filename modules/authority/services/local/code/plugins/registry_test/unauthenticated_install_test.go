@@ -2,20 +2,19 @@ package registry_test
 
 import (
 	"context"
-	"net"
+	"github.com/google/uuid"
+	"net/http/httptest"
 	"sync/atomic"
 	"testing"
 
+	"connectrpc.com/connect"
+	"connectrpc.com/vanguard/vanguardgrpc"
 	"gateway/pkg/business/state"
 	"gateway/pkg/business/testkit"
 	installationv1 "gateway/pkg/gen/host/installation/v1"
+	"gateway/pkg/gen/host/installation/v1/installationv1connect"
 	"gateway/plugins/installation"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/status"
-	"google.golang.org/grpc/test/bufconn"
 )
 
 func TestUnauthenticatedRequestCannotReachHostInstallation(t *testing.T) {
@@ -27,26 +26,22 @@ func TestUnauthenticatedRequestCannotReachHostInstallation(t *testing.T) {
 	k.State.OnInstall(func(context.Context, state.Installation) error { steps.Add(1); return nil })
 	server := grpc.NewServer()
 	(&installation.Plugin{State: k.State}).RegisterGRPC(server)
-	listener := bufconn.Listen(1 << 20)
-	go func() { _ = server.Serve(listener) }()
-	t.Cleanup(server.Stop)
-	conn, err := grpc.NewClient("passthrough:///bufconn",
-		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return listener.Dial() }),
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
+	handler, err := vanguardgrpc.NewTranscoder(server)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = conn.Close() })
-	// This contract generates a gRPC client, not a Connect client.
-	client := installationv1.NewInstallationServiceClient(conn)
+	web := httptest.NewServer(handler)
+	t.Cleanup(web.Close)
+	t.Cleanup(server.Stop)
+	client := installationv1connect.NewInstallationServiceClient(web.Client(), web.URL)
 	req := &installationv1.InstallRequest{OrganizationId: "acme", Target: "proposals", Role: "viewer", OwnerPersonId: "alex"}
 	for _, bearer := range []string{"", "not-a-session"} {
-		ctx := t.Context()
+		request := connect.NewRequest(req)
 		if bearer != "" {
-			ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("authorization", "Bearer "+bearer))
+			request.Header().Set("Authorization", "Bearer "+bearer)
 		}
-		_, err := client.Install(ctx, req)
-		if status.Code(err) != codes.Unauthenticated {
+		_, err := client.Install(t.Context(), request)
+		if connect.CodeOf(err) != connect.CodeUnauthenticated {
 			t.Fatalf("bearer %q: %v", bearer, err)
 		}
 		if _, exists := k.State.Installation(state.InstallationID("acme", "proposals")); exists {
@@ -61,9 +56,30 @@ func TestUnauthenticatedRequestCannotReachHostInstallation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := metadata.NewOutgoingContext(t.Context(), metadata.Pairs("authorization", "Bearer "+sess.ID))
-	if _, err := client.Install(ctx, req); err != nil {
+	review := connect.NewRequest(&installationv1.ReviewRequest{OrganizationId: req.OrganizationId, Target: req.Target})
+	review.Header().Set("Authorization", "Bearer "+sess.ID)
+	offered, err := client.Review(t.Context(), review)
+	if err != nil {
 		t.Fatal(err)
+	}
+	req.Approval = offered.Msg
+	req.Approval.OperationId = uuid.NewString()
+	install := func() (*connect.Response[installationv1.Installation], error) {
+		request := connect.NewRequest(req)
+		request.Header().Set("Authorization", "Bearer "+sess.ID)
+		return client.Install(t.Context(), request)
+	}
+	first, err := install()
+	if err != nil {
+		t.Fatal(err)
+	}
+	retry, err := install()
+	if err != nil || retry.Msg.GetId() != first.Msg.GetId() {
+		t.Fatalf("unchanged retry: %v", err)
+	}
+	req.Role = "installer"
+	if _, err := install(); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("changed request: %v", err)
 	}
 	if steps.Load() != 1 {
 		t.Fatalf("authenticated install steps: %d", steps.Load())

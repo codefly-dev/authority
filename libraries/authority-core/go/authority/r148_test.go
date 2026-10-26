@@ -70,7 +70,7 @@ func TestATombstonedPrincipalIsNeverClaimed(t *testing.T) {
 		t.Fatal(err)
 	}
 	admin := h.admin(globex)
-	_, err = svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, nil)
+	_, err = svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, h.approval(globex, "b"), nil)
 	code(t, err, domain.Denied)
 }
 

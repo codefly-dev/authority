@@ -180,31 +180,40 @@ type InstallStep func(ctx context.Context, inst domain.Installation) error
 // while it is pending resumes it. Its principal is stable per organization and
 // target, so a reinstall reuses it; nobody holds a role until granted one,
 // the installing person included. The caller must administer the organization.
-func (s *Service) Install(ctx context.Context, caller Person, org, target, agentRole, installedBy string, step InstallStep) (domain.Installation, error) {
-	return s.install(ctx, func(tx Tx) error {
-		p, err := tx.Person(caller.ID)
-		if err != nil && !errors.Is(err, domain.ErrNotFound) {
-			return err
-		}
-		if caller.ID == "" || err != nil || p.Organization != org || !decide.IsAdministrator(p) {
-			return domain.Refuse("installation administration requires an administrator or owner of organization %q", org)
-		}
-		return nil
-	}, org, target, agentRole, installedBy, step)
+func (s *Service) Install(ctx context.Context, caller Person, org, target, agentRole, installedBy string, approval *domain.ConsentApproval, step InstallStep) (domain.Installation, error) {
+	if approval != nil {
+		copy := *approval
+		approval = &copy
+	}
+	return s.install(ctx, func(tx Tx) error { return administrator(tx, caller, org) }, caller, org, target, agentRole, installedBy, approval, step)
 }
 
 // InstallAsHost is for trusted host setup, never a request handler. It installs
 // a solution without person authorization; an absent person cannot select it.
 func (s *Service) InstallAsHost(ctx context.Context, org, target, agentRole, installedBy string, step InstallStep) (domain.Installation, error) {
-	return s.install(ctx, func(Tx) error { return nil }, org, target, agentRole, installedBy, step)
+	return s.install(ctx, func(Tx) error { return nil }, Person{}, org, target, agentRole, installedBy, nil, step)
 }
 
-func (s *Service) install(ctx context.Context, authorize func(Tx) error, org, target, agentRole, installedBy string, step InstallStep) (domain.Installation, error) {
+func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller Person, org, target, agentRole, installedBy string, approval *domain.ConsentApproval, step InstallStep) (domain.Installation, error) {
 	var inst domain.Installation
 	var generation uint64
+	var intent string
+	var replayed bool
+	requestedOwner := installedBy
+	if installedBy == "" && caller.ID != "" {
+		installedBy = caller.ID
+	}
 	err := s.store.Write(ctx, func(tx Tx) error {
+		replayed = false
 		if err := authorize(tx); err != nil {
 			return err
+		}
+		if caller.ID != "" {
+			var err error
+			intent, err = consentIntent(caller, org, target, agentRole, requestedOwner, approval)
+			if err != nil {
+				return err
+			}
 		}
 		if _, err := tx.Organization(org); err != nil {
 			return notFound(err)
@@ -232,6 +241,16 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, org, ta
 		if err != nil && !errors.Is(err, domain.ErrNotFound) {
 			return err
 		}
+		if approval != nil {
+			same, err := checkConsent(m, existing, approval, intent)
+			if err != nil {
+				return err
+			}
+			if same && existing.Status == domain.Active {
+				inst, replayed = existing, true
+				return nil
+			}
+		}
 		if err == nil && existing.Status == domain.Pending {
 			if existing.AgentRole != agentRole || existing.InstalledBy != installedBy {
 				return domain.NotNow("%s is pending at %s as %s for %s; only that install resumes it", target, org, existing.AgentRole, existing.InstalledBy)
@@ -239,6 +258,9 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, org, ta
 			// The same install asked again resumes its pending attempt: its
 			// step converges idempotently, and its revision stays the one the
 			// first attempt took, so a revoke or a reinstall since is told apart.
+			if approval != nil && existing.Consent.OperationID != approval.OperationID {
+				return domain.NotNow("INSTALLATION_APPROVAL_OPERATION_CONFLICT: only the original operation resumes a pending installation")
+			}
 			inst = existing
 			return nil
 		}
@@ -268,6 +290,9 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, org, ta
 		}
 		inst = domain.Installation{ID: id, Organization: org, Target: target, Status: domain.Pending, Revision: existing.Revision + 1,
 			AgentRole: agentRole, PrincipalID: principal, InstalledBy: installedBy}
+		if approval != nil {
+			inst.Consent = domain.ConsentReceipt{OperationID: approval.OperationID, Intent: intent, Revision: inst.Revision}
+		}
 		if err := tx.DeleteRoleGrants(id); err != nil {
 			return err
 		}
@@ -275,6 +300,9 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, org, ta
 	})
 	if err != nil {
 		return inst, err
+	}
+	if replayed {
+		return inst, nil
 	}
 	if step != nil {
 		if err := step(ctx, inst); err != nil {
@@ -286,9 +314,25 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, org, ta
 		if err != nil {
 			return notFound(err)
 		}
+		if err := authorize(tx); err != nil {
+			return err
+		}
 		m, err := tx.ModuleNamed(target)
 		if err != nil && !errors.Is(err, domain.ErrNotFound) {
 			return err
+		}
+		if err == nil && approval != nil {
+			same, err := checkConsent(m, current, approval, intent)
+			if err != nil {
+				return err
+			}
+			if !same {
+				return domain.NotNow("INSTALLATION_APPROVAL_OPERATION_CONFLICT: approval changed before acknowledgement")
+			}
+			if current.Status == domain.Active {
+				inst = current
+				return nil
+			}
 		}
 		if err != nil || m.Generation != generation || current.Status != domain.Pending || current.Revision != inst.Revision {
 			return domain.NotNow("installation attempt %s changed before acknowledgement", inst.ID)

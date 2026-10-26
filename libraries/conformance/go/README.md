@@ -154,3 +154,21 @@ declares `owner_aware` on the modules solutions consume.
 The local authority runs `Run` and `RunSolutionPrincipalTarget` with every
 `go test ./plugins/registry_test` from `modules/authority/services/local/code`;
 `Run`'s cases assert the same model the target does.
+
+## Reviewed installation consent
+
+`InstallationService/Review` returns the host's immutable target identity,
+current generation, installation revision and authority-offer digest. The caller
+reviews that offer, supplies a fresh UUID `operation_id`, and sends the unchanged
+approval with `Install`. Review does not grant authority. An unchanged successful
+retry returns the installation without repeating its install step; changed
+inputs, a newer delivery, a changed revision or revocation refuse with a named
+`INSTALLATION_APPROVAL_*` reason. A refusal requires a fresh review, not a retry
+that silently substitutes current state.
+
+The lifecycle case reads Review through the published contract, checks missing
+and mismatched approvals, preserves approval across acknowledgement, and checks
+replay after revocation. The local core additionally rechecks the offer and
+administrator in the transaction that acknowledges the install step. Its digest
+covers the stored authority declarations, including roles, ceilings and bindings;
+it is opaque to callers. Host-owned fixture setup stays on `InstallAsHost`.
