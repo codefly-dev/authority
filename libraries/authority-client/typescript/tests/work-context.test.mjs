@@ -181,6 +181,27 @@ test('a call on keys past the stale window is refused when the re-read fails', a
   assert.match(String(v.keysError), /4000/);
 });
 
+// Review r159 f1: the wait bounds itself. A re-read that never answers, from a
+// source that ignores its timeout and signal, refuses the call with the fixed
+// reason once the verifier's own timeout passes, and holds no later read.
+test('a call on keys past the stale window is refused when the re-read hangs', {timeout: 3_000}, async () => {
+  let hang = false;
+  const keys = source(() => hang ? new Promise(() => {}) : Promise.resolve(published));
+  let clock = (fixture.now - 960)*1000;
+  const v = new Verifier(keys, fixture.audience, fixture.proof, () => clock, 100);
+  await settle();
+  hang = true;
+  clock = fixture.now*1000;
+  const started = performance.now();
+  await assert.rejects(v.verify(fixture.headers), e => e instanceof Unauthenticated && /unavailable/.test(e.message));
+  assert.ok(performance.now() - started >= 90, 'refused before the read timed out');
+  assert.equal(v.keysError?.name, 'TimeoutError');
+  hang = false;
+  clock += 11_000;
+  assert.equal((await v.verify(fixture.headers)).owner, fixture.identity.owner);
+  assert.equal(keys.reads, 3);
+});
+
 test('an actor granted nothing narrows the identity to nothing', () => {
   const context = body('delegated');
   context.actorChain[0].grantedScopes = [];
