@@ -18,6 +18,20 @@ import (
 // Lifetime bounds how long an admitted call may start. It does not limit a stream's duration.
 const Lifetime = 30 * time.Second
 
+// Skew is the clock difference tolerated between the hop that signed an
+// admission and the verifier judging it. Without it a verifier lagging the hop
+// by a fraction of a second refuses genuine calls whenever the signing instant
+// falls just after a second boundary, and the refusal reads as an expiry.
+//
+// It widens two bounds and no others: an admission may be issued up to Skew
+// ahead of the verifier's clock, and remains admissible until Skew past its
+// expiry. The signed span itself (expires - issued) is still capped at Lifetime
+// exactly, so the allowance cannot be used to mint a longer-lived admission.
+// Go, Python and TypeScript apply the same value, and a replay reservation is
+// retained to expiry plus Skew so a store evicting on its own clock cannot
+// release a nonce a lagging verifier would still accept.
+const Skew = 2 * time.Second
+
 // Call is a signed, single-use admission, independent of the Work Context's replay policy.
 // The array encoding and domain separate this protocol from Work Context signatures.
 type Call struct {
@@ -113,7 +127,18 @@ func Check(md metadata.MD, publicKey, method, audience string, now time.Time) (C
 	if audience == "" || call.Audience != audience {
 		return fail(refusal.StampAudience)
 	}
-	if call.Issued < 0 || call.Expires < 0 || call.Issued > now.Unix() || call.Expires <= now.Unix() || call.Expires <= call.Issued || call.Expires-call.Issued > int64(Lifetime/time.Second) {
+	seconds, skew := now.Unix(), int64(Skew/time.Second)
+	switch {
+	case call.Issued < 0 || call.Expires < 0:
+		return fail(refusal.StampWindow)
+	case call.Issued > seconds+skew:
+		// Further ahead than a clock difference explains: its own reason, so a
+		// verifier running behind is not diagnosed as an expiry.
+		return fail(refusal.StampIssued)
+	case call.Expires+skew <= seconds:
+		return fail(refusal.StampWindow)
+	case call.Expires <= call.Issued || call.Expires-call.Issued > int64(Lifetime/time.Second):
+		// The signed span is judged without the allowance.
 		return fail(refusal.StampWindow)
 	}
 	nonce, err := hex.DecodeString(call.Nonce)

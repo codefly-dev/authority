@@ -1,0 +1,132 @@
+package hop
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"testing"
+	"time"
+
+	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
+	"github.com/codefly-dev/authority/libraries/authority-client/go/refusal"
+	"github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
+	core "github.com/codefly-dev/core/workcontext"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/tap"
+)
+
+const arrivalMethod = "/test.Service/Read"
+
+func arrivalVerifier(t *testing.T, clock *time.Time) (*Verifier, signer) {
+	t.Helper()
+	s := newSigner("arrival")
+	source := &keys{response: &authorityv1.KeysResponse{Issuer: s.issuer, Keys: []*authorityv1.PublicKey{s.published()}}}
+	v, err := NewVerifier(context.Background(), source, "documents", testSigner("proof").PublicKey(), core.NewMemoryReplayStore())
+	if err != nil {
+		t.Fatal(err)
+	}
+	v.now = func() time.Time { return *clock }
+	v.fetched, v.tried = *clock, *clock
+	return v, s
+}
+
+// Review r164 B3: grpc-go decodes a unary request fully before it runs the
+// unary interceptor, so a slow or large upload reached Verify long after the
+// hop admitted it and was refused for an expiry that had not happened at call
+// start. The window is judged at the instant the stream was accepted, which
+// TapHandle records.
+func TestTheAdmissionWindowIsJudgedWhenTheCallArrivesNotAfterItsBodyDecodes(t *testing.T) {
+	clock := time.Unix(1792818000, 0)
+	v, s := arrivalVerifier(t, &clock)
+	md := forwarded(t, s.issue(t, clock, "documents"), "proof", "")
+
+	// The stream is accepted now; its body then takes two minutes to arrive,
+	// well past stamp.Lifetime.
+	ctx, err := v.TapHandle()(metadata.NewIncomingContext(context.Background(), md), &tap.Info{FullMethodName: arrivalMethod, Header: md})
+	if err != nil {
+		t.Fatal(err)
+	}
+	clock = clock.Add(2 * time.Minute)
+	reached := false
+	if _, err := v.UnaryServerInterceptor()(ctx, nil, &grpc.UnaryServerInfo{FullMethod: arrivalMethod}, func(context.Context, any) (any, error) {
+		reached = true
+		return nil, nil
+	}); err != nil || !reached {
+		t.Fatalf("a call admitted at arrival was refused after its body decoded: %v", err)
+	}
+}
+
+// Nothing is admitted by the absence of a tap handle: a server that installs
+// none judges the window at the instant Verify runs, as it did before.
+func TestWithoutATapHandleTheWindowIsJudgedWhenVerifyRuns(t *testing.T) {
+	clock := time.Unix(1792818000, 0)
+	v, s := arrivalVerifier(t, &clock)
+	md := forwarded(t, s.issue(t, clock, "documents"), "proof", "")
+	clock = clock.Add(2 * time.Minute)
+	_, err := v.Verify(context.Background(), md, arrivalMethod)
+	var reason refusal.Reason
+	if !errors.As(err, &reason) || reason != refusal.StampWindow {
+		t.Fatalf("want %s without a tap handle: %v", refusal.StampWindow, err)
+	}
+}
+
+// The window the tap handle opens is the admission's own, not an unbounded one:
+// a call accepted further ahead than the clock allowance, or long after the
+// admission expired, is still refused, each under its own reason.
+func TestTheArrivalInstantDoesNotWidenTheAdmissionWindow(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		shift time.Duration
+		want  refusal.Reason
+	}{
+		{"accepted further ahead than the allowance", -stamp.Skew - 5*time.Second, refusal.StampIssued},
+		{"accepted long after it expired", stamp.Lifetime + stamp.Skew + time.Second, refusal.StampWindow},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			clock := time.Unix(1792818000, 0)
+			v, s := arrivalVerifier(t, &clock)
+			md := forwarded(t, s.issue(t, clock, "documents"), "proof", "")
+			clock = clock.Add(tc.shift)
+			ctx, err := v.TapHandle()(metadata.NewIncomingContext(context.Background(), md), &tap.Info{FullMethodName: arrivalMethod, Header: md})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = v.UnaryServerInterceptor()(ctx, nil, &grpc.UnaryServerInfo{FullMethod: arrivalMethod}, func(context.Context, any) (any, error) {
+				return nil, nil
+			})
+			// The interceptor answers a gRPC status, which carries the reason
+			// as its text rather than a wrapped error.
+			if err == nil || !strings.Contains(err.Error(), tc.want.Code()) {
+				t.Fatalf("want %s: %v", tc.want, err)
+			}
+		})
+	}
+}
+
+// A reservation outlives the admission by the same allowance, so a shared store
+// evicting on its own clock cannot release a nonce a lagging verifier admits.
+func TestAReservationIsRetainedPastExpiryByTheClockAllowance(t *testing.T) {
+	clock := time.Unix(1792818000, 0)
+	v, s := arrivalVerifier(t, &clock)
+	store := &retention{}
+	v.replay = store
+	md := forwarded(t, s.issue(t, clock, "documents"), "proof", "")
+	call, err := stamp.Check(md, v.publicKey, arrivalMethod, "documents", clock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := v.Verify(context.Background(), md, arrivalMethod); err != nil {
+		t.Fatal(err)
+	}
+	if want := time.Unix(call.Expires+int64(stamp.Skew/time.Second), 0); !store.until.Equal(want) {
+		t.Fatalf("retained until %v, want the admission's expiry plus the allowance %v", store.until, want)
+	}
+}
+
+type retention struct{ until time.Time }
+
+func (r *retention) Consume(_ context.Context, _ string, until time.Time) error {
+	r.until = until
+	return nil
+}

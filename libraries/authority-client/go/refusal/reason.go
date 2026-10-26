@@ -14,6 +14,7 @@ const (
 	StampMethod     Reason = "stamp_method"
 	StampAudience   Reason = "stamp_audience"
 	StampWindow     Reason = "stamp_window"
+	StampIssued     Reason = "stamp_issued"
 	StampAdvisory   Reason = "stamp_advisory"
 	StampReplayed   Reason = "stamp_replayed"
 	StampStore      Reason = "stamp_store"
@@ -53,6 +54,8 @@ func (r Reason) Text() string {
 		return "the hop admission was signed for another module"
 	case StampWindow:
 		return "the hop admission is expired or outside its validity window"
+	case StampIssued:
+		return "the hop admission is issued further ahead than the clock allowance"
 	case StampAdvisory:
 		return "an advisory policy refusal cannot admit a call"
 	case StampReplayed:

@@ -1,6 +1,12 @@
 import { createHash, createPublicKey, verify } from "node:crypto";
 import { Reason, Unauthenticated } from "./refusal.js";
 
+/** The hop admission lifetime and the clock allowance, as Go's stamp.Lifetime
+ * and stamp.Skew define them, in seconds. An admission may be issued up to SKEW
+ * ahead of this verifier's clock and stays admissible until SKEW past its
+ * expiry; the signed span is still capped at LIFETIME exactly. */
+export const LIFETIME = 30, SKEW = 2;
+
 /** Durable atomic consumption, shared by all replicas. Throw Replayed on reuse, another error on outage.
  * retainUntil is Unix seconds. Successful reservations must survive restart. */
 export class Replayed extends Error { override name = "Replayed"; }
@@ -29,7 +35,9 @@ export function checkCall(pairs: readonly (readonly [string, string])[], publicK
   if (!method || method !== boundMethod) fail(Reason.StampMethod);
   if (!audience || audience !== boundAudience) fail(Reason.StampAudience);
   const seconds = Math.floor(now / 1000);
-  if (issued < 0 || expires < 0 || issued > seconds || expires <= seconds || expires <= issued || expires - issued > 30) fail(Reason.StampWindow);
+  if (issued < 0 || expires < 0) fail(Reason.StampWindow);
+  if (issued > seconds + SKEW) fail(Reason.StampIssued);
+  if (expires + SKEW <= seconds || expires <= issued || expires - issued > LIFETIME) fail(Reason.StampWindow);
   if (!/^[0-9a-f]{64}$/.test(nonce)) fail(Reason.StampProof);
   const tokens = pairs.filter(([k]) => k === "x-codefly-work-context");
   if (tokens.length !== 1 || !tokens[0][1]) fail(Reason.StampToken);

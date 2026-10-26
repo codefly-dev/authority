@@ -1,6 +1,8 @@
 // Package workcontext authenticates the Work Context the hop forwarded to a
-// module, and projects its claims. Authenticate is the one check a module's
-// reading rests on: nothing here decodes a token it has not authenticated.
+// module, and projects its claims. AuthenticateToken is the one check a
+// module's reading rests on: nothing here decodes a token it has not
+// authenticated. It establishes identity, never hop admission, which is
+// hop.Verifier's.
 package workcontext
 
 import (
@@ -10,9 +12,6 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-client/go/refusal"
 	"strings"
 	"time"
-
-	"github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
-	"google.golang.org/grpc/metadata"
 
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	core "github.com/codefly-dev/core/workcontext"
@@ -43,34 +42,25 @@ type Claims struct {
 	context  *basev0.WorkContextV1
 }
 
-// Authenticate returns the claims of the Work Context the stamp bound to this
-// call, for this module (audience), after two checks, in order:
+// AuthenticateToken authenticates one Work Context with Core's Inspector:
+// canonical decode, the issuer pin, the Ed25519 signature under the published
+// key the token names, the audience is this module, not-before and expiry
+// within Core's skew, and the chain's structure and attenuation. It returns the
+// claims, or a caller-safe refusal.Reason naming why they must not be believed.
 //
-//  1. the stamp's token binding: md carries exactly one token and the digest
-//     the hop stamped for it, so the token is the one the authority's Check
-//     admitted for this call (stamp.Context);
-//  2. the token itself, with Core's Inspector: canonical decode, the issuer
-//     pin, the Ed25519 signature under the published key the token names, the
-//     audience is this module, not-before and expiry within Core's skew, and
-//     the chain's structure and attenuation.
+// This is the one identity-only reader here, and identity is all it
+// establishes. It proves no hop admission: it does not check that a call was
+// admitted for the procedure it arrived on, consumes no single-use nonce, and
+// asks the authority nothing, so it checks no live revocation either. A service
+// admits a call through hop.Verifier, which checks the hop's signed admission
+// and reserves its nonce in a store every replica shares, and reaches here for
+// the identity.
 //
-// This is identity authentication only. It establishes no hop admission: it
-// does not check that the call was admitted for this procedure, and consumes
-// no single-use nonce. A service admits a call through hop.Verifier, which
-// checks the hop's signed admission and reserves its nonce in a shared store
-// before reaching here. A digest binding alone authorizes nothing: whoever
-// forwards a call can write the token and its digest, but cannot sign either
-// the token or the admission.
-func Authenticate(md metadata.MD, audience string, trust Trust) (*Claims, error) {
-	token, err := stamp.Context(md)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrUnauthenticated, safeReason(err))
-	}
-	return AuthenticateToken(token, audience, trust)
-}
-
-// AuthenticateToken authenticates an unstamped token without consuming it or
-// checking live revocation. Callers still enforce their operation's policy.
+// A caller holding a call's metadata rather than a token extracts the token the
+// stamp's digest binds with stamp.Context first. That is deliberately two
+// calls (review r164 R4): a reader taking metadata reads as though it admitted
+// the call, and it does not — a digest binding authorizes nothing, because
+// whoever forwards a call can write both the token and its digest.
 func AuthenticateToken(token, audience string, trust Trust) (*Claims, error) {
 	if audience == "" {
 		return nil, fmt.Errorf("%w: %w", ErrUnauthenticated, refusal.Configuration)

@@ -2,6 +2,7 @@ package routing
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -123,5 +124,42 @@ func TestConnectGRPCOverlapRefusesInEitherOrder(t *testing.T) {
 		if err := r.Validate(); err == nil {
 			t.Fatal("ambiguous protocol publication accepted")
 		}
+	}
+}
+
+// Review r164 B2: a go-grpc service with rest-endpoint: true transcodes its
+// REST face into the same listener the hop's verifier guards, so the hop's
+// "VERB /path" admission can never match the procedure that listener observes.
+// Every REST call behind the hop was refused as stamp_method after the
+// authority had admitted it. The composition is refused when the hop starts
+// instead, naming the reason.
+func TestARESTFaceTranscodedIntoAProceduralListenerIsRefusedAtStartup(t *testing.T) {
+	for _, beside := range []string{"grpc", "connect"} {
+		t.Run("beside "+beside, func(t *testing.T) {
+			routes := &Routing{Schema: RoutingSchema, Endpoints: []RouteEndpoint{
+				{Audience: "module", Service: "api", Endpoint: beside, Transport: beside, Address: "a", Package: "p", Version: "1", Digest: "d", Methods: []string{"/pkg.Service/Read"}},
+				{Audience: "module", Service: "api", Endpoint: "rest", Transport: "http", Address: "a", Package: "p", Version: "1", Digest: "d", Methods: []string{"GET /read"}},
+			}}
+			err := routes.Validate()
+			if !errors.Is(err, ErrTranscodedREST) {
+				t.Fatalf("want ErrTranscodedREST: %v", err)
+			}
+			if !strings.Contains(err.Error(), "module/api") {
+				t.Fatalf("the refusal names the listener: %v", err)
+			}
+		})
+	}
+}
+
+// A module serving HTTP natively keeps working: its http face is the only one
+// on its service, so the verifier observes the same "VERB /path" the hop signs.
+func TestANativeHTTPFaceIsAdmittedBesideOtherServicesProceduralFaces(t *testing.T) {
+	routes := &Routing{Schema: RoutingSchema, Endpoints: []RouteEndpoint{
+		{Audience: "module", Service: "web", Endpoint: "http", Transport: "http", Address: "a", Package: "p", Version: "1", Digest: "d", Methods: []string{"GET /read"}},
+		// Another service of the same module, procedural, is no transcoding.
+		{Audience: "module", Service: "api", Endpoint: "grpc", Transport: "grpc", Address: "b", Package: "p", Version: "1", Digest: "d", Methods: []string{"/pkg.Service/Read"}},
+	}}
+	if err := routes.Validate(); err != nil {
+		t.Fatalf("a native HTTP face was refused: %v", err)
 	}
 }

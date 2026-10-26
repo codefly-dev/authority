@@ -11,6 +11,7 @@ from google.protobuf import json_format
 
 from authority_client._gen.host.authority.v1.authority_pb2 import KeysResponse
 from authority_client._gen.host.authority.v1.work_context_pb2 import WorkContextV1
+from codefly_hop.call import SKEW
 from codefly_hop import (
     ACTORS_KEY, CONTEXT_KEY, KEY_RETRY, KEY_STALE, SCOPES_KEY, TENANT_KEY, WORK_CONTEXT_KEY, Identity, Unauthenticated,
     Verifier, Replayed, identity_of,
@@ -411,10 +412,53 @@ def test_review_concurrent_replay_and_store_failure():
         v.verify(fresh(FIXTURE["now"]), METHOD)
 
 
-@pytest.mark.parametrize("issued,expires", [(0, 30), (FIXTURE["now"] + 1, FIXTURE["now"] + 30), (FIXTURE["now"], FIXTURE["now"] + 31)])
-def test_signed_admission_window_is_bounded(issued, expires):
-    with pytest.raises(Unauthenticated, match="validity window"):
+@pytest.mark.parametrize("issued,expires,code", [
+    ((0, 30, "stamp_window")),
+    # Issued further ahead than the clock allowance: its own reason, so a
+    # verifier running behind is not diagnosed as an expiry.
+    ((FIXTURE["now"] + SKEW + 1, FIXTURE["now"] + 30, "stamp_issued")),
+    # The allowance widens no span: 31 seconds is refused however clocks sit.
+    ((FIXTURE["now"], FIXTURE["now"] + 31, "stamp_window")),
+])
+def test_signed_admission_window_is_bounded(issued, expires, code):
+    with pytest.raises(Unauthenticated) as refused:
         verifier().verify(fresh(FIXTURE["now"], issued=issued, expires=expires), METHOD)
+    assert refused.value.code == code
+
+
+# Review r164 R1: a verifier whose clock lags the hop refused genuine calls
+# whenever the signing instant fell just after a second boundary, under a reason
+# that read as an expiry. Go, Python and TypeScript allow the same SKEW.
+@pytest.mark.parametrize("lag", [0, 1, SKEW])
+def test_a_clock_difference_inside_the_allowance_still_admits(lag):
+    identity = verifier(clock=lambda: FIXTURE["now"] - lag).verify(fresh(FIXTURE["now"]), METHOD)
+    assert identity.owner == FIXTURE["identity"]["owner"]
+
+
+@pytest.mark.parametrize("lag,code", [(SKEW + 1, "stamp_issued"), (-(30 + SKEW), "stamp_window")])
+def test_a_clock_difference_beyond_the_allowance_is_refused(lag, code):
+    with pytest.raises(Unauthenticated) as refused:
+        verifier(clock=lambda: FIXTURE["now"] - lag).verify(fresh(FIXTURE["now"]), METHOD)
+    assert refused.value.code == code
+
+
+# Review r164 R2: the reservation outlives the admission by the same allowance,
+# so a store evicting on its own clock cannot release a nonce a lagging verifier
+# would still admit.
+def test_a_reservation_is_retained_past_expiry_by_the_allowance():
+    retained = []
+
+    class Recording:
+        def consume(self, nonce, retain_until):
+            retained.append(retain_until)
+
+    v = verifier()
+    v._replay = Recording()
+    headers = fresh(FIXTURE["now"])
+    payload = json.loads(base64.urlsafe_b64decode(
+        headers["x-codefly-hop-proof"].split(".")[0] + "=" * (-len(headers["x-codefly-hop-proof"].split(".")[0]) % 4)))
+    v.verify(headers, METHOD)
+    assert retained == [payload[6] + SKEW]
 
 
 def test_duplicate_proof_and_token_are_refused_before_consumption():

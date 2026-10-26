@@ -27,6 +27,13 @@ class ReplayStore(Protocol):
         ...
 
 
+# The hop admission lifetime and the clock allowance, as Go's stamp.Lifetime
+# and stamp.Skew define them. An admission may be issued up to SKEW ahead of
+# this verifier's clock and stays admissible until SKEW past its expiry; the
+# signed span is still capped at LIFETIME exactly.
+LIFETIME, SKEW = 30, 2
+
+
 @dataclass(frozen=True)
 class Call:
     nonce: str
@@ -68,7 +75,12 @@ def check(headers, public_key: str, method: str, audience: str, now: float) -> C
         raise Unauthenticated(Reason.STAMPMETHOD)
     if not audience or audience != bound_audience:
         raise Unauthenticated(Reason.STAMPAUDIENCE)
-    if issued < 0 or expires < 0 or issued > int(now) or expires <= int(now) or not 0 < expires - issued <= 30:
+    seconds = int(now)
+    if issued < 0 or expires < 0:
+        raise Unauthenticated(Reason.STAMPWINDOW)
+    if issued > seconds + SKEW:
+        raise Unauthenticated(Reason.STAMPISSUED)
+    if expires + SKEW <= seconds or not 0 < expires - issued <= LIFETIME:
         raise Unauthenticated(Reason.STAMPWINDOW)
     if not re.fullmatch(r"[0-9a-f]{64}", nonce):
         raise Unauthenticated(Reason.STAMPPROOF)

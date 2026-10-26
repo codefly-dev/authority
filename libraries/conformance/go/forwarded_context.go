@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
 	forwarded "github.com/codefly-dev/authority/libraries/authority-client/go/workcontext"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/proto"
@@ -22,7 +23,7 @@ import (
 // host publishes through Keys is exactly what authenticates what it issues, so
 // a module that pins those keys accepts the host's context and refuses a
 // forged, unsigned, misaddressed or expired one, naming the reason. It drives
-// the same check every module runs behind the hop (workcontext.Authenticate,
+// the same check every module runs behind the hop (workcontext.AuthenticateToken,
 // under hop.Verifier), never a copy of it.
 func (c *client) forwardedContext(t *testing.T, ctx context.Context, f Fixture) {
 	t.Run("a module authenticates the forwarded context against the published keys", func(t *testing.T) {
@@ -41,7 +42,7 @@ func (c *client) forwardedContext(t *testing.T, ctx context.Context, f Fixture) 
 		at := time.Unix(i64(msg(issued, "context"), "issued_at_unix"), 0).Add(time.Second)
 		trust.Now = func() time.Time { return at }
 
-		if claims, err := forwarded.Authenticate(stamped(token), f.Audience, trust); err != nil || claims.Audience() != f.Audience {
+		if claims, err := forwarded.AuthenticateToken(bound(t, token), f.Audience, trust); err != nil || claims.Audience() != f.Audience {
 			t.Fatalf("the host's own context, under its published keys, is accepted: %v", err)
 		}
 		payload, _, _ := strings.Cut(token, ".")
@@ -70,7 +71,7 @@ func (c *client) forwardedContext(t *testing.T, ctx context.Context, f Fixture) 
 			"expired":        {token, f.Audience, "expired", later},
 		} {
 			t.Run(name+" is refused by name", func(t *testing.T) {
-				_, err := forwarded.Authenticate(stamped(probe.token), probe.audience, probe.trust)
+				_, err := forwarded.AuthenticateToken(bound(t, probe.token), probe.audience, probe.trust)
 				if !errors.Is(err, forwarded.ErrUnauthenticated) || !strings.Contains(err.Error(), probe.reason) {
 					t.Fatalf("want a refusal naming %q: %v", probe.reason, err)
 				}
@@ -81,6 +82,18 @@ func (c *client) forwardedContext(t *testing.T, ctx context.Context, f Fixture) 
 
 // stamped supplies a digest-bound token to the identity reader. Admission
 // requires a signed hop proof and replay consumption, tested in libraries/hop.
+// bound is the token a hop's stamp binds, extracted the way a module does:
+// stamp.Context first, then AuthenticateToken. The two are separate calls
+// because neither of them admits a call (review r164 R4).
+func bound(t *testing.T, token string) string {
+	t.Helper()
+	out, err := stamp.Context(stamped(token))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
 func stamped(token string) metadata.MD {
 	sum := sha256.Sum256([]byte(token))
 	return metadata.Pairs("x-codefly-work-context", token, "x-codefly-hop-context", hex.EncodeToString(sum[:]))

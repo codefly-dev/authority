@@ -13,6 +13,20 @@ codefly config generate hop-signing SEED --service authority/hop
 codefly config generate internal-auth CODEFLY_INTERNAL_TOKEN
 ```
 
-Deliver the derived public key and shared replay volume as described in the
-[hop admission migration](../../libraries/hop/README.md). The old shared PROOF
-and warning mode cannot authorize calls.
+`hop-verification.env` carries the public half of that seed, which every module
+behind the hop checks admissions with. It is committed (a public key) but it is
+**written by hand**: nothing derives it from the seed, so the playground sets it
+after generating the seed, as `hop-verification.env` and the
+[hop admission migration](../../libraries/hop/README.md) describe. That is the
+open half of security review r164 B1; the sound producer is the authority
+publishing the hop's admission key through its own Keys path, which needs an
+`interfaces/authority` change proposed in the handbook first.
+
+No replay volume is configured here any more. Admission reservations live in the
+console's own Postgres (`modules/console/services/store`), because Codefly
+delivers a store and does not deliver a shared volume; an absolute path to
+per-pod storage looks identical to a shared mount and silently becomes a
+per-replica store. Outside a local run the verifier now refuses a store that
+does not declare itself shared.
+
+The old shared PROOF and warning mode cannot authorize calls.

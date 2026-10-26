@@ -8,7 +8,7 @@ import { createHash, createPrivateKey, sign } from 'node:crypto';
 import { test } from 'node:test';
 import { create, fromBinary, toBinary } from '@bufbuild/protobuf';
 import { KeysResponseSchema, PublicKeySchema, WorkContextV1Schema, WorkScopeV1Schema } from '@codefly-dev/authority-client';
-import { authenticateClaims, identityOf, trustFromKeys, Unauthenticated } from '@codefly-dev/authority-client/work-context';
+import { authenticateToken, boundToken, identityOf, trustFromKeys, Unauthenticated } from '@codefly-dev/authority-client/work-context';
 
 const fixtures = JSON.parse(readFileSync(new URL('../../testdata/claims.json',import.meta.url),'utf8'));
 const encode = bytes => Buffer.from(bytes).toString('base64url');
@@ -18,7 +18,7 @@ const body = name => fromBinary(WorkContextV1Schema, Buffer.from(fixtures.find(f
 const signed = context => { const payload = toBinary(WorkContextV1Schema,context); return encode(payload)+'.'+encode(sign(null,payload,signer)); };
 const trustFor = context => trustFromKeys(create(KeysResponseSchema,{issuer:context.issuer,keys:[create(PublicKeySchema,{keyId:context.keyId,algorithm:'Ed25519',publicKey})]}), ()=>(Number(context.notBeforeUnix)+1)*1000);
 const stamped = token => ({'x-codefly-work-context':token,'x-codefly-hop-proof':'test-proof','x-codefly-hop-context':createHash('sha256').update(token).digest('hex')});
-const read = context => authenticateClaims(stamped(signed(context)), context.audience, trustFor(context));
+const read = context => authenticateToken(signed(context), context.audience, trustFor(context));
 const scope = fields => create(WorkScopeV1Schema, fields);
 
 // The owner-selected rows (allows refusing, allowsOwned admitting only the

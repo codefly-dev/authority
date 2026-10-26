@@ -44,8 +44,9 @@ as the Go library writes it.
 commit installs both, and no dependency is ever resolved by name from a public
 index.
 
-`authenticate` is an identity reader, not admission. It checks one token and its
-digest; then Core's rules in Core's order: the decode path (size, the
+`authenticate_token` is the one identity reader, not admission. It checks one
+token (a caller holding a call's headers extracts the bound token with
+`bound_token` first); then Core's rules in Core's order: the decode path (size, the
 contract's `buf.validate` schema rules run by protovalidate against the packaged
 contract descriptor, unknown fields, canonical encoding, a lifetime of at most a
 day), the issuer pin, the key (never Core's public conformance key), the Ed25519

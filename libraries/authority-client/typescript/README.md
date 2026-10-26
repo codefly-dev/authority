@@ -17,7 +17,9 @@ It is the Go library's `hop.Verifier`: the signed method, audience, token digest
 the keys read through `Keys` (re-read on an unknown key at most every 10 s and
 when older than 5 minutes, on a read of its own bounded by 5 s; stale after 15
 minutes, when a call waits for the re-read as it does on an unknown key), then
-`authenticateClaims`: Core's decode path (size, the contract's `buf.validate`
+`authenticateToken`, the one identity reader (a caller holding headers extracts
+the bound token with `boundToken` first): Core's decode path (size, the
+contract's `buf.validate`
 rules run by protovalidate, unknown fields, canonical encoding, lifetime), the
 issuer, the key (never Core's public conformance key), the Ed25519 signature,
 the audience, the window, and attenuation and grant shape. Who the call is for

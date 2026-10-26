@@ -5,7 +5,7 @@ import { createHash, createPrivateKey, generateKeyPairSync, sign } from 'node:cr
 import { test } from 'node:test';
 import { create, fromBinary, fromJson, toBinary } from '@bufbuild/protobuf';
 import { KeysResponseSchema, PublicKeySchema, WorkContextV1Schema, WorkScopeV1Schema } from '@codefly-dev/authority-client';
-import { authenticateClaims, identityOf, trustFromKeys, Unauthenticated, Verifier, Replayed, Reason } from '@codefly-dev/authority-client/work-context';
+import { authenticateToken, boundToken, identityOf, trustFromKeys, Unauthenticated, Verifier, Replayed, Reason, SKEW } from '@codefly-dev/authority-client/work-context';
 
 const fixtures = JSON.parse(readFileSync(new URL('../../testdata/claims.json',import.meta.url),'utf8'));
 const encode = bytes => Buffer.from(bytes).toString('base64url');
@@ -16,7 +16,7 @@ const body = name => fromBinary(WorkContextV1Schema, Buffer.from(fixtures.find(f
 const signed = (context, key=signer) => { const payload = toBinary(WorkContextV1Schema,context); return encode(payload)+'.'+encode(sign(null,payload,key)); };
 const trustFor = (context, at=(Number(context.notBeforeUnix)+1)*1000) => trustFromKeys(create(KeysResponseSchema,{issuer:context.issuer,keys:[create(PublicKeySchema,{keyId:context.keyId,algorithm:'Ed25519',publicKey})]}), ()=>at);
 const stamped = (token, proof='test-proof') => ({'x-codefly-work-context':token,'x-codefly-hop-proof':proof,'x-codefly-hop-context':createHash('sha256').update(token).digest('hex')});
-const read = context => authenticateClaims(stamped(signed(context)), context.audience, trustFor(context));
+const read = context => authenticateToken(signed(context), context.audience, trustFor(context));
 const scope = (actions, resourceIds=[]) => create(WorkScopeV1Schema,{resourceKind:'profiles',actions,resourceIds});
 
 for (const fixture of fixtures) {
@@ -56,7 +56,7 @@ test('a forged, unsigned, misaddressed or expired context is refused by name', (
     [signed(create(WorkContextV1Schema,{...context, keyId:'rotated'})), context.audience, trust, /no verification key/],
     [signed(context), '', trust, /configuration/],
   ]) {
-    assert.throws(()=>authenticateClaims(stamped(token), audience, use), e => e instanceof Unauthenticated && reason.test(e.message));
+    assert.throws(()=>authenticateToken(token, audience, use), e => e instanceof Unauthenticated && reason.test(e.message));
   }
 });
 
@@ -66,9 +66,11 @@ test('the stamp must bind the token under this run\'s proof', () => {
     {...stamped(token), 'x-codefly-hop-context':'0'.repeat(64)},
     {...stamped(token), 'x-codefly-work-context':signed(body('operation'))},
     [...Object.entries(stamped(token)), ['x-codefly-work-context',token]],
-  ]) assert.throws(()=>authenticateClaims(headers, context.audience, trust),Unauthenticated);
+  // boundToken refuses the binding; authenticateToken then the token. Two
+  // calls, because neither of them admits a call (review r164 R4).
+  ]) assert.throws(()=>authenticateToken(boundToken(headers), context.audience, trust),Unauthenticated);
   for (const bad of ['abc','a.b.c','é.x', payloadOnly(token)+'.AA']) {
-    assert.throws(()=>authenticateClaims(stamped(bad), context.audience, trust),Unauthenticated);
+    assert.throws(()=>authenticateToken(bad, context.audience, trust),Unauthenticated);
   }
 });
 
@@ -87,7 +89,7 @@ const vectors = JSON.parse(readFileSync(new URL('../../testdata/vectors.json',im
 for (const v of vectors) {
   test(`shared vector, Go's verdict: ${v.name}`, () => {
     const trust = {issuer: v.issuer, keys: new Map(Object.entries(v.keys).map(([kid, raw]) => [kid, new Uint8Array(Buffer.from(raw,'base64'))])), now: () => v.now*1000};
-    const run = () => authenticateClaims(stamped(v.token), v.audience, trust);
+    const run = () => authenticateToken(v.token, v.audience, trust);
     if (v.accept) run();
     else assert.throws(run, e => e instanceof Unauthenticated && e.message.includes(v.reason), v.reason);
   });
@@ -296,8 +298,8 @@ test('concurrent replay has one winner and a failed store refuses admission', as
 });
 
 test('expired stamps and repeated binding headers refuse before consumption', async () => {
-  const expired = new Verifier(source(), fixture.audience, fixture.public_key, replay(), () => (fixture.now+30)*1000);
-  await assert.rejects(expired.verify(fixture.headers, METHOD), /expired/);
+  const expired = new Verifier(source(), fixture.audience, fixture.public_key, replay(), () => (fixture.now+30+SKEW)*1000);
+  await assert.rejects(expired.verify(fixture.headers, METHOD), /stamp_window/);
   for (const key of ['x-codefly-hop-proof', 'x-codefly-work-context','x-codefly-hop-context']) {
     const v = new Verifier(source(), fixture.audience, fixture.public_key, replay(), () => fixture.now*1000);
     await assert.rejects(v.verify([...Object.entries(fixture.headers),[key,fixture.headers[key]]], METHOD), Unauthenticated);
@@ -345,4 +347,34 @@ test('invalid publication and unreadable keys have distinct safe codes', async (
   const v=new Verifier(source(answer),fixture.audience,undefined,undefined,()=>fixture.now*1000);
   await assert.rejects(v.verifyToken(fixture.headers['x-codefly-work-context']), e=>e.code===code && !e.message.includes('private-'));
  }
+});
+
+// Review r164 R1: a verifier whose clock lags the hop refused genuine calls
+// whenever the signing instant fell just after a second boundary, under a
+// reason that read as an expiry. Go, Python and TypeScript allow the same SKEW.
+for (const lag of [0, 1, SKEW]) {
+ test(`a clock difference of ${lag}s inside the allowance still admits`, async () => {
+  const v = new Verifier(source(), fixture.audience, fixture.public_key, replay(), () => (fixture.now-lag)*1000);
+  assert.equal((await v.verify(fresh(fixture.now*1000), METHOD)).owner, fixture.identity.owner);
+ });
+}
+
+for (const [lag, code] of [[SKEW+1, Reason.StampIssued], [-(30+SKEW), Reason.StampWindow]]) {
+ test(`a clock difference of ${lag}s beyond the allowance is refused as ${code}`, async () => {
+  const v = new Verifier(source(), fixture.audience, fixture.public_key, replay(), () => (fixture.now-lag)*1000);
+  await assert.rejects(v.verify(fresh(fixture.now*1000), METHOD), e => e instanceof Unauthenticated && e.code === code);
+ });
+}
+
+// Review r164 R2: the reservation outlives the admission by the same
+// allowance, so a store evicting on its own clock cannot release a nonce a
+// lagging verifier would still admit.
+test('a reservation is retained past expiry by the allowance', async () => {
+ const retained = [];
+ const recording = { async consume(_nonce, retainUntil) { retained.push(retainUntil); } };
+ const v = new Verifier(source(), fixture.audience, fixture.public_key, recording, () => fixture.now*1000);
+ const headers = fresh(fixture.now*1000);
+ const payload = JSON.parse(Buffer.from(headers['x-codefly-hop-proof'].split('.')[0], 'base64url').toString('utf8'));
+ await v.verify(headers, METHOD);
+ assert.deepEqual(retained, [payload[6] + SKEW]);
 });

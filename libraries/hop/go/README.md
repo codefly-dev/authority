@@ -10,14 +10,21 @@ import (
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
 	"github.com/codefly-dev/authority/libraries/authority-client/go/host"
 	hop "github.com/codefly-dev/authority/libraries/hop/go"
+	"github.com/codefly-dev/authority/libraries/hop/go/replaypg"
 )
 
 publicKey, _ := codefly.For(ctx).WorkspaceConfiguration("hop-verification", "PUBLIC_KEY")
-// replay is the host's durable shared Core ReplayStore; never a per-replica cache.
+// The reservations: this module's own store. replaypg.Migration is its table.
+// NewVerifier refuses a store that is not the shared one outside a local run.
+pool, err := pgxpool.New(ctx, connection) // Service("store").Secret("postgres", "read-write-connection")
+replay, err := replaypg.New(pool)
 conn, _, err := host.Dial(ctx) // the local authority on a laptop, the host on a cell
 audience, err := hop.Audience() // the module the composition started this process as (CODEFLY__MODULE)
 verifier, err := hop.NewVerifier(ctx, authorityv1.NewAuthorityServiceClient(conn), audience, publicKey, replay)
 config.GRPCServerOptions = append(config.GRPCServerOptions,
+	// Records when each call arrived, so the admission window is judged at
+	// call start and not after a large request body has decoded.
+	grpc.InTapHandle(verifier.TapHandle()),
 	grpc.ChainUnaryInterceptor(verifier.UnaryServerInterceptor()),
 	grpc.ChainStreamInterceptor(verifier.StreamServerInterceptor()))
 // in a handler: id, _ := hop.FromContext(ctx); id.Tenant, id.Has(kind, action), id.Claims.Allows(kind, action, resourceID)
@@ -25,9 +32,13 @@ config.GRPCServerOptions = append(config.GRPCServerOptions,
 ```
 
 `Verify` authenticates the signed method, audience, token digest and 30-second
-admission window, authenticates the Work Context, compares identity metadata,
-and atomically consumes the call nonce in the shared replay store. It refuses
-replays across replicas without re-spending the Work Context's single use.
+admission window (with a two-second clock allowance, `stamp.Skew`, judged at the
+instant the call arrived), authenticates the Work Context, compares identity
+metadata, and atomically consumes the call nonce in the shared replay store. It
+refuses replays across replicas without re-spending the Work Context's single
+use. A process that receives no hop calls authenticates a bare Work Context with
+`NewTokenVerifier` and `VerifyToken` instead, which establishes identity and no
+admission.
 See the [wire protocol and migration contract](../README.md).
 
 The keys come from the interface's `Keys`, through the generated client: never

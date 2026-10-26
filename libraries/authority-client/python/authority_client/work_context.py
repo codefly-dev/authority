@@ -1,6 +1,6 @@
 """Authenticate the Work Context the hop forwarded to a module, then project it.
 
-``authenticate`` is the Go library's ``workcontext.Authenticate``, check for
+``authenticate_token`` is the Go library's ``workcontext.AuthenticateToken``, check for
 check: the stamp binds exactly one token to this run's hop proof by its digest,
 and the token itself must carry a valid Ed25519 signature under the authority's
 published key, name the pinned issuer, be addressed to this module and be inside
@@ -80,6 +80,7 @@ class Reason(str, Enum):
     STAMPMETHOD = "stamp_method"
     STAMPAUDIENCE = "stamp_audience"
     STAMPWINDOW = "stamp_window"
+    STAMPISSUED = "stamp_issued"
     STAMPADVISORY = "stamp_advisory"
     STAMPREPLAYED = "stamp_replayed"
     STAMPSTORE = "stamp_store"
@@ -108,6 +109,7 @@ _REASON_TEXT = {
     Reason.STAMPMETHOD: 'the hop admission was signed for another procedure',
     Reason.STAMPAUDIENCE: 'the hop admission was signed for another module',
     Reason.STAMPWINDOW: 'the hop admission is expired or outside its validity window',
+    Reason.STAMPISSUED: 'the hop admission is issued further ahead than the clock allowance',
     Reason.STAMPADVISORY: 'an advisory policy refusal cannot admit a call',
     Reason.STAMPREPLAYED: 'the hop admission has already been used',
     Reason.STAMPSTORE: 'the hop admission store is unavailable',
@@ -213,18 +215,21 @@ class Claims:
         )
 
 
-def authenticate(
-    headers: Mapping[str, str] | Iterable[tuple[str, str]], audience: str, trust: Trust
-) -> Claims:
-    """The claims of the Work Context the hop forwarded with headers to this module
-    (audience), or ``Unauthenticated`` naming why it must not be believed."""
-    if not audience:
-        raise Unauthenticated(Reason.CONFIGURATION)
-    return authenticate_token(bound_token(headers), audience, trust)
-
-
 def authenticate_token(token: str, audience: str, trust: Trust) -> Claims:
-    """Authenticate bare bytes; no hop admission, live checks or consumption."""
+    """The claims of one Work Context, for this module (``audience``), or
+    ``Unauthenticated`` naming why they must not be believed.
+
+    This is the one identity-only reader here, and identity is all it
+    establishes. It proves no hop admission: it does not check that a call was
+    admitted for the procedure it arrived on, consumes no single-use nonce, and
+    asks the authority nothing, so it checks no live revocation either. A
+    service admits a call with ``codefly_hop.Verifier.verify``.
+
+    A caller holding a call's headers extracts the token the stamp's digest
+    binds with ``bound_token`` first. That is deliberately two calls (security
+    review r164 R4): a reader taking headers reads as though it admitted the
+    call, and it does not.
+    """
     if not audience:
         raise Unauthenticated(Reason.CONFIGURATION)
     if len(token) > MAX_TOKEN_BYTES or not token.isascii() or token.count(".") != 1:

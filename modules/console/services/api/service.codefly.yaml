@@ -30,12 +30,23 @@ spec:
     rest-endpoint: false
     runtime-assets: []
 # The console reaches the authority through the interface it depends on, never a
-# service: the composition resolves which implementation answers.
+# service: the composition resolves which implementation answers. Its own store
+# it names directly: the hop admission reservations its verifier consumes must
+# survive a restart and be shared by every replica, so a run starts the store
+# first and delivers its read-write connection here (code/work.go reservations).
 service-dependencies:
     - interface: codefly.dev/authority@>=0.2.0 <0.4.0
+    - name: store
+      module: console
+      endpoints:
+        - name: tcp
 # The console acts as a workload of its own: the run vouches for it and delivers
 # its manifest to the authority.
 module-identity: true
-# Public signing key and durable shared replay volume; no signing secret.
+# The hop's public verification key, and nothing else: no signing secret, and no
+# replay volume (the reservations live in this module's store). PUBLIC_KEY has
+# no producer yet — see libraries/hop/README.md, "Delivering the verification
+# key" — so this run is configured with it by hand until the authority
+# publishes it.
 workspace-configuration-dependencies:
     - hop-verification

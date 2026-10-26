@@ -1,0 +1,49 @@
+name: store
+version: 0.0.0
+description: |
+  The console's own Postgres, holding one thing: the hop admission reservations
+  its verifier consumes. An admission is single-use, and that has to hold across
+  every replica of the console and across a restart, so the reservation cannot
+  live in the process. It used to be asked of a "shared replay volume" the
+  platform does not deliver, which in practice meant a per-pod directory and a
+  captured admission replaying once per replica. A row here is the reservation,
+  and Postgres decides the one winner among concurrent inserts.
+agent:
+    kind: codefly:service
+    name: postgres
+    version: 0.0.144
+    publisher: codefly.dev
+endpoints:
+    - name: tcp
+      # Only this module's api reaches the store, and the module interface does
+      # not export it. In-system (no `location`): the run allocates its address.
+      visibility: private
+spec:
+    auth-mode: ""
+    database-name: console
+    docker-image: ""
+    docker-image-platforms: []
+    extensions: []
+    external-instances: {}
+    hot-reload: true
+    keep-running: false
+    log-level: ""
+    migration-sources: []
+    no-migration: false
+    runtime-logins: []
+    # The agent reconciles its managed read-write principal into this role on
+    # every boot; migrations/1_hop_admissions.up.sql creates it and grants
+    # exactly what the verifier does: reserve a nonce, read it back, and remove
+    # one whose retention has passed. Never update: letting a second insert
+    # refresh a reservation would let a replay extend its own window.
+    runtime-read-write-roles:
+        - app_console
+    runtime-schemas: []
+    timeouts:
+        bootstrap-job-seconds: 0
+        bootstrap-readiness-seconds: 0
+        connect-seconds: 0
+        migration-lock-seconds: 0
+        migration-statement-seconds: 0
+        readiness-seconds: 0
+    without-ssl: false

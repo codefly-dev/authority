@@ -1,9 +1,9 @@
-import { checkCall, Replayed, type ReplayStore } from "./hop-call.js";
-export { Replayed } from "./hop-call.js";
+import { checkCall, Replayed, SKEW, type ReplayStore } from "./hop-call.js";
+export { Replayed, LIFETIME, SKEW } from "./hop-call.js";
 export type { ReplayStore } from "./hop-call.js";
 /** Work Context identity readers and method-bound, single-use hop admission.
  * Verifier consumes signed call nonces in a required durable shared ReplayStore.
- * authenticateClaims alone authenticates identity, not admission. */
+ * authenticateToken alone authenticates identity, not admission. */
 import { createHash, createPrivateKey, createPublicKey, timingSafeEqual, verify } from "node:crypto";
 import { equals, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { createValidator } from "@bufbuild/protovalidate";
@@ -69,14 +69,19 @@ export interface Claims {
 /** Server-side request headers; repeated values must not be discarded. */
 export type StampHeaders = Readonly<Record<string, string | readonly string[]>> | Iterable<readonly [string, string]>;
 
-/** The claims of the Work Context the hop forwarded to this module (audience), or
- * Unauthenticated naming why it must not be believed. */
-export function authenticateClaims(headers: StampHeaders, audience: string, trust: Trust): Claims {
-  if (!audience) throw new Unauthenticated(Reason.Configuration);
-  return authenticateToken(boundToken(headers), audience, trust);
-}
-
-/** Authenticate bare bytes without claiming hop admission or live checks. */
+/** The claims of one Work Context, for this module (audience), or
+ * Unauthenticated naming why they must not be believed.
+ *
+ * This is the one identity-only reader here, and identity is all it
+ * establishes. It proves no hop admission: it does not check that a call was
+ * admitted for the procedure it arrived on, consumes no single-use nonce, and
+ * asks the authority nothing, so it checks no live revocation either. A
+ * service admits a call with Verifier.verify.
+ *
+ * A caller holding a call's headers extracts the token the stamp's digest binds
+ * with boundToken first. That is deliberately two calls (security review r164
+ * R4): a reader taking headers reads as though it admitted the call, and it
+ * does not. */
 export function authenticateToken(token: string, audience: string, trust: Trust): Claims {
   if (!audience) throw new Unauthenticated(Reason.Configuration);
   if (token.length > MAX_TOKEN_BYTES || token.split(".").length !== 2) {
@@ -338,10 +343,13 @@ export class Verifier {
         throw new Unauthenticated(Reason.StampIdentity);
       }
     }
-    if (call.expires <= Math.floor(this.now() / 1000)) throw new Unauthenticated(Reason.StampWindow);
-    try { await this.replay.consume(call.nonce, call.expires); }
+    // checkCall judged the admission window when the call started, and the
+    // window bounds a call's start, so it is judged once and not again here.
+    // The reservation is retained to expiry plus the allowance and no longer:
+    // a replay can only be admitted if it too arrives inside the window, and
+    // inside the window the nonce is still retained.
+    try { await this.replay.consume(call.nonce, call.expires + SKEW); }
     catch (error) { throw new Unauthenticated(error instanceof Replayed ? Reason.StampReplayed : Reason.StampStore); }
-    if (call.expires <= Math.floor(this.now() / 1000)) throw new Unauthenticated(Reason.StampWindow);
     // An admission carrying an advisory refusal is refused by checkCall, so an
     // admitted call never has one: diagnostic identity is never authority.
     return Object.freeze({ ...id, advisory: "" });

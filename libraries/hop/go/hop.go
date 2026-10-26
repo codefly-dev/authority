@@ -47,6 +47,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/grpc/tap"
 )
 
 // WorkContextKey carries the caller's Work Context to the hop, as everywhere.
@@ -267,7 +268,43 @@ func NewVerifier(ctx context.Context, keys KeySource, audience, publicKey string
 	if replay == nil || keyErr != nil || len(raw) != ed25519.PublicKeySize || hex.EncodeToString(raw) != publicKey {
 		return nil, refusal.Configuration
 	}
+	if err := durableOutsideLocal(replay); err != nil {
+		return nil, err
+	}
 	return newVerifier(ctx, keys, audience, publicKey, replay)
+}
+
+// SharedReplayStore is a replay store that reports whether it is the durable
+// reservation shared by every replica that the admission contract requires.
+// replaypg.Store and a FileReplayStore opened with NewSharedFileReplayStore
+// report true; Core's in-memory store does not implement this at all.
+type SharedReplayStore interface {
+	core.ReplayStore
+	Shared() bool
+}
+
+// ErrReplayStoreNotShared is the named refusal for a replay store that cannot
+// be the one every replica shares. A process-local set answers only for its own
+// process, so a captured stamp replays once per replica inside its window, and
+// a restart forgets every reservation. The contract has always forbidden that
+// outside local; this refuses it at startup instead of documenting it.
+//
+// It is judged by CODEFLY__ENVIRONMENT, the environment the composition started
+// this process in. A local run may use any store, so a laptop and a test keep
+// working with Core's in-memory store and hoptest.Replay.
+var ErrReplayStoreNotShared = errors.New("hop: this replay store is not the durable store every replica shares, which admission requires outside a local run: a captured admission would replay once per replica, and a restart would forget every reservation. Use replaypg.New over the module's own store, or NewSharedFileReplayStore for a genuinely shared mount")
+
+// durableOutsideLocal refuses a store that does not declare itself shared,
+// unless this process runs in a local environment.
+func durableOutsideLocal(replay core.ReplayStore) error {
+	environment := strings.TrimSpace(os.Getenv(resources.EnvironmentPrefix))
+	if environment == "" || strings.HasPrefix(environment, "local") {
+		return nil
+	}
+	if shared, ok := replay.(SharedReplayStore); ok && shared.Shared() {
+		return nil
+	}
+	return fmt.Errorf("%w (environment %s)", ErrReplayStoreNotShared, environment)
 }
 
 // NewTokenVerifier builds a verifier for Issue responses in a process that does
@@ -332,7 +369,13 @@ func (v *Verifier) Verify(ctx context.Context, md metadata.MD, method string) (I
 		// public key nor a replay store, so it can establish no admission.
 		return Identity{}, fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.Configuration)
 	}
-	call, err := stamp.Check(md, v.publicKey, method, v.audience, v.now())
+	// The window is judged at the instant the call arrived, which TapHandle
+	// recorded when the stream was accepted. grpc-go decodes a unary request
+	// before it runs the interceptor, so judging at this point would refuse a
+	// genuinely admitted upload that simply took longer than Lifetime to
+	// arrive. Without a tap handle the arrival instant is now, as before.
+	arrival := arrivalFrom(ctx, v.now)
+	call, err := stamp.Check(md, v.publicKey, method, v.audience, arrival)
 	if err != nil {
 		return Identity{}, fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, err)
 	}
@@ -343,17 +386,22 @@ func (v *Verifier) Verify(ctx context.Context, md metadata.MD, method string) (I
 	if err := sameAsStamped(md, id); err != nil {
 		return Identity{}, err
 	}
-	if call.Expires <= v.now().Unix() {
-		return Identity{}, fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.StampWindow)
-	}
-	if err := v.replay.Consume(ctx, call.ReplayKey(v.publicKey), time.Unix(call.Expires, 0)); err != nil {
+	// stamp.Check judged the admission window against arrival above, and the
+	// window bounds when a call may start, so it is judged once and not again
+	// here: the key read and the reservation below happen while the admitted
+	// call is already running.
+	skew := int64(stamp.Skew / time.Second)
+	// The reservation is retained to expiry plus the same allowance, and no
+	// longer. That horizon is sound because the window above is judged at
+	// arrival: a replay of this stamp can only be admitted if it too arrives
+	// inside the window, and inside the window the nonce is still retained. A
+	// store evicting on its own clock therefore releases a nonce only once
+	// every call carrying it would already be refused on its window.
+	if err := v.replay.Consume(ctx, call.ReplayKey(v.publicKey), time.Unix(call.Expires+skew, 0)); err != nil {
 		if errors.Is(err, core.ErrReplayed) {
 			return Identity{}, fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.StampReplayed)
 		}
 		return Identity{}, fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.StampStore)
-	}
-	if call.Expires <= v.now().Unix() {
-		return Identity{}, fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.StampWindow)
 	}
 	// An admission carrying an advisory refusal is refused by stamp.Check, so
 	// an admitted call never has one: diagnostic identity is never authority.
@@ -546,4 +594,42 @@ func first(md metadata.MD, key string) string {
 		return v[0]
 	}
 	return ""
+}
+
+type arrivalKey struct{}
+
+// arrivalFrom is the instant the call arrived, as TapHandle recorded it, or
+// now when the server runs no tap handle.
+func arrivalFrom(ctx context.Context, now func() time.Time) time.Time {
+	if at, ok := ctx.Value(arrivalKey{}).(time.Time); ok {
+		return at
+	}
+	return now()
+}
+
+// TapHandle records when each call arrived, before its body is read, so Verify
+// judges the admission window at call start.
+//
+// grpc-go decodes a unary request fully before it invokes the unary
+// interceptor, and the Connect and REST faces buffer the message too. A module
+// that serves large or slow unary requests would therefore refuse an admission
+// the authority granted, because more than stamp.Lifetime passed while the
+// body arrived. Installing this handle moves that judgement to the instant the
+// stream was accepted, which is also where Python's interceptors already run,
+// so the three languages agree on when a call starts.
+//
+// Install it beside the interceptors:
+//
+//	grpc.NewServer(grpc.InTapHandle(verifier.TapHandle()),
+//		grpc.ChainUnaryInterceptor(verifier.UnaryServerInterceptor()),
+//		grpc.ChainStreamInterceptor(verifier.StreamServerInterceptor()))
+//
+// It authenticates nothing and refuses nothing: it reads no header and runs no
+// cryptography, because it runs on the connection's I/O goroutine, where a
+// signature check would serialise every stream on that connection. Admission
+// stays in the interceptor.
+func (v *Verifier) TapHandle() tap.ServerInHandle {
+	return func(ctx context.Context, _ *tap.Info) (context.Context, error) {
+		return context.WithValue(ctx, arrivalKey{}, v.now()), nil
+	}
 }

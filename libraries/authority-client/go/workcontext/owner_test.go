@@ -91,7 +91,7 @@ func TestAChainThatDropsOrChangesTheOwnerIsRefused(t *testing.T) {
 				actor.GrantedScopes = []*basev0.WorkScopeV1{owned}
 			}
 			c.ActorChain[len(c.ActorChain)-1].GrantedScopes = []*basev0.WorkScopeV1{tc.last}
-			_, err := reader.Authenticate(stampedToken(tokenFor(t, c)), c.GetAudience(), trustFor(c))
+			_, err := reader.AuthenticateToken(tokenFor(t, c), c.GetAudience(), trustFor(c))
 			if (err == nil) != tc.ok {
 				t.Fatalf("authenticate: %v", err)
 			}
@@ -138,7 +138,7 @@ func TestResourceOwnerVectorsAreCores(t *testing.T) {
 	authenticate := func(owner string) error {
 		c := body(t, "session")
 		c.AuthorityScopes = []*basev0.WorkScopeV1{ownedScope(t, "record", "read", owner)}
-		_, err := reader.Authenticate(stampedToken(tokenFor(t, c)), c.GetAudience(), trustFor(c))
+		_, err := reader.AuthenticateToken(tokenFor(t, c), c.GetAudience(), trustFor(c))
 		return err
 	}
 	for _, v := range vectors.Accepted {

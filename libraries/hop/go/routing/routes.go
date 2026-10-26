@@ -3,6 +3,7 @@ package routing
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -105,6 +106,41 @@ func (r *Routing) Validate() error {
 				}
 				seen[grpcKey] = true
 			}
+		}
+	}
+	return r.refuseTranscodedREST()
+}
+
+// ErrTranscodedREST is the named refusal for a REST face a module transcodes
+// into the listener its admission is checked on. The hop signs an HTTP route as
+// "VERB /path", because that is what it decided and all a published http route
+// tells it; a transcoded face hands the request to the same gRPC listener,
+// whose verifier observes "/package.Service/Procedure". The two can never
+// agree, so every REST call behind the hop would be refused as stamp_method
+// after the authority had already admitted it.
+//
+// A module cannot work around it: verifying at the REST layer as well as the
+// interceptor would consume the admission nonce twice and refuse as replayed,
+// so exactly one layer may verify and the hop cannot tell which one will.
+// Signing the procedure instead would need the published route to carry the
+// template-to-procedure mapping its producer holds; the hop-routes schema
+// carries no such field, so this is refused at startup rather than at every
+// call. A module serving HTTP natively, with no gRPC or Connect face on the
+// same service, is unaffected.
+var ErrTranscodedREST = errors.New("hop routes: a REST face transcoded into a gRPC or Connect listener cannot be admitted behind the hop: the hop signs \"VERB /path\" for an http route while that listener's verifier observes the full procedure. Publish the module's HTTP face as its own service, or reach it through Connect")
+
+// refuseTranscodedREST refuses an http route published beside a gRPC or
+// Connect route on the same listener's service: that is a transcoded REST face.
+func (r *Routing) refuseTranscodedREST() error {
+	procedural := map[string]bool{}
+	for _, e := range r.Endpoints {
+		if e.Transport == "grpc" || e.Transport == "connect" {
+			procedural[e.Audience+"/"+e.Service] = true
+		}
+	}
+	for _, e := range r.Endpoints {
+		if e.Transport == "http" && procedural[e.Audience+"/"+e.Service] {
+			return fmt.Errorf("%w (%s/%s, endpoint %s)", ErrTranscodedREST, e.Audience, e.Service, e.Endpoint)
 		}
 	}
 	return nil

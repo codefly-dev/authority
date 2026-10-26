@@ -17,7 +17,7 @@ from concurrent import futures
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from .call import Replayed, ReplayStore, check
+from .call import SKEW, Replayed, ReplayStore, check
 from authority_client._gen.host.authority.v1.authority_pb2 import KeysRequest
 from authority_client._gen.host.authority.v1.work_context_pb2 import WorkContextV1
 from authority_client.work_context import Claims, Trust, Unauthenticated, Reason, authenticate_token, bound_token, collect
@@ -161,15 +161,13 @@ class Verifier:
                 pass  # judged below on the keys held: stale ones are refused with the reason
         identity = self._finish(pairs, token, call, consume=False)
         try:
-            await self._replay.consume_async(call.nonce, call.expires)
+            await self._replay.consume_async(call.nonce, call.expires + SKEW)
         except Replayed as error:
             raise Unauthenticated(Reason.STAMPREPLAYED) from error
         except Unauthenticated:
             raise
         except Exception as error:
             raise Unauthenticated(Reason.STAMPSTORE) from error
-        if call.expires <= int(self._now()):
-            raise Unauthenticated(Reason.STAMPWINDOW)
         return identity
 
     def verify_token(self, token: str) -> Identity:
@@ -238,19 +236,21 @@ class Verifier:
             got = values.get(key, [])
             if len(got) > 1 or (got[0] if got else "") != want:
                 raise Unauthenticated(Reason.STAMPIDENTITY)
-        if call.expires <= int(self._now()):
-            raise Unauthenticated(Reason.STAMPWINDOW)
+        # ``check`` judged the admission window when the call started, which in
+        # Python is before the request is read; the window bounds a call's
+        # start, so it is judged once and not again here. The reservation is
+        # retained to expiry plus the allowance and no longer: a replay can
+        # only be admitted if it too arrives inside the window, and inside the
+        # window the nonce is still retained.
         if consume:
             try:
-                self._replay.consume(call.nonce, call.expires)
+                self._replay.consume(call.nonce, call.expires + SKEW)
             except Replayed as error:
                 raise Unauthenticated(Reason.STAMPREPLAYED) from error
             except Unauthenticated:
                 raise
             except Exception as error:
                 raise Unauthenticated(Reason.STAMPSTORE) from error
-            if call.expires <= int(self._now()):
-                raise Unauthenticated(Reason.STAMPWINDOW)
         # An admission carrying an advisory refusal is refused by ``check``, so
         # an admitted call never has one: diagnostic identity is never authority.
         return Identity(**{**identity.__dict__, "context": token, "advisory": "", "claims": identity.claims})
