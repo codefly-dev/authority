@@ -64,7 +64,8 @@ func isAgentAdapter(file *ast.File, relative string) bool {
 //   - each grpc.NewClient, grpc.Dial, grpc.DialContext and
 //     Register…HandlerFromEndpoint passes, as its options, a call of the
 //     package's gatewayDialOptions, or a local variable whose one and only
-//     write is its definition from such a call;
+//     write is its definition from such a call and whose only uses are dial
+//     options arguments (no aliases, indexing, slicing, calls or escapes);
 //   - gatewayDialOptions, declared in a generated adapter, builds its options
 //     from a slice literal holding grpc.WithNoProxy() and returns them with
 //     grpc.WithTransportCredentials(loopbackTransport{…}) appended last, in
@@ -150,7 +151,7 @@ func (c selfDials) violations() []string {
 			}
 			dials = append(dials, call)
 			if seam == nil || !c.fromSeam(options, seam) {
-				violations = append(violations, fmt.Sprintf("%s: a generated self-dial must pass gatewayDialOptions(…), or a variable defined once from it, as its options", c.where(call)))
+				violations = append(violations, fmt.Sprintf("%s: a generated self-dial must pass gatewayDialOptions(…), or a local defined once from it and used only as dial options (no aliases, indexing, slicing, other calls or address-taking), as its options", c.where(call)))
 			}
 			return true
 		})
@@ -174,10 +175,14 @@ func (c selfDials) dialOptions(call *ast.CallExpr) (ast.Expr, bool) {
 		return nil, false
 	}
 	if c.isGRPC(selector, "NewClient", "Dial", "DialContext") {
-		if len(call.Args) != 2 || !call.Ellipsis.IsValid() {
+		count := 2
+		if selector.Sel.Name == "DialContext" {
+			count = 3
+		}
+		if len(call.Args) != count || !call.Ellipsis.IsValid() {
 			return nil, true // anything but one spread options argument is refused
 		}
-		return call.Args[1], true
+		return call.Args[count-1], true
 	}
 	if fromEndpoint.MatchString(selector.Sel.Name) {
 		if len(call.Args) == 0 || call.Ellipsis.IsValid() {
@@ -218,7 +223,9 @@ func (c selfDials) callsFunc(expression ast.Expr, function types.Object) bool {
 }
 
 // fromSeam reports whether options is a call of seam, or a local variable whose
-// one and only write is its definition from a call of seam.
+// one and only write is its definition from a call of seam, and whose every
+// use is the entire options argument of a dial. Checking uses by object identity
+// closes backing-array escapes without trying to infer what arbitrary calls do.
 func (c selfDials) fromSeam(options ast.Expr, seam *types.Func) bool {
 	if options == nil {
 		return false
@@ -232,6 +239,22 @@ func (c selfDials) fromSeam(options ast.Expr, seam *types.Func) bool {
 	}
 	variable, ok := c.info.Uses[identifier].(*types.Var)
 	if !ok || variable.Parent() == c.pkg.Scope() {
+		return false
+	}
+	allowed := map[*ast.Ident]bool{}
+	for _, file := range c.parsed {
+		ast.Inspect(file, func(node ast.Node) bool {
+			if call, ok := node.(*ast.CallExpr); ok {
+				if argument, dial := c.dialOptions(call); dial {
+					if id, ok := argument.(*ast.Ident); ok {
+						allowed[id] = true
+					}
+				}
+			}
+			return true
+		})
+	}
+	if !c.onlyUses(variable, allowed) {
 		return false
 	}
 	writes := c.writes(variable)
@@ -248,6 +271,17 @@ func (c selfDials) fromSeam(options ast.Expr, seam *types.Func) bool {
 		}
 	}
 	return false
+}
+
+// onlyUses refuses any occurrence outside the explicitly permitted positions,
+// including reads that can alias a slice or expose its backing array to a call.
+func (c selfDials) onlyUses(variable *types.Var, allowed map[*ast.Ident]bool) bool {
+	for identifier, object := range c.info.Uses {
+		if object == variable && !allowed[identifier] {
+			return false
+		}
+	}
+	return true
 }
 
 // writes are the statements and expressions that can change variable: an
@@ -321,6 +355,27 @@ func (c selfDials) seamRefusal(seam *types.Func) string {
 	if declaration == nil || declaration.Body == nil || len(declaration.Body.List) == 0 {
 		return "has no body"
 	}
+	// Reject these operations anywhere in the body, including nested expressions
+	// or closures; neither copy nor indexed writes can preserve the proof.
+	mutation := false
+	ast.Inspect(declaration.Body, func(node ast.Node) bool {
+		switch n := node.(type) {
+		case *ast.AssignStmt:
+			for _, target := range n.Lhs {
+				if _, ok := target.(*ast.Ident); !ok {
+					mutation = true
+				}
+			}
+		case *ast.CallExpr:
+			if c.isBuiltin(n.Fun, "copy") {
+				mutation = true
+			}
+		}
+		return true
+	})
+	if mutation {
+		return "contains an indexed, sliced or indirect assignment, or copy"
+	}
 	statements := declaration.Body.List
 	final, ok := statements[len(statements)-1].(*ast.ReturnStmt)
 	if !ok || len(final.Results) != 1 {
@@ -339,42 +394,40 @@ func (c selfDials) seamRefusal(seam *types.Func) string {
 		return "does not return a local options slice"
 	}
 	noProxy := false
+	allowed := map[*ast.Ident]bool{identifier: true}
 	for _, statement := range statements[:len(statements)-1] {
 		assignment, ok := statement.(*ast.AssignStmt)
 		if !ok {
 			return "sets its options outside straight-line assignments"
 		}
-		for i, target := range assignment.Lhs {
-			id, ok := target.(*ast.Ident)
-			if !ok || (c.info.Defs[id] != options && c.info.Uses[id] != options) {
-				continue
-			}
-			if len(assignment.Lhs) != len(assignment.Rhs) {
-				return "assigns its options from a multi-value expression"
-			}
-			value := assignment.Rhs[i]
-			switch {
-			case assignment.Tok == token.DEFINE && c.info.Defs[id] == options:
-				noProxy = c.holdsNoProxy(value)
-			case assignment.Tok == token.ASSIGN:
-				grown, ok := value.(*ast.CallExpr)
-				first, isIdent := ast.Expr(nil), false
-				if ok && len(grown.Args) > 0 {
-					first = grown.Args[0]
-					_, isIdent = first.(*ast.Ident)
-				}
-				if !ok || !c.isBuiltin(grown.Fun, "append") || !isIdent || c.info.Uses[first.(*ast.Ident)] != options {
-					return "replaces its options rather than appending to them"
-				}
-			default:
-				return "writes its options other than by definition or append"
-			}
+		if len(assignment.Lhs) != 1 || len(assignment.Rhs) != 1 {
+			return "must define or append its options in single-value assignments"
 		}
-	}
-	for _, write := range c.writes(options) {
-		if _, ok := write.(*ast.AssignStmt); !ok {
+		id, ok := assignment.Lhs[0].(*ast.Ident)
+		if !ok || (c.info.Defs[id] != options && c.info.Uses[id] != options) {
+			return "assigns something other than its options slice"
+		}
+		allowed[id] = true
+		value := assignment.Rhs[0]
+		switch {
+		case assignment.Tok == token.DEFINE && c.info.Defs[id] == options:
+			noProxy = c.holdsNoProxy(value)
+		case assignment.Tok == token.ASSIGN:
+			grown, ok := value.(*ast.CallExpr)
+			var first *ast.Ident
+			if ok && len(grown.Args) > 0 {
+				first, _ = grown.Args[0].(*ast.Ident)
+			}
+			if !ok || !c.isBuiltin(grown.Fun, "append") || first == nil || c.info.Uses[first] != options {
+				return "replaces its options rather than appending to them"
+			}
+			allowed[first] = true
+		default:
 			return "writes its options other than by definition or append"
 		}
+	}
+	if !c.onlyUses(options, allowed) {
+		return "uses its options outside the permitted append and return positions"
 	}
 	if !noProxy {
 		return "does not define its options from a slice literal holding grpc.WithNoProxy()"
@@ -587,7 +640,7 @@ func other(raw []grpc.DialOption) {
 			map[string]string{"rest_gen.go": fixtureDials, "grpc_gen.go": replace(fixtureSeam,
 				"options := []grpc.DialOption{grpc.WithNoProxy()}\n",
 				"_ = grpc.WithNoProxy()\n\toptions := []grpc.DialOption{}\n")},
-			"slice literal holding grpc.WithNoProxy()"},
+			"assigns something other than its options slice"},
 		{"options replaced inside the seam",
 			map[string]string{"rest_gen.go": fixtureDials, "grpc_gen.go": replace(fixtureSeam,
 				"options = append(options, extra...)\n", "options = extra\n")},
@@ -619,5 +672,110 @@ func other(raw []grpc.DialOption) {
 			}
 			t.Fatalf("want a refusal containing %q, got %q", c.refusal, violations)
 		})
+	}
+}
+
+func TestIndependentReviewSliceMutation(t *testing.T) {
+	for name, change := range map[string]string{
+		"alias erases loopback credentials": "alias := opts\n\talias[len(alias)-1] = grpc.WithTransportCredentials(insecure.NewCredentials())",
+		"copy erases loopback credentials":  "copy(opts[len(opts)-1:], []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())})",
+	} {
+		t.Run(name, func(t *testing.T) {
+			dials := strings.Replace(fixtureDials, "\"context\"", "\"context\"\n\"google.golang.org/grpc/credentials/insecure\"", 1)
+			dials = strings.Replace(dials, "opts := gatewayDialOptions(extra...)", "opts := gatewayDialOptions(extra...)\n\t"+change, 1)
+			got := judge(t, map[string]string{"grpc_gen.go": fixtureSeam, "rest_gen.go": dials})
+			if len(got) == 0 {
+				t.Fatal("unsafe mutable slice accepted with zero violations")
+			} else {
+				t.Log(got)
+			}
+		})
+	}
+	t.Run("seam erases WithNoProxy by indexed assignment", func(t *testing.T) {
+		seam := strings.Replace(fixtureSeam, "options = append(options, extra...)", "options[0] = grpc.WithTransportCredentials(insecure.NewCredentials())\n\toptions = append(options, extra...)", 1)
+		got := judge(t, map[string]string{"grpc_gen.go": seam, "rest_gen.go": fixtureDials})
+		if len(got) == 0 {
+			t.Fatal("WithNoProxy overwritten in seam accepted with zero violations")
+		} else {
+			t.Log(got)
+		}
+	})
+}
+
+func TestSelfDialOptionsCannotEscape(t *testing.T) {
+	for name, use := range map[string]string{
+		"alias without a visible write": "alias := opts; _ = alias",
+		"indexed read":                  "_ = opts[0]",
+		"indexed write":                 "opts[0] = extra[0]",
+		"slice":                         "_ = opts[:]",
+		"full slice":                    "_ = opts[:len(opts):cap(opts)]",
+		"copy destination":              "copy(opts, extra)",
+		"copy source":                   "copy(extra, opts)",
+		"mutating call":                 "mutate(opts)",
+		"variadic call":                 "mutateVariadic(opts...)",
+		"address":                       "_ = &opts",
+		"element address":               "_ = &opts[0]",
+		"closure alias":                 "f := func() { mutate(opts) }; f()",
+		"return escape":                 "f := func() []grpc.DialOption { return opts }; _ = f",
+		"channel escape":                "ch := make(chan []grpc.DialOption, 1); ch <- opts",
+		"append alias":                  "alias := append(opts, extra...); _ = alias",
+		"dial target is not options":    "_, _ = grpc.NewClient(opts, gatewayDialOptions()...)",
+		"deferred mutation":             "defer mutate(opts)",
+	} {
+		t.Run(name, func(t *testing.T) {
+			dials := strings.Replace(fixtureDials, "opts := gatewayDialOptions(extra...)",
+				"opts := gatewayDialOptions(extra...)\n\t"+use, 1)
+			dials += "\nfunc mutate(options []grpc.DialOption) { options[0] = nil }\nfunc mutateVariadic(options ...grpc.DialOption) { options[0] = nil }\n"
+			violations := judge(t, map[string]string{"grpc_gen.go": fixtureSeam, "rest_gen.go": dials})
+			if !strings.Contains(strings.Join(violations, "\n"), "used only as dial options") {
+				t.Fatalf("want a refusal explaining restricted options use, got %q", violations)
+			}
+		})
+	}
+}
+
+func TestGatewayDialOptionsRefusesBackingArrayMutation(t *testing.T) {
+	for name, use := range map[string]string{
+		"copy statement":                   "copy(options, extra)",
+		"copy expression":                  "n := copy(options, extra); _ = n",
+		"copy in closure":                  "f := func() { copy(options, extra) }; f()",
+		"indexed assignment":               "options[0] = extra[0]",
+		"parenthesized indexed assignment": "(options[0]) = extra[0]",
+		"slice assignment":                 "options[:] = extra",
+		"alias":                            "alias := options; alias[0] = extra[0]",
+		"call mutating backing array":      "mutate(options)",
+		"mutation in append argument":      "options = append(options, mutate(options)...)",
+		"address in append argument":       "options = append(options, mutatePointer(&options)...)",
+		"reslice in append":                "options = append(options[:0], extra...)",
+	} {
+		t.Run(name, func(t *testing.T) {
+			seam := strings.Replace(fixtureSeam, "options = append(options, extra...)",
+				use+"\n\toptions = append(options, extra...)", 1)
+			seam += "\nfunc mutate(options []grpc.DialOption) []grpc.DialOption { options[0] = nil; return options }\nfunc mutatePointer(options *[]grpc.DialOption) []grpc.DialOption { *options = nil; return nil }\n"
+			violations := judge(t, map[string]string{"grpc_gen.go": seam, "rest_gen.go": fixtureDials})
+			if !strings.Contains(strings.Join(violations, "\n"), "gatewayDialOptions ") {
+				t.Fatalf("want a reason for refusing the seam, got %q", violations)
+			}
+		})
+	}
+}
+
+func TestSelfDialOptionsAcceptsEachDial(t *testing.T) {
+	for _, dial := range []string{
+		`grpc.NewClient("127.0.0.1:1", OPTIONS...)`,
+		`grpc.Dial("127.0.0.1:1", OPTIONS...)`,
+		`grpc.DialContext(ctx, "127.0.0.1:1", OPTIONS...)`,
+		`gen.RegisterSvcServiceHandlerFromEndpoint(ctx, nil, "127.0.0.1:1", OPTIONS)`,
+	} {
+		for _, options := range []string{"opts", "gatewayDialOptions(extra...)"} {
+			t.Run(dial+options, func(t *testing.T) {
+				dials := strings.Replace(fixtureDials,
+					`_, _ = grpc.NewClient("127.0.0.1:1", opts...)`,
+					strings.Replace(dial, "OPTIONS", options, 1), 1)
+				if violations := judge(t, map[string]string{"grpc_gen.go": fixtureSeam, "rest_gen.go": dials}); len(violations) != 0 {
+					t.Fatalf("refused direct or unescaped local options: %q", violations)
+				}
+			})
+		}
 	}
 }
