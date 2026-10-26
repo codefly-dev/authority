@@ -53,14 +53,39 @@ transport every request carrying a Work Context, a stamp or the run's proof goes
 over (the hop's HTTP face and the edge's reverse proxy both use it). It is an
 `http.RoundTripper` that cannot be unwrapped into the shared `*http.Transport`, so
 no caller can turn proxies back on for everyone. **The no-proxy gate**
-(`host/gate_test.go`, run by `go test ./...` here) parses every non-test Go file
-in the repository and fails, naming the file and line, on `http.DefaultTransport`,
-`http.DefaultClient`, `http.Get`/`Head`/`Post`/`PostForm`,
-`httputil.NewSingleHostReverseProxy`, an `http.Client` or `httputil.ReverseProxy`
-whose `Transport` is not `host.HTTPTransport()`, and a `grpc.NewClient`/`Dial`
-without `host.DialOptions(...)`. Only the go-grpc agent's generated self-dials are
-allowlisted, until its template carries `grpc.WithNoProxy()`; an entry must be
-removed once its regenerated file does. Remote endpoints
+(`tools/noproxygate`, run by its `go test` and by CI on every pull request)
+type-checks every production package directory in every module, including
+`_`, `.`, and `testdata` directories. It refuses production build constraints
+(active or inactive), platform filenames, source symlinks, and load/type errors. It checks
+specific source forms by resolved object identity: banned default HTTP and
+process APIs; gRPC and `Register…HandlerFromEndpoint` calls without the seam;
+transport-overriding options appended after the seam; value storage and
+conversions in both directions, including type parameters, for HTTP clients,
+proxies and transports; and unsafe transport-field writes. Opaque appended
+option slices and constructors are refused too.
+
+Every loaded file is judged. `unsafe`, `import "C"` and `//go:linkname` are
+refused in hand-written code. Limited generated exceptions require a known
+marker, the corresponding output filename, and the reviewed SHA-256 digest at
+that path in `tools/noproxygate/generated.json`. This includes the go-grpc
+agent's own marker. A copied marker never grants an exemption. After
+`codefly generate`, review its outputs and update the manifest; the manifest
+is trusted review metadata, not independent proof of generator execution.
+
+Generated adapters use the same object-identity self-dial rule brought from
+PR #22: options come from the package's generated `gatewayDialOptions`,
+directly or through a local variable defined once. That function must retain
+`grpc.WithNoProxy()` and append the generated loopback credentials last.
+There is no file allowlist or function-name exemption. Generated grpc-gateway
+forwarders may dial only their own parameters; their callers must pass seam
+options. Hand-written wrappers receive no forwarding exemption.
+
+Blind spots: `_test.go` files, raw sockets, reflection, unlisted process APIs,
+third-party clients, behavior in callbacks passed to allowed gRPC options,
+and dependency internals. The gate is not whole-program data-flow analysis:
+pointer replacement, aliased slice mutation and interface-hidden values are
+not tracked. Passing means the refused source forms are absent, not that all
+possible proxy or credential bypasses have been proved impossible. Remote endpoints
 use verified HTTPS/TLS unless the composition asserts
 `internal-transport/mesh-protected=true` and the target is an in-cluster Service
 DNS name. Plaintext loopback is accepted only in a local Codefly environment: the one named exactly `local` (the SDK's `IsLocal`); no name prefix is reserved for local runs.

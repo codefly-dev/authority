@@ -6,7 +6,7 @@
   },
   "tags": [
     {
-      "name": "GatewayService"
+      "name": "LocalService"
     }
   ],
   "consumes": [
@@ -18,7 +18,7 @@
   "paths": {
     "/version": {
       "get": {
-        "operationId": "GatewayService_Version",
+        "operationId": "LocalService_Version",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -34,7 +34,7 @@
           }
         },
         "tags": [
-          "GatewayService"
+          "LocalService"
         ]
       }
     }

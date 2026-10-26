@@ -22,7 +22,6 @@ import (
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
@@ -72,16 +71,6 @@ func gatewayMuxOptions(extra ...runtime.ServeMuxOption) []runtime.ServeMuxOption
 	return append(options, extra...)
 }
 
-// gatewayDialOptions is how this listener reaches the gRPC server — for the
-// gateway's own hop and for the health probe's client — with extra appended to
-// the generated options. The hop carries whatever an RPC carries, so a service
-// whose messages exceed gRPC's 4 MiB default call bounds raises them here with
-// grpc.WithDefaultCallOptions rather than losing the hop at the proxy.
-func gatewayDialOptions(extra ...grpc.DialOption) []grpc.DialOption {
-	options := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
-	return append(options, extra...)
-}
-
 func (s *RestServer) Run(ctx context.Context) error {
 	fmt.Println("Starting Rest server at", *s.config.EndpointHttpPort)
 
@@ -94,20 +83,20 @@ func (s *RestServer) Run(ctx context.Context) error {
 
 	opts := gatewayDialOptions(s.config.GatewayDialOptions...)
 
-	err := gen.RegisterHopServiceHandlerFromEndpoint(ctx, gwMux, fmt.Sprintf("0.0.0.0:%d", s.config.EndpointGrpcPort), opts)
+	err := gen.RegisterHopServiceHandlerFromEndpoint(ctx, gwMux, fmt.Sprintf("127.0.0.1:%d", s.config.EndpointGrpcPort), opts)
 	if err != nil {
 		return err
 	}
 
 	// Register plugin REST handlers
 	for _, p := range plugins.All() {
-		if err := p.RegisterREST(ctx, gwMux, fmt.Sprintf("0.0.0.0:%d", s.config.EndpointGrpcPort), opts); err != nil {
+		if err := p.RegisterREST(ctx, gwMux, fmt.Sprintf("127.0.0.1:%d", s.config.EndpointGrpcPort), opts); err != nil {
 			return fmt.Errorf("plugin %s REST registration failed: %w", p.Name(), err)
 		}
 	}
 
 	// Expose the gRPC health check as /healthz for HTTP probes
-	healthConn, err := grpc.NewClient(fmt.Sprintf("0.0.0.0:%d", s.config.EndpointGrpcPort), opts...)
+	healthConn, err := grpc.NewClient(fmt.Sprintf("127.0.0.1:%d", s.config.EndpointGrpcPort), opts...)
 	if err != nil {
 		return fmt.Errorf("failed to create health client connection: %w", err)
 	}

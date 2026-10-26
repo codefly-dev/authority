@@ -68,8 +68,15 @@ var httpTransport = func() noProxy {
 // HTTPTransport is DialOptions for HTTP: the one RoundTripper every HTTP request
 // carrying a Work Context, a stamp or the run's proof is sent over (the hop's
 // HTTP face, the edge's reverse proxy). It never consults HTTP_PROXY or
-// HTTPS_PROXY, and it exposes no *http.Transport to reconfigure. The repo's
-// no-proxy gate (gate_test.go) refuses any other way of making such a request.
+// HTTPS_PROXY, and it exposes no *http.Transport to reconfigure. The
+// repository's no-proxy gate (tools/noproxygate) checks production packages,
+// including hidden/testdata directories, and refuses build constraints and
+// unjudged files. It refuses specific source forms that bypass the seams; it
+// does not prove whole-program transport safety. Blind spots: tests, raw
+// sockets, reflection, unlisted process APIs, third-party clients, option
+// callbacks, dependency internals, pointer replacement, aliased slice mutation
+// and interface-hidden values. Generated exceptions require reviewed content
+// digests, and generated adapter self-dials have their own object-identity rule.
 func HTTPTransport() http.RoundTripper { return httpTransport }
 
 // Target is the gRPC target and transport for the host at endpoint:

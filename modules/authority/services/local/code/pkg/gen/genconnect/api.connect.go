@@ -22,8 +22,8 @@ import (
 const _ = connect.IsAtLeastVersion1_13_0
 
 const (
-	// GatewayServiceName is the fully-qualified name of the GatewayService service.
-	GatewayServiceName = "api.GatewayService"
+	// LocalServiceName is the fully-qualified name of the LocalService service.
+	LocalServiceName = "api.LocalService"
 )
 
 // These constants are the fully-qualified names of the RPCs defined in this package. They're
@@ -34,76 +34,76 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
-	// GatewayServiceVersionProcedure is the fully-qualified name of the GatewayService's Version RPC.
-	GatewayServiceVersionProcedure = "/api.GatewayService/Version"
+	// LocalServiceVersionProcedure is the fully-qualified name of the LocalService's Version RPC.
+	LocalServiceVersionProcedure = "/api.LocalService/Version"
 )
 
-// GatewayServiceClient is a client for the api.GatewayService service.
-type GatewayServiceClient interface {
+// LocalServiceClient is a client for the api.LocalService service.
+type LocalServiceClient interface {
 	Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error)
 }
 
-// NewGatewayServiceClient constructs a client for the api.GatewayService service. By default, it
-// uses the Connect protocol with the binary Protobuf Codec, asks for gzipped responses, and sends
+// NewLocalServiceClient constructs a client for the api.LocalService service. By default, it uses
+// the Connect protocol with the binary Protobuf Codec, asks for gzipped responses, and sends
 // uncompressed requests. To use the gRPC or gRPC-Web protocols, supply the connect.WithGRPC() or
 // connect.WithGRPCWeb() options.
 //
 // The URL supplied here should be the base URL for the Connect or gRPC server (for example,
 // http://api.acme.com or https://acme.com/grpc).
-func NewGatewayServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) GatewayServiceClient {
+func NewLocalServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) LocalServiceClient {
 	baseURL = strings.TrimRight(baseURL, "/")
-	gatewayServiceMethods := gen.File_api_proto.Services().ByName("GatewayService").Methods()
-	return &gatewayServiceClient{
+	localServiceMethods := gen.File_api_proto.Services().ByName("LocalService").Methods()
+	return &localServiceClient{
 		version: connect.NewClient[gen.VersionRequest, gen.VersionResponse](
 			httpClient,
-			baseURL+GatewayServiceVersionProcedure,
-			connect.WithSchema(gatewayServiceMethods.ByName("Version")),
+			baseURL+LocalServiceVersionProcedure,
+			connect.WithSchema(localServiceMethods.ByName("Version")),
 			connect.WithClientOptions(opts...),
 		),
 	}
 }
 
-// gatewayServiceClient implements GatewayServiceClient.
-type gatewayServiceClient struct {
+// localServiceClient implements LocalServiceClient.
+type localServiceClient struct {
 	version *connect.Client[gen.VersionRequest, gen.VersionResponse]
 }
 
-// Version calls api.GatewayService.Version.
-func (c *gatewayServiceClient) Version(ctx context.Context, req *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error) {
+// Version calls api.LocalService.Version.
+func (c *localServiceClient) Version(ctx context.Context, req *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error) {
 	return c.version.CallUnary(ctx, req)
 }
 
-// GatewayServiceHandler is an implementation of the api.GatewayService service.
-type GatewayServiceHandler interface {
+// LocalServiceHandler is an implementation of the api.LocalService service.
+type LocalServiceHandler interface {
 	Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error)
 }
 
-// NewGatewayServiceHandler builds an HTTP handler from the service implementation. It returns the
+// NewLocalServiceHandler builds an HTTP handler from the service implementation. It returns the
 // path on which to mount the handler and the handler itself.
 //
 // By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
 // and JSON codecs. They also support gzip compression.
-func NewGatewayServiceHandler(svc GatewayServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
-	gatewayServiceMethods := gen.File_api_proto.Services().ByName("GatewayService").Methods()
-	gatewayServiceVersionHandler := connect.NewUnaryHandler(
-		GatewayServiceVersionProcedure,
+func NewLocalServiceHandler(svc LocalServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	localServiceMethods := gen.File_api_proto.Services().ByName("LocalService").Methods()
+	localServiceVersionHandler := connect.NewUnaryHandler(
+		LocalServiceVersionProcedure,
 		svc.Version,
-		connect.WithSchema(gatewayServiceMethods.ByName("Version")),
+		connect.WithSchema(localServiceMethods.ByName("Version")),
 		connect.WithHandlerOptions(opts...),
 	)
-	return "/api.GatewayService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return "/api.LocalService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case GatewayServiceVersionProcedure:
-			gatewayServiceVersionHandler.ServeHTTP(w, r)
+		case LocalServiceVersionProcedure:
+			localServiceVersionHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
 	})
 }
 
-// UnimplementedGatewayServiceHandler returns CodeUnimplemented from all methods.
-type UnimplementedGatewayServiceHandler struct{}
+// UnimplementedLocalServiceHandler returns CodeUnimplemented from all methods.
+type UnimplementedLocalServiceHandler struct{}
 
-func (UnimplementedGatewayServiceHandler) Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.GatewayService.Version is not implemented"))
+func (UnimplementedLocalServiceHandler) Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.LocalService.Version is not implemented"))
 }
