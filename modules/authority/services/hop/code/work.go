@@ -135,7 +135,7 @@ func standInFront(ctx context.Context, config *adapters.Configuration) (Clean, e
 			w.Warn("the authority does not publish this hop's admission key, so modules behind it admit no call; retrying", wool.Field("reason", err.Error()))
 			return
 		}
-		w.Info("the authority publishes this hop's admission key", wool.Field("key", key.GetKeyId()), wool.Field("renewed-before", expires.UTC().Format(time.RFC3339)))
+		w.Info("the authority publishes this hop's admission key", wool.Field("admission", key.GetKeyId()), wool.Field("lapses", expires.UTC().Format(time.RFC3339)))
 	}}.Keep(context.WithoutCancel(ctx))
 	defer func() {
 		if !configured {
