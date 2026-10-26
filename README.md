@@ -229,7 +229,7 @@ staging validated.
 **Rung 1 first; it is the one that matters (owner, 2026-10-21).** The loop:
 
 1. Cut a branch in module-saas-starter. accounts declares in its module
-   interface that it implements `codefly.dev/authority@0.3.1`, `codefly.dev/composition@0.2.0`,
+   interface that it implements `codefly.dev/authority@0.3.2`, `codefly.dev/composition@0.2.0`,
    `codefly.dev/installation@0.1.0` and `codefly.dev/session@0.2.0`, takes this repo's
    protos (bindings via `codefly generate proto`), and serves the four services as
    adapters over what it already has: `Issue` → StartTask / StartInstallationTask /
@@ -276,7 +276,7 @@ Gap 7 was a decision, taken on 2026-10-22: the interface carries the host's name
 ## The namespace, settled (2026-10-22)
 
 The interfaces are the host's contract, so they carry the host's names: publisher
-`codefly.dev` (ids `codefly.dev/authority@0.3.1`, `composition`, `installation`,
+`codefly.dev` (ids `codefly.dev/authority@0.3.2`, `composition`, `installation`,
 `installable`, `session`) and protobuf packages `host.authority.v1`,
 `host.composition.v1`, `host.installation.v1`, `host.session.v1` under `proto/host/`.
 Not `codefly.*`: the host's buf configuration excludes a `codefly/` proto directory
@@ -1019,6 +1019,20 @@ shared Store contract. Ordinary roles retain main's resource-owner selection;
 installation-owned rows contain only attached ids, and an empty owned set emits
 no grant. The local host is an adapter to that core. Accounts adoption and
 its durable adapter are not qualified by a local authority test.
+
+`codefly.dev/authority@0.3.2` adds `KeysResponse.admission_keys` and
+`PublicKey.purpose`: `Keys` publishes the hop's admission verification keys
+(purpose `hop-admission`) beside the Work Context keys (purpose
+`work-context`), and every verifier takes the admission keys from the `Keys`
+read it already caches and refreshes, so no consumer is configured with a hop
+public key. The admission keys are a field of their own, never entries of
+`keys`, so a verifier that reads `keys` alone (an earlier release, or the JSON
+Web Key Set) can never trust a hop key to sign a Work Context. More than one is
+published while a hop key rotates. The local authority derives the public half
+from the hop's own `hop-signing/SEED`. It is additive, so `>=0.2.0 <0.4.0`
+consumers admit it; a host that publishes no admission key leaves every hop
+admission refused (`keys_unavailable`), so `accounts` must publish its hop's key
+before a cell's modules adopt this verifier.
 
 The 0.3.1 authority version is an additive pre-stable revision selected for
 this refresh so existing `>=0.2.0 <0.4.0` consumers admit it. It retains 0.3.0's

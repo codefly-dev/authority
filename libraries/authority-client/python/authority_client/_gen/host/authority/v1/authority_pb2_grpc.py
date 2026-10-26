@@ -111,7 +111,9 @@ class AuthorityServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def Keys(self, request, context):
-        """Keys returns the issuer and the public keys a verifier pins.
+        """Keys returns the issuer and the public keys a verifier pins: the Work
+        Context keys, and the hop admission keys a module behind the hop checks
+        each call's admission by.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')

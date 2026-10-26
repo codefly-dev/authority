@@ -79,7 +79,9 @@ type AuthorityServiceClient interface {
 	// Check verifies a presented Work Context for the audience the caller is,
 	// re-checking the authorization revision and the seal live.
 	Check(context.Context, *connect.Request[v1.CheckRequest]) (*connect.Response[v1.CheckResponse], error)
-	// Keys returns the issuer and the public keys a verifier pins.
+	// Keys returns the issuer and the public keys a verifier pins: the Work
+	// Context keys, and the hop admission keys a module behind the hop checks
+	// each call's admission by.
 	Keys(context.Context, *connect.Request[v1.KeysRequest]) (*connect.Response[v1.KeysResponse], error)
 	// ListResources answers which resources of one kind a checked capability may
 	// act on with one action, decided by the authority at the time of the call
@@ -296,7 +298,9 @@ type AuthorityServiceHandler interface {
 	// Check verifies a presented Work Context for the audience the caller is,
 	// re-checking the authorization revision and the seal live.
 	Check(context.Context, *connect.Request[v1.CheckRequest]) (*connect.Response[v1.CheckResponse], error)
-	// Keys returns the issuer and the public keys a verifier pins.
+	// Keys returns the issuer and the public keys a verifier pins: the Work
+	// Context keys, and the hop admission keys a module behind the hop checks
+	// each call's admission by.
 	Keys(context.Context, *connect.Request[v1.KeysRequest]) (*connect.Response[v1.KeysResponse], error)
 	// ListResources answers which resources of one kind a checked capability may
 	// act on with one action, decided by the authority at the time of the call

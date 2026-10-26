@@ -983,8 +983,16 @@ type KeysResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The issuer every capability names.
 	Issuer string `protobuf:"bytes,1,opt,name=issuer,proto3" json:"issuer,omitempty"`
-	// The public keys by key id.
-	Keys          []*PublicKey `protobuf:"bytes,2,rep,name=keys,proto3" json:"keys,omitempty"`
+	// The public keys by key id: what a Work Context is signed with, and only
+	// that. Each carries purpose "work-context".
+	Keys []*PublicKey `protobuf:"bytes,2,rep,name=keys,proto3" json:"keys,omitempty"`
+	// The keys a hop signs each call's admission with, each with purpose
+	// "hop-admission": a module behind the hop verifies the admission by one of
+	// them. More than one is published while a hop's key is rotated, so the
+	// retiring and the new key overlap. They are never Work Context keys and are
+	// kept out of keys, so no verifier that reads keys alone can trust one to
+	// sign a Work Context. Empty when the authority knows no hop.
+	AdmissionKeys []*PublicKey `protobuf:"bytes,3,rep,name=admission_keys,json=admissionKeys,proto3" json:"admission_keys,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1033,6 +1041,13 @@ func (x *KeysResponse) GetKeys() []*PublicKey {
 	return nil
 }
 
+func (x *KeysResponse) GetAdmissionKeys() []*PublicKey {
+	if x != nil {
+		return x.AdmissionKeys
+	}
+	return nil
+}
+
 // PublicKey is one verification key.
 type PublicKey struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1041,7 +1056,11 @@ type PublicKey struct {
 	// The signature algorithm; Ed25519.
 	Algorithm string `protobuf:"bytes,2,opt,name=algorithm,proto3" json:"algorithm,omitempty"`
 	// The raw public key bytes.
-	PublicKey     []byte `protobuf:"bytes,3,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	PublicKey []byte `protobuf:"bytes,3,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	// What the key verifies: "work-context" (a Work Context) or "hop-admission"
+	// (a hop's signed call admission). A verifier uses a key only for its own
+	// purpose.
+	Purpose       string `protobuf:"bytes,4,opt,name=purpose,proto3" json:"purpose,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1095,6 +1114,13 @@ func (x *PublicKey) GetPublicKey() []byte {
 		return x.PublicKey
 	}
 	return nil
+}
+
+func (x *PublicKey) GetPurpose() string {
+	if x != nil {
+		return x.Purpose
+	}
+	return ""
 }
 
 // ListResourcesRequest asks about one kind and one action.
@@ -1801,15 +1827,17 @@ const file_host_authority_v1_authority_proto_rawDesc = "" +
 	"\acontext\x18\x01 \x01(\v2 .host.authority.v1.WorkContextV1R\acontext\x125\n" +
 	"\x16authorization_revision\x18\x02 \x01(\x04R\x15authorizationRevision\x12\x18\n" +
 	"\arefusal\x18\x03 \x01(\tR\arefusal\"\r\n" +
-	"\vKeysRequest\"X\n" +
+	"\vKeysRequest\"\x9d\x01\n" +
 	"\fKeysResponse\x12\x16\n" +
 	"\x06issuer\x18\x01 \x01(\tR\x06issuer\x120\n" +
-	"\x04keys\x18\x02 \x03(\v2\x1c.host.authority.v1.PublicKeyR\x04keys\"_\n" +
+	"\x04keys\x18\x02 \x03(\v2\x1c.host.authority.v1.PublicKeyR\x04keys\x12C\n" +
+	"\x0eadmission_keys\x18\x03 \x03(\v2\x1c.host.authority.v1.PublicKeyR\radmissionKeys\"y\n" +
 	"\tPublicKey\x12\x15\n" +
 	"\x06key_id\x18\x01 \x01(\tR\x05keyId\x12\x1c\n" +
 	"\talgorithm\x18\x02 \x01(\tR\talgorithm\x12\x1d\n" +
 	"\n" +
-	"public_key\x18\x03 \x01(\fR\tpublicKey\"\x85\x01\n" +
+	"public_key\x18\x03 \x01(\fR\tpublicKey\x12\x18\n" +
+	"\apurpose\x18\x04 \x01(\tR\apurpose\"\x85\x01\n" +
 	"\x14ListResourcesRequest\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12\x1a\n" +
 	"\baudience\x18\x02 \x01(\tR\baudience\x12#\n" +
@@ -1919,35 +1947,36 @@ var file_host_authority_v1_authority_proto_depIdxs = []int32{
 	26, // 10: host.authority.v1.IssueResponse.context:type_name -> host.authority.v1.WorkContextV1
 	26, // 11: host.authority.v1.CheckResponse.context:type_name -> host.authority.v1.WorkContextV1
 	15, // 12: host.authority.v1.KeysResponse.keys:type_name -> host.authority.v1.PublicKey
-	24, // 13: host.authority.v1.ListResourcesResponse.grants:type_name -> host.authority.v1.ResourceGrant
-	8,  // 14: host.authority.v1.AttachResourceRequest.actor:type_name -> host.authority.v1.WorkloadCredential
-	8,  // 15: host.authority.v1.DetachResourceRequest.actor:type_name -> host.authority.v1.WorkloadCredential
-	8,  // 16: host.authority.v1.AuthorizeTransferRequest.actor:type_name -> host.authority.v1.WorkloadCredential
-	0,  // 17: host.authority.v1.AuthorityService.Issue:input_type -> host.authority.v1.IssueRequest
-	11, // 18: host.authority.v1.AuthorityService.Check:input_type -> host.authority.v1.CheckRequest
-	13, // 19: host.authority.v1.AuthorityService.Keys:input_type -> host.authority.v1.KeysRequest
-	16, // 20: host.authority.v1.AuthorityService.ListResources:input_type -> host.authority.v1.ListResourcesRequest
-	18, // 21: host.authority.v1.AuthorityService.AttachResource:input_type -> host.authority.v1.AttachResourceRequest
-	20, // 22: host.authority.v1.AuthorityService.DetachResource:input_type -> host.authority.v1.DetachResourceRequest
-	22, // 23: host.authority.v1.AuthorityService.AuthorizeTransfer:input_type -> host.authority.v1.AuthorizeTransferRequest
-	2,  // 24: host.authority.v1.AuthorityService.Delegate:input_type -> host.authority.v1.DelegateRequest
-	5,  // 25: host.authority.v1.AuthorityService.RevokeDelegation:input_type -> host.authority.v1.RevokeDelegationRequest
-	4,  // 26: host.authority.v1.AuthorityService.GetDelegation:input_type -> host.authority.v1.GetDelegationRequest
-	10, // 27: host.authority.v1.AuthorityService.Issue:output_type -> host.authority.v1.IssueResponse
-	12, // 28: host.authority.v1.AuthorityService.Check:output_type -> host.authority.v1.CheckResponse
-	14, // 29: host.authority.v1.AuthorityService.Keys:output_type -> host.authority.v1.KeysResponse
-	17, // 30: host.authority.v1.AuthorityService.ListResources:output_type -> host.authority.v1.ListResourcesResponse
-	19, // 31: host.authority.v1.AuthorityService.AttachResource:output_type -> host.authority.v1.AttachResourceResponse
-	21, // 32: host.authority.v1.AuthorityService.DetachResource:output_type -> host.authority.v1.DetachResourceResponse
-	23, // 33: host.authority.v1.AuthorityService.AuthorizeTransfer:output_type -> host.authority.v1.AuthorizeTransferResponse
-	3,  // 34: host.authority.v1.AuthorityService.Delegate:output_type -> host.authority.v1.Delegation
-	6,  // 35: host.authority.v1.AuthorityService.RevokeDelegation:output_type -> host.authority.v1.RevokeDelegationResponse
-	3,  // 36: host.authority.v1.AuthorityService.GetDelegation:output_type -> host.authority.v1.Delegation
-	27, // [27:37] is the sub-list for method output_type
-	17, // [17:27] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	15, // 13: host.authority.v1.KeysResponse.admission_keys:type_name -> host.authority.v1.PublicKey
+	24, // 14: host.authority.v1.ListResourcesResponse.grants:type_name -> host.authority.v1.ResourceGrant
+	8,  // 15: host.authority.v1.AttachResourceRequest.actor:type_name -> host.authority.v1.WorkloadCredential
+	8,  // 16: host.authority.v1.DetachResourceRequest.actor:type_name -> host.authority.v1.WorkloadCredential
+	8,  // 17: host.authority.v1.AuthorizeTransferRequest.actor:type_name -> host.authority.v1.WorkloadCredential
+	0,  // 18: host.authority.v1.AuthorityService.Issue:input_type -> host.authority.v1.IssueRequest
+	11, // 19: host.authority.v1.AuthorityService.Check:input_type -> host.authority.v1.CheckRequest
+	13, // 20: host.authority.v1.AuthorityService.Keys:input_type -> host.authority.v1.KeysRequest
+	16, // 21: host.authority.v1.AuthorityService.ListResources:input_type -> host.authority.v1.ListResourcesRequest
+	18, // 22: host.authority.v1.AuthorityService.AttachResource:input_type -> host.authority.v1.AttachResourceRequest
+	20, // 23: host.authority.v1.AuthorityService.DetachResource:input_type -> host.authority.v1.DetachResourceRequest
+	22, // 24: host.authority.v1.AuthorityService.AuthorizeTransfer:input_type -> host.authority.v1.AuthorizeTransferRequest
+	2,  // 25: host.authority.v1.AuthorityService.Delegate:input_type -> host.authority.v1.DelegateRequest
+	5,  // 26: host.authority.v1.AuthorityService.RevokeDelegation:input_type -> host.authority.v1.RevokeDelegationRequest
+	4,  // 27: host.authority.v1.AuthorityService.GetDelegation:input_type -> host.authority.v1.GetDelegationRequest
+	10, // 28: host.authority.v1.AuthorityService.Issue:output_type -> host.authority.v1.IssueResponse
+	12, // 29: host.authority.v1.AuthorityService.Check:output_type -> host.authority.v1.CheckResponse
+	14, // 30: host.authority.v1.AuthorityService.Keys:output_type -> host.authority.v1.KeysResponse
+	17, // 31: host.authority.v1.AuthorityService.ListResources:output_type -> host.authority.v1.ListResourcesResponse
+	19, // 32: host.authority.v1.AuthorityService.AttachResource:output_type -> host.authority.v1.AttachResourceResponse
+	21, // 33: host.authority.v1.AuthorityService.DetachResource:output_type -> host.authority.v1.DetachResourceResponse
+	23, // 34: host.authority.v1.AuthorityService.AuthorizeTransfer:output_type -> host.authority.v1.AuthorizeTransferResponse
+	3,  // 35: host.authority.v1.AuthorityService.Delegate:output_type -> host.authority.v1.Delegation
+	6,  // 36: host.authority.v1.AuthorityService.RevokeDelegation:output_type -> host.authority.v1.RevokeDelegationResponse
+	3,  // 37: host.authority.v1.AuthorityService.GetDelegation:output_type -> host.authority.v1.Delegation
+	28, // [28:38] is the sub-list for method output_type
+	18, // [18:28] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_host_authority_v1_authority_proto_init() }

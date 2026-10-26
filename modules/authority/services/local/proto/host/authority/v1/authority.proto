@@ -26,7 +26,9 @@ service AuthorityService {
   rpc Check(CheckRequest) returns (CheckResponse) {
     option (google.api.http) = {post: "/v1/authority:check" body: "*"};
   }
-  // Keys returns the issuer and the public keys a verifier pins.
+  // Keys returns the issuer and the public keys a verifier pins: the Work
+  // Context keys, and the hop admission keys a module behind the hop checks
+  // each call's admission by.
   rpc Keys(KeysRequest) returns (KeysResponse);
   // ListResources answers which resources of one kind a checked capability may
   // act on with one action, decided by the authority at the time of the call
@@ -260,8 +262,16 @@ message KeysRequest {}
 message KeysResponse {
   // The issuer every capability names.
   string issuer = 1;
-  // The public keys by key id.
+  // The public keys by key id: what a Work Context is signed with, and only
+  // that. Each carries purpose "work-context".
   repeated PublicKey keys = 2;
+  // The keys a hop signs each call's admission with, each with purpose
+  // "hop-admission": a module behind the hop verifies the admission by one of
+  // them. More than one is published while a hop's key is rotated, so the
+  // retiring and the new key overlap. They are never Work Context keys and are
+  // kept out of keys, so no verifier that reads keys alone can trust one to
+  // sign a Work Context. Empty when the authority knows no hop.
+  repeated PublicKey admission_keys = 3;
 }
 
 // PublicKey is one verification key.
@@ -272,6 +282,10 @@ message PublicKey {
   string algorithm = 2;
   // The raw public key bytes.
   bytes public_key = 3;
+  // What the key verifies: "work-context" (a Work Context) or "hop-admission"
+  // (a hop's signed call admission). A verifier uses a key only for its own
+  // purpose.
+  string purpose = 4;
 }
 
 // ListResourcesRequest asks about one kind and one action.
