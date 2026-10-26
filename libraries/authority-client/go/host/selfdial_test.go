@@ -65,7 +65,7 @@ func isAgentAdapter(file *ast.File, relative string) bool {
 //     Register…HandlerFromEndpoint passes, as its options, a call of the
 //     package's gatewayDialOptions, or a local variable whose one and only
 //     write is its definition from such a call and whose only uses are dial
-//     options arguments (no aliases, indexing, slicing, calls or escapes);
+//     options arguments or checked generated forwarders (no aliases or escapes);
 //   - gatewayDialOptions, declared in a generated adapter, builds its options
 //     from a slice literal holding grpc.WithNoProxy() and returns them with
 //     grpc.WithTransportCredentials(loopbackTransport{…}) appended last, in
@@ -95,8 +95,9 @@ func checkSelfDials(t *testing.T, root, directory string) []string {
 		parsed = append(parsed, file)
 	}
 	c := selfDials{root: root, files: files, generated: generated, info: &types.Info{
-		Defs: map[*ast.Ident]types.Object{},
-		Uses: map[*ast.Ident]types.Object{},
+		Defs:       map[*ast.Ident]types.Object{},
+		Uses:       map[*ast.Ident]types.Object{},
+		Selections: map[*ast.SelectorExpr]*types.Selection{},
 	}}
 	// Imports resolve to empty packages: the check needs the identity of this
 	// package's own objects and of the grpc package name, not the imported API,
@@ -151,7 +152,7 @@ func (c selfDials) violations() []string {
 			}
 			dials = append(dials, call)
 			if seam == nil || !c.fromSeam(options, seam) {
-				violations = append(violations, fmt.Sprintf("%s: a generated self-dial must pass gatewayDialOptions(…), or a local defined once from it and used only as dial options (no aliases, indexing, slicing, other calls or address-taking), as its options", c.where(call)))
+				violations = append(violations, fmt.Sprintf("%s: a generated self-dial must pass gatewayDialOptions(…), or a local defined once from it and used only as dial options or unchanged through a generated same-package forwarder (no aliases, indexing, slicing, unchecked calls or address-taking), as its options", c.where(call)))
 			}
 			return true
 		})
@@ -184,7 +185,9 @@ func (c selfDials) dialOptions(call *ast.CallExpr) (ast.Expr, bool) {
 		}
 		return call.Args[count-1], true
 	}
-	if fromEndpoint.MatchString(selector.Sel.Name) {
+	qualifier, _ := selector.X.(*ast.Ident)
+	_, imported := c.info.Uses[qualifier].(*types.PkgName)
+	if imported && fromEndpoint.MatchString(selector.Sel.Name) {
 		if len(call.Args) == 0 || call.Ellipsis.IsValid() {
 			return nil, true
 		}
@@ -222,14 +225,15 @@ func (c selfDials) callsFunc(expression ast.Expr, function types.Object) bool {
 	return ok && c.info.Uses[identifier] == function
 }
 
-// fromSeam reports whether options is a call of seam, or a local variable whose
-// one and only write is its definition from a call of seam, and whose every
-// use is the entire options argument of a dial. Checking uses by object identity
-// closes backing-array escapes without trying to infer what arbitrary calls do.
+// fromSeam proves both provenance and closed use of the options backing array.
+// Forwarder parameters must have callers, and every reference to the function
+// must be a direct call carrying proven options. Cycles and function values
+// refuse: neither establishes provenance from the seam.
 func (c selfDials) fromSeam(options ast.Expr, seam *types.Func) bool {
-	if options == nil {
-		return false
-	}
+	return c.fromSeamSeen(options, seam, map[*types.Var]bool{})
+}
+
+func (c selfDials) fromSeamSeen(options ast.Expr, seam *types.Func, visiting map[*types.Var]bool) bool {
 	if c.callsFunc(options, seam) {
 		return true
 	}
@@ -238,24 +242,50 @@ func (c selfDials) fromSeam(options ast.Expr, seam *types.Func) bool {
 		return false
 	}
 	variable, ok := c.info.Uses[identifier].(*types.Var)
-	if !ok || variable.Parent() == c.pkg.Scope() {
+	if !ok || variable.Parent() == c.pkg.Scope() || visiting[variable] {
 		return false
 	}
-	allowed := map[*ast.Ident]bool{}
+	visiting[variable] = true
+	defer delete(visiting, variable)
+	if !c.optionsUses(variable, map[*types.Var]bool{}) {
+		return false
+	}
 	for _, file := range c.parsed {
-		ast.Inspect(file, func(node ast.Node) bool {
-			if call, ok := node.(*ast.CallExpr); ok {
-				if argument, dial := c.dialOptions(call); dial {
-					if id, ok := argument.(*ast.Ident); ok {
+		for _, declaration := range file.Decls {
+			fn, ok := declaration.(*ast.FuncDecl)
+			if !ok {
+				continue
+			}
+			function, _ := c.info.Defs[fn.Name].(*types.Func)
+			if c.finalParameter(function) != variable {
+				continue
+			}
+			allowed := map[*ast.Ident]bool{}
+			valid := true
+			for _, source := range c.parsed {
+				ast.Inspect(source, func(node ast.Node) bool {
+					call, ok := node.(*ast.CallExpr)
+					if !ok {
+						return true
+					}
+					callee, id := c.calledFunction(call)
+					if callee == function {
+						argument, parameter := c.forwardedOptions(call)
+						if parameter != variable || !c.fromSeamSeen(argument, seam, visiting) {
+							valid = false
+						}
 						allowed[id] = true
 					}
+					return true
+				})
+			}
+			for id, object := range c.info.Uses {
+				if object == function && !allowed[id] {
+					valid = false
 				}
 			}
-			return true
-		})
-	}
-	if !c.onlyUses(variable, allowed) {
-		return false
+			return valid && len(allowed) > 0
+		}
 	}
 	writes := c.writes(variable)
 	if len(writes) != 1 {
@@ -271,6 +301,89 @@ func (c selfDials) fromSeam(options ast.Expr, seam *types.Func) bool {
 		}
 	}
 	return false
+}
+
+// calledFunction resolves local functions and concrete methods by object
+// identity. Imported functions, interface dispatch and function values cannot
+// supply a generated body in this package and are refused by finalParameter.
+func (c selfDials) calledFunction(call *ast.CallExpr) (*types.Func, *ast.Ident) {
+	var id *ast.Ident
+	switch fun := call.Fun.(type) {
+	case *ast.Ident:
+		id = fun
+	case *ast.SelectorExpr:
+		selection := c.info.Selections[fun]
+		if selection == nil || selection.Kind() != types.MethodVal {
+			return nil, nil
+		}
+		id = fun.Sel
+	default:
+		return nil, nil
+	}
+	function, _ := c.info.Uses[id].(*types.Func)
+	return function, id
+}
+
+func (c selfDials) finalParameter(function *types.Func) *types.Var {
+	if function == nil || function.Pkg() != c.pkg || !c.declaredInAdapter(function) {
+		return nil
+	}
+	declaration := c.funcDecl(function)
+	if declaration == nil || declaration.Body == nil {
+		return nil
+	}
+	signature := function.Type().(*types.Signature)
+	if signature.Params().Len() == 0 {
+		return nil
+	}
+	return signature.Params().At(signature.Params().Len() - 1)
+}
+
+// forwardedOptions admits only an entire final argument, with the declaration's
+// exact variadic shape; it never follows a name or assumes an interface's body.
+func (c selfDials) forwardedOptions(call *ast.CallExpr) (ast.Expr, *types.Var) {
+	function, _ := c.calledFunction(call)
+	parameter := c.finalParameter(function)
+	if parameter == nil {
+		return nil, nil
+	}
+	signature := function.Type().(*types.Signature)
+	if len(call.Args) != signature.Params().Len() || call.Ellipsis.IsValid() != signature.Variadic() {
+		return nil, nil
+	}
+	return call.Args[len(call.Args)-1], parameter
+}
+
+// optionsUses recursively checks every occurrence of a slice object. Only
+// terminal dials and generated forwarders whose receiving parameter satisfies
+// this same rule may consume it. Reads, writes, aliases and escapes all refuse.
+func (c selfDials) optionsUses(variable *types.Var, visiting map[*types.Var]bool) bool {
+	if visiting[variable] {
+		return false
+	}
+	visiting[variable] = true
+	defer delete(visiting, variable)
+	allowed := map[*ast.Ident]bool{}
+	for _, file := range c.parsed {
+		ast.Inspect(file, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			argument, dial := c.dialOptions(call)
+			var parameter *types.Var
+			if !dial {
+				argument, parameter = c.forwardedOptions(call)
+			}
+			id, ok := argument.(*ast.Ident)
+			if ok && c.info.Uses[id] == variable && (dial ||
+				(parameter != nil && c.optionsUses(parameter, visiting))) {
+				allowed[id] = true
+			}
+			return true
+		})
+	}
+	return c.onlyUses(variable, allowed)
 }
 
 // onlyUses refuses any occurrence outside the explicitly permitted positions,
@@ -777,5 +890,87 @@ func TestSelfDialOptionsAcceptsEachDial(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// The generated forwarding shape is accepted by declaration identity, never
+// by the spelling RegisterREST. The actual plugin interface call is different:
+// it has no generated same-package body, so it must continue to refuse.
+func TestGeneratedOptionsForwarders(t *testing.T) {
+	const forwarder = `
+func RegisterREST(ctx context.Context, mux interface{}, endpoint string, opts []grpc.DialOption) error {
+	return gen.RegisterSvcServiceHandlerFromEndpoint(ctx, mux, endpoint, opts)
+}
+`
+	const call = `RegisterREST(ctx, nil, "127.0.0.1:1", opts)`
+	base := strings.Replace(fixtureDials, "opts := gatewayDialOptions(extra...)",
+		"opts := gatewayDialOptions(extra...)\n\t_ = "+call, 1)
+	for _, tc := range []struct {
+		name string
+		body string
+		use  string
+		file string
+		pass bool
+	}{
+		{"generated RegisterREST", forwarder, call, "server_gen.go", true},
+		{"direct seam argument", forwarder, strings.Replace(call, "opts)", "gatewayDialOptions(extra...))", 1), "server_gen.go", true},
+		{"variadic forwarder", strings.Replace(forwarder, "opts []grpc.DialOption", "opts ...grpc.DialOption", 1), strings.Replace(call, "opts)", "opts...)", 1), "server_gen.go", true},
+		{"gRPC terminal", strings.Replace(forwarder,
+			"return gen.RegisterSvcServiceHandlerFromEndpoint(ctx, mux, endpoint, opts)",
+			"_, err := grpc.NewClient(endpoint, opts...); return err", 1), call, "server_gen.go", true},
+		{"recursive checking", strings.Replace(forwarder, "return gen.RegisterSvcServiceHandlerFromEndpoint(ctx, mux, endpoint, opts)",
+			"return next(ctx, mux, endpoint, opts)", 1) + strings.Replace(forwarder, "func RegisterREST", "func next", 1), call, "server_gen.go", true},
+		{"hand-written forwarder", forwarder, call, "forward.go", false},
+		{"wrong template filename", forwarder, call, "mine_gen.go", false},
+		{"no generated marker", forwarder, call, "server_gen.go", false},
+		{"recursive cycle", strings.Replace(forwarder, "gen.RegisterSvcServiceHandlerFromEndpoint", "RegisterREST", 1), call, "server_gen.go", false},
+		{"function value", forwarder, "func() error { f := RegisterREST; return f(ctx, nil, \"127.0.0.1:1\", opts) }()", "server_gen.go", false},
+		{"unsafe second caller", forwarder + `
+func unsafe(ctx context.Context, raw []grpc.DialOption) { _ = RegisterREST(ctx, nil, "127.0.0.1:1", raw) }
+`, call, "server_gen.go", false},
+		{"shadowed function", forwarder, "func() error { RegisterREST := func(ctx context.Context, mux interface{}, endpoint string, opts []grpc.DialOption) error { opts[0] = nil; return nil }; return " + call + " }()", "server_gen.go", false},
+		{"imported plugin interface", "", "func(p interface { RegisterREST(context.Context, interface{}, string, []grpc.DialOption) error }) error { return p.RegisterREST(ctx, nil, \"127.0.0.1:1\", opts) }(nil)", "server_gen.go", false},
+		{"concrete generated method", "type registrar struct{}\n" + strings.Replace(forwarder, "func RegisterREST", "func (r registrar) RegisterREST", 1), "registrar{}." + call, "server_gen.go", true},
+		{"method named like terminal", "type registrar struct{}\n" + strings.Replace(strings.Replace(forwarder, "func RegisterREST", "func (r registrar) RegisterSvcServiceHandlerFromEndpoint", 1), "return gen.RegisterSvcServiceHandlerFromEndpoint(ctx, mux, endpoint, opts)", "opts[0] = nil; return nil", 1), "registrar{}." + strings.Replace(call, "RegisterREST", "RegisterSvcServiceHandlerFromEndpoint", 1), "server_gen.go", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			header := fixtureDials[:strings.Index(fixtureDials, "func rest(")]
+			if tc.name == "no generated marker" || tc.file == "forward.go" {
+				header = strings.Replace(header, fixtureMarker, "", 1)
+			}
+			got := judge(t, map[string]string{"grpc_gen.go": fixtureSeam,
+				"rest_gen.go": strings.Replace(base, call, tc.use, 1), tc.file: header + tc.body})
+			if (len(got) == 0) != tc.pass {
+				t.Fatalf("want pass=%v, got %q", tc.pass, got)
+			}
+			if !tc.pass && !strings.Contains(strings.Join(got, "\n"), "a generated self-dial must pass gatewayDialOptions") {
+				t.Fatalf("want self-dial refusal with reason, got %q", got)
+			}
+		})
+	}
+	for name, mutation := range map[string]string{
+		"replace":          "opts = nil",
+		"index":            "opts[0] = nil",
+		"alias":            "alias := opts; alias[0] = nil",
+		"slice":            "_ = opts[:]",
+		"copy into":        "copy(opts, []grpc.DialOption{nil})",
+		"copy out":         "copy([]grpc.DialOption{nil}, opts)",
+		"append overwrite": "opts = append(opts[:0], nil)",
+		"address":          "_ = &opts",
+		"mutating call":    "mutate(opts)",
+		"closure mutation": "func() { opts[0] = nil }()",
+		"return escape":    "_ = func() []grpc.DialOption { return opts }",
+	} {
+		t.Run(name, func(t *testing.T) {
+			body := strings.Replace(forwarder, "return gen.", mutation+"\n\treturn gen.", 1)
+			body += "\nfunc mutate(opts []grpc.DialOption) { opts[0] = nil }\n"
+			// Exercise the recursively checked parameter, too.
+			body = strings.Replace(body, "func RegisterREST", "func next", 1) + strings.Replace(forwarder,
+				"gen.RegisterSvcServiceHandlerFromEndpoint", "next", 1)
+			got := judge(t, map[string]string{"grpc_gen.go": fixtureSeam, "rest_gen.go": base + body})
+			if !strings.Contains(strings.Join(got, "\n"), "a generated self-dial must pass gatewayDialOptions") {
+				t.Fatalf("want refusal of modified forwarded options, got %q", got)
+			}
+		})
 	}
 }
