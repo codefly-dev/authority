@@ -346,7 +346,7 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		}{
 			"a viewer granting itself installer": {f.Viewer, "GrantRole", grant(instA, "installer", sp.person(t, f.Viewer)), codes.PermissionDenied, "belongs to another organization"},
 			"a viewer revoking the installer":    {f.Viewer, "RevokeRole", grant(instA, "installer", sp.person(t, f.Installer)), codes.PermissionDenied, "belongs to another organization"},
-			"a viewer listing grants":            {f.Viewer, "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": instA}, codes.PermissionDenied, "may not"},
+			"a viewer listing grants":            {f.Viewer, "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": instA}, codes.PermissionDenied, "belongs to another organization"},
 			// A caller of another organization learns nothing of this one: the
 			// installation answers as an absent one would (r143 M-a).
 			"another organization's administrator granting":        {f.OtherAdmin, "GrantRole", grant(instA, "viewer", member), codes.PermissionDenied, "belongs to another organization"},
