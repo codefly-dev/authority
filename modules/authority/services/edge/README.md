@@ -60,3 +60,29 @@ filter `ListFixturePeople`, or restrict sign-in for unlisted people. Other
 compositions and conformance suites continue to use the full fixture. The edge
 still obtains identity details and fixture tokens through its generated session
 client; the configuration supplies neither credentials nor permissions.
+
+## The setup page
+
+`/auth/setup` installs the run's solutions and grants their roles. It needs a
+session, and without one it redirects to sign-in. The page is the same embedded
+build as sign-in (`web/src/setup.tsx`). The edge writes into its data island
+what the authority answers to the person's own session:
+
+- `OfferService.ListOffers`: the solutions offered.
+- `InstallationService.List`: their installations.
+- For the reviewed one, `OfferService.ReviewOffer` (its roles, the operations
+  each covers, the tools composed for those operations, the permission ceiling
+  and the consent tuple) and `ListRoleGrants`.
+- The organisation's fixture people, by id and email (never a sign-in token),
+  and their teams.
+
+Each change is a form posted back to `/auth/setup`: `install` (the consent
+tuple, a fresh UUID `operationId`, the agent role, and the consent checkbox,
+without which nothing is sent), `grant` and `revoke` (one role to `person:<id>`
+or `team:<id>`). A post must carry this origin. The edge sends it through the
+generated client with the person's bearer; the authority decides it. A refusal
+is shown with the authority's reason. An install the authority did not confirm
+is shown again with its exact request, so the retry is the same operation.
+
+Calls the edge routes to a module are refused in Connect's words when the caller
+speaks Connect, so a generated client keeps the reason (the hop does the same).

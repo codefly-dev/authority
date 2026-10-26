@@ -11,6 +11,9 @@
     },
     {
       "name": "InstallableService"
+    },
+    {
+      "name": "OfferService"
     }
   ],
   "consumes": [

@@ -36,6 +36,20 @@ func offerDigest(m domain.Module) (string, error) {
 // Review reads one consistent offer. It never supplies an operation identity or
 // approves anything; the caller must retain the returned values when consenting.
 func (s *Service) Review(ctx context.Context, caller Person, org, target string) (domain.ConsentApproval, error) {
+	offer, err := s.ReviewOffer(ctx, caller, org, target)
+	return offer.Approval, err
+}
+
+// ReviewedOffer is one transaction: the displayed declaration and its consent identity.
+type ReviewedOffer struct {
+	Approval     domain.ConsentApproval
+	Module       domain.Module
+	Installation domain.Installation
+	Modules      []domain.Module
+}
+
+func (s *Service) ReviewOffer(ctx context.Context, caller Person, org, target string) (ReviewedOffer, error) {
+	var offer ReviewedOffer
 	var out domain.ConsentApproval
 	err := s.store.Read(ctx, func(tx Tx) error {
 		if err := administrator(tx, caller, org); err != nil {
@@ -59,9 +73,12 @@ func (s *Service) Review(ctx context.Context, caller Person, org, target string)
 		} else if !errors.Is(err, domain.ErrNotFound) {
 			return err
 		}
-		return nil
+		offer.Module, offer.Installation = m, inst
+		offer.Modules, err = tx.Modules()
+		return err
 	})
-	return out, err
+	offer.Approval = out
+	return offer, err
 }
 
 func consentIntent(caller Person, org, target, role, owner string, a *domain.ConsentApproval) (string, error) {
@@ -103,4 +120,22 @@ func checkConsent(m domain.Module, existing domain.Installation, a *domain.Conse
 		return false, domain.NotNow("INSTALLATION_APPROVAL_REVISION_CHANGED: the reviewed installation revision changed; review and approve again")
 	}
 	return false, nil
+}
+
+// Offers lists delivered solution targets, not composition-installed modules.
+func (s *Service) Offers(ctx context.Context, caller Person, org string) ([]domain.Module, error) {
+	var out []domain.Module
+	err := s.store.Read(ctx, func(tx Tx) error {
+		if err := administrator(tx, caller, org); err != nil {
+			return err
+		}
+		modules, err := tx.Modules()
+		for _, m := range modules {
+			if m.Kind == domain.KindSolution {
+				out = append(out, m)
+			}
+		}
+		return err
+	})
+	return out, err
 }

@@ -2,11 +2,13 @@ package proxy
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"strings"
 
+	"connectrpc.com/connect"
 	"github.com/codefly-dev/authority/libraries/authority-client/go/host"
 	"github.com/codefly-dev/authority/libraries/hop/go"
 	"github.com/codefly-dev/authority/libraries/hop/go/routing"
@@ -36,7 +38,7 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if h.Refused != nil {
 			h.Refused(method, refusal)
 		}
-		refuse(w, refusal)
+		refuse(w, r, refusal)
 		return
 	}
 	md := metadata.MD{}
@@ -48,17 +50,17 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if h.Refused != nil {
 			h.Refused(method, err)
 		}
-		refuse(w, err)
+		refuse(w, r, err)
 		return
 	}
 	module, id := decision.Module, decision.Identity
 	if decision.Route == nil {
-		refuse(w, status.Error(codes.Internal, "the hop decision names no published route"))
+		refuse(w, r, status.Error(codes.Internal, "the hop decision names no published route"))
 		return
 	}
 	target, ok := h.Upstreams[decision.Route.Address]
 	if !ok {
-		refuse(w, status.Errorf(codes.Internal, "the hop has no HTTP connection to %s", module))
+		refuse(w, r, status.Errorf(codes.Internal, "the hop has no HTTP connection to %s", module))
 		return
 	}
 	stamp := metadata.MD{}
@@ -82,15 +84,21 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		},
-		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, err error) {
-			refuse(w, status.Errorf(codes.Unavailable, "the module did not answer: %v", err))
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			refuse(w, r, status.Errorf(codes.Unavailable, "the module did not answer: %v", err))
 		},
 	}).ServeHTTP(w, r)
 }
 
-// refuse answers a refusal in HTTP's words, its reason the decision's own.
-func refuse(w http.ResponseWriter, err error) {
+// refuse answers a refusal in HTTP's words, its reason the decision's own;
+// a Connect caller gets Connect's error, so its client keeps the reason.
+func refuse(w http.ResponseWriter, r *http.Request, err error) {
 	s := status.Convert(err)
+	writer := connect.NewErrorWriter()
+	if writer.IsSupported(r) {
+		_ = writer.Write(w, r, connect.NewError(connect.Code(s.Code()), errors.New(s.Message())))
+		return
+	}
 	code := http.StatusInternalServerError
 	switch s.Code() {
 	case codes.Unauthenticated:

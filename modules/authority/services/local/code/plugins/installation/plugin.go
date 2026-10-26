@@ -29,8 +29,12 @@ type Plugin struct {
 // Name is the plugin's identifier.
 func (p *Plugin) Name() string { return "installation" }
 
-// RegisterGRPC registers the service.
-func (p *Plugin) RegisterGRPC(s *grpc.Server) { installationv1.RegisterInstallationServiceServer(s, p) }
+// RegisterGRPC registers the installation interface and, beside it, the setup
+// read over the same state.
+func (p *Plugin) RegisterGRPC(s *grpc.Server) {
+	installationv1.RegisterInstallationServiceServer(s, p)
+	installationv1.RegisterOfferServiceServer(s, &Offers{plugin: p, runnables: composedRunnables})
+}
 
 // RegisterREST registers nothing.
 func (p *Plugin) RegisterREST(context.Context, *runtime.ServeMux, string, []grpc.DialOption) error {
