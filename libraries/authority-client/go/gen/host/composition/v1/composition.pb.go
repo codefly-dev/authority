@@ -136,7 +136,12 @@ type AuthorityManifestV1 struct {
 	// one of them installer. Headless-only scopes cannot supply a role grant.
 	// Core's manifest carries no roles, so they travel here until it does. A
 	// module declares none; a module's delivery listing any is refused.
-	Roles         []*RoleV1 `protobuf:"bytes,6,rep,name=roles,proto3" json:"roles,omitempty"`
+	Roles []*RoleV1 `protobuf:"bytes,6,rep,name=roles,proto3" json:"roles,omitempty"`
+	// The module checks a resource's owner against an owner-selected scope
+	// (Claims.AllowsOwned): only an audience declaring it receives one, and a
+	// delivery withdrawing it refuses the owner-selected capabilities issued
+	// before. Every solution receiving its roles' scopes declares it.
+	OwnerAware    bool `protobuf:"varint,7,opt,name=owner_aware,json=ownerAware,proto3" json:"owner_aware,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -211,6 +216,13 @@ func (x *AuthorityManifestV1) GetRoles() []*RoleV1 {
 		return x.Roles
 	}
 	return nil
+}
+
+func (x *AuthorityManifestV1) GetOwnerAware() bool {
+	if x != nil {
+		return x.OwnerAware
+	}
+	return false
 }
 
 // MethodPolicyV1 is what a call to one method must hold, as the module's
@@ -417,7 +429,7 @@ type ModuleManifestV1 struct {
 	Page *PageV1 `protobuf:"bytes,7,opt,name=page,proto3" json:"page,omitempty"`
 	// The roles a solution declares a person may hold on an installation of it,
 	// each within what the solution serves or explicitly consumes through
-	// invoke/lookup bindings; one is named installer, held by whoever installs it.
+	// invoke/lookup bindings; one is named installer, held only by whom it is granted to.
 	// Headless-only scopes cannot supply a role grant. A module declares none.
 	Roles         []*RoleV1 `protobuf:"bytes,8,rep,name=roles,proto3" json:"roles,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -769,7 +781,7 @@ const file_host_composition_v1_composition_proto_rawDesc = "" +
 	"\n" +
 	"credential\x18\x03 \x01(\tR\n" +
 	"credential\x12C\n" +
-	"\tauthority\x18\x04 \x01(\v2%.host.composition.v1.SignedManifestV1R\tauthority\"\xb8\x02\n" +
+	"\tauthority\x18\x04 \x01(\v2%.host.composition.v1.SignedManifestV1R\tauthority\"\xd9\x02\n" +
 	"\x13AuthorityManifestV1\x12\x16\n" +
 	"\x06module\x18\x01 \x01(\tR\x06module\x12\x1e\n" +
 	"\n" +
@@ -778,7 +790,9 @@ const file_host_composition_v1_composition_proto_rawDesc = "" +
 	"\x14core_manifest_digest\x18\x03 \x01(\tR\x12coreManifestDigest\x12=\n" +
 	"\amethods\x18\x04 \x03(\v2#.host.composition.v1.MethodPolicyV1R\amethods\x12E\n" +
 	"\x0escope_ceilings\x18\x05 \x03(\v2\x1e.host.authority.v1.WorkScopeV1R\rscopeCeilings\x121\n" +
-	"\x05roles\x18\x06 \x03(\v2\x1b.host.composition.v1.RoleV1R\x05roles\"\x92\x01\n" +
+	"\x05roles\x18\x06 \x03(\v2\x1b.host.composition.v1.RoleV1R\x05roles\x12\x1f\n" +
+	"\vowner_aware\x18\a \x01(\bR\n" +
+	"ownerAware\"\x92\x01\n" +
 	"\x0eMethodPolicyV1\x12\x16\n" +
 	"\x06method\x18\x01 \x01(\tR\x06method\x12:\n" +
 	"\brequires\x18\x02 \x03(\v2\x1e.host.authority.v1.WorkScopeV1R\brequires\x12,\n" +

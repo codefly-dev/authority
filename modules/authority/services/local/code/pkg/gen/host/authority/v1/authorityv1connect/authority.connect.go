@@ -48,6 +48,9 @@ const (
 	// AuthorityServiceListResourcesProcedure is the fully-qualified name of the AuthorityService's
 	// ListResources RPC.
 	AuthorityServiceListResourcesProcedure = "/host.authority.v1.AuthorityService/ListResources"
+	// AuthorityServiceAuthorizeTransferProcedure is the fully-qualified name of the AuthorityService's
+	// AuthorizeTransfer RPC.
+	AuthorityServiceAuthorizeTransferProcedure = "/host.authority.v1.AuthorityService/AuthorizeTransfer"
 	// AuthorityServiceDelegateProcedure is the fully-qualified name of the AuthorityService's Delegate
 	// RPC.
 	AuthorityServiceDelegateProcedure = "/host.authority.v1.AuthorityService/Delegate"
@@ -77,6 +80,19 @@ type AuthorityServiceClient interface {
 	// rather than carried in the capability. A module maps the answer onto its
 	// own resources; the authority knows them only by id.
 	ListResources(context.Context, *connect.Request[v1.ListResourcesRequest]) (*connect.Response[v1.ListResourcesResponse], error)
+	// AuthorizeTransfer decides whether an existing resource may join an
+	// installed solution's principal. The caller is the kind's one serving
+	// module, which attests the resource exists and who owns it now
+	// (from_owner_id), presenting the capability of the person asking: issued
+	// through the target principal's installation and addressed to the caller.
+	// It is allowed when the current owner is the organization or a person of
+	// it (never another solution principal, another organization or an unknown
+	// owner), the person holds admin on that resource from their own
+	// organization grants, and the person's current roles on the principal hold
+	// write on the kind, all read live. An installation acting for itself never
+	// transfers. The store then records the principal as owner; the original
+	// creator stays the author.
+	AuthorizeTransfer(context.Context, *connect.Request[v1.AuthorizeTransferRequest]) (*connect.Response[v1.AuthorizeTransferResponse], error)
 	// Delegate records a signed-in person's grant to a module (the caller's
 	// bearer is the person); Issue with a delegation acts on it.
 	Delegate(context.Context, *connect.Request[v1.DelegateRequest]) (*connect.Response[v1.Delegation], error)
@@ -124,6 +140,12 @@ func NewAuthorityServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(authorityServiceMethods.ByName("ListResources")),
 			connect.WithClientOptions(opts...),
 		),
+		authorizeTransfer: connect.NewClient[v1.AuthorizeTransferRequest, v1.AuthorizeTransferResponse](
+			httpClient,
+			baseURL+AuthorityServiceAuthorizeTransferProcedure,
+			connect.WithSchema(authorityServiceMethods.ByName("AuthorizeTransfer")),
+			connect.WithClientOptions(opts...),
+		),
 		delegate: connect.NewClient[v1.DelegateRequest, v1.Delegation](
 			httpClient,
 			baseURL+AuthorityServiceDelegateProcedure,
@@ -147,13 +169,14 @@ func NewAuthorityServiceClient(httpClient connect.HTTPClient, baseURL string, op
 
 // authorityServiceClient implements AuthorityServiceClient.
 type authorityServiceClient struct {
-	issue            *connect.Client[v1.IssueRequest, v1.IssueResponse]
-	check            *connect.Client[v1.CheckRequest, v1.CheckResponse]
-	keys             *connect.Client[v1.KeysRequest, v1.KeysResponse]
-	listResources    *connect.Client[v1.ListResourcesRequest, v1.ListResourcesResponse]
-	delegate         *connect.Client[v1.DelegateRequest, v1.Delegation]
-	revokeDelegation *connect.Client[v1.RevokeDelegationRequest, v1.RevokeDelegationResponse]
-	getDelegation    *connect.Client[v1.GetDelegationRequest, v1.Delegation]
+	issue             *connect.Client[v1.IssueRequest, v1.IssueResponse]
+	check             *connect.Client[v1.CheckRequest, v1.CheckResponse]
+	keys              *connect.Client[v1.KeysRequest, v1.KeysResponse]
+	listResources     *connect.Client[v1.ListResourcesRequest, v1.ListResourcesResponse]
+	authorizeTransfer *connect.Client[v1.AuthorizeTransferRequest, v1.AuthorizeTransferResponse]
+	delegate          *connect.Client[v1.DelegateRequest, v1.Delegation]
+	revokeDelegation  *connect.Client[v1.RevokeDelegationRequest, v1.RevokeDelegationResponse]
+	getDelegation     *connect.Client[v1.GetDelegationRequest, v1.Delegation]
 }
 
 // Issue calls host.authority.v1.AuthorityService.Issue.
@@ -174,6 +197,11 @@ func (c *authorityServiceClient) Keys(ctx context.Context, req *connect.Request[
 // ListResources calls host.authority.v1.AuthorityService.ListResources.
 func (c *authorityServiceClient) ListResources(ctx context.Context, req *connect.Request[v1.ListResourcesRequest]) (*connect.Response[v1.ListResourcesResponse], error) {
 	return c.listResources.CallUnary(ctx, req)
+}
+
+// AuthorizeTransfer calls host.authority.v1.AuthorityService.AuthorizeTransfer.
+func (c *authorityServiceClient) AuthorizeTransfer(ctx context.Context, req *connect.Request[v1.AuthorizeTransferRequest]) (*connect.Response[v1.AuthorizeTransferResponse], error) {
+	return c.authorizeTransfer.CallUnary(ctx, req)
 }
 
 // Delegate calls host.authority.v1.AuthorityService.Delegate.
@@ -209,6 +237,19 @@ type AuthorityServiceHandler interface {
 	// rather than carried in the capability. A module maps the answer onto its
 	// own resources; the authority knows them only by id.
 	ListResources(context.Context, *connect.Request[v1.ListResourcesRequest]) (*connect.Response[v1.ListResourcesResponse], error)
+	// AuthorizeTransfer decides whether an existing resource may join an
+	// installed solution's principal. The caller is the kind's one serving
+	// module, which attests the resource exists and who owns it now
+	// (from_owner_id), presenting the capability of the person asking: issued
+	// through the target principal's installation and addressed to the caller.
+	// It is allowed when the current owner is the organization or a person of
+	// it (never another solution principal, another organization or an unknown
+	// owner), the person holds admin on that resource from their own
+	// organization grants, and the person's current roles on the principal hold
+	// write on the kind, all read live. An installation acting for itself never
+	// transfers. The store then records the principal as owner; the original
+	// creator stays the author.
+	AuthorizeTransfer(context.Context, *connect.Request[v1.AuthorizeTransferRequest]) (*connect.Response[v1.AuthorizeTransferResponse], error)
 	// Delegate records a signed-in person's grant to a module (the caller's
 	// bearer is the person); Issue with a delegation acts on it.
 	Delegate(context.Context, *connect.Request[v1.DelegateRequest]) (*connect.Response[v1.Delegation], error)
@@ -252,6 +293,12 @@ func NewAuthorityServiceHandler(svc AuthorityServiceHandler, opts ...connect.Han
 		connect.WithSchema(authorityServiceMethods.ByName("ListResources")),
 		connect.WithHandlerOptions(opts...),
 	)
+	authorityServiceAuthorizeTransferHandler := connect.NewUnaryHandler(
+		AuthorityServiceAuthorizeTransferProcedure,
+		svc.AuthorizeTransfer,
+		connect.WithSchema(authorityServiceMethods.ByName("AuthorizeTransfer")),
+		connect.WithHandlerOptions(opts...),
+	)
 	authorityServiceDelegateHandler := connect.NewUnaryHandler(
 		AuthorityServiceDelegateProcedure,
 		svc.Delegate,
@@ -280,6 +327,8 @@ func NewAuthorityServiceHandler(svc AuthorityServiceHandler, opts ...connect.Han
 			authorityServiceKeysHandler.ServeHTTP(w, r)
 		case AuthorityServiceListResourcesProcedure:
 			authorityServiceListResourcesHandler.ServeHTTP(w, r)
+		case AuthorityServiceAuthorizeTransferProcedure:
+			authorityServiceAuthorizeTransferHandler.ServeHTTP(w, r)
 		case AuthorityServiceDelegateProcedure:
 			authorityServiceDelegateHandler.ServeHTTP(w, r)
 		case AuthorityServiceRevokeDelegationProcedure:
@@ -309,6 +358,10 @@ func (UnimplementedAuthorityServiceHandler) Keys(context.Context, *connect.Reque
 
 func (UnimplementedAuthorityServiceHandler) ListResources(context.Context, *connect.Request[v1.ListResourcesRequest]) (*connect.Response[v1.ListResourcesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.authority.v1.AuthorityService.ListResources is not implemented"))
+}
+
+func (UnimplementedAuthorityServiceHandler) AuthorizeTransfer(context.Context, *connect.Request[v1.AuthorizeTransferRequest]) (*connect.Response[v1.AuthorizeTransferResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.authority.v1.AuthorityService.AuthorizeTransfer is not implemented"))
 }
 
 func (UnimplementedAuthorityServiceHandler) Delegate(context.Context, *connect.Request[v1.DelegateRequest]) (*connect.Response[v1.Delegation], error) {

@@ -26,7 +26,7 @@ func (s *Service) Check(ctx context.Context, token, audience string) (*workconte
 			wc := decoded.Context()
 			if scope.HasOwner(effectiveOf(wc)) && wc.GetOperationBinding().GetBindingId() != "" {
 				if current, berr := s.src.OperationBinding(ctx, wc.GetOperationBinding().GetBindingId()); berr == nil && current.Incarnation != wc.GetOperationBinding().GetIncarnation() {
-					return nil, 0, domain.Refuse("issued through a binding re-created since, or before %s last withdrew owner-aware checking; only a fresh capability carries owner-selected scopes", audience)
+					return nil, 0, domain.Refuse("the capability was revoked: it was issued through a binding re-created since, or before %s last withdrew owner-aware checking; only a fresh capability carries owner-selected scopes", audience)
 				}
 			}
 		}

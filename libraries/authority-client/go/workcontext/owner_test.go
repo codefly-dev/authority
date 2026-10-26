@@ -1,6 +1,12 @@
 package workcontext_test
 
 import (
+	"bytes"
+	"encoding/json"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	reader "github.com/codefly-dev/authority/libraries/authority-client/go/workcontext"
@@ -88,6 +94,64 @@ func TestAChainThatDropsOrChangesTheOwnerIsRefused(t *testing.T) {
 			_, err := reader.Authenticate(stampedToken(tokenFor(t, c)), c.GetAudience(), trustFor(c))
 			if (err == nil) != tc.ok {
 				t.Fatalf("authenticate: %v", err)
+			}
+		})
+	}
+}
+
+type ownerVector struct {
+	Name   string `json:"name"`
+	Owner  string `json:"owner"`
+	Repeat int    `json:"repeat"`
+}
+
+func (v ownerVector) value() string {
+	if v.Repeat > 0 {
+		return strings.Repeat(v.Owner, v.Repeat)
+	}
+	return v.Owner
+}
+
+// The authority's readers take core's resource_owner_id rule exactly: every
+// vector core accepts authenticates, every one it refuses does not. The
+// vectors are core's own file, at the pinned core, byte for byte.
+func TestResourceOwnerVectorsAreCores(t *testing.T) {
+	ours, err := os.ReadFile("../../testdata/resource_owner_vectors.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir, err := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", "github.com/codefly-dev/core").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cores, err := os.ReadFile(filepath.Join(strings.TrimSpace(string(dir)), "workcontext", "testdata", "resource_owner_vectors.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(ours, cores) {
+		t.Fatal("testdata/resource_owner_vectors.json differs from the pinned core's; copy it again")
+	}
+	var vectors struct{ Accepted, Refused []ownerVector }
+	if err := json.Unmarshal(ours, &vectors); err != nil {
+		t.Fatal(err)
+	}
+	authenticate := func(owner string) error {
+		c := body(t, "session")
+		c.AuthorityScopes = []*basev0.WorkScopeV1{ownedScope(t, "record", "read", owner)}
+		_, err := reader.Authenticate(stampedToken(tokenFor(t, c)), "test-proof", c.GetAudience(), trustFor(c))
+		return err
+	}
+	for _, v := range vectors.Accepted {
+		t.Run("accepts "+v.Name, func(t *testing.T) {
+			if err := authenticate(v.value()); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+	for _, v := range vectors.Refused {
+		t.Run("refuses "+v.Name, func(t *testing.T) {
+			if err := authenticate(v.value()); err == nil {
+				t.Fatal("authenticated")
 			}
 		})
 	}

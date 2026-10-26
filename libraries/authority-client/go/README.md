@@ -70,13 +70,16 @@ agent's own marker. A copied marker never grants an exemption. After
 `codefly generate`, review its outputs and update the manifest; the manifest
 is trusted review metadata, not independent proof of generator execution.
 
-Generated adapters use the same object-identity self-dial rule brought from
-PR #22: options come from the package's generated `gatewayDialOptions`,
-directly or through a local variable defined once. That function must retain
-`grpc.WithNoProxy()` and append the generated loopback credentials last.
-There is no file allowlist or function-name exemption. Generated grpc-gateway
-forwarders may dial only their own parameters; their callers must pass seam
-options. Hand-written wrappers receive no forwarding exemption.
+Generated adapters pass the package's generated `gatewayDialOptions` directly
+or through a local variable defined once whose uses cannot alias or mutate its
+backing array. The seam appends the generated loopback credentials last;
+`WithNoProxy` is not a requirement of this credential check. Generated
+same-package forwarders preserve the options unchanged. For generated plugin
+interface dispatch, the gate checks every concrete implementation in the module,
+including unregistered types and promoted methods. REST plugins forward those
+options unchanged; gRPC-only plugins may have a literal no-op REST method.
+Dial and endpoint-registration functions cannot be saved as function values.
+There is no function-name exemption for hand-written wrappers.
 
 Blind spots: `_test.go` files, raw sockets, reflection, unlisted process APIs,
 third-party clients, behavior in callbacks passed to allowed gRPC options,

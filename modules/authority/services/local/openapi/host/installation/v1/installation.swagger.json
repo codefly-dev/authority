@@ -2,7 +2,7 @@
   "swagger": "2.0",
   "info": {
     "title": "host/installation/v1/installation.proto",
-    "description": "The installation interface: what is installed at an organisation and who may\nuse it. Three operations on the host, and one the solution implements, the\ninstall step the host calls once per installation.",
+    "description": "The installation interface: what is installed at an organisation and who may\nuse it. An installed solution is a principal of its organisation; its roles\nare levels on the data that principal owns, and a grant of a role is the\naccess. Operations on the host, and one the solution implements, the install\nstep the host calls once per installation.",
     "version": "version not set"
   },
   "tags": [

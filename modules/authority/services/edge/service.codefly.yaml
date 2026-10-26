@@ -15,9 +15,9 @@ agent:
 # saas accounts implements the same interfaces — and the local authority that
 # implements all three when it names none (code/host.go).
 service-dependencies:
-    - interface: codefly.dev/authority@0.2.0
+    - interface: codefly.dev/authority@>=0.2.0 <0.4.0
     - interface: codefly.dev/session@0.2.0
-    - interface: codefly.dev/installation@0.1.0
+    - interface: codefly.dev/installation@>=0.1.0 <0.3.0
 workspace-configuration-dependencies:
     # The modules the edge routes to, their REST and Connect faces, and the
     # frontend every other path serves (code/main.go).

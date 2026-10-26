@@ -35,7 +35,7 @@ spec:
 # the composition names in the authority group's endpoint answers (saas
 # accounts, say), and the local authority when it names none (code/host.go).
 service-dependencies:
-    - interface: codefly.dev/authority@0.2.0
+    - interface: codefly.dev/authority@>=0.2.0 <0.4.0
 # The hop group names the modules this hop fronts (MODULES). Its signing seed
 # is service-scoped hop-signing/SEED, never a workspace secret. hop-routes is generated
 # by Codefly from their published API catalogs, resolved only for this hop.

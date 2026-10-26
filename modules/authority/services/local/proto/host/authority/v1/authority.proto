@@ -33,6 +33,19 @@ service AuthorityService {
   // rather than carried in the capability. A module maps the answer onto its
   // own resources; the authority knows them only by id.
   rpc ListResources(ListResourcesRequest) returns (ListResourcesResponse);
+  // AuthorizeTransfer decides whether an existing resource may join an
+  // installed solution's principal. The caller is the kind's one serving
+  // module, which attests the resource exists and who owns it now
+  // (from_owner_id), presenting the capability of the person asking: issued
+  // through the target principal's installation and addressed to the caller.
+  // It is allowed when the current owner is the organization or a person of
+  // it (never another solution principal, another organization or an unknown
+  // owner), the person holds admin on that resource from their own
+  // organization grants, and the person's current roles on the principal hold
+  // write on the kind, all read live. An installation acting for itself never
+  // transfers. The store then records the principal as owner; the original
+  // creator stays the author.
+  rpc AuthorizeTransfer(AuthorizeTransferRequest) returns (AuthorizeTransferResponse);
   // Delegate records a signed-in person's grant to a module (the caller's
   // bearer is the person); Issue with a delegation acts on it.
   rpc Delegate(DelegateRequest) returns (Delegation);
@@ -244,7 +257,33 @@ message ListResourcesResponse {
   repeated ResourceGrant grants = 1;
 }
 
-// ResourceGrant is one way of naming covered resources. Exactly one is set.
+// AuthorizeTransferRequest names one existing resource and where it moves.
+message AuthorizeTransferRequest {
+  // The capability of the person asking, addressed to the caller.
+  string token = 1;
+  // The module serving resource_kind, proving which module it is.
+  WorkloadCredential actor = 2;
+  // The resource kind, as the caller serves it.
+  string resource_kind = 3;
+  // The resource id, as the caller knows it.
+  string resource_id = 4;
+  // The resource's current owner, as the caller records it: the organization
+  // or a person of it.
+  string from_owner_id = 5;
+  // The solution principal the resource joins.
+  string to_principal_id = 6;
+}
+
+// AuthorizeTransferResponse is the decision the store records.
+message AuthorizeTransferResponse {
+  // The principal that now owns the resource.
+  string principal_id = 1;
+  // The person who authorized the transfer.
+  string authorized_by = 2;
+}
+
+// ResourceGrant is one way of naming covered resources. Exactly one match is
+// set; resource_owner_id, when set, qualifies it.
 message ResourceGrant {
   oneof match {
     // Every resource of the kind.
@@ -257,4 +296,7 @@ message ResourceGrant {
     // bytes; it is matched against the entire id, as if anchored.
     string pattern = 4;
   }
+  // The owner the covered resources must have: a resource is covered when
+  // the match covers its id and it is owned by this principal.
+  string resource_owner_id = 5;
 }

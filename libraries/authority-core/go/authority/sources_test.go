@@ -22,14 +22,14 @@ func TestAReinstallNeverRepeatsThePrincipalsEpoch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := h.svc.Uninstall(h.ctx, nil, acme, h.inst(acme, "a").ID); err != nil {
+	if err := h.svc.UninstallAsHost(h.ctx, acme, h.inst(acme, "a").ID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := h.svc.Seals().PrincipalEpoch(h.ctx, u); err == nil {
 		t.Fatal("an uninstalled principal has an epoch")
 	}
 	admin := h.admin(acme)
-	if _, err := h.svc.Install(h.ctx, &admin, acme, "a", "viewer", admin.ID, nil); err != nil {
+	if _, err := h.svc.Install(h.ctx, admin, acme, "a", "viewer", admin.ID, nil); err != nil {
 		t.Fatal(err)
 	}
 	after, err := h.svc.Seals().PrincipalEpoch(h.ctx, u)
@@ -50,7 +50,7 @@ func TestAnUninstallMovesItsOrganizationsRevision(t *testing.T) {
 		return r
 	}
 	acmeBefore, globexBefore := rev(acme), rev(globex)
-	if err := h.svc.Uninstall(h.ctx, nil, acme, h.inst(acme, "a").ID); err != nil {
+	if err := h.svc.UninstallAsHost(h.ctx, acme, h.inst(acme, "a").ID); err != nil {
 		t.Fatal(err)
 	}
 	if rev(acme) <= acmeBefore || rev(globex) != globexBefore {
@@ -66,9 +66,9 @@ func TestAnUninstallIsTheOrganizationsAdministrators(t *testing.T) {
 	id := h.inst(acme, "a").ID
 	maya, zoe := h.person("maya"), h.person("zoe")
 	// A member who administers nothing learns nothing either (r148 m2).
-	refused(t, h.svc.Uninstall(h.ctx, &maya, acme, id), "belongs to another organization")
-	foreign := h.svc.Uninstall(h.ctx, &zoe, globex, id)
-	absent := h.svc.Uninstall(h.ctx, &zoe, globex, "no-such-installation")
+	refused(t, h.svc.Uninstall(h.ctx, maya, acme, id), "belongs to another organization")
+	foreign := h.svc.Uninstall(h.ctx, zoe, globex, id)
+	absent := h.svc.Uninstall(h.ctx, zoe, globex, "no-such-installation")
 	code(t, foreign, domain.Denied)
 	if want := "installation " + id + " belongs to another organization than \"globex\""; foreign.Error() != want {
 		t.Fatalf("foreign %q", foreign)
@@ -80,7 +80,7 @@ func TestAnUninstallIsTheOrganizationsAdministrators(t *testing.T) {
 		t.Fatalf("a refused uninstall changed %s: %v", id, err)
 	}
 	alex := h.admin(acme)
-	if err := h.svc.Uninstall(h.ctx, &alex, acme, id); err != nil {
+	if err := h.svc.Uninstall(h.ctx, alex, acme, id); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -130,7 +130,7 @@ func TestTheSealRevisionNeverRepeats(t *testing.T) {
 		t.Fatal(err)
 	}
 	step("owner-aware withdrawn")
-	if err := h.svc.Uninstall(h.ctx, nil, acme, id); err != nil {
+	if err := h.svc.UninstallAsHost(h.ctx, acme, id); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := h.svc.Seals().Seal(h.ctx, "maya", id); !errors.Is(err, workcontext.ErrNoSeal) {
@@ -268,7 +268,7 @@ func TestARevokedGrantStaysGone(t *testing.T) {
 		return len(g)
 	}
 	h.grant("a", "viewer", "maya")
-	if err := h.svc.Uninstall(h.ctx, nil, acme, id); err != nil {
+	if err := h.svc.UninstallAsHost(h.ctx, acme, id); err != nil {
 		t.Fatal(err)
 	}
 	h.revoke("a", "viewer", "maya", "")

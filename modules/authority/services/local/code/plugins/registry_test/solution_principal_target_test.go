@@ -1,12 +1,9 @@
-// The solution-principal target, against the local authority. It is the
-// contract the local authority does not meet yet (conformance
-// RunSolutionPrincipalTarget): run it with AUTHORITY_TARGET=solution-principal
-// and it fails, naming what the published contract lacks first.
+// The solution-principal contract (conformance RunSolutionPrincipalTarget),
+// against the local authority: run with every go test.
 package registry_test
 
 import (
 	"context"
-	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -28,9 +25,6 @@ import (
 )
 
 func TestTheLocalAuthorityMeetsTheSolutionPrincipalTarget(t *testing.T) {
-	if os.Getenv("AUTHORITY_TARGET") != "solution-principal" {
-		t.Skip("target contract, not yet implemented: run with AUTHORITY_TARGET=solution-principal to see what it lacks")
-	}
 	k := testkit.New(t)
 	// Two people whose own organisation grants reach one existing resource of
 	// the store's kind (one administers it, one reads it), and a member of a
@@ -59,9 +53,6 @@ people:
 `)); err != nil {
 		t.Fatal(err)
 	}
-	// The local authority has no membership change yet: these hooks are the
-	// target's, labelled as not implemented rather than faked.
-	notYet := func(what string) error { return errors.New("target: the local authority cannot " + what + " yet") }
 	server := grpc.NewServer()
 	for _, p := range []framework.Plugin{
 		&authority.Plugin{Issuer: k.Issuer},
@@ -97,9 +88,9 @@ people:
 		Administrator: "fixture-store-administrator", Reader: "fixture-store-reader", NoteReader: "fixture-principal-note-reader",
 		OtherAdmin: "fixture-zoe", OtherMember: "fixture-omar", OtherTeam: "ops",
 		Existing:               "store-x",
-		Uninstall:              func(_ context.Context, id string) error { return k.State.Revoke(id) },
-		RemoveFromTeam:         func(context.Context, string, string) error { return notYet("remove a person from a team") },
-		RemoveFromOrganization: func(context.Context, string) error { return notYet("remove a person from the organisation") },
+		Uninstall:              func(_ context.Context, id string) error { return k.State.UninstallAsHost(id) },
+		RemoveFromTeam:         k.State.LeaveTeam,
+		RemoveFromOrganization: k.State.LeaveOrganization,
 		SignManifest:           testkit.SignDocument,
 		SignAuthority:          testkit.SignAuthority,
 		DeliveryCredential:     func(module string) string { return k.Credential(t, module) },

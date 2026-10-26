@@ -2,6 +2,7 @@ package installation_test
 
 import (
 	"context"
+	"gateway/pkg/business/state"
 	"testing"
 
 	"gateway/pkg/business/testkit"
@@ -37,7 +38,7 @@ func TestInstallationAdministrationUsesCurrentCallerAndOrganization(t *testing.T
 					return err
 				},
 				"grant": func() error {
-					_, err := p.GrantToTeam(ctx, &installationv1.GrantToTeamRequest{OrganizationId: tc.org})
+					_, err := p.GrantRole(ctx, &installationv1.GrantRoleRequest{OrganizationId: tc.org, InstallationId: state.InstallationID("acme", "wiki"), Role: "viewer", PersonId: "maya"})
 					return err
 				},
 			} {

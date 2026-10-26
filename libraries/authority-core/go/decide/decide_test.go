@@ -129,18 +129,18 @@ func TestWhoMayChangeARoleInOrder(t *testing.T) {
 		reason string
 	}{
 		"another organization, even for a non-admin": {func(r *decide.RoleChange) { r.RequestOrganization = "globex"; r.Caller = member }, domain.Denied, "organization"},
-		"a member": {func(r *decide.RoleChange) { r.Caller = member }, domain.Denied, "may not grant"},
+		"a member": {func(r *decide.RoleChange) { r.Caller = member }, domain.Denied, "belongs to another organization"},
 		"another organization's admin": {func(r *decide.RoleChange) {
 			r.Caller = domain.Person{ID: "zoe", Organization: "globex", Roles: []string{"admin"}}
-		}, domain.Denied, "may not grant"},
+		}, domain.Denied, "belongs to another organization"},
 		"a disabled installation":          {func(r *decide.RoleChange) { r.Installation.Status = domain.Revoked }, domain.Precondition, "not installed"},
 		"an undeclared role":               {func(r *decide.RoleChange) { r.Role = "owner" }, domain.NotFound, "declares no role"},
 		"both subjects":                    {func(r *decide.RoleChange) { r.TeamID = "t" }, domain.Invalid, "exactly one"},
 		"no subject":                       {func(r *decide.RoleChange) { r.PersonID = "" }, domain.Invalid, "exactly one"},
 		"a person of another organization": {func(r *decide.RoleChange) { r.PersonID, r.Subject = "omar", &omar }, domain.Denied, "not a member"},
 		"a team of another organization":   {func(r *decide.RoleChange) { r.PersonID, r.TeamID = "", "ops" }, domain.Denied, "not a team of"},
-		"a member listing":                 {func(r *decide.RoleChange) { r.Caller, r.List = member, true }, domain.Denied, "may not list"},
-		"a member revoking":                {func(r *decide.RoleChange) { r.Caller, r.Revoke = member, true }, domain.Denied, "may not grant"},
+		"a member listing":                 {func(r *decide.RoleChange) { r.Caller, r.List = member, true }, domain.Denied, "belongs to another organization"},
+		"a member revoking":                {func(r *decide.RoleChange) { r.Caller, r.Revoke = member, true }, domain.Denied, "belongs to another organization"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			r := base()

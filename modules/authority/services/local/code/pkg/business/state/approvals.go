@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sync"
 
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"github.com/google/uuid"
 )
 
@@ -105,9 +104,4 @@ func (s *MemoryApprovals) find(installation, policy, digest string) (Approval, b
 		}
 	}
 	return Approval{}, false
-}
-
-// HoldsAction is whether held carries action on kind.
-func HoldsAction(held []*basev0.WorkScopeV1, kind, action string) bool {
-	return holdsAction(held, kind, action)
 }

@@ -4,7 +4,7 @@ go 1.27.3
 
 require (
 	github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0-20261024163421-423f79d08aa1
-	github.com/codefly-dev/core v0.19.7-0.20261026022918-8af4b787a435
+	github.com/codefly-dev/core v0.19.7-0.20261026034911-b57347f09515
 	github.com/codefly-dev/sdk-go v0.4.0
 	google.golang.org/grpc v1.84.0
 )

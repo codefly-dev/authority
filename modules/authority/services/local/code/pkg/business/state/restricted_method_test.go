@@ -12,7 +12,7 @@ import (
 
 func TestMethodAdmissionNeverWidensResourceRestrictedScopes(t *testing.T) {
 	k := testkit.New(t)
-	m := state.Manifest{Module: "gauge", Principal: "gauge", Kind: "module", Generation: 1,
+	m := state.Manifest{Name: "gauge", Principal: "gauge", Kind: "module", Generation: 1,
 		Methods: map[string]state.MethodPolicy{
 			"/gauge.Service/List": reads("gauge.items"),
 			"/gauge.Service/Edit": {Requires: []*basev0.WorkScopeV1{scope("gauge.items", nil, "read", "write")}},
