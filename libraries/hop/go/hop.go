@@ -376,6 +376,9 @@ func (v *Verifier) trustFor(ctx context.Context, keyID string) (workcontext.Trus
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if v.fetched.IsZero() || v.now().Sub(v.fetched) > keyStale {
+		if errors.Is(v.failure, refusal.InvalidKey) {
+			return workcontext.Trust{}, fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.InvalidKey)
+		}
 		return workcontext.Trust{}, errKeysUnavailable
 	}
 	return workcontext.Trust{Issuer: v.trust.Issuer, Keys: v.trust.Keys, Now: v.now}, nil
@@ -416,12 +419,12 @@ func (v *Verifier) read(ctx context.Context) (workcontext.Trust, error) {
 			continue
 		}
 		if key.GetKeyId() == "" || len(key.GetPublicKey()) != ed25519.PublicKeySize || trust.Keys[key.GetKeyId()] != nil {
-			return workcontext.Trust{}, errors.New("hop: the authority publishes an unnamed, repeated or malformed key")
+			return workcontext.Trust{}, refusal.InvalidKey
 		}
 		trust.Keys[key.GetKeyId()] = ed25519.PublicKey(slices.Clone(key.GetPublicKey()))
 	}
 	if trust.Issuer == "" || len(trust.Keys) == 0 {
-		return workcontext.Trust{}, errors.New("hop: the authority publishes no issuer or no Ed25519 key")
+		return workcontext.Trust{}, refusal.InvalidKey
 	}
 	return trust, nil
 }

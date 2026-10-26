@@ -69,3 +69,27 @@ func TestConfigurationAndCancelledKeyWaitHaveNamedReasons(t *testing.T) {
 		t.Fatalf("cancelled: %v", err)
 	}
 }
+
+func TestInvalidPublicationIsDistinctFromUnreadableKeys(t *testing.T) {
+	s := newSigner("publication")
+	token := s.issue(t, time.Now(), "module")
+	for _, tc := range []struct {
+		response *authorityv1.KeysResponse
+		failure  error
+		want     Reason
+	}{
+		{&authorityv1.KeysResponse{Issuer: s.issuer}, nil, ReasonInvalidKey},
+		{&authorityv1.KeysResponse{Issuer: s.issuer, Keys: []*authorityv1.PublicKey{{KeyId: "secret-key-id", Algorithm: "Ed25519", PublicKey: []byte("secret-key")}}}, nil, ReasonInvalidKey},
+		{nil, errors.New("secret-key-source"), ReasonKeysUnavailable},
+	} {
+		v, err := NewTokenVerifier(t.Context(), &keys{response: tc.response, err: tc.failure}, "module")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = v.VerifyToken(t.Context(), token)
+		var reason Reason
+		if !errors.As(err, &reason) || reason != tc.want || strings.Contains(err.Error(), "secret-") {
+			t.Fatalf("publication classification: %v", err)
+		}
+	}
+}

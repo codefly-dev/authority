@@ -293,3 +293,13 @@ test('bare-only process needs no proof and cannot accept stamps', async () => {
  assert.equal((await v.verifyToken(fixture.headers['x-codefly-work-context'])).owner,fixture.identity.owner);
  await assert.rejects(v.verify(fixture.headers),Unauthenticated);
 });
+
+test('invalid publication and unreadable keys have distinct safe codes', async () => {
+ for (const [answer, code] of [
+  [()=>Promise.resolve(create(KeysResponseSchema,{issuer:'issuer'})), Reason.InvalidKey],
+  [()=>Promise.reject(new Error('private-source-detail')), Reason.KeysUnavailable],
+ ]) {
+  const v=new Verifier(source(answer),fixture.audience,fixture.proof,()=>fixture.now*1000);
+  await assert.rejects(v.verifyToken(fixture.headers['x-codefly-work-context']), e=>e.code===code && !e.message.includes('private-'));
+ }
+});

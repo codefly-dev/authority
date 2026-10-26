@@ -391,3 +391,13 @@ def test_bare_only_process_needs_no_proof_and_cannot_accept_stamps():
     assert v.verify_token(FIXTURE["headers"][WORK_CONTEXT_KEY]).owner == FIXTURE["identity"]["owner"]
     with pytest.raises(Unauthenticated):
         v.verify(FIXTURE["headers"])
+
+
+def test_invalid_publication_and_unreadable_keys_have_distinct_safe_codes():
+    for source, code in [(Keys(KeysResponse(issuer="issuer")), "invalid_key"),
+                         (Keys(error=RuntimeError("private-source-detail")), "keys_unavailable")]:
+        v = verifier(source=source)
+        with pytest.raises(Unauthenticated) as refused:
+            v.verify_token(FIXTURE["headers"][WORK_CONTEXT_KEY])
+        assert refused.value.code == code
+        assert "private-" not in str(refused.value)

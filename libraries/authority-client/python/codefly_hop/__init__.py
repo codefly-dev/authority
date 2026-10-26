@@ -200,6 +200,8 @@ class Verifier:
     def _token_identity(self, token: str) -> Identity:
         with self._lock:
             if self._trust is None or self._now() - self._fetched > KEY_STALE:
+                if isinstance(self.keys_error, Unauthenticated) and self.keys_error.reason == Reason.INVALIDKEY:
+                    raise Unauthenticated(Reason.INVALIDKEY)
                 raise Unauthenticated(Reason.KEYSUNAVAILABLE)
             trust = self._trust
         claims = authenticate_token(token, self._audience, trust)

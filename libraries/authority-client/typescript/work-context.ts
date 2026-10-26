@@ -401,6 +401,7 @@ export class Verifier {
     // idle replica's first call is judged on fresh keys, not refused while they arrive.
     if ((!held || now - this.fetched > KEY_STALE_MS) && this.inflight) await this.inflight;
     if (!this.trust || this.now() - this.fetched > KEY_STALE_MS) {
+      if (this.keysError instanceof Unauthenticated && this.keysError.code === Reason.InvalidKey) throw new Unauthenticated(Reason.InvalidKey);
       throw new Unauthenticated(Reason.KeysUnavailable);
     }
     return { ...this.trust, now: this.now };
