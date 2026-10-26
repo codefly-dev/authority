@@ -11,8 +11,32 @@ claims = authenticate(request.headers, proof, audience, trust)  # raises Unauthe
 allowed = claims.allows(resource_kind, action, installed_resource_id)
 ```
 
-A module normally uses `codefly_hop.Verifier` (`libraries/hop/python`), which
-resolves and refreshes the trust and derives who the call is for.
+A module normally uses `codefly_hop.Verifier`, shipped in this same
+distribution, which resolves and refreshes the trust and derives who the call is
+for:
+
+```python
+from authority_client._gen.host.authority.v1.authority_pb2_grpc import AuthorityServiceStub
+from codefly_hop import Unauthenticated, Verifier
+
+verifier = Verifier(AuthorityServiceStub(channel), audience=os.environ["CODEFLY__MODULE"], proof=proof)  # once
+identity = verifier.verify(request.headers)              # a sync handler
+identity = await verifier.verify_async(request.headers)  # an asyncio handler: a key wait runs off the loop
+identity.tenant, identity.has(kind, action), identity.claims.allows(kind, action, resource_id)
+```
+
+The verifier checks the stamp first, then reads the published keys through `Keys`
+on a thread of its own with a 5 s timeout, one read at a time; it re-reads them
+on an unknown key (at most every 10 s) and when older than 5 minutes; keys that
+cannot be re-read are trusted for 15 minutes at most. It never fails to
+construct on an authority that is not serving yet, and refuses calls with a
+fixed reason until it is; `verifier.keys_error` holds the read's failure for
+logs. `codefly_hop` reads the hop's signed fixture (`../../hop/testdata/stamped.json`)
+as the Go library writes it.
+
+`codefly_hop` and `authority_client` are one distribution so that one pinned
+commit installs both, and no dependency is ever resolved by name from a public
+index.
 
 `authenticate` checks the run's hop proof, exactly one token and the stamp's
 digest of it; then Core's rules in Core's order: the decode path (size, the
@@ -36,7 +60,7 @@ Effective scopes are the final actor's grants, or the owner's when there is no
 actor. Each scope is evaluated independently; an omitted resource ID asks for the
 whole kind; actions are literal.
 
-Pin consumers by repository commit:
+Pin consumers by repository commit (pip and uv alike):
 `authority-client @ git+https://github.com/codefly-dev/authority@<commit>#subdirectory=libraries/authority-client/python`.
 
 ```sh

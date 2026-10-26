@@ -9,10 +9,15 @@ it has not authenticated. ``Verifier`` is the Go library's ``hop.Verifier``
 authority's published keys (``authority_client.work_context.authenticate``), who
 the call is for is read from its claims, and a stamp that says otherwise is
 refused. Both read the one fixture the Go hop writes (libraries/hop/testdata).
+
+It ships in the authority-client distribution, beside the ``authority_client``
+package it rests on, so one pinned commit installs both and no dependency is
+ever looked up by name on a public index.
 """
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import threading
 import time
@@ -119,10 +124,43 @@ class Verifier:
 
     def verify(self, headers: Mapping[str, str] | Iterable[tuple[str, str]]) -> Identity:
         """Who the call is for, or ``Unauthenticated`` naming why it is refused.
-        The stamp is checked first: nothing unbound reaches the key read."""
+        The stamp is checked first: nothing unbound reaches the key read. It may
+        wait up to the read's timeout for a key it does not hold yet; an asyncio
+        handler uses ``verify_async``."""
+        pairs, token = self._bound(headers)
+        wait = self._start(_key_id(token))
+        if wait is not None:
+            wait.wait(self._timeout)
+        return self._finish(pairs, token)
+
+    async def verify_async(self, headers: Mapping[str, str] | Iterable[tuple[str, str]]) -> Identity:
+        """``verify`` for an asyncio handler: a wait for the keys runs off the event
+        loop, and a call whose key is held never leaves it."""
+        pairs, token = self._bound(headers)
+        wait = self._start(_key_id(token))
+        if wait is not None:
+            await asyncio.to_thread(wait.wait, self._timeout)
+        return self._finish(pairs, token)
+
+    def _bound(self, headers) -> tuple[list[tuple[str, str]], str]:
         pairs = list(headers.items() if isinstance(headers, Mapping) else headers)
-        token = bound_token(pairs, self._proof)
-        claims = authenticate(pairs, self._proof, self._audience, self._trust_for(_key_id(token)))
+        return pairs, bound_token(pairs, self._proof)
+
+    def _start(self, key_id: str) -> threading.Event | None:
+        """Start a read when one is due; return it when this call must wait for it."""
+        with self._lock:
+            now = self._now()
+            held = self._trust is not None and key_id in self._trust.keys
+            if (not held or now - self._fetched > KEY_MAX_AGE) and self._inflight is None and now - self._tried >= KEY_RETRY:
+                self._refresh()
+            return None if held else self._inflight
+
+    def _finish(self, pairs: list[tuple[str, str]], token: str) -> Identity:
+        with self._lock:
+            if self._trust is None or self._now() - self._fetched > KEY_STALE:
+                raise Unauthenticated("the authority's published keys are unavailable")
+            trust = self._trust
+        claims = authenticate(pairs, self._proof, self._audience, trust)
         values = collect(pairs)
         identity = identity_of(claims.context)
         stamped = {
@@ -137,20 +175,6 @@ class Verifier:
                 raise Unauthenticated(f"the stamp's {key.removeprefix(STAMP_PREFIX)} does not match the authenticated Work Context")
         advisory = (values.get(ADVISORY_KEY) or [""])[0]
         return Identity(**{**identity.__dict__, "context": token, "advisory": advisory, "claims": claims})
-
-    def _trust_for(self, key_id: str) -> Trust:
-        with self._lock:
-            now = self._now()
-            held = self._trust is not None and key_id in self._trust.keys
-            if (not held or now - self._fetched > KEY_MAX_AGE) and self._inflight is None and now - self._tried >= KEY_RETRY:
-                self._refresh()
-            wait = self._inflight
-        if not held and wait is not None:
-            wait.wait(self._timeout)
-        with self._lock:
-            if self._trust is None or self._now() - self._fetched > KEY_STALE:
-                raise Unauthenticated("the authority's published keys are unavailable")
-            return self._trust
 
     def _refresh(self) -> threading.Event:
         """Start the one read, on its own thread and timeout; the lock is held."""

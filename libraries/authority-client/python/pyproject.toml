@@ -8,7 +8,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["authority_client", "authority_client.*"]
+include = ["authority_client", "authority_client.*", "codefly_hop"]
 
 [tool.setuptools.package-data]
 authority_client = ["contract.binpb"]

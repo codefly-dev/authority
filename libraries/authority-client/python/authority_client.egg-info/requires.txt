@@ -1,5 +1,0 @@
-protobuf<7,>=5.29.3
-grpcio>=1.71.0
-googleapis-common-protos
-cryptography>=41
-protovalidate>=1.0

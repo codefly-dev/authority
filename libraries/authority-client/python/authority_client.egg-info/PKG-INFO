@@ -1,8 +1,0 @@
-Metadata-Version: 2.4
-Name: authority-client
-Version: 0.0.1
-Requires-Dist: protobuf<7,>=5.29.3
-Requires-Dist: grpcio>=1.71.0
-Requires-Dist: googleapis-common-protos
-Requires-Dist: cryptography>=41
-Requires-Dist: protovalidate>=1.0

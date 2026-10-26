@@ -11,7 +11,7 @@ from codefly_hop import (
     ACTORS_KEY, CONTEXT_KEY, SCOPES_KEY, TENANT_KEY, WORK_CONTEXT_KEY, Identity, Unauthenticated, Verifier, identity_of,
 )
 
-FIXTURE = json.loads((Path(__file__).parents[2] / "testdata/stamped.json").read_text())
+FIXTURE = json.loads((Path(__file__).parents[3] / "hop/testdata/stamped.json").read_text())
 
 
 class Keys:
@@ -163,3 +163,36 @@ def test_a_verifier_needs_keys_an_audience_and_a_proof():
     for args in [(None, "documents", "p"), (Keys(published()), "", "p"), (Keys(published()), "documents", "")]:
         with pytest.raises(Unauthenticated):
             Verifier(args[0], audience=args[1], proof=args[2])
+
+
+# Review r57 m-b: an asyncio handler's wait for the keys never blocks the loop.
+def test_verify_async_waits_for_keys_off_the_event_loop():
+    import asyncio
+    import threading
+
+    clock = [FIXTURE["now"]]
+    source = Keys(error=RuntimeError("not serving yet"))
+    v = Verifier(source, audience=FIXTURE["audience"], proof=FIXTURE["proof"], now=lambda: clock[0], timeout=1.0)
+    source.error, source.response, source.hold = None, published(), threading.Event()
+    clock[0] += 11  # no key held: this call starts a read, which hangs, and waits for it
+
+    async def scenario():
+        ticks = 0
+
+        async def ticker():
+            nonlocal ticks
+            while True:
+                await asyncio.sleep(0.01)
+                ticks += 1
+
+        running = asyncio.create_task(ticker())
+        waiting = asyncio.create_task(v.verify_async(FIXTURE["headers"]))
+        await asyncio.sleep(0.3)
+        source.hold.set()
+        identity = await waiting
+        running.cancel()
+        return ticks, identity
+
+    ticks, identity = asyncio.run(scenario())
+    assert ticks >= 10, "the event loop was blocked while the keys were read"
+    assert identity.owner == FIXTURE["identity"]["owner"]
