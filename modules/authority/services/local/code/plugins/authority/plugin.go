@@ -40,6 +40,9 @@ func (p *Plugin) RegisterGRPC(s *grpc.Server) { authorityv1.RegisterAuthoritySer
 // with no generated client of its own (a Python service): the same methods,
 // transcoded to the gRPC service, the caller's Authorization header carried as
 // the bearer.
+//
+// It forwards the generated adapter's options unchanged, preserving its
+// loopback-only transport credentials.
 func (p *Plugin) RegisterREST(ctx context.Context, mux *runtime.ServeMux, endpoint string, opts []grpc.DialOption) error {
 	if err := authorityv1.RegisterAuthorityServiceHandlerFromEndpoint(ctx, mux, endpoint, opts); err != nil {
 		return err
