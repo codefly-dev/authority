@@ -86,6 +86,11 @@ func (p *Plugin) ApplyManifest(ctx context.Context, req *compositionv1.ApplyMani
 			if m.Methods, err = methodsOf(doc); err != nil {
 				return nil, err
 			}
+			for _, ceiling := range doc.GetScopeCeilings() {
+				if ceiling.GetResourceOwnerId() != "" {
+					return nil, status.Errorf(codes.PermissionDenied, "%s: scope ceiling %s names resource owner %q; a delivery never selects an owner", m.Name, ceiling.GetResourceKind(), ceiling.GetResourceOwnerId())
+				}
+			}
 			if m, err = ceiled(m, issuer.FromWire(doc.GetScopeCeilings())); err != nil {
 				return nil, err
 			}

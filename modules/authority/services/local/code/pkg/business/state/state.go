@@ -11,6 +11,7 @@ import (
 	"crypto/ed25519"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -556,6 +557,9 @@ func (s *State) ApplyManifest(m Manifest) ([]string, error) {
 // applyManifestLocked applies m through the core, what its methods require
 // joined to what it serves. Caller holds mu.
 func (s *State) applyManifestLocked(m Manifest) ([]string, []FixtureInstallation, error) {
+	if err := noOwners(m); err != nil {
+		return nil, nil, err
+	}
 	m.ResourceKinds = Normalize(append(slices.Clone(m.ResourceKinds), servedByMethods(m.Methods)...))
 	ids, err := s.svc.ApplyModule(context.Background(), m)
 	if err != nil {
@@ -563,6 +567,43 @@ func (s *State) applyManifestLocked(m Manifest) ([]string, []FixtureInstallation
 	}
 	s.refreshRolesLocked()
 	return ids, s.takePendingInstalls(m.Name), nil
+}
+
+// noOwners refuses a delivery naming a resource owner where none belongs: in
+// what a module serves, in a binding's scopes, in a role or in a method's
+// requirement. An owner is the authority's to select per installation; read
+// owner-blind, it would widen to the whole kind, so it is refused by name.
+func noOwners(m Manifest) error {
+	check := func(where string, scopes []*basev0.WorkScopeV1) error {
+		for _, sc := range scopes {
+			if sc.GetResourceOwnerId() != "" {
+				return fmt.Errorf("%w: %s: %s names resource owner %q; a delivery never selects an owner", ErrForbidden, where, sc.GetResourceKind(), sc.GetResourceOwnerId())
+			}
+		}
+		return nil
+	}
+	if err := check(m.Name+" serves", m.ResourceKinds); err != nil {
+		return err
+	}
+	for _, id := range slices.Sorted(maps.Keys(m.Bindings)) {
+		b := m.Bindings[id]
+		for _, scopes := range [][]*basev0.WorkScopeV1{b.InvokeScopes, b.HeadlessScopes, b.LookupScopes} {
+			if err := check(m.Name+" binding "+id, scopes); err != nil {
+				return err
+			}
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(m.Roles)) {
+		if err := check(m.Name+" role "+name, m.Roles[name]); err != nil {
+			return err
+		}
+	}
+	for _, method := range slices.Sorted(maps.Keys(m.Methods)) {
+		if err := check(m.Name+" method "+method, m.Methods[method].Requires); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // servedByMethods is every (kind, action) a module's methods require of a
