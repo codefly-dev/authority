@@ -1,5 +1,5 @@
 name: local
-version: 0.0.1
+version: 0.1.0
 agent:
     kind: codefly:service
     name: go-grpc

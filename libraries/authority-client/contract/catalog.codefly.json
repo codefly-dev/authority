@@ -1,7 +1,7 @@
 {
   "schema": "codefly/module-api-contracts/v1",
   "package": "local",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "endpoints": [
     {
       "service": "local",
