@@ -38,8 +38,8 @@ func (s *Service) AttachResource(ctx context.Context, r AttachmentRequest) (stri
 	if err != nil {
 		return "", err
 	}
-	if !mayAttach(scope.Unowned(verified.EffectiveScopes()), r.Kind, r.ResourceID, "") {
-		return "", domain.Refuse("the capability holds neither create on the whole of %s nor admin on %q; reading a resource attaches nothing", r.Kind, r.ResourceID)
+	if !mayAttach(scope.Unowned(verified.EffectiveScopes()), r.Kind, "") {
+		return "", domain.Refuse("the capability holds no create on the whole of %s; existing resources require AuthorizeTransfer", r.Kind)
 	}
 	wc := verified.Context()
 	var owner string
@@ -52,30 +52,7 @@ func (s *Service) AttachResource(ctx context.Context, r AttachmentRequest) (stri
 		if current.Principal != actor.Principal || current.Generation != actor.Generation {
 			return domain.Refuse("serving module changed during attachment")
 		}
-		revision, err := tx.AuthorizationRevision(wc.GetTenantId())
-		if err != nil {
-			return err
-		}
-		if revision != wc.GetAuthorizationRevision() {
-			return domain.Refuse("authorization revision superseded during attachment")
-		}
-		// Recheck the owner and every actor's seal/epoch inside the write snapshot.
-		check := func(principal string, sealID string, revision, epoch uint64) error {
-			seal, err := s.src.sealIn(tx, principal, sealID)
-			if err != nil {
-				return err
-			}
-			liveEpoch, err := s.src.epochIn(tx, principal)
-			if err != nil {
-				return err
-			}
-			if seal.InstallationRevision != revision || liveEpoch != epoch {
-				return domain.Refuse("capability provenance superseded during attachment")
-			}
-			return nil
-		}
-		seal := wc.GetSeal()
-		if err := check(wc.GetOwnerPrincipalId(), seal.GetInstallationId(), seal.GetInstallationRevision(), seal.GetPrincipalEpoch()); err != nil {
+		if err := s.attachmentFresh(tx, wc); err != nil {
 			return err
 		}
 		candidates := []string{}
@@ -83,15 +60,6 @@ func (s *Service) AttachResource(ctx context.Context, r AttachmentRequest) (stri
 			candidates = append(candidates, inst.ID)
 		} else if !errors.Is(err, domain.ErrNotFound) {
 			return err
-		}
-		for _, hop := range wc.GetActorChain() {
-			epoch, err := s.src.epochIn(tx, hop.GetPrincipalId())
-			if err != nil {
-				return err
-			}
-			if epoch != hop.GetPrincipalEpoch() {
-				return domain.Refuse("actor provenance superseded during attachment")
-			}
 		}
 		for _, principal := range solutionPrincipals(wc, actor.Principal) {
 			m, err := tx.Module(principal)
@@ -121,30 +89,11 @@ func (s *Service) AttachResource(ctx context.Context, r AttachmentRequest) (stri
 		if inst.Organization != wc.GetTenantId() || inst.Status != domain.Active {
 			return domain.Refuse("installation %s is not active at %s", inst.ID, wc.GetTenantId())
 		}
-		if !mayAttach(verified.EffectiveScopes(), r.Kind, r.ResourceID, inst.PrincipalID) {
-			return domain.Refuse("the capability holds neither create for this installation nor owner-free admin on %q; an owner-selected admin scope does not attest the resource's owner", r.ResourceID)
+		if !mayAttach(verified.EffectiveScopes(), r.Kind, inst.PrincipalID) {
+			return domain.Refuse("the capability holds no create for this installation; existing resources require AuthorizeTransfer")
 		}
-		all, err := tx.Installations(inst.Organization)
-		if err != nil {
+		if err := attachOwned(tx, inst, r.Kind, r.ResourceID); err != nil {
 			return err
-		}
-		for _, other := range all {
-			if other.ID != inst.ID && slices.Contains(other.Owned[r.Kind], r.ResourceID) {
-				return domain.Refuse("%s %q is owned by installation %s; a resource has one owner in an organisation", r.Kind, r.ResourceID, other.ID)
-			}
-		}
-		if !slices.Contains(inst.Owned[r.Kind], r.ResourceID) {
-			if len(inst.Owned[r.Kind]) >= MaxOwnedPerKind {
-				return domain.Refuse("installation %s already owns %d of %s, the most a capability carries", inst.ID, MaxOwnedPerKind, r.Kind)
-			}
-			if inst.Owned == nil {
-				inst.Owned = map[string][]string{}
-			}
-			inst.Owned[r.Kind] = append(inst.Owned[r.Kind], r.ResourceID)
-			slices.Sort(inst.Owned[r.Kind])
-			if err := tx.PutInstallation(inst); err != nil {
-				return err
-			}
 		}
 		owner = inst.ID
 		return nil
@@ -213,13 +162,80 @@ func attachmentServer(tx Tx, caller Workload, kind string) (domain.Module, error
 	return m, nil
 }
 
-func mayAttach(scopes Scopes, kind, id, installationPrincipal string) bool {
+func mayAttach(scopes Scopes, kind, installationPrincipal string) bool {
 	return slices.ContainsFunc(scopes, func(sc *basev0.WorkScopeV1) bool {
 		if sc.GetResourceKind() != kind {
 			return false
 		}
 		whole, every := len(sc.GetResourceIds()) == 0, slices.Contains(sc.GetActions(), scope.AnyAction)
-		return (whole && (sc.GetResourceOwnerId() == "" || sc.GetResourceOwnerId() == installationPrincipal) && (every || slices.Contains(sc.GetActions(), "create"))) ||
-			(sc.GetResourceOwnerId() == "" && (whole || slices.Contains(sc.GetResourceIds(), id)) && (every || slices.Contains(sc.GetActions(), "admin")))
+		return whole && (sc.GetResourceOwnerId() == "" || sc.GetResourceOwnerId() == installationPrincipal) && (every || slices.Contains(sc.GetActions(), "create"))
 	})
+}
+
+// attachmentFresh fences verification against changes before the write snapshot.
+func (s *Service) attachmentFresh(tx Tx, wc *basev0.WorkContextV1) error {
+	revision, err := tx.AuthorizationRevision(wc.GetTenantId())
+	if err != nil {
+		return err
+	}
+	if revision != wc.GetAuthorizationRevision() {
+		return domain.Refuse("authorization revision superseded during attachment")
+	}
+	// Recheck the owner and every actor's seal/epoch inside the write snapshot.
+	check := func(principal string, sealID string, revision, epoch uint64) error {
+		seal, err := s.src.sealIn(tx, principal, sealID)
+		if err != nil {
+			return err
+		}
+		liveEpoch, err := s.src.epochIn(tx, principal)
+		if err != nil {
+			return err
+		}
+		if seal.InstallationRevision != revision || liveEpoch != epoch {
+			return domain.Refuse("capability provenance superseded during attachment")
+		}
+		return nil
+	}
+	seal := wc.GetSeal()
+	if err := check(wc.GetOwnerPrincipalId(), seal.GetInstallationId(), seal.GetInstallationRevision(), seal.GetPrincipalEpoch()); err != nil {
+		return err
+	}
+	for _, hop := range wc.GetActorChain() {
+		epoch, err := s.src.epochIn(tx, hop.GetPrincipalId())
+		if err != nil {
+			return err
+		}
+		if epoch != hop.GetPrincipalEpoch() {
+			return domain.Refuse("actor provenance superseded during attachment")
+		}
+	}
+	return nil
+}
+
+// attachOwned is shared by creation and an authorized transfer. The caller has
+// established the active installation and authorization in this write transaction.
+func attachOwned(tx Tx, inst domain.Installation, kind, id string) error {
+	all, err := tx.Installations(inst.Organization)
+	if err != nil {
+		return err
+	}
+	for _, other := range all {
+		if other.ID != inst.ID && slices.Contains(other.Owned[kind], id) {
+			return domain.Refuse("%s %q is owned by installation %s; a resource has one owner in an organisation", kind, id, other.ID)
+		}
+	}
+	if !slices.Contains(inst.Owned[kind], id) {
+		if len(inst.Owned[kind]) >= MaxOwnedPerKind {
+			return domain.Refuse("installation %s already owns %d of %s, the most a capability carries", inst.ID, MaxOwnedPerKind, kind)
+		}
+		if inst.Owned == nil {
+			inst.Owned = map[string][]string{}
+		}
+		inst.Owned[kind] = append(inst.Owned[kind], id)
+		slices.Sort(inst.Owned[kind])
+		if err := tx.PutInstallation(inst); err != nil {
+			return err
+		}
+	}
+	return nil
 }

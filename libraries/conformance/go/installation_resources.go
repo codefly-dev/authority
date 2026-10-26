@@ -25,7 +25,7 @@ type InstallationResourcesCase struct {
 	Generation uint64
 	// ResourceA and ResourceA2 are created through A, ResourceB through B.
 	// ResourceX and ResourceY exist and no installation owns them: Owner, as
-	// A's installer, administers both, and attaches X only.
+	// A's installer, has a personal organization grant to administer X only.
 	ResourceA, ResourceA2, ResourceB, ResourceX, ResourceY string
 }
 
@@ -41,28 +41,27 @@ func (c *client) installationResources(t *testing.T, ctx context.Context, fixtur
 		t.Fatal("required conformance fixture missing: signed delivery, two owned installations and five distinct resources")
 	}
 	const binding, self = "store", "self"
-	create, read, admin := scopeAsk(f.Kind, []string{"create"}, nil), scopeAsk(f.Kind, []string{"read"}, nil), scopeAsk(f.Kind, []string{"admin"}, nil)
+	create, read, admin, write := scopeAsk(f.Kind, []string{"create"}, nil), scopeAsk(f.Kind, []string{"read"}, nil), scopeAsk(f.Kind, []string{"admin"}, nil), scopeAsk(f.Kind, []string{"write"}, nil)
 	// Store serves Kind; its self binding lets it hop on, and work headless.
 	both := []string{f.Kind + ":create", f.Kind + ":read"}
 	if _, err := c.deliver(ctx, fixture, f.Store, "module", f.Generation, []string{f.Kind},
-		map[string]any{"owner_aware": true, "scope_ceilings": []any{scopeAsk(f.Kind, []string{"admin", "create", "read"}, nil)}}, 0,
+		map[string]any{"owner_aware": true, "scope_ceilings": []any{scopeAsk(f.Kind, []string{"admin", "create", "read", "write"}, nil)}}, 0,
 		solutionhost.AuthorityBinding{ID: self, Audience: f.Store, Operations: map[string][]string{"invoke": both, "headless": both}}); err != nil {
 		t.Fatalf("deliver %s: %v", f.Store, err)
 	}
-	// Each installer may create, and reads and administers every resource of
-	// the kind; a viewer reads only what its own installation owns.
+	// Each installer acts only as its installation's resource-owner principal; a viewer reads only what its own installation owns.
 	for _, s := range []OwnedInstallation{f.A, f.B} {
 		own := scopeAsk(s.Solution+".note", []string{"read"}, nil)
 		doc := map[string]any{
 			"owner_aware":    true,
 			"scope_ceilings": []any{own},
 			"roles": []any{
-				map[string]any{"name": "installer", "scopes": []any{own, create, read, admin}},
+				map[string]any{"name": "installer", "scopes": []any{own, create, read, admin, write}},
 				map[string]any{"name": "viewer", "scopes": []any{own}, "installation_owned_scopes": []any{read}},
 			},
 		}
 		if _, err := c.deliver(ctx, fixture, s.Solution, "solution", f.Generation, []string{s.Solution + ".note"}, doc, 0,
-			solutionhost.AuthorityBinding{ID: binding, Audience: f.Store, Operations: map[string][]string{"invoke": append(both, f.Kind+":admin")}}); err != nil {
+			solutionhost.AuthorityBinding{ID: binding, Audience: f.Store, Operations: map[string][]string{"invoke": append(both, f.Kind+":admin", f.Kind+":write")}}); err != nil {
 			t.Fatalf("deliver %s: %v", s.Solution, err)
 		}
 	}
@@ -133,23 +132,26 @@ func (c *client) installationResources(t *testing.T, ctx context.Context, fixtur
 			t.Fatal(err)
 		}
 		_, err = attach(str(viewed, "token"), f.StoreCredential, f.ResourceB)
-		refused(t, err, codes.PermissionDenied, "holds neither")
+		refused(t, err, codes.PermissionDenied, "holds no create")
 		readB, err := through(t, owner, f.B, scopeAsk(f.Kind, []string{"read"}, []string{f.ResourceB}))
 		if err != nil {
 			t.Fatal(err)
 		}
 		_, err = attach(str(readB, "token"), f.StoreCredential, f.ResourceA)
-		refused(t, err, codes.PermissionDenied, "holds neither")
-		// A creating capability, or one administering the very id, attaches
-		// only what no other installation owns.
+		refused(t, err, codes.PermissionDenied, "holds no create")
+		// Creation cannot take another installation's id; admin requires transfer.
 		for s, foreign := range map[OwnedInstallation]string{f.A: f.ResourceB, f.B: f.ResourceA} {
-			for _, ask := range []any{create, scopeAsk(f.Kind, []string{"admin"}, []string{foreign})} {
+			for index, ask := range []any{create, scopeAsk(f.Kind, []string{"admin"}, []string{foreign})} {
 				capability, err := through(t, owner, s, ask)
 				if err != nil {
 					t.Fatal(err)
 				}
 				_, err = attach(str(capability, "token"), f.StoreCredential, foreign)
-				refused(t, err, codes.PermissionDenied, "owned by")
+				reason := "owned by"
+				if index != 0 {
+					reason = "AuthorizeTransfer"
+				}
+				refused(t, err, codes.PermissionDenied, reason)
 			}
 		}
 	})
@@ -210,25 +212,33 @@ func (c *client) installationResources(t *testing.T, ctx context.Context, fixtur
 			refused(t, err, codes.PermissionDenied, "widens")
 		}
 	})
-	t.Run("an administrator of an existing resource attaches it, and only it", func(t *testing.T) {
-		reads, err := through(t, owner, f.A, scopeAsk(f.Kind, []string{"read"}, []string{f.ResourceX}))
+	t.Run("existing resources require AuthorizeTransfer and personal grants", func(t *testing.T) {
+		capability, err := through(t, owner, f.A, admin)
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = attach(str(reads, "token"), f.StoreCredential, f.ResourceX)
-		refused(t, err, codes.PermissionDenied, "holds neither")
-		administers, err := through(t, owner, f.A, scopeAsk(f.Kind, []string{"admin"}, []string{f.ResourceX}))
+		_, err = attach(str(capability, "token"), f.StoreCredential, f.ResourceX)
+		refused(t, err, codes.PermissionDenied, "AuthorizeTransfer")
+		rows := field(msg(capability, "context"), "authority_scopes").List()
+		principal := str(rows.Get(0).Message(), "resource_owner_id")
+		if principal == "" {
+			t.Fatal("ordinary admin lost its resource-owner selector")
+		}
+		transfer := func(id, from string) (protoreflect.Message, error) {
+			return c.call(ctx, "host.authority.v1.AuthorityService", "AuthorizeTransfer", map[string]any{
+				"token": str(capability, "token"), "actor": map[string]any{"credential": f.StoreCredential},
+				"resource_kind": f.Kind, "resource_id": id, "from_owner_id": from, "to_principal_id": principal})
+		}
+		_, err = transfer(f.ResourceY, fixture.Organization)
+		refused(t, err, codes.PermissionDenied, "own organization grants")
+		_, err = transfer(f.ResourceX, "unknown-owner")
+		refused(t, err, codes.PermissionDenied, "not a person or the organization")
+		out, err := transfer(f.ResourceX, fixture.Organization)
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = attach(str(administers, "token"), f.StoreCredential, f.ResourceY)
-		refused(t, err, codes.PermissionDenied, "holds neither")
-		out, err := attach(str(administers, "token"), f.StoreCredential, f.ResourceX)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got := str(out, "installation_id"); got != f.A.Installation {
-			t.Fatalf("%s attached to %s, want %s", f.ResourceX, got, f.A.Installation)
+		if got := str(out, "principal_id"); got != principal {
+			t.Fatalf("transfer owner %s, want %s", got, principal)
 		}
 		viewed, err := through(t, viewer, f.A)
 		if err != nil {

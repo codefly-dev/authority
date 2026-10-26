@@ -125,6 +125,24 @@ people:
 			t.Fatal(err)
 		}
 	}
+	// The transfer seam reads this person's own resource grant, never the
+	// solution's owner-selected admin scope. Y deliberately has no grant.
+	if err := k.State.LoadFixture(context.Background(), []byte(`roles:
+  - organization: acme
+    name: collection-transfer
+    scopes:
+      - kind: conformance.collection
+        actions: [admin]
+        resources: [{id: collection-x}]
+people:
+  - id: alex
+    fixture_token: fixture-alex
+    organization: acme
+    roles: [admin, collection-transfer]
+    teams: [finance, engineering]
+`)); err != nil {
+		t.Fatal(err)
+	}
 	// Two installed solutions for installation-owned role scopes: Alex installed
 	// both, and Maya's finance team holds A's viewer role and nothing of B's.
 	owned := map[string]string{}

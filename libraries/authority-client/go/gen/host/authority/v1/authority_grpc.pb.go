@@ -66,11 +66,11 @@ type AuthorityServiceClient interface {
 	// serving module (a kind two composed modules declare attaches nothing),
 	// proving itself with its workload credential, and presents a capability
 	// addressed to it, at the organisation's current authorization revision,
-	// holding either the action "create" on the whole kind (the call that created
-	// the resource) or the action "admin" on that resource id, by name or on the
-	// whole kind (an administrator attaching an existing resource, as an
-	// installer configuring a solution's collection). A capability that only
-	// reads attaches nothing. A resource has one owner in an organisation: an id
+	// holding "create" on the whole kind for the newly created resource. An
+	// owner-selected create must select this installation's principal. Admin or
+	// read alone attaches nothing: an existing resource changes owner through
+	// AuthorizeTransfer, never through an unrestricted administrative capability.
+	// A resource has one owner in an organisation: an id
 	// another installation owns is refused. A store whose attach is refused fails
 	// or rolls back the create it made, and detaches what it deletes
 	// (DetachResource). The owning installation is read from the capability's
@@ -100,8 +100,14 @@ type AuthorityServiceClient interface {
 	// owner), the person holds admin on that resource from their own
 	// organization grants, and the person's current roles on the principal hold
 	// write on the kind, all read live. An installation acting for itself never
-	// transfers. The store then records the principal as owner; the original
-	// creator stays the author.
+	// transfers. After authorization succeeds, the authority records the id in
+	// the target installation's owned set in the same write transaction, subject
+	// to the same exclusivity, id and 32-id bounds as AttachResource. Revision,
+	// provenance, serving module and active tenant installation are checked in
+	// that transaction. A refusal records nothing and names its reason. The
+	// store then records the principal as owner; the original creator stays the
+	// author. The store must complete that change or compensate with DetachResource
+	// before exposing the resource. No separate admin attachment path exists.
 	AuthorizeTransfer(ctx context.Context, in *AuthorizeTransferRequest, opts ...grpc.CallOption) (*AuthorizeTransferResponse, error)
 	// Delegate records a signed-in person's grant to a module (the caller's
 	// bearer is the person); Issue with a delegation acts on it.
@@ -251,11 +257,11 @@ type AuthorityServiceServer interface {
 	// serving module (a kind two composed modules declare attaches nothing),
 	// proving itself with its workload credential, and presents a capability
 	// addressed to it, at the organisation's current authorization revision,
-	// holding either the action "create" on the whole kind (the call that created
-	// the resource) or the action "admin" on that resource id, by name or on the
-	// whole kind (an administrator attaching an existing resource, as an
-	// installer configuring a solution's collection). A capability that only
-	// reads attaches nothing. A resource has one owner in an organisation: an id
+	// holding "create" on the whole kind for the newly created resource. An
+	// owner-selected create must select this installation's principal. Admin or
+	// read alone attaches nothing: an existing resource changes owner through
+	// AuthorizeTransfer, never through an unrestricted administrative capability.
+	// A resource has one owner in an organisation: an id
 	// another installation owns is refused. A store whose attach is refused fails
 	// or rolls back the create it made, and detaches what it deletes
 	// (DetachResource). The owning installation is read from the capability's
@@ -285,8 +291,14 @@ type AuthorityServiceServer interface {
 	// owner), the person holds admin on that resource from their own
 	// organization grants, and the person's current roles on the principal hold
 	// write on the kind, all read live. An installation acting for itself never
-	// transfers. The store then records the principal as owner; the original
-	// creator stays the author.
+	// transfers. After authorization succeeds, the authority records the id in
+	// the target installation's owned set in the same write transaction, subject
+	// to the same exclusivity, id and 32-id bounds as AttachResource. Revision,
+	// provenance, serving module and active tenant installation are checked in
+	// that transaction. A refusal records nothing and names its reason. The
+	// store then records the principal as owner; the original creator stays the
+	// author. The store must complete that change or compensate with DetachResource
+	// before exposing the resource. No separate admin attachment path exists.
 	AuthorizeTransfer(context.Context, *AuthorizeTransferRequest) (*AuthorizeTransferResponse, error)
 	// Delegate records a signed-in person's grant to a module (the caller's
 	// bearer is the person); Issue with a delegation acts on it.

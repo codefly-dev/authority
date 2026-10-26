@@ -103,8 +103,8 @@ func TestASolutionAttachesItsOwnKindThroughAPersonsCapability(t *testing.T) {
 	}
 }
 
-// An installation acting for itself attaches what it administers into itself.
-func TestAnInstallationAgentAttachesIntoItsInstallation(t *testing.T) {
+// An installation acting for itself cannot transfer an existing resource.
+func TestAnInstallationAgentCannotAttachAnExistingResource(t *testing.T) {
 	k := testkit.New(t)
 	id := ownKindSolution(t, k)
 	agent, err := k.Issuer.Issue(context.Background(), &authorityv1.IssueRequest{
@@ -116,20 +116,12 @@ func TestAnInstallationAgentAttachesIntoItsInstallation(t *testing.T) {
 	if agent.GetContext().GetOwnerPrincipalKind() != "agent" {
 		t.Fatalf("owner kind %q", agent.GetContext().GetOwnerPrincipalKind())
 	}
-	got, err := k.Issuer.AttachResource(t.Context(), agent.GetToken(), k.Credential(t, "documents"), "documents.collection", "c-agent")
-	if err != nil || got != id {
-		t.Fatalf("attached to %q (%v), want %s", got, err, id)
-	}
-	m, err := k.State.ModuleByPrincipal("proposals")
-	if err != nil {
-		t.Fatal(err)
+	_, err = k.Issuer.AttachResource(t.Context(), agent.GetToken(), k.Credential(t, "documents"), "documents.collection", "c-agent")
+	if !errors.Is(err, issuer.ErrRefused) || !strings.Contains(err.Error(), "AuthorizeTransfer") {
+		t.Fatalf("admin-only attachment must name the transfer seam: %v", err)
 	}
 	inst, _ := k.State.Installation(id)
-	held, err := decide.RoleScopes(m, inst, []string{"viewer"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ids := ownedRead(held, "documents.collection"); !slices.Equal(ids, []string{"c-agent"}) {
-		t.Fatalf("the viewer reads %v, want [c-agent]", ids)
+	if len(inst.Owned) != 0 {
+		t.Fatal("refused attachment changed ownership")
 	}
 }

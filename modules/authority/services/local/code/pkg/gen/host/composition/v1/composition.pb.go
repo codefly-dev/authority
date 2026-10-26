@@ -528,8 +528,8 @@ type RoleV1 struct {
 	Name   string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	Scopes []*v1.WorkScopeV1      `protobuf:"bytes,2,rep,name=scopes,proto3" json:"scopes,omitempty"`
 	// Scopes the role grants only on the resources the installation owns: those
-	// created through it or attached by its administrator
-	// (AuthorityService.AttachResource). Each
+	// created through it (AuthorityService.AttachResource) or transferred after
+	// AuthorityService.AuthorizeTransfer authorizes the change of owner. Each
 	// names a kind and actions and no resource ids, since ids are per
 	// installation, and is held to the same ceiling as scopes. The authority
 	// resolves each, for the installation the role is held on, into the same

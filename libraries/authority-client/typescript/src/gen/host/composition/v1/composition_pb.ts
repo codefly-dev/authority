@@ -337,8 +337,8 @@ export type RoleV1 = Message<"host.composition.v1.RoleV1"> & {
 
   /**
    * Scopes the role grants only on the resources the installation owns: those
-   * created through it or attached by its administrator
-   * (AuthorityService.AttachResource). Each
+   * created through it (AuthorityService.AttachResource) or transferred after
+   * AuthorityService.AuthorizeTransfer authorizes the change of owner. Each
    * names a kind and actions and no resource ids, since ids are per
    * installation, and is held to the same ceiling as scopes. The authority
    * resolves each, for the installation the role is held on, into the same
