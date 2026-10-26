@@ -163,3 +163,76 @@ func TestANativeHTTPFaceIsAdmittedBesideOtherServicesProceduralFaces(t *testing.
 		t.Fatalf("a native HTTP face was refused: %v", err)
 	}
 }
+
+// A module that still publishes one service on a gRPC and a Connect endpoint
+// (the same contract) is one destination: gRPC calls go to Connect, which
+// serves gRPC, gRPC-Web and Connect, in either publication order.
+func TestOneServiceOnGRPCAndConnectIsOneDestination(t *testing.T) {
+	grpcFace, connectFace := endpoint("annotations", "grpc", "/a.Service/Call", "/a.Service/GRPCOnly"), endpoint("annotations", "connect", "/a.Service/Call")
+	for _, endpoints := range [][]RouteEndpoint{{grpcFace, connectFace}, {connectFace, grpcFace}} {
+		r := Routing{Schema: RoutingSchema, Endpoints: endpoints}
+		if err := r.Validate(); err != nil {
+			t.Fatal(err)
+		}
+		for _, tc := range []struct{ transport, method, endpoint, policy string }{
+			{"grpc", "/a.Service/Call", "connect", "/a.Service/Call"},
+			{"http", "POST /a.Service/Call", "connect", "/a.Service/Call"},
+			{"grpc", "/a.Service/GRPCOnly", "grpc", "/a.Service/GRPCOnly"},
+		} {
+			got, policy, err := r.Resolve("module", tc.transport, tc.method)
+			if err != nil || got.Endpoint != tc.endpoint || policy != tc.policy {
+				t.Fatalf("%s %s: %+v %q %v", tc.transport, tc.method, got, policy, err)
+			}
+		}
+	}
+}
+
+func TestGRPCOnlyModuleStillRoutes(t *testing.T) {
+	r := Routing{Schema: RoutingSchema, Endpoints: []RouteEndpoint{endpoint("legacy", "grpc", "/legacy.Service/Call")}}
+	if err := r.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	got, policy, err := r.Resolve("module", "grpc", "/legacy.Service/Call")
+	if err != nil || got.Transport != "grpc" || policy != "/legacy.Service/Call" {
+		t.Fatalf("%+v %q %v", got, policy, err)
+	}
+	if _, _, err := r.Resolve("module", "http", "POST /legacy.Service/Call"); err == nil {
+		t.Fatal("a gRPC listener answered a Connect request")
+	}
+}
+
+func TestTwoServicesClaimingOneProcedureRefuseByName(t *testing.T) {
+	for _, pair := range [][2]RouteEndpoint{
+		{endpoint("first", "connect", "/a.Service/Call"), endpoint("second", "grpc", "/a.Service/Call")},
+		{endpoint("first", "connect", "/a.Service/Call"), endpoint("second", "connect", "/a.Service/Call")},
+		{endpoint("first", "grpc", "/a.Service/Call"), endpoint("second", "grpc", "/a.Service/Call")},
+	} {
+		r := Routing{Schema: RoutingSchema, Endpoints: pair[:]}
+		err := r.Validate()
+		if err == nil || !strings.Contains(err.Error(), "module/first/") || !strings.Contains(err.Error(), "module/second/") {
+			t.Fatalf("expected a refusal naming both services, got %v", err)
+		}
+		// Unvalidated snapshots refuse at resolution too, never first-wins.
+		if got, _, err := r.Resolve("module", "grpc", "/a.Service/Call"); err == nil {
+			t.Fatalf("ambiguous procedure selected %+v", got)
+		}
+	}
+}
+
+func TestSameServiceWithDifferentContractsRefuses(t *testing.T) {
+	for _, change := range []func(*RouteEndpoint){
+		func(e *RouteEndpoint) { e.Digest = "sha256:other" },
+		func(e *RouteEndpoint) { e.Version = "v2" },
+		func(e *RouteEndpoint) { e.Package = "owner/other" },
+	} {
+		connectFace := endpoint("annotations", "connect", "/a.Service/Call")
+		change(&connectFace)
+		r := Routing{Schema: RoutingSchema, Endpoints: []RouteEndpoint{endpoint("annotations", "grpc", "/a.Service/Call"), connectFace}}
+		if err := r.Validate(); err == nil || !strings.Contains(err.Error(), "different contracts") {
+			t.Fatalf("differing policies accepted: %v", err)
+		}
+		if got, _, err := r.Resolve("module", "grpc", "/a.Service/Call"); err == nil {
+			t.Fatalf("differing policies selected %+v", got)
+		}
+	}
+}

@@ -91,3 +91,44 @@ func TestGRPCAndConnectReachOnePublishedConnectListener(t *testing.T) {
 		t.Fatalf("refusal reached backend: %d", m.calls.Load())
 	}
 }
+
+// A module that still publishes its service on a gRPC endpoint beside its
+// Connect endpoint is one destination: the hop starts and sends gRPC to Connect.
+func TestDualPublishedServiceSendsGRPCToItsConnectListener(t *testing.T) {
+	t.Setenv("CODEFLY__ENVIRONMENT", "local")
+	dial := func(m *connectModule) (string, *grpc.ClientConn) {
+		_, handler := genconnect.NewHopServiceHandler(m)
+		backend := httptest.NewServer(h2c.NewHandler(handler, &http2.Server{}))
+		t.Cleanup(backend.Close)
+		target, options, err := host.Endpoint(t.Context(), backend.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		conn, err := grpc.NewClient(target, append(host.DialOptions(options), grpc.WithDefaultCallOptions(proxy.CallOptions()...))...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = conn.Close() })
+		return backend.URL, conn
+	}
+	connectFace, grpcFace := &connectModule{}, &connectModule{}
+	connectURL, connectConn := dial(connectFace)
+	grpcURL, grpcConn := dial(grpcFace)
+	routes := &routing.Routing{Schema: routing.RoutingSchema, Endpoints: []routing.RouteEndpoint{
+		routeEndpoint("module", "grpc", grpcURL, genconnect.HopServiceVersionProcedure),
+		routeEndpoint("module", "connect", connectURL, genconnect.HopServiceVersionProcedure),
+	}}
+	if err := routes.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	decider := decide.Decider{Routes: routes, Authority: &routeChecker{}, Modules: map[string]bool{"module": true}, AudienceOf: func(string) (string, error) { return "module", nil }}
+	p := &proxy.Proxy{Decide: decider.Decide, Signer: hoptest.Signer(proof), Upstreams: map[string]*grpc.ClientConn{connectURL: connectConn, grpcURL: grpcConn}}
+	conn := serve(t, p.ServerOptions(), func(*grpc.Server) {})
+	ctx := metadata.AppendToOutgoingContext(t.Context(), hop.WorkContextKey, "context")
+	if _, err := gen.NewHopServiceClient(conn).Version(ctx, &gen.VersionRequest{}); err != nil {
+		t.Fatal(err)
+	}
+	if connectFace.calls.Load() != 1 || grpcFace.calls.Load() != 0 {
+		t.Fatalf("connect=%d grpc=%d", connectFace.calls.Load(), grpcFace.calls.Load())
+	}
+}

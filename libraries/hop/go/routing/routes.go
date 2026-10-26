@@ -61,7 +61,7 @@ func (r *Routing) Validate() error {
 	if r.Schema != RoutingSchema || len(r.Endpoints) == 0 {
 		return fmt.Errorf("hop routes: expected %s and at least one endpoint", RoutingSchema)
 	}
-	seen, listeners := map[string]bool{}, map[string]bool{}
+	seen, listeners := map[string]RouteEndpoint{}, map[string]bool{}
 	for _, e := range r.Endpoints {
 		if e.Audience == "" || e.Service == "" || e.Endpoint == "" || e.Address == "" || e.Package == "" || e.Version == "" || e.Digest == "" || len(e.Methods) == 0 {
 			return fmt.Errorf("hop routes: incomplete published endpoint identity")
@@ -94,17 +94,18 @@ func (r *Routing) Validate() error {
 			if transport == "connect" {
 				transport = "http"
 			}
-			key := e.Audience + "\x00" + transport + "\x00" + match
-			if seen[key] {
-				return fmt.Errorf("hop routes: ambiguous destination for %s %s", e.Audience, method)
-			}
-			seen[key] = true
+			keys := []string{e.Audience + "\x00" + transport + "\x00" + match}
 			if e.Transport == "connect" {
-				grpcKey := e.Audience + "\x00grpc\x00" + method
-				if seen[grpcKey] {
-					return fmt.Errorf("hop routes: ambiguous destination for %s %s", e.Audience, method)
+				keys = append(keys, e.Audience+"\x00grpc\x00"+method)
+			}
+			for _, key := range keys {
+				if prior, taken := seen[key]; taken {
+					if err := sameDestination(prior, e); err != nil {
+						return fmt.Errorf("hop routes: ambiguous destination for %s %s: %w", e.Audience, method, err)
+					}
+					continue
 				}
-				seen[grpcKey] = true
+				seen[key] = e
 			}
 		}
 	}
@@ -146,6 +147,25 @@ func (r *Routing) refuseTranscodedREST() error {
 	return nil
 }
 
+// sameDestination accepts one collision only: a service publishing the same
+// contract on its gRPC endpoint and on its Connect endpoint, which also serves
+// gRPC. That is one destination with one policy; Resolve prefers Connect.
+// Anything else claiming a procedure twice is refused by name.
+func sameDestination(a, b RouteEndpoint) error {
+	name := func(e RouteEndpoint) string {
+		return e.Audience + "/" + e.Service + "/" + e.Endpoint + " (" + e.Transport + ")"
+	}
+	if a.Audience != b.Audience || a.Service != b.Service || a.Transport == b.Transport ||
+		(a.Transport != "grpc" && a.Transport != "connect") || (b.Transport != "grpc" && b.Transport != "connect") {
+		return fmt.Errorf("published by %s and %s", name(a), name(b))
+	}
+	if a.Package != b.Package || a.Version != b.Version || a.Digest != b.Digest {
+		return fmt.Errorf("%s and %s publish it under different contracts (%s@%s %s, %s@%s %s), so their policies may differ",
+			name(a), name(b), a.Package, a.Version, a.Digest, b.Package, b.Version, b.Digest)
+	}
+	return nil
+}
+
 // Find selects a published route after the caller's audience has been checked.
 // HTTP includes Connect POSTs, selected from publication, never path heuristics.
 // Exact matches win, as in method admission; overlapping templates are refused.
@@ -176,6 +196,7 @@ func (r *Routing) Resolve(audience, transport, method string) (RouteEndpoint, st
 		policy   string
 	}
 	var matched []match
+	var exact *match
 	for _, endpoint := range r.Endpoints {
 		if endpoint.Audience != audience || (endpoint.Transport != transport && !((transport == "http" || transport == "grpc") && endpoint.Transport == "connect")) {
 			continue
@@ -187,7 +208,19 @@ func (r *Routing) Resolve(audience, transport, method string) (RouteEndpoint, st
 				declared = "POST " + declared
 			}
 			if declared == method {
-				return endpoint, policy, nil
+				if exact == nil {
+					exact = &match{endpoint, policy}
+					continue
+				}
+				// Only one service's gRPC and Connect endpoints may share a
+				// procedure; Connect serves gRPC too, so it is the destination.
+				if err := sameDestination(exact.endpoint, endpoint); err != nil {
+					return RouteEndpoint{}, "", fmt.Errorf("hop routes: ambiguous destination for %s %s: %w", audience, method, err)
+				}
+				if endpoint.Transport == "connect" {
+					exact = &match{endpoint, policy}
+				}
+				continue
 			}
 			verb, path, ok := strings.Cut(method, " ")
 			wantVerb, template, wantOK := strings.Cut(declared, " ")
@@ -195,6 +228,9 @@ func (r *Routing) Resolve(audience, transport, method string) (RouteEndpoint, st
 				matched = append(matched, match{endpoint, policy})
 			}
 		}
+	}
+	if exact != nil {
+		return exact.endpoint, exact.policy, nil
 	}
 	if len(matched) == 1 {
 		return matched[0].endpoint, matched[0].policy, nil
