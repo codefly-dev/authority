@@ -6,6 +6,7 @@ package memstore
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"sync"
@@ -51,12 +52,45 @@ func (s *Store) Read(_ context.Context, fn func(authority.Tx) error) error {
 	return fn(tx{s: s})
 }
 
-// Write runs fn under the write lock. A failed fn leaves its writes applied
-// up to the failure; the core writes only after its decisions succeed.
+// Write runs fn under the write lock, as one transaction: when fn fails,
+// every write it made is undone.
 func (s *Store) Write(_ context.Context, fn func(authority.Tx) error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return fn(tx{s: s, write: true})
+	before := s.snapshot()
+	if err := fn(tx{s: s, write: true}); err != nil {
+		s.restore(before)
+		return err
+	}
+	return nil
+}
+
+// state is every map the authority writes; identity (organizations, people,
+// roles) is the host's and changes only through the seeding methods.
+type state struct {
+	modules       map[string]domain.Module
+	installations map[string]domain.Installation
+	grants        map[string][]domain.RoleGrant
+	revisions     map[string]uint64
+	personEpochs  map[string]uint64
+	grantEpochs   map[string]uint64
+	ownerAware    map[string]uint64
+	delegations   map[string]domain.Delegation
+}
+
+func (s *Store) snapshot() state {
+	grants := make(map[string][]domain.RoleGrant, len(s.grants))
+	for id, g := range s.grants {
+		grants[id] = slices.Clone(g)
+	}
+	return state{modules: maps.Clone(s.modules), installations: maps.Clone(s.installations), grants: grants,
+		revisions: maps.Clone(s.revisions), personEpochs: maps.Clone(s.personEpochs), grantEpochs: maps.Clone(s.grantEpochs),
+		ownerAware: maps.Clone(s.ownerAware), delegations: maps.Clone(s.delegations)}
+}
+
+func (s *Store) restore(b state) {
+	s.modules, s.installations, s.grants, s.revisions = b.modules, b.installations, b.grants, b.revisions
+	s.personEpochs, s.grantEpochs, s.ownerAware, s.delegations = b.personEpochs, b.grantEpochs, b.ownerAware, b.delegations
 }
 
 // PutOrganization, PutPerson, DeletePerson and PutOrgRole seed and change

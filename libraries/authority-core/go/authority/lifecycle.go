@@ -32,6 +32,15 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 		if other, err := tx.Module(m.Principal); err == nil && other.Name != m.Name {
 			return domain.Refuse("principal %q already belongs to %s", m.Principal, other.Name)
 		}
+		if exists && previous.Principal != m.Principal {
+			return domain.Refuse("%s is principal %q for life; a delivery cannot rename it %q", m.Name, previous.Principal, m.Principal)
+		}
+		if _, err := tx.Person(m.Principal); err == nil {
+			return domain.Refuse("principal %q names a person; a module's principal is its own", m.Principal)
+		}
+		if _, err := tx.InstallationByPrincipal(m.Principal); err == nil {
+			return domain.Refuse("principal %q names an installed solution's principal; a module's principal is its own", m.Principal)
+		}
 		m.ResourceKinds = scope.Normalize(m.ResourceKinds)
 		if exists && decide.Narrowed(previous, m) {
 			all, err := tx.Installations("")
@@ -187,22 +196,40 @@ func (s *Service) Install(ctx context.Context, caller *Person, org, target, agen
 }
 
 // Uninstall disables an installation and its principal at once: every
-// capability sealed to it is refused, its role grants are cleared, and the
-// data its principal owns stays owned.
-func (s *Service) Uninstall(ctx context.Context, installationID string) error {
+// capability sealed to it is refused, every capability of its organization
+// minted before is refused (a hop through the solution sealed elsewhere
+// included), its role grants are cleared, and the data its principal owns
+// stays owned. A caller, when named, must administer organization; a host's
+// own setup names none. Another organization's installation answers as an
+// absent one.
+func (s *Service) Uninstall(ctx context.Context, caller *Person, organization, installationID string) error {
 	return s.store.Write(ctx, func(tx Tx) error {
 		inst, err := tx.Installation(installationID)
+		if errors.Is(err, domain.ErrNotFound) || (err == nil && inst.Organization != organization) {
+			return decide.ForeignInstallation(installationID, organization)
+		}
 		if err != nil {
-			return notFound(err)
+			return err
+		}
+		if caller != nil {
+			p, err := tx.Person(caller.ID)
+			if err != nil || p.Organization != organization || !decide.IsAdministrator(p) {
+				return domain.Refuse("installation administration requires an administrator or owner of organization %q", organization)
+			}
 		}
 		return s.revoke(tx, inst)
 	})
 }
 
+// revoke disables inst: its revision and its organization's authorization
+// revision both move, and its grants are cleared.
 func (s *Service) revoke(tx Tx, inst domain.Installation) error {
 	inst.Status = domain.Revoked
 	inst.Revision++
 	if err := tx.PutInstallation(inst); err != nil {
+		return err
+	}
+	if err := tx.BumpAuthorizationRevision(inst.Organization); err != nil {
 		return err
 	}
 	return tx.DeleteRoleGrants(inst.ID)

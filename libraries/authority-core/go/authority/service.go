@@ -43,7 +43,8 @@ type Config struct {
 	InstallationID, PrincipalID func(organization, target string) string
 	// MaxTTL clamps every capability; zero means 15 minutes.
 	MaxTTL time.Duration
-	// Replay consumes single-use capabilities; nil means in memory.
+	// Replay consumes single-use capabilities. It is required: a deployed
+	// host shares it across replicas, and nothing defaults to memory.
 	Replay workcontext.ReplayStore
 	// Grants answers approval grants; nil refuses every grant capability.
 	Grants workcontext.GrantSource
@@ -77,8 +78,8 @@ type Service struct {
 
 // New builds the service.
 func New(store Store, cfg Config) (*Service, error) {
-	if store == nil || cfg.Signer == nil || cfg.Keys == nil || cfg.Issuer == "" || cfg.KeyID == "" {
-		return nil, errors.New("authority: a store, an issuer, a key id, a signer and a key source are required")
+	if store == nil || cfg.Signer == nil || cfg.Keys == nil || cfg.Issuer == "" || cfg.KeyID == "" || cfg.Replay == nil {
+		return nil, errors.New("authority: a store, an issuer, a key id, a signer, a key source and a replay store are required")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = time.Now
@@ -94,11 +95,6 @@ func New(store Store, cfg Config) (*Service, error) {
 	}
 	if cfg.MaxTTL <= 0 {
 		cfg.MaxTTL = 15 * time.Minute
-	}
-	if cfg.Replay == nil {
-		replay := workcontext.NewMemoryReplayStore()
-		replay.Now = cfg.Clock
-		cfg.Replay = replay
 	}
 	s := &Service{store: store, cfg: cfg}
 	s.src = sources{s: s}
@@ -154,6 +150,13 @@ func (noGrants) Grant(_ context.Context, id string) (*workcontext.Grant, error) 
 // from the store. A seal's installation revision folds in what invalidates a
 // capability sealed to it: the installation's own revision, the owner's
 // grant epoch on it, and the installed solution's owner-aware revision.
+//
+// The sum never repeats a value it held before, because each term only grows
+// and is keyed stably: an installation's revision grows on install,
+// uninstall and narrowing; a grant epoch grows on revoke; an owner-aware
+// revision grows on withdrawal and is keyed by the module's principal, which
+// a module keeps for life (ApplyModule refuses a change). A capability sealed
+// at an earlier sum is therefore refused for good.
 type sources struct{ s *Service }
 
 func (src sources) AuthorizationRevision(ctx context.Context, tenant string) (uint64, error) {
@@ -221,7 +224,10 @@ func (src sources) PrincipalEpoch(ctx context.Context, principal string) (uint64
 			return perr
 		}
 		if inst, err := tx.InstallationByPrincipal(principal); err == nil && inst.Status == domain.Active {
-			epoch = 1
+			// The installation's revision: it grows on every install and
+			// uninstall, so a reinstall never repeats an epoch an earlier
+			// incarnation's capabilities were sealed at.
+			epoch = inst.Revision
 			return nil
 		}
 		return domain.Missing("principal %q", principal)

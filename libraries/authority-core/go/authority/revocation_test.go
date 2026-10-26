@@ -75,7 +75,7 @@ func TestUninstallDisablesThePrincipalAndClearsGrants(t *testing.T) {
 	parent := h.must(h.root("maya", "a"))
 	agent := h.must(h.agent("a", "store"))
 	inst := h.inst(acme, "a").ID
-	if err := h.svc.Uninstall(h.ctx, inst); err != nil {
+	if err := h.svc.Uninstall(h.ctx, nil, acme, inst); err != nil {
 		t.Fatal(err)
 	}
 	for _, c := range []authority.Issued{before, agent} {

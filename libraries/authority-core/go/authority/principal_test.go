@@ -17,7 +17,7 @@ func TestThePrincipalIsStableDistinctAndPerOrganization(t *testing.T) {
 	if u == h.inst(acme, "a").ID || u == h.principal(acme, "b") || u == h.principal(globex, "a") {
 		t.Fatal("a principal is shared with an installation id, another solution or another organization")
 	}
-	if err := h.svc.Uninstall(h.ctx, h.inst(acme, "a").ID); err != nil {
+	if err := h.svc.Uninstall(h.ctx, nil, acme, h.inst(acme, "a").ID); err != nil {
 		t.Fatal(err)
 	}
 	if again := h.install(acme, "a"); again.PrincipalID != u {
