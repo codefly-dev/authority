@@ -67,3 +67,29 @@ Empty workload organizations are required refusals when the module has multiple
 active installing organizations or none, naming “must name the organization of
 the work item”. `WorkloadOrganizations` supplies these two fixtures. Successful
 single-organization inference remains a local convenience, not a shared promise.
+
+## Target: solution principal (not yet part of `Run`)
+
+`RunSolutionPrincipalTarget` specifies solution identity before any host
+implements it. An installed solution is a principal of its organisation with a
+stable UUID, reused by a reinstall; its declared roles are permission levels on
+the data that principal owns; granting a person a role (`GrantRole`) is the
+access; a capability's scopes select resources by owner (`resource_owner_id`)
+rather than by id lists; an existing resource joins the principal only through
+`AuthorizeTransfer`, which requires admin the person holds from their own
+organisation grants. The suite first names every contract element the
+published descriptors lack, then runs these cases:
+
+- install creates the solution principal and its roles; a reinstall keeps its UUID
+- without a role on the solution a person is refused, naming the reason
+- a viewer reads what the principal owns, and nothing another installation or a person owns
+- a resource created through the solution is owned by its principal, the person its author (and the installation's agent creates for the same principal)
+- an editor writes and a viewer cannot, each by name
+- another installation's members never reach the principal's data
+- a child never widens the owner or the actions it narrowed to
+- an existing resource joins the principal only by a transfer its person administers through their own grants (an installer role alone and the agent are refused)
+- uninstalling disables the principal at once and its data stays owned; a re-grant after reinstall restores access
+
+Run it against the local authority from `modules/authority/services/local/code`
+with `AUTHORITY_TARGET=solution-principal go test ./plugins/registry_test -run SolutionPrincipal`.
+It joins `Run` once a host implements it.
