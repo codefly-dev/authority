@@ -75,9 +75,13 @@ func New(st *state.State, issuer, keyID string, public ed25519.PublicKey) *Issue
 	return &Issuer{state: st, svc: st.Service(), issuer: issuer, keyID: keyID, public: public}
 }
 
-// Config is the core configuration for one signing key: what state.New takes.
+// Config is the core configuration for one signing key: what state.New
+// takes. The local authority is one process on a laptop, so its replay store
+// is in memory, chosen here by name rather than defaulted.
 func Config(issuer, keyID string, key ed25519.PrivateKey, now func() time.Time) authority.Config {
-	return authority.Config{Issuer: issuer, KeyID: keyID, Signer: key, Clock: now, MaxTTL: MaxTTL}
+	replay := workcontext.NewMemoryReplayStore()
+	replay.Now = now
+	return authority.Config{Issuer: issuer, KeyID: keyID, Signer: key, Clock: now, MaxTTL: MaxTTL, Replay: replay}
 }
 
 // Keys is what a verifier pins.

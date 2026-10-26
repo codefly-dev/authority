@@ -652,8 +652,15 @@ func classify(err error) error {
 	return err
 }
 
-// Uninstall disables an installation and its principal.
-func (s *State) Uninstall(id string) error { return s.svc.Uninstall(context.Background(), id) }
+// Uninstall disables an installation and its principal, as the host's own
+// setup (no caller): a test's, and the conformance driver's.
+func (s *State) Uninstall(id string) error {
+	inst, ok := s.Installation(id)
+	if !ok {
+		return fmt.Errorf("%w: installation %q", ErrUnknown, id)
+	}
+	return s.svc.Uninstall(context.Background(), nil, inst.Organization, id)
+}
 
 // GrantRole grants a role as the host's own setup (no caller): a test's.
 func (s *State) GrantRole(g domain.RoleGrant) error {

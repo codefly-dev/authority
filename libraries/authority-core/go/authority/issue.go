@@ -150,15 +150,17 @@ func (s *Service) audienceOf(tx Tx, r *IssueRequest, actor string) error {
 	return nil
 }
 
-// startAtRevision mints at the revision the decision read: a concurrent grant
-// change must not turn old scopes into fresh authority.
-func (s *Service) startAtRevision(ctx context.Context, revision uint64, in workcontext.StartInput) (Issued, error) {
+// startFenced mints and refuses what was minted unless it carries the
+// revision, seal and epoch the decision read: a revoke, a leave or an
+// uninstall committed in between must not turn old scopes into fresh
+// authority.
+func (s *Service) startFenced(ctx context.Context, f fence, in workcontext.StartInput) (Issued, error) {
 	token, signed, err := s.authority.Start(ctx, in)
 	if err != nil {
 		return Issued{}, err
 	}
-	if signed.GetAuthorizationRevision() != revision {
-		return Issued{}, domain.Refuse("permissions changed during issuance")
+	if err := f.holds(signed); err != nil {
+		return Issued{}, err
 	}
 	return Issued{token, signed}, nil
 }
@@ -167,7 +169,7 @@ func (s *Service) startAtRevision(ctx context.Context, revision uint64, in workc
 // hold at the audience (a solution: their granted roles on its principal's
 // data); sealed to the audience's installation at their organization.
 func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest) (Issued, error) {
-	var revision uint64
+	var f fence
 	var audience domain.Module
 	var heldHere, scopes Scopes
 	var inst domain.Installation
@@ -183,12 +185,12 @@ func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest
 		if err != nil || p.Organization != who.Organization {
 			return domain.Refuse("the session's person is no longer a member of %s", who.Organization)
 		}
-		if revision, err = tx.AuthorizationRevision(p.Organization); err != nil {
-			return err
-		}
 		inst, err = installationOf(tx, p.Organization, audience.Name)
 		if err != nil || inst.Status != domain.Active {
 			return domain.NotNow("audience %q is not installed in this organization, so there is no installation to seal the capability to", audience.Principal)
+		}
+		if f, err = s.src.fenceIn(tx, p.Organization, p.ID, inst.ID); err != nil {
+			return err
 		}
 		if heldHere, err = held(tx, p, audience); err != nil {
 			return err
@@ -226,7 +228,7 @@ func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest
 	if err != nil {
 		return Issued{}, err
 	}
-	return s.startAtRevision(ctx, revision, workcontext.StartInput{
+	return s.startFenced(ctx, f, workcontext.StartInput{
 		TenantID: who.Organization, OrganizationID: who.Organization,
 		OwnerPrincipalID: who.ID, OwnerPrincipalKind: "human", TaskID: s.cfg.NewID(), SessionID: who.SessionID,
 		Audience: audience.Principal, AuthorityScopes: scope.Limits{}.Project(heldHere, scopes), AttributionTeamIDs: sortedTeams(who.Teams),
@@ -319,24 +321,25 @@ func (s *Service) IssueForInstallation(ctx context.Context, w Workload, installa
 	var inst domain.Installation
 	var solution, audience domain.Module
 	var heldHere, scopes Scopes
-	var revision uint64
+	var f fence
 	bindingID := ""
 	err := s.store.Read(ctx, func(tx Tx) error {
 		var err error
 		if solution, err = tx.ModuleNamed(w.Module); err != nil {
 			return notFound(err)
 		}
-		if inst, err = tx.Installation(installationID); err != nil {
-			return notFound(err)
+		inst, err = tx.Installation(installationID)
+		if errors.Is(err, domain.ErrNotFound) || (err == nil && r.Organization != "" && r.Organization != inst.Organization) {
+			return decide.ForeignInstallation(installationID, r.Organization)
 		}
-		if r.Organization != "" && r.Organization != inst.Organization {
-			return domain.Refuse("installation %s belongs to organization %q, not %q", inst.ID, inst.Organization, r.Organization)
+		if err != nil {
+			return err
 		}
 		if solution.Kind != domain.KindSolution || solution.Name != inst.Target {
 			return domain.Refuse("installation issuance requires the installed solution's workload")
 		}
 		if inst.Status != domain.Active {
-			return domain.Refuse("installation %s is %s: %s is not installed", inst.ID, inst.Status, inst.Target)
+			return domain.NotNow("installation %s is %s: %s is not installed", inst.ID, inst.Status, inst.Target)
 		}
 		if err = s.audienceOf(tx, &r, w.Module); err != nil {
 			return err
@@ -344,7 +347,7 @@ func (s *Service) IssueForInstallation(ctx context.Context, w Workload, installa
 		if audience, err = tx.Module(r.Audience); err != nil {
 			return notFound(err)
 		}
-		if revision, err = tx.AuthorizationRevision(inst.Organization); err != nil {
+		if f, err = s.src.fenceIn(tx, inst.Organization, inst.PrincipalID, inst.ID); err != nil {
 			return err
 		}
 		// Everything the installation holds for itself is owner-selected.
@@ -382,7 +385,7 @@ func (s *Service) IssueForInstallation(ctx context.Context, w Workload, installa
 	if err != nil {
 		return Issued{}, err
 	}
-	issued, err := s.startAtRevision(ctx, revision, workcontext.StartInput{
+	issued, err := s.startFenced(ctx, f, workcontext.StartInput{
 		TenantID: inst.Organization, OrganizationID: inst.Organization,
 		OwnerPrincipalID: inst.PrincipalID, OwnerPrincipalKind: "agent", OwnerAgentID: inst.Target,
 		TaskID: s.cfg.NewID(), Audience: audience.Principal, AuthorityScopes: scope.Limits{}.Project(heldHere, scopes),
@@ -465,6 +468,7 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 	if claims.GetAudience() != am.Principal {
 		return Issued{}, domain.Refuse("%s hops only on a token addressed to it; this one is addressed to %s", am.Name, claims.GetAudience())
 	}
+	var f fence
 	err = s.store.Read(ctx, func(tx Tx) error {
 		tenant := claims.GetTenantId()
 		var heldHere, sourceCeiling Scopes
@@ -530,17 +534,18 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 			return domain.NotNow("%s is not installed at %s", am.Name, tenant)
 		}
 		sealTo = inst.ID
-		return nil
+		f, err = s.src.fenceIn(tx, tenant, claims.GetOwnerPrincipalId(), sealTo)
+		return err
 	})
 	if err != nil {
 		return Issued{}, err
 	}
-	return s.derive(ctx, verified, am, audience, r, scopes, authorityScopes, sealTo)
+	return s.derive(ctx, verified, am, audience, r, scopes, authorityScopes, sealTo, f)
 }
 
 // derive rebuilds the chain for the new audience, the parent's actors and
 // then this one, and rechecks the parent once the child is signed.
-func (s *Service) derive(ctx context.Context, verified *workcontext.Verified, am, audience domain.Module, r IssueRequest, scopes, authorityScopes Scopes, sealTo string) (Issued, error) {
+func (s *Service) derive(ctx context.Context, verified *workcontext.Verified, am, audience domain.Module, r IssueRequest, scopes, authorityScopes Scopes, sealTo string, f fence) (Issued, error) {
 	claims := verified.Context()
 	ttl := clamp(r.TTL, s.cfg.MaxTTL)
 	if remaining := time.Unix(claims.GetExpiresAtUnix(), 0).Sub(s.cfg.Clock()); remaining < ttl {
@@ -587,6 +592,9 @@ func (s *Service) derive(ctx context.Context, verified *workcontext.Verified, am
 		if n == len(hops) {
 			if signed.GetOperationBinding().GetRevision() != am.Generation {
 				return Issued{}, domain.Refuse("actor binding changed during issuance")
+			}
+			if err := f.holds(signed); err != nil {
+				return Issued{}, err
 			}
 			v, err := s.verifier(ctx, claims.GetAudience())
 			if err != nil {

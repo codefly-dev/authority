@@ -164,7 +164,7 @@ people:
 		// Acme's wiki reaches finance and engineering; a local team is the id its
 		// members carry, so one no person carries is a real team with no members.
 		UnexposedTeam: "auditors",
-		SolutionTools: &conformance.SolutionToolsCase{Token: "fixture-maya", Outsider: "fixture-remi", Module: "robin", Credential: k.Credential(t, "robin"), Binding: "tools", Audience: "proposals", Kind: "proposals.item", Action: "read", Method: "/tools.Solution/Read"},
+		SolutionTools: &conformance.SolutionToolsCase{Token: "fixture-maya", Outsider: "fixture-remi", Module: "robin", Credential: k.Credential(t, "robin"), Binding: testkit.SolutionToolBinding, Audience: "proposals", Kind: "proposals.item", Action: "read", Method: testkit.SolutionToolMethod},
 		// Deliveries are signed with the kit's release key and carried by the
 		// module's own workload under the launcher.
 		HostCoordinate: "local", HostDomain: "local",

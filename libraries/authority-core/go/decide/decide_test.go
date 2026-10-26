@@ -133,7 +133,7 @@ func TestWhoMayChangeARoleInOrder(t *testing.T) {
 		"another organization's admin": {func(r *decide.RoleChange) {
 			r.Caller = domain.Person{ID: "zoe", Organization: "globex", Roles: []string{"admin"}}
 		}, domain.Denied, "may not grant"},
-		"a disabled installation":          {func(r *decide.RoleChange) { r.Installation.Status = domain.Revoked }, domain.Denied, "not installed"},
+		"a disabled installation":          {func(r *decide.RoleChange) { r.Installation.Status = domain.Revoked }, domain.Precondition, "not installed"},
 		"an undeclared role":               {func(r *decide.RoleChange) { r.Role = "owner" }, domain.NotFound, "declares no role"},
 		"both subjects":                    {func(r *decide.RoleChange) { r.TeamID = "t" }, domain.Invalid, "exactly one"},
 		"no subject":                       {func(r *decide.RoleChange) { r.PersonID = "" }, domain.Invalid, "exactly one"},

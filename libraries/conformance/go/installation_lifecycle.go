@@ -23,7 +23,9 @@ func (c *client) installationIdentity(t *testing.T, ctx context.Context, f Fixtu
 		name, id, credential, org, reason string
 		code                              codes.Code
 	}{
-		{"an installation issue verifies the installation exists", "conformance-missing-installation", f.InstalledCredential, "", "installation", codes.NotFound},
+		// An absent installation answers as another organization's does: a
+		// solution learns nothing of which organizations installed what.
+		{"an installation issue verifies the installation exists", "conformance-missing-installation", f.InstalledCredential, "", "installation", codes.PermissionDenied},
 		{"an installation issue authenticates the installed solution", f.InstalledSolution, f.WorkloadCredential, "", "installed solution", codes.PermissionDenied},
 		{"an installation issue cannot name a different organization", f.InstalledSolution, f.InstalledCredential, "conformance-foreign-org", "organization", codes.PermissionDenied},
 	} {
@@ -101,9 +103,11 @@ func (c *client) installationLifecycle(t *testing.T, ctx context.Context, f Fixt
 				t.Fatal("installation became active before acknowledgement")
 			}
 			_, err := issue()
-			refused(t, err, codes.PermissionDenied, "pending")
+			// The installation is not installed yet: a state that may still
+			// change, as the solution-principal target names it.
+			refused(t, err, codes.FailedPrecondition, "pending")
 			_, err = c.call(adminCtx, "host.installation.v1.InstallationService", expose, grant)
-			refused(t, err, codes.PermissionDenied, "pending")
+			refused(t, err, codes.FailedPrecondition, "pending")
 		})
 		resume()
 		select {
@@ -141,7 +145,7 @@ func (c *client) installationLifecycle(t *testing.T, ctx context.Context, f Fixt
 				t.Fatal(err)
 			}
 			_, err := issue()
-			refused(t, err, codes.PermissionDenied, "revoked")
+			refused(t, err, codes.FailedPrecondition, "revoked")
 			_, err = c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(out, "token"), "audience": l.Target})
 			refused(t, err, codes.PermissionDenied, "")
 		})

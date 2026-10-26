@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"errors"
 	"fmt"
+	"github.com/codefly-dev/core/workcontext"
 	"strings"
 	"testing"
 	"time"
@@ -34,6 +35,7 @@ type harness struct {
 	t     *testing.T
 	store *memstore.Store
 	svc   *authority.Service
+	cfg   authority.Config
 	now   time.Time
 	ctx   context.Context
 }
@@ -70,8 +72,11 @@ func newHarness(t *testing.T) *harness {
 	}
 	h := &harness{t: t, store: memstore.New(), now: time.Date(2026, 10, 26, 9, 0, 0, 0, time.UTC), ctx: context.Background()}
 	n := 0
-	h.svc, err = authority.New(h.store, authority.Config{Issuer: "https://authority.test", KeyID: "k1", Signer: private, Keys: keys{public},
-		Clock: func() time.Time { return h.now }, NewID: func() string { n++; return fmt.Sprintf("id-%d", n) }})
+	replay := workcontext.NewMemoryReplayStore()
+	replay.Now = func() time.Time { return h.now }
+	h.cfg = authority.Config{Issuer: "https://authority.test", KeyID: "k1", Signer: private, Keys: keys{public}, Replay: replay,
+		Clock: func() time.Time { return h.now }, NewID: func() string { n++; return fmt.Sprintf("id-%d", n) }}
+	h.svc, err = authority.New(h.store, h.cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

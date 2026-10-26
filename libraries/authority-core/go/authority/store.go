@@ -2,18 +2,25 @@ package authority
 
 import (
 	"context"
+	"errors"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 )
 
 // Store is where a host keeps the authority's state. Read runs fn over one
-// consistent snapshot; Write runs fn as one transaction, which the adapter
-// retries on a serialization conflict, so fn must be free of other effects.
-// A missing record is reported wrapping domain.ErrNotFound.
+// consistent snapshot. Write runs fn as one transaction: all of fn's writes
+// or none, so an fn that fails leaves nothing behind. An adapter that meets a
+// serialization conflict retries fn (it must be free of other effects) and,
+// when it gives up, reports an error wrapping ErrConflict. A missing record
+// is reported wrapping domain.ErrNotFound.
 type Store interface {
 	Read(ctx context.Context, fn func(Tx) error) error
 	Write(ctx context.Context, fn func(Tx) error) error
 }
+
+// ErrConflict is what a Store reports when a transaction could not commit
+// against a concurrent one and was not retried to success.
+var ErrConflict = errors.New("authority: the transaction conflicted with another")
 
 // Tx is one transaction's view. Identity (organizations, people, teams and
 // organization roles) is the host's: the authority only reads it.

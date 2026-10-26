@@ -102,7 +102,7 @@ func (s *Service) IssueForDelegation(ctx context.Context, id string, actor Workl
 	var d domain.Delegation
 	var am, audience domain.Module
 	var through, scopes Scopes
-	var revision uint64
+	var f fence
 	var sealTo string
 	err := s.store.Read(ctx, func(tx Tx) error {
 		var err error
@@ -134,9 +134,7 @@ func (s *Service) IssueForDelegation(ctx context.Context, id string, actor Workl
 		if binding.Audience != audience.Principal {
 			return domain.Refuse("binding %q is addressed to %s, not %s", r.Binding, binding.Audience, audience.Principal)
 		}
-		if revision, err = tx.AuthorizationRevision(d.Organization); err != nil {
-			return err
-		}
+
 		if through, err = decide.ScopesFor(binding, r.Operation, "invoke"); err != nil {
 			return err
 		}
@@ -163,12 +161,13 @@ func (s *Service) IssueForDelegation(ctx context.Context, id string, actor Workl
 			return domain.NotNow("%s is not installed at %s", am.Name, d.Organization)
 		}
 		sealTo = inst.ID
-		return nil
+		f, err = s.src.fenceIn(tx, d.Organization, d.Grantor, sealTo)
+		return err
 	})
 	if err != nil {
 		return Issued{}, err
 	}
-	root, err := s.startAtRevision(ctx, revision, workcontext.StartInput{
+	root, err := s.startFenced(ctx, f, workcontext.StartInput{
 		TenantID: d.Organization, OrganizationID: d.Organization, OwnerPrincipalID: d.Grantor, OwnerPrincipalKind: "human",
 		TaskID: s.cfg.NewID(), Audience: audience.Principal, AuthorityScopes: scope.Limits{}.Project(through, scopes),
 		InstallationID: sealTo, TTL: clamp(r.TTL, s.cfg.MaxTTL), ReplayPolicy: workcontext.ReplayIdempotent,

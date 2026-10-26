@@ -6,7 +6,6 @@ package registry_test
 
 import (
 	"context"
-	"errors"
 	"net"
 	"os"
 	"path/filepath"

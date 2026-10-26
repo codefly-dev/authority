@@ -3,7 +3,6 @@ package authority
 import (
 	"context"
 	"errors"
-	"fmt"
 	"slices"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
@@ -19,15 +18,19 @@ import (
 // does not declare owner-aware checking now, or one that withdrew it after
 // the capability was issued through a binding to it (never revived).
 func (s *Service) Check(ctx context.Context, token, audience string) (*workcontext.Verified, uint64, error) {
-	if decoded, err := workcontext.Decode(token); err == nil {
-		wc := decoded.Context()
-		if scope.HasOwner(effectiveOf(wc)) && wc.GetOperationBinding().GetBindingId() != "" {
-			if current, err := s.src.OperationBinding(ctx, wc.GetOperationBinding().GetBindingId()); err == nil && current.Incarnation != wc.GetOperationBinding().GetIncarnation() {
-				return nil, 0, domain.Refuse("issued before %s last withdrew owner-aware checking; only a fresh capability carries owner-selected scopes", audience)
+	verified, err := s.Verify(ctx, token, audience)
+	if errors.Is(err, workcontext.ErrRevoked) {
+		// Verified up to the revocation: name an owner-aware withdrawal,
+		// which core reports as a binding incarnation that moved.
+		if decoded, derr := workcontext.Decode(token); derr == nil {
+			wc := decoded.Context()
+			if scope.HasOwner(effectiveOf(wc)) && wc.GetOperationBinding().GetBindingId() != "" {
+				if current, berr := s.src.OperationBinding(ctx, wc.GetOperationBinding().GetBindingId()); berr == nil && current.Incarnation != wc.GetOperationBinding().GetIncarnation() {
+					return nil, 0, domain.Refuse("issued before %s last withdrew owner-aware checking; only a fresh capability carries owner-selected scopes", audience)
+				}
 			}
 		}
 	}
-	verified, err := s.Verify(ctx, token, audience)
 	if err != nil {
 		return nil, 0, err
 	}

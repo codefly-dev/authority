@@ -43,7 +43,8 @@ type Config struct {
 	InstallationID, PrincipalID func(organization, target string) string
 	// MaxTTL clamps every capability; zero means 15 minutes.
 	MaxTTL time.Duration
-	// Replay consumes single-use capabilities; nil means in memory.
+	// Replay consumes single-use capabilities. It is required: a deployed
+	// host shares it across replicas, and nothing defaults to memory.
 	Replay workcontext.ReplayStore
 	// Grants answers approval grants; nil refuses every grant capability.
 	Grants workcontext.GrantSource
@@ -77,8 +78,8 @@ type Service struct {
 
 // New builds the service.
 func New(store Store, cfg Config) (*Service, error) {
-	if store == nil || cfg.Signer == nil || cfg.Keys == nil || cfg.Issuer == "" || cfg.KeyID == "" {
-		return nil, errors.New("authority: a store, an issuer, a key id, a signer and a key source are required")
+	if store == nil || cfg.Signer == nil || cfg.Keys == nil || cfg.Issuer == "" || cfg.KeyID == "" || cfg.Replay == nil {
+		return nil, errors.New("authority: a store, an issuer, a key id, a signer, a key source and a replay store are required")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = time.Now
@@ -94,11 +95,6 @@ func New(store Store, cfg Config) (*Service, error) {
 	}
 	if cfg.MaxTTL <= 0 {
 		cfg.MaxTTL = 15 * time.Minute
-	}
-	if cfg.Replay == nil {
-		replay := workcontext.NewMemoryReplayStore()
-		replay.Now = cfg.Clock
-		cfg.Replay = replay
 	}
 	s := &Service{store: store, cfg: cfg}
 	s.src = sources{s: s}
@@ -159,6 +155,13 @@ func (noGrants) Grant(_ context.Context, id string) (*workcontext.Grant, error) 
 // from the store. A seal's installation revision folds in what invalidates a
 // capability sealed to it: the installation's own revision, the owner's
 // grant epoch on it, and the installed solution's owner-aware revision.
+//
+// The sum never repeats a value it held before, because each term only grows
+// and is keyed stably: an installation's revision grows on install,
+// uninstall and narrowing; a grant epoch grows on revoke; an owner-aware
+// revision grows on withdrawal and is keyed by the module's principal, which
+// a module keeps for life (ApplyModule refuses a change). A capability sealed
+// at an earlier sum is therefore refused for good.
 type sources struct{ s *Service }
 
 func (src sources) AuthorizationRevision(ctx context.Context, tenant string) (uint64, error) {
@@ -172,28 +175,32 @@ func (src sources) AuthorizationRevision(ctx context.Context, tenant string) (ui
 
 func (src sources) Seal(ctx context.Context, principal, installationID string) (workcontext.Seal, error) {
 	var seal workcontext.Seal
-	err := src.s.store.Read(ctx, func(tx Tx) error {
-		inst, err := tx.Installation(installationID)
-		if err != nil || inst.Status != domain.Active {
-			return workcontext.ErrNoSeal
-		}
-		if !src.holds(tx, principal, inst) {
-			return workcontext.ErrNoSeal
-		}
-		epoch, err := tx.GrantEpoch(principal, inst.ID)
-		if err != nil {
-			return err
-		}
-		aware := uint64(0)
-		if m, err := tx.ModuleNamed(inst.Target); err == nil {
-			if aware, err = tx.OwnerAwareRevision(m.Principal); err != nil {
-				return err
-			}
-		}
-		seal = workcontext.Seal{InstallationID: inst.ID, InstallationRevision: inst.Revision + epoch + aware}
-		return nil
+	err := src.s.store.Read(ctx, func(tx Tx) (err error) {
+		seal, err = src.sealIn(tx, principal, installationID)
+		return err
 	})
 	return seal, err
+}
+
+func (src sources) sealIn(tx Tx, principal, installationID string) (workcontext.Seal, error) {
+	inst, err := tx.Installation(installationID)
+	if err != nil || inst.Status != domain.Active {
+		return workcontext.Seal{}, workcontext.ErrNoSeal
+	}
+	if !src.holds(tx, principal, inst) {
+		return workcontext.Seal{}, workcontext.ErrNoSeal
+	}
+	epoch, err := tx.GrantEpoch(principal, inst.ID)
+	if err != nil {
+		return workcontext.Seal{}, err
+	}
+	aware := uint64(0)
+	if m, err := tx.ModuleNamed(inst.Target); err == nil {
+		if aware, err = tx.OwnerAwareRevision(m.Principal); err != nil {
+			return workcontext.Seal{}, err
+		}
+	}
+	return workcontext.Seal{InstallationID: inst.ID, InstallationRevision: inst.Revision + epoch + aware}, nil
 }
 
 // holds: the principal may use the installation: a person of its
@@ -215,23 +222,57 @@ func (src sources) holds(tx Tx, principal string, inst domain.Installation) bool
 
 func (src sources) PrincipalEpoch(ctx context.Context, principal string) (uint64, error) {
 	var epoch uint64
-	err := src.s.store.Read(ctx, func(tx Tx) error {
-		if m, err := tx.Module(principal); err == nil {
-			epoch = m.Generation
-			return nil
-		}
-		if _, err := tx.Person(principal); err == nil {
-			var perr error
-			epoch, perr = tx.PersonEpoch(principal)
-			return perr
-		}
-		if inst, err := tx.InstallationByPrincipal(principal); err == nil && inst.Status == domain.Active {
-			epoch = 1
-			return nil
-		}
-		return domain.Missing("principal %q", principal)
+	err := src.s.store.Read(ctx, func(tx Tx) (err error) {
+		epoch, err = src.epochIn(tx, principal)
+		return err
 	})
 	return epoch, err
+}
+
+func (src sources) epochIn(tx Tx, principal string) (uint64, error) {
+	if m, err := tx.Module(principal); err == nil {
+		return m.Generation, nil
+	}
+	if _, err := tx.Person(principal); err == nil {
+		return tx.PersonEpoch(principal)
+	}
+	if inst, err := tx.InstallationByPrincipal(principal); err == nil && inst.Status == domain.Active {
+		// The installation's revision: it grows on every install and
+		// uninstall, so a reinstall never repeats an epoch an earlier
+		// incarnation's capabilities were sealed at.
+		return inst.Revision, nil
+	}
+	return 0, domain.Missing("principal %q", principal)
+}
+
+// fence is what an issuance decided against: the organization's
+// authorization revision, and the owner's seal on the installation and
+// epoch, read in the decision's own snapshot. A capability minted after a
+// revoke, a leave or an uninstall committed carries other values, and is
+// refused rather than handed out.
+type fence struct{ revision, seal, epoch uint64 }
+
+func (src sources) fenceIn(tx Tx, organization, owner, installationID string) (fence, error) {
+	revision, err := tx.AuthorizationRevision(organization)
+	if err != nil {
+		return fence{}, err
+	}
+	seal, err := src.sealIn(tx, owner, installationID)
+	if err != nil {
+		return fence{}, domain.Refuse("%s may not use installation %s now", owner, installationID)
+	}
+	epoch, err := src.epochIn(tx, owner)
+	if err != nil {
+		return fence{}, err
+	}
+	return fence{revision, seal.InstallationRevision, epoch}, nil
+}
+
+func (f fence) holds(signed *basev0.WorkContextV1) error {
+	if signed.GetAuthorizationRevision() != f.revision || signed.GetSeal().GetInstallationRevision() != f.seal || signed.GetSeal().GetPrincipalEpoch() != f.epoch {
+		return domain.Refuse("permissions changed during issuance")
+	}
+	return nil
 }
 
 // OperationBinding answers "<organization>/<module>/<binding>". Its

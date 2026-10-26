@@ -712,10 +712,12 @@ func (sp *principalSuite) uninstall(t *testing.T, org string, s SolutionUnderTes
 	if err := sp.f.Uninstall(sp.ctx, str(sp.ensure(t, org, s), "id")); err != nil {
 		t.Fatal(err)
 	}
-	delete(sp.installed, org+"/"+s.Solution)
+	// The checks name the uninstalled installation; only then is it
+	// forgotten and installed again.
 	for _, check := range whileDisabled {
 		check()
 	}
+	delete(sp.installed, org+"/"+s.Solution)
 	sp.ensure(t, org, s)
 }
 
