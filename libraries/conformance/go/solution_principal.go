@@ -695,7 +695,7 @@ func (sp *principalSuite) ensure(t *testing.T, org string, s SolutionUnderTest) 
 	}
 	admin := sp.admin(org)
 	out := sp.c.must(t, sp.as(t, admin), "host.installation.v1.InstallationService", "Install", map[string]any{
-		"organization_id": org, "target": s.Solution, "role": "author", "owner_person_id": sp.personID(t, admin)})
+		"organization_id": org, "target": s.Solution, "role": "author", "owner_person_id": sp.personID(t, admin), "approval": sp.c.reviewInstallation(t, sp.as(t, admin), org, s.Solution)})
 	if enumName(out, "status") != "STATUS_ACTIVE" {
 		t.Fatalf("%s at %s is %s; the host's install step must converge for the suite's solutions", s.Solution, org, enumName(out, "status"))
 	}

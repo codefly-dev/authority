@@ -192,12 +192,13 @@ func TestAFailedInstallStepCanBeRetried(t *testing.T) {
 	h := newHarness(t)
 	admin := h.admin(globex)
 	down := func(context.Context, domain.Installation) error { return errors.New("step down") }
-	if _, err := h.svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, down); err == nil {
+	approval := h.approval(globex, "b")
+	if _, err := h.svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, approval, down); err == nil {
 		t.Fatal("a failing step installed")
 	}
-	_, err := h.svc.Install(h.ctx, admin, globex, "b", "viewer", admin.ID, nil)
-	refused(t, err, "pending")
-	inst, err := h.svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, nil)
+	_, err := h.svc.Install(h.ctx, admin, globex, "b", "viewer", admin.ID, approval, nil)
+	refused(t, err, "INSTALLATION_APPROVAL_OPERATION_CONFLICT")
+	inst, err := h.svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, approval, nil)
 	if err != nil || inst.Status != domain.Active {
 		t.Fatalf("the retry: %+v %v", inst, err)
 	}
@@ -216,7 +217,7 @@ func TestAnInstallPrincipalIsItsOwn(t *testing.T) {
 				t.Fatal(err)
 			}
 			admin := h.admin(globex)
-			_, err = svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, nil)
+			_, err = svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, h.approval(globex, "b"), nil)
 			code(t, err, domain.Denied)
 		})
 	}

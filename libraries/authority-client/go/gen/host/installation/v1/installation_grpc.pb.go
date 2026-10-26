@@ -27,6 +27,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	InstallationService_Install_FullMethodName        = "/host.installation.v1.InstallationService/Install"
+	InstallationService_Review_FullMethodName         = "/host.installation.v1.InstallationService/Review"
 	InstallationService_GrantRole_FullMethodName      = "/host.installation.v1.InstallationService/GrantRole"
 	InstallationService_RevokeRole_FullMethodName     = "/host.installation.v1.InstallationService/RevokeRole"
 	InstallationService_ListRoleGrants_FullMethodName = "/host.installation.v1.InstallationService/ListRoleGrants"
@@ -42,6 +43,8 @@ type InstallationServiceClient interface {
 	// Install composes an installation: its agent principal, its root scope and
 	// the row, pending until the target acknowledges its install step.
 	Install(ctx context.Context, in *InstallRequest, opts ...grpc.CallOption) (*Installation, error)
+	// Review reads the current offer and installation revision without granting consent.
+	Review(ctx context.Context, in *ReviewRequest, opts ...grpc.CallOption) (*ConsentApproval, error)
 	// GrantRole grants a person or a team one of the solution's roles on the
 	// installation: the access. Idempotent; it leaves existing capabilities
 	// valid. An administrator of the installation's organization, or a holder
@@ -71,6 +74,16 @@ func (c *installationServiceClient) Install(ctx context.Context, in *InstallRequ
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Installation)
 	err := c.cc.Invoke(ctx, InstallationService_Install_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *installationServiceClient) Review(ctx context.Context, in *ReviewRequest, opts ...grpc.CallOption) (*ConsentApproval, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ConsentApproval)
+	err := c.cc.Invoke(ctx, InstallationService_Review_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -126,6 +139,8 @@ type InstallationServiceServer interface {
 	// Install composes an installation: its agent principal, its root scope and
 	// the row, pending until the target acknowledges its install step.
 	Install(context.Context, *InstallRequest) (*Installation, error)
+	// Review reads the current offer and installation revision without granting consent.
+	Review(context.Context, *ReviewRequest) (*ConsentApproval, error)
 	// GrantRole grants a person or a team one of the solution's roles on the
 	// installation: the access. Idempotent; it leaves existing capabilities
 	// valid. An administrator of the installation's organization, or a holder
@@ -153,6 +168,9 @@ type UnimplementedInstallationServiceServer struct{}
 
 func (UnimplementedInstallationServiceServer) Install(context.Context, *InstallRequest) (*Installation, error) {
 	return nil, status.Error(codes.Unimplemented, "method Install not implemented")
+}
+func (UnimplementedInstallationServiceServer) Review(context.Context, *ReviewRequest) (*ConsentApproval, error) {
+	return nil, status.Error(codes.Unimplemented, "method Review not implemented")
 }
 func (UnimplementedInstallationServiceServer) GrantRole(context.Context, *GrantRoleRequest) (*Installation, error) {
 	return nil, status.Error(codes.Unimplemented, "method GrantRole not implemented")
@@ -201,6 +219,24 @@ func _InstallationService_Install_Handler(srv interface{}, ctx context.Context, 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(InstallationServiceServer).Install(ctx, req.(*InstallRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _InstallationService_Review_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReviewRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InstallationServiceServer).Review(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: InstallationService_Review_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(InstallationServiceServer).Review(ctx, req.(*ReviewRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -287,6 +323,10 @@ var InstallationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Install",
 			Handler:    _InstallationService_Install_Handler,
+		},
+		{
+			MethodName: "Review",
+			Handler:    _InstallationService_Review_Handler,
 		},
 		{
 			MethodName: "GrantRole",

@@ -29,7 +29,7 @@ func TestAReinstallNeverRepeatsThePrincipalsEpoch(t *testing.T) {
 		t.Fatal("an uninstalled principal has an epoch")
 	}
 	admin := h.admin(acme)
-	if _, err := h.svc.Install(h.ctx, admin, acme, "a", "viewer", admin.ID, nil); err != nil {
+	if _, err := h.svc.Install(h.ctx, admin, acme, "a", "viewer", admin.ID, h.approval(acme, "a"), nil); err != nil {
 		t.Fatal(err)
 	}
 	after, err := h.svc.Seals().PrincipalEpoch(h.ctx, u)

@@ -106,6 +106,8 @@ type Installation struct {
 	AgentRole                string
 	PrincipalID              string
 	InstalledBy              string
+	// Consent is the last reviewed operation; a later revision invalidates its receipt.
+	Consent ConsentReceipt
 }
 
 // RoleGrant is one role on one installation held by exactly one person or team.
@@ -174,4 +176,17 @@ func CodeOf(err error) (Code, bool) {
 		return r.Code, true
 	}
 	return 0, false
+}
+
+// ConsentApproval is the reviewed authority offer and caller's operation identity.
+type ConsentApproval struct {
+	TargetID                     string
+	Generation, ExpectedRevision uint64
+	OperationID, Digest          string
+}
+
+// ConsentReceipt binds an unchanged retry to its resulting installation revision.
+type ConsentReceipt struct {
+	OperationID, Intent string
+	Revision            uint64
 }

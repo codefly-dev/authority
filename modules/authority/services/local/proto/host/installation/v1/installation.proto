@@ -13,6 +13,8 @@ service InstallationService {
   // Install composes an installation: its agent principal, its root scope and
   // the row, pending until the target acknowledges its install step.
   rpc Install(InstallRequest) returns (Installation);
+  // Review reads the current offer and installation revision without granting consent.
+  rpc Review(ReviewRequest) returns (ConsentApproval);
   // GrantRole grants a person or a team one of the solution's roles on the
   // installation: the access. Idempotent; it leaves existing capabilities
   // valid. An administrator of the installation's organization, or a holder
@@ -47,6 +49,26 @@ message InstallRequest {
   string role = 3;
   // The accountable person; an administrator of the organisation.
   string owner_person_id = 4;
+  // Required: the exact offer reviewed by the administrator; unchanged on retry.
+  ConsentApproval approval = 5;
+}
+
+// ReviewRequest names the offer an administrator intends to review.
+message ReviewRequest {
+  string organization_id = 1;
+  string target = 2;
+}
+
+// ConsentApproval binds consent to an immutable target, its reviewed delivery and
+// the installation revision (zero if absent). Review leaves operation_id empty;
+// the caller supplies a fresh UUID and preserves the entire request on retry.
+message ConsentApproval {
+  string target_id = 1;
+  uint64 generation = 2;
+  uint64 expected_revision = 3;
+  string operation_id = 4;
+  // sha256 digest of the reviewed authority offer.
+  string digest = 5;
 }
 
 // GrantRoleRequest grants one role to exactly one person or team.
