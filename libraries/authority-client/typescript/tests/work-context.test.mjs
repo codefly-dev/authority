@@ -5,7 +5,7 @@ import { createHash, createPrivateKey, generateKeyPairSync, sign } from 'node:cr
 import { test } from 'node:test';
 import { create, fromBinary, fromJson, toBinary } from '@bufbuild/protobuf';
 import { KeysResponseSchema, PublicKeySchema, WorkContextV1Schema, WorkScopeV1Schema } from '@codefly-dev/authority-client';
-import { authenticateClaims, identityOf, trustFromKeys, Unauthenticated, Verifier, Replayed } from '@codefly-dev/authority-client/work-context';
+import { authenticateClaims, identityOf, trustFromKeys, Unauthenticated, Verifier, Replayed, Reason } from '@codefly-dev/authority-client/work-context';
 
 const fixtures = JSON.parse(readFileSync(new URL('../../testdata/claims.json',import.meta.url),'utf8'));
 const encode = bytes => Buffer.from(bytes).toString('base64url');
@@ -50,11 +50,11 @@ test('a forged, unsigned, misaddressed or expired context is refused by name', (
     [signed(context, generateKeyPairSync('ed25519').privateKey), context.audience, trust, /signature/],
     [payload+'.'+encode(new Uint8Array(64)), context.audience, trust, /signature/],
     [signed(foreign), context.audience, trust, /issued by/],
-    [signed(context), 'another-module', trust, /minted for audience/],
+    [signed(context), 'another-module', trust, /audience/],
     [signed(context), context.audience, trustFor(context,(Number(context.expiresAtUnix)+3600)*1000), /expired/],
     [signed(context), context.audience, trustFor(context,(Number(context.notBeforeUnix)-3600)*1000), /not valid before/],
     [signed(create(WorkContextV1Schema,{...context, keyId:'rotated'})), context.audience, trust, /no verification key/],
-    [signed(context), '', trust, /no audience/],
+    [signed(context), '', trust, /configuration/],
   ]) {
     assert.throws(()=>authenticateClaims(stamped(token), audience, use), e => e instanceof Unauthenticated && reason.test(e.message));
   }
@@ -115,7 +115,7 @@ test('the Verifier reads the hop fixture as Go reads it', async () => {
   assert.deepEqual([...id.scopes], fixture.identity.scopes);
   assert.equal(id.advisory, fixture.identity.advisory);
   assert.ok(id.claims.allows('documents.collection','write','c-1'));
-  for (const [key, value, reason] of [['x-codefly-hop-tenant','globex',/tenant/],['x-codefly-hop-scopes','documents.collection:admin',/scopes/],['x-codefly-hop-proof','another-run',/proof/]]) {
+  for (const [key, value, reason] of [['x-codefly-hop-tenant','globex',/stamp_identity/],['x-codefly-hop-scopes','documents.collection:admin',/stamp_identity/],['x-codefly-hop-proof','another-run',/stamp_proof/]]) {
     await assert.rejects(v.verify({...fixture.headers, [key]: value}, METHOD), e => e instanceof Unauthenticated && reason.test(e.message));
   }
 });
@@ -160,19 +160,22 @@ test('a Verifier starts before the authority serves keys and refuses with a reas
 // started succeeded in the background. Held keys past the stale window cannot
 // judge a call, so the call waits for the read, as it does for a key not held.
 // The keys are read before the fixture's token is minted, so the token is live.
-test('a call on keys past the stale window waits for the re-read', async () => {
+for (const mode of ['stamped', 'bare']) {
+ // Each admission is single-use, so the stamped mode signs a fresh one per call.
+ const check = v => mode === 'bare' ? v.verifyToken(fixture.headers['x-codefly-work-context']) : v.verify(fresh(v.now()), METHOD);
+test(mode + ': a call on keys past the stale window waits for the re-read', async () => {
   const keys = source();
   let clock = (fixture.now - 960)*1000;
   const v = new Verifier(keys, fixture.audience, fixture.public_key, replay(), () => clock);
   await settle();
   clock = fixture.now*1000;
-  assert.equal((await v.verify(fresh(v.now()), METHOD)).owner, fixture.identity.owner);
+  assert.equal((await check(v)).owner, fixture.identity.owner);
   assert.equal(keys.reads, 2);
 });
 
 // The wait fails closed: a re-read that fails refuses the call with the fixed
 // reason, and only once the read has ended.
-test('a call on keys past the stale window is refused when the re-read fails', async () => {
+test(mode + ': a call on keys past the stale window is refused when the re-read fails', async () => {
   let fail;
   const keys = source(() => keys.reads === 1 ? Promise.resolve(published) : new Promise((_, reject) => { fail = reject; }));
   let clock = (fixture.now - 960)*1000;
@@ -180,7 +183,7 @@ test('a call on keys past the stale window is refused when the re-read fails', a
   await settle();
   clock = fixture.now*1000;
   let judged = false;
-  const call = v.verify(fresh(v.now()), METHOD).finally(() => { judged = true; });
+  const call = check(v).finally(() => { judged = true; });
   for (let i = 0; i < 5; i++) await settle();
   assert.equal(judged, false, 'the call was judged before its re-read ended');
   fail(new Error('dial authority.internal:4000: connection refused'));
@@ -191,7 +194,7 @@ test('a call on keys past the stale window is refused when the re-read fails', a
 // Review r159 f1: the wait bounds itself. A re-read that never answers, from a
 // source that ignores its timeout and signal, refuses the call with the fixed
 // reason once the verifier's own timeout passes, and holds no later read.
-test('a call on keys past the stale window is refused when the re-read hangs', {timeout: 3_000}, async () => {
+test(mode + ': a call on keys past the stale window is refused when the re-read hangs', {timeout: 3_000}, async () => {
   let hang = false;
   const keys = source(() => hang ? new Promise(() => {}) : Promise.resolve(published));
   let clock = (fixture.now - 960)*1000;
@@ -200,14 +203,16 @@ test('a call on keys past the stale window is refused when the re-read hangs', {
   hang = true;
   clock = fixture.now*1000;
   const started = performance.now();
-  await assert.rejects(v.verify(fresh(v.now()), METHOD), e => e instanceof Unauthenticated && /unavailable/.test(e.message));
+  await assert.rejects(check(v), e => e instanceof Unauthenticated && /unavailable/.test(e.message));
   assert.ok(performance.now() - started >= 90, 'refused before the read timed out');
   assert.equal(v.keysError?.name, 'TimeoutError');
   hang = false;
   clock += 11_000;
-  assert.equal((await v.verify(fresh(v.now()), METHOD)).owner, fixture.identity.owner);
+  assert.equal((await check(v)).owner, fixture.identity.owner);
   assert.equal(keys.reads, 3);
 });
+
+}
 
 test('an actor granted nothing narrows the identity to nothing', () => {
   const context = body('delegated');
@@ -271,13 +276,13 @@ test('review probes: read stamp cannot retarget, cross audiences or replay acros
   const first = new Verifier(source(), fixture.audience, fixture.public_key, store, () => fixture.now*1000);
   const second = new Verifier(source(), fixture.audience, fixture.public_key, store, () => fixture.now*1000);
   for (const method of ['/documents.v1.Service/Delete','/datasets.v1.Service/Register','Read','','POST '+METHOD]) {
-    await assert.rejects(first.verify(fixture.headers, method), /method mismatch/);
+    await assert.rejects(first.verify(fixture.headers, method), /stamp_method/);
   }
   const other = new Verifier(source(), 'records', fixture.public_key, store, () => fixture.now*1000);
-  await assert.rejects(other.verify(fixture.headers, METHOD), /audience mismatch/);
+  await assert.rejects(other.verify(fixture.headers, METHOD), /stamp_audience/);
   assert.equal((await first.verify(fixture.headers, METHOD)).claims.context.replayPolicy, "single-use");
-  await assert.rejects(first.verify(fixture.headers, METHOD), /replay/);
-  await assert.rejects(second.verify(fixture.headers, METHOD), /replay/);
+  await assert.rejects(first.verify(fixture.headers, METHOD), /stamp_replayed/);
+  await assert.rejects(second.verify(fixture.headers, METHOD), /stamp_replayed/);
   await assert.rejects(second.verify({...fixture.headers, 'x-codefly-hop-proof': 'fixture-proof'}, METHOD), /proof/);
 });
 
@@ -287,7 +292,7 @@ test('concurrent replay has one winner and a failed store refuses admission', as
   const results = await Promise.allSettled(Array.from({length:32}, (_,n) => replicas[n%2].verify(fixture.headers, METHOD)));
   assert.equal(results.filter(result => result.status === 'fulfilled').length, 1);
   const v = new Verifier(source(), fixture.audience, fixture.public_key, {async consume(){throw Error('store down');}}, () => fixture.now*1000);
-  await assert.rejects(v.verify(fixture.headers, METHOD), /store unavailable/);
+  await assert.rejects(v.verify(fixture.headers, METHOD), /stamp_store/);
 });
 
 test('expired stamps and repeated binding headers refuse before consumption', async () => {
@@ -298,4 +303,46 @@ test('expired stamps and repeated binding headers refuse before consumption', as
     await assert.rejects(v.verify([...Object.entries(fixture.headers),[key,fixture.headers[key]]], METHOD), Unauthenticated);
     await v.verify(fixture.headers, METHOD);
   }
+});
+
+for (const row of vectors) {
+ test(`bare token matches shared verdict: ${row.name}`, async () => {
+  const response = create(KeysResponseSchema, {issuer: row.issuer, keys: Object.entries(row.keys).map(([keyId, raw]) => create(PublicKeySchema,{keyId,algorithm:'Ed25519',publicKey:Buffer.from(raw,'base64')}))});
+  const v = new Verifier(source(()=>Promise.resolve(response)), row.audience, undefined, undefined, ()=>row.now*1000);
+  if (row.accept) assert.equal((await v.verifyToken(row.token)).claims.audience,row.audience);
+  else await assert.rejects(v.verifyToken(row.token), e=> e instanceof Unauthenticated && e.code === row.reason && !e.message.includes(row.token));
+ });
+}
+test('every named reason has distinct code and safe text', () => {
+ const reasons=Object.values(Reason);
+ assert.equal(new Set(reasons).size,reasons.length);
+ const messages=reasons.map(r=>new Unauthenticated(r).text);
+ assert.equal(new Set(messages).size,reasons.length);
+});
+
+test('stamp failures retain distinct safe codes', async () => {
+ const v=new Verifier(source(),fixture.audience,fixture.public_key,replay(),()=>fixture.now*1000);
+ for (const [change,code] of [
+  [{'x-codefly-hop-proof':'private-proof'},Reason.StampProof],
+  [{'x-codefly-work-context':''},Reason.StampToken],
+  [{'x-codefly-hop-context':'private-digest'},Reason.StampDigest],
+  [{'x-codefly-hop-tenant':'private-tenant'},Reason.StampIdentity],
+ ]) await assert.rejects(v.verify({...fixture.headers,...change}, METHOD), e=>e.code===code && !e.message.includes('private-'));
+});
+
+test('bare-only process needs no admission keys and cannot accept stamps', async () => {
+ const v = new Verifier(source(),fixture.audience,undefined,undefined,()=>fixture.now*1000);
+ assert.equal((await v.verifyToken(fixture.headers['x-codefly-work-context'])).owner,fixture.identity.owner);
+ // Without the hop public key and a shared replay store it admits nothing.
+ await assert.rejects(v.verify(fixture.headers, METHOD), e=>e.code===Reason.Configuration);
+});
+
+test('invalid publication and unreadable keys have distinct safe codes', async () => {
+ for (const [answer, code] of [
+  [()=>Promise.resolve(create(KeysResponseSchema,{issuer:'issuer'})), Reason.InvalidKey],
+  [()=>Promise.reject(new Error('private-source-detail')), Reason.KeysUnavailable],
+ ]) {
+  const v=new Verifier(source(answer),fixture.audience,undefined,undefined,()=>fixture.now*1000);
+  await assert.rejects(v.verifyToken(fixture.headers['x-codefly-work-context']), e=>e.code===code && !e.message.includes('private-'));
+ }
 });

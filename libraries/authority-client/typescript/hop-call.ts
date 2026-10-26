@@ -1,4 +1,5 @@
 import { createHash, createPublicKey, verify } from "node:crypto";
+import { Reason, Unauthenticated } from "./refusal.js";
 
 /** Durable atomic consumption, shared by all replicas. Throw Replayed on reuse, another error on outage.
  * retainUntil is Unix seconds. Successful reservations must survive restart. */
@@ -7,31 +8,33 @@ export class Replayed extends Error { override name = "Replayed"; }
 export interface ReplayStore { consume(nonce: string, retainUntil: number): Promise<void>; }
 
 export function checkCall(pairs: readonly (readonly [string, string])[], publicKey: string, method: string, audience: string, now: number): { nonce: string; expires: number } {
-  const fail = (reason: string): never => { throw new Error(`hop: ${reason}`); };
+  const fail = (reason: Reason): never => { throw new Unauthenticated(reason); };
   const one = (key: string): string => { const values = pairs.filter(([k]) => k === key); return values.length === 1 ? values[0][1] : ""; };
   const encoded = one("x-codefly-hop-proof"), parts = encoded.split(".");
-  if (!/^[0-9a-f]{64}$/.test(publicKey) || parts.length !== 2 || encoded.length > 8192) fail("invalid signed hop proof");
+  if (!/^[0-9a-f]{64}$/.test(publicKey) || parts.length !== 2 || encoded.length > 8192) fail(Reason.StampProof);
   const decode = (part: string): Buffer => {
     const raw = Buffer.from(part, "base64url");
-    if (!/^[A-Za-z0-9_-]+$/.test(part) || raw.toString("base64url") !== part) fail("noncanonical hop proof");
+    if (!/^[A-Za-z0-9_-]+$/.test(part) || raw.toString("base64url") !== part) fail(Reason.StampProof);
     return raw;
   };
   const payload = decode(parts[0]), signature = decode(parts[1]);
   const key = createPublicKey({ key: { kty: "OKP", crv: "Ed25519", x: Buffer.from(publicKey, "hex").toString("base64url") }, format: "jwk" });
-  if (!verify(null, payload, key, signature)) fail("hop proof signature does not verify");
+  if (!verify(null, payload, key, signature)) fail(Reason.StampProof);
   let fields: unknown;
-  try { fields = JSON.parse(payload.toString("utf8")); } catch { fail("malformed hop proof"); }
-  if (!Array.isArray(fields) || fields.length !== 7) return fail("malformed hop proof");
+  try { fields = JSON.parse(payload.toString("utf8")); } catch { fail(Reason.StampProof); }
+  if (!Array.isArray(fields) || fields.length !== 7) return fail(Reason.StampProof);
   const [domain, boundMethod, boundAudience, digest, nonce, issued, expires] = fields;
-  if (!fields.slice(0, 5).every(v => typeof v === "string") || !Number.isSafeInteger(issued) || !Number.isSafeInteger(expires)) fail("malformed hop proof fields");
-  if (domain !== "codefly-hop-v1") fail("unknown hop proof version");
-  if (!method || method !== boundMethod) fail("hop proof method mismatch");
-  if (!audience || audience !== boundAudience) fail("hop proof audience mismatch");
+  if (!fields.slice(0, 5).every(v => typeof v === "string") || !Number.isSafeInteger(issued) || !Number.isSafeInteger(expires)) fail(Reason.StampProof);
+  if (domain !== "codefly-hop-v1") fail(Reason.StampProof);
+  if (!method || method !== boundMethod) fail(Reason.StampMethod);
+  if (!audience || audience !== boundAudience) fail(Reason.StampAudience);
   const seconds = Math.floor(now / 1000);
-  if (issued < 0 || expires < 0 || issued > seconds || expires <= seconds || expires <= issued || expires - issued > 30) fail("hop proof expired or outside its validity window");
-  if (!/^[0-9a-f]{64}$/.test(nonce)) fail("invalid hop proof nonce");
-  const token = one("x-codefly-work-context");
-  if (!token || digest !== createHash("sha256").update(token).digest("hex") || digest !== one("x-codefly-hop-context")) fail("hop proof token digest mismatch");
-  if (pairs.some(([key]) => key === "x-codefly-hop-advisory")) fail("hop proof cannot authorize an advisory refusal");
+  if (issued < 0 || expires < 0 || issued > seconds || expires <= seconds || expires <= issued || expires - issued > 30) fail(Reason.StampWindow);
+  if (!/^[0-9a-f]{64}$/.test(nonce)) fail(Reason.StampProof);
+  const tokens = pairs.filter(([k]) => k === "x-codefly-work-context");
+  if (tokens.length !== 1 || !tokens[0][1]) fail(Reason.StampToken);
+  const token = tokens[0][1];
+  if (digest !== createHash("sha256").update(token).digest("hex") || digest !== one("x-codefly-hop-context")) fail(Reason.StampDigest);
+  if (pairs.some(([key]) => key === "x-codefly-hop-advisory")) fail(Reason.StampAdvisory);
   return { nonce: `codefly-hop-v1:${publicKey}:${nonce}`, expires };
 }

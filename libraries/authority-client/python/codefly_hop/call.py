@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-from authority_client.work_context import Unauthenticated, collect
+from authority_client.work_context import Reason, Unauthenticated, collect
 
 
 class Replayed(Exception):
@@ -61,20 +61,22 @@ def check(headers, public_key: str, method: str, audience: str, now: float) -> C
         if any(not isinstance(v, str) for v in fields[:5]) or type(issued) is not int or type(expires) is not int:
             raise ValueError("types")
     except Exception as error:
-        raise Unauthenticated("invalid hop proof signature or encoding") from error
+        raise Unauthenticated(Reason.STAMPPROOF) from error
     if domain != "codefly-hop-v1":
-        raise Unauthenticated("unknown hop proof version")
+        raise Unauthenticated(Reason.STAMPPROOF)
     if not method or method != bound_method:
-        raise Unauthenticated("hop proof method mismatch")
+        raise Unauthenticated(Reason.STAMPMETHOD)
     if not audience or audience != bound_audience:
-        raise Unauthenticated("hop proof audience mismatch")
+        raise Unauthenticated(Reason.STAMPAUDIENCE)
     if issued < 0 or expires < 0 or issued > int(now) or expires <= int(now) or not 0 < expires - issued <= 30:
-        raise Unauthenticated("hop proof expired or outside its validity window")
+        raise Unauthenticated(Reason.STAMPWINDOW)
     if not re.fullmatch(r"[0-9a-f]{64}", nonce):
-        raise Unauthenticated("invalid hop proof nonce")
-    token = one("x-codefly-work-context")
-    if not token or digest != hashlib.sha256(token.encode()).hexdigest() or one("x-codefly-hop-context") != digest:
-        raise Unauthenticated("hop proof token digest mismatch")
+        raise Unauthenticated(Reason.STAMPPROOF)
+    tokens = values.get("x-codefly-work-context", [])
+    if len(tokens) != 1 or not tokens[0]:
+        raise Unauthenticated(Reason.STAMPTOKEN)
+    if digest != hashlib.sha256(tokens[0].encode()).hexdigest() or one("x-codefly-hop-context") != digest:
+        raise Unauthenticated(Reason.STAMPDIGEST)
     if "x-codefly-hop-advisory" in values:
-        raise Unauthenticated("hop proof cannot authorize an advisory refusal")
+        raise Unauthenticated(Reason.STAMPADVISORY)
     return Call("codefly-hop-v1:" + public_key + ":" + nonce, expires)

@@ -68,8 +68,73 @@ def _contract_class():
 _CONTRACT = _contract_class()
 
 
+from enum import Enum
+
+class Reason(str, Enum):
+    """Stable caller-safe refusal categories."""
+    CONFIGURATION = "configuration"
+    STAMPPROOF = "stamp_proof"
+    STAMPTOKEN = "stamp_token"
+    STAMPDIGEST = "stamp_digest"
+    STAMPIDENTITY = "stamp_identity"
+    STAMPMETHOD = "stamp_method"
+    STAMPAUDIENCE = "stamp_audience"
+    STAMPWINDOW = "stamp_window"
+    STAMPADVISORY = "stamp_advisory"
+    STAMPREPLAYED = "stamp_replayed"
+    STAMPSTORE = "stamp_store"
+    KEYSUNAVAILABLE = "keys_unavailable"
+    CANCELLED = "cancelled"
+    MALFORMED = "malformed"
+    LIFETIME = "lifetime"
+    ISSUER = "issuer"
+    UNKNOWNKEY = "unknown_key"
+    INVALIDKEY = "invalid_key"
+    FIXTUREKEY = "fixture_key"
+    SIGNATURE = "signature"
+    AUDIENCE = "audience"
+    NOTYETVALID = "not_yet_valid"
+    EXPIRED = "expired"
+    ATTENUATION = "attenuation"
+    GRANT = "grant"
+
+
+_REASON_TEXT = {
+    Reason.CONFIGURATION: 'the verifier configuration is incomplete',
+    Reason.STAMPPROOF: 'the call carries no hop admission signed for it',
+    Reason.STAMPTOKEN: 'the stamp binds no single Work Context',
+    Reason.STAMPDIGEST: 'the Work Context does not match the hop stamp',
+    Reason.STAMPIDENTITY: 'the stamp does not match the authenticated Work Context',
+    Reason.STAMPMETHOD: 'the hop admission was signed for another procedure',
+    Reason.STAMPAUDIENCE: 'the hop admission was signed for another module',
+    Reason.STAMPWINDOW: 'the hop admission is expired or outside its validity window',
+    Reason.STAMPADVISORY: 'an advisory policy refusal cannot admit a call',
+    Reason.STAMPREPLAYED: 'the hop admission has already been used',
+    Reason.STAMPSTORE: 'the hop admission store is unavailable',
+    Reason.KEYSUNAVAILABLE: "the authority's published keys are unavailable",
+    Reason.CANCELLED: "the call ended while the authority's keys were being read",
+    Reason.MALFORMED: 'the Work Context encoding or claims are invalid',
+    Reason.LIFETIME: 'the capability lifetime exceeds the allowed bound',
+    Reason.ISSUER: 'the Work Context was issued by an untrusted issuer',
+    Reason.UNKNOWNKEY: 'no verification key is published for this Work Context',
+    Reason.INVALIDKEY: "the authority's verification key is malformed",
+    Reason.FIXTUREKEY: 'the conformance fixture key is refused',
+    Reason.SIGNATURE: 'the signature does not verify under the published key',
+    Reason.AUDIENCE: 'the Work Context was minted for another audience',
+    Reason.NOTYETVALID: 'the Work Context is not valid before its not-before instant',
+    Reason.EXPIRED: 'the Work Context has expired',
+    Reason.ATTENUATION: 'the actor chain widens authority',
+    Reason.GRANT: 'the grant structure is invalid',
+}
+
 class Unauthenticated(ValueError):
-    """The forwarded Work Context must not be believed; the message names why."""
+    """Contains only a code and fixed safe text, never diagnostic causes."""
+    def __init__(self, reason: Reason):
+        self.reason = reason
+        self.code = reason.value
+        self.text = _REASON_TEXT[reason]
+        super().__init__(f"{self.code}: {self.text}")
+
 
 
 class Trust:
@@ -79,16 +144,16 @@ class Trust:
 
     def __init__(self, issuer: str, keys: Mapping[str, bytes], *, now: Callable[[], datetime] | None = None) -> None:
         if not issuer:
-            raise Unauthenticated("the authority names no issuer")
+            raise Unauthenticated(Reason.INVALIDKEY)
         if not keys:
-            raise Unauthenticated("the authority publishes no verification key")
+            raise Unauthenticated(Reason.INVALIDKEY)
         self.issuer = issuer
         self.now = now or (lambda: datetime.now(timezone.utc))
         self.raw = {key_id: bytes(raw) for key_id, raw in keys.items()}
         try:
             self.keys = {key_id: Ed25519PublicKey.from_public_bytes(raw) for key_id, raw in self.raw.items()}
         except ValueError as error:
-            raise Unauthenticated(f"the authority's keys are unusable: {error}") from error
+            raise Unauthenticated(Reason.INVALIDKEY) from None
 
     @classmethod
     def from_keys(cls, response, *, now: Callable[[], datetime] | None = None) -> "Trust":
@@ -99,7 +164,7 @@ class Trust:
             if key.algorithm != ALGORITHM:
                 continue
             if not key.key_id or key.key_id in keys:
-                raise Unauthenticated("the authority publishes an unnamed or repeated key id")
+                raise Unauthenticated(Reason.INVALIDKEY)
             keys[key.key_id] = bytes(key.public_key)
         return cls(response.issuer, keys, now=now)
 
@@ -154,44 +219,50 @@ def authenticate(
     """The claims of the Work Context the hop forwarded with headers to this module
     (audience), or ``Unauthenticated`` naming why it must not be believed."""
     if not audience:
-        raise Unauthenticated("no audience: a module authenticates a context for itself")
-    token = bound_token(headers)
+        raise Unauthenticated(Reason.CONFIGURATION)
+    return authenticate_token(bound_token(headers), audience, trust)
+
+
+def authenticate_token(token: str, audience: str, trust: Trust) -> Claims:
+    """Authenticate bare bytes; no hop admission, live checks or consumption."""
+    if not audience:
+        raise Unauthenticated(Reason.CONFIGURATION)
     if len(token) > MAX_TOKEN_BYTES or not token.isascii() or token.count(".") != 1:
-        raise Unauthenticated("expected a bounded <payload>.<signature> context")
+        raise Unauthenticated(Reason.MALFORMED)
     payload_segment, signature_segment = token.split(".")
     payload, signature = _canonical(payload_segment), _canonical(signature_segment)
     context = WorkContextV1()
     try:
         context.ParseFromString(payload)
     except DecodeError as error:
-        raise Unauthenticated("payload is not a WorkContextV1") from error
+        raise Unauthenticated(Reason.MALFORMED) from None
     try:
         protovalidate.validate(_parsed(_CONTRACT, payload))
     except protovalidate.ValidationError as error:
-        raise Unauthenticated(f"invalid claims: {error}") from error
+        raise Unauthenticated(Reason.MALFORMED) from None
     context.DiscardUnknownFields()
     if context.SerializeToString(deterministic=True) != payload:
-        raise Unauthenticated("payload is noncanonical or carries a field this reader does not know")
+        raise Unauthenticated(Reason.MALFORMED)
     if context.expires_at_unix - context.not_before_unix > MAX_LIFETIME.total_seconds():
-        raise Unauthenticated(f"the capability's lifetime exceeds {MAX_LIFETIME}")
+        raise Unauthenticated(Reason.LIFETIME)
     if context.issuer != trust.issuer:
-        raise Unauthenticated(f"issued by {context.issuer!r}, not {trust.issuer!r}")
+        raise Unauthenticated(Reason.ISSUER)
     key = trust.keys.get(context.key_id)
     if key is None:
-        raise Unauthenticated(f"no verification key {context.key_id!r}; the authority does not publish it")
+        raise Unauthenticated(Reason.UNKNOWNKEY)
     if trust.raw[context.key_id] == _FIXTURE_PUBLIC:
-        raise Unauthenticated(f"key {context.key_id!r} is the conformance fixture key, which anyone can derive from Core's source")
+        raise Unauthenticated(Reason.FIXTUREKEY)
     try:
         key.verify(signature, payload)
     except InvalidSignature:
-        raise Unauthenticated("signature does not verify under the authority's published key") from None
+        raise Unauthenticated(Reason.SIGNATURE) from None
     if context.audience != audience:
-        raise Unauthenticated(f"minted for audience {context.audience!r}, presented to {audience!r}")
+        raise Unauthenticated(Reason.AUDIENCE)
     now = trust.now().timestamp()
     if now + SKEW.total_seconds() < context.not_before_unix:
-        raise Unauthenticated("not valid before its not-before instant")
+        raise Unauthenticated(Reason.NOTYETVALID)
     if not now - SKEW.total_seconds() < context.expires_at_unix:
-        raise Unauthenticated("expired")
+        raise Unauthenticated(Reason.EXPIRED)
     _check_structure(context)
     scopes = context.actor_chain[-1].granted_scopes if context.actor_chain else context.authority_scopes
     return Claims(
@@ -239,28 +310,28 @@ def _check_structure(context) -> None:
     for index, hop in enumerate(chain):
         elevated = grant is not None and index == len(chain) - 1
         if not elevated and not all(scope_contained(s, effective) for s in hop.granted_scopes):
-            raise Unauthenticated(f"actor hop {index} ({hop.principal_id}) widens authority beyond the hop before it")
+            raise Unauthenticated(Reason.ATTENUATION)
         effective = hop.granted_scopes
     if grant is None:
         return
     name = grant.grant_id
     if not chain:
-        raise Unauthenticated(f"grant {name!r} has no actor hop to elevate")
+        raise Unauthenticated(Reason.GRANT)
     if not context.HasField("parent_session_id"):
-        raise Unauthenticated(f"grant {name!r} is not a child session")
+        raise Unauthenticated(Reason.GRANT)
     if context.replay_policy != REPLAY_SINGLE_USE:
-        raise Unauthenticated(f"grant {name!r} is replayable; a grant authorizes one call")
+        raise Unauthenticated(Reason.GRANT)
     scope = grant.granted_scope
     if len(scope.actions) != 1 or len(scope.resource_ids) != 1:
-        raise Unauthenticated(f"grant {name!r} must name exactly one action on one resource")
+        raise Unauthenticated(Reason.GRANT)
     last = chain[-1]
     if len(last.granted_scopes) != 1 or last.granted_scopes[0] != scope:
-        raise Unauthenticated(f"grant {name!r} elevates a hop holding something other than the granted scope")
+        raise Unauthenticated(Reason.GRANT)
     if last.delegation_id != name:
-        raise Unauthenticated(f"grant {name!r} elevates a hop delegated by {last.delegation_id!r}")
+        raise Unauthenticated(Reason.GRANT)
     actor = _identity(context, chain[-2]) if len(chain) > 1 else _identity(context)
     if _identity(context, last) != actor:
-        raise Unauthenticated(f"grant {name!r} hands authority to another principal rather than elevating it")
+        raise Unauthenticated(Reason.GRANT)
 
 
 def bound_token(headers: Mapping[str, str] | Iterable[tuple[str, str]]) -> str:
@@ -268,10 +339,10 @@ def bound_token(headers: Mapping[str, str] | Iterable[tuple[str, str]]) -> str:
     values = collect(headers)
     tokens, digests = values.get(WORK_CONTEXT_KEY, []), values.get(CONTEXT_KEY, [])
     if len(tokens) != 1 or not tokens[0] or len(digests) != 1:
-        raise Unauthenticated("the stamp binds no single Work Context")
+        raise Unauthenticated(Reason.STAMPTOKEN)
     digest = hashlib.sha256(tokens[0].encode(errors="surrogatepass")).hexdigest()
     if not hmac.compare_digest(digest.encode(), digests[0].encode()):
-        raise Unauthenticated("the Work Context is not the one the hop's stamp binds")
+        raise Unauthenticated(Reason.STAMPDIGEST)
     return tokens[0]
 
 
@@ -289,7 +360,7 @@ def _canonical(segment: str) -> bytes:
     try:
         decoded = base64.urlsafe_b64decode(segment + "=" * (-len(segment) % 4))
     except ValueError as error:
-        raise Unauthenticated("context segment is not base64url") from error
+        raise Unauthenticated(Reason.MALFORMED) from None
     if base64.urlsafe_b64encode(decoded).rstrip(b"=").decode("ascii") != segment:
-        raise Unauthenticated("context segment is not canonical base64url")
+        raise Unauthenticated(Reason.MALFORMED)
     return decoded

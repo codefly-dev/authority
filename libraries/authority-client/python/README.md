@@ -110,3 +110,31 @@ name-based one (`https_proxy` / `http_proxy` / `grpc_proxy`, with
 `grpc.enable_http_proxy=0`) and the address-based one (`GRPC_ADDRESS_HTTP_PROXY`,
 with an empty `grpc.address_http_proxy_enabled_addresses`), as Go's
 `host.DialOptions` (`grpc.WithNoProxy()`) does. A caller can set neither.
+
+
+Bare tokens returned by Issue can be authenticated without manufacturing a hop
+stamp: Go `Verifier.VerifyToken(ctx, token)`, Python `verify_token(token)` /
+`verify_token_async(token)`, TypeScript `verifyToken(token)`. These reuse the
+stamped path's published-key cache, including waiting for stale-key refresh and
+refusing failed refreshes. They check signature, issuer, audience, validity and
+claim structure. They do not prove hop admission, live revocation, method policy,
+or single-use consumption; retain those checks where required.
+
+Verifier failures expose fixed caller-safe reason codes and text. Go callers use
+`errors.As(err, &reason)` with `hop.Reason` (`Code()` / `Text()`); Python and
+TypeScript `Unauthenticated` expose `code` and `text`, with exported `Reason`
+values. These errors never retain underlying key-source errors or claim values.
+`KeysError` / `keys_error` / `keysError` is a separate internal diagnostic, not a
+caller response. Unknown future Core diagnostic categories remain refused.
+
+Admission refusals carry their own codes, in the same scheme: `stamp_proof` (no
+admission signed for this call), `stamp_token`, `stamp_digest`, `stamp_method`,
+`stamp_audience`, `stamp_window`, `stamp_advisory`, `stamp_replayed` and
+`stamp_store`. Each names no proof, token, digest, nonce or claim.
+
+Processes that receive only Issue responses use Go `NewTokenVerifier`, or omit
+`public_key` and `replay` when constructing the Python/TypeScript `Verifier`.
+They still authenticate bare tokens against published Keys. They admit no
+stamped call: without the hop's public key and a shared replay store there is
+nothing to check an admission against, so `verify` refuses with
+`configuration`. A process that receives hop calls supplies both.

@@ -64,14 +64,17 @@ func TestAModuleHoldingTheProofCannotForgeAContext(t *testing.T) {
 		md     metadata.MD
 		reason string
 	}{
-		"forged signature":   {stampedAs(t, a, forged, genuine), "digest mismatch"},
-		"unsigned":           {stampedAs(t, a, unsigned, genuine), "digest mismatch"},
-		"another audience":   {hoptest.Forward(t, elsewhere, proof, "/test.Service/Read"), "audience mismatch"},
-		"no stamp":           {metadata.Pairs(hop.WorkContextKey, genuine), "proof"},
-		"another run's hop":  {hoptest.Forward(t, genuine, "another-run", "/test.Service/Read"), "proof"},
-		"swapped token":      {swapped(hoptest.Forward(t, genuine, proof, "/test.Service/Read"), a.Issue(t, "documents", read)), "digest mismatch"},
-		"stamped tenant lie": {with(hoptest.Forward(t, genuine, proof, "/test.Service/Read"), hop.TenantKey, "globex"), "tenant"},
-		"stamped scope lie":  {with(hoptest.Forward(t, genuine, proof, "/test.Service/Read"), hop.ScopesKey, "documents:read,documents:admin"), "scopes"},
+		// A forged token swapped under a genuine admission never reaches the
+		// signature check: the admission's signed digest binds the token the
+		// hop stamped, so the swap is refused first.
+		"forged signature":   {stampedAs(t, a, forged, genuine), "stamp_digest"},
+		"unsigned":           {stampedAs(t, a, unsigned, genuine), "stamp_digest"},
+		"another audience":   {hoptest.Forward(t, elsewhere, proof, "/test.Service/Read"), "stamp_audience"},
+		"no stamp":           {metadata.Pairs(hop.WorkContextKey, genuine), "stamp_proof"},
+		"another run's hop":  {hoptest.Forward(t, genuine, "another-run", "/test.Service/Read"), "stamp_proof"},
+		"swapped token":      {swapped(hoptest.Forward(t, genuine, proof, "/test.Service/Read"), a.Issue(t, "documents", read)), "stamp_digest"},
+		"stamped tenant lie": {with(hoptest.Forward(t, genuine, proof, "/test.Service/Read"), hop.TenantKey, "globex"), "stamp_identity"},
+		"stamped scope lie":  {with(hoptest.Forward(t, genuine, proof, "/test.Service/Read"), hop.ScopesKey, "documents:read,documents:admin"), "stamp_identity"},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {

@@ -104,10 +104,10 @@ def test_a_forged_or_misaddressed_context_is_refused_by_name():
         (sign(context, Ed25519PrivateKey.generate()), context.audience, trust, "signature"),
         (payload + "." + encoded(bytes(64)), context.audience, trust, "signature"),
         (sign(foreign), context.audience, trust, "issued by"),
-        (sign(context), "another-module", trust, "minted for audience"),
+        (sign(context), "another-module", trust, "audience"),
         (sign(context), context.audience, trust_for(context, datetime.fromtimestamp(context.not_before_unix, timezone.utc) - timedelta(hours=1)), "not valid before"),
         (sign(context), context.audience, expired, "expired"),
-        (sign(context), "", trust, "no audience"),
+        (sign(context), "", trust, "configuration"),
     ]:
         with pytest.raises(Unauthenticated, match=reason):
             authenticate(stamped(token), audience, use)
@@ -135,13 +135,13 @@ def test_the_reader_refuses_a_token_the_stamp_does_not_bind(change):
 
 
 def test_trust_comes_only_from_published_ed25519_keys():
-    with pytest.raises(Unauthenticated, match="no issuer"):
+    with pytest.raises(Unauthenticated, match="invalid_key"):
         Trust.from_keys(KeysResponse(keys=[PublicKey(key_id="k", algorithm="Ed25519", public_key=PUBLIC)]))
-    with pytest.raises(Unauthenticated, match="no verification key"):
+    with pytest.raises(Unauthenticated, match="invalid_key"):
         Trust.from_keys(KeysResponse(issuer="i", keys=[PublicKey(key_id="k", algorithm="RSA", public_key=PUBLIC)]))
-    with pytest.raises(Unauthenticated, match="repeated"):
+    with pytest.raises(Unauthenticated, match="invalid_key"):
         Trust.from_keys(KeysResponse(issuer="i", keys=[PublicKey(key_id="k", algorithm="Ed25519", public_key=PUBLIC)] * 2))
-    with pytest.raises(Unauthenticated, match="unusable"):
+    with pytest.raises(Unauthenticated, match="invalid_key"):
         Trust.from_keys(KeysResponse(issuer="i", keys=[PublicKey(key_id="k", algorithm="Ed25519", public_key=b"short")]))
 
 

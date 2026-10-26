@@ -7,6 +7,8 @@ import (
 	"crypto/ed25519"
 	"errors"
 	"fmt"
+	"github.com/codefly-dev/authority/libraries/authority-client/go/refusal"
+	"strings"
 	"time"
 
 	"github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
@@ -41,24 +43,48 @@ type Claims struct {
 	context  *basev0.WorkContextV1
 }
 
-// Authenticate verifies a digest-bound token's signature, issuer, audience,
-// validity and attenuation. This is identity authentication only, not method
-// authorization or replay protection. Services must use hop.Verifier for admission.
+// Authenticate returns the claims of the Work Context the stamp bound to this
+// call, for this module (audience), after two checks, in order:
+//
+//  1. the stamp's token binding: md carries exactly one token and the digest
+//     the hop stamped for it, so the token is the one the authority's Check
+//     admitted for this call (stamp.Context);
+//  2. the token itself, with Core's Inspector: canonical decode, the issuer
+//     pin, the Ed25519 signature under the published key the token names, the
+//     audience is this module, not-before and expiry within Core's skew, and
+//     the chain's structure and attenuation.
+//
+// This is identity authentication only. It establishes no hop admission: it
+// does not check that the call was admitted for this procedure, and consumes
+// no single-use nonce. A service admits a call through hop.Verifier, which
+// checks the hop's signed admission and reserves its nonce in a shared store
+// before reaching here. A digest binding alone authorizes nothing: whoever
+// forwards a call can write the token and its digest, but cannot sign either
+// the token or the admission.
 func Authenticate(md metadata.MD, audience string, trust Trust) (*Claims, error) {
-	if audience == "" {
-		return nil, fmt.Errorf("%w: no audience: a module authenticates a context for itself", ErrUnauthenticated)
-	}
 	token, err := stamp.Context(md)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrUnauthenticated, err)
+		return nil, fmt.Errorf("%w: %w", ErrUnauthenticated, safeReason(err))
+	}
+	return AuthenticateToken(token, audience, trust)
+}
+
+// AuthenticateToken authenticates an unstamped token without consuming it or
+// checking live revocation. Callers still enforce their operation's policy.
+func AuthenticateToken(token, audience string, trust Trust) (*Claims, error) {
+	if audience == "" {
+		return nil, fmt.Errorf("%w: %w", ErrUnauthenticated, refusal.Configuration)
+	}
+	if trust.Issuer == "" || len(trust.Keys) == 0 {
+		return nil, fmt.Errorf("%w: %w", ErrUnauthenticated, refusal.InvalidKey)
 	}
 	inspector := core.Inspector{Issuer: trust.Issuer, Keys: trust.Keys, Now: trust.Now}
 	if _, err := inspector.Inspect(token, audience); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrUnauthenticated, err)
+		return nil, fmt.Errorf("%w: %w", ErrUnauthenticated, safeReason(err))
 	}
 	decoded, err := core.Decode(token)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrUnauthenticated, err)
+		return nil, fmt.Errorf("%w: %w", ErrUnauthenticated, safeReason(err))
 	}
 	context := decoded.Context()
 	scopes := context.GetAuthorityScopes()
@@ -125,4 +151,31 @@ func (c *Claims) AllowsOwned(kind, action, resourceID, ownerID string) bool {
 		}
 	}
 	return false
+}
+
+// Core's pinned Inspector exposes ErrInvalid with diagnostic text. Translate
+// only its fixed leading categories; never expose or retain the diagnostic.
+// Unknown future failures stay refused as Malformed. Verification remains Core's.
+func safeReason(err error) refusal.Reason {
+	var reason refusal.Reason
+	if errors.As(err, &reason) {
+		return reason
+	}
+	message := strings.TrimPrefix(err.Error(), core.ErrInvalid.Error()+": ")
+	for _, entry := range []struct {
+		prefix string
+		reason refusal.Reason
+	}{
+		{"issued by ", refusal.Issuer}, {"no verification key ", refusal.UnknownKey},
+		{"verification key ", refusal.InvalidKey}, {"key ", refusal.FixtureKey},
+		{"signature does not verify ", refusal.Signature}, {"minted for audience ", refusal.Audience},
+		{"not valid before ", refusal.NotYetValid}, {"expired at ", refusal.Expired},
+		{"actor hop ", refusal.Attenuation}, {"grant ", refusal.Grant},
+		{"the capability's lifetime ", refusal.Lifetime},
+	} {
+		if strings.HasPrefix(message, entry.prefix) {
+			return entry.reason
+		}
+	}
+	return refusal.Malformed
 }

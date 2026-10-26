@@ -145,7 +145,7 @@ func TestHTTPAndConnectIssueTheBindingObservedByTheListener(t *testing.T) {
 			if _, err := verifier.Verify(context.Background(), captured, expected); err == nil || !strings.Contains(err.Error(), "replay") {
 				t.Fatalf("captured replay: %v", err)
 			}
-			if _, err := verifier.Verify(context.Background(), captured, "/example.v1.Service/Delete"); err == nil || !strings.Contains(err.Error(), "method mismatch") {
+			if _, err := verifier.Verify(context.Background(), captured, "/example.v1.Service/Delete"); err == nil || !strings.Contains(err.Error(), "stamp_method") {
 				t.Fatalf("retargeted stamp: %v", err)
 			}
 		})

@@ -2,6 +2,10 @@
   "_comment": "resource_owner_id vectors: every protovalidate implementation must accept the first list and refuse the second. Read by workcontext/owner_test.go.",
   "accepted": [
     {
+      "name": "no owner",
+      "owner": ""
+    },
+    {
       "name": "512 ASCII bytes",
       "owner": "u",
       "repeat": 512

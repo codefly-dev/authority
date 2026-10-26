@@ -32,12 +32,12 @@ func TestReviewReadStampCannotRetargetOrReplayAcrossReplicas(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, method := range []string{"/documents.v1.Service/Delete", "/datasets.v1.Service/Register", "Get", "", "POST " + readMethod} {
-		if _, err := v.Verify(ctx, md, method); err == nil || !strings.Contains(err.Error(), "method mismatch") {
+		if _, err := v.Verify(ctx, md, method); err == nil || !strings.Contains(err.Error(), "stamp_method") {
 			t.Fatalf("retarget to %q: %v", method, err)
 		}
 	}
 	other, _ := hop.NewVerifier(ctx, a, "records", hoptest.PublicKey(proof), store)
-	if _, err := other.Verify(ctx, md, readMethod); err == nil || !strings.Contains(err.Error(), "audience mismatch") {
+	if _, err := other.Verify(ctx, md, readMethod); err == nil || !strings.Contains(err.Error(), "stamp_audience") {
 		t.Fatalf("other audience: %v", err)
 	}
 	// Refused retargeting does not poison the legitimate reservation.
@@ -45,7 +45,7 @@ func TestReviewReadStampCannotRetargetOrReplayAcrossReplicas(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, verifier := range []*hop.Verifier{v, replica} {
-		if _, err := verifier.Verify(ctx, md, readMethod); err == nil || !strings.Contains(err.Error(), "replay") {
+		if _, err := verifier.Verify(ctx, md, readMethod); err == nil || !strings.Contains(err.Error(), "stamp_replayed") {
 			t.Fatalf("replay admitted: %v", err)
 		}
 	}

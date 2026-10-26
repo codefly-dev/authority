@@ -206,12 +206,12 @@ func TestAForgedOrMisaddressedContextIsRefusedByName(t *testing.T) {
 		"forged":         {signWith(t, other, session), session.GetAudience(), "signature", trust},
 		"unsigned":       {payload + "." + base64.RawURLEncoding.EncodeToString(make([]byte, 64)), session.GetAudience(), "signature", trust},
 		"another issuer": {tokenFor(t, foreign), session.GetAudience(), "issued by", trust},
-		"wrong audience": {tokenFor(t, session), "another-module", "minted for audience", trust},
+		"wrong audience": {tokenFor(t, session), "another-module", "audience", trust},
 		"expired":        {tokenFor(t, session), session.GetAudience(), "expired", reader.Trust{Issuer: trust.Issuer, Keys: trust.Keys, Now: func() time.Time { return time.Unix(session.GetExpiresAtUnix(), 0).Add(time.Hour) }}},
 		"not yet valid":  {tokenFor(t, session), session.GetAudience(), "not valid before", reader.Trust{Issuer: trust.Issuer, Keys: trust.Keys, Now: func() time.Time { return time.Unix(session.GetNotBeforeUnix(), 0).Add(-time.Hour) }}},
 		"unknown key":    {tokenFor(t, session), session.GetAudience(), "no verification key", reader.Trust{Issuer: trust.Issuer, Keys: map[string]ed25519.PublicKey{"rotated": trust.Keys[session.GetKeyId()]}, Now: trust.Now}},
-		"no trust":       {tokenFor(t, session), session.GetAudience(), "names no issuer", reader.Trust{}},
-		"no audience":    {tokenFor(t, session), "", "no audience", trust},
+		"no trust":       {tokenFor(t, session), session.GetAudience(), "invalid_key", reader.Trust{}},
+		"configuration":  {tokenFor(t, session), "", "configuration", trust},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := reader.Authenticate(stampedToken(c.token), c.audience, c.trust)

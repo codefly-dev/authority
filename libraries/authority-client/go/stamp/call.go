@@ -8,10 +8,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
+	"github.com/codefly-dev/authority/libraries/authority-client/go/refusal"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -68,8 +68,10 @@ func (s *Signer) Sign(token, method, audience string, now time.Time, tokenExpiry
 
 // Check authenticates the binding before any keys lookup or replay-store write.
 // publicKey is trusted delivery configuration, never read from incoming metadata.
+// Every refusal is a caller-safe refusal.Reason: it names no proof, token,
+// digest or nonce, and callers read its code with errors.As.
 func Check(md metadata.MD, publicKey, method, audience string, now time.Time) (Call, error) {
-	fail := func(reason string) (Call, error) { return Call{}, fmt.Errorf("hop: %s", reason) }
+	fail := func(reason refusal.Reason) (Call, error) { return Call{}, reason }
 	one := func(key string) string {
 		v := md.Get(key)
 		if len(v) != 1 {
@@ -81,50 +83,56 @@ func Check(md metadata.MD, publicKey, method, audience string, now time.Time) (C
 	parts := strings.Split(encoded, ".")
 	pub, err := hex.DecodeString(publicKey)
 	if err != nil || len(pub) != ed25519.PublicKeySize || len(parts) != 2 || len(encoded) > 8192 {
-		return fail("invalid signed hop proof")
+		return fail(refusal.StampProof)
 	}
 	payload, err := base64.RawURLEncoding.DecodeString(parts[0])
 	if err != nil || base64.RawURLEncoding.EncodeToString(payload) != parts[0] {
-		return fail("noncanonical hop proof")
+		return fail(refusal.StampProof)
 	}
 	signature, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil || base64.RawURLEncoding.EncodeToString(signature) != parts[1] || !ed25519.Verify(pub, payload, signature) {
-		return fail("hop proof signature does not verify")
+		return fail(refusal.StampProof)
 	}
 	var fields []json.RawMessage
 	if json.Unmarshal(payload, &fields) != nil || len(fields) != 7 {
-		return fail("malformed hop proof")
+		return fail(refusal.StampProof)
 	}
 	var domain string
 	var call Call
 	for n, dst := range []any{&domain, &call.Method, &call.Audience, &call.Digest, &call.Nonce, &call.Issued, &call.Expires} {
 		if string(fields[n]) == "null" || json.Unmarshal(fields[n], dst) != nil {
-			return fail("malformed hop proof field")
+			return fail(refusal.StampProof)
 		}
 	}
 	if domain != "codefly-hop-v1" {
-		return fail("unknown hop proof version")
+		return fail(refusal.StampProof)
 	}
 	if method == "" || call.Method != method {
-		return fail("hop proof method mismatch")
+		return fail(refusal.StampMethod)
 	}
 	if audience == "" || call.Audience != audience {
-		return fail("hop proof audience mismatch")
+		return fail(refusal.StampAudience)
 	}
 	if call.Issued < 0 || call.Expires < 0 || call.Issued > now.Unix() || call.Expires <= now.Unix() || call.Expires <= call.Issued || call.Expires-call.Issued > int64(Lifetime/time.Second) {
-		return fail("hop proof expired or outside its validity window")
+		return fail(refusal.StampWindow)
 	}
 	nonce, err := hex.DecodeString(call.Nonce)
 	if err != nil || len(nonce) != 32 || hex.EncodeToString(nonce) != call.Nonce {
-		return fail("invalid hop proof nonce")
+		return fail(refusal.StampProof)
 	}
-	token := one("x-codefly-work-context")
-	digest := sha256.Sum256([]byte(token))
-	if token == "" || call.Digest != hex.EncodeToString(digest[:]) || one("x-codefly-hop-context") != call.Digest {
-		return fail("hop proof token digest mismatch")
+	// A missing or repeated token is the stamp binding nothing; a token that
+	// does not hash to the signed digest, or a context key disagreeing with
+	// it, is a swap. The two are distinct refusals.
+	tokens := md.Get("x-codefly-work-context")
+	if len(tokens) != 1 || tokens[0] == "" {
+		return fail(refusal.StampToken)
+	}
+	digest := sha256.Sum256([]byte(tokens[0]))
+	if call.Digest != hex.EncodeToString(digest[:]) || one("x-codefly-hop-context") != call.Digest {
+		return fail(refusal.StampDigest)
 	}
 	if len(md.Get("x-codefly-hop-advisory")) != 0 {
-		return fail("hop proof cannot authorize an advisory refusal")
+		return fail(refusal.StampAdvisory)
 	}
 	return call, nil
 }

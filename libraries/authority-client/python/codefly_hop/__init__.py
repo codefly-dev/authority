@@ -20,9 +20,9 @@ from datetime import datetime, timezone
 from .call import Replayed, ReplayStore, check
 from authority_client._gen.host.authority.v1.authority_pb2 import KeysRequest
 from authority_client._gen.host.authority.v1.work_context_pb2 import WorkContextV1
-from authority_client.work_context import Claims, Trust, Unauthenticated, authenticate, bound_token, collect
+from authority_client.work_context import Claims, Trust, Unauthenticated, Reason, authenticate_token, bound_token, collect
 
-__all__ = ["Identity", "Verifier", "Unauthenticated", "identity_of", "ReplayStore", "Replayed"]
+__all__ = ["Identity", "Verifier", "Unauthenticated", "Reason", "identity_of", "ReplayStore", "Replayed"]
 
 WORK_CONTEXT_KEY = "x-codefly-work-context"
 STAMP_PREFIX = "x-codefly-hop-"
@@ -99,12 +99,17 @@ class Verifier:
     serving yet, and refuses calls, with the reason, until the keys are read.
     """
 
-    def __init__(self, keys, *, audience: str, public_key: str, replay: ReplayStore, now: Callable[[], float] | None = None,
-                 timeout: float = KEY_TIMEOUT) -> None:
-        if keys is None or not audience or not re.fullmatch(r"[0-9a-f]{64}", public_key) or replay is None:
-            raise Unauthenticated("a verifier needs the authority's Keys, this module's audience and the hop public key and shared replay store")
-        self._source, self._audience, self._public_key, self._timeout = keys, audience, public_key, timeout
-        self._replay = replay
+    def __init__(self, keys, *, audience: str, public_key: str | None = None, replay: ReplayStore | None = None,
+                 now: Callable[[], float] | None = None, timeout: float = KEY_TIMEOUT) -> None:
+        admitting = public_key is not None or replay is not None
+        if keys is None or not audience:
+            raise Unauthenticated(Reason.CONFIGURATION)
+        if admitting and (replay is None or not isinstance(public_key, str) or not re.fullmatch(r"[0-9a-f]{64}", public_key)):
+            # Admission needs both the delivered hop public key and a store
+            # every replica shares; one without the other admits nothing.
+            raise Unauthenticated(Reason.CONFIGURATION)
+        self._source, self._audience, self._timeout = keys, audience, timeout
+        self._public_key, self._replay = public_key, replay
         self._now = now or time.time
         self._lock = threading.Lock()
         self._trust: Trust | None = None
@@ -133,9 +138,10 @@ class Verifier:
 
     def verify(self, headers: Mapping[str, str] | Iterable[tuple[str, str]], method: str) -> Identity:
         """Who the call is for, or ``Unauthenticated`` naming why it is refused.
-        The stamp is checked first: nothing unbound reaches the key read. It may
-        wait up to the read's timeout for a key it does not hold yet, or for keys
-        past the stale window; an asyncio handler uses ``verify_async``."""
+        The admission is checked first: nothing that is not signed for this exact
+        method and audience reaches the key read. It may wait up to the read's
+        timeout for a key it does not hold yet, or for keys past the stale
+        window; an asyncio handler uses ``verify_async``."""
         pairs, token, call = self._bound(headers, method)
         wait = self._start(_key_id(token))
         if wait is not None:
@@ -157,14 +163,39 @@ class Verifier:
         try:
             await self._replay.consume_async(call.nonce, call.expires)
         except Replayed as error:
-            raise Unauthenticated("hop admission replayed") from error
+            raise Unauthenticated(Reason.STAMPREPLAYED) from error
+        except Unauthenticated:
+            raise
         except Exception as error:
-            raise Unauthenticated("hop replay store unavailable") from error
+            raise Unauthenticated(Reason.STAMPSTORE) from error
         if call.expires <= int(self._now()):
-            raise Unauthenticated("hop proof expired during replay reservation")
+            raise Unauthenticated(Reason.STAMPWINDOW)
         return identity
 
+    def verify_token(self, token: str) -> Identity:
+        """Authenticate a bare token with the same fail-closed key cache. It
+        establishes no admission: no method binding is checked and no nonce is
+        consumed, so a service admitting hop calls uses ``verify``."""
+        wait = self._start(_key_id(token))
+        if wait is not None:
+            futures.wait((wait,), self._timeout)
+        return self._token_identity(token)
+
+    async def verify_token_async(self, token: str) -> Identity:
+        """Async bare-token verification; never blocks the event loop."""
+        wait = self._start(_key_id(token))
+        if wait is not None:
+            try:
+                await asyncio.wait_for(asyncio.wrap_future(wait), self._timeout)
+            except asyncio.TimeoutError:
+                pass
+        return self._token_identity(token)
+
     def _bound(self, headers, method):
+        if self._public_key is None or self._replay is None:
+            # A token-only verifier holds neither the hop's public key nor a
+            # replay store, so it can establish no admission.
+            raise Unauthenticated(Reason.CONFIGURATION)
         pairs = list(headers.items() if isinstance(headers, Mapping) else headers)
         call = check(pairs, self._public_key, method, self._audience, self._now())
         return pairs, bound_token(pairs), call
@@ -183,14 +214,20 @@ class Verifier:
             judgeable = held and now - self._fetched <= KEY_STALE
             return None if judgeable else self._inflight
 
-    def _finish(self, pairs: list[tuple[str, str]], token: str, call, consume=True) -> Identity:
+    def _token_identity(self, token: str) -> Identity:
         with self._lock:
             if self._trust is None or self._now() - self._fetched > KEY_STALE:
-                raise Unauthenticated("the authority's published keys are unavailable")
+                if isinstance(self.keys_error, Unauthenticated) and self.keys_error.reason == Reason.INVALIDKEY:
+                    raise Unauthenticated(Reason.INVALIDKEY)
+                raise Unauthenticated(Reason.KEYSUNAVAILABLE)
             trust = self._trust
-        claims = authenticate(pairs, self._audience, trust)
-        values = collect(pairs)
+        claims = authenticate_token(token, self._audience, trust)
         identity = identity_of(claims.context)
+        return Identity(**{**identity.__dict__, "context": token, "claims": claims})
+
+    def _finish(self, pairs: list[tuple[str, str]], token: str, call, consume=True) -> Identity:
+        identity = self._token_identity(token)
+        values = collect(pairs)
         stamped = {
             OWNER_KEY: identity.owner, OWNER_KIND_KEY: identity.owner_kind, TENANT_KEY: identity.tenant,
             ACTORS_KEY: ",".join(identity.actors), SCOPES_KEY: ",".join(identity.scopes),
@@ -200,20 +237,23 @@ class Verifier:
         for key, want in stamped.items():
             got = values.get(key, [])
             if len(got) > 1 or (got[0] if got else "") != want:
-                raise Unauthenticated(f"the stamp's {key.removeprefix(STAMP_PREFIX)} does not match the authenticated Work Context")
+                raise Unauthenticated(Reason.STAMPIDENTITY)
         if call.expires <= int(self._now()):
-            raise Unauthenticated("hop proof expired while authenticating")
-        try:
-            if consume:
+            raise Unauthenticated(Reason.STAMPWINDOW)
+        if consume:
+            try:
                 self._replay.consume(call.nonce, call.expires)
-        except Replayed as error:
-            raise Unauthenticated("hop admission replayed") from error
-        except Exception as error:
-            raise Unauthenticated("hop replay store unavailable") from error
-        if call.expires <= int(self._now()):
-            raise Unauthenticated("hop proof expired during replay reservation")
-        advisory = ""
-        return Identity(**{**identity.__dict__, "context": token, "advisory": advisory, "claims": claims})
+            except Replayed as error:
+                raise Unauthenticated(Reason.STAMPREPLAYED) from error
+            except Unauthenticated:
+                raise
+            except Exception as error:
+                raise Unauthenticated(Reason.STAMPSTORE) from error
+            if call.expires <= int(self._now()):
+                raise Unauthenticated(Reason.STAMPWINDOW)
+        # An admission carrying an advisory refusal is refused by ``check``, so
+        # an admitted call never has one: diagnostic identity is never authority.
+        return Identity(**{**identity.__dict__, "context": token, "advisory": "", "claims": identity.claims})
 
     def _refresh(self) -> futures.Future[None]:
         """Start the one read, on its own thread and timeout; the lock is held. The
@@ -245,6 +285,8 @@ class Verifier:
 
 def _key_id(token: str) -> str:
     """The key a token names, read only to choose the keys it is judged by."""
+    if len(token) > 32 * 1024:
+        return ""
     try:
         context = WorkContextV1()
         context.ParseFromString(base64.urlsafe_b64decode(token.split(".")[0] + "=="))
