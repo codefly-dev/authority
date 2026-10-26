@@ -20,10 +20,10 @@ sources:
       module: authority
       service: local
       endpoint: grpc
-      contract-digest: sha256:9fcee9f110613a97881cfdfd035de3b82b7b58cac138e1093a47ba4460436d72
+      contract-digest: sha256:ff0879325aa1f6946c7e591ec2e8dd26842e639aba8b87cd76875560be74fbb8
       services:
         - GatewayService
 generated-by:
-    codefly: development
-    companion: ghcr.io/codefly-dev/proto:0.0.17
+    codefly: 0.1.215
+    companion: ghcr.io/codefly-dev/proto:0.0.18
     facade: false

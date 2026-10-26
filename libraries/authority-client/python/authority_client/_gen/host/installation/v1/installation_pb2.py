@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\'host/installation/v1/installation.proto\x12\x14host.installation.v1\"\x8d\x01\n\x0eInstallRequest\x12\'\n\x0forganization_id\x18\x01 \x01(\tR\x0eorganizationId\x12\x16\n\x06target\x18\x02 \x01(\tR\x06target\x12\x12\n\x04role\x18\x03 \x01(\tR\x04role\x12&\n\x0fowner_person_id\x18\x04 \x01(\tR\rownerPersonId\"\x7f\n\x12GrantToTeamRequest\x12\'\n\x0finstallation_id\x18\x01 \x01(\tR\x0einstallationId\x12\x17\n\x07team_id\x18\x02 \x01(\tR\x06teamId\x12\'\n\x0forganization_id\x18\x03 \x01(\tR\x0eorganizationId\"6\n\x0bListRequest\x12\'\n\x0forganization_id\x18\x01 \x01(\tR\x0eorganizationId\"X\n\x0cListResponse\x12H\n\rinstallations\x18\x01 \x03(\x0b\x32\".host.installation.v1.InstallationR\rinstallations\"\x96\x03\n\x0cInstallation\x12\x0e\n\x02id\x18\x01 \x01(\tR\x02id\x12\'\n\x0forganization_id\x18\x02 \x01(\tR\x0eorganizationId\x12\x16\n\x06target\x18\x03 \x01(\tR\x06target\x12\x41\n\x06status\x18\x04 \x01(\x0e\x32).host.installation.v1.Installation.StatusR\x06status\x12\x1a\n\x08revision\x18\x05 \x01(\x04R\x08revision\x12\x12\n\x04role\x18\x06 \x01(\tR\x04role\x12\x19\n\x08team_ids\x18\x07 \x03(\tR\x07teamIds\x12,\n\x12\x61gent_principal_id\x18\x08 \x01(\tR\x10\x61gentPrincipalId\x12\x1c\n\tnamespace\x18\t \x01(\tR\tnamespace\"[\n\x06Status\x12\x16\n\x12STATUS_UNSPECIFIED\x10\x00\x12\x12\n\x0eSTATUS_PENDING\x10\x01\x12\x11\n\rSTATUS_ACTIVE\x10\x02\x12\x12\n\x0eSTATUS_REVOKED\x10\x03\"\\\n\x12InstallationNotice\x12\x46\n\x0cinstallation\x18\x01 \x01(\x0b\x32\".host.installation.v1.InstallationR\x0cinstallation\"\x11\n\x0fInstallationAck2\x96\x02\n\x13InstallationService\x12S\n\x07Install\x12$.host.installation.v1.InstallRequest\x1a\".host.installation.v1.Installation\x12[\n\x0bGrantToTeam\x12(.host.installation.v1.GrantToTeamRequest\x1a\".host.installation.v1.Installation\x12M\n\x04List\x12!.host.installation.v1.ListRequest\x1a\".host.installation.v1.ListResponse2p\n\x12InstallableService\x12Z\n\x07Install\x12(.host.installation.v1.InstallationNotice\x1a%.host.installation.v1.InstallationAckB5Z3gateway/pkg/gen/host/installation/v1;installationv1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\'host/installation/v1/installation.proto\x12\x14host.installation.v1\"\xd0\x01\n\x0eInstallRequest\x12\'\n\x0forganization_id\x18\x01 \x01(\tR\x0eorganizationId\x12\x16\n\x06target\x18\x02 \x01(\tR\x06target\x12\x12\n\x04role\x18\x03 \x01(\tR\x04role\x12&\n\x0fowner_person_id\x18\x04 \x01(\tR\rownerPersonId\x12\x41\n\x08\x61pproval\x18\x05 \x01(\x0b\x32%.host.installation.v1.ConsentApprovalR\x08\x61pproval\"\x9e\x01\n\x0f\x43onsentApproval\x12\x1b\n\ttarget_id\x18\x01 \x01(\tR\x08targetId\x12\x1e\n\ngeneration\x18\x02 \x01(\x04R\ngeneration\x12+\n\x11\x65xpected_revision\x18\x03 \x01(\x04R\x10\x65xpectedRevision\x12!\n\x0coperation_id\x18\x04 \x01(\tR\x0boperationId\"\x7f\n\x12GrantToTeamRequest\x12\'\n\x0finstallation_id\x18\x01 \x01(\tR\x0einstallationId\x12\x17\n\x07team_id\x18\x02 \x01(\tR\x06teamId\x12\'\n\x0forganization_id\x18\x03 \x01(\tR\x0eorganizationId\"6\n\x0bListRequest\x12\'\n\x0forganization_id\x18\x01 \x01(\tR\x0eorganizationId\"X\n\x0cListResponse\x12H\n\rinstallations\x18\x01 \x03(\x0b\x32\".host.installation.v1.InstallationR\rinstallations\"\x96\x03\n\x0cInstallation\x12\x0e\n\x02id\x18\x01 \x01(\tR\x02id\x12\'\n\x0forganization_id\x18\x02 \x01(\tR\x0eorganizationId\x12\x16\n\x06target\x18\x03 \x01(\tR\x06target\x12\x41\n\x06status\x18\x04 \x01(\x0e\x32).host.installation.v1.Installation.StatusR\x06status\x12\x1a\n\x08revision\x18\x05 \x01(\x04R\x08revision\x12\x12\n\x04role\x18\x06 \x01(\tR\x04role\x12\x19\n\x08team_ids\x18\x07 \x03(\tR\x07teamIds\x12,\n\x12\x61gent_principal_id\x18\x08 \x01(\tR\x10\x61gentPrincipalId\x12\x1c\n\tnamespace\x18\t \x01(\tR\tnamespace\"[\n\x06Status\x12\x16\n\x12STATUS_UNSPECIFIED\x10\x00\x12\x12\n\x0eSTATUS_PENDING\x10\x01\x12\x11\n\rSTATUS_ACTIVE\x10\x02\x12\x12\n\x0eSTATUS_REVOKED\x10\x03\"\\\n\x12InstallationNotice\x12\x46\n\x0cinstallation\x18\x01 \x01(\x0b\x32\".host.installation.v1.InstallationR\x0cinstallation\"\x11\n\x0fInstallationAck2\x96\x02\n\x13InstallationService\x12S\n\x07Install\x12$.host.installation.v1.InstallRequest\x1a\".host.installation.v1.Installation\x12[\n\x0bGrantToTeam\x12(.host.installation.v1.GrantToTeamRequest\x1a\".host.installation.v1.Installation\x12M\n\x04List\x12!.host.installation.v1.ListRequest\x1a\".host.installation.v1.ListResponse2p\n\x12InstallableService\x12Z\n\x07Install\x12(.host.installation.v1.InstallationNotice\x1a%.host.installation.v1.InstallationAckB5Z3gateway/pkg/gen/host/installation/v1;installationv1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -33,23 +33,25 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'Z3gateway/pkg/gen/host/installation/v1;installationv1'
   _globals['_INSTALLREQUEST']._serialized_start=66
-  _globals['_INSTALLREQUEST']._serialized_end=207
-  _globals['_GRANTTOTEAMREQUEST']._serialized_start=209
-  _globals['_GRANTTOTEAMREQUEST']._serialized_end=336
-  _globals['_LISTREQUEST']._serialized_start=338
-  _globals['_LISTREQUEST']._serialized_end=392
-  _globals['_LISTRESPONSE']._serialized_start=394
-  _globals['_LISTRESPONSE']._serialized_end=482
-  _globals['_INSTALLATION']._serialized_start=485
-  _globals['_INSTALLATION']._serialized_end=891
-  _globals['_INSTALLATION_STATUS']._serialized_start=800
-  _globals['_INSTALLATION_STATUS']._serialized_end=891
-  _globals['_INSTALLATIONNOTICE']._serialized_start=893
-  _globals['_INSTALLATIONNOTICE']._serialized_end=985
-  _globals['_INSTALLATIONACK']._serialized_start=987
-  _globals['_INSTALLATIONACK']._serialized_end=1004
-  _globals['_INSTALLATIONSERVICE']._serialized_start=1007
-  _globals['_INSTALLATIONSERVICE']._serialized_end=1285
-  _globals['_INSTALLABLESERVICE']._serialized_start=1287
-  _globals['_INSTALLABLESERVICE']._serialized_end=1399
+  _globals['_INSTALLREQUEST']._serialized_end=274
+  _globals['_CONSENTAPPROVAL']._serialized_start=277
+  _globals['_CONSENTAPPROVAL']._serialized_end=435
+  _globals['_GRANTTOTEAMREQUEST']._serialized_start=437
+  _globals['_GRANTTOTEAMREQUEST']._serialized_end=564
+  _globals['_LISTREQUEST']._serialized_start=566
+  _globals['_LISTREQUEST']._serialized_end=620
+  _globals['_LISTRESPONSE']._serialized_start=622
+  _globals['_LISTRESPONSE']._serialized_end=710
+  _globals['_INSTALLATION']._serialized_start=713
+  _globals['_INSTALLATION']._serialized_end=1119
+  _globals['_INSTALLATION_STATUS']._serialized_start=1028
+  _globals['_INSTALLATION_STATUS']._serialized_end=1119
+  _globals['_INSTALLATIONNOTICE']._serialized_start=1121
+  _globals['_INSTALLATIONNOTICE']._serialized_end=1213
+  _globals['_INSTALLATIONACK']._serialized_start=1215
+  _globals['_INSTALLATIONACK']._serialized_end=1232
+  _globals['_INSTALLATIONSERVICE']._serialized_start=1235
+  _globals['_INSTALLATIONSERVICE']._serialized_end=1513
+  _globals['_INSTALLABLESERVICE']._serialized_start=1515
+  _globals['_INSTALLABLESERVICE']._serialized_end=1627
 # @@protoc_insertion_point(module_scope)

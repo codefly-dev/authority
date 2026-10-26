@@ -36,6 +36,19 @@ message InstallRequest {
   string role = 3;
   // The accountable person; an administrator of the organisation.
   string owner_person_id = 4;
+  // The exact catalogue offer and installation state the administrator approved.
+  ConsentApproval approval = 5;
+}
+
+// ConsentApproval binds an explicit approval to the state reviewed by the admin.
+// Obtain target_id and generation from ListAvailableSolutions, and revision from
+// the installation listing (zero means absent). Keep these values and operation_id
+// unchanged on retry; a refusal requires a fresh review and operation.
+message ConsentApproval {
+  string target_id = 1;
+  uint64 generation = 2;
+  uint64 expected_revision = 3;
+  string operation_id = 4;
 }
 
 // GrantToTeamRequest exposes an installation to a team.

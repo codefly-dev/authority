@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file host/installation/v1/installation.proto.
  */
 export const file_host_installation_v1_installation: GenFile = /*@__PURE__*/
-  fileDesc("Cidob3N0L2luc3RhbGxhdGlvbi92MS9pbnN0YWxsYXRpb24ucHJvdG8SFGhvc3QuaW5zdGFsbGF0aW9uLnYxImAKDkluc3RhbGxSZXF1ZXN0EhcKD29yZ2FuaXphdGlvbl9pZBgBIAEoCRIOCgZ0YXJnZXQYAiABKAkSDAoEcm9sZRgDIAEoCRIXCg9vd25lcl9wZXJzb25faWQYBCABKAkiVwoSR3JhbnRUb1RlYW1SZXF1ZXN0EhcKD2luc3RhbGxhdGlvbl9pZBgBIAEoCRIPCgd0ZWFtX2lkGAIgASgJEhcKD29yZ2FuaXphdGlvbl9pZBgDIAEoCSImCgtMaXN0UmVxdWVzdBIXCg9vcmdhbml6YXRpb25faWQYASABKAkiSQoMTGlzdFJlc3BvbnNlEjkKDWluc3RhbGxhdGlvbnMYASADKAsyIi5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsYXRpb24ivAIKDEluc3RhbGxhdGlvbhIKCgJpZBgBIAEoCRIXCg9vcmdhbml6YXRpb25faWQYAiABKAkSDgoGdGFyZ2V0GAMgASgJEjkKBnN0YXR1cxgEIAEoDjIpLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbi5TdGF0dXMSEAoIcmV2aXNpb24YBSABKAQSDAoEcm9sZRgGIAEoCRIQCgh0ZWFtX2lkcxgHIAMoCRIaChJhZ2VudF9wcmluY2lwYWxfaWQYCCABKAkSEQoJbmFtZXNwYWNlGAkgASgJIlsKBlN0YXR1cxIWChJTVEFUVVNfVU5TUEVDSUZJRUQQABISCg5TVEFUVVNfUEVORElORxABEhEKDVNUQVRVU19BQ1RJVkUQAhISCg5TVEFUVVNfUkVWT0tFRBADIk4KEkluc3RhbGxhdGlvbk5vdGljZRI4CgxpbnN0YWxsYXRpb24YASABKAsyIi5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsYXRpb24iEQoPSW5zdGFsbGF0aW9uQWNrMpYCChNJbnN0YWxsYXRpb25TZXJ2aWNlElMKB0luc3RhbGwSJC5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsUmVxdWVzdBoiLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbhJbCgtHcmFudFRvVGVhbRIoLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkdyYW50VG9UZWFtUmVxdWVzdBoiLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbhJNCgRMaXN0EiEuaG9zdC5pbnN0YWxsYXRpb24udjEuTGlzdFJlcXVlc3QaIi5ob3N0Lmluc3RhbGxhdGlvbi52MS5MaXN0UmVzcG9uc2UycAoSSW5zdGFsbGFibGVTZXJ2aWNlEloKB0luc3RhbGwSKC5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsYXRpb25Ob3RpY2UaJS5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsYXRpb25BY2tCNVozZ2F0ZXdheS9wa2cvZ2VuL2hvc3QvaW5zdGFsbGF0aW9uL3YxO2luc3RhbGxhdGlvbnYxYgZwcm90bzM");
+  fileDesc("Cidob3N0L2luc3RhbGxhdGlvbi92MS9pbnN0YWxsYXRpb24ucHJvdG8SFGhvc3QuaW5zdGFsbGF0aW9uLnYxIpkBCg5JbnN0YWxsUmVxdWVzdBIXCg9vcmdhbml6YXRpb25faWQYASABKAkSDgoGdGFyZ2V0GAIgASgJEgwKBHJvbGUYAyABKAkSFwoPb3duZXJfcGVyc29uX2lkGAQgASgJEjcKCGFwcHJvdmFsGAUgASgLMiUuaG9zdC5pbnN0YWxsYXRpb24udjEuQ29uc2VudEFwcHJvdmFsImkKD0NvbnNlbnRBcHByb3ZhbBIRCgl0YXJnZXRfaWQYASABKAkSEgoKZ2VuZXJhdGlvbhgCIAEoBBIZChFleHBlY3RlZF9yZXZpc2lvbhgDIAEoBBIUCgxvcGVyYXRpb25faWQYBCABKAkiVwoSR3JhbnRUb1RlYW1SZXF1ZXN0EhcKD2luc3RhbGxhdGlvbl9pZBgBIAEoCRIPCgd0ZWFtX2lkGAIgASgJEhcKD29yZ2FuaXphdGlvbl9pZBgDIAEoCSImCgtMaXN0UmVxdWVzdBIXCg9vcmdhbml6YXRpb25faWQYASABKAkiSQoMTGlzdFJlc3BvbnNlEjkKDWluc3RhbGxhdGlvbnMYASADKAsyIi5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsYXRpb24ivAIKDEluc3RhbGxhdGlvbhIKCgJpZBgBIAEoCRIXCg9vcmdhbml6YXRpb25faWQYAiABKAkSDgoGdGFyZ2V0GAMgASgJEjkKBnN0YXR1cxgEIAEoDjIpLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbi5TdGF0dXMSEAoIcmV2aXNpb24YBSABKAQSDAoEcm9sZRgGIAEoCRIQCgh0ZWFtX2lkcxgHIAMoCRIaChJhZ2VudF9wcmluY2lwYWxfaWQYCCABKAkSEQoJbmFtZXNwYWNlGAkgASgJIlsKBlN0YXR1cxIWChJTVEFUVVNfVU5TUEVDSUZJRUQQABISCg5TVEFUVVNfUEVORElORxABEhEKDVNUQVRVU19BQ1RJVkUQAhISCg5TVEFUVVNfUkVWT0tFRBADIk4KEkluc3RhbGxhdGlvbk5vdGljZRI4CgxpbnN0YWxsYXRpb24YASABKAsyIi5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsYXRpb24iEQoPSW5zdGFsbGF0aW9uQWNrMpYCChNJbnN0YWxsYXRpb25TZXJ2aWNlElMKB0luc3RhbGwSJC5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsUmVxdWVzdBoiLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbhJbCgtHcmFudFRvVGVhbRIoLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkdyYW50VG9UZWFtUmVxdWVzdBoiLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbhJNCgRMaXN0EiEuaG9zdC5pbnN0YWxsYXRpb24udjEuTGlzdFJlcXVlc3QaIi5ob3N0Lmluc3RhbGxhdGlvbi52MS5MaXN0UmVzcG9uc2UycAoSSW5zdGFsbGFibGVTZXJ2aWNlEloKB0luc3RhbGwSKC5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsYXRpb25Ob3RpY2UaJS5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsYXRpb25BY2tCNVozZ2F0ZXdheS9wa2cvZ2VuL2hvc3QvaW5zdGFsbGF0aW9uL3YxO2luc3RhbGxhdGlvbnYxYgZwcm90bzM");
 
 /**
  * InstallRequest asks to install one target at one organisation.
@@ -49,6 +49,13 @@ export type InstallRequest = Message<"host.installation.v1.InstallRequest"> & {
    * @generated from field: string owner_person_id = 4;
    */
   ownerPersonId: string;
+
+  /**
+   * The exact catalogue offer and installation state the administrator approved.
+   *
+   * @generated from field: host.installation.v1.ConsentApproval approval = 5;
+   */
+  approval?: ConsentApproval;
 };
 
 /**
@@ -57,6 +64,43 @@ export type InstallRequest = Message<"host.installation.v1.InstallRequest"> & {
  */
 export const InstallRequestSchema: GenMessage<InstallRequest> = /*@__PURE__*/
   messageDesc(file_host_installation_v1_installation, 0);
+
+/**
+ * ConsentApproval binds an explicit approval to the state reviewed by the admin.
+ * Obtain target_id and generation from ListAvailableSolutions, and revision from
+ * the installation listing (zero means absent). Keep these values and operation_id
+ * unchanged on retry; a refusal requires a fresh review and operation.
+ *
+ * @generated from message host.installation.v1.ConsentApproval
+ */
+export type ConsentApproval = Message<"host.installation.v1.ConsentApproval"> & {
+  /**
+   * @generated from field: string target_id = 1;
+   */
+  targetId: string;
+
+  /**
+   * @generated from field: uint64 generation = 2;
+   */
+  generation: bigint;
+
+  /**
+   * @generated from field: uint64 expected_revision = 3;
+   */
+  expectedRevision: bigint;
+
+  /**
+   * @generated from field: string operation_id = 4;
+   */
+  operationId: string;
+};
+
+/**
+ * Describes the message host.installation.v1.ConsentApproval.
+ * Use `create(ConsentApprovalSchema)` to create a new message.
+ */
+export const ConsentApprovalSchema: GenMessage<ConsentApproval> = /*@__PURE__*/
+  messageDesc(file_host_installation_v1_installation, 1);
 
 /**
  * GrantToTeamRequest exposes an installation to a team.
@@ -93,7 +137,7 @@ export type GrantToTeamRequest = Message<"host.installation.v1.GrantToTeamReques
  * Use `create(GrantToTeamRequestSchema)` to create a new message.
  */
 export const GrantToTeamRequestSchema: GenMessage<GrantToTeamRequest> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 1);
+  messageDesc(file_host_installation_v1_installation, 2);
 
 /**
  * ListRequest asks for one organisation's installations.
@@ -114,7 +158,7 @@ export type ListRequest = Message<"host.installation.v1.ListRequest"> & {
  * Use `create(ListRequestSchema)` to create a new message.
  */
 export const ListRequestSchema: GenMessage<ListRequest> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 2);
+  messageDesc(file_host_installation_v1_installation, 3);
 
 /**
  * ListResponse lists installations.
@@ -135,7 +179,7 @@ export type ListResponse = Message<"host.installation.v1.ListResponse"> & {
  * Use `create(ListResponseSchema)` to create a new message.
  */
 export const ListResponseSchema: GenMessage<ListResponse> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 3);
+  messageDesc(file_host_installation_v1_installation, 4);
 
 /**
  * Installation is one organisation's installation of one target.
@@ -215,7 +259,7 @@ export type Installation = Message<"host.installation.v1.Installation"> & {
  * Use `create(InstallationSchema)` to create a new message.
  */
 export const InstallationSchema: GenMessage<Installation> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 4);
+  messageDesc(file_host_installation_v1_installation, 5);
 
 /**
  * Status is the installation's lifecycle.
@@ -256,7 +300,7 @@ export enum Installation_Status {
  * Describes the enum host.installation.v1.Installation.Status.
  */
 export const Installation_StatusSchema: GenEnum<Installation_Status> = /*@__PURE__*/
-  enumDesc(file_host_installation_v1_installation, 4, 0);
+  enumDesc(file_host_installation_v1_installation, 5, 0);
 
 /**
  * InstallationNotice is what the host hands the solution's install step.
@@ -277,7 +321,7 @@ export type InstallationNotice = Message<"host.installation.v1.InstallationNotic
  * Use `create(InstallationNoticeSchema)` to create a new message.
  */
 export const InstallationNoticeSchema: GenMessage<InstallationNotice> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 5);
+  messageDesc(file_host_installation_v1_installation, 6);
 
 /**
  * InstallationAck acknowledges the install step.
@@ -292,7 +336,7 @@ export type InstallationAck = Message<"host.installation.v1.InstallationAck"> & 
  * Use `create(InstallationAckSchema)` to create a new message.
  */
 export const InstallationAckSchema: GenMessage<InstallationAck> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 6);
+  messageDesc(file_host_installation_v1_installation, 7);
 
 /**
  * InstallationService is implemented by the host and by the local authority.

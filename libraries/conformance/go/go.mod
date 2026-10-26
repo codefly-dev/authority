@@ -6,6 +6,7 @@ require (
 	github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0-20261025234644-fff5385f9203
 	github.com/codefly-dev/authority/libraries/resources/go v0.0.0-20261023203940-e720ad2851c7
 	github.com/codefly-dev/core v0.19.7-0.20261026022918-8af4b787a435
+	github.com/google/uuid v1.6.0
 	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12
 )
@@ -37,7 +38,6 @@ require (
 	github.com/gofrs/flock v0.13.1 // indirect
 	github.com/google/go-github/v89 v89.0.0 // indirect
 	github.com/google/go-querystring v1.2.0 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect

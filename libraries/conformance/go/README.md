@@ -156,3 +156,26 @@ Run the conformance target with `AUTHORITY_TARGET=solution-principal` from
 `modules/authority/services/local/code`:
 `go test ./plugins/registry_test -run SolutionPrincipal`. It skips without it
 until the local authority implements it.
+
+## Consent conformance on the 0.2 installation model
+
+This maintenance branch backports the consent checks from authority PR #27 onto
+`d091cc7a`, for hosts still implementing the 0.2 installation model. It does not
+adopt the solution-principal model from PR #25. `InstallRequest.approval` carries
+the reviewed target UUID, generation, expected installation revision and a fresh
+operation UUID, matching the contract already served by Accounts.
+
+`InstallationLifecycleCase.Review` is required: the host harness reads its
+catalogue and installation listing through generated clients and returns the
+generated `ConsentApproval` message. There is no shared catalogue/Review RPC in
+this model. The suite preserves that snapshot, checks missing or changed consent,
+retries before team exposure, and refuses replay after exposure or revocation.
+In 0.2, `GrantToTeam` changes the installation revision, so the same approval is
+stale after exposure. No consent assertions are skipped based on host capability.
+
+This is a conformance-library maintenance branch, not a backport of #27's local
+core implementation. Its historical local-authority fixture does not implement
+the required review hook or enforce this consent contract; Accounts is the
+runtime qualification for this branch. The mainline local authority and shared
+`Review`/digest protocol remain in #27. The next Accounts adoption must replace
+this pin and host-specific review hook with that protocol and the #25 model.

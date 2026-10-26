@@ -80,7 +80,7 @@ func (x Installation_Status) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Installation_Status.Descriptor instead.
 func (Installation_Status) EnumDescriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{4, 0}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{5, 0}
 }
 
 // InstallRequest asks to install one target at one organisation.
@@ -94,6 +94,8 @@ type InstallRequest struct {
 	Role string `protobuf:"bytes,3,opt,name=role,proto3" json:"role,omitempty"`
 	// The accountable person; an administrator of the organisation.
 	OwnerPersonId string `protobuf:"bytes,4,opt,name=owner_person_id,json=ownerPersonId,proto3" json:"owner_person_id,omitempty"`
+	// The exact catalogue offer and installation state the administrator approved.
+	Approval      *ConsentApproval `protobuf:"bytes,5,opt,name=approval,proto3" json:"approval,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -156,6 +158,85 @@ func (x *InstallRequest) GetOwnerPersonId() string {
 	return ""
 }
 
+func (x *InstallRequest) GetApproval() *ConsentApproval {
+	if x != nil {
+		return x.Approval
+	}
+	return nil
+}
+
+// ConsentApproval binds an explicit approval to the state reviewed by the admin.
+// Obtain target_id and generation from ListAvailableSolutions, and revision from
+// the installation listing (zero means absent). Keep these values and operation_id
+// unchanged on retry; a refusal requires a fresh review and operation.
+type ConsentApproval struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	TargetId         string                 `protobuf:"bytes,1,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
+	Generation       uint64                 `protobuf:"varint,2,opt,name=generation,proto3" json:"generation,omitempty"`
+	ExpectedRevision uint64                 `protobuf:"varint,3,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
+	OperationId      string                 `protobuf:"bytes,4,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *ConsentApproval) Reset() {
+	*x = ConsentApproval{}
+	mi := &file_host_installation_v1_installation_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConsentApproval) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConsentApproval) ProtoMessage() {}
+
+func (x *ConsentApproval) ProtoReflect() protoreflect.Message {
+	mi := &file_host_installation_v1_installation_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConsentApproval.ProtoReflect.Descriptor instead.
+func (*ConsentApproval) Descriptor() ([]byte, []int) {
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *ConsentApproval) GetTargetId() string {
+	if x != nil {
+		return x.TargetId
+	}
+	return ""
+}
+
+func (x *ConsentApproval) GetGeneration() uint64 {
+	if x != nil {
+		return x.Generation
+	}
+	return 0
+}
+
+func (x *ConsentApproval) GetExpectedRevision() uint64 {
+	if x != nil {
+		return x.ExpectedRevision
+	}
+	return 0
+}
+
+func (x *ConsentApproval) GetOperationId() string {
+	if x != nil {
+		return x.OperationId
+	}
+	return ""
+}
+
 // GrantToTeamRequest exposes an installation to a team.
 type GrantToTeamRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -173,7 +254,7 @@ type GrantToTeamRequest struct {
 
 func (x *GrantToTeamRequest) Reset() {
 	*x = GrantToTeamRequest{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[1]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -185,7 +266,7 @@ func (x *GrantToTeamRequest) String() string {
 func (*GrantToTeamRequest) ProtoMessage() {}
 
 func (x *GrantToTeamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[1]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -198,7 +279,7 @@ func (x *GrantToTeamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GrantToTeamRequest.ProtoReflect.Descriptor instead.
 func (*GrantToTeamRequest) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{1}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *GrantToTeamRequest) GetInstallationId() string {
@@ -233,7 +314,7 @@ type ListRequest struct {
 
 func (x *ListRequest) Reset() {
 	*x = ListRequest{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[2]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -245,7 +326,7 @@ func (x *ListRequest) String() string {
 func (*ListRequest) ProtoMessage() {}
 
 func (x *ListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[2]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -258,7 +339,7 @@ func (x *ListRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRequest.ProtoReflect.Descriptor instead.
 func (*ListRequest) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{2}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ListRequest) GetOrganizationId() string {
@@ -279,7 +360,7 @@ type ListResponse struct {
 
 func (x *ListResponse) Reset() {
 	*x = ListResponse{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[3]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -291,7 +372,7 @@ func (x *ListResponse) String() string {
 func (*ListResponse) ProtoMessage() {}
 
 func (x *ListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[3]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -304,7 +385,7 @@ func (x *ListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListResponse.ProtoReflect.Descriptor instead.
 func (*ListResponse) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{3}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ListResponse) GetInstallations() []*Installation {
@@ -344,7 +425,7 @@ type Installation struct {
 
 func (x *Installation) Reset() {
 	*x = Installation{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[4]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -356,7 +437,7 @@ func (x *Installation) String() string {
 func (*Installation) ProtoMessage() {}
 
 func (x *Installation) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[4]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -369,7 +450,7 @@ func (x *Installation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Installation.ProtoReflect.Descriptor instead.
 func (*Installation) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{4}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *Installation) GetId() string {
@@ -446,7 +527,7 @@ type InstallationNotice struct {
 
 func (x *InstallationNotice) Reset() {
 	*x = InstallationNotice{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[5]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -458,7 +539,7 @@ func (x *InstallationNotice) String() string {
 func (*InstallationNotice) ProtoMessage() {}
 
 func (x *InstallationNotice) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[5]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -471,7 +552,7 @@ func (x *InstallationNotice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InstallationNotice.ProtoReflect.Descriptor instead.
 func (*InstallationNotice) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{5}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *InstallationNotice) GetInstallation() *Installation {
@@ -490,7 +571,7 @@ type InstallationAck struct {
 
 func (x *InstallationAck) Reset() {
 	*x = InstallationAck{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[6]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -502,7 +583,7 @@ func (x *InstallationAck) String() string {
 func (*InstallationAck) ProtoMessage() {}
 
 func (x *InstallationAck) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[6]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -515,19 +596,27 @@ func (x *InstallationAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InstallationAck.ProtoReflect.Descriptor instead.
 func (*InstallationAck) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{6}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{7}
 }
 
 var File_host_installation_v1_installation_proto protoreflect.FileDescriptor
 
 const file_host_installation_v1_installation_proto_rawDesc = "" +
 	"\n" +
-	"'host/installation/v1/installation.proto\x12\x14host.installation.v1\"\x8d\x01\n" +
+	"'host/installation/v1/installation.proto\x12\x14host.installation.v1\"\xd0\x01\n" +
 	"\x0eInstallRequest\x12'\n" +
 	"\x0forganization_id\x18\x01 \x01(\tR\x0eorganizationId\x12\x16\n" +
 	"\x06target\x18\x02 \x01(\tR\x06target\x12\x12\n" +
 	"\x04role\x18\x03 \x01(\tR\x04role\x12&\n" +
-	"\x0fowner_person_id\x18\x04 \x01(\tR\rownerPersonId\"\x7f\n" +
+	"\x0fowner_person_id\x18\x04 \x01(\tR\rownerPersonId\x12A\n" +
+	"\bapproval\x18\x05 \x01(\v2%.host.installation.v1.ConsentApprovalR\bapproval\"\x9e\x01\n" +
+	"\x0fConsentApproval\x12\x1b\n" +
+	"\ttarget_id\x18\x01 \x01(\tR\btargetId\x12\x1e\n" +
+	"\n" +
+	"generation\x18\x02 \x01(\x04R\n" +
+	"generation\x12+\n" +
+	"\x11expected_revision\x18\x03 \x01(\x04R\x10expectedRevision\x12!\n" +
+	"\foperation_id\x18\x04 \x01(\tR\voperationId\"\x7f\n" +
 	"\x12GrantToTeamRequest\x12'\n" +
 	"\x0finstallation_id\x18\x01 \x01(\tR\x0einstallationId\x12\x17\n" +
 	"\ateam_id\x18\x02 \x01(\tR\x06teamId\x12'\n" +
@@ -575,34 +664,36 @@ func file_host_installation_v1_installation_proto_rawDescGZIP() []byte {
 }
 
 var file_host_installation_v1_installation_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_host_installation_v1_installation_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_host_installation_v1_installation_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_host_installation_v1_installation_proto_goTypes = []any{
 	(Installation_Status)(0),   // 0: host.installation.v1.Installation.Status
 	(*InstallRequest)(nil),     // 1: host.installation.v1.InstallRequest
-	(*GrantToTeamRequest)(nil), // 2: host.installation.v1.GrantToTeamRequest
-	(*ListRequest)(nil),        // 3: host.installation.v1.ListRequest
-	(*ListResponse)(nil),       // 4: host.installation.v1.ListResponse
-	(*Installation)(nil),       // 5: host.installation.v1.Installation
-	(*InstallationNotice)(nil), // 6: host.installation.v1.InstallationNotice
-	(*InstallationAck)(nil),    // 7: host.installation.v1.InstallationAck
+	(*ConsentApproval)(nil),    // 2: host.installation.v1.ConsentApproval
+	(*GrantToTeamRequest)(nil), // 3: host.installation.v1.GrantToTeamRequest
+	(*ListRequest)(nil),        // 4: host.installation.v1.ListRequest
+	(*ListResponse)(nil),       // 5: host.installation.v1.ListResponse
+	(*Installation)(nil),       // 6: host.installation.v1.Installation
+	(*InstallationNotice)(nil), // 7: host.installation.v1.InstallationNotice
+	(*InstallationAck)(nil),    // 8: host.installation.v1.InstallationAck
 }
 var file_host_installation_v1_installation_proto_depIdxs = []int32{
-	5, // 0: host.installation.v1.ListResponse.installations:type_name -> host.installation.v1.Installation
-	0, // 1: host.installation.v1.Installation.status:type_name -> host.installation.v1.Installation.Status
-	5, // 2: host.installation.v1.InstallationNotice.installation:type_name -> host.installation.v1.Installation
-	1, // 3: host.installation.v1.InstallationService.Install:input_type -> host.installation.v1.InstallRequest
-	2, // 4: host.installation.v1.InstallationService.GrantToTeam:input_type -> host.installation.v1.GrantToTeamRequest
-	3, // 5: host.installation.v1.InstallationService.List:input_type -> host.installation.v1.ListRequest
-	6, // 6: host.installation.v1.InstallableService.Install:input_type -> host.installation.v1.InstallationNotice
-	5, // 7: host.installation.v1.InstallationService.Install:output_type -> host.installation.v1.Installation
-	5, // 8: host.installation.v1.InstallationService.GrantToTeam:output_type -> host.installation.v1.Installation
-	4, // 9: host.installation.v1.InstallationService.List:output_type -> host.installation.v1.ListResponse
-	7, // 10: host.installation.v1.InstallableService.Install:output_type -> host.installation.v1.InstallationAck
-	7, // [7:11] is the sub-list for method output_type
-	3, // [3:7] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	2, // 0: host.installation.v1.InstallRequest.approval:type_name -> host.installation.v1.ConsentApproval
+	6, // 1: host.installation.v1.ListResponse.installations:type_name -> host.installation.v1.Installation
+	0, // 2: host.installation.v1.Installation.status:type_name -> host.installation.v1.Installation.Status
+	6, // 3: host.installation.v1.InstallationNotice.installation:type_name -> host.installation.v1.Installation
+	1, // 4: host.installation.v1.InstallationService.Install:input_type -> host.installation.v1.InstallRequest
+	3, // 5: host.installation.v1.InstallationService.GrantToTeam:input_type -> host.installation.v1.GrantToTeamRequest
+	4, // 6: host.installation.v1.InstallationService.List:input_type -> host.installation.v1.ListRequest
+	7, // 7: host.installation.v1.InstallableService.Install:input_type -> host.installation.v1.InstallationNotice
+	6, // 8: host.installation.v1.InstallationService.Install:output_type -> host.installation.v1.Installation
+	6, // 9: host.installation.v1.InstallationService.GrantToTeam:output_type -> host.installation.v1.Installation
+	5, // 10: host.installation.v1.InstallationService.List:output_type -> host.installation.v1.ListResponse
+	8, // 11: host.installation.v1.InstallableService.Install:output_type -> host.installation.v1.InstallationAck
+	8, // [8:12] is the sub-list for method output_type
+	4, // [4:8] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_host_installation_v1_installation_proto_init() }
@@ -616,7 +707,7 @@ func file_host_installation_v1_installation_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_host_installation_v1_installation_proto_rawDesc), len(file_host_installation_v1_installation_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   7,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   2,
 		},
