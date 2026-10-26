@@ -8,7 +8,8 @@ from google.protobuf import json_format
 from authority_client._gen.host.authority.v1.authority_pb2 import KeysResponse
 from authority_client._gen.host.authority.v1.work_context_pb2 import WorkContextV1
 from codefly_hop import (
-    ACTORS_KEY, CONTEXT_KEY, SCOPES_KEY, TENANT_KEY, WORK_CONTEXT_KEY, Identity, Unauthenticated, Verifier, identity_of,
+    ACTORS_KEY, CONTEXT_KEY, KEY_RETRY, KEY_STALE, SCOPES_KEY, TENANT_KEY, WORK_CONTEXT_KEY, Identity, Unauthenticated,
+    Verifier, identity_of,
 )
 
 FIXTURE = json.loads((Path(__file__).parents[3] / "hop/testdata/stamped.json").read_text())
@@ -104,6 +105,57 @@ def test_keys_are_reread_when_old_and_trusted_no_longer_than_stale():
     with pytest.raises(Unauthenticated, match="unavailable") as refused:
         v.verify(FIXTURE["headers"])  # an unheld key waits for the read, which fails; the keys are stale
     assert "4000" not in str(refused.value) and "4000" in str(v.keys_error)
+
+
+# The robin playground's model gateway, live: its first call after 39 idle
+# minutes, with no readiness poll between, was refused while the re-read it
+# started succeeded in the background. Held keys past KEY_STALE cannot judge a
+# call, so the call waits for the read, as it does for a key not held. The keys
+# are read before the fixture's token is minted, so the token is still live.
+def test_a_call_on_keys_past_stale_waits_for_the_reread():
+    clock = [FIXTURE["now"] - KEY_STALE - 60]
+    source = Keys(published())
+    v = verifier(clock=lambda: clock[0], source=source)
+    clock[0] = FIXTURE["now"]
+    assert v.verify(FIXTURE["headers"]).owner == FIXTURE["identity"]["owner"]
+    assert source.reads == 2
+
+
+# The wait on keys past KEY_STALE fails closed: a re-read that fails, or that
+# outlives the read's timeout, refuses the call with the fixed reason, and only
+# once the read has ended.
+def test_a_call_on_keys_past_stale_is_refused_when_the_reread_fails():
+    import threading
+    import time as clock_time
+    clock = [FIXTURE["now"] - KEY_STALE - 60]
+    source = Keys(published())
+    v = Verifier(source, audience=FIXTURE["audience"], proof=FIXTURE["proof"], now=lambda: clock[0], timeout=0.3)
+    source.error, source.hold = RuntimeError("dial authority.internal:4000: connection refused"), threading.Event()
+    clock[0] = FIXTURE["now"]
+    outcome = []
+    call = threading.Thread(target=lambda: outcome.append(_refusal(v)))
+    call.start()
+    call.join(0.1)
+    assert call.is_alive(), f"the call was judged before its re-read ended: {outcome}"
+    source.hold.set()
+    call.join(5)
+    assert "unavailable" in outcome[0] and "4000" not in outcome[0] and "4000" in str(v.keys_error)
+
+    source.error, source.hold = None, threading.Event()  # a read that never answers
+    clock[0] += KEY_RETRY
+    started = clock_time.monotonic()
+    refusal = _refusal(v)
+    assert "unavailable" in refusal and clock_time.monotonic() - started >= 0.25
+    settle(v)
+    assert isinstance(v.keys_error, TimeoutError)
+
+
+def _refusal(v):
+    try:
+        v.verify(FIXTURE["headers"])
+    except Unauthenticated as refused:
+        return str(refused)
+    return "admitted"
 
 
 # Review r44 B1: nothing without the proof reaches the key read, and a hung read

@@ -148,6 +148,39 @@ test('a Verifier starts before the authority serves keys and refuses with a reas
   assert.equal((await v.verify(fixture.headers)).owner, fixture.identity.owner);
 });
 
+// The robin playground's model gateway, live: its first call after 39 idle
+// minutes, with no readiness poll between, was refused while the re-read it
+// started succeeded in the background. Held keys past the stale window cannot
+// judge a call, so the call waits for the read, as it does for a key not held.
+// The keys are read before the fixture's token is minted, so the token is live.
+test('a call on keys past the stale window waits for the re-read', async () => {
+  const keys = source();
+  let clock = (fixture.now - 960)*1000;
+  const v = new Verifier(keys, fixture.audience, fixture.proof, () => clock);
+  await settle();
+  clock = fixture.now*1000;
+  assert.equal((await v.verify(fixture.headers)).owner, fixture.identity.owner);
+  assert.equal(keys.reads, 2);
+});
+
+// The wait fails closed: a re-read that fails refuses the call with the fixed
+// reason, and only once the read has ended.
+test('a call on keys past the stale window is refused when the re-read fails', async () => {
+  let fail;
+  const keys = source(() => keys.reads === 1 ? Promise.resolve(published) : new Promise((_, reject) => { fail = reject; }));
+  let clock = (fixture.now - 960)*1000;
+  const v = new Verifier(keys, fixture.audience, fixture.proof, () => clock);
+  await settle();
+  clock = fixture.now*1000;
+  let judged = false;
+  const call = v.verify(fixture.headers).finally(() => { judged = true; });
+  for (let i = 0; i < 5; i++) await settle();
+  assert.equal(judged, false, 'the call was judged before its re-read ended');
+  fail(new Error('dial authority.internal:4000: connection refused'));
+  await assert.rejects(call, e => e instanceof Unauthenticated && /unavailable/.test(e.message) && !/4000/.test(e.message));
+  assert.match(String(v.keysError), /4000/);
+});
+
 test('an actor granted nothing narrows the identity to nothing', () => {
   const context = body('delegated');
   context.actorChain[0].grantedScopes = [];

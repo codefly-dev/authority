@@ -214,9 +214,10 @@ type KeySource interface {
 // verifier does not hold (at most once per keyRetry), and when they are older
 // than keyMaxAge, so a removed key stops verifying. A read runs on its own,
 // detached from any call, bounded by keyTimeout, one at a time; no caller can
-// cancel it, fail it or make it wait. A failed read keeps the last keys until
-// they are keyStale old; then every call is refused, as the hop refuses a call
-// it cannot check.
+// cancel it or fail it. A call waits for it only when it cannot be judged
+// without it: its key is not held, or the held keys are keyStale old. A failed
+// read keeps the last keys until they are keyStale old; then every call is
+// refused, as the hop refuses a call it cannot check.
 const (
 	keyRetry   = 10 * time.Second
 	keyMaxAge  = 5 * time.Minute
@@ -328,9 +329,12 @@ func (v *Verifier) Verify(ctx context.Context, md metadata.MD) (Identity, error)
 	return id, nil
 }
 
-// trustFor returns the keys to judge a token naming keyID by. A key not held
-// starts a read (at most once per keyRetry) and waits for it, as long as the
-// caller does; old keys start a read and are used meanwhile.
+// trustFor returns the keys to judge a token naming keyID by. A key not held,
+// or held keys past keyStale, start a read (at most once per keyRetry) and the
+// call waits for it, as long as the caller does and no longer than the read's
+// own keyTimeout: an idle replica's first call is judged on fresh keys, not
+// refused while they arrive. Keys older than keyMaxAge but inside keyStale
+// start a read and are used meanwhile.
 func (v *Verifier) trustFor(ctx context.Context, keyID string) (workcontext.Trust, error) {
 	v.mu.Lock()
 	now := v.now()
@@ -338,9 +342,9 @@ func (v *Verifier) trustFor(ctx context.Context, keyID string) (workcontext.Trus
 	if (!held || now.Sub(v.fetched) > keyMaxAge) && v.inflight == nil && now.Sub(v.tried) >= keyRetry {
 		v.refresh()
 	}
-	wait := v.inflight
+	wait, judgeable := v.inflight, held && now.Sub(v.fetched) <= keyStale
 	v.mu.Unlock()
-	if !held && wait != nil {
+	if !judgeable && wait != nil {
 		select {
 		case <-wait:
 		case <-ctx.Done():
