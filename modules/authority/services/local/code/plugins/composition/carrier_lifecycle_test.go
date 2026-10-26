@@ -399,7 +399,7 @@ func TestSignedCarrierReplayCannotUndoExplicitInstallationRevocation(t *testing.
 		t.Fatal("failed callback reported success")
 	}
 	id := state.InstallationID("acme", "conformance-solution")
-	if err := k.State.Uninstall(id); err != nil {
+	if err := k.State.UninstallAsHost(id); err != nil {
 		t.Fatal(err)
 	}
 	revoked, _ := k.State.Installation(id)
@@ -423,11 +423,11 @@ func TestSignedCarrierReplayCannotAttachToAnExplicitReinstallation(t *testing.T)
 	}
 	id := state.InstallationID("acme", "conformance-solution")
 	pending, _ := k.State.Installation(id)
-	if err := k.State.Uninstall(id); err != nil {
+	if err := k.State.UninstallAsHost(id); err != nil {
 		t.Fatal(err)
 	}
 	k.State.OnInstall(nil)
-	fresh, err := k.State.Install(ctx, "acme", "conformance-solution", "viewer", "alex")
+	fresh, err := k.State.InstallAsHost(ctx, "acme", "conformance-solution", "viewer", "alex")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -491,7 +491,7 @@ func TestSignedCarrierPartialCompletionDoesNotRepeatEarlierGrants(t *testing.T) 
 	if before.Status != state.Active || len(k.Teams(t, before.ID)) != 1 {
 		t.Fatalf("first intent did not complete: %+v", before)
 	}
-	if err := k.State.Uninstall(id); err != nil {
+	if err := k.State.UninstallAsHost(id); err != nil {
 		t.Fatal(err)
 	}
 	fail = false

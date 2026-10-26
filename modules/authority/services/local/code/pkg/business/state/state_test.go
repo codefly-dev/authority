@@ -105,12 +105,12 @@ func TestInstallRunsTheTargetsInstallStepAndStaysPendingUntilItConverges(t *test
 	if _, err := k.State.ApplyManifest(testkit.Proposals(1)); err != nil {
 		t.Fatal(err)
 	}
-	inst, err := k.State.Install(ctx, "acme", "proposals", "viewer", "alex")
+	inst, err := k.State.InstallAsHost(ctx, "acme", "proposals", "viewer", "alex")
 	if err == nil || inst.Status != state.Pending {
 		t.Fatalf("first attempt: %v %+v", err, inst)
 	}
 	// The host's own setup asking again resumes the pending attempt.
-	inst, err = k.State.Install(ctx, "acme", "proposals", "viewer", "alex")
+	inst, err = k.State.InstallAsHost(ctx, "acme", "proposals", "viewer", "alex")
 	if err != nil || inst.Status != state.Active || calls != 2 {
 		t.Fatalf("resumed attempt: %v %+v, calls %d", err, inst, calls)
 	}
@@ -119,13 +119,13 @@ func TestInstallRunsTheTargetsInstallStepAndStaysPendingUntilItConverges(t *test
 func TestInstallRefusesAnUnknownRoleAndAForeignOwner(t *testing.T) {
 	k := testkit.New(t)
 	ctx := context.Background()
-	if _, err := k.State.Install(ctx, "acme", "wiki", "nope", "alex"); !errors.Is(err, state.ErrUnknown) {
+	if _, err := k.State.InstallAsHost(ctx, "acme", "wiki", "nope", "alex"); !errors.Is(err, state.ErrUnknown) {
 		t.Fatalf("a role the solution does not declare: %v", err)
 	}
-	if _, err := k.State.Install(ctx, "acme", "wiki", "viewer", "stranger"); !errors.Is(err, state.ErrForbidden) {
+	if _, err := k.State.InstallAsHost(ctx, "acme", "wiki", "viewer", "stranger"); !errors.Is(err, state.ErrForbidden) {
 		t.Fatalf("foreign owner: %v", err)
 	}
-	if _, err := k.State.Install(ctx, "acme", "documents", "viewer", "alex"); !errors.Is(err, state.ErrUnknown) {
+	if _, err := k.State.InstallAsHost(ctx, "acme", "documents", "viewer", "alex"); !errors.Is(err, state.ErrUnknown) {
 		t.Fatalf("a module is installed by composition, never by a click: %v", err)
 	}
 }

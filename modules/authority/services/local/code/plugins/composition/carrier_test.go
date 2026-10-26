@@ -161,7 +161,7 @@ func TestRolesInTheDocumentAreHeldToTheRoleContract(t *testing.T) {
 	if _, err := p.ApplyManifest(context.Background(), carrier(t, k, "conformance-solution", solutionhost.KindSolution, 1, []string{"conformance.page"}, doc)); err != nil {
 		t.Fatal(err)
 	}
-	inst, err := k.State.Install(context.Background(), "acme", "conformance-solution", "viewer", "alex")
+	inst, err := k.State.InstallAsHost(context.Background(), "acme", "conformance-solution", "viewer", "alex")
 	if err != nil {
 		t.Fatal(err)
 	}

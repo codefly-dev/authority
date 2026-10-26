@@ -20,8 +20,8 @@ func storeModule(generation uint64) domain.Module {
 func TestAModuleInstallationIsNeverUninstalled(t *testing.T) {
 	h := newHarness(t)
 	alex := h.admin(acme)
-	refused(t, h.svc.Uninstall(h.ctx, &alex, acme, h.inst(acme, "store").ID), "never uninstalled")
-	if err := h.svc.Uninstall(h.ctx, &alex, acme, h.inst(acme, "a").ID); err != nil {
+	refused(t, h.svc.Uninstall(h.ctx, alex, acme, h.inst(acme, "store").ID), "never uninstalled")
+	if err := h.svc.Uninstall(h.ctx, alex, acme, h.inst(acme, "a").ID); err != nil {
 		t.Fatal(err)
 	}
 	// A routine delivery of a solution leaves an uninstalled installation as it is.
@@ -35,7 +35,7 @@ func TestAModuleInstallationIsNeverUninstalled(t *testing.T) {
 	}
 	// The host's own setup may retire a module at one organization; a
 	// routine delivery leaves it retired.
-	if err := h.svc.Uninstall(h.ctx, nil, acme, h.inst(acme, "store").ID); err != nil {
+	if err := h.svc.UninstallAsHost(h.ctx, acme, h.inst(acme, "store").ID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := h.svc.ApplyModule(h.ctx, storeModule(2)); err != nil {
@@ -70,7 +70,7 @@ func TestATombstonedPrincipalIsNeverClaimed(t *testing.T) {
 		t.Fatal(err)
 	}
 	admin := h.admin(globex)
-	_, err = svc.Install(h.ctx, &admin, globex, "b", "author", admin.ID, nil)
+	_, err = svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, nil)
 	code(t, err, domain.Denied)
 }
 
@@ -85,8 +85,8 @@ func TestNoOneButAnAdministratorTellsPresentFromAbsent(t *testing.T) {
 	for _, id := range []string{present, absent} {
 		want := "installation " + id + " belongs to another organization than \"acme\""
 		for name, err := range map[string]error{
-			"a member uninstalling": h.svc.Uninstall(h.ctx, &remi, acme, id),
-			"a deleted ex-member":   h.svc.Uninstall(h.ctx, &maya, acme, id),
+			"a member uninstalling": h.svc.Uninstall(h.ctx, remi, acme, id),
+			"a deleted ex-member":   h.svc.Uninstall(h.ctx, maya, acme, id),
 			"a deleted ex-member listing": func() error {
 				_, err := h.svc.ListRoleGrants(h.ctx, maya, acme, id)
 				return err

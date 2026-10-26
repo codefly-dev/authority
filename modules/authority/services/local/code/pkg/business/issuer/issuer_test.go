@@ -236,7 +236,7 @@ func TestAnUninstallRefusesAnOutstandingTokenOnTheNextCheck(t *testing.T) {
 	if _, err := k.Issuer.Check(ctx, out.GetToken(), "wiki", ""); err != nil {
 		t.Fatalf("before: %v", err)
 	}
-	if err := k.State.Uninstall(wiki.ID); err != nil {
+	if err := k.State.UninstallAsHost(wiki.ID); err != nil {
 		t.Fatal(err)
 	}
 	_, err = k.Issuer.Check(ctx, out.GetToken(), "wiki", "")
@@ -252,7 +252,7 @@ func TestAPendingInstallationIsIssuedNothing(t *testing.T) {
 	if _, err := k.State.ApplyManifest(testkit.Proposals(1)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := k.State.Install(ctx, "acme", "proposals", "viewer", "alex"); err == nil {
+	if _, err := k.State.InstallAsHost(ctx, "acme", "proposals", "viewer", "alex"); err == nil {
 		t.Fatal("the install step failed; Install must say so")
 	}
 	_, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
@@ -320,7 +320,7 @@ func TestAWorkloadInfersOnlyOneActiveInstallingOrganization(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			k := testkit.New(t)
 			for _, org := range tc.revoke {
-				if err := k.State.Uninstall(state.InstallationID(org, "documents")); err != nil {
+				if err := k.State.UninstallAsHost(state.InstallationID(org, "documents")); err != nil {
 					t.Fatal(err)
 				}
 			}

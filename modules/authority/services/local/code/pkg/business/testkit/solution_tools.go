@@ -38,7 +38,7 @@ func SolutionTools(t *testing.T, k *Kit) {
 			t.Fatal(err)
 		}
 	}
-	inst, err := k.State.Install(context.Background(), "acme", "proposals", "viewer", "alex")
+	inst, err := k.State.InstallAsHost(context.Background(), "acme", "proposals", "viewer", "alex")
 	if err != nil {
 		t.Fatal(err)
 	}

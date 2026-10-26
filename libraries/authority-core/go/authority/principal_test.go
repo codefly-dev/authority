@@ -17,7 +17,7 @@ func TestThePrincipalIsStableDistinctAndPerOrganization(t *testing.T) {
 	if u == h.inst(acme, "a").ID || u == h.principal(acme, "b") || u == h.principal(globex, "a") {
 		t.Fatal("a principal is shared with an installation id, another solution or another organization")
 	}
-	if err := h.svc.Uninstall(h.ctx, nil, acme, h.inst(acme, "a").ID); err != nil {
+	if err := h.svc.UninstallAsHost(h.ctx, acme, h.inst(acme, "a").ID); err != nil {
 		t.Fatal(err)
 	}
 	if again := h.install(acme, "a"); again.PrincipalID != u {
@@ -197,9 +197,9 @@ func TestWhoMayGrantAndEveryMalformedGrant(t *testing.T) {
 		code   domain.Code
 		reason string
 	}{
-		"a viewer granting itself":             {h.person("maya"), authority.RoleRequest{Organization: acme, InstallationID: instA, Role: domain.InstallerRole, PersonID: "maya"}, domain.Denied, "may not grant"},
+		"a viewer granting itself":             {h.person("maya"), authority.RoleRequest{Organization: acme, InstallationID: instA, Role: domain.InstallerRole, PersonID: "maya"}, domain.Denied, "belongs to another organization"},
 		"another organization's administrator": {h.person("zoe"), authority.RoleRequest{Organization: acme, InstallationID: instA, Role: "viewer", PersonID: "dev"}, domain.Denied, "belongs to another organization"},
-		"A's installer on B":                   {ines, authority.RoleRequest{Organization: acme, InstallationID: instB, Role: "author", PersonID: "ines"}, domain.Denied, "may not grant"},
+		"A's installer on B":                   {ines, authority.RoleRequest{Organization: acme, InstallationID: instB, Role: "author", PersonID: "ines"}, domain.Denied, "belongs to another organization"},
 		"another organization named":           {h.person("alex"), authority.RoleRequest{Organization: globex, InstallationID: instA, Role: "viewer", PersonID: "dev"}, domain.Denied, "organization"},
 		"another organization's installation":  {h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: elsewhere, Role: "viewer", PersonID: "dev"}, domain.Denied, "organization"},
 		"an undeclared role":                   {h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: instA, Role: "owner", PersonID: "dev"}, domain.NotFound, "declares no role"},
@@ -215,5 +215,5 @@ func TestWhoMayGrantAndEveryMalformedGrant(t *testing.T) {
 		})
 	}
 	_, err = h.svc.ListRoleGrants(h.ctx, h.person("maya"), acme, instA)
-	refused(t, err, "may not")
+	refused(t, err, "belongs to another organization")
 }

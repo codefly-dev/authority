@@ -55,7 +55,7 @@ func (p *Plugin) Install(ctx context.Context, req *installationv1.InstallRequest
 	if installedBy == "" {
 		installedBy = caller.ID
 	}
-	inst, err := p.State.Service().Install(ctx, &caller, req.GetOrganizationId(), req.GetTarget(), req.GetRole(), installedBy, p.installStep())
+	inst, err := p.State.Service().Install(ctx, caller, req.GetOrganizationId(), req.GetTarget(), req.GetRole(), installedBy, p.installStep())
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}

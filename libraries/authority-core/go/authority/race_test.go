@@ -122,14 +122,14 @@ func TestAnUninstalledAgentsHopStaysDeadAfterReinstall(t *testing.T) {
 	if err := h.check(deeper); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.svc.Uninstall(h.ctx, nil, acme, h.inst(acme, "a").ID); err != nil {
+	if err := h.svc.UninstallAsHost(h.ctx, acme, h.inst(acme, "a").ID); err != nil {
 		t.Fatal(err)
 	}
 	if h.check(deeper) == nil {
 		t.Fatal("the uninstalled agent's hop checks")
 	}
 	admin := h.admin(acme)
-	if _, err := h.svc.Install(h.ctx, &admin, acme, "a", "viewer", admin.ID, nil); err != nil {
+	if _, err := h.svc.Install(h.ctx, admin, acme, "a", "viewer", admin.ID, nil); err != nil {
 		t.Fatal(err)
 	}
 	if h.check(deeper) == nil {
@@ -146,7 +146,7 @@ func TestAnUninstallEndsEveryHopThroughTheSolution(t *testing.T) {
 	if err := h.check(deeper); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.svc.Uninstall(h.ctx, nil, acme, h.inst(acme, "a").ID); err != nil {
+	if err := h.svc.UninstallAsHost(h.ctx, acme, h.inst(acme, "a").ID); err != nil {
 		t.Fatal(err)
 	}
 	if h.check(deeper) == nil {

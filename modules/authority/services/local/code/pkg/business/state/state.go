@@ -418,7 +418,7 @@ func (s *State) performInstall(ctx context.Context, i FixtureInstallation, inten
 		return fmt.Errorf("%w: fixture installation attempt %s was revoked or changed", ErrStale, id)
 	}
 	if !found || existing.Status != domain.Active {
-		inst, err := s.svc.Install(ctx, nil, i.Organization, i.Target, i.Role, i.Owner, s.installStep)
+		inst, err := s.svc.InstallAsHost(ctx, i.Organization, i.Target, i.Role, i.Owner, s.installStep)
 		if intent != nil && inst.Revision != 0 {
 			s.mu.Lock()
 			intent.revision = inst.Revision
@@ -669,10 +669,10 @@ func (s *State) Installation(id string) (Installation, bool) {
 	return inst, err == nil
 }
 
-// Install installs a solution as the host's own setup (no caller): the
+// InstallAsHost installs a solution as trusted host setup: the
 // fixture's path, and a test's.
-func (s *State) Install(ctx context.Context, org, target, role, owner string) (Installation, error) {
-	inst, err := s.svc.Install(ctx, nil, org, target, role, owner, s.installStep)
+func (s *State) InstallAsHost(ctx context.Context, org, target, role, owner string) (Installation, error) {
+	inst, err := s.svc.InstallAsHost(ctx, org, target, role, owner, s.installStep)
 	return inst, classify(err)
 }
 
@@ -693,14 +693,14 @@ func classify(err error) error {
 	return err
 }
 
-// Uninstall disables an installation and its principal, as the host's own
-// setup (no caller): a test's, and the conformance driver's.
-func (s *State) Uninstall(id string) error {
+// UninstallAsHost disables an installation and its principal for trusted host
+// teardown: a test's, and the conformance driver's.
+func (s *State) UninstallAsHost(id string) error {
 	inst, ok := s.Installation(id)
 	if !ok {
 		return fmt.Errorf("%w: installation %q", ErrUnknown, id)
 	}
-	return s.svc.Uninstall(context.Background(), nil, inst.Organization, id)
+	return s.svc.UninstallAsHost(context.Background(), inst.Organization, id)
 }
 
 // GrantRole grants a role as the host's own setup (no caller): a test's.

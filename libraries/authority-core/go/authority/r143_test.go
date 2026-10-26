@@ -28,8 +28,8 @@ func TestAnOutsiderCannotTellInstalledFromAbsent(t *testing.T) {
 		}
 		return want
 	}
-	answer(h.svc.Uninstall(h.ctx, &zoe, acme, present), present)
-	answer(h.svc.Uninstall(h.ctx, &zoe, acme, absent), absent)
+	answer(h.svc.Uninstall(h.ctx, zoe, acme, present), present)
+	answer(h.svc.Uninstall(h.ctx, zoe, acme, absent), absent)
 	for _, id := range []string{present, absent} {
 		_, err := h.svc.ListRoleGrants(h.ctx, zoe, acme, id)
 		answer(err, id)
@@ -114,7 +114,7 @@ func TestARevokedBindingIsNeverRevived(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := h.svc.Uninstall(h.ctx, nil, acme, h.inst(acme, "a").ID); err != nil {
+	if err := h.svc.UninstallAsHost(h.ctx, acme, h.inst(acme, "a").ID); err != nil {
 		t.Fatal(err)
 	}
 	h.install(acme, "a")
@@ -192,12 +192,12 @@ func TestAFailedInstallStepCanBeRetried(t *testing.T) {
 	h := newHarness(t)
 	admin := h.admin(globex)
 	down := func(context.Context, domain.Installation) error { return errors.New("step down") }
-	if _, err := h.svc.Install(h.ctx, &admin, globex, "b", "author", admin.ID, down); err == nil {
+	if _, err := h.svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, down); err == nil {
 		t.Fatal("a failing step installed")
 	}
-	_, err := h.svc.Install(h.ctx, &admin, globex, "b", "viewer", admin.ID, nil)
+	_, err := h.svc.Install(h.ctx, admin, globex, "b", "viewer", admin.ID, nil)
 	refused(t, err, "pending")
-	inst, err := h.svc.Install(h.ctx, &admin, globex, "b", "author", admin.ID, nil)
+	inst, err := h.svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, nil)
 	if err != nil || inst.Status != domain.Active {
 		t.Fatalf("the retry: %+v %v", inst, err)
 	}
@@ -216,7 +216,7 @@ func TestAnInstallPrincipalIsItsOwn(t *testing.T) {
 				t.Fatal(err)
 			}
 			admin := h.admin(globex)
-			_, err = svc.Install(h.ctx, &admin, globex, "b", "author", admin.ID, nil)
+			_, err = svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, nil)
 			code(t, err, domain.Denied)
 		})
 	}

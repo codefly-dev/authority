@@ -28,7 +28,7 @@ modules:
     - name: org-directory
       source: obin-ai/module-directory
       module: modules/org-directory
-      version: "0.0.0"
+      version: c6b5cb39350a2d9fd6b17c56e34864811409fae8
 environments:
     - name: local
       description: The local authority on a laptop, the authority of its own run

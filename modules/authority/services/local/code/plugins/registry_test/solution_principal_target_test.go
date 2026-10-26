@@ -88,7 +88,7 @@ people:
 		Administrator: "fixture-store-administrator", Reader: "fixture-store-reader", NoteReader: "fixture-principal-note-reader",
 		OtherAdmin: "fixture-zoe", OtherMember: "fixture-omar", OtherTeam: "ops",
 		Existing:               "store-x",
-		Uninstall:              func(_ context.Context, id string) error { return k.State.Uninstall(id) },
+		Uninstall:              func(_ context.Context, id string) error { return k.State.UninstallAsHost(id) },
 		RemoveFromTeam:         k.State.LeaveTeam,
 		RemoveFromOrganization: k.State.LeaveOrganization,
 		SignManifest:           testkit.SignDocument,

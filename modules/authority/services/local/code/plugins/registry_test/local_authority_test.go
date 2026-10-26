@@ -59,7 +59,7 @@ people:
 	if _, err := k.State.ApplyManifest(source); err != nil {
 		t.Fatal(err)
 	}
-	installedChain, err := k.State.Install(context.Background(), "acme", source.Name, "viewer", "alex")
+	installedChain, err := k.State.InstallAsHost(context.Background(), "acme", source.Name, "viewer", "alex")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ people:
 		t.Fatal(err)
 	}
 	for _, org := range []string{"acme", "globex"} {
-		if err := k.State.Uninstall(state.InstallationID(org, "runtime")); err != nil {
+		if err := k.State.UninstallAsHost(state.InstallationID(org, "runtime")); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -152,7 +152,7 @@ people:
 				})
 				return func() { once.Do(func() { close(done) }) }
 			},
-			Revoke: func(_ context.Context, id string) error { return k.State.Uninstall(id) },
+			Revoke: func(_ context.Context, id string) error { return k.State.UninstallAsHost(id) },
 		},
 		UnentitledToken: "fixture-no-roles",
 		Organization:    "acme", ViewerToken: "fixture-maya", AdminToken: "fixture-alex",

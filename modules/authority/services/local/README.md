@@ -15,6 +15,13 @@ workload attestation against the launcher's anchor, signed delivery
 admission, method admission on `Check`, and approvals. The plugins translate
 the wire to the core's calls (`pkg/business/issuer`, `plugins/installation`).
 
+Request-facing installation methods require a person value and current stored
+authority. Trusted fixture setup and teardown use the separate `InstallAsHost`
+and `UninstallAsHost` methods; a missing or unauthenticated person never selects
+host power. Module installations remain composition-owned after withdrawal.
+Role calls answer as foreign when the caller is neither administrator nor
+installer, including for an installation in their own organization.
+
 Child issuance preserves the verified parent's workspace/project identifiers
 and each prior actor's agent/organization identifiers while deriving the new
 target's grants. These fields remain absent when the parent omitted them;

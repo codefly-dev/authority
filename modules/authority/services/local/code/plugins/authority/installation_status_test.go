@@ -37,7 +37,7 @@ func TestPersonIssueDistinguishesInstallationAndEntitlement(t *testing.T) {
 				k.State.OnInstall(func(context.Context, state.Installation) error { return errors.New("install not acknowledged") })
 			}
 			if tc.state != "absent" {
-				inst, err := k.State.Install(t.Context(), "acme", m.Name, "viewer", "alex")
+				inst, err := k.State.InstallAsHost(t.Context(), "acme", m.Name, "viewer", "alex")
 				if tc.state != "pending" && err != nil {
 					t.Fatal(err)
 				}
@@ -45,7 +45,7 @@ func TestPersonIssueDistinguishesInstallationAndEntitlement(t *testing.T) {
 					t.Fatal("fixture is not pending")
 				}
 				if tc.state == "revoked" {
-					if err := k.State.Uninstall(inst.ID); err != nil {
+					if err := k.State.UninstallAsHost(inst.ID); err != nil {
 						t.Fatal(err)
 					}
 				}
