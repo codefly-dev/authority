@@ -86,7 +86,7 @@
       "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
     },
     "accept": false,
-    "reason": "widens authority"
+    "reason": "attenuation"
   },
   {
     "name": "no seal",
@@ -98,7 +98,7 @@
       "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
     },
     "accept": false,
-    "reason": "seal"
+    "reason": "malformed"
   },
   {
     "name": "seal epoch zero",
@@ -110,7 +110,7 @@
       "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
     },
     "accept": false,
-    "reason": "principal_epoch"
+    "reason": "malformed"
   },
   {
     "name": "empty tenant",
@@ -122,7 +122,7 @@
       "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
     },
     "accept": false,
-    "reason": "tenant_id"
+    "reason": "malformed"
   },
   {
     "name": "wrong type",
@@ -134,7 +134,7 @@
       "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
     },
     "accept": false,
-    "reason": "typ"
+    "reason": "malformed"
   },
   {
     "name": "unknown replay policy",
@@ -146,7 +146,7 @@
       "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
     },
     "accept": false,
-    "reason": "replay_policy"
+    "reason": "malformed"
   },
   {
     "name": "actor without an epoch",
@@ -158,7 +158,7 @@
       "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
     },
     "accept": false,
-    "reason": "principal_epoch"
+    "reason": "malformed"
   },
   {
     "name": "lifetime beyond a day",
@@ -182,7 +182,7 @@
       "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
     },
     "accept": false,
-    "reason": "replayable"
+    "reason": "grant"
   },
   {
     "name": "grant to another hop",
@@ -206,7 +206,7 @@
       "conformance-1": "zUk2IHGYpgzQIg62XX3M2E4ljwn34sgdGreGOMl9Efs="
     },
     "accept": false,
-    "reason": "conformance fixture key"
+    "reason": "fixture_key"
   },
   {
     "name": "forged signature",
@@ -233,6 +233,18 @@
     "reason": "signature"
   },
   {
+    "name": "empty signature",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893601,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "signature"
+  },
+  {
     "name": "another audience",
     "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.ccIoRo1Phc6RcTq3N_mL0z1r5EbZfw-v-Z8WXu4FGlJ6kprieciqWuU4kSPwplc0Itwdfk3mTSGIhQBbPeR7Dw",
     "audience": "another-module",
@@ -242,7 +254,7 @@
       "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
     },
     "accept": false,
-    "reason": "minted for audience"
+    "reason": "audience"
   },
   {
     "name": "expired",
@@ -266,7 +278,7 @@
       "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
     },
     "accept": false,
-    "reason": "not valid before"
+    "reason": "not_yet_valid"
   },
   {
     "name": "another issuer",
@@ -278,7 +290,7 @@
       "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
     },
     "accept": false,
-    "reason": "issued by"
+    "reason": "issuer"
   },
   {
     "name": "a key the authority does not publish",
@@ -290,6 +302,6 @@
       "rotated": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
     },
     "accept": false,
-    "reason": "no verification key"
+    "reason": "unknown_key"
   }
 ]

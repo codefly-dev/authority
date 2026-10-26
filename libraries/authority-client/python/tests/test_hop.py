@@ -53,11 +53,11 @@ def test_the_hop_fixture_authenticates_and_reads_as_go_reads_it():
 
 # The defect: a module holding the proof writes the proof and any token's digest.
 @pytest.mark.parametrize("change, reason", [
-    ({TENANT_KEY: "globex"}, "tenant"),
-    ({SCOPES_KEY: "documents.collection:read,documents.collection:admin"}, "scopes"),
-    ({ACTORS_KEY: "robin"}, "actors"),
+    ({TENANT_KEY: "globex"}, "stamp_identity"),
+    ({SCOPES_KEY: "documents.collection:read,documents.collection:admin"}, "stamp_identity"),
+    ({ACTORS_KEY: "robin"}, "stamp_identity"),
     ({"x-codefly-hop-proof": "another-run"}, "proof"),
-    ({CONTEXT_KEY: "0" * 64}, "stamp binds"),
+    ({CONTEXT_KEY: "0" * 64}, "stamp_digest"),
 ])
 def test_a_stamp_the_token_does_not_bear_out_is_refused(change, reason):
     with pytest.raises(Unauthenticated, match=reason):
@@ -74,7 +74,7 @@ def test_a_token_the_authority_did_not_sign_is_refused_even_with_a_matching_dige
 
 
 def test_another_audience_and_an_expired_context_are_refused():
-    with pytest.raises(Unauthenticated, match="minted for audience"):
+    with pytest.raises(Unauthenticated, match="audience"):
         Verifier(Keys(published()), audience="records", proof=FIXTURE["proof"], now=lambda: FIXTURE["now"]).verify(FIXTURE["headers"])
     with pytest.raises(Unauthenticated, match="expired"):
         verifier(clock=lambda: FIXTURE["now"] + 3600, source=Keys(published())).verify(FIXTURE["headers"])
@@ -336,3 +336,51 @@ def test_an_idle_replica_polled_for_readiness_stays_ready():
         settle(v)
         assert v.ready(), f"an idle replica went unready at minute {minute + 1}"
     assert 10 <= source.reads <= 14
+
+
+@pytest.mark.parametrize("row", json.loads((Path(__file__).parents[2] / "testdata/vectors.json").read_text()), ids=lambda r: r["name"])
+def test_bare_token_matches_shared_verdict(row):
+    response = KeysResponse(issuer=row["issuer"])
+    for kid, raw in row["keys"].items():
+        response.keys.add(key_id=kid, algorithm="Ed25519", public_key=base64.b64decode(raw))
+    v = Verifier(Keys(response), audience=row["audience"], proof="proof", now=lambda: row["now"])
+    if row["accept"]:
+        assert v.verify_token(row["token"]).claims.audience == row["audience"]
+    else:
+        with pytest.raises(Unauthenticated) as refused:
+            v.verify_token(row["token"])
+        assert refused.value.code == row["reason"]
+        assert row["token"] not in str(refused.value)
+
+
+def test_bare_token_stale_wait_async_and_safe_reasons():
+    import asyncio
+    from codefly_hop import Reason
+    codes = [r.value for r in Reason]
+    assert len(set(codes)) == len(codes)
+    assert len({Unauthenticated(r).text for r in Reason}) == len(codes)
+    clock = [FIXTURE["now"] - KEY_STALE - 60]
+    source = Keys(published())
+    v = verifier(clock=lambda: clock[0], source=source)
+    clock[0] = FIXTURE["now"]
+    token = FIXTURE["headers"][WORK_CONTEXT_KEY]
+    assert asyncio.run(v.verify_token_async(token)).owner == FIXTURE["identity"]["owner"]
+    assert source.reads == 2
+    clock[0] += KEY_STALE + 1
+    source.error = RuntimeError("secret-key-source")
+    with pytest.raises(Unauthenticated) as refused:
+        v.verify_token(token)
+    assert refused.value.code == Reason.KEYSUNAVAILABLE.value
+    assert "secret" not in str(refused.value)
+
+@pytest.mark.parametrize("change, code", [
+    ({"x-codefly-hop-proof": "private-proof"}, "stamp_proof"),
+    ({WORK_CONTEXT_KEY: ""}, "stamp_token"),
+    ({CONTEXT_KEY: "private-digest"}, "stamp_digest"),
+    ({TENANT_KEY: "private-tenant"}, "stamp_identity"),
+])
+def test_stamp_failure_codes_are_safe_and_distinct(change, code):
+    with pytest.raises(Unauthenticated) as refused:
+        verifier().verify({**FIXTURE["headers"], **change})
+    assert refused.value.code == code
+    assert "private-" not in str(refused.value)

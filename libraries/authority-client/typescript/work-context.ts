@@ -26,8 +26,56 @@ const FIXTURE_PUBLIC = Buffer.from(createPrivateKey({
   format: "der", type: "pkcs8",
 }).export({ format: "jwk" }).x as string, "base64url");
 
+export enum Reason {
+  Configuration = "configuration",
+  StampProof = "stamp_proof",
+  StampToken = "stamp_token",
+  StampDigest = "stamp_digest",
+  StampIdentity = "stamp_identity",
+  KeysUnavailable = "keys_unavailable",
+  Cancelled = "cancelled",
+  Malformed = "malformed",
+  Lifetime = "lifetime",
+  Issuer = "issuer",
+  UnknownKey = "unknown_key",
+  InvalidKey = "invalid_key",
+  FixtureKey = "fixture_key",
+  Signature = "signature",
+  Audience = "audience",
+  NotYetValid = "not_yet_valid",
+  Expired = "expired",
+  Attenuation = "attenuation",
+  Grant = "grant",
+}
+const reasonText: Record<Reason, string> = {
+  [Reason.Configuration]: "the verifier configuration is incomplete",
+  [Reason.StampProof]: "the call requires this run's hop proof",
+  [Reason.StampToken]: "the stamp binds no single Work Context",
+  [Reason.StampDigest]: "the Work Context does not match the hop stamp",
+  [Reason.StampIdentity]: "the stamp does not match the authenticated Work Context",
+  [Reason.KeysUnavailable]: "the authority's published keys are unavailable",
+  [Reason.Cancelled]: "the call ended while the authority's keys were being read",
+  [Reason.Malformed]: "the Work Context encoding or claims are invalid",
+  [Reason.Lifetime]: "the capability lifetime exceeds the allowed bound",
+  [Reason.Issuer]: "the Work Context was issued by an untrusted issuer",
+  [Reason.UnknownKey]: "no verification key is published for this Work Context",
+  [Reason.InvalidKey]: "the authority's verification key is malformed",
+  [Reason.FixtureKey]: "the conformance fixture key is refused",
+  [Reason.Signature]: "the signature does not verify under the published key",
+  [Reason.Audience]: "the Work Context was minted for another audience",
+  [Reason.NotYetValid]: "the Work Context is not valid before its not-before instant",
+  [Reason.Expired]: "the Work Context has expired",
+  [Reason.Attenuation]: "the actor chain widens authority",
+  [Reason.Grant]: "the grant structure is invalid",
+};
+/** Fixed caller-safe code and text; never retains a diagnostic cause. */
 export class Unauthenticated extends Error {
   override name = "Unauthenticated";
+  readonly text: string;
+  constructor(readonly code: Reason) {
+    super(`${code}: ${reasonText[code]}`);
+    this.text = reasonText[code];
+  }
 }
 
 /** The authority a module believes: its issuer and published keys, from Keys. */
@@ -45,11 +93,11 @@ export function trustFromKeys(response: KeysResponse, now?: () => number): Trust
   for (const key of response.keys) {
     if (key.algorithm !== "Ed25519") continue;
     if (!key.keyId || keys.has(key.keyId) || key.publicKey.length !== 32) {
-      throw new Unauthenticated("the authority publishes an unnamed, repeated or malformed key");
+      throw new Unauthenticated(Reason.InvalidKey);
     }
     keys.set(key.keyId, Uint8Array.from(key.publicKey));
   }
-  if (!response.issuer || keys.size === 0) throw new Unauthenticated("the authority publishes no issuer or no Ed25519 key");
+  if (!response.issuer || keys.size === 0) throw new Unauthenticated(Reason.InvalidKey);
   return { issuer: response.issuer, keys, now };
 }
 
@@ -79,43 +127,49 @@ export type StampHeaders = Readonly<Record<string, string | readonly string[]>> 
 /** The claims of the Work Context the hop forwarded to this module (audience), or
  * Unauthenticated naming why it must not be believed. */
 export function authenticateClaims(headers: StampHeaders, proof: string, audience: string, trust: Trust): Claims {
-  if (!audience) throw new Unauthenticated("no audience: a module authenticates a context for itself");
-  const token = boundToken(headers, proof);
+  if (!audience) throw new Unauthenticated(Reason.Configuration);
+  return authenticateToken(boundToken(headers, proof), audience, trust);
+}
+
+/** Authenticate bare bytes without claiming hop admission or live checks. */
+export function authenticateToken(token: string, audience: string, trust: Trust): Claims {
+  if (!audience) throw new Unauthenticated(Reason.Configuration);
   if (token.length > MAX_TOKEN_BYTES || token.split(".").length !== 2) {
-    throw new Unauthenticated("expected a bounded payload.signature context");
+    throw new Unauthenticated(Reason.Malformed);
   }
   const [payloadSegment, signatureSegment] = token.split(".");
-  const payload = decodeSegment(payloadSegment), signature = decodeSegment(signatureSegment);
+  const payload = decodeSegment(payloadSegment), signature = signatureSegment === "" ? new Uint8Array() : decodeSegment(signatureSegment);
   let context: WorkContextV1;
   try {
     context = fromBinary(WorkContextV1Schema, payload, { readUnknownFields: false });
   } catch {
-    throw new Unauthenticated("payload is not a WorkContextV1");
+    throw new Unauthenticated(Reason.Malformed);
   }
   const checked = validator.validate(WorkContextV1Schema, context);
   if (checked.kind !== "valid") {
-    throw new Unauthenticated(`invalid claims: ${checked.kind === "invalid" ? checked.violations.map(v => v.toString()).join("; ") : checked.error.message}`);
+    throw new Unauthenticated(Reason.Malformed);
   }
   const canonical = toBinary(WorkContextV1Schema, context);
   if (canonical.length !== payload.length || canonical.some((byte, index) => byte !== payload[index])) {
-    throw new Unauthenticated("payload is noncanonical or carries a field this reader does not know");
+    throw new Unauthenticated(Reason.Malformed);
   }
   const notBefore = Number(context.notBeforeUnix), expires = Number(context.expiresAtUnix);
-  if (expires - notBefore > MAX_LIFETIME_SECONDS) throw new Unauthenticated("the capability's lifetime exceeds 24h");
-  if (context.issuer !== trust.issuer) throw new Unauthenticated(`issued by ${context.issuer}, not ${trust.issuer}`);
+  if (expires - notBefore > MAX_LIFETIME_SECONDS) throw new Unauthenticated(Reason.Lifetime);
+  if (context.issuer !== trust.issuer) throw new Unauthenticated(Reason.Issuer);
   const raw = trust.keys.get(context.keyId);
-  if (!raw || raw.length !== 32) throw new Unauthenticated(`no verification key ${context.keyId}; the authority does not publish it`);
+  if (!raw) throw new Unauthenticated(Reason.UnknownKey);
+  if (raw.length !== 32) throw new Unauthenticated(Reason.InvalidKey);
   if (Buffer.from(raw).equals(FIXTURE_PUBLIC)) {
-    throw new Unauthenticated(`key ${context.keyId} is the conformance fixture key, which anyone can derive from Core's source`);
+    throw new Unauthenticated(Reason.FixtureKey);
   }
   const key = createPublicKey({ key: { kty: "OKP", crv: "Ed25519", x: Buffer.from(raw).toString("base64url") }, format: "jwk" });
   if (signature.length !== 64 || !verify(null, payload, key, signature)) {
-    throw new Unauthenticated("signature does not verify under the authority's published key");
+    throw new Unauthenticated(Reason.Signature);
   }
-  if (context.audience !== audience) throw new Unauthenticated(`minted for audience ${context.audience}, presented to ${audience}`);
+  if (context.audience !== audience) throw new Unauthenticated(Reason.Audience);
   const now = (trust.now ?? Date.now)() / 1000;
-  if (now + SKEW_SECONDS < notBefore) throw new Unauthenticated("not valid before its not-before instant");
-  if (!(now - SKEW_SECONDS < expires)) throw new Unauthenticated("expired");
+  if (now + SKEW_SECONDS < notBefore) throw new Unauthenticated(Reason.NotYetValid);
+  if (!(now - SKEW_SECONDS < expires)) throw new Unauthenticated(Reason.Expired);
   checkStructure(context);
   const effective = context.actorChain.at(-1)?.grantedScopes ?? context.authorityScopes;
   const scopes = Object.freeze(effective.map(scope => Object.freeze({
@@ -170,33 +224,33 @@ function checkStructure(context: WorkContextV1): void {
   chain.forEach((hop, index) => {
     const elevated = grant !== undefined && index === chain.length - 1;
     if (!elevated && !hop.grantedScopes.every(scope => scopeContained(scope, effective))) {
-      throw new Unauthenticated(`actor hop ${index} (${hop.principalId}) widens authority beyond the hop before it`);
+      throw new Unauthenticated(Reason.Attenuation);
     }
     effective = hop.grantedScopes;
   });
   if (grant === undefined) return;
   const name = grant.grantId;
-  if (chain.length === 0) throw new Unauthenticated(`grant ${name} has no actor hop to elevate`);
-  if (context.parentSessionId === undefined) throw new Unauthenticated(`grant ${name} is not a child session`);
-  if (context.replayPolicy !== "single-use") throw new Unauthenticated(`grant ${name} is replayable; a grant authorizes one call`);
+  if (chain.length === 0) throw new Unauthenticated(Reason.Grant);
+  if (context.parentSessionId === undefined) throw new Unauthenticated(Reason.Grant);
+  if (context.replayPolicy !== "single-use") throw new Unauthenticated(Reason.Grant);
   const scope = grant.grantedScope;
   if (!scope || scope.actions.length !== 1 || scope.resourceIds.length !== 1) {
-    throw new Unauthenticated(`grant ${name} must name exactly one action on one resource`);
+    throw new Unauthenticated(Reason.Grant);
   }
   const last = chain[chain.length - 1];
   if (last.grantedScopes.length !== 1 || !equals(WorkScopeV1Schema, last.grantedScopes[0], scope)) {
-    throw new Unauthenticated(`grant ${name} elevates a hop holding something other than the granted scope`);
+    throw new Unauthenticated(Reason.Grant);
   }
-  if (last.delegationId !== name) throw new Unauthenticated(`grant ${name} elevates a hop delegated by ${last.delegationId}`);
+  if (last.delegationId !== name) throw new Unauthenticated(Reason.Grant);
   const actor = chain.length > 1 ? identityKey(context, chain[chain.length - 2]) : identityKey(context);
-  if (identityKey(context, last) !== actor) throw new Unauthenticated(`grant ${name} hands authority to another principal rather than elevating it`);
+  if (identityKey(context, last) !== actor) throw new Unauthenticated(Reason.Grant);
 }
 
 /** The one token the stamp's digest binds under this run's proof. Bound, not
  * authenticated: whoever holds the proof can write both. */
 export function boundToken(headers: StampHeaders, proof: string): string {
   if (headers === null || typeof headers !== "object" || typeof proof !== "string") {
-    throw new Unauthenticated("context requires request headers and a run proof");
+    throw new Unauthenticated(Reason.Configuration);
   }
   const values = new Map<string, string[]>();
   const pairs = Symbol.iterator in Object(headers) ? headers as Iterable<readonly [string, string]> : Object.entries(headers);
@@ -211,18 +265,19 @@ export function boundToken(headers: StampHeaders, proof: string): string {
   };
   const token = one("x-codefly-work-context");
   if (!proof || !equal(proof, one("x-codefly-hop-proof"))) {
-    throw new Unauthenticated("the call did not come through the hop: it carries no stamp with this run's proof");
+    throw new Unauthenticated(Reason.StampProof);
   }
-  if (!token || !equal(createHash("sha256").update(token).digest("hex"), one("x-codefly-hop-context"))) {
-    throw new Unauthenticated("the Work Context is not the one the hop's stamp binds");
+  if (!token || values.get("x-codefly-hop-context")?.length !== 1) throw new Unauthenticated(Reason.StampToken);
+  if (!equal(createHash("sha256").update(token).digest("hex"), one("x-codefly-hop-context"))) {
+    throw new Unauthenticated(Reason.StampDigest);
   }
   return token;
 }
 
 function decodeSegment(segment: string): Uint8Array {
-  if (!/^[A-Za-z0-9_-]+$/.test(segment)) throw new Unauthenticated("context segment is not base64url");
+  if (!/^[A-Za-z0-9_-]+$/.test(segment)) throw new Unauthenticated(Reason.Malformed);
   const decoded = Buffer.from(segment, "base64url");
-  if (decoded.toString("base64url") !== segment) throw new Unauthenticated("context segment is not canonical base64url");
+  if (decoded.toString("base64url") !== segment) throw new Unauthenticated(Reason.Malformed);
   return new Uint8Array(decoded);
 }
 
@@ -294,7 +349,7 @@ export class Verifier {
 
   constructor(private readonly source: KeySource, private readonly audience: string, private readonly proof: string,
               private readonly now: () => number = Date.now, private readonly timeoutMs: number = KEY_TIMEOUT_MS) {
-    if (!source || !audience || !proof) throw new Unauthenticated("a verifier needs the authority's Keys, this module's audience and the run's hop proof");
+    if (!source || !audience || !proof) throw new Unauthenticated(Reason.Configuration);
     void this.refresh();
   }
 
@@ -315,8 +370,7 @@ export class Verifier {
     const pairs = [...(Symbol.iterator in Object(headers) ? headers as Iterable<readonly [string, string]> : Object.entries(headers))]
       .flatMap(([key, value]) => (typeof value === "string" ? [value] : [...value]).map(v => [key.toLowerCase(), v] as const));
     const token = boundToken(pairs, this.proof); // the stamp first: nothing unbound reaches the key read
-    const claims = authenticateClaims(pairs, this.proof, this.audience, await this.trustFor(keyIdOf(token)));
-    const id = identityOf(claims.context);
+    const id = await this.verifyToken(token);
     const stamped: Record<string, string> = {
       "x-codefly-hop-owner": id.owner, "x-codefly-hop-owner-kind": id.ownerKind, "x-codefly-hop-tenant": id.tenant,
       "x-codefly-hop-actors": id.actors.join(","), "x-codefly-hop-scopes": id.scopes.join(","),
@@ -325,11 +379,17 @@ export class Verifier {
     for (const [key, want] of Object.entries(stamped)) {
       const got = pairs.filter(([name]) => name === key).map(([, value]) => value);
       if (got.length > 1 || (got[0] ?? "") !== want) {
-        throw new Unauthenticated(`the stamp's ${key.slice("x-codefly-hop-".length)} does not match the authenticated Work Context`);
+        throw new Unauthenticated(Reason.StampIdentity);
       }
     }
     const advisory = pairs.find(([name]) => name === "x-codefly-hop-advisory")?.[1] ?? "";
-    return Object.freeze({ ...id, context: token, advisory, claims });
+    return Object.freeze({ ...id, advisory });
+  }
+
+  /** Authenticate a bare token with the stamped path's fail-closed key cache. */
+  async verifyToken(token: string): Promise<Identity> {
+    const claims = authenticateToken(token, this.audience, await this.trustFor(keyIdOf(token)));
+    return Object.freeze({ ...identityOf(claims.context), context: token, claims, advisory: "" });
   }
 
   private async trustFor(keyId: string): Promise<Trust> {
@@ -341,7 +401,7 @@ export class Verifier {
     // idle replica's first call is judged on fresh keys, not refused while they arrive.
     if ((!held || now - this.fetched > KEY_STALE_MS) && this.inflight) await this.inflight;
     if (!this.trust || this.now() - this.fetched > KEY_STALE_MS) {
-      throw new Unauthenticated("the authority's published keys are unavailable");
+      throw new Unauthenticated(Reason.KeysUnavailable);
     }
     return { ...this.trust, now: this.now };
   }
@@ -363,6 +423,7 @@ export class Verifier {
 }
 
 function keyIdOf(token: string): string {
+  if (token.length > MAX_TOKEN_BYTES) return "";
   try {
     return fromBinary(WorkContextV1Schema, Buffer.from(token.split(".")[0], "base64url")).keyId;
   } catch {

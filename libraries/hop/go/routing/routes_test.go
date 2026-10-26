@@ -14,7 +14,6 @@ func endpoint(service, transport string, methods ...string) RouteEndpoint {
 
 func TestPublishedListenersStayDistinct(t *testing.T) {
 	routes := Routing{Schema: RoutingSchema, Endpoints: []RouteEndpoint{
-		endpoint("first", "grpc", "/first.Service/Call"),
 		endpoint("second", "grpc", "/second.Service/Call"),
 		endpoint("first", "connect", "/first.Service/Call"),
 		endpoint("web", "http", "GET /first.Service/Call", "POST /ordinary.Service/Call", "POST /items/{id}:publish", "GET /files/{name=**}:read"),
@@ -53,6 +52,7 @@ func TestPublishedListenersStayDistinct(t *testing.T) {
 func TestAmbiguousPublicationAndTemplatesRefuse(t *testing.T) {
 	for _, second := range []RouteEndpoint{
 		endpoint("second", "grpc", "/first.Service/Call"),
+		endpoint("second", "connect", "/first.Service/Call"),
 		endpoint("first", "grpc", "/other.Service/Call"),
 	} {
 		routes := Routing{Schema: RoutingSchema, Endpoints: []RouteEndpoint{endpoint("first", "grpc", "/first.Service/Call"), second}}
@@ -112,6 +112,16 @@ func TestNonCanonicalPathsNeverMatchEvenAnExactInventory(t *testing.T) {
 		r := Routing{Endpoints: []RouteEndpoint{endpoint("web", "http", "GET "+path)}}
 		if _, _, err := r.Resolve("module", "http", "GET "+path); err == nil {
 			t.Fatalf("exact inventory accepted %s", path)
+		}
+	}
+}
+
+func TestConnectGRPCOverlapRefusesInEitherOrder(t *testing.T) {
+	a, b := endpoint("a", "grpc", "/a.Service/Call"), endpoint("b", "connect", "/a.Service/Call")
+	for _, endpoints := range [][]RouteEndpoint{{a, b}, {b, a}} {
+		r := Routing{Schema: RoutingSchema, Endpoints: endpoints}
+		if err := r.Validate(); err == nil {
+			t.Fatal("ambiguous protocol publication accepted")
 		}
 	}
 }

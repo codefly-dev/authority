@@ -28,9 +28,9 @@ from datetime import datetime, timezone
 
 from authority_client._gen.host.authority.v1.authority_pb2 import KeysRequest
 from authority_client._gen.host.authority.v1.work_context_pb2 import WorkContextV1
-from authority_client.work_context import Claims, Trust, Unauthenticated, authenticate, bound_token, collect
+from authority_client.work_context import Claims, Trust, Unauthenticated, Reason, authenticate_token, bound_token, collect
 
-__all__ = ["Identity", "Verifier", "Unauthenticated", "identity_of"]
+__all__ = ["Identity", "Verifier", "Unauthenticated", "Reason", "identity_of"]
 
 WORK_CONTEXT_KEY = "x-codefly-work-context"
 STAMP_PREFIX = "x-codefly-hop-"
@@ -110,7 +110,7 @@ class Verifier:
     def __init__(self, keys, *, audience: str, proof: str, now: Callable[[], float] | None = None,
                  timeout: float = KEY_TIMEOUT) -> None:
         if keys is None or not audience or not proof:
-            raise Unauthenticated("a verifier needs the authority's Keys, this module's audience and the run's hop proof")
+            raise Unauthenticated(Reason.CONFIGURATION)
         self._source, self._audience, self._proof, self._timeout = keys, audience, proof, timeout
         self._now = now or time.time
         self._lock = threading.Lock()
@@ -162,6 +162,23 @@ class Verifier:
                 pass  # judged below on the keys held: stale ones are refused with the reason
         return self._finish(pairs, token)
 
+    def verify_token(self, token: str) -> Identity:
+        """Authenticate a bare token with the same fail-closed key cache."""
+        wait = self._start(_key_id(token))
+        if wait is not None:
+            futures.wait((wait,), self._timeout)
+        return self._token_identity(token)
+
+    async def verify_token_async(self, token: str) -> Identity:
+        """Async bare-token verification; never blocks the event loop."""
+        wait = self._start(_key_id(token))
+        if wait is not None:
+            try:
+                await asyncio.wait_for(asyncio.wrap_future(wait), self._timeout)
+            except asyncio.TimeoutError:
+                pass
+        return self._token_identity(token)
+
     def _bound(self, headers) -> tuple[list[tuple[str, str]], str]:
         pairs = list(headers.items() if isinstance(headers, Mapping) else headers)
         return pairs, bound_token(pairs, self._proof)
@@ -180,14 +197,18 @@ class Verifier:
             judgeable = held and now - self._fetched <= KEY_STALE
             return None if judgeable else self._inflight
 
-    def _finish(self, pairs: list[tuple[str, str]], token: str) -> Identity:
+    def _token_identity(self, token: str) -> Identity:
         with self._lock:
             if self._trust is None or self._now() - self._fetched > KEY_STALE:
-                raise Unauthenticated("the authority's published keys are unavailable")
+                raise Unauthenticated(Reason.KEYSUNAVAILABLE)
             trust = self._trust
-        claims = authenticate(pairs, self._proof, self._audience, trust)
-        values = collect(pairs)
+        claims = authenticate_token(token, self._audience, trust)
         identity = identity_of(claims.context)
+        return Identity(**{**identity.__dict__, "context": token, "claims": claims})
+
+    def _finish(self, pairs: list[tuple[str, str]], token: str) -> Identity:
+        identity = self._token_identity(token)
+        values = collect(pairs)
         stamped = {
             OWNER_KEY: identity.owner, OWNER_KIND_KEY: identity.owner_kind, TENANT_KEY: identity.tenant,
             ACTORS_KEY: ",".join(identity.actors), SCOPES_KEY: ",".join(identity.scopes),
@@ -197,9 +218,9 @@ class Verifier:
         for key, want in stamped.items():
             got = values.get(key, [])
             if len(got) > 1 or (got[0] if got else "") != want:
-                raise Unauthenticated(f"the stamp's {key.removeprefix(STAMP_PREFIX)} does not match the authenticated Work Context")
+                raise Unauthenticated(Reason.STAMPIDENTITY)
         advisory = (values.get(ADVISORY_KEY) or [""])[0]
-        return Identity(**{**identity.__dict__, "context": token, "advisory": advisory, "claims": claims})
+        return Identity(**{**identity.__dict__, "context": token, "advisory": advisory})
 
     def _refresh(self) -> futures.Future[None]:
         """Start the one read, on its own thread and timeout; the lock is held. The
@@ -231,6 +252,8 @@ class Verifier:
 
 def _key_id(token: str) -> str:
     """The key a token names, read only to choose the keys it is judged by."""
+    if len(token) > 32 * 1024:
+        return ""
     try:
         context = WorkContextV1()
         context.ParseFromString(base64.urlsafe_b64decode(token.split(".")[0] + "=="))

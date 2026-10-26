@@ -63,17 +63,17 @@ func vectors(t *testing.T) []vector {
 			c.AuthorityScopes = []*basev0.WorkScopeV1{{ResourceKind: "record", Actions: []string{"read"}, ResourceIds: []string{"a"}}, {ResourceKind: "record", Actions: []string{"write"}, ResourceIds: []string{"b"}}}
 		}, nil, ""),
 		build("an actor granted nothing", "delegated", func(c *basev0.WorkContextV1) { c.ActorChain[0].GrantedScopes = nil }, nil, ""),
-		build("an actor widens the owner", "delegated", widen, nil, "widens authority"),
-		build("no seal", "session", func(c *basev0.WorkContextV1) { c.Seal = nil }, nil, "seal"),
-		build("seal epoch zero", "session", func(c *basev0.WorkContextV1) { c.Seal.PrincipalEpoch = 0 }, nil, "principal_epoch"),
-		build("empty tenant", "session", func(c *basev0.WorkContextV1) { c.TenantId = "" }, nil, "tenant_id"),
-		build("wrong type", "session", func(c *basev0.WorkContextV1) { c.Typ = "codefly.work-context/v0" }, nil, "typ"),
-		build("unknown replay policy", "session", func(c *basev0.WorkContextV1) { c.ReplayPolicy = "forever" }, nil, "replay_policy"),
-		build("actor without an epoch", "delegated", func(c *basev0.WorkContextV1) { c.ActorChain[0].PrincipalEpoch = 0 }, nil, "principal_epoch"),
+		build("an actor widens the owner", "delegated", widen, nil, "attenuation"),
+		build("no seal", "session", func(c *basev0.WorkContextV1) { c.Seal = nil }, nil, "malformed"),
+		build("seal epoch zero", "session", func(c *basev0.WorkContextV1) { c.Seal.PrincipalEpoch = 0 }, nil, "malformed"),
+		build("empty tenant", "session", func(c *basev0.WorkContextV1) { c.TenantId = "" }, nil, "malformed"),
+		build("wrong type", "session", func(c *basev0.WorkContextV1) { c.Typ = "codefly.work-context/v0" }, nil, "malformed"),
+		build("unknown replay policy", "session", func(c *basev0.WorkContextV1) { c.ReplayPolicy = "forever" }, nil, "malformed"),
+		build("actor without an epoch", "delegated", func(c *basev0.WorkContextV1) { c.ActorChain[0].PrincipalEpoch = 0 }, nil, "malformed"),
 		build("lifetime beyond a day", "session", func(c *basev0.WorkContextV1) { c.ExpiresAtUnix = c.NotBeforeUnix + 25*3600 }, nil, "lifetime"),
-		build("grant without single use", "grant", func(c *basev0.WorkContextV1) { c.ReplayPolicy = core.ReplayIdempotent }, nil, "replayable"),
+		build("grant without single use", "grant", func(c *basev0.WorkContextV1) { c.ReplayPolicy = core.ReplayIdempotent }, nil, "grant"),
 		build("grant to another hop", "grant", func(c *basev0.WorkContextV1) { c.GrantHop.GrantId = "another-grant" }, nil, "grant"),
-		build("signed with Core's public conformance key", "session", nil, fixturePrivate, "conformance fixture key"),
+		build("signed with Core's public conformance key", "session", nil, fixturePrivate, "fixture_key"),
 	}
 	forged := build("forged signature", "session", nil, nil, "signature")
 	other := ed25519.NewKeyFromSeed([]byte("a forger, not the authority, 32b"))
@@ -82,17 +82,19 @@ func vectors(t *testing.T) []vector {
 	forged.Token = payload + "." + base64.RawURLEncoding.EncodeToString(ed25519.Sign(other, raw))
 	unsigned := build("unsigned", "session", nil, nil, "signature")
 	unsigned.Token = payload + "." + base64.RawURLEncoding.EncodeToString(make([]byte, 64))
-	elsewhere := build("another audience", "session", nil, nil, "minted for audience")
+	elsewhere := build("another audience", "session", nil, nil, "audience")
 	elsewhere.Audience = "another-module"
 	expired := build("expired", "session", nil, nil, "expired")
 	expired.Now = body(t, "session").GetExpiresAtUnix() + 3600
-	early := build("not yet valid", "session", nil, nil, "not valid before")
+	early := build("not yet valid", "session", nil, nil, "not_yet_valid")
 	early.Now = body(t, "session").GetNotBeforeUnix() - 3600
-	issuer := build("another issuer", "session", nil, nil, "issued by")
+	issuer := build("another issuer", "session", nil, nil, "issuer")
 	issuer.Issuer = "https://forger.example"
-	unknown := build("a key the authority does not publish", "session", nil, nil, "no verification key")
+	unknown := build("a key the authority does not publish", "session", nil, nil, "unknown_key")
 	unknown.Keys = map[string]string{"rotated": unknown.Keys[body(t, "session").GetKeyId()]}
-	return append(out, forged, unsigned, elsewhere, expired, early, issuer, unknown)
+	emptySignature := unsigned
+	emptySignature.Name, emptySignature.Token = "empty signature", payload+"."
+	return append(out, forged, unsigned, emptySignature, elsewhere, expired, early, issuer, unknown)
 }
 
 // Every verdict in ../testdata/vectors.json is Go's, reached by the one check a

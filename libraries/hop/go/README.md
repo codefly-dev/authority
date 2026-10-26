@@ -91,3 +91,19 @@ The Go dependency pins authority-client at the commit that introduced
 `workcontext.Authenticate`; standalone library tests need no workspace replacement.
 `../testdata/stamped.json` is a genuinely signed call as the hop stamps it; the
 Python verifier (`codefly_hop`, shipped in `libraries/authority-client/python`) reads it back. Regenerate with `go test -run Fixture -update-fixture`.
+
+
+Bare tokens returned by Issue can be authenticated without manufacturing a hop
+stamp: Go `Verifier.VerifyToken(ctx, token)`, Python `verify_token(token)` /
+`verify_token_async(token)`, TypeScript `verifyToken(token)`. These reuse the
+stamped path's published-key cache, including waiting for stale-key refresh and
+refusing failed refreshes. They check signature, issuer, audience, validity and
+claim structure. They do not prove hop admission, live revocation, method policy,
+or single-use consumption; retain those checks where required.
+
+Verifier failures expose fixed caller-safe reason codes and text. Go callers use
+`errors.As(err, &reason)` with `hop.Reason` (`Code()` / `Text()`); Python and
+TypeScript `Unauthenticated` expose `code` and `text`, with exported `Reason`
+values. These errors never retain underlying key-source errors or claim values.
+`KeysError` / `keys_error` / `keysError` is a separate internal diagnostic, not a
+caller response. Unknown future Core diagnostic categories remain refused.
