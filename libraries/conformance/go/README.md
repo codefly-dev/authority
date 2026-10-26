@@ -71,28 +71,53 @@ single-organization inference remains a local convenience, not a shared promise.
 ## Target: solution principal (not yet part of `Run`)
 
 `RunSolutionPrincipalTarget` specifies solution identity before any host
-implements it. An installed solution is a principal of its organisation with a
-stable UUID, reused by a reinstall; its declared roles are permission levels on
-the data that principal owns; granting a person or a team a role (`GrantRole`) is the
-access and revoking it (`RevokeRole`) ends it at once; a capability's scopes select resources by owner (`resource_owner_id`)
-rather than by id lists; an existing resource joins the principal only through
-`AuthorizeTransfer`, which requires admin the person holds from their own
-organisation grants. The suite first names every contract element the
-published descriptors lack, then runs these cases:
+implements it. The model, in full, is the doc comment on
+`SolutionPrincipalCase`: an installed solution is a principal U of its
+organisation (a stable UUID, reused by a reinstall, disabled by an uninstall,
+distinct per organisation); the installation acting for itself is U, with the
+install request's role; the solution's roles are levels on U's data, granted
+and revoked by an organisation administrator or the solution's installer
+(`GrantRole`, `RevokeRole`, `ListRoleGrants`); a capability through the
+solution is confined to U's data, by owner-selected scopes
+(`WorkScopeV1.resource_owner_id`, field 4), issued only to an audience that
+declares owner-aware checking; an existing person- or organisation-owned
+resource joins U only by `AuthorizeTransfer`, with the person's own admin on it
+and at least editor on U. The target deletes `GrantToTeam`, `team_ids` and
+`agent_principal_id`.
 
-- install creates the solution principal and its roles; a reinstall keeps its UUID
-- without a role on the solution a person is refused, naming the reason
-- a viewer reads what the principal owns, and nothing another installation or a person owns; a scope naming an owner and ids admits only when both match
-- a resource created through the solution is owned by its principal, the person its author; the installation acting for itself is the principal (owner id U) and creates for it
-- the install request's role is the agent's role, and no person's
-- an editor writes and a viewer cannot, each by name
-- another installation's members never reach the principal's data
-- a child never widens the owner or the actions it narrowed to
-- an existing resource joins the principal only by a transfer its person administers through their own grants (an installer role alone and the agent are refused)
-- revoking a person's role stops access at once (an old capability fails Check); re-granting restores it
-- a team's role is its members' access; revoking it stops them at once; re-granting restores it
-- uninstalling disables the principal at once and its data stays owned; a re-grant after reinstall restores access
+The suite first names what the published contract lacks and what it still
+carries, then runs these cases, each making its own grants:
 
-Run it against the local authority from `modules/authority/services/local/code`
-with `AUTHORITY_TARGET=solution-principal go test ./plugins/registry_test -run SolutionPrincipal`.
-It joins `Run` once a host implements it.
+1. install creates the solution principal and its roles; a reinstall keeps its UUID; another organisation's is another principal
+2. the install request's role is the agent's, and no person's: the owner and the organisation administrator hold no role (the agent's owner id is U; it needs its operation binding)
+3. without a role on the solution a person is refused, naming the reason
+4. a viewer reads exactly what the principal owns (root, child, Check, `ListResources` with owner, owner with ids), and nothing a person, an installation, the organisation or another principal owns
+5. a capability through the solution is confined to the principal's data; the person's own grants never flow in
+6. owner-selected scopes are issued only to an audience that checks owners
+7. a resource created through the solution is owned by its principal, the person its author
+8. an editor writes and a viewer cannot, each by name
+9. an organisation administrator or the solution's installer grants; anyone else, and every malformed grant, is refused by name
+10. another installation's and another organisation's members never reach the principal's data
+11. a child never widens the owner, the actions or the ids it narrowed to
+12. an existing resource joins the principal only by a transfer from a person or the organisation, administered through the person's own grants, by an editor of the principal (and nine named refusals)
+13. revoking a person's role stops their access at once, theirs alone; their old capabilities stay dead after a re-grant
+14. a team's role is its members' access; revoking it or leaving the team stops them at once; old capabilities stay dead after a re-grant
+15. a person leaving the organisation loses the solution's data at once
+16. uninstalling disables the principal at once and its data stays owned; old capabilities stay dead after reinstall and re-grant
+
+Two library targets pin the modules' side: `libraries/hop/go`
+`TestAnOwnerSelectedScopeNeverReadsAsTheWholeKind` (the stamp never flattens an
+owner-selected scope into a whole-kind one, and owner-blind `Allows` refuses
+it) and `libraries/authority-client/go/workcontext`
+`TestClaimsAdmitAnOwnerSelectedScopeOnlyForItsOwner` (`AllowsOwned` takes the
+resource's owner; owner and ids both match).
+
+When the target joins `Run`, it supersedes Run's `GrantToTeam`/`team_ids`
+steps (the installation lifecycle's exposure, the callee-staleness probe's
+grant), and Run reads the installation's acting principal through
+`installationPrincipal`, so one host passes both.
+
+Run everything with `AUTHORITY_TARGET=solution-principal`: from
+`modules/authority/services/local/code`,
+`go test ./plugins/registry_test -run SolutionPrincipal`, and `go test ./...`
+in `libraries/hop/go` and `libraries/authority-client/go`. Each skips without it.

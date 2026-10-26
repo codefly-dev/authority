@@ -486,11 +486,14 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 				installation = i
 			}
 		}
-		if installation == nil || enumName(installation, "status") != "STATUS_ACTIVE" || str(installation, "agent_principal_id") == "" {
+		// The principal the installation acts as for itself: agent_principal_id
+		// today, principal_id under the solution-principal target, which
+		// deletes agent_principal_id (installationPrincipal).
+		if installation == nil || enumName(installation, "status") != "STATUS_ACTIVE" || installationPrincipal(installation) == "" {
 			t.Fatalf("installed solution = %v", installation)
 		}
 		out := c.must(t, ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"installation": map[string]any{"installation_id": str(installation, "id")}, "audience": f.InstalledAudience, "actor": map[string]any{"credential": f.InstalledCredential}})
-		if str(msg(out, "context"), "owner_principal_id") != str(installation, "agent_principal_id") {
+		if str(msg(out, "context"), "owner_principal_id") != installationPrincipal(installation) {
 			t.Fatalf("installation issue: %v", out)
 		}
 		c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(out, "token"), "audience": f.InstalledAudience})

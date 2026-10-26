@@ -6,6 +6,7 @@ package registry_test
 
 import (
 	"context"
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -44,22 +45,18 @@ func TestTheLocalAuthorityMeetsTheSolutionPrincipalTarget(t *testing.T) {
     scopes:
       - {kind: principal.collection, actions: [read], resources: [{id: store-x}]}
 people:
-  - id: store-administrator
-    fixture_token: fixture-store-administrator
-    organization: acme
-    roles: [principal-store-admin]
-  - id: store-reader
-    fixture_token: fixture-store-reader
-    organization: acme
-    roles: [principal-store-reader]
-  - id: principal-team-member
-    fixture_token: fixture-principal-team-member
-    organization: acme
-    roles: []
-    teams: [principal-team]
+  - {id: store-administrator, fixture_token: fixture-store-administrator, organization: acme, roles: [principal-store-admin]}
+  - {id: store-reader, fixture_token: fixture-store-reader, organization: acme, roles: [principal-store-reader]}
+  - {id: principal-installer, fixture_token: fixture-principal-installer, organization: acme, roles: []}
+  - {id: principal-team-member, fixture_token: fixture-principal-team-member, organization: acme, roles: [], teams: [principal-team]}
+  - {id: principal-team-leaver, fixture_token: fixture-principal-team-leaver, organization: acme, roles: [], teams: [principal-team]}
+  - {id: principal-org-leaver, fixture_token: fixture-principal-org-leaver, organization: acme, roles: []}
 `)); err != nil {
 		t.Fatal(err)
 	}
+	// The local authority has no membership change yet: these hooks are the
+	// target's, labelled as not implemented rather than faked.
+	notYet := func(what string) error { return errors.New("target: the local authority cannot " + what + " yet") }
 	server := grpc.NewServer()
 	for _, p := range []framework.Plugin{
 		&authority.Plugin{Issuer: k.Issuer},
@@ -84,17 +81,21 @@ people:
 		t.Fatal(err)
 	}
 	conformance.RunSolutionPrincipalTarget(t, conn, descriptors, conformance.SolutionPrincipalCase{
-		Organization: "acme", Generation: 1,
+		Organization: "acme", OtherOrganization: "globex", Generation: 1,
 		A:     conformance.SolutionUnderTest{Solution: "principal-a", Credential: k.Credential(t, "principal-a")},
 		B:     conformance.SolutionUnderTest{Solution: "principal-b", Credential: k.Credential(t, "principal-b")},
 		Store: "principal-store", StoreCredential: k.Credential(t, "principal-store"), Kind: "principal.collection",
-		Admin: "fixture-alex", Viewer: "fixture-maya", Editor: "fixture-remi", Member: "fixture-dev",
-		Administrator: "fixture-store-administrator", Reader: "fixture-store-reader", Existing: "store-x",
-		Team: "principal-team", TeamMember: "fixture-principal-team-member",
-		Uninstall:          func(_ context.Context, id string) error { return k.State.Revoke(id) },
-		SignManifest:       testkit.SignDocument,
-		SignAuthority:      testkit.SignAuthority,
-		DeliveryCredential: func(module string) string { return k.Credential(t, module) },
-		HostCoordinate:     "local", HostDomain: "local",
+		LegacyStore: "principal-legacy-store", LegacyStoreCredential: k.Credential(t, "principal-legacy-store"), LegacyKind: "principal.legacy",
+		Admin: "fixture-alex", Viewer: "fixture-maya", Editor: "fixture-remi", Member: "fixture-dev", Installer: "fixture-principal-installer",
+		Team: "principal-team", TeamMember: "fixture-principal-team-member", TeamLeaver: "fixture-principal-team-leaver", OrgLeaver: "fixture-principal-org-leaver",
+		Administrator: "fixture-store-administrator", Reader: "fixture-store-reader", OtherAdmin: "fixture-zoe", OtherMember: "fixture-omar",
+		Existing:               "store-x",
+		Uninstall:              func(_ context.Context, id string) error { return k.State.Revoke(id) },
+		RemoveFromTeam:         func(context.Context, string, string) error { return notYet("remove a person from a team") },
+		RemoveFromOrganization: func(context.Context, string) error { return notYet("remove a person from the organisation") },
+		SignManifest:           testkit.SignDocument,
+		SignAuthority:          testkit.SignAuthority,
+		DeliveryCredential:     func(module string) string { return k.Credential(t, module) },
+		HostCoordinate:         "local", HostDomain: "local",
 	})
 }
