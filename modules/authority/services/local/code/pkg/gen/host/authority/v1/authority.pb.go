@@ -1138,7 +1138,9 @@ type RegisterAdmissionKeyRequest struct {
 	// of actor's credential, the hex public key, a fresh 32-byte hex nonce and
 	// the Unix second it was signed. The authority refuses a proof that does
 	// not verify, names another credential, key or audience, is older than 30
-	// seconds or ahead of its clock, or repeats a nonce it has seen.
+	// seconds or ahead of its clock, or repeats a nonce it has seen. It proves
+	// possession of the key being registered, which the registrant chose; that
+	// the registrant is the hop rests on actor and the per-instance pin.
 	Proof         string `protobuf:"bytes,3,opt,name=proof,proto3" json:"proof,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

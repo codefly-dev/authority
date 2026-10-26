@@ -32,9 +32,12 @@ type Registration struct {
 // ProveRegistration is the hop's proof that it holds the admission key it
 // registers: the admission key itself signs the authority's audience, the
 // digest of the workload credential presented with it, the public key and a
-// fresh nonce and time. A captured credential alone therefore registers
-// nothing, and a proof made for one credential, key or authority is refused
-// with any other.
+// fresh nonce and time. A proof made for one credential, key or authority is
+// refused with any other, and an authority refuses it once used or stale. It
+// proves possession of a key the registrant chose, not that the registrant is
+// the hop: whoever presents the credential could sign with a key of its own.
+// What stops a captured credential from replacing the hop's key is the
+// authority pinning one key per hop instance (RegisterAdmissionKey).
 func (s *Signer) ProveRegistration(credential, audience string, now time.Time) (string, error) {
 	if s == nil || len(s.key) != ed25519.PrivateKeySize || credential == "" || audience == "" {
 		return "", errors.New("hop: a registration proof needs the admission key, the workload credential and the authority's audience")
@@ -69,7 +72,7 @@ func CheckRegistration(proof string, public ed25519.PublicKey, credential, audie
 	}
 	parts := strings.Split(proof, ".")
 	if len(parts) != 2 {
-		return refuse("is missing or not <payload>.<signature>: the hop proves it holds the key it registers")
+		return refuse("is missing or not <payload>.<signature>: a registration is signed by the key it registers")
 	}
 	payload, err := base64.RawURLEncoding.DecodeString(parts[0])
 	if err != nil || base64.RawURLEncoding.EncodeToString(payload) != parts[0] {

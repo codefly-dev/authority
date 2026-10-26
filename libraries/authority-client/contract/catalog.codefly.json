@@ -10,7 +10,7 @@
       "kind": "protobuf",
       "package": "api",
       "path": "contract.binpb",
-      "digest": "sha256:3f768e844a891e1554b597e586afb39720a2bd6cdb89d99da803e2d54db4204b",
+      "digest": "sha256:579bc11f4c82b90516565027aea11c4738ae565dd2502ee32209d28f8c4bd197",
       "services": [
         {
           "name": "LocalService",
