@@ -10,7 +10,6 @@ languages:
       path: python/
       exports:
         - authority_client
-        - codefly_hop
     - name: typescript
       path: typescript/
       exports:

@@ -127,9 +127,15 @@ class Verifier:
         through failed re-reads inside the 15-minute window; false before any read
         succeeded or once the keys are stale. Readiness uses this, never
         ``keys_error``: a brief authority outage must not take a replica out of
-        rotation while its keys are still trusted."""
+        rotation while its keys are still trusted. It also starts the read a call
+        would (keys missing or older than 5 min, at most every 10 s, never waiting),
+        so an unready replica, which gets no calls, recovers, and an idle one never
+        goes stale."""
         with self._lock:
-            return self._trust is not None and self._now() - self._fetched <= KEY_STALE
+            now = self._now()
+            if (self._trust is None or now - self._fetched > KEY_MAX_AGE) and self._inflight is None and now - self._tried >= KEY_RETRY:
+                self._refresh()
+            return self._trust is not None and now - self._fetched <= KEY_STALE
 
     def verify(self, headers: Mapping[str, str] | Iterable[tuple[str, str]]) -> Identity:
         """Who the call is for, or ``Unauthenticated`` naming why it is refused.

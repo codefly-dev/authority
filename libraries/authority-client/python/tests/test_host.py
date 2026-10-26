@@ -3,7 +3,7 @@
 
 import pytest
 
-from authority_client.host import Refused, Target, dial, endpoint, local_environment, mesh_protected
+from authority_client.host import Refused, Target, dial, endpoint, mesh_protected
 
 
 @pytest.mark.parametrize(
@@ -96,38 +96,27 @@ def test_a_refusal_never_echoes_the_endpoint_value(value):
     assert SECRET not in str(refused.value)
 
 
-# Loopback is local-kind, as Core's environment model reports it, identically to
-# Go's TestLoopbackIsAdmittedInEveryLocalKindEnvironmentOnly.
-@pytest.mark.parametrize("environment, admitted", [
-    ("local", True), ("local-authority", True), ("local-k3d", True),
-    ("staging", False), ("obin-staging", False), ("production", False), ("", False),
-])
-def test_loopback_is_admitted_in_every_local_kind_environment_only(monkeypatch, environment, admitted):
-    monkeypatch.setenv("CODEFLY__ENVIRONMENT", environment)
-    assert local_environment() is admitted
-    for value in ("localhost:7000", "http://127.0.0.1:7000", "grpc://[::1]:7000"):
-        if admitted:
-            endpoint(value, mesh=None)
-        else:
-            with pytest.raises(Refused):
-                endpoint(value, mesh=None)
-
-
-# Review r61 m1, identical to Go's TestControlCharactersZoneIDsAndPortZeroAreRefused.
+# Review r61 m1 and r74 m1: the same table as Go's
+# TestControlCharactersZoneIDsAndInvalidPortsAreRefused.
 @pytest.mark.parametrize("value", [
     "http://127.0.0.1\t:80", "http://local\nhost:80", "127.0.0.1\t:80", "localhost:80\x7f",
+    "\x1clocalhost:7000", "\x1flocalhost:7000", "\tlocalhost:7000", "localhost:7000\n",
     "http://[::1%25lo0]:80", "[::1%lo0]:80", "http://127.0.0.1:0", "127.0.0.1:0", "localhost:00",
-    "https://accounts.example.test:0",
+    "https://accounts.example.test:0", "localhost:", "127.0.0.1:", "localhost:+80", "localhost: 80",
+    "localhost:-1", "localhost:65536", "http://localhost:+80", "https://accounts.example.test:65536",
+    "localhost:\u0663\u0663",
 ])
-def test_control_characters_zone_ids_and_port_zero_are_refused(value):
+def test_control_characters_zone_ids_and_invalid_ports_are_refused(value):
     with pytest.raises(Refused) as refused:
         endpoint(value, local=True, mesh=None)
     assert "\t" not in str(refused.value) and "\n" not in str(refused.value)
 
 
-# Review r61 m3: a channel option never weakens TLS peer verification.
-@pytest.mark.parametrize("option", ["grpc.ssl_target_name_override", "grpc.default_authority", "grpc.ssl_session_cache"])
-def test_dial_refuses_options_that_weaken_tls(option):
-    with pytest.raises(Refused, match="weaken"):
+# Review r61 m3 and r74 m2: only allowlisted options; a proxy, a TLS or authority
+# override or a service config could route or verify the channel otherwise.
+@pytest.mark.parametrize("option", ["grpc.ssl_target_name_override", "grpc.default_authority", "grpc.http_proxy",
+                                    "grpc.service_config", "grpc.enable_http_proxy"])
+def test_dial_admits_only_allowlisted_options(option):
+    with pytest.raises(Refused, match="ALLOWED_OPTIONS"):
         dial("https://accounts.example.test", local=False, mesh=None, options=[(option, "evil.example")])
     dial("https://accounts.example.test", local=False, mesh=None, options=[("grpc.keepalive_time_ms", 30000)]).close()

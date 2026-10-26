@@ -285,10 +285,19 @@ func (v *Verifier) KeysError() error {
 // keyStale; false before any read succeeded or once they are stale. A module's
 // readiness uses it, never KeysError: a brief authority outage must not take a
 // replica out of rotation while its keys are still trusted.
+//
+// It also starts the read a call would (keys missing or older than keyMaxAge,
+// at most once per keyRetry, never waiting for it): an unready replica gets no
+// calls, so without this it would never read again and never become ready, and
+// an idle one would go stale.
 func (v *Verifier) Ready() bool {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	return !v.fetched.IsZero() && v.now().Sub(v.fetched) <= keyStale
+	now := v.now()
+	if (v.fetched.IsZero() || now.Sub(v.fetched) > keyMaxAge) && v.inflight == nil && now.Sub(v.tried) >= keyRetry {
+		v.refresh()
+	}
+	return !v.fetched.IsZero() && now.Sub(v.fetched) <= keyStale
 }
 
 // Verify authenticates the call md carries and returns who it is for, from the

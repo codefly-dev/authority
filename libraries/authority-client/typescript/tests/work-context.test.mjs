@@ -152,21 +152,52 @@ test('an actor granted nothing narrows the identity to nothing', () => {
 });
 
 test('readiness follows trust, not the last read', async () => {
-  let failing = true;
+  let failing = false;
   const keys = source(() => failing ? Promise.reject(new Error('authority down')) : Promise.resolve(published));
   let clock = fixture.now*1000;
   const v = new Verifier(keys, fixture.audience, fixture.proof, () => clock);
   await settle();
-  assert.equal(v.ready(), false);
-  failing = false;
-  clock += 11_000;
-  await v.verify(fixture.headers);
   assert.equal(v.ready(), true);
   failing = true;
-  clock += 400_000; // old keys: a re-read starts and fails
-  await v.verify(fixture.headers);
+  clock += 400_000; // old keys: ready() starts a re-read, which fails
+  v.ready();
   await settle();
   assert.ok(v.keysError && v.ready());
   clock += 900_000;
   assert.equal(v.ready(), false);
+});
+
+// Review r74 B1: an unready replica gets no calls; polling ready() alone must read
+// again and turn it ready once the authority serves keys.
+test('an unready replica becomes ready by polling alone', async () => {
+  let serving = false;
+  const keys = source(() => serving ? Promise.resolve(published) : Promise.reject(new Error('not serving yet')));
+  let clock = fixture.now*1000;
+  const v = new Verifier(keys, fixture.audience, fixture.proof, () => clock);
+  await settle();
+  let ready = false;
+  for (let poll = 0; poll < 30 && !ready; poll++) {
+    if (poll === 3) serving = true;
+    clock += 1_000;
+    v.ready();
+    await settle();
+    ready = v.ready();
+  }
+  assert.ok(ready && keys.reads <= 3, `ready=${ready} reads=${keys.reads}`);
+});
+
+// Review r74 B1: an idle replica polled for readiness past the stale window
+// re-reads as its keys age and stays ready.
+test('an idle replica polled for readiness stays ready', async () => {
+  const keys = source();
+  let clock = fixture.now*1000;
+  const v = new Verifier(keys, fixture.audience, fixture.proof, () => clock);
+  await settle();
+  for (let minute = 1; minute <= 60; minute++) {
+    clock += 60_000;
+    v.ready();
+    await settle();
+    assert.ok(v.ready(), `unready at minute ${minute}`);
+  }
+  assert.ok(keys.reads >= 10 && keys.reads <= 14, `reads=${keys.reads}`);
 });

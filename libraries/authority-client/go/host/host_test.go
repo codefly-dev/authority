@@ -135,15 +135,13 @@ func TestARefusalNeverEchoesTheEndpointValue(t *testing.T) {
 	}
 }
 
-// Loopback is local-kind, as Core's environment model reports it: a playground's
-// local-authority run reaches its own authority over loopback; a hosted
-// environment never does.
-func TestLoopbackIsAdmittedInEveryLocalKindEnvironmentOnly(t *testing.T) {
-	for environment, admitted := range map[string]bool{"local": true, "local-authority": true, "local-k3d": true, "staging": false, "obin-staging": false, "production": false, "": false} {
+// Loopback is admitted in the environment named exactly "local", the SDK's
+// IsLocal, and nowhere else: no name prefix is reserved for local runs, and a
+// playground's local-authority is a configuration profile of "local", not an
+// environment (review r74 B2).
+func TestLoopbackIsAdmittedOnlyInTheLocalEnvironment(t *testing.T) {
+	for environment, admitted := range map[string]bool{"local": true, "local-authority": false, "locale-eu": false, "localhost-prod": false, "staging": false, "": false} {
 		t.Setenv(resources.EnvironmentPrefix, environment)
-		if Local() != admitted {
-			t.Errorf("%q: Local() = %v", environment, !admitted)
-		}
 		for _, endpoint := range []string{"localhost:7000", "http://127.0.0.1:7000", "grpc://[::1]:7000"} {
 			if _, _, err := Target(endpoint, nil); (err == nil) != admitted {
 				t.Errorf("%q in %q: admitted=%v, want %v (%v)", endpoint, environment, err == nil, admitted, err)
@@ -152,11 +150,12 @@ func TestLoopbackIsAdmittedInEveryLocalKindEnvironmentOnly(t *testing.T) {
 	}
 }
 
-// Review r61 m1, held identical in Python (tests/test_host.py): control
-// characters, a zone id on a loopback address and an explicit port 0 are refused.
-func TestControlCharactersZoneIDsAndPortZeroAreRefused(t *testing.T) {
+// Review r61 m1 and r74 m1, the table held identical in Python
+// (tests/test_host.py): control characters, a zone id on a loopback address, and
+// any port that is not a decimal 1..65535 (empty, signed, spaced, 0, too large).
+func TestControlCharactersZoneIDsAndInvalidPortsAreRefused(t *testing.T) {
 	t.Setenv(resources.EnvironmentPrefix, "local")
-	for _, endpoint := range []string{"http://127.0.0.1\t:80", "http://local\nhost:80", "127.0.0.1\t:80", "localhost:80\x7f", "http://[::1%25lo0]:80", "[::1%lo0]:80", "http://127.0.0.1:0", "127.0.0.1:0", "localhost:00", "https://accounts.example.test:0"} {
+	for _, endpoint := range []string{"http://127.0.0.1\t:80", "http://local\nhost:80", "127.0.0.1\t:80", "localhost:80\x7f", "\x1clocalhost:7000", "\x1flocalhost:7000", "\tlocalhost:7000", "localhost:7000\n", "http://[::1%25lo0]:80", "[::1%lo0]:80", "http://127.0.0.1:0", "127.0.0.1:0", "localhost:00", "https://accounts.example.test:0", "localhost:", "127.0.0.1:", "localhost:+80", "localhost: 80", "localhost:-1", "localhost:65536", "http://localhost:+80", "https://accounts.example.test:65536", "localhost:\u0663\u0663"} {
 		if target, _, err := Target(endpoint, nil); err == nil {
 			t.Errorf("%q was admitted as %q", endpoint, target)
 		}

@@ -56,11 +56,11 @@ Validation: run `go test -race ./...` in this service's `code/`, the local autho
 the real issuer; proxy's routing regression checks that a Records request never
 reaches Documents when its destination is unresolved.
 
-`ENFORCEMENT=warn` is accepted only in a local-kind environment (`host.Local()`, Core's environment model: `local`, `local-authority`, any `local-*`).
+`ENFORCEMENT=warn` is accepted only when the SDK reports a local environment.
 Unknown enforcement modes and warn in other environments are refused by name.
 The shared authority client dialer uses verified TLS, or accepts an in-cluster
 Service address under `internal-transport/mesh-protected=true`. Plaintext
-loopback is local-kind only (`host.Local()`). It refuses missing or invalid mesh assertions for
+loopback is local-only. It refuses missing or invalid mesh assertions for
 in-cluster plaintext, including SDK-resolved fallback addresses.
 
 The HTTP face refuses non-canonical paths before admission: dot segments,
