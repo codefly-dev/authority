@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
 	"github.com/codefly-dev/authority/libraries/authority-client/go/refusal"
 	"google.golang.org/grpc/metadata"
 )
@@ -81,7 +82,8 @@ func (s *Signer) Sign(token, method, audience string, now time.Time, tokenExpiry
 }
 
 // Check authenticates the binding before any keys lookup or replay-store write.
-// publicKey is trusted delivery configuration, never read from incoming metadata.
+// publicKey is one of the authority's published admission keys (SignedBy
+// chooses it), never read from incoming metadata.
 // Every refusal is a caller-safe refusal.Reason: it names no proof, token,
 // digest or nonce, and callers read its code with errors.As.
 func Check(md metadata.MD, publicKey, method, audience string, now time.Time) (Call, error) {
@@ -93,18 +95,9 @@ func Check(md metadata.MD, publicKey, method, audience string, now time.Time) (C
 		}
 		return v[0]
 	}
-	encoded := one("x-codefly-hop-proof")
-	parts := strings.Split(encoded, ".")
+	payload, signature, ok := proof(md)
 	pub, err := hex.DecodeString(publicKey)
-	if err != nil || len(pub) != ed25519.PublicKeySize || len(parts) != 2 || len(encoded) > 8192 {
-		return fail(refusal.StampProof)
-	}
-	payload, err := base64.RawURLEncoding.DecodeString(parts[0])
-	if err != nil || base64.RawURLEncoding.EncodeToString(payload) != parts[0] {
-		return fail(refusal.StampProof)
-	}
-	signature, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil || base64.RawURLEncoding.EncodeToString(signature) != parts[1] || !ed25519.Verify(pub, payload, signature) {
+	if !ok || err != nil || len(pub) != ed25519.PublicKeySize || !ed25519.Verify(pub, payload, signature) {
 		return fail(refusal.StampProof)
 	}
 	var fields []json.RawMessage
@@ -160,6 +153,59 @@ func Check(md metadata.MD, publicKey, method, audience string, now time.Time) (C
 		return fail(refusal.StampAdvisory)
 	}
 	return call, nil
+}
+
+// proof is the one admission md carries, split into its signed payload and
+// signature, each in canonical encoding; ok is false for anything else.
+func proof(md metadata.MD) (payload, signature []byte, ok bool) {
+	values := md.Get("x-codefly-hop-proof")
+	if len(values) != 1 || len(values[0]) > 8192 {
+		return nil, nil, false
+	}
+	parts := strings.Split(values[0], ".")
+	if len(parts) != 2 {
+		return nil, nil, false
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil || base64.RawURLEncoding.EncodeToString(payload) != parts[0] {
+		return nil, nil, false
+	}
+	signature, err = base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil || base64.RawURLEncoding.EncodeToString(signature) != parts[1] {
+		return nil, nil, false
+	}
+	return payload, signature, true
+}
+
+// SignedBy is which of the published admission keys (hex) the admission md
+// carries is signed by, or "" when it is signed by none of them. It
+// authenticates only the signature: Check, given the key it names, judges the
+// rest. A verifier trusts more than one key while a hop's key rotates.
+func SignedBy(md metadata.MD, publicKeys []string) string {
+	payload, signature, ok := proof(md)
+	if !ok {
+		return ""
+	}
+	for _, key := range publicKeys {
+		pub, err := hex.DecodeString(key)
+		if err == nil && len(pub) == ed25519.PublicKeySize && ed25519.Verify(pub, payload, signature) {
+			return key
+		}
+	}
+	return ""
+}
+
+// Purpose is what a published admission key verifies: Keys carries the hop's
+// keys in admission_keys with this purpose, never among the Work Context keys.
+const Purpose = "hop-admission"
+
+// Published is the signer's public key as the authority publishes it in Keys'
+// admission_keys: Ed25519, this purpose, and a key id derived from the key, so
+// the same seed always publishes the same entry.
+func (s *Signer) Published() *authorityv1.PublicKey {
+	public := s.key.Public().(ed25519.PublicKey)
+	sum := sha256.Sum256(public)
+	return &authorityv1.PublicKey{KeyId: "hop-" + hex.EncodeToString(sum[:8]), Algorithm: "Ed25519", PublicKey: public, Purpose: Purpose}
 }
 
 // ReplayKey is globally namespaced by signing key and random nonce, not by method:

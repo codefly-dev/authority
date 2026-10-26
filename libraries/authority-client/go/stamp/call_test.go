@@ -79,3 +79,46 @@ func TestSignedCallBindingRejectsMutationAndExpiredOrAmbiguousProof(t *testing.T
 		t.Fatal("signed expired capability")
 	}
 }
+
+// A verifier trusts every published admission key while a hop's key rotates:
+// SignedBy names the one a proof is signed by, and none for a key nobody
+// published or a proof that is not one.
+func TestSignedByNamesThePublishedKeyAProofIsSignedBy(t *testing.T) {
+	retiring, _ := NewSigner(strings.Repeat("01", 32))
+	current, _ := NewSigner(strings.Repeat("02", 32))
+	unpublished, _ := NewSigner(strings.Repeat("03", 32))
+	now := time.Unix(1700000000, 0)
+	published := []string{retiring.PublicKey(), current.PublicKey()}
+	for _, tc := range []struct {
+		signer *Signer
+		want   string
+	}{{retiring, retiring.PublicKey()}, {current, current.PublicKey()}, {unpublished, ""}} {
+		proof, err := tc.signer.Sign("synthetic-context", "/pkg.Service/Read", "module", now, now.Add(time.Minute).Unix())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := SignedBy(metadata.Pairs("x-codefly-hop-proof", proof), published); got != tc.want {
+			t.Fatalf("signed by %q, want %q", got, tc.want)
+		}
+		if got := SignedBy(metadata.Pairs("x-codefly-hop-proof", proof, "x-codefly-hop-proof", proof), published); got != "" {
+			t.Fatalf("a repeated proof named %q", got)
+		}
+	}
+	if SignedBy(metadata.Pairs("x-codefly-hop-proof", "not.a-proof"), published) != "" || SignedBy(metadata.MD{}, published) != "" {
+		t.Fatal("a malformed or missing proof named a key")
+	}
+}
+
+// The authority publishes a seed's public half as one stable entry: the same
+// seed always yields the same key id, with the admission purpose.
+func TestPublishedIsTheSignersStableAdmissionEntry(t *testing.T) {
+	signer, _ := NewSigner(strings.Repeat("01", 32))
+	again, _ := NewSigner(strings.Repeat("01", 32))
+	entry := signer.Published()
+	if entry.GetPurpose() != Purpose || entry.GetAlgorithm() != "Ed25519" || hex.EncodeToString(entry.GetPublicKey()) != signer.PublicKey() {
+		t.Fatalf("entry %v", entry)
+	}
+	if entry.GetKeyId() == "" || entry.GetKeyId() != again.Published().GetKeyId() {
+		t.Fatalf("key id %q is not stable", entry.GetKeyId())
+	}
+}
