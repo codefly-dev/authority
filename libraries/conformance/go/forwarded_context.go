@@ -67,7 +67,7 @@ func (c *client) forwardedContext(t *testing.T, ctx context.Context, f Fixture) 
 		}{
 			"forged":         {payload + "." + base64.RawURLEncoding.EncodeToString(ed25519.Sign(forger, raw)), f.Audience, "signature", trust},
 			"unsigned":       {payload + "." + base64.RawURLEncoding.EncodeToString(make([]byte, ed25519.SignatureSize)), f.Audience, "signature", trust},
-			"wrong audience": {token, f.Elsewhere, "minted for audience", trust},
+			"wrong audience": {token, f.Elsewhere, "audience", trust},
 			"expired":        {token, f.Audience, "expired", later},
 		} {
 			t.Run(name+" is refused by name", func(t *testing.T) {

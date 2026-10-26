@@ -7,6 +7,8 @@ import (
 	"crypto/ed25519"
 	"errors"
 	"fmt"
+	"github.com/codefly-dev/authority/libraries/authority-client/go/refusal"
+	"strings"
 	"time"
 
 	"github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
@@ -57,20 +59,29 @@ type Claims struct {
 // binds to this call. A proof alone, or a digest alone, authenticates nothing:
 // whoever holds the proof can write both, but cannot sign.
 func Authenticate(md metadata.MD, proof, audience string, trust Trust) (*Claims, error) {
-	if audience == "" {
-		return nil, fmt.Errorf("%w: no audience: a module authenticates a context for itself", ErrUnauthenticated)
-	}
 	token, err := stamp.Context(md, proof)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrUnauthenticated, err)
+		return nil, fmt.Errorf("%w: %w", ErrUnauthenticated, safeReason(err))
+	}
+	return AuthenticateToken(token, audience, trust)
+}
+
+// AuthenticateToken authenticates an unstamped token without consuming it or
+// checking live revocation. Callers still enforce their operation's policy.
+func AuthenticateToken(token, audience string, trust Trust) (*Claims, error) {
+	if audience == "" {
+		return nil, fmt.Errorf("%w: %w", ErrUnauthenticated, refusal.Configuration)
+	}
+	if trust.Issuer == "" || len(trust.Keys) == 0 {
+		return nil, fmt.Errorf("%w: %w", ErrUnauthenticated, refusal.InvalidKey)
 	}
 	inspector := core.Inspector{Issuer: trust.Issuer, Keys: trust.Keys, Now: trust.Now}
 	if _, err := inspector.Inspect(token, audience); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrUnauthenticated, err)
+		return nil, fmt.Errorf("%w: %w", ErrUnauthenticated, safeReason(err))
 	}
 	decoded, err := core.Decode(token)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrUnauthenticated, err)
+		return nil, fmt.Errorf("%w: %w", ErrUnauthenticated, safeReason(err))
 	}
 	context := decoded.Context()
 	scopes := context.GetAuthorityScopes()
@@ -137,4 +148,31 @@ func (c *Claims) AllowsOwned(kind, action, resourceID, ownerID string) bool {
 		}
 	}
 	return false
+}
+
+// Core's pinned Inspector exposes ErrInvalid with diagnostic text. Translate
+// only its fixed leading categories; never expose or retain the diagnostic.
+// Unknown future failures stay refused as Malformed. Verification remains Core's.
+func safeReason(err error) refusal.Reason {
+	var reason refusal.Reason
+	if errors.As(err, &reason) {
+		return reason
+	}
+	message := strings.TrimPrefix(err.Error(), core.ErrInvalid.Error()+": ")
+	for _, entry := range []struct {
+		prefix string
+		reason refusal.Reason
+	}{
+		{"issued by ", refusal.Issuer}, {"no verification key ", refusal.UnknownKey},
+		{"verification key ", refusal.InvalidKey}, {"key ", refusal.FixtureKey},
+		{"signature does not verify ", refusal.Signature}, {"minted for audience ", refusal.Audience},
+		{"not valid before ", refusal.NotYetValid}, {"expired at ", refusal.Expired},
+		{"actor hop ", refusal.Attenuation}, {"grant ", refusal.Grant},
+		{"the capability's lifetime ", refusal.Lifetime},
+	} {
+		if strings.HasPrefix(message, entry.prefix) {
+			return entry.reason
+		}
+	}
+	return refusal.Malformed
 }

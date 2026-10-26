@@ -10,3 +10,11 @@ proxy also checks the original escaped path before deciding: dot segments,
 repeated separators, escaped separators/dots and nested escapes are refused,
 never normalized and forwarded under another operation's policy. HTTP upstreams
 must be origins; they cannot add a path prefix after the authority check.
+
+
+A declared Connect endpoint serves both Connect HTTP requests and gRPC calls at
+its one resolved address. Both use the declared protobuf method's policy. A gRPC
+and Connect publication for the same audience/method is ambiguous and refused;
+remove the separate gRPC endpoint when adopting one Connect listener. Unknown
+methods, undeclared audiences, unsafe destinations and transport refusals remain
+closed. The hop dials using the shared host transport policy.
