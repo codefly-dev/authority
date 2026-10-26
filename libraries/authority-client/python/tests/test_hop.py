@@ -32,9 +32,9 @@ class Replay:
     async def consume_async(self, nonce, until):
         self.consume(nonce, until)
 
-def fresh(now, *, method=METHOD, audience=FIXTURE["audience"], headers=None, issued=None, expires=None):
+def fresh(now, *, method=METHOD, audience=FIXTURE["audience"], headers=None, issued=None, expires=None, hop=b"fixture-proof"):
     headers = dict(FIXTURE["headers"] if headers is None else headers)
-    key = Ed25519PrivateKey.from_private_bytes(hashlib.sha256(b"fixture-proof").digest())
+    key = Ed25519PrivateKey.from_private_bytes(hashlib.sha256(hop).digest())
     payload = json.dumps(["codefly-hop-v1", method, audience,
         hashlib.sha256(headers[WORK_CONTEXT_KEY].encode()).hexdigest(), secrets.token_hex(32),
         int(now) if issued is None else issued, int(now)+30 if expires is None else expires], separators=(",", ":")).encode()
@@ -64,7 +64,7 @@ def published():
 
 
 def verifier(clock=lambda: FIXTURE["now"], source=None):
-    return Verifier(source or Keys(published()), audience=FIXTURE["audience"], public_key=FIXTURE["public_key"], replay=Replay(), now=clock)
+    return Verifier(source or Keys(published()), audience=FIXTURE["audience"], replay=Replay(), now=clock)
 
 
 def test_the_hop_fixture_authenticates_and_reads_as_go_reads_it():
@@ -103,7 +103,7 @@ def test_a_token_the_authority_did_not_sign_is_refused_even_with_a_matching_dige
 
 def test_another_audience_and_an_expired_context_are_refused():
     with pytest.raises(Unauthenticated, match="stamp_audience"):
-        Verifier(Keys(published()), audience="records", public_key=FIXTURE["public_key"], replay=Replay(), now=lambda: FIXTURE["now"]).verify(FIXTURE["headers"], METHOD)
+        Verifier(Keys(published()), audience="records", replay=Replay(), now=lambda: FIXTURE["now"]).verify(FIXTURE["headers"], METHOD)
     with pytest.raises(Unauthenticated, match="expired"):
         verifier(clock=lambda: FIXTURE["now"] + 3600, source=Keys(published())).verify(FIXTURE["headers"], METHOD)
 
@@ -120,7 +120,7 @@ def test_keys_are_reread_when_old_and_trusted_no_longer_than_stale():
     clock = [FIXTURE["now"]]
     source = Keys(published())
     v = verifier(clock=lambda: clock[0], source=source)
-    rotated = KeysResponse(issuer=published().issuer)
+    rotated = KeysResponse(issuer=published().issuer, admission_keys=published().admission_keys)
     rotated.keys.add(key_id="rotated", algorithm="Ed25519", public_key=bytes(32))
     source.response = rotated
     source.hold = threading.Event()
@@ -163,7 +163,7 @@ def test_a_call_on_keys_past_stale_is_refused_when_the_reread_fails():
     import time as clock_time
     clock = [FIXTURE["now"] - KEY_STALE - 60]
     source = Keys(published())
-    v = Verifier(source, audience=FIXTURE["audience"], public_key=FIXTURE["public_key"], replay=Replay(), now=lambda: clock[0], timeout=0.3)
+    v = Verifier(source, audience=FIXTURE["audience"], replay=Replay(), now=lambda: clock[0], timeout=0.3)
     source.error, source.hold = RuntimeError("dial authority.internal:4000: connection refused"), threading.Event()
     clock[0] = FIXTURE["now"]
     outcome = []
@@ -223,7 +223,7 @@ def test_a_hung_read_stalls_no_held_key():
 def test_a_verifier_starts_before_the_authority_serves_keys():
     clock = [FIXTURE["now"]]
     source = Keys(error=RuntimeError("connection refused"))
-    v = Verifier(source, audience=FIXTURE["audience"], public_key=FIXTURE["public_key"], replay=Replay(), now=lambda: clock[0])
+    v = Verifier(source, audience=FIXTURE["audience"], replay=Replay(), now=lambda: clock[0])
     with pytest.raises(Unauthenticated, match="unavailable"):
         v.verify(fresh(v._now()), METHOD)
     source.error, source.response = None, published()
@@ -245,10 +245,10 @@ def test_identity_narrows_by_every_actor_and_never_widens_a_resource_scope():
     assert identity_of(context).scopes == ()  # Core's EffectiveScopes: the last actor's grants
 
 
-def test_a_verifier_needs_keys_an_audience_and_a_proof():
-    for args in [(None, "documents", "p"), (Keys(published()), "", "p"), (Keys(published()), "documents", "")]:
+def test_a_verifier_needs_keys_and_an_audience():
+    for args in [(None, "documents"), (Keys(published()), "")]:
         with pytest.raises(Unauthenticated):
-            Verifier(args[0], audience=args[1], public_key=args[2], replay=Replay())
+            Verifier(args[0], audience=args[1], replay=Replay())
 
 
 # Review r57 m-b: an asyncio handler's wait for the keys never blocks the loop.
@@ -258,7 +258,7 @@ def test_verify_async_waits_for_keys_off_the_event_loop():
 
     clock = [FIXTURE["now"]]
     source = Keys(error=RuntimeError("not serving yet"))
-    v = Verifier(source, audience=FIXTURE["audience"], public_key=FIXTURE["public_key"], replay=Replay(), now=lambda: clock[0], timeout=1.0)
+    v = Verifier(source, audience=FIXTURE["audience"], replay=Replay(), now=lambda: clock[0], timeout=1.0)
     source.error, source.response, source.hold = None, published(), threading.Event()
     clock[0] += 11  # no key held: this call starts a read, which hangs, and waits for it
 
@@ -299,7 +299,7 @@ def test_verify_async_waits_for_a_stale_reread_without_a_thread():
 
     clock = [FIXTURE["now"] - KEY_STALE - 60]
     source = Keys(published())
-    v = Verifier(source, audience=FIXTURE["audience"], public_key=FIXTURE["public_key"], replay=Replay(), now=lambda: clock[0], timeout=1.0)
+    v = Verifier(source, audience=FIXTURE["audience"], replay=Replay(), now=lambda: clock[0], timeout=1.0)
     source.hold = threading.Event()
     clock[0] = FIXTURE["now"]
 
@@ -344,7 +344,7 @@ def test_ready_holds_while_keys_are_trusted():
 def test_an_unready_replica_becomes_ready_by_polling_alone():
     clock = [FIXTURE["now"]]
     source = Keys(error=RuntimeError("not serving yet"))
-    v = Verifier(source, audience=FIXTURE["audience"], public_key=FIXTURE["public_key"], replay=Replay(), now=lambda: clock[0])
+    v = Verifier(source, audience=FIXTURE["audience"], replay=Replay(), now=lambda: clock[0])
     ready = False
     for poll in range(30):
         if poll == 3:
@@ -376,13 +376,13 @@ def test_an_idle_replica_polled_for_readiness_stays_ready():
 # another replica, and a workload constructing the old shared-proof stamp.
 def test_review_retargeting_and_replay_across_replicas():
     store = Replay()
-    first = Verifier(Keys(published()), audience=FIXTURE["audience"], public_key=FIXTURE["public_key"], replay=store, now=lambda: FIXTURE["now"])
-    second = Verifier(Keys(published()), audience=FIXTURE["audience"], public_key=FIXTURE["public_key"], replay=store, now=lambda: FIXTURE["now"])
+    first = Verifier(Keys(published()), audience=FIXTURE["audience"], replay=store, now=lambda: FIXTURE["now"])
+    second = Verifier(Keys(published()), audience=FIXTURE["audience"], replay=store, now=lambda: FIXTURE["now"])
     headers = FIXTURE["headers"]
     for method in ("/documents.v1.Service/Delete", "/datasets.v1.Service/Register", "Read", "", "POST " + METHOD):
         with pytest.raises(Unauthenticated, match="stamp_method"):
             first.verify(headers, method)
-    other = Verifier(Keys(published()), audience="records", public_key=FIXTURE["public_key"], replay=store, now=lambda: FIXTURE["now"])
+    other = Verifier(Keys(published()), audience="records", replay=store, now=lambda: FIXTURE["now"])
     with pytest.raises(Unauthenticated, match="stamp_audience"):
         other.verify(headers, METHOD)
     assert first.verify(headers, METHOD).claims.context.replay_policy == "single-use"
@@ -472,7 +472,7 @@ def test_duplicate_proof_and_token_are_refused_before_consumption():
 def test_async_replay_has_one_winner_across_replicas():
     import asyncio
     store = Replay()
-    replicas = [Verifier(Keys(published()), audience=FIXTURE["audience"], public_key=FIXTURE["public_key"], replay=store, now=lambda: FIXTURE["now"]) for _ in range(2)]
+    replicas = [Verifier(Keys(published()), audience=FIXTURE["audience"], replay=store, now=lambda: FIXTURE["now"]) for _ in range(2)]
     async def run():
         return await asyncio.gather(*(replicas[n % 2].verify_async(FIXTURE["headers"], METHOD) for n in range(32)), return_exceptions=True)
     results = asyncio.run(run())
@@ -591,7 +591,7 @@ class Reservations:
 def test_a_second_delivery_of_one_admission_is_refused_while_and_after_the_first_runs():
     clock = [FIXTURE["now"]]
     store = Reservations(lambda: clock[0])
-    v = Verifier(Keys(published()), audience=FIXTURE["audience"], public_key=FIXTURE["public_key"], replay=store,
+    v = Verifier(Keys(published()), audience=FIXTURE["audience"], replay=store,
                  now=lambda: clock[0])
     headers = fresh(FIXTURE["now"])
     ran = 0
@@ -611,27 +611,36 @@ def test_a_second_delivery_of_one_admission_is_refused_while_and_after_the_first
     assert not store.held and ran == 1
 
 
-# The reservation is taken before the keys are read, so a delivery that arrives
-# while the first one waits for the keys meets it; and a refusal after the
-# reservation ends the hold rather than leaving it pinned.
-def test_the_reservation_is_taken_before_the_key_read_and_released_on_refusal():
+# The reservation is taken before the Work Context is authenticated, so a
+# refusal there ends the hold rather than leaving it pinned, and a second
+# delivery still meets the reservation. An admission that cannot be judged,
+# because no keys are held, reserves nothing.
+def test_the_reservation_is_taken_before_the_work_context_and_released_on_refusal():
     clock = [FIXTURE["now"]]
     store = Reservations(lambda: clock[0])
-    source = Keys(error=RuntimeError("authority down"))
-    v = Verifier(source, audience=FIXTURE["audience"], public_key=FIXTURE["public_key"], replay=store,
-                 now=lambda: clock[0], timeout=0.05)
-    headers = fresh(FIXTURE["now"])
-    with pytest.raises(Unauthenticated, match="keys"):
+    v = Verifier(Keys(published()), audience=FIXTURE["audience"], replay=store,
+                 now=lambda: clock[0])
+    token = FIXTURE["headers"][WORK_CONTEXT_KEY]
+    forged = token.split(".")[0] + "." + base64.urlsafe_b64encode(bytes(64)).rstrip(b"=").decode()
+    headers = fresh(FIXTURE["now"], headers={**FIXTURE["headers"], WORK_CONTEXT_KEY: forged,
+                                            CONTEXT_KEY: hashlib.sha256(forged.encode()).hexdigest()})
+    with pytest.raises(Unauthenticated, match="signature"):
         v.verify(headers, METHOD)
     assert list(store.held) and not store.active, "a refused call kept its hold, or never reserved"
     with pytest.raises(Unauthenticated, match="stamp_replayed"):
         v.verify(headers, METHOD)
+    unread = Reservations(lambda: clock[0])
+    down = Verifier(Keys(error=RuntimeError("authority down")), audience=FIXTURE["audience"], replay=unread,
+                    now=lambda: clock[0], timeout=0.05)
+    with pytest.raises(Unauthenticated, match="keys"):
+        down.verify(fresh(FIXTURE["now"]), METHOD)
+    assert not unread.held, "an admission judged on no keys was reserved"
 
 
 def test_admit_releases_its_hold_however_the_handler_ends():
     clock = [FIXTURE["now"]]
     store = Reservations(lambda: clock[0])
-    v = Verifier(Keys(published()), audience=FIXTURE["audience"], public_key=FIXTURE["public_key"], replay=store,
+    v = Verifier(Keys(published()), audience=FIXTURE["audience"], replay=store,
                  now=lambda: clock[0])
     with pytest.raises(ZeroDivisionError):
         with v.admit(fresh(FIXTURE["now"]), METHOD):
@@ -644,7 +653,7 @@ def test_admit_async_holds_the_reservation_until_the_handler_returns():
     import asyncio
     clock = [FIXTURE["now"]]
     store = Reservations(lambda: clock[0])
-    v = Verifier(Keys(published()), audience=FIXTURE["audience"], public_key=FIXTURE["public_key"], replay=store,
+    v = Verifier(Keys(published()), audience=FIXTURE["audience"], replay=store,
                  now=lambda: clock[0])
     headers = fresh(FIXTURE["now"])
 
@@ -697,5 +706,107 @@ def test_startup_requires_a_shared_store_outside_exactly_local(monkeypatch, envi
         assert refused.value.code == "replay_store_not_shared"
     store = Replay()
     store.shared = True
-    Verifier(Keys(published()), audience=FIXTURE["audience"], public_key=FIXTURE["public_key"], replay=store)
+    Verifier(Keys(published()), audience=FIXTURE["audience"], replay=store)
     Verifier(Keys(published()), audience=FIXTURE["audience"])  # a token-only verifier holds no store
+
+
+def hop_key(label: bytes):
+    """The admission key of the test hop that signs as label, as Keys publishes it."""
+    from authority_client._gen.host.authority.v1.authority_pb2 import PublicKey
+    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+    raw = Ed25519PrivateKey.from_private_bytes(hashlib.sha256(label).digest()).public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+    return PublicKey(key_id="hop-" + label.decode(), algorithm="Ed25519", public_key=raw, purpose="hop-admission")
+
+
+def publishing(*labels: bytes) -> KeysResponse:
+    """The fixture's Work Context keys, and the admission keys of these hops."""
+    response = published()
+    del response.admission_keys[:]
+    response.admission_keys.extend(hop_key(label) for label in labels)
+    return response
+
+
+# Review r3 B1: the hop's admission key comes from the authority's Keys, the
+# read the verifier already makes; nothing about the hop is configured.
+def test_a_verifier_takes_the_hops_key_from_the_authoritys_keys_alone():
+    v = Verifier(Keys(publishing(b"the-hop")), audience=FIXTURE["audience"], replay=Replay(), now=lambda: FIXTURE["now"])
+    assert v.verify(fresh(FIXTURE["now"], hop=b"the-hop"), METHOD).owner == FIXTURE["identity"]["owner"]
+
+
+# A stamp signed by a key the authority does not publish is refused by name,
+# and causes no read of the authority's keys.
+def test_a_stamp_signed_by_an_unpublished_key_is_refused_by_name():
+    source = Keys(publishing(b"the-hop"))
+    v = Verifier(source, audience=FIXTURE["audience"], replay=Replay(), now=lambda: FIXTURE["now"])
+    settle(v)
+    reads = source.reads
+    with pytest.raises(Unauthenticated) as refused:
+        v.verify(fresh(FIXTURE["now"], hop=b"an-unpublished-hop"), METHOD)
+    assert refused.value.code == "stamp_proof"
+    settle(v)
+    assert source.reads == reads
+
+
+# While a hop's key rotates both are published and admitted; once the retiring
+# key is withdrawn, the next read stops admitting it.
+def test_a_rotations_overlap_admits_both_keys_until_the_retiring_one_is_withdrawn():
+    clock = [FIXTURE["now"]]
+    source = Keys(publishing(b"retiring", b"current"))
+    v = Verifier(source, audience=FIXTURE["audience"], replay=Replay(), now=lambda: clock[0])
+    for hop in (b"retiring", b"current"):
+        v.verify(fresh(clock[0], hop=hop), METHOD)
+    source.response = publishing(b"current")
+    clock[0] += 301  # past KEY_MAX_AGE: readiness re-reads
+    v.ready()
+    settle(v)
+    with pytest.raises(Unauthenticated) as refused:
+        v.verify(fresh(clock[0], hop=b"retiring"), METHOD)
+    assert refused.value.code == "stamp_proof"
+    v.verify(fresh(clock[0], hop=b"current"), METHOD)
+
+
+# Each key serves its own purpose only: an admission key published among the
+# Work Context keys admits nothing, and an admission key never signs a Work
+# Context.
+def test_a_key_is_used_for_its_own_purpose_only():
+    from authority_client.work_context import Trust
+    response = publishing()
+    response.keys.append(hop_key(b"misplaced"))
+    v = Verifier(Keys(response), audience=FIXTURE["audience"], replay=Replay(), now=lambda: FIXTURE["now"])
+    with pytest.raises(Unauthenticated) as refused:
+        v.verify(fresh(FIXTURE["now"], hop=b"misplaced"), METHOD)
+    assert refused.value.code == "keys_unavailable"  # no admission key is published at all
+    assert "hop-misplaced" not in Trust.from_keys(response).keys
+
+
+# An authority that publishes no admission key admits nothing, under a fixed
+# reason, and says why in the module's logs.
+def test_no_published_admission_key_refuses_every_call_and_says_why():
+    from codefly_hop import NoAdmissionKeys
+    v = Verifier(Keys(publishing()), audience=FIXTURE["audience"], replay=Replay(), now=lambda: FIXTURE["now"])
+    with pytest.raises(Unauthenticated) as refused:
+        v.verify(fresh(FIXTURE["now"]), METHOD)
+    assert refused.value.code == "keys_unavailable"
+    assert isinstance(v.keys_error, NoAdmissionKeys)
+
+
+# Review r3 M3: a store with reserve and no finish is not a reservation store
+# (TypeScript's rule): it is consumed, so no reservation is left that nothing
+# finishes.
+class HalfReservations(Replay):
+    def __init__(self):
+        super().__init__()
+        self.reserved = []
+    def reserve(self, nonce, until):
+        self.reserved.append(nonce)
+    async def reserve_async(self, nonce, until):
+        self.reserved.append(nonce)
+
+
+def test_a_store_with_reserve_but_no_finish_is_consumed_not_reserved():
+    import asyncio
+    store = HalfReservations()
+    v = Verifier(Keys(published()), audience=FIXTURE["audience"], replay=store, now=lambda: FIXTURE["now"])
+    v.verify(fresh(FIXTURE["now"]), METHOD)
+    asyncio.run(v.verify_async(fresh(FIXTURE["now"]), METHOD))
+    assert not store.reserved and len(store.seen) == 2

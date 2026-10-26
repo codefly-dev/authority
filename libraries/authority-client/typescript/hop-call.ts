@@ -1,5 +1,48 @@
 import { createHash, createPublicKey, verify } from "node:crypto";
+import type { KeysResponse } from "./src/gen/host/authority/v1/authority_pb.js";
 import { Reason, Unauthenticated } from "./refusal.js";
+
+/** What a published admission key verifies: Keys carries the hop's keys in
+ * admission_keys with this purpose, never among the Work Context keys. */
+export const PURPOSE = "hop-admission";
+
+/** The hop admission keys a KeysResponse publishes, hex: Ed25519 keys in
+ * admissionKeys with purpose PURPOSE; anything else there is not one. */
+export function admissionKeys(response: KeysResponse): string[] {
+  const out: string[] = [];
+  for (const key of response.admissionKeys) {
+    if (key.algorithm !== "Ed25519" || key.purpose !== PURPOSE) continue;
+    if (key.publicKey.length !== 32) throw new Unauthenticated(Reason.InvalidKey);
+    const hex = Buffer.from(key.publicKey).toString("hex");
+    if (!out.includes(hex)) out.push(hex);
+  }
+  return out;
+}
+
+/** The one admission the headers carry, as its signed payload and signature,
+ * each in canonical encoding; undefined for anything else. */
+function proof(pairs: readonly (readonly [string, string])[]): { payload: Buffer; signature: Buffer } | undefined {
+  const values = pairs.filter(([k]) => k === "x-codefly-hop-proof");
+  if (values.length !== 1 || values[0][1].length > 8192) return undefined;
+  const parts = values[0][1].split(".");
+  if (parts.length !== 2) return undefined;
+  const raw = parts.map(part => /^[A-Za-z0-9_-]+$/.test(part) ? Buffer.from(part, "base64url") : undefined);
+  if (raw.some((r, i) => !r || r.toString("base64url") !== parts[i])) return undefined;
+  return { payload: raw[0]!, signature: raw[1]! };
+}
+
+const ed25519 = (hex: string) => createPublicKey({ key: { kty: "OKP", crv: "Ed25519", x: Buffer.from(hex, "hex").toString("base64url") }, format: "jwk" });
+
+/** Which published admission key (hex) the admission is signed by, or "" for
+ * none: Go's stamp.SignedBy. checkCall, given that key, judges the rest. */
+export function signedBy(pairs: readonly (readonly [string, string])[], publicKeys: readonly string[]): string {
+  const signed = proof(pairs);
+  if (!signed) return "";
+  for (const key of publicKeys) {
+    if (/^[0-9a-f]{64}$/.test(key) && verify(null, signed.payload, ed25519(key), signed.signature)) return key;
+  }
+  return "";
+}
 
 /** The hop admission lifetime and the clock allowance, as Go's stamp.Lifetime
  * and stamp.Skew define them, in seconds. An admission may be issued up to SKEW
@@ -25,7 +68,9 @@ export interface ReplayStore {
    * replica, a nonce already held (Replayed), including one held by a call still
    * running past its retention, and refuses a reservation whose retainUntil has
    * already passed by the store's clock (Expired), so a delayed reservation
-   * never revives a collected nonce. A finish that fails leaves it held. */
+   * never revives a collected nonce. A finish that fails leaves it held.
+   * Because reserve refuses past retainUntil on the store's clock, a store may
+   * collect a reservation once that has passed, finished or not. */
   reserve?(nonce: string, retainUntil: number): Promise<void>;
   finish?(nonce: string): Promise<void>;
 }
@@ -33,16 +78,9 @@ export interface ReplayStore {
 export function checkCall(pairs: readonly (readonly [string, string])[], publicKey: string, method: string, audience: string, now: number): { nonce: string; expires: number } {
   const fail = (reason: Reason): never => { throw new Unauthenticated(reason); };
   const one = (key: string): string => { const values = pairs.filter(([k]) => k === key); return values.length === 1 ? values[0][1] : ""; };
-  const encoded = one("x-codefly-hop-proof"), parts = encoded.split(".");
-  if (!/^[0-9a-f]{64}$/.test(publicKey) || parts.length !== 2 || encoded.length > 8192) fail(Reason.StampProof);
-  const decode = (part: string): Buffer => {
-    const raw = Buffer.from(part, "base64url");
-    if (!/^[A-Za-z0-9_-]+$/.test(part) || raw.toString("base64url") !== part) fail(Reason.StampProof);
-    return raw;
-  };
-  const payload = decode(parts[0]), signature = decode(parts[1]);
-  const key = createPublicKey({ key: { kty: "OKP", crv: "Ed25519", x: Buffer.from(publicKey, "hex").toString("base64url") }, format: "jwk" });
-  if (!verify(null, payload, key, signature)) fail(Reason.StampProof);
+  const signed = proof(pairs);
+  if (!/^[0-9a-f]{64}$/.test(publicKey) || !signed || !verify(null, signed.payload, ed25519(publicKey), signed.signature)) return fail(Reason.StampProof);
+  const { payload } = signed;
   let fields: unknown;
   try { fields = JSON.parse(payload.toString("utf8")); } catch { fail(Reason.StampProof); }
   if (!Array.isArray(fields) || fields.length !== 7) return fail(Reason.StampProof);

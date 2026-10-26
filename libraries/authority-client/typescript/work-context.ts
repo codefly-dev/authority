@@ -1,5 +1,5 @@
-import { checkCall, Expired, Replayed, SKEW, type ReplayStore } from "./hop-call.js";
-export { Expired, Replayed, LIFETIME, SKEW } from "./hop-call.js";
+import { admissionKeys, checkCall, Expired, Replayed, signedBy, SKEW, type ReplayStore } from "./hop-call.js";
+export { Expired, Replayed, LIFETIME, SKEW, PURPOSE } from "./hop-call.js";
 export type { ReplayStore } from "./hop-call.js";
 /** Work Context identity readers and method-bound, single-use hop admission.
  * Verifier consumes signed call nonces in a required durable shared ReplayStore.
@@ -32,11 +32,13 @@ export interface Trust {
   readonly now?: () => number;
 }
 
-/** Trust from the authority interface's KeysResponse: Ed25519 keys only. */
+/** Trust from the authority interface's KeysResponse: Ed25519 Work Context
+ * keys only (purpose "work-context", or none from a host older than the
+ * purpose). The hop's admission keys are never among them. */
 export function trustFromKeys(response: KeysResponse, now?: () => number): Trust {
   const keys = new Map<string, Uint8Array>();
   for (const key of response.keys) {
-    if (key.algorithm !== "Ed25519") continue;
+    if (key.algorithm !== "Ed25519" || (key.purpose !== "" && key.purpose !== "work-context")) continue;
     if (!key.keyId || keys.has(key.keyId) || key.publicKey.length !== 32) {
       throw new Unauthenticated(Reason.InvalidKey);
     }
@@ -281,13 +283,25 @@ export interface KeySource {
  * re-read are trusted no longer than 15 min. */
 const KEY_RETRY_MS = 10_000, KEY_MAX_AGE_MS = 300_000, KEY_STALE_MS = 900_000, KEY_TIMEOUT_MS = 5_000;
 
+/** What keysError reports, for the module's logs, while the authority's keys
+ * read but publish no hop admission key: every call is refused as
+ * keys_unavailable until the authority publishes its hop's key. */
+export class NoAdmissionKeys extends Error {
+  override name = "NoAdmissionKeys";
+  constructor() { super("the authority's Keys publish no hop admission key (admission_keys), so no call can be admitted"); }
+}
+
 /** The one module-side entry point: authenticates every call the hop forwards.
  * Build it once at startup with the generated client of the authority interface
- * the module depends on; the keys are read through its Keys, never typed in.
- * Construction never fails on an authority that is not serving yet: calls are
- * refused, with the reason, until its keys are read. */
+ * the module depends on; the keys, the Work Context's and the hop's admission
+ * keys, are read through its Keys, never typed in. Without a replay store it
+ * authenticates bare tokens only and admits no call. Construction never fails
+ * on an authority that is not serving yet: calls are refused, with the reason,
+ * until its keys are read. */
 export class Verifier {
   private trust?: Trust;
+  /** The published hop admission keys, hex, read with trust. */
+  private admission: string[] = [];
   private fetched = 0;
   private tried = Number.NEGATIVE_INFINITY;
   private inflight?: Promise<void>;
@@ -295,14 +309,9 @@ export class Verifier {
   keysError?: unknown;
 
   constructor(private readonly source: KeySource, private readonly audience: string,
-              private readonly publicKey?: string, private readonly replay?: ReplayStore,
+              private readonly replay?: ReplayStore,
               private readonly now: () => number = Date.now, private readonly timeoutMs: number = KEY_TIMEOUT_MS) {
     if (!source || !audience) throw new Unauthenticated(Reason.Configuration);
-    // Admission needs both the delivered hop public key and a store every
-    // replica shares; one without the other admits nothing.
-    if ((publicKey !== undefined || replay !== undefined) && (!replay || !/^[0-9a-f]{64}$/.test(publicKey ?? ""))) {
-      throw new Unauthenticated(Reason.Configuration);
-    }
     // A process-local store answers only for its own process: a captured
     // admission would replay once per replica, and a restart would forget every
     // reservation. Only the run named exactly "local" may use one.
@@ -347,15 +356,16 @@ export class Verifier {
   private async begin(headers: StampHeaders, method: string): Promise<{ identity: Identity; finish: () => Promise<void> }> {
     const pairs = [...(Symbol.iterator in Object(headers) ? headers as Iterable<readonly [string, string]> : Object.entries(headers))]
       .flatMap(([key, value]) => (typeof value === "string" ? [value] : [...value]).map(v => [key.toLowerCase(), v] as const));
-    if (this.publicKey === undefined || this.replay === undefined) {
-      // A token-only verifier holds neither the hop's public key nor a replay
-      // store, so it can establish no admission.
+    if (this.replay === undefined) {
+      // A token-only verifier holds no replay store, so it can establish no
+      // admission.
       throw new Unauthenticated(Reason.Configuration);
     }
-    // The admission first: nothing signed for another procedure, another
-    // audience or another token reaches the key read.
+    // The admission first, judged at arrival by the published hop admission
+    // keys held: nothing signed for another procedure, another audience or
+    // another token reaches the Work Context's key read or starts one.
     const arrival = this.now(), mark = performance.now();
-    const call = checkCall(pairs, this.publicKey, method, this.audience, arrival);
+    const call = checkCall(pairs, await this.admissionKey(pairs), method, this.audience, arrival);
     const finish = await this.reserve(call.nonce, call.expires + SKEW, arrival, mark);
     try {
       const token = boundToken(pairs);
@@ -378,6 +388,27 @@ export class Verifier {
       await finish();
       throw error;
     }
+  }
+
+  /** The published hop admission key the admission is signed by. It is judged
+   * on the keys held: neither a stamp signed by no published key nor keys past
+   * KEY_MAX_AGE start a read here, so a caller without an admission can neither
+   * drive the authority's keys nor delay a genuine call's read. Only when no
+   * trusted keys are held at all (never read, or past KEY_STALE) does it start
+   * one, at most every KEY_RETRY as readiness does, and wait for it. */
+  private async admissionKey(pairs: readonly (readonly [string, string])[]): Promise<string> {
+    const now = this.now();
+    const trusted = () => this.trust !== undefined && this.now() - this.fetched <= KEY_STALE_MS;
+    if (!trusted() && !this.inflight && now - this.tried >= KEY_RETRY_MS) void this.refresh();
+    if (!trusted() && this.inflight) await this.inflight;
+    if (!trusted()) {
+      if (this.keysError instanceof Unauthenticated && this.keysError.code === Reason.InvalidKey) throw new Unauthenticated(Reason.InvalidKey);
+      throw new Unauthenticated(Reason.KeysUnavailable);
+    }
+    if (this.admission.length === 0) throw new Unauthenticated(Reason.KeysUnavailable);
+    const key = signedBy(pairs, this.admission);
+    if (!key) throw new Unauthenticated(Reason.StampProof);
+    return key;
   }
 
   /** Consume the admission's nonce, retained to its expiry plus the clock
@@ -437,7 +468,11 @@ export class Verifier {
     const signal = AbortSignal.timeout(this.timeoutMs);
     const deadline = new Promise<never>((_, reject) => signal.addEventListener("abort", () => reject(signal.reason), { once: true }));
     this.inflight = Promise.race([this.source.keys({}, { timeoutMs: this.timeoutMs, signal }), deadline])
-      .then(response => { this.trust = trustFromKeys(response); this.fetched = this.now(); this.keysError = undefined; })
+      .then(response => {
+        const trust = trustFromKeys(response), admission = admissionKeys(response);
+        this.trust = trust; this.admission = admission; this.fetched = this.now();
+        this.keysError = this.replay && admission.length === 0 ? new NoAdmissionKeys() : undefined;
+      })
       .catch(error => { this.keysError = error; })
       .finally(() => { this.inflight = undefined; });
     return this.inflight;

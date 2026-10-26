@@ -1,8 +1,10 @@
 """Method-bound, single-use hop admission for Python services.
 
-The hop alone holds a signing seed. Verifiers pin the delivered public key,
-authenticate the Work Context and consume each signed nonce in a durable store
-shared by all replicas. See libraries/hop/README.md for the wire contract.
+The hop alone holds a signing seed. The authority publishes its public half in
+Keys (admission_keys), which verifiers already read: they check each admission
+by a published key, trusting every one while a key rotates, authenticate the
+Work Context and consume each signed nonce in a durable store shared by all
+replicas. See libraries/hop/README.md for the wire contract.
 """
 
 from __future__ import annotations
@@ -10,7 +12,6 @@ from __future__ import annotations
 import asyncio
 import base64
 import os
-import re
 import threading
 import time
 from collections.abc import Callable, Iterable, Mapping
@@ -19,12 +20,12 @@ from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from .call import SKEW, Expired, Replayed, ReplayStore, ReservationStore, check
+from .call import SKEW, Expired, Replayed, ReplayStore, ReservationStore, admission_keys, check, signed_by
 from authority_client._gen.host.authority.v1.authority_pb2 import KeysRequest
 from authority_client._gen.host.authority.v1.work_context_pb2 import WorkContextV1
 from authority_client.work_context import Claims, Trust, Unauthenticated, Reason, authenticate_token, bound_token, collect
 
-__all__ = ["Identity", "Verifier", "Unauthenticated", "Reason", "identity_of", "ReplayStore", "ReservationStore", "Replayed", "Expired"]
+__all__ = ["Identity", "Verifier", "Unauthenticated", "Reason", "identity_of", "ReplayStore", "ReservationStore", "Replayed", "Expired", "NoAdmissionKeys"]
 
 WORK_CONTEXT_KEY = "x-codefly-work-context"
 STAMP_PREFIX = "x-codefly-hop-"
@@ -116,19 +117,17 @@ class Verifier:
     """The one module-side entry point: authenticates every call the hop forwards.
 
     ``keys`` is the authority interface's generated ``AuthorityServiceStub`` (or
-    anything with its ``Keys``): the published keys are read through it, never
-    typed in. Build it once at startup; it never fails on an authority that is not
-    serving yet, and refuses calls, with the reason, until the keys are read.
+    anything with its ``Keys``): the published keys, the Work Context's and the
+    hop's admission keys, are read through it, never typed in. Build it once at
+    startup; it never fails on an authority that is not serving yet, and refuses
+    calls, with the reason, until the keys are read. Without ``replay`` it
+    authenticates bare tokens only and admits no call.
     """
 
-    def __init__(self, keys, *, audience: str, public_key: str | None = None, replay: ReplayStore | None = None,
+    def __init__(self, keys, *, audience: str, replay: ReplayStore | None = None,
                  now: Callable[[], float] | None = None, timeout: float = KEY_TIMEOUT) -> None:
-        admitting = public_key is not None or replay is not None
+        admitting = replay is not None
         if keys is None or not audience:
-            raise Unauthenticated(Reason.CONFIGURATION)
-        if admitting and (replay is None or not isinstance(public_key, str) or not re.fullmatch(r"[0-9a-f]{64}", public_key)):
-            # Admission needs both the delivered hop public key and a store
-            # every replica shares; one without the other admits nothing.
             raise Unauthenticated(Reason.CONFIGURATION)
         if admitting and os.environ.get("CODEFLY__ENVIRONMENT") != "local" and getattr(replay, "shared", False) is not True:
             # A process-local store answers only for its own process: a captured
@@ -136,10 +135,11 @@ class Verifier:
             # forget every reservation. Only the run named exactly "local" may.
             raise Unauthenticated(Reason.STORENOTSHARED)
         self._source, self._audience, self._timeout = keys, audience, timeout
-        self._public_key, self._replay = public_key, replay
+        self._replay = replay
         self._now = now or time.time
         self._lock = threading.Lock()
         self._trust: Trust | None = None
+        self._admission: tuple[str, ...] = ()  # the published hop admission keys, hex
         self._fetched = 0.0
         self._tried = float("-inf")
         self._inflight: futures.Future[None] | None = None  # done when the running read ends
@@ -165,9 +165,10 @@ class Verifier:
 
     def verify(self, headers: Mapping[str, str] | Iterable[tuple[str, str]], method: str) -> Identity:
         """Who the call is for, or ``Unauthenticated`` naming why it is refused.
-        The admission is checked first: nothing that is not signed for this exact
-        method and audience reaches the key read, and its single-use nonce is
-        reserved before the keys are read. It may wait up to the read's timeout
+        The admission is checked first, by the published hop admission keys
+        held: nothing that is not signed for this exact method and audience
+        reaches the Work Context's key read or starts one, and its single-use
+        nonce is reserved before that read. It may wait up to the read's timeout
         for a key it does not hold yet, or for keys past the stale window; an
         asyncio handler uses ``verify_async``.
 
@@ -211,9 +212,13 @@ class Verifier:
             await finish()
 
     def _admit(self, headers, method):
-        pairs, token, call = self._bound(headers, method)
         arrival, mark = self._now(), time.monotonic()
-        managed = callable(getattr(self._replay, "reserve", None))
+        pairs = self._pairs(headers)
+        wait = self._admission_read()
+        if wait is not None:
+            futures.wait((wait,), self._timeout)
+        pairs, token, call = self._bound(pairs, method, arrival)
+        managed = _managed(self._replay, "reserve", "finish")
         until = call.expires + SKEW
         try:
             if managed:
@@ -241,9 +246,16 @@ class Verifier:
             raise
 
     async def _admit_async(self, headers, method):
-        pairs, token, call = self._bound(headers, method)
         arrival, mark = self._now(), time.monotonic()
-        managed = callable(getattr(self._replay, "reserve_async", None))
+        pairs = self._pairs(headers)
+        wait = self._admission_read()
+        if wait is not None:
+            try:
+                await asyncio.wait_for(asyncio.wrap_future(wait), self._timeout)
+            except asyncio.TimeoutError:
+                pass  # judged below on the keys held: missing or stale ones are refused with the reason
+        pairs, token, call = self._bound(pairs, method, arrival)
+        managed = _managed(self._replay, "reserve_async", "finish_async")
         until = call.expires + SKEW
         try:
             if managed:
@@ -292,13 +304,42 @@ class Verifier:
                 pass
         return self._token_identity(token)
 
-    def _bound(self, headers, method):
-        if self._public_key is None or self._replay is None:
-            # A token-only verifier holds neither the hop's public key nor a
-            # replay store, so it can establish no admission.
+    def _pairs(self, headers) -> list[tuple[str, str]]:
+        if self._replay is None:
+            # A token-only verifier holds no replay store, so it can establish
+            # no admission.
             raise Unauthenticated(Reason.CONFIGURATION)
-        pairs = list(headers.items() if isinstance(headers, Mapping) else headers)
-        call = check(pairs, self._public_key, method, self._audience, self._now())
+        return list(headers.items() if isinstance(headers, Mapping) else headers)
+
+    def _admission_read(self) -> futures.Future[None] | None:
+        """The read an admission must wait for, if any. An admission is judged on
+        the keys held: neither a stamp signed by no published key nor keys past
+        ``KEY_MAX_AGE`` start a read here, so a caller without an admission can
+        neither drive the authority's keys nor delay a genuine call's read. Only
+        when no trusted keys are held at all (never read, or past ``KEY_STALE``)
+        does it start one, at most every ``KEY_RETRY`` as readiness does."""
+        with self._lock:
+            now = self._now()
+            trusted = self._trust is not None and now - self._fetched <= KEY_STALE
+            if not trusted and self._inflight is None and now - self._tried >= KEY_RETRY:
+                self._refresh()
+            return None if trusted else self._inflight
+
+    def _bound(self, pairs, method, arrival):
+        """The admission judged at the instant the call arrived, by the published
+        hop admission key it is signed by."""
+        with self._lock:
+            if self._trust is None or self._now() - self._fetched > KEY_STALE:
+                if isinstance(self.keys_error, Unauthenticated) and self.keys_error.reason == Reason.INVALIDKEY:
+                    raise Unauthenticated(Reason.INVALIDKEY)
+                raise Unauthenticated(Reason.KEYSUNAVAILABLE)
+            published = self._admission
+        if not published:
+            raise Unauthenticated(Reason.KEYSUNAVAILABLE)
+        key = signed_by(pairs, published)
+        if not key:
+            raise Unauthenticated(Reason.STAMPPROOF)
+        call = check(pairs, key, method, self._audience, arrival)
         return pairs, bound_token(pairs), call
 
     def _start(self, key_id: str) -> futures.Future[None] | None:
@@ -355,20 +396,39 @@ class Verifier:
         self._inflight, self._tried = done, self._now()
 
         def read() -> None:
-            trust, error = None, None
+            trust, admission, error = None, (), None
             try:
                 response = self._source.Keys(KeysRequest(), timeout=self._timeout)
                 trust = Trust.from_keys(response, now=lambda: datetime.fromtimestamp(self._now(), timezone.utc))
+                admission = admission_keys(response)
+                if self._replay is not None and not admission:
+                    error = NoAdmissionKeys()
             except Exception as failure:  # a gRPC error, a timeout, or keys that are unusable
                 error = failure
             with self._lock:
                 if trust is not None:
-                    self._trust, self._fetched = trust, self._now()
+                    self._trust, self._admission, self._fetched = trust, admission, self._now()
                 self.keys_error, self._inflight = error, None
             done.set_result(None)
 
         threading.Thread(target=read, name="codefly-hop-keys", daemon=True).start()
         return done
+
+
+class NoAdmissionKeys(Exception):
+    """What ``keys_error`` reports, for the module's logs, while the authority's
+    keys read but publish no hop admission key: every call is refused as
+    keys_unavailable until the authority publishes its hop's key."""
+
+    def __init__(self) -> None:
+        super().__init__("the authority's Keys publish no hop admission key (admission_keys), so no call can be admitted")
+
+
+def _managed(store, reserve: str, finish: str) -> bool:
+    """Whether a store holds reservations: it has both operations, as
+    TypeScript requires. A store with only one is treated as a plain consumer,
+    never left holding a reservation nothing finishes."""
+    return callable(getattr(store, reserve, None)) and callable(getattr(store, finish, None))
 
 
 def _key_id(token: str) -> str:

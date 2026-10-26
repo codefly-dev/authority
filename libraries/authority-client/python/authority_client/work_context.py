@@ -162,10 +162,12 @@ class Trust:
     @classmethod
     def from_keys(cls, response, *, now: Callable[[], datetime] | None = None) -> "Trust":
         """Trust built from the authority interface's KeysResponse. Only Ed25519
-        keys are kept; an empty or repeated key id is refused."""
+        Work Context keys are kept (purpose "work-context", or none from a host
+        older than the purpose); an empty or repeated key id is refused. The
+        hop's admission keys are never among them."""
         keys: dict[str, bytes] = {}
         for key in response.keys:
-            if key.algorithm != ALGORITHM:
+            if key.algorithm != ALGORITHM or key.purpose not in ("", "work-context"):
                 continue
             if not key.key_id or key.key_id in keys:
                 raise Unauthenticated(Reason.INVALIDKEY)
