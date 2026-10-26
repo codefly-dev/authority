@@ -30,6 +30,17 @@ service AuthorityService {
   // Context keys, and the hop admission keys a module behind the hop checks
   // each call's admission by.
   rpc Keys(KeysRequest) returns (KeysResponse);
+  // RegisterAdmissionKey is how the hop tells the authority the public key it
+  // signs call admissions with, so Keys publishes it in admission_keys. The
+  // caller is the hop, proving it with its workload credential; any other
+  // workload is refused by name. Only the public half travels: the hop's seed
+  // never leaves it. Registering the same key again is idempotent and renews
+  // it, and a registration lapses at expires_at_unix unless renewed, so a hop
+  // renews while it runs (a restarted authority learns the key again at the
+  // next renewal) and a key no running hop signs with any more is withdrawn
+  // without being named. While a rotation overlaps, the retiring and the new
+  // key are both registered, and both published.
+  rpc RegisterAdmissionKey(RegisterAdmissionKeyRequest) returns (RegisterAdmissionKeyResponse);
   // ListResources answers which resources of one kind a checked capability may
   // act on with one action, decided by the authority at the time of the call
   // rather than carried in the capability. A module maps the answer onto its
@@ -270,7 +281,8 @@ message KeysResponse {
   // them. More than one is published while a hop's key is rotated, so the
   // retiring and the new key overlap. They are never Work Context keys and are
   // kept out of keys, so no verifier that reads keys alone can trust one to
-  // sign a Work Context. Empty when the authority knows no hop.
+  // sign a Work Context. Empty until a hop registers its key
+  // (RegisterAdmissionKey).
   repeated PublicKey admission_keys = 3;
 }
 
@@ -286,6 +298,22 @@ message PublicKey {
   // (a hop's signed call admission). A verifier uses a key only for its own
   // purpose.
   string purpose = 4;
+}
+
+// RegisterAdmissionKeyRequest presents one hop admission key.
+message RegisterAdmissionKeyRequest {
+  // The hop's workload credential; any other workload is refused.
+  WorkloadCredential actor = 1;
+  // The raw Ed25519 public key the hop signs admissions with: 32 bytes.
+  bytes public_key = 2;
+}
+
+// RegisterAdmissionKeyResponse is the key as Keys now publishes it.
+message RegisterAdmissionKeyResponse {
+  // The published entry, with its key id and purpose "hop-admission".
+  PublicKey key = 1;
+  // When the registration lapses unless the hop registers the key again.
+  int64 expires_at_unix = 2;
 }
 
 // ListResourcesRequest asks about one kind and one action.

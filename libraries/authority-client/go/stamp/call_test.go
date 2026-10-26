@@ -110,13 +110,14 @@ func TestSignedByNamesThePublishedKeyAProofIsSignedBy(t *testing.T) {
 }
 
 // The authority publishes a seed's public half as one stable entry: the same
-// seed always yields the same key id beside its public key.
+// seed always yields the same key id beside its public key, and the authority
+// a hop registers the key with derives that id from the key alone (KeyID).
 func TestAdmissionIsTheSignersStablePublishedEntry(t *testing.T) {
 	signer, _ := NewSigner(strings.Repeat("01", 32))
 	again, _ := NewSigner(strings.Repeat("01", 32))
 	other, _ := NewSigner(strings.Repeat("02", 32))
 	id, public := signer.Admission()
-	if hex.EncodeToString(public) != signer.PublicKey() || id == "" {
+	if hex.EncodeToString(public) != signer.PublicKey() || id == "" || KeyID(public) != id {
 		t.Fatalf("entry %q %x", id, public)
 	}
 	if againID, _ := again.Admission(); againID != id {

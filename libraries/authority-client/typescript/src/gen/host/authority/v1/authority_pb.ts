@@ -19,7 +19,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file host/authority/v1/authority.proto.
  */
 export const file_host_authority_v1_authority: GenFile = /*@__PURE__*/
-  fileDesc("CiFob3N0L2F1dGhvcml0eS92MS9hdXRob3JpdHkucHJvdG8SEWhvc3QuYXV0aG9yaXR5LnYxIuYDCgxJc3N1ZVJlcXVlc3QSMgoGcGVyc29uGAEgASgLMiAuaG9zdC5hdXRob3JpdHkudjEuUGVyc29uU2Vzc2lvbkgAEjkKCHdvcmtsb2FkGAIgASgLMiUuaG9zdC5hdXRob3JpdHkudjEuV29ya2xvYWRDcmVkZW50aWFsSAASOgoMaW5zdGFsbGF0aW9uGAMgASgLMiIuaG9zdC5hdXRob3JpdHkudjEuSW5zdGFsbGF0aW9uUmVmSAASFgoMcGFyZW50X3Rva2VuGAQgASgJSAASNgoKZGVsZWdhdGlvbhgLIAEoCzIgLmhvc3QuYXV0aG9yaXR5LnYxLkRlbGVnYXRpb25SZWZIABIQCghhdWRpZW5jZRgFIAEoCRIuCgZzY29wZXMYBiADKAsyHi5ob3N0LmF1dGhvcml0eS52MS5Xb3JrU2NvcGVWMRITCgt0dGxfc2Vjb25kcxgHIAEoAxIcChRvcGVyYXRpb25fYmluZGluZ19pZBgIIAEoCRIXCg9vcmdhbml6YXRpb25faWQYCSABKAkSNAoFYWN0b3IYCiABKAsyJS5ob3N0LmF1dGhvcml0eS52MS5Xb3JrbG9hZENyZWRlbnRpYWwSEQoJb3BlcmF0aW9uGAwgASgJQgQKAmFzIiYKDURlbGVnYXRpb25SZWYSFQoNZGVsZWdhdGlvbl9pZBgBIAEoCSJiCg9EZWxlZ2F0ZVJlcXVlc3QSDgoGbW9kdWxlGAEgASgJEi4KBnNjb3BlcxgCIAMoCzIeLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtTY29wZVYxEg8KB3B1cnBvc2UYAyABKAkirgEKCkRlbGVnYXRpb24SFQoNZGVsZWdhdGlvbl9pZBgBIAEoCRIXCg9vcmdhbml6YXRpb25faWQYAiABKAkSDwoHZ3JhbnRvchgDIAEoCRIOCgZtb2R1bGUYBCABKAkSLgoGc2NvcGVzGAUgAygLMh4uaG9zdC5hdXRob3JpdHkudjEuV29ya1Njb3BlVjESDwoHcHVycG9zZRgGIAEoCRIOCgZhY3RpdmUYByABKAgiYwoUR2V0RGVsZWdhdGlvblJlcXVlc3QSFQoNZGVsZWdhdGlvbl9pZBgBIAEoCRI0CgVhY3RvchgCIAEoCzIlLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtsb2FkQ3JlZGVudGlhbCIwChdSZXZva2VEZWxlZ2F0aW9uUmVxdWVzdBIVCg1kZWxlZ2F0aW9uX2lkGAEgASgJIk0KGFJldm9rZURlbGVnYXRpb25SZXNwb25zZRIxCgpkZWxlZ2F0aW9uGAEgASgLMh0uaG9zdC5hdXRob3JpdHkudjEuRGVsZWdhdGlvbiIhCg1QZXJzb25TZXNzaW9uSgQIARACUgpzZXNzaW9uX2lkIigKEldvcmtsb2FkQ3JlZGVudGlhbBISCgpjcmVkZW50aWFsGAEgASgJIioKD0luc3RhbGxhdGlvblJlZhIXCg9pbnN0YWxsYXRpb25faWQYASABKAkiagoNSXNzdWVSZXNwb25zZRINCgV0b2tlbhgBIAEoCRIXCg9leHBpcmVzX2F0X3VuaXgYAiABKAMSMQoHY29udGV4dBgDIAEoCzIgLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtDb250ZXh0VjEiUQoMQ2hlY2tSZXF1ZXN0Eg0KBXRva2VuGAEgASgJEhAKCGF1ZGllbmNlGAIgASgJEg4KBm1ldGhvZBgDIAEoCRIQCghhZHZpc29yeRgEIAEoCCJzCg1DaGVja1Jlc3BvbnNlEjEKB2NvbnRleHQYASABKAsyIC5ob3N0LmF1dGhvcml0eS52MS5Xb3JrQ29udGV4dFYxEh4KFmF1dGhvcml6YXRpb25fcmV2aXNpb24YAiABKAQSDwoHcmVmdXNhbBgDIAEoCSINCgtLZXlzUmVxdWVzdCKAAQoMS2V5c1Jlc3BvbnNlEg4KBmlzc3VlchgBIAEoCRIqCgRrZXlzGAIgAygLMhwuaG9zdC5hdXRob3JpdHkudjEuUHVibGljS2V5EjQKDmFkbWlzc2lvbl9rZXlzGAMgAygLMhwuaG9zdC5hdXRob3JpdHkudjEuUHVibGljS2V5IlMKCVB1YmxpY0tleRIOCgZrZXlfaWQYASABKAkSEQoJYWxnb3JpdGhtGAIgASgJEhIKCnB1YmxpY19rZXkYAyABKAwSDwoHcHVycG9zZRgEIAEoCSJeChRMaXN0UmVzb3VyY2VzUmVxdWVzdBINCgV0b2tlbhgBIAEoCRIQCghhdWRpZW5jZRgCIAEoCRIVCg1yZXNvdXJjZV9raW5kGAMgASgJEg4KBmFjdGlvbhgEIAEoCSJJChVMaXN0UmVzb3VyY2VzUmVzcG9uc2USMAoGZ3JhbnRzGAEgAygLMiAuaG9zdC5hdXRob3JpdHkudjEuUmVzb3VyY2VHcmFudCKIAQoVQXR0YWNoUmVzb3VyY2VSZXF1ZXN0Eg0KBXRva2VuGAEgASgJEjQKBWFjdG9yGAIgASgLMiUuaG9zdC5hdXRob3JpdHkudjEuV29ya2xvYWRDcmVkZW50aWFsEhUKDXJlc291cmNlX2tpbmQYAyABKAkSEwoLcmVzb3VyY2VfaWQYBCABKAkiMQoWQXR0YWNoUmVzb3VyY2VSZXNwb25zZRIXCg9pbnN0YWxsYXRpb25faWQYASABKAkikgEKFURldGFjaFJlc291cmNlUmVxdWVzdBI0CgVhY3RvchgBIAEoCzIlLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtsb2FkQ3JlZGVudGlhbBIXCg9vcmdhbml6YXRpb25faWQYAiABKAkSFQoNcmVzb3VyY2Vfa2luZBgDIAEoCRITCgtyZXNvdXJjZV9pZBgEIAEoCSIxChZEZXRhY2hSZXNvdXJjZVJlc3BvbnNlEhcKD2luc3RhbGxhdGlvbl9pZBgBIAEoCSK7AQoYQXV0aG9yaXplVHJhbnNmZXJSZXF1ZXN0Eg0KBXRva2VuGAEgASgJEjQKBWFjdG9yGAIgASgLMiUuaG9zdC5hdXRob3JpdHkudjEuV29ya2xvYWRDcmVkZW50aWFsEhUKDXJlc291cmNlX2tpbmQYAyABKAkSEwoLcmVzb3VyY2VfaWQYBCABKAkSFQoNZnJvbV9vd25lcl9pZBgFIAEoCRIXCg90b19wcmluY2lwYWxfaWQYBiABKAkiSAoZQXV0aG9yaXplVHJhbnNmZXJSZXNwb25zZRIUCgxwcmluY2lwYWxfaWQYASABKAkSFQoNYXV0aG9yaXplZF9ieRgCIAEoCSJ1Cg1SZXNvdXJjZUdyYW50Eg0KA2FsbBgBIAEoCEgAEgwKAmlkGAIgASgJSAASEAoGcHJlZml4GAMgASgJSAASEQoHcGF0dGVybhgEIAEoCUgAEhkKEXJlc291cmNlX293bmVyX2lkGAUgASgJQgcKBW1hdGNoMuoHChBBdXRob3JpdHlTZXJ2aWNlEmoKBUlzc3VlEh8uaG9zdC5hdXRob3JpdHkudjEuSXNzdWVSZXF1ZXN0GiAuaG9zdC5hdXRob3JpdHkudjEuSXNzdWVSZXNwb25zZSIegtPkkwIYOgEqIhMvdjEvYXV0aG9yaXR5Omlzc3VlEmoKBUNoZWNrEh8uaG9zdC5hdXRob3JpdHkudjEuQ2hlY2tSZXF1ZXN0GiAuaG9zdC5hdXRob3JpdHkudjEuQ2hlY2tSZXNwb25zZSIegtPkkwIYOgEqIhMvdjEvYXV0aG9yaXR5OmNoZWNrEkcKBEtleXMSHi5ob3N0LmF1dGhvcml0eS52MS5LZXlzUmVxdWVzdBofLmhvc3QuYXV0aG9yaXR5LnYxLktleXNSZXNwb25zZRJiCg1MaXN0UmVzb3VyY2VzEicuaG9zdC5hdXRob3JpdHkudjEuTGlzdFJlc291cmNlc1JlcXVlc3QaKC5ob3N0LmF1dGhvcml0eS52MS5MaXN0UmVzb3VyY2VzUmVzcG9uc2USZQoOQXR0YWNoUmVzb3VyY2USKC5ob3N0LmF1dGhvcml0eS52MS5BdHRhY2hSZXNvdXJjZVJlcXVlc3QaKS5ob3N0LmF1dGhvcml0eS52MS5BdHRhY2hSZXNvdXJjZVJlc3BvbnNlEmUKDkRldGFjaFJlc291cmNlEiguaG9zdC5hdXRob3JpdHkudjEuRGV0YWNoUmVzb3VyY2VSZXF1ZXN0GikuaG9zdC5hdXRob3JpdHkudjEuRGV0YWNoUmVzb3VyY2VSZXNwb25zZRJuChFBdXRob3JpemVUcmFuc2ZlchIrLmhvc3QuYXV0aG9yaXR5LnYxLkF1dGhvcml6ZVRyYW5zZmVyUmVxdWVzdBosLmhvc3QuYXV0aG9yaXR5LnYxLkF1dGhvcml6ZVRyYW5zZmVyUmVzcG9uc2USTQoIRGVsZWdhdGUSIi5ob3N0LmF1dGhvcml0eS52MS5EZWxlZ2F0ZVJlcXVlc3QaHS5ob3N0LmF1dGhvcml0eS52MS5EZWxlZ2F0aW9uEmsKEFJldm9rZURlbGVnYXRpb24SKi5ob3N0LmF1dGhvcml0eS52MS5SZXZva2VEZWxlZ2F0aW9uUmVxdWVzdBorLmhvc3QuYXV0aG9yaXR5LnYxLlJldm9rZURlbGVnYXRpb25SZXNwb25zZRJXCg1HZXREZWxlZ2F0aW9uEicuaG9zdC5hdXRob3JpdHkudjEuR2V0RGVsZWdhdGlvblJlcXVlc3QaHS5ob3N0LmF1dGhvcml0eS52MS5EZWxlZ2F0aW9uQi9aLWdhdGV3YXkvcGtnL2dlbi9ob3N0L2F1dGhvcml0eS92MTthdXRob3JpdHl2MWIGcHJvdG8z", [file_google_api_annotations, file_host_authority_v1_work_context]);
+  fileDesc("CiFob3N0L2F1dGhvcml0eS92MS9hdXRob3JpdHkucHJvdG8SEWhvc3QuYXV0aG9yaXR5LnYxIuYDCgxJc3N1ZVJlcXVlc3QSMgoGcGVyc29uGAEgASgLMiAuaG9zdC5hdXRob3JpdHkudjEuUGVyc29uU2Vzc2lvbkgAEjkKCHdvcmtsb2FkGAIgASgLMiUuaG9zdC5hdXRob3JpdHkudjEuV29ya2xvYWRDcmVkZW50aWFsSAASOgoMaW5zdGFsbGF0aW9uGAMgASgLMiIuaG9zdC5hdXRob3JpdHkudjEuSW5zdGFsbGF0aW9uUmVmSAASFgoMcGFyZW50X3Rva2VuGAQgASgJSAASNgoKZGVsZWdhdGlvbhgLIAEoCzIgLmhvc3QuYXV0aG9yaXR5LnYxLkRlbGVnYXRpb25SZWZIABIQCghhdWRpZW5jZRgFIAEoCRIuCgZzY29wZXMYBiADKAsyHi5ob3N0LmF1dGhvcml0eS52MS5Xb3JrU2NvcGVWMRITCgt0dGxfc2Vjb25kcxgHIAEoAxIcChRvcGVyYXRpb25fYmluZGluZ19pZBgIIAEoCRIXCg9vcmdhbml6YXRpb25faWQYCSABKAkSNAoFYWN0b3IYCiABKAsyJS5ob3N0LmF1dGhvcml0eS52MS5Xb3JrbG9hZENyZWRlbnRpYWwSEQoJb3BlcmF0aW9uGAwgASgJQgQKAmFzIiYKDURlbGVnYXRpb25SZWYSFQoNZGVsZWdhdGlvbl9pZBgBIAEoCSJiCg9EZWxlZ2F0ZVJlcXVlc3QSDgoGbW9kdWxlGAEgASgJEi4KBnNjb3BlcxgCIAMoCzIeLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtTY29wZVYxEg8KB3B1cnBvc2UYAyABKAkirgEKCkRlbGVnYXRpb24SFQoNZGVsZWdhdGlvbl9pZBgBIAEoCRIXCg9vcmdhbml6YXRpb25faWQYAiABKAkSDwoHZ3JhbnRvchgDIAEoCRIOCgZtb2R1bGUYBCABKAkSLgoGc2NvcGVzGAUgAygLMh4uaG9zdC5hdXRob3JpdHkudjEuV29ya1Njb3BlVjESDwoHcHVycG9zZRgGIAEoCRIOCgZhY3RpdmUYByABKAgiYwoUR2V0RGVsZWdhdGlvblJlcXVlc3QSFQoNZGVsZWdhdGlvbl9pZBgBIAEoCRI0CgVhY3RvchgCIAEoCzIlLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtsb2FkQ3JlZGVudGlhbCIwChdSZXZva2VEZWxlZ2F0aW9uUmVxdWVzdBIVCg1kZWxlZ2F0aW9uX2lkGAEgASgJIk0KGFJldm9rZURlbGVnYXRpb25SZXNwb25zZRIxCgpkZWxlZ2F0aW9uGAEgASgLMh0uaG9zdC5hdXRob3JpdHkudjEuRGVsZWdhdGlvbiIhCg1QZXJzb25TZXNzaW9uSgQIARACUgpzZXNzaW9uX2lkIigKEldvcmtsb2FkQ3JlZGVudGlhbBISCgpjcmVkZW50aWFsGAEgASgJIioKD0luc3RhbGxhdGlvblJlZhIXCg9pbnN0YWxsYXRpb25faWQYASABKAkiagoNSXNzdWVSZXNwb25zZRINCgV0b2tlbhgBIAEoCRIXCg9leHBpcmVzX2F0X3VuaXgYAiABKAMSMQoHY29udGV4dBgDIAEoCzIgLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtDb250ZXh0VjEiUQoMQ2hlY2tSZXF1ZXN0Eg0KBXRva2VuGAEgASgJEhAKCGF1ZGllbmNlGAIgASgJEg4KBm1ldGhvZBgDIAEoCRIQCghhZHZpc29yeRgEIAEoCCJzCg1DaGVja1Jlc3BvbnNlEjEKB2NvbnRleHQYASABKAsyIC5ob3N0LmF1dGhvcml0eS52MS5Xb3JrQ29udGV4dFYxEh4KFmF1dGhvcml6YXRpb25fcmV2aXNpb24YAiABKAQSDwoHcmVmdXNhbBgDIAEoCSINCgtLZXlzUmVxdWVzdCKAAQoMS2V5c1Jlc3BvbnNlEg4KBmlzc3VlchgBIAEoCRIqCgRrZXlzGAIgAygLMhwuaG9zdC5hdXRob3JpdHkudjEuUHVibGljS2V5EjQKDmFkbWlzc2lvbl9rZXlzGAMgAygLMhwuaG9zdC5hdXRob3JpdHkudjEuUHVibGljS2V5IlMKCVB1YmxpY0tleRIOCgZrZXlfaWQYASABKAkSEQoJYWxnb3JpdGhtGAIgASgJEhIKCnB1YmxpY19rZXkYAyABKAwSDwoHcHVycG9zZRgEIAEoCSJnChtSZWdpc3RlckFkbWlzc2lvbktleVJlcXVlc3QSNAoFYWN0b3IYASABKAsyJS5ob3N0LmF1dGhvcml0eS52MS5Xb3JrbG9hZENyZWRlbnRpYWwSEgoKcHVibGljX2tleRgCIAEoDCJiChxSZWdpc3RlckFkbWlzc2lvbktleVJlc3BvbnNlEikKA2tleRgBIAEoCzIcLmhvc3QuYXV0aG9yaXR5LnYxLlB1YmxpY0tleRIXCg9leHBpcmVzX2F0X3VuaXgYAiABKAMiXgoUTGlzdFJlc291cmNlc1JlcXVlc3QSDQoFdG9rZW4YASABKAkSEAoIYXVkaWVuY2UYAiABKAkSFQoNcmVzb3VyY2Vfa2luZBgDIAEoCRIOCgZhY3Rpb24YBCABKAkiSQoVTGlzdFJlc291cmNlc1Jlc3BvbnNlEjAKBmdyYW50cxgBIAMoCzIgLmhvc3QuYXV0aG9yaXR5LnYxLlJlc291cmNlR3JhbnQiiAEKFUF0dGFjaFJlc291cmNlUmVxdWVzdBINCgV0b2tlbhgBIAEoCRI0CgVhY3RvchgCIAEoCzIlLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtsb2FkQ3JlZGVudGlhbBIVCg1yZXNvdXJjZV9raW5kGAMgASgJEhMKC3Jlc291cmNlX2lkGAQgASgJIjEKFkF0dGFjaFJlc291cmNlUmVzcG9uc2USFwoPaW5zdGFsbGF0aW9uX2lkGAEgASgJIpIBChVEZXRhY2hSZXNvdXJjZVJlcXVlc3QSNAoFYWN0b3IYASABKAsyJS5ob3N0LmF1dGhvcml0eS52MS5Xb3JrbG9hZENyZWRlbnRpYWwSFwoPb3JnYW5pemF0aW9uX2lkGAIgASgJEhUKDXJlc291cmNlX2tpbmQYAyABKAkSEwoLcmVzb3VyY2VfaWQYBCABKAkiMQoWRGV0YWNoUmVzb3VyY2VSZXNwb25zZRIXCg9pbnN0YWxsYXRpb25faWQYASABKAkiuwEKGEF1dGhvcml6ZVRyYW5zZmVyUmVxdWVzdBINCgV0b2tlbhgBIAEoCRI0CgVhY3RvchgCIAEoCzIlLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtsb2FkQ3JlZGVudGlhbBIVCg1yZXNvdXJjZV9raW5kGAMgASgJEhMKC3Jlc291cmNlX2lkGAQgASgJEhUKDWZyb21fb3duZXJfaWQYBSABKAkSFwoPdG9fcHJpbmNpcGFsX2lkGAYgASgJIkgKGUF1dGhvcml6ZVRyYW5zZmVyUmVzcG9uc2USFAoMcHJpbmNpcGFsX2lkGAEgASgJEhUKDWF1dGhvcml6ZWRfYnkYAiABKAkidQoNUmVzb3VyY2VHcmFudBINCgNhbGwYASABKAhIABIMCgJpZBgCIAEoCUgAEhAKBnByZWZpeBgDIAEoCUgAEhEKB3BhdHRlcm4YBCABKAlIABIZChFyZXNvdXJjZV9vd25lcl9pZBgFIAEoCUIHCgVtYXRjaDLjCAoQQXV0aG9yaXR5U2VydmljZRJqCgVJc3N1ZRIfLmhvc3QuYXV0aG9yaXR5LnYxLklzc3VlUmVxdWVzdBogLmhvc3QuYXV0aG9yaXR5LnYxLklzc3VlUmVzcG9uc2UiHoLT5JMCGDoBKiITL3YxL2F1dGhvcml0eTppc3N1ZRJqCgVDaGVjaxIfLmhvc3QuYXV0aG9yaXR5LnYxLkNoZWNrUmVxdWVzdBogLmhvc3QuYXV0aG9yaXR5LnYxLkNoZWNrUmVzcG9uc2UiHoLT5JMCGDoBKiITL3YxL2F1dGhvcml0eTpjaGVjaxJHCgRLZXlzEh4uaG9zdC5hdXRob3JpdHkudjEuS2V5c1JlcXVlc3QaHy5ob3N0LmF1dGhvcml0eS52MS5LZXlzUmVzcG9uc2USdwoUUmVnaXN0ZXJBZG1pc3Npb25LZXkSLi5ob3N0LmF1dGhvcml0eS52MS5SZWdpc3RlckFkbWlzc2lvbktleVJlcXVlc3QaLy5ob3N0LmF1dGhvcml0eS52MS5SZWdpc3RlckFkbWlzc2lvbktleVJlc3BvbnNlEmIKDUxpc3RSZXNvdXJjZXMSJy5ob3N0LmF1dGhvcml0eS52MS5MaXN0UmVzb3VyY2VzUmVxdWVzdBooLmhvc3QuYXV0aG9yaXR5LnYxLkxpc3RSZXNvdXJjZXNSZXNwb25zZRJlCg5BdHRhY2hSZXNvdXJjZRIoLmhvc3QuYXV0aG9yaXR5LnYxLkF0dGFjaFJlc291cmNlUmVxdWVzdBopLmhvc3QuYXV0aG9yaXR5LnYxLkF0dGFjaFJlc291cmNlUmVzcG9uc2USZQoORGV0YWNoUmVzb3VyY2USKC5ob3N0LmF1dGhvcml0eS52MS5EZXRhY2hSZXNvdXJjZVJlcXVlc3QaKS5ob3N0LmF1dGhvcml0eS52MS5EZXRhY2hSZXNvdXJjZVJlc3BvbnNlEm4KEUF1dGhvcml6ZVRyYW5zZmVyEisuaG9zdC5hdXRob3JpdHkudjEuQXV0aG9yaXplVHJhbnNmZXJSZXF1ZXN0GiwuaG9zdC5hdXRob3JpdHkudjEuQXV0aG9yaXplVHJhbnNmZXJSZXNwb25zZRJNCghEZWxlZ2F0ZRIiLmhvc3QuYXV0aG9yaXR5LnYxLkRlbGVnYXRlUmVxdWVzdBodLmhvc3QuYXV0aG9yaXR5LnYxLkRlbGVnYXRpb24SawoQUmV2b2tlRGVsZWdhdGlvbhIqLmhvc3QuYXV0aG9yaXR5LnYxLlJldm9rZURlbGVnYXRpb25SZXF1ZXN0GisuaG9zdC5hdXRob3JpdHkudjEuUmV2b2tlRGVsZWdhdGlvblJlc3BvbnNlElcKDUdldERlbGVnYXRpb24SJy5ob3N0LmF1dGhvcml0eS52MS5HZXREZWxlZ2F0aW9uUmVxdWVzdBodLmhvc3QuYXV0aG9yaXR5LnYxLkRlbGVnYXRpb25CL1otZ2F0ZXdheS9wa2cvZ2VuL2hvc3QvYXV0aG9yaXR5L3YxO2F1dGhvcml0eXYxYgZwcm90bzM", [file_google_api_annotations, file_host_authority_v1_work_context]);
 
 /**
  * IssueRequest names on whose behalf the capability is issued.
@@ -548,7 +548,8 @@ export type KeysResponse = Message<"host.authority.v1.KeysResponse"> & {
    * them. More than one is published while a hop's key is rotated, so the
    * retiring and the new key overlap. They are never Work Context keys and are
    * kept out of keys, so no verifier that reads keys alone can trust one to
-   * sign a Work Context. Empty when the authority knows no hop.
+   * sign a Work Context. Empty until a hop registers its key
+   * (RegisterAdmissionKey).
    *
    * @generated from field: repeated host.authority.v1.PublicKey admission_keys = 3;
    */
@@ -607,6 +608,62 @@ export const PublicKeySchema: GenMessage<PublicKey> = /*@__PURE__*/
   messageDesc(file_host_authority_v1_authority, 15);
 
 /**
+ * RegisterAdmissionKeyRequest presents one hop admission key.
+ *
+ * @generated from message host.authority.v1.RegisterAdmissionKeyRequest
+ */
+export type RegisterAdmissionKeyRequest = Message<"host.authority.v1.RegisterAdmissionKeyRequest"> & {
+  /**
+   * The hop's workload credential; any other workload is refused.
+   *
+   * @generated from field: host.authority.v1.WorkloadCredential actor = 1;
+   */
+  actor?: WorkloadCredential;
+
+  /**
+   * The raw Ed25519 public key the hop signs admissions with: 32 bytes.
+   *
+   * @generated from field: bytes public_key = 2;
+   */
+  publicKey: Uint8Array;
+};
+
+/**
+ * Describes the message host.authority.v1.RegisterAdmissionKeyRequest.
+ * Use `create(RegisterAdmissionKeyRequestSchema)` to create a new message.
+ */
+export const RegisterAdmissionKeyRequestSchema: GenMessage<RegisterAdmissionKeyRequest> = /*@__PURE__*/
+  messageDesc(file_host_authority_v1_authority, 16);
+
+/**
+ * RegisterAdmissionKeyResponse is the key as Keys now publishes it.
+ *
+ * @generated from message host.authority.v1.RegisterAdmissionKeyResponse
+ */
+export type RegisterAdmissionKeyResponse = Message<"host.authority.v1.RegisterAdmissionKeyResponse"> & {
+  /**
+   * The published entry, with its key id and purpose "hop-admission".
+   *
+   * @generated from field: host.authority.v1.PublicKey key = 1;
+   */
+  key?: PublicKey;
+
+  /**
+   * When the registration lapses unless the hop registers the key again.
+   *
+   * @generated from field: int64 expires_at_unix = 2;
+   */
+  expiresAtUnix: bigint;
+};
+
+/**
+ * Describes the message host.authority.v1.RegisterAdmissionKeyResponse.
+ * Use `create(RegisterAdmissionKeyResponseSchema)` to create a new message.
+ */
+export const RegisterAdmissionKeyResponseSchema: GenMessage<RegisterAdmissionKeyResponse> = /*@__PURE__*/
+  messageDesc(file_host_authority_v1_authority, 17);
+
+/**
  * ListResourcesRequest asks about one kind and one action.
  *
  * @generated from message host.authority.v1.ListResourcesRequest
@@ -646,7 +703,7 @@ export type ListResourcesRequest = Message<"host.authority.v1.ListResourcesReque
  * Use `create(ListResourcesRequestSchema)` to create a new message.
  */
 export const ListResourcesRequestSchema: GenMessage<ListResourcesRequest> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 16);
+  messageDesc(file_host_authority_v1_authority, 18);
 
 /**
  * ListResourcesResponse is every grant the capability holds on the kind for the
@@ -667,7 +724,7 @@ export type ListResourcesResponse = Message<"host.authority.v1.ListResourcesResp
  * Use `create(ListResourcesResponseSchema)` to create a new message.
  */
 export const ListResourcesResponseSchema: GenMessage<ListResourcesResponse> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 17);
+  messageDesc(file_host_authority_v1_authority, 19);
 
 /**
  * AttachResourceRequest names one resource and the capability it was created under.
@@ -709,7 +766,7 @@ export type AttachResourceRequest = Message<"host.authority.v1.AttachResourceReq
  * Use `create(AttachResourceRequestSchema)` to create a new message.
  */
 export const AttachResourceRequestSchema: GenMessage<AttachResourceRequest> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 18);
+  messageDesc(file_host_authority_v1_authority, 20);
 
 /**
  * AttachResourceResponse names the installation that now owns the resource.
@@ -730,7 +787,7 @@ export type AttachResourceResponse = Message<"host.authority.v1.AttachResourceRe
  * Use `create(AttachResourceResponseSchema)` to create a new message.
  */
 export const AttachResourceResponseSchema: GenMessage<AttachResourceResponse> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 19);
+  messageDesc(file_host_authority_v1_authority, 21);
 
 /**
  * DetachResourceRequest names one resource its serving module deleted.
@@ -772,7 +829,7 @@ export type DetachResourceRequest = Message<"host.authority.v1.DetachResourceReq
  * Use `create(DetachResourceRequestSchema)` to create a new message.
  */
 export const DetachResourceRequestSchema: GenMessage<DetachResourceRequest> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 20);
+  messageDesc(file_host_authority_v1_authority, 22);
 
 /**
  * DetachResourceResponse names the installation that owned the resource.
@@ -793,7 +850,7 @@ export type DetachResourceResponse = Message<"host.authority.v1.DetachResourceRe
  * Use `create(DetachResourceResponseSchema)` to create a new message.
  */
 export const DetachResourceResponseSchema: GenMessage<DetachResourceResponse> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 21);
+  messageDesc(file_host_authority_v1_authority, 23);
 
 /**
  * AuthorizeTransferRequest names one existing resource and where it moves.
@@ -850,7 +907,7 @@ export type AuthorizeTransferRequest = Message<"host.authority.v1.AuthorizeTrans
  * Use `create(AuthorizeTransferRequestSchema)` to create a new message.
  */
 export const AuthorizeTransferRequestSchema: GenMessage<AuthorizeTransferRequest> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 22);
+  messageDesc(file_host_authority_v1_authority, 24);
 
 /**
  * AuthorizeTransferResponse is the decision the store records.
@@ -878,7 +935,7 @@ export type AuthorizeTransferResponse = Message<"host.authority.v1.AuthorizeTran
  * Use `create(AuthorizeTransferResponseSchema)` to create a new message.
  */
 export const AuthorizeTransferResponseSchema: GenMessage<AuthorizeTransferResponse> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 23);
+  messageDesc(file_host_authority_v1_authority, 25);
 
 /**
  * ResourceGrant is one way of naming covered resources. Exactly one match is
@@ -939,7 +996,7 @@ export type ResourceGrant = Message<"host.authority.v1.ResourceGrant"> & {
  * Use `create(ResourceGrantSchema)` to create a new message.
  */
 export const ResourceGrantSchema: GenMessage<ResourceGrant> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 24);
+  messageDesc(file_host_authority_v1_authority, 26);
 
 /**
  * AuthorityService is implemented by the host (accounts) and by the local authority.
@@ -983,6 +1040,25 @@ export const AuthorityService: GenService<{
     methodKind: "unary";
     input: typeof KeysRequestSchema;
     output: typeof KeysResponseSchema;
+  },
+  /**
+   * RegisterAdmissionKey is how the hop tells the authority the public key it
+   * signs call admissions with, so Keys publishes it in admission_keys. The
+   * caller is the hop, proving it with its workload credential; any other
+   * workload is refused by name. Only the public half travels: the hop's seed
+   * never leaves it. Registering the same key again is idempotent and renews
+   * it, and a registration lapses at expires_at_unix unless renewed, so a hop
+   * renews while it runs (a restarted authority learns the key again at the
+   * next renewal) and a key no running hop signs with any more is withdrawn
+   * without being named. While a rotation overlaps, the retiring and the new
+   * key are both registered, and both published.
+   *
+   * @generated from rpc host.authority.v1.AuthorityService.RegisterAdmissionKey
+   */
+  registerAdmissionKey: {
+    methodKind: "unary";
+    input: typeof RegisterAdmissionKeyRequestSchema;
+    output: typeof RegisterAdmissionKeyResponseSchema;
   },
   /**
    * ListResources answers which resources of one kind a checked capability may

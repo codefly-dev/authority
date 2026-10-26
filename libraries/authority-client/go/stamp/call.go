@@ -205,8 +205,14 @@ const Purpose = "hop-admission"
 // builds the entry in them.
 func (s *Signer) Admission() (keyID string, public []byte) {
 	key := s.key.Public().(ed25519.PublicKey)
-	sum := sha256.Sum256(key)
-	return "hop-" + hex.EncodeToString(sum[:8]), []byte(key)
+	return KeyID(key), []byte(key)
+}
+
+// KeyID is the key id an admission key is published under, derived from the
+// key alone: the hop and the authority it registers with name it alike.
+func KeyID(public ed25519.PublicKey) string {
+	sum := sha256.Sum256(public)
+	return "hop-" + hex.EncodeToString(sum[:8])
 }
 
 // ReplayKey is globally namespaced by signing key and random nonce, not by method:
