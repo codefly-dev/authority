@@ -44,3 +44,19 @@ uv run --no-project --with pytest --with-editable . pytest tests
 ```
 
 The tests re-sign the bodies of `../testdata/claims.json` with a test key.
+
+## Dialling the host
+
+`authority_client.host` is the Go library's `host.Target` / `host.Endpoint` rule
+(`../go/host`), case for case (`tests/test_host.py` mirrors `host_test.go`):
+`https://` is verified TLS; plaintext only to loopback in a local run, or to an
+in-cluster Service address under `internal-transport/mesh-protected=true`; anything
+else is refused by name, never echoing the value. The caller passes what its SDK
+resolved (whether the run is local, the raw assertion):
+
+```python
+from authority_client import host
+
+channel = host.dial(endpoint, local=is_local, mesh=mesh_protected_value)
+stub = AuthorityServiceStub(channel)  # Keys for codefly_hop.Verifier, Issue
+```
