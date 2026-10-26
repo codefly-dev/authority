@@ -87,7 +87,7 @@ func standInFront(ctx context.Context, config *adapters.Configuration) (Clean, e
 			if upstreams[route.Address] != nil {
 				continue
 			}
-			conn, dialErr := grpc.NewClient(dialTarget, append(proxy.DialOptions(), grpc.WithTransportCredentials(transport))...)
+			conn, dialErr := grpc.NewClient(dialTarget, append(proxy.DialOptions(), host.DialOptions(transport)...)...)
 			if dialErr != nil {
 				return nil, dialErr
 			}

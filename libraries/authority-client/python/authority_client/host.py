@@ -50,6 +50,12 @@ ALLOWED_OPTIONS = frozenset({
     "grpc.max_reconnect_backoff_ms",
     "grpc.primary_user_agent",
 })
+# Set by dial on every channel, never by a caller: no proxy from the environment.
+# grpc core has two: the name-based one (https_proxy, http_proxy, grpc_proxy),
+# off with enable_http_proxy=0, and the address-based one
+# (GRPC_ADDRESS_HTTP_PROXY), which that setting does not cover and an empty
+# enabled-address list turns off.
+_NO_PROXY = (("grpc.enable_http_proxy", 0), ("grpc.address_http_proxy_enabled_addresses", ""))
 
 PLAINTEXT_SCHEMES = ("http", "grpc", "tcp")
 _LABEL = re.compile(r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$")
@@ -134,12 +140,19 @@ def endpoint(value: str, *, local: bool, mesh: str | None) -> Target:
 
 def dial(value: str, *, local: bool, mesh: str | None, options=()) -> grpc.Channel:
     """A channel to ``value`` under the transport rule (``endpoint``). ``options`` may
-    only be ``ALLOWED_OPTIONS``: nothing that routes or verifies the channel otherwise."""
+    only be ``ALLOWED_OPTIONS``: nothing that routes or verifies the channel otherwise.
+    The channel never follows a proxy from the environment (``https_proxy``,
+    ``http_proxy``, ``grpc_proxy``), which would see the workload credential and
+    could swap the published keys on a plaintext mesh hop, nor
+    ``GRPC_ADDRESS_HTTP_PROXY``: ``dial`` sets ``grpc.enable_http_proxy=0`` and an
+    empty ``grpc.address_http_proxy_enabled_addresses`` itself, and a caller can set
+    neither."""
     options = tuple(options)  # validated and handed to grpc as one copy: a generator is read once
     for key, _ in options:
         if key not in ALLOWED_OPTIONS:
             raise Refused(f"channel option {key} is not one a caller may set (ALLOWED_OPTIONS)")
     target = endpoint(value, local=local, mesh=mesh)
+    options = options + _NO_PROXY
     if target.tls:
         return grpc.secure_channel(target.address, grpc.ssl_channel_credentials(), options=options)
     return grpc.insecure_channel(target.address, options=options)
