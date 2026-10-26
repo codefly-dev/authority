@@ -78,7 +78,9 @@ type MethodPolicy struct {
 }
 
 // Tombstone is what stays of a withdrawn module: its principal, which it
-// keeps for life, and the generation a redelivery must exceed.
+// keeps for life and no other module or installation may take, and the
+// generation a redelivery must exceed. A tombstone is never cleared: a module
+// that must change principal is delivered under a new name.
 type Tombstone struct {
 	Name, Principal string
 	Generation      uint64

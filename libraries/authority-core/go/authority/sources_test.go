@@ -65,7 +65,8 @@ func TestAnUninstallIsTheOrganizationsAdministrators(t *testing.T) {
 	h := newHarness(t)
 	id := h.inst(acme, "a").ID
 	maya, zoe := h.person("maya"), h.person("zoe")
-	refused(t, h.svc.Uninstall(h.ctx, &maya, acme, id), "administrator")
+	// A member who administers nothing learns nothing either (r148 m2).
+	refused(t, h.svc.Uninstall(h.ctx, &maya, acme, id), "belongs to another organization")
 	foreign := h.svc.Uninstall(h.ctx, &zoe, globex, id)
 	absent := h.svc.Uninstall(h.ctx, &zoe, globex, "no-such-installation")
 	code(t, foreign, domain.Denied)

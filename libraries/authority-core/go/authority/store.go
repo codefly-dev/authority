@@ -37,8 +37,10 @@ type Tx interface {
 	Modules() ([]domain.Module, error)
 	PutModule(domain.Module) error
 	DeleteModule(name string) error
-	// Tombstone answers what stays of a withdrawn module, by name.
+	// Tombstone answers what stays of a withdrawn module, by name, and
+	// TombstoneByPrincipal by its principal. A tombstone is never removed.
 	Tombstone(name string) (domain.Tombstone, error)
+	TombstoneByPrincipal(principal string) (domain.Tombstone, error)
 	PutTombstone(domain.Tombstone) error
 
 	Installation(id string) (domain.Installation, error)
