@@ -13,14 +13,11 @@ codefly config generate hop-signing SEED --service authority/hop
 codefly config generate internal-auth CODEFLY_INTERNAL_TOKEN
 ```
 
-`hop-verification.env` carries the public half of that seed, which every module
-behind the hop checks admissions with. It is committed (a public key) but it is
-**written by hand**: nothing derives it from the seed, so the playground sets it
-after generating the seed, as `hop-verification.env` and the
-[hop admission migration](../../libraries/hop/README.md) describe. That is the
-open half of security review r164 B1; the sound producer is the authority
-publishing the hop's admission key through its own Keys path, which needs an
-`interfaces/authority` change proposed in the handbook first.
+Nothing else about the hop is configured here. The local authority derives the
+public half of that seed and publishes it in `Keys` (`admission_keys`), which
+every module behind the hop already reads, so no verification key is written by
+hand ([hop admission migration](../../libraries/hop/README.md), "Delivering the
+verification key").
 
 No replay volume is configured here any more. Admission reservations live in the
 console's own Postgres (`modules/console/services/store`), because Codefly

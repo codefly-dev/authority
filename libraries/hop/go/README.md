@@ -13,18 +13,19 @@ import (
 	"github.com/codefly-dev/authority/libraries/hop/go/replaypg"
 )
 
-publicKey, _ := codefly.For(ctx).WorkspaceConfiguration("hop-verification", "PUBLIC_KEY")
 // The reservations: this module's own store. replaypg.Migration is its table.
 // NewVerifier refuses a store that is not the shared one outside a local run.
 pool, err := pgxpool.New(ctx, connection) // Service("store").Secret("postgres", "read-write-connection")
 replay, err := replaypg.New(pool)
 conn, _, err := host.Dial(ctx) // the local authority on a laptop, the host on a cell
 audience, err := hop.Audience() // the module the composition started this process as (CODEFLY__MODULE)
-verifier, err := hop.NewVerifier(ctx, authorityv1.NewAuthorityServiceClient(conn), audience, publicKey, replay)
+// The hop's admission keys come with the authority's Keys: nothing is configured.
+verifier, err := hop.NewVerifier(ctx, authorityv1.NewAuthorityServiceClient(conn), audience, replay)
 config.GRPCServerOptions = append(config.GRPCServerOptions,
 	// Judges the admission window and reserves its single-use nonce when each
-	// call arrives, not after a large request body has decoded.
-	grpc.InTapHandle(verifier.TapHandle()),
+	// call reaches the server, on the gRPC and the Connect listener alike, not
+	// after a large request body has decoded.
+	grpc.StatsHandler(verifier.StatsHandler()),
 	grpc.ChainUnaryInterceptor(verifier.UnaryServerInterceptor()),
 	grpc.ChainStreamInterceptor(verifier.StreamServerInterceptor()))
 // in a handler: id, _ := hop.FromContext(ctx); id.Tenant, id.Has(kind, action), id.Claims.Allows(kind, action, resourceID)
@@ -122,8 +123,8 @@ admission signed for this call), `stamp_token`, `stamp_digest`, `stamp_method`,
 `stamp_store`. Each names no proof, token, digest, nonce or claim.
 
 Processes that receive only Issue responses use Go `NewTokenVerifier`, or omit
-`public_key` and `replay` when constructing the Python/TypeScript `Verifier`.
-They still authenticate bare tokens against published Keys. They admit no
-stamped call: without the hop's public key and a shared replay store there is
-nothing to check an admission against, so `verify` refuses with
-`configuration`. A process that receives hop calls supplies both.
+`replay` when constructing the Python/TypeScript `Verifier`. They still
+authenticate bare tokens against published Keys. They admit no stamped call:
+without a shared replay store an admission cannot be consumed once, so `verify`
+refuses with `configuration`. A process that receives hop calls supplies one;
+the hop's admission keys come from the same Keys read, never from configuration.

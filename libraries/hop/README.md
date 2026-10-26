@@ -91,13 +91,15 @@ the unary interceptor, and the Connect and REST faces buffer the message too.
 Judging the window there refused admissions the authority had granted to slow
 uploads; consuming the nonce there let a second delivery of one admission, held
 back while its body arrived, find the nonce collected after its retention and
-run the handler a second time. `Verifier.TapHandle`, installed with
-`grpc.InTapHandle`, records the arrival instant when the stream is accepted and
-starts the admission check and the reservation beside the call, so neither
-waits for the body; the interceptor awaits them and refuses with the reason. It
-does no work on the connection's I/O goroutine itself, where it would serialise
-every stream on that connection. A server that installs no handle judges and
-reserves when the interceptor runs, so nothing is admitted by its absence.
+run the handler a second time. `Verifier.StatsHandler`, installed with
+`grpc.StatsHandler`, records the arrival instant when gRPC tags the call and
+starts the admission check and the reservation beside it, so neither waits for
+the body; the interceptor awaits them and refuses with the reason. gRPC tags
+every call this way on every transport it serves: its own listener, and the
+Connect listener a go-grpc module declares, which hands each call to the same
+server through `grpc.Server.ServeHTTP`, where a tap handle never runs (review
+r3, M1). A server that installs no handler judges and reserves when the
+interceptor runs, so nothing is admitted by its absence.
 
 A single-use admission is consumed exactly once. Its reservation is retained at
 least to expiry plus the allowance, and for as long as a call holding it runs: a
@@ -131,7 +133,10 @@ clock differences and prevent clock rollback. Synchronize deployment clocks.
 `INSERT ... ON CONFLICT (nonce) DO NOTHING` over a primary key is the atomic
 reservation, conditioned on the retention not having passed by the database's
 clock, and the database is already shared by every replica. Its `active` column
-holds a running call's reservation; `Collect` never removes one. Codefly
+marks a running call, for diagnosis; `Collect` removes every reservation past its
+retention by the database's clock, running or not, because `Reserve` refuses any
+reservation past it on that clock, so a holder that crashed before finishing
+leaves no permanent row. Codefly
 delivers a store, so this needs nothing the platform cannot provide.
 `replaypg.Migration` is the table, `Collect` removes reservations whose
 retention has passed, and the console composes exactly this
@@ -178,33 +183,37 @@ codefly config generate hop-signing SEED --service authority/hop
 ```
 
 The hop reads `Secret("hop-signing", "SEED")`: a 32-byte hex seed, never the old
-workspace `hop/PROOF`. Do not deliver the seed or derive it from a previously
-shared proof. The key must come from trusted composition, never from a request
-or an unauthenticated key advertisement. Key rotation changes the trusted public
-key and immediately refuses stamps from the retired key.
+workspace `hop/PROOF`. Do not deliver the seed to a consumer or derive it from a
+previously shared proof.
 
 ### Delivering the verification key
 
-**This is open.** A consumer needs the public half of that seed as
-`hop-verification/PUBLIC_KEY`, and nothing produces it. `codefly config
-generate` makes random bytes in hex or base64; it has no derived-value
-generator, and a configuration value template assembles only its own producer's
-primitives, so it cannot transform a seed either. Deriving the public half
-therefore means reading the seed outside Codefly and writing the result in by
-hand — the hand-written configuration the platform rules forbid — and a value
-that drifts from the seed refuses every call as `stamp_proof` (security review
-r164, B1).
+**The authority publishes it in `Keys`** (`codefly.dev/authority@0.3.2`):
+`KeysResponse.admission_keys`, each with `purpose` `hop-admission`, beside the
+Work Context keys in `keys` (purpose `work-context`). A verifier (Go, Python,
+TypeScript) takes them from the `Keys` read it already makes, caches and
+refreshes with a fail-closed staleness policy, so no consumer is configured with
+a hop key and none can drift from the seed. They are a field of their own, so a
+verifier that reads `keys` alone (an earlier release, or the JSON Web Key Set)
+never trusts a hop key to sign a Work Context, and each verifier uses a key for
+its own purpose only. The local authority derives the public half from the hop's
+`hop-signing/SEED` in code (`modules/authority/services/local/code/work.go`,
+`hopAdmissionKey`); the seed never leaves it. A run with no hop publishes none,
+and an authority that publishes none leaves every admission refused as
+`keys_unavailable`, with `ErrNoAdmissionKeys`/`NoAdmissionKeys` in the module's
+key error saying why.
 
-The agreed direction is for **the authority to publish the hop's admission key
-through its own `Keys`**, which a verifier already trusts, already caches, and
-already re-reads on rotation with a fail-closed staleness policy. A hop
-admission key carried there is ignored by the Work Context trust set, which
-filters on the algorithm it accepts, so it grants no Work Context signing
-authority. `Keys` is part of `interfaces/authority`, so this is a contract
-change: it is proposed in the handbook first and `accounts` implements it
-alongside the local authority. Until that lands, a run configures
-`PUBLIC_KEY` by hand and the playground documents it as such
-(`playground/configurations/local/hop-verification.env`).
+Every published admission key is trusted, so a rotation overlaps: the authority
+publishes the new key beside the retiring one, then the hop signs with the new
+one, then the retiring key is withdrawn. A stamp signed by no published key is
+refused as `stamp_proof` and starts no key read, so a caller without an
+admission cannot drive the authority's keys; a verifier learns a new key on the
+next read an admitted call or readiness starts, within the five-minute key age.
+Publish the new key at least that long before the hop signs with it.
+
+`accounts` adopting this (publishing its hop's key from the hop's seed) is
+follow-up work in the host; until it does, a cell's modules on this verifier
+refuse every admission as `keys_unavailable`.
 
 `hop-verification/REPLAY_DIRECTORY` is gone. Reservations live in the consumer's
 own store (above), because Codefly delivers a store and does not deliver a
@@ -228,9 +237,9 @@ nothing in this repository can sequence it:
    (`playground/workspace.codefly.yaml`, documents 0.1.13 and records 0.5.0) and
    both still verify the shared proof, so calls through the hop to them are
    refused until those releases exist and the playground repins them.
-2. `accounts` publishes the hop's admission key through `Keys`, once that
-   contract change is agreed (above). Until then every consumer's
-   `hop-verification/PUBLIC_KEY` is configured by hand.
+2. `accounts` publishes the hop's admission key through `Keys`
+   (`admission_keys`, above). Until it does, modules on a cell refuse every
+   admission as `keys_unavailable`; nothing is configured by hand.
 3. This repository's hop and console upgrade together, and `hop/PROOF`
    delivery is removed.
 

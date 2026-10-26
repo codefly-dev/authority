@@ -19,7 +19,7 @@ for:
 from authority_client._gen.host.authority.v1.authority_pb2_grpc import AuthorityServiceStub
 from codefly_hop import Unauthenticated, Verifier
 
-verifier = Verifier(AuthorityServiceStub(channel), audience=os.environ["CODEFLY__MODULE"], public_key=public_key, replay=shared_replay_store)  # once
+verifier = Verifier(AuthorityServiceStub(channel), audience=os.environ["CODEFLY__MODULE"], replay=shared_replay_store)  # once; the hop's key comes from Keys
 identity = verifier.verify(request.headers, full_procedure)              # a sync handler
 identity = await verifier.verify_async(request.headers, full_procedure)  # an asyncio handler: a key wait runs off the loop
 with verifier.admit(request.headers, full_procedure) as identity: ...    # holds the single-use reservation while the handler runs
@@ -139,8 +139,8 @@ admission signed for this call), `stamp_token`, `stamp_digest`, `stamp_method`,
 `stamp_store`. Each names no proof, token, digest, nonce or claim.
 
 Processes that receive only Issue responses use Go `NewTokenVerifier`, or omit
-`public_key` and `replay` when constructing the Python/TypeScript `Verifier`.
-They still authenticate bare tokens against published Keys. They admit no
-stamped call: without the hop's public key and a shared replay store there is
-nothing to check an admission against, so `verify` refuses with
-`configuration`. A process that receives hop calls supplies both.
+`replay` when constructing the Python/TypeScript `Verifier`. They still
+authenticate bare tokens against published Keys. They admit no stamped call:
+without a shared replay store an admission cannot be consumed once, so `verify`
+refuses with `configuration`. A process that receives hop calls supplies one;
+the hop's admission keys come from the same Keys read, never from configuration.

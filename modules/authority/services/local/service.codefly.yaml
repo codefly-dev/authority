@@ -16,6 +16,9 @@ agent:
 # stand-in modules); this module ships an empty default under
 # configurations/local, which a composition's own document replaces whole
 # (code/work.go applyComposition).
+# Keys publishes the hop's admission key, derived in code from the hop's own
+# Codefly-generated hop-signing/SEED (code/work.go hopAdmissionKey); only the
+# public half leaves this process, and a run with no hop publishes none.
 workspace-configuration-dependencies:
     - federation
     - fixture-composition
