@@ -49,8 +49,8 @@ type Fixture struct {
 	InstalledSolution     string // an active installation the viewer is entitled to
 	InstalledCredential   string // workload credential of InstalledAudience, required for installation-owned Issue
 	InstalledAudience     string // the installed solution principal; distinct from the organisation-role module Audience
-	// UnexposedTeam is a real team of Organization that InstalledSolution is not
-	// yet exposed to, named as the host's own fixture creates or finds it. The
+	// UnexposedTeam is a real team of Organization that InstalledSolution does
+	// not reach when the run starts, from the host's own fixture. The
 	// staleness probe exposes InstalledSolution to it, which moves the
 	// organisation's authority; its members keep that role for the rest of the
 	// run, so a team with no members is the safe choice.
@@ -402,6 +402,20 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		}
 		admin := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.AdminToken})
 		c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": token, "audience": f.Audience})
+		// A team the installation already reaches moves nothing, as a second run
+		// against a long-lived authority finds: that is the fixture's failure.
+		listed := c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "List", map[string]any{"organization_id": f.Organization})
+		for _, inst := range listMsgs(listed, "installations") {
+			if str(inst, "id") != f.InstalledSolution {
+				continue
+			}
+			teams := field(inst, "team_ids").List()
+			for i := 0; i < teams.Len(); i++ {
+				if teams.Get(i).String() == f.UnexposedTeam {
+					t.Fatalf("required conformance fixture invalid: UnexposedTeam %q is already exposed to %s", f.UnexposedTeam, f.InstalledSolution)
+				}
+			}
+		}
 		c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "GrantToTeam", map[string]any{"organization_id": f.Organization, "installation_id": f.InstalledSolution, "team_id": f.UnexposedTeam})
 		_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": token, "audience": f.Audience})
 		if status.Code(err) != codes.PermissionDenied {
