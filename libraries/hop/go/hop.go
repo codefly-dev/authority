@@ -280,6 +280,26 @@ func (v *Verifier) KeysError() error {
 	return v.failure
 }
 
+// Ready reports whether the verifier holds trusted keys: true from the first
+// successful read, and through failed re-reads while the last keys are inside
+// keyStale; false before any read succeeded or once they are stale. A module's
+// readiness uses it, never KeysError: a brief authority outage must not take a
+// replica out of rotation while its keys are still trusted.
+//
+// It also starts the read a call would (keys missing or older than keyMaxAge,
+// at most once per keyRetry, never waiting for it): an unready replica gets no
+// calls, so without this it would never read again and never become ready, and
+// an idle one would go stale.
+func (v *Verifier) Ready() bool {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	now := v.now()
+	if (v.fetched.IsZero() || now.Sub(v.fetched) > keyMaxAge) && v.inflight == nil && now.Sub(v.tried) >= keyRetry {
+		v.refresh()
+	}
+	return !v.fetched.IsZero() && now.Sub(v.fetched) <= keyStale
+}
+
 // Verify authenticates the call md carries and returns who it is for, from the
 // authenticated claims. The error wraps workcontext.ErrUnauthenticated and
 // names the reason. The stamp is checked first: a call that does not carry this

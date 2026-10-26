@@ -31,7 +31,11 @@ on an unknown key (at most every 10 s) and when older than 5 minutes; keys that
 cannot be re-read are trusted for 15 minutes at most. It never fails to
 construct on an authority that is not serving yet, and refuses calls with a
 fixed reason until it is; `verifier.keys_error` holds the read's failure for
-logs. `codefly_hop` reads the hop's signed fixture (`../../hop/testdata/stamped.json`)
+logs. **Readiness uses `verifier.ready()`**: true while trusted keys are held,
+through failed re-reads inside the 15-minute window; false before the first read
+or once they are stale. It also starts the same rate-limited, non-blocking re-read a
+call would, so an unready replica recovers and an idle one never goes stale. Never
+gate readiness on `keys_error`. `codefly_hop` reads the hop's signed fixture (`../../hop/testdata/stamped.json`)
 as the Go library writes it.
 
 `codefly_hop` and `authority_client` are one distribution so that one pinned
@@ -73,14 +77,28 @@ The tests re-sign the bodies of `../testdata/claims.json` with a test key.
 
 `authority_client.host` is the Go library's `host.Target` / `host.Endpoint` rule
 (`../go/host`), case for case (`tests/test_host.py` mirrors `host_test.go`):
-`https://` is verified TLS; plaintext only to loopback in a local run, or to an
+`https://` is verified TLS; plaintext only to loopback in the `local` environment, or to an
 in-cluster Service address under `internal-transport/mesh-protected=true`; anything
-else is refused by name, never echoing the value. The caller passes what its SDK
-resolved (whether the run is local, the raw assertion):
+else (control characters, a zone id, port 0 included) is refused by name, never
+echoing the value. Where its two inputs come from:
+
+- **local**: whether the run is in the environment named exactly `local`, as Go's
+  `codefly.IsLocal()` decides it: `os.environ.get("CODEFLY__ENVIRONMENT") == "local"`.
+  No name prefix is reserved for local runs; a playground's `local-authority` is a
+  configuration profile of `local`. Do not use the Python SDK's `is_local`, which
+  reads the wrong variable (codefly-dev/sdk-python#8).
+- **mesh**: the raw workspace value `internal-transport/mesh-protected`, from the
+  Codefly Python SDK: `codefly.configuration(name="internal-transport", key="mesh-protected")`,
+  or `None` when the composition sets none. Only the literal `true` asserts it.
 
 ```python
 from authority_client import host
 
-channel = host.dial(endpoint, local=is_local, mesh=mesh_protected_value)
+channel = host.dial(endpoint, local=os.environ.get("CODEFLY__ENVIRONMENT") == "local", mesh=mesh_protected_value)
 stub = AuthorityServiceStub(channel)  # Keys for codefly_hop.Verifier, Issue
 ```
+
+`options` is an allowlist (`host.ALLOWED_OPTIONS`: keepalive, message sizes,
+reconnect backoff, user agent). Anything else is refused: a proxy, a TLS or
+authority override or a service config would route or verify the channel
+otherwise.

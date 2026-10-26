@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 
 	codefly "github.com/codefly-dev/sdk-go"
@@ -58,6 +59,11 @@ func targetFor(ctx context.Context, endpoint string, fallback func() (string, er
 		return "", nil, err
 	}
 
+	// Control characters are refused in the raw value, before any trimming, so
+	// Go and Python (whose strip also removes \x1c-\x1f) judge the same bytes.
+	if strings.ContainsFunc(endpoint, func(r rune) bool { return r < 0x20 || r == 0x7f }) {
+		return "", nil, fmt.Errorf("authority/endpoint carries a control character (value not shown: it may carry a credential)")
+	}
 	endpoint = strings.TrimSpace(endpoint)
 	if endpoint == "" {
 		if fallback == nil {
@@ -81,6 +87,9 @@ func targetFor(ctx context.Context, endpoint string, fallback func() (string, er
 	}
 	switch u.Scheme {
 	case "https":
+		if !validPort(withPort(u, "443")) {
+			return "", nil, fmt.Errorf("authority/endpoint %s names no port in 1-65535", hostOnly(u))
+		}
 		return withPort(u, "443"), credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS12}), nil
 	case "http", "grpc", "tcp":
 		return plaintext(withPort(u, "80"), codefly.IsLocal(), mesh)
@@ -98,6 +107,17 @@ func hostOnly(u *url.URL) string {
 	return u.Host
 }
 
+// validPort reports whether target names a decimal port in 1..65535: never an
+// empty port (the dialer reads it as 0), a sign, a space or an out-of-range one.
+func validPort(target string) bool {
+	_, port, err := net.SplitHostPort(target)
+	if err != nil || port == "" || strings.TrimLeft(port, "0123456789") != "" {
+		return false
+	}
+	number, err := strconv.Atoi(port)
+	return err == nil && number >= 1 && number <= 65535
+}
+
 func withPort(u *url.URL, port string) string {
 	if u.Port() != "" {
 		return u.Host
@@ -109,6 +129,9 @@ func plaintext(target string, local, mesh bool) (string, credentials.TransportCr
 	hostname, _, err := net.SplitHostPort(target)
 	if err != nil {
 		return "", nil, fmt.Errorf("authority endpoint must name host:port")
+	}
+	if !validPort(target) {
+		return "", nil, fmt.Errorf("authority endpoint names no port in 1-65535")
 	}
 	ip := net.ParseIP(hostname)
 	loopback := strings.EqualFold(hostname, "localhost") || ip != nil && ip.IsLoopback()

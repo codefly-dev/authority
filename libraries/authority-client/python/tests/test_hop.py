@@ -196,3 +196,51 @@ def test_verify_async_waits_for_keys_off_the_event_loop():
     ticks, identity = asyncio.run(scenario())
     assert ticks >= 10, "the event loop was blocked while the keys were read"
     assert identity.owner == FIXTURE["identity"]["owner"]
+
+
+# Readiness follows trust, not the last read.
+def test_ready_holds_while_keys_are_trusted():
+    clock = [FIXTURE["now"]]
+    source = Keys(published())
+    v = verifier(clock=lambda: clock[0], source=source)
+    assert v.ready()
+    source.error = RuntimeError("authority down")
+    clock[0] += 400  # old keys: ready() starts a re-read, which fails
+    v.ready()
+    settle(v)
+    assert v.keys_error is not None and v.ready()
+    clock[0] += 900
+    assert not v.ready()
+
+
+# Review r74 B1: an unready replica gets no calls; polling ready() alone must read
+# again and turn it ready once the authority serves keys.
+def test_an_unready_replica_becomes_ready_by_polling_alone():
+    clock = [FIXTURE["now"]]
+    source = Keys(error=RuntimeError("not serving yet"))
+    v = Verifier(source, audience=FIXTURE["audience"], proof=FIXTURE["proof"], now=lambda: clock[0])
+    ready = False
+    for poll in range(30):
+        if poll == 3:
+            source.error, source.response = None, published()
+        clock[0] += 1
+        v.ready()
+        settle(v)
+        ready = v.ready()
+        if ready:
+            break
+    assert ready and source.reads <= 3
+
+
+# Review r74 B1: an idle replica polled for readiness past the stale window
+# re-reads as its keys age and stays ready.
+def test_an_idle_replica_polled_for_readiness_stays_ready():
+    clock = [FIXTURE["now"]]
+    source = Keys(published())
+    v = verifier(clock=lambda: clock[0], source=source)
+    for minute in range(60):
+        clock[0] += 60
+        v.ready()
+        settle(v)
+        assert v.ready(), f"an idle replica went unready at minute {minute + 1}"
+    assert 10 <= source.reads <= 14

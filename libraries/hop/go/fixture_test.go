@@ -344,3 +344,75 @@ func TestAnActorGrantedNothingNarrowsToNothing(t *testing.T) {
 		t.Fatalf("identity: %+v", id)
 	}
 }
+
+// Readiness follows trust, not the last read: a failed re-read keeps a replica
+// ready while its keys are inside keyStale; then it is not ready.
+func TestReadyHoldsWhileKeysAreTrusted(t *testing.T) {
+	first := newSigner("first")
+	source := &keys{response: &authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{first.published()}}}
+	clock := time.Unix(1792818000, 0)
+	v, _ := NewVerifier(context.Background(), source, "documents", "proof")
+	v.now = func() time.Time { return clock }
+	v.fetched, v.tried = clock, clock
+	if !v.Ready() {
+		t.Fatal("not ready after a successful read")
+	}
+	source.set(nil, errors.New("authority down"), nil)
+	clock = clock.Add(keyMaxAge + time.Second)
+	v.Ready() // starts the re-read, which fails
+	settled(v)
+	if v.KeysError() == nil || !v.Ready() {
+		t.Fatalf("a failed re-read inside keyStale keeps the replica ready: ready=%v err=%v", v.Ready(), v.KeysError())
+	}
+	clock = clock.Add(keyStale)
+	if v.Ready() {
+		t.Fatal("ready with stale keys")
+	}
+}
+
+// Review r74 B1, first case: a replica that starts during an authority outage
+// gets no calls while unready; polling Ready alone must read again and turn it
+// ready once the authority serves its keys.
+func TestAnUnreadyReplicaBecomesReadyByPollingAlone(t *testing.T) {
+	first := newSigner("first")
+	source := &keys{err: errors.New("authority not serving yet")}
+	clock := time.Unix(1792818000, 0)
+	v, _ := NewVerifier(context.Background(), source, "documents", "proof")
+	v.now = func() time.Time { return clock }
+	v.tried = clock
+	ready := false
+	for poll := 0; poll < 30 && !ready; poll++ {
+		if poll == 3 {
+			source.set(&authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{first.published()}}, nil, nil)
+		}
+		clock = clock.Add(time.Second)
+		v.Ready()
+		settled(v)
+		ready = v.Ready()
+	}
+	if !ready || source.count() > 3 {
+		t.Fatalf("polling Ready after the authority recovered: ready=%v reads=%d", ready, source.count())
+	}
+}
+
+// Review r74 B1, second case: an idle replica (no calls) polled for readiness
+// past keyStale re-reads as its keys age and stays ready.
+func TestAnIdleReplicaPolledForReadinessStaysReady(t *testing.T) {
+	first := newSigner("first")
+	source := &keys{response: &authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{first.published()}}}
+	clock := time.Unix(1792818000, 0)
+	v, _ := NewVerifier(context.Background(), source, "documents", "proof")
+	v.now = func() time.Time { return clock }
+	v.fetched, v.tried = clock, clock
+	for minute := 1; minute <= 60; minute++ {
+		clock = clock.Add(time.Minute)
+		v.Ready()
+		settled(v)
+		if !v.Ready() {
+			t.Fatalf("an idle replica went unready at minute %d (reads %d)", minute, source.count())
+		}
+	}
+	if reads := source.count(); reads < 10 || reads > 13 {
+		t.Fatalf("an hour of readiness polls re-read the keys %d times; keyMaxAge says about 12", reads)
+	}
+}
