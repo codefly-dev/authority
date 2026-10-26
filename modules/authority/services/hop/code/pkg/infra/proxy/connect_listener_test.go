@@ -43,7 +43,7 @@ func TestGRPCAndConnectReachOnePublishedConnectListener(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	upstream, err := grpc.NewClient(target, host.DialOptions(options)...)
+	upstream, err := grpc.NewClient(target, append(host.DialOptions(options), grpc.WithDefaultCallOptions(proxy.CallOptions()...))...)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -258,12 +258,21 @@ type Verifier struct {
 // module starts before its authority serves keys, and refuses calls, with the
 // reason, until they are read.
 func NewVerifier(ctx context.Context, keys KeySource, audience, proof string) (*Verifier, error) {
-	switch {
-	case keys == nil:
+	if proof == "" {
 		return nil, refusal.Configuration
-	case audience == "":
-		return nil, refusal.Configuration
-	case proof == "":
+	}
+	return newVerifier(ctx, keys, audience, proof)
+}
+
+// NewTokenVerifier builds a verifier for Issue responses in a process that does
+// not receive hop calls. It needs no hop proof. Verify always refuses stamps;
+// VerifyToken uses the same key cache and validation as NewVerifier.
+func NewTokenVerifier(ctx context.Context, keys KeySource, audience string) (*Verifier, error) {
+	return newVerifier(ctx, keys, audience, "")
+}
+
+func newVerifier(ctx context.Context, keys KeySource, audience, proof string) (*Verifier, error) {
+	if keys == nil || audience == "" {
 		return nil, refusal.Configuration
 	}
 	v := &Verifier{source: keys, audience: audience, proof: proof, now: time.Now, timeout: keyTimeout}

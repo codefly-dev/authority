@@ -14,11 +14,14 @@ func TestVerifyTokenUsesPublishedTrustAndSafeReasons(t *testing.T) {
 	now := time.Now()
 	signer := newSigner("bare")
 	source := &keys{response: &authorityv1.KeysResponse{Issuer: signer.issuer, Keys: []*authorityv1.PublicKey{signer.published()}}}
-	v, err := NewVerifier(t.Context(), source, "module", "proof")
+	v, err := NewTokenVerifier(t.Context(), source, "module")
 	if err != nil {
 		t.Fatal(err)
 	}
 	token := signer.issue(t, now, "module")
+	if _, err := v.Verify(t.Context(), forwarded(t, token, "proof", "")); err == nil {
+		t.Fatal("bare-only verifier accepted a stamp")
+	}
 	id, err := v.VerifyToken(t.Context(), token)
 	if err != nil || id.Claims == nil || id.Context != token || id.Advisory != "" {
 		t.Fatalf("bare token: %v", err)

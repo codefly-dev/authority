@@ -347,9 +347,9 @@ export class Verifier {
   /** The last key-read failure, for the module's own logs; never sent to a caller. */
   keysError?: unknown;
 
-  constructor(private readonly source: KeySource, private readonly audience: string, private readonly proof: string,
+  constructor(private readonly source: KeySource, private readonly audience: string, private readonly proof?: string,
               private readonly now: () => number = Date.now, private readonly timeoutMs: number = KEY_TIMEOUT_MS) {
-    if (!source || !audience || !proof) throw new Unauthenticated(Reason.Configuration);
+    if (!source || !audience || proof === "") throw new Unauthenticated(Reason.Configuration);
     void this.refresh();
   }
 
@@ -369,7 +369,7 @@ export class Verifier {
   async verify(headers: StampHeaders): Promise<Identity> {
     const pairs = [...(Symbol.iterator in Object(headers) ? headers as Iterable<readonly [string, string]> : Object.entries(headers))]
       .flatMap(([key, value]) => (typeof value === "string" ? [value] : [...value]).map(v => [key.toLowerCase(), v] as const));
-    const token = boundToken(pairs, this.proof); // the stamp first: nothing unbound reaches the key read
+    const token = boundToken(pairs, this.proof ?? ""); // the stamp first: nothing unbound reaches the key read
     const id = await this.verifyToken(token);
     const stamped: Record<string, string> = {
       "x-codefly-hop-owner": id.owner, "x-codefly-hop-owner-kind": id.ownerKind, "x-codefly-hop-tenant": id.tenant,

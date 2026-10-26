@@ -287,3 +287,9 @@ test('stamp failures retain distinct safe codes', async () => {
   [{'x-codefly-hop-tenant':'private-tenant'},Reason.StampIdentity],
  ]) await assert.rejects(v.verify({...fixture.headers,...change}), e=>e.code===code && !e.message.includes('private-'));
 });
+
+test('bare-only process needs no proof and cannot accept stamps', async () => {
+ const v = new Verifier(source(),fixture.audience,undefined,()=>fixture.now*1000);
+ assert.equal((await v.verifyToken(fixture.headers['x-codefly-work-context'])).owner,fixture.identity.owner);
+ await assert.rejects(v.verify(fixture.headers),Unauthenticated);
+});

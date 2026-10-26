@@ -384,3 +384,10 @@ def test_stamp_failure_codes_are_safe_and_distinct(change, code):
         verifier().verify({**FIXTURE["headers"], **change})
     assert refused.value.code == code
     assert "private-" not in str(refused.value)
+
+
+def test_bare_only_process_needs_no_proof_and_cannot_accept_stamps():
+    v = Verifier(Keys(published()), audience=FIXTURE["audience"], now=lambda: FIXTURE["now"])
+    assert v.verify_token(FIXTURE["headers"][WORK_CONTEXT_KEY]).owner == FIXTURE["identity"]["owner"]
+    with pytest.raises(Unauthenticated):
+        v.verify(FIXTURE["headers"])

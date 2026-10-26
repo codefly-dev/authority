@@ -107,3 +107,8 @@ TypeScript `Unauthenticated` expose `code` and `text`, with exported `Reason`
 values. These errors never retain underlying key-source errors or claim values.
 `KeysError` / `keys_error` / `keysError` is a separate internal diagnostic, not a
 caller response. Unknown future Core diagnostic categories remain refused.
+
+Processes that receive only Issue responses use Go `NewTokenVerifier` or omit
+`proof` when constructing Python/TypeScript `Verifier`. They still authenticate
+bare tokens against published Keys; stamped verification is refused without a
+configured run proof. A process receiving hop calls continues to require it.

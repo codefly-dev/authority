@@ -107,11 +107,11 @@ class Verifier:
     serving yet, and refuses calls, with the reason, until the keys are read.
     """
 
-    def __init__(self, keys, *, audience: str, proof: str, now: Callable[[], float] | None = None,
+    def __init__(self, keys, *, audience: str, proof: str | None = None, now: Callable[[], float] | None = None,
                  timeout: float = KEY_TIMEOUT) -> None:
-        if keys is None or not audience or not proof:
+        if keys is None or not audience or proof == "":
             raise Unauthenticated(Reason.CONFIGURATION)
-        self._source, self._audience, self._proof, self._timeout = keys, audience, proof, timeout
+        self._source, self._audience, self._proof, self._timeout = keys, audience, proof or "", timeout
         self._now = now or time.time
         self._lock = threading.Lock()
         self._trust: Trust | None = None
