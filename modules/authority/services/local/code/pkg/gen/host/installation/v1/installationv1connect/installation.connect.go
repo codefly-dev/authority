@@ -31,6 +31,8 @@ const (
 	InstallationServiceName = "host.installation.v1.InstallationService"
 	// InstallableServiceName is the fully-qualified name of the InstallableService service.
 	InstallableServiceName = "host.installation.v1.InstallableService"
+	// OfferServiceName is the fully-qualified name of the OfferService service.
+	OfferServiceName = "host.installation.v1.OfferService"
 )
 
 // These constants are the fully-qualified names of the RPCs defined in this package. They're
@@ -44,6 +46,9 @@ const (
 	// InstallationServiceInstallProcedure is the fully-qualified name of the InstallationService's
 	// Install RPC.
 	InstallationServiceInstallProcedure = "/host.installation.v1.InstallationService/Install"
+	// InstallationServiceReviewProcedure is the fully-qualified name of the InstallationService's
+	// Review RPC.
+	InstallationServiceReviewProcedure = "/host.installation.v1.InstallationService/Review"
 	// InstallationServiceGrantRoleProcedure is the fully-qualified name of the InstallationService's
 	// GrantRole RPC.
 	InstallationServiceGrantRoleProcedure = "/host.installation.v1.InstallationService/GrantRole"
@@ -59,6 +64,11 @@ const (
 	// InstallableServiceInstallProcedure is the fully-qualified name of the InstallableService's
 	// Install RPC.
 	InstallableServiceInstallProcedure = "/host.installation.v1.InstallableService/Install"
+	// OfferServiceListOffersProcedure is the fully-qualified name of the OfferService's ListOffers RPC.
+	OfferServiceListOffersProcedure = "/host.installation.v1.OfferService/ListOffers"
+	// OfferServiceReviewOfferProcedure is the fully-qualified name of the OfferService's ReviewOffer
+	// RPC.
+	OfferServiceReviewOfferProcedure = "/host.installation.v1.OfferService/ReviewOffer"
 )
 
 // InstallationServiceClient is a client for the host.installation.v1.InstallationService service.
@@ -66,6 +76,8 @@ type InstallationServiceClient interface {
 	// Install composes an installation: its agent principal, its root scope and
 	// the row, pending until the target acknowledges its install step.
 	Install(context.Context, *connect.Request[v1.InstallRequest]) (*connect.Response[v1.Installation], error)
+	// Review reads the current offer and installation revision without granting consent.
+	Review(context.Context, *connect.Request[v1.ReviewRequest]) (*connect.Response[v1.ConsentApproval], error)
 	// GrantRole grants a person or a team one of the solution's roles on the
 	// installation: the access. Idempotent; it leaves existing capabilities
 	// valid. An administrator of the installation's organization, or a holder
@@ -100,6 +112,12 @@ func NewInstallationServiceClient(httpClient connect.HTTPClient, baseURL string,
 			connect.WithSchema(installationServiceMethods.ByName("Install")),
 			connect.WithClientOptions(opts...),
 		),
+		review: connect.NewClient[v1.ReviewRequest, v1.ConsentApproval](
+			httpClient,
+			baseURL+InstallationServiceReviewProcedure,
+			connect.WithSchema(installationServiceMethods.ByName("Review")),
+			connect.WithClientOptions(opts...),
+		),
 		grantRole: connect.NewClient[v1.GrantRoleRequest, v1.Installation](
 			httpClient,
 			baseURL+InstallationServiceGrantRoleProcedure,
@@ -130,6 +148,7 @@ func NewInstallationServiceClient(httpClient connect.HTTPClient, baseURL string,
 // installationServiceClient implements InstallationServiceClient.
 type installationServiceClient struct {
 	install        *connect.Client[v1.InstallRequest, v1.Installation]
+	review         *connect.Client[v1.ReviewRequest, v1.ConsentApproval]
 	grantRole      *connect.Client[v1.GrantRoleRequest, v1.Installation]
 	revokeRole     *connect.Client[v1.RevokeRoleRequest, v1.Installation]
 	listRoleGrants *connect.Client[v1.ListRoleGrantsRequest, v1.ListRoleGrantsResponse]
@@ -139,6 +158,11 @@ type installationServiceClient struct {
 // Install calls host.installation.v1.InstallationService.Install.
 func (c *installationServiceClient) Install(ctx context.Context, req *connect.Request[v1.InstallRequest]) (*connect.Response[v1.Installation], error) {
 	return c.install.CallUnary(ctx, req)
+}
+
+// Review calls host.installation.v1.InstallationService.Review.
+func (c *installationServiceClient) Review(ctx context.Context, req *connect.Request[v1.ReviewRequest]) (*connect.Response[v1.ConsentApproval], error) {
+	return c.review.CallUnary(ctx, req)
 }
 
 // GrantRole calls host.installation.v1.InstallationService.GrantRole.
@@ -167,6 +191,8 @@ type InstallationServiceHandler interface {
 	// Install composes an installation: its agent principal, its root scope and
 	// the row, pending until the target acknowledges its install step.
 	Install(context.Context, *connect.Request[v1.InstallRequest]) (*connect.Response[v1.Installation], error)
+	// Review reads the current offer and installation revision without granting consent.
+	Review(context.Context, *connect.Request[v1.ReviewRequest]) (*connect.Response[v1.ConsentApproval], error)
 	// GrantRole grants a person or a team one of the solution's roles on the
 	// installation: the access. Idempotent; it leaves existing capabilities
 	// valid. An administrator of the installation's organization, or a holder
@@ -197,6 +223,12 @@ func NewInstallationServiceHandler(svc InstallationServiceHandler, opts ...conne
 		connect.WithSchema(installationServiceMethods.ByName("Install")),
 		connect.WithHandlerOptions(opts...),
 	)
+	installationServiceReviewHandler := connect.NewUnaryHandler(
+		InstallationServiceReviewProcedure,
+		svc.Review,
+		connect.WithSchema(installationServiceMethods.ByName("Review")),
+		connect.WithHandlerOptions(opts...),
+	)
 	installationServiceGrantRoleHandler := connect.NewUnaryHandler(
 		InstallationServiceGrantRoleProcedure,
 		svc.GrantRole,
@@ -225,6 +257,8 @@ func NewInstallationServiceHandler(svc InstallationServiceHandler, opts ...conne
 		switch r.URL.Path {
 		case InstallationServiceInstallProcedure:
 			installationServiceInstallHandler.ServeHTTP(w, r)
+		case InstallationServiceReviewProcedure:
+			installationServiceReviewHandler.ServeHTTP(w, r)
 		case InstallationServiceGrantRoleProcedure:
 			installationServiceGrantRoleHandler.ServeHTTP(w, r)
 		case InstallationServiceRevokeRoleProcedure:
@@ -244,6 +278,10 @@ type UnimplementedInstallationServiceHandler struct{}
 
 func (UnimplementedInstallationServiceHandler) Install(context.Context, *connect.Request[v1.InstallRequest]) (*connect.Response[v1.Installation], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.installation.v1.InstallationService.Install is not implemented"))
+}
+
+func (UnimplementedInstallationServiceHandler) Review(context.Context, *connect.Request[v1.ReviewRequest]) (*connect.Response[v1.ConsentApproval], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.installation.v1.InstallationService.Review is not implemented"))
 }
 
 func (UnimplementedInstallationServiceHandler) GrantRole(context.Context, *connect.Request[v1.GrantRoleRequest]) (*connect.Response[v1.Installation], error) {
@@ -333,4 +371,112 @@ type UnimplementedInstallableServiceHandler struct{}
 
 func (UnimplementedInstallableServiceHandler) Install(context.Context, *connect.Request[v1.InstallationNotice]) (*connect.Response[v1.InstallationAck], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.installation.v1.InstallableService.Install is not implemented"))
+}
+
+// OfferServiceClient is a client for the host.installation.v1.OfferService service.
+type OfferServiceClient interface {
+	// ListOffers lists the solutions delivered to this run that an administrator
+	// of the organization may install. A module is installed by composition and
+	// is never offered.
+	ListOffers(context.Context, *connect.Request[v1.ListOffersRequest]) (*connect.Response[v1.ListOffersResponse], error)
+	// ReviewOffer reads one solution's roles, what each grants and the tools
+	// those grants make eligible, with the consent Install takes, from one read
+	// of the authority: the approval names exactly the offer displayed.
+	ReviewOffer(context.Context, *connect.Request[v1.ReviewRequest]) (*connect.Response[v1.ReviewedOffer], error)
+}
+
+// NewOfferServiceClient constructs a client for the host.installation.v1.OfferService service. By
+// default, it uses the Connect protocol with the binary Protobuf Codec, asks for gzipped responses,
+// and sends uncompressed requests. To use the gRPC or gRPC-Web protocols, supply the
+// connect.WithGRPC() or connect.WithGRPCWeb() options.
+//
+// The URL supplied here should be the base URL for the Connect or gRPC server (for example,
+// http://api.acme.com or https://acme.com/grpc).
+func NewOfferServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) OfferServiceClient {
+	baseURL = strings.TrimRight(baseURL, "/")
+	offerServiceMethods := v1.File_host_installation_v1_installation_proto.Services().ByName("OfferService").Methods()
+	return &offerServiceClient{
+		listOffers: connect.NewClient[v1.ListOffersRequest, v1.ListOffersResponse](
+			httpClient,
+			baseURL+OfferServiceListOffersProcedure,
+			connect.WithSchema(offerServiceMethods.ByName("ListOffers")),
+			connect.WithClientOptions(opts...),
+		),
+		reviewOffer: connect.NewClient[v1.ReviewRequest, v1.ReviewedOffer](
+			httpClient,
+			baseURL+OfferServiceReviewOfferProcedure,
+			connect.WithSchema(offerServiceMethods.ByName("ReviewOffer")),
+			connect.WithClientOptions(opts...),
+		),
+	}
+}
+
+// offerServiceClient implements OfferServiceClient.
+type offerServiceClient struct {
+	listOffers  *connect.Client[v1.ListOffersRequest, v1.ListOffersResponse]
+	reviewOffer *connect.Client[v1.ReviewRequest, v1.ReviewedOffer]
+}
+
+// ListOffers calls host.installation.v1.OfferService.ListOffers.
+func (c *offerServiceClient) ListOffers(ctx context.Context, req *connect.Request[v1.ListOffersRequest]) (*connect.Response[v1.ListOffersResponse], error) {
+	return c.listOffers.CallUnary(ctx, req)
+}
+
+// ReviewOffer calls host.installation.v1.OfferService.ReviewOffer.
+func (c *offerServiceClient) ReviewOffer(ctx context.Context, req *connect.Request[v1.ReviewRequest]) (*connect.Response[v1.ReviewedOffer], error) {
+	return c.reviewOffer.CallUnary(ctx, req)
+}
+
+// OfferServiceHandler is an implementation of the host.installation.v1.OfferService service.
+type OfferServiceHandler interface {
+	// ListOffers lists the solutions delivered to this run that an administrator
+	// of the organization may install. A module is installed by composition and
+	// is never offered.
+	ListOffers(context.Context, *connect.Request[v1.ListOffersRequest]) (*connect.Response[v1.ListOffersResponse], error)
+	// ReviewOffer reads one solution's roles, what each grants and the tools
+	// those grants make eligible, with the consent Install takes, from one read
+	// of the authority: the approval names exactly the offer displayed.
+	ReviewOffer(context.Context, *connect.Request[v1.ReviewRequest]) (*connect.Response[v1.ReviewedOffer], error)
+}
+
+// NewOfferServiceHandler builds an HTTP handler from the service implementation. It returns the
+// path on which to mount the handler and the handler itself.
+//
+// By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
+// and JSON codecs. They also support gzip compression.
+func NewOfferServiceHandler(svc OfferServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	offerServiceMethods := v1.File_host_installation_v1_installation_proto.Services().ByName("OfferService").Methods()
+	offerServiceListOffersHandler := connect.NewUnaryHandler(
+		OfferServiceListOffersProcedure,
+		svc.ListOffers,
+		connect.WithSchema(offerServiceMethods.ByName("ListOffers")),
+		connect.WithHandlerOptions(opts...),
+	)
+	offerServiceReviewOfferHandler := connect.NewUnaryHandler(
+		OfferServiceReviewOfferProcedure,
+		svc.ReviewOffer,
+		connect.WithSchema(offerServiceMethods.ByName("ReviewOffer")),
+		connect.WithHandlerOptions(opts...),
+	)
+	return "/host.installation.v1.OfferService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case OfferServiceListOffersProcedure:
+			offerServiceListOffersHandler.ServeHTTP(w, r)
+		case OfferServiceReviewOfferProcedure:
+			offerServiceReviewOfferHandler.ServeHTTP(w, r)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+}
+
+// UnimplementedOfferServiceHandler returns CodeUnimplemented from all methods.
+type UnimplementedOfferServiceHandler struct{}
+
+func (UnimplementedOfferServiceHandler) ListOffers(context.Context, *connect.Request[v1.ListOffersRequest]) (*connect.Response[v1.ListOffersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.installation.v1.OfferService.ListOffers is not implemented"))
+}
+
+func (UnimplementedOfferServiceHandler) ReviewOffer(context.Context, *connect.Request[v1.ReviewRequest]) (*connect.Response[v1.ReviewedOffer], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.installation.v1.OfferService.ReviewOffer is not implemented"))
 }

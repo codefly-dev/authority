@@ -93,6 +93,12 @@ func (p *Plugin) ApplyManifest(ctx context.Context, req *compositionv1.ApplyMani
 		if m, err = ceiled(m, issuer.FromWire(doc.GetScopeCeilings())); err != nil {
 			return nil, err
 		}
+		m.OwnedRoles = map[string][]*basev0.WorkScopeV1{}
+		for _, role := range doc.GetRoles() {
+			if len(role.GetInstallationOwnedScopes()) > 0 {
+				m.OwnedRoles[role.GetName()] = issuer.FromWire(role.GetInstallationOwnedScopes())
+			}
+		}
 		if m.Roles, err = rolesOf(doc); err != nil {
 			return nil, err
 		}

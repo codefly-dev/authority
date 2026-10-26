@@ -253,13 +253,13 @@ func (t tx) Installation(id string) (domain.Installation, error) {
 	if !ok {
 		return i, missing("installation", id)
 	}
-	return i, nil
+	return cloneInstallation(i), nil
 }
 
 func (t tx) InstallationByPrincipal(principal string) (domain.Installation, error) {
 	for _, i := range t.s.installations {
 		if principal != "" && i.PrincipalID == principal {
-			return i, nil
+			return cloneInstallation(i), nil
 		}
 	}
 	return domain.Installation{}, missing("principal", principal)
@@ -269,7 +269,7 @@ func (t tx) Installations(org string) ([]domain.Installation, error) {
 	var out []domain.Installation
 	for _, i := range t.s.installations {
 		if org == "" || i.Organization == org {
-			out = append(out, i)
+			out = append(out, cloneInstallation(i))
 		}
 	}
 	sort.Slice(out, func(a, b int) bool { return out[a].ID < out[b].ID })
@@ -278,7 +278,7 @@ func (t tx) Installations(org string) ([]domain.Installation, error) {
 
 func (t tx) PutInstallation(i domain.Installation) error {
 	t.mustWrite()
-	t.s.installations[i.ID] = i
+	t.s.installations[i.ID] = cloneInstallation(i)
 	return nil
 }
 
@@ -397,5 +397,19 @@ func cloneModule(m domain.Module) domain.Module {
 		}
 		m.Roles = roles
 	}
+	owned := make(map[string][]*basev0.WorkScopeV1, len(m.OwnedRoles))
+	for role, scopes := range m.OwnedRoles {
+		owned[role] = cloneScopes(scopes)
+	}
+	m.OwnedRoles = owned
 	return m
+}
+
+func cloneInstallation(i domain.Installation) domain.Installation {
+	owned := make(map[string][]string, len(i.Owned))
+	for kind, ids := range i.Owned {
+		owned[kind] = slices.Clone(ids)
+	}
+	i.Owned = owned
+	return i
 }

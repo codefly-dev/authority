@@ -63,6 +63,25 @@ Generated code (`pkg/gen`, `*_gen.go`, `main.go`) comes from `codefly generate`
 and the agent; `work.go` and everything under `pkg/business`, `pkg/infra` and
 `plugins` is written here.
 
+## The setup read
+
+Beside the installation interface the local authority serves
+`host.installation.v1.OfferService` for the edge's setup page. It is an
+administrator's read and grants nothing:
+
+- `ListOffers`: the delivered solutions. Modules are installed by composition
+  and are never offered.
+- `ReviewOffer`: one solution's roles, the composed operations each role's scopes
+  cover (from the delivered authority documents), and the tools composed for
+  those operations, read with its consent tuple in one transaction.
+
+The tools come from the workspace group `runnable-bindings`, read through the
+SDK as a tool caller reads it. Only Connect-callable bindings with a tool
+exposure whose invoke and lookup scopes the role covers are listed, one per tool
+name, Connect endpoint first. A run that composes no bindings says so
+(`tools_composed: false`) rather than listing none. The local authority does not
+declare the group: declaring it would give it authority bindings of its own.
+
 ## What a composition adds to the fixture
 
 The embedded fixture (`code/fixtures/local.yaml`) says who exists and which

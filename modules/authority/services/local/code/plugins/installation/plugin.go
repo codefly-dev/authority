@@ -11,6 +11,7 @@ import (
 	"slices"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
 
@@ -28,8 +29,12 @@ type Plugin struct {
 // Name is the plugin's identifier.
 func (p *Plugin) Name() string { return "installation" }
 
-// RegisterGRPC registers the service.
-func (p *Plugin) RegisterGRPC(s *grpc.Server) { installationv1.RegisterInstallationServiceServer(s, p) }
+// RegisterGRPC registers the installation interface and, beside it, the setup
+// read over the same state.
+func (p *Plugin) RegisterGRPC(s *grpc.Server) {
+	installationv1.RegisterInstallationServiceServer(s, p)
+	installationv1.RegisterOfferServiceServer(s, &Offers{plugin: p, runnables: composedRunnables})
+}
 
 // RegisterREST registers nothing.
 func (p *Plugin) RegisterREST(context.Context, *runtime.ServeMux, string, []grpc.DialOption) error {
@@ -51,11 +56,7 @@ func (p *Plugin) Install(ctx context.Context, req *installationv1.InstallRequest
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}
-	installedBy := req.GetOwnerPersonId()
-	if installedBy == "" {
-		installedBy = caller.ID
-	}
-	inst, err := p.State.Service().Install(ctx, caller, req.GetOrganizationId(), req.GetTarget(), req.GetRole(), installedBy, p.installStep())
+	inst, err := p.State.Service().Install(ctx, caller, req.GetOrganizationId(), req.GetTarget(), req.GetRole(), req.GetOwnerPersonId(), approvalFromWire(req.GetApproval()), p.installStep())
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}
@@ -152,3 +153,23 @@ func (p *Plugin) wire(i state.Installation) *installationv1.Installation {
 
 // New is the registry's constructor: the plugin over what Configure wired.
 func New() framework.Plugin { return &Plugin{State: wiring.State()} }
+
+func approvalFromWire(a *installationv1.ConsentApproval) *domain.ConsentApproval {
+	if a == nil {
+		return nil
+	}
+	return &domain.ConsentApproval{TargetID: a.GetTargetId(), Generation: a.GetGeneration(), ExpectedRevision: a.GetExpectedRevision(), OperationID: a.GetOperationId(), Digest: a.GetDigest()}
+}
+
+// Review reads the exact authority offer without recording consent.
+func (p *Plugin) Review(ctx context.Context, req *installationv1.ReviewRequest) (*installationv1.ConsentApproval, error) {
+	caller, err := p.caller(ctx)
+	if err != nil {
+		return nil, authorityplugin.Status(err)
+	}
+	a, err := p.State.Service().Review(ctx, caller, req.GetOrganizationId(), req.GetTarget())
+	if err != nil {
+		return nil, authorityplugin.Status(err)
+	}
+	return &installationv1.ConsentApproval{TargetId: a.TargetID, Generation: a.Generation, ExpectedRevision: a.ExpectedRevision, Digest: a.Digest}, nil
+}

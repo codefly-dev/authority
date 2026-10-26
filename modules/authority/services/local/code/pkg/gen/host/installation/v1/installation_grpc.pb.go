@@ -27,6 +27,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	InstallationService_Install_FullMethodName        = "/host.installation.v1.InstallationService/Install"
+	InstallationService_Review_FullMethodName         = "/host.installation.v1.InstallationService/Review"
 	InstallationService_GrantRole_FullMethodName      = "/host.installation.v1.InstallationService/GrantRole"
 	InstallationService_RevokeRole_FullMethodName     = "/host.installation.v1.InstallationService/RevokeRole"
 	InstallationService_ListRoleGrants_FullMethodName = "/host.installation.v1.InstallationService/ListRoleGrants"
@@ -42,6 +43,8 @@ type InstallationServiceClient interface {
 	// Install composes an installation: its agent principal, its root scope and
 	// the row, pending until the target acknowledges its install step.
 	Install(ctx context.Context, in *InstallRequest, opts ...grpc.CallOption) (*Installation, error)
+	// Review reads the current offer and installation revision without granting consent.
+	Review(ctx context.Context, in *ReviewRequest, opts ...grpc.CallOption) (*ConsentApproval, error)
 	// GrantRole grants a person or a team one of the solution's roles on the
 	// installation: the access. Idempotent; it leaves existing capabilities
 	// valid. An administrator of the installation's organization, or a holder
@@ -71,6 +74,16 @@ func (c *installationServiceClient) Install(ctx context.Context, in *InstallRequ
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Installation)
 	err := c.cc.Invoke(ctx, InstallationService_Install_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *installationServiceClient) Review(ctx context.Context, in *ReviewRequest, opts ...grpc.CallOption) (*ConsentApproval, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ConsentApproval)
+	err := c.cc.Invoke(ctx, InstallationService_Review_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -126,6 +139,8 @@ type InstallationServiceServer interface {
 	// Install composes an installation: its agent principal, its root scope and
 	// the row, pending until the target acknowledges its install step.
 	Install(context.Context, *InstallRequest) (*Installation, error)
+	// Review reads the current offer and installation revision without granting consent.
+	Review(context.Context, *ReviewRequest) (*ConsentApproval, error)
 	// GrantRole grants a person or a team one of the solution's roles on the
 	// installation: the access. Idempotent; it leaves existing capabilities
 	// valid. An administrator of the installation's organization, or a holder
@@ -153,6 +168,9 @@ type UnimplementedInstallationServiceServer struct{}
 
 func (UnimplementedInstallationServiceServer) Install(context.Context, *InstallRequest) (*Installation, error) {
 	return nil, status.Error(codes.Unimplemented, "method Install not implemented")
+}
+func (UnimplementedInstallationServiceServer) Review(context.Context, *ReviewRequest) (*ConsentApproval, error) {
+	return nil, status.Error(codes.Unimplemented, "method Review not implemented")
 }
 func (UnimplementedInstallationServiceServer) GrantRole(context.Context, *GrantRoleRequest) (*Installation, error) {
 	return nil, status.Error(codes.Unimplemented, "method GrantRole not implemented")
@@ -201,6 +219,24 @@ func _InstallationService_Install_Handler(srv interface{}, ctx context.Context, 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(InstallationServiceServer).Install(ctx, req.(*InstallRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _InstallationService_Review_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReviewRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InstallationServiceServer).Review(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: InstallationService_Review_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(InstallationServiceServer).Review(ctx, req.(*ReviewRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -287,6 +323,10 @@ var InstallationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Install",
 			Handler:    _InstallationService_Install_Handler,
+		},
+		{
+			MethodName: "Review",
+			Handler:    _InstallationService_Review_Handler,
 		},
 		{
 			MethodName: "GrantRole",
@@ -413,6 +453,170 @@ var InstallableService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Install",
 			Handler:    _InstallableService_Install_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "host/installation/v1/installation.proto",
+}
+
+const (
+	OfferService_ListOffers_FullMethodName  = "/host.installation.v1.OfferService/ListOffers"
+	OfferService_ReviewOffer_FullMethodName = "/host.installation.v1.OfferService/ReviewOffer"
+)
+
+// OfferServiceClient is the client API for OfferService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// OfferService is the local authority's setup read, served beside
+// InstallationService and not part of codefly.dev/installation: what solutions
+// this run delivered and, for one, what installing it would grant. A host
+// answers its own product's reads. It grants nothing; Install, GrantRole and
+// RevokeRole stay the only changes, each decided by the authority.
+type OfferServiceClient interface {
+	// ListOffers lists the solutions delivered to this run that an administrator
+	// of the organization may install. A module is installed by composition and
+	// is never offered.
+	ListOffers(ctx context.Context, in *ListOffersRequest, opts ...grpc.CallOption) (*ListOffersResponse, error)
+	// ReviewOffer reads one solution's roles, what each grants and the tools
+	// those grants make eligible, with the consent Install takes, from one read
+	// of the authority: the approval names exactly the offer displayed.
+	ReviewOffer(ctx context.Context, in *ReviewRequest, opts ...grpc.CallOption) (*ReviewedOffer, error)
+}
+
+type offerServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewOfferServiceClient(cc grpc.ClientConnInterface) OfferServiceClient {
+	return &offerServiceClient{cc}
+}
+
+func (c *offerServiceClient) ListOffers(ctx context.Context, in *ListOffersRequest, opts ...grpc.CallOption) (*ListOffersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListOffersResponse)
+	err := c.cc.Invoke(ctx, OfferService_ListOffers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *offerServiceClient) ReviewOffer(ctx context.Context, in *ReviewRequest, opts ...grpc.CallOption) (*ReviewedOffer, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReviewedOffer)
+	err := c.cc.Invoke(ctx, OfferService_ReviewOffer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// OfferServiceServer is the server API for OfferService service.
+// All implementations must embed UnimplementedOfferServiceServer
+// for forward compatibility.
+//
+// OfferService is the local authority's setup read, served beside
+// InstallationService and not part of codefly.dev/installation: what solutions
+// this run delivered and, for one, what installing it would grant. A host
+// answers its own product's reads. It grants nothing; Install, GrantRole and
+// RevokeRole stay the only changes, each decided by the authority.
+type OfferServiceServer interface {
+	// ListOffers lists the solutions delivered to this run that an administrator
+	// of the organization may install. A module is installed by composition and
+	// is never offered.
+	ListOffers(context.Context, *ListOffersRequest) (*ListOffersResponse, error)
+	// ReviewOffer reads one solution's roles, what each grants and the tools
+	// those grants make eligible, with the consent Install takes, from one read
+	// of the authority: the approval names exactly the offer displayed.
+	ReviewOffer(context.Context, *ReviewRequest) (*ReviewedOffer, error)
+	mustEmbedUnimplementedOfferServiceServer()
+}
+
+// UnimplementedOfferServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedOfferServiceServer struct{}
+
+func (UnimplementedOfferServiceServer) ListOffers(context.Context, *ListOffersRequest) (*ListOffersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListOffers not implemented")
+}
+func (UnimplementedOfferServiceServer) ReviewOffer(context.Context, *ReviewRequest) (*ReviewedOffer, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReviewOffer not implemented")
+}
+func (UnimplementedOfferServiceServer) mustEmbedUnimplementedOfferServiceServer() {}
+func (UnimplementedOfferServiceServer) testEmbeddedByValue()                      {}
+
+// UnsafeOfferServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to OfferServiceServer will
+// result in compilation errors.
+type UnsafeOfferServiceServer interface {
+	mustEmbedUnimplementedOfferServiceServer()
+}
+
+func RegisterOfferServiceServer(s grpc.ServiceRegistrar, srv OfferServiceServer) {
+	// If the following call panics, it indicates UnimplementedOfferServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&OfferService_ServiceDesc, srv)
+}
+
+func _OfferService_ListOffers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListOffersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OfferServiceServer).ListOffers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OfferService_ListOffers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OfferServiceServer).ListOffers(ctx, req.(*ListOffersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _OfferService_ReviewOffer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReviewRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OfferServiceServer).ReviewOffer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OfferService_ReviewOffer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OfferServiceServer).ReviewOffer(ctx, req.(*ReviewRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// OfferService_ServiceDesc is the grpc.ServiceDesc for OfferService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var OfferService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "host.installation.v1.OfferService",
+	HandlerType: (*OfferServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListOffers",
+			Handler:    _OfferService_ListOffers_Handler,
+		},
+		{
+			MethodName: "ReviewOffer",
+			Handler:    _OfferService_ReviewOffer_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

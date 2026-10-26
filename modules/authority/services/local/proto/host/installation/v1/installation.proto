@@ -13,6 +13,8 @@ service InstallationService {
   // Install composes an installation: its agent principal, its root scope and
   // the row, pending until the target acknowledges its install step.
   rpc Install(InstallRequest) returns (Installation);
+  // Review reads the current offer and installation revision without granting consent.
+  rpc Review(ReviewRequest) returns (ConsentApproval);
   // GrantRole grants a person or a team one of the solution's roles on the
   // installation: the access. Idempotent; it leaves existing capabilities
   // valid. An administrator of the installation's organization, or a holder
@@ -37,6 +39,22 @@ service InstallableService {
   rpc Install(InstallationNotice) returns (InstallationAck);
 }
 
+// OfferService is the local authority's setup read, served beside
+// InstallationService and not part of codefly.dev/installation: what solutions
+// this run delivered and, for one, what installing it would grant. A host
+// answers its own product's reads. It grants nothing; Install, GrantRole and
+// RevokeRole stay the only changes, each decided by the authority.
+service OfferService {
+  // ListOffers lists the solutions delivered to this run that an administrator
+  // of the organization may install. A module is installed by composition and
+  // is never offered.
+  rpc ListOffers(ListOffersRequest) returns (ListOffersResponse);
+  // ReviewOffer reads one solution's roles, what each grants and the tools
+  // those grants make eligible, with the consent Install takes, from one read
+  // of the authority: the approval names exactly the offer displayed.
+  rpc ReviewOffer(ReviewRequest) returns (ReviewedOffer);
+}
+
 // InstallRequest asks to install one target at one organisation.
 message InstallRequest {
   // The organisation installing.
@@ -47,6 +65,26 @@ message InstallRequest {
   string role = 3;
   // The accountable person; an administrator of the organisation.
   string owner_person_id = 4;
+  // Required: the exact offer reviewed by the administrator; unchanged on retry.
+  ConsentApproval approval = 5;
+}
+
+// ReviewRequest names the offer an administrator intends to review.
+message ReviewRequest {
+  string organization_id = 1;
+  string target = 2;
+}
+
+// ConsentApproval binds consent to an immutable target, its reviewed delivery and
+// the installation revision (zero if absent). Review leaves operation_id empty;
+// the caller supplies a fresh UUID and preserves the entire request on retry.
+message ConsentApproval {
+  string target_id = 1;
+  uint64 generation = 2;
+  uint64 expected_revision = 3;
+  string operation_id = 4;
+  // sha256 digest of the reviewed authority offer.
+  string digest = 5;
 }
 
 // GrantRoleRequest grants one role to exactly one person or team.
@@ -166,3 +204,90 @@ message InstallationNotice {
 
 // InstallationAck acknowledges the install step.
 message InstallationAck {}
+
+// ListOffersRequest names the organization whose administrator reads.
+message ListOffersRequest {
+  string organization_id = 1;
+}
+
+// ListOffersResponse is every delivered solution, by name.
+message ListOffersResponse {
+  repeated Offer offers = 1;
+}
+
+// Offer is one delivered solution.
+message Offer {
+  // The solution's name in the composition: Install's target.
+  string target = 1;
+  // The delivery generation an approval binds.
+  uint64 generation = 2;
+}
+
+// ReviewedOffer is one solution's authority offer and the consent that names it.
+message ReviewedOffer {
+  // What Install takes, with a fresh operation_id; read with the rest.
+  ConsentApproval approval = 1;
+  string target = 2;
+  // Each role the solution declares, the installer role included. Every role
+  // scope is confined to this installation: to what it owns, or to the
+  // resources attached to it.
+  repeated OfferRole roles = 3;
+  // The solution's own installation at the organization; absent before Install.
+  Installation installation = 4;
+  // The permission ceiling: each module the solution calls, and the most it
+  // may ask there. No role reaches beyond it.
+  repeated OfferBinding ceiling = 5;
+  // False when this run delivered no prepared Runnable bindings: no tool is
+  // shown, which says nothing about what a composed binding would expose.
+  bool tools_composed = 6;
+}
+
+// OfferBinding is one declared call from the solution to a module.
+message OfferBinding {
+  string binding = 1;
+  // The module called.
+  string module = 2;
+  repeated OfferScope scopes = 3;
+}
+
+// OfferRole is one declared role and what a grant of it reaches.
+message OfferRole {
+  string name = 1;
+  // The scopes the role declares.
+  repeated OfferScope scopes = 2;
+  // Each composed operation the role's scopes cover.
+  repeated OfferCapability capabilities = 3;
+}
+
+// OfferScope is one declared scope.
+message OfferScope {
+  string resource_kind = 1;
+  repeated string actions = 2;
+  // True when the scope reaches only the resources attached to the
+  // installation, listed in resource_ids (none until one is attached); false
+  // when it reaches every resource the installation owns.
+  bool attached_only = 3;
+  repeated string resource_ids = 4;
+}
+
+// OfferCapability is one module operation a role's scopes cover.
+message OfferCapability {
+  string module = 1;
+  // The operation as the module's authority document names it.
+  string operation = 2;
+  // What a call to it must hold.
+  repeated OfferScope requires = 3;
+  // The tools composed for this operation, from its prepared Runnable
+  // bindings; empty when no binding exposes it as a tool.
+  repeated OfferTool tools = 4;
+}
+
+// OfferTool is one tool-exposed Runnable of an operation.
+message OfferTool {
+  // The tool's name, as its exposure declares it.
+  string name = 1;
+  // The prepared binding a caller names to run it.
+  string binding = 2;
+  // True when the tool changes data.
+  bool write = 3;
+}

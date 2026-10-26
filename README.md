@@ -229,7 +229,7 @@ staging validated.
 **Rung 1 first; it is the one that matters (owner, 2026-10-21).** The loop:
 
 1. Cut a branch in module-saas-starter. accounts declares in its module
-   interface that it implements `codefly.dev/authority@0.2.0`, `codefly.dev/composition@0.1.0`,
+   interface that it implements `codefly.dev/authority@0.3.1`, `codefly.dev/composition@0.2.0`,
    `codefly.dev/installation@0.1.0` and `codefly.dev/session@0.2.0`, takes this repo's
    protos (bindings via `codefly generate proto`), and serves the four services as
    adapters over what it already has: `Issue` → StartTask / StartInstallationTask /
@@ -276,7 +276,7 @@ Gap 7 was a decision, taken on 2026-10-22: the interface carries the host's name
 ## The namespace, settled (2026-10-22)
 
 The interfaces are the host's contract, so they carry the host's names: publisher
-`codefly.dev` (ids `codefly.dev/authority@0.2.0`, `composition`, `installation`,
+`codefly.dev` (ids `codefly.dev/authority@0.3.1`, `composition`, `installation`,
 `installable`, `session`) and protobuf packages `host.authority.v1`,
 `host.composition.v1`, `host.installation.v1`, `host.session.v1` under `proto/host/`.
 Not `codefly.*`: the host's buf configuration excludes a `codefly/` proto directory
@@ -728,6 +728,39 @@ The document store's Connect face still transcodes in process at go-grpc agent
 is refused as unauthenticated: it fails closed, and works once the store is
 synced to the agent whose Connect face dials the hop, as the record store is.
 
+## The setup page: install a solution and grant its roles (2026-10-26)
+
+`/auth/setup` on the edge is the run's installation screen, with the words of
+the host's install dialog. An administrator sees the solutions the run delivered
+(**Modules & solutions**). They review one, choose its **Agent role**, consent to
+that exact version and install it. Under **Who may reach it?** they grant and
+remove its roles for the organisation's people and teams. A person who is not an
+administrator sees the authority's refusal and its reason.
+
+The review is the mapping from a role to tools. For each role the solution
+declares, it shows the role's scopes, confined to what the installation owns (or
+to the resources attached to it). It lists every composed module operation those
+scopes cover, from the delivered authority documents. For each operation it names
+the Robin tools composed for it: the tool-exposed Connect bindings
+`codefly generate runnable-bindings` prepared for that operation. Installing a
+solution and granting a role is what makes those tools available to the people
+granted it. An agent's intent declares which of them it uses. The authority still
+decides every call from the person's current grants and the binding. No table is
+maintained by hand: the page joins the authority's own records to the composed
+bindings when the person reviews.
+
+The read is `host.installation.v1.OfferService` (`ListOffers`, `ReviewOffer`),
+served by the local authority beside `InstallationService`. It is not part of
+`codefly.dev/installation`: a host answers its own product's reads, and
+conformance is unchanged. `ReviewOffer` returns the consent tuple from the same
+read as the roles it shows. The page posts that tuple to `Install` with a fresh
+`operation_id`; a changed offer is refused and reviewed again. An install the
+authority did not confirm keeps its exact request, so a retry is the same
+operation. Changes are plain forms posted to the edge, from this origin only,
+and sent through the generated clients with the person's own session.
+[The edge page](modules/authority/services/edge/README.md#the-setup-page) has
+the details.
+
 ## Which resources a context covers (2026-10-23)
 
 `Check` answers for one call. Which resources of a kind a caller may touch,
@@ -953,3 +986,40 @@ under the existing
 All consumers and implementations must select the updated interface versions;
 this repository updates its module, edge, hop and console declarations. SaaS
 must adopt the version and fields before claiming this contract.
+
+`codefly.dev/authority@0.3.1` adds `AttachResource` and `DetachResource`, and
+`codefly.dev/composition@0.2.0` adds `RoleV1.installation_owned_scopes`: a role
+scope held only on the resources its installation owns. The kind's one serving
+module attaches a resource from a capability holding `create` on the whole kind
+for a newly created resource. Existing resources change owner through
+`AuthorizeTransfer`: the serving module attests the current owner and presents
+a person's capability through the target installation. The existing policy
+requires that person's live organization admin grant on the resource and write
+through their target role, and refuses foreign owners, solution-principal
+owners, agents, missing grants and wrong provenance by name. Only after those
+checks succeed does the same transaction record the owned id. Admin-only
+`AttachResource` is refused with `AuthorizeTransfer` named; ordinary solution
+roles always retain their resource-owner selector. A resource has one owner per organisation,
+an installation owns at most 32 of a kind at a time, and the serving module
+detaches what it deletes and rolls back a create whose attach is refused. Both
+are additive. The local authority implements authority 0.3.1 and composition 0.2.0; the edge, hop and
+console call nothing new, so they require `>=0.2.0 <0.4.0` and resolve against
+a host still at 0.2.0. Shared conformance requires `InstallationResources`, so
+a host must implement both before it passes.
+
+The local authority keeps installation ownership in memory, for development
+only: a restart (a hot reload included) re-derives installations from the
+fixture but not what they own, so viewers lose owned resources until the store
+reconciles them through the authorized creation or transfer path. A host keeps ownership durably.
+
+The installation-owned resolver and ownership transactions live in
+`libraries/authority-core/go`, alongside the ordinary role resolver. Hosts
+persist `domain.Module.OwnedRoles` and `domain.Installation.Owned` through the
+shared Store contract. Ordinary roles retain main's resource-owner selection;
+installation-owned rows contain only attached ids, and an empty owned set emits
+no grant. The local host is an adapter to that core. Accounts adoption and
+its durable adapter are not qualified by a local authority test.
+
+The 0.3.1 authority version is an additive pre-stable revision selected for
+this refresh so existing `>=0.2.0 <0.4.0` consumers admit it. It retains 0.3.0's
+`AuthorizeTransfer` and adds attachment operations. Composition remains 0.2.0.

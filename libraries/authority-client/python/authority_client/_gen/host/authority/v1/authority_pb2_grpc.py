@@ -55,6 +55,16 @@ class AuthorityServiceStub(object):
                 request_serializer=host_dot_authority_dot_v1_dot_authority__pb2.ListResourcesRequest.SerializeToString,
                 response_deserializer=host_dot_authority_dot_v1_dot_authority__pb2.ListResourcesResponse.FromString,
                 _registered_method=True)
+        self.AttachResource = channel.unary_unary(
+                '/host.authority.v1.AuthorityService/AttachResource',
+                request_serializer=host_dot_authority_dot_v1_dot_authority__pb2.AttachResourceRequest.SerializeToString,
+                response_deserializer=host_dot_authority_dot_v1_dot_authority__pb2.AttachResourceResponse.FromString,
+                _registered_method=True)
+        self.DetachResource = channel.unary_unary(
+                '/host.authority.v1.AuthorityService/DetachResource',
+                request_serializer=host_dot_authority_dot_v1_dot_authority__pb2.DetachResourceRequest.SerializeToString,
+                response_deserializer=host_dot_authority_dot_v1_dot_authority__pb2.DetachResourceResponse.FromString,
+                _registered_method=True)
         self.AuthorizeTransfer = channel.unary_unary(
                 '/host.authority.v1.AuthorityService/AuthorizeTransfer',
                 request_serializer=host_dot_authority_dot_v1_dot_authority__pb2.AuthorizeTransferRequest.SerializeToString,
@@ -117,6 +127,46 @@ class AuthorityServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def AttachResource(self, request, context):
+        """AttachResource records that one resource now belongs to an installation,
+        so a role scope its solution declares installation-owned
+        (RoleV1.installation_owned_scopes) covers it. The caller is the kind's one
+        serving module (a kind two composed modules declare attaches nothing),
+        proving itself with its workload credential, and presents a capability
+        addressed to it, at the organisation's current authorization revision,
+        holding "create" on the whole kind for the newly created resource. An
+        owner-selected create must select this installation's principal. Admin or
+        read alone attaches nothing: an existing resource changes owner through
+        AuthorizeTransfer, never through an unrestricted administrative capability.
+        A resource has one owner in an organisation: an id
+        another installation owns is refused. A store whose attach is refused fails
+        or rolls back the create it made, and detaches what it deletes
+        (DetachResource). The owning installation is read from the capability's
+        verified provenance and never named by the caller: the installation itself
+        when it is the owner, the installed solution when it is the caller, and
+        each solution in its actor chain; exactly one must result. Ids are opaque
+        and compared byte for byte; an id is refused when it is empty, carries
+        surrounding whitespace, a NUL, CR, LF, tab or "*", or exceeds 128 bytes.
+        Owned ids travel in every capability holding them, so an installation owns
+        at most 32 of one kind at a time, refused by name past it. Attaching only
+        widens what an owned scope covers, so it moves no authorization revision;
+        a reinstalled installation owns nothing.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DetachResource(self, request, context):
+        """DetachResource releases one resource from whichever installation of the
+        organisation owns it, when the kind's one serving module deletes it, so the
+        id no longer counts toward the owner's bound and may be attached again.
+        It narrows the owner's roles, so the organisation's authorization revision
+        moves. Detaching an id no installation owns answers no installation.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def AuthorizeTransfer(self, request, context):
         """AuthorizeTransfer decides whether an existing resource may join an
         installed solution's principal. The caller is the kind's one serving
@@ -128,8 +178,14 @@ class AuthorityServiceServicer(object):
         owner), the person holds admin on that resource from their own
         organization grants, and the person's current roles on the principal hold
         write on the kind, all read live. An installation acting for itself never
-        transfers. The store then records the principal as owner; the original
-        creator stays the author.
+        transfers. After authorization succeeds, the authority records the id in
+        the target installation's owned set in the same write transaction, subject
+        to the same exclusivity, id and 32-id bounds as AttachResource. Revision,
+        provenance, serving module and active tenant installation are checked in
+        that transaction. A refusal records nothing and names its reason. The
+        store then records the principal as owner; the original creator stays the
+        author. The store must complete that change or compensate with DetachResource
+        before exposing the resource. No separate admin attachment path exists.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -182,6 +238,16 @@ def add_AuthorityServiceServicer_to_server(servicer, server):
                     servicer.ListResources,
                     request_deserializer=host_dot_authority_dot_v1_dot_authority__pb2.ListResourcesRequest.FromString,
                     response_serializer=host_dot_authority_dot_v1_dot_authority__pb2.ListResourcesResponse.SerializeToString,
+            ),
+            'AttachResource': grpc.unary_unary_rpc_method_handler(
+                    servicer.AttachResource,
+                    request_deserializer=host_dot_authority_dot_v1_dot_authority__pb2.AttachResourceRequest.FromString,
+                    response_serializer=host_dot_authority_dot_v1_dot_authority__pb2.AttachResourceResponse.SerializeToString,
+            ),
+            'DetachResource': grpc.unary_unary_rpc_method_handler(
+                    servicer.DetachResource,
+                    request_deserializer=host_dot_authority_dot_v1_dot_authority__pb2.DetachResourceRequest.FromString,
+                    response_serializer=host_dot_authority_dot_v1_dot_authority__pb2.DetachResourceResponse.SerializeToString,
             ),
             'AuthorizeTransfer': grpc.unary_unary_rpc_method_handler(
                     servicer.AuthorizeTransfer,
@@ -313,6 +379,60 @@ class AuthorityService(object):
             '/host.authority.v1.AuthorityService/ListResources',
             host_dot_authority_dot_v1_dot_authority__pb2.ListResourcesRequest.SerializeToString,
             host_dot_authority_dot_v1_dot_authority__pb2.ListResourcesResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def AttachResource(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/host.authority.v1.AuthorityService/AttachResource',
+            host_dot_authority_dot_v1_dot_authority__pb2.AttachResourceRequest.SerializeToString,
+            host_dot_authority_dot_v1_dot_authority__pb2.AttachResourceResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DetachResource(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/host.authority.v1.AuthorityService/DetachResource',
+            host_dot_authority_dot_v1_dot_authority__pb2.DetachResourceRequest.SerializeToString,
+            host_dot_authority_dot_v1_dot_authority__pb2.DetachResourceResponse.FromString,
             options,
             channel_credentials,
             insecure,

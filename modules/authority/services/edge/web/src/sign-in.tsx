@@ -12,6 +12,8 @@ import {
 
 /** One person the authority's fixture defines, as the edge renders them. */
 export interface Person {
+	description?: string;
+	startHere?: boolean;
 	personId: string;
 	email: string;
 	organizationId: string;
@@ -90,7 +92,7 @@ export function SignIn({ data }: { data: SignInData | Error }) {
 										<AvatarFallback>{initials(person.email)}</AvatarFallback>
 									</Avatar>
 								}
-								description={
+								description={person.description ? undefined : (
 									<span style={{ display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
 										<span>{person.organizationId}</span>
 										{person.roles.length === 0 ? (
@@ -103,7 +105,7 @@ export function SignIn({ data }: { data: SignInData | Error }) {
 											))
 										)}
 									</span>
-								}
+								)}
 								actions={
 									// A plain form: the browser posts the choice back to the edge,
 									// which signs the person in and returns them, with no script
@@ -117,7 +119,8 @@ export function SignIn({ data }: { data: SignInData | Error }) {
 									</form>
 								}
 							>
-								{person.email}
+								{person.description || person.email}
+								{person.startHere && <Badge tone="neutral">Start here</Badge>}
 							</ListItem>
 						))}
 					</List>

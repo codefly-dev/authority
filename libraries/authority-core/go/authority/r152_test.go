@@ -3,6 +3,7 @@ package authority_test
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
@@ -17,7 +18,7 @@ func TestWithdrawnModuleCannotBeUninstalledByAPerson(t *testing.T) {
 	}
 	before := h.inst(acme, "store")
 	refused(t, h.svc.Uninstall(h.ctx, h.admin(acme), acme, id), "never uninstalled")
-	if after := h.inst(acme, "store"); after != before {
+	if after := h.inst(acme, "store"); !reflect.DeepEqual(after, before) {
 		t.Fatalf("refusal mutated installation: %+v", after)
 	}
 }
@@ -42,10 +43,10 @@ func TestMissingCallerCannotSelectHostPower(t *testing.T) {
 	h := newHarness(t)
 	before := h.inst(acme, "store")
 	code(t, h.svc.Uninstall(h.ctx, authority.Person{}, acme, before.ID), domain.Denied)
-	if h.inst(acme, "store") != before {
+	if !reflect.DeepEqual(h.inst(acme, "store"), before) {
 		t.Fatal("empty caller retired module")
 	}
-	_, err := h.svc.Install(h.ctx, authority.Person{}, globex, "b", "author", h.admin(globex).ID, nil)
+	_, err := h.svc.Install(h.ctx, authority.Person{}, globex, "b", "author", h.admin(globex).ID, h.approval(globex, "b"), nil)
 	code(t, err, domain.Denied)
 	if err := h.store.Read(h.ctx, func(tx authority.Tx) error {
 		_, err := tx.Installation(authority.StableInstallationID(globex, "b"))
@@ -115,10 +116,10 @@ func TestLifecycleStoreFailuresAreReturnedWithoutMutation(t *testing.T) {
 			} else if !errors.Is(err, outage) {
 				t.Fatalf("uninstall hid outage: %v", err)
 			}
-			if h.inst(acme, "store") != before {
+			if !reflect.DeepEqual(h.inst(acme, "store"), before) {
 				t.Fatal("outage mutated installation")
 			}
-			_, err = svc.Install(h.ctx, h.admin(globex), globex, "b", "author", h.admin(globex).ID, nil)
+			_, err = svc.Install(h.ctx, h.admin(globex), globex, "b", "author", h.admin(globex).ID, h.approval(globex, "b"), nil)
 			if !errors.Is(err, outage) {
 				t.Fatalf("install hid outage: %v", err)
 			}

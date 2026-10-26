@@ -189,6 +189,25 @@ func (p *Plugin) ListResources(ctx context.Context, req *authorityv1.ListResourc
 	return out, nil
 }
 
+// AttachResource records a resource created through the installation the
+// presented capability was issued through.
+func (p *Plugin) AttachResource(ctx context.Context, req *authorityv1.AttachResourceRequest) (*authorityv1.AttachResourceResponse, error) {
+	id, err := p.Issuer.AttachResource(ctx, req.GetToken(), req.GetActor().GetCredential(), req.GetResourceKind(), req.GetResourceId())
+	if err != nil {
+		return nil, Status(err)
+	}
+	return &authorityv1.AttachResourceResponse{InstallationId: id}, nil
+}
+
+// DetachResource releases a resource its serving module deleted.
+func (p *Plugin) DetachResource(ctx context.Context, req *authorityv1.DetachResourceRequest) (*authorityv1.DetachResourceResponse, error) {
+	id, err := p.Issuer.DetachResource(ctx, req.GetActor().GetCredential(), req.GetOrganizationId(), req.GetResourceKind(), req.GetResourceId())
+	if err != nil {
+		return nil, Status(err)
+	}
+	return &authorityv1.DetachResourceResponse{InstallationId: id}, nil
+}
+
 // AuthorizeTransfer decides whether an existing resource joins a solution
 // principal; the store records the answer.
 func (p *Plugin) AuthorizeTransfer(ctx context.Context, req *authorityv1.AuthorizeTransferRequest) (*authorityv1.AuthorizeTransferResponse, error) {

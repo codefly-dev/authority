@@ -24,6 +24,7 @@ providing different labels does not remove an obligation.
 | Delivered solution roles at their own audience, binding roots and children; no-role refusals; ceiling enforcement | `SolutionRoles`: a signed wiki viewer role grants Maya documents write, which she lacks independently. Replayed deliveries use deterministic authority-document bytes. |
 | Rule A: current owner grants intersected with each target binding; canonical `<org>/<module>/<binding>` identity; named hop refusals | `Chain`, `ChildScopes`, and the individual binding-refusal cases |
 | Enduring narrowing through two hops | `ChildScopes` and `ParentLimits`: stored delegations retain complete ceilings; parent action/resource limits and entirely dropped kinds remain capped across target changes. Multiple action/resource rows must not become a cross product. |
+| Installation-owned role scopes: a role scope limited to what the installation owns, created through verified installation provenance with `create` on the whole kind, or recorded after the existing `AuthorizeTransfer` policy authorizes the change of owner; admin-only attachment, missing personal admin, unknown current owners, and an id another installation owns are refused by name; a viewer reads its installation's resources only, is refused another's with a named reason, and a narrowed child never widens; a detached resource leaves its owner and may be attached again | `InstallationResources`: two installed solutions, A (the viewer's) and B, each serving its own kind, a store module serving the shared kind, and two existing unowned resources; the suite delivers all three modules |
 | Installation identity, installed caller, explicit organization, pending, active and revoked states | `InstalledSolution`, `InstalledCredential`, `Lifecycle` |
 | Absent installation versus no entitlement | `FailedPrecondition` with the absent-installation reason versus `PermissionDenied` with the holds-nothing reason |
 | Inventory access | Admin and owner allowed; ordinary member, anonymous and foreign-organization reads refused |
@@ -154,3 +155,21 @@ declares `owner_aware` on the modules solutions consume.
 The local authority runs `Run` and `RunSolutionPrincipalTarget` with every
 `go test ./plugins/registry_test` from `modules/authority/services/local/code`;
 `Run`'s cases assert the same model the target does.
+
+## Reviewed installation consent
+
+`InstallationService/Review` returns the host's immutable target identity,
+current generation, installation revision and authority-offer digest. The caller
+reviews that offer, supplies a fresh UUID `operation_id`, and sends the unchanged
+approval with `Install`. Review does not grant authority. An unchanged successful
+retry returns the installation without repeating its install step; changed
+inputs, a newer delivery, a changed revision or revocation refuse with a named
+`INSTALLATION_APPROVAL_*` reason. A refusal requires a fresh review, not a retry
+that silently substitutes current state.
+
+The lifecycle case reads Review through the published contract, checks missing
+and mismatched approvals, preserves approval across acknowledgement, and checks
+replay after revocation. The local core additionally rechecks the offer and
+administrator in the transaction that acknowledges the install step. Its digest
+covers the stored authority declarations, including roles, ceilings and bindings;
+it is opaque to callers. Host-owned fixture setup stays on `InstallAsHost`.
