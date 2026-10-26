@@ -17,13 +17,13 @@ func TestOwnerIsANarrowing(t *testing.T) {
 		narrow, wide []*basev0.WorkScopeV1
 		attenuates   bool
 	}{
-		"the same owner":                {[]*basev0.WorkScopeV1{sc("doc", "u", read)}, []*basev0.WorkScopeV1{sc("doc", "u", read)}, true},
+		"the same owner":                 {[]*basev0.WorkScopeV1{sc("doc", "u", read)}, []*basev0.WorkScopeV1{sc("doc", "u", read)}, true},
 		"an owner added to a whole kind": {[]*basev0.WorkScopeV1{sc("doc", "u", read)}, []*basev0.WorkScopeV1{sc("doc", "", read)}, true},
-		"ids within the owner":          {[]*basev0.WorkScopeV1{sc("doc", "u", read, "a")}, []*basev0.WorkScopeV1{sc("doc", "u", read)}, true},
-		"another owner":                 {[]*basev0.WorkScopeV1{sc("doc", "v", read)}, []*basev0.WorkScopeV1{sc("doc", "u", read)}, false},
-		"the owner dropped":             {[]*basev0.WorkScopeV1{sc("doc", "", read)}, []*basev0.WorkScopeV1{sc("doc", "u", read)}, false},
-		"an id without its owner":       {[]*basev0.WorkScopeV1{sc("doc", "", read, "a")}, []*basev0.WorkScopeV1{sc("doc", "u", read)}, false},
-		"the owner's ids widened":       {[]*basev0.WorkScopeV1{sc("doc", "u", read)}, []*basev0.WorkScopeV1{sc("doc", "u", read, "a")}, false},
+		"ids within the owner":           {[]*basev0.WorkScopeV1{sc("doc", "u", read, "a")}, []*basev0.WorkScopeV1{sc("doc", "u", read)}, true},
+		"another owner":                  {[]*basev0.WorkScopeV1{sc("doc", "v", read)}, []*basev0.WorkScopeV1{sc("doc", "u", read)}, false},
+		"the owner dropped":              {[]*basev0.WorkScopeV1{sc("doc", "", read)}, []*basev0.WorkScopeV1{sc("doc", "u", read)}, false},
+		"an id without its owner":        {[]*basev0.WorkScopeV1{sc("doc", "", read, "a")}, []*basev0.WorkScopeV1{sc("doc", "u", read)}, false},
+		"the owner's ids widened":        {[]*basev0.WorkScopeV1{sc("doc", "u", read)}, []*basev0.WorkScopeV1{sc("doc", "u", read, "a")}, false},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if got := scope.Attenuates(tc.narrow, tc.wide); got != tc.attenuates {
@@ -41,8 +41,11 @@ func TestIntersectKeepsTheNarrowerOwner(t *testing.T) {
 	if got := scope.Intersect([]*basev0.WorkScopeV1{sc("doc", "v", []string{"read"})}, []*basev0.WorkScopeV1{sc("doc", "u", []string{"read"})}); len(got) != 0 {
 		t.Fatalf("two owners met as %v", got)
 	}
-	owned := scope.Owned([]*basev0.WorkScopeV1{sc("doc", "", []string{"read"})}, "u")
-	if owned[0].GetResourceOwnerId() != "u" || !scope.HasOwner(owned) {
-		t.Fatalf("owned %v", owned)
+	owned, err := scope.Owned([]*basev0.WorkScopeV1{sc("doc", "", []string{"read"})}, "u")
+	if err != nil || owned[0].GetResourceOwnerId() != "u" || !scope.HasOwner(owned) {
+		t.Fatalf("owned %v, %v", owned, err)
+	}
+	if got, err := scope.Owned([]*basev0.WorkScopeV1{sc("doc", "", []string{"read"})}, ""); err == nil || got != nil {
+		t.Fatalf("an empty owner rendered %v", got)
 	}
 }

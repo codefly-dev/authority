@@ -1,11 +1,13 @@
 package decide
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
+	delivery "github.com/codefly-dev/authority/libraries/delivery/go"
 )
 
 // ValidateModule holds a delivered module to its contract: a principal, a
@@ -15,6 +17,19 @@ import (
 func ValidateModule(m domain.Module) error {
 	if m.Name == "" || m.Principal == "" || m.Generation == 0 {
 		return domain.Refuse("a manifest names its module, its principal and a generation")
+	}
+	for _, method := range slices.Sorted(maps.Keys(m.Methods)) {
+		policy := m.Methods[method]
+		requires := map[string][]string{}
+		for _, sc := range policy.Requires {
+			if len(sc.GetResourceIds()) > 0 || sc.GetResourceOwnerId() != "" {
+				return domain.Refuse("%s: %s: method requirements name whole resource kinds; resource ids and owners are not supported", m.Name, method)
+			}
+			requires[sc.GetResourceKind()] = append(requires[sc.GetResourceKind()], sc.GetActions()...)
+		}
+		if err := delivery.ValidateMethodPolicy(method, policy.AnyCheckedCaller, requires, false); err != nil {
+			return domain.Refuse("%s: %v", m.Name, err)
+		}
 	}
 	for _, id := range slices.Sorted(maps.Keys(m.Bindings)) {
 		b := m.Bindings[id]
@@ -36,7 +51,8 @@ func ValidateModule(m domain.Module) error {
 		return nil
 	}
 	if _, ok := m.Roles[domain.InstallerRole]; !ok {
-		return domain.Refuse("%s declares %d role(s) and none is %q: a solution declares an installer role", m.Name, len(m.Roles), domain.InstallerRole)
+		return &domain.Refusal{Code: domain.Denied, Cause: domain.ErrNoInstallerRole,
+			Reason: fmt.Sprintf("%s declares %d role(s) and none is %q: a solution declares an installer role", m.Name, len(m.Roles), domain.InstallerRole)}
 	}
 	grantable := slices.Clone(m.ResourceKinds)
 	for _, b := range m.Bindings {
@@ -59,9 +75,12 @@ func ValidateModule(m domain.Module) error {
 }
 
 // Narrowed reports whether next narrows what previous granted: a binding
-// removed, readdressed or cut, or any of a solution's roles cut. A narrowing
-// invalidates capabilities already issued.
+// removed, readdressed or cut, owner-aware checking withdrawn, or any of a
+// solution's roles cut. A narrowing invalidates capabilities already issued.
 func Narrowed(previous, next domain.Module) bool {
+	if previous.OwnerAware && !next.OwnerAware {
+		return true
+	}
 	for id, old := range previous.Bindings {
 		b, ok := next.Bindings[id]
 		if !ok || old.Audience != b.Audience || !scope.Attenuates(old.InvokeScopes, b.InvokeScopes) ||

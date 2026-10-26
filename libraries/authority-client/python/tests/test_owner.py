@@ -20,22 +20,9 @@ def claims_of(context):
     return authenticate(stamped(sign(context)), PROOF, context.audience, trust_for(context))
 
 
-def test_claims_admit_an_owner_selected_scope_only_for_its_owner():
-    context = body("session")
-    del context.authority_scopes[:]
-    context.authority_scopes.add(resource_kind="record", actions=["read"], resource_owner_id="principal-u")
-    context.authority_scopes.add(resource_kind="note", actions=["read"], resource_ids=["n1"], resource_owner_id="principal-u")
-    context.authority_scopes.add(resource_kind="plain", actions=["read"])
-    claims = claims_of(context)
-    assert claims.scopes[1].resource_owner_id == "principal-u"
-    assert not claims.allows("record", "read") and not claims.allows("record", "read", "r1") and not claims.allows("note", "read", "n1")
-    for kind, resource, owner, allowed in [
-        ("record", "r1", "principal-u", True), ("record", "r1", "principal-v", False), ("record", "r1", "", False),
-        ("note", "n1", "principal-u", True), ("note", "n2", "principal-u", False), ("note", "n1", "principal-v", False),
-        ("record", "", "principal-u", True), ("note", "", "principal-u", False),
-        ("plain", "p1", "principal-u", True),
-    ]:
-        assert claims.allows_owned(kind, "read", resource, owner) == allowed, (kind, resource, owner)
+# The owner-selected rows (allows refusing, allows_owned admitting only the
+# owner) are testdata/claims.json's "owner-selected" entry, run by
+# test_work_context on the same rows as the Go and TypeScript readers.
 
 
 def test_the_hop_identity_never_reads_an_owner_selected_scope_as_the_whole_kind():

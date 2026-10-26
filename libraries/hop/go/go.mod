@@ -3,7 +3,7 @@ module github.com/codefly-dev/authority/libraries/hop/go
 go 1.27.3
 
 require (
-	github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0-20261025234644-fff5385f9203
+	github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0-20261026024334-2737858746e8
 	github.com/codefly-dev/core v0.19.7-0.20261026022918-8af4b787a435
 	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12
@@ -50,5 +50,3 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20261012220534-4341edf3f941 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/codefly-dev/authority/libraries/authority-client/go => ../../authority-client/go
