@@ -201,3 +201,93 @@ func signerForTest(t *testing.T) ed25519.PrivateKey {
 	}
 	return private
 }
+
+func (h *harness) seal(person, target string) uint64 {
+	h.t.Helper()
+	s, err := h.svc.Seals().Seal(h.ctx, person, h.inst(acme, target).ID)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	return s.InstallationRevision
+}
+
+// A grant moves no seal; a revoke moves only its subject's seal on that one
+// installation: the same person's on another installation, and another
+// person's on this one, stay as they were.
+func TestARevokeMovesOnlyItsSubjectsSealOnThatInstallation(t *testing.T) {
+	h := newHarness(t)
+	mayaA, mayaB, remiA := h.seal("maya", "a"), h.seal("maya", "b"), h.seal("remi", "a")
+	h.grant("a", "viewer", "maya")
+	h.grant("b", "viewer", "maya")
+	h.grant("a", "viewer", "remi")
+	if h.seal("maya", "a") != mayaA || h.seal("maya", "b") != mayaB || h.seal("remi", "a") != remiA {
+		t.Fatal("a grant moved a seal")
+	}
+	h.revoke("a", "viewer", "maya", "")
+	if h.seal("maya", "a") <= mayaA {
+		t.Fatal("the revoke left maya's seal on a")
+	}
+	if h.seal("maya", "b") != mayaB || h.seal("remi", "a") != remiA {
+		t.Fatal("the revoke moved a seal it does not name")
+	}
+}
+
+// A team's revoke moves every member's seal on the installation; a person
+// leaving a team or the organization moves their person epoch.
+func TestATeamRevokeAndALeaveMoveTheirMembers(t *testing.T) {
+	h := newHarness(t)
+	tam, tal := h.seal("tam", "a"), h.seal("tal", "a")
+	h.grantTeam("a", "viewer", "team")
+	h.revoke("a", "viewer", "", "team")
+	if h.seal("tam", "a") <= tam || h.seal("tal", "a") <= tal {
+		t.Fatal("the team's revoke left a member's seal")
+	}
+	before, err := h.svc.Seals().PrincipalEpoch(h.ctx, "tam")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.PersonChanged(h.ctx, "tam"); err != nil {
+		t.Fatal(err)
+	}
+	if after, _ := h.svc.Seals().PrincipalEpoch(h.ctx, "tam"); after <= before {
+		t.Fatalf("leaving left tam's epoch at %d", after)
+	}
+}
+
+// A revoke on an uninstalled installation and on a retired role succeeds,
+// and neither a reinstall nor the role declared again brings the grant back.
+func TestARevokedGrantStaysGone(t *testing.T) {
+	h := newHarness(t)
+	id := h.inst(acme, "a").ID
+	grants := func() int {
+		g, err := h.svc.ListRoleGrants(h.ctx, h.admin(acme), acme, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(g)
+	}
+	h.grant("a", "viewer", "maya")
+	if err := h.svc.Uninstall(h.ctx, nil, acme, id); err != nil {
+		t.Fatal(err)
+	}
+	h.revoke("a", "viewer", "maya", "")
+	if again := h.install(acme, "a"); again.ID != id || grants() != 0 {
+		t.Fatalf("the reinstall %s carries %d grant(s)", again.ID, grants())
+	}
+	h.grant("a", "viewer", "maya")
+	retired := solution("a", true)
+	retired.Generation = 2
+	delete(retired.Roles, "viewer")
+	if _, err := h.svc.ApplyModule(h.ctx, retired); err != nil {
+		t.Fatal(err)
+	}
+	h.revoke("a", "viewer", "maya", "")
+	back := solution("a", true)
+	back.Generation = 3
+	if _, err := h.svc.ApplyModule(h.ctx, back); err != nil {
+		t.Fatal(err)
+	}
+	if grants() != 0 {
+		t.Fatal("the re-declared role revived the revoked grant")
+	}
+}
