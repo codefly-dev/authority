@@ -45,6 +45,9 @@ const (
 	AuthorityServiceCheckProcedure = "/host.authority.v1.AuthorityService/Check"
 	// AuthorityServiceKeysProcedure is the fully-qualified name of the AuthorityService's Keys RPC.
 	AuthorityServiceKeysProcedure = "/host.authority.v1.AuthorityService/Keys"
+	// AuthorityServiceRegisterAdmissionKeyProcedure is the fully-qualified name of the
+	// AuthorityService's RegisterAdmissionKey RPC.
+	AuthorityServiceRegisterAdmissionKeyProcedure = "/host.authority.v1.AuthorityService/RegisterAdmissionKey"
 	// AuthorityServiceListResourcesProcedure is the fully-qualified name of the AuthorityService's
 	// ListResources RPC.
 	AuthorityServiceListResourcesProcedure = "/host.authority.v1.AuthorityService/ListResources"
@@ -79,8 +82,21 @@ type AuthorityServiceClient interface {
 	// Check verifies a presented Work Context for the audience the caller is,
 	// re-checking the authorization revision and the seal live.
 	Check(context.Context, *connect.Request[v1.CheckRequest]) (*connect.Response[v1.CheckResponse], error)
-	// Keys returns the issuer and the public keys a verifier pins.
+	// Keys returns the issuer and the public keys a verifier pins: the Work
+	// Context keys, and the hop admission keys a module behind the hop checks
+	// each call's admission by.
 	Keys(context.Context, *connect.Request[v1.KeysRequest]) (*connect.Response[v1.KeysResponse], error)
+	// RegisterAdmissionKey is how the hop tells the authority the public key it
+	// signs call admissions with, so Keys publishes it in admission_keys. The
+	// caller is the hop, proving it with its workload credential; any other
+	// workload is refused by name. Only the public half travels: the hop's seed
+	// never leaves it. Registering the same key again is idempotent and renews
+	// it, and a registration lapses at expires_at_unix unless renewed, so a hop
+	// renews while it runs (a restarted authority learns the key again at the
+	// next renewal) and a key no running hop signs with any more is withdrawn
+	// without being named. While a rotation overlaps, the retiring and the new
+	// key are both registered, and both published.
+	RegisterAdmissionKey(context.Context, *connect.Request[v1.RegisterAdmissionKeyRequest]) (*connect.Response[v1.RegisterAdmissionKeyResponse], error)
 	// ListResources answers which resources of one kind a checked capability may
 	// act on with one action, decided by the authority at the time of the call
 	// rather than carried in the capability. A module maps the answer onto its
@@ -176,6 +192,12 @@ func NewAuthorityServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(authorityServiceMethods.ByName("Keys")),
 			connect.WithClientOptions(opts...),
 		),
+		registerAdmissionKey: connect.NewClient[v1.RegisterAdmissionKeyRequest, v1.RegisterAdmissionKeyResponse](
+			httpClient,
+			baseURL+AuthorityServiceRegisterAdmissionKeyProcedure,
+			connect.WithSchema(authorityServiceMethods.ByName("RegisterAdmissionKey")),
+			connect.WithClientOptions(opts...),
+		),
 		listResources: connect.NewClient[v1.ListResourcesRequest, v1.ListResourcesResponse](
 			httpClient,
 			baseURL+AuthorityServiceListResourcesProcedure,
@@ -223,16 +245,17 @@ func NewAuthorityServiceClient(httpClient connect.HTTPClient, baseURL string, op
 
 // authorityServiceClient implements AuthorityServiceClient.
 type authorityServiceClient struct {
-	issue             *connect.Client[v1.IssueRequest, v1.IssueResponse]
-	check             *connect.Client[v1.CheckRequest, v1.CheckResponse]
-	keys              *connect.Client[v1.KeysRequest, v1.KeysResponse]
-	listResources     *connect.Client[v1.ListResourcesRequest, v1.ListResourcesResponse]
-	attachResource    *connect.Client[v1.AttachResourceRequest, v1.AttachResourceResponse]
-	detachResource    *connect.Client[v1.DetachResourceRequest, v1.DetachResourceResponse]
-	authorizeTransfer *connect.Client[v1.AuthorizeTransferRequest, v1.AuthorizeTransferResponse]
-	delegate          *connect.Client[v1.DelegateRequest, v1.Delegation]
-	revokeDelegation  *connect.Client[v1.RevokeDelegationRequest, v1.RevokeDelegationResponse]
-	getDelegation     *connect.Client[v1.GetDelegationRequest, v1.Delegation]
+	issue                *connect.Client[v1.IssueRequest, v1.IssueResponse]
+	check                *connect.Client[v1.CheckRequest, v1.CheckResponse]
+	keys                 *connect.Client[v1.KeysRequest, v1.KeysResponse]
+	registerAdmissionKey *connect.Client[v1.RegisterAdmissionKeyRequest, v1.RegisterAdmissionKeyResponse]
+	listResources        *connect.Client[v1.ListResourcesRequest, v1.ListResourcesResponse]
+	attachResource       *connect.Client[v1.AttachResourceRequest, v1.AttachResourceResponse]
+	detachResource       *connect.Client[v1.DetachResourceRequest, v1.DetachResourceResponse]
+	authorizeTransfer    *connect.Client[v1.AuthorizeTransferRequest, v1.AuthorizeTransferResponse]
+	delegate             *connect.Client[v1.DelegateRequest, v1.Delegation]
+	revokeDelegation     *connect.Client[v1.RevokeDelegationRequest, v1.RevokeDelegationResponse]
+	getDelegation        *connect.Client[v1.GetDelegationRequest, v1.Delegation]
 }
 
 // Issue calls host.authority.v1.AuthorityService.Issue.
@@ -248,6 +271,11 @@ func (c *authorityServiceClient) Check(ctx context.Context, req *connect.Request
 // Keys calls host.authority.v1.AuthorityService.Keys.
 func (c *authorityServiceClient) Keys(ctx context.Context, req *connect.Request[v1.KeysRequest]) (*connect.Response[v1.KeysResponse], error) {
 	return c.keys.CallUnary(ctx, req)
+}
+
+// RegisterAdmissionKey calls host.authority.v1.AuthorityService.RegisterAdmissionKey.
+func (c *authorityServiceClient) RegisterAdmissionKey(ctx context.Context, req *connect.Request[v1.RegisterAdmissionKeyRequest]) (*connect.Response[v1.RegisterAdmissionKeyResponse], error) {
+	return c.registerAdmissionKey.CallUnary(ctx, req)
 }
 
 // ListResources calls host.authority.v1.AuthorityService.ListResources.
@@ -296,8 +324,21 @@ type AuthorityServiceHandler interface {
 	// Check verifies a presented Work Context for the audience the caller is,
 	// re-checking the authorization revision and the seal live.
 	Check(context.Context, *connect.Request[v1.CheckRequest]) (*connect.Response[v1.CheckResponse], error)
-	// Keys returns the issuer and the public keys a verifier pins.
+	// Keys returns the issuer and the public keys a verifier pins: the Work
+	// Context keys, and the hop admission keys a module behind the hop checks
+	// each call's admission by.
 	Keys(context.Context, *connect.Request[v1.KeysRequest]) (*connect.Response[v1.KeysResponse], error)
+	// RegisterAdmissionKey is how the hop tells the authority the public key it
+	// signs call admissions with, so Keys publishes it in admission_keys. The
+	// caller is the hop, proving it with its workload credential; any other
+	// workload is refused by name. Only the public half travels: the hop's seed
+	// never leaves it. Registering the same key again is idempotent and renews
+	// it, and a registration lapses at expires_at_unix unless renewed, so a hop
+	// renews while it runs (a restarted authority learns the key again at the
+	// next renewal) and a key no running hop signs with any more is withdrawn
+	// without being named. While a rotation overlaps, the retiring and the new
+	// key are both registered, and both published.
+	RegisterAdmissionKey(context.Context, *connect.Request[v1.RegisterAdmissionKeyRequest]) (*connect.Response[v1.RegisterAdmissionKeyResponse], error)
 	// ListResources answers which resources of one kind a checked capability may
 	// act on with one action, decided by the authority at the time of the call
 	// rather than carried in the capability. A module maps the answer onto its
@@ -389,6 +430,12 @@ func NewAuthorityServiceHandler(svc AuthorityServiceHandler, opts ...connect.Han
 		connect.WithSchema(authorityServiceMethods.ByName("Keys")),
 		connect.WithHandlerOptions(opts...),
 	)
+	authorityServiceRegisterAdmissionKeyHandler := connect.NewUnaryHandler(
+		AuthorityServiceRegisterAdmissionKeyProcedure,
+		svc.RegisterAdmissionKey,
+		connect.WithSchema(authorityServiceMethods.ByName("RegisterAdmissionKey")),
+		connect.WithHandlerOptions(opts...),
+	)
 	authorityServiceListResourcesHandler := connect.NewUnaryHandler(
 		AuthorityServiceListResourcesProcedure,
 		svc.ListResources,
@@ -439,6 +486,8 @@ func NewAuthorityServiceHandler(svc AuthorityServiceHandler, opts ...connect.Han
 			authorityServiceCheckHandler.ServeHTTP(w, r)
 		case AuthorityServiceKeysProcedure:
 			authorityServiceKeysHandler.ServeHTTP(w, r)
+		case AuthorityServiceRegisterAdmissionKeyProcedure:
+			authorityServiceRegisterAdmissionKeyHandler.ServeHTTP(w, r)
 		case AuthorityServiceListResourcesProcedure:
 			authorityServiceListResourcesHandler.ServeHTTP(w, r)
 		case AuthorityServiceAttachResourceProcedure:
@@ -472,6 +521,10 @@ func (UnimplementedAuthorityServiceHandler) Check(context.Context, *connect.Requ
 
 func (UnimplementedAuthorityServiceHandler) Keys(context.Context, *connect.Request[v1.KeysRequest]) (*connect.Response[v1.KeysResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.authority.v1.AuthorityService.Keys is not implemented"))
+}
+
+func (UnimplementedAuthorityServiceHandler) RegisterAdmissionKey(context.Context, *connect.Request[v1.RegisterAdmissionKeyRequest]) (*connect.Response[v1.RegisterAdmissionKeyResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.authority.v1.AuthorityService.RegisterAdmissionKey is not implemented"))
 }
 
 func (UnimplementedAuthorityServiceHandler) ListResources(context.Context, *connect.Request[v1.ListResourcesRequest]) (*connect.Response[v1.ListResourcesResponse], error) {

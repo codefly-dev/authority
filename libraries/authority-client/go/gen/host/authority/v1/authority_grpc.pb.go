@@ -26,16 +26,17 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AuthorityService_Issue_FullMethodName             = "/host.authority.v1.AuthorityService/Issue"
-	AuthorityService_Check_FullMethodName             = "/host.authority.v1.AuthorityService/Check"
-	AuthorityService_Keys_FullMethodName              = "/host.authority.v1.AuthorityService/Keys"
-	AuthorityService_ListResources_FullMethodName     = "/host.authority.v1.AuthorityService/ListResources"
-	AuthorityService_AttachResource_FullMethodName    = "/host.authority.v1.AuthorityService/AttachResource"
-	AuthorityService_DetachResource_FullMethodName    = "/host.authority.v1.AuthorityService/DetachResource"
-	AuthorityService_AuthorizeTransfer_FullMethodName = "/host.authority.v1.AuthorityService/AuthorizeTransfer"
-	AuthorityService_Delegate_FullMethodName          = "/host.authority.v1.AuthorityService/Delegate"
-	AuthorityService_RevokeDelegation_FullMethodName  = "/host.authority.v1.AuthorityService/RevokeDelegation"
-	AuthorityService_GetDelegation_FullMethodName     = "/host.authority.v1.AuthorityService/GetDelegation"
+	AuthorityService_Issue_FullMethodName                = "/host.authority.v1.AuthorityService/Issue"
+	AuthorityService_Check_FullMethodName                = "/host.authority.v1.AuthorityService/Check"
+	AuthorityService_Keys_FullMethodName                 = "/host.authority.v1.AuthorityService/Keys"
+	AuthorityService_RegisterAdmissionKey_FullMethodName = "/host.authority.v1.AuthorityService/RegisterAdmissionKey"
+	AuthorityService_ListResources_FullMethodName        = "/host.authority.v1.AuthorityService/ListResources"
+	AuthorityService_AttachResource_FullMethodName       = "/host.authority.v1.AuthorityService/AttachResource"
+	AuthorityService_DetachResource_FullMethodName       = "/host.authority.v1.AuthorityService/DetachResource"
+	AuthorityService_AuthorizeTransfer_FullMethodName    = "/host.authority.v1.AuthorityService/AuthorizeTransfer"
+	AuthorityService_Delegate_FullMethodName             = "/host.authority.v1.AuthorityService/Delegate"
+	AuthorityService_RevokeDelegation_FullMethodName     = "/host.authority.v1.AuthorityService/RevokeDelegation"
+	AuthorityService_GetDelegation_FullMethodName        = "/host.authority.v1.AuthorityService/GetDelegation"
 )
 
 // AuthorityServiceClient is the client API for AuthorityService service.
@@ -53,8 +54,21 @@ type AuthorityServiceClient interface {
 	// Check verifies a presented Work Context for the audience the caller is,
 	// re-checking the authorization revision and the seal live.
 	Check(ctx context.Context, in *CheckRequest, opts ...grpc.CallOption) (*CheckResponse, error)
-	// Keys returns the issuer and the public keys a verifier pins.
+	// Keys returns the issuer and the public keys a verifier pins: the Work
+	// Context keys, and the hop admission keys a module behind the hop checks
+	// each call's admission by.
 	Keys(ctx context.Context, in *KeysRequest, opts ...grpc.CallOption) (*KeysResponse, error)
+	// RegisterAdmissionKey is how the hop tells the authority the public key it
+	// signs call admissions with, so Keys publishes it in admission_keys. The
+	// caller is the hop, proving it with its workload credential; any other
+	// workload is refused by name. Only the public half travels: the hop's seed
+	// never leaves it. Registering the same key again is idempotent and renews
+	// it, and a registration lapses at expires_at_unix unless renewed, so a hop
+	// renews while it runs (a restarted authority learns the key again at the
+	// next renewal) and a key no running hop signs with any more is withdrawn
+	// without being named. While a rotation overlaps, the retiring and the new
+	// key are both registered, and both published.
+	RegisterAdmissionKey(ctx context.Context, in *RegisterAdmissionKeyRequest, opts ...grpc.CallOption) (*RegisterAdmissionKeyResponse, error)
 	// ListResources answers which resources of one kind a checked capability may
 	// act on with one action, decided by the authority at the time of the call
 	// rather than carried in the capability. A module maps the answer onto its
@@ -159,6 +173,16 @@ func (c *authorityServiceClient) Keys(ctx context.Context, in *KeysRequest, opts
 	return out, nil
 }
 
+func (c *authorityServiceClient) RegisterAdmissionKey(ctx context.Context, in *RegisterAdmissionKeyRequest, opts ...grpc.CallOption) (*RegisterAdmissionKeyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RegisterAdmissionKeyResponse)
+	err := c.cc.Invoke(ctx, AuthorityService_RegisterAdmissionKey_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authorityServiceClient) ListResources(ctx context.Context, in *ListResourcesRequest, opts ...grpc.CallOption) (*ListResourcesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListResourcesResponse)
@@ -244,8 +268,21 @@ type AuthorityServiceServer interface {
 	// Check verifies a presented Work Context for the audience the caller is,
 	// re-checking the authorization revision and the seal live.
 	Check(context.Context, *CheckRequest) (*CheckResponse, error)
-	// Keys returns the issuer and the public keys a verifier pins.
+	// Keys returns the issuer and the public keys a verifier pins: the Work
+	// Context keys, and the hop admission keys a module behind the hop checks
+	// each call's admission by.
 	Keys(context.Context, *KeysRequest) (*KeysResponse, error)
+	// RegisterAdmissionKey is how the hop tells the authority the public key it
+	// signs call admissions with, so Keys publishes it in admission_keys. The
+	// caller is the hop, proving it with its workload credential; any other
+	// workload is refused by name. Only the public half travels: the hop's seed
+	// never leaves it. Registering the same key again is idempotent and renews
+	// it, and a registration lapses at expires_at_unix unless renewed, so a hop
+	// renews while it runs (a restarted authority learns the key again at the
+	// next renewal) and a key no running hop signs with any more is withdrawn
+	// without being named. While a rotation overlaps, the retiring and the new
+	// key are both registered, and both published.
+	RegisterAdmissionKey(context.Context, *RegisterAdmissionKeyRequest) (*RegisterAdmissionKeyResponse, error)
 	// ListResources answers which resources of one kind a checked capability may
 	// act on with one action, decided by the authority at the time of the call
 	// rather than carried in the capability. A module maps the answer onto its
@@ -328,6 +365,9 @@ func (UnimplementedAuthorityServiceServer) Check(context.Context, *CheckRequest)
 }
 func (UnimplementedAuthorityServiceServer) Keys(context.Context, *KeysRequest) (*KeysResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Keys not implemented")
+}
+func (UnimplementedAuthorityServiceServer) RegisterAdmissionKey(context.Context, *RegisterAdmissionKeyRequest) (*RegisterAdmissionKeyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RegisterAdmissionKey not implemented")
 }
 func (UnimplementedAuthorityServiceServer) ListResources(context.Context, *ListResourcesRequest) (*ListResourcesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListResources not implemented")
@@ -421,6 +461,24 @@ func _AuthorityService_Keys_Handler(srv interface{}, ctx context.Context, dec fu
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthorityServiceServer).Keys(ctx, req.(*KeysRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthorityService_RegisterAdmissionKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RegisterAdmissionKeyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthorityServiceServer).RegisterAdmissionKey(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthorityService_RegisterAdmissionKey_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthorityServiceServer).RegisterAdmissionKey(ctx, req.(*RegisterAdmissionKeyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -569,6 +627,10 @@ var AuthorityService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Keys",
 			Handler:    _AuthorityService_Keys_Handler,
+		},
+		{
+			MethodName: "RegisterAdmissionKey",
+			Handler:    _AuthorityService_RegisterAdmissionKey_Handler,
 		},
 		{
 			MethodName: "ListResources",

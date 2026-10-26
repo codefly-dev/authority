@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
+	core "github.com/codefly-dev/core/workcontext"
 	"strings"
 	"testing"
 	"time"
@@ -19,7 +20,7 @@ func TestVerifyTokenUsesPublishedTrustAndSafeReasons(t *testing.T) {
 		t.Fatal(err)
 	}
 	token := signer.issue(t, now, "module")
-	if _, err := v.Verify(t.Context(), forwarded(t, token, "proof", "")); err == nil {
+	if _, err := v.Verify(t.Context(), forwarded(t, token, "proof", ""), "/test.Service/Read"); err == nil {
 		t.Fatal("bare-only verifier accepted a stamp")
 	}
 	id, err := v.VerifyToken(t.Context(), token)
@@ -54,7 +55,7 @@ func TestBareTokenWaitsForStaleRefreshAndRefusesFailure(t *testing.T) {
 	now := time.Now()
 	signer := newSigner("bare-refresh")
 	source := &keys{response: &authorityv1.KeysResponse{Issuer: signer.issuer, Keys: []*authorityv1.PublicKey{signer.published()}}}
-	v, err := NewVerifier(t.Context(), source, "module", "proof")
+	v, err := NewVerifier(t.Context(), source, "module", core.NewMemoryReplayStore())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -30,13 +30,16 @@ spec:
     rest-endpoint: false
     runtime-assets: []
 # The console reaches the authority through the interface it depends on, never a
-# service: the composition resolves which implementation answers.
+# service: the composition resolves which implementation answers. Its own store
+# it names directly: the hop admission reservations its verifier consumes must
+# survive a restart and be shared by every replica, so a run starts the store
+# first and delivers its read-write connection here (code/work.go reservations).
 service-dependencies:
     - interface: codefly.dev/authority@>=0.2.0 <0.4.0
+    - name: store
+      module: console
+      endpoints:
+        - name: tcp
 # The console acts as a workload of its own: the run vouches for it and delivers
 # its manifest to the authority.
 module-identity: true
-# The run's proof the hop writes on every stamp; the console believes a stamp
-# only when it carries it.
-workspace-configuration-dependencies:
-    - hop

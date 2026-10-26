@@ -1,0 +1,17 @@
+# runtime-access.sql is re-rendered into the service directory on every
+# `codefly build` — it is the bootstrap image's build context, generated and
+# never hand-edited. Keep it out of version control.
+/runtime-access.sql
+
+# bootstrap.sql is generated beside it and runs the migration under the
+# runtime-access lock before including runtime-access.sql.
+/bootstrap.sql
+
+# Postgres credentials. The `local` profile's postgres.secret.env is COMMITTED on
+# purpose, as the obin modules' stores commit theirs: its values are throwaway,
+# and a workspace composing this module resolves it into a read-only cache it
+# cannot write a secret into, so the file travels with the module or the store
+# never boots. The repository root ignores every *.secret.env under a
+# configurations directory; exactly the local file is let back through here.
+# Every other profile keeps its credentials in the provider's secret store.
+!/configurations/local/postgres.secret.env

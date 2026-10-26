@@ -1,36 +1,31 @@
-"""The authority hop's stamp, as a module served in Python authenticates it.
+"""Method-bound, single-use hop admission for Python services.
 
-The hop in front of a module asked the authority's Check, which verified the
-caller's Work Context live and applied what the method declares, then wrote who
-the call is for, this run's proof and the digest of the checked token: the
-stamp. The module re-checks no permission the hop decided, but believes nothing
-it has not authenticated. ``Verifier`` is the Go library's ``hop.Verifier``
-(libraries/hop/go), rule for rule: the token is authenticated against the
-authority's published keys (``authority_client.work_context.authenticate``), who
-the call is for is read from its claims, and a stamp that says otherwise is
-refused. Both read the one fixture the Go hop writes (libraries/hop/testdata).
-
-It ships in the authority-client distribution, beside the ``authority_client``
-package it rests on, so one pinned commit installs both and no dependency is
-ever looked up by name on a public index.
+The hop alone holds a signing seed. The authority publishes its public half in
+Keys (admission_keys), which verifiers already read: they check each admission
+by a published key, trusting every one while a key rotates, authenticate the
+Work Context and consume each signed nonce in a durable store shared by all
+replicas. See libraries/hop/README.md for the wire contract.
 """
 
 from __future__ import annotations
 
 import asyncio
 import base64
+import os
 import threading
 import time
 from collections.abc import Callable, Iterable, Mapping
 from concurrent import futures
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+from .call import SKEW, Expired, Replayed, ReplayStore, ReservationStore, admission_keys, check, signed_by
 from authority_client._gen.host.authority.v1.authority_pb2 import KeysRequest
 from authority_client._gen.host.authority.v1.work_context_pb2 import WorkContextV1
 from authority_client.work_context import Claims, Trust, Unauthenticated, Reason, authenticate_token, bound_token, collect
 
-__all__ = ["Identity", "Verifier", "Unauthenticated", "Reason", "identity_of"]
+__all__ = ["Identity", "Verifier", "Unauthenticated", "Reason", "identity_of", "ReplayStore", "ReservationStore", "Replayed", "Expired", "NoAdmissionKeys"]
 
 WORK_CONTEXT_KEY = "x-codefly-work-context"
 STAMP_PREFIX = "x-codefly-hop-"
@@ -98,23 +93,53 @@ def identity_of(context) -> Identity:
     )
 
 
+def _store_refusal(error: Exception) -> Unauthenticated:
+    """The refusal a failed reservation answers: never the backend's error."""
+    if isinstance(error, Unauthenticated):
+        return error
+    if isinstance(error, Replayed):
+        return Unauthenticated(Reason.STAMPREPLAYED)
+    if isinstance(error, Expired):
+        return Unauthenticated(Reason.STAMPWINDOW)
+    return Unauthenticated(Reason.STAMPSTORE)
+
+
+def _within(until: int, arrival: float, mark: float) -> None:
+    """A store without ``reserve`` keeps a nonce to its retention and may then
+    evict it. A consumption that only succeeded because that retention had
+    passed found an evicted nonce, not a new one: it is refused on the window,
+    so a second delivery never runs."""
+    if arrival + (time.monotonic() - mark) >= until:
+        raise Unauthenticated(Reason.STAMPWINDOW)
+
+
 class Verifier:
     """The one module-side entry point: authenticates every call the hop forwards.
 
     ``keys`` is the authority interface's generated ``AuthorityServiceStub`` (or
-    anything with its ``Keys``): the published keys are read through it, never
-    typed in. Build it once at startup; it never fails on an authority that is not
-    serving yet, and refuses calls, with the reason, until the keys are read.
+    anything with its ``Keys``): the published keys, the Work Context's and the
+    hop's admission keys, are read through it, never typed in. Build it once at
+    startup; it never fails on an authority that is not serving yet, and refuses
+    calls, with the reason, until the keys are read. Without ``replay`` it
+    authenticates bare tokens only and admits no call.
     """
 
-    def __init__(self, keys, *, audience: str, proof: str | None = None, now: Callable[[], float] | None = None,
-                 timeout: float = KEY_TIMEOUT) -> None:
-        if keys is None or not audience or proof == "":
+    def __init__(self, keys, *, audience: str, replay: ReplayStore | None = None,
+                 now: Callable[[], float] | None = None, timeout: float = KEY_TIMEOUT) -> None:
+        admitting = replay is not None
+        if keys is None or not audience:
             raise Unauthenticated(Reason.CONFIGURATION)
-        self._source, self._audience, self._proof, self._timeout = keys, audience, proof or "", timeout
+        if admitting and os.environ.get("CODEFLY__ENVIRONMENT") != "local" and getattr(replay, "shared", False) is not True:
+            # A process-local store answers only for its own process: a captured
+            # admission would replay once per replica, and a restart would
+            # forget every reservation. Only the run named exactly "local" may.
+            raise Unauthenticated(Reason.STORENOTSHARED)
+        self._source, self._audience, self._timeout = keys, audience, timeout
+        self._replay = replay
         self._now = now or time.time
         self._lock = threading.Lock()
         self._trust: Trust | None = None
+        self._admission: tuple[str, ...] = ()  # the published hop admission keys, hex
         self._fetched = 0.0
         self._tried = float("-inf")
         self._inflight: futures.Future[None] | None = None  # done when the running read ends
@@ -129,41 +154,142 @@ class Verifier:
         succeeded or once the keys are stale. Readiness uses this, never
         ``keys_error``: a brief authority outage must not take a replica out of
         rotation while its keys are still trusted. It also starts the read a call
-        would (keys missing or older than 5 min, at most every 10 s, never waiting),
-        so an unready replica, which gets no calls, recovers, and an idle one never
+        would (keys missing or older than 5 min, or no admission key published, at
+        most every 10 s, never waiting), so an unready replica, which gets no calls, recovers, and an idle one never
         goes stale."""
         with self._lock:
             now = self._now()
-            if (self._trust is None or now - self._fetched > KEY_MAX_AGE) and self._inflight is None and now - self._tried >= KEY_RETRY:
+            unadmitting = self._replay is not None and not self._admission
+            if (self._trust is None or now - self._fetched > KEY_MAX_AGE or unadmitting) and self._inflight is None and now - self._tried >= KEY_RETRY:
                 self._refresh()
             return self._trust is not None and now - self._fetched <= KEY_STALE
 
-    def verify(self, headers: Mapping[str, str] | Iterable[tuple[str, str]]) -> Identity:
+    def verify(self, headers: Mapping[str, str] | Iterable[tuple[str, str]], method: str) -> Identity:
         """Who the call is for, or ``Unauthenticated`` naming why it is refused.
-        The stamp is checked first: nothing unbound reaches the key read. It may
-        wait up to the read's timeout for a key it does not hold yet, or for keys
-        past the stale window; an asyncio handler uses ``verify_async``."""
-        pairs, token = self._bound(headers)
-        wait = self._start(_key_id(token))
-        if wait is not None:
-            futures.wait((wait,), self._timeout)
-        return self._finish(pairs, token)
+        The admission is checked first, by the published hop admission keys
+        held: nothing that is not signed for this exact method and audience
+        reaches the Work Context's key read or starts one, and its single-use
+        nonce is reserved before that read. It may wait up to the read's timeout
+        for a key it does not hold yet, or for keys past the stale window; an
+        asyncio handler uses ``verify_async``.
 
-    async def verify_async(self, headers: Mapping[str, str] | Iterable[tuple[str, str]]) -> Identity:
+        The reservation's in-flight hold ends when ``verify`` returns, so it
+        lasts to the admission's expiry plus the clock allowance. A handler
+        whose work follows uses ``admit``, which holds it until that work ends."""
+        identity, finish = self._admit(headers, method)
+        finish()
+        return identity
+
+    @contextmanager
+    def admit(self, headers: Mapping[str, str] | Iterable[tuple[str, str]], method: str):
+        """``verify`` that holds the single-use reservation until the block
+        exits, however it exits. Enter it as soon as the call's headers have
+        arrived, before its body is read::
+
+            with verifier.admit(metadata, method) as identity:
+                ...  # the handler
+        """
+        identity, finish = self._admit(headers, method)
+        try:
+            yield identity
+        finally:
+            finish()
+
+    async def verify_async(self, headers: Mapping[str, str] | Iterable[tuple[str, str]], method: str) -> Identity:
         """``verify`` for an asyncio handler: a wait for the keys is awaited on the
         event loop and holds no thread, so any number of waiting calls leave the
         loop's executor free; a call whose key is held never waits."""
-        pairs, token = self._bound(headers)
-        wait = self._start(_key_id(token))
+        identity, finish = await self._admit_async(headers, method)
+        await finish()
+        return identity
+
+    @asynccontextmanager
+    async def admit_async(self, headers: Mapping[str, str] | Iterable[tuple[str, str]], method: str):
+        """``admit`` for an asyncio handler."""
+        identity, finish = await self._admit_async(headers, method)
+        try:
+            yield identity
+        finally:
+            await finish()
+
+    def _admit(self, headers, method):
+        arrival, mark = self._now(), time.monotonic()
+        pairs = self._pairs(headers)
+        wait = self._admission_read()
+        if wait is not None:
+            futures.wait((wait,), self._timeout)
+        pairs, token, call = self._bound(pairs, method, arrival)
+        managed = _managed(self._replay, "reserve", "finish")
+        until = call.expires + SKEW
+        try:
+            if managed:
+                self._replay.reserve(call.nonce, until)
+            else:
+                self._replay.consume(call.nonce, until)
+        except Exception as error:
+            raise _store_refusal(error) from error
+        if not managed:
+            _within(until, arrival, mark)
+
+        def finish():
+            if managed:
+                try:
+                    self._replay.finish(call.nonce)
+                except Exception:
+                    pass  # a failed release keeps the reservation held: never reopen
+        try:
+            wait = self._start(_key_id(token))
+            if wait is not None:
+                futures.wait((wait,), self._timeout)
+            return self._finish(pairs, token), finish
+        except BaseException:
+            finish()
+            raise
+
+    async def _admit_async(self, headers, method):
+        arrival, mark = self._now(), time.monotonic()
+        pairs = self._pairs(headers)
+        wait = self._admission_read()
         if wait is not None:
             try:
                 await asyncio.wait_for(asyncio.wrap_future(wait), self._timeout)
             except asyncio.TimeoutError:
-                pass  # judged below on the keys held: stale ones are refused with the reason
-        return self._finish(pairs, token)
+                pass  # judged below on the keys held: missing or stale ones are refused with the reason
+        pairs, token, call = self._bound(pairs, method, arrival)
+        managed = _managed(self._replay, "reserve_async", "finish_async")
+        until = call.expires + SKEW
+        try:
+            if managed:
+                await self._replay.reserve_async(call.nonce, until)
+            else:
+                await self._replay.consume_async(call.nonce, until)
+        except Exception as error:
+            raise _store_refusal(error) from error
+        if not managed:
+            _within(until, arrival, mark)
+
+        async def finish():
+            if managed:
+                try:
+                    await self._replay.finish_async(call.nonce)
+                except Exception:
+                    pass  # a failed release keeps the reservation held: never reopen
+        try:
+            wait = self._start(_key_id(token))
+            if wait is not None:
+                try:
+                    await asyncio.wait_for(asyncio.wrap_future(wait), self._timeout)
+                except asyncio.TimeoutError:
+                    pass  # judged below on the keys held: stale ones are refused with the reason
+            return self._finish(pairs, token), finish
+        except BaseException:
+            await finish()
+            raise
 
     def verify_token(self, token: str) -> Identity:
-        """Authenticate a bare token with the same fail-closed key cache."""
+        """Authenticate a bare token with the same fail-closed key cache. It
+        establishes no admission: no method binding is checked and no nonce is
+        consumed, so a service admitting hop calls uses ``verify``."""
         wait = self._start(_key_id(token))
         if wait is not None:
             futures.wait((wait,), self._timeout)
@@ -179,9 +305,44 @@ class Verifier:
                 pass
         return self._token_identity(token)
 
-    def _bound(self, headers) -> tuple[list[tuple[str, str]], str]:
-        pairs = list(headers.items() if isinstance(headers, Mapping) else headers)
-        return pairs, bound_token(pairs, self._proof)
+    def _pairs(self, headers) -> list[tuple[str, str]]:
+        if self._replay is None:
+            # A token-only verifier holds no replay store, so it can establish
+            # no admission.
+            raise Unauthenticated(Reason.CONFIGURATION)
+        return list(headers.items() if isinstance(headers, Mapping) else headers)
+
+    def _admission_read(self) -> futures.Future[None] | None:
+        """The read an admission must wait for, if any. An admission is judged on
+        the keys held: neither a stamp signed by no published key nor keys past
+        ``KEY_MAX_AGE`` start a read here, so a caller without an admission can
+        neither drive the authority's keys nor delay a genuine call's read. Only
+        when no trusted keys are held at all (never read, or past ``KEY_STALE``),
+        or the last read published no admission key (the hop had not registered
+        yet), does it start one, at most every ``KEY_RETRY`` as readiness does."""
+        with self._lock:
+            now = self._now()
+            trusted = self._trust is not None and now - self._fetched <= KEY_STALE and bool(self._admission)
+            if not trusted and self._inflight is None and now - self._tried >= KEY_RETRY:
+                self._refresh()
+            return None if trusted else self._inflight
+
+    def _bound(self, pairs, method, arrival):
+        """The admission judged at the instant the call arrived, by the published
+        hop admission key it is signed by."""
+        with self._lock:
+            if self._trust is None or self._now() - self._fetched > KEY_STALE:
+                if isinstance(self.keys_error, Unauthenticated) and self.keys_error.reason == Reason.INVALIDKEY:
+                    raise Unauthenticated(Reason.INVALIDKEY)
+                raise Unauthenticated(Reason.KEYSUNAVAILABLE)
+            published = self._admission
+        if not published:
+            raise Unauthenticated(Reason.KEYSUNAVAILABLE)
+        key = signed_by(pairs, published)
+        if not key:
+            raise Unauthenticated(Reason.STAMPPROOF)
+        call = check(pairs, key, method, self._audience, arrival)
+        return pairs, bound_token(pairs), call
 
     def _start(self, key_id: str) -> futures.Future[None] | None:
         """Start a read when one is due; return it when this call must wait for it:
@@ -221,8 +382,9 @@ class Verifier:
             got = values.get(key, [])
             if len(got) > 1 or (got[0] if got else "") != want:
                 raise Unauthenticated(Reason.STAMPIDENTITY)
-        advisory = (values.get(ADVISORY_KEY) or [""])[0]
-        return Identity(**{**identity.__dict__, "context": token, "advisory": advisory})
+        # An admission carrying an advisory refusal is refused by ``check``, so
+        # an admitted call never has one: diagnostic identity is never authority.
+        return Identity(**{**identity.__dict__, "context": token, "advisory": "", "claims": identity.claims})
 
     def _refresh(self) -> futures.Future[None]:
         """Start the one read, on its own thread and timeout; the lock is held. The
@@ -236,20 +398,39 @@ class Verifier:
         self._inflight, self._tried = done, self._now()
 
         def read() -> None:
-            trust, error = None, None
+            trust, admission, error = None, (), None
             try:
                 response = self._source.Keys(KeysRequest(), timeout=self._timeout)
                 trust = Trust.from_keys(response, now=lambda: datetime.fromtimestamp(self._now(), timezone.utc))
+                admission = admission_keys(response)
+                if self._replay is not None and not admission:
+                    error = NoAdmissionKeys()
             except Exception as failure:  # a gRPC error, a timeout, or keys that are unusable
                 error = failure
             with self._lock:
                 if trust is not None:
-                    self._trust, self._fetched = trust, self._now()
+                    self._trust, self._admission, self._fetched = trust, admission, self._now()
                 self.keys_error, self._inflight = error, None
             done.set_result(None)
 
         threading.Thread(target=read, name="codefly-hop-keys", daemon=True).start()
         return done
+
+
+class NoAdmissionKeys(Exception):
+    """What ``keys_error`` reports, for the module's logs, while the authority's
+    keys read but publish no hop admission key: every call is refused as
+    keys_unavailable until the authority publishes its hop's key."""
+
+    def __init__(self) -> None:
+        super().__init__("the authority's Keys publish no hop admission key (admission_keys), so no call can be admitted")
+
+
+def _managed(store, reserve: str, finish: str) -> bool:
+    """Whether a store holds reservations: it has both operations, as
+    TypeScript requires. A store with only one is treated as a plain consumer,
+    never left holding a reservation nothing finishes."""
+    return callable(getattr(store, reserve, None)) and callable(getattr(store, finish, None))
 
 
 def _key_id(token: str) -> str:

@@ -7,7 +7,7 @@ authenticates the Work Context the hop forwarded and projects its claims:
 import claims "github.com/codefly-dev/authority/libraries/authority-client/go/workcontext"
 
 md, _ := metadata.FromIncomingContext(ctx)
-c, err := claims.Authenticate(md, proof, audience, trust)
+c, err := claims.Authenticate(md, audience, trust)
 // err wraps claims.ErrUnauthenticated and names the reason.
 allowed := c.Allows(resourceKind, action, exactResourceID)
 ```
@@ -17,13 +17,11 @@ A module does not call this directly: `hop.Verifier`
 runs it on every call. `Authenticate` is the generated-code-free check it rests
 on, which the shared conformance suite also drives against both hosts.
 
-It checks, in order: this run's hop proof, exactly one token and the stamp's
-SHA-256 digest of it (`stamp.Context`); then Core's `Inspector`: canonical
-decode, the issuer pin, the Ed25519 signature under the published key the token
-names, the audience is this module, not-before and expiry within Core's skew,
-and structure and attenuation. It consumes nothing and asks the authority
-nothing: liveness is the authority's Check the hop made, bound to this call by
-the digest. Proof and digest alone authenticate nothing; the signature does.
+It checks one digest-bound token with Core's Inspector: canonical decode,
+issuer, signature, audience, window and attenuation. This authenticates identity
+only. Method authorization and replay protection require `hop.Verifier` and the
+[signed admission protocol](../../hop/README.md). A token digest alone does not
+prove that the hop made a live Check.
 
 `Scopes()` returns deep copies of the final actor's grants, or the owner's grants
 when there is no actor. An empty final actor grants nothing. `Allows` evaluates

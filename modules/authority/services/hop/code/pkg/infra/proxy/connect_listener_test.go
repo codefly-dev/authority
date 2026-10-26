@@ -4,7 +4,9 @@ import (
 	"connectrpc.com/connect"
 	"context"
 	"github.com/codefly-dev/authority/libraries/authority-client/go/host"
+	callstamp "github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
 	"github.com/codefly-dev/authority/libraries/hop/go"
+	"github.com/codefly-dev/authority/libraries/hop/go/hoptest"
 	"github.com/codefly-dev/authority/libraries/hop/go/routing"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
@@ -19,15 +21,21 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 type connectModule struct{ calls atomic.Int32 }
 
 func (m *connectModule) Version(_ context.Context, req *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error) {
-	if req.Header().Get(hop.ProofKey) != proof {
-		return nil, connect.NewError(connect.CodeUnauthenticated, hop.ReasonStampProof)
+	md := metadata.MD{}
+	for key, values := range req.Header() {
+		md[strings.ToLower(key)] = values
+	}
+	if _, err := callstamp.Check(md, hoptest.PublicKey(proof), genconnect.HopServiceVersionProcedure, "module", time.Now()); err != nil {
+		return nil, connect.NewError(connect.CodeUnauthenticated, err)
 	}
 	m.calls.Add(1)
 	return connect.NewResponse(&gen.VersionResponse{Version: "one-listener"}), nil
@@ -54,7 +62,7 @@ func TestGRPCAndConnectReachOnePublishedConnectListener(t *testing.T) {
 	}
 	checker := &routeChecker{}
 	decider := decide.Decider{Routes: routes, Authority: checker, Modules: map[string]bool{"module": true}, AudienceOf: func(string) (string, error) { return "module", nil }}
-	p := &proxy.Proxy{Decide: decider.Decide, Proof: proof, Upstreams: map[string]*grpc.ClientConn{backend.URL: upstream}}
+	p := &proxy.Proxy{Decide: decider.Decide, Signer: hoptest.Signer(proof), Upstreams: map[string]*grpc.ClientConn{backend.URL: upstream}}
 	conn := serve(t, p.ServerOptions(), func(*grpc.Server) {})
 	grpcClient := gen.NewHopServiceClient(conn)
 	ctx := metadata.AppendToOutgoingContext(t.Context(), hop.WorkContextKey, "context")
@@ -63,7 +71,7 @@ func TestGRPCAndConnectReachOnePublishedConnectListener(t *testing.T) {
 		t.Fatalf("grpc: %v %v", got, err)
 	}
 	u, _ := url.Parse(backend.URL)
-	face := httptest.NewServer(&proxy.HTTP{Decide: decider.Decide, Proof: proof, Upstreams: map[string]*url.URL{backend.URL: u}})
+	face := httptest.NewServer(&proxy.HTTP{Decide: decider.Decide, Signer: hoptest.Signer(proof), Upstreams: map[string]*url.URL{backend.URL: u}})
 	defer face.Close()
 	client := genconnect.NewHopServiceClient(&http.Client{Transport: host.HTTPTransport()}, face.URL)
 	req := connect.NewRequest(&gen.VersionRequest{})
@@ -114,7 +122,7 @@ func TestDualPublishedServiceSendsGRPCToItsConnectListener(t *testing.T) {
 		t.Fatal(err)
 	}
 	decider := decide.Decider{Routes: routes, Authority: &routeChecker{}, Modules: map[string]bool{"module": true}, AudienceOf: func(string) (string, error) { return "module", nil }}
-	p := &proxy.Proxy{Decide: decider.Decide, Proof: proof, Upstreams: map[string]*grpc.ClientConn{connectURL: connectConn, grpcURL: grpcConn}}
+	p := &proxy.Proxy{Decide: decider.Decide, Signer: hoptest.Signer(proof), Upstreams: map[string]*grpc.ClientConn{connectURL: connectConn, grpcURL: grpcConn}}
 	conn := serve(t, p.ServerOptions(), func(*grpc.Server) {})
 	ctx := metadata.AppendToOutgoingContext(t.Context(), hop.WorkContextKey, "context")
 	if _, err := gen.NewHopServiceClient(conn).Version(ctx, &gen.VersionRequest{}); err != nil {

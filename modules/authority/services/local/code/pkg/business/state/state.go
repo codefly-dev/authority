@@ -23,6 +23,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/hop/go/routing"
 	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	"github.com/codefly-dev/core/workloadidentity"
 	"github.com/codefly-dev/core/workloadidentity/native"
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
@@ -707,6 +708,17 @@ func (s *State) UninstallAsHost(id string) error {
 // GrantRole grants a role as the host's own setup (no caller): a test's.
 func (s *State) GrantRole(g domain.RoleGrant) error {
 	return s.write(func(tx authority.Tx) error { return tx.PutRoleGrant(g) })
+}
+
+// AttestWorkload attests a native launcher credential with core's attester
+// and answers the workload it names, composed module or not: for a caller the
+// host knows by workload alone, as the hop registering its admission key.
+func (s *State) AttestWorkload(ctx context.Context, credential string) (workloadidentity.Workload, error) {
+	attestation, err := s.attester.Attest(ctx, credential, s.audience)
+	if err != nil {
+		return workloadidentity.Workload{}, fmt.Errorf("%w: workload credential: %v", ErrForbidden, err)
+	}
+	return attestation.Workload, nil
 }
 
 // VerifyWorkload attests a native launcher credential with core's attester

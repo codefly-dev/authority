@@ -7,9 +7,11 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
+	"time"
 
 	"connectrpc.com/connect"
 	"github.com/codefly-dev/authority/libraries/authority-client/go/host"
+	callstamp "github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
 	"github.com/codefly-dev/authority/libraries/hop/go"
 	"github.com/codefly-dev/authority/libraries/hop/go/routing"
 	"google.golang.org/grpc/codes"
@@ -26,7 +28,7 @@ import (
 type HTTP struct {
 	Decide    Decide
 	Upstreams map[string]*url.URL
-	Proof     string
+	Signer    *callstamp.Signer
 	// Refused is told every refusal, so the hop's log names it.
 	Refused func(method string, err error)
 }
@@ -65,7 +67,15 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	stamp := metadata.MD{}
 	stamp.Set(hop.WorkContextKey, md.Get(hop.WorkContextKey)...)
-	hop.Stamp(stamp, id, h.Proof)
+	boundMethod := method
+	// Connect's server interceptor observes the full procedure, not the HTTP verb.
+	if decision.Route.Transport == "connect" {
+		boundMethod = r.URL.Path
+	}
+	if err := hop.Stamp(stamp, id, h.Signer, boundMethod, module, time.Now()); err != nil {
+		refuse(w, r, status.Error(codes.Unauthenticated, err.Error()))
+		return
+	}
 	(&httputil.ReverseProxy{
 		// Never through a proxy from the environment, which would see the stamp,
 		// the run's proof and the forwarded Work Context.

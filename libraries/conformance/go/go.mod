@@ -3,7 +3,7 @@ module github.com/codefly-dev/authority/libraries/conformance/go
 go 1.27.3
 
 require (
-	github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0-20261026082258-3acb2c3acc46
+	github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0-20261026180113-c5b5e23960ab
 	github.com/codefly-dev/authority/libraries/resources/go v0.0.0-20261023203940-e720ad2851c7
 	github.com/codefly-dev/core v0.19.7-0.20261026092055-b23dc13543b2
 	github.com/google/uuid v1.6.0

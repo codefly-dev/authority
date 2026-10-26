@@ -2,6 +2,7 @@ package proxy_test
 
 import (
 	"context"
+	"github.com/codefly-dev/authority/libraries/hop/go/hoptest"
 	"google.golang.org/grpc/health"
 	healthv1 "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/test/bufconn"
@@ -11,6 +12,7 @@ import (
 	"net/url"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
 	"github.com/codefly-dev/authority/libraries/hop/go"
@@ -37,7 +39,7 @@ func (c *routeChecker) Check(_ context.Context, req *authorityv1.CheckRequest, _
 	if req.Method == c.denied {
 		return nil, status.Error(codes.PermissionDenied, "declared route requires write")
 	}
-	return &authorityv1.CheckResponse{Context: &authorityv1.WorkContextV1{OwnerPrincipalId: "person", TenantId: "tenant"}}, nil
+	return &authorityv1.CheckResponse{Context: &authorityv1.WorkContextV1{OwnerPrincipalId: "person", TenantId: "tenant", ExpiresAtUnix: time.Now().Add(time.Minute).Unix()}}, nil
 }
 
 func routeEndpoint(service, transport, address string, methods ...string) routing.RouteEndpoint {
@@ -45,7 +47,7 @@ func routeEndpoint(service, transport, address string, methods ...string) routin
 }
 
 // A procedure-shaped HTTP path is not evidence of a Connect listener. Its
-// matched HTTP policy and destination must be one decision, even in warn mode.
+// matched HTTP policy and destination must be one decision.
 func TestPublishedDestinationAndPolicyAreOneSelection(t *testing.T) {
 	var reached atomic.Int32
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -69,16 +71,15 @@ func TestPublishedDestinationAndPolicyAreOneSelection(t *testing.T) {
 	}
 	checker := &routeChecker{denied: "POST /gauge.v1.Service/Call"}
 	decision := decide.Decider{Routes: routes, Authority: checker, Modules: map[string]bool{"module": true}, AudienceOf: func(string) (string, error) { return "module", nil }}
-	for _, warn := range []bool{false, true} {
-		decision.Permissive = warn
+	for range 2 {
 		refused := 0
-		face := proxy.HTTP{Decide: decision.Decide, Upstreams: map[string]*url.URL{backend.URL: u}, Proof: proof, Refused: func(string, error) { refused++ }}
+		face := proxy.HTTP{Decide: decision.Decide, Upstreams: map[string]*url.URL{backend.URL: u}, Signer: hoptest.Signer(proof), Refused: func(string, error) { refused++ }}
 		req := httptest.NewRequest(http.MethodPost, "/gauge.v1.Service/Call?original=yes", nil)
 		req.Header.Set(hop.WorkContextKey, "context")
 		rec := httptest.NewRecorder()
 		face.ServeHTTP(rec, req)
 		if rec.Code != http.StatusForbidden || reached.Load() != 0 || refused != 1 {
-			t.Fatalf("warn %v: status=%d reached=%d refused=%d", warn, rec.Code, reached.Load(), refused)
+			t.Fatalf("status=%d reached=%d refused=%d", rec.Code, reached.Load(), refused)
 		}
 	}
 	if len(checker.calls) != 2 || checker.calls[0] != checker.denied || checker.calls[1] != checker.denied {
@@ -86,7 +87,7 @@ func TestPublishedDestinationAndPolicyAreOneSelection(t *testing.T) {
 	}
 	// Inverting the grants admits the HTTP route despite the gRPC refusal.
 	checker.denied = "/gauge.v1.Service/Call"
-	face := proxy.HTTP{Decide: decision.Decide, Upstreams: map[string]*url.URL{backend.URL: u}, Proof: proof}
+	face := proxy.HTTP{Decide: decision.Decide, Upstreams: map[string]*url.URL{backend.URL: u}, Signer: hoptest.Signer(proof)}
 	req := httptest.NewRequest(http.MethodPost, "/gauge.v1.Service/Call", nil)
 	req.Header.Set(hop.WorkContextKey, "context")
 	rec := httptest.NewRecorder()
@@ -115,7 +116,7 @@ func TestPublishedDestinationAndPolicyAreOneSelection(t *testing.T) {
 	rec = httptest.NewRecorder()
 	face.ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnauthorized || reached.Load() != 1 {
-		t.Fatal("invalid identity reached a route in warn mode")
+		t.Fatal("invalid identity reached a route")
 	}
 }
 
@@ -135,7 +136,7 @@ func TestGeneratedGRPCRoutesKeepSiblingAndAudienceSeparate(t *testing.T) {
 	routes.Endpoints = append(routes.Endpoints, routeEndpoint("health", "grpc", "third", "/grpc.health.v1.Health/Check", "/grpc.health.v1.Health/Watch"))
 	checker := &routeChecker{}
 	decision := decide.Decider{Routes: routes, Authority: checker, Modules: map[string]bool{"module": true, "other": true}, AudienceOf: func(token string) (string, error) { return token, nil }}
-	p := &proxy.Proxy{Decide: decision.Decide, Proof: proof, Upstreams: map[string]*grpc.ClientConn{"first": first, "second": second, "third": third, "module": second}}
+	p := &proxy.Proxy{Decide: decision.Decide, Signer: hoptest.Signer(proof), Upstreams: map[string]*grpc.ClientConn{"first": first, "second": second, "third": third, "module": second}}
 	conn := serve(t, p.ServerOptions(), func(*grpc.Server) {})
 	for _, audience := range []string{"module", "other"} {
 		ctx := metadata.AppendToOutgoingContext(t.Context(), hop.WorkContextKey, audience)

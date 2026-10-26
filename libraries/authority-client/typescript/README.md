@@ -8,16 +8,19 @@ depends on:
 ```ts
 import { Unauthenticated, Verifier } from '@codefly-dev/authority-client/work-context';
 
-const verifier = new Verifier(createClient(AuthorityService, transport), audience, proof);
-const id = await verifier.verify(requestHeaders);   // throws Unauthenticated, naming why
+const verifier = new Verifier(createClient(AuthorityService, transport), audience, sharedReplayStore);  // the hop's key comes from Keys
+const id = await verifier.verify(requestHeaders, fullProcedure);   // throws Unauthenticated, naming why
+await verifier.admit(requestHeaders, fullProcedure, async id => handle(id));  // holds the single-use reservation while handle runs
 id.tenant; id.scopes; id.claims.allows(resourceKind, action, exactResourceID);
 ```
 
-It is the Go library's `hop.Verifier`: the stamp first (proof and digest), then
+It is the Go library's `hop.Verifier`: the signed method, audience, token digest and admission window first, then
 the keys read through `Keys` (re-read on an unknown key at most every 10 s and
 when older than 5 minutes, on a read of its own bounded by 5 s; stale after 15
 minutes, when a call waits for the re-read as it does on an unknown key), then
-`authenticateClaims`: Core's decode path (size, the contract's `buf.validate`
+`authenticateToken`, the one identity reader (a caller holding headers extracts
+the bound token with `boundToken` first): Core's decode path (size, the
+contract's `buf.validate`
 rules run by protovalidate, unknown fields, canonical encoding, lifetime), the
 issuer, the key (never Core's public conformance key), the Ed25519 signature,
 the audience, the window, and attenuation and grant shape. Who the call is for
@@ -28,7 +31,11 @@ caller. **Readiness uses `verifier.ready()`**: true while trusted keys are held,
 through failed re-reads inside the 15-minute window; false before the first read
 or once they are stale. It also starts the same rate-limited, non-blocking
 re-read a call would, so an unready replica recovers and an idle one never goes
-stale. Never gate readiness on `keysError`. Do not send the proof to a browser.
+stale. Never gate readiness on `keysError`. Before reading the keys, it reserves
+the nonce through the required durable replay store shared across replicas, and
+outside the run named exactly `local` the constructor refuses a store whose
+`shared` is not true (`replay_store_not_shared`). See the [admission
+protocol](../../hop/README.md).
 
 `claims.scopes` contains frozen copies of the final actor's grants, or the owner's
 when no actor exists. Each scope is evaluated independently; an omitted resource
@@ -58,7 +65,14 @@ values. These errors never retain underlying key-source errors or claim values.
 `KeysError` / `keys_error` / `keysError` is a separate internal diagnostic, not a
 caller response. Unknown future Core diagnostic categories remain refused.
 
-Processes that receive only Issue responses use Go `NewTokenVerifier` or omit
-`proof` when constructing Python/TypeScript `Verifier`. They still authenticate
-bare tokens against published Keys; stamped verification is refused without a
-configured run proof. A process receiving hop calls continues to require it.
+Admission refusals carry their own codes, in the same scheme: `stamp_proof` (no
+admission signed for this call), `stamp_token`, `stamp_digest`, `stamp_method`,
+`stamp_audience`, `stamp_window`, `stamp_advisory`, `stamp_replayed` and
+`stamp_store`. Each names no proof, token, digest, nonce or claim.
+
+Processes that receive only Issue responses use Go `NewTokenVerifier`, or omit
+`replay` when constructing the Python/TypeScript `Verifier`. They still
+authenticate bare tokens against published Keys. They admit no stamped call:
+without a shared replay store an admission cannot be consumed once, so `verify`
+refuses with `configuration`. A process that receives hop calls supplies one;
+the hop's admission keys come from the same Keys read, never from configuration.

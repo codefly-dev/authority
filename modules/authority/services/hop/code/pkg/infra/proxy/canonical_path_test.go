@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"github.com/codefly-dev/authority/libraries/hop/go/hoptest"
 	"io"
 	"net"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/codefly-dev/authority/libraries/hop/go"
 	"github.com/codefly-dev/authority/libraries/hop/go/routing"
@@ -25,9 +27,9 @@ func TestNonCanonicalPathsRefuseBeforeDecisionOverRawHTTP(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { forwarded.Add(1); w.WriteHeader(204) }))
 	defer backend.Close()
 	target, _ := url.Parse(backend.URL)
-	face := &proxy.HTTP{Proof: "test-proof", Upstreams: map[string]*url.URL{backend.URL: target}, Decide: func(context.Context, string, metadata.MD) (decide.Decision, error) {
+	face := &proxy.HTTP{Signer: hoptest.Signer("test-proof"), Upstreams: map[string]*url.URL{backend.URL: target}, Decide: func(context.Context, string, metadata.MD) (decide.Decision, error) {
 		checked.Add(1)
-		return decide.Decision{Module: "module", Route: &routing.RouteEndpoint{Address: backend.URL}, Identity: hop.Identity{Owner: "person", Tenant: "tenant"}}, nil
+		return decide.Decision{Module: "module", Route: &routing.RouteEndpoint{Address: backend.URL}, Identity: hop.Identity{Expires: time.Now().Add(time.Minute).Unix(), Owner: "person", Tenant: "tenant"}}, nil
 	}}
 	server := httptest.NewServer(face)
 	defer server.Close()

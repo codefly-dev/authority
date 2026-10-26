@@ -56,6 +56,22 @@ func (k *Kit) Credential(t *testing.T, module string) string {
 	return token
 }
 
+// HopWorkload is the hop as the launcher starts it: the authority module's
+// hop service, the one workload that registers admission keys.
+func HopWorkload() workloadidentity.Workload {
+	return workloadidentity.Workload{TrustDomain: "local.test", Module: issuer.HopModule, Service: issuer.HopService, Instance: "hop-1"}
+}
+
+// HopCredential is what the launcher signed for the hop's process.
+func (k *Kit) HopCredential(t *testing.T) string {
+	t.Helper()
+	token, err := k.Launcher.Issue(native.Subject{Workload: HopWorkload(), Container: issuer.HopService}, Audience)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return token
+}
+
 // Scope builds one scope.
 func Scope(kind string, actions ...string) *basev0.WorkScopeV1 {
 	return &basev0.WorkScopeV1{ResourceKind: kind, Actions: actions}
@@ -282,6 +298,7 @@ func Bare(t *testing.T) *Kit {
 	for _, module := range []string{"model", "runtime", "records", "org-directory", "documents", "wiki", "proposals", "conformance-probe", "conformance-uninstalled", "conformance-solution", "conformance-methods", "robin", "assistant", "evaluation", "principal-a", "principal-b", "principal-c", "principal-store", "principal-legacy-store", "conformance-owner-a", "conformance-owner-b", "conformance-store"} {
 		launcher.Declare(Workload(module))
 	}
+	launcher.Declare(HopWorkload())
 	_, signing, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatal(err)

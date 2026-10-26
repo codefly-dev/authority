@@ -93,6 +93,8 @@ func configureLocalAuthority(ctx context.Context, _ *adapters.Configuration) (Cl
 	if err != nil {
 		return nil, err
 	}
+	// Keys publishes the hop's admission key once the hop registers it
+	// (RegisterAdmissionKey): nothing about the hop is configured here.
 	wiring.Set(st, issuer.New(st, issuerName, keyID, signing.Public().(ed25519.PublicKey)))
 	// A delivery is verified against the policy the run wrote for its host, and
 	// carried only by the module's own delivery workload, attested by the

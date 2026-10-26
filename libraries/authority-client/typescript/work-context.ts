@@ -1,15 +1,9 @@
-/** Authenticate the Work Context the hop forwarded to a Node module, then read it.
- *
- * `Verifier` is the Go library's `hop.Verifier`, and `authenticateClaims` is
- * `workcontext.Authenticate`, rule for rule: the stamp binds exactly one token to
- * this run's proof by its digest; the token passes Core's decode path (size,
- * schema, unknown fields, canonical encoding, lifetime), the issuer pin, the key
- * (never Core's public conformance key), the Ed25519 signature, the audience, the
- * window, and the chain's attenuation and grant shape. The schema rules are the
- * contract's own buf.validate declarations, run by protovalidate. The shared
- * `testdata/vectors.json`, written by the Go test, holds every rule to Go's
- * verdict. Nothing here consumes a nonce: liveness is the hop's Check, which the
- * digest binds to this call. */
+import { admissionKeys, checkCall, Expired, Replayed, signedBy, SKEW, type ReplayStore } from "./hop-call.js";
+export { Expired, Replayed, LIFETIME, SKEW, PURPOSE } from "./hop-call.js";
+export type { ReplayStore } from "./hop-call.js";
+/** Work Context identity readers and method-bound, single-use hop admission.
+ * Verifier consumes signed call nonces in a required durable shared ReplayStore.
+ * authenticateToken alone authenticates identity, not admission. */
 import { createHash, createPrivateKey, createPublicKey, timingSafeEqual, verify } from "node:crypto";
 import { equals, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { createValidator } from "@bufbuild/protovalidate";
@@ -26,57 +20,8 @@ const FIXTURE_PUBLIC = Buffer.from(createPrivateKey({
   format: "der", type: "pkcs8",
 }).export({ format: "jwk" }).x as string, "base64url");
 
-export enum Reason {
-  Configuration = "configuration",
-  StampProof = "stamp_proof",
-  StampToken = "stamp_token",
-  StampDigest = "stamp_digest",
-  StampIdentity = "stamp_identity",
-  KeysUnavailable = "keys_unavailable",
-  Cancelled = "cancelled",
-  Malformed = "malformed",
-  Lifetime = "lifetime",
-  Issuer = "issuer",
-  UnknownKey = "unknown_key",
-  InvalidKey = "invalid_key",
-  FixtureKey = "fixture_key",
-  Signature = "signature",
-  Audience = "audience",
-  NotYetValid = "not_yet_valid",
-  Expired = "expired",
-  Attenuation = "attenuation",
-  Grant = "grant",
-}
-const reasonText: Record<Reason, string> = {
-  [Reason.Configuration]: "the verifier configuration is incomplete",
-  [Reason.StampProof]: "the call requires this run's hop proof",
-  [Reason.StampToken]: "the stamp binds no single Work Context",
-  [Reason.StampDigest]: "the Work Context does not match the hop stamp",
-  [Reason.StampIdentity]: "the stamp does not match the authenticated Work Context",
-  [Reason.KeysUnavailable]: "the authority's published keys are unavailable",
-  [Reason.Cancelled]: "the call ended while the authority's keys were being read",
-  [Reason.Malformed]: "the Work Context encoding or claims are invalid",
-  [Reason.Lifetime]: "the capability lifetime exceeds the allowed bound",
-  [Reason.Issuer]: "the Work Context was issued by an untrusted issuer",
-  [Reason.UnknownKey]: "no verification key is published for this Work Context",
-  [Reason.InvalidKey]: "the authority's verification key is malformed",
-  [Reason.FixtureKey]: "the conformance fixture key is refused",
-  [Reason.Signature]: "the signature does not verify under the published key",
-  [Reason.Audience]: "the Work Context was minted for another audience",
-  [Reason.NotYetValid]: "the Work Context is not valid before its not-before instant",
-  [Reason.Expired]: "the Work Context has expired",
-  [Reason.Attenuation]: "the actor chain widens authority",
-  [Reason.Grant]: "the grant structure is invalid",
-};
-/** Fixed caller-safe code and text; never retains a diagnostic cause. */
-export class Unauthenticated extends Error {
-  override name = "Unauthenticated";
-  readonly text: string;
-  constructor(readonly code: Reason) {
-    super(`${code}: ${reasonText[code]}`);
-    this.text = reasonText[code];
-  }
-}
+export { Reason, Unauthenticated } from "./refusal.js";
+import { Reason, Unauthenticated } from "./refusal.js";
 
 /** The authority a module believes: its issuer and published keys, from Keys. */
 export interface Trust {
@@ -87,11 +32,13 @@ export interface Trust {
   readonly now?: () => number;
 }
 
-/** Trust from the authority interface's KeysResponse: Ed25519 keys only. */
+/** Trust from the authority interface's KeysResponse: Ed25519 Work Context
+ * keys only (purpose "work-context", or none from a host older than the
+ * purpose). The hop's admission keys are never among them. */
 export function trustFromKeys(response: KeysResponse, now?: () => number): Trust {
   const keys = new Map<string, Uint8Array>();
   for (const key of response.keys) {
-    if (key.algorithm !== "Ed25519") continue;
+    if (key.algorithm !== "Ed25519" || (key.purpose !== "" && key.purpose !== "work-context")) continue;
     if (!key.keyId || keys.has(key.keyId) || key.publicKey.length !== 32) {
       throw new Unauthenticated(Reason.InvalidKey);
     }
@@ -124,14 +71,19 @@ export interface Claims {
 /** Server-side request headers; repeated values must not be discarded. */
 export type StampHeaders = Readonly<Record<string, string | readonly string[]>> | Iterable<readonly [string, string]>;
 
-/** The claims of the Work Context the hop forwarded to this module (audience), or
- * Unauthenticated naming why it must not be believed. */
-export function authenticateClaims(headers: StampHeaders, proof: string, audience: string, trust: Trust): Claims {
-  if (!audience) throw new Unauthenticated(Reason.Configuration);
-  return authenticateToken(boundToken(headers, proof), audience, trust);
-}
-
-/** Authenticate bare bytes without claiming hop admission or live checks. */
+/** The claims of one Work Context, for this module (audience), or
+ * Unauthenticated naming why they must not be believed.
+ *
+ * This is the one identity-only reader here, and identity is all it
+ * establishes. It proves no hop admission: it does not check that a call was
+ * admitted for the procedure it arrived on, consumes no single-use nonce, and
+ * asks the authority nothing, so it checks no live revocation either. A
+ * service admits a call with Verifier.verify.
+ *
+ * A caller holding a call's headers extracts the token the stamp's digest binds
+ * with boundToken first. That is deliberately two calls (security review r164
+ * R4): a reader taking headers reads as though it admitted the call, and it
+ * does not. */
 export function authenticateToken(token: string, audience: string, trust: Trust): Claims {
   if (!audience) throw new Unauthenticated(Reason.Configuration);
   if (token.length > MAX_TOKEN_BYTES || token.split(".").length !== 2) {
@@ -246,10 +198,10 @@ function checkStructure(context: WorkContextV1): void {
   if (identityKey(context, last) !== actor) throw new Unauthenticated(Reason.Grant);
 }
 
-/** The one token the stamp's digest binds under this run's proof. Bound, not
- * authenticated: whoever holds the proof can write both. */
-export function boundToken(headers: StampHeaders, proof: string): string {
-  if (headers === null || typeof headers !== "object" || typeof proof !== "string") {
+/** Extract one digest-bound token. This is not hop admission authentication:
+ * checkCall and a shared ReplayStore establish that, normally via Verifier. */
+export function boundToken(headers: StampHeaders): string {
+  if (headers === null || typeof headers !== "object") {
     throw new Unauthenticated(Reason.Configuration);
   }
   const values = new Map<string, string[]>();
@@ -264,9 +216,6 @@ export function boundToken(headers: StampHeaders, proof: string): string {
     return left.length === right.length && timingSafeEqual(left, right);
   };
   const token = one("x-codefly-work-context");
-  if (!proof || !equal(proof, one("x-codefly-hop-proof"))) {
-    throw new Unauthenticated(Reason.StampProof);
-  }
   if (!token || values.get("x-codefly-hop-context")?.length !== 1) throw new Unauthenticated(Reason.StampToken);
   if (!equal(createHash("sha256").update(token).digest("hex"), one("x-codefly-hop-context"))) {
     throw new Unauthenticated(Reason.StampDigest);
@@ -334,59 +283,165 @@ export interface KeySource {
  * re-read are trusted no longer than 15 min. */
 const KEY_RETRY_MS = 10_000, KEY_MAX_AGE_MS = 300_000, KEY_STALE_MS = 900_000, KEY_TIMEOUT_MS = 5_000;
 
+/** What keysError reports, for the module's logs, while the authority's keys
+ * read but publish no hop admission key: every call is refused as
+ * keys_unavailable until the authority publishes its hop's key. */
+export class NoAdmissionKeys extends Error {
+  override name = "NoAdmissionKeys";
+  constructor() { super("the authority's Keys publish no hop admission key (admission_keys), so no call can be admitted"); }
+}
+
 /** The one module-side entry point: authenticates every call the hop forwards.
  * Build it once at startup with the generated client of the authority interface
- * the module depends on; the keys are read through its Keys, never typed in.
- * Construction never fails on an authority that is not serving yet: calls are
- * refused, with the reason, until its keys are read. */
+ * the module depends on; the keys, the Work Context's and the hop's admission
+ * keys, are read through its Keys, never typed in. Without a replay store it
+ * authenticates bare tokens only and admits no call. Construction never fails
+ * on an authority that is not serving yet: calls are refused, with the reason,
+ * until its keys are read. */
 export class Verifier {
   private trust?: Trust;
+  /** The published hop admission keys, hex, read with trust. */
+  private admission: string[] = [];
   private fetched = 0;
   private tried = Number.NEGATIVE_INFINITY;
   private inflight?: Promise<void>;
   /** The last key-read failure, for the module's own logs; never sent to a caller. */
   keysError?: unknown;
 
-  constructor(private readonly source: KeySource, private readonly audience: string, private readonly proof?: string,
+  constructor(private readonly source: KeySource, private readonly audience: string,
+              private readonly replay?: ReplayStore,
               private readonly now: () => number = Date.now, private readonly timeoutMs: number = KEY_TIMEOUT_MS) {
-    if (!source || !audience || proof === "") throw new Unauthenticated(Reason.Configuration);
+    if (!source || !audience) throw new Unauthenticated(Reason.Configuration);
+    // A process-local store answers only for its own process: a captured
+    // admission would replay once per replica, and a restart would forget every
+    // reservation. Only the run named exactly "local" may use one.
+    if (replay && process.env.CODEFLY__ENVIRONMENT !== "local" && replay.shared !== true) {
+      throw new Unauthenticated(Reason.StoreNotShared);
+    }
     void this.refresh();
   }
 
   /** Whether trusted keys are held: true from the first successful read and
    * through failed re-reads inside the 15-minute window; false before any read
    * succeeded or once the keys are stale. Readiness uses this, never keysError.
-   * It also starts the read a call would (keys missing or older than 5 min, at
-   * most every 10 s, never waiting), so an unready replica, which gets no calls,
+   * It also starts the read a call would (keys missing or older than 5 min, or
+   * no admission key published, at most every 10 s, never waiting), so an unready replica, which gets no calls,
    * recovers, and an idle one never goes stale. */
   ready(): boolean {
     const now = this.now();
-    if ((!this.trust || now - this.fetched > KEY_MAX_AGE_MS) && !this.inflight && now - this.tried >= KEY_RETRY_MS) void this.refresh();
+    const unadmitting = this.replay !== undefined && this.admission.length === 0;
+    if ((!this.trust || now - this.fetched > KEY_MAX_AGE_MS || unadmitting) && !this.inflight && now - this.tried >= KEY_RETRY_MS) void this.refresh();
     return this.trust !== undefined && now - this.fetched <= KEY_STALE_MS;
   }
 
-  /** Who the call is for, or Unauthenticated naming why it is refused. */
-  async verify(headers: StampHeaders): Promise<Identity> {
-    const pairs = [...(Symbol.iterator in Object(headers) ? headers as Iterable<readonly [string, string]> : Object.entries(headers))]
-      .flatMap(([key, value]) => (typeof value === "string" ? [value] : [...value]).map(v => [key.toLowerCase(), v] as const));
-    const token = boundToken(pairs, this.proof ?? ""); // the stamp first: nothing unbound reaches the key read
-    const id = await this.verifyToken(token);
-    const stamped: Record<string, string> = {
-      "x-codefly-hop-owner": id.owner, "x-codefly-hop-owner-kind": id.ownerKind, "x-codefly-hop-tenant": id.tenant,
-      "x-codefly-hop-actors": id.actors.join(","), "x-codefly-hop-scopes": id.scopes.join(","),
-      "x-codefly-hop-binding": id.binding, "x-codefly-hop-task": id.task, "x-codefly-hop-expires": id.expires > 0 ? String(id.expires) : "",
-    };
-    for (const [key, want] of Object.entries(stamped)) {
-      const got = pairs.filter(([name]) => name === key).map(([, value]) => value);
-      if (got.length > 1 || (got[0] ?? "") !== want) {
-        throw new Unauthenticated(Reason.StampIdentity);
-      }
-    }
-    const advisory = pairs.find(([name]) => name === "x-codefly-hop-advisory")?.[1] ?? "";
-    return Object.freeze({ ...id, advisory });
+  /** Who the call is for, or Unauthenticated naming why it is refused. The
+   * admission is checked first, and its single-use nonce is reserved before the
+   * keys are read. The reservation's in-flight hold ends when verify returns, so
+   * it lasts to the admission's expiry plus the clock allowance; a handler whose
+   * work follows uses admit, which holds it until that work has ended. */
+  async verify(headers: StampHeaders, method: string): Promise<Identity> {
+    const admission = await this.begin(headers, method);
+    await admission.finish();
+    return admission.identity;
   }
 
-  /** Authenticate a bare token with the stamped path's fail-closed key cache. */
+  /** verify that holds the single-use reservation until handler has settled,
+   * however it settles. Call it as soon as the request's headers have arrived,
+   * before its body is read. */
+  async admit<T>(headers: StampHeaders, method: string, handler: (identity: Identity) => Promise<T>): Promise<T> {
+    const admission = await this.begin(headers, method);
+    try { return await handler(admission.identity); }
+    finally { await admission.finish(); }
+  }
+
+  private async begin(headers: StampHeaders, method: string): Promise<{ identity: Identity; finish: () => Promise<void> }> {
+    const pairs = [...(Symbol.iterator in Object(headers) ? headers as Iterable<readonly [string, string]> : Object.entries(headers))]
+      .flatMap(([key, value]) => (typeof value === "string" ? [value] : [...value]).map(v => [key.toLowerCase(), v] as const));
+    if (this.replay === undefined) {
+      // A token-only verifier holds no replay store, so it can establish no
+      // admission.
+      throw new Unauthenticated(Reason.Configuration);
+    }
+    // The admission first, judged at arrival by the published hop admission
+    // keys held: nothing signed for another procedure, another audience or
+    // another token reaches the Work Context's key read or starts one.
+    const arrival = this.now(), mark = performance.now();
+    const call = checkCall(pairs, await this.admissionKey(pairs), method, this.audience, arrival);
+    const finish = await this.reserve(call.nonce, call.expires + SKEW, arrival, mark);
+    try {
+      const token = boundToken(pairs);
+      const id = await this.verifyToken(token);
+      const stamped: Record<string, string> = {
+        "x-codefly-hop-owner": id.owner, "x-codefly-hop-owner-kind": id.ownerKind, "x-codefly-hop-tenant": id.tenant,
+        "x-codefly-hop-actors": id.actors.join(","), "x-codefly-hop-scopes": id.scopes.join(","),
+        "x-codefly-hop-binding": id.binding, "x-codefly-hop-task": id.task, "x-codefly-hop-expires": id.expires > 0 ? String(id.expires) : "",
+      };
+      for (const [key, want] of Object.entries(stamped)) {
+        const got = pairs.filter(([name]) => name === key).map(([, value]) => value);
+        if (got.length > 1 || (got[0] ?? "") !== want) {
+          throw new Unauthenticated(Reason.StampIdentity);
+        }
+      }
+      // An admission carrying an advisory refusal is refused by checkCall, so an
+      // admitted call never has one: diagnostic identity is never authority.
+      return { identity: Object.freeze({ ...id, advisory: "" }), finish };
+    } catch (error) {
+      await finish();
+      throw error;
+    }
+  }
+
+  /** The published hop admission key the admission is signed by. It is judged
+   * on the keys held: neither a stamp signed by no published key nor keys past
+   * KEY_MAX_AGE start a read here, so a caller without an admission can neither
+   * drive the authority's keys nor delay a genuine call's read. Only when no
+   * trusted keys are held at all (never read, or past KEY_STALE), or the last
+   * read published no admission key (the hop had not registered yet), does it
+   * start one, at most every KEY_RETRY as readiness does, and wait for it. */
+  private async admissionKey(pairs: readonly (readonly [string, string])[]): Promise<string> {
+    const now = this.now();
+    const trusted = () => this.trust !== undefined && this.now() - this.fetched <= KEY_STALE_MS;
+    const judgeable = () => trusted() && this.admission.length > 0;
+    if (!judgeable() && !this.inflight && now - this.tried >= KEY_RETRY_MS) void this.refresh();
+    if (!judgeable() && this.inflight) await this.inflight;
+    if (!trusted()) {
+      if (this.keysError instanceof Unauthenticated && this.keysError.code === Reason.InvalidKey) throw new Unauthenticated(Reason.InvalidKey);
+      throw new Unauthenticated(Reason.KeysUnavailable);
+    }
+    if (this.admission.length === 0) throw new Unauthenticated(Reason.KeysUnavailable);
+    const key = signedBy(pairs, this.admission);
+    if (!key) throw new Unauthenticated(Reason.StampProof);
+    return key;
+  }
+
+  /** Consume the admission's nonce, retained to its expiry plus the clock
+   * allowance at least, and answer the release that ends its in-flight hold. */
+  private async reserve(nonce: string, until: number, arrival: number, mark: number): Promise<() => Promise<void>> {
+    const store = this.replay!;
+    const managed = typeof store.reserve === "function" && typeof store.finish === "function";
+    try {
+      if (managed) await store.reserve!(nonce, until);
+      else await store.consume(nonce, until);
+    } catch (error) {
+      if (error instanceof Unauthenticated) throw error;
+      throw new Unauthenticated(error instanceof Replayed ? Reason.StampReplayed : error instanceof Expired ? Reason.StampWindow : Reason.StampStore);
+    }
+    // A store without reserve keeps a nonce to its retention and may then evict
+    // it. A consumption that only succeeded because that retention had passed
+    // found an evicted nonce, not a new one: it is refused on the window, so a
+    // second delivery never runs.
+    if (!managed && arrival + (performance.now() - mark) >= until * 1000) throw new Unauthenticated(Reason.StampWindow);
+    let released = false;
+    return async () => {
+      if (!managed || released) return;
+      released = true;
+      // A failed release keeps the reservation held: nothing reopens admission.
+      try { await store.finish!(nonce); } catch { /* held */ }
+    };
+  }
+
+  /** Authenticate a bare token with the stamped path's fail-closed key cache.
+   * It establishes no admission: no method binding, no nonce consumption. */
   async verifyToken(token: string): Promise<Identity> {
     const claims = authenticateToken(token, this.audience, await this.trustFor(keyIdOf(token)));
     return Object.freeze({ ...identityOf(claims.context), context: token, claims, advisory: "" });
@@ -416,7 +471,11 @@ export class Verifier {
     const signal = AbortSignal.timeout(this.timeoutMs);
     const deadline = new Promise<never>((_, reject) => signal.addEventListener("abort", () => reject(signal.reason), { once: true }));
     this.inflight = Promise.race([this.source.keys({}, { timeoutMs: this.timeoutMs, signal }), deadline])
-      .then(response => { this.trust = trustFromKeys(response); this.fetched = this.now(); this.keysError = undefined; })
+      .then(response => {
+        const trust = trustFromKeys(response), admission = admissionKeys(response);
+        this.trust = trust; this.admission = admission; this.fetched = this.now();
+        this.keysError = this.replay && admission.length === 0 ? new NoAdmissionKeys() : undefined;
+      })
       .catch(error => { this.keysError = error; })
       .finally(() => { this.inflight = undefined; });
     return this.inflight;

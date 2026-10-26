@@ -50,6 +50,11 @@ class AuthorityServiceStub(object):
                 request_serializer=host_dot_authority_dot_v1_dot_authority__pb2.KeysRequest.SerializeToString,
                 response_deserializer=host_dot_authority_dot_v1_dot_authority__pb2.KeysResponse.FromString,
                 _registered_method=True)
+        self.RegisterAdmissionKey = channel.unary_unary(
+                '/host.authority.v1.AuthorityService/RegisterAdmissionKey',
+                request_serializer=host_dot_authority_dot_v1_dot_authority__pb2.RegisterAdmissionKeyRequest.SerializeToString,
+                response_deserializer=host_dot_authority_dot_v1_dot_authority__pb2.RegisterAdmissionKeyResponse.FromString,
+                _registered_method=True)
         self.ListResources = channel.unary_unary(
                 '/host.authority.v1.AuthorityService/ListResources',
                 request_serializer=host_dot_authority_dot_v1_dot_authority__pb2.ListResourcesRequest.SerializeToString,
@@ -111,7 +116,25 @@ class AuthorityServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def Keys(self, request, context):
-        """Keys returns the issuer and the public keys a verifier pins.
+        """Keys returns the issuer and the public keys a verifier pins: the Work
+        Context keys, and the hop admission keys a module behind the hop checks
+        each call's admission by.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def RegisterAdmissionKey(self, request, context):
+        """RegisterAdmissionKey is how the hop tells the authority the public key it
+        signs call admissions with, so Keys publishes it in admission_keys. The
+        caller is the hop, proving it with its workload credential; any other
+        workload is refused by name. Only the public half travels: the hop's seed
+        never leaves it. Registering the same key again is idempotent and renews
+        it, and a registration lapses at expires_at_unix unless renewed, so a hop
+        renews while it runs (a restarted authority learns the key again at the
+        next renewal) and a key no running hop signs with any more is withdrawn
+        without being named. While a rotation overlaps, the retiring and the new
+        key are both registered, and both published.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -234,6 +257,11 @@ def add_AuthorityServiceServicer_to_server(servicer, server):
                     request_deserializer=host_dot_authority_dot_v1_dot_authority__pb2.KeysRequest.FromString,
                     response_serializer=host_dot_authority_dot_v1_dot_authority__pb2.KeysResponse.SerializeToString,
             ),
+            'RegisterAdmissionKey': grpc.unary_unary_rpc_method_handler(
+                    servicer.RegisterAdmissionKey,
+                    request_deserializer=host_dot_authority_dot_v1_dot_authority__pb2.RegisterAdmissionKeyRequest.FromString,
+                    response_serializer=host_dot_authority_dot_v1_dot_authority__pb2.RegisterAdmissionKeyResponse.SerializeToString,
+            ),
             'ListResources': grpc.unary_unary_rpc_method_handler(
                     servicer.ListResources,
                     request_deserializer=host_dot_authority_dot_v1_dot_authority__pb2.ListResourcesRequest.FromString,
@@ -352,6 +380,33 @@ class AuthorityService(object):
             '/host.authority.v1.AuthorityService/Keys',
             host_dot_authority_dot_v1_dot_authority__pb2.KeysRequest.SerializeToString,
             host_dot_authority_dot_v1_dot_authority__pb2.KeysResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def RegisterAdmissionKey(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/host.authority.v1.AuthorityService/RegisterAdmissionKey',
+            host_dot_authority_dot_v1_dot_authority__pb2.RegisterAdmissionKeyRequest.SerializeToString,
+            host_dot_authority_dot_v1_dot_authority__pb2.RegisterAdmissionKeyResponse.FromString,
             options,
             channel_credentials,
             insecure,

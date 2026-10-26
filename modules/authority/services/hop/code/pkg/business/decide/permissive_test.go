@@ -3,6 +3,7 @@ package decide
 import (
 	"context"
 	"errors"
+
 	"testing"
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
@@ -27,7 +28,7 @@ func (unsound) Check(context.Context, *authorityv1.CheckRequest, ...grpc.CallOpt
 // refused: a missing, ambiguous or undecodable Work Context, one addressed to a
 // module the hop does not front, one the authority refuses as unsound, and one
 // the authority could not be asked about. Nothing is stamped as a developer.
-func TestAPermissiveHopStillRefusesWhatHasNoSoundIdentity(t *testing.T) {
+func TestHopRefusesWhatHasNoSoundIdentity(t *testing.T) {
 	audience := func(string) (string, error) { return "robin", nil }
 	undecodable := func(string) (string, error) { return "", errors.New("not a Work Context") }
 	for _, tc := range []struct {
@@ -44,14 +45,13 @@ func TestAPermissiveHopStillRefusesWhatHasNoSoundIdentity(t *testing.T) {
 		{"authority unreachable", Decider{Authority: unreachable{}, AudienceOf: audience}, metadata.Pairs(hop.WorkContextKey, "x"), codes.Unavailable},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			warnings := 0
 			d := tc.d
 			d.Routes = testRoutes("robin", "GET /v1/robin/intents/version")
-			d.Modules, d.Permissive, d.Warned = map[string]bool{"robin": true}, true, func(string, error) { warnings++ }
+			d.Modules = map[string]bool{"robin": true}
 			decision, err := d.Decide(context.Background(), "GET /v1/robin/intents/version", tc.md)
 			module, id := decision.Module, decision.Identity
-			if status.Code(err) != tc.code || module != "" || id.Owner != "" || warnings != 0 {
-				t.Fatalf("module=%q id=%+v error=%v warnings=%d; want refused %v, nothing warned", module, id, err, warnings, tc.code)
+			if status.Code(err) != tc.code || module != "" || id.Owner != "" {
+				t.Fatalf("module=%q id=%+v error=%v; want refused %v", module, id, err, tc.code)
 			}
 		})
 	}
@@ -79,40 +79,11 @@ func (advisoryChecker) Check(_ context.Context, req *authorityv1.CheckRequest, _
 	}}, nil
 }
 
-// Permissive, a call the method's policy refuses goes through with the
-// identity the authority verified and the refusal as the stamp's advisory,
-// told to Warned. Enforcing, the same refusal stands.
-func TestPermissivePolicyUsesTheAuthorityAdvisoryIdentity(t *testing.T) {
-	warnings := 0
-	d := Decider{Routes: testRoutes("documents", "POST /documents/write"), Authority: advisoryChecker{}, Modules: map[string]bool{"documents": true}, Permissive: true,
-		AudienceOf: func(string) (string, error) { return "documents", nil },
-		Warned: func(method string, err error) {
-			warnings++
-			if method != "POST /documents/write" || status.Convert(err).Message() != "write scope missing" {
-				t.Errorf("warning = %q, %v", method, err)
-			}
-		},
-	}
-	stamp := metadata.MD{}
-	decision, err := d.Decide(context.Background(), "POST /documents/write", metadata.Pairs(hop.WorkContextKey, "test-context"))
-	module, id := decision.Module, decision.Identity
-	if err != nil || module != "documents" || warnings != 1 {
-		t.Fatalf("decision = %q, %v; warnings = %d", module, err, warnings)
-	}
-	if id.Owner != "maya" || id.Tenant != "acme" || id.Binding != "acme/robin/documents" || id.Task != "task-1" || id.Expires != 42 {
-		t.Fatalf("lost authority identity: %+v", id)
-	}
-	if id.Advisory != "write scope missing" || len(id.Actors) != 1 || id.Actors[0] != "robin" || len(id.Scopes) != 1 || id.Scopes[0] != "documents:read" {
-		t.Fatalf("lost advisory or effective scopes: %+v", id)
-	}
-	hop.Stamp(stamp, id, "proof")
-	if got := stamp.Get(hop.AdvisoryKey); len(got) != 1 || got[0] != id.Advisory {
-		t.Fatalf("the advisory rides the stamp: %v", got)
-	}
-
+// A policy refusal can never become a signed downstream admission.
+func TestPolicyRefusalStopsBeforeStamping(t *testing.T) {
 	strict := Decider{Routes: testRoutes("documents", "POST /documents/write"), Authority: advisoryChecker{}, Modules: map[string]bool{"documents": true}, AudienceOf: func(string) (string, error) { return "documents", nil }}
 	if _, err := strict.Decide(context.Background(), "POST /documents/write", metadata.Pairs(hop.WorkContextKey, "test-context")); status.Code(err) != codes.PermissionDenied {
-		t.Fatalf("enforcing, the policy refusal stands: %v", err)
+		t.Fatalf("policy refusal: %v", err)
 	}
 }
 

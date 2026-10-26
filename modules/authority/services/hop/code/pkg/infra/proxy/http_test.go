@@ -2,6 +2,8 @@ package proxy
 
 import (
 	"context"
+	"github.com/codefly-dev/authority/libraries/hop/go/hoptest"
+	core "github.com/codefly-dev/core/workcontext"
 	"hop/pkg/business/decide"
 	"io"
 	"net/http"
@@ -9,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/codefly-dev/authority/libraries/hop/go"
 	"github.com/codefly-dev/authority/libraries/hop/go/routing"
@@ -30,14 +33,14 @@ func TestAnHTTPRequestIsDecidedThenStampedAndForwarded(t *testing.T) {
 	target, _ := url.Parse(module.URL)
 	var decided string
 	h := &HTTP{
-		Proof:     "run-proof",
+		Signer:    hoptest.Signer("run-proof"),
 		Upstreams: map[string]*url.URL{target.String(): target},
 		Decide: func(_ context.Context, method string, md metadata.MD) (decide.Decision, error) {
 			decided = method
 			if md.Get(hop.WorkContextKey)[0] != "wc-model" {
 				t.Fatalf("the decision did not read the Work Context header: %v", md)
 			}
-			return decide.Decision{Route: &routing.RouteEndpoint{Address: target.String()}, Module: "model", Identity: hop.Identity{Owner: "remi", OwnerKind: "human", Tenant: "acme", Scopes: []string{"modelservice.profiles:read"}}}, nil
+			return decide.Decision{Route: &routing.RouteEndpoint{Address: target.String()}, Module: "model", Identity: hop.Identity{Expires: time.Now().Add(time.Minute).Unix(), Owner: "remi", OwnerKind: "human", Tenant: "acme", Scopes: []string{"modelservice.profiles:read"}}}, nil
 		},
 	}
 	req := httptest.NewRequest(http.MethodGet, "/v1/model/profiles?x=1", nil)
@@ -64,7 +67,7 @@ func TestAnHTTPRequestIsDecidedThenStampedAndForwarded(t *testing.T) {
 			return ""
 		}
 		return v[0]
-	}; first(hop.TenantKey) != "acme" || first(hop.OwnerKey) != "remi" || first(hop.WorkContextKey) != "wc-model" || first(hop.ProofKey) != "run-proof" || first(hop.ContextKey) == "" {
+	}; first(hop.TenantKey) != "acme" || first(hop.OwnerKey) != "remi" || first(hop.WorkContextKey) != "wc-model" || first(hop.ProofKey) == "run-proof" || first(hop.ProofKey) == "" || first(hop.ContextKey) == "" {
 		t.Fatalf("the hop stamped %v", md)
 	}
 }
@@ -81,7 +84,7 @@ func TestAnHTTPRefusalNeverReachesTheModule(t *testing.T) {
 		codes.PermissionDenied: http.StatusForbidden,
 		codes.Unavailable:      http.StatusServiceUnavailable,
 	} {
-		h := &HTTP{Proof: "p", Upstreams: map[string]*url.URL{target.String(): target},
+		h := &HTTP{Signer: hoptest.Signer("p"), Upstreams: map[string]*url.URL{target.String(): target},
 			Decide: func(context.Context, string, metadata.MD) (decide.Decision, error) {
 				return decide.Decision{}, status.Error(code, "the authority said why")
 			}}
@@ -96,10 +99,63 @@ func TestAnHTTPRefusalNeverReachesTheModule(t *testing.T) {
 	}
 }
 
+func TestHTTPAndConnectIssueTheBindingObservedByTheListener(t *testing.T) {
+	for _, transport := range []string{"http", "connect"} {
+		t.Run(transport, func(t *testing.T) {
+			const procedure = "/example.v1.Service/Read"
+			expected := procedure
+			if transport == "http" {
+				expected = "POST " + procedure
+			}
+			a := hoptest.New(t)
+			token := a.IssueSingleUse(t, "module")
+			decoded, err := core.Decode(token)
+			if err != nil {
+				t.Fatal(err)
+			}
+			verifier, err := hop.NewVerifier(context.Background(), a.PublishHop("binding-test"), "module", hoptest.Replay())
+			if err != nil {
+				t.Fatal(err)
+			}
+			var captured metadata.MD
+			backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				captured = metadata.MD{}
+				for key, values := range r.Header {
+					captured[strings.ToLower(key)] = values
+				}
+				if _, err := verifier.Verify(r.Context(), captured, expected); err != nil {
+					t.Error(err)
+					w.WriteHeader(401)
+					return
+				}
+				w.WriteHeader(http.StatusNoContent)
+			}))
+			defer backend.Close()
+			target, _ := url.Parse(backend.URL)
+			face := HTTP{Signer: hoptest.Signer("binding-test"), Upstreams: map[string]*url.URL{target.String(): target}, Decide: func(context.Context, string, metadata.MD) (decide.Decision, error) {
+				return decide.Decision{Module: "module", Identity: hop.IdentityOf(decoded.Context()), Route: &routing.RouteEndpoint{Transport: transport, Address: target.String()}}, nil
+			}}
+			req := httptest.NewRequest(http.MethodPost, procedure, nil)
+			req.Header.Set(hop.WorkContextKey, token)
+			rec := httptest.NewRecorder()
+			face.ServeHTTP(rec, req)
+			if rec.Code != http.StatusNoContent {
+				t.Fatalf("forwarded status %d", rec.Code)
+			}
+			if _, err := verifier.Verify(context.Background(), captured, expected); err == nil || !strings.Contains(err.Error(), "replay") {
+				t.Fatalf("captured replay: %v", err)
+			}
+			if _, err := verifier.Verify(context.Background(), captured, "/example.v1.Service/Delete"); err == nil || !strings.Contains(err.Error(), "stamp_method") {
+				t.Fatalf("retargeted stamp: %v", err)
+			}
+		})
+	}
+}
+
 // A Connect caller is refused in Connect's words: its client reads the code
 // and the authority's reason, not a status line.
 func TestAConnectRefusalKeepsTheAuthoritysReason(t *testing.T) {
-	h := &HTTP{Proof: "p", Decide: func(context.Context, string, metadata.MD) (decide.Decision, error) {
+	h := &HTTP{Signer: hoptest.Signer("refusal"), Decide: func(context.Context, string, metadata.MD) (decide.Decision, error) {
 		return decide.Decision{}, status.Error(codes.PermissionDenied, "the role lacks robin.tools:read")
 	}}
 	req := httptest.NewRequest(http.MethodPost, "/robin.chat.v1.ChatService/GetRunnableTools", strings.NewReader("{}"))

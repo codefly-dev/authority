@@ -1,6 +1,6 @@
 """Authenticate the Work Context the hop forwarded to a module, then project it.
 
-``authenticate`` is the Go library's ``workcontext.Authenticate``, check for
+``authenticate_token`` is the Go library's ``workcontext.AuthenticateToken``, check for
 check: the stamp binds exactly one token to this run's hop proof by its digest,
 and the token itself must carry a valid Ed25519 signature under the authority's
 published key, name the pinned issuer, be addressed to this module and be inside
@@ -77,6 +77,14 @@ class Reason(str, Enum):
     STAMPTOKEN = "stamp_token"
     STAMPDIGEST = "stamp_digest"
     STAMPIDENTITY = "stamp_identity"
+    STAMPMETHOD = "stamp_method"
+    STAMPAUDIENCE = "stamp_audience"
+    STAMPWINDOW = "stamp_window"
+    STAMPISSUED = "stamp_issued"
+    STAMPADVISORY = "stamp_advisory"
+    STAMPREPLAYED = "stamp_replayed"
+    STAMPSTORE = "stamp_store"
+    STORENOTSHARED = "replay_store_not_shared"
     KEYSUNAVAILABLE = "keys_unavailable"
     CANCELLED = "cancelled"
     MALFORMED = "malformed"
@@ -95,10 +103,18 @@ class Reason(str, Enum):
 
 _REASON_TEXT = {
     Reason.CONFIGURATION: 'the verifier configuration is incomplete',
-    Reason.STAMPPROOF: "the call requires this run's hop proof",
+    Reason.STAMPPROOF: 'the call carries no hop admission signed for it',
     Reason.STAMPTOKEN: 'the stamp binds no single Work Context',
     Reason.STAMPDIGEST: 'the Work Context does not match the hop stamp',
     Reason.STAMPIDENTITY: 'the stamp does not match the authenticated Work Context',
+    Reason.STAMPMETHOD: 'the hop admission was signed for another procedure',
+    Reason.STAMPAUDIENCE: 'the hop admission was signed for another module',
+    Reason.STAMPWINDOW: 'the hop admission is expired or outside its validity window',
+    Reason.STAMPISSUED: 'the hop admission is issued further ahead than the clock allowance',
+    Reason.STAMPADVISORY: 'an advisory policy refusal cannot admit a call',
+    Reason.STAMPREPLAYED: 'the hop admission has already been used',
+    Reason.STORENOTSHARED: "the admission store must be durable and shared outside local",
+    Reason.STAMPSTORE: 'the hop admission store is unavailable',
     Reason.KEYSUNAVAILABLE: "the authority's published keys are unavailable",
     Reason.CANCELLED: "the call ended while the authority's keys were being read",
     Reason.MALFORMED: 'the Work Context encoding or claims are invalid',
@@ -146,10 +162,12 @@ class Trust:
     @classmethod
     def from_keys(cls, response, *, now: Callable[[], datetime] | None = None) -> "Trust":
         """Trust built from the authority interface's KeysResponse. Only Ed25519
-        keys are kept; an empty or repeated key id is refused."""
+        Work Context keys are kept (purpose "work-context", or none from a host
+        older than the purpose); an empty or repeated key id is refused. The
+        hop's admission keys are never among them."""
         keys: dict[str, bytes] = {}
         for key in response.keys:
-            if key.algorithm != ALGORITHM:
+            if key.algorithm != ALGORITHM or key.purpose not in ("", "work-context"):
                 continue
             if not key.key_id or key.key_id in keys:
                 raise Unauthenticated(Reason.INVALIDKEY)
@@ -201,18 +219,21 @@ class Claims:
         )
 
 
-def authenticate(
-    headers: Mapping[str, str] | Iterable[tuple[str, str]], proof: str, audience: str, trust: Trust
-) -> Claims:
-    """The claims of the Work Context the hop forwarded with headers to this module
-    (audience), or ``Unauthenticated`` naming why it must not be believed."""
-    if not audience:
-        raise Unauthenticated(Reason.CONFIGURATION)
-    return authenticate_token(bound_token(headers, proof), audience, trust)
-
-
 def authenticate_token(token: str, audience: str, trust: Trust) -> Claims:
-    """Authenticate bare bytes; no hop admission, live checks or consumption."""
+    """The claims of one Work Context, for this module (``audience``), or
+    ``Unauthenticated`` naming why they must not be believed.
+
+    This is the one identity-only reader here, and identity is all it
+    establishes. It proves no hop admission: it does not check that a call was
+    admitted for the procedure it arrived on, consumes no single-use nonce, and
+    asks the authority nothing, so it checks no live revocation either. A
+    service admits a call with ``codefly_hop.Verifier.verify``.
+
+    A caller holding a call's headers extracts the token the stamp's digest
+    binds with ``bound_token`` first. That is deliberately two calls (security
+    review r164 R4): a reader taking headers reads as though it admitted the
+    call, and it does not.
+    """
     if not audience:
         raise Unauthenticated(Reason.CONFIGURATION)
     if len(token) > MAX_TOKEN_BYTES or not token.isascii() or token.count(".") != 1:
@@ -322,13 +343,10 @@ def _check_structure(context) -> None:
         raise Unauthenticated(Reason.GRANT)
 
 
-def bound_token(headers: Mapping[str, str] | Iterable[tuple[str, str]], proof: str) -> str:
-    """The one token the stamp's digest binds under this run's proof. Bound, not
-    authenticated: whoever holds the proof can write both."""
+def bound_token(headers: Mapping[str, str] | Iterable[tuple[str, str]]) -> str:
+    """Extract a digest-bound token; this does not authenticate hop admission."""
     values = collect(headers)
-    proofs, tokens, digests = values.get(PROOF_KEY, []), values.get(WORK_CONTEXT_KEY, []), values.get(CONTEXT_KEY, [])
-    if not proof or len(proofs) != 1 or not hmac.compare_digest(proofs[0].encode(), proof.encode()):
-        raise Unauthenticated(Reason.STAMPPROOF)
+    tokens, digests = values.get(WORK_CONTEXT_KEY, []), values.get(CONTEXT_KEY, [])
     if len(tokens) != 1 or not tokens[0] or len(digests) != 1:
         raise Unauthenticated(Reason.STAMPTOKEN)
     digest = hashlib.sha256(tokens[0].encode(errors="surrogatepass")).hexdigest()

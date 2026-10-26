@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/codefly-dev/authority/libraries/authority-client/go/refusal"
+	"github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
 	reader "github.com/codefly-dev/authority/libraries/authority-client/go/workcontext"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	core "github.com/codefly-dev/core/workcontext"
@@ -195,7 +196,11 @@ func TestTheSharedVectorsAreGosVerdicts(t *testing.T) {
 				t.Run(mode, func(t *testing.T) {
 					var err error
 					if mode == "stamped" {
-						_, err = reader.Authenticate(stampedToken(v.Token), "test-proof", v.Audience, trust)
+						// The same verdict reached through the binding a hop writes.
+						bound, bindErr := stamp.Context(stampedToken(v.Token))
+						if err = bindErr; err == nil {
+							_, err = reader.AuthenticateToken(bound, v.Audience, trust)
+						}
 					} else {
 						_, err = reader.AuthenticateToken(v.Token, v.Audience, trust)
 					}

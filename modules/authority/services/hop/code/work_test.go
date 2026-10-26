@@ -13,13 +13,15 @@ import (
 // Startup reads the same SDK carriers as a composed process. grpc.NewClient
 // is lazy: these refusals neither contact an authority nor start a proxy.
 func TestHopStartupRequiresGeneratedRoutes(t *testing.T) {
+	t.Setenv(resources.ModulePrefix, "authority")
+	t.Setenv(resources.ServicePrefix, "hop")
 	t.Setenv(resources.EnvironmentPrefix, resources.LocalEnvironment().Name)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer listener.Close()
-	t.Setenv(resources.WorkspaceSecretConfigurationPrefix+"__HOP__PROOF", "controlled-test-proof")
+	t.Setenv(resources.ServiceSecretConfigurationPrefix+"__AUTHORITY__HOP__HOP_SIGNING__SEED", strings.Repeat("01", 32))
 	t.Setenv(resources.WorkspaceConfigurationPrefix+"__AUTHORITY__ENDPOINT", listener.Addr().String())
 	t.Setenv(resources.WorkspaceConfigurationPrefix+"__HOP__MODULES", "example")
 	// Legacy values must not make an absent or invalid generated view acceptable.
@@ -46,13 +48,15 @@ func TestHopStartupRequiresGeneratedRoutes(t *testing.T) {
 }
 
 func TestHopStartupRefusesUnprotectedUpstreamTransport(t *testing.T) {
+	t.Setenv(resources.ModulePrefix, "authority")
+	t.Setenv(resources.ServicePrefix, "hop")
 	t.Setenv(resources.EnvironmentPrefix, resources.LocalEnvironment().Name)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer listener.Close()
-	t.Setenv(resources.WorkspaceSecretConfigurationPrefix+"__HOP__PROOF", "test-proof")
+	t.Setenv(resources.ServiceSecretConfigurationPrefix+"__AUTHORITY__HOP__HOP_SIGNING__SEED", strings.Repeat("01", 32))
 	t.Setenv(resources.WorkspaceConfigurationPrefix+"__AUTHORITY__ENDPOINT", listener.Addr().String())
 	t.Setenv(resources.WorkspaceConfigurationPrefix+"__HOP__MODULES", "example")
 	for _, transport := range []string{"grpc", "http", "connect"} {

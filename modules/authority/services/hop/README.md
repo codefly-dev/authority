@@ -22,8 +22,7 @@ several services. A request selects its destination, then makes one Authority Ch
 actual HTTP verb and path. The authority selects the policy from the delivered
 manifest, including stricter literal routes and ambiguous-route refusals.
 Connect uses a published procedure. A dotted URL alone never selects
-Connect or borrows a gRPC policy. Unknown or ambiguous routes refuse, including
-in warn mode. The request body, path, query and streaming protocol stay intact.
+Connect or borrows a gRPC policy. Unknown or ambiguous routes refuse. The request body, path, query and streaming protocol stay intact.
 
 Routes are immutable for one Codefly run. Ordinary source reload retains the
 accepted endpoint addresses. A changed published route set or address requires
@@ -34,39 +33,19 @@ agent may already have stopped or initialized its process. This does not promise
 live route-set adoption or restore that process. Failed targets
 remain unavailable; a sibling service is never their fallback.
 
-The composition selects `hop/ENFORCEMENT` through SDK-delivered configuration:
-`enforce` (the default) returns authority refusals; `warn` logs them and allows
-permissive developer forwarding. For method-policy failures, warn mode requests
-an advisory Check and uses the authority's returned context, preserving its
-owner, tenant, operation binding, task and effective scopes. The refusal travels
-in the stamp's advisory field and is logged once.
+The hop always enforces the authority's method decision. Legacy
+`hop/ENFORCEMENT=warn` and unknown modes refuse startup in every environment.
+Advisory refusals never produce signed admissions. See the
+[signed admission and replica storage contract](../../../../libraries/hop/README.md)
+for Codefly key delivery, the exact procedure binding, and durable nonce consumption.
 
-Missing, malformed, expired, revoked or misaddressed Work Contexts remain
-refused in both modes. The hop also refuses when it cannot reach the authority.
-Warning mode uses the authority's verified advisory context; it creates no
-synthetic identity or developer session. The checked audience and selected
-published route identify the upstream.
+Validation: run `go vet ./...` and `go test -race ./...` in this service's
+`code/`, the local authority's `code/`, and `libraries/hop/go`. The shared fixture
+is also read by the Python and TypeScript regression suites.
 
-Warning mode relaxes method-policy admission only. Issuance and downstream
-resource, visibility and ownership decisions still apply. A successful hop unit
-test alone does not prove a complete solution journey or enforce-mode qualification.
-
-Validation: run `go test -race ./...` in this service's `code/`, the local authority's
-`code/`, and `libraries/hop/go`. Local authority's generated-client advisory test checks
-the real issuer; proxy's routing regression checks that a Records request never
-reaches Documents when its destination is unresolved.
-
-`ENFORCEMENT=warn` is accepted only when the SDK reports a local environment.
-Unknown enforcement modes and warn in other environments are refused by name.
-The shared authority client dialer uses verified TLS, or accepts an in-cluster
-Service address under `internal-transport/mesh-protected=true`. Plaintext
-loopback is local-only. It refuses missing or invalid mesh assertions for
-in-cluster plaintext, including SDK-resolved fallback addresses.
-
-The HTTP face refuses non-canonical paths before admission: dot segments,
-repeated separators, encoded dots/slashes/backslashes and nested escapes.
-It never cleans and forwards a different path. There are no module-wide or
-heuristic Connect fallback routes; every admitted call names a published listener.
+The HTTP face always listens on its declared endpoint. A missing generated
+`hop-routes/ROUTES` view is refused before starting either face. Every admitted
+call names a published listener; there are no module-wide fallback routes.
 
 All hop-to-module endpoints use the same transport gate as the authority dialer:
 verified TLS, local loopback, or the composition's mesh-protected assertion plus

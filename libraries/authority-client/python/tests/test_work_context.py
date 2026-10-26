@@ -12,7 +12,7 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from authority_client._gen.host.authority.v1.authority_pb2 import KeysResponse, PublicKey
 from authority_client._gen.host.authority.v1.work_context_pb2 import WorkContextV1
 from authority_client.work_context import (
-    CONTEXT_KEY, PROOF_KEY, WORK_CONTEXT_KEY, Claims, Scope, Trust, Unauthenticated, authenticate,
+    CONTEXT_KEY, PROOF_KEY, WORK_CONTEXT_KEY, Claims, Scope, Trust, Unauthenticated, authenticate_token, bound_token,
 )
 
 FIXTURES = json.loads((Path(__file__).parents[2] / "testdata/claims.json").read_text())
@@ -49,7 +49,7 @@ def stamped(token, proof=PROOF):
 
 
 def read(context):
-    return authenticate(stamped(sign(context)), PROOF, context.audience, trust_for(context))
+    return authenticate_token(sign(context), context.audience, trust_for(context))
 
 
 @pytest.mark.parametrize("fixture", FIXTURES, ids=lambda f: f["name"])
@@ -110,7 +110,7 @@ def test_a_forged_or_misaddressed_context_is_refused_by_name():
         (sign(context), "", trust, "configuration"),
     ]:
         with pytest.raises(Unauthenticated, match=reason):
-            authenticate(stamped(token), PROOF, audience, use)
+            authenticate_token(token, audience, use)
 
 
 @pytest.mark.parametrize("token", ["", "abc", "a.b.c", ".", "a." + encoded(bytes(64)), "é.x",
@@ -118,22 +118,22 @@ def test_a_forged_or_misaddressed_context_is_refused_by_name():
 def test_unreadable_envelopes_are_refused(token):
     context = body("session")
     with pytest.raises(Unauthenticated):
-        authenticate(stamped(token), PROOF, context.audience, trust_for(context))
+        authenticate_token(token, context.audience, trust_for(context))
 
 
-@pytest.mark.parametrize("change", ["proof", "digest", "token", "duplicate", "missing", "empty proof"])
+@pytest.mark.parametrize("change", ["digest", "token", "duplicate", "missing"])
 def test_the_reader_refuses_a_token_the_stamp_does_not_bind(change):
     context = body("session")
     token = sign(context)
     headers, proof = stamped(token), PROOF
-    if change == "proof": headers[PROOF_KEY] = "forged"
     if change == "digest": headers[CONTEXT_KEY] = "0" * 64
     if change == "token": headers[WORK_CONTEXT_KEY] = sign(body("operation"))
     if change == "duplicate": headers = list(headers.items()) + [(WORK_CONTEXT_KEY, token)]
     if change == "missing": headers.pop(CONTEXT_KEY)
-    if change == "empty proof": proof = ""
+    # bound_token refuses the binding; authenticate_token then the token. The
+    # two are separate calls because neither admits a call (review r164 R4).
     with pytest.raises(Unauthenticated):
-        authenticate(headers, proof, context.audience, trust_for(context))
+        authenticate_token(bound_token(headers), context.audience, trust_for(context))
 
 
 def test_trust_comes_only_from_published_ed25519_keys():
@@ -156,10 +156,11 @@ VECTORS = json.loads((Path(__file__).parents[2] / "testdata/vectors.json").read_
 def test_python_reaches_gos_verdict_on_every_shared_vector(vector):
     keys = {kid: base64.b64decode(raw) for kid, raw in vector["keys"].items()}
     trust = Trust(vector["issuer"], keys, now=lambda: datetime.fromtimestamp(vector["now"], timezone.utc))
-    headers = stamped(vector["token"])
+    # The same verdict reached through the binding a hop writes.
+    bound = bound_token(stamped(vector["token"]))
     if vector["accept"]:
-        authenticate(headers, PROOF, vector["audience"], trust)
+        authenticate_token(bound, vector["audience"], trust)
     else:
         with pytest.raises(Unauthenticated) as refused:
-            authenticate(headers, PROOF, vector["audience"], trust)
+            authenticate_token(bound, vector["audience"], trust)
         assert vector["reason"] in str(refused.value)

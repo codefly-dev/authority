@@ -229,7 +229,7 @@ staging validated.
 **Rung 1 first; it is the one that matters (owner, 2026-10-21).** The loop:
 
 1. Cut a branch in module-saas-starter. accounts declares in its module
-   interface that it implements `codefly.dev/authority@0.3.1`, `codefly.dev/composition@0.2.0`,
+   interface that it implements `codefly.dev/authority@0.3.2`, `codefly.dev/composition@0.2.0`,
    `codefly.dev/installation@0.1.0` and `codefly.dev/session@0.2.0`, takes this repo's
    protos (bindings via `codefly generate proto`), and serves the four services as
    adapters over what it already has: `Issue` → StartTask / StartInstallationTask /
@@ -276,7 +276,7 @@ Gap 7 was a decision, taken on 2026-10-22: the interface carries the host's name
 ## The namespace, settled (2026-10-22)
 
 The interfaces are the host's contract, so they carry the host's names: publisher
-`codefly.dev` (ids `codefly.dev/authority@0.3.1`, `composition`, `installation`,
+`codefly.dev` (ids `codefly.dev/authority@0.3.2`, `composition`, `installation`,
 `installable`, `session`) and protobuf packages `host.authority.v1`,
 `host.composition.v1`, `host.installation.v1`, `host.session.v1` under `proto/host/`.
 Not `codefly.*`: the host's buf configuration excludes a `codefly/` proto directory
@@ -505,24 +505,20 @@ gRPC-only composition. An empty HTTP routing table does not remove that
 endpoint from Codefly's readiness checks. Requests still pass through the
 authority decision and are refused when no corresponding HTTP upstream exists.
 
-The module behind it carries one interceptor from `libraries/hop/go` and no
-other authority code. The stamp binds the digest of the Work Context the hop
-checked, so a module that needs the full claims decodes that exact token
-without verifying it again. The interceptor gives each call the identity the hop
-stamped, and refuses a call that did not come through the hop. It verifies no
-token and asks no authority. The stamp is believed only with the run's proof,
-which Codefly generates and delivers to the hop and the module alone. In a cell
-the mesh plays that part.
+The module behind it carries the interceptor from `libraries/hop/go`. It
+verifies a short-lived Ed25519 admission bound to the exact method, audience and
+token digest, authenticates the identity, and atomically consumes the call nonce
+in a durable store shared by replicas. The hop alone receives the Codefly-generated
+signing seed; modules receive its public key. See the breaking
+[admission protocol and delivery migration](libraries/hop/README.md).
 
 The hop and the edge ask the host the composition names in the `authority`
 group's `endpoint`, the key every module reads for the same host, so pointing
 that key at saas accounts' Connect listener moves them with the modules:
 `host:port` and `http://` are the run's plaintext transport (h2c), `https://` is
 TLS. A composition that names none reaches the authority module's local service.
-Under `hop/ENFORCEMENT=warn` the hop lets through a call the authority verified
-and the method's policy would have refused, stamped with that refusal as its
-advisory; a call with a missing, unsound or misaddressed Work Context, or one
-the authority could not be asked about, is refused in either mode.
+Signed admissions require enforced method policy in every environment.
+Legacy `hop/ENFORCEMENT=warn` configuration is refused with a reason.
 
 This run's hop fronts the console, whose one operation answers who the call is
 for. Run it from the playground workspace, `playground/`, which composes this
@@ -530,7 +526,7 @@ repository's modules with the platform's stores and the directory's page:
 
 ```bash
 cd playground
-codefly config generate hop PROOF
+codefly config generate hop-signing SEED --service authority/hop
 codefly config generate internal-auth CODEFLY_INTERNAL_TOKEN
 codefly run service console/api authority/hop --local-agents
 ```
@@ -595,7 +591,8 @@ resource IDs does not satisfy that requirement, even with a wildcard action;
 several restricted scopes do not become a whole-kind grant. A whole-kind grant
 alongside restricted scopes still satisfies its declared action. Refusals mark
 resource-limited holdings in the diagnostic. `Advise` reports the same refusal
-without widening or discarding the checked capability, so warn mode can log it.
+without widening or discarding the checked capability. An advisory result is
+not sufficient to issue a hop admission.
 Checking a capability without a method and reading its resource scope remain
 supported. Modules still own resource visibility, ownership and installation
 checks; method admission does not replace them.
@@ -979,7 +976,7 @@ interface evolution rules require a minor bump below 1.0. Installation Issue
 requires its installed caller's workload credential; an installation ID alone
 is never authority. Workloads name the work item's organization; the local
 sole-installation convenience is not required of other hosts. Advisory Check
-is a local development extension, and the hop rejects warn outside local runs.
+is a local diagnostic extension; the hop requires enforcing Check in every environment.
 
 `codefly.dev/session@0.2.0` adds person and organization display names to Current
 and SignIn (fields 7 and 8). Missing fields fail conformance. These implement the
@@ -1022,6 +1019,30 @@ shared Store contract. Ordinary roles retain main's resource-owner selection;
 installation-owned rows contain only attached ids, and an empty owned set emits
 no grant. The local host is an adapter to that core. Accounts adoption and
 its durable adapter are not qualified by a local authority test.
+
+`codefly.dev/authority@0.3.2` adds `KeysResponse.admission_keys` and
+`PublicKey.purpose`: `Keys` publishes the hop's admission verification keys
+(purpose `hop-admission`) beside the Work Context keys (purpose
+`work-context`), and every verifier takes the admission keys from the `Keys`
+read it already caches and refreshes, so no consumer is configured with a hop
+public key. The admission keys are a field of their own, never entries of
+`keys`, so a verifier that reads `keys` alone (an earlier release, or the JSON
+Web Key Set) can never trust a hop key to sign a Work Context. More than one is
+published while a hop key rotates. It is additive, so `>=0.2.0 <0.4.0`
+consumers admit it; a host that publishes no admission key leaves every hop
+admission refused (`keys_unavailable`), so `accounts` must publish its hop's key
+before a cell's modules adopt this verifier.
+
+`codefly.dev/authority@0.3.3` adds `RegisterAdmissionKey`: the hop presents its
+public key under its own workload credential (it declares `module-identity`),
+the authority refuses any other workload by name, and `Keys` publishes the key
+until its registration lapses (`AdmissionLease`, two minutes) unless the hop
+renews it, which it does while it runs. A restarted authority therefore learns
+the key again at the next renewal, a restarted hop re-registers the same entry,
+and a key no running hop signs with is withdrawn without being named. The seed
+never leaves the hop; nothing about the hop is configured on the authority. It
+is additive too. The local authority implements it; `accounts` implementing the
+same registration is follow-up work in the host.
 
 The 0.3.1 authority version is an additive pre-stable revision selected for
 this refresh so existing `>=0.2.0 <0.4.0` consumers admit it. It retains 0.3.0's

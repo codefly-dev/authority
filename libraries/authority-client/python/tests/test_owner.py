@@ -1,7 +1,7 @@
 """The solution principal (conformance RunSolutionPrincipalTarget), read in Python.
 
 A module served in Python never reads an owner-selected scope as the whole
-kind. Claims are built through ``authenticate`` from a signed context, so the
+kind. Claims are built through ``authenticate_token`` from a signed context, so the
 decode path keeps the owner: the owner-blind ``allows`` refuses an
 owner-selected scope, ``allows_owned`` admits a resource only for its owner,
 the hop's identity leaves owner-selected scopes out, and a chain whose hop
@@ -13,14 +13,14 @@ from pathlib import Path
 import pytest
 
 from authority_client._gen.host.authority.v1.work_context_pb2 import WorkContextV1
-from authority_client.work_context import Unauthenticated, authenticate
+from authority_client.work_context import Unauthenticated, authenticate_token
 from codefly_hop import identity_of
 
 from test_work_context import PROOF, body, sign, stamped, trust_for
 
 
 def claims_of(context):
-    return authenticate(stamped(sign(context)), PROOF, context.audience, trust_for(context))
+    return authenticate_token(sign(context), context.audience, trust_for(context))
 
 
 # The owner-selected rows (allows refusing, allows_owned admitting only the

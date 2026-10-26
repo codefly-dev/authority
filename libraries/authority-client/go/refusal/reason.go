@@ -11,6 +11,13 @@ const (
 	StampToken      Reason = "stamp_token"
 	StampDigest     Reason = "stamp_digest"
 	StampIdentity   Reason = "stamp_identity"
+	StampMethod     Reason = "stamp_method"
+	StampAudience   Reason = "stamp_audience"
+	StampWindow     Reason = "stamp_window"
+	StampIssued     Reason = "stamp_issued"
+	StampAdvisory   Reason = "stamp_advisory"
+	StampReplayed   Reason = "stamp_replayed"
+	StampStore      Reason = "stamp_store"
 	KeysUnavailable Reason = "keys_unavailable"
 	Cancelled       Reason = "cancelled"
 	Malformed       Reason = "malformed"
@@ -34,13 +41,27 @@ func (r Reason) Text() string {
 	case Configuration:
 		return "the verifier configuration is incomplete"
 	case StampProof:
-		return "the call requires this run's hop proof"
+		return "the call carries no hop admission signed for it"
 	case StampToken:
 		return "the stamp binds no single Work Context"
 	case StampDigest:
 		return "the Work Context does not match the hop stamp"
 	case StampIdentity:
 		return "the stamp does not match the authenticated Work Context"
+	case StampMethod:
+		return "the hop admission was signed for another procedure"
+	case StampAudience:
+		return "the hop admission was signed for another module"
+	case StampWindow:
+		return "the hop admission is expired or outside its validity window"
+	case StampIssued:
+		return "the hop admission is issued further ahead than the clock allowance"
+	case StampAdvisory:
+		return "an advisory policy refusal cannot admit a call"
+	case StampReplayed:
+		return "the hop admission has already been used"
+	case StampStore:
+		return "the hop admission store is unavailable"
 	case KeysUnavailable:
 		return "the authority's published keys are unavailable"
 	case Cancelled:

@@ -1,4 +1,5 @@
-// Package authority serves codefly.dev/authority: Issue, Check, Keys.
+// Package authority serves codefly.dev/authority: Issue, Check, Keys, and
+// the hop's admission key registration.
 package authority
 
 import (
@@ -218,6 +219,16 @@ func (p *Plugin) AuthorizeTransfer(ctx context.Context, req *authorityv1.Authori
 // Keys returns the issuer and its keys.
 func (p *Plugin) Keys(context.Context, *authorityv1.KeysRequest) (*authorityv1.KeysResponse, error) {
 	return p.Issuer.Keys(), nil
+}
+
+// RegisterAdmissionKey publishes the hop's admission key in Keys, for the hop
+// alone, until its registration lapses.
+func (p *Plugin) RegisterAdmissionKey(ctx context.Context, req *authorityv1.RegisterAdmissionKeyRequest) (*authorityv1.RegisterAdmissionKeyResponse, error) {
+	key, until, err := p.Issuer.RegisterAdmissionKey(ctx, req.GetActor().GetCredential(), req.GetPublicKey())
+	if err != nil {
+		return nil, Status(err)
+	}
+	return &authorityv1.RegisterAdmissionKeyResponse{Key: key, ExpiresAtUnix: until.Unix()}, nil
 }
 
 // Status maps a refusal to a gRPC status that names its reason: every refusal

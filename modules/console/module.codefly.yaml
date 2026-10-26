@@ -2,6 +2,9 @@ kind: module
 name: console
 services:
     - name: api
+    # The console's own Postgres, holding the hop admission reservations its
+    # verifier consumes. Private: the module interface does not export it.
+    - name: store
 # The console's API is what a person's page calls; exported so the composition
 # routes it and the package manifest names it.
 interface:

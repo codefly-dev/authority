@@ -11,6 +11,7 @@ import (
 	"crypto/ed25519"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
@@ -67,12 +68,18 @@ type Issuer struct {
 	issuer string
 	keyID  string
 	public ed25519.PublicKey
+	now    func() time.Time
+
+	mu sync.Mutex
+	// admission are the hop admission keys registered and not yet lapsed, by
+	// key id (RegisterAdmissionKey).
+	admission map[string]admission
 }
 
 // New builds the issuer for a host whose core signs as issuer with keyID, its
 // public half published by Keys.
 func New(st *state.State, issuer, keyID string, public ed25519.PublicKey) *Issuer {
-	return &Issuer{state: st, svc: st.Service(), issuer: issuer, keyID: keyID, public: public}
+	return &Issuer{state: st, svc: st.Service(), issuer: issuer, keyID: keyID, public: public, now: time.Now, admission: map[string]admission{}}
 }
 
 // Config is the core configuration for one signing key: what state.New
@@ -84,11 +91,12 @@ func Config(issuer, keyID string, key ed25519.PrivateKey, now func() time.Time) 
 	return authority.Config{Issuer: issuer, KeyID: keyID, Signer: key, Clock: now, MaxTTL: MaxTTL, Replay: replay}
 }
 
-// Keys is what a verifier pins.
+// Keys is what a verifier pins: the Work Context key, and apart from it the
+// admission keys the hop registered (RegisterAdmissionKey).
 func (i *Issuer) Keys() *authorityv1.KeysResponse {
 	return &authorityv1.KeysResponse{Issuer: i.issuer, Keys: []*authorityv1.PublicKey{{
-		KeyId: i.keyID, Algorithm: workcontext.Algorithm, PublicKey: []byte(i.public),
-	}}}
+		KeyId: i.keyID, Algorithm: workcontext.Algorithm, PublicKey: []byte(i.public), Purpose: "work-context",
+	}}, AdmissionKeys: i.admissionKeys()}
 }
 
 // ListResources answers which resources of kind a checked capability may act

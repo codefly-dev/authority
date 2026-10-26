@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"github.com/codefly-dev/authority/libraries/hop/go/hoptest"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -43,6 +44,9 @@ func TestMain(m *testing.M) {
 	}
 	_ = os.Unsetenv("NO_PROXY")
 	_ = os.Unsetenv("no_proxy")
+	// The modules these tests stand up keep their admissions in hoptest.Replay,
+	// a process-local store that only the run named exactly "local" may use.
+	_ = os.Setenv("CODEFLY__ENVIRONMENT", "local")
 	code := m.Run()
 	_ = listener.Close()
 	os.Exit(code)
@@ -53,10 +57,10 @@ func TestMain(m *testing.M) {
 func TestTheHTTPFaceNeverForwardsThroughAnEnvironmentProxy(t *testing.T) {
 	target, _ := url.Parse("http://documents.ns.svc.cluster.local:8080")
 	h := &HTTP{
-		Proof:     "run-proof",
+		Signer:    hoptest.Signer("run-proof"),
 		Upstreams: map[string]*url.URL{target.String(): target},
 		Decide: func(context.Context, string, metadata.MD) (decide.Decision, error) {
-			return decide.Decision{Route: &routing.RouteEndpoint{Address: target.String()}, Module: "documents", Identity: hop.Identity{Owner: "maya", Tenant: "acme"}}, nil
+			return decide.Decision{Route: &routing.RouteEndpoint{Address: target.String()}, Module: "documents", Identity: hop.Identity{Expires: time.Now().Add(time.Minute).Unix(), Owner: "maya", Tenant: "acme"}}, nil
 		},
 	}
 	before := proxied.Load()

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
+	core "github.com/codefly-dev/core/workcontext"
 	"google.golang.org/grpc/metadata"
 	"strings"
 	"testing"
@@ -13,7 +14,7 @@ import (
 func TestStampFailureCodesAreDistinctAndSafe(t *testing.T) {
 	s := newSigner("reasons")
 	source := &keys{response: &authorityv1.KeysResponse{Issuer: s.issuer, Keys: []*authorityv1.PublicKey{s.published()}}}
-	v, err := NewVerifier(t.Context(), source, "module", "proof")
+	v, err := NewVerifier(t.Context(), source, "module", core.NewMemoryReplayStore())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +32,7 @@ func TestStampFailureCodesAreDistinctAndSafe(t *testing.T) {
 	for _, tc := range cases {
 		md := forwarded(t, token, "proof", "")
 		tc.change(md)
-		_, err := v.Verify(t.Context(), md)
+		_, err := v.Verify(t.Context(), md, "/test.Service/Read")
 		var reason Reason
 		if !errors.As(err, &reason) || reason != tc.want {
 			t.Fatalf("want %s: %v", tc.want, err)
@@ -44,14 +45,14 @@ func TestStampFailureCodesAreDistinctAndSafe(t *testing.T) {
 }
 
 func TestConfigurationAndCancelledKeyWaitHaveNamedReasons(t *testing.T) {
-	_, err := NewVerifier(t.Context(), nil, "module", "proof")
+	_, err := NewVerifier(t.Context(), nil, "module", core.NewMemoryReplayStore())
 	var reason Reason
 	if !errors.As(err, &reason) || reason != ReasonConfiguration {
 		t.Fatalf("configuration: %v", err)
 	}
 	s := newSigner("cancel-reason")
 	source := &keys{response: &authorityv1.KeysResponse{Issuer: s.issuer, Keys: []*authorityv1.PublicKey{s.published()}}}
-	v, err := NewVerifier(t.Context(), source, "module", "proof")
+	v, err := NewVerifier(t.Context(), source, "module", core.NewMemoryReplayStore())
 	if err != nil {
 		t.Fatal(err)
 	}
