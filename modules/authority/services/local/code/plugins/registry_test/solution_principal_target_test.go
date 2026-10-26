@@ -32,7 +32,8 @@ func TestTheLocalAuthorityMeetsTheSolutionPrincipalTarget(t *testing.T) {
 	}
 	k := testkit.New(t)
 	// Two people whose own organisation grants reach one existing resource of
-	// the store's kind: one administers it, one reads it.
+	// the store's kind (one administers it, one reads it), and a member of a
+	// team no installation is granted to.
 	if err := k.State.LoadFixture(context.Background(), []byte(`roles:
   - organization: acme
     name: principal-store-admin
@@ -51,6 +52,11 @@ people:
     fixture_token: fixture-store-reader
     organization: acme
     roles: [principal-store-reader]
+  - id: principal-team-member
+    fixture_token: fixture-principal-team-member
+    organization: acme
+    roles: []
+    teams: [principal-team]
 `)); err != nil {
 		t.Fatal(err)
 	}
@@ -84,6 +90,7 @@ people:
 		Store: "principal-store", StoreCredential: k.Credential(t, "principal-store"), Kind: "principal.collection",
 		Admin: "fixture-alex", Viewer: "fixture-maya", Editor: "fixture-remi", Member: "fixture-dev",
 		Administrator: "fixture-store-administrator", Reader: "fixture-store-reader", Existing: "store-x",
+		Team: "principal-team", TeamMember: "fixture-principal-team-member",
 		Uninstall:          func(_ context.Context, id string) error { return k.State.Revoke(id) },
 		SignManifest:       testkit.SignDocument,
 		SignAuthority:      testkit.SignAuthority,

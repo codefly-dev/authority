@@ -73,8 +73,8 @@ single-organization inference remains a local convenience, not a shared promise.
 `RunSolutionPrincipalTarget` specifies solution identity before any host
 implements it. An installed solution is a principal of its organisation with a
 stable UUID, reused by a reinstall; its declared roles are permission levels on
-the data that principal owns; granting a person a role (`GrantRole`) is the
-access; a capability's scopes select resources by owner (`resource_owner_id`)
+the data that principal owns; granting a person or a team a role (`GrantRole`) is the
+access and revoking it (`RevokeRole`) ends it at once; a capability's scopes select resources by owner (`resource_owner_id`)
 rather than by id lists; an existing resource joins the principal only through
 `AuthorizeTransfer`, which requires admin the person holds from their own
 organisation grants. The suite first names every contract element the
@@ -82,12 +82,15 @@ published descriptors lack, then runs these cases:
 
 - install creates the solution principal and its roles; a reinstall keeps its UUID
 - without a role on the solution a person is refused, naming the reason
-- a viewer reads what the principal owns, and nothing another installation or a person owns
-- a resource created through the solution is owned by its principal, the person its author (and the installation's agent creates for the same principal)
+- a viewer reads what the principal owns, and nothing another installation or a person owns; a scope naming an owner and ids admits only when both match
+- a resource created through the solution is owned by its principal, the person its author; the installation acting for itself is the principal (owner id U) and creates for it
+- the install request's role is the agent's role, and no person's
 - an editor writes and a viewer cannot, each by name
 - another installation's members never reach the principal's data
 - a child never widens the owner or the actions it narrowed to
 - an existing resource joins the principal only by a transfer its person administers through their own grants (an installer role alone and the agent are refused)
+- revoking a person's role stops access at once (an old capability fails Check); re-granting restores it
+- a team's role is its members' access; revoking it stops them at once; re-granting restores it
 - uninstalling disables the principal at once and its data stays owned; a re-grant after reinstall restores access
 
 Run it against the local authority from `modules/authority/services/local/code`

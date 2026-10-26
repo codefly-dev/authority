@@ -15,9 +15,12 @@ import (
 // SolutionPrincipalCase is the TARGET contract for solution identity; no host
 // passes it yet. An installed solution is a principal of its organisation, with
 // a stable UUID like a person's. Its declared roles are permission levels on
-// the data that principal owns, and granting a person a role is the access.
-// A capability carries owner-selected scopes: {kind, actions, resource owner},
-// never lists of ids, so a module admits a resource whose owner is the scope's.
+// the data that principal owns, and granting a person or a team a role is the
+// access; revoking it ends the access at once. The installation acting for
+// itself is that principal, holding the role its install request named. A
+// capability carries owner-selected scopes: {kind, actions, resource owner},
+// so a module admits a resource whose owner is the scope's; a scope naming an
+// owner and ids admits a resource only when both match.
 //
 // The suite delivers A, B (two solutions) and Store (the module serving Kind)
 // at Generation, installs A and B through InstallationService, and grants every
@@ -26,6 +29,7 @@ import (
 //     organisation grants hold nothing on Kind.
 //   - Viewer, Editor and Member hold no role on A or B until the suite grants
 //     one; their organisation grants on Kind are irrelevant to the case.
+//   - TeamMember belongs to Team, and holds no role on A or B but through it.
 //   - Administrator holds admin on Existing, and Reader holds read on Existing,
 //     each from their own organisation grants at Store and on nothing else of
 //     Kind. Existing is a resource of Kind no solution principal owns.
@@ -39,6 +43,7 @@ type SolutionPrincipalCase struct {
 	Store, StoreCredential, Kind  string
 	Generation                    uint64
 	Admin, Viewer, Editor, Member string
+	Team, TeamMember              string
 	Administrator, Reader         string
 	Existing                      string
 	Uninstall                     func(ctx context.Context, installationID string) error
@@ -63,6 +68,12 @@ var solutionPrincipalContract = []struct{ message, element string }{
 	{"host.installation.v1.GrantRoleRequest", "role"},
 	{"host.installation.v1.GrantRoleRequest", "person_id"},
 	{"host.installation.v1.GrantRoleRequest", "team_id"},
+	{"host.installation.v1.InstallationService", "RevokeRole"},
+	{"host.installation.v1.RevokeRoleRequest", "organization_id"},
+	{"host.installation.v1.RevokeRoleRequest", "installation_id"},
+	{"host.installation.v1.RevokeRoleRequest", "role"},
+	{"host.installation.v1.RevokeRoleRequest", "person_id"},
+	{"host.installation.v1.RevokeRoleRequest", "team_id"},
 	{"host.authority.v1.WorkScopeV1", "resource_owner_id"},
 	{"host.authority.v1.ResourceGrant", "owner"},
 	{"host.authority.v1.AuthorityService", "AuthorizeTransfer"},
@@ -88,7 +99,7 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		t.Fatalf("target: the published contract lacks %v", missing)
 	}
 	if f.Uninstall == nil || f.SignManifest == nil || f.SignAuthority == nil || f.DeliveryCredential == nil || f.Existing == "" ||
-		f.Admin == "" || f.Viewer == "" || f.Editor == "" || f.Member == "" || f.Administrator == "" || f.Reader == "" {
+		f.Admin == "" || f.Viewer == "" || f.Editor == "" || f.Member == "" || f.Administrator == "" || f.Reader == "" || f.Team == "" || f.TeamMember == "" {
 		t.Fatal("required conformance fixture missing: solution principal case")
 	}
 	ctx := context.Background()
@@ -142,10 +153,23 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		return out
 	}
 	principal := func(s SolutionUnderTest) string { return str(installed[s.Solution], "principal_id") }
-	grant := func(t *testing.T, s SolutionUnderTest, role, token string) {
+	// role grants (GrantRole) or revokes (RevokeRole) one role on s for one
+	// subject: {"person_id": ...} or {"team_id": ...}.
+	role := func(t *testing.T, method string, s SolutionUnderTest, name string, subject map[string]any) {
 		t.Helper()
-		c.must(t, asPerson(t, f.Admin), "host.installation.v1.InstallationService", "GrantRole", map[string]any{
-			"organization_id": f.Organization, "installation_id": str(installed[s.Solution], "id"), "role": role, "person_id": personID(t, token)})
+		request := map[string]any{"organization_id": f.Organization, "installation_id": str(installed[s.Solution], "id"), "role": name}
+		for k, v := range subject {
+			request[k] = v
+		}
+		c.must(t, asPerson(t, f.Admin), "host.installation.v1.InstallationService", method, request)
+	}
+	person := func(t *testing.T, token string) map[string]any {
+		return map[string]any{"person_id": personID(t, token)}
+	}
+	team := map[string]any{"team_id": f.Team}
+	grant := func(t *testing.T, s SolutionUnderTest, name, token string) {
+		t.Helper()
+		role(t, "GrantRole", s, name, person(t, token))
 	}
 	issue := func(fields map[string]any) (protoreflect.Message, error) {
 		return c.call(ctx, "host.authority.v1.AuthorityService", "Issue", fields)
@@ -171,10 +195,14 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		return issue(map[string]any{"installation": map[string]any{"installation_id": str(installed[s.Solution], "id")},
 			"actor": map[string]any{"credential": s.Credential}, "audience": f.Store, "scopes": scopes})
 	}
-	owned := func(actions []string, owner string) map[string]any {
-		ask := scopeAsk(f.Kind, actions, nil)
+	owned := func(actions []string, owner string, ids ...string) map[string]any {
+		ask := scopeAsk(f.Kind, actions, ids)
 		ask["resource_owner_id"] = owner
 		return ask
+	}
+	check := func(capability protoreflect.Message) error {
+		_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(capability, "token"), "audience": f.Store})
+		return err
 	}
 	transfer := func(token, to string) (protoreflect.Message, error) {
 		return c.call(ctx, "host.authority.v1.AuthorityService", "AuthorizeTransfer", map[string]any{"token": token,
@@ -227,8 +255,12 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		if len(grants) != 1 || str(grants[0], "owner") != principal(f.A) {
 			t.Fatalf("listed %v, want exactly the resources principal %s owns", grants, principal(f.A))
 		}
+		// Owner and ids together narrow within the owner: both must match.
+		narrowed := must(t)(through(t, f.Viewer, f.A, owned([]string{"read"}, principal(f.A), "u-doc")))
+		exactOwnedScopeIDs(t, msg(narrowed, "context"), f.Kind, []string{"read"}, principal(f.A), []string{"u-doc"})
 		for name, ask := range map[string]any{
 			"another installation's data": owned([]string{"read"}, principal(f.B)),
+			"another owner's ids":         owned([]string{"read"}, principal(f.B), "u-doc"),
 			"the whole kind":              scopeAsk(f.Kind, []string{"read"}, nil),
 			"a resource it does not own":  scopeAsk(f.Kind, []string{"read"}, []string{f.Existing}),
 		} {
@@ -244,12 +276,24 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		if str(wc, "owner_principal_id") != personID(t, f.Editor) || str(wc, "owner_principal_kind") != "human" {
 			t.Fatalf("the author is %s (%s), want the person", str(wc, "owner_principal_id"), str(wc, "owner_principal_kind"))
 		}
-		// The installation acting for itself creates for the same principal.
+		// The installation acting for itself is the principal: owner and
+		// author are both U, and it creates for U.
 		byAgent := must(t)(agent(f.A, owned([]string{"create"}, principal(f.A))))
 		exactOwnedScope(t, msg(byAgent, "context"), f.Kind, []string{"create"}, principal(f.A))
-		if str(msg(byAgent, "context"), "owner_principal_kind") != "agent" {
-			t.Fatal("an installation acting for itself is its agent")
+		if wc := msg(byAgent, "context"); str(wc, "owner_principal_kind") != "agent" || str(wc, "owner_principal_id") != principal(f.A) {
+			t.Fatalf("the installation acting for itself is %s (%s), want the solution principal %s", str(wc, "owner_principal_id"), str(wc, "owner_principal_kind"), principal(f.A))
 		}
+	})
+	t.Run("the install request's role is the agent's role, and no person's", func(t *testing.T) {
+		// A was installed with role editor: the agent holds exactly editor's
+		// level on the principal's data, and not installer's admin.
+		byAgent := must(t)(agent(f.A))
+		exactOwnedScope(t, msg(byAgent, "context"), f.Kind, []string{"create", "read", "write"}, principal(f.A))
+		_, err := agent(f.A, owned([]string{"admin"}, principal(f.A)))
+		refused(t, err, codes.PermissionDenied, "beyond")
+		// Nobody inherits it: a team member is refused until the team is granted.
+		_, err = root(t, f.TeamMember, f.A)
+		refused(t, err, codes.PermissionDenied, "holds no role")
 	})
 	t.Run("an editor writes and a viewer cannot, each by name", func(t *testing.T) {
 		out := must(t)(through(t, f.Editor, f.A, owned([]string{"write"}, principal(f.A))))
@@ -280,6 +324,10 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		readOnly := must(t)(through(t, f.Editor, f.A, owned([]string{"read"}, principal(f.A))))
 		_, err := hop(readOnly, owned([]string{"write"}, principal(f.A)))
 		refused(t, err, codes.PermissionDenied, "widens")
+		oneDoc := must(t)(through(t, f.Viewer, f.A, owned([]string{"read"}, principal(f.A), "u-doc")))
+		exactOwnedScopeIDs(t, msg(must(t)(hop(oneDoc)), "context"), f.Kind, []string{"read"}, principal(f.A), []string{"u-doc"})
+		_, err = hop(oneDoc, owned([]string{"read"}, principal(f.A)))
+		refused(t, err, codes.PermissionDenied, "widens")
 	})
 	t.Run("an existing resource joins the principal only by a transfer its person administers through their own grants", func(t *testing.T) {
 		grant(t, f.A, "viewer", f.Administrator)
@@ -302,15 +350,34 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		_, err = transfer(str(byAgent, "token"), principal(f.A))
 		refused(t, err, codes.PermissionDenied, "a person's act")
 	})
+	t.Run("revoking a person's role stops access at once; re-granting restores it", func(t *testing.T) {
+		before := must(t)(through(t, f.Viewer, f.A))
+		role(t, "RevokeRole", f.A, "viewer", person(t, f.Viewer))
+		refused(t, check(before), codes.PermissionDenied, "")
+		_, err := root(t, f.Viewer, f.A)
+		refused(t, err, codes.PermissionDenied, "holds no role")
+		grant(t, f.A, "viewer", f.Viewer)
+		exactOwnedScope(t, msg(must(t)(through(t, f.Viewer, f.A)), "context"), f.Kind, []string{"read"}, principal(f.A))
+	})
+	t.Run("a team's role is its members' access; revoking it stops them at once; re-granting restores it", func(t *testing.T) {
+		role(t, "GrantRole", f.A, "viewer", team)
+		before := must(t)(through(t, f.TeamMember, f.A))
+		exactOwnedScope(t, msg(before, "context"), f.Kind, []string{"read"}, principal(f.A))
+		role(t, "RevokeRole", f.A, "viewer", team)
+		refused(t, check(before), codes.PermissionDenied, "")
+		_, err := root(t, f.TeamMember, f.A)
+		refused(t, err, codes.PermissionDenied, "holds no role")
+		role(t, "GrantRole", f.A, "viewer", team)
+		exactOwnedScope(t, msg(must(t)(through(t, f.TeamMember, f.A)), "context"), f.Kind, []string{"read"}, principal(f.A))
+	})
 	t.Run("uninstalling disables the principal at once and its data stays owned; a re-grant after reinstall restores access", func(t *testing.T) {
 		before := must(t)(through(t, f.Viewer, f.A))
 		u := principal(f.A)
 		if err := f.Uninstall(ctx, str(installed[f.A.Solution], "id")); err != nil {
 			t.Fatal(err)
 		}
-		_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(before, "token"), "audience": f.Store})
-		refused(t, err, codes.PermissionDenied, "")
-		_, err = agent(f.A)
+		refused(t, check(before), codes.PermissionDenied, "")
+		_, err := agent(f.A)
 		refused(t, err, codes.PermissionDenied, "")
 		if install(t, f.A); principal(f.A) != u {
 			t.Fatalf("reinstalled as %s, want %s", principal(f.A), u)
@@ -352,7 +419,13 @@ func (c *client) missingContract() []string {
 // on resources owned by owner: no id list, no other kind.
 func exactOwnedScope(t *testing.T, wc protoreflect.Message, kind string, actions []string, owner string) {
 	t.Helper()
-	exactEffectiveScope(t, wc, kind, actions, nil)
+	exactOwnedScopeIDs(t, wc, kind, actions, owner, nil)
+}
+
+// exactOwnedScopeIDs is exactOwnedScope narrowed to ids within the owner.
+func exactOwnedScopeIDs(t *testing.T, wc protoreflect.Message, kind string, actions []string, owner string, ids []string) {
+	t.Helper()
+	exactEffectiveScope(t, wc, kind, actions, ids)
 	scopes := listMsgs(wc, "authority_scopes")
 	if actors := listMsgs(wc, "actor_chain"); len(actors) > 0 {
 		scopes = listMsgs(actors[len(actors)-1], "granted_scopes")
