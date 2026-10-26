@@ -68,6 +68,7 @@ type Module struct {
 
 // Edge serves the browser.
 type Edge struct {
+	SignInChoices []signInChoice
 	Sessions      Sessions
 	Authority     Issuer
 	Installations Installations

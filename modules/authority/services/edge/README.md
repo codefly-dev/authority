@@ -33,3 +33,30 @@ the local cookie and edge cache; it does not revoke a copied bearer at the host.
 Host-wide termination requires a proposed Session.SignOut interface addition,
 its host implementations, and the edge call before browser sign-out can promise
 revocation. This change does not invent a second session revocation mechanism.
+
+## Composition-owned sign-in choices
+
+A composing workspace can choose which fixture people its sign-in page shows,
+order them, describe each in plain language, and mark one **Start here**. Set the
+optional `SIGN_IN_CHOICES` key in the existing workspace `edge` configuration
+through Codefly, from the composing workspace:
+
+```sh
+codefly config set edge --plaintext \
+  'SIGN_IN_CHOICES=[{"personId":"dev","description":"Dev — developer: explore the installed tools","startHere":true},{"personId":"maya","description":"Maya — viewer: explore a refusal"}]'
+```
+
+The JSON array's order is the page's order. Each entry names a fixture `personId`
+and a nonblank one-line `description`; `startHere` is optional and at most one
+entry may set it to true. Descriptions render as text, never HTML. Use `--force`
+to replace an existing value. Omit the key (or set it to an empty value) to retain
+the default: all people in the authority's order with their email, organisation
+and roles. A configured array must be nonempty. Malformed entries, unknown
+fields, duplicate IDs and multiple starting choices refuse startup with a reason;
+a person absent from the host's list refuses the page with a reason.
+
+This controls presentation only. It does not remove fixture people, change grants,
+filter `ListFixturePeople`, or restrict sign-in for unlisted people. Other
+compositions and conformance suites continue to use the full fixture. The edge
+still obtains identity details and fixture tokens through its generated session
+client; the configuration supplies neither credentials nor permissions.
