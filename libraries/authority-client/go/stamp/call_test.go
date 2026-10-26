@@ -29,7 +29,9 @@ func TestSignedCallBindingRejectsMutationAndExpiredOrAmbiguousProof(t *testing.T
 		t.Fatal(err)
 	}
 	for _, mutation := range []func(metadata.MD){
-		func(m metadata.MD) { m.Set("x-codefly-hop-proof", proof[:len(proof)-2]+"AA") },
+		// The signature's first character, changed: always a different
+		// signature (the last two could already read "AA", 1 in 256).
+		func(m metadata.MD) { m.Set("x-codefly-hop-proof", tamperSignature(proof)) },
 		func(m metadata.MD) { m.Append("x-codefly-hop-proof", proof) },
 		func(m metadata.MD) { m.Append("x-codefly-work-context", token) },
 		func(m metadata.MD) { m.Append("x-codefly-hop-context", hex.EncodeToString(digest[:])) },
@@ -126,4 +128,15 @@ func TestAdmissionIsTheSignersStablePublishedEntry(t *testing.T) {
 	if otherID, _ := other.Admission(); otherID == id {
 		t.Fatal("two keys share a key id")
 	}
+}
+
+// tamperSignature changes one character of a proof's signature to another
+// valid one, so the proof always differs from the signed one.
+func tamperSignature(proof string) string {
+	at := strings.Index(proof, ".") + 1
+	swap := byte('A')
+	if proof[at] == swap {
+		swap = 'B'
+	}
+	return proof[:at] + string(swap) + proof[at+1:]
 }
