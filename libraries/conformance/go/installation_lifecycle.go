@@ -110,11 +110,7 @@ func (c *client) installationLifecycle(t *testing.T, ctx context.Context, f Fixt
 				}
 			}
 			if pending == nil {
-				select {
-				case early := <-resultCh:
-					t.Fatalf("install finished before a pending row was visible: %v", early.err)
-				case <-time.After(10 * time.Millisecond):
-				}
+				time.Sleep(10 * time.Millisecond)
 			}
 		}
 		if pending == nil {

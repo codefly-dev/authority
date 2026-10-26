@@ -171,7 +171,10 @@ generated `ConsentApproval` message. There is no shared catalogue/Review RPC in
 this model. The suite preserves that snapshot, checks missing or changed consent,
 retries before team exposure, and refuses replay after exposure or revocation.
 In 0.2, `GrantToTeam` changes the installation revision, so the same approval is
-stale after exposure. No consent assertions are skipped based on host capability.
+stale after exposure. In 0.2, `Install` may return while its installation is
+still pending acknowledgement, so the suite polls the listing for the pending row
+rather than refusing an early return (#27's blocking-install check is not
+backported). No consent assertions are skipped based on host capability.
 
 This is a conformance-library maintenance branch, not a backport of #27's local
 core implementation. Its historical local-authority fixture does not implement
