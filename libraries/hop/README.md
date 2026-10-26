@@ -62,19 +62,23 @@ Go reuses Core's `workcontext.ReplayStore`; Python exposes `ReplayStore.consume`
 and `consume_async`; TS exposes `ReplayStore.consume`. Python and TS adapters
 raise the exported `Replayed` error for duplicate nonces (Go uses Core
 `ErrReplayed`); other failures report store unavailability without leaking backend errors. Consumption must be atomic
-across every process accepting the same signing key, fail closed on outage, and
+across every listener accepting the same signing key and audience, fail closed on outage, and
 be durable before it returns. A backend may retain entries longer than expiry.
 It must not evict an entry while any verifier can still accept it: account for
 clock differences and prevent clock rollback. Synchronize deployment clocks.
 
 `hop.FileReplayStore` implements this contract for a shared durable filesystem
-with atomic exclusive creation and file/directory fsync. All replicas must mount
-the same directory; per-pod ephemeral storage is not suitable. Reservations
+with atomic exclusive creation and file/directory fsync. All replicas for an
+audience must mount the same directory; per-pod ephemeral storage is not suitable. Reservations
 survive process restart and are never automatically removed. An incomplete
 reservation is retained after a crash. Operators may collect complete expired
 records only once every verifier's clock has passed the recorded expiry; never
 collect incomplete records while their key remains trusted. Monitor volume space;
-full or unavailable storage refuses admission. Other hosts can supply their
+full or unavailable storage refuses admission. Isolate each audience's volume
+from other workloads: an unrelated workload must not be able to remove or edit
+reservations. Remote adapters likewise expose atomic reservation, not caller-
+controlled deletion. Protect the signing seed from every consumer, including
+through filesystem and process isolation in local deployments. Other hosts can supply their
 existing durable replay implementation through the same Core contract. The
 in-memory implementation used in tests is not a replicated deployment backend.
 

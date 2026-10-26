@@ -14,7 +14,8 @@ import (
 )
 
 // FileReplayStore implements Core's ReplayStore on a durable shared filesystem.
-// All replicas must mount the SAME directory with atomic exclusive creation and
+// All replicas of an audience must mount the SAME directory, isolated from
+// other workloads, with atomic exclusive creation and
 // durable fsync semantics. A local ephemeral volume is not a shared store.
 // Reservations deliberately survive expiry and restart. Operators may remove
 // files only after their recorded expiry, with all verifiers' clocks past it.
