@@ -4,6 +4,8 @@ package registry_test
 
 import (
 	"context"
+	core "github.com/codefly-dev/authority/libraries/authority-core/go/authority"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"net"
 	"os"
 	"path/filepath"
@@ -30,6 +32,10 @@ import (
 func TestTheLocalAuthorityPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
 	k := testkit.New(t)
 	testkit.SolutionTools(t, k)
+	// The staleness probe revokes the viewer's own role, so her access to the
+	// wiki must be hers alone: the composition's team grants become the same
+	// role granted to each member directly.
+	directGrants(t, k, state.InstallationID("acme", "wiki"), "viewer", map[string][]string{"finance": {"maya", "alex"}, "engineering": {"remi", "alex", "dev"}})
 	if err := k.State.LoadFixture(context.Background(), []byte(`roles:
   - organization: acme
     name: owner
@@ -196,4 +202,21 @@ people:
 		// for a read Rémi holds at the model and his first token never carried.
 		Chain: &chain,
 	})
+}
+
+// directGrants replaces each team's grant of role on installation id with the
+// same role granted to each of its members.
+func directGrants(t *testing.T, k *testkit.Kit, id, role string, members map[string][]string) {
+	t.Helper()
+	admin := core.Person{ID: "alex", Organization: "acme"}
+	for team, people := range members {
+		if _, err := k.State.Service().RevokeRole(context.Background(), admin, core.RoleRequest{Organization: "acme", InstallationID: id, Role: role, TeamID: team}); err != nil {
+			t.Fatal(err)
+		}
+		for _, person := range people {
+			if err := k.State.GrantRole(domain.RoleGrant{InstallationID: id, Role: role, PersonID: person}); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
 }

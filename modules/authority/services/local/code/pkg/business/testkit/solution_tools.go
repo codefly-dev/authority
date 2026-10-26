@@ -18,7 +18,7 @@ func SolutionTools(t *testing.T, k *Kit) {
 	target.Methods = map[string]state.MethodPolicy{
 		"/tools.Solution/Read": {Requires: []*basev0.WorkScopeV1{Scope("proposals.item", "read")}},
 	}
-	actor := state.Manifest{Name: "robin", Principal: "robin", Kind: "module", Generation: 1,
+	actor := state.Manifest{Name: "robin", Principal: "robin", Kind: "module", Generation: 1, OwnerAware: true,
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("robin.conversations", "read")},
 		Bindings:      map[string]state.Binding{"tools": {ID: "tools", Audience: "proposals", InvokeScopes: []*basev0.WorkScopeV1{Scope("proposals.item", "read")}}},
 	}

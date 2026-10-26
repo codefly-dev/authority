@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"github.com/codefly-dev/core/workcontext"
 	"google.golang.org/protobuf/proto"
@@ -39,8 +40,25 @@ func sessionOf(ctx context.Context) (string, bool) {
 	return id, ok && id != ""
 }
 
-// ErrRefused is the umbrella for a refusal this wire layer makes itself.
+// ErrRefused is the umbrella for a refusal the caller can do nothing about:
+// this wire layer's own, and every refusal the core denies.
 var ErrRefused = errors.New("issuer: refused")
+
+// classify keeps the core's refusal (its code still answers domain.CodeOf)
+// and names its family as this host's callers test it: a denial is
+// ErrRefused, a missing thing state.ErrUnknown.
+func classify(err error) error {
+	code, ok := domain.CodeOf(err)
+	switch {
+	case !ok:
+		return err
+	case code == domain.Denied:
+		return fmt.Errorf("%w: %w", ErrRefused, err)
+	case code == domain.NotFound:
+		return fmt.Errorf("%w: %w", state.ErrUnknown, err)
+	}
+	return err
+}
 
 // Issuer is the wire over one host and its core.
 type Issuer struct {
@@ -72,6 +90,11 @@ func (i *Issuer) Keys() *authorityv1.KeysResponse {
 // ListResources answers which resources of kind a checked capability may act
 // on with action, decided now by the core.
 func (i *Issuer) ListResources(ctx context.Context, token, audience, kind, action string) ([]authority.Grant, error) {
+	out, err := i.listResources(ctx, token, audience, kind, action)
+	return out, classify(err)
+}
+
+func (i *Issuer) listResources(ctx context.Context, token, audience, kind, action string) ([]authority.Grant, error) {
 	if audience == "" || kind == "" || action == "" {
 		return nil, fmt.Errorf("%w: a resource question names the audience, a kind and an action", ErrRefused)
 	}
@@ -92,6 +115,11 @@ func (i *Issuer) Advise(ctx context.Context, token, audience, method string) (*a
 }
 
 func (i *Issuer) check(ctx context.Context, token, audience, method string, advisory bool) (*authorityv1.CheckResponse, error) {
+	out, err := i.checked(ctx, token, audience, method, advisory)
+	return out, classify(err)
+}
+
+func (i *Issuer) checked(ctx context.Context, token, audience, method string, advisory bool) (*authorityv1.CheckResponse, error) {
 	if audience == "" {
 		return nil, fmt.Errorf("%w: a check names the audience the caller is", ErrRefused)
 	}
@@ -117,6 +145,11 @@ func (i *Issuer) check(ctx context.Context, token, audience, method string, advi
 
 // Issue signs a capability for one owner shape, through the core.
 func (i *Issuer) Issue(ctx context.Context, req *authorityv1.IssueRequest) (*authorityv1.IssueResponse, error) {
+	out, err := i.issue(ctx, req)
+	return out, classify(err)
+}
+
+func (i *Issuer) issue(ctx context.Context, req *authorityv1.IssueRequest) (*authorityv1.IssueResponse, error) {
 	r := authority.IssueRequest{Audience: req.GetAudience(), Binding: req.GetOperationBindingId(), Operation: req.GetOperation(),
 		Organization: req.GetOrganizationId(), Scopes: FromWire(req.GetScopes()), TTL: time.Duration(req.GetTtlSeconds()) * time.Second}
 	var out authority.Issued
@@ -181,6 +214,11 @@ func (i *Issuer) workload(ctx context.Context, credential, why string) (authorit
 // AuthorizeTransfer decides whether an existing resource joins a solution
 // principal, the store asking with the person's capability.
 func (i *Issuer) AuthorizeTransfer(ctx context.Context, req *authorityv1.AuthorizeTransferRequest) (*authorityv1.AuthorizeTransferResponse, error) {
+	out, err := i.authorizeTransfer(ctx, req)
+	return out, classify(err)
+}
+
+func (i *Issuer) authorizeTransfer(ctx context.Context, req *authorityv1.AuthorizeTransferRequest) (*authorityv1.AuthorizeTransferResponse, error) {
 	w, err := i.workload(ctx, req.GetActor().GetCredential(), "a transfer is asked by the module serving the kind")
 	if err != nil {
 		return nil, err
@@ -195,6 +233,11 @@ func (i *Issuer) AuthorizeTransfer(ctx context.Context, req *authorityv1.Authori
 
 // Delegate records the signed-in person's grant to a module.
 func (i *Issuer) Delegate(ctx context.Context, module string, scopes []*basev0.WorkScopeV1, purpose string) (state.Delegation, error) {
+	out, err := i.delegate(ctx, module, scopes, purpose)
+	return out, classify(err)
+}
+
+func (i *Issuer) delegate(ctx context.Context, module string, scopes []*basev0.WorkScopeV1, purpose string) (state.Delegation, error) {
 	person, err := i.signedIn(ctx)
 	if err != nil {
 		return state.Delegation{}, err
@@ -205,6 +248,11 @@ func (i *Issuer) Delegate(ctx context.Context, module string, scopes []*basev0.W
 // GetDelegation reads a delegation for the module it is granted to or for its
 // grantor. Anyone else learns nothing, not even that it exists.
 func (i *Issuer) GetDelegation(ctx context.Context, id, actorCredential string) (state.Delegation, error) {
+	out, err := i.getDelegation(ctx, id, actorCredential)
+	return out, classify(err)
+}
+
+func (i *Issuer) getDelegation(ctx context.Context, id, actorCredential string) (state.Delegation, error) {
 	if actorCredential != "" {
 		w, err := i.workload(ctx, actorCredential, "a delegation is read by its module")
 		if err != nil {
@@ -221,6 +269,11 @@ func (i *Issuer) GetDelegation(ctx context.Context, id, actorCredential string) 
 
 // RevokeDelegation ends one of the signed-in person's delegations.
 func (i *Issuer) RevokeDelegation(ctx context.Context, id string) (state.Delegation, error) {
+	out, err := i.revokeDelegation(ctx, id)
+	return out, classify(err)
+}
+
+func (i *Issuer) revokeDelegation(ctx context.Context, id string) (state.Delegation, error) {
 	person, err := i.signedIn(ctx)
 	if err != nil {
 		return state.Delegation{}, err

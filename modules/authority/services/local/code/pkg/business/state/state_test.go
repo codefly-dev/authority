@@ -109,8 +109,10 @@ func TestInstallRunsTheTargetsInstallStepAndStaysPendingUntilItConverges(t *test
 	if err == nil || inst.Status != state.Pending {
 		t.Fatalf("first attempt: %v %+v", err, inst)
 	}
-	if _, err := k.State.Install(ctx, "acme", "proposals", "viewer", "alex"); err == nil {
-		t.Fatal("a pending installation is not installed twice")
+	// The host's own setup asking again resumes the pending attempt.
+	inst, err = k.State.Install(ctx, "acme", "proposals", "viewer", "alex")
+	if err != nil || inst.Status != state.Active || calls != 2 {
+		t.Fatalf("resumed attempt: %v %+v, calls %d", err, inst, calls)
 	}
 }
 

@@ -339,7 +339,7 @@ func (s *State) LoadFixture(ctx context.Context, data []byte) error {
 			s.mu.Unlock()
 			continue
 		}
-		if err := s.performInstall(ctx, i); err != nil {
+		if err := s.performInstall(ctx, i, nil); err != nil {
 			return err
 		}
 	}
@@ -401,14 +401,32 @@ func (s *State) ensureModuleInstallations() error {
 
 // performInstall installs what the fixture names through the core, then
 // records its grants: the installer role to its owner, its role to its teams.
-// An installation already active (a delivery replayed) is left as it is.
-func (s *State) performInstall(ctx context.Context, i FixtureInstallation) error {
-	if inst, ok := s.Installation(InstallationID(i.Organization, i.Target)); !ok || inst.Status != domain.Active {
-		if _, err := s.svc.Install(ctx, nil, i.Organization, i.Target, i.Role, i.Owner, s.installStep); err != nil {
-			return fmt.Errorf("fixture installation of %s at %s: %w", i.Target, i.Organization, err)
+// A delivery's intent remembers the revision its first attempt took: a replay
+// resumes that attempt, and refuses when the installation was revoked or
+// reinstalled since, so a replay never undoes an administrator's act.
+func (s *State) performInstall(ctx context.Context, i FixtureInstallation, intent *pendingInstallation) error {
+	id := InstallationID(i.Organization, i.Target)
+	existing, found := s.Installation(id)
+	s.mu.RLock()
+	attempted := uint64(0)
+	if intent != nil {
+		attempted = intent.revision
+	}
+	s.mu.RUnlock()
+	if attempted != 0 && (!found || existing.Status == domain.Revoked || existing.Revision != attempted) {
+		return fmt.Errorf("%w: fixture installation attempt %s was revoked or changed", ErrStale, id)
+	}
+	if !found || existing.Status != domain.Active {
+		inst, err := s.svc.Install(ctx, nil, i.Organization, i.Target, i.Role, i.Owner, s.installStep)
+		if intent != nil && inst.Revision != 0 {
+			s.mu.Lock()
+			intent.revision = inst.Revision
+			s.mu.Unlock()
+		}
+		if err != nil {
+			return fmt.Errorf("fixture installation of %s at %s: %w", i.Target, i.Organization, classify(err))
 		}
 	}
-	id := InstallationID(i.Organization, i.Target)
 	grants := []domain.RoleGrant{{InstallationID: id, Role: InstallerRole, PersonID: i.Owner}}
 	for _, team := range i.Teams {
 		grants = append(grants, domain.RoleGrant{InstallationID: id, Role: i.Role, TeamID: team})
@@ -464,6 +482,44 @@ func (s *State) Session(id string) (Session, error) {
 	return sess, nil
 }
 
+// LeaveTeam removes person from team: every capability they hold through a
+// grant to that team ends at once (the core moves their person epoch).
+func (s *State) LeaveTeam(ctx context.Context, person, team string) error {
+	s.mu.Lock()
+	p, ok := s.people[person]
+	if !ok {
+		s.mu.Unlock()
+		return fmt.Errorf("%w: person %q", ErrUnknown, person)
+	}
+	p.Teams = slices.DeleteFunc(slices.Clone(p.Teams), func(t string) bool { return t == team })
+	s.people[person] = p
+	s.store.PutPerson(domain.Person{ID: p.ID, Organization: p.Organization, Roles: slices.Clone(p.Roles), Teams: slices.Clone(p.Teams)})
+	s.mu.Unlock()
+	return s.svc.PersonChanged(ctx, person)
+}
+
+// LeaveOrganization removes person: they sign in no more, and every
+// capability they hold ends at once.
+func (s *State) LeaveOrganization(ctx context.Context, person string) error {
+	s.mu.Lock()
+	p, ok := s.people[person]
+	if !ok {
+		s.mu.Unlock()
+		return fmt.Errorf("%w: person %q", ErrUnknown, person)
+	}
+	delete(s.people, person)
+	delete(s.byToken, p.FixtureToken)
+	s.order = slices.DeleteFunc(s.order, func(id string) bool { return id == person })
+	for id, sess := range s.sessions {
+		if sess.Person == person {
+			delete(s.sessions, id)
+		}
+	}
+	s.store.DeletePerson(person)
+	s.mu.Unlock()
+	return s.svc.PersonChanged(ctx, person)
+}
+
 // Caller is the person an open session authenticates, as the core takes it.
 func (s *State) Caller(sessionID string) (authority.Person, error) {
 	sess, err := s.Session(sessionID)
@@ -490,7 +546,7 @@ func (s *State) ApplyManifest(m Manifest) ([]string, error) {
 		return nil, err
 	}
 	for _, i := range pending {
-		if err := s.performInstall(context.Background(), i); err != nil {
+		if err := s.performInstall(context.Background(), i, nil); err != nil {
 			return nil, err
 		}
 	}
@@ -503,7 +559,7 @@ func (s *State) applyManifestLocked(m Manifest) ([]string, []FixtureInstallation
 	m.ResourceKinds = Normalize(append(slices.Clone(m.ResourceKinds), servedByMethods(m.Methods)...))
 	ids, err := s.svc.ApplyModule(context.Background(), m)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, classify(err)
 	}
 	s.refreshRolesLocked()
 	return ids, s.takePendingInstalls(m.Name), nil
@@ -575,7 +631,25 @@ func (s *State) Installation(id string) (Installation, bool) {
 // Install installs a solution as the host's own setup (no caller): the
 // fixture's path, and a test's.
 func (s *State) Install(ctx context.Context, org, target, role, owner string) (Installation, error) {
-	return s.svc.Install(ctx, nil, org, target, role, owner, s.installStep)
+	inst, err := s.svc.Install(ctx, nil, org, target, role, owner, s.installStep)
+	return inst, classify(err)
+}
+
+// classify keeps the core's refusal (its code still answers domain.CodeOf)
+// and names its family as this host's callers test it.
+func classify(err error) error {
+	code, ok := domain.CodeOf(err)
+	switch {
+	case !ok:
+		return err
+	case code == domain.Denied:
+		return fmt.Errorf("%w: %w", ErrForbidden, err)
+	case code == domain.NotFound:
+		return fmt.Errorf("%w: %w", ErrUnknown, err)
+	case code == domain.Precondition:
+		return fmt.Errorf("%w: %w", ErrStale, err)
+	}
+	return err
 }
 
 // Uninstall disables an installation and its principal.

@@ -3,6 +3,7 @@ package authority_test
 import (
 	"context"
 	"errors"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"testing"
 
 	"gateway/pkg/business/state"
@@ -45,6 +46,13 @@ func TestPersonIssueDistinguishesInstallationAndEntitlement(t *testing.T) {
 				}
 				if tc.state == "revoked" {
 					if err := k.State.Uninstall(inst.ID); err != nil {
+						t.Fatal(err)
+					}
+				}
+				// Installing grants nobody a role, the installer included:
+				// alex is granted one, maya is not.
+				if tc.state == "active" && tc.person == "alex" {
+					if err := k.State.GrantRole(domain.RoleGrant{InstallationID: inst.ID, Role: "viewer", PersonID: "alex"}); err != nil {
 						t.Fatal(err)
 					}
 				}

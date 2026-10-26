@@ -70,7 +70,7 @@ func Evaluation(generation uint64) state.Manifest {
 
 // Documents is a module with one binding towards model.
 func Documents(generation uint64) state.Manifest {
-	return state.Manifest{Name: "documents", Principal: "documents", Kind: "module", Generation: generation,
+	return state.Manifest{Name: "documents", Principal: "documents", Kind: "module", Generation: generation, OwnerAware: true,
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("documents", "read", "write", "ingest"), Scope("documents.collection", "read", "transfer", "admin")},
 		Bindings: map[string]state.Binding{
 			"model": {ID: "model", Audience: "model",
@@ -83,7 +83,7 @@ func Documents(generation uint64) state.Manifest {
 
 // Model is the module documents calls.
 func Model(generation uint64) state.Manifest {
-	return state.Manifest{Name: "model", Principal: "model", Kind: "module", Generation: generation,
+	return state.Manifest{Name: "model", Principal: "model", Kind: "module", Generation: generation, OwnerAware: true,
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("modelservice.profiles", "invoke", "read", "admin")}}
 }
 
@@ -95,7 +95,7 @@ func Runtime(generation uint64) state.Manifest {
 
 // Records is the module the directory page reads.
 func Records(generation uint64) state.Manifest {
-	return state.Manifest{Name: "records", Principal: "records", Kind: "module", Generation: generation,
+	return state.Manifest{Name: "records", Principal: "records", Kind: "module", Generation: generation, OwnerAware: true,
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("records.records", "read", "write"), Scope("records.types", "read")}}
 }
 
@@ -103,7 +103,7 @@ func Records(generation uint64) state.Manifest {
 // its one binding, records, which is the binding its hop on the viewer's context
 // names.
 func OrgDirectory(generation uint64) state.Manifest {
-	return state.Manifest{Name: "org-directory", Principal: "org-directory", Kind: "module", Generation: generation,
+	return state.Manifest{Name: "org-directory", Principal: "org-directory", Kind: "module", Generation: generation, OwnerAware: true,
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("directory.entry", "read", "write")},
 		Bindings: map[string]state.Binding{
 			"records": {ID: "records", Audience: "records",

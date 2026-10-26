@@ -450,8 +450,8 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 			"by the installation's agent":                    {byAgent, f.StoreCredential, f.Existing, f.Organization, U(t), codes.PermissionDenied, "a person's act"},
 			"asked by a module that does not serve the kind": {administers, f.A.Credential, f.Existing, f.Organization, U(t), codes.PermissionDenied, "does not serve"},
 			"with a capability addressed elsewhere":          {atRoot, f.StoreCredential, f.Existing, f.Organization, U(t), codes.Unauthenticated, "audience"},
-			"of the wildcard id":                             {administers, f.StoreCredential, "*", f.Organization, U(t), codes.PermissionDenied, "not a usable id"},
-			"of an oversize id":                              {administers, f.StoreCredential, strings.Repeat("x", 129), f.Organization, U(t), codes.PermissionDenied, "not a usable id"},
+			"of the wildcard id":                             {administers, f.StoreCredential, "*", f.Organization, U(t), codes.InvalidArgument, "not a usable id"},
+			"of an oversize id":                              {administers, f.StoreCredential, strings.Repeat("x", 129), f.Organization, U(t), codes.InvalidArgument, "not a usable id"},
 		} {
 			_, err := sp.transfer(t, r.capability, r.actor, r.id, r.from, r.to)
 			t.Run(name, func(t *testing.T) { refused(t, err, r.code, r.reason) })

@@ -202,7 +202,7 @@ func ChangeRole(r RoleChange) error {
 		return nil
 	}
 	if inst.Status != domain.Active {
-		return domain.NotNow("installation %s is %s: %s is not installed", inst.ID, inst.Status, inst.Target)
+		return domain.Refuse("installation %s is %s: %s is not installed", inst.ID, inst.Status, inst.Target)
 	}
 	if r.List {
 		return nil

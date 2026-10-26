@@ -3,6 +3,7 @@ package authority
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"time"
 
@@ -276,7 +277,7 @@ func (s *Service) IssueForWorkload(ctx context.Context, w Workload, r IssueReque
 		}
 		binding, ok := module.Bindings[r.Binding]
 		if !ok {
-			return workcontext.ErrNoBinding
+			return fmt.Errorf("%w: operation binding %q is not one %s declares", workcontext.ErrNoBinding, r.Binding, module.Name)
 		}
 		if binding.Audience != audience.Principal {
 			return domain.Refuse("binding %s is addressed to %s, not %s", r.Binding, binding.Audience, audience.Principal)
@@ -335,7 +336,7 @@ func (s *Service) IssueForInstallation(ctx context.Context, w Workload, installa
 			return domain.Refuse("installation issuance requires the installed solution's workload")
 		}
 		if inst.Status != domain.Active {
-			return domain.NotNow("installation %s is %s: %s is not installed", inst.ID, inst.Status, inst.Target)
+			return domain.Refuse("installation %s is %s: %s is not installed", inst.ID, inst.Status, inst.Target)
 		}
 		if err = s.audienceOf(tx, &r, w.Module); err != nil {
 			return err

@@ -59,9 +59,6 @@ people:
 `)); err != nil {
 		t.Fatal(err)
 	}
-	// The local authority has no membership change yet: these hooks are the
-	// target's, labelled as not implemented rather than faked.
-	notYet := func(what string) error { return errors.New("target: the local authority cannot " + what + " yet") }
 	server := grpc.NewServer()
 	for _, p := range []framework.Plugin{
 		&authority.Plugin{Issuer: k.Issuer},
@@ -98,8 +95,8 @@ people:
 		OtherAdmin: "fixture-zoe", OtherMember: "fixture-omar", OtherTeam: "ops",
 		Existing:               "store-x",
 		Uninstall:              func(_ context.Context, id string) error { return k.State.Uninstall(id) },
-		RemoveFromTeam:         func(context.Context, string, string) error { return notYet("remove a person from a team") },
-		RemoveFromOrganization: func(context.Context, string) error { return notYet("remove a person from the organisation") },
+		RemoveFromTeam:         k.State.LeaveTeam,
+		RemoveFromOrganization: k.State.LeaveOrganization,
 		SignManifest:           testkit.SignDocument,
 		SignAuthority:          testkit.SignAuthority,
 		DeliveryCredential:     func(module string) string { return k.Credential(t, module) },

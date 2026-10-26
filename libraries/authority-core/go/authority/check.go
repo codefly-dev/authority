@@ -2,6 +2,8 @@ package authority
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"slices"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"

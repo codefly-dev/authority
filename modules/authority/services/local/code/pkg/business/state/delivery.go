@@ -20,11 +20,13 @@ type appliedDelivery struct {
 	completion chan struct{}
 }
 
-// pendingInstallation is one fixture installation waiting on a delivery; done
-// prevents its replay once performed. Guarded by State.mu.
+// pendingInstallation is one fixture installation waiting on a delivery:
+// revision is what its first attempt took, done prevents its replay once
+// performed. Guarded by State.mu.
 type pendingInstallation struct {
 	FixtureInstallation
-	done bool
+	revision uint64
+	done     bool
 }
 
 // ApplyDelivered atomically admits and projects a verified carrier. Coordinate
@@ -153,7 +155,7 @@ func (s *State) finishFixtureInstalls(ctx context.Context, _ *solutionhost.Modul
 		if done {
 			continue
 		}
-		if err := s.performInstall(ctx, i.FixtureInstallation); err != nil {
+		if err := s.performInstall(ctx, i.FixtureInstallation, i); err != nil {
 			return err
 		}
 		s.mu.Lock()

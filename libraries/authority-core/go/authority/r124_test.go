@@ -1,6 +1,8 @@
 package authority_test
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
@@ -66,4 +68,32 @@ func TestARevokeOutlivesUninstallAndARetiredRole(t *testing.T) {
 	}
 	_, err = h.root("maya", "a")
 	refused(t, err, "holds no role")
+}
+
+// The host's own setup asking a pending install again resumes it under the
+// same revision; a person asking again while it is pending is refused.
+func TestAPendingInstallResumesOnlyForTheHostsOwnSetup(t *testing.T) {
+	h := newHarness(t)
+	if _, err := h.svc.ApplyModule(h.ctx, solution("d", true)); err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	step := func(context.Context, domain.Installation) error {
+		calls++
+		if calls == 1 {
+			return errors.New("not yet")
+		}
+		return nil
+	}
+	first, err := h.svc.Install(h.ctx, nil, acme, "d", "author", "alex", step)
+	if err == nil || first.Status != domain.Pending {
+		t.Fatalf("first attempt: %+v %v", first, err)
+	}
+	admin := h.person("alex")
+	_, err = h.svc.Install(h.ctx, &admin, acme, "d", "author", "alex", step)
+	refused(t, err, "already installed")
+	done, err := h.svc.Install(h.ctx, nil, acme, "d", "author", "alex", step)
+	if err != nil || done.Status != domain.Active || done.Revision != first.Revision || calls != 2 {
+		t.Fatalf("resumed: %+v %v, calls %d", done, err, calls)
+	}
 }

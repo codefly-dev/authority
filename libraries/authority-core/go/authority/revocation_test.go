@@ -87,8 +87,10 @@ func TestUninstallDisablesThePrincipalAndClearsGrants(t *testing.T) {
 	if err == nil {
 		t.Fatal("a pre-uninstall parent derived a child")
 	}
+	// The installation acting for itself is refused by name: it is revoked.
 	_, err = h.agent("a", "store")
-	code(t, err, domain.Precondition)
+	code(t, err, domain.Denied)
+	refused(t, err, "revoked")
 	_, err = h.root("maya", "a")
 	code(t, err, domain.Precondition)
 	_, err = h.svc.GrantRole(h.ctx, h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "viewer", PersonID: "maya"})

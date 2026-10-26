@@ -122,7 +122,8 @@ func (s *Service) WithdrawModule(ctx context.Context, name string) error {
 type InstallStep func(ctx context.Context, inst domain.Installation) error
 
 // Install installs a solution at an organization: pending until its step
-// converges, then active. Its principal is stable per organization and
+// converges, then active; the host's own setup asking the same install
+// while it is pending resumes it. Its principal is stable per organization and
 // target, so a reinstall reuses it; nobody holds a role until granted one,
 // the installing person included. A caller, when named, must administer the
 // organization; a host's own setup names none.
@@ -152,6 +153,15 @@ func (s *Service) Install(ctx context.Context, caller *Person, org, target, agen
 		}
 		id := s.cfg.InstallationID(org, target)
 		existing, err := tx.Installation(id)
+		if err == nil && caller == nil && existing.Status == domain.Pending && existing.AgentRole == agentRole && existing.InstalledBy == installedBy {
+			// The host's own setup asking the same install again (a delivery
+			// replayed) resumes its pending attempt: its step converges
+			// idempotently, and its revision stays the one the first attempt
+			// took, so a revoke or a reinstall since is told apart. A person's
+			// second install while one is pending is refused below.
+			inst = existing
+			return nil
+		}
 		if err == nil && existing.Status != domain.Revoked {
 			return domain.Refuse("%s is already installed at %s", target, org)
 		}

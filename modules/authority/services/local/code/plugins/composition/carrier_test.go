@@ -3,6 +3,7 @@ package composition
 import (
 	"context"
 	"errors"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"strings"
 	"testing"
 
@@ -44,6 +45,9 @@ func carrier(t *testing.T, k *testkit.Kit, alias string, kind solutionhost.Kind,
 	req := &compositionv1.ApplyManifestRequest{Carrier: &compositionv1.SignedManifestV1{Document: document, Envelope: envelope}, Credential: k.Credential(t, alias)}
 	if authority != nil {
 		authority.Module, authority.Generation, authority.CoreManifestDigest = alias, generation, delivery.Digest(document)
+		// A solution receives its roles' owner-selected scopes, so it declares
+		// owner-aware checking.
+		authority.OwnerAware = authority.OwnerAware || kind == solutionhost.KindSolution
 		doc, err := proto.MarshalOptions{Deterministic: true}.Marshal(authority)
 		if err != nil {
 			t.Fatal(err)
@@ -137,7 +141,7 @@ func TestRolesInTheDocumentAreHeldToTheRoleContract(t *testing.T) {
 		"a role on a kind the solution does not serve": {"conformance-solution", solutionhost.KindSolution,
 			&compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{installer(all[0], scope("documents", "read"))}}, codes.PermissionDenied, "grants beyond what conformance-solution serves"},
 		"a module declaring roles": {"conformance-probe", solutionhost.KindModule,
-			&compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{installer(all...)}}, codes.PermissionDenied, "a module's access is the organisation's roles"},
+			&compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{installer(all...)}}, codes.PermissionDenied, "a module's access is the organization's roles"},
 		"a role named twice": {"conformance-solution", solutionhost.KindSolution,
 			&compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{installer(all...), installer(all...)}}, codes.InvalidArgument, "twice or unnamed"},
 	} {
@@ -157,7 +161,11 @@ func TestRolesInTheDocumentAreHeldToTheRoleContract(t *testing.T) {
 	if _, err := p.ApplyManifest(context.Background(), carrier(t, k, "conformance-solution", solutionhost.KindSolution, 1, []string{"conformance.page"}, doc)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := k.State.Install(context.Background(), "acme", "conformance-solution", "viewer", "alex"); err != nil {
+	inst, err := k.State.Install(context.Background(), "acme", "conformance-solution", "viewer", "alex")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := k.State.GrantRole(domain.RoleGrant{InstallationID: inst.ID, Role: state.InstallerRole, PersonID: "alex"}); err != nil {
 		t.Fatal(err)
 	}
 	if got := held(t, k, "alex", "conformance-solution"); got != "conformance.page:read,write" {

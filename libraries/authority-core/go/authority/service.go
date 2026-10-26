@@ -141,7 +141,12 @@ func (s *Service) Verify(ctx context.Context, token, audience string) (*workcont
 	if err != nil {
 		return nil, err
 	}
-	return v.Verify(ctx, token)
+	verified, err := v.Verify(ctx, token)
+	if errors.Is(err, workcontext.ErrRevoked) {
+		// A seal, a grant or a membership moved since issue: say so by name.
+		return nil, fmt.Errorf("the capability was revoked: %w", err)
+	}
+	return verified, err
 }
 
 type noGrants struct{}
