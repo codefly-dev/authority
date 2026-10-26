@@ -1,0 +1,135 @@
+{
+  "schema": "codefly/module-api-contracts/v1",
+  "package": "codefly/authority",
+  "version": "0.1.0",
+  "endpoints": [
+    {
+      "service": "hop",
+      "endpoint": "grpc",
+      "api": "grpc",
+      "kind": "protobuf",
+      "package": "api",
+      "path": "contracts/api/hop/grpc/contract.binpb",
+      "digest": "sha256:3e8a1569199fd9fcbee7e109b35905431aea544a45cf0f125bafdd60cfc890d9",
+      "services": [
+        {
+          "name": "HopService",
+          "fullName": "api.HopService",
+          "procedures": [
+            "/api.HopService/Version"
+          ]
+        }
+      ]
+    },
+    {
+      "service": "hop",
+      "endpoint": "http",
+      "api": "http",
+      "kind": "openapi",
+      "package": "api.proto",
+      "path": "contracts/api/hop/http/openapi.json",
+      "digest": "sha256:9d605f19705f300600451f2dc65f50c8a3417574df7e3791a7497553018aeb2c",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/version"
+        }
+      ]
+    },
+    {
+      "service": "local",
+      "endpoint": "grpc",
+      "api": "grpc",
+      "kind": "protobuf",
+      "package": "",
+      "path": "contracts/api/local/grpc/contract.binpb",
+      "digest": "sha256:1c51ec903d141b1df6c0eff0fcaa10aa48b6633e0753a13718bef83d086dc0cb",
+      "services": [
+        {
+          "name": "LocalService",
+          "fullName": "api.LocalService",
+          "procedures": [
+            "/api.LocalService/Version"
+          ]
+        },
+        {
+          "name": "ArtifactService",
+          "fullName": "host.artifact.v1.ArtifactService",
+          "procedures": [
+            "/host.artifact.v1.ArtifactService/Approve",
+            "/host.artifact.v1.ArtifactService/Authorize",
+            "/host.artifact.v1.ArtifactService/Revoke"
+          ]
+        },
+        {
+          "name": "AuthorityService",
+          "fullName": "host.authority.v1.AuthorityService",
+          "procedures": [
+            "/host.authority.v1.AuthorityService/AttachResource",
+            "/host.authority.v1.AuthorityService/AuthorizeTransfer",
+            "/host.authority.v1.AuthorityService/Check",
+            "/host.authority.v1.AuthorityService/Delegate",
+            "/host.authority.v1.AuthorityService/DetachResource",
+            "/host.authority.v1.AuthorityService/GetDelegation",
+            "/host.authority.v1.AuthorityService/Issue",
+            "/host.authority.v1.AuthorityService/Keys",
+            "/host.authority.v1.AuthorityService/ListResources",
+            "/host.authority.v1.AuthorityService/RegisterAdmissionKey",
+            "/host.authority.v1.AuthorityService/RevokeDelegation"
+          ]
+        },
+        {
+          "name": "CompositionService",
+          "fullName": "host.composition.v1.CompositionService",
+          "procedures": [
+            "/host.composition.v1.CompositionService/ApplyManifest"
+          ]
+        },
+        {
+          "name": "InstallationService",
+          "fullName": "host.installation.v1.InstallationService",
+          "procedures": [
+            "/host.installation.v1.InstallationService/GrantRole",
+            "/host.installation.v1.InstallationService/Install",
+            "/host.installation.v1.InstallationService/List",
+            "/host.installation.v1.InstallationService/ListRoleGrants",
+            "/host.installation.v1.InstallationService/Review",
+            "/host.installation.v1.InstallationService/RevokeRole"
+          ]
+        },
+        {
+          "name": "OfferService",
+          "fullName": "host.installation.v1.OfferService",
+          "procedures": [
+            "/host.installation.v1.OfferService/ListOffers",
+            "/host.installation.v1.OfferService/ReviewOffer"
+          ]
+        },
+        {
+          "name": "SessionService",
+          "fullName": "host.session.v1.SessionService",
+          "procedures": [
+            "/host.session.v1.SessionService/Current",
+            "/host.session.v1.SessionService/ListFixturePeople",
+            "/host.session.v1.SessionService/SignIn"
+          ]
+        }
+      ]
+    },
+    {
+      "service": "local",
+      "endpoint": "rest",
+      "api": "rest",
+      "kind": "openapi",
+      "package": "api.proto",
+      "path": "contracts/api/local/rest/openapi.json",
+      "digest": "sha256:dc9c7adab86fcf9878f145988c5a5eddf509ac9f59980f0f660b804c91258796",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/version"
+        }
+      ]
+    }
+  ]
+}

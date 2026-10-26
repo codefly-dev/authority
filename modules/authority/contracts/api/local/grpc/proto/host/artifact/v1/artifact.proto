@@ -1,0 +1,87 @@
+syntax = "proto3";
+// The artifact interface: a person's consent to an exact authored artifact a
+// module runs (an agent's configuration, an intent version), for one
+// installation, under one policy. A policy is a resource kind: approving
+// requires its `activate` action at the module, running requires its `run`.
+// Consent is given in person and read back at every run; it is never a
+// credential to execute or read anything.
+package host.artifact.v1;
+
+option go_package = "gateway/pkg/gen/host/artifact/v1;artifactv1";
+
+// ArtifactService is implemented by the host and by the local authority.
+service ArtifactService {
+  // Approve records the person's consent to the identity for the installation
+  // under the policy. The person is present: the parent is theirs, addressed
+  // to the asking module, with no module acting between, and holds the policy
+  // kind's activate action there. An identity already approved answers the
+  // same approval; one whose approval was revoked is refused. Consent is
+  // durable: the host keeps it in its store, so it outlives the process that
+  // recorded it and answers every run until it is revoked.
+  rpc Approve(ArtifactRequest) returns (Approval);
+  // Authorize answers the standing approval of the identity, for a run: the
+  // parent may be delegated and holds the policy kind's run action. It never
+  // creates consent.
+  rpc Authorize(ArtifactRequest) returns (Approval);
+  // Revoke withdraws an approval, permanently, for a person present holding
+  // the policy kind's activate action.
+  rpc Revoke(RevokeRequest) returns (Approval);
+}
+
+// Contract is one contract the artifact is compiled against.
+message Contract {
+  string kind = 1;
+  string name = 2;
+  string digest = 3;
+}
+
+// Identity is the artifact's complete canonical identity, as the module's
+// compiler exports it: references and digests, never authored content.
+message Identity {
+  // The schema the subject is written in, which owns its canonical bytes.
+  string schema = 1;
+  // The source the artifact belongs to.
+  string source = 2;
+  // The canonical subject.
+  bytes subject = 3;
+  // The contracts it is compiled against.
+  repeated Contract contracts = 4;
+  // The revision the module expects the approval at.
+  int64 expected_revision = 5;
+}
+
+// ArtifactRequest asks about one identity, for one installation, under one policy.
+message ArtifactRequest {
+  // The Work Context the module was presented, addressed to it: whose consent
+  // this is, and what they hold there.
+  string parent_token = 1;
+  // The module asking, by its workload credential.
+  string actor_credential = 2;
+  // The installation the artifact runs in.
+  string installation_id = 3;
+  // The policy: a resource kind at the module.
+  string policy = 4;
+  // The artifact.
+  Identity identity = 5;
+}
+
+// RevokeRequest withdraws one approval.
+message RevokeRequest {
+  string parent_token = 1;
+  string actor_credential = 2;
+  string installation_id = 3;
+  // The policy the approval was given under.
+  string policy = 4;
+  // The approval, by its id.
+  string approval_id = 5;
+}
+
+// Approval is the host's exact consent reference.
+message Approval {
+  // host/approved-artifacts/<uuid>.
+  string qualified_name = 1;
+  // sha256:<hex> of the identity approved.
+  string digest = 2;
+  // The revision the approval was given at.
+  int64 expected_revision = 3;
+}
