@@ -1,8 +1,7 @@
 // Package noproxygate is the repository's no-proxy gate (reviews r99, r101,
-// r105, r114): no hand-written Go code in this repository makes an HTTP
-// request, a gRPC dial or a subprocess except through host.HTTPTransport and
-// host.DialOptions, the two seams that never follow a proxy from the
-// environment.
+// r105, r114, r149): it refuses specific HTTP, gRPC and subprocess source
+// forms that bypass host.HTTPTransport and host.DialOptions, the seams that
+// never follow a proxy from the environment. It is not whole-program proof.
 //
 // It judges type-checked code (golang.org/x/tools/go/packages and go/types), so
 // a name is what it resolves to, not how it is spelled: aliases, dot-imports,
@@ -22,8 +21,8 @@
 //     append(host.DialOptions(x), ...). Options appended after the seam may not
 //     set the transport: grpc.WithTransportCredentials, WithCredentialsBundle,
 //     WithInsecure, WithDialer and WithContextDialer are refused there. No
-//     function is exempt by its name: the generated self-dials in
-//     GeneratedSelfDials are the one listed exception, and a genuine
+//     function is exempt by its name: verified adapter self-dials must satisfy
+//     the gatewayDialOptions rule in selfdial.go, and a verified
 //     grpc-gateway Register…HandlerFromEndpoint may dial its own endpoint and
 //     options parameters because every call of it is held to this rule.
 //  3. A dot-import of net/http, net/http/httputil or google.golang.org/grpc; and,
@@ -43,25 +42,29 @@
 //  6. Any write to the Transport field of an http.Client or
 //     httputil.ReverseProxy, through any addressable expression, of anything but
 //     host.HTTPTransport(); and taking that field's address.
-//  7. Any production .go file in the module that the type-checked load did not
-//     judge: a file excluded by a build constraint, or in a directory the go tool
-//     ignores (names starting with _ or ., and testdata).
+//  7. Any production build constraint, even one active in this build, and any
+//     platform filename or .go file the type-checked load did not judge. Every package directory is explicitly loaded, including _, .
+//     and testdata. Nested modules are checked by the repository test separately.
 //
-// Every file the load returns is judged, generated or not. A generated-code
-// marker is believed only when it names a known generator and the file has that
-// generator's suffix (generatedBy); only such a file is exempt from rule 3's
-// unsafe, cgo and linkname refusals and may hold the one generated dial above.
+// Every loaded file is judged, generated or not. Limited generated exemptions
+// require a known generator marker (including go-grpc's own marker), its output
+// filename, and the reviewed content digest at that path in generated.json.
+// Markers alone never authorize an exemption. Updating the manifest is a review
+// trust boundary: generate with Codefly first, then review and record its output.
 //
-// Blind spots, by class: _test.go files (test code is not judged); raw sockets
-// (net.Dial and other socket APIs); reflection; subprocesses started by means
-// other than the APIs in rule 1; third-party HTTP or gRPC clients; option slices
-// built elsewhere and spread after the seam (append(host.DialOptions(x), opts...)
-// is trusted); and what dependencies (codefly core, sdk-go, grpc) do on the
-// repository's behalf. A green gate means none of the refused forms appears; it
-// does not prove that no request can bypass the seams.
+// Blind spots: _test.go files; raw sockets (net.Dial and other socket APIs);
+// reflection; subprocess APIs not listed in rule 1; third-party clients;
+// behavior hidden in callbacks passed to otherwise allowed gRPC options; and
+// what dependencies do on the repository's behalf. This is a source-form gate,
+// not whole-program data-flow or runtime isolation: it does not track pointer
+// replacement, aliased slice mutation, or values hidden behind interfaces. A
+// green gate proves only the absence of its refused forms in checked sources.
 package noproxygate
 
 import (
+	"crypto/sha256"
+	_ "embed"
+	"encoding/json"
 	"fmt"
 	"go/ast"
 	"go/token"
@@ -71,6 +74,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"golang.org/x/tools/go/packages"
@@ -81,19 +85,6 @@ const HostImport = "github.com/codefly-dev/authority/libraries/authority-client/
 
 // hostFile is the one file allowed to name http.DefaultTransport: it clones it.
 const hostFile = "libraries/authority-client/go/host/host.go"
-
-// GeneratedSelfDials are the go-grpc agent's generated gateways, which
-// self-dial 0.0.0.0 without the seam. They carry no generated-code marker, so
-// they are read like any file, and only rule 2 is waived for them. They are
-// fixed in the agent's gatewayDialOptions template (codefly-dev/service-go-grpc)
-// and regenerated, never hand-edited; an entry is removed once its file carries
-// grpc.WithNoProxy() (TestTheSelfDialAllowlistOnlyShrinks).
-var GeneratedSelfDials = map[string]bool{
-	"modules/authority/services/hop/code/pkg/adapters/rest_gen.go":      true,
-	"modules/authority/services/local/code/pkg/adapters/connect_gen.go": true,
-	"modules/authority/services/local/code/pkg/adapters/rest_gen.go":    true,
-	"modules/console/services/api/code/pkg/adapters/connect_gen.go":     true,
-}
 
 // A Violation is one refused form.
 type Violation struct {
@@ -131,21 +122,24 @@ var dials = map[string]bool{
 
 var fromEndpoint = regexp.MustCompile(`^Register\w+HandlerFromEndpoint$`)
 
-// generators are the code generators whose marker the gate believes, each with
-// the suffix it writes; any other marker is read as hand-written code.
+// generators names recognized output markers and suffixes. Recognition alone
+// grants no exemption: the reviewed path/content digest must also match.
 var generators = map[string]string{
 	"protoc-gen-go":           ".pb.go",
 	"protoc-gen-go-grpc":      "_grpc.pb.go",
 	"protoc-gen-grpc-gateway": ".pb.gw.go",
 	"protoc-gen-connect-go":   ".connect.go",
+	"codefly agent":           "registry_gen.go",
 }
 
 var marker = regexp.MustCompile(`^// Code generated by (.+?)\. DO NOT EDIT\.$`)
 
-// generatedBy is the known generator that wrote file at name, or "" when the
-// file carries no marker, an unknown generator's, or a known one with another
-// generator's suffix (a marker a hand could have written).
+// generatedBy recognizes an output marker and filename. The caller must verify
+// its content digest before granting generated exemptions.
 func generatedBy(name string, file *ast.File) string {
+	if isAgentAdapter(file, filepath.ToSlash(name)) {
+		return "go-grpc"
+	}
 	if !ast.IsGenerated(file) {
 		return ""
 	}
@@ -164,6 +158,23 @@ func generatedBy(name string, file *ast.File) string {
 	}
 	return ""
 }
+
+// generatedDigests pins the reviewed Codefly outputs. A marker or filename alone
+// is not provenance. Refresh these digests only after codefly generate and review
+// of its output; changing generated code invalidates its limited exemptions.
+//
+//go:embed generated.json
+var generatedManifest []byte
+
+func generatedDigests() map[string]string {
+	var out map[string]string
+	if err := json.Unmarshal(generatedManifest, &out); err != nil {
+		panic(err)
+	}
+	return out
+}
+
+func digest(source []byte) string { return fmt.Sprintf("%x", sha256.Sum256(source)) }
 
 // transportOptions may not follow the seam's options: each would replace the
 // transport host.DialOptions chose.
@@ -186,6 +197,32 @@ var bannedTypes = map[string]string{
 // overlay, for tests) and returns every violation, paths relative to root. A
 // package that does not load or type-check is an error, never a pass.
 func Check(root, dir string, overlay map[string][]byte, patterns ...string) ([]Violation, error) {
+	return check(root, dir, overlay, generatedDigests(), patterns...)
+}
+
+func check(root, dir string, overlay map[string][]byte, trusted map[string]string, patterns ...string) ([]Violation, error) {
+	root, _ = filepath.Abs(root)
+	dir, _ = filepath.Abs(dir)
+	all := len(patterns) == 1 && patterns[0] == "./..."
+	var inventory []Violation
+	if all {
+		var err error
+		patterns, inventory, err = packageInventory(root, dir, overlay)
+		if err != nil {
+			return nil, err
+		}
+		if len(patterns) == 0 {
+			return inventory, nil
+		}
+		// Refuse cgo from its original source, before cmd/cgo rewrites it (or a
+		// disabled C compiler masks the actionable refusal with a load error).
+		for _, v := range inventory {
+			if strings.HasPrefix(v.Reason, `import "C"`) {
+				return inventory, nil
+			}
+		}
+	}
+
 	config := &packages.Config{
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports |
 			packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedTypesSizes,
@@ -197,7 +234,7 @@ func Check(root, dir string, overlay map[string][]byte, patterns ...string) ([]V
 		return nil, err
 	}
 	var problems []string
-	var violations []Violation
+	violations := inventory
 	judged := map[string]bool{}
 	for _, p := range loaded {
 		for _, e := range p.Errors {
@@ -205,6 +242,23 @@ func Check(root, dir string, overlay map[string][]byte, patterns ...string) ([]V
 		}
 		if len(p.Errors) > 0 {
 			continue
+		}
+		self := selfDials{parsed: p.Syntax, info: p.TypesInfo, pkg: p.Types, generated: map[*ast.File]bool{}}
+		generators := map[*ast.File]string{}
+		for _, file := range p.Syntax {
+			name := p.Fset.File(file.Pos()).Name()
+			relative, _ := filepath.Rel(root, name)
+			source, ok := overlay[name]
+			if !ok {
+				source, err = os.ReadFile(name)
+				if err != nil {
+					return nil, err
+				}
+			}
+			if trusted[filepath.ToSlash(relative)] == digest(source) {
+				generators[file] = generatedBy(name, file)
+				self.generated[file] = generators[file] == "go-grpc"
+			}
 		}
 		for _, file := range p.Syntax {
 			name := p.Fset.File(file.Pos()).Name()
@@ -216,14 +270,14 @@ func Check(root, dir string, overlay map[string][]byte, patterns ...string) ([]V
 			if err != nil {
 				return nil, err
 			}
-			c := &checker{pkg: p, file: file, relative: filepath.ToSlash(relative), generator: generatedBy(name, file)}
+			c := &checker{pkg: p, file: file, relative: filepath.ToSlash(relative), generator: generators[file], self: &self}
 			violations = append(violations, c.check()...)
 		}
 	}
 	if len(problems) > 0 {
 		return nil, fmt.Errorf("packages in %s do not load or type-check, so the gate cannot judge them:\n%s", dir, strings.Join(problems, "\n"))
 	}
-	if len(patterns) == 1 && patterns[0] == "./..." {
+	if all {
 		unjudged, err := Unjudged(root, dir, judged)
 		if err != nil {
 			return nil, err
@@ -251,7 +305,7 @@ func Unjudged(root, dir string, judged map[string]bool) ([]Violation, error) {
 			return err
 		}
 		if entry.IsDir() {
-			if entry.Name() == "node_modules" || entry.Name() == ".git" {
+			if entry.Name() == ".git" {
 				return filepath.SkipDir
 			}
 			if path != dir {
@@ -279,7 +333,8 @@ type checker struct {
 	pkg        *packages.Package
 	file       *ast.File
 	relative   string
-	generator  string // the known generator that wrote this file, or ""
+	generator  string // the verified generator that wrote this file, or ""
+	self       *selfDials
 	violations []Violation
 	seen       map[string]bool
 }
@@ -392,11 +447,20 @@ func (c *checker) seamOptions(e ast.Expr) bool {
 	if !ok || builtin.Name() != "append" || !c.seam(call.Args[0], "DialOptions") {
 		return false
 	}
+	if call.Ellipsis.IsValid() {
+		return false
+	}
 	for _, option := range call.Args[1:] {
-		if inner, ok := ast.Unparen(option).(*ast.CallExpr); ok && transportOptions[key(c.info().Uses[calleeIdent(inner)])] {
-			return false // it would replace the seam's transport
+		inner, ok := ast.Unparen(option).(*ast.CallExpr)
+		if !ok {
+			return false
+		}
+		k := key(c.info().Uses[calleeIdent(inner)])
+		if !strings.HasPrefix(k, "google.golang.org/grpc.With") || transportOptions[k] {
+			return false
 		}
 	}
+
 	return true
 }
 
@@ -431,8 +495,11 @@ func (c *checker) literalSetsSeam(literal *ast.CompositeLit) bool {
 
 func (c *checker) check() []Violation {
 	info := c.info()
+	if c.generator == "" && (ast.IsGenerated(c.file) || isAgentAdapter(c.file, c.relative)) {
+		c.refuse(c.file, "generated marker has no reviewed content digest for this path; regenerate with codefly generate and review the provenance manifest")
+	}
 	for _, spec := range c.file.Imports {
-		path := strings.Trim(spec.Path.Value, `"`)
+		path, _ := strconv.Unquote(spec.Path.Value)
 		if spec.Name != nil && spec.Name.Name == "." && (path == "net/http" || path == "net/http/httputil" || path == "google.golang.org/grpc") {
 			c.refuse(spec, "a dot-import of "+path+" hides names this gate checks; import it by name")
 		}
@@ -532,7 +599,7 @@ func (c *checker) convertible(t types.Type, identical map[string]types.Type) str
 		t = types.Unalias(pointer.Elem())
 	}
 	if parameter, ok := t.(*types.TypeParam); ok {
-		return c.admits(parameter.Constraint(), identical, 0)
+		return c.admits(parameter.Constraint(), identical)
 	}
 	if name := bannedName(t); name != "" {
 		return name
@@ -547,9 +614,9 @@ func (c *checker) convertible(t types.Type, identical map[string]types.Type) str
 
 // admits is the refused type a constraint's type set may hold (a term of it,
 // possibly behind a pointer or another type parameter); "".
-func (c *checker) admits(constraint types.Type, identical map[string]types.Type, depth int) string {
+func (c *checker) admits(constraint types.Type, identical map[string]types.Type) string {
 	face, ok := constraint.Underlying().(*types.Interface)
-	if !ok || depth > 8 {
+	if !ok {
 		return ""
 	}
 	for i := 0; i < face.NumEmbeddeds(); i++ {
@@ -564,7 +631,7 @@ func (c *checker) admits(constraint types.Type, identical map[string]types.Type,
 			if name := c.convertible(embedded, identical); name != "" {
 				return name
 			}
-			if name := c.admits(embedded, identical, depth+1); name != "" {
+			if name := c.admits(embedded, identical); name != "" {
 				return name
 			}
 		}
@@ -607,10 +674,24 @@ func (c *checker) use(id *ast.Ident, stack []ast.Node) {
 	}
 	_, isFunc := obj.(*types.Func)
 	isDial, isEndpoint := dials[k], isFunc && fromEndpoint.MatchString(obj.Name())
-	if !isDial && !isEndpoint || GeneratedSelfDials[c.relative] {
+	if !isDial && !isEndpoint {
 		return
 	}
 	call := calling(id, stack)
+	if c.generator == "go-grpc" {
+		seam, _ := c.pkg.Types.Scope().Lookup("gatewayDialOptions").(*types.Func)
+		if reason := c.self.seamRefusal(seam); reason != "" {
+			c.refuse(id, "gatewayDialOptions "+reason+"; regenerate with go-grpc 0.1.67 or later")
+		}
+		var options ast.Expr
+		if call != nil && len(call.Args) > 0 && (isEndpoint && !call.Ellipsis.IsValid() || isDial && call.Ellipsis.IsValid()) {
+			options = call.Args[len(call.Args)-1]
+		}
+		if seam == nil || !c.self.fromSeam(options, seam) {
+			c.refuse(id, "a generated self-dial must pass gatewayDialOptions(…), or a variable defined once from it, as its options")
+		}
+		return
+	}
 	switch {
 	case isDial && call != nil && c.generator == "protoc-gen-grpc-gateway" && c.gatewayDial(call, stack):
 		// A genuine grpc-gateway Register…HandlerFromEndpoint dialling its own
@@ -659,7 +740,8 @@ func (c *checker) gatewayDial(call *ast.CallExpr, stack []ast.Node) bool {
 		if !ok {
 			continue
 		}
-		if !fromEndpoint.MatchString(declaration.Name.Name) {
+		function, ok := c.info().Defs[declaration.Name].(*types.Func)
+		if !ok || function != c.pkg.Types.Scope().Lookup(function.Name()) || !fromEndpoint.MatchString(function.Name()) {
 			return false
 		}
 		parameters := map[types.Object]bool{}

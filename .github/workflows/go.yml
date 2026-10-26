@@ -28,7 +28,7 @@ jobs:
       - id: find
         name: list every go.mod
         run: |
-          modules=$(find . -name go.mod -not -path '*/node_modules/*' -printf '%h\n' | sed 's|^\./||' | sort | jq -R . | jq -cs .)
+          modules=$(find . -name go.mod -not -path '*/.git/*' -printf '%h\n' | sed 's|^\./||' | sort | jq -R . | jq -cs .)
           echo "$modules"
           test "$(echo "$modules" | jq length)" -gt 0
           echo "modules=$modules" >> "$GITHUB_OUTPUT"
@@ -54,3 +54,15 @@ jobs:
         run: go vet ./...
       - name: go test -race
         run: go test -race -count=1 ./...
+
+  required:
+    name: Go checks
+    if: always()
+    needs: [modules, test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: require discovery and every module
+        env:
+          MODULES_RESULT: ${{ needs.modules.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+        run: test "$MODULES_RESULT" = success && test "$TEST_RESULT" = success
