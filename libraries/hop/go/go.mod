@@ -3,7 +3,7 @@ module github.com/codefly-dev/authority/libraries/hop/go
 go 1.27.3
 
 require (
-	github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0-20261026204838-dc49cde52d89
+	github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0-20261026232801-7b6569e1f285
 	github.com/codefly-dev/core v0.19.7-0.20261026092055-b23dc13543b2
 	github.com/jackc/pgx/v5 v5.11.0
 	google.golang.org/grpc v1.84.0

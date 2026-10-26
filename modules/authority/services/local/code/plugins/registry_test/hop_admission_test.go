@@ -148,6 +148,12 @@ func TestUnderThePlaygroundsIdentityTheHopsRegisteredKeyAdmitsItsStamps(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Review #32 B1: and so is the captured credential with the thief's own
+	// key and a valid proof by it: the hop's instance holds the hop's key.
+	if _, err := register(string(credential), impostor); status.Code(err) != codes.PermissionDenied ||
+		!strings.Contains(err.Error(), "registered admission key "+id) {
+		t.Fatalf("a captured hop credential registered the thief's own key: %v", err)
+	}
 	for name, proof := range map[string]string{"no proof": "", "the hop's proof": hopProof} {
 		if _, err := client.RegisterAdmissionKey(ctx, &authorityv1.RegisterAdmissionKeyRequest{
 			Actor: &authorityv1.WorkloadCredential{Credential: string(credential)}, PublicKey: impostorKey, Proof: proof}); status.Code(err) != codes.PermissionDenied ||

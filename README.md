@@ -1044,16 +1044,31 @@ never leaves the hop; nothing about the hop is configured on the authority. It
 is additive too. The local authority implements it; `accounts` implementing the
 same registration is follow-up work in the host.
 
-`codefly.dev/authority@0.3.4` makes the registration prove possession of the
-key: `RegisterAdmissionKeyRequest.proof` is an Ed25519 signature by the
-admission key itself over the authority's audience, the SHA-256 of the
-presented credential, the key and a fresh nonce and second
-(`stamp.ProveRegistration`, `stamp.CheckRegistration`). The authority refuses a
-missing, mismatched, stale (over 30 seconds) or replayed proof, and a hop
-attested in any trust domain but its own (the one the run's anchor declares its
-workloads under), so a captured hop credential alone registers nothing. The
+`codefly.dev/authority@0.3.4` hardens the registration. The authority pins one
+admission key per hop instance (the instance the hop's workload credential
+names): the first registration for an instance binds its key until the lease
+lapses, the same key renews, and any other key for that instance is refused by
+name. So a captured hop credential cannot replace or add a key for an instance
+that has registered. It is not a key binding: a holder of a captured credential
+who registers before that instance's first registration (the hop registers at
+boot), or after an authority restart (pins are in memory) and before the hop's
+next renewal, pins its own key, and the hop's registration is then refused by
+name in its log. Closing that window needs the launcher to bind the key in the
+credential at issuance. Each registration also carries
+`RegisterAdmissionKeyRequest.proof`, an Ed25519 signature by the key it
+registers over the authority's audience, the SHA-256 of the presented
+credential, the key and a fresh nonce and second (`stamp.ProveRegistration`,
+`stamp.CheckRegistration`): it proves possession of that key and stops a
+replayed, retargeted, stale (over 30 seconds) or credential-swapped
+registration, but since the registrant chooses the key it does not by itself
+prove the registrant is the hop. A hop attested in any trust domain but the
+host's (the one the run's anchor declares its workloads under) is refused. The
 field is additive on the wire; an authority at 0.3.4 refuses a 0.3.3 hop's
-unproved registration, so the hop and the authority move together.
+unproved registration, so the hop and the authority move together. A key
+rotation is a new hop instance with the new seed, overlapping the retiring one
+until its lease lapses; a new seed under the same instance (a hop restarted
+within one run keeps its instance) registers once the previous key's lease
+lapses, within two minutes of the hop's retries.
 
 The 0.3.1 authority version is an additive pre-stable revision selected for
 this refresh so existing `>=0.2.0 <0.4.0` consumers admit it. It retains 0.3.0's

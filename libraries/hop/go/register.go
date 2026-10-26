@@ -27,8 +27,12 @@ const registerRetry = 5 * time.Second
 // which publishes it in Keys for every module behind the hop: the hop presents
 // the public half with its workload credential, never its seed, and a fresh
 // proof signed by the admission key over that credential, the key and the
-// authority's audience (stamp.ProveRegistration), so the credential alone
-// registers nothing. A registration
+// authority's audience (stamp.ProveRegistration). The authority pins one key
+// per hop instance: this hop's first registration binds its key to its
+// instance, and a captured credential cannot replace or add a key for it
+// while that registration holds. Keep registers at boot, before any request
+// is served, because a first registration by another key would win; the
+// refusal is reported by name. A registration
 // lapses unless renewed, so the hop renews it while it runs, and a restarted
 // authority learns the key again at the next renewal.
 type Registration struct {
