@@ -129,7 +129,7 @@ type stampFixture struct {
 // The stamp's one contract, for every language a module is written in: the
 // headers this hop writes for one call carrying a genuinely signed Work
 // Context, the published keys that authenticate it at a fixed clock, and the
-// identity read from it. The Python verifier (../python) reads it back.
+// identity read from it. The Python verifier (codefly_hop, in libraries/authority-client/python) reads it back.
 func TestTheStampFixtureAuthenticatesAsTheHopWroteIt(t *testing.T) {
 	path := filepath.Join("..", "testdata", "stamped.json")
 	s := newSigner("fixture")

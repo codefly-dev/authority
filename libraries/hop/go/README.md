@@ -82,4 +82,4 @@ the actual installation-based tenant resolution.
 The Go dependency pins authority-client at the commit that introduced
 `workcontext.Authenticate`; standalone library tests need no workspace replacement.
 `../testdata/stamped.json` is a genuinely signed call as the hop stamps it; the
-Python verifier reads it back. Regenerate with `go test -run Fixture -update-fixture`.
+Python verifier (`codefly_hop`, shipped in `libraries/authority-client/python`) reads it back. Regenerate with `go test -run Fixture -update-fixture`.
