@@ -110,15 +110,19 @@ func TestSignedByNamesThePublishedKeyAProofIsSignedBy(t *testing.T) {
 }
 
 // The authority publishes a seed's public half as one stable entry: the same
-// seed always yields the same key id, with the admission purpose.
-func TestPublishedIsTheSignersStableAdmissionEntry(t *testing.T) {
+// seed always yields the same key id beside its public key.
+func TestAdmissionIsTheSignersStablePublishedEntry(t *testing.T) {
 	signer, _ := NewSigner(strings.Repeat("01", 32))
 	again, _ := NewSigner(strings.Repeat("01", 32))
-	entry := signer.Published()
-	if entry.GetPurpose() != Purpose || entry.GetAlgorithm() != "Ed25519" || hex.EncodeToString(entry.GetPublicKey()) != signer.PublicKey() {
-		t.Fatalf("entry %v", entry)
+	other, _ := NewSigner(strings.Repeat("02", 32))
+	id, public := signer.Admission()
+	if hex.EncodeToString(public) != signer.PublicKey() || id == "" {
+		t.Fatalf("entry %q %x", id, public)
 	}
-	if entry.GetKeyId() == "" || entry.GetKeyId() != again.Published().GetKeyId() {
-		t.Fatalf("key id %q is not stable", entry.GetKeyId())
+	if againID, _ := again.Admission(); againID != id {
+		t.Fatalf("key id %q is not stable", id)
+	}
+	if otherID, _ := other.Admission(); otherID == id {
+		t.Fatal("two keys share a key id")
 	}
 }

@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
 	"github.com/codefly-dev/authority/libraries/authority-client/go/refusal"
 	"google.golang.org/grpc/metadata"
 )
@@ -199,13 +198,15 @@ func SignedBy(md metadata.MD, publicKeys []string) string {
 // keys in admission_keys with this purpose, never among the Work Context keys.
 const Purpose = "hop-admission"
 
-// Published is the signer's public key as the authority publishes it in Keys'
-// admission_keys: Ed25519, this purpose, and a key id derived from the key, so
-// the same seed always publishes the same entry.
-func (s *Signer) Published() *authorityv1.PublicKey {
-	public := s.key.Public().(ed25519.PublicKey)
-	sum := sha256.Sum256(public)
-	return &authorityv1.PublicKey{KeyId: "hop-" + hex.EncodeToString(sum[:8]), Algorithm: "Ed25519", PublicKey: public, Purpose: Purpose}
+// Admission is the signer's public key as the authority publishes it in Keys'
+// admission_keys, with algorithm Ed25519 and purpose Purpose: a key id derived
+// from the key, so the same seed always publishes the same entry, and the raw
+// public key. It names no generated type, so a host with bindings of its own
+// builds the entry in them.
+func (s *Signer) Admission() (keyID string, public []byte) {
+	key := s.key.Public().(ed25519.PublicKey)
+	sum := sha256.Sum256(key)
+	return "hop-" + hex.EncodeToString(sum[:8]), []byte(key)
 }
 
 // ReplayKey is globally namespaced by signing key and random nonce, not by method:
