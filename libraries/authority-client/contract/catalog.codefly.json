@@ -1,7 +1,7 @@
 {
   "schema": "codefly/module-api-contracts/v1",
   "package": "local",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "endpoints": [
     {
       "service": "local",
@@ -10,13 +10,13 @@
       "kind": "protobuf",
       "package": "api",
       "path": "contract.binpb",
-      "digest": "sha256:db72fad453626e60f98492ba85019c68b797f1aaef9943a4e524dd521d8c7e4c",
+      "digest": "sha256:4d92544f5e186880be4d17079ad6dc056a6f9a84a0e1ebb298a2ff9b72863a46",
       "services": [
         {
-          "name": "GatewayService",
-          "fullName": "api.GatewayService",
+          "name": "LocalService",
+          "fullName": "api.LocalService",
           "procedures": [
-            "/api.GatewayService/Version"
+            "/api.LocalService/Version"
           ]
         }
       ]

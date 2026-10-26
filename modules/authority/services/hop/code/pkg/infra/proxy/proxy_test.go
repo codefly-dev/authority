@@ -107,7 +107,7 @@ func setup(t *testing.T) (through gen.HopServiceClient, direct gen.HopServiceCli
 	t.Cleanup(moduleServer.Stop)
 	p := &proxy.Proxy{
 		Decide:    decide.Decider{Routes: &routing.Routing{Endpoints: []routing.RouteEndpoint{{Audience: "console", Transport: "grpc", Address: "console", Methods: []string{"/api.HopService/Version"}}}}, Authority: a, Modules: map[string]bool{"console": true}}.Decide,
-		Upstreams: map[string]*grpc.ClientConn{"console": dial(t, moduleListener, proxy.DialOptions()...)},
+		Upstreams: map[string]*grpc.ClientConn{"console": dial(t, moduleListener, grpc.WithDefaultCallOptions(proxy.CallOptions()...))},
 		Proof:     proof,
 		Refused:   func(method string, err error) { *refused = append(*refused, method+": "+err.Error()) },
 	}

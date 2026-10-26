@@ -79,3 +79,10 @@ func TestHTTPTransportNeverContactsAnEnvironmentProxy(t *testing.T) {
 		t.Fatal(fmt.Sprint("control: the default transport did not reach the environment proxy, so this test proves nothing"))
 	}
 }
+
+// The HTTP seam cannot be unwrapped into a *http.Transport to reconfigure.
+func TestHTTPTransportCannotBeReconfigured(t *testing.T) {
+	if _, ok := HTTPTransport().(*http.Transport); ok {
+		t.Fatal("HTTPTransport exposes the shared *http.Transport")
+	}
+}

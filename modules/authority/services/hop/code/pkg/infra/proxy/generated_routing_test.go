@@ -182,5 +182,5 @@ func routedBackend(t *testing.T, register func(*grpc.Server)) *grpc.ClientConn {
 	register(server)
 	go func() { _ = server.Serve(listener) }()
 	t.Cleanup(server.Stop)
-	return dial(t, listener, proxy.DialOptions()...)
+	return dial(t, listener, grpc.WithDefaultCallOptions(proxy.CallOptions()...))
 }

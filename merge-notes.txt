@@ -1,0 +1,43 @@
+PR #25 merge resolution notes
+
+Initial branch: feat/local-authority-on-core at 2c7839badac54f9ef95194ed03c8800c35b2a14d.
+Initial main merged: bc93d1003088c5901455c375cac17bb0b6f5a355 (PR #16).
+
+Four conflicted files:
+
+1. libraries/authority-client/contract/catalog.codefly.json
+   Regenerated with codefly generate client from the merged local service proto.
+   Preserves main's 0.1.0 / LocalService publication and the branch's full
+   authority, composition, installation and owner-qualified work-context contract.
+   The resulting descriptor digest is
+   sha256:4d92544f5e186880be4d17079ad6dc056a6f9a84a0e1ebb298a2ff9b72863a46.
+
+2. libraries/authority-client/contract/contract.binpb
+   Regenerated, never edited by hand or selected wholesale from either side.
+   Descriptor comparison excluding source locations confirms that the sole
+   semantic difference from the branch is GatewayService -> LocalService.
+   AuthorizeTransfer, principal/role installation data and strict owner fields
+   remain intact. Go, Python and TypeScript regeneration is byte-identical to
+   the automatically merged generated client sources.
+
+3. libraries/authority-client/library.codefly.yaml
+   Used the Codefly-generated manifest for all three languages. Retains main's
+   version 0.1.0 and LocalService name, records the combined descriptor digest,
+   and truthfully records the development CLI and pinned proto companion 0.0.17.
+
+4. modules/authority/services/local/code/go.mod
+   Kept both direct dependencies: main's authority-client for its transport
+   integration and the branch's authority-core adapter. Retained the local
+   authority-core replacement and the newer Core b57347f09515 pin.
+
+Integration follow-ups:
+- Verified local protobuf generation with codefly generate proto and regenerated
+  clients with codefly generate client, using the installed codefly-main binary.
+  The older PATH binary could not resolve Python's buf.validate dependency;
+  restored its incomplete output before successfully generating all languages.
+- Refreshed 14 reviewed tools/noproxygate/generated.json digests after generation;
+  retained every gate rule and its generated-file provenance checks.
+- Go dependency resolution aligned the gate's Core pin with the branch.
+- Made the Python key-rotation test hold the mocked refresh until the held-key
+  assertion finishes; this removes a scheduling race without changing production
+  verification or extending trust in retired keys.
