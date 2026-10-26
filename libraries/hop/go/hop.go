@@ -174,10 +174,13 @@ func IdentityOf(wc *basev0.WorkContextV1) Identity {
 	return id
 }
 
+// flatten stamps only kind-wide scopes. A resource-limited or owner-selected
+// scope is never a kind-wide one; the module reads it from the claims
+// (AllowsOwned), which keep its ids and owner.
 func flatten(scopes []*basev0.WorkScopeV1) []string {
 	var out []string
 	for _, s := range scopes {
-		if len(s.GetResourceIds()) > 0 {
+		if len(s.GetResourceIds()) > 0 || s.GetResourceOwnerId() != "" {
 			continue
 		}
 		for _, action := range s.GetActions() {

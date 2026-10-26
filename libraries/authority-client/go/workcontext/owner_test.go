@@ -1,59 +1,45 @@
 package workcontext_test
 
 import (
-	"os"
 	"testing"
+
+	reader "github.com/codefly-dev/authority/libraries/authority-client/go/workcontext"
 
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 )
 
-// ownedScope is {kind, [action], resource_owner_id: owner, resource_ids: ids},
-// with the owner selector written as WorkScopeV1 field 4: the target's field,
-// carried as an unknown field until core declares it.
+// ownedScope is {kind, [action], resource_owner_id: owner, resource_ids: ids}.
 func ownedScope(t *testing.T, kind, action, owner string, ids ...string) *basev0.WorkScopeV1 {
 	t.Helper()
-	raw, err := proto.Marshal(&basev0.WorkScopeV1{ResourceKind: kind, Actions: []string{action}, ResourceIds: ids})
-	if err != nil {
-		t.Fatal(err)
-	}
-	raw = protowire.AppendString(protowire.AppendTag(raw, 4, protowire.BytesType), owner)
-	out := &basev0.WorkScopeV1{}
-	if err := proto.Unmarshal(raw, out); err != nil {
-		t.Fatal(err)
-	}
-	return out
+	return &basev0.WorkScopeV1{ResourceKind: kind, Actions: []string{action}, ResourceIds: ids, ResourceOwnerId: owner}
 }
 
-// ownerChecker is the target's owner-aware question: may the claims act with
+// ownerChecker is the owner-aware question: may the claims act with
 // action on resourceID of kind, whose owner is ownerID?
 type ownerChecker interface {
 	AllowsOwned(kind, action, resourceID, ownerID string) bool
 }
 
-// TARGET (solution principal; conformance RunSolutionPrincipalTarget): run
-// with AUTHORITY_TARGET=solution-principal. Claims take the resource's owner
-// and refuse a mismatch; the owner-blind Allows never admits an owner-selected
+// The solution principal (conformance RunSolutionPrincipalTarget): Claims take
+// the resource's owner and refuse a mismatch; the owner-blind Allows never admits an owner-selected
 // scope; an owner with ids admits only when both match; a whole-kind ask with
 // an owner (the list path) is admitted by an owner-selected scope; a plain
 // scope (an organization grant) names resources, not owners, so it admits
 // whatever the owner. The method gate is coarse (kind and action): this check
 // is the module's, comparing the scope's owner with the resource's.
 func TestClaimsAdmitAnOwnerSelectedScopeOnlyForItsOwner(t *testing.T) {
-	if os.Getenv("AUTHORITY_TARGET") != "solution-principal" {
-		t.Skip("target contract, not yet implemented: run with AUTHORITY_TARGET=solution-principal")
-	}
 	c := body(t, "session")
 	c.AuthorityScopes = []*basev0.WorkScopeV1{ownedScope(t, "record", "read", "principal-u"), ownedScope(t, "note", "read", "principal-u", "n1"),
 		{ResourceKind: "plain", Actions: []string{"read"}}}
 	claims := read(t, c)
 	if claims.Allows("record", "read", "") || claims.Allows("record", "read", "r1") || claims.Allows("note", "read", "n1") {
-		t.Fatal("target: the owner-blind Allows admits an owner-selected scope")
+		t.Fatal("the owner-blind Allows admits an owner-selected scope")
 	}
 	owned, ok := any(claims).(ownerChecker)
 	if !ok {
-		t.Fatal("target: Claims has no AllowsOwned(kind, action, resourceID, ownerID)")
+		t.Fatal("Claims has no AllowsOwned(kind, action, resourceID, ownerID)")
 	}
 	for _, q := range []struct {
 		kind, id, owner string
@@ -65,7 +51,7 @@ func TestClaimsAdmitAnOwnerSelectedScopeOnlyForItsOwner(t *testing.T) {
 		{"plain", "p1", "principal-u", true}, {"plain", "p1", "", true},
 	} {
 		if owned.AllowsOwned(q.kind, "read", q.id, q.owner) != q.allowed {
-			t.Fatalf("target: AllowsOwned(%s, read, %s, %s) want %v", q.kind, q.id, q.owner, q.allowed)
+			t.Fatalf("AllowsOwned(%s, read, %s, %s) want %v", q.kind, q.id, q.owner, q.allowed)
 		}
 	}
 }
@@ -99,22 +85,46 @@ func ownerOf(t *testing.T, scope *basev0.WorkScopeV1) string {
 	return ""
 }
 
-// TARGET: Scopes() never hands a module an owner-selected scope as the whole
+// Scopes() never hands a module an owner-selected scope as the whole
 // kind: each it returns keeps its resource owner.
 func TestScopesKeepTheirResourceOwner(t *testing.T) {
-	if os.Getenv("AUTHORITY_TARGET") != "solution-principal" {
-		t.Skip("target contract, not yet implemented: run with AUTHORITY_TARGET=solution-principal")
-	}
 	c := body(t, "session")
 	c.AuthorityScopes = []*basev0.WorkScopeV1{ownedScope(t, "record", "read", "principal-u"), {ResourceKind: "plain", Actions: []string{"read"}}}
 	scopes := read(t, c).Scopes()
 	if len(scopes) != 2 {
-		t.Fatalf("target: Scopes() returned %d scopes, want 2", len(scopes))
+		t.Fatalf("Scopes() returned %d scopes, want 2", len(scopes))
 	}
 	for _, scope := range scopes {
 		want := map[string]string{"record": "principal-u", "plain": ""}[scope.GetResourceKind()]
 		if got := ownerOf(t, scope); got != want {
-			t.Fatalf("target: Scopes() returned %s owned by %q, want %q", scope.GetResourceKind(), got, want)
+			t.Fatalf("Scopes() returned %s owned by %q, want %q", scope.GetResourceKind(), got, want)
 		}
+	}
+}
+
+// A signed chain whose hop drops or changes the resource owner is a widening:
+// it is refused, while a hop narrowing within the owner verifies.
+func TestAChainThatDropsOrChangesTheOwnerIsRefused(t *testing.T) {
+	for name, tc := range map[string]struct {
+		last *basev0.WorkScopeV1
+		ok   bool
+	}{
+		"narrowed within the owner": {&basev0.WorkScopeV1{ResourceKind: "record", Actions: []string{"read"}, ResourceIds: []string{"r1"}, ResourceOwnerId: "principal-u"}, true},
+		"the owner dropped":         {&basev0.WorkScopeV1{ResourceKind: "record", Actions: []string{"read"}}, false},
+		"the owner changed":         {&basev0.WorkScopeV1{ResourceKind: "record", Actions: []string{"read"}, ResourceOwnerId: "principal-v"}, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := body(t, "delegated")
+			owned := &basev0.WorkScopeV1{ResourceKind: "record", Actions: []string{"read"}, ResourceOwnerId: "principal-u"}
+			c.AuthorityScopes = []*basev0.WorkScopeV1{owned}
+			for _, actor := range c.ActorChain {
+				actor.GrantedScopes = []*basev0.WorkScopeV1{owned}
+			}
+			c.ActorChain[len(c.ActorChain)-1].GrantedScopes = []*basev0.WorkScopeV1{tc.last}
+			_, err := reader.Authenticate(stampedToken(tokenFor(t, c)), "test-proof", c.GetAudience(), trustFor(c))
+			if (err == nil) != tc.ok {
+				t.Fatalf("authenticate: %v", err)
+			}
+		})
 	}
 }

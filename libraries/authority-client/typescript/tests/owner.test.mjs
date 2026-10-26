@@ -1,17 +1,15 @@
-// TARGET (solution principal; conformance RunSolutionPrincipalTarget). Run with
-// AUTHORITY_TARGET=solution-principal. A module served in TypeScript never reads
-// an owner-selected scope as the whole kind: the owner-blind allows refuses it,
-// and allowsOwned admits a resource only for its owner (an owner with ids only
-// when both match; a plain scope names resources, not owners).
+// The solution principal (conformance RunSolutionPrincipalTarget), read in
+// TypeScript: the owner-blind allows refuses an owner-selected scope,
+// allowsOwned admits a resource only for its owner, the hop's identity leaves
+// owner-selected scopes out, and a chain dropping or changing the owner is refused.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash, createPrivateKey, sign } from 'node:crypto';
 import { test } from 'node:test';
 import { create, fromBinary, toBinary } from '@bufbuild/protobuf';
 import { KeysResponseSchema, PublicKeySchema, WorkContextV1Schema, WorkScopeV1Schema } from '@codefly-dev/authority-client';
-import { authenticateClaims, trustFromKeys } from '@codefly-dev/authority-client/work-context';
+import { authenticateClaims, identityOf, trustFromKeys, Unauthenticated } from '@codefly-dev/authority-client/work-context';
 
-const skip = process.env.AUTHORITY_TARGET !== 'solution-principal' && 'target contract, not yet implemented: run with AUTHORITY_TARGET=solution-principal';
 const fixtures = JSON.parse(readFileSync(new URL('../../testdata/claims.json',import.meta.url),'utf8'));
 const encode = bytes => Buffer.from(bytes).toString('base64url');
 const signer = createPrivateKey({key: Buffer.concat([Buffer.from('302e020100300506032b657004220420','hex'), Buffer.alloc(32)]), format: 'der', type: 'pkcs8'});
@@ -21,18 +19,17 @@ const signed = context => { const payload = toBinary(WorkContextV1Schema,context
 const trustFor = context => trustFromKeys(create(KeysResponseSchema,{issuer:context.issuer,keys:[create(PublicKeySchema,{keyId:context.keyId,algorithm:'Ed25519',publicKey})]}), ()=>(Number(context.notBeforeUnix)+1)*1000);
 const stamped = token => ({'x-codefly-work-context':token,'x-codefly-hop-proof':'test-proof','x-codefly-hop-context':createHash('sha256').update(token).digest('hex')});
 const read = context => authenticateClaims(stamped(signed(context)),'test-proof',context.audience,trustFor(context));
+const scope = fields => create(WorkScopeV1Schema, fields);
 
-test('claims admit an owner-selected scope only for its owner', {skip}, () => {
-  assert.ok(WorkScopeV1Schema.fields.some(f => f.name === 'resource_owner_id'), 'target: WorkScopeV1 has no resource_owner_id');
+test('claims admit an owner-selected scope only for its owner', () => {
   const context = body('session');
   context.authorityScopes = [
-    create(WorkScopeV1Schema,{resourceKind:'record',actions:['read'],resourceOwnerId:'principal-u'}),
-    create(WorkScopeV1Schema,{resourceKind:'note',actions:['read'],resourceIds:['n1'],resourceOwnerId:'principal-u'}),
-    create(WorkScopeV1Schema,{resourceKind:'plain',actions:['read']}),
+    scope({resourceKind:'record',actions:['read'],resourceOwnerId:'principal-u'}),
+    scope({resourceKind:'note',actions:['read'],resourceIds:['n1'],resourceOwnerId:'principal-u'}),
+    scope({resourceKind:'plain',actions:['read']}),
   ];
   const claims = read(context);
-  assert.ok(!claims.allows('record','read') && !claims.allows('record','read','r1') && !claims.allows('note','read','n1'), 'target: the owner-blind allows admits an owner-selected scope');
-  assert.equal(typeof claims.allowsOwned, 'function', 'target: claims have no allowsOwned(kind, action, resourceId, ownerId)');
+  assert.ok(!claims.allows('record','read') && !claims.allows('record','read','r1') && !claims.allows('note','read','n1'));
   for (const [kind, resource, owner, allowed] of [
     ['record','r1','principal-u',true], ['record','r1','principal-v',false], ['record','r1','',false],
     ['note','n1','principal-u',true], ['note','n2','principal-u',false], ['note','n1','principal-v',false],
@@ -40,3 +37,25 @@ test('claims admit an owner-selected scope only for its owner', {skip}, () => {
     ['plain','p1','principal-u',true],
   ]) assert.equal(claims.allowsOwned(kind,'read',resource,owner), allowed, `${kind} ${resource} ${owner}`);
 });
+
+test('the hop identity never reads an owner-selected scope as the whole kind', () => {
+  const context = body('session');
+  context.authorityScopes = [scope({resourceKind:'record',actions:['read'],resourceOwnerId:'principal-u'})];
+  assert.ok(!identityOf(context).scopes.includes('record:read'));
+});
+
+for (const [name, last, ok] of [
+  ['narrowed within the owner', {resourceIds:['r1'],resourceOwnerId:'principal-u'}, true],
+  ['the owner dropped', {}, false],
+  ['the owner changed', {resourceOwnerId:'principal-v'}, false],
+]) {
+  test(`a chain hop: ${name}`, () => {
+    const context = body('delegated');
+    const owned = () => scope({resourceKind:'record',actions:['read'],resourceOwnerId:'principal-u'});
+    context.authorityScopes = [owned()];
+    for (const actor of context.actorChain) actor.grantedScopes = [owned()];
+    context.actorChain.at(-1).grantedScopes = [scope({resourceKind:'record',actions:['read'],...last})];
+    if (ok) read(context);
+    else assert.throws(() => read(context), e => e instanceof Unauthenticated);
+  });
+}

@@ -57,6 +57,8 @@ export interface Scope {
   readonly resourceKind: string;
   readonly actions: readonly string[];
   readonly resourceIds: readonly string[];
+  /** The principal whose resources the scope selects; "" selects no owner. */
+  readonly resourceOwnerId: string;
 }
 
 export interface Claims {
@@ -66,6 +68,9 @@ export interface Claims {
   readonly context: WorkContextV1;
   /** Empty resourceID asks for the entire kind. Actions and IDs are literal. */
   allows(kind: string, action: string, resourceID?: string): boolean;
+  /** allows for a resource owned by ownerID: an owner-selected grant covers it
+   * only when it names that owner; allows names none, so it never does. */
+  allowsOwned(kind: string, action: string, resourceID: string, ownerID: string): boolean;
 }
 
 /** Server-side request headers; repeated values must not be discarded. */
@@ -117,25 +122,33 @@ export function authenticateClaims(headers: StampHeaders, proof: string, audienc
     resourceKind: scope.resourceKind,
     actions: Object.freeze([...scope.actions]),
     resourceIds: Object.freeze([...scope.resourceIds]),
+    resourceOwnerId: scope.resourceOwnerId,
   })));
+  const allowsOwned = (kind: string, action: string, resourceID: string, ownerID: string): boolean => {
+    if (!kind || !action) return false;
+    return scopes.some(scope => scope.resourceKind === kind && scope.actions.includes(action) &&
+      (scope.resourceOwnerId === "" || scope.resourceOwnerId === ownerID) &&
+      (scope.resourceIds.length === 0 || (resourceID !== "" && scope.resourceIds.includes(resourceID))));
+  };
   return Object.freeze({
     audience: context.audience,
     scopes,
     context,
     allows(kind: string, action: string, resourceID = ""): boolean {
-      if (!kind || !action) return false;
-      return scopes.some(scope => scope.resourceKind === kind && scope.actions.includes(action) &&
-        (scope.resourceIds.length === 0 || (resourceID !== "" && scope.resourceIds.includes(resourceID))));
+      return allowsOwned(kind, action, resourceID, "");
     },
+    allowsOwned,
   });
 }
 
 /** Core's ScopeContained: per action, a whole-kind row covers it, or the child's
- * ids all lie within the rows of that kind holding the action. */
+ * ids all lie within the rows of that kind holding the action. A row naming an
+ * owner covers only a child naming the same owner. */
 export function scopeContained(child: WorkScopeV1, parents: readonly WorkScopeV1[]): boolean {
   if (!parents.some(p => p.resourceKind === child.resourceKind)) return false;
   for (const action of child.actions) {
-    const rows = parents.filter(p => p.resourceKind === child.resourceKind && p.actions.includes(action));
+    const rows = parents.filter(p => p.resourceKind === child.resourceKind && p.actions.includes(action) &&
+      (p.resourceOwnerId === "" || p.resourceOwnerId === child.resourceOwnerId));
     if (rows.some(p => p.resourceIds.length === 0)) continue;
     const ids = new Set(rows.flatMap(p => p.resourceIds));
     if (child.resourceIds.length === 0 || child.resourceIds.some(id => !ids.has(id))) return false;
@@ -234,7 +247,7 @@ export interface Identity {
 function flatten(scopes: readonly WorkScopeV1[]): string[] {
   const out: string[] = [];
   for (const scope of scopes) {
-    if (scope.resourceIds.length > 0) continue;
+    if (scope.resourceIds.length > 0 || scope.resourceOwnerId !== "") continue;
     for (const action of scope.actions) if (!out.includes(`${scope.resourceKind}:${action}`)) out.push(`${scope.resourceKind}:${action}`);
   }
   return out;

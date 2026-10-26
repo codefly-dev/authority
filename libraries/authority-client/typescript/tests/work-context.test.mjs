@@ -22,7 +22,7 @@ for (const fixture of fixtures) {
   test(`Core-minted fixture authenticates: ${fixture.name}`, () => {
     const claims = read(body(fixture.name));
     assert.equal(claims.audience,fixture.audience);
-    assert.deepEqual(claims.scopes, fixture.scopes.map(s=>({resourceKind:s.resource_kind,actions:s.actions??[],resourceIds:s.resource_ids??[]})));
+    assert.deepEqual(claims.scopes, fixture.scopes.map(s=>({resourceKind:s.resource_kind,actions:s.actions??[],resourceIds:s.resource_ids??[],resourceOwnerId:s.resource_owner_id??''})));
     for (const probe of fixture.probes) assert.equal(claims.allows(probe.kind,probe.action,probe.resource_id),probe.allowed);
   });
 }

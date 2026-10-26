@@ -11,7 +11,7 @@ require (
 	github.com/codefly-dev/authority/libraries/delivery/go v0.0.0
 	github.com/codefly-dev/authority/libraries/hop/go v0.0.0
 	github.com/codefly-dev/authority/libraries/resources/go v0.0.0
-	github.com/codefly-dev/core v0.19.7-0.20261025185759-e501458995d0
+	github.com/codefly-dev/core v0.19.7-0.20261026022918-8af4b787a435
 	github.com/codefly-dev/sdk-go v0.4.0
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.31.0

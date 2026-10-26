@@ -1,0 +1,12 @@
+# The authority's one generic core: its decisions over shared domain objects,
+# then (next) its service behind a Store interface. The local authority wraps it
+# with an in-memory store; a host (accounts) imports it with its own. Declared like the
+# conformance library.
+kind: library
+name: authority-core
+version: 0.0.0
+languages:
+    - name: go
+      path: go/
+      exports:
+        - github.com/codefly-dev/authority/libraries/authority-core/go
