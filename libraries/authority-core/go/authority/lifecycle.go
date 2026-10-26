@@ -176,24 +176,43 @@ func (s *Service) WithdrawModule(ctx context.Context, name string) error {
 type InstallStep func(ctx context.Context, inst domain.Installation) error
 
 // Install installs a solution at an organization: pending until its step
-// converges, then active. Its principal is stable per organization and
+// converges, then active; the host's own setup asking the same install
+// while it is pending resumes it. Its principal is stable per organization and
 // target, so a reinstall reuses it; nobody holds a role until granted one,
-// the installing person included. A caller, when named, must administer the
-// organization; a host's own setup names none.
-func (s *Service) Install(ctx context.Context, caller *Person, org, target, agentRole, installedBy string, step InstallStep) (domain.Installation, error) {
+// the installing person included. The caller must administer the organization.
+func (s *Service) Install(ctx context.Context, caller Person, org, target, agentRole, installedBy string, step InstallStep) (domain.Installation, error) {
+	return s.install(ctx, func(tx Tx) error {
+		p, err := tx.Person(caller.ID)
+		if err != nil && !errors.Is(err, domain.ErrNotFound) {
+			return err
+		}
+		if caller.ID == "" || err != nil || p.Organization != org || !decide.IsAdministrator(p) {
+			return domain.Refuse("installation administration requires an administrator or owner of organization %q", org)
+		}
+		return nil
+	}, org, target, agentRole, installedBy, step)
+}
+
+// InstallAsHost is for trusted host setup, never a request handler. It installs
+// a solution without person authorization; an absent person cannot select it.
+func (s *Service) InstallAsHost(ctx context.Context, org, target, agentRole, installedBy string, step InstallStep) (domain.Installation, error) {
+	return s.install(ctx, func(Tx) error { return nil }, org, target, agentRole, installedBy, step)
+}
+
+func (s *Service) install(ctx context.Context, authorize func(Tx) error, org, target, agentRole, installedBy string, step InstallStep) (domain.Installation, error) {
 	var inst domain.Installation
 	var generation uint64
 	err := s.store.Write(ctx, func(tx Tx) error {
-		if caller != nil {
-			p, err := tx.Person(caller.ID)
-			if err != nil || p.Organization != org || !decide.IsAdministrator(p) {
-				return domain.Refuse("installation administration requires an administrator or owner of organization %q", org)
-			}
+		if err := authorize(tx); err != nil {
+			return err
 		}
 		if _, err := tx.Organization(org); err != nil {
 			return notFound(err)
 		}
 		m, err := tx.ModuleNamed(target)
+		if err != nil && !errors.Is(err, domain.ErrNotFound) {
+			return err
+		}
 		if err != nil || m.Kind != domain.KindSolution {
 			return domain.Missing("%q is not a composed solution; a module is installed by composition", target)
 		}
@@ -201,11 +220,18 @@ func (s *Service) Install(ctx context.Context, caller *Person, org, target, agen
 		if _, ok := m.Roles[agentRole]; !ok {
 			return domain.Missing("role %q is not one %s declares", agentRole, target)
 		}
-		if p, err := tx.Person(installedBy); err != nil || p.Organization != org {
+		p, err := tx.Person(installedBy)
+		if err != nil && !errors.Is(err, domain.ErrNotFound) {
+			return err
+		}
+		if err != nil || p.Organization != org {
 			return domain.Refuse("owner %q is not a member of %s", installedBy, org)
 		}
 		id := s.cfg.InstallationID(org, target)
 		existing, err := tx.Installation(id)
+		if err != nil && !errors.Is(err, domain.ErrNotFound) {
+			return err
+		}
 		if err == nil && existing.Status == domain.Pending {
 			if existing.AgentRole != agentRole || existing.InstalledBy != installedBy {
 				return domain.NotNow("%s is pending at %s as %s for %s; only that install resumes it", target, org, existing.AgentRole, existing.InstalledBy)
@@ -222,15 +248,23 @@ func (s *Service) Install(ctx context.Context, caller *Person, org, target, agen
 		principal := s.cfg.PrincipalID(org, target)
 		if _, err := tx.Module(principal); err == nil {
 			return domain.Refuse("the principal %q of %s at %s names a module", principal, target, org)
+		} else if err != nil && !errors.Is(err, domain.ErrNotFound) {
+			return err
 		}
 		if _, err := tx.Person(principal); err == nil {
 			return domain.Refuse("the principal %q of %s at %s names a person", principal, target, org)
+		} else if err != nil && !errors.Is(err, domain.ErrNotFound) {
+			return err
 		}
 		if other, err := tx.InstallationByPrincipal(principal); err == nil && other.ID != id {
 			return domain.Refuse("the principal %q of %s at %s is another installation's", principal, target, org)
+		} else if err != nil && !errors.Is(err, domain.ErrNotFound) {
+			return err
 		}
 		if _, err := tx.TombstoneByPrincipal(principal); err == nil {
 			return domain.Refuse("the principal %q of %s at %s is a withdrawn module's", principal, target, org)
+		} else if err != nil && !errors.Is(err, domain.ErrNotFound) {
+			return err
 		}
 		inst = domain.Installation{ID: id, Organization: org, Target: target, Status: domain.Pending, Revision: existing.Revision + 1,
 			AgentRole: agentRole, PrincipalID: principal, InstalledBy: installedBy}
@@ -253,6 +287,9 @@ func (s *Service) Install(ctx context.Context, caller *Person, org, target, agen
 			return notFound(err)
 		}
 		m, err := tx.ModuleNamed(target)
+		if err != nil && !errors.Is(err, domain.ErrNotFound) {
+			return err
+		}
 		if err != nil || m.Generation != generation || current.Status != domain.Pending || current.Revision != inst.Revision {
 			return domain.NotNow("installation attempt %s changed before acknowledgement", inst.ID)
 		}
@@ -263,40 +300,53 @@ func (s *Service) Install(ctx context.Context, caller *Person, org, target, agen
 	return inst, err
 }
 
-// Uninstall disables an installation and its principal at once: every
-// capability sealed to it is refused, every capability of its organization
-// minted before is refused (a hop through the solution sealed elsewhere
-// included), its role grants are cleared, and the data its principal owns
-// stays owned. A caller, when named, must administer organization; a host's
-// own setup names none. Another organization's installation answers as an
-// absent one.
-func (s *Service) Uninstall(ctx context.Context, caller *Person, organization, installationID string) error {
+// Uninstall disables a solution installation and its principal at once, clears
+// its grants and revokes capabilities sealed to it or its organization. The
+// caller must currently administer the organization. Module installations
+// belong to host composition and cannot be uninstalled by a person.
+func (s *Service) Uninstall(ctx context.Context, caller Person, organization, installationID string) error {
 	return s.store.Write(ctx, func(tx Tx) error {
-		// Anyone but a current administrator of the organization named learns
-		// nothing of its installations: the foreign answer comes before any
-		// installation is read.
-		if caller != nil {
-			p, err := tx.Person(caller.ID)
-			if err != nil || p.Organization != organization || !decide.IsAdministrator(p) {
-				return decide.ForeignInstallation(installationID, organization)
-			}
+		p, err := tx.Person(caller.ID)
+		if err != nil && !errors.Is(err, domain.ErrNotFound) {
+			return err
 		}
-		inst, err := tx.Installation(installationID)
-		if errors.Is(err, domain.ErrNotFound) || (err == nil && inst.Organization != organization) {
+		// Authorize before reading the installation: unauthorized callers
+		// cannot tell a present installation from an absent one.
+		if caller.ID == "" || err != nil || p.Organization != organization || !decide.IsAdministrator(p) {
 			return decide.ForeignInstallation(installationID, organization)
 		}
+		inst, err := installationIn(tx, organization, installationID)
 		if err != nil {
 			return err
 		}
-		// A module is installed by composition: no person uninstalls it. The
-		// host's own setup (no caller) may retire it at one organization; it
-		// stays retired, since only a withdrawal and a redelivery reactivate
-		// a module's installations.
-		if m, err := tx.ModuleNamed(inst.Target); caller != nil && err == nil && m.Kind != domain.KindSolution {
+		// This identity survives withdrawal of the module manifest. A
+		// solution always has both its own principal and an installer.
+		if inst.PrincipalID == "" || inst.InstalledBy == "" {
 			return domain.Refuse("%s is a module, installed by composition: it is withdrawn, never uninstalled", inst.Target)
 		}
 		return s.revoke(tx, inst)
 	})
+}
+
+// UninstallAsHost retires an installation for trusted host setup and teardown,
+// never for a request handler. A module stays retired through routine delivery;
+// only host withdrawal and redelivery reactivate it.
+func (s *Service) UninstallAsHost(ctx context.Context, organization, installationID string) error {
+	return s.store.Write(ctx, func(tx Tx) error {
+		inst, err := installationIn(tx, organization, installationID)
+		if err != nil {
+			return err
+		}
+		return s.revoke(tx, inst)
+	})
+}
+
+func installationIn(tx Tx, organization, installationID string) (domain.Installation, error) {
+	inst, err := tx.Installation(installationID)
+	if errors.Is(err, domain.ErrNotFound) || (err == nil && inst.Organization != organization) {
+		return inst, decide.ForeignInstallation(installationID, organization)
+	}
+	return inst, err
 }
 
 // revoke disables inst: its revision and its organization's authorization

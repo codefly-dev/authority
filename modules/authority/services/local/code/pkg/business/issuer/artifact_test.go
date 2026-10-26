@@ -22,10 +22,10 @@ import (
 func composeRobin(t *testing.T, k *testkit.Kit) {
 	t.Helper()
 	for _, m := range []state.Manifest{
-		{Module: "robin", Principal: "robin", Kind: "module", Generation: 1,
+		{Name: "robin", Principal: "robin", Kind: "module", Generation: 1,
 			ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope("robin.intents", "read", "run", "import", "configure", "activate"), testkit.Scope("robin.tasks", "execute", "read")},
 			Bindings:      map[string]state.Binding{}},
-		{Module: "assistant", Principal: "assistant", Kind: "module", Generation: 1,
+		{Name: "assistant", Principal: "assistant", Kind: "module", Generation: 1,
 			ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope("assistant.task", "run")},
 			Bindings: map[string]state.Binding{"robin": {ID: "robin", Audience: "robin",
 				InvokeScopes: []*basev0.WorkScopeV1{testkit.Scope("robin.intents", "activate", "run")}}}},
@@ -153,7 +153,7 @@ func TestAnInstallationNamesItsNamespace(t *testing.T) {
 	k := testkit.New(t)
 	composeRobin(t, k)
 	inst, ok := k.State.Installation(state.InstallationID("acme", "robin"))
-	if !ok || inst.Namespace() != "acme.robin" {
-		t.Fatalf("namespace = %q (%v)", inst.Namespace(), ok)
+	if !ok || state.Namespace(inst) != "acme.robin" {
+		t.Fatalf("namespace = %q (%v)", state.Namespace(inst), ok)
 	}
 }

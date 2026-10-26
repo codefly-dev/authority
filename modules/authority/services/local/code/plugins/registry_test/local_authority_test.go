@@ -4,6 +4,8 @@ package registry_test
 
 import (
 	"context"
+	core "github.com/codefly-dev/authority/libraries/authority-core/go/authority"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"net"
 	"os"
 	"path/filepath"
@@ -30,6 +32,10 @@ import (
 func TestTheLocalAuthorityPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
 	k := testkit.New(t)
 	testkit.SolutionTools(t, k)
+	// The staleness probe revokes the viewer's own role, so her access to the
+	// wiki must be hers alone: the composition's team grants become the same
+	// role granted to each member directly.
+	directGrants(t, k, state.InstallationID("acme", "wiki"), "viewer", map[string][]string{"finance": {"maya", "alex"}, "engineering": {"remi", "alex", "dev"}})
 	if err := k.State.LoadFixture(context.Background(), []byte(`roles:
   - organization: acme
     name: owner
@@ -43,7 +49,7 @@ people:
 		t.Fatal(err)
 	}
 	source := testkit.Wiki(1)
-	source.Module, source.Principal = "assistant", "assistant"
+	source.Name, source.Principal = "assistant", "assistant"
 	source.Bindings = map[string]state.Binding{
 		"directory": {ID: "directory", Audience: "org-directory", InvokeScopes: testkit.OrgDirectory(1).ResourceKinds},
 		"documents": testkit.OrgDirectory(1).Bindings["documents"],
@@ -53,7 +59,7 @@ people:
 	if _, err := k.State.ApplyManifest(source); err != nil {
 		t.Fatal(err)
 	}
-	installedChain, err := k.State.Install(context.Background(), "acme", source.Module, "viewer", "alex")
+	installedChain, err := k.State.InstallAsHost(context.Background(), "acme", source.Name, "viewer", "alex")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,12 +115,12 @@ people:
 	// A dedicated declared workload with no active installation exercises the
 	// refusal without removing any installation other cases need.
 	absent := testkit.Documents(2)
-	absent.Module, absent.Principal = "runtime", "runtime"
+	absent.Name, absent.Principal = "runtime", "runtime"
 	if _, err := k.State.ApplyManifest(absent); err != nil {
 		t.Fatal(err)
 	}
 	for _, org := range []string{"acme", "globex"} {
-		if err := k.State.Revoke(state.InstallationID(org, "runtime")); err != nil {
+		if err := k.State.UninstallAsHost(state.InstallationID(org, "runtime")); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -146,7 +152,7 @@ people:
 				})
 				return func() { once.Do(func() { close(done) }) }
 			},
-			Revoke: func(_ context.Context, id string) error { return k.State.Revoke(id) },
+			Revoke: func(_ context.Context, id string) error { return k.State.UninstallAsHost(id) },
 		},
 		UnentitledToken: "fixture-no-roles",
 		Organization:    "acme", ViewerToken: "fixture-maya", AdminToken: "fixture-alex",
@@ -155,9 +161,6 @@ people:
 		Audience: "records", ReadKind: "records.records",
 		WorkloadModule: "org-directory", WorkloadCredential: k.Credential(t, "org-directory"), Binding: "records", BindingAudience: "records", Elsewhere: "model",
 		InstalledSolution: state.InstallationID("acme", "wiki"), InstalledAudience: "wiki", InstalledCredential: k.Credential(t, "wiki"),
-		// Acme's wiki reaches finance and engineering; a local team is the id its
-		// members carry, so one no person carries is a real team with no members.
-		UnexposedTeam: "auditors",
 		SolutionTools: &conformance.SolutionToolsCase{Token: "fixture-maya", Outsider: "fixture-remi", Module: "robin", Credential: k.Credential(t, "robin"), Binding: testkit.SolutionToolBinding, Audience: "proposals", Kind: "proposals.item", Action: "read", Method: testkit.SolutionToolMethod},
 		// Deliveries are signed with the kit's release key and carried by the
 		// module's own workload under the launcher.
@@ -173,9 +176,9 @@ people:
 		ChildScopes: &conformance.ChildScopesCase{Chain: chain, FirstActions: []string{"read", "write"}, NextActions: []string{"read", "invoke"},
 			OutsideKind: "directory.entry", OutsideAction: "read", ResourceID: "a", OtherResourceID: "b", DroppedAction: "invoke"},
 		InstallationChain: &conformance.InstallationChainCase{
-			Installation: installedChain.ID, Source: source.Principal, Credential: k.Credential(t, source.Module),
+			Installation: installedChain.ID, Source: source.Principal, Credential: k.Credential(t, source.Name),
 			Hops: []conformance.Hop{
-				{Credential: k.Credential(t, source.Module), Binding: "directory", Audience: "org-directory", AskKind: "directory.entry", AskAction: "read"},
+				{Credential: k.Credential(t, source.Name), Binding: "directory", Audience: "org-directory", AskKind: "directory.entry", AskAction: "read"},
 				{Credential: k.Credential(t, "org-directory"), Binding: "documents", Audience: "documents", AskKind: "documents", AskAction: "read"},
 				{Credential: k.Credential(t, "documents"), Binding: "model", Audience: "model", AskKind: "modelservice.profiles", AskAction: "read"},
 			},
@@ -196,4 +199,21 @@ people:
 		// for a read Rémi holds at the model and his first token never carried.
 		Chain: &chain,
 	})
+}
+
+// directGrants replaces each team's grant of role on installation id with the
+// same role granted to each of its members.
+func directGrants(t *testing.T, k *testkit.Kit, id, role string, members map[string][]string) {
+	t.Helper()
+	admin := core.Person{ID: "alex", Organization: "acme"}
+	for team, people := range members {
+		if _, err := k.State.Service().RevokeRole(context.Background(), admin, core.RoleRequest{Organization: "acme", InstallationID: id, Role: role, TeamID: team}); err != nil {
+			t.Fatal(err)
+		}
+		for _, person := range people {
+			if err := k.State.GrantRole(domain.RoleGrant{InstallationID: id, Role: role, PersonID: person}); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
 }

@@ -63,14 +63,14 @@ func Scope(kind string, actions ...string) *basev0.WorkScopeV1 {
 
 // Evaluation is the module whose kinds the fixture's evaluation grants name.
 func Evaluation(generation uint64) state.Manifest {
-	return state.Manifest{Module: "evaluation", Principal: "evaluation", Kind: "module", Generation: generation,
+	return state.Manifest{Name: "evaluation", Principal: "evaluation", Kind: "module", Generation: generation,
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("evaluation.runs", "read", "write"), Scope("evaluation.online", "read"), Scope("evaluation.definitions", "publish"),
 			Scope("evaluation.datasets", "write"), Scope("evaluation.labels", "write", "approve", "admin")}}
 }
 
 // Documents is a module with one binding towards model.
 func Documents(generation uint64) state.Manifest {
-	return state.Manifest{Module: "documents", Principal: "documents", Kind: "module", Generation: generation,
+	return state.Manifest{Name: "documents", Principal: "documents", Kind: "module", Generation: generation, OwnerAware: true,
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("documents", "read", "write", "ingest"), Scope("documents.collection", "read", "transfer", "admin")},
 		Bindings: map[string]state.Binding{
 			"model": {ID: "model", Audience: "model",
@@ -83,19 +83,19 @@ func Documents(generation uint64) state.Manifest {
 
 // Model is the module documents calls.
 func Model(generation uint64) state.Manifest {
-	return state.Manifest{Module: "model", Principal: "model", Kind: "module", Generation: generation,
+	return state.Manifest{Name: "model", Principal: "model", Kind: "module", Generation: generation, OwnerAware: true,
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("modelservice.profiles", "invoke", "read", "admin")}}
 }
 
 // Runtime is the module documents fans work out through.
 func Runtime(generation uint64) state.Manifest {
-	return state.Manifest{Module: "runtime", Principal: "runtime", Kind: "module", Generation: generation,
+	return state.Manifest{Name: "runtime", Principal: "runtime", Kind: "module", Generation: generation,
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("runtime.task", "admit", "read")}}
 }
 
 // Records is the module the directory page reads.
 func Records(generation uint64) state.Manifest {
-	return state.Manifest{Module: "records", Principal: "records", Kind: "module", Generation: generation,
+	return state.Manifest{Name: "records", Principal: "records", Kind: "module", Generation: generation, OwnerAware: true,
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("records.records", "read", "write"), Scope("records.types", "read")}}
 }
 
@@ -103,7 +103,7 @@ func Records(generation uint64) state.Manifest {
 // its one binding, records, which is the binding its hop on the viewer's context
 // names.
 func OrgDirectory(generation uint64) state.Manifest {
-	return state.Manifest{Module: "org-directory", Principal: "org-directory", Kind: "module", Generation: generation,
+	return state.Manifest{Name: "org-directory", Principal: "org-directory", Kind: "module", Generation: generation, OwnerAware: true,
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("directory.entry", "read", "write")},
 		Bindings: map[string]state.Binding{
 			"records": {ID: "records", Audience: "records",
@@ -117,7 +117,7 @@ func OrgDirectory(generation uint64) state.Manifest {
 
 // Wiki is a solution.
 func Wiki(generation uint64) state.Manifest {
-	return state.Manifest{Module: "wiki", Principal: "wiki", Kind: "solution", Generation: generation,
+	return state.Manifest{Name: "wiki", Principal: "wiki", Kind: "solution", Generation: generation, OwnerAware: true,
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("wiki.page", "read", "write", "publish")},
 		Roles: map[string][]*basev0.WorkScopeV1{
 			state.InstallerRole: {Scope("wiki.page", "read", "write", "publish")},
@@ -196,7 +196,7 @@ func (k *Kit) CarrierAuthority(ctx context.Context, credential, module string) e
 
 // Proposals is a second solution, composed by tests that install one.
 func Proposals(generation uint64) state.Manifest {
-	return state.Manifest{Module: "proposals", Principal: "proposals", Kind: "solution", Generation: generation,
+	return state.Manifest{Name: "proposals", Principal: "proposals", Kind: "solution", Generation: generation, OwnerAware: true,
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("proposals.item", "read", "write")},
 		Roles: map[string][]*basev0.WorkScopeV1{
 			state.InstallerRole: {Scope("proposals.item", "read", "write")},
@@ -288,14 +288,13 @@ func Bare(t *testing.T) *Kit {
 	}
 	now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
 	started := time.Now()
-	st, err := state.New(launcher.Anchor(), Audience)
+	// The clock starts at a fixed instant, for readable timestamps, and
+	// advances with the wall clock, so a window closes as it would on a laptop.
+	st, err := state.New(launcher.Anchor(), Audience, issuer.Config(Audience, "local-1", signing, func() time.Time { return now.Add(time.Since(started)) }))
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &Kit{State: st, Launcher: launcher, Now: now,
-		// The clock starts at a fixed instant, for readable timestamps, and
-		// advances with the wall clock, so a window closes as it would on a laptop.
-		Issuer: issuer.New(st, Audience, "local-1", signing, func() time.Time { return now.Add(time.Since(started)) })}
+	return &Kit{State: st, Launcher: launcher, Now: now, Issuer: issuer.New(st, Audience, "local-1", signing.Public().(ed25519.PublicKey))}
 }
 
 // New composes the suite's modules, loads the fixture, and applies the test

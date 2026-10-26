@@ -21,7 +21,7 @@ func reads(kind string) state.MethodPolicy {
 // served, and two matching routes are refused rather than guessed between.
 func TestAnHTTPRequestIsAdmittedUnderTheRouteItsPathMatches(t *testing.T) {
 	k := testkit.New(t)
-	m := state.Manifest{Module: "gauge", Principal: "gauge", Kind: "module", Generation: 1, Bindings: map[string]state.Binding{},
+	m := state.Manifest{Name: "gauge", Principal: "gauge", Kind: "module", Generation: 1, Bindings: map[string]state.Binding{},
 		Methods: map[string]state.MethodPolicy{
 			"GET /v1/gauge/profiles":                   reads("gauge.profiles"),
 			"GET /v1/gauge/profiles/{ref}":             reads("gauge.profiles"),
@@ -64,11 +64,11 @@ func TestAnHTTPRequestIsAdmittedUnderTheRouteItsPathMatches(t *testing.T) {
 // carries; a delivered module is not replaced by a stale one.
 func TestADeliveryReplacesTheFixturesStandIn(t *testing.T) {
 	k := testkit.New(t)
-	standIn := state.Manifest{Module: "gauge", Principal: "gauge", Kind: "module", Generation: 1, Bindings: map[string]state.Binding{}, StandIn: true}
+	standIn := state.Manifest{Name: "gauge", Principal: "gauge", Kind: "module", Generation: 1, Bindings: map[string]state.Binding{}, StandIn: true}
 	if _, err := k.State.ApplyManifest(standIn); err != nil {
 		t.Fatal(err)
 	}
-	delivered := state.Manifest{Module: "gauge", Principal: "gauge", Kind: "module", Generation: 1, Bindings: map[string]state.Binding{},
+	delivered := state.Manifest{Name: "gauge", Principal: "gauge", Kind: "module", Generation: 1, Bindings: map[string]state.Binding{},
 		Methods: map[string]state.MethodPolicy{"GET /v1/gauge/profiles": reads("gauge.profiles")}}
 	if _, err := k.State.ApplyManifest(delivered); err != nil {
 		t.Fatalf("the module's own delivery did not replace the stand-in: %v", err)
@@ -80,7 +80,7 @@ func TestADeliveryReplacesTheFixturesStandIn(t *testing.T) {
 
 func TestConcreteInventorySelectionPreservesManifestPolicy(t *testing.T) {
 	k := testkit.New(t)
-	m := state.Manifest{Module: "gauge", Principal: "gauge", Kind: "module", Generation: 1, Methods: map[string]state.MethodPolicy{
+	m := state.Manifest{Name: "gauge", Principal: "gauge", Kind: "module", Generation: 1, Methods: map[string]state.MethodPolicy{
 		"GET /things/{id}":            {AnyCheckedCaller: true},
 		"GET /things/export":          {Requires: []*basev0.WorkScopeV1{{ResourceKind: "gauge.items", Actions: []string{"write"}}}},
 		"GET /things/{name}":          {AnyCheckedCaller: true},

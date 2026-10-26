@@ -87,14 +87,20 @@ def settle(v):
 
 
 def test_keys_are_reread_when_old_and_trusted_no_longer_than_stale():
+    import threading
+
     clock = [FIXTURE["now"]]
     source = Keys(published())
     v = verifier(clock=lambda: clock[0], source=source)
     rotated = KeysResponse(issuer=published().issuer)
     rotated.keys.add(key_id="rotated", algorithm="Ed25519", public_key=bytes(32))
     source.response = rotated
+    source.hold = threading.Event()
     clock[0] += 400  # older than KEY_MAX_AGE: a re-read starts; the held key serves this call
-    v.verify(FIXTURE["headers"])
+    try:
+        v.verify(FIXTURE["headers"])
+    finally:
+        source.hold.set()
     settle(v)
     assert source.reads == 2
     clock[0] += 11

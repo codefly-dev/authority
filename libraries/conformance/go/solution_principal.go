@@ -344,14 +344,16 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 			code           codes.Code
 			reason         string
 		}{
-			"a viewer granting itself installer":                   {f.Viewer, "GrantRole", grant(instA, "installer", sp.person(t, f.Viewer)), codes.PermissionDenied, "may not grant"},
-			"a viewer revoking the installer":                      {f.Viewer, "RevokeRole", grant(instA, "installer", sp.person(t, f.Installer)), codes.PermissionDenied, "may not grant"},
-			"a viewer listing grants":                              {f.Viewer, "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": instA}, codes.PermissionDenied, "may not"},
-			"another organization's administrator granting":        {f.OtherAdmin, "GrantRole", grant(instA, "viewer", member), codes.PermissionDenied, "may not grant"},
-			"another organization's administrator revoking":        {f.OtherAdmin, "RevokeRole", grant(instA, "viewer", sp.person(t, f.Viewer)), codes.PermissionDenied, "may not grant"},
-			"another organization's administrator listing":         {f.OtherAdmin, "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": instA}, codes.PermissionDenied, "may not"},
-			"A's installer granting on B":                          {f.Installer, "GrantRole", grant(instB, "author", sp.person(t, f.Installer)), codes.PermissionDenied, "may not grant"},
-			"A's installer revoking on B":                          {f.Installer, "RevokeRole", grant(instB, "viewer", member), codes.PermissionDenied, "may not grant"},
+			"a viewer granting itself installer": {f.Viewer, "GrantRole", grant(instA, "installer", sp.person(t, f.Viewer)), codes.PermissionDenied, "belongs to another organization"},
+			"a viewer revoking the installer":    {f.Viewer, "RevokeRole", grant(instA, "installer", sp.person(t, f.Installer)), codes.PermissionDenied, "belongs to another organization"},
+			"a viewer listing grants":            {f.Viewer, "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": instA}, codes.PermissionDenied, "belongs to another organization"},
+			// A caller of another organization learns nothing of this one: the
+			// installation answers as an absent one would (r143 M-a).
+			"another organization's administrator granting":        {f.OtherAdmin, "GrantRole", grant(instA, "viewer", member), codes.PermissionDenied, "belongs to another organization"},
+			"another organization's administrator revoking":        {f.OtherAdmin, "RevokeRole", grant(instA, "viewer", sp.person(t, f.Viewer)), codes.PermissionDenied, "belongs to another organization"},
+			"another organization's administrator listing":         {f.OtherAdmin, "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": instA}, codes.PermissionDenied, "belongs to another organization"},
+			"A's installer granting on B":                          {f.Installer, "GrantRole", grant(instB, "author", sp.person(t, f.Installer)), codes.PermissionDenied, "belongs to another organization"},
+			"A's installer revoking on B":                          {f.Installer, "RevokeRole", grant(instB, "viewer", member), codes.PermissionDenied, "belongs to another organization"},
 			"another organization's id":                            {f.Admin, "GrantRole", map[string]any{"organization_id": f.OtherOrganization, "installation_id": instA, "role": "viewer", "person_id": sp.personID(t, f.Member)}, codes.PermissionDenied, "organization"},
 			"granting on another organization's installation":      {f.Admin, "GrantRole", grant(instElsewhere, "viewer", member), codes.PermissionDenied, "organization"},
 			"revoking on another organization's installation":      {f.Admin, "RevokeRole", grant(instElsewhere, "viewer", sp.person(t, f.OtherMember)), codes.PermissionDenied, "organization"},
@@ -450,8 +452,8 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 			"by the installation's agent":                    {byAgent, f.StoreCredential, f.Existing, f.Organization, U(t), codes.PermissionDenied, "a person's act"},
 			"asked by a module that does not serve the kind": {administers, f.A.Credential, f.Existing, f.Organization, U(t), codes.PermissionDenied, "does not serve"},
 			"with a capability addressed elsewhere":          {atRoot, f.StoreCredential, f.Existing, f.Organization, U(t), codes.Unauthenticated, "audience"},
-			"of the wildcard id":                             {administers, f.StoreCredential, "*", f.Organization, U(t), codes.PermissionDenied, "not a usable id"},
-			"of an oversize id":                              {administers, f.StoreCredential, strings.Repeat("x", 129), f.Organization, U(t), codes.PermissionDenied, "not a usable id"},
+			"of the wildcard id":                             {administers, f.StoreCredential, "*", f.Organization, U(t), codes.InvalidArgument, "not a usable id"},
+			"of an oversize id":                              {administers, f.StoreCredential, strings.Repeat("x", 129), f.Organization, U(t), codes.InvalidArgument, "not a usable id"},
 		} {
 			_, err := sp.transfer(t, r.capability, r.actor, r.id, r.from, r.to)
 			t.Run(name, func(t *testing.T) { refused(t, err, r.code, r.reason) })
@@ -712,10 +714,12 @@ func (sp *principalSuite) uninstall(t *testing.T, org string, s SolutionUnderTes
 	if err := sp.f.Uninstall(sp.ctx, str(sp.ensure(t, org, s), "id")); err != nil {
 		t.Fatal(err)
 	}
-	delete(sp.installed, org+"/"+s.Solution)
+	// The checks name the uninstalled installation; only then is it
+	// forgotten and installed again.
 	for _, check := range whileDisabled {
 		check()
 	}
+	delete(sp.installed, org+"/"+s.Solution)
 	sp.ensure(t, org, s)
 }
 
@@ -921,14 +925,9 @@ func (c *client) hasElement(name, element string) bool {
 	return false
 }
 
-// installationPrincipal is the principal an installation acts as for itself:
-// principal_id under the target contract, agent_principal_id before it. Run
-// reads it so one host passes both Run and the target.
+// installationPrincipal is the principal an installation acts as for itself.
 func installationPrincipal(installation protoreflect.Message) string {
-	if id := str(installation, "principal_id"); id != "" {
-		return id
-	}
-	return str(installation, "agent_principal_id")
+	return str(installation, "principal_id")
 }
 
 // exactOwnedScope requires the effective scope to be exactly kind and actions
@@ -962,29 +961,14 @@ func listStrings(m protoreflect.Message, name string) []string {
 	return out
 }
 
-// solutionPrincipal reports whether the published contract is the target's.
-// Run's cases that the target supersedes then assert the target's model, so
-// one host passes both Run and RunSolutionPrincipalTarget.
-func (c *client) solutionPrincipal() bool {
-	return c.hasElement("host.installation.v1.Installation", "principal_id")
-}
-
 // noRole is the reason a person holding no role on a solution is refused.
-func (c *client) noRole() string {
-	if c.solutionPrincipal() {
-		return "holds no role"
-	}
-	return "holds nothing"
-}
+func (c *client) noRole() string { return "holds no role" }
 
 // installationOwner is the principal owning data reached through installation
 // id at f.Organization: its principal_id under the target contract, "" before
 // it (the earlier model's scopes name no owner).
 func (c *client) installationOwner(t *testing.T, ctx context.Context, f Fixture, match func(protoreflect.Message) bool) string {
 	t.Helper()
-	if !c.solutionPrincipal() {
-		return ""
-	}
 	admin := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.AdminToken})
 	list := c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "List", map[string]any{"organization_id": f.Organization})
 	for _, inst := range listMsgs(list, "installations") {
@@ -1026,9 +1010,6 @@ func exactScopeOwnedBy(t *testing.T, wc protoreflect.Message, kind string, actio
 // the solution-principal contract (a solution's principal), "" before it, at a
 // module audience, or when the person holds nothing there.
 func (c *client) heldOwner(ctx context.Context, sess protoreflect.Message, audience, kind string) string {
-	if !c.solutionPrincipal() {
-		return ""
-	}
 	out, err := c.call(as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": audience})
 	if err != nil {
 		return ""

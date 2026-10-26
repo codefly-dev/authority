@@ -62,6 +62,7 @@ func judge(t *testing.T, sources map[string]string) []string {
 	}
 	overlay := map[string][]byte{filepath.Join(module, "zzselfdial/pkg/gen/api.go"): []byte(`package gen
 import ("context"; "google.golang.org/grpc")
+const Unused = 0
 func RegisterAuthorityServiceHandlerFromEndpoint(context.Context, any, string, []grpc.DialOption) error { return nil }
 `)}
 	trusted := generatedDigests()
@@ -99,6 +100,7 @@ func TestTheGeneratedSelfDialRule(t *testing.T) {
 		sources map[string]string
 		refusal string // "" when the package is allowed
 	}{
+		{"loopback credentials without WithNoProxy", map[string]string{"grpc_gen.go": replace(fixtureSeam, "[]grpc.DialOption{grpc.WithNoProxy()}", "[]grpc.DialOption{}"), "rest_gen.go": fixtureDials}, ""},
 		{"the template's shape", map[string]string{"grpc_gen.go": fixtureSeam, "rest_gen.go": fixtureDials}, ""},
 		{"a same-named variable in another function",
 			map[string]string{"grpc_gen.go": fixtureSeam, "rest_gen.go": fixtureDials + `
@@ -129,7 +131,7 @@ func other(raw []grpc.DialOption) {
 			map[string]string{"rest_gen.go": fixtureDials, "grpc_gen.go": replace(fixtureSeam,
 				"options := []grpc.DialOption{grpc.WithNoProxy()}\n",
 				"_ = grpc.WithNoProxy()\n\toptions := []grpc.DialOption{}\n")},
-			"slice literal holding grpc.WithNoProxy()"},
+			"assigns something other than its options slice"},
 		{"options replaced inside the seam",
 			map[string]string{"rest_gen.go": fixtureDials, "grpc_gen.go": replace(fixtureSeam,
 				"options = append(options, extra...)\n", "options = extra\n")},

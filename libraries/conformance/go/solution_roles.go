@@ -65,9 +65,7 @@ func (c *client) solutionRoleCases(t *testing.T, ctx context.Context, f Fixture)
 					map[string]any{"method": "GET /open/{path=**}", "any_checked_caller": true},
 				},
 			}
-			if c.solutionPrincipal() {
-				doc["owner_aware"] = true
-			}
+			doc["owner_aware"] = true
 			if _, err := c.deliver(ctx, f, r.Solution, "solution", r.Generation, []string{r.OwnKind}, doc, 0, bindings...); err != nil {
 				t.Fatalf("deliver solution roles and ceiling: %v", err)
 			}

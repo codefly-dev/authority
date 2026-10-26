@@ -15,14 +15,14 @@ import (
 // manifest's other declarations named the kind.
 func TestAModuleServesWhatItsMethodsRequire(t *testing.T) {
 	k := testkit.New(t)
-	m := state.Manifest{Module: "ledger", Principal: "ledger", Kind: "module", Generation: 1, Bindings: map[string]state.Binding{},
+	m := state.Manifest{Name: "ledger", Principal: "ledger", Kind: "module", Generation: 1, Bindings: map[string]state.Binding{},
 		Methods: map[string]state.MethodPolicy{
 			"/ledger.v1.Ledger/DefineAccount": {Requires: []*basev0.WorkScopeV1{{ResourceKind: "ledger.accounts", Actions: []string{"define"}}}},
 		}}
 	if _, err := k.State.ApplyManifest(m); err != nil {
 		t.Fatal(err)
 	}
-	held, err := k.State.PersonScopes("dev", "ledger")
+	held, err := k.PersonScopes(t, "dev", "ledger")
 	if err != nil {
 		t.Fatal(err)
 	}

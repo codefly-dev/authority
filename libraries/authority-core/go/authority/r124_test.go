@@ -41,7 +41,7 @@ func TestARevokeOutlivesUninstallAndARetiredRole(t *testing.T) {
 	h := newHarness(t)
 	id := h.inst(acme, "a").ID
 	h.grant("a", "viewer", "maya")
-	if err := h.svc.Uninstall(h.ctx, nil, acme, id); err != nil {
+	if err := h.svc.UninstallAsHost(h.ctx, acme, id); err != nil {
 		t.Fatal(err)
 	}
 	h.revoke("a", "viewer", "maya", "")

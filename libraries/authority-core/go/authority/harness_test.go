@@ -135,7 +135,7 @@ func (h *harness) admin(org string) authority.Person {
 func (h *harness) install(org, target string) domain.Installation {
 	h.t.Helper()
 	admin := h.admin(org)
-	inst, err := h.svc.Install(h.ctx, &admin, org, target, "author", admin.ID, nil)
+	inst, err := h.svc.Install(h.ctx, admin, org, target, "author", admin.ID, nil)
 	if err != nil {
 		h.t.Fatal(err)
 	}

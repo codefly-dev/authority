@@ -26,7 +26,7 @@ func fixtureOnly(t *testing.T) *testkit.Kit {
 	if err := k.State.LoadFixture(context.Background(), data); err != nil {
 		t.Fatal(err)
 	}
-	ledger := state.Manifest{Module: "ledger", Principal: "ledger", Kind: "module", Generation: 1,
+	ledger := state.Manifest{Name: "ledger", Principal: "ledger", Kind: "module", Generation: 1,
 		Methods: map[string]state.MethodPolicy{
 			"/ledger/Read":    {Requires: []*basev0.WorkScopeV1{testkit.Scope("ledger.entry", "read")}},
 			"/ledger/Write":   {Requires: []*basev0.WorkScopeV1{testkit.Scope("ledger.entry", "write")}},
@@ -43,7 +43,7 @@ func fixtureOnly(t *testing.T) *testkit.Kit {
 func TestCompositionGrantsFixtureRolesWhatItsModuleServes(t *testing.T) {
 	k := fixtureOnly(t)
 	for _, person := range []string{"maya", "remi", "alex", "zoe"} {
-		if held, _ := k.State.PersonScopes(person, "ledger"); len(held) != 0 {
+		if held, _ := k.PersonScopes(t, person, "ledger"); len(held) != 0 {
 			t.Fatalf("the fixture alone grants %s %v at ledger", person, held)
 		}
 	}
@@ -71,18 +71,18 @@ roles:
 		"remi": testkit.Scope("ledger.entry", "read", "write"),
 		"alex": testkit.Scope("ledger.entry", "approve"),
 	} {
-		held, err := k.State.PersonScopes(person, "ledger")
+		held, err := k.PersonScopes(t, person, "ledger")
 		if err != nil || !state.Attenuates([]*basev0.WorkScopeV1{scope}, held) {
 			t.Errorf("%s holds %v at ledger (%v), want %v", person, held, err, scope)
 		}
 	}
-	if held, _ := k.State.PersonScopes("alex", "ledger"); state.Attenuates([]*basev0.WorkScopeV1{testkit.Scope("ledger.entry", "write")}, held) {
+	if held, _ := k.PersonScopes(t, "alex", "ledger"); state.Attenuates([]*basev0.WorkScopeV1{testkit.Scope("ledger.entry", "write")}, held) {
 		t.Error("a grant to the editor reached the admin")
 	}
 	if err := k.State.AdmitMethod("ledger", "/ledger/Approve", mustHeld(t, k, "remi")); err == nil {
 		t.Error("the editor was admitted to the admin's method")
 	}
-	grants, err := k.State.ResourceGrants("maya", "ledger", "ledger.entry", "read")
+	grants, err := k.ResourceGrants(t, "maya", "ledger", "ledger.entry", "read")
 	if err != nil || len(grants) != 1 || grants[0].Prefix != "public-" {
 		t.Errorf("the viewer's grant keeps its resources: %v %v", grants, err)
 	}
@@ -94,7 +94,7 @@ roles:
 
 func mustHeld(t *testing.T, k *testkit.Kit, person string) []*basev0.WorkScopeV1 {
 	t.Helper()
-	held, err := k.State.PersonScopes(person, "ledger")
+	held, err := k.PersonScopes(t, person, "ledger")
 	if err != nil {
 		t.Fatal(err)
 	}

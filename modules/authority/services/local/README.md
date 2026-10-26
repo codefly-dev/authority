@@ -6,11 +6,37 @@ composition from the manifests the run delivers, and answers the installation
 and artifact interfaces. The repository's [README](../../../../README.md) is the
 story and the rules; this page is what the process keeps and where.
 
+**A host over the core.** Every decision and every signature is the generic
+authority core's (`libraries/authority-core/go`), over its in-memory store
+(`memstore`): modules, installations, role grants, delegations, revisions and
+issuance. This service keeps what a host owns: the fixture and its sign-in
+tokens (`pkg/business/state` seeds the core's store from them), sessions,
+workload attestation against the launcher's anchor, signed delivery
+admission, method admission on `Check`, and approvals. The plugins translate
+the wire to the core's calls (`pkg/business/issuer`, `plugins/installation`).
+
+Request-facing installation methods require a person value and current stored
+authority. Trusted fixture setup and teardown use the separate `InstallAsHost`
+and `UninstallAsHost` methods; a missing or unauthenticated person never selects
+host power. Module installations remain composition-owned after withdrawal.
+Role calls answer as foreign when the caller is neither administrator nor
+installer, including for an installation in their own organization.
+
+Child issuance preserves the verified parent's workspace/project identifiers
+and each prior actor's agent/organization identifiers while deriving the new
+target's grants. These fields remain absent when the parent omitted them;
+replaying an actor does not substitute the task's organization for that actor's.
+The shared core's `TestChildPreservesVerifiedTaskAndActorProvenance` exercises
+populated parents through its production minter, child issuance and Check over
+two exchanges, including action/resource limits. The ordinary Issue request
+does not originate these optional fields. This test does not establish a live
+populated-parent fixture or cross-host conformance coverage.
+
 | State | Where | Across a restart |
 |---|---|---|
 | who exists, what they hold, what is installed by fixture | `code/fixtures/<name>.yaml`, selected by the run | re-read: fixture, not state |
 | the composition: each module's manifest, generation and bindings | memory, re-delivered by the run | re-delivered |
-| sessions, delegations, installations made at runtime | memory | forgotten |
+| sessions, delegations, installations and role grants made at runtime | memory (the core's `memstore`) | forgotten |
 | **approvals**: a person's consent to one exact artifact for one installation | **the module's [store](../store/README.md)**, `approvals` table, when the run composes it; memory otherwise | **kept**: a run of the approved artifact is answered after a restart, and a revoked one stays refused |
 
 **How it chooses.** `code/work.go` (`approvalsFor`) reads the store's
@@ -54,6 +80,8 @@ roles:          # grants added to roles the fixture defines
     scopes:
       - {kind: ledger.entry, actions: [read, write]}
 installations:  # installations of a solution the run composes, the fixture's own path
+  # role: the installation's own (its agent's) role; owner: who installed it,
+  # granted the installer role; teams: each granted role on the installation.
   - {organization: acme, target: atlas, role: viewer, owner: alex, teams: [finance]}
 modules:        # a module the run supervises itself, until its own delivery
   - module: oracle
@@ -129,9 +157,10 @@ coordinate against which it is checked.
 
 An identical replay returns the original receipt without advancing revisions or
 reapplying grants. Changing, adding or removing the authority policy at the same
-generation is refused. Once an alias is delivered as a signed carrier, the
-transitional unsigned sketch cannot overwrite or resurrect it. Sketch-only
-composition retains its existing strictly newer generation rule.
+generation is refused. Every public composition call requires a signed carrier
+and the authenticated delivery workload; unsigned manifests are refused before
+any host operation, including pending fixture installations. Trusted fixture
+setup uses the host-only state API and cannot overwrite a signed alias.
 
 A workload must still be declared by the current signed manifest to obtain new
 authority. Withdrawal removes the module and its principal, revokes its
@@ -171,3 +200,16 @@ explicitly enabled only by the local runner.
 HTTP Check uses the concrete verb and canonical path, with literal precedence
 and ambiguity refusal over the delivered manifest. Published Connect calls use
 the protobuf procedure spelling; a dotted HTTP URL cannot borrow gRPC policy.
+
+## Artifact consent admission
+
+Approve, Authorize and Revoke check effective scope coverage against the target
+installation's stored principal before accessing approvals. An owner-selected
+capability cannot access another installation's consent. Module installations
+without a solution principal require owner-unrestricted coverage. Artifact identities
+must name that installation's host-defined namespace as their source.
+
+The policy resource id is not established by the opaque identity subject or an
+approval id. Resource-limited scopes are therefore refused with that reason;
+consent requires the policy action over the installation owner's whole kind.
+The shared scope algebra enforces both owner and resource restrictions.

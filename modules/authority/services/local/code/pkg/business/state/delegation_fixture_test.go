@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
+
 	"gateway/pkg/business/testkit"
 )
 
@@ -30,11 +32,11 @@ func TestDelegationFixtureRetainsExactIDsAndRefusesRoleMatchers(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			d, err := k.State.DelegationByID("narrow")
+			d, err := k.State.Service().Delegation(context.Background(), "narrow", nil, &authority.Workload{Module: "org-directory"})
 			if err != nil {
 				t.Fatal(err)
 			}
-			scopes := d.WorkScopes()
+			scopes := d.Scopes
 			if len(scopes) != 1 || !slices.Equal(scopes[0].GetResourceIds(), []string{"a"}) {
 				t.Fatalf("fixture restriction lost: %v", scopes)
 			}

@@ -11,10 +11,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/codefly-dev/authority/libraries/authority-client/go/host"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 
 	"gateway/pkg/business/state"
 	sessionv1 "gateway/pkg/gen/host/session/v1"
@@ -37,10 +35,10 @@ func (p *Plugin) RegisterGRPC(s *grpc.Server) { sessionv1.RegisterSessionService
 // RegisterREST serves the session interface over HTTP too, for the browser
 // edge (a page's dev server signs a fixture person in): the same methods,
 // transcoded to the gRPC service.
-// It dials this process's own gRPC endpoint through host.DialOptions, never
-// with options handed in, so no environment proxy sits in between.
-func (p *Plugin) RegisterREST(ctx context.Context, mux *runtime.ServeMux, endpoint string, _ []grpc.DialOption) error {
-	return sessionv1.RegisterSessionServiceHandlerFromEndpoint(ctx, mux, endpoint, host.DialOptions(insecure.NewCredentials()))
+// It forwards the generated adapter's options unchanged, preserving its
+// loopback-only transport credentials.
+func (p *Plugin) RegisterREST(ctx context.Context, mux *runtime.ServeMux, endpoint string, opts []grpc.DialOption) error {
+	return sessionv1.RegisterSessionServiceHandlerFromEndpoint(ctx, mux, endpoint, opts)
 }
 
 // Migrations: none.

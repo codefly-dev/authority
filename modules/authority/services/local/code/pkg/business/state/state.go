@@ -1,34 +1,37 @@
-// Package state is the local authority's whole memory: the fixture people and
-// roles, the composition as delivered by manifests, the installations and the
-// open sessions. It is the seal and revision source core's issuer and verifier
-// read, so one struct answers every "is this still true" the authority asks.
+// Package state is the local authority's host half: the fixture it boots on
+// (organisations, roles, people and their sign-in tokens), the composition as
+// delivered, the open sessions, delivery admission and method admission. What
+// the authority decides and records (modules, installations, role grants,
+// delegations, revisions, and every issuance) is the generic authority core's,
+// over its in-memory store: this package seeds that store and asks the core.
 package state
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
+	"crypto/ed25519"
 	"errors"
 	"fmt"
-	delivery "github.com/codefly-dev/authority/libraries/delivery/go"
-	"github.com/codefly-dev/authority/libraries/hop/go/routing"
-	resources "github.com/codefly-dev/authority/libraries/resources/go"
+	"maps"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 
+	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/memstore"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
+	"github.com/codefly-dev/authority/libraries/hop/go/routing"
+	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
-	"github.com/codefly-dev/core/workcontext"
 	"github.com/codefly-dev/core/workloadidentity/native"
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 )
 
-// Errors a caller distinguishes.
+// Errors a caller distinguishes for what this host decides itself; what the
+// core decides arrives as a domain.Refusal with its code.
 var (
 	ErrUnknown         = errors.New("state: unknown")
-	ErrNotInstalled    = errors.New("state: not installed")
 	ErrUnauthenticated = errors.New("state: unauthenticated")
 	ErrForbidden       = errors.New("state: forbidden")
 	ErrStale           = errors.New("state: generation is not newer")
@@ -76,15 +79,43 @@ type Role struct {
 	Scopes       []Scope `yaml:"scopes"`
 }
 
-// Binding is a module's declared call towards another module.
-type Binding struct {
-	ID             string
-	Audience       string
-	InvokeScopes   []*basev0.WorkScopeV1
-	HeadlessScopes []*basev0.WorkScopeV1
-	// LookupScopes are what a receipt lookup through the binding may read.
-	LookupScopes []*basev0.WorkScopeV1
-}
+// The core's objects, as this host names them.
+type (
+	Manifest     = domain.Module
+	MethodPolicy = domain.MethodPolicy
+	Binding      = domain.Binding
+	Installation = domain.Installation
+	Status       = domain.Status
+	Delegation   = domain.Delegation
+	InstallStep  = authority.InstallStep
+)
+
+// The installation states, the reserved role and the wildcards.
+const (
+	Pending       = domain.Pending
+	Active        = domain.Active
+	Revoked       = domain.Revoked
+	InstallerRole = domain.InstallerRole
+	AnyAction     = scope.AnyAction
+	AnyKind       = scope.AnyKind
+)
+
+// The core's scope algebra, for this host's own checks.
+var (
+	Normalize   = scope.Normalize
+	Intersect   = scope.Intersect
+	Attenuates  = scope.Attenuates
+	HoldsAction = scope.HoldsAction
+)
+
+// InstallationID is the id of org's installation of target: a canonical UUID
+// named by organisation and target, so a module's stored rows still name the
+// installation after the authority restarts with its fixture.
+func InstallationID(org, target string) string { return authority.StableInstallationID(org, target) }
+
+// Namespace is the source an installation's authored content belongs to,
+// named by the host so a module never chooses it: "<organization>.<target>".
+func Namespace(i Installation) string { return i.Organization + "." + i.Target }
 
 // DelegationScope preserves the exact resource ceiling of a WorkScope.
 // Role matchers are a separate contract; a delegation names IDs, not patterns.
@@ -94,8 +125,8 @@ type DelegationScope struct {
 	ResourceIDs []string `yaml:"resource_ids,omitempty"`
 }
 
-// Refuse role-matcher syntax instead of silently decoding a restricted grant
-// as an unrestricted one. Fixture decoding otherwise permits unknown fields.
+// UnmarshalYAML refuses role-matcher syntax instead of silently decoding a
+// restricted grant as an unrestricted one.
 func (s *DelegationScope) UnmarshalYAML(node *yaml.Node) error {
 	type plain DelegationScope
 	var decoded struct {
@@ -112,74 +143,599 @@ func (s *DelegationScope) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-// Delegation is a person's grant to a module to act for them beyond any
-// session, on scopes they hold. Every capability issued from it is the
-// grantor's, re-checked against what the grantor holds at the time.
-type Delegation struct {
+// fixtureDelegation is a delegation a fixture person has already granted.
+type fixtureDelegation struct {
 	ID           string            `yaml:"id"`
 	Organization string            `yaml:"organization"`
 	Grantor      string            `yaml:"grantor"`
 	Module       string            `yaml:"module"`
 	Purpose      string            `yaml:"purpose"`
 	Scopes       []DelegationScope `yaml:"scopes"`
-	Revoked      bool              `yaml:"-"`
 }
 
-// WorkScopes is the delegation's scopes as core spells them.
-func (d Delegation) WorkScopes() []*basev0.WorkScopeV1 {
-	var out []*basev0.WorkScopeV1
-	for _, sc := range d.Scopes {
-		out = append(out, &basev0.WorkScopeV1{
-			ResourceKind: sc.Kind, Actions: append([]string(nil), sc.Actions...),
-			ResourceIds: append([]string(nil), sc.ResourceIDs...),
-		})
+// Session is an open sign-in.
+type Session struct {
+	PersonDisplayName       string
+	OrganizationDisplayName string
+	ID                      string
+	Person                  string
+	Organization            string
+	Roles                   []string
+	Teams                   []string
+}
+
+type fixtureFile struct {
+	Organizations []struct {
+		ID   string `yaml:"id"`
+		Name string `yaml:"name"`
+	} `yaml:"organizations"`
+	Roles         []Role                `yaml:"roles"`
+	People        []Person              `yaml:"people"`
+	Installations []FixtureInstallation `yaml:"installations"`
+	// Modules are modules a local run supervises itself rather than composing
+	// them through Codefly, declared so they can be an audience. A delivered
+	// manifest of the same module supersedes it.
+	Modules     []FixtureModule     `yaml:"modules"`
+	Delegations []fixtureDelegation `yaml:"delegations"`
+}
+
+// FixtureModule is one module the fixture composes: its name, which is its
+// principal, and the kinds and actions it serves.
+type FixtureModule struct {
+	Module string  `yaml:"module"`
+	Kinds  []Scope `yaml:"kinds"`
+}
+
+// FixtureInstallation is one installation the fixture performs through the
+// real install path, once its target is composed: Role is the installation's
+// own (its agent's), Owner installed it and is granted the installer role,
+// and each of Teams is granted Role.
+type FixtureInstallation struct {
+	Organization string   `yaml:"organization"`
+	Target       string   `yaml:"target"`
+	Role         string   `yaml:"role"`
+	Owner        string   `yaml:"owner"`
+	Teams        []string `yaml:"teams"`
+}
+
+// State is the host; every method is safe for concurrent use.
+type State struct {
+	mu         sync.RWMutex
+	store      *memstore.Store
+	svc        *authority.Service
+	attester   *native.Attester
+	audience   string
+	orgs       map[string]string // id → display name
+	people     map[string]Person
+	order      []string // people's ids, in the fixture's order
+	byToken    map[string]string
+	roles      map[string]Role // org/name, as authored, the generated developer role included
+	sessions   map[string]Session
+	deliveries map[string]*appliedDelivery // binding → verified record, including withdrawals
+	// pendingInstalls are fixture installations whose target was not composed
+	// when the fixture loaded; each is performed when its target applies.
+	pendingInstalls []FixtureInstallation
+	installStep     InstallStep
+	// Approvals are the artifacts people have consented to: in memory until a
+	// run that composes the store swaps in its Postgres (work.go approvalsFor).
+	Approvals Approvals
+}
+
+type keySet map[string]ed25519.PublicKey
+
+func (k keySet) PublicKeys(context.Context) (map[string]ed25519.PublicKey, error) { return k, nil }
+
+// New returns an empty host that attests workloads against one launcher
+// anchor, issuing through the core with cfg's issuer, key id, signer and
+// clock. audience is the name the launcher issues credentials to.
+func New(anchor native.Anchor, audience string, cfg authority.Config) (*State, error) {
+	attester, err := native.NewAttester(anchor)
+	if err != nil {
+		return nil, fmt.Errorf("launcher anchor: %w", err)
 	}
-	return Normalize(out)
+	if cfg.Keys == nil && cfg.Signer != nil {
+		public, ok := cfg.Signer.Public().(ed25519.PublicKey)
+		if !ok {
+			return nil, errors.New("the local authority signs with an Ed25519 key")
+		}
+		cfg.Keys = keySet{cfg.KeyID: public}
+	}
+	store := memstore.New()
+	svc, err := authority.New(store, cfg)
+	if err != nil {
+		return nil, err
+	}
+	return &State{store: store, svc: svc, attester: attester, audience: audience,
+		orgs: map[string]string{}, people: map[string]Person{}, byToken: map[string]string{}, roles: map[string]Role{},
+		sessions: map[string]Session{}, deliveries: map[string]*appliedDelivery{}, Approvals: &MemoryApprovals{}}, nil
 }
 
-// Manifest is what the render delivered for one module instance.
-type Manifest struct {
-	Module     string
-	Principal  string
-	Kind       string
-	Generation uint64
-	// StandIn marks a module the fixture declares for a run that supervises it
-	// itself: what it serves, until the module's own delivery replaces it.
-	StandIn       bool
-	Bindings      map[string]Binding
-	ResourceKinds []*basev0.WorkScopeV1
-	// Roles are what a solution declares a person may hold on an installation of
-	// it, each within what the solution serves or explicitly consumes through
-	// invoke/lookup bindings. A solution always declares
-	// InstallerRole; a module declares none, since a module is installed by
-	// composition and a person's access to it is the organisation's roles.
-	Roles map[string][]*basev0.WorkScopeV1
-	// Methods are what each method the module serves declares a call must hold,
-	// from the authority's signed document delivered with the manifest. Nil
-	// means the delivery declared no method policy: every check naming one of
-	// the module's methods is then refused.
-	Methods map[string]MethodPolicy
+// Service is the core this host issues and decides through.
+func (s *State) Service() *authority.Service { return s.svc }
+
+// OnInstall sets the install step the host runs for a solution installation.
+func (s *State) OnInstall(step InstallStep) { s.installStep = step }
+
+// RunInstallStep runs the host's install step for inst, if one is set.
+func (s *State) RunInstallStep(ctx context.Context, inst Installation) error {
+	if s.installStep == nil {
+		return nil
+	}
+	return s.installStep(ctx, inst)
 }
 
-// MethodPolicy is one method's declaration: exactly one of its fields is set.
-type MethodPolicy struct {
-	Requires         []*basev0.WorkScopeV1
-	AnyCheckedCaller bool
+func (s *State) read(fn func(authority.Tx) error) error {
+	return s.store.Read(context.Background(), fn)
 }
 
-// servedByMethods is every (kind, action) a module's methods require of a call:
-// what the module serves, read from its own method declarations rather than
-// from any summary of them. A person's or an installation's grant at the module
-// is cut to what it serves, so a kind a method requires is never one nobody can
-// be granted.
+func (s *State) write(fn func(authority.Tx) error) error {
+	return s.store.Write(context.Background(), fn)
+}
+
+// LoadFixture seeds organisations, roles, people and delegations, and
+// performs the fixture's installations through the install path.
+func (s *State) LoadFixture(ctx context.Context, data []byte) error {
+	var f fixtureFile
+	if err := yaml.Unmarshal(data, &f); err != nil {
+		return fmt.Errorf("fixture: %w", err)
+	}
+	s.mu.Lock()
+	for _, o := range f.Organizations {
+		s.orgs[o.ID] = o.Name
+		s.store.PutOrganization(domain.Organization{ID: o.ID, Name: o.Name})
+	}
+	for _, r := range f.Roles {
+		if r.Generated && (r.Name != "developer" || len(r.Scopes) != 0) {
+			s.mu.Unlock()
+			return fmt.Errorf("fixture: generated role must be developer with no authored scopes")
+		}
+		if err := compileScopes(r); err != nil {
+			s.mu.Unlock()
+			return err
+		}
+		s.roles[r.Organization+"/"+r.Name] = r
+	}
+	for _, p := range f.People {
+		if _, ok := s.orgs[p.Organization]; !ok {
+			s.mu.Unlock()
+			return fmt.Errorf("fixture: person %q names unknown organization %q", p.ID, p.Organization)
+		}
+		for _, role := range p.Roles {
+			if _, ok := s.roles[p.Organization+"/"+role]; !ok {
+				s.mu.Unlock()
+				return fmt.Errorf("fixture: person %q holds unknown role %q", p.ID, role)
+			}
+		}
+		if _, seen := s.people[p.ID]; !seen {
+			s.order = append(s.order, p.ID)
+		}
+		s.people[p.ID] = p
+		s.byToken[p.FixtureToken] = p.ID
+		s.store.PutPerson(domain.Person{ID: p.ID, Organization: p.Organization, Roles: slices.Clone(p.Roles), Teams: slices.Clone(p.Teams)})
+	}
+	s.refreshRolesLocked()
+	s.mu.Unlock()
+	for _, d := range f.Delegations {
+		if d.ID == "" || d.Grantor == "" || d.Module == "" || d.Organization == "" {
+			return fmt.Errorf("delegation %q names no id, grantor, module or organization", d.ID)
+		}
+		var scopes []*basev0.WorkScopeV1
+		for _, sc := range d.Scopes {
+			scopes = append(scopes, &basev0.WorkScopeV1{ResourceKind: sc.Kind, Actions: slices.Clone(sc.Actions), ResourceIds: slices.Clone(sc.ResourceIDs)})
+		}
+		stored := domain.Delegation{ID: d.ID, Organization: d.Organization, Grantor: d.Grantor, Module: d.Module, Purpose: d.Purpose, Scopes: Normalize(scopes)}
+		if err := s.write(func(tx authority.Tx) error { return tx.PutDelegation(stored) }); err != nil {
+			return err
+		}
+	}
+	// A module composed before its organisations arrived gets its
+	// installation at each of them now: delivery order never decides use.
+	if err := s.ensureModuleInstallations(); err != nil {
+		return err
+	}
+	for _, i := range f.Installations {
+		if _, composed := s.Module(i.Target); !composed {
+			s.mu.Lock()
+			s.pendingInstalls = append(s.pendingInstalls, i)
+			s.mu.Unlock()
+			continue
+		}
+		if err := s.performInstall(ctx, i, nil); err != nil {
+			return err
+		}
+	}
+	for _, fm := range f.Modules {
+		if _, composed := s.Module(fm.Module); composed {
+			continue
+		}
+		m := Manifest{Name: fm.Module, Principal: fm.Module, Kind: domain.KindModule, Generation: 1, Bindings: map[string]Binding{}, StandIn: true}
+		for _, k := range fm.Kinds {
+			m.ResourceKinds = append(m.ResourceKinds, &basev0.WorkScopeV1{ResourceKind: k.Kind, Actions: slices.Clone(k.Actions)})
+		}
+		if _, err := s.ApplyManifest(m); err != nil {
+			return fmt.Errorf("fixture module %s: %w", m.Name, err)
+		}
+	}
+	return nil
+}
+
+func compileScopes(r Role) error {
+	for _, sc := range r.Scopes {
+		grants := make([]resources.Grant, 0, len(sc.Resources))
+		for _, m := range sc.Resources {
+			grants = append(grants, m.Grant())
+		}
+		if _, err := resources.Compile(grants); err != nil {
+			return fmt.Errorf("role %s/%s scope %s: %w", r.Organization, r.Name, sc.Kind, err)
+		}
+	}
+	return nil
+}
+
+// ensureModuleInstallations holds a module installation at every organisation.
+func (s *State) ensureModuleInstallations() error {
+	return s.write(func(tx authority.Tx) error {
+		modules, err := tx.Modules()
+		if err != nil {
+			return err
+		}
+		orgs, err := tx.Organizations()
+		if err != nil {
+			return err
+		}
+		for _, m := range modules {
+			if m.Kind == domain.KindSolution {
+				continue
+			}
+			for _, org := range orgs {
+				id := InstallationID(org.ID, m.Name)
+				if _, err := tx.Installation(id); errors.Is(err, domain.ErrNotFound) {
+					if err := tx.PutInstallation(domain.Installation{ID: id, Organization: org.ID, Target: m.Name, Status: domain.Active, Revision: 1}); err != nil {
+						return err
+					}
+				}
+			}
+		}
+		return nil
+	})
+}
+
+// performInstall installs what the fixture names through the core, then
+// records its grants: the installer role to its owner, its role to its teams.
+// A delivery's intent remembers the revision its first attempt took: a replay
+// resumes that attempt, and refuses when the installation was revoked or
+// reinstalled since, so a replay never undoes an administrator's act.
+func (s *State) performInstall(ctx context.Context, i FixtureInstallation, intent *pendingInstallation) error {
+	id := InstallationID(i.Organization, i.Target)
+	existing, found := s.Installation(id)
+	s.mu.RLock()
+	attempted := uint64(0)
+	if intent != nil {
+		attempted = intent.revision
+	}
+	s.mu.RUnlock()
+	if attempted != 0 && (!found || existing.Status == domain.Revoked || existing.Revision != attempted) {
+		return fmt.Errorf("%w: fixture installation attempt %s was revoked or changed", ErrStale, id)
+	}
+	if !found || existing.Status != domain.Active {
+		inst, err := s.svc.InstallAsHost(ctx, i.Organization, i.Target, i.Role, i.Owner, s.installStep)
+		if intent != nil && inst.Revision != 0 {
+			s.mu.Lock()
+			intent.revision = inst.Revision
+			s.mu.Unlock()
+		}
+		if err != nil {
+			return fmt.Errorf("fixture installation of %s at %s: %w", i.Target, i.Organization, classify(err))
+		}
+	}
+	grants := []domain.RoleGrant{{InstallationID: id, Role: InstallerRole, PersonID: i.Owner}}
+	for _, team := range i.Teams {
+		grants = append(grants, domain.RoleGrant{InstallationID: id, Role: i.Role, TeamID: team})
+	}
+	return s.write(func(tx authority.Tx) error {
+		for _, g := range grants {
+			if err := tx.PutRoleGrant(g); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// SignIn opens a session for the person holding a fixture token.
+func (s *State) SignIn(token string) (Session, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	id, ok := s.byToken[token]
+	if !ok {
+		return Session{}, fmt.Errorf("%w: fixture token", ErrUnknown)
+	}
+	p := s.people[id]
+	name := p.Name
+	if name == "" {
+		name = p.Email
+	}
+	sess := Session{PersonDisplayName: name, OrganizationDisplayName: s.orgs[p.Organization], ID: uuid.NewString(), Person: p.ID,
+		Organization: p.Organization, Roles: slices.Clone(p.Roles), Teams: slices.Clone(p.Teams)}
+	s.sessions[sess.ID] = sess
+	return sess, nil
+}
+
+// FixturePeople is every fixture person, in the fixture's order.
+func (s *State) FixturePeople() []Person {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]Person, 0, len(s.order))
+	for _, id := range s.order {
+		out = append(out, s.people[id])
+	}
+	return out
+}
+
+// Session resolves an open session.
+func (s *State) Session(id string) (Session, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	sess, ok := s.sessions[id]
+	if !ok {
+		return Session{}, fmt.Errorf("%w: an open session is required", ErrUnauthenticated)
+	}
+	return sess, nil
+}
+
+// LeaveTeam removes person from team: every capability they hold through a
+// grant to that team ends at once (the core moves their person epoch).
+func (s *State) LeaveTeam(ctx context.Context, person, team string) error {
+	s.mu.Lock()
+	p, ok := s.people[person]
+	if !ok {
+		s.mu.Unlock()
+		return fmt.Errorf("%w: person %q", ErrUnknown, person)
+	}
+	p.Teams = slices.DeleteFunc(slices.Clone(p.Teams), func(t string) bool { return t == team })
+	s.people[person] = p
+	s.store.PutPerson(domain.Person{ID: p.ID, Organization: p.Organization, Roles: slices.Clone(p.Roles), Teams: slices.Clone(p.Teams)})
+	s.mu.Unlock()
+	return s.svc.PersonChanged(ctx, person)
+}
+
+// LeaveOrganization removes person: they sign in no more, and every
+// capability they hold ends at once.
+func (s *State) LeaveOrganization(ctx context.Context, person string) error {
+	s.mu.Lock()
+	p, ok := s.people[person]
+	if !ok {
+		s.mu.Unlock()
+		return fmt.Errorf("%w: person %q", ErrUnknown, person)
+	}
+	delete(s.people, person)
+	delete(s.byToken, p.FixtureToken)
+	s.order = slices.DeleteFunc(s.order, func(id string) bool { return id == person })
+	for id, sess := range s.sessions {
+		if sess.Person == person {
+			delete(s.sessions, id)
+		}
+	}
+	s.store.DeletePerson(person)
+	s.mu.Unlock()
+	return s.svc.PersonChanged(ctx, person)
+}
+
+// Caller is the person an open session authenticates, as the core takes it.
+func (s *State) Caller(sessionID string) (authority.Person, error) {
+	sess, err := s.Session(sessionID)
+	if err != nil {
+		return authority.Person{}, err
+	}
+	return authority.Person{ID: sess.Person, Organization: sess.Organization, SessionID: sess.ID, Teams: slices.Clone(sess.Teams)}, nil
+}
+
+// ApplyManifest is trusted host fixture setup, never a public request path.
+// It records one module instance through the core at a newer generation.
+// A module owned by a signed delivery is never replaced by a fixture.
+func (s *State) ApplyManifest(m Manifest) ([]string, error) {
+	s.mu.Lock()
+	for _, record := range s.deliveries {
+		held, _ := record.carrier.Manifest()
+		if held.Alias == m.Name {
+			s.mu.Unlock()
+			return nil, fmt.Errorf("%w: %s is owned by signed binding %s; a sketch cannot replace it", ErrForbidden, m.Name, held.Binding)
+		}
+	}
+	ids, pending, err := s.applyManifestLocked(m)
+	s.mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	for _, i := range pending {
+		if err := s.performInstall(context.Background(), i, nil); err != nil {
+			return nil, err
+		}
+	}
+	return ids, nil
+}
+
+// applyManifestLocked applies m through the core, what its methods require
+// joined to what it serves. Caller holds mu.
+func (s *State) applyManifestLocked(m Manifest) ([]string, []FixtureInstallation, error) {
+	if err := noOwners(m); err != nil {
+		return nil, nil, err
+	}
+	m.ResourceKinds = Normalize(append(slices.Clone(m.ResourceKinds), servedByMethods(m.Methods)...))
+	ids, err := s.svc.ApplyModule(context.Background(), m)
+	if err != nil {
+		return nil, nil, classify(err)
+	}
+	s.refreshRolesLocked()
+	return ids, s.takePendingInstalls(m.Name), nil
+}
+
+// noOwners refuses a delivery naming a resource owner where none belongs: in
+// what a module serves, in a binding's scopes, in a role or in a method's
+// requirement. An owner is the authority's to select per installation; read
+// owner-blind, it would widen to the whole kind, so it is refused by name.
+func noOwners(m Manifest) error {
+	check := func(where string, scopes []*basev0.WorkScopeV1) error {
+		for _, sc := range scopes {
+			if sc.GetResourceOwnerId() != "" {
+				return fmt.Errorf("%w: %s: %s names resource owner %q; a delivery never selects an owner", ErrForbidden, where, sc.GetResourceKind(), sc.GetResourceOwnerId())
+			}
+		}
+		return nil
+	}
+	if err := check(m.Name+" serves", m.ResourceKinds); err != nil {
+		return err
+	}
+	for _, id := range slices.Sorted(maps.Keys(m.Bindings)) {
+		b := m.Bindings[id]
+		for _, scopes := range [][]*basev0.WorkScopeV1{b.InvokeScopes, b.HeadlessScopes, b.LookupScopes} {
+			if err := check(m.Name+" binding "+id, scopes); err != nil {
+				return err
+			}
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(m.Roles)) {
+		if err := check(m.Name+" role "+name, m.Roles[name]); err != nil {
+			return err
+		}
+	}
+	for _, method := range slices.Sorted(maps.Keys(m.Methods)) {
+		if err := check(m.Name+" method "+method, m.Methods[method].Requires); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// servedByMethods is every (kind, action) a module's methods require of a
+// call: what the module serves, read from its own method declarations.
 func servedByMethods(methods map[string]MethodPolicy) []*basev0.WorkScopeV1 {
 	var served []*basev0.WorkScopeV1
 	for _, policy := range methods {
 		for _, required := range policy.Requires {
-			served = append(served, &basev0.WorkScopeV1{ResourceKind: required.GetResourceKind(), Actions: append([]string(nil), required.GetActions()...)})
+			served = append(served, &basev0.WorkScopeV1{ResourceKind: required.GetResourceKind(), Actions: slices.Clone(required.GetActions())})
 		}
 	}
 	return served
+}
+
+// takePendingInstalls removes and returns the fixture installations waiting
+// for target. Caller holds mu.
+func (s *State) takePendingInstalls(target string) []FixtureInstallation {
+	var mine, keep []FixtureInstallation
+	for _, i := range s.pendingInstalls {
+		if i.Target == target {
+			mine = append(mine, i)
+		} else {
+			keep = append(keep, i)
+		}
+	}
+	s.pendingInstalls = keep
+	return mine
+}
+
+// Module returns a composed module by name.
+func (s *State) Module(name string) (Manifest, bool) {
+	var m Manifest
+	err := s.read(func(tx authority.Tx) error {
+		var err error
+		m, err = tx.ModuleNamed(name)
+		return err
+	})
+	return m, err == nil
+}
+
+// ModuleByPrincipal returns the module a principal names.
+func (s *State) ModuleByPrincipal(principal string) (Manifest, error) {
+	var m Manifest
+	err := s.read(func(tx authority.Tx) error {
+		var err error
+		m, err = tx.Module(principal)
+		return err
+	})
+	if errors.Is(err, domain.ErrNotFound) {
+		return m, fmt.Errorf("%w: audience %q is not composed", ErrUnknown, principal)
+	}
+	return m, err
+}
+
+// Installation returns one installation.
+func (s *State) Installation(id string) (Installation, bool) {
+	var inst Installation
+	err := s.read(func(tx authority.Tx) error {
+		var err error
+		inst, err = tx.Installation(id)
+		return err
+	})
+	return inst, err == nil
+}
+
+// InstallAsHost installs a solution as trusted host setup: the
+// fixture's path, and a test's.
+func (s *State) InstallAsHost(ctx context.Context, org, target, role, owner string) (Installation, error) {
+	inst, err := s.svc.InstallAsHost(ctx, org, target, role, owner, s.installStep)
+	return inst, classify(err)
+}
+
+// classify keeps the core's refusal (its code still answers domain.CodeOf)
+// and names its family as this host's callers test it.
+func classify(err error) error {
+	code, ok := domain.CodeOf(err)
+	switch {
+	case !ok:
+		return err
+	case code == domain.Denied:
+		return fmt.Errorf("%w: %w", ErrForbidden, err)
+	case code == domain.NotFound:
+		return fmt.Errorf("%w: %w", ErrUnknown, err)
+	case code == domain.Precondition:
+		return fmt.Errorf("%w: %w", ErrStale, err)
+	}
+	return err
+}
+
+// UninstallAsHost disables an installation and its principal for trusted host
+// teardown: a test's, and the conformance driver's.
+func (s *State) UninstallAsHost(id string) error {
+	inst, ok := s.Installation(id)
+	if !ok {
+		return fmt.Errorf("%w: installation %q", ErrUnknown, id)
+	}
+	return s.svc.UninstallAsHost(context.Background(), inst.Organization, id)
+}
+
+// GrantRole grants a role as the host's own setup (no caller): a test's.
+func (s *State) GrantRole(g domain.RoleGrant) error {
+	return s.write(func(tx authority.Tx) error { return tx.PutRoleGrant(g) })
+}
+
+// VerifyWorkload attests a native launcher credential with core's attester
+// and resolves the module it names to a composed module; for a signed
+// delivery the service must be one of its current declared workloads.
+func (s *State) VerifyWorkload(ctx context.Context, credential string) (Manifest, error) {
+	attestation, err := s.attester.Attest(ctx, credential, s.audience)
+	if err != nil {
+		return Manifest{}, fmt.Errorf("%w: workload credential: %v", ErrForbidden, err)
+	}
+	m, ok := s.Module(attestation.Workload.Module)
+	if !ok {
+		return Manifest{}, fmt.Errorf("%w: module %q is not composed", ErrUnknown, attestation.Workload.Module)
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, record := range s.deliveries {
+		manifest, err := record.carrier.Manifest()
+		if err != nil {
+			return Manifest{}, err
+		}
+		if manifest.Alias != m.Name {
+			continue
+		}
+		if _, listed := manifest.WorkloadNamed(attestation.Workload.Service); !listed || manifest.Removed {
+			return Manifest{}, fmt.Errorf("%w: service %q is not a live workload of %s", ErrForbidden, attestation.Workload.Service, m.Name)
+		}
+	}
+	return m, nil
 }
 
 // AdmitMethod applies what the module at audience declares for method to the
@@ -187,9 +743,7 @@ func servedByMethods(methods map[string]MethodPolicy) []*basev0.WorkScopeV1 {
 // requires something and nothing, is refused: an absent or ambiguous
 // declaration is never read as permission.
 func (s *State) AdmitMethod(audience, method string, held []*basev0.WorkScopeV1) error {
-	s.mu.RLock()
-	m, err := s.moduleByPrincipal(audience)
-	s.mu.RUnlock()
+	m, err := s.ModuleByPrincipal(audience)
 	if err != nil {
 		return err
 	}
@@ -217,12 +771,12 @@ func admitMethod(m Manifest, audience, method string, held []*basev0.WorkScopeV1
 	case len(p.Requires) == 0:
 		return fmt.Errorf("%w: %s declares no policy for %s", ErrForbidden, audience, method)
 	}
-	// Method admission checks the kind and action. The module must still check
-	// each requested resource against the unchanged resource-limited scopes.
+	// Method admission checks the kind and action; the module still checks
+	// each resource, and its owner, against the unchanged scopes.
 	var missing []string
 	for _, r := range p.Requires {
 		for _, action := range r.GetActions() {
-			if !holdsAction(held, r.GetResourceKind(), action) {
+			if !HoldsAction(held, r.GetResourceKind(), action) {
 				missing = append(missing, r.GetResourceKind()+":"+action)
 			}
 		}
@@ -235,11 +789,8 @@ func admitMethod(m Manifest, audience, method string, held []*basev0.WorkScopeV1
 }
 
 // routeOf is the route a module declares that an HTTP request "<VERB> <path>"
-// is for: a declared "<VERB> <template>" whose template matches the path, a
-// "{name}" in it standing for one path segment's text and a "{name=**}" ending
-// it for the rest of the path. Two templates matching one path is an ambiguous
-// declaration, refused rather than guessed between. Published Connect calls
-// arrive as their protobuf method name; an HTTP path never borrows gRPC policy.
+// is for; two templates matching one path is an ambiguous declaration,
+// refused rather than guessed between.
 func routeOf(methods map[string]MethodPolicy, request string) (MethodPolicy, bool, error) {
 	verb, path, ok := strings.Cut(request, " ")
 	if !ok || !strings.HasPrefix(path, "/") {
@@ -261,23 +812,15 @@ func routeOf(methods map[string]MethodPolicy, request string) (MethodPolicy, boo
 	return MethodPolicy{}, false, fmt.Errorf("%s matches more than one declared route (%s)", request, strings.Join(found, ", "))
 }
 
-// holdsAction reports whether held carries action on any resource of kind.
-// It is a vocabulary/presence check, not whole-kind method admission.
-func holdsAction(held []*basev0.WorkScopeV1, kind, action string) bool {
-	for _, h := range held {
-		if h.GetResourceKind() == kind && (slices.Contains(h.GetActions(), action) || slices.Contains(h.GetActions(), AnyAction)) {
-			return true
-		}
-	}
-	return false
-}
-
 func describe(held []*basev0.WorkScopeV1) string {
 	var out []string
 	for _, h := range held {
 		for _, a := range h.GetActions() {
 			permission := h.GetResourceKind() + ":" + a
-			if len(h.GetResourceIds()) > 0 {
+			switch {
+			case h.GetResourceOwnerId() != "":
+				permission += " (owner-selected)"
+			case len(h.GetResourceIds()) > 0:
 				permission += " (resource-limited)"
 			}
 			out = append(out, permission)
@@ -287,1238 +830,4 @@ func describe(held []*basev0.WorkScopeV1) string {
 		return "nothing"
 	}
 	return strings.Join(out, ", ")
-}
-
-// InstallerRole is the role every solution declares: whoever installs it holds
-// it on that installation, which is the install-and-configure surface.
-const InstallerRole = "installer"
-
-// ErrNoInstallerRole refuses a solution that declares no installer role.
-var ErrNoInstallerRole = fmt.Errorf("%w: a solution declares an installer role", ErrForbidden)
-
-// Status is an installation's lifecycle.
-type Status string
-
-// The three states.
-const (
-	Pending Status = "pending"
-	Active  Status = "active"
-	Revoked Status = "revoked"
-)
-
-// Installation is one organisation's installation of one target.
-type Installation struct {
-	ID           string
-	Organization string
-	Target       string
-	Status       Status
-	Revision     uint64
-	// Role is the target's role the granted teams hold on this installation.
-	Role  string
-	Teams []string
-	// Owner installed it and holds the target's installer role on it.
-	Owner string
-}
-
-// installationNamespace names installations: InstallationID's UUIDs are
-// version-5 names under it.
-var installationNamespace = uuid.MustParse("6f1c2b0e-3a52-5d7c-9a1e-0c0de0a07b1a")
-
-// InstallationID is the id of org's installation of target: a canonical UUID,
-// as the host issues, so a module keys installations the same under either.
-// It is named by organisation and target rather than drawn, so a module's
-// stored rows (robin's conversations, its intent store) still name the
-// installation after the authority restarts with its fixture.
-func InstallationID(org, target string) string {
-	return uuid.NewSHA1(installationNamespace, []byte(org+"\x00"+target)).String()
-}
-
-// Namespace is the source the installation's own authored content belongs
-// to, named by the host so a module never chooses it: "<organization>.<target>".
-func (i Installation) Namespace() string { return i.Organization + "." + i.Target }
-
-// AgentPrincipal is the principal an installation acts as for itself.
-func (i Installation) AgentPrincipal() string { return i.ID + "/agent" }
-
-// Session is an open sign-in.
-type Session struct {
-	PersonDisplayName       string
-	OrganizationDisplayName string
-	ID                      string
-	Person                  string
-	Organization            string
-	Roles                   []string
-	Teams                   []string
-}
-
-// InstallStep converges one installation. Delivery replay may retry the same
-// Pending attempt after a failed call; external effects must be idempotent.
-type InstallStep func(ctx context.Context, installation Installation) error
-
-type fixtureFile struct {
-	Organizations []struct {
-		ID   string `yaml:"id"`
-		Name string `yaml:"name"`
-	} `yaml:"organizations"`
-	Roles         []Role                `yaml:"roles"`
-	People        []Person              `yaml:"people"`
-	Installations []FixtureInstallation `yaml:"installations"`
-	// Modules are modules a local run supervises itself rather than composing
-	// them through Codefly (a bridge process a playground starts, say), declared
-	// so they can be an audience. A delivered manifest of the same module
-	// supersedes it; one already composed is left as delivered.
-	Modules []FixtureModule `yaml:"modules"`
-	// Delegations a fixture person has already granted.
-	Delegations []Delegation `yaml:"delegations"`
-}
-
-// FixtureModule is one module the fixture composes: its name, which is its
-// principal, and the kinds and actions it serves.
-type FixtureModule struct {
-	Module string  `yaml:"module"`
-	Kinds  []Scope `yaml:"kinds"`
-}
-
-// FixtureInstallation is one installation the fixture performs through the real
-// install path, once its target is composed.
-type FixtureInstallation struct {
-	Organization string   `yaml:"organization"`
-	Target       string   `yaml:"target"`
-	Role         string   `yaml:"role"`
-	Owner        string   `yaml:"owner"`
-	Teams        []string `yaml:"teams"`
-}
-
-// State holds everything; every method is safe for concurrent use.
-type State struct {
-	mu            sync.RWMutex
-	deliveries    map[string]*appliedDelivery // binding → verified record, including withdrawals
-	orgs          map[string]string
-	people        map[string]Person
-	order         []string // people's ids, in the fixture's order
-	byToken       map[string]string
-	roles         map[string]Role // org/name
-	modules       map[string]Manifest
-	principals    map[string]string // principal → module
-	installations map[string]Installation
-	delegations   map[string]Delegation
-	sessions      map[string]Session
-	revisions     map[string]uint64
-	attester      *native.Attester
-	audience      string
-	installStep   InstallStep
-	// pendingInstalls are fixture installations whose target was not composed
-	// when the fixture loaded; each is performed when its target's manifest applies.
-	pendingInstalls []FixtureInstallation
-	// Approvals are the artifacts people have consented to (the artifact
-	// interface): in memory until the run that composes the store swaps in its
-	// Postgres (work.go approvalsFor), before any listener starts.
-	Approvals Approvals
-}
-
-// New returns an empty state that attests workloads against one launcher anchor:
-// core's native anchor, the issuer name, its public key and the subjects it
-// declared, handed to the host as configuration. audience is the name the
-// launcher issues credentials to, this host.
-func New(anchor native.Anchor, audience string) (*State, error) {
-	attester, err := native.NewAttester(anchor)
-	if err != nil {
-		return nil, fmt.Errorf("launcher anchor: %w", err)
-	}
-	return &State{
-		orgs: map[string]string{}, people: map[string]Person{}, byToken: map[string]string{},
-		deliveries: map[string]*appliedDelivery{}, roles: map[string]Role{}, modules: map[string]Manifest{}, principals: map[string]string{},
-		installations: map[string]Installation{}, delegations: map[string]Delegation{}, sessions: map[string]Session{}, revisions: map[string]uint64{},
-		attester: attester, audience: audience, Approvals: &MemoryApprovals{},
-	}, nil
-}
-
-// OnInstall sets the install step the host runs for a solution installation.
-// Nil acknowledges immediately, which is what a module installation does.
-func (s *State) OnInstall(step InstallStep) { s.installStep = step }
-
-// LoadFixture seeds organisations, roles, people and installations from YAML.
-// Installations in the fixture are performed through Install, never written.
-func (s *State) LoadFixture(ctx context.Context, data []byte) error {
-	var f fixtureFile
-	if err := yaml.Unmarshal(data, &f); err != nil {
-		return fmt.Errorf("fixture: %w", err)
-	}
-	s.mu.Lock()
-	for _, o := range f.Organizations {
-		s.orgs[o.ID] = o.Name
-	}
-	// A module composed before its organisations arrived gets its installation
-	// at each of them now; order of delivery must not decide what is usable.
-	for _, m := range s.modules {
-		s.ensureModuleInstallations(m)
-	}
-	for _, r := range f.Roles {
-		if r.Generated && (r.Name != "developer" || len(r.Scopes) != 0) {
-			s.mu.Unlock()
-			return fmt.Errorf("fixture: generated role must be developer with no authored scopes")
-		}
-		for _, sc := range r.Scopes {
-			grants := make([]resources.Grant, 0, len(sc.Resources))
-			for _, m := range sc.Resources {
-				grants = append(grants, m.Grant())
-			}
-			if _, err := resources.Compile(grants); err != nil {
-				s.mu.Unlock()
-				return fmt.Errorf("role %s/%s scope %s: %w", r.Organization, r.Name, sc.Kind, err)
-			}
-		}
-		s.roles[r.Organization+"/"+r.Name] = r
-	}
-	s.refreshDeveloperRoles()
-	var fixtureModules []Manifest
-	for _, d := range f.Delegations {
-		if d.ID == "" || d.Grantor == "" || d.Module == "" || d.Organization == "" {
-			s.mu.Unlock()
-			return fmt.Errorf("delegation %q names no id, grantor, module or organization", d.ID)
-		}
-		s.delegations[d.ID] = d
-	}
-	for _, fm := range f.Modules {
-		if _, composed := s.modules[fm.Module]; composed {
-			continue
-		}
-		m := Manifest{Module: fm.Module, Principal: fm.Module, Kind: "module", Generation: 1, Bindings: map[string]Binding{}, StandIn: true}
-		for _, k := range fm.Kinds {
-			m.ResourceKinds = append(m.ResourceKinds, &basev0.WorkScopeV1{ResourceKind: k.Kind, Actions: append([]string(nil), k.Actions...)})
-		}
-		fixtureModules = append(fixtureModules, m)
-	}
-	for _, p := range f.People {
-		if _, ok := s.orgs[p.Organization]; !ok {
-			s.mu.Unlock()
-			return fmt.Errorf("fixture: person %q names unknown organization %q", p.ID, p.Organization)
-		}
-		for _, role := range p.Roles {
-			if _, ok := s.roles[p.Organization+"/"+role]; !ok {
-				s.mu.Unlock()
-				return fmt.Errorf("fixture: person %q holds unknown role %q", p.ID, role)
-			}
-		}
-		if _, seen := s.people[p.ID]; !seen {
-			s.order = append(s.order, p.ID)
-		}
-		s.people[p.ID] = p
-		s.byToken[p.FixtureToken] = p.ID
-	}
-	s.mu.Unlock()
-	for _, i := range f.Installations {
-		if _, composed := s.modules[i.Target]; !composed {
-			// On a running service composition arrives by delivery after the
-			// fixture loads; the installation waits for its target's manifest.
-			s.pendingInstalls = append(s.pendingInstalls, i)
-			continue
-		}
-		inst, err := s.Install(ctx, i.Organization, i.Target, i.Role, i.Owner)
-		if err != nil {
-			return err
-		}
-		for _, team := range i.Teams {
-			if _, err := s.GrantToTeam(ctx, i.Organization, inst.ID, team); err != nil {
-				return err
-			}
-		}
-	}
-	for _, m := range fixtureModules {
-		if _, err := s.ApplyManifest(m); err != nil {
-			return fmt.Errorf("fixture module %s: %w", m.Module, err)
-		}
-	}
-	return nil
-}
-
-// SignIn opens a session for the person holding a fixture token.
-func (s *State) SignIn(token string) (Session, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	id, ok := s.byToken[token]
-	if !ok {
-		return Session{}, fmt.Errorf("%w: fixture token", ErrUnknown)
-	}
-	p := s.people[id]
-	name := p.Name
-	if name == "" {
-		name = p.Email
-	}
-	sess := Session{PersonDisplayName: name, OrganizationDisplayName: s.orgs[p.Organization], ID: uuid.NewString(), Person: p.ID, Organization: p.Organization, Roles: append([]string(nil), p.Roles...), Teams: append([]string(nil), p.Teams...)}
-	s.sessions[sess.ID] = sess
-	return sess, nil
-}
-
-// FixturePeople is every fixture person, in the fixture's order.
-func (s *State) FixturePeople() []Person {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	out := make([]Person, 0, len(s.order))
-	for _, id := range s.order {
-		out = append(out, s.people[id])
-	}
-	return out
-}
-
-// Session resolves an open session.
-func (s *State) Session(id string) (Session, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	sess, ok := s.sessions[id]
-	if !ok {
-		return Session{}, fmt.Errorf("%w: session", ErrUnknown)
-	}
-	return sess, nil
-}
-
-// PersonScopes is what a person holds at one module: the union of their roles'
-// scopes intersected with the module's declared resource kinds.
-func (s *State) PersonScopes(person, audience string) ([]*basev0.WorkScopeV1, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.personScopes(person, audience)
-}
-
-// personScopes reads one locked state snapshot.
-func (s *State) personScopes(person, audience string) ([]*basev0.WorkScopeV1, error) {
-	p, ok := s.people[person]
-	if !ok {
-		return nil, fmt.Errorf("%w: person", ErrUnknown)
-	}
-	m, err := s.moduleByPrincipal(audience)
-	if err != nil {
-		return nil, err
-	}
-	var held []*basev0.WorkScopeV1
-	if m.Kind == "solution" {
-		return Intersect(s.personSolutionScopes(p, m), m.ResourceKinds), nil
-	}
-	for _, name := range p.Roles {
-		for _, sc := range s.roles[p.Organization+"/"+name].Scopes {
-			if sc.Kind == AnyKind {
-				for _, kind := range m.ResourceKinds {
-					held = append(held, &basev0.WorkScopeV1{ResourceKind: kind.GetResourceKind(), Actions: append([]string(nil), sc.Actions...)})
-				}
-				continue
-			}
-			held = append(held, &basev0.WorkScopeV1{ResourceKind: sc.Kind, Actions: append([]string(nil), sc.Actions...)})
-		}
-	}
-	return Intersect(Normalize(held), m.ResourceKinds), nil
-}
-
-// Delegate records person's grant to module of scopes, each of which the
-// person must hold at the module or at an audience one of its bindings
-// addresses.
-func (s *State) Delegate(person, module string, scopes []*basev0.WorkScopeV1, purpose string) (Delegation, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	p, ok := s.people[person]
-	m, err := s.moduleByPrincipal(module)
-	if !ok {
-		return Delegation{}, fmt.Errorf("%w: person", ErrUnknown)
-	}
-	if err != nil {
-		return Delegation{}, err
-	}
-	if len(scopes) == 0 {
-		return Delegation{}, fmt.Errorf("%w: a delegation names what it grants", ErrForbidden)
-	}
-	var holds []*basev0.WorkScopeV1
-	if m.Kind == "solution" {
-		// A role grants consumed authority only through the person's operations.
-		role := s.personSolutionScopes(p, m)
-		holds = Intersect(role, m.ResourceKinds)
-		for _, binding := range m.Bindings {
-			target, err := s.moduleByPrincipal(binding.Audience)
-			if err != nil {
-				continue
-			}
-			there := Intersect(role, target.ResourceKinds)
-			if target.Kind == "solution" {
-				there = Intersect(there, s.personSolutionScopes(p, target))
-			}
-			holds = append(holds, Intersect(there, binding.InvokeScopes)...)
-			holds = append(holds, Intersect(there, binding.LookupScopes)...)
-		}
-	} else {
-		audiences := []string{m.Principal}
-		for _, binding := range m.Bindings {
-			audiences = append(audiences, binding.Audience)
-		}
-		for _, audience := range audiences {
-			if there, err := s.personScopes(person, audience); err == nil {
-				holds = append(holds, there...)
-			}
-		}
-	}
-
-	if !Attenuates(scopes, holds) {
-		return Delegation{}, fmt.Errorf("%w: %s delegates what they do not hold", ErrForbidden, person)
-	}
-	d := Delegation{ID: newDelegationID(), Organization: p.Organization, Grantor: person, Module: m.Module, Purpose: purpose}
-	for _, sc := range Normalize(scopes) {
-		d.Scopes = append(d.Scopes, DelegationScope{
-			Kind: sc.GetResourceKind(), Actions: append([]string(nil), sc.GetActions()...),
-			ResourceIDs: append([]string(nil), sc.GetResourceIds()...),
-		})
-	}
-	s.delegations[d.ID] = d
-	return d, nil
-}
-
-// RevokeDelegation ends a delegation; only its grantor may.
-func (s *State) RevokeDelegation(person, id string) (Delegation, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	d, ok := s.delegations[id]
-	if !ok {
-		return Delegation{}, fmt.Errorf("%w: delegation %q", ErrUnknown, id)
-	}
-	if d.Grantor != person {
-		return Delegation{}, fmt.Errorf("%w: only the grantor of %s may revoke it", ErrForbidden, id)
-	}
-	if d.Revoked {
-		return d, nil
-	}
-	d.Revoked = true
-	s.delegations[id] = d
-	// Core checks this revision on every effect-time verification. Revoking
-	// the grant must also invalidate capabilities already issued from it.
-	s.revisions[d.Organization]++
-	return d, nil
-}
-
-// DelegationByID answers a delegation as it stands.
-func (s *State) DelegationByID(id string) (Delegation, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	d, ok := s.delegations[id]
-	if !ok {
-		return Delegation{}, fmt.Errorf("%w: delegation %q", ErrUnknown, id)
-	}
-	return d, nil
-}
-
-// newDelegationID is a random UUID, the shape the host issues a delegation
-// under: a module that holds one as a grant reference checks that shape.
-func newDelegationID() string {
-	var b [16]byte
-	_, _ = rand.Read(b[:])
-	b[6], b[8] = b[6]&0x0f|0x40, b[8]&0x3f|0x80
-	h := hex.EncodeToString(b[:])
-	return h[:8] + "-" + h[8:12] + "-" + h[12:16] + "-" + h[16:20] + "-" + h[20:]
-}
-
-// ResourceGrants answers which resources of kind a person may act on with
-// action at audience: the resource grants of every role scope that holds the
-// action on the kind, and every resource for a scope that names none. A person
-// whose roles hold no such scope is answered with no grant.
-func (s *State) ResourceGrants(person, audience, kind, action string) ([]resources.Grant, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	p, ok := s.people[person]
-	if !ok {
-		return nil, fmt.Errorf("%w: person", ErrUnknown)
-	}
-	m, err := s.moduleByPrincipal(audience)
-	if err != nil {
-		return nil, err
-	}
-	served := false
-	for _, k := range m.ResourceKinds {
-		if k.GetResourceKind() == kind {
-			served = true
-		}
-	}
-	if !served {
-		return nil, fmt.Errorf("%w: %s serves no resource kind %q", ErrUnknown, audience, kind)
-	}
-	var grants []resources.Grant
-	for _, name := range p.Roles {
-		for _, sc := range s.roles[p.Organization+"/"+name].Scopes {
-			if (sc.Kind != kind && sc.Kind != AnyKind) || (!slices.Contains(sc.Actions, action) && !slices.Contains(sc.Actions, AnyAction)) {
-				continue
-			}
-			if len(sc.Resources) == 0 {
-				return []resources.Grant{{All: true}}, nil
-			}
-			for _, r := range sc.Resources {
-				grants = append(grants, r.Grant())
-			}
-		}
-	}
-	return grants, nil
-}
-
-// ApplyManifest records one module instance at a newer generation and holds a
-// module installation at every organisation, so a module is usable without a
-// click. A lower or equal generation is refused.
-func (s *State) ApplyManifest(m Manifest) ([]string, error) {
-	s.mu.Lock()
-	for _, record := range s.deliveries {
-		held, _ := record.carrier.Manifest()
-		if held.Alias == m.Module {
-			s.mu.Unlock()
-			return nil, fmt.Errorf("%w: %s is owned by signed binding %s; a sketch cannot replace it", ErrForbidden, m.Module, held.Binding)
-		}
-	}
-	ids, pending, err := s.applyManifestLocked(m)
-	s.mu.Unlock()
-	if err != nil {
-		return nil, err
-	}
-	if err := s.performPendingInstalls(pending); err != nil {
-		return nil, err
-	}
-	return ids, nil
-}
-
-// applyManifestLocked validates before replacing the live projection. Caller holds mu.
-func (s *State) applyManifestLocked(m Manifest) ([]string, []FixtureInstallation, error) {
-	if err := validateManifest(m); err != nil {
-		return nil, nil, err
-	}
-	if prev, ok := s.modules[m.Module]; ok && !prev.StandIn && prev.Generation >= m.Generation {
-		return nil, nil, fmt.Errorf("%w: %s is at %d, got %d", ErrStale, m.Module, prev.Generation, m.Generation)
-	}
-	if other, ok := s.principals[m.Principal]; ok && other != m.Module {
-		return nil, nil, fmt.Errorf("%w: principal %q already belongs to %s", ErrForbidden, m.Principal, other)
-	}
-	m.ResourceKinds = Normalize(append(m.ResourceKinds, servedByMethods(m.Methods)...))
-	s.invalidateNarrowedAuthority(m)
-	if previous, ok := s.modules[m.Module]; ok {
-		delete(s.principals, previous.Principal)
-	}
-	s.modules[m.Module] = m
-	s.refreshDeveloperRoles()
-	s.principals[m.Principal] = m.Module
-	return s.ensureModuleInstallations(m), s.takePendingInstalls(m.Module), nil
-}
-
-func validateManifest(m Manifest) error {
-	for method, policy := range m.Methods {
-		requires := map[string][]string{}
-		for _, scope := range policy.Requires {
-			if len(scope.GetResourceIds()) > 0 {
-				return fmt.Errorf("%w: %s: %s: method requirements name whole resource kinds; resource IDs are not supported", ErrForbidden, m.Module, method)
-			}
-			requires[scope.GetResourceKind()] = append(requires[scope.GetResourceKind()], scope.GetActions()...)
-		}
-		if err := delivery.ValidateMethodPolicy(method, policy.AnyCheckedCaller, requires, false); err != nil {
-			return fmt.Errorf("%w: %s: %w", ErrForbidden, m.Module, err)
-		}
-	}
-	if err := validateRoles(m); err != nil {
-		return err
-	}
-	if m.Module == "" || m.Principal == "" || m.Generation == 0 {
-		return fmt.Errorf("%w: a manifest names its module, its principal and a generation", ErrForbidden)
-	}
-	for id, b := range m.Bindings {
-		lookupCeiling := b.InvokeScopes
-		if len(lookupCeiling) == 0 {
-			lookupCeiling = b.HeadlessScopes
-		}
-		if len(b.LookupScopes) > 0 && !Attenuates(b.LookupScopes, lookupCeiling) {
-			return fmt.Errorf("%w: binding %s: lookup scopes exceed what the binding may do", ErrForbidden, id)
-		}
-		if len(b.InvokeScopes) > 0 && !Attenuates(b.HeadlessScopes, b.InvokeScopes) {
-			return fmt.Errorf("%w: binding %s: headless scopes exceed invoke scopes", ErrForbidden, id)
-		}
-	}
-	return nil
-}
-
-// invalidateNarrowedAuthority advances the existing live revisions when delivery
-// removes role or binding authority. Person roots can carry binding scopes for a
-// later module hop without that module's epoch, so generation alone is not enough.
-// Caller holds mu; expansion does not advance these revisions.
-func (s *State) invalidateNarrowedAuthority(next Manifest) {
-	previous, ok := s.modules[next.Module]
-	if !ok {
-		return
-	}
-	bindingsNarrowed := false
-	for id, old := range previous.Bindings {
-		binding, exists := next.Bindings[id]
-		if !exists || old.Audience != binding.Audience ||
-			!Attenuates(old.InvokeScopes, binding.InvokeScopes) ||
-			!Attenuates(old.HeadlessScopes, binding.HeadlessScopes) ||
-			!Attenuates(old.LookupScopes, binding.LookupScopes) {
-			bindingsNarrowed = true
-			break
-		}
-	}
-	changed := map[string]bool{}
-	for id, inst := range s.installations {
-		if inst.Target != next.Module || inst.Status != Active {
-			continue
-		}
-		rolesNarrowed := previous.Kind == "solution" &&
-			(!Attenuates(previous.Roles[inst.Role], next.Roles[inst.Role]) ||
-				!Attenuates(previous.Roles[InstallerRole], next.Roles[InstallerRole]))
-		if !bindingsNarrowed && !rolesNarrowed {
-			continue
-		}
-		inst.Revision++
-		s.installations[id] = inst
-		changed[inst.Organization] = true
-	}
-	for org := range changed {
-		s.revisions[org]++
-	}
-}
-
-// takePendingInstalls removes and returns the fixture installations waiting for
-// this target; the caller holds the lock.
-func (s *State) takePendingInstalls(target string) []FixtureInstallation {
-	var mine, keep []FixtureInstallation
-	for _, i := range s.pendingInstalls {
-		if i.Target == target {
-			mine = append(mine, i)
-		} else {
-			keep = append(keep, i)
-		}
-	}
-	s.pendingInstalls = keep
-	return mine
-}
-
-// performPendingInstalls installs what the fixture asked for a target that has
-// just composed, through the real install path and its team grants; the caller
-// holds no lock.
-func (s *State) performPendingInstalls(pending []FixtureInstallation) error {
-	for _, i := range pending {
-		inst, err := s.Install(context.Background(), i.Organization, i.Target, i.Role, i.Owner)
-		if err != nil {
-			return fmt.Errorf("fixture installation of %s at %s: %w", i.Target, i.Organization, err)
-		}
-		for _, team := range i.Teams {
-			if _, err := s.GrantToTeam(context.Background(), i.Organization, inst.ID, team); err != nil {
-				return fmt.Errorf("fixture grant of %s to %s: %w", inst.ID, team, err)
-			}
-		}
-	}
-	return nil
-}
-
-// ensureModuleInstallations holds a module installation at every organisation;
-// a solution is installed explicitly. Caller holds the lock.
-func (s *State) ensureModuleInstallations(m Manifest) []string {
-	if m.Kind == "solution" {
-		return nil
-	}
-	var ids []string
-	for org := range s.orgs {
-		id := InstallationID(org, m.Module)
-		if _, ok := s.installations[id]; !ok {
-			s.installations[id] = Installation{ID: id, Organization: org, Target: m.Module, Status: Active, Revision: 1}
-		}
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-	return ids
-}
-
-// Module returns a composed module by name.
-func (s *State) Module(name string) (Manifest, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	m, ok := s.modules[name]
-	return m, ok
-}
-
-// ModuleByPrincipal returns the module a principal names.
-func (s *State) ModuleByPrincipal(principal string) (Manifest, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.moduleByPrincipal(principal)
-}
-
-func (s *State) moduleByPrincipal(principal string) (Manifest, error) {
-	name, ok := s.principals[principal]
-	if !ok {
-		return Manifest{}, fmt.Errorf("%w: audience %q is not composed", ErrUnknown, principal)
-	}
-	return s.modules[name], nil
-}
-
-// Install composes an installation: pending until the install step is acknowledged.
-func (s *State) Install(ctx context.Context, org, target, role, owner string) (Installation, error) {
-	return s.install(ctx, org, target, role, owner, 0, nil)
-}
-
-// generation is nonzero only when resuming a committed delivery's fixture intent.
-func (s *State) install(ctx context.Context, org, target, role, owner string, generation uint64, intent *pendingInstallation) (Installation, error) {
-	s.mu.Lock()
-	if _, ok := s.orgs[org]; !ok {
-		s.mu.Unlock()
-		return Installation{}, fmt.Errorf("%w: organization %q", ErrUnknown, org)
-	}
-	target_, ok := s.modules[target]
-	if !ok || target_.Kind != "solution" {
-		s.mu.Unlock()
-		return Installation{}, fmt.Errorf("%w: %q is not a composed solution; a module is installed by composition", ErrUnknown, target)
-	}
-	if generation != 0 && target_.Generation != generation {
-		s.mu.Unlock()
-		return Installation{}, fmt.Errorf("%w: installation delivery was superseded", ErrStale)
-	}
-	if _, ok := target_.Roles[role]; !ok {
-		s.mu.Unlock()
-		return Installation{}, fmt.Errorf("%w: role %q is not one %s declares", ErrUnknown, role, target)
-	}
-	if p, ok := s.people[owner]; !ok || p.Organization != org {
-		s.mu.Unlock()
-		return Installation{}, fmt.Errorf("%w: owner %q is not a member of %s", ErrForbidden, owner, org)
-	}
-	id := InstallationID(org, target)
-	existing, exists := s.installations[id]
-	if intent != nil && exists && (existing.Status == Revoked || (intent.revision == 0 || existing.Revision != intent.revision)) {
-		s.mu.Unlock()
-		return Installation{}, fmt.Errorf("%w: fixture installation attempt %s was revoked or changed", ErrStale, id)
-	}
-	if exists && existing.Status != Revoked {
-		if generation == 0 || existing.Role != role || existing.Owner != owner {
-			s.mu.Unlock()
-			return Installation{}, fmt.Errorf("%w: %s is already installed at %s", ErrForbidden, target, org)
-		}
-		if existing.Status == Active {
-			s.mu.Unlock()
-			return existing, nil
-		}
-	} else {
-		existing = Installation{ID: id, Organization: org, Target: target, Status: Pending, Revision: existing.Revision + 1, Role: role, Owner: owner}
-		s.installations[id] = existing
-		s.revisions[org]++
-	}
-	if intent != nil {
-		intent.revision = existing.Revision
-	}
-	step := s.installStep
-	s.mu.Unlock()
-	if step != nil {
-		if err := step(ctx, existing); err != nil {
-			return existing, fmt.Errorf("install step for %s: %w", id, err)
-		}
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	current := s.installations[id]
-	live, composed := s.modules[target]
-	if !composed || live.Generation != target_.Generation || current.Status != Pending || current.Revision != existing.Revision {
-		return current, fmt.Errorf("%w: installation attempt %s changed before acknowledgement", ErrStale, id)
-	}
-	current.Status = Active
-	s.installations[id] = current
-	return current, nil
-}
-
-// Acknowledge records that the target's install step completed.
-func (s *State) Acknowledge(id string) (Installation, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	inst, ok := s.installations[id]
-	if !ok {
-		return Installation{}, fmt.Errorf("%w: installation %q", ErrUnknown, id)
-	}
-	if inst.Status == Pending {
-		inst.Status = Active
-		s.installations[id] = inst
-	}
-	return inst, nil
-}
-
-// GrantToTeam exposes an installation to a team; the authorization revision moves.
-// org, when given, must be the installation's own: a grant names the
-// organisation it is made in, as an administrator's act does.
-func (s *State) GrantToTeam(_ context.Context, org, id, team string) (Installation, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	inst, ok := s.installations[id]
-	if !ok || inst.Status == Revoked {
-		return Installation{}, fmt.Errorf("%w: installation %q", ErrUnknown, id)
-	}
-	if inst.Status != Active {
-		return Installation{}, fmt.Errorf("%w: installation %s is %s; only an active installation can be exposed", ErrForbidden, id, inst.Status)
-	}
-	if org != "" && org != inst.Organization {
-		return Installation{}, fmt.Errorf("%w: installation %s is not at organization %q", ErrForbidden, id, org)
-	}
-	for _, t := range inst.Teams {
-		if t == team {
-			return inst, nil
-		}
-	}
-	inst.Teams = append(inst.Teams, team)
-	inst.Revision++
-	s.installations[id] = inst
-	s.revisions[inst.Organization]++
-	return inst, nil
-}
-
-// Revoke uninstalls; every capability sealed to the installation is refused next check.
-func (s *State) Revoke(id string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	inst, ok := s.installations[id]
-	if !ok {
-		return fmt.Errorf("%w: installation %q", ErrUnknown, id)
-	}
-	inst.Status = Revoked
-	inst.Revision++
-	s.installations[id] = inst
-	s.revisions[inst.Organization]++
-	return nil
-}
-
-// ActiveInstallationOrganizations returns the organizations with an active
-// installation of target. Pending and revoked installations confer no authority.
-func (s *State) ActiveInstallationOrganizations(target string) []string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	var organizations []string
-	for _, inst := range s.installations {
-		if inst.Target == target && inst.Status == Active {
-			organizations = append(organizations, inst.Organization)
-		}
-	}
-	sort.Strings(organizations)
-	return organizations
-}
-
-// Installation returns one installation.
-func (s *State) Installation(id string) (Installation, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	i, ok := s.installations[id]
-	return i, ok
-}
-
-// InstallationScopes resolves the selected role in the installed solution's
-// declaration, never in the organisation's independent role catalogue. The
-// installation, role, audience and authorization revision share one snapshot.
-// Issuance must not stamp these scopes with a different revision.
-func (s *State) InstallationScopes(id, audience string) (Installation, []*basev0.WorkScopeV1, uint64, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	inst, ok := s.installations[id]
-	if !ok {
-		return Installation{}, nil, 0, fmt.Errorf("%w: installation %q", ErrUnknown, id)
-	}
-	if inst.Status != Active {
-		return Installation{}, nil, 0, fmt.Errorf("%w: installation %s is %s", workcontext.ErrNoSeal, id, inst.Status)
-	}
-	target, ok := s.modules[inst.Target]
-	if !ok || target.Kind != "solution" {
-		return Installation{}, nil, 0, fmt.Errorf("%w: installation target is not a delivered solution", ErrUnknown)
-	}
-	held, ok := target.Roles[inst.Role]
-	if !ok {
-		return Installation{}, nil, 0, fmt.Errorf("%w: role %q is no longer declared by %s", ErrUnknown, inst.Role, inst.Target)
-	}
-	served, err := s.moduleByPrincipal(audience)
-	if err != nil {
-		return Installation{}, nil, 0, err
-	}
-	return inst, Intersect(held, served.ResourceKinds), s.revisions[inst.Organization] + 1, nil
-}
-
-// List answers what one organisation has installed, sorted by id.
-func (s *State) List(org string) []Installation {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	var out []Installation
-	for _, i := range s.installations {
-		if i.Organization == org {
-			out = append(out, i)
-		}
-	}
-	sort.Slice(out, func(a, b int) bool { return out[a].ID < out[b].ID })
-	return out
-}
-
-// Entitled lists the active solution installations a person may use: those
-// granted to a team they belong to. This is the navigation.
-func (s *State) Entitled(person string) []Installation {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	p, ok := s.people[person]
-	if !ok {
-		return nil
-	}
-	return s.entitled(p)
-}
-
-func (s *State) entitled(p Person) []Installation {
-	person := p.ID
-	var out []Installation
-	for _, i := range s.installations {
-		if i.Organization != p.Organization || i.Status != Active || i.Role == "" {
-			continue
-		}
-		if i.Owner == person {
-			out = append(out, i)
-			continue
-		}
-		for _, t := range i.Teams {
-			for _, mine := range p.Teams {
-				if t == mine {
-					out = append(out, i)
-					goto next
-				}
-			}
-		}
-	next:
-	}
-	sort.Slice(out, func(a, b int) bool { return out[a].ID < out[b].ID })
-	return out
-}
-
-// RoleScopes is what a role grants, as scopes.
-func (s *State) RoleScopes(org, role string) []*basev0.WorkScopeV1 {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	var out []*basev0.WorkScopeV1
-	for _, sc := range s.roles[org+"/"+role].Scopes {
-		out = append(out, &basev0.WorkScopeV1{ResourceKind: sc.Kind, Actions: append([]string(nil), sc.Actions...)})
-	}
-	return Normalize(out)
-}
-
-// VerifyWorkload attests a native launcher credential with core's attester and
-// resolves the module it names to a composed module. The credential format, the
-// signature check, the audience and the window are core's, the same the host
-// runs. This state also requires a composed module and, for signed deliveries,
-// membership in its current declared workloads.
-func (s *State) VerifyWorkload(ctx context.Context, credential string) (Manifest, error) {
-	attestation, err := s.attester.Attest(ctx, credential, s.audience)
-	if err != nil {
-		return Manifest{}, fmt.Errorf("%w: workload credential: %v", ErrForbidden, err)
-	}
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	m, ok := s.modules[attestation.Workload.Module]
-	if !ok {
-		return Manifest{}, fmt.Errorf("%w: module %q is not composed", ErrUnknown, attestation.Workload.Module)
-	}
-	for _, record := range s.deliveries {
-		manifest, err := record.carrier.Manifest()
-		if err != nil {
-			return Manifest{}, err
-		}
-		if manifest.Alias != m.Module {
-			continue
-		}
-		if _, listed := manifest.WorkloadNamed(attestation.Workload.Service); !listed || manifest.Removed {
-			return Manifest{}, fmt.Errorf("%w: service %q is not a live workload of %s", ErrForbidden, attestation.Workload.Service, m.Module)
-		}
-	}
-	return m, nil
-}
-
-// --- core's seal and revision sources ---------------------------------------
-
-// Seal answers for a principal's use of an installation: the installation must
-// be active and the principal must be a member of its organisation, a composed
-// module, the installation's own agent, or an active solution installation's
-// agent acting through a module in the same organisation. Role scopes are
-// resolved by the issuer; a seal association grants no additional actions.
-func (s *State) Seal(_ context.Context, principalID, installationID string) (workcontext.Seal, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	inst, ok := s.installations[installationID]
-	if !ok || inst.Status != Active {
-		return workcontext.Seal{}, workcontext.ErrNoSeal
-	}
-	switch {
-	case principalID == inst.AgentPrincipal():
-	case s.isModulePrincipal(principalID):
-	case s.isMember(principalID, inst.Organization):
-	case s.installationAgentAtModule(principalID, inst):
-	default:
-		return workcontext.Seal{}, workcontext.ErrNoSeal
-	}
-	return workcontext.Seal{InstallationID: inst.ID, InstallationRevision: inst.Revision}, nil
-}
-
-// installationAgentAtModule is called under the state lock. The actor's binding
-// remains sealed to that module's installation; the original solution agent
-// remains the owner. Its source installation must still be active. Other
-// solutions and organisations acquire no association through this rule.
-func (s *State) installationAgentAtModule(principalID string, target Installation) bool {
-	id, agent := strings.CutSuffix(principalID, "/agent")
-	if !agent {
-		return false
-	}
-	source, ok := s.installations[id]
-	if !ok || source.Status != Active || source.Organization != target.Organization {
-		return false
-	}
-	return s.modules[source.Target].Kind == "solution" && s.modules[target.Target].Kind == "module"
-}
-
-// PrincipalEpoch is a module's generation, and 1 for a person or an agent.
-func (s *State) PrincipalEpoch(_ context.Context, principalID string) (uint64, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if name, ok := s.principals[principalID]; ok {
-		return s.modules[name].Generation, nil
-	}
-	if _, ok := s.people[principalID]; ok {
-		return 1, nil
-	}
-	if id, ok := strings.CutSuffix(principalID, "/agent"); ok {
-		if inst, ok := s.installations[id]; ok && inst.Status == Active {
-			return 1, nil
-		}
-	}
-	return 0, fmt.Errorf("%w: principal %q", ErrUnknown, principalID)
-}
-
-// OperationBinding resolves "<org>/<module>/<binding>" from the manifests.
-func (s *State) OperationBinding(_ context.Context, bindingID string) (workcontext.OperationBinding, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	parts := strings.SplitN(bindingID, "/", 3)
-	if len(parts) != 3 {
-		return workcontext.OperationBinding{}, workcontext.ErrNoBinding
-	}
-	m, ok := s.modules[parts[1]]
-	if !ok {
-		return workcontext.OperationBinding{}, workcontext.ErrNoBinding
-	}
-	if _, ok := m.Bindings[parts[2]]; !ok {
-		return workcontext.OperationBinding{}, workcontext.ErrNoBinding
-	}
-	inst, ok := s.installations[InstallationID(parts[0], parts[1])]
-	if !ok {
-		return workcontext.OperationBinding{}, workcontext.ErrNoBinding
-	}
-	return workcontext.OperationBinding{
-		ID: bindingID, PrincipalID: m.Principal, InstallationID: inst.ID,
-		Revision: m.Generation, Incarnation: 1, Revoked: inst.Status == Revoked,
-	}, nil
-}
-
-// Grant answers core's grant source: the local authority issues no approval grants,
-// so every grant capability is refused by name rather than skipped.
-func (s *State) Grant(_ context.Context, grantID string) (*workcontext.Grant, error) {
-	return nil, fmt.Errorf("%w: grant %q (the local authority issues no approval grants)", ErrUnknown, grantID)
-}
-
-// AuthorizationRevision is per organisation and moves on every grant change.
-func (s *State) AuthorizationRevision(_ context.Context, tenantID string) (uint64, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if _, ok := s.orgs[tenantID]; !ok {
-		return 0, fmt.Errorf("%w: organization %q", ErrUnknown, tenantID)
-	}
-	return s.revisions[tenantID] + 1, nil
-}
-
-func (s *State) isModulePrincipal(p string) bool { _, ok := s.principals[p]; return ok }
-func (s *State) isMember(p, org string) bool {
-	person, ok := s.people[p]
-	return ok && person.Organization == org
-}
-
-// --- scope algebra ------------------------------------------------------------
-
-// A scope covers either the whole of a kind (no resource ids) or the resources
-// it names. Every operation below keeps that distinction: an id-limited scope
-// is never widened to its kind, and an intersection keeps the narrower side.
-
-// AnyAction, on a module's declared resource kind, serves whatever actions the
-// roles grant on that kind: core's manifest names kinds and not actions. On a
-// role's scope it grants every action the audience serves on that kind.
-const AnyAction = "*"
-
-// AnyKind, on a role's scope, grants its actions on every kind the audience
-// module serves: a local developer's role, written without naming any module.
-const AnyKind = "*"
-
-// coverage is kind -> action -> ids, where a nil set is the whole kind.
-type coverage map[string]map[string]map[string]bool
-
-func coverageOf(in []*basev0.WorkScopeV1) coverage {
-	c := coverage{}
-	for _, sc := range in {
-		if sc == nil || sc.GetResourceKind() == "" {
-			continue
-		}
-		kind := sc.GetResourceKind()
-		if c[kind] == nil {
-			c[kind] = map[string]map[string]bool{}
-		}
-		for _, act := range sc.GetActions() {
-			current, seen := c[kind][act]
-			switch {
-			case len(sc.GetResourceIds()) == 0:
-				c[kind][act] = nil
-			case seen && current == nil:
-				// already the whole kind
-			default:
-				if current == nil {
-					current = map[string]bool{}
-				}
-				for _, id := range sc.GetResourceIds() {
-					current[id] = true
-				}
-				c[kind][act] = current
-			}
-		}
-	}
-	return c
-}
-
-// scopes renders coverage in the shape core requires: kinds sorted, actions
-// sorted, one scope per kind and id set.
-func (c coverage) scopes() []*basev0.WorkScopeV1 {
-	kinds := make([]string, 0, len(c))
-	for k := range c {
-		kinds = append(kinds, k)
-	}
-	sort.Strings(kinds)
-	var out []*basev0.WorkScopeV1
-	for _, kind := range kinds {
-		bySet := map[string][]string{}
-		sets := map[string][]string{}
-		for act, ids := range c[kind] {
-			key := ""
-			var list []string
-			if ids != nil {
-				for id := range ids {
-					list = append(list, id)
-				}
-				sort.Strings(list)
-				key = "\x00" + strings.Join(list, "\x00")
-			}
-			bySet[key] = append(bySet[key], act)
-			sets[key] = list
-		}
-		keys := make([]string, 0, len(bySet))
-		for k := range bySet {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		for _, k := range keys {
-			actions := bySet[k]
-			sort.Strings(actions)
-			out = append(out, &basev0.WorkScopeV1{ResourceKind: kind, Actions: actions, ResourceIds: sets[k]})
-		}
-	}
-	return out
-}
-
-// Normalize merges duplicate kinds and sorts actions, the shape core requires.
-func Normalize(in []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 {
-	return coverageOf(in).scopes()
-}
-
-// Intersect keeps what a holds that b allows, the narrower side winning: a
-// whole kind meets named ids as those ids, and two id sets meet as their
-// common ids. AnyAction in b allows every action of a's kind; AnyAction in a
-// takes every action b allows on that kind.
-func Intersect(a, b []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 {
-	allowed := coverageOf(b)
-	asked := coverageOf(a)
-	out := coverage{}
-	put := func(kind, act string, ids map[string]bool) {
-		if ids != nil && len(ids) == 0 {
-			return
-		}
-		if out[kind] == nil {
-			out[kind] = map[string]map[string]bool{}
-		}
-		out[kind][act] = ids
-	}
-	for kind, acts := range asked {
-		for act, ids := range acts {
-			if act == AnyAction {
-				for served, allowedIDs := range allowed[kind] {
-					put(kind, served, meet(ids, allowedIDs))
-				}
-				continue
-			}
-			allowedIDs, ok := allowed[kind][act]
-			if !ok {
-				allowedIDs, ok = allowed[kind][AnyAction]
-			}
-			if ok {
-				put(kind, act, meet(ids, allowedIDs))
-			}
-		}
-	}
-	return out.scopes()
-}
-
-// meet is two coverages of one kind and action: nil is the whole kind.
-func meet(a, b map[string]bool) map[string]bool {
-	switch {
-	case a == nil && b == nil:
-		return nil
-	case a == nil:
-		return b
-	case b == nil:
-		return a
-	}
-	common := map[string]bool{}
-	for id := range a {
-		if b[id] {
-			common[id] = true
-		}
-	}
-	return common
-}
-
-// Attenuates reports whether every scope in narrow is within wide.
-func Attenuates(narrow, wide []*basev0.WorkScopeV1) bool {
-	n := Normalize(narrow)
-	return sameScopes(Intersect(n, wide), n)
-}
-
-func sameScopes(a, b []*basev0.WorkScopeV1) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i].GetResourceKind() != b[i].GetResourceKind() || strings.Join(a[i].GetActions(), ",") != strings.Join(b[i].GetActions(), ",") ||
-			strings.Join(a[i].GetResourceIds(), "\x00") != strings.Join(b[i].GetResourceIds(), "\x00") {
-			return false
-		}
-	}
-	return true
-}
-
-// validateRoles holds a solution to its role contract: it declares an installer
-// role, and every role stays within what the solution serves or explicitly
-// consumes through invoke/lookup bindings. Headless authority belongs to the
-// workload and cannot supply a role grant. A module declares no roles.
-func validateRoles(m Manifest) error {
-	if m.Kind != "solution" {
-		if len(m.Roles) > 0 {
-			return fmt.Errorf("%w: module %q declares roles; a module's access is the organisation's roles", ErrForbidden, m.Module)
-		}
-		return nil
-	}
-	if _, ok := m.Roles[InstallerRole]; !ok {
-		return fmt.Errorf("%w: %s declares %d role(s) and none is %q", ErrNoInstallerRole, m.Module, len(m.Roles), InstallerRole)
-	}
-	grantable := slices.Clone(m.ResourceKinds)
-	for _, binding := range m.Bindings {
-		grantable = append(grantable, binding.InvokeScopes...)
-		grantable = append(grantable, binding.LookupScopes...)
-	}
-	for name, scopes := range m.Roles {
-		if len(scopes) == 0 {
-			return fmt.Errorf("%w: role %q of %s grants nothing", ErrForbidden, name, m.Module)
-		}
-		if !Attenuates(scopes, grantable) {
-			return fmt.Errorf("%w: role %q of %s grants beyond what %s serves or explicitly consumes through invoke/lookup bindings", ErrForbidden, name, m.Module, m.Module)
-		}
-	}
-	return nil
 }

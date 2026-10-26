@@ -40,10 +40,20 @@ class InstallationServiceStub(object):
                 request_serializer=host_dot_installation_dot_v1_dot_installation__pb2.InstallRequest.SerializeToString,
                 response_deserializer=host_dot_installation_dot_v1_dot_installation__pb2.Installation.FromString,
                 _registered_method=True)
-        self.GrantToTeam = channel.unary_unary(
-                '/host.installation.v1.InstallationService/GrantToTeam',
-                request_serializer=host_dot_installation_dot_v1_dot_installation__pb2.GrantToTeamRequest.SerializeToString,
+        self.GrantRole = channel.unary_unary(
+                '/host.installation.v1.InstallationService/GrantRole',
+                request_serializer=host_dot_installation_dot_v1_dot_installation__pb2.GrantRoleRequest.SerializeToString,
                 response_deserializer=host_dot_installation_dot_v1_dot_installation__pb2.Installation.FromString,
+                _registered_method=True)
+        self.RevokeRole = channel.unary_unary(
+                '/host.installation.v1.InstallationService/RevokeRole',
+                request_serializer=host_dot_installation_dot_v1_dot_installation__pb2.RevokeRoleRequest.SerializeToString,
+                response_deserializer=host_dot_installation_dot_v1_dot_installation__pb2.Installation.FromString,
+                _registered_method=True)
+        self.ListRoleGrants = channel.unary_unary(
+                '/host.installation.v1.InstallationService/ListRoleGrants',
+                request_serializer=host_dot_installation_dot_v1_dot_installation__pb2.ListRoleGrantsRequest.SerializeToString,
+                response_deserializer=host_dot_installation_dot_v1_dot_installation__pb2.ListRoleGrantsResponse.FromString,
                 _registered_method=True)
         self.List = channel.unary_unary(
                 '/host.installation.v1.InstallationService/List',
@@ -64,8 +74,27 @@ class InstallationServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def GrantToTeam(self, request, context):
-        """GrantToTeam exposes an installation to a team under the installation's role.
+    def GrantRole(self, request, context):
+        """GrantRole grants a person or a team one of the solution's roles on the
+        installation: the access. Idempotent; it leaves existing capabilities
+        valid. An administrator of the installation's organization, or a holder
+        of the installer role on that installation, grants.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def RevokeRole(self, request, context):
+        """RevokeRole ends one grant; every capability its subject holds from it is
+        refused at once. Idempotent; the same callers as GrantRole.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListRoleGrants(self, request, context):
+        """ListRoleGrants answers who holds which role on the installation; the same
+        callers as GrantRole.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -88,10 +117,20 @@ def add_InstallationServiceServicer_to_server(servicer, server):
                     request_deserializer=host_dot_installation_dot_v1_dot_installation__pb2.InstallRequest.FromString,
                     response_serializer=host_dot_installation_dot_v1_dot_installation__pb2.Installation.SerializeToString,
             ),
-            'GrantToTeam': grpc.unary_unary_rpc_method_handler(
-                    servicer.GrantToTeam,
-                    request_deserializer=host_dot_installation_dot_v1_dot_installation__pb2.GrantToTeamRequest.FromString,
+            'GrantRole': grpc.unary_unary_rpc_method_handler(
+                    servicer.GrantRole,
+                    request_deserializer=host_dot_installation_dot_v1_dot_installation__pb2.GrantRoleRequest.FromString,
                     response_serializer=host_dot_installation_dot_v1_dot_installation__pb2.Installation.SerializeToString,
+            ),
+            'RevokeRole': grpc.unary_unary_rpc_method_handler(
+                    servicer.RevokeRole,
+                    request_deserializer=host_dot_installation_dot_v1_dot_installation__pb2.RevokeRoleRequest.FromString,
+                    response_serializer=host_dot_installation_dot_v1_dot_installation__pb2.Installation.SerializeToString,
+            ),
+            'ListRoleGrants': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListRoleGrants,
+                    request_deserializer=host_dot_installation_dot_v1_dot_installation__pb2.ListRoleGrantsRequest.FromString,
+                    response_serializer=host_dot_installation_dot_v1_dot_installation__pb2.ListRoleGrantsResponse.SerializeToString,
             ),
             'List': grpc.unary_unary_rpc_method_handler(
                     servicer.List,
@@ -138,7 +177,7 @@ class InstallationService(object):
             _registered_method=True)
 
     @staticmethod
-    def GrantToTeam(request,
+    def GrantRole(request,
             target,
             options=(),
             channel_credentials=None,
@@ -151,9 +190,63 @@ class InstallationService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/host.installation.v1.InstallationService/GrantToTeam',
-            host_dot_installation_dot_v1_dot_installation__pb2.GrantToTeamRequest.SerializeToString,
+            '/host.installation.v1.InstallationService/GrantRole',
+            host_dot_installation_dot_v1_dot_installation__pb2.GrantRoleRequest.SerializeToString,
             host_dot_installation_dot_v1_dot_installation__pb2.Installation.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def RevokeRole(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/host.installation.v1.InstallationService/RevokeRole',
+            host_dot_installation_dot_v1_dot_installation__pb2.RevokeRoleRequest.SerializeToString,
+            host_dot_installation_dot_v1_dot_installation__pb2.Installation.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListRoleGrants(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/host.installation.v1.InstallationService/ListRoleGrants',
+            host_dot_installation_dot_v1_dot_installation__pb2.ListRoleGrantsRequest.SerializeToString,
+            host_dot_installation_dot_v1_dot_installation__pb2.ListRoleGrantsResponse.FromString,
             options,
             channel_credentials,
             insecure,

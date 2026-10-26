@@ -2,7 +2,7 @@ kind: interface
 publisher: codefly.dev
 name: composition
 description: How the host learns what is composed; the ceiling is the manifest.
-version: 0.1.0
+version: 0.2.0
 type: connect
 protobuf:
     package: host.composition.v1

@@ -187,10 +187,7 @@ func ChangeRole(r RoleChange) error {
 		return ForeignInstallation(r.RequestedID, r.RequestOrganization)
 	}
 	if r.Caller.Organization != inst.Organization || (!IsAdministrator(r.Caller) && !slices.Contains(r.CallerRoles, domain.InstallerRole)) {
-		if r.List {
-			return domain.Refuse("%s may not list the role grants of %s", r.Caller.ID, inst.ID)
-		}
-		return domain.Refuse("%s may not grant roles on %s: an administrator of %s or its installer grants", r.Caller.ID, inst.ID, inst.Organization)
+		return ForeignInstallation(r.RequestedID, r.RequestOrganization)
 	}
 	if r.Revoke {
 		// A grant stays revocable whatever happened since: an installation
