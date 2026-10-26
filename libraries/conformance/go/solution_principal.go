@@ -472,6 +472,8 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		}
 		sp.revoke(t, A, "author", sp.person(t, f.Viewer))
 		sp.revoke(t, A, "viewer", sp.person(t, f.Member))
+		// Reissued, so the last-grant revoke below must kill a live capability.
+		before = sp.must(t)(sp.through(t, f.Viewer, A, "store"))
 		if !slices.Contains(sp.roleGrants(t, f.Admin, f.Organization, A), "viewer person "+sp.personID(t, f.Viewer)) {
 			t.Fatalf("ListRoleGrants does not show the grant: %v", sp.roleGrants(t, f.Admin, f.Organization, A))
 		}
