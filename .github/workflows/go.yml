@@ -4,6 +4,9 @@ name: go
 # request and on main. tools/noproxygate's test is the no-proxy gate: it
 # type-checks every module and refuses requests, dials and subprocesses that
 # bypass host.HTTPTransport and host.DialOptions.
+# tools/packagegate's test is the package gate: every module a run admits
+# ships its package manifest, and its contracts match what `codefly generate
+# contracts` writes from the services' sources.
 
 on:
   pull_request:
