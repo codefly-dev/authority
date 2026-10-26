@@ -253,8 +253,21 @@ func FixturePath() string {
 	return filepath.Join(filepath.Dir(file), "..", "..", "..", "fixtures", "local.yaml")
 }
 
-// New composes documents, model and the fixture, then installs the wiki from it.
-func New(t *testing.T) *Kit {
+// CompositionPath is the test kit's fixture-composition document.
+func CompositionPath() string {
+	_, file, _, _ := runtime.Caller(0)
+	return filepath.Join(filepath.Dir(file), "testdata", "composition.yaml")
+}
+
+// DefaultCompositionPath is the empty fixture-composition document the
+// authority module ships for a composition that supplies none.
+func DefaultCompositionPath() string {
+	_, file, _, _ := runtime.Caller(0)
+	return filepath.Join(filepath.Dir(file), "..", "..", "..", "..", "..", "..", "configurations", "local", "fixture-composition.yaml")
+}
+
+// Bare is a state and an issuer with nothing composed and no fixture loaded.
+func Bare(t *testing.T) *Kit {
 	t.Helper()
 	launcher, err := native.NewIssuer()
 	if err != nil {
@@ -279,22 +292,39 @@ func New(t *testing.T) *Kit {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, m := range []state.Manifest{Model(1), Runtime(1), Records(1), OrgDirectory(1), Documents(1), Wiki(1), Evaluation(1)} {
-		if _, err := st.ApplyManifest(m); err != nil {
-			t.Fatal(err)
-		}
-	}
-	data, err := os.ReadFile(FixturePath())
-	if err != nil {
-		t.Fatal(err)
-	}
-	// The fixture must be loaded after the modules are composed, because it
-	// installs the wiki and a module installation exists per organisation.
-	if err := st.LoadFixture(context.Background(), data); err != nil {
-		t.Fatal(err)
-	}
 	return &Kit{State: st, Launcher: launcher, Now: now,
 		// The clock starts at a fixed instant, for readable timestamps, and
 		// advances with the wall clock, so a window closes as it would on a laptop.
 		Issuer: issuer.New(st, Audience, "local-1", signing, func() time.Time { return now.Add(time.Since(started)) })}
+}
+
+// New composes the suite's modules, loads the fixture, and applies the test
+// kit's composition document, which grants their kinds and installs the wiki.
+func New(t *testing.T) *Kit {
+	t.Helper()
+	k := Bare(t)
+	for _, m := range []state.Manifest{Model(1), Runtime(1), Records(1), OrgDirectory(1), Documents(1), Wiki(1), Evaluation(1)} {
+		if _, err := k.State.ApplyManifest(m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// The fixture and the composition are loaded after the modules are
+	// composed: a module installation exists per organisation, and the
+	// composition installs the wiki.
+	for _, load := range []struct {
+		path  string
+		apply func([]byte) error
+	}{
+		{FixturePath(), func(data []byte) error { return k.State.LoadFixture(context.Background(), data) }},
+		{CompositionPath(), func(data []byte) error { _, err := k.State.ApplyComposition(context.Background(), data); return err }},
+	} {
+		data, err := os.ReadFile(load.path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := load.apply(data); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return k
 }

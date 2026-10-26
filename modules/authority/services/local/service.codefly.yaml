@@ -10,8 +10,15 @@ agent:
 # connection as this service's `store` postgres/read-write-connection secret.
 # A run that composes no store delivers none, and the local authority keeps approvals in
 # memory, saying so at boot (code/work.go approvalsFor).
+# federation: the host coordinate a signed delivery is checked against.
+# fixture-composition: what the composing workspace adds to the fixture (grants
+# on its roles at the modules it composes, installations of its solutions,
+# stand-in modules); this module ships an empty default under
+# configurations/local, which a composition's own document replaces whole
+# (code/work.go applyComposition).
 workspace-configuration-dependencies:
     - federation
+    - fixture-composition
 service-dependencies:
     - name: store
       module: authority

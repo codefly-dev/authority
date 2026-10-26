@@ -37,6 +37,57 @@ Generated code (`pkg/gen`, `*_gen.go`, `main.go`) comes from `codefly generate`
 and the agent; `work.go` and everything under `pkg/business`, `pkg/infra` and
 `plugins` is written here.
 
+## What a composition adds to the fixture
+
+The embedded fixture (`code/fixtures/local.yaml`) says who exists and which
+organisation roles they hold, in the authority's own vocabulary only
+(`console.identity`). It names no module's kinds, no solution and no stand-in
+module. Each of those belongs to the workspace that composes it, which adds it
+through the workspace configuration document `fixture-composition`
+(`configurations/local/fixture-composition.yaml` in that workspace):
+
+```yaml
+schema: codefly.dev/authority/fixture-composition/v1
+roles:          # grants added to roles the fixture defines
+  - organization: acme
+    name: editor
+    scopes:
+      - {kind: ledger.entry, actions: [read, write]}
+installations:  # installations of a solution the run composes, the fixture's own path
+  - {organization: acme, target: atlas, role: viewer, owner: alex, teams: [finance]}
+modules:        # a module the run supervises itself, until its own delivery
+  - module: oracle
+    kinds: [{kind: oracle.answers, actions: [read]}]
+```
+
+The authority module ships an empty default
+(`modules/authority/configurations/local/fixture-composition.yaml`, the schema
+line alone). A composing workspace's own document replaces it whole, so a
+composition that supplies none boots on the fixture alone.
+
+**The contract.** The `schema` line versions the document. Its sections, and
+the fixture's organisation, role and person ids it names (`acme`, `globex`,
+`viewer`, `editor`, `admin`, `alex`, …), are a contract with every composing
+repository. A breaking change is a new schema version, never an edit to v1.
+
+**What is refused.** Each of these refuses the boot by name and changes no
+role:
+- an empty or null document, a section spelled `null`, an unknown field, or a
+  schema other than v1;
+- an entry naming a role the fixture does not define, or the generated
+  `developer` role (it is derived from the delivered catalog);
+- no scope, or a scope with no action;
+- a wildcard kind or action (`*`): a composition grants the concrete
+  permissions its modules serve, so viewer, editor and administrator stay
+  distinct;
+- a kind or action outside the grammar, surrounding whitespace included;
+- a malformed resource matcher;
+- an installation whose organisation or owner the fixture does not define.
+
+The boot log names each effect, for example `the composition grants
+acme/editor: ledger.entry:[read write]`, or says that the composition adds
+nothing. The local authority refuses to start in a pod.
+
 ## Permission diagnostics during local development
 
 The local fixture's `developer` role uses `generated: true` and declares no
@@ -61,10 +112,11 @@ regressions. This does not qualify the production host or live browser journeys.
 
 Person issuance sorts and deduplicates a copy of the session's team attribution
 before signing. Fixture order therefore does not affect a module's ability to
-consume the context; the original session remains unchanged. The local Globex
-administrator explicitly holds `documents.collection:read` alongside document
-read/write; the role name itself implies no additional grants. Issuer regressions
-and the shared fixture matrix cover this grant and a person who lacks it.
+consume the context; the original session remains unchanged. A role name implies no
+grants: the test kit's composition
+(`code/pkg/business/testkit/testdata/composition.yaml`) gives the Globex
+administrator its collection read explicitly. Issuer regressions and the shared
+fixture matrix cover that grant and a person who lacks it.
 
 ## Signed delivery lifecycle
 
