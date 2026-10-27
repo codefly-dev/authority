@@ -41,7 +41,7 @@ func TestTheSignInPageIsTheKitBuild(t *testing.T) {
 	if data.Return != "/" || len(data.People) != 1 {
 		t.Fatalf("the page carries %+v", data)
 	}
-	if p := data.People[0]; p.OrganizationID != "acme" || len(p.Roles) != 1 || p.Roles[0] != "editor" {
+	if p := data.People[0]; p.OrganizationID != "acme" || p.OrganizationName != "Acme" || len(p.Roles) != 1 || p.Roles[0] != "editor" {
 		t.Fatalf("person = %+v", p)
 	}
 	assets := asset.FindAllString(body, -1)

@@ -17,6 +17,7 @@ export interface Person {
 	personId: string;
 	email: string;
 	organizationId: string;
+	organizationName?: string;
 	roles: string[];
 	fixtureToken: string;
 }
@@ -94,7 +95,9 @@ export function SignIn({ data }: { data: SignInData | Error }) {
 								}
 								description={person.description ? undefined : (
 									<span style={{ display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
-										<span>{person.organizationId}</span>
+										{person.organizationId && (
+											<span title={person.organizationId}>{person.organizationName || person.organizationId}</span>
+										)}
 										{person.roles.length === 0 ? (
 											<Badge tone="neutral">no role</Badge>
 										) : (

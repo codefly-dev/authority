@@ -715,14 +715,18 @@ playground works the way a frontend does in a cell. A frontend sends a browser
 with no session to `/auth/sign-in?return=<path>`, the host's sign-in page. It
 lists the people the authority's fixture defines (the session interface's
 `ListFixturePeople`; a host with a real identity provider lists none), and the
-chosen one is signed in and returned to the path. The edge keeps the bearer in
+chosen one is signed in and returned to the path. Each listed person carries
+`FixturePerson.organization_display_name` from the host's organization record.
+The edge displays that name with the organization ID in its title; older hosts
+that omit the additive field display the ID. A person without an organization
+has no organization label. Configured `SIGN_IN_CHOICES` retain their order. The edge keeps the bearer in
 an `HttpOnly`, `SameSite=Lax` cookie, so the page holds no token. Signing in
 and signing out are writes: each must come from this origin, a return to
 another site lands on the root, and a non-browser caller signs in with a JSON
 `fixtureToken`.
 
 `/auth/session` answers who is signed in (`personId`, `organizationId`,
-`roles`), the `installations` the person may use, each `{id, target}`, which a
+`personDisplayName`, `organizationDisplayName`, `roles`), the `installations` the person may use, each `{id, target}`, which a
 frontend binds its calls to (a robin conversation names its installation), and
 `refused`, the reason for each other target. Both come from `Issue`, once per
 module the edge routes, as a call to that module would: a target is usable when

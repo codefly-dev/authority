@@ -13,6 +13,8 @@ import (
 	"sync"
 	"testing"
 
+	"go.yaml.in/yaml/v3"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
@@ -165,6 +167,12 @@ people:
 	if err := k.State.GrantRole(domain.RoleGrant{InstallationID: owned["conformance-owner-a"], Role: "viewer", TeamID: "finance"}); err != nil {
 		t.Fatal(err)
 	}
+	var adminPerson state.Person
+	for _, person := range k.State.FixturePeople() {
+		if person.FixtureToken == "fixture-alex" {
+			adminPerson = person
+		}
+	}
 	conformance.Run(t, conn, descriptors, conformance.Fixture{
 		InstallationResources: &conformance.InstallationResourcesCase{
 			Owner: "fixture-alex", Viewer: "fixture-maya", Generation: 2,
@@ -203,6 +211,19 @@ people:
 				return func() { once.Do(func() { close(done) }) }
 			},
 			Revoke: func(_ context.Context, id string) error { return k.State.UninstallAsHost(id) },
+			SetAdministrator: func(ctx context.Context, enabled bool) error {
+				person := adminPerson
+				if !enabled {
+					person.Roles = nil
+				}
+				fixture, err := yaml.Marshal(struct {
+					People []state.Person `yaml:"people"`
+				}{People: []state.Person{person}})
+				if err != nil {
+					return err
+				}
+				return k.State.LoadFixture(ctx, fixture)
+			},
 		},
 		UnentitledToken: "fixture-no-roles",
 		Organization:    "acme", ViewerToken: "fixture-maya", AdminToken: "fixture-alex",

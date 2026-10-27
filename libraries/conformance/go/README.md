@@ -33,13 +33,22 @@ providing different labels does not remove an obligation.
 | Delivered method policies and advisory | Signed methods cover required scopes, any checked caller, unmarked and missing methods; local-only `LocalAdvisory` returns the same checked context/revision and the exact refusal, and still rejects an invalid capability. |
 | Solution route policy | Signed GET/POST routes distinguish `requires` from `any_checked_caller`, including template paths and an unknown route. |
 | Delivery and installation lifecycle | Manifest/role ceilings, forward generation, mismatched signed documents, blocked acknowledgement, then team exposure |
-| Session identity and display names | Current requires person and organization IDs plus nonempty `Session.person_display_name = 7` and `Session.organization_display_name = 8`. |
+| Session identity and display names | Current requires person and organization IDs plus nonempty `Session.person_display_name = 7` and `Session.organization_display_name = 8`. Listed fixture people carry the same organization display name as their signed-in session through `FixturePerson.organization_display_name = 7`. |
 | Revocation and expiry | Revoked delegations and installations stop existing and fresh work; expired capabilities fail after skew. |
 
 `Lifecycle.PauseInstall` pauses the host's real install step, and returns an
-idempotent resume function. The suite starts Install concurrently, observes the
+idempotent resume function. The suite first removes administrator status after
+Review and proves Install refuses that reviewed request at apply. After restoring
+the role, it starts Install concurrently, observes the
 pending row through administrator List, proves it cannot issue or be exposed,
-then resumes acknowledgement. `Lifecycle.Revoke` calls the host's existing
+then removes the approving administrator's live role while keeping their
+membership and session. `Lifecycle.SetAdministrator(ctx, false)` performs that
+host-store mutation; `true` restores the original roles. Acknowledgement must
+return `PermissionDenied` naming the administrator requirement, issuance must
+remain pending, and exposure and retries must be denied. Once restored, the
+unchanged reviewed approval resumes to active. This exercises the existing
+shared authority-core `Install` transaction recheck through each real host;
+a local pass alone does not establish Accounts parity. `Lifecycle.Revoke` calls the host's existing
 uninstall path. These hooks arrange state; the assertions use the public
 interfaces. No synthetic issuer or parallel permission resolver is allowed.
 

@@ -125,9 +125,12 @@ type FixturePerson struct {
 	// The teams they belong to.
 	TeamIds []string `protobuf:"bytes,5,rep,name=team_ids,json=teamIds,proto3" json:"team_ids,omitempty"`
 	// The token SignIn takes for them.
-	FixtureToken  string `protobuf:"bytes,6,opt,name=fixture_token,json=fixtureToken,proto3" json:"fixture_token,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	FixtureToken string `protobuf:"bytes,6,opt,name=fixture_token,json=fixtureToken,proto3" json:"fixture_token,omitempty"`
+	// The organisation's name, as the fixture spells it, for a page that shows
+	// a person where they sign into; the id above is the identity.
+	OrganizationDisplayName string `protobuf:"bytes,7,opt,name=organization_display_name,json=organizationDisplayName,proto3" json:"organization_display_name,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *FixturePerson) Reset() {
@@ -198,6 +201,13 @@ func (x *FixturePerson) GetTeamIds() []string {
 func (x *FixturePerson) GetFixtureToken() string {
 	if x != nil {
 		return x.FixtureToken
+	}
+	return ""
+}
+
+func (x *FixturePerson) GetOrganizationDisplayName() string {
+	if x != nil {
+		return x.OrganizationDisplayName
 	}
 	return ""
 }
@@ -403,14 +413,15 @@ const file_host_session_v1_session_proto_rawDesc = "" +
 	"\x1dhost/session/v1/session.proto\x12\x0fhost.session.v1\x1a\x1cgoogle/api/annotations.proto\"\x1a\n" +
 	"\x18ListFixturePeopleRequest\"S\n" +
 	"\x19ListFixturePeopleResponse\x126\n" +
-	"\x06people\x18\x01 \x03(\v2\x1e.host.session.v1.FixturePersonR\x06people\"\xc1\x01\n" +
+	"\x06people\x18\x01 \x03(\v2\x1e.host.session.v1.FixturePersonR\x06people\"\xfd\x01\n" +
 	"\rFixturePerson\x12\x1b\n" +
 	"\tperson_id\x18\x01 \x01(\tR\bpersonId\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12'\n" +
 	"\x0forganization_id\x18\x03 \x01(\tR\x0eorganizationId\x12\x14\n" +
 	"\x05roles\x18\x04 \x03(\tR\x05roles\x12\x19\n" +
 	"\bteam_ids\x18\x05 \x03(\tR\ateamIds\x12#\n" +
-	"\rfixture_token\x18\x06 \x01(\tR\ffixtureToken\"\x10\n" +
+	"\rfixture_token\x18\x06 \x01(\tR\ffixtureToken\x12:\n" +
+	"\x19organization_display_name\x18\a \x01(\tR\x17organizationDisplayName\"\x10\n" +
 	"\x0eCurrentRequest\"4\n" +
 	"\rSignInRequest\x12#\n" +
 	"\rfixture_token\x18\x01 \x01(\tR\ffixtureToken\"\xa3\x02\n" +

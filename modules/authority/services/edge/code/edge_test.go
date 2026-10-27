@@ -52,7 +52,7 @@ func (s *standIn) Current(ctx context.Context, _ *sessionv1.CurrentRequest, _ ..
 }
 
 func (s *standIn) ListFixturePeople(context.Context, *sessionv1.ListFixturePeopleRequest, ...grpc.CallOption) (*sessionv1.ListFixturePeopleResponse, error) {
-	return &sessionv1.ListFixturePeopleResponse{People: []*sessionv1.FixturePerson{{PersonId: "remi", Email: "remi@acme.test", OrganizationId: "acme", Roles: []string{"editor"}, FixtureToken: "fixture-remi"}}}, nil
+	return &sessionv1.ListFixturePeopleResponse{People: []*sessionv1.FixturePerson{{PersonId: "remi", Email: "remi@acme.test", OrganizationId: "acme", OrganizationDisplayName: "Acme", Roles: []string{"editor"}, FixtureToken: "fixture-remi"}}}, nil
 }
 
 func (s *standIn) Issue(ctx context.Context, in *authorityv1.IssueRequest, _ ...grpc.CallOption) (*authorityv1.IssueResponse, error) {
