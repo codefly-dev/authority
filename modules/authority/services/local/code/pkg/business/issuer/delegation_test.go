@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"gateway/pkg/business/issuer"
+	"gateway/pkg/business/state"
 	"gateway/pkg/business/testkit"
 	authorityv1 "gateway/pkg/gen/host/authority/v1"
 )
@@ -81,7 +82,8 @@ func TestADelegationIssuesAsItsGrantorUntilRevoked(t *testing.T) {
 	if _, err := issue("documents"); !errors.Is(err, issuer.ErrRefused) {
 		t.Fatalf("another module presents the delegation: %v", err)
 	}
-	if _, err := k.Issuer.RevokeDelegation(person(t, k, "fixture-maya"), d.ID); !errors.Is(err, issuer.ErrRefused) {
+	// Someone else, neither its grantor nor an administrator, learns nothing of it.
+	if _, err := k.Issuer.RevokeDelegation(person(t, k, "fixture-maya"), d.ID); !errors.Is(err, state.ErrUnknown) {
 		t.Fatalf("someone else revokes it: %v", err)
 	}
 	if _, err := k.Issuer.RevokeDelegation(remi, d.ID); err != nil {

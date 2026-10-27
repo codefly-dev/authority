@@ -2,6 +2,7 @@ package authority
 
 import (
 	"context"
+	"errors"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
@@ -25,6 +26,14 @@ func (s *Service) Delegate(ctx context.Context, who Person, module string, scope
 		}
 		if len(scopes) == 0 {
 			return domain.Refuse("a delegation names what it grants")
+		}
+		if len(purpose) > MaxDelegationPurpose {
+			return domain.Malformed("a delegation's purpose is at most %d characters, not %d", MaxDelegationPurpose, len(purpose))
+		}
+		// A module not installed at the grantor's organization could never
+		// issue from the delegation: it is refused rather than recorded.
+		if inst, err := installationOf(tx, p.Organization, m.Name); err != nil || inst.Status != domain.Active {
+			return domain.NotNow("module %q is not installed in organization %s, so nothing could issue from a delegation to it", m.Name, p.Organization)
 		}
 		holdings, err := held(tx, p, m)
 		if err != nil {
@@ -60,8 +69,12 @@ func (s *Service) Delegate(ctx context.Context, who Person, module string, scope
 	return d, err
 }
 
-// RevokeDelegation ends a delegation; only its grantor may. Its capabilities
-// are refused at once.
+// MaxDelegationPurpose bounds the purpose a delegation records.
+const MaxDelegationPurpose = 1024
+
+// RevokeDelegation ends a delegation: its grantor may, and so may an
+// administrator of its organization acting there. Anyone else learns nothing,
+// not even that it exists. Its capabilities are refused at once.
 func (s *Service) RevokeDelegation(ctx context.Context, who Person, id string) (domain.Delegation, error) {
 	var d domain.Delegation
 	err := s.store.Write(ctx, func(tx Tx) error {
@@ -70,7 +83,13 @@ func (s *Service) RevokeDelegation(ctx context.Context, who Person, id string) (
 			return notFound(err)
 		}
 		if d.Grantor != who.ID {
-			return domain.Refuse("only the grantor of %s may revoke it", id)
+			admin, err := memberAs(tx, who, d.Organization)
+			if err != nil && !errors.Is(err, domain.ErrNotFound) {
+				return err
+			}
+			if err != nil || !decide.IsAdministrator(admin) {
+				return domain.Missing("delegation %q", id)
+			}
 		}
 		if d.Revoked {
 			return nil
