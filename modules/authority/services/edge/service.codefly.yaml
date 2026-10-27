@@ -17,7 +17,7 @@ agent:
 service-dependencies:
     - interface: codefly.dev/authority@>=0.2.0 <0.4.0
     - interface: codefly.dev/session@0.2.0
-    - interface: codefly.dev/installation@>=0.1.0 <0.4.0
+    - interface: codefly.dev/installation@>=0.1.0 <0.5.0
 workspace-configuration-dependencies:
     # The modules the edge routes to, their REST and Connect faces, and the
     # frontend every other path serves (code/main.go).

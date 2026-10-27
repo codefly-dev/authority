@@ -38,6 +38,7 @@ type Installer interface {
 	RevokeRole(ctx context.Context, in *installationv1.RevokeRoleRequest, opts ...grpc.CallOption) (*installationv1.Installation, error)
 	ListRoleGrants(ctx context.Context, in *installationv1.ListRoleGrantsRequest, opts ...grpc.CallOption) (*installationv1.ListRoleGrantsResponse, error)
 	List(ctx context.Context, in *installationv1.ListRequest, opts ...grpc.CallOption) (*installationv1.ListResponse, error)
+	ListHeld(ctx context.Context, in *installationv1.ListHeldRequest, opts ...grpc.CallOption) (*installationv1.ListHeldResponse, error)
 }
 
 // Offers is the setup read: the local authority's, and a host's that serves it.

@@ -33,6 +33,7 @@ const (
 	InstallationService_RevokeRole_FullMethodName     = "/host.installation.v1.InstallationService/RevokeRole"
 	InstallationService_ListRoleGrants_FullMethodName = "/host.installation.v1.InstallationService/ListRoleGrants"
 	InstallationService_List_FullMethodName           = "/host.installation.v1.InstallationService/List"
+	InstallationService_ListHeld_FullMethodName       = "/host.installation.v1.InstallationService/ListHeld"
 )
 
 // InstallationServiceClient is the client API for InstallationService service.
@@ -61,10 +62,16 @@ type InstallationServiceClient interface {
 	// ListRoleGrants answers who holds which role on the installation; the same
 	// callers as GrantRole.
 	ListRoleGrants(ctx context.Context, in *ListRoleGrantsRequest, opts ...grpc.CallOption) (*ListRoleGrantsResponse, error)
-	// List answers what one organisation has installed: an administrator's read. A
-	// member's view, which installed solutions they may use, is their navigation and
-	// belongs to the entitlement read, not here.
+	// List answers what one organisation has installed: an administrator's read.
+	// A member's view, which installed solutions they may use, is ListHeld.
 	List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error)
+	// ListHeld answers the signed-in person which installations of their
+	// organisation they may use: each active installation on which they hold a
+	// role, granted to them or to a team of theirs, with the roles they hold.
+	// It is their navigation and answers their own holdings alone, never who
+	// else holds what. A member holding nothing reads an empty list; a caller
+	// acting at another organisation is refused naming it.
+	ListHeld(ctx context.Context, in *ListHeldRequest, opts ...grpc.CallOption) (*ListHeldResponse, error)
 }
 
 type installationServiceClient struct {
@@ -145,6 +152,16 @@ func (c *installationServiceClient) List(ctx context.Context, in *ListRequest, o
 	return out, nil
 }
 
+func (c *installationServiceClient) ListHeld(ctx context.Context, in *ListHeldRequest, opts ...grpc.CallOption) (*ListHeldResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListHeldResponse)
+	err := c.cc.Invoke(ctx, InstallationService_ListHeld_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // InstallationServiceServer is the server API for InstallationService service.
 // All implementations must embed UnimplementedInstallationServiceServer
 // for forward compatibility.
@@ -171,10 +188,16 @@ type InstallationServiceServer interface {
 	// ListRoleGrants answers who holds which role on the installation; the same
 	// callers as GrantRole.
 	ListRoleGrants(context.Context, *ListRoleGrantsRequest) (*ListRoleGrantsResponse, error)
-	// List answers what one organisation has installed: an administrator's read. A
-	// member's view, which installed solutions they may use, is their navigation and
-	// belongs to the entitlement read, not here.
+	// List answers what one organisation has installed: an administrator's read.
+	// A member's view, which installed solutions they may use, is ListHeld.
 	List(context.Context, *ListRequest) (*ListResponse, error)
+	// ListHeld answers the signed-in person which installations of their
+	// organisation they may use: each active installation on which they hold a
+	// role, granted to them or to a team of theirs, with the roles they hold.
+	// It is their navigation and answers their own holdings alone, never who
+	// else holds what. A member holding nothing reads an empty list; a caller
+	// acting at another organisation is refused naming it.
+	ListHeld(context.Context, *ListHeldRequest) (*ListHeldResponse, error)
 	mustEmbedUnimplementedInstallationServiceServer()
 }
 
@@ -205,6 +228,9 @@ func (UnimplementedInstallationServiceServer) ListRoleGrants(context.Context, *L
 }
 func (UnimplementedInstallationServiceServer) List(context.Context, *ListRequest) (*ListResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method List not implemented")
+}
+func (UnimplementedInstallationServiceServer) ListHeld(context.Context, *ListHeldRequest) (*ListHeldResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListHeld not implemented")
 }
 func (UnimplementedInstallationServiceServer) mustEmbedUnimplementedInstallationServiceServer() {}
 func (UnimplementedInstallationServiceServer) testEmbeddedByValue()                             {}
@@ -353,6 +379,24 @@ func _InstallationService_List_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _InstallationService_ListHeld_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListHeldRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InstallationServiceServer).ListHeld(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: InstallationService_ListHeld_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(InstallationServiceServer).ListHeld(ctx, req.(*ListHeldRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // InstallationService_ServiceDesc is the grpc.ServiceDesc for InstallationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -387,6 +431,10 @@ var InstallationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "List",
 			Handler:    _InstallationService_List_Handler,
+		},
+		{
+			MethodName: "ListHeld",
+			Handler:    _InstallationService_ListHeld_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

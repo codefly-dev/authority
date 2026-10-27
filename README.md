@@ -804,7 +804,7 @@ the details.
 ### The Setup tab's Connect face (2026-10-27)
 
 The edge serves the host's installation reads and changes (`InstallationService`
-List, Review, ListRoleGrants, GrantRole, RevokeRole; `OfferService` ListOffers,
+List, ListHeld, Review, ListRoleGrants, GrantRole, RevokeRole; `OfferService` ListOffers,
 ReviewOffer) to the signed-in person over Connect, at
 `/host.installation.v1.<Service>/<Method>`, the paths a hosted gateway serves, so
 one Setup component calls either with the generated client. The edge sends each
@@ -1167,3 +1167,22 @@ The scoped contract is carried by the handbook
 Shared-core tests exercise tenant/audience isolation and revocation; the shared
 conformance suite exercises the generated public RPC. Accounts must adopt this
 method and pass that suite before its consumer deployment is qualified.
+
+## A member's installations (2026-10-27)
+
+The installation interface advances to `0.4.0` for one additive read,
+`InstallationService.ListHeld`: the signed-in person's navigation, which
+installed solutions they may use. It answers each active installation of the
+caller's organization on which they hold a role, granted to them or to a team of
+theirs, with those roles (`HeldInstallation{installation, roles}`), sorted by
+installation id. It is the shared core's `Service.HeldInstallations`, over the
+same `decide.HeldRoles` that `ReviewOffer` and issuance read, so a revoke or
+leaving the team drops an installation at once. It answers the caller's own
+holdings alone, never another person's or the grant holders; a member holding
+nothing reads an empty list, and a caller acting at another organization is
+refused naming it. `List` stays an administrator's read.
+
+The edge serves it to the browser on the Setup tab's Connect face. The shared
+suite proves it in `RunSolutionPrincipalTarget` (`held_installations.go`). The
+edge accepts installation `<0.5.0`; a host must serve `ListHeld` and pass that
+case before a consumer relies on it.

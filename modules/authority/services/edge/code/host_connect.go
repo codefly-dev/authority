@@ -43,6 +43,7 @@ func (e *Edge) hostConnectFace() http.Handler {
 			handler   http.Handler
 		}{
 			{installationv1.InstallationService_List_FullMethodName, forward(installationv1.InstallationService_List_FullMethodName, e.Installer.List)},
+			{installationv1.InstallationService_ListHeld_FullMethodName, forward(installationv1.InstallationService_ListHeld_FullMethodName, e.Installer.ListHeld)},
 			{installationv1.InstallationService_ListRoleGrants_FullMethodName, forward(installationv1.InstallationService_ListRoleGrants_FullMethodName, e.Installer.ListRoleGrants)},
 			{installationv1.InstallationService_GrantRole_FullMethodName, forward(installationv1.InstallationService_GrantRole_FullMethodName, e.Installer.GrantRole)},
 			{installationv1.InstallationService_RevokeRole_FullMethodName, forward(installationv1.InstallationService_RevokeRole_FullMethodName, e.Installer.RevokeRole)},
@@ -54,7 +55,7 @@ func (e *Edge) hostConnectFace() http.Handler {
 		}
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			_ = connectRefusal.Write(w, r, connect.NewError(connect.CodeUnimplemented,
-				errors.New("this origin serves "+r.URL.Path+" to no browser: it serves InstallationService List, ListRoleGrants, GrantRole, RevokeRole and Review, and OfferService ListOffers and ReviewOffer")))
+				errors.New("this origin serves "+r.URL.Path+" to no browser: it serves InstallationService List, ListHeld, ListRoleGrants, GrantRole, RevokeRole and Review, and OfferService ListOffers and ReviewOffer")))
 		})
 		e.face = mux
 	})
