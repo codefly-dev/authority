@@ -79,7 +79,9 @@ func (o *Offers) ListOffers(ctx context.Context, req *installationv1.ListOffersR
 	return out, nil
 }
 
-// ReviewOffer projects one consistent read of the offer. The tools are joined
+// ReviewOffer projects one consistent read of the offer: an administrator's,
+// with the consent Install takes, or a member's who holds a role on the
+// installation, without it (the core decides which). The tools are joined
 // from the composed bindings by operation; nothing here is a decision.
 func (o *Offers) ReviewOffer(ctx context.Context, req *installationv1.ReviewRequest) (*installationv1.ReviewedOffer, error) {
 	caller, err := o.plugin.caller(ctx)
@@ -102,8 +104,11 @@ func (o *Offers) ReviewOffer(ctx context.Context, req *installationv1.ReviewRequ
 func (p *Plugin) review(offer authority.ReviewedOffer, bindings map[string]*runnablev0.PreparedBinding) (*installationv1.ReviewedOffer, error) {
 	m, inst := offer.Module, offer.Installation
 	a := offer.Approval
-	out := &installationv1.ReviewedOffer{Target: m.Name, ToolsComposed: len(bindings) > 0,
-		Approval: &installationv1.ConsentApproval{TargetId: a.TargetID, Generation: a.Generation, ExpectedRevision: a.ExpectedRevision, Digest: a.Digest}}
+	out := &installationv1.ReviewedOffer{Target: m.Name, ToolsComposed: len(bindings) > 0}
+	// A member's read carries no consent tuple: only an administrator consents.
+	if a.Digest != "" {
+		out.Approval = &installationv1.ConsentApproval{TargetId: a.TargetID, Generation: a.Generation, ExpectedRevision: a.ExpectedRevision, Digest: a.Digest}
+	}
 	if inst.ID != "" {
 		out.Installation = p.wire(inst)
 	}

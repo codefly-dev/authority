@@ -64,6 +64,10 @@ func (h *setupHost) ReviewOffer(ctx context.Context, in *installationv1.ReviewRe
 			Tools: []*installationv1.OfferTool{{Name: "read_item", Binding: "PROPOSALS__READ"}}}}}}}, nil
 }
 
+func (h *setupHost) Review(ctx context.Context, in *installationv1.ReviewRequest, _ ...grpc.CallOption) (*installationv1.ConsentApproval, error) {
+	return &installationv1.ConsentApproval{TargetId: "proposals", Generation: 3, Digest: "sha256:reviewed"}, h.record(ctx, in)
+}
+
 func (h *setupHost) Install(ctx context.Context, in *installationv1.InstallRequest, _ ...grpc.CallOption) (*installationv1.Installation, error) {
 	return &installationv1.Installation{Status: installationv1.Installation_STATUS_ACTIVE}, h.record(ctx, in)
 }

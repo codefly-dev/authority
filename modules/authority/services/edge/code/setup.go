@@ -29,8 +29,10 @@ import (
 // authority's. Like sign-in, it is a page and plain forms: no script holds a
 // credential or calls the authority.
 
-// Installer is the installation interface's changes and reads the page uses.
+// Installer is the installation interface's changes and reads the page and
+// the host face (host_connect.go) use.
 type Installer interface {
+	Review(ctx context.Context, in *installationv1.ReviewRequest, opts ...grpc.CallOption) (*installationv1.ConsentApproval, error)
 	Install(ctx context.Context, in *installationv1.InstallRequest, opts ...grpc.CallOption) (*installationv1.Installation, error)
 	GrantRole(ctx context.Context, in *installationv1.GrantRoleRequest, opts ...grpc.CallOption) (*installationv1.Installation, error)
 	RevokeRole(ctx context.Context, in *installationv1.RevokeRoleRequest, opts ...grpc.CallOption) (*installationv1.Installation, error)
@@ -38,7 +40,7 @@ type Installer interface {
 	List(ctx context.Context, in *installationv1.ListRequest, opts ...grpc.CallOption) (*installationv1.ListResponse, error)
 }
 
-// Offers is the local authority's setup read.
+// Offers is the setup read: the local authority's, and a host's that serves it.
 type Offers interface {
 	ListOffers(ctx context.Context, in *installationv1.ListOffersRequest, opts ...grpc.CallOption) (*installationv1.ListOffersResponse, error)
 	ReviewOffer(ctx context.Context, in *installationv1.ReviewRequest, opts ...grpc.CallOption) (*installationv1.ReviewedOffer, error)
