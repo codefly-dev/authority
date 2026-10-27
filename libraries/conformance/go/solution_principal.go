@@ -90,7 +90,9 @@ type SolutionPrincipalCase struct {
 	RemoveFromOrganization                         func(ctx context.Context, personID string) error
 	SignManifest, SignAuthority                    func(document []byte) ([]byte, error)
 	DeliveryCredential                             func(module string) string
-	HostCoordinate, HostDomain                     string
+	// InstallModule is Fixture.InstallModule, for the modules this suite delivers.
+	InstallModule              func(ctx context.Context, module string) error
+	HostCoordinate, HostDomain string
 }
 
 // SolutionUnderTest is one solution the suite delivers and installs.
@@ -634,7 +636,8 @@ func (sp *principalSuite) deliverStore(t *testing.T, ownerAware bool) {
 }
 
 func (sp *principalSuite) delivery() Fixture {
-	return Fixture{SignManifest: sp.f.SignManifest, SignAuthority: sp.f.SignAuthority, DeliveryCredential: sp.f.DeliveryCredential, HostCoordinate: sp.f.HostCoordinate, HostDomain: sp.f.HostDomain}
+	return Fixture{SignManifest: sp.f.SignManifest, SignAuthority: sp.f.SignAuthority, DeliveryCredential: sp.f.DeliveryCredential, HostCoordinate: sp.f.HostCoordinate, HostDomain: sp.f.HostDomain,
+		InstallModule: sp.f.InstallModule}
 }
 
 func countOf(list []string, want string) int {

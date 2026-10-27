@@ -76,6 +76,12 @@ type Fixture struct {
 	HostDomain         string
 	SignManifest       func(document []byte) (envelope []byte, err error)
 	DeliveryCredential func(module string) string
+	// InstallModule, for a host whose administrators install each module by
+	// their own consent, installs one the suite just delivered at the
+	// organizations the suite uses, through the host's own path; it must be
+	// idempotent, since a module is delivered again at newer generations. nil:
+	// delivery installs a module at every organization.
+	InstallModule func(ctx context.Context, module string) error
 	// Resources is required and states what a person covers on one kind.
 	Resources *ResourceCase
 	// Lookup is a binding whose lookup scopes are narrower than its invoke
@@ -231,7 +237,7 @@ func (c *client) deliver(ctx context.Context, f Fixture, alias, kind string, gen
 	request := map[string]any{
 		"carrier": map[string]any{"document": carrier, "envelope": envelope}, "credential": f.DeliveryCredential(alias)}
 	if document == nil {
-		return c.call(ctx, "host.composition.v1.CompositionService", "ApplyManifest", request)
+		return installed(ctx, f, alias, kind)(c.call(ctx, "host.composition.v1.CompositionService", "ApplyManifest", request))
 	}
 	d, err := c.files.FindDescriptorByName("host.composition.v1.AuthorityManifestV1")
 	if err != nil {
@@ -255,7 +261,21 @@ func (c *client) deliver(ctx context.Context, f Fixture, alias, kind string, gen
 		return nil, err
 	}
 	request["authority"] = map[string]any{"document": authority, "envelope": signed}
-	return c.call(ctx, "host.composition.v1.CompositionService", "ApplyManifest", request)
+	return installed(ctx, f, alias, kind)(c.call(ctx, "host.composition.v1.CompositionService", "ApplyManifest", request))
+}
+
+// installed has the host install a module it just composed, when its
+// administrators install modules by consent (Fixture.InstallModule).
+func installed(ctx context.Context, f Fixture, alias, kind string) func(protoreflect.Message, error) (protoreflect.Message, error) {
+	return func(out protoreflect.Message, err error) (protoreflect.Message, error) {
+		if err != nil || kind != "module" || f.InstallModule == nil {
+			return out, err
+		}
+		if err := f.InstallModule(ctx, alias); err != nil {
+			return nil, fmt.Errorf("the host installing %s: %w", alias, err)
+		}
+		return out, nil
+	}
 }
 
 // Run drives the suite over one connection, from the published descriptors.
