@@ -13,7 +13,8 @@ import (
 )
 
 // ApplyModule records a delivered module at a newer generation and holds a
-// module installation at every organization (a solution is installed
+// module installation at every organization, unless the host installs
+// modules itself (Config.HostInstallsModules; a solution is installed
 // explicitly). A narrowing invalidates the capabilities issued before it; a
 // withdrawn owner-aware declaration refuses its owner-selected ones for good.
 func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, error) {
@@ -100,7 +101,7 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 		if err := s.journal(ctx, tx, domain.Event{Kind: domain.ModuleApplied, Subject: m.Name, Detail: map[string]string{"principal": m.Principal, "kind": m.Kind, "generation": fmt.Sprint(m.Generation)}}); err != nil {
 			return err
 		}
-		if m.Kind == domain.KindSolution {
+		if m.Kind == domain.KindSolution || s.cfg.HostInstallsModules {
 			return nil
 		}
 		orgs, err := tx.Organizations()
@@ -149,6 +150,9 @@ func (s *Service) OrganizationAdded(ctx context.Context, org string) ([]string, 
 		if _, err := tx.Organization(org); err != nil {
 			return notFound(err)
 		}
+		if s.cfg.HostInstallsModules {
+			return nil // the host installs a module where its administrators consent
+		}
 		modules, err := tx.Modules()
 		if err != nil {
 			return err
@@ -174,10 +178,13 @@ func (s *Service) OrganizationAdded(ctx context.Context, org string) ([]string, 
 }
 
 // ReconcileOrganizations holds every composed module at every organization
-// (OrganizationAdded at each): what a host runs when it starts, so an
+// (OrganizationAdded at each), and does nothing when the host installs modules: what a host runs when it starts, so an
 // organization created while the authority could not record it still holds
 // the modules it may use.
 func (s *Service) ReconcileOrganizations(ctx context.Context) error {
+	if s.cfg.HostInstallsModules {
+		return nil // nothing is installed by the core to reconcile
+	}
 	// One read finds the organizations missing a module installation, so a
 	// host with many organizations writes only where something is missing.
 	var missing []string
@@ -227,8 +234,13 @@ func (s *Service) WithdrawModule(ctx context.Context, name string) error {
 		if err != nil {
 			return err
 		}
+		withdrawn, err := tx.ModuleNamed(name)
+		if err != nil {
+			return notFound(err)
+		}
+		hostOwned := s.cfg.HostInstallsModules && withdrawn.Kind != domain.KindSolution
 		for _, inst := range all {
-			if inst.Target == name && inst.Status != domain.Revoked {
+			if inst.Target == name && inst.Status != domain.Revoked && !hostOwned {
 				if err := s.revoke(tx, inst); err != nil {
 					return err
 				}
@@ -249,10 +261,7 @@ func (s *Service) WithdrawModule(ctx context.Context, name string) error {
 				}
 			}
 		}
-		m, err := tx.ModuleNamed(name)
-		if err != nil {
-			return notFound(err)
-		}
+		m := withdrawn
 		if err := tx.PutTombstone(domain.Tombstone{Name: m.Name, Principal: m.Principal, Generation: m.Generation}); err != nil {
 			return err
 		}
@@ -501,6 +510,11 @@ func (s *Service) UninstallAsHost(ctx context.Context, organization, installatio
 		inst, err := installationIn(tx, organization, installationID)
 		if err != nil {
 			return err
+		}
+		if s.cfg.HostInstallsModules && inst.PrincipalID == "" {
+			if m, err := tx.ModuleNamed(inst.Target); err == nil && m.Kind != domain.KindSolution {
+				return domain.Refuse("%s is a module installed by its host's consent; the host uninstalls it", inst.Target)
+			}
 		}
 		if err := s.revoke(tx, inst); err != nil {
 			return err

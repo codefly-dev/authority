@@ -268,6 +268,13 @@ func (s *Service) IssueForWorkload(ctx context.Context, w Workload, r IssueReque
 			return notFound(err)
 		}
 		org = r.Organization
+		if w.Organization != "" {
+			// A credential bound to one organization acts there and nowhere else.
+			if org != "" && org != w.Organization {
+				return domain.Refuse("workload %s is bound to organization %s; it is issued nothing at %s", w.Module, w.Organization, org)
+			}
+			org = w.Organization
+		}
 		if org == "" {
 			var orgs []string
 			all, err := tx.Installations("")
@@ -302,7 +309,7 @@ func (s *Service) IssueForWorkload(ctx context.Context, w Workload, r IssueReque
 			return err
 		}
 		inst, err := installationOf(tx, org, module.Name)
-		if err != nil {
+		if err != nil || inst.Status != domain.Active {
 			return domain.NotNow("%s is not installed at %s", module.Name, org)
 		}
 		instID = inst.ID
