@@ -135,18 +135,15 @@ func (i *Issuer) checked(ctx context.Context, token, audience, method string, ad
 	if audience == "" {
 		return nil, fmt.Errorf("%w: a check names the audience the caller is", ErrRefused)
 	}
-	verified, revision, err := i.svc.Check(ctx, token, audience)
+	verified, revision, denied, err := i.svc.CheckMethod(ctx, token, audience, method, advisory)
 	if err != nil {
 		return nil, err
 	}
 	refusal := ""
-	if method != "" {
-		if err := i.state.AdmitMethod(audience, method, verified.EffectiveScopes()); err != nil {
-			if !advisory {
-				return nil, err
-			}
-			refusal = err.Error()
-		}
+	if denied != nil {
+		// The advisory answer names the refusal exactly as an enforced check
+		// reports it.
+		refusal = classify(denied).Error()
 	}
 	wc, err := ToWire(verified.Context())
 	if err != nil {

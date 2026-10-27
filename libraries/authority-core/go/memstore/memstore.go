@@ -21,7 +21,7 @@ import (
 type Store struct {
 	mu            sync.RWMutex
 	orgs          map[string]domain.Organization
-	people        map[string]domain.Person
+	people        map[string]map[string]domain.Person // id → organization → membership
 	roles         map[string]domain.OrgRole // organization/name
 	modules       map[string]domain.Module  // name
 	installations map[string]domain.Installation
@@ -37,7 +37,7 @@ type Store struct {
 // New is an empty store.
 func New() *Store {
 	return &Store{
-		orgs: map[string]domain.Organization{}, people: map[string]domain.Person{}, roles: map[string]domain.OrgRole{},
+		orgs: map[string]domain.Organization{}, people: map[string]map[string]domain.Person{}, roles: map[string]domain.OrgRole{},
 		modules: map[string]domain.Module{}, installations: map[string]domain.Installation{}, grants: map[string][]domain.RoleGrant{},
 		revisions: map[string]uint64{}, personEpochs: map[string]uint64{}, grantEpochs: map[string]uint64{},
 		ownerAware: map[string]uint64{}, delegations: map[string]domain.Delegation{}, tombstones: map[string]domain.Tombstone{},
@@ -109,18 +109,32 @@ func (s *Store) PutOrganization(o domain.Organization) {
 	s.orgs[o.ID] = o
 }
 
-// PutPerson records a person.
+// PutPerson records a person's membership of p.Organization; a person may
+// be a member of several organizations, each recorded by its own call.
 func (s *Store) PutPerson(p domain.Person) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.people[p.ID] = clonePerson(p)
+	if s.people[p.ID] == nil {
+		s.people[p.ID] = map[string]domain.Person{}
+	}
+	s.people[p.ID][p.Organization] = clonePerson(p)
 }
 
-// DeletePerson removes a person.
+// DeletePerson removes a person from every organization.
 func (s *Store) DeletePerson(id string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.people, id)
+}
+
+// DeleteMember removes a person from one organization.
+func (s *Store) DeleteMember(organization, id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.people[id], organization)
+	if len(s.people[id]) == 0 {
+		delete(s.people, id)
+	}
 }
 
 // PutOrgRole records an organization role.
@@ -160,18 +174,29 @@ func (t tx) Organization(id string) (domain.Organization, error) {
 	return o, nil
 }
 
+// Person answers a person by id: their membership of the first of their
+// organizations, by id. The authority reads only that the person exists.
 func (t tx) Person(id string) (domain.Person, error) {
-	p, ok := t.s.people[id]
+	memberships := t.s.people[id]
+	if len(memberships) == 0 {
+		return domain.Person{}, missing("person", id)
+	}
+	orgs := slices.Sorted(maps.Keys(memberships))
+	return clonePerson(memberships[orgs[0]]), nil
+}
+
+func (t tx) Member(org, id string) (domain.Person, error) {
+	p, ok := t.s.people[id][org]
 	if !ok {
-		return p, missing("person", id)
+		return p, missing("member of "+org, id)
 	}
 	return clonePerson(p), nil
 }
 
 func (t tx) People(org string) ([]domain.Person, error) {
 	var out []domain.Person
-	for _, p := range t.s.people {
-		if p.Organization == org {
+	for _, memberships := range t.s.people {
+		if p, ok := memberships[org]; ok {
 			out = append(out, clonePerson(p))
 		}
 	}

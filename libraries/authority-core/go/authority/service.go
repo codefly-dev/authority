@@ -224,8 +224,8 @@ func (src sources) holds(tx Tx, principal string, inst domain.Installation) (boo
 	} else if !errors.Is(err, domain.ErrNotFound) {
 		return false, err
 	}
-	if p, err := tx.Person(principal); err == nil {
-		return p.Organization == inst.Organization, nil
+	if _, err := tx.Member(inst.Organization, principal); err == nil {
+		return true, nil
 	} else if !errors.Is(err, domain.ErrNotFound) {
 		return false, err
 	}

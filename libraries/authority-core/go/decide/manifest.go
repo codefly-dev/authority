@@ -8,6 +8,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
 	delivery "github.com/codefly-dev/authority/libraries/delivery/go"
+	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
 // ValidateModule holds a delivered module to its contract: a principal, a
@@ -15,6 +16,13 @@ import (
 // a module declares no roles; a solution declares installer, and every role
 // stays within what it serves or consumes through invoke/lookup bindings.
 func ValidateModule(m domain.Module) error {
+	if err := validateModule(m); err != nil {
+		return err
+	}
+	return noOwners(m)
+}
+
+func validateModule(m domain.Module) error {
 	if m.Name == "" || m.Principal == "" || m.Generation == 0 {
 		return domain.Refuse("a manifest names its module, its principal and a generation")
 	}
@@ -118,4 +126,59 @@ func Narrowed(previous, next domain.Module) bool {
 		}
 	}
 	return false
+}
+
+// noOwners refuses a delivery naming a resource owner where none belongs: in
+// what a module serves, in a binding's scopes, in a role or in a method's
+// requirement. An owner is the authority's to select per installation; read
+// owner-blind, it would widen to the whole kind, so it is refused by name.
+func noOwners(m domain.Module) error {
+	check := func(where string, scopes Scopes) error {
+		for _, sc := range scopes {
+			if sc.GetResourceOwnerId() != "" {
+				return domain.Refuse("%s: %s names resource owner %q; a delivery never selects an owner", where, sc.GetResourceKind(), sc.GetResourceOwnerId())
+			}
+		}
+		return nil
+	}
+	if err := check(m.Name+" serves", m.ResourceKinds); err != nil {
+		return err
+	}
+	for _, id := range slices.Sorted(maps.Keys(m.Bindings)) {
+		b := m.Bindings[id]
+		for _, scopes := range []Scopes{b.InvokeScopes, b.HeadlessScopes, b.LookupScopes} {
+			if err := check(m.Name+" binding "+id, scopes); err != nil {
+				return err
+			}
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(m.Roles)) {
+		if err := check(m.Name+" role "+name, m.Roles[name]); err != nil {
+			return err
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(m.OwnedRoles)) {
+		if err := check(m.Name+" installation-owned role "+name, m.OwnedRoles[name]); err != nil {
+			return err
+		}
+	}
+	for _, method := range slices.Sorted(maps.Keys(m.Methods)) {
+		if err := check(m.Name+" method "+method, m.Methods[method].Requires); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Served is what a module serves: the kinds it declares, joined to every
+// (kind, action) its methods require of a call, read from its own method
+// declarations.
+func Served(m domain.Module) Scopes {
+	served := slices.Clone(m.ResourceKinds)
+	for _, method := range slices.Sorted(maps.Keys(m.Methods)) {
+		for _, required := range m.Methods[method].Requires {
+			served = append(served, &basev0.WorkScopeV1{ResourceKind: required.GetResourceKind(), Actions: slices.Clone(required.GetActions())})
+		}
+	}
+	return scope.Normalize(served)
 }

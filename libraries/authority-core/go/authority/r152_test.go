@@ -86,6 +86,12 @@ func (t lifecycleOutageTx) Person(id string) (domain.Person, error) {
 	}
 	return t.Tx.Person(id)
 }
+func (t lifecycleOutageTx) Member(org, id string) (domain.Person, error) {
+	if t.fail == "person" {
+		return domain.Person{}, t.err
+	}
+	return t.Tx.Member(org, id)
+}
 func (t lifecycleOutageTx) Installation(id string) (domain.Installation, error) {
 	if t.fail == "installation" {
 		return domain.Installation{}, t.err

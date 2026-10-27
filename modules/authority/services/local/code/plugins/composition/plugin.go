@@ -7,10 +7,9 @@ import (
 	"gateway/pkg/framework"
 	"gateway/pkg/wiring"
 	"log"
-	"strings"
 
-	delivery "github.com/codefly-dev/authority/libraries/delivery/go"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/delivered"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/core/solutionhost"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -65,44 +64,23 @@ func (p *Plugin) ApplyManifest(ctx context.Context, req *compositionv1.ApplyMani
 		return nil, err
 	}
 	var sidecar []byte
-	delivered, err := carrier.Manifest()
+	manifest, err := carrier.Manifest()
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "manifest: %v", err)
 	}
-	m := FromCore(delivered)
+	var doc *delivered.Document
 	if req.GetAuthority() != nil {
-		doc, err := p.document(req.GetAuthority(), req.GetCarrier(), delivered, carrier.Signer().KeyID)
-		if err != nil {
-			return nil, err
-		}
-		if delivered.Removed && (len(doc.GetMethods()) > 0 || len(doc.GetRoles()) > 0 || len(doc.GetScopeCeilings()) > 0) {
-			return nil, status.Error(codes.InvalidArgument, "a withdrawal carries no live authority declarations")
+		if doc, err = p.document(req.GetAuthority(), req.GetCarrier(), manifest, carrier.Signer().KeyID); err != nil {
+			return nil, authorityplugin.Status(err)
 		}
 		sidecar = req.GetAuthority().GetDocument()
 		if sidecar == nil {
 			sidecar = []byte{}
 		}
-		if m.Methods, err = methodsOf(doc); err != nil {
-			return nil, err
-		}
-		for _, ceiling := range doc.GetScopeCeilings() {
-			if ceiling.GetResourceOwnerId() != "" {
-				return nil, status.Errorf(codes.PermissionDenied, "%s: scope ceiling %s names resource owner %q; a delivery never selects an owner", m.Name, ceiling.GetResourceKind(), ceiling.GetResourceOwnerId())
-			}
-		}
-		if m, err = ceiled(m, issuer.FromWire(doc.GetScopeCeilings())); err != nil {
-			return nil, err
-		}
-		m.OwnedRoles = map[string][]*basev0.WorkScopeV1{}
-		for _, role := range doc.GetRoles() {
-			if len(role.GetInstallationOwnedScopes()) > 0 {
-				m.OwnedRoles[role.GetName()] = issuer.FromWire(role.GetInstallationOwnedScopes())
-			}
-		}
-		if m.Roles, err = rolesOf(doc); err != nil {
-			return nil, err
-		}
-		m.OwnerAware = doc.GetOwnerAware()
+	}
+	m, err := delivered.Module(manifest, doc)
+	if err != nil {
+		return nil, authorityplugin.Status(err)
 	}
 	ids, err := p.State.ApplyDelivered(ctx, p.Coordinate, carrier, sidecar, m)
 	if err != nil {
@@ -139,144 +117,35 @@ func (p *Plugin) verified(ctx context.Context, carrier *compositionv1.SignedMani
 
 // document reads the authority's document delivered with a verified carrier:
 // signed by the key that signed the carrier, for the same module and
-// generation, naming the carrier's digest. Anything else is refused, so a
-// delivery cannot pair one release's manifest with another's method policy.
-func (p *Plugin) document(signed, carrier *compositionv1.SignedManifestV1, core *solutionhost.ModuleManifest, signer string) (*compositionv1.AuthorityManifestV1, error) {
-	keyID, err := delivery.Verify(signed.GetDocument(), signed.GetEnvelope(), p.Keys)
-	if err != nil {
-		return nil, status.Errorf(codes.PermissionDenied, "the authority's document does not verify: %v", err)
+// generation, naming the carrier's digest (delivered.VerifyDocument and
+// delivered.Pair). Anything else is refused, so a delivery cannot pair one
+// release's manifest with another's method policy.
+func (p *Plugin) document(signed, carrier *compositionv1.SignedManifestV1, core *solutionhost.ModuleManifest, signer string) (*delivered.Document, error) {
+	if err := delivered.VerifyDocument(signed.GetDocument(), signed.GetEnvelope(), p.Keys, signer); err != nil {
+		return nil, err
 	}
-	if keyID != signer {
-		return nil, status.Errorf(codes.PermissionDenied, "the authority's document is signed by %q and the manifest by %q", keyID, signer)
+	var wire compositionv1.AuthorityManifestV1
+	if err := proto.Unmarshal(signed.GetDocument(), &wire); err != nil {
+		return nil, domain.Malformed("the authority's document does not read: %v", err)
 	}
-	var doc compositionv1.AuthorityManifestV1
-	if err := proto.Unmarshal(signed.GetDocument(), &doc); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "the authority's document does not read: %v", err)
+	doc := DocumentOf(&wire)
+	if err := delivered.Pair(*doc, carrier.GetDocument(), core); err != nil {
+		return nil, err
 	}
-	switch {
-	case doc.GetModule() != core.Alias:
-		return nil, status.Errorf(codes.PermissionDenied, "the authority's document is for %q, the manifest for %q", doc.GetModule(), core.Alias)
-	case doc.GetGeneration() != core.Generation:
-		return nil, status.Errorf(codes.PermissionDenied, "the authority's document is at generation %d, the manifest at %d", doc.GetGeneration(), core.Generation)
-	case doc.GetCoreManifestDigest() != delivery.Digest(carrier.GetDocument()):
-		return nil, status.Errorf(codes.PermissionDenied, "the authority's document names another manifest than the one delivered with it")
-	}
-	return &doc, nil
+	return doc, nil
 }
 
-// methodsOf reads what each method declares.
-func methodsOf(doc *compositionv1.AuthorityManifestV1) (map[string]state.MethodPolicy, error) {
-	methods := make(map[string]state.MethodPolicy, len(doc.GetMethods()))
-	for _, method := range doc.GetMethods() {
-		if _, twice := methods[method.GetMethod()]; twice || method.GetMethod() == "" {
-			return nil, status.Errorf(codes.InvalidArgument, "the authority's document lists method %q twice or unnamed", method.GetMethod())
-		}
-		methods[method.GetMethod()] = state.MethodPolicy{Requires: issuer.FromWire(method.GetRequires()), AnyCheckedCaller: method.GetAnyCheckedCaller()}
+// DocumentOf reads this host's binding of the authority's document as the core's.
+func DocumentOf(in *compositionv1.AuthorityManifestV1) *delivered.Document {
+	doc := &delivered.Document{Module: in.GetModule(), Generation: in.GetGeneration(), CoreManifestDigest: in.GetCoreManifestDigest(),
+		ScopeCeilings: issuer.FromWire(in.GetScopeCeilings()), OwnerAware: in.GetOwnerAware()}
+	for _, m := range in.GetMethods() {
+		doc.Methods = append(doc.Methods, delivered.Method{Method: m.GetMethod(), Requires: issuer.FromWire(m.GetRequires()), AnyCheckedCaller: m.GetAnyCheckedCaller()})
 	}
-	return methods, nil
-}
-
-// rolesOf reads the roles a solution declares, by name. The state holds them to
-// the role contract: a solution declares an installer and every role stays
-// within what it serves or explicitly consumes through invoke/lookup bindings,
-// and a module declares none, so a
-// module's delivery listing any is refused there by name.
-func rolesOf(doc *compositionv1.AuthorityManifestV1) (map[string][]*basev0.WorkScopeV1, error) {
-	if len(doc.GetRoles()) == 0 {
-		return nil, nil
+	for _, r := range in.GetRoles() {
+		doc.Roles = append(doc.Roles, delivered.Role{Name: r.GetName(), Scopes: issuer.FromWire(r.GetScopes()), InstallationOwned: issuer.FromWire(r.GetInstallationOwnedScopes())})
 	}
-	roles := make(map[string][]*basev0.WorkScopeV1, len(doc.GetRoles()))
-	for _, role := range doc.GetRoles() {
-		if _, twice := roles[role.GetName()]; twice || role.GetName() == "" {
-			return nil, status.Errorf(codes.InvalidArgument, "the authority's document lists role %q twice or unnamed", role.GetName())
-		}
-		roles[role.GetName()] = state.Normalize(issuer.FromWire(role.GetScopes()))
-	}
-	return roles, nil
-}
-
-// ceiled gives each of the module's own kinds the actions its contract declares
-// on it, in place of the any-action kind core's manifest leaves it with. A
-// ceiling naming a kind core's manifest does not declare is refused: the
-// authority's document narrows what core's manifest composes, never adds to it.
-func ceiled(m state.Manifest, ceilings []*basev0.WorkScopeV1) (state.Manifest, error) {
-	if len(ceilings) == 0 {
-		return m, nil
-	}
-	declared := map[string]bool{}
-	for _, kind := range m.ResourceKinds {
-		declared[kind.GetResourceKind()] = true
-	}
-	ceiled := map[string]bool{}
-	for _, ceiling := range ceilings {
-		if !declared[ceiling.GetResourceKind()] {
-			return m, status.Errorf(codes.InvalidArgument, "the authority's document ceils %s, which %s's manifest does not declare", ceiling.GetResourceKind(), m.Name)
-		}
-		if len(ceiling.GetActions()) == 0 {
-			return m, status.Errorf(codes.InvalidArgument, "the authority's document ceils %s with no action", ceiling.GetResourceKind())
-		}
-		ceiled[ceiling.GetResourceKind()] = true
-	}
-	kinds := append([]*basev0.WorkScopeV1(nil), ceilings...)
-	for _, kind := range m.ResourceKinds {
-		if !ceiled[kind.GetResourceKind()] {
-			kinds = append(kinds, kind)
-		}
-	}
-	m.ResourceKinds = state.Normalize(kinds)
-	return m, nil
-}
-
-// FromCore reads core's module manifest as the state's. Core's manifest carries
-// no roles; a solution's arrive in the authority's document delivered with it
-// (rolesOf), so a solution delivered as a carrier with none is refused. The
-// manifest is the ceiling here: a resource kind declared with no actions serves
-// whatever the roles grant on it, a binding's invoke scopes are its operations,
-// and a module acting alone holds what it may invoke. The host narrows each of
-// these by its release-signed envelope; the local authority has no second
-// document.
-func FromCore(in *solutionhost.ModuleManifest) state.Manifest {
-	m := state.Manifest{Name: in.Alias, Principal: in.Alias, Kind: string(in.Kind), Generation: in.Generation, Bindings: map[string]state.Binding{}}
-	if in.Authority == nil {
-		return m
-	}
-	if in.Authority.Principal != "" {
-		m.Principal = in.Authority.Principal
-	}
-	for _, kind := range in.Authority.ResourceKinds {
-		m.ResourceKinds = append(m.ResourceKinds, &basev0.WorkScopeV1{ResourceKind: kind, Actions: []string{state.AnyAction}})
-	}
-	m.ResourceKinds = state.Normalize(m.ResourceKinds)
-	for _, b := range in.Authority.Bindings {
-		invoke := scopesOf(b.Operations["invoke"])
-		headless := scopesOf(b.Operations["headless"])
-		lookup := scopesOf(b.Operations["lookup"])
-		m.Bindings[b.ID] = state.Binding{ID: b.ID, Audience: b.Audience, InvokeScopes: invoke, HeadlessScopes: headless, LookupScopes: lookup}
-	}
-	return m
-}
-
-// scopesOf reads one operation's requested scopes, each "<resource kind>:<action>"
-// as core's manifest writes them, into scopes grouped by kind. An entry without
-// a colon names nothing and is skipped; the manifest's own validation refuses it.
-func scopesOf(entries []string) []*basev0.WorkScopeV1 {
-	byKind := map[string][]string{}
-	var kinds []string
-	for _, entry := range entries {
-		kind, action, ok := strings.Cut(entry, ":")
-		if !ok || kind == "" || action == "" {
-			continue
-		}
-		if _, seen := byKind[kind]; !seen {
-			kinds = append(kinds, kind)
-		}
-		byKind[kind] = append(byKind[kind], action)
-	}
-	var out []*basev0.WorkScopeV1
-	for _, kind := range kinds {
-		out = append(out, &basev0.WorkScopeV1{ResourceKind: kind, Actions: byKind[kind]})
-	}
-	return state.Normalize(out)
+	return doc
 }
 
 // New is the registry's constructor: the plugin over what Configure wired.

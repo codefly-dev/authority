@@ -181,7 +181,7 @@ func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest
 		if audience, err = tx.Module(r.Audience); err != nil {
 			return notFound(err)
 		}
-		p, err := tx.Person(who.ID)
+		p, err := tx.Member(who.Organization, who.ID)
 		if err != nil || p.Organization != who.Organization {
 			return domain.Refuse("the session's person is no longer a member of %s", who.Organization)
 		}
@@ -475,7 +475,7 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 		bounded := false
 		switch claims.GetOwnerPrincipalKind() {
 		case "human":
-			p, err := tx.Person(claims.GetOwnerPrincipalId())
+			p, err := tx.Member(tenant, claims.GetOwnerPrincipalId())
 			if err != nil {
 				return domain.Refuse("the owner %s is no longer a member", claims.GetOwnerPrincipalId())
 			}

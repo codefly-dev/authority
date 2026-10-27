@@ -25,11 +25,11 @@ func decideRoleChange(tx Tx, caller Person, r RoleRequest, list, revoke bool) (d
 	// it: the foreign answer comes before any installation is read. Then the
 	// installation is resolved by (organization, id): another organization's
 	// and an absent one answer alike, having done the same work.
-	c, err := tx.Person(caller.ID)
+	c, err := memberAs(tx, caller, r.Organization)
 	if err != nil && !errors.Is(err, domain.ErrNotFound) {
 		return domain.Installation{}, err
 	}
-	if caller.ID == "" || err != nil || c.Organization != r.Organization {
+	if err != nil {
 		return domain.Installation{}, decide.ForeignInstallation(r.InstallationID, r.Organization)
 	}
 	inst, err := tx.Installation(r.InstallationID)
@@ -50,7 +50,7 @@ func decideRoleChange(tx Tx, caller Person, r RoleRequest, list, revoke bool) (d
 	change := decide.RoleChange{RequestOrganization: r.Organization, RequestedID: r.InstallationID, Installation: inst, Solution: solution,
 		Caller: c, CallerRoles: decide.HeldRoles(c, inst, grants), List: list, Revoke: revoke, Role: r.Role, PersonID: r.PersonID, TeamID: r.TeamID}
 	if r.PersonID != "" {
-		if p, err := tx.Person(r.PersonID); err == nil {
+		if p, err := tx.Member(inst.Organization, r.PersonID); err == nil {
 			change.Subject = &p
 		}
 	}
@@ -135,13 +135,3 @@ func (s *Service) PersonChanged(ctx context.Context, person string) error {
 	return s.store.Write(ctx, func(tx Tx) error { return tx.BumpPersonEpoch(person) })
 }
 
-// callerOrganization is the organization the caller belongs to now, read from
-// the store.
-func callerOrganization(tx Tx, caller Person) string {
-	if p, err := tx.Person(caller.ID); err == nil {
-		return p.Organization
-	}
-	// A caller the store no longer knows belongs to no organization: they get
-	// the foreign answer, whatever their session says.
-	return ""
-}

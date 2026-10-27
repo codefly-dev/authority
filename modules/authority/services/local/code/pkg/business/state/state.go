@@ -11,16 +11,14 @@ import (
 	"crypto/ed25519"
 	"errors"
 	"fmt"
-	"maps"
 	"slices"
-	"strings"
 	"sync"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/memstore"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	"github.com/codefly-dev/authority/libraries/hop/go/routing"
 	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"github.com/codefly-dev/core/workloadidentity"
@@ -373,32 +371,19 @@ func compileScopes(r Role) error {
 	return nil
 }
 
-// ensureModuleInstallations holds a module installation at every organisation.
+// ensureModuleInstallations holds every composed module installed at every
+// organisation, through the core.
 func (s *State) ensureModuleInstallations() error {
-	return s.write(func(tx authority.Tx) error {
-		modules, err := tx.Modules()
-		if err != nil {
+	var orgs []domain.Organization
+	if err := s.read(func(tx authority.Tx) (err error) { orgs, err = tx.Organizations(); return err }); err != nil {
+		return err
+	}
+	for _, org := range orgs {
+		if _, err := s.svc.OrganizationAdded(context.Background(), org.ID); err != nil {
 			return err
 		}
-		orgs, err := tx.Organizations()
-		if err != nil {
-			return err
-		}
-		for _, m := range modules {
-			if m.Kind == domain.KindSolution {
-				continue
-			}
-			for _, org := range orgs {
-				id := InstallationID(org.ID, m.Name)
-				if _, err := tx.Installation(id); errors.Is(err, domain.ErrNotFound) {
-					if err := tx.PutInstallation(domain.Installation{ID: id, Organization: org.ID, Target: m.Name, Status: domain.Active, Revision: 1}); err != nil {
-						return err
-					}
-				}
-			}
-		}
-		return nil
-	})
+	}
+	return nil
 }
 
 // performInstall installs what the fixture names through the core, then
@@ -556,68 +541,16 @@ func (s *State) ApplyManifest(m Manifest) ([]string, error) {
 	return ids, nil
 }
 
-// applyManifestLocked applies m through the core, what its methods require
-// joined to what it serves. Caller holds mu.
+// applyManifestLocked applies m through the core, which refuses an owner
+// anywhere in it and joins what its methods require to what it serves.
+// Caller holds mu.
 func (s *State) applyManifestLocked(m Manifest) ([]string, []FixtureInstallation, error) {
-	if err := noOwners(m); err != nil {
-		return nil, nil, err
-	}
-	m.ResourceKinds = Normalize(append(slices.Clone(m.ResourceKinds), servedByMethods(m.Methods)...))
 	ids, err := s.svc.ApplyModule(context.Background(), m)
 	if err != nil {
 		return nil, nil, classify(err)
 	}
 	s.refreshRolesLocked()
 	return ids, s.takePendingInstalls(m.Name), nil
-}
-
-// noOwners refuses a delivery naming a resource owner where none belongs: in
-// what a module serves, in a binding's scopes, in a role or in a method's
-// requirement. An owner is the authority's to select per installation; read
-// owner-blind, it would widen to the whole kind, so it is refused by name.
-func noOwners(m Manifest) error {
-	check := func(where string, scopes []*basev0.WorkScopeV1) error {
-		for _, sc := range scopes {
-			if sc.GetResourceOwnerId() != "" {
-				return fmt.Errorf("%w: %s: %s names resource owner %q; a delivery never selects an owner", ErrForbidden, where, sc.GetResourceKind(), sc.GetResourceOwnerId())
-			}
-		}
-		return nil
-	}
-	if err := check(m.Name+" serves", m.ResourceKinds); err != nil {
-		return err
-	}
-	for _, id := range slices.Sorted(maps.Keys(m.Bindings)) {
-		b := m.Bindings[id]
-		for _, scopes := range [][]*basev0.WorkScopeV1{b.InvokeScopes, b.HeadlessScopes, b.LookupScopes} {
-			if err := check(m.Name+" binding "+id, scopes); err != nil {
-				return err
-			}
-		}
-	}
-	for _, name := range slices.Sorted(maps.Keys(m.Roles)) {
-		if err := check(m.Name+" role "+name, m.Roles[name]); err != nil {
-			return err
-		}
-	}
-	for _, method := range slices.Sorted(maps.Keys(m.Methods)) {
-		if err := check(m.Name+" method "+method, m.Methods[method].Requires); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// servedByMethods is every (kind, action) a module's methods require of a
-// call: what the module serves, read from its own method declarations.
-func servedByMethods(methods map[string]MethodPolicy) []*basev0.WorkScopeV1 {
-	var served []*basev0.WorkScopeV1
-	for _, policy := range methods {
-		for _, required := range policy.Requires {
-			served = append(served, &basev0.WorkScopeV1{ResourceKind: required.GetResourceKind(), Actions: slices.Clone(required.GetActions())})
-		}
-	}
-	return served
 }
 
 // takePendingInstalls removes and returns the fixture installations waiting
@@ -751,95 +684,11 @@ func (s *State) VerifyWorkload(ctx context.Context, credential string) (Manifest
 }
 
 // AdmitMethod applies what the module at audience declares for method to the
-// scopes a checked call holds. A method that declares nothing, or both that it
-// requires something and nothing, is refused: an absent or ambiguous
-// declaration is never read as permission.
+// scopes a checked call holds: the core's decide.AdmitMethod.
 func (s *State) AdmitMethod(audience, method string, held []*basev0.WorkScopeV1) error {
 	m, err := s.ModuleByPrincipal(audience)
 	if err != nil {
 		return err
 	}
-	return admitMethod(m, audience, method, held)
-}
-
-func admitMethod(m Manifest, audience, method string, held []*basev0.WorkScopeV1) error {
-	var err error
-	if m.Methods == nil {
-		return fmt.Errorf("%w: %s's delivery declares no method policy, so %s is refused", ErrForbidden, audience, method)
-	}
-	p, ok := m.Methods[method]
-	if !ok {
-		if p, ok, err = routeOf(m.Methods, method); err != nil {
-			return fmt.Errorf("%w: %s: %w", ErrForbidden, audience, err)
-		}
-	}
-	switch {
-	case !ok:
-		return fmt.Errorf("%w: %s serves no method %s", ErrUnknown, audience, method)
-	case p.AnyCheckedCaller && len(p.Requires) > 0:
-		return fmt.Errorf("%w: %s declares for %s both that it requires scopes and that it requires none", ErrForbidden, audience, method)
-	case p.AnyCheckedCaller:
-		return nil
-	case len(p.Requires) == 0:
-		return fmt.Errorf("%w: %s declares no policy for %s", ErrForbidden, audience, method)
-	}
-	// Method admission checks the kind and action; the module still checks
-	// each resource, and its owner, against the unchanged scopes.
-	var missing []string
-	for _, r := range p.Requires {
-		for _, action := range r.GetActions() {
-			if !HoldsAction(held, r.GetResourceKind(), action) {
-				missing = append(missing, r.GetResourceKind()+":"+action)
-			}
-		}
-	}
-	if len(missing) > 0 {
-		return fmt.Errorf("%w: %s requires %s for %s, which the call does not hold (it holds %s)",
-			ErrForbidden, audience, strings.Join(missing, ", "), method, describe(held))
-	}
-	return nil
-}
-
-// routeOf is the route a module declares that an HTTP request "<VERB> <path>"
-// is for; two templates matching one path is an ambiguous declaration,
-// refused rather than guessed between.
-func routeOf(methods map[string]MethodPolicy, request string) (MethodPolicy, bool, error) {
-	verb, path, ok := strings.Cut(request, " ")
-	if !ok || !strings.HasPrefix(path, "/") {
-		return MethodPolicy{}, false, nil
-	}
-	var found []string
-	for declared := range methods {
-		if v, template, ok := strings.Cut(declared, " "); ok && v == verb && routing.RouteMatches(template, path) {
-			found = append(found, declared)
-		}
-	}
-	switch len(found) {
-	case 0:
-		return MethodPolicy{}, false, nil
-	case 1:
-		return methods[found[0]], true, nil
-	}
-	slices.Sort(found)
-	return MethodPolicy{}, false, fmt.Errorf("%s matches more than one declared route (%s)", request, strings.Join(found, ", "))
-}
-
-func describe(held []*basev0.WorkScopeV1) string {
-	var out []string
-	for _, h := range held {
-		for _, a := range h.GetActions() {
-			permission := h.GetResourceKind() + ":" + a
-			switch {
-			case h.GetResourceOwnerId() != "":
-				permission += " (owner-selected)"
-			case len(h.GetResourceIds()) > 0:
-				permission += " (resource-limited)"
-			}
-			out = append(out, permission)
-		}
-	}
-	if len(out) == 0 {
-		return "nothing"
-	}
-	return strings.Join(out, ", ")
+	return classify(decide.AdmitMethod(m, method, held))
 }

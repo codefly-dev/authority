@@ -27,7 +27,13 @@ var ErrConflict = errors.New("authority: the transaction conflicted with another
 type Tx interface {
 	Organizations() ([]domain.Organization, error)
 	Organization(id string) (domain.Organization, error)
+	// Person answers whether id names a person at all, in any organization.
+	// A person may belong to several organizations, so the authority reads
+	// nothing else from it: what a person holds is read through Member.
 	Person(id string) (domain.Person, error)
+	// Member is a person as a member of one organization: their roles and
+	// teams there. A person who is not a member of it is ErrNotFound.
+	Member(organization, id string) (domain.Person, error)
 	People(organization string) ([]domain.Person, error)
 	OrgRole(organization, name string) (domain.OrgRole, error)
 

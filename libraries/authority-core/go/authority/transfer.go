@@ -72,7 +72,7 @@ func (s *Service) AuthorizeTransfer(ctx context.Context, r TransferRequest) (Tra
 		if t.OwnerKind != "human" {
 			return decide.AuthorizeTransfer(t)
 		}
-		p, err := tx.Person(wc.GetOwnerPrincipalId())
+		p, err := tx.Member(wc.GetTenantId(), wc.GetOwnerPrincipalId())
 		if err != nil {
 			return domain.Refuse("the owner %s is no longer a member", wc.GetOwnerPrincipalId())
 		}
@@ -92,7 +92,7 @@ func (s *Service) AuthorizeTransfer(ctx context.Context, r TransferRequest) (Tra
 		} else if !errors.Is(err, domain.ErrNotFound) {
 			return err
 		}
-		if fp, err := tx.Person(r.From); err == nil {
+		if fp, err := tx.Member(wc.GetTenantId(), r.From); err == nil {
 			t.FromPerson = &fp
 		}
 		roles, err := orgRoles(tx, p)

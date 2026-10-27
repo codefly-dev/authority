@@ -19,6 +19,7 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 	if err := decide.ValidateModule(m); err != nil {
 		return nil, err
 	}
+	m.ResourceKinds = decide.Served(m)
 	var ids []string
 	err := s.store.Write(ctx, func(tx Tx) error {
 		ids = nil // a retried transaction starts over
@@ -131,6 +132,43 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 	return ids, err
 }
 
+// OrganizationAdded holds every composed module installed at an organization
+// the host created after those modules were delivered, as ApplyModule holds
+// them at every organization that existed then: the order of delivery and
+// sign-up never decides whether an organization may use a module. It is
+// idempotent, and a module installation an administrator or a withdrawal
+// retired stays retired. It answers the organization's module installations.
+func (s *Service) OrganizationAdded(ctx context.Context, org string) ([]string, error) {
+	var ids []string
+	err := s.store.Write(ctx, func(tx Tx) error {
+		ids = nil
+		if _, err := tx.Organization(org); err != nil {
+			return notFound(err)
+		}
+		modules, err := tx.Modules()
+		if err != nil {
+			return err
+		}
+		for _, m := range modules {
+			if m.Kind == domain.KindSolution {
+				continue
+			}
+			id := s.cfg.InstallationID(org, m.Name)
+			if _, err := tx.Installation(id); errors.Is(err, domain.ErrNotFound) {
+				if err := tx.PutInstallation(domain.Installation{ID: id, Organization: org, Target: m.Name, Status: domain.Active, Revision: 1}); err != nil {
+					return err
+				}
+			} else if err != nil {
+				return err
+			}
+			ids = append(ids, id)
+		}
+		slices.Sort(ids)
+		return nil
+	})
+	return ids, err
+}
+
 // WithdrawModule removes a module: its installations are revoked and the
 // delegations granted to it end.
 func (s *Service) WithdrawModule(ctx context.Context, name string) error {
@@ -229,7 +267,7 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 		if _, ok := m.Roles[agentRole]; !ok {
 			return domain.Missing("role %q is not one %s declares", agentRole, target)
 		}
-		p, err := tx.Person(installedBy)
+		p, err := tx.Member(org, installedBy)
 		if err != nil && !errors.Is(err, domain.ErrNotFound) {
 			return err
 		}
@@ -360,13 +398,13 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 // belong to host composition and cannot be uninstalled by a person.
 func (s *Service) Uninstall(ctx context.Context, caller Person, organization, installationID string) error {
 	return s.store.Write(ctx, func(tx Tx) error {
-		p, err := tx.Person(caller.ID)
+		p, err := memberAs(tx, caller, organization)
 		if err != nil && !errors.Is(err, domain.ErrNotFound) {
 			return err
 		}
 		// Authorize before reading the installation: unauthorized callers
 		// cannot tell a present installation from an absent one.
-		if caller.ID == "" || err != nil || p.Organization != organization || !decide.IsAdministrator(p) {
+		if err != nil || !decide.IsAdministrator(p) {
 			return decide.ForeignInstallation(installationID, organization)
 		}
 		inst, err := installationIn(tx, organization, installationID)
@@ -422,8 +460,8 @@ func (s *Service) revoke(tx Tx, inst domain.Installation) error {
 func (s *Service) Installations(ctx context.Context, caller Person, org string) ([]domain.Installation, error) {
 	var out []domain.Installation
 	err := s.store.Read(ctx, func(tx Tx) error {
-		p, err := tx.Person(caller.ID)
-		if err != nil || p.Organization != org || !decide.IsAdministrator(p) {
+		p, err := memberAs(tx, caller, org)
+		if err != nil || !decide.IsAdministrator(p) {
 			return domain.Refuse("installation administration requires an administrator or owner of organization %q", org)
 		}
 		out, err = tx.Installations(org)

@@ -13,14 +13,26 @@ import (
 )
 
 func administrator(tx Tx, caller Person, org string) error {
-	p, err := tx.Person(caller.ID)
+	p, err := memberAs(tx, caller, org)
 	if err != nil && !errors.Is(err, domain.ErrNotFound) {
 		return err
 	}
-	if caller.ID == "" || err != nil || p.Organization != org || !decide.IsAdministrator(p) {
+	if err != nil || !decide.IsAdministrator(p) {
 		return domain.Refuse("installation administration requires an administrator or owner of organization %q", org)
 	}
 	return nil
+}
+
+// memberAs is the caller as a member of org, read now. The caller acts in the
+// organization their session was opened at: a person who belongs to several
+// organizations administers or reads another one only from a session there,
+// so a session never carries one organization's authority into another.
+// Anything else is ErrNotFound, as an absent member is.
+func memberAs(tx Tx, caller Person, org string) (domain.Person, error) {
+	if caller.ID == "" || org == "" || caller.Organization != org {
+		return domain.Person{}, fmt.Errorf("%q acting at %q: %w", caller.ID, org, domain.ErrNotFound)
+	}
+	return tx.Member(org, caller.ID)
 }
 
 // offerDigest covers every authority declaration in the reviewed module. JSON

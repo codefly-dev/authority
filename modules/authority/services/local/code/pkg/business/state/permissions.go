@@ -147,7 +147,7 @@ func (s *State) PermissionReport() []string {
 			covered := false
 			for role, scopes := range roles {
 				result := "covered statically; identity, installation and resource checks still apply"
-				if err := admitMethod(m, m.Principal, method, scopes); err != nil {
+				if err := classify(decide.AdmitMethod(m, method, scopes)); err != nil {
 					result = err.Error()
 				} else {
 					covered = true
