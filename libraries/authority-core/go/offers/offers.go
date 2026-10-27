@@ -81,7 +81,7 @@ func Project(offer authority.ReviewedOffer, bindings map[string]*runnablev0.Prep
 		role.Scopes = append(role.Scopes, offerScopes(m.OwnedRoles[name], true, inst.Owned)...)
 		// What the role reaches, by kind and action: its confinement to the
 		// installation narrows resources, never which operations it covers.
-		held := scope.Unowned(stripIDs(append(slices.Clone(m.Roles[name]), m.OwnedRoles[name]...)))
+		held := scope.Unowned(append(slices.Clone(m.Roles[name]), m.OwnedRoles[name]...))
 		for _, target := range modules {
 			for _, method := range slices.Sorted(maps.Keys(target.Methods)) {
 				policy := target.Methods[method]
@@ -102,7 +102,7 @@ func Project(offer authority.ReviewedOffer, bindings map[string]*runnablev0.Prep
 	return out, nil
 }
 
-// toolsOf is every tool-exposed Connect binding of one operation whose invoke
+// toolsOf is every Connect binding of one operation whose invoke
 // and lookup scopes the role covers: the exposures a tool caller lists. The
 // same tool composed from the operation's Connect and gRPC endpoints is one
 // tool, named by its Connect binding, as a tool caller lists it.
@@ -119,7 +119,7 @@ func toolsOf(module, method string, held []*basev0.WorkScopeV1, bindings map[str
 	for _, key := range keys {
 		b := bindings[key]
 		op := b.GetOperation()
-		if op.GetModule() != module || op.GetSpelling() != method || b.GetPolicy().GetTool() == nil || b.GetCall().GetConnect() == nil {
+		if op.GetModule() != module || op.GetSpelling() != method || b.GetCall().GetConnect() == nil {
 			continue
 		}
 		if !scope.Attenuates(append(slices.Clone(b.GetPolicy().GetInvokeScopes()), b.GetPolicy().GetLookupScopes()...), held) {
@@ -135,14 +135,6 @@ func toolsOf(module, method string, held []*basev0.WorkScopeV1, bindings map[str
 		out = append(out, &Tool{Name: tool.GetName(), Binding: key, Write: tool.GetEffect() != runnablev0.ToolExposure_EFFECT_READ_ONLY})
 	}
 	return out, nil
-}
-
-func stripIDs(in []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 {
-	out := make([]*basev0.WorkScopeV1, 0, len(in))
-	for _, sc := range in {
-		out = append(out, &basev0.WorkScopeV1{ResourceKind: sc.GetResourceKind(), Actions: sc.GetActions()})
-	}
-	return out
 }
 
 func offerScopes(in []*basev0.WorkScopeV1, attached bool, owned map[string][]string) []*Scope {

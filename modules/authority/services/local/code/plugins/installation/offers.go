@@ -110,7 +110,12 @@ func (p *Plugin) review(offer authority.ReviewedOffer, bindings map[string]*runn
 		out.Approval = &installationv1.ConsentApproval{TargetId: a.TargetID, Generation: a.Generation, ExpectedRevision: a.ExpectedRevision, Digest: a.Digest}
 	}
 	if projected.Installation != nil {
-		out.Installation = p.wire(*projected.Installation)
+		// Use the reviewed role names, never a second read of a later delivery.
+		roles := make([]string, 0, len(projected.Roles))
+		for _, role := range projected.Roles {
+			roles = append(roles, role.Name)
+		}
+		out.Installation = wireInstallation(*projected.Installation, roles)
 	}
 	for _, b := range projected.Ceiling {
 		out.Ceiling = append(out.Ceiling, &installationv1.OfferBinding{Binding: b.Binding, Module: b.Module, Scopes: scopesToWire(b.Scopes)})
