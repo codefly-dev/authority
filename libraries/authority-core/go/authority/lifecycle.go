@@ -178,13 +178,42 @@ func (s *Service) OrganizationAdded(ctx context.Context, org string) ([]string, 
 // organization created while the authority could not record it still holds
 // the modules it may use.
 func (s *Service) ReconcileOrganizations(ctx context.Context) error {
-	var orgs []domain.Organization
-	if err := s.store.Read(ctx, func(tx Tx) (err error) { orgs, err = tx.Organizations(); return err }); err != nil {
+	// One read finds the organizations missing a module installation, so a
+	// host with many organizations writes only where something is missing.
+	var missing []string
+	if err := s.store.Read(ctx, func(tx Tx) error {
+		missing = nil
+		orgs, err := tx.Organizations()
+		if err != nil {
+			return err
+		}
+		modules, err := tx.Modules()
+		if err != nil {
+			return err
+		}
+		all, err := tx.Installations("")
+		if err != nil {
+			return err
+		}
+		held := map[string]bool{}
+		for _, inst := range all {
+			held[inst.ID] = true
+		}
+		for _, org := range orgs {
+			for _, m := range modules {
+				if m.Kind != domain.KindSolution && !held[s.cfg.InstallationID(org.ID, m.Name)] {
+					missing = append(missing, org.ID)
+					break
+				}
+			}
+		}
+		return nil
+	}); err != nil {
 		return err
 	}
-	for _, org := range orgs {
-		if _, err := s.OrganizationAdded(ctx, org.ID); err != nil {
-			return fmt.Errorf("organization %s: %w", org.ID, err)
+	for _, org := range missing {
+		if _, err := s.OrganizationAdded(ctx, org); err != nil {
+			return fmt.Errorf("organization %s: %w", org, err)
 		}
 	}
 	return nil
