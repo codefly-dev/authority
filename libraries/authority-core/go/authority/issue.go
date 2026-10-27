@@ -253,6 +253,7 @@ func (s *Service) IssueForWorkload(ctx context.Context, w Workload, r IssueReque
 	var module, audience domain.Module
 	var through, scopes Scopes
 	var org, instID string
+	var f fence
 	err := s.store.Read(ctx, func(tx Tx) error {
 		var err error
 		if module, err = tx.ModuleNamed(w.Module); err != nil {
@@ -316,6 +317,12 @@ func (s *Service) IssueForWorkload(ctx context.Context, w Workload, r IssueReque
 			return domain.NotNow("%s is not installed at %s", module.Name, org)
 		}
 		instID = inst.ID
+		// What the decision read: the installation's revision moves with
+		// the consent its bindings came from, so a capability minted after a
+		// narrowing committed is refused rather than handed out.
+		if f, err = s.src.fenceIn(tx, org, module.Principal, inst.ID); err != nil {
+			return err
+		}
 		return decide.OwnerAware(audience, scopes)
 	})
 	if err != nil {
@@ -327,6 +334,9 @@ func (s *Service) IssueForWorkload(ctx context.Context, w Workload, r IssueReque
 		InstallationID: instID, OperationBindingID: org + "/" + module.Name + "/" + r.Binding, TTL: clamp(r.TTL, s.cfg.MaxTTL),
 	})
 	if err != nil {
+		return Issued{}, err
+	}
+	if err := f.holds(signed); err != nil {
 		return Issued{}, err
 	}
 	if signed.GetSeal().GetPrincipalEpoch() != module.Generation || signed.GetOperationBinding().GetRevision() != module.Generation {
