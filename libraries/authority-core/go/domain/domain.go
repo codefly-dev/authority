@@ -154,6 +154,10 @@ func (r *Refusal) Unwrap() error { return r.Cause }
 // ErrNoInstallerRole names a solution that declares no installer role.
 var ErrNoInstallerRole = errors.New("a solution declares an installer role")
 
+// ErrAlreadyInstalled names an install of a target its organization holds
+// active already.
+var ErrAlreadyInstalled = errors.New("already installed")
+
 // ErrNotFound is what a store answers for a missing record.
 var ErrNotFound = errors.New("not found")
 

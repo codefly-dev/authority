@@ -1,6 +1,7 @@
 package authority_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
@@ -101,4 +102,13 @@ func TestAComposedModuleReadsAsDelivered(t *testing.T) {
 	}
 	_, err = h.svc.Composed(h.ctx, "absent")
 	code(t, err, domain.NotFound)
+}
+
+func TestInstallingAnInstalledTargetNamesIt(t *testing.T) {
+	h := newHarness(t)
+	_, err := h.svc.InstallAsHost(h.ctx, acme, "a", "author", "alex", nil)
+	code(t, err, domain.Denied)
+	if !errors.Is(err, domain.ErrAlreadyInstalled) {
+		t.Fatalf("an installed target's refusal names it: %v", err)
+	}
 }

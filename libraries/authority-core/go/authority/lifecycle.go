@@ -340,7 +340,7 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 			return nil
 		}
 		if err == nil && existing.Status != domain.Revoked {
-			return domain.Refuse("%s is already installed at %s", target, org)
+			return &domain.Refusal{Code: domain.Denied, Cause: domain.ErrAlreadyInstalled, Reason: fmt.Sprintf("%s is already installed at %s", target, org)}
 		}
 		principal := s.cfg.PrincipalID(org, target)
 		if _, err := tx.Module(principal); err == nil {
