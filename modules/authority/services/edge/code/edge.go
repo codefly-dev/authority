@@ -74,7 +74,8 @@ type Edge struct {
 	Sessions      Sessions
 	Authority     Issuer
 	Installations Installations
-	// Offers and Installer serve the setup page; nil serves none.
+	// Offers and Installer serve the setup page and the host face
+	// (host_connect.go); nil serves neither.
 	Offers    Offers
 	Installer Installer
 	Modules   map[string]Module
@@ -88,6 +89,9 @@ type Edge struct {
 	// setupKnown and setupServed are the host's answer to whether it serves
 	// OfferService, once it has given a definite one (servesSetup).
 	setupKnown, setupServed bool
+	// faceOnce builds face, the host face's procedures (host_connect.go).
+	faceOnce sync.Once
+	face     http.Handler
 }
 
 type held struct {
@@ -130,6 +134,10 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.HasPrefix(r.URL.Path, "/auth/assets/") {
 		e.signInAsset(w, r)
+		return
+	}
+	if isHostPath(r.URL.Path) {
+		e.toHost(w, r)
 		return
 	}
 	if module, target, ok := e.route(r.URL.Path); ok {

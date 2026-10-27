@@ -768,6 +768,25 @@ and sent through the generated clients with the person's own session.
 [The edge page](modules/authority/services/edge/README.md#the-setup-page) has
 the details.
 
+### The Setup tab's Connect face (2026-10-27)
+
+The edge serves the host's installation reads and changes (`InstallationService`
+List, Review, ListRoleGrants, GrantRole, RevokeRole; `OfferService` ListOffers,
+ReviewOffer) to the signed-in person over Connect, at
+`/host.installation.v1.<Service>/<Method>`, the paths a hosted gateway serves, so
+one Setup component calls either with the generated client. The edge sends each
+with the person's session and decides nothing; a cookie call must carry this
+origin and speak Connect, and no CORS header is set
+([services/edge](modules/authority/services/edge/README.md#the-setup-tabs-connect-face)).
+
+A member reads what the solution they use grants: the core's `ReviewOffer` answers
+an administrator with the consent tuple, and a member holding a role on the
+solution's active installation in their organization (granted to them or to a
+team of theirs) with the same roles, operations, tools, ceiling and installation
+and no tuple. Anyone else is refused by one reason, before the target is looked
+up. `Review` (the tuple alone), `List`, `ListOffers` and the role grants stay as
+they were.
+
 ## Which resources a context covers (2026-10-23)
 
 `Check` answers for one call. Which resources of a kind a caller may touch,

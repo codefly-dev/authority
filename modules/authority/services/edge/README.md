@@ -91,6 +91,37 @@ generated client with the person's bearer; the authority decides it. A refusal
 is shown with the authority's reason. An install the authority did not confirm
 is shown again with its exact request, so the retry is the same operation.
 
+## The Setup tab's Connect face
+
+A solution's Setup tab reads and changes its roles through the host's own
+installation interface, so it is the same page locally and on a hosted
+authority. The edge serves these procedures of `host.installation.v1` to the
+signed-in person, over Connect, on this origin, at the paths the proto names:
+
+| Path | Who the authority answers |
+|---|---|
+| `/host.installation.v1.InstallationService/List` | an administrator of the organization |
+| `/host.installation.v1.InstallationService/Review` | an administrator (the consent tuple) |
+| `/host.installation.v1.InstallationService/ListRoleGrants` | an administrator, or the installation's installer-role holder |
+| `/host.installation.v1.InstallationService/GrantRole` | the same |
+| `/host.installation.v1.InstallationService/RevokeRole` | the same |
+| `/host.installation.v1.OfferService/ListOffers` | an administrator |
+| `/host.installation.v1.OfferService/ReviewOffer` | an administrator, with the consent tuple; a member holding a role on the solution's active installation, without it |
+
+Each call is sent to the host through the generated client with the person's
+own session and decided there; a refusal keeps the host's code and reason
+(Connect's `permission_denied`, `unauthenticated`, …). Nothing else of the
+package is served to a browser: `Install` and `Current` answer `unimplemented`,
+and install stays on `/auth/setup`, behind its consent form.
+
+A call is admitted only as Connect: a `POST` carrying `Connect-Protocol-Version: 1`
+and `application/json` or `application/proto`. A form, a `text/plain` simple
+request, gRPC-Web and a `GET` are refused before the host is asked, and no CORS
+header is ever set, so another site's page is stopped at its preflight. A call
+made with the session cookie must also carry this origin in `Origin`; a caller
+presenting its bearer itself needs none. The page reads the organization to name
+in each request from `/auth/session`.
+
 Calls the edge routes to a module are refused in Connect's words when the caller
 says it speaks Connect (a `Connect-Protocol-Version` header, or `?connect=v1` on a
 GET) or gRPC, so a generated client keeps the reason (the hop does the same).
