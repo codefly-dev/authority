@@ -60,6 +60,11 @@ type Fixture struct {
 	Lifecycle *InstallationLifecycleCase
 	// OwnerToken is a member with the organization owner role, not admin.
 	OwnerToken string
+	// OtherAdminToken signs in an administrator of another organization.
+	OtherAdminToken string
+	// HopCredential is the workload credential of the composition's hop, the
+	// one workload that registers admission keys.
+	HopCredential string
 
 	// SolutionTools exercises a module binding to a solution with distinct person entitlements.
 	SolutionTools *SolutionToolsCase
@@ -833,6 +838,8 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 	})
 	c.resourceMethod(t, ctx, f)
 	c.installationLifecycle(t, ctx, f)
+	c.organizationIsolation(t, ctx, f)
+	c.admissionKeys(t, ctx, f)
 }
 
 // scopeActions is a context's actions on kind, comma-joined.

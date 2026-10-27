@@ -7,7 +7,7 @@ require (
 	buf.build/go/protovalidate v1.4.0
 	connectrpc.com/connect v1.21.0
 	connectrpc.com/vanguard v0.4.0
-	github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0-20261026184108-e1966db4fe66
+	github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0-20261026193714-49101ae11a7f
 	github.com/codefly-dev/authority/libraries/authority-core/go v0.0.0
 	github.com/codefly-dev/authority/libraries/conformance/go v0.0.0
 	github.com/codefly-dev/authority/libraries/delivery/go v0.0.0
