@@ -66,6 +66,12 @@ type Fixture struct {
 	// one workload that registers admission keys.
 	HopCredential string
 
+	// ReviewOfferNotServed is why this host does not serve
+	// OfferService.ReviewOffer yet. Set, the declaration case skips comparing
+	// the reviewed offer, naming the reason, and fails once the host serves it;
+	// every other line of that case still runs. Empty: the host serves it.
+	ReviewOfferNotServed string
+
 	// SolutionTools exercises a module binding to a solution with distinct person entitlements.
 	SolutionTools *SolutionToolsCase
 
@@ -288,6 +294,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 	ctx := context.Background()
 	c.admissionStatus(t, ctx, f)
 	c.solutionRoleCases(t, ctx, f)
+	c.solutionDeclaration(t, ctx, f)
 	c.installationIdentity(t, ctx, f)
 	c.currentInstallation(t, ctx, f)
 	c.sessionDisplayNames(t, ctx, f)
