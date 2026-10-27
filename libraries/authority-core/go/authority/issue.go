@@ -299,6 +299,9 @@ func (s *Service) IssueForWorkload(ctx context.Context, w Workload, r IssueReque
 		if !ok {
 			return fmt.Errorf("%w: operation binding %q is not one %s declares", workcontext.ErrNoBinding, r.Binding, module.Name)
 		}
+		if binding, err = ceiled(tx, org, module, binding); err != nil {
+			return err
+		}
 		if binding.Audience != audience.Principal {
 			return domain.Refuse("binding %s is addressed to %s, not %s", r.Binding, binding.Audience, audience.Principal)
 		}
@@ -384,6 +387,9 @@ func (s *Service) IssueForInstallation(ctx context.Context, w Workload, installa
 			binding, ok := solution.Bindings[r.Binding]
 			if !ok {
 				return domain.Missing("operation binding %q is not one %s declares", r.Binding, solution.Name)
+			}
+			if binding, err = ceiled(tx, inst.Organization, solution, binding); err != nil {
+				return err
 			}
 			if binding.Audience != audience.Principal {
 				return domain.Refuse("binding %q is addressed to %s, not %s", r.Binding, binding.Audience, audience.Principal)
@@ -490,6 +496,10 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 	err = s.store.Read(ctx, func(tx Tx) error {
 		tenant := claims.GetTenantId()
 		var heldHere, sourceCeiling Scopes
+		var err error
+		if binding, err = ceiled(tx, tenant, am, binding); err != nil {
+			return err
+		}
 		bounded := false
 		switch claims.GetOwnerPrincipalKind() {
 		case "human":
@@ -520,7 +530,6 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 		if (bounded || claims.GetOwnerPrincipalKind() == "agent") && !audience.OwnerAware {
 			return decide.OwnerAware(audience, decide.Scopes{{ResourceKind: audience.Name, ResourceOwnerId: claims.GetOwnerPrincipalId()}})
 		}
-		var err error
 		if through, err = decide.ScopesFor(binding, r.Operation, "invoke"); err != nil {
 			return err
 		}

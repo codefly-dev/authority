@@ -183,3 +183,92 @@ func TestAWorkloadIsIssuedOnlyWhereItsHostInstalledIt(t *testing.T) {
 		}
 	})
 }
+
+// recordConsent writes the host's installation record of the store module
+// with the bindings its consent allows.
+func (h *hostInstalled) recordConsent(org, id string, bindings map[string]domain.Binding) {
+	h.t.Helper()
+	if err := h.store.Write(h.ctx, func(tx authority.Tx) error {
+		return tx.PutInstallation(domain.Installation{ID: id, Organization: org, Target: "store", Status: domain.Active, Revision: 1, Bindings: bindings})
+	}); err != nil {
+		h.t.Fatal(err)
+	}
+}
+
+// What a host's consent allows of a module's bindings at one installation
+// bounds every issue through them, whatever the delivery declares: a binding
+// the consent does not name issues nothing, one it narrows issues within the
+// narrowing, and a redelivery that widens the binding issues no more than was
+// consented.
+func TestAnInstallationsConsentBoundsItsModulesBindings(t *testing.T) {
+	read, readWrite := []*basev0.WorkScopeV1{sc(kind, "read")}, []*basev0.WorkScopeV1{sc(kind, "read", "write")}
+	for _, tc := range []struct {
+		name     string
+		consent  map[string]domain.Binding
+		widen    bool
+		want     []string
+		refusal  domain.Code
+		refusedB bool
+	}{
+		{name: "no ceiling: as delivered", want: []string{"read"}},
+		{name: "the binding consented as delivered", consent: map[string]domain.Binding{"self": {ID: "self", HeadlessScopes: read, InvokeScopes: readWrite}}, want: []string{"read"}},
+		{name: "a consent naming no binding", consent: map[string]domain.Binding{}, refusedB: true, refusal: domain.Denied},
+		{name: "a consent naming another binding", consent: map[string]domain.Binding{"other": {ID: "other", HeadlessScopes: read}}, refusedB: true, refusal: domain.Denied},
+		{name: "a widening redelivery stays within the consent", consent: map[string]domain.Binding{"self": {ID: "self", HeadlessScopes: read}}, widen: true, want: []string{"read"}},
+		{name: "a widening redelivery with no ceiling widens", widen: true, want: []string{"read", "write"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHostInstalled(t)
+			h.recordConsent(acme, "host-1", tc.consent)
+			if tc.widen {
+				if _, err := h.svc.ApplyModule(h.ctx, domain.Module{Name: "store", Principal: "store", Kind: domain.KindModule, Generation: 2,
+					ResourceKinds: readWrite,
+					Bindings:      map[string]domain.Binding{"self": {ID: "self", Audience: "store", InvokeScopes: readWrite, HeadlessScopes: readWrite}},
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			issued, err := h.issue(authority.Workload{Module: "store"}, acme)
+			if tc.refusedB {
+				code(t, err, tc.refusal)
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := effective(issued)
+			if len(got) != 1 || got[0].GetResourceKind() != kind || !sameActions(got[0].GetActions(), tc.want) {
+				t.Fatalf("issued %v, want %s %v", got, kind, tc.want)
+			}
+		})
+	}
+
+	t.Run("a person's hop through a binding the consent does not name is refused", func(t *testing.T) {
+		h := newHostInstalled(t)
+		h.recordConsent(acme, "host-1", map[string]domain.Binding{})
+		h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "reader", Scopes: []domain.RoleScope{{Kind: kind, Actions: []string{"read"}}}})
+		h.store.PutPerson(domain.Person{ID: "alex", Organization: acme, Roles: []string{"admin", "reader"}})
+		parent, err := h.svc.IssueForPerson(h.ctx, authority.Person{ID: "alex", Organization: acme, SessionID: "s"}, authority.IssueRequest{Audience: "store"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = h.svc.IssueChild(h.ctx, parent.Token, authority.Workload{Module: "store"}, authority.IssueRequest{Binding: "self"})
+		code(t, err, domain.Denied)
+	})
+}
+
+func sameActions(got, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, a := range got {
+		seen[a] = true
+	}
+	for _, a := range want {
+		if !seen[a] {
+			return false
+		}
+	}
+	return true
+}

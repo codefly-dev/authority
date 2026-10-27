@@ -112,6 +112,13 @@ type Installation struct {
 	Consent ConsentReceipt
 	// Owned is the bounded set of attached resource ids, by kind.
 	Owned map[string][]string
+	// Bindings is what the host's consent allows of the target's operation
+	// bindings at this installation. nil means every binding as delivered. A
+	// non-nil map allows only the bindings it names, each used within both
+	// what was delivered and what it states (every scope list intersected), so
+	// a binding the consent dropped or narrowed, or one a later delivery
+	// widened, issues no more than the consent allows.
+	Bindings map[string]Binding
 }
 
 // RoleGrant is one role on one installation held by exactly one person or team.
