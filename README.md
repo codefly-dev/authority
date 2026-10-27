@@ -782,8 +782,11 @@ The review is the mapping from a role to tools. For each role the solution
 declares, it shows the role's scopes, confined to what the installation owns (or
 to the resources attached to it). It lists every composed module operation those
 scopes cover, from the delivered authority documents. For each operation it names
-the Robin tools composed for it: the tool-exposed Connect bindings
-`codefly generate runnable-bindings` prepared for that operation. Installing a
+the agent tools composed for it: the Connect bindings
+`codefly generate runnable-bindings` prepared for that operation. Core's
+`runnable.ToolFromPrepared` supplies each tool's name and effect, including the
+default metadata when the binding declares none; both invoke and lookup scopes
+must be covered by the role. Installing a
 solution and granting a role is what makes those tools available to the people
 granted it. An agent's intent declares which of them it uses. The authority still
 decides every call from the person's current grants and the binding. No table is
