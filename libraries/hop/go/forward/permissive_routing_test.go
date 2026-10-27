@@ -1,4 +1,4 @@
-package proxy_test
+package forward_test
 
 import (
 	"github.com/codefly-dev/authority/libraries/hop/go/hoptest"
@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"hop/pkg/business/decide"
-	"hop/pkg/infra/proxy"
+	"github.com/codefly-dev/authority/libraries/hop/go/decide"
+	"github.com/codefly-dev/authority/libraries/hop/go/forward"
 )
 
 // This is a hermetic transport probe, not a replacement module or playground.
@@ -30,7 +30,7 @@ func TestMissingContextDoesNotSendRecordsToDocuments(t *testing.T) {
 	docsURL, _ := url.Parse(documents.URL)
 	recordsURL, _ := url.Parse(records.URL)
 	decision := decide.Decider{Modules: map[string]bool{"documents": true, "records": true}}
-	face := proxy.HTTP{Signer: hoptest.Signer("test-run-proof"), Decide: decision.Decide,
+	face := forward.HTTP{Signer: hoptest.Signer("test-run-proof"), Decide: decision.Decide,
 		Upstreams: map[string]*url.URL{"documents": docsURL, "records": recordsURL}}
 	req := httptest.NewRequest(http.MethodPost, "/records.v1.RecordsService/ReadRecord", strings.NewReader(`{}`))
 	req.Header.Set("Content-Type", "application/json")

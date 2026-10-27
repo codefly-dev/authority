@@ -2,7 +2,12 @@
 
 The proxy in front of a module. It asks the authority through the generated
 Check client, stamps the returned identity, and forwards the real call. Both
-gRPC and HTTP/Connect use `pkg/business/decide` and `pkg/infra/proxy`.
+gRPC and HTTP/Connect are the hop library's front door
+([`forward.New`](../../../../libraries/hop/go/README.md#the-host-side-forward)),
+which any host standing in front of modules imports; this service is its
+wiring: the signing seed, the authority, `hop/MODULES`, `hop-routes/ROUTES` and
+`hop/ENFORCEMENT` as Codefly delivers them, its workload credential, and its
+listeners.
 
 Codefly derives `hop-routes/ROUTES` from the published API catalogs of the
 principals in `hop/MODULES`. The hop declares this group; it is required and
@@ -40,7 +45,8 @@ Advisory refusals never produce signed admissions. See the
 for Codefly key delivery, the exact procedure binding, and durable nonce consumption.
 
 Validation: run `go vet ./...` and `go test -race ./...` in this service's
-`code/`, the local authority's `code/`, and `libraries/hop/go`. The shared fixture
+`code/`, the local authority's `code/`, and `libraries/hop/go` (where the
+front door's tests live). The shared fixture
 is also read by the Python and TypeScript regression suites.
 
 The HTTP face always listens on its declared endpoint. A missing generated

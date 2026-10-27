@@ -68,6 +68,46 @@ while its keys are still trusted.
 with a fresh key and answers `Keys`; `Issue` mints a Work Context and
 `hoptest.Forward` stamps it exactly as the hop does.
 
+## The host side: `forward`
+
+A host stands in front of modules with one front door, built once at startup:
+the authority module's hop on a laptop, a gateway on a cell. `forward.New`
+validates the generated routes against the modules, dials each published
+listener over its transport (`host.Endpoint`, `host.DialOptions`), refuses any
+enforcement but `enforce`, and registers the host's admission key
+(`Registration.Keep`) before it returns. Every call it then receives is decided
+by the authority's `Check` (`decide`), stamped (`Stamp`) and forwarded,
+unchanged, to the one listener its route publishes: gRPC as opaque frames, HTTP
+and Connect as the request itself.
+
+```go
+import (
+	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
+	"github.com/codefly-dev/authority/libraries/authority-client/go/host"
+	"github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
+	hop "github.com/codefly-dev/authority/libraries/hop/go"
+	"github.com/codefly-dev/authority/libraries/hop/go/forward"
+)
+
+signer, err := stamp.NewSigner(seed) // the host's own admission seed, as Codefly delivers it
+conn, _, err := host.Dial(ctx)       // the authority interface; the host closes it
+front, err := forward.New(ctx, forward.Config{
+	Signer:      signer,
+	Authority:   authorityv1.NewAuthorityServiceClient(conn), // Check and RegisterAdmissionKey
+	Credential:  hop.RunCredential,                           // the host's own workload credential
+	Modules:     modules,                                     // the modules it stands in front of
+	Routes:      routes,                                      // the generated hop-routes/ROUTES view
+	Enforcement: enforcement,                                 // "" or "enforce"; anything else refuses
+})
+config.GRPCServerOptions = append(config.GRPCServerOptions, front.ServerOptions...)
+// serve front.Handler on the host's HTTP listener; front.Close() at shutdown
+```
+
+A refusal names its reason and leaves nothing dialled or registered.
+`forward.MissingRoutes(err)` is the refusal for a routes view the host could not
+read. `decide.Decider`, `forward.Proxy` and `forward.HTTP` are the parts New
+assembles, for a host that needs one face alone.
+
 ## Calling out: `Outbound`
 
 `Outbound.ForModule(ctx, organization, binding)` names the organization of the
