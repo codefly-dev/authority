@@ -11,11 +11,10 @@ agent:
 # A run that composes no store delivers none, and the local authority keeps approvals in
 # memory, saying so at boot (code/work.go approvalsFor).
 # federation: the host coordinate a signed delivery is checked against.
-# fixture-composition: what the composing workspace adds to the fixture (grants
-# on its roles at the modules it composes, installations of its solutions,
-# stand-in modules); this module ships an empty default under
-# configurations/local, which a composition's own document replaces whole
-# (code/work.go applyComposition).
+# fixture-composition: what the composition adds to the fixture (grants on its
+# roles at the modules it composes, installations of its solutions, stand-in
+# modules), merged by the run from every composed module's fragment
+# (libraries/fixture-composition; code/work.go applyComposition).
 # Keys publishes the hop's admission key once the hop registers it over its
 # workload credential (RegisterAdmissionKey): nothing about the hop is
 # configured here, its seed never leaves it, and a run with no hop publishes none.

@@ -1,6 +1,6 @@
-# The default of the local authority's fixture-composition document: a
-# composition that composes the authority and supplies no document of its own
-# adds nothing to the fixture. A composing workspace's
-# configurations/local/fixture-composition.yaml replaces this one whole
+# The authority module's fragment of the local authority's fixture-composition
+# document: the authority serves no kind beyond the fixture's own vocabulary, so
+# it adds nothing. Every composed module ships its own fragment next to its
+# code, and the run merges them into the workspace's document
 # (services/local/README.md, "What a composition adds to the fixture").
 schema: codefly.dev/authority/fixture-composition/v1

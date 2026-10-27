@@ -449,10 +449,11 @@ different roles in each. The host supplies its own matrix from its
 own fixture. The suite requires a signed carrier and authenticated delivery
 workload, with the paired authority document carrying the solution's roles.
 
-The fixture names only the authority's own vocabulary. A composing workspace
-adds what its modules and solutions need: grants on the fixture's roles,
-installations and stand-in modules, through the versioned `fixture-composition`
-document ([what a composition adds to the fixture](modules/authority/services/local/README.md#what-a-composition-adds-to-the-fixture)).
+The fixture names only the authority's own vocabulary. Each module states what
+the fixture's roles may do at its kinds in a fragment next to its code, a
+composition states only what is its own, and the run merges the fragments into
+the versioned `fixture-composition` document
+([what a composition adds to the fixture](modules/authority/services/local/README.md#what-a-composition-adds-to-the-fixture)).
 The local authority also logs a delivery-time role × method report and
 generates its local developer role from concrete delivered permissions. See
 [local permission diagnostics](modules/authority/services/local/README.md#permission-diagnostics-during-local-development)
