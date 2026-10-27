@@ -211,6 +211,10 @@ type State struct {
 	roles      map[string]Role // org/name, as authored, the generated developer role included
 	sessions   map[string]Session
 	deliveries map[string]*appliedDelivery // binding → verified record, including withdrawals
+	// trustDomain is the run's: the one trust domain the launcher's anchor
+	// declares its workloads under when the host starts, or empty when it
+	// declares none or several.
+	trustDomain string
 	// pendingInstalls are fixture installations whose target was not composed
 	// when the fixture loaded; each is performed when its target applies.
 	pendingInstalls []FixtureInstallation
@@ -244,7 +248,7 @@ func New(anchor native.Anchor, audience string, cfg authority.Config) (*State, e
 	if err != nil {
 		return nil, err
 	}
-	return &State{store: store, svc: svc, attester: attester, audience: audience,
+	return &State{store: store, svc: svc, attester: attester, audience: audience, trustDomain: runTrustDomain(anchor),
 		orgs: map[string]string{}, people: map[string]Person{}, byToken: map[string]string{}, roles: map[string]Role{},
 		sessions: map[string]Session{}, deliveries: map[string]*appliedDelivery{}, Approvals: &MemoryApprovals{}}, nil
 }
@@ -633,6 +637,31 @@ func (s *State) UninstallAsHost(id string) error {
 func (s *State) GrantRole(g domain.RoleGrant) error {
 	return s.write(func(tx authority.Tx) error { return tx.PutRoleGrant(g) })
 }
+
+// runTrustDomain is the one trust domain every workload anchor declares is
+// in: a run's launcher vouches under its environment's host trust domain, so
+// it is the host's. Empty when the anchor declares none or more than one.
+func runTrustDomain(anchor native.Anchor) string {
+	domain := ""
+	for _, subject := range anchor.Subjects {
+		switch {
+		case subject.TrustDomain == "":
+			return ""
+		case domain == "":
+			domain = subject.TrustDomain
+		case subject.TrustDomain != domain:
+			return ""
+		}
+	}
+	return domain
+}
+
+// TrustDomain is the host's trust domain, as the run's anchor declared it
+// when the host started; empty when it named no single one.
+func (s *State) TrustDomain() string { return s.trustDomain }
+
+// Audience is what this host attests workload credentials for.
+func (s *State) Audience() string { return s.audience }
 
 // AttestWorkload attests a native launcher credential with core's attester
 // and answers the workload it names, composed module or not: for a caller the

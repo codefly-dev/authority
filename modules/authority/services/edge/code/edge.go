@@ -85,6 +85,9 @@ type Edge struct {
 	mu              sync.Mutex
 	held            map[[32]byte]held
 	cacheGeneration uint64
+	// setupKnown and setupServed are the host's answer to whether it serves
+	// OfferService, once it has given a definite one (servesSetup).
+	setupKnown, setupServed bool
 }
 
 type held struct {
@@ -114,10 +117,16 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		e.signOut(w, r)
 		return
 	case "/auth/setup":
-		if e.Offers != nil && e.Installer != nil {
+		served, err := e.servesSetup(r.Context())
+		switch {
+		case err != nil:
+			refuse(w, http.StatusServiceUnavailable, "the host did not say whether it serves the setup page: "+status.Convert(err).Message())
+		case !served:
+			refuse(w, http.StatusNotFound, "this host serves no setup page: only the local authority serves OfferService")
+		default:
 			e.setup(w, r)
-			return
 		}
+		return
 	}
 	if strings.HasPrefix(r.URL.Path, "/auth/assets/") {
 		e.signInAsset(w, r)
@@ -453,15 +462,21 @@ func proxy(target *url.URL, token string, w http.ResponseWriter, r *http.Request
 	}).ServeHTTP(w, r)
 }
 
+// connectRefusal answers in Connect's (or gRPC's) words only a caller that
+// says it speaks the protocol: a Connect-Protocol-Version header, or
+// ?connect=v1 on a GET, or a gRPC content type. Every other caller, a REST or
+// form caller included, keeps {"error": reason}.
+var connectRefusal = connect.NewErrorWriter(connect.WithRequireConnectProtocolHeader())
+
 // refuseCall refuses a routed call; a Connect caller is answered in Connect's
 // words, so its client keeps the authority's reason.
 func refuseCall(w http.ResponseWriter, r *http.Request, code int, reason string) {
-	if writer := connect.NewErrorWriter(); writer.IsSupported(r) {
+	if connectRefusal.IsSupported(r) {
 		c := connect.CodePermissionDenied
 		if code == http.StatusUnauthorized {
 			c = connect.CodeUnauthenticated
 		}
-		_ = writer.Write(w, r, connect.NewError(c, errors.New(reason)))
+		_ = connectRefusal.Write(w, r, connect.NewError(c, errors.New(reason)))
 		return
 	}
 	refuse(w, code, reason)

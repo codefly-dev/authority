@@ -2,6 +2,7 @@ package installation
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -164,6 +165,28 @@ func TestOffersAreAnAdministratorsRead(t *testing.T) {
 	review, err := offers.ReviewOffer(admin, &installationv1.ReviewRequest{OrganizationId: "acme", Target: "wiki"})
 	if err != nil || review.GetInstallation() == nil || review.GetToolsComposed() {
 		t.Fatalf("the installed wiki, no tools composed: %v %v", review, err)
+	}
+}
+
+// Review #30 F4: administering one organization is no standing at another.
+// Globex's administrator lists and reviews Globex's offers, and is refused
+// Acme's by name, the read never reaching Acme's installations.
+func TestAnotherOrganizationsAdministratorIsRefusedTheOffers(t *testing.T) {
+	k := testkit.New(t)
+	offers := &Offers{plugin: &Plugin{State: k.State}}
+	zoe := signedIn(t, k, "fixture-zoe")
+	if _, err := offers.ListOffers(zoe, &installationv1.ListOffersRequest{OrganizationId: "globex"}); err != nil {
+		t.Fatalf("Globex's administrator lists Globex's offers: %v", err)
+	}
+	if _, err := offers.ReviewOffer(zoe, &installationv1.ReviewRequest{OrganizationId: "globex", Target: "wiki"}); err != nil {
+		t.Fatalf("Globex's administrator reviews Globex's wiki: %v", err)
+	}
+	if _, err := offers.ListOffers(zoe, &installationv1.ListOffersRequest{OrganizationId: "acme"}); status.Code(err) != codes.PermissionDenied || !strings.Contains(err.Error(), "acme") {
+		t.Fatalf("Globex's administrator listed Acme's offers: %v", err)
+	}
+	review, err := offers.ReviewOffer(zoe, &installationv1.ReviewRequest{OrganizationId: "acme", Target: "wiki"})
+	if status.Code(err) != codes.PermissionDenied || !strings.Contains(err.Error(), "acme") || review != nil {
+		t.Fatalf("Globex's administrator reviewed Acme's wiki: %v %v", review, err)
 	}
 }
 

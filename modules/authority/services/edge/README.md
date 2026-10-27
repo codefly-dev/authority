@@ -63,8 +63,15 @@ client; the configuration supplies neither credentials nor permissions.
 
 ## The setup page
 
-`/auth/setup` installs the run's solutions and grants their roles. It needs a
-session, and without one it redirects to sign-in. The page is the same embedded
+`/auth/setup` installs the run's solutions and grants their roles. It is
+mounted only where the host serves `OfferService`, which the local authority
+does and a hosted authority does not: the edge asks the host once, without a
+credential, and a host answering `Unimplemented` gets a 404 for the path (no
+install, grant or revoke is ever sent to it); an unreachable host is a 503 and
+is asked again. It needs a session, and without one it redirects to sign-in.
+Neither it nor the sign-in page may be framed (`X-Frame-Options: DENY`,
+`Content-Security-Policy: frame-ancestors 'none'`), so another page, a
+same-site one on another local port included, cannot overlay a click on it. The page is the same embedded
 build as sign-in (`web/src/setup.tsx`). The edge writes into its data island
 what the authority answers to the person's own session:
 
@@ -85,4 +92,6 @@ is shown with the authority's reason. An install the authority did not confirm
 is shown again with its exact request, so the retry is the same operation.
 
 Calls the edge routes to a module are refused in Connect's words when the caller
-speaks Connect, so a generated client keeps the reason (the hop does the same).
+says it speaks Connect (a `Connect-Protocol-Version` header, or `?connect=v1` on a
+GET) or gRPC, so a generated client keeps the reason (the hop does the same).
+Every other caller, a REST or form caller included, keeps `{"error": reason}`.

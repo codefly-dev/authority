@@ -1130,7 +1130,18 @@ type RegisterAdmissionKeyRequest struct {
 	// The hop's workload credential; any other workload is refused.
 	Actor *WorkloadCredential `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
 	// The raw Ed25519 public key the hop signs admissions with: 32 bytes.
-	PublicKey     []byte `protobuf:"bytes,2,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	PublicKey []byte `protobuf:"bytes,2,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	// Proof that the caller holds public_key's private half: a compact
+	// "<payload>.<signature>" in unpadded base64url, the signature an Ed25519
+	// signature by public_key over the payload, a JSON array of the domain
+	// "codefly-hop-registration-v1", the authority's audience, the hex SHA-256
+	// of actor's credential, the hex public key, a fresh 32-byte hex nonce and
+	// the Unix second it was signed. The authority refuses a proof that does
+	// not verify, names another credential, key or audience, is older than 30
+	// seconds or ahead of its clock, or repeats a nonce it has seen. It proves
+	// possession of the key being registered, which the registrant chose; that
+	// the registrant is the hop rests on actor and the per-instance pin.
+	Proof         string `protobuf:"bytes,3,opt,name=proof,proto3" json:"proof,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1177,6 +1188,13 @@ func (x *RegisterAdmissionKeyRequest) GetPublicKey() []byte {
 		return x.PublicKey
 	}
 	return nil
+}
+
+func (x *RegisterAdmissionKeyRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
+	}
+	return ""
 }
 
 // RegisterAdmissionKeyResponse is the key as Keys now publishes it.
@@ -1948,11 +1966,12 @@ const file_host_authority_v1_authority_proto_rawDesc = "" +
 	"\talgorithm\x18\x02 \x01(\tR\talgorithm\x12\x1d\n" +
 	"\n" +
 	"public_key\x18\x03 \x01(\fR\tpublicKey\x12\x18\n" +
-	"\apurpose\x18\x04 \x01(\tR\apurpose\"y\n" +
+	"\apurpose\x18\x04 \x01(\tR\apurpose\"\x8f\x01\n" +
 	"\x1bRegisterAdmissionKeyRequest\x12;\n" +
 	"\x05actor\x18\x01 \x01(\v2%.host.authority.v1.WorkloadCredentialR\x05actor\x12\x1d\n" +
 	"\n" +
-	"public_key\x18\x02 \x01(\fR\tpublicKey\"v\n" +
+	"public_key\x18\x02 \x01(\fR\tpublicKey\x12\x14\n" +
+	"\x05proof\x18\x03 \x01(\tR\x05proof\"v\n" +
 	"\x1cRegisterAdmissionKeyResponse\x12.\n" +
 	"\x03key\x18\x01 \x01(\v2\x1c.host.authority.v1.PublicKeyR\x03key\x12&\n" +
 	"\x0fexpires_at_unix\x18\x02 \x01(\x03R\rexpiresAtUnix\"\x85\x01\n" +
