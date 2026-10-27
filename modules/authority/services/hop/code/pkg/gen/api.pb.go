@@ -11,6 +11,7 @@ import (
 	sync "sync"
 	unsafe "unsafe"
 
+	_ "github.com/codefly-dev/authority/libraries/hop/go/gen/authority/hop/v1"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -107,13 +108,13 @@ var File_api_proto protoreflect.FileDescriptor
 
 const file_api_proto_rawDesc = "" +
 	"\n" +
-	"\tapi.proto\x12\x03api\x1a\x1cgoogle/api/annotations.proto\"\x10\n" +
+	"\tapi.proto\x12\x03api\x1a\x1dauthority/hop/v1/policy.proto\x1a\x1cgoogle/api/annotations.proto\"\x10\n" +
 	"\x0eVersionRequest\"+\n" +
 	"\x0fVersionResponse\x12\x18\n" +
-	"\aversion\x18\x01 \x01(\tR\aversion2T\n" +
+	"\aversion\x18\x01 \x01(\tR\aversion2Z\n" +
 	"\n" +
-	"HopService\x12F\n" +
-	"\aVersion\x12\x13.api.VersionRequest\x1a\x14.api.VersionResponse\"\x10\x82\xd3\xe4\x93\x02\n" +
+	"HopService\x12L\n" +
+	"\aVersion\x12\x13.api.VersionRequest\x1a\x14.api.VersionResponse\"\x16\xe2\xf9\x18\x02\x10\x01\x82\xd3\xe4\x93\x02\n" +
 	"\x12\b/versionB\x11Z\x0fhop/pkg/gen;genb\x06proto3"
 
 var (

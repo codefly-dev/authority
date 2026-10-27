@@ -1,0 +1,51 @@
+# The authority module's package identity: what a run delivers as its release.
+# A run admits every module-identity workload but the host's own, so on a host
+# that is not the local authority the hop (module-identity) is admitted and
+# delivered under this release; without it the run refuses every module behind
+# the hop before start ("declares no package manifest, so it names no
+# release"). The id is the identity codefly generate contracts derives
+# (codefly/<module>); the version is the package's and moves when what it
+# publishes moves. Each service's api-contracts is written by codefly generate
+# contracts.
+schema: codefly/module-package/v2
+kind: module-package
+id: codefly/authority
+version: 0.1.0
+minimum-codefly-version: ">=0.3.32 <1.0.0"
+artifact-roots:
+  - contracts
+  - services
+# The endpoints the module interface exports, by service: the local authority
+# (the host service when the local authority is the host), the hop and the edge
+# (composed in front of a host's modules). The store is private.
+services:
+  - name: local
+    endpoints: [grpc, rest]
+    api-contracts:
+      - endpoint: grpc
+        kind: protobuf
+        package: ""
+        path: contracts/api/local/grpc/contract.binpb
+        digest: sha256:1c51ec903d141b1df6c0eff0fcaa10aa48b6633e0753a13718bef83d086dc0cb
+      - endpoint: rest
+        kind: openapi
+        package: api.proto
+        path: contracts/api/local/rest/openapi.json
+        digest: sha256:dc9c7adab86fcf9878f145988c5a5eddf509ac9f59980f0f660b804c91258796
+  - name: hop
+    endpoints: [grpc, http]
+    api-contracts:
+      - endpoint: grpc
+        kind: protobuf
+        package: api
+        path: contracts/api/hop/grpc/contract.binpb
+        digest: sha256:a85d37ee2ac63dcaa92f00ce43e9d7ca180d3f76006739b47716b5dcd1b1f8e2
+      - endpoint: http
+        kind: openapi
+        package: api.proto
+        path: contracts/api/hop/http/openapi.json
+        digest: sha256:8907423351d7c8d1970bab6e2edbe0905b3c613dbfebbfad628f87f28701dfef
+  - name: edge
+    endpoints: [http]
+contracts:
+  composition: ">=2.0.0 <3.0.0"

@@ -27,6 +27,8 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type HopServiceClient interface {
+	// Version is the hop's own method. A caller the authority checked may read
+	// it; the hop serves it without a scope, as the console serves its Version.
 	Version(ctx context.Context, in *VersionRequest, opts ...grpc.CallOption) (*VersionResponse, error)
 }
 
@@ -52,6 +54,8 @@ func (c *hopServiceClient) Version(ctx context.Context, in *VersionRequest, opts
 // All implementations must embed UnimplementedHopServiceServer
 // for forward compatibility.
 type HopServiceServer interface {
+	// Version is the hop's own method. A caller the authority checked may read
+	// it; the hop serves it without a scope, as the console serves its Version.
 	Version(context.Context, *VersionRequest) (*VersionResponse, error)
 	mustEmbedUnimplementedHopServiceServer()
 }

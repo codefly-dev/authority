@@ -34,8 +34,11 @@ spec:
 # The hop asks the authority through the interface, never a service: the host
 # the composition names in the authority group's endpoint answers (saas
 # accounts, say), and the local authority when it names none (code/host.go).
+# 0.3.3 is the floor: the hop registers its admission key (RegisterAdmissionKey,
+# added in 0.3.3), so a host below it is refused at render rather than leaving
+# every module's verifier to refuse every call.
 service-dependencies:
-    - interface: codefly.dev/authority@>=0.2.0 <0.4.0
+    - interface: codefly.dev/authority@>=0.3.3 <0.4.0
 # The hop is a workload of its own: the run vouches for it, and it registers
 # its admission key with the authority under that credential
 # (RegisterAdmissionKey), so Keys publishes it to every module behind the hop.

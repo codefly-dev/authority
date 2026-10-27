@@ -1042,7 +1042,9 @@ the key again at the next renewal, a restarted hop re-registers the same entry,
 and a key no running hop signs with is withdrawn without being named. The seed
 never leaves the hop; nothing about the hop is configured on the authority. It
 is additive too. The local authority implements it; `accounts` implementing the
-same registration is follow-up work in the host.
+same registration is follow-up work in the host. The hop calls it, so the hop
+requires `>=0.3.3 <0.4.0`: a host below 0.3.3 is refused at render instead of
+leaving every module's verifier to refuse every call.
 
 The 0.3.1 authority version is an additive pre-stable revision selected for
 this refresh so existing `>=0.2.0 <0.4.0` consumers admit it. It retains 0.3.0's
