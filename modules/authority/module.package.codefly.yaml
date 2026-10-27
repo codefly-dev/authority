@@ -39,12 +39,12 @@ services:
         kind: protobuf
         package: api
         path: contracts/api/hop/grpc/contract.binpb
-        digest: sha256:3e8a1569199fd9fcbee7e109b35905431aea544a45cf0f125bafdd60cfc890d9
+        digest: sha256:a85d37ee2ac63dcaa92f00ce43e9d7ca180d3f76006739b47716b5dcd1b1f8e2
       - endpoint: http
         kind: openapi
         package: api.proto
         path: contracts/api/hop/http/openapi.json
-        digest: sha256:9d605f19705f300600451f2dc65f50c8a3417574df7e3791a7497553018aeb2c
+        digest: sha256:8907423351d7c8d1970bab6e2edbe0905b3c613dbfebbfad628f87f28701dfef
   - name: edge
     endpoints: [http]
 contracts:

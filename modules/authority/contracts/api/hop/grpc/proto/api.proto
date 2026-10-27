@@ -5,6 +5,7 @@ package api;
 // evolve into a versioned wire namespace (for example coordination.v1).
 option go_package = "hop/pkg/gen;gen";
 
+import "authority/hop/v1/policy.proto";
 import "google/api/annotations.proto";
 
 message VersionRequest {
@@ -15,7 +16,10 @@ message VersionResponse {
 }
 
 service HopService {
+    // Version is the hop's own method. A caller the authority checked may read
+    // it; the hop serves it without a scope, as the console serves its Version.
     rpc Version(VersionRequest) returns (VersionResponse) {
+        option (authority.hop.v1.policy) = {any_checked_caller: true};
         option (google.api.http) = {
             get: "/version"
         };
