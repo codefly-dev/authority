@@ -155,16 +155,25 @@ func TestOffersAreAnAdministratorsRead(t *testing.T) {
 	if _, err := offers.ListOffers(viewer, &installationv1.ListOffersRequest{OrganizationId: "acme"}); status.Code(err) != codes.PermissionDenied {
 		t.Fatalf("a viewer lists no offers: %v", err)
 	}
-	if _, err := offers.ReviewOffer(viewer, &installationv1.ReviewRequest{OrganizationId: "acme", Target: "wiki"}); status.Code(err) != codes.PermissionDenied {
-		t.Fatalf("a viewer reviews no offer: %v", err)
+	// Maya holds the wiki's viewer role (through finance): she reads what it
+	// grants, without the consent tuple. A member holding nothing there is
+	// refused by name.
+	member, err := offers.ReviewOffer(viewer, &installationv1.ReviewRequest{OrganizationId: "acme", Target: "wiki"})
+	if err != nil || member.GetApproval() != nil || member.GetInstallation() == nil || len(member.GetRoles()) == 0 {
+		t.Fatalf("a viewer of the wiki reads its roles, never its consent: %v %v", member, err)
+	}
+	nobody := signedIn(t, k, "fixture-no-roles")
+	if _, err := offers.ReviewOffer(nobody, &installationv1.ReviewRequest{OrganizationId: "acme", Target: "wiki"}); status.Code(err) != codes.PermissionDenied ||
+		!strings.Contains(err.Error(), "or a role on its installation there") {
+		t.Fatalf("a member holding nothing at the wiki reviews no offer: %v", err)
 	}
 	admin := signedIn(t, k, "fixture-alex")
 	if _, err := offers.ReviewOffer(admin, &installationv1.ReviewRequest{OrganizationId: "acme", Target: "documents"}); status.Code(err) != codes.NotFound {
 		t.Fatalf("a module is installed by composition, never reviewed: %v", err)
 	}
 	review, err := offers.ReviewOffer(admin, &installationv1.ReviewRequest{OrganizationId: "acme", Target: "wiki"})
-	if err != nil || review.GetInstallation() == nil || review.GetToolsComposed() {
-		t.Fatalf("the installed wiki, no tools composed: %v %v", review, err)
+	if err != nil || review.GetInstallation() == nil || review.GetToolsComposed() || review.GetApproval().GetDigest() == "" {
+		t.Fatalf("the installed wiki, no tools composed, with its consent: %v %v", review, err)
 	}
 }
 

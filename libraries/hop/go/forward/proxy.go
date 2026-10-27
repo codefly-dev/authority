@@ -1,8 +1,8 @@
-// Package proxy is the hop's local face: a gRPC server that answers every method
-// of the module it stands in front of by deciding, stamping and forwarding the
-// call as opaque frames. It knows no method of the module; the decision is the
-// same for each until the module's declared policy reaches the hop.
-package proxy
+package forward
+
+// The gRPC face: a gRPC server that answers every method of the module it
+// stands in front of by deciding, stamping and forwarding the call as opaque
+// frames. It knows no method of the module; the authority decides each.
 
 import (
 	"context"
@@ -13,12 +13,12 @@ import (
 	"time"
 
 	"github.com/codefly-dev/authority/libraries/hop/go"
+	"github.com/codefly-dev/authority/libraries/hop/go/decide"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
-	"hop/pkg/business/decide"
 )
 
 // Decide is the hop's decision for one call to method: the module it is for and

@@ -673,6 +673,39 @@ them in memory, and the local authority says which at boot
 ([the module page](modules/authority/README.md)). The fixture grants an Acme
 admin `robin.intents:activate` and an editor `robin.intents:run`.
 
+**Published as `codefly.dev/artifact@0.1.0`** (`interfaces/artifact`, 2026-10-27):
+`host.artifact.v1.ArtifactService` with `Approve`, `Authorize` and `Revoke`,
+the proto above unchanged. The local authority's grpc endpoint declares it
+beside the other host interfaces; a host serving the same service declares it
+the same way.
+
+**One decision, in the shared core.** Who may decide is
+`authority.DecideArtifact` over `decide.Artifact` (`libraries/authority-core/go`),
+which every host calls before it reads or writes its own approvals; the
+approval's digest is `decide.ArtifactDigest`. The definition, as the proposal
+states it: the policy is a resource kind the module serves; approving and
+revoking need the person present holding its `activate` action at the module,
+a run its `run` action, held on the whole kind (a scope limited to some ids is
+refused, since an identity names no resource of the policy), administrator or
+not; the installation is the asking module's own, active, at the parent's
+organization, and any other is refused alike (`decide.ForeignInstallation` for
+another organization's or a missing one, so nothing of another organization is
+learned); the source is the installation's namespace; the digest is `sha256:`
+of the identity's deterministic protobuf encoding, so the revision is part of
+what was approved; every answer carries the revision the approval was given
+at. A request missing its policy or identity is `InvalidArgument`; every other
+refusal is `PermissionDenied` with its reason.
+
+`conformance.RunArtifacts` (`libraries/conformance/go/artifact.go`) is the
+shared case both hosts run, over the published interfaces only, and the local
+authority runs it in `plugins/registry_test/artifact_test.go`. Its fixture is a
+module installed at one organization under one policy, an administrator and a
+non-administrator approver holding the policy's `activate` and `run`, a member
+holding `run` alone, another module's credential, and another organization's
+administrator. Before this change the local authority answered `NotFound` for
+another organization's installation and let a module name another module's
+installation at its own organization; both are refused now.
+
 ## The edge: the browser's origin (2026-10-23)
 
 The edge is the authority module's third service. It is the auth gateway's
@@ -767,6 +800,25 @@ operation. Changes are plain forms posted to the edge, from this origin only,
 and sent through the generated clients with the person's own session.
 [The edge page](modules/authority/services/edge/README.md#the-setup-page) has
 the details.
+
+### The Setup tab's Connect face (2026-10-27)
+
+The edge serves the host's installation reads and changes (`InstallationService`
+List, Review, ListRoleGrants, GrantRole, RevokeRole; `OfferService` ListOffers,
+ReviewOffer) to the signed-in person over Connect, at
+`/host.installation.v1.<Service>/<Method>`, the paths a hosted gateway serves, so
+one Setup component calls either with the generated client. The edge sends each
+with the person's session and decides nothing; a cookie call must carry this
+origin and speak Connect, and no CORS header is set
+([services/edge](modules/authority/services/edge/README.md#the-setup-tabs-connect-face)).
+
+A member reads what the solution they use grants: the core's `ReviewOffer` answers
+an administrator with the consent tuple, and a member holding a role on the
+solution's active installation in their organization (granted to them or to a
+team of theirs) with the same roles, operations, tools, ceiling and installation
+and no tuple. Anyone else is refused by one reason, before the target is looked
+up. `Review` (the tuple alone), `List`, `ListOffers` and the role grants stay as
+they were.
 
 ## Which resources a context covers (2026-10-23)
 

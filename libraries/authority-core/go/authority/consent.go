@@ -47,25 +47,55 @@ func offerDigest(m domain.Module) (string, error) {
 
 // Review reads one consistent offer. It never supplies an operation identity or
 // approves anything; the caller must retain the returned values when consenting.
+// It is an administrator's read: the consent tuple is what Install takes.
 func (s *Service) Review(ctx context.Context, caller Person, org, target string) (domain.ConsentApproval, error) {
-	offer, err := s.ReviewOffer(ctx, caller, org, target)
+	offer, err := s.reviewOffer(ctx, caller, org, target, false)
 	return offer.Approval, err
 }
 
 // ReviewedOffer is one transaction: the displayed declaration and its consent identity.
 type ReviewedOffer struct {
+	// Approval is empty on a member's read: only an administrator consents.
 	Approval     domain.ConsentApproval
 	Module       domain.Module
 	Installation domain.Installation
 	Modules      []domain.Module
 }
 
+// ReviewOffer reads one solution's offer. An administrator of org reads it
+// with the consent tuple Install takes. A member of org who holds a role on
+// the solution's active installation there (granted to them or to a team of
+// theirs) reads the same declaration, roles, ceiling and installation without
+// the tuple: what the solution they use grants, never a way to consent. Anyone
+// else is refused by one reason, before the target is looked up, so the
+// refusal says nothing about what org delivered or installed.
 func (s *Service) ReviewOffer(ctx context.Context, caller Person, org, target string) (ReviewedOffer, error) {
+	return s.reviewOffer(ctx, caller, org, target, true)
+}
+
+func (s *Service) reviewOffer(ctx context.Context, caller Person, org, target string, members bool) (ReviewedOffer, error) {
 	var offer ReviewedOffer
 	var out domain.ConsentApproval
 	err := s.store.Read(ctx, func(tx Tx) error {
-		if err := administrator(tx, caller, org); err != nil {
+		refused := administrator(tx, caller, org)
+		if code, ok := domain.CodeOf(refused); refused != nil && (!members || !ok || code != domain.Denied) {
+			return refused
+		}
+		inst, err := tx.Installation(s.cfg.InstallationID(org, target))
+		if errors.Is(err, domain.ErrNotFound) {
+			inst, err = domain.Installation{}, nil
+		}
+		if err != nil {
 			return err
+		}
+		if refused != nil {
+			held, err := holdsRoleOn(tx, caller, org, inst)
+			if err != nil {
+				return err
+			}
+			if !held {
+				return domain.Refuse("reviewing %q requires an administrator or owner of organization %q, or a role on its installation there", target, org)
+			}
 		}
 		m, err := tx.ModuleNamed(target)
 		if err != nil {
@@ -74,16 +104,12 @@ func (s *Service) ReviewOffer(ctx context.Context, caller Person, org, target st
 		if m.Kind != domain.KindSolution {
 			return domain.Missing("%q is not a composed solution; a module is installed by composition", target)
 		}
-		digest, err := offerDigest(m)
-		if err != nil {
-			return err
-		}
-		out = domain.ConsentApproval{TargetID: m.Principal, Generation: m.Generation, Digest: digest}
-		inst, err := tx.Installation(s.cfg.InstallationID(org, target))
-		if err == nil {
-			out.ExpectedRevision = inst.Revision
-		} else if !errors.Is(err, domain.ErrNotFound) {
-			return err
+		if refused == nil {
+			digest, err := offerDigest(m)
+			if err != nil {
+				return err
+			}
+			out = domain.ConsentApproval{TargetID: m.Principal, Generation: m.Generation, ExpectedRevision: inst.Revision, Digest: digest}
 		}
 		offer.Module, offer.Installation = m, inst
 		offer.Modules, err = tx.Modules()
@@ -91,6 +117,26 @@ func (s *Service) ReviewOffer(ctx context.Context, caller Person, org, target st
 	})
 	offer.Approval = out
 	return offer, err
+}
+
+// holdsRoleOn is whether caller, read now as a member of org, holds a role on
+// inst, an active installation of org, granted to them or to a team of theirs.
+func holdsRoleOn(tx Tx, caller Person, org string, inst domain.Installation) (bool, error) {
+	if inst.ID == "" || inst.Organization != org || inst.Status != domain.Active {
+		return false, nil
+	}
+	p, err := memberAs(tx, caller, org)
+	if errors.Is(err, domain.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	grants, err := tx.RoleGrants(inst.ID)
+	if err != nil {
+		return false, err
+	}
+	return len(decide.HeldRoles(p, inst, grants)) > 0, nil
 }
 
 func consentIntent(caller Person, org, target, role, owner string, a *domain.ConsentApproval) (string, error) {
