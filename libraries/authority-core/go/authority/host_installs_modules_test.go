@@ -1,6 +1,7 @@
 package authority_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
@@ -33,10 +34,17 @@ func newHostInstalled(t *testing.T) *hostInstalled {
 	}
 	store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "admin"})
 	store.PutPerson(domain.Person{ID: "alex", Organization: acme, Roles: []string{"admin"}})
+	if _, err := svc.ApplyModule(h.ctx, domain.Module{Name: "relay", Principal: "relay", Kind: domain.KindModule, Generation: 1,
+		ResourceKinds: []*basev0.WorkScopeV1{sc(legacyKind, "read")}}); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := svc.ApplyModule(h.ctx, domain.Module{Name: "store", Principal: "store", Kind: domain.KindModule, Generation: 1,
 		ResourceKinds: []*basev0.WorkScopeV1{sc(kind, "read", "write")},
-		Bindings: map[string]domain.Binding{"self": {ID: "self", Audience: "store",
-			InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write")}, HeadlessScopes: []*basev0.WorkScopeV1{sc(kind, "read")}}},
+		Bindings: map[string]domain.Binding{
+			"self": {ID: "self", Audience: "store",
+				InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write")}, HeadlessScopes: []*basev0.WorkScopeV1{sc(kind, "read")}},
+			"relay": {ID: "relay", Audience: "relay", InvokeScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}},
+		},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -243,6 +251,24 @@ func TestAnInstallationsConsentBoundsItsModulesBindings(t *testing.T) {
 		})
 	}
 
+	t.Run("a hop back to the module's own audience is bounded by its parent, not by the consent", func(t *testing.T) {
+		h := newHostInstalled(t)
+		h.recordConsent(acme, "host-1", map[string]domain.Binding{})
+		h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "reader", Scopes: []domain.RoleScope{{Kind: kind, Actions: []string{"read"}}}})
+		h.store.PutPerson(domain.Person{ID: "alex", Organization: acme, Roles: []string{"admin", "reader"}})
+		parent, err := h.svc.IssueForPerson(h.ctx, authority.Person{ID: "alex", Organization: acme, SessionID: "s"}, authority.IssueRequest{Audience: "store"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		child, err := h.svc.IssueChild(h.ctx, parent.Token, authority.Workload{Module: "store"}, authority.IssueRequest{Binding: "self"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := effective(child); len(got) != 1 || !sameActions(got[0].GetActions(), []string{"read"}) {
+			t.Fatalf("a hop to itself issued %v, want read", got)
+		}
+	})
+
 	t.Run("a person's hop through a binding the consent does not name is refused", func(t *testing.T) {
 		h := newHostInstalled(t)
 		h.recordConsent(acme, "host-1", map[string]domain.Binding{})
@@ -252,8 +278,11 @@ func TestAnInstallationsConsentBoundsItsModulesBindings(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = h.svc.IssueChild(h.ctx, parent.Token, authority.Workload{Module: "store"}, authority.IssueRequest{Binding: "self"})
+		_, err = h.svc.IssueChild(h.ctx, parent.Token, authority.Workload{Module: "store"}, authority.IssueRequest{Binding: "relay"})
 		code(t, err, domain.Denied)
+		if !strings.Contains(err.Error(), "consents to") {
+			t.Fatalf("refused for another reason: %v", err)
+		}
 	})
 }
 

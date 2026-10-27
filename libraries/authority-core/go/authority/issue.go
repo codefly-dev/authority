@@ -497,8 +497,14 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 		tenant := claims.GetTenantId()
 		var heldHere, sourceCeiling Scopes
 		var err error
-		if binding, err = ceiled(tx, tenant, am, binding); err != nil {
-			return err
+		// A hop back to the module's own audience reaches nothing the parent,
+		// addressed to it already, did not: it is bounded by that parent and
+		// the owner's grants, so the consent that bounds what a module reaches
+		// elsewhere does not apply to it.
+		if binding.Audience != am.Principal {
+			if binding, err = ceiled(tx, tenant, am, binding); err != nil {
+				return err
+			}
 		}
 		bounded := false
 		switch claims.GetOwnerPrincipalKind() {
