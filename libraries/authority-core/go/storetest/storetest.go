@@ -125,6 +125,9 @@ func Run(t *testing.T, open Open) {
 			if _, err := tx.Member(f.orgB, f.onlyA); !errors.Is(err, domain.ErrNotFound) {
 				t.Errorf("a person is no member of an organization they do not belong to: %v", err)
 			}
+			if p, err := tx.Member(f.orgA, ""); !errors.Is(err, domain.ErrNotFound) {
+				t.Errorf("an empty id names no member, not %+v: %v", p, err)
+			}
 			return nil
 		})
 	})
