@@ -3,6 +3,7 @@ package authority
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"slices"
 
@@ -167,6 +168,23 @@ func (s *Service) OrganizationAdded(ctx context.Context, org string) ([]string, 
 		return nil
 	})
 	return ids, err
+}
+
+// ReconcileOrganizations holds every composed module at every organization
+// (OrganizationAdded at each): what a host runs when it starts, so an
+// organization created while the authority could not record it still holds
+// the modules it may use.
+func (s *Service) ReconcileOrganizations(ctx context.Context) error {
+	var orgs []domain.Organization
+	if err := s.store.Read(ctx, func(tx Tx) (err error) { orgs, err = tx.Organizations(); return err }); err != nil {
+		return err
+	}
+	for _, org := range orgs {
+		if _, err := s.OrganizationAdded(ctx, org.ID); err != nil {
+			return fmt.Errorf("organization %s: %w", org.ID, err)
+		}
+	}
+	return nil
 }
 
 // WithdrawModule removes a module: its installations are revoked and the

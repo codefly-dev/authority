@@ -374,16 +374,7 @@ func compileScopes(r Role) error {
 // ensureModuleInstallations holds every composed module installed at every
 // organisation, through the core.
 func (s *State) ensureModuleInstallations() error {
-	var orgs []domain.Organization
-	if err := s.read(func(tx authority.Tx) (err error) { orgs, err = tx.Organizations(); return err }); err != nil {
-		return err
-	}
-	for _, org := range orgs {
-		if _, err := s.svc.OrganizationAdded(context.Background(), org.ID); err != nil {
-			return err
-		}
-	}
-	return nil
+	return s.svc.ReconcileOrganizations(context.Background())
 }
 
 // performInstall installs what the fixture names through the core, then

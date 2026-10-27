@@ -42,4 +42,53 @@ func TestAnOrganizationAddedLaterHoldsEveryComposedModule(t *testing.T) {
 	code(t, err, domain.Precondition)
 	_, err = h.svc.OrganizationAdded(h.ctx, "nobody")
 	code(t, err, domain.NotFound)
+
+	// Reconciling every organization holds what is missing and nothing more.
+	const hooli = "hooli"
+	h.store.PutOrganization(domain.Organization{ID: hooli, Name: hooli})
+	if err := h.svc.ReconcileOrganizations(h.ctx); err != nil {
+		t.Fatal(err)
+	}
+	ids, err = h.svc.OrganizationAdded(h.ctx, hooli)
+	if err != nil || len(ids) != 2 {
+		t.Fatalf("reconciled module installations %v %v", ids, err)
+	}
+	_, err = h.svc.IssueForPerson(h.ctx, ivy, authority.IssueRequest{Audience: "store", Scopes: []*basev0.WorkScopeV1{sc(kind, "read")}})
+	code(t, err, domain.Precondition)
+}
+
+// The host's own setup grants a role as the organization's administrator
+// would: on an active installation of that organization, a declared role, to
+// a member or a team of it.
+func TestTheHostGrantsARoleAsTheAdministratorWould(t *testing.T) {
+	h := newHarness(t)
+	inst := h.inst(acme, "a").ID
+	for _, tc := range []struct {
+		name string
+		r    authority.RoleRequest
+		code domain.Code
+	}{
+		{"another organization's installation", authority.RoleRequest{Organization: globex, InstallationID: inst, Role: "viewer", PersonID: "omar"}, domain.Denied},
+		{"an undeclared role", authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "owner", PersonID: "maya"}, domain.NotFound},
+		{"no subject", authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "viewer"}, domain.Invalid},
+		{"a person of another organization", authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "viewer", PersonID: "omar"}, domain.Denied},
+		{"a team of another organization", authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "viewer", TeamID: "ops"}, domain.Denied},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := h.svc.GrantRoleAsHost(h.ctx, tc.r)
+			code(t, err, tc.code)
+		})
+	}
+	if _, err := h.svc.GrantRoleAsHost(h.ctx, authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "viewer", PersonID: "maya"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.root("maya", "a"); err != nil {
+		t.Fatalf("the granted role is held: %v", err)
+	}
+	if _, err := h.svc.GrantRoleAsHost(h.ctx, authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "viewer", TeamID: "team"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.root("tam", "a"); err != nil {
+		t.Fatalf("the team's role is held: %v", err)
+	}
 }
