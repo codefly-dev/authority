@@ -48,6 +48,19 @@ type Config struct {
 	Replay workcontext.ReplayStore
 	// Grants answers approval grants; nil refuses every grant capability.
 	Grants workcontext.GrantSource
+	// Journal records each change of authority in the transaction that makes
+	// it; an error aborts the change. nil journals nothing.
+	Journal func(ctx context.Context, tx Tx, e domain.Event) error
+	// HostInstallsModules says the host decides which organizations hold each
+	// composed module, by its own administrators' consent, and its store
+	// answers those installations from the host's own records. The core then
+	// never installs, reactivates or revokes a module installation itself:
+	// delivery, a new organization and reconciliation install nothing,
+	// withdrawal leaves the host's records to the host, and UninstallAsHost
+	// refuses a module. It still raises a module installation's revision when
+	// a redelivery narrows the module, which the store applies to the host's
+	// record. false: every composed module is installed at every organization.
+	HostInstallsModules bool
 }
 
 var (
@@ -102,6 +115,14 @@ func New(store Store, cfg Config) (*Service, error) {
 	return s, nil
 }
 
+// journal records e in tx, when the host journals.
+func (s *Service) journal(ctx context.Context, tx Tx, e domain.Event) error {
+	if s.cfg.Journal == nil {
+		return nil
+	}
+	return s.cfg.Journal(ctx, tx, e)
+}
+
 // Seals and Revisions answer core's verifier and minter from the store.
 func (s *Service) Seals() workcontext.SealSource         { return s.src }
 func (s *Service) Revisions() workcontext.RevisionSource { return s.src }
@@ -117,6 +138,10 @@ type Person struct {
 // Workload is an attested module workload.
 type Workload struct {
 	Module string
+	// Organization is the organization the workload's credential is bound to,
+	// empty when it serves every organization that installed it. A workload
+	// bound to one is issued nothing at another.
+	Organization string
 }
 
 func (s *Service) verifier(ctx context.Context, audience string) (*workcontext.Verifier, error) {
@@ -224,8 +249,8 @@ func (src sources) holds(tx Tx, principal string, inst domain.Installation) (boo
 	} else if !errors.Is(err, domain.ErrNotFound) {
 		return false, err
 	}
-	if p, err := tx.Person(principal); err == nil {
-		return p.Organization == inst.Organization, nil
+	if _, err := tx.Member(inst.Organization, principal); err == nil {
+		return true, nil
 	} else if !errors.Is(err, domain.ErrNotFound) {
 		return false, err
 	}
@@ -332,16 +357,28 @@ func (src sources) OperationBinding(ctx context.Context, id string) (workcontext
 	return out, err
 }
 
-// installationOf is an organization's installation of target.
+// installationOf is an organization's installation of target: its active one
+// when it has one, since a host that installs modules keeps the records of the
+// installations it retired beside the one it made again.
 func installationOf(tx Tx, org, target string) (domain.Installation, error) {
 	all, err := tx.Installations(org)
 	if err != nil {
 		return domain.Installation{}, err
 	}
-	for _, inst := range all {
-		if inst.Target == target {
+	var found *domain.Installation
+	for i, inst := range all {
+		if inst.Target != target {
+			continue
+		}
+		if inst.Status == domain.Active {
 			return inst, nil
 		}
+		if found == nil {
+			found = &all[i]
+		}
+	}
+	if found != nil {
+		return *found, nil
 	}
 	return domain.Installation{}, fmt.Errorf("installation of %s at %s: %w", target, org, domain.ErrNotFound)
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
 	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
@@ -217,7 +218,8 @@ func TestATransferIsDecidedInOrder(t *testing.T) {
 func TestOrganizationGrantsAndModules(t *testing.T) {
 	audience := domain.Module{ResourceKinds: []*basev0.WorkScopeV1{sc("doc", "read", "admin")}}
 	roles := []domain.OrgRole{{Name: "r", Scopes: []domain.RoleScope{{Kind: "*", Actions: []string{"read"}}, {Kind: "doc", Actions: []string{"admin"}, Resources: []resources.Grant{{ID: "x"}}}}}}
-	if got := decide.OrgScopes(roles, audience); len(got) != 1 || len(got[0].GetActions()) != 2 {
+	// read holds the whole kind; admin holds x alone, never the kind.
+	if got := decide.OrgScopes(roles, audience, nil); !scope.Same(got, []*basev0.WorkScopeV1{sc("doc", "read"), owned("doc", "", []string{"admin"}, "x")}) {
 		t.Fatalf("org scopes %v", got)
 	}
 	if got := decide.ResourceGrants(roles, "doc", "admin"); len(got) != 1 || got[0].ID != "x" {

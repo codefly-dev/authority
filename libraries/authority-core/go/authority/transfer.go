@@ -72,7 +72,7 @@ func (s *Service) AuthorizeTransfer(ctx context.Context, r TransferRequest) (Tra
 		if t.OwnerKind != "human" {
 			return decide.AuthorizeTransfer(t)
 		}
-		p, err := tx.Person(wc.GetOwnerPrincipalId())
+		p, err := tx.Member(wc.GetTenantId(), wc.GetOwnerPrincipalId())
 		if err != nil {
 			return domain.Refuse("the owner %s is no longer a member", wc.GetOwnerPrincipalId())
 		}
@@ -92,7 +92,7 @@ func (s *Service) AuthorizeTransfer(ctx context.Context, r TransferRequest) (Tra
 		} else if !errors.Is(err, domain.ErrNotFound) {
 			return err
 		}
-		if fp, err := tx.Person(r.From); err == nil {
+		if fp, err := tx.Member(wc.GetTenantId(), r.From); err == nil {
 			t.FromPerson = &fp
 		}
 		roles, err := orgRoles(tx, p)
@@ -130,7 +130,8 @@ func (s *Service) AuthorizeTransfer(ctx context.Context, r TransferRequest) (Tra
 			return err
 		}
 		decision = TransferDecision{PrincipalID: r.To, AuthorizedBy: p.ID}
-		return nil
+		return s.journal(ctx, tx, domain.Event{Kind: domain.ResourceTransferred, Organization: target.Organization, Actor: p.ID, Subject: target.ID,
+			Detail: map[string]string{"kind": r.Kind, "resource": r.ResourceID, "from": r.From, "to": r.To, "store": r.Store.Module}})
 	})
 	return decision, err
 }

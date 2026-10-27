@@ -19,18 +19,23 @@ func (r RoleRequest) grant() domain.RoleGrant {
 	return domain.RoleGrant{InstallationID: r.InstallationID, Role: r.Role, PersonID: r.PersonID, TeamID: r.TeamID}
 }
 
-// decideRoleChange reads what decide.ChangeRole needs.
-func decideRoleChange(tx Tx, caller Person, r RoleRequest, list, revoke bool) (domain.Installation, error) {
+// decideRoleChange reads what decide.ChangeRole needs. A nil caller is the
+// host's own setup, deciding as the organization's administrator would.
+func decideRoleChange(tx Tx, caller *Person, r RoleRequest, list, revoke bool) (domain.Installation, error) {
 	// A caller of another organization than the one named learns nothing of
 	// it: the foreign answer comes before any installation is read. Then the
 	// installation is resolved by (organization, id): another organization's
 	// and an absent one answer alike, having done the same work.
-	c, err := tx.Person(caller.ID)
-	if err != nil && !errors.Is(err, domain.ErrNotFound) {
-		return domain.Installation{}, err
-	}
-	if caller.ID == "" || err != nil || c.Organization != r.Organization {
-		return domain.Installation{}, decide.ForeignInstallation(r.InstallationID, r.Organization)
+	c := domain.Person{Organization: r.Organization, Roles: []string{"admin"}}
+	if caller != nil {
+		var err error
+		c, err = memberAs(tx, *caller, r.Organization)
+		if err != nil && !errors.Is(err, domain.ErrNotFound) {
+			return domain.Installation{}, err
+		}
+		if err != nil {
+			return domain.Installation{}, decide.ForeignInstallation(r.InstallationID, r.Organization)
+		}
 	}
 	inst, err := tx.Installation(r.InstallationID)
 	if errors.Is(err, domain.ErrNotFound) || (err == nil && inst.Organization != r.Organization) {
@@ -50,7 +55,7 @@ func decideRoleChange(tx Tx, caller Person, r RoleRequest, list, revoke bool) (d
 	change := decide.RoleChange{RequestOrganization: r.Organization, RequestedID: r.InstallationID, Installation: inst, Solution: solution,
 		Caller: c, CallerRoles: decide.HeldRoles(c, inst, grants), List: list, Revoke: revoke, Role: r.Role, PersonID: r.PersonID, TeamID: r.TeamID}
 	if r.PersonID != "" {
-		if p, err := tx.Person(r.PersonID); err == nil {
+		if p, err := tx.Member(inst.Organization, r.PersonID); err == nil {
 			change.Subject = &p
 		}
 	}
@@ -70,10 +75,36 @@ func (s *Service) GrantRole(ctx context.Context, caller Person, r RoleRequest) (
 	var inst domain.Installation
 	err := s.store.Write(ctx, func(tx Tx) error {
 		var err error
-		if inst, err = decideRoleChange(tx, caller, r, false, false); err != nil {
+		if inst, err = decideRoleChange(tx, &caller, r, false, false); err != nil {
 			return err
 		}
-		return tx.PutRoleGrant(r.grant())
+		if err := tx.PutRoleGrant(r.grant()); err != nil {
+			return err
+		}
+		return s.journal(ctx, tx, r.event(domain.RoleGranted, caller.ID))
+	})
+	return inst, err
+}
+
+func (r RoleRequest) event(kind domain.EventKind, actor string) domain.Event {
+	return domain.Event{Kind: kind, Organization: r.Organization, Actor: actor, Subject: r.InstallationID,
+		Detail: map[string]string{"role": r.Role, "person": r.PersonID, "team": r.TeamID}}
+}
+
+// GrantRoleAsHost is for trusted host setup (a fixture's installations),
+// never a request handler: it grants a role with no caller, decided as
+// GrantRole decides it for the organization's administrator.
+func (s *Service) GrantRoleAsHost(ctx context.Context, r RoleRequest) (domain.Installation, error) {
+	var inst domain.Installation
+	err := s.store.Write(ctx, func(tx Tx) error {
+		var err error
+		if inst, err = decideRoleChange(tx, nil, r, false, false); err != nil {
+			return err
+		}
+		if err := tx.PutRoleGrant(r.grant()); err != nil {
+			return err
+		}
+		return s.journal(ctx, tx, r.event(domain.RoleGranted, ""))
 	})
 	return inst, err
 }
@@ -85,7 +116,7 @@ func (s *Service) RevokeRole(ctx context.Context, caller Person, r RoleRequest) 
 	var inst domain.Installation
 	err := s.store.Write(ctx, func(tx Tx) error {
 		var err error
-		if inst, err = decideRoleChange(tx, caller, r, false, true); err != nil {
+		if inst, err = decideRoleChange(tx, &caller, r, false, true); err != nil {
 			return err
 		}
 		if err := tx.DeleteRoleGrant(r.grant()); err != nil {
@@ -109,7 +140,7 @@ func (s *Service) RevokeRole(ctx context.Context, caller Person, r RoleRequest) 
 				return err
 			}
 		}
-		return nil
+		return s.journal(ctx, tx, r.event(domain.RoleRevoked, caller.ID))
 	})
 	return inst, err
 }
@@ -118,7 +149,7 @@ func (s *Service) RevokeRole(ctx context.Context, caller Person, r RoleRequest) 
 func (s *Service) ListRoleGrants(ctx context.Context, caller Person, organization, installationID string) ([]domain.RoleGrant, error) {
 	var out []domain.RoleGrant
 	err := s.store.Read(ctx, func(tx Tx) error {
-		if _, err := decideRoleChange(tx, caller, RoleRequest{Organization: organization, InstallationID: installationID}, true, false); err != nil {
+		if _, err := decideRoleChange(tx, &caller, RoleRequest{Organization: organization, InstallationID: installationID}, true, false); err != nil {
 			return err
 		}
 		var err error
@@ -133,15 +164,4 @@ func (s *Service) ListRoleGrants(ctx context.Context, caller Person, organizatio
 // refused at once.
 func (s *Service) PersonChanged(ctx context.Context, person string) error {
 	return s.store.Write(ctx, func(tx Tx) error { return tx.BumpPersonEpoch(person) })
-}
-
-// callerOrganization is the organization the caller belongs to now, read from
-// the store.
-func callerOrganization(tx Tx, caller Person) string {
-	if p, err := tx.Person(caller.ID); err == nil {
-		return p.Organization
-	}
-	// A caller the store no longer knows belongs to no organization: they get
-	// the foreign answer, whatever their session says.
-	return ""
 }

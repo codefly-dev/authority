@@ -140,8 +140,9 @@ func TestAPersonIsIssuedWhatHerRolesHoldAtTheAudienceAndNoMore(t *testing.T) {
 	if wc.GetOwnerPrincipalId() != "maya" || wc.GetTenantId() != "acme" || wc.GetAudience() != "documents" {
 		t.Fatalf("context = %v", wc)
 	}
-	// The viewer reads documents, and reads collections at the kind: which
-	// collections is the authority's answer to ListResources, not the token's.
+	// The viewer reads documents. She reads collections only by prefix and
+	// pattern, which a token cannot carry and never carries as the whole
+	// kind: an ask naming no collection carries none.
 	got := map[string]string{}
 	for _, sc := range wc.GetAuthorityScopes() {
 		got[sc.GetResourceKind()] = strings.Join(sc.GetActions(), ",")
@@ -149,7 +150,7 @@ func TestAPersonIsIssuedWhatHerRolesHoldAtTheAudienceAndNoMore(t *testing.T) {
 			t.Fatalf("the token names no resource: %v", sc)
 		}
 	}
-	if len(got) != 2 || got["documents"] != "read" || got["documents.collection"] != "read" {
+	if len(got) != 1 || got["documents"] != "read" {
 		t.Fatalf("viewer scopes = %v", wc.GetAuthorityScopes())
 	}
 	if wc.GetSeal().GetInstallationId() != state.InstallationID("acme", "documents") {

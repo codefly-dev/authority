@@ -3,8 +3,10 @@ package issuer_test
 import (
 	"context"
 	"errors"
-	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
+	"strings"
 	"testing"
+
+	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 
 	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
@@ -41,12 +43,16 @@ func covered(t *testing.T, owned []authority.Grant) *resources.Matcher {
 	return m
 }
 
-// The authority answers which collections a person reads from her roles, now;
-// the token carries the kind alone.
+// The authority answers which collections a person reads from her roles, now.
+// Maya reads by prefix and pattern, which a token cannot carry: she names the
+// collections she acts on, and an ask naming none carries none of the kind.
 func TestTheAuthorityAnswersWhichResourcesAContextCovers(t *testing.T) {
 	k := testkit.New(t)
 	ctx := context.Background()
-	maya, err := k.Issuer.ListResources(ctx, issued(t, k, "fixture-maya", nil), "documents", "documents.collection", "read")
+	named := issued(t, k, "fixture-maya", []*authorityv1.WorkScopeV1{
+		{ResourceKind: "documents.collection", Actions: []string{"read"}, ResourceIds: []string{"derived\x1fdirectory", "shared-finance"}},
+	})
+	maya, err := k.Issuer.ListResources(ctx, named, "documents", "documents.collection", "read")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,24 +62,38 @@ func TestTheAuthorityAnswersWhichResourcesAContextCovers(t *testing.T) {
 			t.Errorf("maya %q: want %v", id, want)
 		}
 	}
+	if m.All() {
+		t.Error("maya reads every collection")
+	}
+	if _, err := k.Issuer.ListResources(ctx, issued(t, k, "fixture-maya", nil), "documents", "documents.collection", "read"); !errors.Is(err, issuer.ErrRefused) {
+		t.Fatalf("an ask naming no collection carried the kind: %v", err)
+	}
 	remi, err := k.Issuer.ListResources(ctx, issued(t, k, "fixture-remi", nil), "documents", "documents.collection", "read")
 	if err != nil || !covered(t, remi).All() {
 		t.Fatalf("an editor reads every collection: %v %v", remi, err)
 	}
-	if _, err := k.Issuer.ListResources(ctx, issued(t, k, "fixture-maya", nil), "documents", "documents.collection", "admin"); !errors.Is(err, issuer.ErrRefused) {
+	if _, err := k.Issuer.ListResources(ctx, named, "documents", "documents.collection", "admin"); !errors.Is(err, issuer.ErrRefused) {
 		t.Fatalf("an action the context does not hold: %v", err)
 	}
-	if _, err := k.Issuer.ListResources(ctx, issued(t, k, "fixture-maya", nil), "documents", "documents.nothing", "read"); err == nil {
+	if _, err := k.Issuer.ListResources(ctx, named, "documents", "documents.nothing", "read"); err == nil {
 		t.Fatal("a kind the module does not serve")
 	}
 }
 
-// A capability narrowed to named resources covers only those the owner's
-// grants cover: asking for an id never widens.
+// Asking for an id never widens: an ask naming one the owner's grants do not
+// cover is refused, even beside one they do, and a capability narrowed to
+// named resources covers exactly those.
 func TestANarrowedContextCoversOnlyTheIDsItNamesThatTheOwnerHolds(t *testing.T) {
 	k := testkit.New(t)
+	_, err := k.Issuer.Issue(person(t, k, "fixture-maya"), &authorityv1.IssueRequest{
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents",
+		Scopes: []*authorityv1.WorkScopeV1{{ResourceKind: "documents.collection", Actions: []string{"read"}, ResourceIds: []string{"derived\x1fdirectory", "secret"}}},
+	})
+	if !errors.Is(err, issuer.ErrRefused) || !strings.Contains(err.Error(), "widens") {
+		t.Fatalf("an ask naming an id the owner does not hold: %v", err)
+	}
 	token := issued(t, k, "fixture-maya", []*authorityv1.WorkScopeV1{
-		{ResourceKind: "documents.collection", Actions: []string{"read"}, ResourceIds: []string{"derived\x1fdirectory", "secret"}},
+		{ResourceKind: "documents.collection", Actions: []string{"read"}, ResourceIds: []string{"derived\x1fdirectory"}},
 	})
 	grants, err := k.Issuer.ListResources(context.Background(), token, "documents", "documents.collection", "read")
 	if err != nil {

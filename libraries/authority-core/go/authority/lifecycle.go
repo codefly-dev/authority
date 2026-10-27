@@ -3,6 +3,7 @@ package authority
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"slices"
 
@@ -12,13 +13,15 @@ import (
 )
 
 // ApplyModule records a delivered module at a newer generation and holds a
-// module installation at every organization (a solution is installed
+// module installation at every organization, unless the host installs
+// modules itself (Config.HostInstallsModules; a solution is installed
 // explicitly). A narrowing invalidates the capabilities issued before it; a
 // withdrawn owner-aware declaration refuses its owner-selected ones for good.
 func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, error) {
 	if err := decide.ValidateModule(m); err != nil {
 		return nil, err
 	}
+	m.ResourceKinds = decide.Served(m)
 	var ids []string
 	err := s.store.Write(ctx, func(tx Tx) error {
 		ids = nil // a retried transaction starts over
@@ -95,7 +98,10 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 		if err := tx.PutModule(m); err != nil {
 			return err
 		}
-		if m.Kind == domain.KindSolution {
+		if err := s.journal(ctx, tx, domain.Event{Kind: domain.ModuleApplied, Subject: m.Name, Detail: map[string]string{"principal": m.Principal, "kind": m.Kind, "generation": fmt.Sprint(m.Generation)}}); err != nil {
+			return err
+		}
+		if m.Kind == domain.KindSolution || s.cfg.HostInstallsModules {
 			return nil
 		}
 		orgs, err := tx.Organizations()
@@ -131,6 +137,95 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 	return ids, err
 }
 
+// OrganizationAdded holds every composed module installed at an organization
+// the host created after those modules were delivered, as ApplyModule holds
+// them at every organization that existed then: the order of delivery and
+// sign-up never decides whether an organization may use a module. It is
+// idempotent, and a module installation an administrator or a withdrawal
+// retired stays retired. It answers the organization's module installations.
+func (s *Service) OrganizationAdded(ctx context.Context, org string) ([]string, error) {
+	var ids []string
+	err := s.store.Write(ctx, func(tx Tx) error {
+		ids = nil
+		if _, err := tx.Organization(org); err != nil {
+			return notFound(err)
+		}
+		if s.cfg.HostInstallsModules {
+			return nil // the host installs a module where its administrators consent
+		}
+		modules, err := tx.Modules()
+		if err != nil {
+			return err
+		}
+		for _, m := range modules {
+			if m.Kind == domain.KindSolution {
+				continue
+			}
+			id := s.cfg.InstallationID(org, m.Name)
+			if _, err := tx.Installation(id); errors.Is(err, domain.ErrNotFound) {
+				if err := tx.PutInstallation(domain.Installation{ID: id, Organization: org, Target: m.Name, Status: domain.Active, Revision: 1}); err != nil {
+					return err
+				}
+			} else if err != nil {
+				return err
+			}
+			ids = append(ids, id)
+		}
+		slices.Sort(ids)
+		return nil
+	})
+	return ids, err
+}
+
+// ReconcileOrganizations holds every composed module at every organization
+// (OrganizationAdded at each), and does nothing when the host installs modules: what a host runs when it starts, so an
+// organization created while the authority could not record it still holds
+// the modules it may use.
+func (s *Service) ReconcileOrganizations(ctx context.Context) error {
+	if s.cfg.HostInstallsModules {
+		return nil // nothing is installed by the core to reconcile
+	}
+	// One read finds the organizations missing a module installation, so a
+	// host with many organizations writes only where something is missing.
+	var missing []string
+	if err := s.store.Read(ctx, func(tx Tx) error {
+		missing = nil
+		orgs, err := tx.Organizations()
+		if err != nil {
+			return err
+		}
+		modules, err := tx.Modules()
+		if err != nil {
+			return err
+		}
+		all, err := tx.Installations("")
+		if err != nil {
+			return err
+		}
+		held := map[string]bool{}
+		for _, inst := range all {
+			held[inst.ID] = true
+		}
+		for _, org := range orgs {
+			for _, m := range modules {
+				if m.Kind != domain.KindSolution && !held[s.cfg.InstallationID(org.ID, m.Name)] {
+					missing = append(missing, org.ID)
+					break
+				}
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	for _, org := range missing {
+		if _, err := s.OrganizationAdded(ctx, org); err != nil {
+			return fmt.Errorf("organization %s: %w", org, err)
+		}
+	}
+	return nil
+}
+
 // WithdrawModule removes a module: its installations are revoked and the
 // delegations granted to it end.
 func (s *Service) WithdrawModule(ctx context.Context, name string) error {
@@ -139,8 +234,13 @@ func (s *Service) WithdrawModule(ctx context.Context, name string) error {
 		if err != nil {
 			return err
 		}
+		withdrawn, err := tx.ModuleNamed(name)
+		if err != nil {
+			return notFound(err)
+		}
+		hostOwned := s.cfg.HostInstallsModules && withdrawn.Kind != domain.KindSolution
 		for _, inst := range all {
-			if inst.Target == name && inst.Status != domain.Revoked {
+			if inst.Target == name && inst.Status != domain.Revoked && !hostOwned {
 				if err := s.revoke(tx, inst); err != nil {
 					return err
 				}
@@ -161,11 +261,11 @@ func (s *Service) WithdrawModule(ctx context.Context, name string) error {
 				}
 			}
 		}
-		m, err := tx.ModuleNamed(name)
-		if err != nil {
-			return notFound(err)
-		}
+		m := withdrawn
 		if err := tx.PutTombstone(domain.Tombstone{Name: m.Name, Principal: m.Principal, Generation: m.Generation}); err != nil {
+			return err
+		}
+		if err := s.journal(ctx, tx, domain.Event{Kind: domain.ModuleWithdrawn, Subject: m.Name, Detail: map[string]string{"principal": m.Principal, "generation": fmt.Sprint(m.Generation)}}); err != nil {
 			return err
 		}
 		return tx.DeleteModule(name)
@@ -229,7 +329,7 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 		if _, ok := m.Roles[agentRole]; !ok {
 			return domain.Missing("role %q is not one %s declares", agentRole, target)
 		}
-		p, err := tx.Person(installedBy)
+		p, err := tx.Member(org, installedBy)
 		if err != nil && !errors.Is(err, domain.ErrNotFound) {
 			return err
 		}
@@ -269,13 +369,16 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 					return err
 				}
 				inst = existing
-				return tx.PutInstallation(existing)
+				if err := tx.PutInstallation(existing); err != nil {
+					return err
+				}
+				return s.journal(ctx, tx, requested(caller, existing))
 			}
 			inst = existing
 			return nil
 		}
 		if err == nil && existing.Status != domain.Revoked {
-			return domain.Refuse("%s is already installed at %s", target, org)
+			return &domain.Refusal{Code: domain.Denied, Cause: domain.ErrAlreadyInstalled, Reason: fmt.Sprintf("%s is already installed at %s", target, org)}
 		}
 		principal := s.cfg.PrincipalID(org, target)
 		if _, err := tx.Module(principal); err == nil {
@@ -306,7 +409,10 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 		if err := tx.DeleteRoleGrants(id); err != nil {
 			return err
 		}
-		return tx.PutInstallation(inst)
+		if err := tx.PutInstallation(inst); err != nil {
+			return err
+		}
+		return s.journal(ctx, tx, requested(caller, inst))
 	})
 	if err != nil {
 		return inst, err
@@ -349,9 +455,20 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 		}
 		current.Status = domain.Active
 		inst = current
-		return tx.PutInstallation(current)
+		if err := tx.PutInstallation(current); err != nil {
+			return err
+		}
+		return s.journal(ctx, tx, domain.Event{Kind: domain.InstallationActivated, Organization: current.Organization, Actor: caller.ID, Subject: current.ID,
+			Detail: map[string]string{"target": current.Target, "revision": fmt.Sprint(current.Revision)}})
 	})
 	return inst, err
+}
+
+// requested is the journal entry of an installation attempt recorded pending.
+func requested(caller Person, inst domain.Installation) domain.Event {
+	return domain.Event{Kind: domain.InstallationRequested, Organization: inst.Organization, Actor: caller.ID, Subject: inst.ID,
+		Detail: map[string]string{"target": inst.Target, "role": inst.AgentRole, "principal": inst.PrincipalID, "installed_by": inst.InstalledBy,
+			"revision": fmt.Sprint(inst.Revision), "operation": inst.Consent.OperationID}}
 }
 
 // Uninstall disables a solution installation and its principal at once, clears
@@ -360,13 +477,13 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 // belong to host composition and cannot be uninstalled by a person.
 func (s *Service) Uninstall(ctx context.Context, caller Person, organization, installationID string) error {
 	return s.store.Write(ctx, func(tx Tx) error {
-		p, err := tx.Person(caller.ID)
+		p, err := memberAs(tx, caller, organization)
 		if err != nil && !errors.Is(err, domain.ErrNotFound) {
 			return err
 		}
 		// Authorize before reading the installation: unauthorized callers
 		// cannot tell a present installation from an absent one.
-		if caller.ID == "" || err != nil || p.Organization != organization || !decide.IsAdministrator(p) {
+		if err != nil || !decide.IsAdministrator(p) {
 			return decide.ForeignInstallation(installationID, organization)
 		}
 		inst, err := installationIn(tx, organization, installationID)
@@ -378,7 +495,10 @@ func (s *Service) Uninstall(ctx context.Context, caller Person, organization, in
 		if inst.PrincipalID == "" || inst.InstalledBy == "" {
 			return domain.Refuse("%s is a module, installed by composition: it is withdrawn, never uninstalled", inst.Target)
 		}
-		return s.revoke(tx, inst)
+		if err := s.revoke(tx, inst); err != nil {
+			return err
+		}
+		return s.journal(ctx, tx, uninstalled(caller.ID, inst))
 	})
 }
 
@@ -391,8 +511,21 @@ func (s *Service) UninstallAsHost(ctx context.Context, organization, installatio
 		if err != nil {
 			return err
 		}
-		return s.revoke(tx, inst)
+		if s.cfg.HostInstallsModules && inst.PrincipalID == "" {
+			if m, err := tx.ModuleNamed(inst.Target); err == nil && m.Kind != domain.KindSolution {
+				return domain.Refuse("%s is a module installed by its host's consent; the host uninstalls it", inst.Target)
+			}
+		}
+		if err := s.revoke(tx, inst); err != nil {
+			return err
+		}
+		return s.journal(ctx, tx, uninstalled("", inst))
 	})
+}
+
+func uninstalled(actor string, inst domain.Installation) domain.Event {
+	return domain.Event{Kind: domain.InstallationUninstalled, Organization: inst.Organization, Actor: actor, Subject: inst.ID,
+		Detail: map[string]string{"target": inst.Target, "revision": fmt.Sprint(inst.Revision + 1)}}
 }
 
 func installationIn(tx Tx, organization, installationID string) (domain.Installation, error) {
@@ -422,12 +555,22 @@ func (s *Service) revoke(tx Tx, inst domain.Installation) error {
 func (s *Service) Installations(ctx context.Context, caller Person, org string) ([]domain.Installation, error) {
 	var out []domain.Installation
 	err := s.store.Read(ctx, func(tx Tx) error {
-		p, err := tx.Person(caller.ID)
-		if err != nil || p.Organization != org || !decide.IsAdministrator(p) {
+		p, err := memberAs(tx, caller, org)
+		if err != nil || !decide.IsAdministrator(p) {
 			return domain.Refuse("installation administration requires an administrator or owner of organization %q", org)
 		}
 		out, err = tx.Installations(org)
 		return err
 	})
 	return out, err
+}
+
+// Composed answers a composed module by name, as its delivery declared it.
+func (s *Service) Composed(ctx context.Context, name string) (domain.Module, error) {
+	var m domain.Module
+	err := s.store.Read(ctx, func(tx Tx) (err error) {
+		m, err = tx.ModuleNamed(name)
+		return notFound(err)
+	})
+	return m, err
 }

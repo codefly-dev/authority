@@ -167,7 +167,7 @@ func TestDisjointTargetScopeStaysDeniedAfterLaterHops(t *testing.T) {
 				if _, err := k.Issuer.Check(t.Context(), parent.Token, "model", "/model.Service/ReadDocument"); err != nil {
 					t.Fatal(err)
 				}
-				if _, err := k.Issuer.Check(t.Context(), parent.Token, "model", "/model.Service/ReadProfile"); !errors.Is(err, state.ErrForbidden) {
+				if _, err := k.Issuer.Check(t.Context(), parent.Token, "model", "/model.Service/ReadProfile"); !errors.Is(err, issuer.ErrRefused) {
 					t.Fatalf("denied kind admitted by policy: %v", err)
 				}
 				if _, err := k.Issuer.ListResources(t.Context(), parent.Token, "model", "modelservice.profiles", "read"); !errors.Is(err, issuer.ErrRefused) {

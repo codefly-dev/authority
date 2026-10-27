@@ -96,7 +96,8 @@ func (s *Service) AttachResource(ctx context.Context, r AttachmentRequest) (stri
 			return err
 		}
 		owner = inst.ID
-		return nil
+		return s.journal(ctx, tx, domain.Event{Kind: domain.ResourceAttached, Organization: inst.Organization, Actor: r.Store.Module, Subject: inst.ID,
+			Detail: map[string]string{"kind": r.Kind, "resource": r.ResourceID}})
 	})
 	return owner, err
 }
@@ -136,7 +137,8 @@ func (s *Service) DetachResource(ctx context.Context, caller Workload, org, kind
 				return err
 			}
 			owner = inst.ID
-			return nil
+			return s.journal(ctx, tx, domain.Event{Kind: domain.ResourceDetached, Organization: org, Actor: caller.Module, Subject: inst.ID,
+				Detail: map[string]string{"kind": kind, "resource": id}})
 		}
 		return nil
 	})

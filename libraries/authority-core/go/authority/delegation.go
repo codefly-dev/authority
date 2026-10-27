@@ -2,6 +2,7 @@ package authority
 
 import (
 	"context"
+	"errors"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
@@ -15,7 +16,7 @@ import (
 func (s *Service) Delegate(ctx context.Context, who Person, module string, scopes Scopes, purpose string) (domain.Delegation, error) {
 	var d domain.Delegation
 	err := s.store.Write(ctx, func(tx Tx) error {
-		p, err := tx.Person(who.ID)
+		p, err := tx.Member(who.Organization, who.ID)
 		if err != nil {
 			return notFound(err)
 		}
@@ -26,7 +27,15 @@ func (s *Service) Delegate(ctx context.Context, who Person, module string, scope
 		if len(scopes) == 0 {
 			return domain.Refuse("a delegation names what it grants")
 		}
-		holdings, err := held(tx, p, m)
+		if len(purpose) > MaxDelegationPurpose {
+			return domain.Malformed("a delegation's purpose is at most %d characters, not %d", MaxDelegationPurpose, len(purpose))
+		}
+		// A module not installed at the grantor's organization could never
+		// issue from the delegation: it is refused rather than recorded.
+		if inst, err := installationOf(tx, p.Organization, m.Name); err != nil || inst.Status != domain.Active {
+			return domain.NotNow("module %q is not installed in organization %s, so nothing could issue from a delegation to it", m.Name, p.Organization)
+		}
+		holdings, err := held(tx, p, m, scopes)
 		if err != nil {
 			return err
 		}
@@ -35,12 +44,12 @@ func (s *Service) Delegate(ctx context.Context, who Person, module string, scope
 			if err != nil {
 				continue
 			}
-			there, _, _, err := throughSolutions(tx, p, target, []string{m.Principal})
+			there, _, _, err := throughSolutions(tx, p, target, []string{m.Principal}, scopes)
 			if err != nil {
 				return err
 			}
 			if m.Kind != domain.KindSolution {
-				if there, err = held(tx, p, target); err != nil {
+				if there, err = held(tx, p, target, scopes); err != nil {
 					return err
 				}
 			}
@@ -51,13 +60,21 @@ func (s *Service) Delegate(ctx context.Context, who Person, module string, scope
 			return domain.Refuse("%s delegates what they do not hold", p.ID)
 		}
 		d = domain.Delegation{ID: s.cfg.NewID(), Organization: p.Organization, Grantor: p.ID, Module: m.Name, Purpose: purpose, Scopes: scope.Normalize(scopes)}
-		return tx.PutDelegation(d)
+		if err := tx.PutDelegation(d); err != nil {
+			return err
+		}
+		return s.journal(ctx, tx, domain.Event{Kind: domain.DelegationGranted, Organization: d.Organization, Actor: d.Grantor, Subject: d.ID,
+			Detail: map[string]string{"module": d.Module, "purpose": d.Purpose}})
 	})
 	return d, err
 }
 
-// RevokeDelegation ends a delegation; only its grantor may. Its capabilities
-// are refused at once.
+// MaxDelegationPurpose bounds the purpose a delegation records.
+const MaxDelegationPurpose = 1024
+
+// RevokeDelegation ends a delegation: its grantor may, and so may an
+// administrator of its organization acting there. Anyone else learns nothing,
+// not even that it exists. Its capabilities are refused at once.
 func (s *Service) RevokeDelegation(ctx context.Context, who Person, id string) (domain.Delegation, error) {
 	var d domain.Delegation
 	err := s.store.Write(ctx, func(tx Tx) error {
@@ -66,7 +83,13 @@ func (s *Service) RevokeDelegation(ctx context.Context, who Person, id string) (
 			return notFound(err)
 		}
 		if d.Grantor != who.ID {
-			return domain.Refuse("only the grantor of %s may revoke it", id)
+			admin, err := memberAs(tx, who, d.Organization)
+			if err != nil && !errors.Is(err, domain.ErrNotFound) {
+				return err
+			}
+			if err != nil || !decide.IsAdministrator(admin) {
+				return domain.Missing("delegation %q", id)
+			}
 		}
 		if d.Revoked {
 			return nil
@@ -75,7 +98,11 @@ func (s *Service) RevokeDelegation(ctx context.Context, who Person, id string) (
 		if err := tx.PutDelegation(d); err != nil {
 			return err
 		}
-		return tx.BumpAuthorizationRevision(d.Organization)
+		if err := tx.BumpAuthorizationRevision(d.Organization); err != nil {
+			return err
+		}
+		return s.journal(ctx, tx, domain.Event{Kind: domain.DelegationRevoked, Organization: d.Organization, Actor: who.ID, Subject: d.ID,
+			Detail: map[string]string{"module": d.Module}})
 	})
 	return d, err
 }
@@ -138,11 +165,11 @@ func (s *Service) IssueForDelegation(ctx context.Context, id string, actor Workl
 		if through, err = decide.ScopesFor(binding, r.Operation, "invoke"); err != nil {
 			return err
 		}
-		p, err := tx.Person(d.Grantor)
+		p, err := tx.Member(d.Organization, d.Grantor)
 		if err != nil {
 			return domain.Refuse("the grantor %s is no longer a member", d.Grantor)
 		}
-		h, _, _, err := throughSolutions(tx, p, audience, []string{am.Principal})
+		h, _, _, err := throughSolutions(tx, p, audience, []string{am.Principal}, d.Scopes)
 		if err != nil {
 			return err
 		}

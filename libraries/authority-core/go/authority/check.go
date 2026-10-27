@@ -52,6 +52,36 @@ func (s *Service) Check(ctx context.Context, token, audience string) (*workconte
 	return verified, revision, nil
 }
 
+// CheckMethod is Check, then what the audience module's delivery declares
+// for method applied to what the call's current actor holds (the last hop's
+// grant, never the owner's authority above it): decide.AdmitMethod. An empty
+// method is Check alone. Advisory decides the method but does not enforce it:
+// a sound capability is answered with the method's refusal beside it, the
+// same refusal a check that enforces it returns as its error.
+func (s *Service) CheckMethod(ctx context.Context, token, audience, method string, advisory bool) (verified *workcontext.Verified, revision uint64, refusal error, err error) {
+	if audience == "" {
+		return nil, 0, nil, domain.Refuse("a check names the audience the caller is")
+	}
+	if verified, revision, err = s.Check(ctx, token, audience); err != nil || method == "" {
+		return verified, revision, nil, err
+	}
+	err = s.store.Read(ctx, func(tx Tx) error {
+		m, err := tx.Module(audience)
+		if err != nil {
+			return notFound(err)
+		}
+		refusal = decide.AdmitMethod(m, method, verified.EffectiveScopes())
+		return nil
+	})
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	if refusal != nil && !advisory {
+		return nil, 0, nil, refusal
+	}
+	return verified, revision, refusal, nil
+}
+
 // Grant is one way a capability covers resources of a kind: a resource match
 // and, when set, the owner the resource must have.
 type Grant struct {
@@ -81,7 +111,7 @@ func (s *Service) ListResources(ctx context.Context, token, audience, kind, acti
 	err = s.store.Read(ctx, func(tx Tx) error {
 		rows := effective
 		if wc.GetOwnerPrincipalKind() == "human" {
-			p, err := tx.Person(wc.GetOwnerPrincipalId())
+			p, err := tx.Member(wc.GetTenantId(), wc.GetOwnerPrincipalId())
 			if err != nil {
 				return domain.Refuse("the owner %s is no longer a member", wc.GetOwnerPrincipalId())
 			}
