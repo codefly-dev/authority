@@ -1,4 +1,4 @@
-package proxy_test
+package forward_test
 
 import (
 	"context"
@@ -20,9 +20,8 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
 
-	"hop/pkg/business/decide"
-	gen "hop/pkg/gen"
-	"hop/pkg/infra/proxy"
+	"github.com/codefly-dev/authority/libraries/hop/go/decide"
+	"github.com/codefly-dev/authority/libraries/hop/go/forward"
 )
 
 const proof = "run-proof"
@@ -62,15 +61,14 @@ var identityRead = &basev0.WorkScopeV1{ResourceKind: "console.identity", Actions
 // module answers Version with who the call is for, authenticated by the same
 // Verifier a module runs.
 type module struct {
-	gen.UnimplementedHopServiceServer
 	reached int
 }
 
-func (m *module) Version(ctx context.Context, _ *gen.VersionRequest) (*gen.VersionResponse, error) {
+func (m *module) Version(ctx context.Context) (string, error) {
 	m.reached++
 	id, _ := hop.FromContext(ctx)
 	md, _ := metadata.FromIncomingContext(ctx)
-	return &gen.VersionResponse{Version: id.Owner + "@" + id.Tenant + " " + strings.Join(id.Scopes, ",") + " token=" + strings.Join(md.Get(hop.WorkContextKey), "")}, nil
+	return id.Owner + "@" + id.Tenant + " " + strings.Join(id.Scopes, ",") + " token=" + strings.Join(md.Get(hop.WorkContextKey), ""), nil
 }
 
 func serve(t *testing.T, opts []grpc.ServerOption, register func(*grpc.Server)) *grpc.ClientConn {
@@ -94,7 +92,7 @@ func dial(t *testing.T, listener *bufconn.Listener, opts ...grpc.DialOption) *gr
 	return conn
 }
 
-func setup(t *testing.T) (through gen.HopServiceClient, direct gen.HopServiceClient, m *module, a *authority, refused *[]string) {
+func setup(t *testing.T) (through grpc.ClientConnInterface, direct grpc.ClientConnInterface, m *module, a *authority, refused *[]string) {
 	m, a, refused = &module{}, &authority{Authority: hoptest.New(t), revoked: map[string]bool{}}, &[]string{}
 	verifier, err := hop.NewVerifier(context.Background(), a.PublishHop(proof), "console", hoptest.Replay())
 	if err != nil {
@@ -102,17 +100,17 @@ func setup(t *testing.T) (through gen.HopServiceClient, direct gen.HopServiceCli
 	}
 	moduleListener := bufconn.Listen(1 << 20)
 	moduleServer := grpc.NewServer(grpc.UnaryInterceptor(verifier.UnaryServerInterceptor()))
-	gen.RegisterHopServiceServer(moduleServer, m)
+	registerModule(moduleServer, m)
 	go func() { _ = moduleServer.Serve(moduleListener) }()
 	t.Cleanup(moduleServer.Stop)
-	p := &proxy.Proxy{
-		Decide:    decide.Decider{Routes: &routing.Routing{Endpoints: []routing.RouteEndpoint{{Audience: "console", Transport: "grpc", Address: "console", Methods: []string{"/api.HopService/Version"}}}}, Authority: a, Modules: map[string]bool{"console": true}}.Decide,
-		Upstreams: map[string]*grpc.ClientConn{"console": dial(t, moduleListener, grpc.WithDefaultCallOptions(proxy.CallOptions()...))},
+	p := &forward.Proxy{
+		Decide:    decide.Decider{Routes: &routing.Routing{Endpoints: []routing.RouteEndpoint{{Audience: "console", Transport: "grpc", Address: "console", Methods: []string{versionProcedure}}}}, Authority: a, Modules: map[string]bool{"console": true}}.Decide,
+		Upstreams: map[string]*grpc.ClientConn{"console": dial(t, moduleListener, grpc.WithDefaultCallOptions(forward.CallOptions()...))},
 		Signer:    hoptest.Signer(proof),
 		Refused:   func(method string, err error) { *refused = append(*refused, method+": "+err.Error()) },
 	}
 	hopConn := serve(t, p.ServerOptions(), func(*grpc.Server) {})
-	return gen.NewHopServiceClient(hopConn), gen.NewHopServiceClient(dial(t, moduleListener)), m, a, refused
+	return hopConn, dial(t, moduleListener), m, a, refused
 }
 
 func TestTheHopLetsThroughOnlyACallTheAuthorityChecked(t *testing.T) {
@@ -120,12 +118,12 @@ func TestTheHopLetsThroughOnlyACallTheAuthorityChecked(t *testing.T) {
 	token := a.Issue(t, "console", identityRead)
 	ctx := metadata.AppendToOutgoingContext(context.Background(), hop.WorkContextKey, token,
 		hop.OwnerKey, "mallory", hop.ScopesKey, "console.identity:admin") // a forged stamp, stripped
-	got, err := through.Version(ctx, &gen.VersionRequest{})
+	got, err := version(ctx, through)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := "principal-owner@tenant-conformance console.identity:read token=" + token; got.GetVersion() != want {
-		t.Fatalf("the module read %q, want %q", got.GetVersion(), want)
+	if want := "principal-owner@tenant-conformance console.identity:read token=" + token; got != want {
+		t.Fatalf("the module read %q, want %q", got, want)
 	}
 	if len(a.asked) != 1 || a.asked[0] != "console" || m.reached != 1 || len(*refused) != 0 {
 		t.Fatalf("asked %v reached %d refused %v", a.asked, m.reached, *refused)
@@ -134,18 +132,18 @@ func TestTheHopLetsThroughOnlyACallTheAuthorityChecked(t *testing.T) {
 
 func TestTheHopRefusesByNameAndTheModuleIsNeverReached(t *testing.T) {
 	through, _, m, a, refused := setup(t)
-	_, err := through.Version(context.Background(), &gen.VersionRequest{})
+	_, err := version(context.Background(), through)
 	if status.Code(err) != codes.Unauthenticated || !strings.Contains(err.Error(), "carries no Work Context") {
 		t.Fatalf("no token: %v", err)
 	}
 	revoked := a.Issue(t, "console", identityRead)
 	a.revoked[revoked] = true
 	ctx := metadata.AppendToOutgoingContext(context.Background(), hop.WorkContextKey, revoked)
-	_, err = through.Version(ctx, &gen.VersionRequest{})
+	_, err = version(ctx, through)
 	if status.Code(err) != codes.PermissionDenied || !strings.Contains(err.Error(), "the authority refused the call to console: work context: revoked") {
 		t.Fatalf("refused token: %v", err)
 	}
-	if m.reached != 0 || len(*refused) != 2 || !strings.HasPrefix((*refused)[0], "/api.HopService/Version: ") {
+	if m.reached != 0 || len(*refused) != 2 || !strings.HasPrefix((*refused)[0], versionProcedure+": ") {
 		t.Fatalf("reached %d refused %v", m.reached, *refused)
 	}
 }
@@ -155,14 +153,14 @@ func TestACallAroundTheHopIsRefusedByTheModule(t *testing.T) {
 	genuine := a.Issue(t, "console", identityRead)
 	ctx := metadata.AppendToOutgoingContext(context.Background(), hop.WorkContextKey, genuine,
 		hop.OwnerKey, "maya", hop.TenantKey, "acme", hop.ProofKey, "a-guess")
-	_, err := direct.Version(ctx, &gen.VersionRequest{})
+	_, err := version(ctx, direct)
 	if status.Code(err) != codes.Unauthenticated || !strings.Contains(err.Error(), "proof") || m.reached != 0 {
 		t.Fatalf("around the hop: %v reached %d", err, m.reached)
 	}
 	// A peer that holds the proof stamps a context it forged: the module
 	// authenticates the token itself, so the stamp alone is never enough.
 	forged := hoptest.New(t).Issue(t, "console", identityRead)
-	_, err = direct.Version(metadata.NewOutgoingContext(context.Background(), hoptest.Forward(t, forged, proof, "/api.HopService/Version")), &gen.VersionRequest{})
+	_, err = version(metadata.NewOutgoingContext(context.Background(), hoptest.Forward(t, forged, proof, versionProcedure)), direct)
 	if status.Code(err) != codes.Unauthenticated || !strings.Contains(err.Error(), "no verification key") || m.reached != 0 {
 		t.Fatalf("a forged context with the proof: %v reached %d", err, m.reached)
 	}
@@ -192,15 +190,15 @@ func TestEffectiveScopesAreTheOwnersNarrowedByEveryActor(t *testing.T) {
 func TestTheHopHandsTheMethodToTheAuthorityAndPassesItsRefusalOn(t *testing.T) {
 	through, _, m, a, refused := setup(t)
 	ctx := metadata.AppendToOutgoingContext(context.Background(), hop.WorkContextKey, a.Issue(t, "console", identityRead))
-	if _, err := through.Version(ctx, &gen.VersionRequest{}); err != nil || m.reached != 1 {
+	if _, err := version(ctx, through); err != nil || m.reached != 1 {
 		t.Fatalf("allowed: %v reached %d", err, m.reached)
 	}
-	a.refuse = map[string]string{"/api.HopService/Version": "issuer: forbidden: console requires console.identity:admin for /api.HopService/Version, which the call does not hold (it holds console.identity:read)"}
-	_, err := through.Version(ctx, &gen.VersionRequest{})
+	a.refuse = map[string]string{versionProcedure: "issuer: forbidden: console requires console.identity:admin for " + versionProcedure + ", which the call does not hold (it holds console.identity:read)"}
+	_, err := version(ctx, through)
 	if status.Code(err) != codes.PermissionDenied || !strings.Contains(status.Convert(err).Message(), "the authority refused the call to console: issuer: forbidden: console requires console.identity:admin") {
 		t.Fatalf("refused by the method's policy: %v", err)
 	}
-	if m.reached != 1 || len(*refused) != 1 || strings.Join(a.methods, ",") != "/api.HopService/Version,/api.HopService/Version" {
+	if m.reached != 1 || len(*refused) != 1 || strings.Join(a.methods, ",") != versionProcedure+","+versionProcedure {
 		t.Fatalf("reached %d refused %v methods %v", m.reached, *refused, a.methods)
 	}
 }
@@ -208,7 +206,7 @@ func TestTheHopHandsTheMethodToTheAuthorityAndPassesItsRefusalOn(t *testing.T) {
 func TestAContextForAModuleTheHopDoesNotFrontIsRefusedBeforeTheAuthority(t *testing.T) {
 	through, _, m, a, _ := setup(t)
 	ctx := metadata.AppendToOutgoingContext(context.Background(), hop.WorkContextKey, a.Issue(t, "records", identityRead))
-	_, err := through.Version(ctx, &gen.VersionRequest{})
+	_, err := version(ctx, through)
 	if status.Code(err) != codes.PermissionDenied || !strings.Contains(err.Error(), `addressed to "records", a module this hop does not stand in front of`) {
 		t.Fatalf("another module: %v", err)
 	}

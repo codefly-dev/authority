@@ -1,10 +1,10 @@
-package proxy
+package forward
 
 import (
 	"context"
+	"github.com/codefly-dev/authority/libraries/hop/go/decide"
 	"github.com/codefly-dev/authority/libraries/hop/go/hoptest"
 	core "github.com/codefly-dev/core/workcontext"
-	"hop/pkg/business/decide"
 	"io"
 	"net/http"
 	"net/http/httptest"
