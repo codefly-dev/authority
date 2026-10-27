@@ -82,7 +82,136 @@ func (x Installation_Status) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Installation_Status.Descriptor instead.
 func (Installation_Status) EnumDescriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{10, 0}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{12, 0}
+}
+
+type CurrentInstallationRequest struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	ParentToken     string                 `protobuf:"bytes,1,opt,name=parent_token,json=parentToken,proto3" json:"parent_token,omitempty"`
+	ActorCredential string                 `protobuf:"bytes,2,opt,name=actor_credential,json=actorCredential,proto3" json:"actor_credential,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *CurrentInstallationRequest) Reset() {
+	*x = CurrentInstallationRequest{}
+	mi := &file_host_installation_v1_installation_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CurrentInstallationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CurrentInstallationRequest) ProtoMessage() {}
+
+func (x *CurrentInstallationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_host_installation_v1_installation_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CurrentInstallationRequest.ProtoReflect.Descriptor instead.
+func (*CurrentInstallationRequest) Descriptor() ([]byte, []int) {
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *CurrentInstallationRequest) GetParentToken() string {
+	if x != nil {
+		return x.ParentToken
+	}
+	return ""
+}
+
+func (x *CurrentInstallationRequest) GetActorCredential() string {
+	if x != nil {
+		return x.ActorCredential
+	}
+	return ""
+}
+
+// CurrentInstallation is request-local metadata, never a lease or consent.
+type CurrentInstallation struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	OrganizationId string                 `protobuf:"bytes,2,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"`
+	Target         string                 `protobuf:"bytes,3,opt,name=target,proto3" json:"target,omitempty"`
+	Revision       uint64                 `protobuf:"varint,4,opt,name=revision,proto3" json:"revision,omitempty"`
+	Namespace      string                 `protobuf:"bytes,5,opt,name=namespace,proto3" json:"namespace,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *CurrentInstallation) Reset() {
+	*x = CurrentInstallation{}
+	mi := &file_host_installation_v1_installation_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CurrentInstallation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CurrentInstallation) ProtoMessage() {}
+
+func (x *CurrentInstallation) ProtoReflect() protoreflect.Message {
+	mi := &file_host_installation_v1_installation_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CurrentInstallation.ProtoReflect.Descriptor instead.
+func (*CurrentInstallation) Descriptor() ([]byte, []int) {
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *CurrentInstallation) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *CurrentInstallation) GetOrganizationId() string {
+	if x != nil {
+		return x.OrganizationId
+	}
+	return ""
+}
+
+func (x *CurrentInstallation) GetTarget() string {
+	if x != nil {
+		return x.Target
+	}
+	return ""
+}
+
+func (x *CurrentInstallation) GetRevision() uint64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
+}
+
+func (x *CurrentInstallation) GetNamespace() string {
+	if x != nil {
+		return x.Namespace
+	}
+	return ""
 }
 
 // InstallRequest asks to install one target at one organisation.
@@ -104,7 +233,7 @@ type InstallRequest struct {
 
 func (x *InstallRequest) Reset() {
 	*x = InstallRequest{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[0]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -116,7 +245,7 @@ func (x *InstallRequest) String() string {
 func (*InstallRequest) ProtoMessage() {}
 
 func (x *InstallRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[0]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -129,7 +258,7 @@ func (x *InstallRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InstallRequest.ProtoReflect.Descriptor instead.
 func (*InstallRequest) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{0}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *InstallRequest) GetOrganizationId() string {
@@ -178,7 +307,7 @@ type ReviewRequest struct {
 
 func (x *ReviewRequest) Reset() {
 	*x = ReviewRequest{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[1]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -190,7 +319,7 @@ func (x *ReviewRequest) String() string {
 func (*ReviewRequest) ProtoMessage() {}
 
 func (x *ReviewRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[1]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -203,7 +332,7 @@ func (x *ReviewRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReviewRequest.ProtoReflect.Descriptor instead.
 func (*ReviewRequest) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{1}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ReviewRequest) GetOrganizationId() string {
@@ -237,7 +366,7 @@ type ConsentApproval struct {
 
 func (x *ConsentApproval) Reset() {
 	*x = ConsentApproval{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[2]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -249,7 +378,7 @@ func (x *ConsentApproval) String() string {
 func (*ConsentApproval) ProtoMessage() {}
 
 func (x *ConsentApproval) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[2]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -262,7 +391,7 @@ func (x *ConsentApproval) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConsentApproval.ProtoReflect.Descriptor instead.
 func (*ConsentApproval) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{2}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ConsentApproval) GetTargetId() string {
@@ -322,7 +451,7 @@ type GrantRoleRequest struct {
 
 func (x *GrantRoleRequest) Reset() {
 	*x = GrantRoleRequest{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[3]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -334,7 +463,7 @@ func (x *GrantRoleRequest) String() string {
 func (*GrantRoleRequest) ProtoMessage() {}
 
 func (x *GrantRoleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[3]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -347,7 +476,7 @@ func (x *GrantRoleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GrantRoleRequest.ProtoReflect.Descriptor instead.
 func (*GrantRoleRequest) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{3}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *GrantRoleRequest) GetOrganizationId() string {
@@ -404,7 +533,7 @@ type RevokeRoleRequest struct {
 
 func (x *RevokeRoleRequest) Reset() {
 	*x = RevokeRoleRequest{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[4]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -416,7 +545,7 @@ func (x *RevokeRoleRequest) String() string {
 func (*RevokeRoleRequest) ProtoMessage() {}
 
 func (x *RevokeRoleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[4]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -429,7 +558,7 @@ func (x *RevokeRoleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevokeRoleRequest.ProtoReflect.Descriptor instead.
 func (*RevokeRoleRequest) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{4}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *RevokeRoleRequest) GetOrganizationId() string {
@@ -480,7 +609,7 @@ type ListRoleGrantsRequest struct {
 
 func (x *ListRoleGrantsRequest) Reset() {
 	*x = ListRoleGrantsRequest{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[5]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -492,7 +621,7 @@ func (x *ListRoleGrantsRequest) String() string {
 func (*ListRoleGrantsRequest) ProtoMessage() {}
 
 func (x *ListRoleGrantsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[5]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -505,7 +634,7 @@ func (x *ListRoleGrantsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRoleGrantsRequest.ProtoReflect.Descriptor instead.
 func (*ListRoleGrantsRequest) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{5}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ListRoleGrantsRequest) GetOrganizationId() string {
@@ -533,7 +662,7 @@ type ListRoleGrantsResponse struct {
 
 func (x *ListRoleGrantsResponse) Reset() {
 	*x = ListRoleGrantsResponse{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[6]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -545,7 +674,7 @@ func (x *ListRoleGrantsResponse) String() string {
 func (*ListRoleGrantsResponse) ProtoMessage() {}
 
 func (x *ListRoleGrantsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[6]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -558,7 +687,7 @@ func (x *ListRoleGrantsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRoleGrantsResponse.ProtoReflect.Descriptor instead.
 func (*ListRoleGrantsResponse) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{6}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ListRoleGrantsResponse) GetGrants() []*RoleGrant {
@@ -583,7 +712,7 @@ type RoleGrant struct {
 
 func (x *RoleGrant) Reset() {
 	*x = RoleGrant{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[7]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -595,7 +724,7 @@ func (x *RoleGrant) String() string {
 func (*RoleGrant) ProtoMessage() {}
 
 func (x *RoleGrant) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[7]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -608,7 +737,7 @@ func (x *RoleGrant) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RoleGrant.ProtoReflect.Descriptor instead.
 func (*RoleGrant) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{7}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *RoleGrant) GetRole() string {
@@ -643,7 +772,7 @@ type ListRequest struct {
 
 func (x *ListRequest) Reset() {
 	*x = ListRequest{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[8]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -655,7 +784,7 @@ func (x *ListRequest) String() string {
 func (*ListRequest) ProtoMessage() {}
 
 func (x *ListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[8]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -668,7 +797,7 @@ func (x *ListRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRequest.ProtoReflect.Descriptor instead.
 func (*ListRequest) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{8}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ListRequest) GetOrganizationId() string {
@@ -689,7 +818,7 @@ type ListResponse struct {
 
 func (x *ListResponse) Reset() {
 	*x = ListResponse{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[9]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -701,7 +830,7 @@ func (x *ListResponse) String() string {
 func (*ListResponse) ProtoMessage() {}
 
 func (x *ListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[9]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -714,7 +843,7 @@ func (x *ListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListResponse.ProtoReflect.Descriptor instead.
 func (*ListResponse) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{9}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ListResponse) GetInstallations() []*Installation {
@@ -757,7 +886,7 @@ type Installation struct {
 
 func (x *Installation) Reset() {
 	*x = Installation{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[10]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -769,7 +898,7 @@ func (x *Installation) String() string {
 func (*Installation) ProtoMessage() {}
 
 func (x *Installation) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[10]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -782,7 +911,7 @@ func (x *Installation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Installation.ProtoReflect.Descriptor instead.
 func (*Installation) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{10}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *Installation) GetId() string {
@@ -859,7 +988,7 @@ type InstallationNotice struct {
 
 func (x *InstallationNotice) Reset() {
 	*x = InstallationNotice{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[11]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -871,7 +1000,7 @@ func (x *InstallationNotice) String() string {
 func (*InstallationNotice) ProtoMessage() {}
 
 func (x *InstallationNotice) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[11]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -884,7 +1013,7 @@ func (x *InstallationNotice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InstallationNotice.ProtoReflect.Descriptor instead.
 func (*InstallationNotice) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{11}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *InstallationNotice) GetInstallation() *Installation {
@@ -903,7 +1032,7 @@ type InstallationAck struct {
 
 func (x *InstallationAck) Reset() {
 	*x = InstallationAck{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[12]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -915,7 +1044,7 @@ func (x *InstallationAck) String() string {
 func (*InstallationAck) ProtoMessage() {}
 
 func (x *InstallationAck) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[12]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -928,7 +1057,7 @@ func (x *InstallationAck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InstallationAck.ProtoReflect.Descriptor instead.
 func (*InstallationAck) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{12}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{14}
 }
 
 // ListOffersRequest names the organization whose administrator reads.
@@ -941,7 +1070,7 @@ type ListOffersRequest struct {
 
 func (x *ListOffersRequest) Reset() {
 	*x = ListOffersRequest{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[13]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -953,7 +1082,7 @@ func (x *ListOffersRequest) String() string {
 func (*ListOffersRequest) ProtoMessage() {}
 
 func (x *ListOffersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[13]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -966,7 +1095,7 @@ func (x *ListOffersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOffersRequest.ProtoReflect.Descriptor instead.
 func (*ListOffersRequest) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{13}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ListOffersRequest) GetOrganizationId() string {
@@ -986,7 +1115,7 @@ type ListOffersResponse struct {
 
 func (x *ListOffersResponse) Reset() {
 	*x = ListOffersResponse{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[14]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -998,7 +1127,7 @@ func (x *ListOffersResponse) String() string {
 func (*ListOffersResponse) ProtoMessage() {}
 
 func (x *ListOffersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[14]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1011,7 +1140,7 @@ func (x *ListOffersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOffersResponse.ProtoReflect.Descriptor instead.
 func (*ListOffersResponse) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{14}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ListOffersResponse) GetOffers() []*Offer {
@@ -1034,7 +1163,7 @@ type Offer struct {
 
 func (x *Offer) Reset() {
 	*x = Offer{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[15]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1046,7 +1175,7 @@ func (x *Offer) String() string {
 func (*Offer) ProtoMessage() {}
 
 func (x *Offer) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[15]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1059,7 +1188,7 @@ func (x *Offer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Offer.ProtoReflect.Descriptor instead.
 func (*Offer) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{15}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *Offer) GetTarget() string {
@@ -1100,7 +1229,7 @@ type ReviewedOffer struct {
 
 func (x *ReviewedOffer) Reset() {
 	*x = ReviewedOffer{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[16]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1112,7 +1241,7 @@ func (x *ReviewedOffer) String() string {
 func (*ReviewedOffer) ProtoMessage() {}
 
 func (x *ReviewedOffer) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[16]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1125,7 +1254,7 @@ func (x *ReviewedOffer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReviewedOffer.ProtoReflect.Descriptor instead.
 func (*ReviewedOffer) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{16}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ReviewedOffer) GetApproval() *ConsentApproval {
@@ -1183,7 +1312,7 @@ type OfferBinding struct {
 
 func (x *OfferBinding) Reset() {
 	*x = OfferBinding{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[17]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1195,7 +1324,7 @@ func (x *OfferBinding) String() string {
 func (*OfferBinding) ProtoMessage() {}
 
 func (x *OfferBinding) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[17]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1208,7 +1337,7 @@ func (x *OfferBinding) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OfferBinding.ProtoReflect.Descriptor instead.
 func (*OfferBinding) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{17}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *OfferBinding) GetBinding() string {
@@ -1246,7 +1375,7 @@ type OfferRole struct {
 
 func (x *OfferRole) Reset() {
 	*x = OfferRole{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[18]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1258,7 +1387,7 @@ func (x *OfferRole) String() string {
 func (*OfferRole) ProtoMessage() {}
 
 func (x *OfferRole) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[18]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1271,7 +1400,7 @@ func (x *OfferRole) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OfferRole.ProtoReflect.Descriptor instead.
 func (*OfferRole) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{18}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *OfferRole) GetName() string {
@@ -1311,7 +1440,7 @@ type OfferScope struct {
 
 func (x *OfferScope) Reset() {
 	*x = OfferScope{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[19]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1323,7 +1452,7 @@ func (x *OfferScope) String() string {
 func (*OfferScope) ProtoMessage() {}
 
 func (x *OfferScope) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[19]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1336,7 +1465,7 @@ func (x *OfferScope) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OfferScope.ProtoReflect.Descriptor instead.
 func (*OfferScope) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{19}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *OfferScope) GetResourceKind() string {
@@ -1384,7 +1513,7 @@ type OfferCapability struct {
 
 func (x *OfferCapability) Reset() {
 	*x = OfferCapability{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[20]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1396,7 +1525,7 @@ func (x *OfferCapability) String() string {
 func (*OfferCapability) ProtoMessage() {}
 
 func (x *OfferCapability) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[20]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1409,7 +1538,7 @@ func (x *OfferCapability) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OfferCapability.ProtoReflect.Descriptor instead.
 func (*OfferCapability) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{20}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *OfferCapability) GetModule() string {
@@ -1455,7 +1584,7 @@ type OfferTool struct {
 
 func (x *OfferTool) Reset() {
 	*x = OfferTool{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[21]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1467,7 +1596,7 @@ func (x *OfferTool) String() string {
 func (*OfferTool) ProtoMessage() {}
 
 func (x *OfferTool) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[21]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1480,7 +1609,7 @@ func (x *OfferTool) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OfferTool.ProtoReflect.Descriptor instead.
 func (*OfferTool) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{21}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *OfferTool) GetName() string {
@@ -1508,7 +1637,16 @@ var File_host_installation_v1_installation_proto protoreflect.FileDescriptor
 
 const file_host_installation_v1_installation_proto_rawDesc = "" +
 	"\n" +
-	"'host/installation/v1/installation.proto\x12\x14host.installation.v1\"\xd0\x01\n" +
+	"'host/installation/v1/installation.proto\x12\x14host.installation.v1\"j\n" +
+	"\x1aCurrentInstallationRequest\x12!\n" +
+	"\fparent_token\x18\x01 \x01(\tR\vparentToken\x12)\n" +
+	"\x10actor_credential\x18\x02 \x01(\tR\x0factorCredential\"\xa0\x01\n" +
+	"\x13CurrentInstallation\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12'\n" +
+	"\x0forganization_id\x18\x02 \x01(\tR\x0eorganizationId\x12\x16\n" +
+	"\x06target\x18\x03 \x01(\tR\x06target\x12\x1a\n" +
+	"\brevision\x18\x04 \x01(\x04R\brevision\x12\x1c\n" +
+	"\tnamespace\x18\x05 \x01(\tR\tnamespace\"\xd0\x01\n" +
 	"\x0eInstallRequest\x12'\n" +
 	"\x0forganization_id\x18\x01 \x01(\tR\x0eorganizationId\x12\x16\n" +
 	"\x06target\x18\x02 \x01(\tR\x06target\x12\x12\n" +
@@ -1608,8 +1746,9 @@ const file_host_installation_v1_installation_proto_rawDesc = "" +
 	"\tOfferTool\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\abinding\x18\x02 \x01(\tR\abinding\x12\x14\n" +
-	"\x05write\x18\x03 \x01(\bR\x05write2\xb0\x04\n" +
-	"\x13InstallationService\x12S\n" +
+	"\x05write\x18\x03 \x01(\bR\x05write2\x98\x05\n" +
+	"\x13InstallationService\x12f\n" +
+	"\aCurrent\x120.host.installation.v1.CurrentInstallationRequest\x1a).host.installation.v1.CurrentInstallation\x12S\n" +
 	"\aInstall\x12$.host.installation.v1.InstallRequest\x1a\".host.installation.v1.Installation\x12T\n" +
 	"\x06Review\x12#.host.installation.v1.ReviewRequest\x1a%.host.installation.v1.ConsentApproval\x12W\n" +
 	"\tGrantRole\x12&.host.installation.v1.GrantRoleRequest\x1a\".host.installation.v1.Installation\x12Y\n" +
@@ -1638,68 +1777,72 @@ func file_host_installation_v1_installation_proto_rawDescGZIP() []byte {
 }
 
 var file_host_installation_v1_installation_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_host_installation_v1_installation_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_host_installation_v1_installation_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_host_installation_v1_installation_proto_goTypes = []any{
-	(Installation_Status)(0),       // 0: host.installation.v1.Installation.Status
-	(*InstallRequest)(nil),         // 1: host.installation.v1.InstallRequest
-	(*ReviewRequest)(nil),          // 2: host.installation.v1.ReviewRequest
-	(*ConsentApproval)(nil),        // 3: host.installation.v1.ConsentApproval
-	(*GrantRoleRequest)(nil),       // 4: host.installation.v1.GrantRoleRequest
-	(*RevokeRoleRequest)(nil),      // 5: host.installation.v1.RevokeRoleRequest
-	(*ListRoleGrantsRequest)(nil),  // 6: host.installation.v1.ListRoleGrantsRequest
-	(*ListRoleGrantsResponse)(nil), // 7: host.installation.v1.ListRoleGrantsResponse
-	(*RoleGrant)(nil),              // 8: host.installation.v1.RoleGrant
-	(*ListRequest)(nil),            // 9: host.installation.v1.ListRequest
-	(*ListResponse)(nil),           // 10: host.installation.v1.ListResponse
-	(*Installation)(nil),           // 11: host.installation.v1.Installation
-	(*InstallationNotice)(nil),     // 12: host.installation.v1.InstallationNotice
-	(*InstallationAck)(nil),        // 13: host.installation.v1.InstallationAck
-	(*ListOffersRequest)(nil),      // 14: host.installation.v1.ListOffersRequest
-	(*ListOffersResponse)(nil),     // 15: host.installation.v1.ListOffersResponse
-	(*Offer)(nil),                  // 16: host.installation.v1.Offer
-	(*ReviewedOffer)(nil),          // 17: host.installation.v1.ReviewedOffer
-	(*OfferBinding)(nil),           // 18: host.installation.v1.OfferBinding
-	(*OfferRole)(nil),              // 19: host.installation.v1.OfferRole
-	(*OfferScope)(nil),             // 20: host.installation.v1.OfferScope
-	(*OfferCapability)(nil),        // 21: host.installation.v1.OfferCapability
-	(*OfferTool)(nil),              // 22: host.installation.v1.OfferTool
+	(Installation_Status)(0),           // 0: host.installation.v1.Installation.Status
+	(*CurrentInstallationRequest)(nil), // 1: host.installation.v1.CurrentInstallationRequest
+	(*CurrentInstallation)(nil),        // 2: host.installation.v1.CurrentInstallation
+	(*InstallRequest)(nil),             // 3: host.installation.v1.InstallRequest
+	(*ReviewRequest)(nil),              // 4: host.installation.v1.ReviewRequest
+	(*ConsentApproval)(nil),            // 5: host.installation.v1.ConsentApproval
+	(*GrantRoleRequest)(nil),           // 6: host.installation.v1.GrantRoleRequest
+	(*RevokeRoleRequest)(nil),          // 7: host.installation.v1.RevokeRoleRequest
+	(*ListRoleGrantsRequest)(nil),      // 8: host.installation.v1.ListRoleGrantsRequest
+	(*ListRoleGrantsResponse)(nil),     // 9: host.installation.v1.ListRoleGrantsResponse
+	(*RoleGrant)(nil),                  // 10: host.installation.v1.RoleGrant
+	(*ListRequest)(nil),                // 11: host.installation.v1.ListRequest
+	(*ListResponse)(nil),               // 12: host.installation.v1.ListResponse
+	(*Installation)(nil),               // 13: host.installation.v1.Installation
+	(*InstallationNotice)(nil),         // 14: host.installation.v1.InstallationNotice
+	(*InstallationAck)(nil),            // 15: host.installation.v1.InstallationAck
+	(*ListOffersRequest)(nil),          // 16: host.installation.v1.ListOffersRequest
+	(*ListOffersResponse)(nil),         // 17: host.installation.v1.ListOffersResponse
+	(*Offer)(nil),                      // 18: host.installation.v1.Offer
+	(*ReviewedOffer)(nil),              // 19: host.installation.v1.ReviewedOffer
+	(*OfferBinding)(nil),               // 20: host.installation.v1.OfferBinding
+	(*OfferRole)(nil),                  // 21: host.installation.v1.OfferRole
+	(*OfferScope)(nil),                 // 22: host.installation.v1.OfferScope
+	(*OfferCapability)(nil),            // 23: host.installation.v1.OfferCapability
+	(*OfferTool)(nil),                  // 24: host.installation.v1.OfferTool
 }
 var file_host_installation_v1_installation_proto_depIdxs = []int32{
-	3,  // 0: host.installation.v1.InstallRequest.approval:type_name -> host.installation.v1.ConsentApproval
-	8,  // 1: host.installation.v1.ListRoleGrantsResponse.grants:type_name -> host.installation.v1.RoleGrant
-	11, // 2: host.installation.v1.ListResponse.installations:type_name -> host.installation.v1.Installation
+	5,  // 0: host.installation.v1.InstallRequest.approval:type_name -> host.installation.v1.ConsentApproval
+	10, // 1: host.installation.v1.ListRoleGrantsResponse.grants:type_name -> host.installation.v1.RoleGrant
+	13, // 2: host.installation.v1.ListResponse.installations:type_name -> host.installation.v1.Installation
 	0,  // 3: host.installation.v1.Installation.status:type_name -> host.installation.v1.Installation.Status
-	11, // 4: host.installation.v1.InstallationNotice.installation:type_name -> host.installation.v1.Installation
-	16, // 5: host.installation.v1.ListOffersResponse.offers:type_name -> host.installation.v1.Offer
-	3,  // 6: host.installation.v1.ReviewedOffer.approval:type_name -> host.installation.v1.ConsentApproval
-	19, // 7: host.installation.v1.ReviewedOffer.roles:type_name -> host.installation.v1.OfferRole
-	11, // 8: host.installation.v1.ReviewedOffer.installation:type_name -> host.installation.v1.Installation
-	18, // 9: host.installation.v1.ReviewedOffer.ceiling:type_name -> host.installation.v1.OfferBinding
-	20, // 10: host.installation.v1.OfferBinding.scopes:type_name -> host.installation.v1.OfferScope
-	20, // 11: host.installation.v1.OfferRole.scopes:type_name -> host.installation.v1.OfferScope
-	21, // 12: host.installation.v1.OfferRole.capabilities:type_name -> host.installation.v1.OfferCapability
-	20, // 13: host.installation.v1.OfferCapability.requires:type_name -> host.installation.v1.OfferScope
-	22, // 14: host.installation.v1.OfferCapability.tools:type_name -> host.installation.v1.OfferTool
-	1,  // 15: host.installation.v1.InstallationService.Install:input_type -> host.installation.v1.InstallRequest
-	2,  // 16: host.installation.v1.InstallationService.Review:input_type -> host.installation.v1.ReviewRequest
-	4,  // 17: host.installation.v1.InstallationService.GrantRole:input_type -> host.installation.v1.GrantRoleRequest
-	5,  // 18: host.installation.v1.InstallationService.RevokeRole:input_type -> host.installation.v1.RevokeRoleRequest
-	6,  // 19: host.installation.v1.InstallationService.ListRoleGrants:input_type -> host.installation.v1.ListRoleGrantsRequest
-	9,  // 20: host.installation.v1.InstallationService.List:input_type -> host.installation.v1.ListRequest
-	12, // 21: host.installation.v1.InstallableService.Install:input_type -> host.installation.v1.InstallationNotice
-	14, // 22: host.installation.v1.OfferService.ListOffers:input_type -> host.installation.v1.ListOffersRequest
-	2,  // 23: host.installation.v1.OfferService.ReviewOffer:input_type -> host.installation.v1.ReviewRequest
-	11, // 24: host.installation.v1.InstallationService.Install:output_type -> host.installation.v1.Installation
-	3,  // 25: host.installation.v1.InstallationService.Review:output_type -> host.installation.v1.ConsentApproval
-	11, // 26: host.installation.v1.InstallationService.GrantRole:output_type -> host.installation.v1.Installation
-	11, // 27: host.installation.v1.InstallationService.RevokeRole:output_type -> host.installation.v1.Installation
-	7,  // 28: host.installation.v1.InstallationService.ListRoleGrants:output_type -> host.installation.v1.ListRoleGrantsResponse
-	10, // 29: host.installation.v1.InstallationService.List:output_type -> host.installation.v1.ListResponse
-	13, // 30: host.installation.v1.InstallableService.Install:output_type -> host.installation.v1.InstallationAck
-	15, // 31: host.installation.v1.OfferService.ListOffers:output_type -> host.installation.v1.ListOffersResponse
-	17, // 32: host.installation.v1.OfferService.ReviewOffer:output_type -> host.installation.v1.ReviewedOffer
-	24, // [24:33] is the sub-list for method output_type
-	15, // [15:24] is the sub-list for method input_type
+	13, // 4: host.installation.v1.InstallationNotice.installation:type_name -> host.installation.v1.Installation
+	18, // 5: host.installation.v1.ListOffersResponse.offers:type_name -> host.installation.v1.Offer
+	5,  // 6: host.installation.v1.ReviewedOffer.approval:type_name -> host.installation.v1.ConsentApproval
+	21, // 7: host.installation.v1.ReviewedOffer.roles:type_name -> host.installation.v1.OfferRole
+	13, // 8: host.installation.v1.ReviewedOffer.installation:type_name -> host.installation.v1.Installation
+	20, // 9: host.installation.v1.ReviewedOffer.ceiling:type_name -> host.installation.v1.OfferBinding
+	22, // 10: host.installation.v1.OfferBinding.scopes:type_name -> host.installation.v1.OfferScope
+	22, // 11: host.installation.v1.OfferRole.scopes:type_name -> host.installation.v1.OfferScope
+	23, // 12: host.installation.v1.OfferRole.capabilities:type_name -> host.installation.v1.OfferCapability
+	22, // 13: host.installation.v1.OfferCapability.requires:type_name -> host.installation.v1.OfferScope
+	24, // 14: host.installation.v1.OfferCapability.tools:type_name -> host.installation.v1.OfferTool
+	1,  // 15: host.installation.v1.InstallationService.Current:input_type -> host.installation.v1.CurrentInstallationRequest
+	3,  // 16: host.installation.v1.InstallationService.Install:input_type -> host.installation.v1.InstallRequest
+	4,  // 17: host.installation.v1.InstallationService.Review:input_type -> host.installation.v1.ReviewRequest
+	6,  // 18: host.installation.v1.InstallationService.GrantRole:input_type -> host.installation.v1.GrantRoleRequest
+	7,  // 19: host.installation.v1.InstallationService.RevokeRole:input_type -> host.installation.v1.RevokeRoleRequest
+	8,  // 20: host.installation.v1.InstallationService.ListRoleGrants:input_type -> host.installation.v1.ListRoleGrantsRequest
+	11, // 21: host.installation.v1.InstallationService.List:input_type -> host.installation.v1.ListRequest
+	14, // 22: host.installation.v1.InstallableService.Install:input_type -> host.installation.v1.InstallationNotice
+	16, // 23: host.installation.v1.OfferService.ListOffers:input_type -> host.installation.v1.ListOffersRequest
+	4,  // 24: host.installation.v1.OfferService.ReviewOffer:input_type -> host.installation.v1.ReviewRequest
+	2,  // 25: host.installation.v1.InstallationService.Current:output_type -> host.installation.v1.CurrentInstallation
+	13, // 26: host.installation.v1.InstallationService.Install:output_type -> host.installation.v1.Installation
+	5,  // 27: host.installation.v1.InstallationService.Review:output_type -> host.installation.v1.ConsentApproval
+	13, // 28: host.installation.v1.InstallationService.GrantRole:output_type -> host.installation.v1.Installation
+	13, // 29: host.installation.v1.InstallationService.RevokeRole:output_type -> host.installation.v1.Installation
+	9,  // 30: host.installation.v1.InstallationService.ListRoleGrants:output_type -> host.installation.v1.ListRoleGrantsResponse
+	12, // 31: host.installation.v1.InstallationService.List:output_type -> host.installation.v1.ListResponse
+	15, // 32: host.installation.v1.InstallableService.Install:output_type -> host.installation.v1.InstallationAck
+	17, // 33: host.installation.v1.OfferService.ListOffers:output_type -> host.installation.v1.ListOffersResponse
+	19, // 34: host.installation.v1.OfferService.ReviewOffer:output_type -> host.installation.v1.ReviewedOffer
+	25, // [25:35] is the sub-list for method output_type
+	15, // [15:25] is the sub-list for method input_type
 	15, // [15:15] is the sub-list for extension type_name
 	15, // [15:15] is the sub-list for extension extendee
 	0,  // [0:15] is the sub-list for field type_name
@@ -1716,7 +1859,7 @@ func file_host_installation_v1_installation_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_host_installation_v1_installation_proto_rawDesc), len(file_host_installation_v1_installation_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   22,
+			NumMessages:   24,
 			NumExtensions: 0,
 			NumServices:   3,
 		},

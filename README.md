@@ -103,6 +103,13 @@ the scaffold's proto, `authority` from ours) into one facade directory and fails
 its own build; the Go and Python clients that would replace the solution SDK wait
 on that fix.
 
+After changing a proto, regenerate its bindings and clients with `codefly
+generate` and review the output. For changed files already recorded in
+`tools/noproxygate/generated.json`, refresh their SHA-256 digests from that
+reviewed output; do not add exclusions or change the gate to accept a mismatch.
+Run `GOWORK=off go test -race -count=1 ./...` and `GOWORK=off go vet ./...`
+in `tools/noproxygate` before committing the generated change.
+
 **Where the thinking is.** The Platform Authority Primer (decisions 6 and 7) and the
 handbook proposal that will carry them. Run it with `codefly run` from the module.
 
@@ -873,7 +880,8 @@ the interface, with a suite line, or named as belonging elsewhere.
 | Which collections or resources a caller reads (saas `ListReadableSourceCollections`) | `ListResources`, by id, prefix or pattern | suite: the authority answers which resources a context covers |
 | Executable artifact approvals (`Approve`, `Authorize`, `RevokeExecutableArtifact`) | not authority: the signed release (handbook#146) | open |
 | Audit (`EmitAuditEvent`, `DeclareAuditEventTypes`) | not authority: an optional audit interface; with none injected, the module logs each event | the record store |
-| Notifications and the current installation (`NotifyUser`, `NotifyOrgAdmins`, `GetCurrentInstallation`) | not authority: host services, optional interfaces | open |
+| Notifications (`NotifyUser`, `NotifyOrgAdmins`) | host services, optional interfaces | open |
+| Current installation identity and authored namespace | `InstallationService.Current`, confined to the authenticated module in the parent organization | shared core and public RPC tests; host adoption pending |
 
 The local authority supplies these cases. Each host must run the current suite
 against its own provider; missing required fixtures fail. Earlier Accounts
@@ -1049,8 +1057,35 @@ the key again at the next renewal, a restarted hop re-registers the same entry,
 and a key no running hop signs with is withdrawn without being named. The seed
 never leaves the hop; nothing about the hop is configured on the authority. It
 is additive too. The local authority implements it; `accounts` implementing the
-same registration is follow-up work in the host.
+same registration is follow-up work in the host. The hop calls it, so the hop
+requires `>=0.3.3 <0.4.0`: a host below 0.3.3 is refused at render instead of
+leaving every module's verifier to refuse every call.
 
 The 0.3.1 authority version is an additive pre-stable revision selected for
 this refresh so existing `>=0.2.0 <0.4.0` consumers admit it. It retains 0.3.0's
 `AuthorizeTransfer` and adds attachment operations. Composition remains 0.2.0.
+
+## Current installation metadata for a module
+
+The installation interface advances to `0.3.0` for this additive capability.
+The in-repository edge accepts it; external compositions constrained below
+`0.3.0` need explicit consumer adoption before selecting this provider.
+
+`InstallationService.Current` accepts the caller's parent Work Context and the
+module's independently authenticated workload credential. Shared core verifies
+the parent for that module and returns only its active installation in the parent
+organization. A delegated child is sealed to its source actor; that seal is
+verified, never mistaken for the destination module installation.
+The projection contains id, organization, target, revision and authored namespace;
+it exposes no roles, grants or other installations. There are no tenant or
+installation selectors. It is a current metadata read, not content access,
+artifact consent or a lease; artifact approval and authorization remain separate.
+`List` remains administrator-only. Invalid credentials, foreign audiences and
+revoked authority refuse instead of returning an empty namespace.
+
+The scoped contract is carried by the handbook
+[installation and intent-selection decision](https://github.com/obin-ai/handbook/blob/main/decisions/authored-installation-and-intent-selection.md)
+(handbook#403).
+Shared-core tests exercise tenant/audience isolation and revocation; the shared
+conformance suite exercises the generated public RPC. Accounts must adopt this
+method and pass that suite before its consumer deployment is qualified.

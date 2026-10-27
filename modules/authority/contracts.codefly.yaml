@@ -1,0 +1,8 @@
+# Publication configuration for `codefly generate contracts`: the local
+# authority's grpc listener serves its own LocalService and the host interfaces
+# (authority, composition, installation, session) plus the artifact service, so
+# the catalog carries what that listener serves. The hop's endpoints serve one
+# package each and need no inventory.
+schema: codefly/module-contracts-config/v1
+surfaces:
+    local: contract-surfaces.json

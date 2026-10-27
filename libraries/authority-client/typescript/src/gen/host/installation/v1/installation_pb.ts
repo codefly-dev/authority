@@ -16,7 +16,68 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file host/installation/v1/installation.proto.
  */
 export const file_host_installation_v1_installation: GenFile = /*@__PURE__*/
-  fileDesc("Cidob3N0L2luc3RhbGxhdGlvbi92MS9pbnN0YWxsYXRpb24ucHJvdG8SFGhvc3QuaW5zdGFsbGF0aW9uLnYxIpkBCg5JbnN0YWxsUmVxdWVzdBIXCg9vcmdhbml6YXRpb25faWQYASABKAkSDgoGdGFyZ2V0GAIgASgJEgwKBHJvbGUYAyABKAkSFwoPb3duZXJfcGVyc29uX2lkGAQgASgJEjcKCGFwcHJvdmFsGAUgASgLMiUuaG9zdC5pbnN0YWxsYXRpb24udjEuQ29uc2VudEFwcHJvdmFsIjgKDVJldmlld1JlcXVlc3QSFwoPb3JnYW5pemF0aW9uX2lkGAEgASgJEg4KBnRhcmdldBgCIAEoCSJ5Cg9Db25zZW50QXBwcm92YWwSEQoJdGFyZ2V0X2lkGAEgASgJEhIKCmdlbmVyYXRpb24YAiABKAQSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAyABKAQSFAoMb3BlcmF0aW9uX2lkGAQgASgJEg4KBmRpZ2VzdBgFIAEoCSJ2ChBHcmFudFJvbGVSZXF1ZXN0EhcKD29yZ2FuaXphdGlvbl9pZBgBIAEoCRIXCg9pbnN0YWxsYXRpb25faWQYAiABKAkSDAoEcm9sZRgDIAEoCRIRCglwZXJzb25faWQYBCABKAkSDwoHdGVhbV9pZBgFIAEoCSJ3ChFSZXZva2VSb2xlUmVxdWVzdBIXCg9vcmdhbml6YXRpb25faWQYASABKAkSFwoPaW5zdGFsbGF0aW9uX2lkGAIgASgJEgwKBHJvbGUYAyABKAkSEQoJcGVyc29uX2lkGAQgASgJEg8KB3RlYW1faWQYBSABKAkiSQoVTGlzdFJvbGVHcmFudHNSZXF1ZXN0EhcKD29yZ2FuaXphdGlvbl9pZBgBIAEoCRIXCg9pbnN0YWxsYXRpb25faWQYAiABKAkiSQoWTGlzdFJvbGVHcmFudHNSZXNwb25zZRIvCgZncmFudHMYASADKAsyHy5ob3N0Lmluc3RhbGxhdGlvbi52MS5Sb2xlR3JhbnQiPQoJUm9sZUdyYW50EgwKBHJvbGUYASABKAkSEQoJcGVyc29uX2lkGAIgASgJEg8KB3RlYW1faWQYAyABKAkiJgoLTGlzdFJlcXVlc3QSFwoPb3JnYW5pemF0aW9uX2lkGAEgASgJIkkKDExpc3RSZXNwb25zZRI5Cg1pbnN0YWxsYXRpb25zGAEgAygLMiIuaG9zdC5pbnN0YWxsYXRpb24udjEuSW5zdGFsbGF0aW9uIt0CCgxJbnN0YWxsYXRpb24SCgoCaWQYASABKAkSFwoPb3JnYW5pemF0aW9uX2lkGAIgASgJEg4KBnRhcmdldBgDIAEoCRI5CgZzdGF0dXMYBCABKA4yKS5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsYXRpb24uU3RhdHVzEhAKCHJldmlzaW9uGAUgASgEEgwKBHJvbGUYBiABKAkSEQoJbmFtZXNwYWNlGAkgASgJEhQKDHByaW5jaXBhbF9pZBgKIAEoCRINCgVyb2xlcxgLIAMoCSJbCgZTdGF0dXMSFgoSU1RBVFVTX1VOU1BFQ0lGSUVEEAASEgoOU1RBVFVTX1BFTkRJTkcQARIRCg1TVEFUVVNfQUNUSVZFEAISEgoOU1RBVFVTX1JFVk9LRUQQA0oECAcQCEoECAgQCVIIdGVhbV9pZHNSEmFnZW50X3ByaW5jaXBhbF9pZCJOChJJbnN0YWxsYXRpb25Ob3RpY2USOAoMaW5zdGFsbGF0aW9uGAEgASgLMiIuaG9zdC5pbnN0YWxsYXRpb24udjEuSW5zdGFsbGF0aW9uIhEKD0luc3RhbGxhdGlvbkFjayIsChFMaXN0T2ZmZXJzUmVxdWVzdBIXCg9vcmdhbml6YXRpb25faWQYASABKAkiQQoSTGlzdE9mZmVyc1Jlc3BvbnNlEisKBm9mZmVycxgBIAMoCzIbLmhvc3QuaW5zdGFsbGF0aW9uLnYxLk9mZmVyIisKBU9mZmVyEg4KBnRhcmdldBgBIAEoCRISCgpnZW5lcmF0aW9uGAIgASgEIo8CCg1SZXZpZXdlZE9mZmVyEjcKCGFwcHJvdmFsGAEgASgLMiUuaG9zdC5pbnN0YWxsYXRpb24udjEuQ29uc2VudEFwcHJvdmFsEg4KBnRhcmdldBgCIAEoCRIuCgVyb2xlcxgDIAMoCzIfLmhvc3QuaW5zdGFsbGF0aW9uLnYxLk9mZmVyUm9sZRI4CgxpbnN0YWxsYXRpb24YBCABKAsyIi5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsYXRpb24SMwoHY2VpbGluZxgFIAMoCzIiLmhvc3QuaW5zdGFsbGF0aW9uLnYxLk9mZmVyQmluZGluZxIWCg50b29sc19jb21wb3NlZBgGIAEoCCJhCgxPZmZlckJpbmRpbmcSDwoHYmluZGluZxgBIAEoCRIOCgZtb2R1bGUYAiABKAkSMAoGc2NvcGVzGAMgAygLMiAuaG9zdC5pbnN0YWxsYXRpb24udjEuT2ZmZXJTY29wZSKIAQoJT2ZmZXJSb2xlEgwKBG5hbWUYASABKAkSMAoGc2NvcGVzGAIgAygLMiAuaG9zdC5pbnN0YWxsYXRpb24udjEuT2ZmZXJTY29wZRI7CgxjYXBhYmlsaXRpZXMYAyADKAsyJS5ob3N0Lmluc3RhbGxhdGlvbi52MS5PZmZlckNhcGFiaWxpdHkiYQoKT2ZmZXJTY29wZRIVCg1yZXNvdXJjZV9raW5kGAEgASgJEg8KB2FjdGlvbnMYAiADKAkSFQoNYXR0YWNoZWRfb25seRgDIAEoCBIUCgxyZXNvdXJjZV9pZHMYBCADKAkimAEKD09mZmVyQ2FwYWJpbGl0eRIOCgZtb2R1bGUYASABKAkSEQoJb3BlcmF0aW9uGAIgASgJEjIKCHJlcXVpcmVzGAMgAygLMiAuaG9zdC5pbnN0YWxsYXRpb24udjEuT2ZmZXJTY29wZRIuCgV0b29scxgEIAMoCzIfLmhvc3QuaW5zdGFsbGF0aW9uLnYxLk9mZmVyVG9vbCI5CglPZmZlclRvb2wSDAoEbmFtZRgBIAEoCRIPCgdiaW5kaW5nGAIgASgJEg0KBXdyaXRlGAMgASgIMrAEChNJbnN0YWxsYXRpb25TZXJ2aWNlElMKB0luc3RhbGwSJC5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsUmVxdWVzdBoiLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbhJUCgZSZXZpZXcSIy5ob3N0Lmluc3RhbGxhdGlvbi52MS5SZXZpZXdSZXF1ZXN0GiUuaG9zdC5pbnN0YWxsYXRpb24udjEuQ29uc2VudEFwcHJvdmFsElcKCUdyYW50Um9sZRImLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkdyYW50Um9sZVJlcXVlc3QaIi5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsYXRpb24SWQoKUmV2b2tlUm9sZRInLmhvc3QuaW5zdGFsbGF0aW9uLnYxLlJldm9rZVJvbGVSZXF1ZXN0GiIuaG9zdC5pbnN0YWxsYXRpb24udjEuSW5zdGFsbGF0aW9uEmsKDkxpc3RSb2xlR3JhbnRzEisuaG9zdC5pbnN0YWxsYXRpb24udjEuTGlzdFJvbGVHcmFudHNSZXF1ZXN0GiwuaG9zdC5pbnN0YWxsYXRpb24udjEuTGlzdFJvbGVHcmFudHNSZXNwb25zZRJNCgRMaXN0EiEuaG9zdC5pbnN0YWxsYXRpb24udjEuTGlzdFJlcXVlc3QaIi5ob3N0Lmluc3RhbGxhdGlvbi52MS5MaXN0UmVzcG9uc2UycAoSSW5zdGFsbGFibGVTZXJ2aWNlEloKB0luc3RhbGwSKC5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsYXRpb25Ob3RpY2UaJS5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsYXRpb25BY2syyAEKDE9mZmVyU2VydmljZRJfCgpMaXN0T2ZmZXJzEicuaG9zdC5pbnN0YWxsYXRpb24udjEuTGlzdE9mZmVyc1JlcXVlc3QaKC5ob3N0Lmluc3RhbGxhdGlvbi52MS5MaXN0T2ZmZXJzUmVzcG9uc2USVwoLUmV2aWV3T2ZmZXISIy5ob3N0Lmluc3RhbGxhdGlvbi52MS5SZXZpZXdSZXF1ZXN0GiMuaG9zdC5pbnN0YWxsYXRpb24udjEuUmV2aWV3ZWRPZmZlckI1WjNnYXRld2F5L3BrZy9nZW4vaG9zdC9pbnN0YWxsYXRpb24vdjE7aW5zdGFsbGF0aW9udjFiBnByb3RvMw");
+  fileDesc("Cidob3N0L2luc3RhbGxhdGlvbi92MS9pbnN0YWxsYXRpb24ucHJvdG8SFGhvc3QuaW5zdGFsbGF0aW9uLnYxIkwKGkN1cnJlbnRJbnN0YWxsYXRpb25SZXF1ZXN0EhQKDHBhcmVudF90b2tlbhgBIAEoCRIYChBhY3Rvcl9jcmVkZW50aWFsGAIgASgJIm8KE0N1cnJlbnRJbnN0YWxsYXRpb24SCgoCaWQYASABKAkSFwoPb3JnYW5pemF0aW9uX2lkGAIgASgJEg4KBnRhcmdldBgDIAEoCRIQCghyZXZpc2lvbhgEIAEoBBIRCgluYW1lc3BhY2UYBSABKAkimQEKDkluc3RhbGxSZXF1ZXN0EhcKD29yZ2FuaXphdGlvbl9pZBgBIAEoCRIOCgZ0YXJnZXQYAiABKAkSDAoEcm9sZRgDIAEoCRIXCg9vd25lcl9wZXJzb25faWQYBCABKAkSNwoIYXBwcm92YWwYBSABKAsyJS5ob3N0Lmluc3RhbGxhdGlvbi52MS5Db25zZW50QXBwcm92YWwiOAoNUmV2aWV3UmVxdWVzdBIXCg9vcmdhbml6YXRpb25faWQYASABKAkSDgoGdGFyZ2V0GAIgASgJInkKD0NvbnNlbnRBcHByb3ZhbBIRCgl0YXJnZXRfaWQYASABKAkSEgoKZ2VuZXJhdGlvbhgCIAEoBBIZChFleHBlY3RlZF9yZXZpc2lvbhgDIAEoBBIUCgxvcGVyYXRpb25faWQYBCABKAkSDgoGZGlnZXN0GAUgASgJInYKEEdyYW50Um9sZVJlcXVlc3QSFwoPb3JnYW5pemF0aW9uX2lkGAEgASgJEhcKD2luc3RhbGxhdGlvbl9pZBgCIAEoCRIMCgRyb2xlGAMgASgJEhEKCXBlcnNvbl9pZBgEIAEoCRIPCgd0ZWFtX2lkGAUgASgJIncKEVJldm9rZVJvbGVSZXF1ZXN0EhcKD29yZ2FuaXphdGlvbl9pZBgBIAEoCRIXCg9pbnN0YWxsYXRpb25faWQYAiABKAkSDAoEcm9sZRgDIAEoCRIRCglwZXJzb25faWQYBCABKAkSDwoHdGVhbV9pZBgFIAEoCSJJChVMaXN0Um9sZUdyYW50c1JlcXVlc3QSFwoPb3JnYW5pemF0aW9uX2lkGAEgASgJEhcKD2luc3RhbGxhdGlvbl9pZBgCIAEoCSJJChZMaXN0Um9sZUdyYW50c1Jlc3BvbnNlEi8KBmdyYW50cxgBIAMoCzIfLmhvc3QuaW5zdGFsbGF0aW9uLnYxLlJvbGVHcmFudCI9CglSb2xlR3JhbnQSDAoEcm9sZRgBIAEoCRIRCglwZXJzb25faWQYAiABKAkSDwoHdGVhbV9pZBgDIAEoCSImCgtMaXN0UmVxdWVzdBIXCg9vcmdhbml6YXRpb25faWQYASABKAkiSQoMTGlzdFJlc3BvbnNlEjkKDWluc3RhbGxhdGlvbnMYASADKAsyIi5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsYXRpb24i3QIKDEluc3RhbGxhdGlvbhIKCgJpZBgBIAEoCRIXCg9vcmdhbml6YXRpb25faWQYAiABKAkSDgoGdGFyZ2V0GAMgASgJEjkKBnN0YXR1cxgEIAEoDjIpLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbi5TdGF0dXMSEAoIcmV2aXNpb24YBSABKAQSDAoEcm9sZRgGIAEoCRIRCgluYW1lc3BhY2UYCSABKAkSFAoMcHJpbmNpcGFsX2lkGAogASgJEg0KBXJvbGVzGAsgAygJIlsKBlN0YXR1cxIWChJTVEFUVVNfVU5TUEVDSUZJRUQQABISCg5TVEFUVVNfUEVORElORxABEhEKDVNUQVRVU19BQ1RJVkUQAhISCg5TVEFUVVNfUkVWT0tFRBADSgQIBxAISgQICBAJUgh0ZWFtX2lkc1ISYWdlbnRfcHJpbmNpcGFsX2lkIk4KEkluc3RhbGxhdGlvbk5vdGljZRI4CgxpbnN0YWxsYXRpb24YASABKAsyIi5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsYXRpb24iEQoPSW5zdGFsbGF0aW9uQWNrIiwKEUxpc3RPZmZlcnNSZXF1ZXN0EhcKD29yZ2FuaXphdGlvbl9pZBgBIAEoCSJBChJMaXN0T2ZmZXJzUmVzcG9uc2USKwoGb2ZmZXJzGAEgAygLMhsuaG9zdC5pbnN0YWxsYXRpb24udjEuT2ZmZXIiKwoFT2ZmZXISDgoGdGFyZ2V0GAEgASgJEhIKCmdlbmVyYXRpb24YAiABKAQijwIKDVJldmlld2VkT2ZmZXISNwoIYXBwcm92YWwYASABKAsyJS5ob3N0Lmluc3RhbGxhdGlvbi52MS5Db25zZW50QXBwcm92YWwSDgoGdGFyZ2V0GAIgASgJEi4KBXJvbGVzGAMgAygLMh8uaG9zdC5pbnN0YWxsYXRpb24udjEuT2ZmZXJSb2xlEjgKDGluc3RhbGxhdGlvbhgEIAEoCzIiLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbhIzCgdjZWlsaW5nGAUgAygLMiIuaG9zdC5pbnN0YWxsYXRpb24udjEuT2ZmZXJCaW5kaW5nEhYKDnRvb2xzX2NvbXBvc2VkGAYgASgIImEKDE9mZmVyQmluZGluZxIPCgdiaW5kaW5nGAEgASgJEg4KBm1vZHVsZRgCIAEoCRIwCgZzY29wZXMYAyADKAsyIC5ob3N0Lmluc3RhbGxhdGlvbi52MS5PZmZlclNjb3BlIogBCglPZmZlclJvbGUSDAoEbmFtZRgBIAEoCRIwCgZzY29wZXMYAiADKAsyIC5ob3N0Lmluc3RhbGxhdGlvbi52MS5PZmZlclNjb3BlEjsKDGNhcGFiaWxpdGllcxgDIAMoCzIlLmhvc3QuaW5zdGFsbGF0aW9uLnYxLk9mZmVyQ2FwYWJpbGl0eSJhCgpPZmZlclNjb3BlEhUKDXJlc291cmNlX2tpbmQYASABKAkSDwoHYWN0aW9ucxgCIAMoCRIVCg1hdHRhY2hlZF9vbmx5GAMgASgIEhQKDHJlc291cmNlX2lkcxgEIAMoCSKYAQoPT2ZmZXJDYXBhYmlsaXR5Eg4KBm1vZHVsZRgBIAEoCRIRCglvcGVyYXRpb24YAiABKAkSMgoIcmVxdWlyZXMYAyADKAsyIC5ob3N0Lmluc3RhbGxhdGlvbi52MS5PZmZlclNjb3BlEi4KBXRvb2xzGAQgAygLMh8uaG9zdC5pbnN0YWxsYXRpb24udjEuT2ZmZXJUb29sIjkKCU9mZmVyVG9vbBIMCgRuYW1lGAEgASgJEg8KB2JpbmRpbmcYAiABKAkSDQoFd3JpdGUYAyABKAgymAUKE0luc3RhbGxhdGlvblNlcnZpY2USZgoHQ3VycmVudBIwLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkN1cnJlbnRJbnN0YWxsYXRpb25SZXF1ZXN0GikuaG9zdC5pbnN0YWxsYXRpb24udjEuQ3VycmVudEluc3RhbGxhdGlvbhJTCgdJbnN0YWxsEiQuaG9zdC5pbnN0YWxsYXRpb24udjEuSW5zdGFsbFJlcXVlc3QaIi5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsYXRpb24SVAoGUmV2aWV3EiMuaG9zdC5pbnN0YWxsYXRpb24udjEuUmV2aWV3UmVxdWVzdBolLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkNvbnNlbnRBcHByb3ZhbBJXCglHcmFudFJvbGUSJi5ob3N0Lmluc3RhbGxhdGlvbi52MS5HcmFudFJvbGVSZXF1ZXN0GiIuaG9zdC5pbnN0YWxsYXRpb24udjEuSW5zdGFsbGF0aW9uElkKClJldm9rZVJvbGUSJy5ob3N0Lmluc3RhbGxhdGlvbi52MS5SZXZva2VSb2xlUmVxdWVzdBoiLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbhJrCg5MaXN0Um9sZUdyYW50cxIrLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkxpc3RSb2xlR3JhbnRzUmVxdWVzdBosLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkxpc3RSb2xlR3JhbnRzUmVzcG9uc2USTQoETGlzdBIhLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkxpc3RSZXF1ZXN0GiIuaG9zdC5pbnN0YWxsYXRpb24udjEuTGlzdFJlc3BvbnNlMnAKEkluc3RhbGxhYmxlU2VydmljZRJaCgdJbnN0YWxsEiguaG9zdC5pbnN0YWxsYXRpb24udjEuSW5zdGFsbGF0aW9uTm90aWNlGiUuaG9zdC5pbnN0YWxsYXRpb24udjEuSW5zdGFsbGF0aW9uQWNrMsgBCgxPZmZlclNlcnZpY2USXwoKTGlzdE9mZmVycxInLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkxpc3RPZmZlcnNSZXF1ZXN0GiguaG9zdC5pbnN0YWxsYXRpb24udjEuTGlzdE9mZmVyc1Jlc3BvbnNlElcKC1Jldmlld09mZmVyEiMuaG9zdC5pbnN0YWxsYXRpb24udjEuUmV2aWV3UmVxdWVzdBojLmhvc3QuaW5zdGFsbGF0aW9uLnYxLlJldmlld2VkT2ZmZXJCNVozZ2F0ZXdheS9wa2cvZ2VuL2hvc3QvaW5zdGFsbGF0aW9uL3YxO2luc3RhbGxhdGlvbnYxYgZwcm90bzM");
+
+/**
+ * @generated from message host.installation.v1.CurrentInstallationRequest
+ */
+export type CurrentInstallationRequest = Message<"host.installation.v1.CurrentInstallationRequest"> & {
+  /**
+   * @generated from field: string parent_token = 1;
+   */
+  parentToken: string;
+
+  /**
+   * @generated from field: string actor_credential = 2;
+   */
+  actorCredential: string;
+};
+
+/**
+ * Describes the message host.installation.v1.CurrentInstallationRequest.
+ * Use `create(CurrentInstallationRequestSchema)` to create a new message.
+ */
+export const CurrentInstallationRequestSchema: GenMessage<CurrentInstallationRequest> = /*@__PURE__*/
+  messageDesc(file_host_installation_v1_installation, 0);
+
+/**
+ * CurrentInstallation is request-local metadata, never a lease or consent.
+ *
+ * @generated from message host.installation.v1.CurrentInstallation
+ */
+export type CurrentInstallation = Message<"host.installation.v1.CurrentInstallation"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string organization_id = 2;
+   */
+  organizationId: string;
+
+  /**
+   * @generated from field: string target = 3;
+   */
+  target: string;
+
+  /**
+   * @generated from field: uint64 revision = 4;
+   */
+  revision: bigint;
+
+  /**
+   * @generated from field: string namespace = 5;
+   */
+  namespace: string;
+};
+
+/**
+ * Describes the message host.installation.v1.CurrentInstallation.
+ * Use `create(CurrentInstallationSchema)` to create a new message.
+ */
+export const CurrentInstallationSchema: GenMessage<CurrentInstallation> = /*@__PURE__*/
+  messageDesc(file_host_installation_v1_installation, 1);
 
 /**
  * InstallRequest asks to install one target at one organisation.
@@ -65,7 +126,7 @@ export type InstallRequest = Message<"host.installation.v1.InstallRequest"> & {
  * Use `create(InstallRequestSchema)` to create a new message.
  */
 export const InstallRequestSchema: GenMessage<InstallRequest> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 0);
+  messageDesc(file_host_installation_v1_installation, 2);
 
 /**
  * ReviewRequest names the offer an administrator intends to review.
@@ -89,7 +150,7 @@ export type ReviewRequest = Message<"host.installation.v1.ReviewRequest"> & {
  * Use `create(ReviewRequestSchema)` to create a new message.
  */
 export const ReviewRequestSchema: GenMessage<ReviewRequest> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 1);
+  messageDesc(file_host_installation_v1_installation, 3);
 
 /**
  * ConsentApproval binds consent to an immutable target, its reviewed delivery and
@@ -132,7 +193,7 @@ export type ConsentApproval = Message<"host.installation.v1.ConsentApproval"> & 
  * Use `create(ConsentApprovalSchema)` to create a new message.
  */
 export const ConsentApprovalSchema: GenMessage<ConsentApproval> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 2);
+  messageDesc(file_host_installation_v1_installation, 4);
 
 /**
  * GrantRoleRequest grants one role to exactly one person or team.
@@ -184,7 +245,7 @@ export type GrantRoleRequest = Message<"host.installation.v1.GrantRoleRequest"> 
  * Use `create(GrantRoleRequestSchema)` to create a new message.
  */
 export const GrantRoleRequestSchema: GenMessage<GrantRoleRequest> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 3);
+  messageDesc(file_host_installation_v1_installation, 5);
 
 /**
  * RevokeRoleRequest ends one grant, named as GrantRole named it.
@@ -233,7 +294,7 @@ export type RevokeRoleRequest = Message<"host.installation.v1.RevokeRoleRequest"
  * Use `create(RevokeRoleRequestSchema)` to create a new message.
  */
 export const RevokeRoleRequestSchema: GenMessage<RevokeRoleRequest> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 4);
+  messageDesc(file_host_installation_v1_installation, 6);
 
 /**
  * ListRoleGrantsRequest names one installation.
@@ -261,7 +322,7 @@ export type ListRoleGrantsRequest = Message<"host.installation.v1.ListRoleGrants
  * Use `create(ListRoleGrantsRequestSchema)` to create a new message.
  */
 export const ListRoleGrantsRequestSchema: GenMessage<ListRoleGrantsRequest> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 5);
+  messageDesc(file_host_installation_v1_installation, 7);
 
 /**
  * ListRoleGrantsResponse is every grant on the installation.
@@ -282,7 +343,7 @@ export type ListRoleGrantsResponse = Message<"host.installation.v1.ListRoleGrant
  * Use `create(ListRoleGrantsResponseSchema)` to create a new message.
  */
 export const ListRoleGrantsResponseSchema: GenMessage<ListRoleGrantsResponse> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 6);
+  messageDesc(file_host_installation_v1_installation, 8);
 
 /**
  * RoleGrant is one role held by one person or team.
@@ -317,7 +378,7 @@ export type RoleGrant = Message<"host.installation.v1.RoleGrant"> & {
  * Use `create(RoleGrantSchema)` to create a new message.
  */
 export const RoleGrantSchema: GenMessage<RoleGrant> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 7);
+  messageDesc(file_host_installation_v1_installation, 9);
 
 /**
  * ListRequest asks for one organisation's installations.
@@ -338,7 +399,7 @@ export type ListRequest = Message<"host.installation.v1.ListRequest"> & {
  * Use `create(ListRequestSchema)` to create a new message.
  */
 export const ListRequestSchema: GenMessage<ListRequest> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 8);
+  messageDesc(file_host_installation_v1_installation, 10);
 
 /**
  * ListResponse lists installations.
@@ -359,7 +420,7 @@ export type ListResponse = Message<"host.installation.v1.ListResponse"> & {
  * Use `create(ListResponseSchema)` to create a new message.
  */
 export const ListResponseSchema: GenMessage<ListResponse> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 9);
+  messageDesc(file_host_installation_v1_installation, 11);
 
 /**
  * Installation is one organisation's installation of one target.
@@ -442,7 +503,7 @@ export type Installation = Message<"host.installation.v1.Installation"> & {
  * Use `create(InstallationSchema)` to create a new message.
  */
 export const InstallationSchema: GenMessage<Installation> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 10);
+  messageDesc(file_host_installation_v1_installation, 12);
 
 /**
  * Status is the installation's lifecycle.
@@ -483,7 +544,7 @@ export enum Installation_Status {
  * Describes the enum host.installation.v1.Installation.Status.
  */
 export const Installation_StatusSchema: GenEnum<Installation_Status> = /*@__PURE__*/
-  enumDesc(file_host_installation_v1_installation, 10, 0);
+  enumDesc(file_host_installation_v1_installation, 12, 0);
 
 /**
  * InstallationNotice is what the host hands the solution's install step.
@@ -504,7 +565,7 @@ export type InstallationNotice = Message<"host.installation.v1.InstallationNotic
  * Use `create(InstallationNoticeSchema)` to create a new message.
  */
 export const InstallationNoticeSchema: GenMessage<InstallationNotice> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 11);
+  messageDesc(file_host_installation_v1_installation, 13);
 
 /**
  * InstallationAck acknowledges the install step.
@@ -519,7 +580,7 @@ export type InstallationAck = Message<"host.installation.v1.InstallationAck"> & 
  * Use `create(InstallationAckSchema)` to create a new message.
  */
 export const InstallationAckSchema: GenMessage<InstallationAck> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 12);
+  messageDesc(file_host_installation_v1_installation, 14);
 
 /**
  * ListOffersRequest names the organization whose administrator reads.
@@ -538,7 +599,7 @@ export type ListOffersRequest = Message<"host.installation.v1.ListOffersRequest"
  * Use `create(ListOffersRequestSchema)` to create a new message.
  */
 export const ListOffersRequestSchema: GenMessage<ListOffersRequest> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 13);
+  messageDesc(file_host_installation_v1_installation, 15);
 
 /**
  * ListOffersResponse is every delivered solution, by name.
@@ -557,7 +618,7 @@ export type ListOffersResponse = Message<"host.installation.v1.ListOffersRespons
  * Use `create(ListOffersResponseSchema)` to create a new message.
  */
 export const ListOffersResponseSchema: GenMessage<ListOffersResponse> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 14);
+  messageDesc(file_host_installation_v1_installation, 16);
 
 /**
  * Offer is one delivered solution.
@@ -585,7 +646,7 @@ export type Offer = Message<"host.installation.v1.Offer"> & {
  * Use `create(OfferSchema)` to create a new message.
  */
 export const OfferSchema: GenMessage<Offer> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 15);
+  messageDesc(file_host_installation_v1_installation, 17);
 
 /**
  * ReviewedOffer is one solution's authority offer and the consent that names it.
@@ -643,7 +704,7 @@ export type ReviewedOffer = Message<"host.installation.v1.ReviewedOffer"> & {
  * Use `create(ReviewedOfferSchema)` to create a new message.
  */
 export const ReviewedOfferSchema: GenMessage<ReviewedOffer> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 16);
+  messageDesc(file_host_installation_v1_installation, 18);
 
 /**
  * OfferBinding is one declared call from the solution to a module.
@@ -674,7 +735,7 @@ export type OfferBinding = Message<"host.installation.v1.OfferBinding"> & {
  * Use `create(OfferBindingSchema)` to create a new message.
  */
 export const OfferBindingSchema: GenMessage<OfferBinding> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 17);
+  messageDesc(file_host_installation_v1_installation, 19);
 
 /**
  * OfferRole is one declared role and what a grant of it reaches.
@@ -707,7 +768,7 @@ export type OfferRole = Message<"host.installation.v1.OfferRole"> & {
  * Use `create(OfferRoleSchema)` to create a new message.
  */
 export const OfferRoleSchema: GenMessage<OfferRole> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 18);
+  messageDesc(file_host_installation_v1_installation, 20);
 
 /**
  * OfferScope is one declared scope.
@@ -745,7 +806,7 @@ export type OfferScope = Message<"host.installation.v1.OfferScope"> & {
  * Use `create(OfferScopeSchema)` to create a new message.
  */
 export const OfferScopeSchema: GenMessage<OfferScope> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 19);
+  messageDesc(file_host_installation_v1_installation, 21);
 
 /**
  * OfferCapability is one module operation a role's scopes cover.
@@ -786,7 +847,7 @@ export type OfferCapability = Message<"host.installation.v1.OfferCapability"> & 
  * Use `create(OfferCapabilitySchema)` to create a new message.
  */
 export const OfferCapabilitySchema: GenMessage<OfferCapability> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 20);
+  messageDesc(file_host_installation_v1_installation, 22);
 
 /**
  * OfferTool is one tool-exposed Runnable of an operation.
@@ -821,7 +882,7 @@ export type OfferTool = Message<"host.installation.v1.OfferTool"> & {
  * Use `create(OfferToolSchema)` to create a new message.
  */
 export const OfferToolSchema: GenMessage<OfferTool> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 21);
+  messageDesc(file_host_installation_v1_installation, 23);
 
 /**
  * InstallationService is implemented by the host and by the local authority.
@@ -829,6 +890,18 @@ export const OfferToolSchema: GenMessage<OfferTool> = /*@__PURE__*/
  * @generated from service host.installation.v1.InstallationService
  */
 export const InstallationService: GenService<{
+  /**
+   * Current reads only the authenticated module's own active installation,
+   * in the tenant of a current parent addressed to that module. It grants no
+   * artifact approval or content access and exposes no roles or grants.
+   *
+   * @generated from rpc host.installation.v1.InstallationService.Current
+   */
+  current: {
+    methodKind: "unary";
+    input: typeof CurrentInstallationRequestSchema;
+    output: typeof CurrentInstallationSchema;
+  },
   /**
    * Install composes an installation: its agent principal, its root scope and
    * the row, pending until the target acknowledges its install step.

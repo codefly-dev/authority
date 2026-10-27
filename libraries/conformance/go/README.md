@@ -173,3 +173,8 @@ replay after revocation. The local core additionally rechecks the offer and
 administrator in the transaction that acknowledges the install step. Its digest
 covers the stored authority declarations, including roles, ceilings and bindings;
 it is opaque to callers. Host-owned fixture setup stays on `InstallAsHost`.
+
+`InstallationService.Current` is also required: an authenticated module reads its
+own current installation without an administrator session. The suite checks
+the returned association, namespace, invalid parent and foreign/missing workload
+credentials. This is metadata only; the installation inventory remains admin-only.

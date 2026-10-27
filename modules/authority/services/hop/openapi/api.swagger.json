@@ -18,6 +18,7 @@
   "paths": {
     "/version": {
       "get": {
+        "summary": "Version is the hop's own method. A caller the authority checked may read\nit; the hop serves it without a scope, as the console serves its Version.",
         "operationId": "HopService_Version",
         "responses": {
           "200": {
