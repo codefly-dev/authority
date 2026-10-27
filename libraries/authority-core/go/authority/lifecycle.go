@@ -97,6 +97,9 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 		if err := tx.PutModule(m); err != nil {
 			return err
 		}
+		if err := s.journal(ctx, tx, domain.Event{Kind: domain.ModuleApplied, Subject: m.Name, Detail: map[string]string{"principal": m.Principal, "kind": m.Kind, "generation": fmt.Sprint(m.Generation)}}); err != nil {
+			return err
+		}
 		if m.Kind == domain.KindSolution {
 			return nil
 		}
@@ -224,6 +227,9 @@ func (s *Service) WithdrawModule(ctx context.Context, name string) error {
 		if err := tx.PutTombstone(domain.Tombstone{Name: m.Name, Principal: m.Principal, Generation: m.Generation}); err != nil {
 			return err
 		}
+		if err := s.journal(ctx, tx, domain.Event{Kind: domain.ModuleWithdrawn, Subject: m.Name, Detail: map[string]string{"principal": m.Principal, "generation": fmt.Sprint(m.Generation)}}); err != nil {
+			return err
+		}
 		return tx.DeleteModule(name)
 	})
 }
@@ -325,7 +331,10 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 					return err
 				}
 				inst = existing
-				return tx.PutInstallation(existing)
+				if err := tx.PutInstallation(existing); err != nil {
+					return err
+				}
+				return s.journal(ctx, tx, requested(caller, existing))
 			}
 			inst = existing
 			return nil
@@ -362,7 +371,10 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 		if err := tx.DeleteRoleGrants(id); err != nil {
 			return err
 		}
-		return tx.PutInstallation(inst)
+		if err := tx.PutInstallation(inst); err != nil {
+			return err
+		}
+		return s.journal(ctx, tx, requested(caller, inst))
 	})
 	if err != nil {
 		return inst, err
@@ -405,9 +417,20 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 		}
 		current.Status = domain.Active
 		inst = current
-		return tx.PutInstallation(current)
+		if err := tx.PutInstallation(current); err != nil {
+			return err
+		}
+		return s.journal(ctx, tx, domain.Event{Kind: domain.InstallationActivated, Organization: current.Organization, Actor: caller.ID, Subject: current.ID,
+			Detail: map[string]string{"target": current.Target, "revision": fmt.Sprint(current.Revision)}})
 	})
 	return inst, err
+}
+
+// requested is the journal entry of an installation attempt recorded pending.
+func requested(caller Person, inst domain.Installation) domain.Event {
+	return domain.Event{Kind: domain.InstallationRequested, Organization: inst.Organization, Actor: caller.ID, Subject: inst.ID,
+		Detail: map[string]string{"target": inst.Target, "role": inst.AgentRole, "principal": inst.PrincipalID, "installed_by": inst.InstalledBy,
+			"revision": fmt.Sprint(inst.Revision), "operation": inst.Consent.OperationID}}
 }
 
 // Uninstall disables a solution installation and its principal at once, clears
@@ -434,7 +457,10 @@ func (s *Service) Uninstall(ctx context.Context, caller Person, organization, in
 		if inst.PrincipalID == "" || inst.InstalledBy == "" {
 			return domain.Refuse("%s is a module, installed by composition: it is withdrawn, never uninstalled", inst.Target)
 		}
-		return s.revoke(tx, inst)
+		if err := s.revoke(tx, inst); err != nil {
+			return err
+		}
+		return s.journal(ctx, tx, uninstalled(caller.ID, inst))
 	})
 }
 
@@ -447,8 +473,16 @@ func (s *Service) UninstallAsHost(ctx context.Context, organization, installatio
 		if err != nil {
 			return err
 		}
-		return s.revoke(tx, inst)
+		if err := s.revoke(tx, inst); err != nil {
+			return err
+		}
+		return s.journal(ctx, tx, uninstalled("", inst))
 	})
+}
+
+func uninstalled(actor string, inst domain.Installation) domain.Event {
+	return domain.Event{Kind: domain.InstallationUninstalled, Organization: inst.Organization, Actor: actor, Subject: inst.ID,
+		Detail: map[string]string{"target": inst.Target, "revision": fmt.Sprint(inst.Revision + 1)}}
 }
 
 func installationIn(tx Tx, organization, installationID string) (domain.Installation, error) {

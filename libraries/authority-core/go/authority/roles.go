@@ -78,9 +78,17 @@ func (s *Service) GrantRole(ctx context.Context, caller Person, r RoleRequest) (
 		if inst, err = decideRoleChange(tx, &caller, r, false, false); err != nil {
 			return err
 		}
-		return tx.PutRoleGrant(r.grant())
+		if err := tx.PutRoleGrant(r.grant()); err != nil {
+			return err
+		}
+		return s.journal(ctx, tx, r.event(domain.RoleGranted, caller.ID))
 	})
 	return inst, err
+}
+
+func (r RoleRequest) event(kind domain.EventKind, actor string) domain.Event {
+	return domain.Event{Kind: kind, Organization: r.Organization, Actor: actor, Subject: r.InstallationID,
+		Detail: map[string]string{"role": r.Role, "person": r.PersonID, "team": r.TeamID}}
 }
 
 // GrantRoleAsHost is for trusted host setup (a fixture's installations),
@@ -93,7 +101,10 @@ func (s *Service) GrantRoleAsHost(ctx context.Context, r RoleRequest) (domain.In
 		if inst, err = decideRoleChange(tx, nil, r, false, false); err != nil {
 			return err
 		}
-		return tx.PutRoleGrant(r.grant())
+		if err := tx.PutRoleGrant(r.grant()); err != nil {
+			return err
+		}
+		return s.journal(ctx, tx, r.event(domain.RoleGranted, ""))
 	})
 	return inst, err
 }
@@ -129,7 +140,7 @@ func (s *Service) RevokeRole(ctx context.Context, caller Person, r RoleRequest) 
 				return err
 			}
 		}
-		return nil
+		return s.journal(ctx, tx, r.event(domain.RoleRevoked, caller.ID))
 	})
 	return inst, err
 }

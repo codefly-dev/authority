@@ -48,6 +48,9 @@ type Config struct {
 	Replay workcontext.ReplayStore
 	// Grants answers approval grants; nil refuses every grant capability.
 	Grants workcontext.GrantSource
+	// Journal records each change of authority in the transaction that makes
+	// it; an error aborts the change. nil journals nothing.
+	Journal func(ctx context.Context, tx Tx, e domain.Event) error
 }
 
 var (
@@ -100,6 +103,14 @@ func New(store Store, cfg Config) (*Service, error) {
 	s.src = sources{s: s}
 	s.authority = &workcontext.Authority{Issuer: cfg.Issuer, KeyID: cfg.KeyID, Signer: cfg.Signer, Revisions: s.src, Seals: s.src, MaxTTL: cfg.MaxTTL, Now: cfg.Clock}
 	return s, nil
+}
+
+// journal records e in tx, when the host journals.
+func (s *Service) journal(ctx context.Context, tx Tx, e domain.Event) error {
+	if s.cfg.Journal == nil {
+		return nil
+	}
+	return s.cfg.Journal(ctx, tx, e)
 }
 
 // Seals and Revisions answer core's verifier and minter from the store.

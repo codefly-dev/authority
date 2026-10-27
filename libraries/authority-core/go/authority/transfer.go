@@ -130,7 +130,8 @@ func (s *Service) AuthorizeTransfer(ctx context.Context, r TransferRequest) (Tra
 			return err
 		}
 		decision = TransferDecision{PrincipalID: r.To, AuthorizedBy: p.ID}
-		return nil
+		return s.journal(ctx, tx, domain.Event{Kind: domain.ResourceTransferred, Organization: target.Organization, Actor: p.ID, Subject: target.ID,
+			Detail: map[string]string{"kind": r.Kind, "resource": r.ResourceID, "from": r.From, "to": r.To, "store": r.Store.Module}})
 	})
 	return decision, err
 }

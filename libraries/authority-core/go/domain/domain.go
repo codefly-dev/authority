@@ -194,3 +194,36 @@ type ConsentReceipt struct {
 	OperationID, Intent string
 	Revision            uint64
 }
+
+// EventKind names one change of authority the core makes.
+type EventKind string
+
+// The changes a host journals.
+const (
+	ModuleApplied           EventKind = "module.applied"
+	ModuleWithdrawn         EventKind = "module.withdrawn"
+	InstallationRequested   EventKind = "installation.requested"
+	InstallationActivated   EventKind = "installation.activated"
+	InstallationUninstalled EventKind = "installation.uninstalled"
+	RoleGranted             EventKind = "role.granted"
+	RoleRevoked             EventKind = "role.revoked"
+	DelegationGranted       EventKind = "delegation.granted"
+	DelegationRevoked       EventKind = "delegation.revoked"
+	ResourceAttached        EventKind = "resource.attached"
+	ResourceDetached        EventKind = "resource.detached"
+	ResourceTransferred     EventKind = "resource.transferred"
+)
+
+// Event is one change of authority, journaled by the host in the transaction
+// that makes it: the journal and the change commit together or not at all.
+type Event struct {
+	Kind EventKind
+	// Organization is where it happened; empty for a module's delivery.
+	Organization string
+	// Actor is the person who acted, or the module whose workload did; empty
+	// for the host's own setup and a delivery.
+	Actor string
+	// Subject is what changed: an installation, a delegation, a module.
+	Subject string
+	Detail  map[string]string
+}

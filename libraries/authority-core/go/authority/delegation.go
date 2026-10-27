@@ -51,7 +51,11 @@ func (s *Service) Delegate(ctx context.Context, who Person, module string, scope
 			return domain.Refuse("%s delegates what they do not hold", p.ID)
 		}
 		d = domain.Delegation{ID: s.cfg.NewID(), Organization: p.Organization, Grantor: p.ID, Module: m.Name, Purpose: purpose, Scopes: scope.Normalize(scopes)}
-		return tx.PutDelegation(d)
+		if err := tx.PutDelegation(d); err != nil {
+			return err
+		}
+		return s.journal(ctx, tx, domain.Event{Kind: domain.DelegationGranted, Organization: d.Organization, Actor: d.Grantor, Subject: d.ID,
+			Detail: map[string]string{"module": d.Module, "purpose": d.Purpose}})
 	})
 	return d, err
 }
@@ -75,7 +79,11 @@ func (s *Service) RevokeDelegation(ctx context.Context, who Person, id string) (
 		if err := tx.PutDelegation(d); err != nil {
 			return err
 		}
-		return tx.BumpAuthorizationRevision(d.Organization)
+		if err := tx.BumpAuthorizationRevision(d.Organization); err != nil {
+			return err
+		}
+		return s.journal(ctx, tx, domain.Event{Kind: domain.DelegationRevoked, Organization: d.Organization, Actor: who.ID, Subject: d.ID,
+			Detail: map[string]string{"module": d.Module}})
 	})
 	return d, err
 }
