@@ -4,7 +4,13 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
 	"google.golang.org/grpc/codes"
@@ -80,9 +86,24 @@ func (c *client) admissionKeys(t *testing.T, ctx context.Context, f Fixture) {
 		}
 		seed := sha256.Sum256([]byte("conformance hop admission"))
 		public := ed25519.NewKeyFromSeed(seed[:]).Public().(ed25519.PublicKey)
+		signer, err := stamp.NewSigner(hex.EncodeToString(seed[:]))
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Each registration carries a fresh proof, signed by the key it
+		// registers, over the credential presented and the authority the
+		// credential is addressed to (stamp.ProveRegistration).
 		register := func(credential string, key []byte) (string, error) {
+			audience, err := credentialAudience(credential)
+			if err != nil {
+				t.Fatal(err)
+			}
+			proof, err := signer.ProveRegistration(credential, audience, time.Now())
+			if err != nil {
+				t.Fatal(err)
+			}
 			out, err := c.call(ctx, "host.authority.v1.AuthorityService", "RegisterAdmissionKey", map[string]any{
-				"actor": map[string]any{"credential": credential}, "public_key": key})
+				"actor": map[string]any{"credential": credential}, "public_key": key, "proof": proof})
 			if err != nil {
 				return "", err
 			}
@@ -126,4 +147,33 @@ func (c *client) admissionKeys(t *testing.T, ctx context.Context, f Fixture) {
 		_, err = register(f.HopCredential, public[:16])
 		refused(t, err, codes.InvalidArgument, "32")
 	})
+}
+
+// credentialAudience is the one audience a workload credential (a compact JWS)
+// is issued for: the authority a registration proof names. It verifies
+// nothing; the authority attests the credential.
+func credentialAudience(credential string) (string, error) {
+	parts := strings.Split(credential, ".")
+	if len(parts) != 3 {
+		return "", errors.New("the hop's credential is not a compact JWS, so it names no audience to prove a registration to")
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return "", err
+	}
+	var claims struct {
+		Audience json.RawMessage `json:"aud"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return "", err
+	}
+	var one string
+	var many []string
+	switch {
+	case json.Unmarshal(claims.Audience, &one) == nil && one != "":
+		return one, nil
+	case json.Unmarshal(claims.Audience, &many) == nil && len(many) == 1 && many[0] != "":
+		return many[0], nil
+	}
+	return "", errors.New("the hop's credential names no single audience")
 }
