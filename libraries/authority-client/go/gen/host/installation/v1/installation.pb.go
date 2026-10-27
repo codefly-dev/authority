@@ -1633,6 +1633,155 @@ func (x *OfferTool) GetWrite() bool {
 	return false
 }
 
+// ListHeldRequest names the organisation the person reads at: the one their
+// session was opened at.
+type ListHeldRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The organisation.
+	OrganizationId string `protobuf:"bytes,1,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ListHeldRequest) Reset() {
+	*x = ListHeldRequest{}
+	mi := &file_host_installation_v1_installation_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListHeldRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListHeldRequest) ProtoMessage() {}
+
+func (x *ListHeldRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_host_installation_v1_installation_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListHeldRequest.ProtoReflect.Descriptor instead.
+func (*ListHeldRequest) Descriptor() ([]byte, []int) {
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *ListHeldRequest) GetOrganizationId() string {
+	if x != nil {
+		return x.OrganizationId
+	}
+	return ""
+}
+
+// ListHeldResponse is every installation the person holds a role on, sorted
+// by installation id.
+type ListHeldResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The installations.
+	Installations []*HeldInstallation `protobuf:"bytes,1,rep,name=installations,proto3" json:"installations,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListHeldResponse) Reset() {
+	*x = ListHeldResponse{}
+	mi := &file_host_installation_v1_installation_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListHeldResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListHeldResponse) ProtoMessage() {}
+
+func (x *ListHeldResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_host_installation_v1_installation_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListHeldResponse.ProtoReflect.Descriptor instead.
+func (*ListHeldResponse) Descriptor() ([]byte, []int) {
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *ListHeldResponse) GetInstallations() []*HeldInstallation {
+	if x != nil {
+		return x.Installations
+	}
+	return nil
+}
+
+// HeldInstallation is one installation the person may use.
+type HeldInstallation struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The installation.
+	Installation *Installation `protobuf:"bytes,1,opt,name=installation,proto3" json:"installation,omitempty"`
+	// The roles the person holds on it, directly or through a team, sorted.
+	Roles         []string `protobuf:"bytes,2,rep,name=roles,proto3" json:"roles,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HeldInstallation) Reset() {
+	*x = HeldInstallation{}
+	mi := &file_host_installation_v1_installation_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HeldInstallation) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HeldInstallation) ProtoMessage() {}
+
+func (x *HeldInstallation) ProtoReflect() protoreflect.Message {
+	mi := &file_host_installation_v1_installation_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HeldInstallation.ProtoReflect.Descriptor instead.
+func (*HeldInstallation) Descriptor() ([]byte, []int) {
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *HeldInstallation) GetInstallation() *Installation {
+	if x != nil {
+		return x.Installation
+	}
+	return nil
+}
+
+func (x *HeldInstallation) GetRoles() []string {
+	if x != nil {
+		return x.Roles
+	}
+	return nil
+}
+
 var File_host_installation_v1_installation_proto protoreflect.FileDescriptor
 
 const file_host_installation_v1_installation_proto_rawDesc = "" +
@@ -1746,7 +1895,14 @@ const file_host_installation_v1_installation_proto_rawDesc = "" +
 	"\tOfferTool\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\abinding\x18\x02 \x01(\tR\abinding\x12\x14\n" +
-	"\x05write\x18\x03 \x01(\bR\x05write2\x98\x05\n" +
+	"\x05write\x18\x03 \x01(\bR\x05write\":\n" +
+	"\x0fListHeldRequest\x12'\n" +
+	"\x0forganization_id\x18\x01 \x01(\tR\x0eorganizationId\"`\n" +
+	"\x10ListHeldResponse\x12L\n" +
+	"\rinstallations\x18\x01 \x03(\v2&.host.installation.v1.HeldInstallationR\rinstallations\"p\n" +
+	"\x10HeldInstallation\x12F\n" +
+	"\finstallation\x18\x01 \x01(\v2\".host.installation.v1.InstallationR\finstallation\x12\x14\n" +
+	"\x05roles\x18\x02 \x03(\tR\x05roles2\xf3\x05\n" +
 	"\x13InstallationService\x12f\n" +
 	"\aCurrent\x120.host.installation.v1.CurrentInstallationRequest\x1a).host.installation.v1.CurrentInstallation\x12S\n" +
 	"\aInstall\x12$.host.installation.v1.InstallRequest\x1a\".host.installation.v1.Installation\x12T\n" +
@@ -1755,7 +1911,8 @@ const file_host_installation_v1_installation_proto_rawDesc = "" +
 	"\n" +
 	"RevokeRole\x12'.host.installation.v1.RevokeRoleRequest\x1a\".host.installation.v1.Installation\x12k\n" +
 	"\x0eListRoleGrants\x12+.host.installation.v1.ListRoleGrantsRequest\x1a,.host.installation.v1.ListRoleGrantsResponse\x12M\n" +
-	"\x04List\x12!.host.installation.v1.ListRequest\x1a\".host.installation.v1.ListResponse2p\n" +
+	"\x04List\x12!.host.installation.v1.ListRequest\x1a\".host.installation.v1.ListResponse\x12Y\n" +
+	"\bListHeld\x12%.host.installation.v1.ListHeldRequest\x1a&.host.installation.v1.ListHeldResponse2p\n" +
 	"\x12InstallableService\x12Z\n" +
 	"\aInstall\x12(.host.installation.v1.InstallationNotice\x1a%.host.installation.v1.InstallationAck2\xc8\x01\n" +
 	"\fOfferService\x12_\n" +
@@ -1777,7 +1934,7 @@ func file_host_installation_v1_installation_proto_rawDescGZIP() []byte {
 }
 
 var file_host_installation_v1_installation_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_host_installation_v1_installation_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
+var file_host_installation_v1_installation_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
 var file_host_installation_v1_installation_proto_goTypes = []any{
 	(Installation_Status)(0),           // 0: host.installation.v1.Installation.Status
 	(*CurrentInstallationRequest)(nil), // 1: host.installation.v1.CurrentInstallationRequest
@@ -1804,6 +1961,9 @@ var file_host_installation_v1_installation_proto_goTypes = []any{
 	(*OfferScope)(nil),                 // 22: host.installation.v1.OfferScope
 	(*OfferCapability)(nil),            // 23: host.installation.v1.OfferCapability
 	(*OfferTool)(nil),                  // 24: host.installation.v1.OfferTool
+	(*ListHeldRequest)(nil),            // 25: host.installation.v1.ListHeldRequest
+	(*ListHeldResponse)(nil),           // 26: host.installation.v1.ListHeldResponse
+	(*HeldInstallation)(nil),           // 27: host.installation.v1.HeldInstallation
 }
 var file_host_installation_v1_installation_proto_depIdxs = []int32{
 	5,  // 0: host.installation.v1.InstallRequest.approval:type_name -> host.installation.v1.ConsentApproval
@@ -1821,31 +1981,35 @@ var file_host_installation_v1_installation_proto_depIdxs = []int32{
 	23, // 12: host.installation.v1.OfferRole.capabilities:type_name -> host.installation.v1.OfferCapability
 	22, // 13: host.installation.v1.OfferCapability.requires:type_name -> host.installation.v1.OfferScope
 	24, // 14: host.installation.v1.OfferCapability.tools:type_name -> host.installation.v1.OfferTool
-	1,  // 15: host.installation.v1.InstallationService.Current:input_type -> host.installation.v1.CurrentInstallationRequest
-	3,  // 16: host.installation.v1.InstallationService.Install:input_type -> host.installation.v1.InstallRequest
-	4,  // 17: host.installation.v1.InstallationService.Review:input_type -> host.installation.v1.ReviewRequest
-	6,  // 18: host.installation.v1.InstallationService.GrantRole:input_type -> host.installation.v1.GrantRoleRequest
-	7,  // 19: host.installation.v1.InstallationService.RevokeRole:input_type -> host.installation.v1.RevokeRoleRequest
-	8,  // 20: host.installation.v1.InstallationService.ListRoleGrants:input_type -> host.installation.v1.ListRoleGrantsRequest
-	11, // 21: host.installation.v1.InstallationService.List:input_type -> host.installation.v1.ListRequest
-	14, // 22: host.installation.v1.InstallableService.Install:input_type -> host.installation.v1.InstallationNotice
-	16, // 23: host.installation.v1.OfferService.ListOffers:input_type -> host.installation.v1.ListOffersRequest
-	4,  // 24: host.installation.v1.OfferService.ReviewOffer:input_type -> host.installation.v1.ReviewRequest
-	2,  // 25: host.installation.v1.InstallationService.Current:output_type -> host.installation.v1.CurrentInstallation
-	13, // 26: host.installation.v1.InstallationService.Install:output_type -> host.installation.v1.Installation
-	5,  // 27: host.installation.v1.InstallationService.Review:output_type -> host.installation.v1.ConsentApproval
-	13, // 28: host.installation.v1.InstallationService.GrantRole:output_type -> host.installation.v1.Installation
-	13, // 29: host.installation.v1.InstallationService.RevokeRole:output_type -> host.installation.v1.Installation
-	9,  // 30: host.installation.v1.InstallationService.ListRoleGrants:output_type -> host.installation.v1.ListRoleGrantsResponse
-	12, // 31: host.installation.v1.InstallationService.List:output_type -> host.installation.v1.ListResponse
-	15, // 32: host.installation.v1.InstallableService.Install:output_type -> host.installation.v1.InstallationAck
-	17, // 33: host.installation.v1.OfferService.ListOffers:output_type -> host.installation.v1.ListOffersResponse
-	19, // 34: host.installation.v1.OfferService.ReviewOffer:output_type -> host.installation.v1.ReviewedOffer
-	25, // [25:35] is the sub-list for method output_type
-	15, // [15:25] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	27, // 15: host.installation.v1.ListHeldResponse.installations:type_name -> host.installation.v1.HeldInstallation
+	13, // 16: host.installation.v1.HeldInstallation.installation:type_name -> host.installation.v1.Installation
+	1,  // 17: host.installation.v1.InstallationService.Current:input_type -> host.installation.v1.CurrentInstallationRequest
+	3,  // 18: host.installation.v1.InstallationService.Install:input_type -> host.installation.v1.InstallRequest
+	4,  // 19: host.installation.v1.InstallationService.Review:input_type -> host.installation.v1.ReviewRequest
+	6,  // 20: host.installation.v1.InstallationService.GrantRole:input_type -> host.installation.v1.GrantRoleRequest
+	7,  // 21: host.installation.v1.InstallationService.RevokeRole:input_type -> host.installation.v1.RevokeRoleRequest
+	8,  // 22: host.installation.v1.InstallationService.ListRoleGrants:input_type -> host.installation.v1.ListRoleGrantsRequest
+	11, // 23: host.installation.v1.InstallationService.List:input_type -> host.installation.v1.ListRequest
+	25, // 24: host.installation.v1.InstallationService.ListHeld:input_type -> host.installation.v1.ListHeldRequest
+	14, // 25: host.installation.v1.InstallableService.Install:input_type -> host.installation.v1.InstallationNotice
+	16, // 26: host.installation.v1.OfferService.ListOffers:input_type -> host.installation.v1.ListOffersRequest
+	4,  // 27: host.installation.v1.OfferService.ReviewOffer:input_type -> host.installation.v1.ReviewRequest
+	2,  // 28: host.installation.v1.InstallationService.Current:output_type -> host.installation.v1.CurrentInstallation
+	13, // 29: host.installation.v1.InstallationService.Install:output_type -> host.installation.v1.Installation
+	5,  // 30: host.installation.v1.InstallationService.Review:output_type -> host.installation.v1.ConsentApproval
+	13, // 31: host.installation.v1.InstallationService.GrantRole:output_type -> host.installation.v1.Installation
+	13, // 32: host.installation.v1.InstallationService.RevokeRole:output_type -> host.installation.v1.Installation
+	9,  // 33: host.installation.v1.InstallationService.ListRoleGrants:output_type -> host.installation.v1.ListRoleGrantsResponse
+	12, // 34: host.installation.v1.InstallationService.List:output_type -> host.installation.v1.ListResponse
+	26, // 35: host.installation.v1.InstallationService.ListHeld:output_type -> host.installation.v1.ListHeldResponse
+	15, // 36: host.installation.v1.InstallableService.Install:output_type -> host.installation.v1.InstallationAck
+	17, // 37: host.installation.v1.OfferService.ListOffers:output_type -> host.installation.v1.ListOffersResponse
+	19, // 38: host.installation.v1.OfferService.ReviewOffer:output_type -> host.installation.v1.ReviewedOffer
+	28, // [28:39] is the sub-list for method output_type
+	17, // [17:28] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_host_installation_v1_installation_proto_init() }
@@ -1859,7 +2023,7 @@ func file_host_installation_v1_installation_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_host_installation_v1_installation_proto_rawDesc), len(file_host_installation_v1_installation_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   24,
+			NumMessages:   27,
 			NumExtensions: 0,
 			NumServices:   3,
 		},

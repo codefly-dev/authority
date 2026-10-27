@@ -1,5 +1,6 @@
 // Package installation serves codefly.dev/installation: Install, the role
-// grants on an installation (GrantRole, RevokeRole, ListRoleGrants), and List.
+// grants on an installation (GrantRole, RevokeRole, ListRoleGrants), List and
+// a member's ListHeld.
 // Every decision is the core's; the caller is the person the bearer's session
 // authenticates.
 package installation
@@ -144,6 +145,24 @@ func (p *Plugin) List(ctx context.Context, req *installationv1.ListRequest) (*in
 	out := &installationv1.ListResponse{}
 	for _, inst := range all {
 		out.Installations = append(out.Installations, p.wire(inst))
+	}
+	return out, nil
+}
+
+// ListHeld answers the signed-in person the installations of their
+// organization they hold a role on, with those roles: their navigation.
+func (p *Plugin) ListHeld(ctx context.Context, req *installationv1.ListHeldRequest) (*installationv1.ListHeldResponse, error) {
+	caller, err := p.caller(ctx)
+	if err != nil {
+		return nil, authorityplugin.Status(err)
+	}
+	held, err := p.State.Service().HeldInstallations(ctx, caller, req.GetOrganizationId())
+	if err != nil {
+		return nil, authorityplugin.Status(err)
+	}
+	out := &installationv1.ListHeldResponse{}
+	for _, h := range held {
+		out.Installations = append(out.Installations, &installationv1.HeldInstallation{Installation: p.wire(h.Installation), Roles: h.Roles})
 	}
 	return out, nil
 }

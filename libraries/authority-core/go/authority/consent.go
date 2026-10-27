@@ -132,11 +132,8 @@ func holdsRoleOn(tx Tx, caller Person, org string, inst domain.Installation) (bo
 	if err != nil {
 		return false, err
 	}
-	grants, err := tx.RoleGrants(inst.ID)
-	if err != nil {
-		return false, err
-	}
-	return len(decide.HeldRoles(p, inst, grants)) > 0, nil
+	roles, err := rolesHeld(tx, p, org, inst)
+	return len(roles) > 0, err
 }
 
 func consentIntent(caller Person, org, target, role, owner string, a *domain.ConsentApproval) (string, error) {

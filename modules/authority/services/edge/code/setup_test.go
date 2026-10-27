@@ -84,6 +84,10 @@ func (h *setupHost) ListRoleGrants(context.Context, *installationv1.ListRoleGran
 	return &installationv1.ListRoleGrantsResponse{}, nil
 }
 
+func (h *setupHost) ListHeld(context.Context, *installationv1.ListHeldRequest, ...grpc.CallOption) (*installationv1.ListHeldResponse, error) {
+	return &installationv1.ListHeldResponse{}, nil
+}
+
 func newSetup(t *testing.T) (fixture, *setupHost) {
 	f := newFixture(t)
 	host := &setupHost{standIn: f.authority}

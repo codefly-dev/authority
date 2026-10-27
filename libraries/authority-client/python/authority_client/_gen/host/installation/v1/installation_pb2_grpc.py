@@ -70,6 +70,11 @@ class InstallationServiceStub(object):
                 request_serializer=host_dot_installation_dot_v1_dot_installation__pb2.ListRequest.SerializeToString,
                 response_deserializer=host_dot_installation_dot_v1_dot_installation__pb2.ListResponse.FromString,
                 _registered_method=True)
+        self.ListHeld = channel.unary_unary(
+                '/host.installation.v1.InstallationService/ListHeld',
+                request_serializer=host_dot_installation_dot_v1_dot_installation__pb2.ListHeldRequest.SerializeToString,
+                response_deserializer=host_dot_installation_dot_v1_dot_installation__pb2.ListHeldResponse.FromString,
+                _registered_method=True)
 
 
 class InstallationServiceServicer(object):
@@ -127,9 +132,20 @@ class InstallationServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def List(self, request, context):
-        """List answers what one organisation has installed: an administrator's read. A
-        member's view, which installed solutions they may use, is their navigation and
-        belongs to the entitlement read, not here.
+        """List answers what one organisation has installed: an administrator's read.
+        A member's view, which installed solutions they may use, is ListHeld.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListHeld(self, request, context):
+        """ListHeld answers the signed-in person which installations of their
+        organisation they may use: each active installation on which they hold a
+        role, granted to them or to a team of theirs, with the roles they hold.
+        It is their navigation and answers their own holdings alone, never who
+        else holds what. A member holding nothing reads an empty list; a caller
+        acting at another organisation is refused naming it.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -172,6 +188,11 @@ def add_InstallationServiceServicer_to_server(servicer, server):
                     servicer.List,
                     request_deserializer=host_dot_installation_dot_v1_dot_installation__pb2.ListRequest.FromString,
                     response_serializer=host_dot_installation_dot_v1_dot_installation__pb2.ListResponse.SerializeToString,
+            ),
+            'ListHeld': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListHeld,
+                    request_deserializer=host_dot_installation_dot_v1_dot_installation__pb2.ListHeldRequest.FromString,
+                    response_serializer=host_dot_installation_dot_v1_dot_installation__pb2.ListHeldResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -364,6 +385,33 @@ class InstallationService(object):
             '/host.installation.v1.InstallationService/List',
             host_dot_installation_dot_v1_dot_installation__pb2.ListRequest.SerializeToString,
             host_dot_installation_dot_v1_dot_installation__pb2.ListResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListHeld(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/host.installation.v1.InstallationService/ListHeld',
+            host_dot_installation_dot_v1_dot_installation__pb2.ListHeldRequest.SerializeToString,
+            host_dot_installation_dot_v1_dot_installation__pb2.ListHeldResponse.FromString,
             options,
             channel_credentials,
             insecure,

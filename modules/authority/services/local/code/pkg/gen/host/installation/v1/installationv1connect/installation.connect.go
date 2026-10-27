@@ -64,6 +64,9 @@ const (
 	// InstallationServiceListProcedure is the fully-qualified name of the InstallationService's List
 	// RPC.
 	InstallationServiceListProcedure = "/host.installation.v1.InstallationService/List"
+	// InstallationServiceListHeldProcedure is the fully-qualified name of the InstallationService's
+	// ListHeld RPC.
+	InstallationServiceListHeldProcedure = "/host.installation.v1.InstallationService/ListHeld"
 	// InstallableServiceInstallProcedure is the fully-qualified name of the InstallableService's
 	// Install RPC.
 	InstallableServiceInstallProcedure = "/host.installation.v1.InstallableService/Install"
@@ -96,10 +99,16 @@ type InstallationServiceClient interface {
 	// ListRoleGrants answers who holds which role on the installation; the same
 	// callers as GrantRole.
 	ListRoleGrants(context.Context, *connect.Request[v1.ListRoleGrantsRequest]) (*connect.Response[v1.ListRoleGrantsResponse], error)
-	// List answers what one organisation has installed: an administrator's read. A
-	// member's view, which installed solutions they may use, is their navigation and
-	// belongs to the entitlement read, not here.
+	// List answers what one organisation has installed: an administrator's read.
+	// A member's view, which installed solutions they may use, is ListHeld.
 	List(context.Context, *connect.Request[v1.ListRequest]) (*connect.Response[v1.ListResponse], error)
+	// ListHeld answers the signed-in person which installations of their
+	// organisation they may use: each active installation on which they hold a
+	// role, granted to them or to a team of theirs, with the roles they hold.
+	// It is their navigation and answers their own holdings alone, never who
+	// else holds what. A member holding nothing reads an empty list; a caller
+	// acting at another organisation is refused naming it.
+	ListHeld(context.Context, *connect.Request[v1.ListHeldRequest]) (*connect.Response[v1.ListHeldResponse], error)
 }
 
 // NewInstallationServiceClient constructs a client for the host.installation.v1.InstallationService
@@ -155,6 +164,12 @@ func NewInstallationServiceClient(httpClient connect.HTTPClient, baseURL string,
 			connect.WithSchema(installationServiceMethods.ByName("List")),
 			connect.WithClientOptions(opts...),
 		),
+		listHeld: connect.NewClient[v1.ListHeldRequest, v1.ListHeldResponse](
+			httpClient,
+			baseURL+InstallationServiceListHeldProcedure,
+			connect.WithSchema(installationServiceMethods.ByName("ListHeld")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -167,6 +182,7 @@ type installationServiceClient struct {
 	revokeRole     *connect.Client[v1.RevokeRoleRequest, v1.Installation]
 	listRoleGrants *connect.Client[v1.ListRoleGrantsRequest, v1.ListRoleGrantsResponse]
 	list           *connect.Client[v1.ListRequest, v1.ListResponse]
+	listHeld       *connect.Client[v1.ListHeldRequest, v1.ListHeldResponse]
 }
 
 // Current calls host.installation.v1.InstallationService.Current.
@@ -204,6 +220,11 @@ func (c *installationServiceClient) List(ctx context.Context, req *connect.Reque
 	return c.list.CallUnary(ctx, req)
 }
 
+// ListHeld calls host.installation.v1.InstallationService.ListHeld.
+func (c *installationServiceClient) ListHeld(ctx context.Context, req *connect.Request[v1.ListHeldRequest]) (*connect.Response[v1.ListHeldResponse], error) {
+	return c.listHeld.CallUnary(ctx, req)
+}
+
 // InstallationServiceHandler is an implementation of the host.installation.v1.InstallationService
 // service.
 type InstallationServiceHandler interface {
@@ -227,10 +248,16 @@ type InstallationServiceHandler interface {
 	// ListRoleGrants answers who holds which role on the installation; the same
 	// callers as GrantRole.
 	ListRoleGrants(context.Context, *connect.Request[v1.ListRoleGrantsRequest]) (*connect.Response[v1.ListRoleGrantsResponse], error)
-	// List answers what one organisation has installed: an administrator's read. A
-	// member's view, which installed solutions they may use, is their navigation and
-	// belongs to the entitlement read, not here.
+	// List answers what one organisation has installed: an administrator's read.
+	// A member's view, which installed solutions they may use, is ListHeld.
 	List(context.Context, *connect.Request[v1.ListRequest]) (*connect.Response[v1.ListResponse], error)
+	// ListHeld answers the signed-in person which installations of their
+	// organisation they may use: each active installation on which they hold a
+	// role, granted to them or to a team of theirs, with the roles they hold.
+	// It is their navigation and answers their own holdings alone, never who
+	// else holds what. A member holding nothing reads an empty list; a caller
+	// acting at another organisation is refused naming it.
+	ListHeld(context.Context, *connect.Request[v1.ListHeldRequest]) (*connect.Response[v1.ListHeldResponse], error)
 }
 
 // NewInstallationServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -282,6 +309,12 @@ func NewInstallationServiceHandler(svc InstallationServiceHandler, opts ...conne
 		connect.WithSchema(installationServiceMethods.ByName("List")),
 		connect.WithHandlerOptions(opts...),
 	)
+	installationServiceListHeldHandler := connect.NewUnaryHandler(
+		InstallationServiceListHeldProcedure,
+		svc.ListHeld,
+		connect.WithSchema(installationServiceMethods.ByName("ListHeld")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/host.installation.v1.InstallationService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case InstallationServiceCurrentProcedure:
@@ -298,6 +331,8 @@ func NewInstallationServiceHandler(svc InstallationServiceHandler, opts ...conne
 			installationServiceListRoleGrantsHandler.ServeHTTP(w, r)
 		case InstallationServiceListProcedure:
 			installationServiceListHandler.ServeHTTP(w, r)
+		case InstallationServiceListHeldProcedure:
+			installationServiceListHeldHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -333,6 +368,10 @@ func (UnimplementedInstallationServiceHandler) ListRoleGrants(context.Context, *
 
 func (UnimplementedInstallationServiceHandler) List(context.Context, *connect.Request[v1.ListRequest]) (*connect.Response[v1.ListResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.installation.v1.InstallationService.List is not implemented"))
+}
+
+func (UnimplementedInstallationServiceHandler) ListHeld(context.Context, *connect.Request[v1.ListHeldRequest]) (*connect.Response[v1.ListHeldResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.installation.v1.InstallationService.ListHeld is not implemented"))
 }
 
 // InstallableServiceClient is a client for the host.installation.v1.InstallableService service.
