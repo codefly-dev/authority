@@ -133,8 +133,9 @@ type Hop struct {
 }
 
 // ResourceCase is one ListResources expectation: a person signed in with Token
-// and issued at Audience covers each id of Covered and none of Uncovered for
-// Action on Kind, and does not hold Unheld on Kind at all.
+// and issued at Audience on Covered covers each id of Covered and none of
+// Uncovered for Action on Kind, and does not hold Unheld on Kind at all. An
+// ask naming an id of Uncovered, or the whole kind, is refused.
 type ResourceCase struct {
 	Token     string
 	Audience  string
@@ -706,12 +707,12 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			t.Fatal("required conformance fixture missing: the fixture states no resource case")
 		}
 		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": rc.Token})
-		issue := func(scopes []any) string {
+		issue := func(scopes []any) (protoreflect.Message, error) {
 			fields := map[string]any{"person": map[string]any{}, "audience": rc.Audience}
 			if scopes != nil {
 				fields["scopes"] = scopes
 			}
-			return str(c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", fields), "token")
+			return c.call(as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", fields)
 		}
 		list := func(token, action string) (*resources.Matcher, error) {
 			out, err := c.call(ctx, "host.authority.v1.AuthorityService", "ListResources", map[string]any{
@@ -721,7 +722,13 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			}
 			return resources.Compile(grantsOf(out))
 		}
-		covered, err := list(issue(nil), rc.Action)
+		// A context asking for the covered ids carries them: the authority
+		// answers each covered and none of the uncovered.
+		out, err := issue([]any{scopeAsk(rc.Kind, []string{rc.Action}, rc.Covered)})
+		if err != nil {
+			t.Fatalf("issue on the covered ids: %v", err)
+		}
+		covered, err := list(str(out, "token"), rc.Action)
 		if err != nil {
 			t.Fatalf("list %s:%s: %v", rc.Kind, rc.Action, err)
 		}
@@ -735,20 +742,41 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 				t.Errorf("%s is covered", id)
 			}
 		}
-		if _, err := list(issue(nil), rc.Unheld); status.Code(err) != codes.PermissionDenied {
+		if covered.All() {
+			t.Error("a context on named ids covers the whole kind")
+		}
+		if _, err := list(str(out, "token"), rc.Unheld); status.Code(err) != codes.PermissionDenied {
 			t.Fatalf("an action the context does not hold: %v", err)
 		}
-		if len(rc.Covered) > 0 && len(rc.Uncovered) > 0 {
-			// A context narrowed to two ids covers the one the person holds.
-			narrowed, err := list(issue([]any{map[string]any{"resource_kind": rc.Kind, "actions": []any{rc.Action},
-				"resource_ids": []any{rc.Covered[0], rc.Uncovered[0]}}}), rc.Action)
-			if err != nil {
-				t.Fatalf("narrowed: %v", err)
+		// An empty ask never carries the kind whole: a module deciding from
+		// the context's claims would read it as every resource. Each row of
+		// the kind it carries names ids, none of them uncovered.
+		if out, err := issue(nil); err == nil {
+			for _, row := range listMsgs(msg(out, "context"), "authority_scopes") {
+				if str(row, "resource_kind") != rc.Kind || field(row, "actions").List().Len() == 0 {
+					continue
+				}
+				ids := field(row, "resource_ids").List()
+				if ids.Len() == 0 {
+					t.Fatalf("an empty ask carries the whole of %s", rc.Kind)
+				}
+				for i := 0; i < ids.Len(); i++ {
+					if slices.Contains(rc.Uncovered, ids.Get(i).String()) {
+						t.Fatalf("an empty ask carries %s, which the person does not hold", ids.Get(i).String())
+					}
+				}
 			}
-			if !narrowed.Matches(rc.Covered[0]) || narrowed.Matches(rc.Uncovered[0]) || narrowed.All() {
-				t.Fatalf("a narrowed context covers exactly the held id it names")
-			}
+		} else if status.Code(err) != codes.PermissionDenied {
+			t.Fatalf("an empty ask: %v", err)
 		}
+		// An ask naming an uncovered id is refused, even beside a covered one,
+		// and so is an ask for the whole kind.
+		if len(rc.Covered) > 0 && len(rc.Uncovered) > 0 {
+			_, err := issue([]any{scopeAsk(rc.Kind, []string{rc.Action}, []string{rc.Covered[0], rc.Uncovered[0]})})
+			refused(t, err, codes.PermissionDenied, "widens")
+		}
+		_, err = issue([]any{scopeAsk(rc.Kind, []string{rc.Action}, nil)})
+		refused(t, err, codes.PermissionDenied, "what the owner holds")
 	})
 	t.Run("a lookup through a binding carries only the binding's lookup scopes", func(t *testing.T) {
 		lc := f.Lookup

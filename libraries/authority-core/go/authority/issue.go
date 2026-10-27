@@ -32,8 +32,9 @@ type Issued struct {
 
 // held is what a person holds at an audience: at a solution, the scopes of the
 // roles granted them on its installation, owned by its principal; at a
-// module, their organization roles within what it serves.
-func held(tx Tx, p domain.Person, audience domain.Module) (Scopes, error) {
+// module, their organization roles within what it serves, resource-scoped
+// roles holding the ids their matchers select of named (decide.OrgScopes).
+func held(tx Tx, p domain.Person, audience domain.Module, named Scopes) (Scopes, error) {
 	if audience.Kind == domain.KindSolution {
 		inst, err := installationOf(tx, p.Organization, audience.Name)
 		if errors.Is(err, domain.ErrNotFound) {
@@ -56,7 +57,7 @@ func held(tx Tx, p domain.Person, audience domain.Module) (Scopes, error) {
 	if err != nil {
 		return nil, err
 	}
-	return decide.OrgScopes(roles, audience), nil
+	return decide.OrgScopes(roles, audience, named), nil
 }
 
 // solutionCeiling intersects the current roles of each solution the verified
@@ -101,23 +102,33 @@ func solutionCeiling(tx Tx, p domain.Person, principals []string) (ceiling Scope
 // throughSolutions is what a person holds at audience on a path through
 // principals: the solutions' roles alone when a solution is on the path
 // (confined to its principal's data), the person's own grants otherwise.
-func throughSolutions(tx Tx, p domain.Person, audience domain.Module, principals []string) (h, ceiling Scopes, bounded bool, err error) {
+func throughSolutions(tx Tx, p domain.Person, audience domain.Module, principals []string, named Scopes) (h, ceiling Scopes, bounded bool, err error) {
 	if ceiling, bounded, err = solutionCeiling(tx, p, principals); err != nil {
 		return
 	}
 	if !bounded {
-		h, err = held(tx, p, audience)
+		h, err = held(tx, p, audience, named)
 		return
 	}
 	h = scope.Intersect(ceiling, audience.ResourceKinds)
 	if audience.Kind == domain.KindSolution {
 		var target Scopes
-		if target, err = held(tx, p, audience); err != nil {
+		if target, err = held(tx, p, audience, named); err != nil {
 			return
 		}
 		h = scope.Intersect(h, target)
 	}
 	return
+}
+
+// namedBy is what a hop decides about: its ask and every scope its parent
+// carries, so a prefix or a pattern holds the ids the parent was issued on.
+func namedBy(asked Scopes, parent *basev0.WorkContextV1) Scopes {
+	named := append(slices.Clone(asked), parent.GetAuthorityScopes()...)
+	for _, actor := range parent.GetActorChain() {
+		named = append(named, actor.GetGrantedScopes()...)
+	}
+	return named
 }
 
 // solutionPrincipals are the current actor and the services of a verified chain.
@@ -192,7 +203,7 @@ func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest
 		if f, err = s.src.fenceIn(tx, p.Organization, p.ID, inst.ID); err != nil {
 			return err
 		}
-		if heldHere, err = held(tx, p, audience); err != nil {
+		if heldHere, err = held(tx, p, audience, r.Scopes); err != nil {
 			return err
 		}
 		if audience.Kind == domain.KindSolution && !audience.OwnerAware {
@@ -210,7 +221,7 @@ func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest
 			if err != nil {
 				return notFound(err)
 			}
-			there, _, _, err := throughSolutions(tx, p, target, []string{audience.Principal})
+			there, _, _, err := throughSolutions(tx, p, target, []string{audience.Principal}, r.Scopes)
 			if err != nil {
 				return err
 			}
@@ -479,7 +490,7 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 			if err != nil {
 				return domain.Refuse("the owner %s is no longer a member", claims.GetOwnerPrincipalId())
 			}
-			if heldHere, sourceCeiling, bounded, err = throughSolutions(tx, p, audience, solutionPrincipals(claims, am.Principal)); err != nil {
+			if heldHere, sourceCeiling, bounded, err = throughSolutions(tx, p, audience, solutionPrincipals(claims, am.Principal), namedBy(r.Scopes, claims)); err != nil {
 				return err
 			}
 		case "agent":

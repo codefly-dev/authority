@@ -19,8 +19,10 @@ roles:
       - {kind: evaluation.runs, actions: [read]}
       - {kind: evaluation.online, actions: [read]}
       # A viewer reads only some document collections: the directory's, the
-      # wiki's, and every shared one. The authority answers this when asked
-      # (ListResources); the token carries the kind alone. A collection's id
+      # wiki's, and every shared one. A token cannot carry a prefix or a
+      # pattern, and never carries them as the whole kind: the viewer is issued
+      # the collections an ask names that they match, and an ask naming none
+      # carries none of the kind. A collection's id
       # is the store's namespace, "derived" and its producer joined by a unit
       # separator (\x1f).
       - kind: documents.collection

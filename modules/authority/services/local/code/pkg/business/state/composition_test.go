@@ -82,9 +82,17 @@ roles:
 	if err := k.State.AdmitMethod("ledger", "/ledger/Approve", mustHeld(t, k, "remi")); err == nil {
 		t.Error("the editor was admitted to the admin's method")
 	}
-	grants, err := k.ResourceGrants(t, "maya", "ledger", "ledger.entry", "read")
-	if err != nil || len(grants) != 1 || grants[0].Prefix != "public-" {
+	// The viewer's grant keeps its prefix: she is issued an id it matches and
+	// refused one it does not, and an ask naming none carries none of it.
+	grants, err := k.ResourceGrants(t, "maya", "ledger", "ledger.entry", "read", "public-1")
+	if err != nil || len(grants) != 1 || grants[0].ID != "public-1" {
 		t.Errorf("the viewer's grant keeps its resources: %v %v", grants, err)
+	}
+	if _, err := k.ResourceGrants(t, "maya", "ledger", "ledger.entry", "read", "private-1"); err == nil || !strings.Contains(err.Error(), "what the owner holds") {
+		t.Errorf("the viewer's grant widened past its prefix: %v", err)
+	}
+	if _, err := k.ResourceGrants(t, "maya", "ledger", "ledger.entry", "read"); err == nil {
+		t.Error("an empty ask carried the viewer's prefix as the whole kind")
 	}
 	// The fixture's own vocabulary stays.
 	if scopes := k.State.RoleScopes("acme", "viewer"); !state.Attenuates([]*basev0.WorkScopeV1{testkit.Scope("console.identity", "read")}, scopes) {

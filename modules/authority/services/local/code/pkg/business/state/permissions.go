@@ -140,7 +140,7 @@ func (s *State) PermissionReport() []string {
 			}
 		} else {
 			for _, role := range orgRoles {
-				roles[role.Name] = decide.OrgScopes([]domain.OrgRole{role}, m)
+				roles[role.Name] = decide.OrgScopes([]domain.OrgRole{role}, m, nil)
 			}
 		}
 		for method := range m.Methods {

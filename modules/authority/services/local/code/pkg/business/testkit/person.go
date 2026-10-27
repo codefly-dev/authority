@@ -13,9 +13,10 @@ import (
 	authorityv1 "gateway/pkg/gen/host/authority/v1"
 )
 
-// PersonIssue is what person is issued at audience asking for everything
-// they hold there, through the wire: signed in by their fixture token.
-func (k *Kit) PersonIssue(t *testing.T, person, audience string) (*authorityv1.IssueResponse, error) {
+// PersonIssue is what person is issued at audience asking for scopes, or
+// everything they hold there when none, through the wire: signed in by their
+// fixture token.
+func (k *Kit) PersonIssue(t *testing.T, person, audience string, scopes ...*authorityv1.WorkScopeV1) (*authorityv1.IssueResponse, error) {
 	t.Helper()
 	token := ""
 	for _, p := range k.State.FixturePeople() {
@@ -28,7 +29,7 @@ func (k *Kit) PersonIssue(t *testing.T, person, audience string) (*authorityv1.I
 		t.Fatalf("sign in %s: %v", person, err)
 	}
 	return k.Issuer.Issue(issuer.WithSession(context.Background(), sess.ID), &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: audience})
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: audience, Scopes: scopes})
 }
 
 // PersonScopes is what person holds at audience now: the effective scopes of
@@ -48,10 +49,15 @@ func (k *Kit) PersonScopes(t *testing.T, person, audience string) ([]*basev0.Wor
 }
 
 // ResourceGrants is which resources of kind person may act on with action at
-// audience, as the authority answers it for their capability.
-func (k *Kit) ResourceGrants(t *testing.T, person, audience, kind, action string) ([]authority.Grant, error) {
+// audience, as the authority answers it for their capability: one asking for
+// action on ids when it names any, else for everything they hold.
+func (k *Kit) ResourceGrants(t *testing.T, person, audience, kind, action string, ids ...string) ([]authority.Grant, error) {
 	t.Helper()
-	out, err := k.PersonIssue(t, person, audience)
+	var ask []*authorityv1.WorkScopeV1
+	if len(ids) > 0 {
+		ask = append(ask, &authorityv1.WorkScopeV1{ResourceKind: kind, Actions: []string{action}, ResourceIds: ids})
+	}
+	out, err := k.PersonIssue(t, person, audience, ask...)
 	if err != nil {
 		return nil, err
 	}

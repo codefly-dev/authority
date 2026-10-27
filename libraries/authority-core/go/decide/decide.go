@@ -23,21 +23,70 @@ func IsAdministrator(p domain.Person) bool {
 
 // OrgScopes is what a person's organization roles grant at audience: the
 // union of their scopes (AnyKind spanning every served kind) within what the
-// audience serves. Resource matchers are ListResources' (ResourceGrants).
-func OrgScopes(roles []domain.OrgRole, audience domain.Module) Scopes {
+// audience serves. A role scope naming no resource holds the whole kind; one
+// naming resources holds exactly the ids its matchers select (heldIDs), never
+// the whole kind, so Issue refuses an ask naming any other id and an empty
+// ask carries those ids. named is what the decision is about: the ask, and
+// the capability a hop or a delegation derives from.
+func OrgScopes(roles []domain.OrgRole, audience domain.Module, named Scopes) Scopes {
 	var held Scopes
 	for _, role := range roles {
 		for _, sc := range role.Scopes {
+			kinds := []string{sc.Kind}
 			if sc.Kind == scope.AnyKind {
+				kinds = kinds[:0]
 				for _, kind := range audience.ResourceKinds {
-					held = append(held, &basev0.WorkScopeV1{ResourceKind: kind.GetResourceKind(), Actions: slices.Clone(sc.Actions)})
+					kinds = append(kinds, kind.GetResourceKind())
 				}
-				continue
 			}
-			held = append(held, &basev0.WorkScopeV1{ResourceKind: sc.Kind, Actions: slices.Clone(sc.Actions)})
+			for _, kind := range kinds {
+				ids, all := heldIDs(sc.Resources, kind, named)
+				if !all && len(ids) == 0 {
+					// No row: a row naming no id is the whole kind.
+					continue
+				}
+				held = append(held, &basev0.WorkScopeV1{ResourceKind: kind, Actions: slices.Clone(sc.Actions), ResourceIds: ids})
+			}
 		}
 	}
 	return scope.Intersect(scope.Normalize(held), audience.ResourceKinds)
+}
+
+// heldIDs is what a role scope's matchers hold of kind: every resource when
+// they name none or All; otherwise each ID matcher's id, and of a prefix or a
+// pattern only the ids named on kind that it matches. A token cannot carry a
+// prefix or a pattern, and carrying it as the whole kind would hand a module
+// reading the token every resource of the kind, so an ask naming no id holds
+// none of it: the person names the ids they act on. Matchers that do not
+// compile hold nothing.
+func heldIDs(grants []resources.Grant, kind string, named Scopes) (ids []string, all bool) {
+	if len(grants) == 0 {
+		return nil, true
+	}
+	m, err := resources.Compile(grants)
+	if err != nil {
+		return nil, false
+	}
+	if m.All() {
+		return nil, true
+	}
+	for _, g := range grants {
+		if g.ID != "" {
+			ids = append(ids, g.ID)
+		}
+	}
+	for _, sc := range named {
+		if sc.GetResourceKind() != kind {
+			continue
+		}
+		for _, id := range sc.GetResourceIds() {
+			if m.Matches(id) {
+				ids = append(ids, id)
+			}
+		}
+	}
+	slices.Sort(ids)
+	return slices.Compact(ids), false
 }
 
 // ResourceGrants are the resource matchers of every organization-role scope

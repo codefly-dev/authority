@@ -35,7 +35,7 @@ func (s *Service) Delegate(ctx context.Context, who Person, module string, scope
 		if inst, err := installationOf(tx, p.Organization, m.Name); err != nil || inst.Status != domain.Active {
 			return domain.NotNow("module %q is not installed in organization %s, so nothing could issue from a delegation to it", m.Name, p.Organization)
 		}
-		holdings, err := held(tx, p, m)
+		holdings, err := held(tx, p, m, scopes)
 		if err != nil {
 			return err
 		}
@@ -44,12 +44,12 @@ func (s *Service) Delegate(ctx context.Context, who Person, module string, scope
 			if err != nil {
 				continue
 			}
-			there, _, _, err := throughSolutions(tx, p, target, []string{m.Principal})
+			there, _, _, err := throughSolutions(tx, p, target, []string{m.Principal}, scopes)
 			if err != nil {
 				return err
 			}
 			if m.Kind != domain.KindSolution {
-				if there, err = held(tx, p, target); err != nil {
+				if there, err = held(tx, p, target, scopes); err != nil {
 					return err
 				}
 			}
@@ -169,7 +169,7 @@ func (s *Service) IssueForDelegation(ctx context.Context, id string, actor Workl
 		if err != nil {
 			return domain.Refuse("the grantor %s is no longer a member", d.Grantor)
 		}
-		h, _, _, err := throughSolutions(tx, p, audience, []string{am.Principal})
+		h, _, _, err := throughSolutions(tx, p, audience, []string{am.Principal}, d.Scopes)
 		if err != nil {
 			return err
 		}

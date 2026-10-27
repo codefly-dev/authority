@@ -777,15 +777,22 @@ the suite, and by any module deciding which of its own resources a caller sees.
 The authority knows resources by id only; each module maps ids onto its own.
 
 On the local authority a role's scope may carry `resources`. A scope with
-none covers the whole kind. A person's answer is what her roles grant. A
-module's or an installation's own work is bounded by its capability alone. A
-capability narrowed to named ids covers only the ones the owner's grants also
-cover. A capability that does not hold the action is refused.
+none covers the whole kind. A scope with resources is never issued as the
+whole kind (2026-10-26): its ids are the capability's resource ids, so an ask
+naming none is issued on exactly those ids, and an ask naming any other id, or
+the whole kind, is refused, at the root and at every hop. A token cannot carry
+a prefix or a pattern, so one holds only the ids an ask (or the capability a
+hop derives from) names that it matches, and an ask naming none carries none
+of it. A person's answer is what her roles grant, cut to the ids her
+capability names. A module's or an installation's own work is bounded by its
+capability alone. A capability that does not hold the action is refused.
 
 The suite line "the authority answers which resources a context covers, by
 grant" holds an implementation to a fixture's covered and uncovered ids, an
-unheld action, and a narrowed capability. It fails on an implementation that
-answers every resource.
+unheld action, an empty ask that never carries the whole kind, and the refusal
+of an ask naming an uncovered id or the whole kind. It fails on an
+implementation that answers every resource or issues a resource-scoped role as
+the whole kind.
 
 Building it exposed an attenuation bug: the local authority's scope operations dropped
 resource ids, so a capability asked for two named resources was issued for the
