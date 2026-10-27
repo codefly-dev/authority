@@ -674,6 +674,39 @@ them in memory, and the local authority says which at boot
 ([the module page](modules/authority/README.md)). The fixture grants an Acme
 admin `robin.intents:activate` and an editor `robin.intents:run`.
 
+**Published as `codefly.dev/artifact@0.1.0`** (`interfaces/artifact`, 2026-10-27):
+`host.artifact.v1.ArtifactService` with `Approve`, `Authorize` and `Revoke`,
+the proto above unchanged. The local authority's grpc endpoint declares it
+beside the other host interfaces; a host serving the same service declares it
+the same way.
+
+**One decision, in the shared core.** Who may decide is
+`authority.DecideArtifact` over `decide.Artifact` (`libraries/authority-core/go`),
+which every host calls before it reads or writes its own approvals; the
+approval's digest is `decide.ArtifactDigest`. The definition, as the proposal
+states it: the policy is a resource kind the module serves; approving and
+revoking need the person present holding its `activate` action at the module,
+a run its `run` action, held on the whole kind (a scope limited to some ids is
+refused, since an identity names no resource of the policy), administrator or
+not; the installation is the asking module's own, active, at the parent's
+organization, and any other is refused alike (`decide.ForeignInstallation` for
+another organization's or a missing one, so nothing of another organization is
+learned); the source is the installation's namespace; the digest is `sha256:`
+of the identity's deterministic protobuf encoding, so the revision is part of
+what was approved; every answer carries the revision the approval was given
+at. A request missing its policy or identity is `InvalidArgument`; every other
+refusal is `PermissionDenied` with its reason.
+
+`conformance.RunArtifacts` (`libraries/conformance/go/artifact.go`) is the
+shared case both hosts run, over the published interfaces only, and the local
+authority runs it in `plugins/registry_test/artifact_test.go`. Its fixture is a
+module installed at one organization under one policy, an administrator and a
+non-administrator approver holding the policy's `activate` and `run`, a member
+holding `run` alone, another module's credential, and another organization's
+administrator. Before this change the local authority answered `NotFound` for
+another organization's installation and let a module name another module's
+installation at its own organization; both are refused now.
+
 ## The edge: the browser's origin (2026-10-23)
 
 The edge is the authority module's third service. It is the auth gateway's

@@ -102,7 +102,7 @@ func InstallationID(org, target string) string { return authority.StableInstalla
 
 // Namespace is the source an installation's authored content belongs to,
 // named by the host so a module never chooses it: "<organization>.<target>".
-func Namespace(i Installation) string { return i.Organization + "." + i.Target }
+func Namespace(i Installation) string { return decide.Namespace(i) }
 
 // DelegationScope preserves the exact resource ceiling of a WorkScope.
 // Role matchers are a separate contract; a delegation names IDs, not patterns.
