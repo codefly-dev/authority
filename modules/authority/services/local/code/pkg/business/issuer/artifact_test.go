@@ -2,14 +2,17 @@ package issuer_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"strings"
 	"testing"
 
+	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"google.golang.org/protobuf/proto"
 
-	"gateway/pkg/business/issuer"
 	"gateway/pkg/business/state"
 	"gateway/pkg/business/testkit"
 	artifactv1 "gateway/pkg/gen/host/artifact/v1"
@@ -78,7 +81,7 @@ func TestAPersonPresentApprovesAnArtifactAndARunReadsItBack(t *testing.T) {
 	if err != nil || !proto.Equal(run, approved) {
 		t.Fatalf("run reads back: %v %v", run, err)
 	}
-	if _, err := k.Issuer.Artifact(ctx, "activate", &artifactv1.ArtifactRequest{ParentToken: remi, ActorCredential: robin, InstallationId: acmeRobin, Policy: "robin.intents", Identity: fieldNaturalist(3)}); !errors.Is(err, issuer.ErrRefused) || !strings.Contains(err.Error(), "robin.intents:activate") {
+	if _, err := k.Issuer.Artifact(ctx, "activate", &artifactv1.ArtifactRequest{ParentToken: remi, ActorCredential: robin, InstallationId: acmeRobin, Policy: "robin.intents", Identity: fieldNaturalist(3)}); !denied(err) || !strings.Contains(err.Error(), "robin.intents:activate") {
 		t.Fatalf("an editor approving: %v", err)
 	}
 	// A different artifact, or the same one for another installation, stands unapproved.
@@ -89,7 +92,7 @@ func TestAPersonPresentApprovesAnArtifactAndARunReadsItBack(t *testing.T) {
 	}
 	// Revoked, for good.
 	id := strings.TrimPrefix(approved.GetQualifiedName(), "host/approved-artifacts/")
-	if _, err := k.Issuer.RevokeArtifact(ctx, &artifactv1.RevokeRequest{ParentToken: remi, ActorCredential: robin, InstallationId: acmeRobin, Policy: "robin.intents", ApprovalId: id}); !errors.Is(err, issuer.ErrRefused) {
+	if _, err := k.Issuer.RevokeArtifact(ctx, &artifactv1.RevokeRequest{ParentToken: remi, ActorCredential: robin, InstallationId: acmeRobin, Policy: "robin.intents", ApprovalId: id}); !denied(err) {
 		t.Fatalf("an editor revoking: %v", err)
 	}
 	if _, err := k.Issuer.RevokeArtifact(ctx, &artifactv1.RevokeRequest{ParentToken: alex, ActorCredential: robin, InstallationId: acmeRobin, Policy: "robin.intents", ApprovalId: id}); err != nil {
@@ -112,11 +115,11 @@ func TestConsentIsThePersonsOwnAtTheModuleAsking(t *testing.T) {
 	identity := fieldNaturalist(1)
 
 	// A context addressed to another module is not consent at robin.
-	if _, err := k.Issuer.Artifact(ctx, "activate", &artifactv1.ArtifactRequest{ParentToken: personAt(t, k, "fixture-alex", "documents"), ActorCredential: robin, InstallationId: acmeRobin, Policy: "robin.intents", Identity: identity}); !errors.Is(err, issuer.ErrRefused) || !strings.Contains(err.Error(), "addressed to documents") {
+	if _, err := k.Issuer.Artifact(ctx, "activate", &artifactv1.ArtifactRequest{ParentToken: personAt(t, k, "fixture-alex", "documents"), ActorCredential: robin, InstallationId: acmeRobin, Policy: "robin.intents", Identity: identity}); !denied(err) || !strings.Contains(err.Error(), "addressed to documents") {
 		t.Fatalf("another audience: %v", err)
 	}
 	// Nor is robin's context presented by another module.
-	if _, err := k.Issuer.Artifact(ctx, "activate", &artifactv1.ArtifactRequest{ParentToken: personAt(t, k, "fixture-alex", "robin"), ActorCredential: documents, InstallationId: acmeRobin, Policy: "robin.intents", Identity: identity}); !errors.Is(err, issuer.ErrRefused) {
+	if _, err := k.Issuer.Artifact(ctx, "activate", &artifactv1.ArtifactRequest{ParentToken: personAt(t, k, "fixture-alex", "robin"), ActorCredential: documents, InstallationId: acmeRobin, Policy: "robin.intents", Identity: identity}); !denied(err) {
 		t.Fatalf("another module asking: %v", err)
 	}
 	// A module acting for the person cannot consent for them, however much it holds; it may run.
@@ -127,10 +130,10 @@ func TestConsentIsThePersonsOwnAtTheModuleAsking(t *testing.T) {
 	if err != nil {
 		t.Fatalf("child: %v", err)
 	}
-	if _, err := k.Issuer.Artifact(ctx, "activate", &artifactv1.ArtifactRequest{ParentToken: child.GetToken(), ActorCredential: robin, InstallationId: acmeRobin, Policy: "robin.intents", Identity: identity}); !errors.Is(err, issuer.ErrRefused) || !strings.Contains(err.Error(), "person present") {
+	if _, err := k.Issuer.Artifact(ctx, "activate", &artifactv1.ArtifactRequest{ParentToken: child.GetToken(), ActorCredential: robin, InstallationId: acmeRobin, Policy: "robin.intents", Identity: identity}); !denied(err) || !strings.Contains(err.Error(), "person present") {
 		t.Fatalf("a delegated consent: %v", err)
 	}
-	if _, err := k.Issuer.Artifact(ctx, "activate", &artifactv1.ArtifactRequest{ParentToken: dev, ActorCredential: robin, InstallationId: acmeRobin, Policy: "robin.intents", Identity: identity}); !errors.Is(err, issuer.ErrRefused) {
+	if _, err := k.Issuer.Artifact(ctx, "activate", &artifactv1.ArtifactRequest{ParentToken: dev, ActorCredential: robin, InstallationId: acmeRobin, Policy: "robin.intents", Identity: identity}); !denied(err) {
 		// dev's token is addressed to assistant, not robin.
 		t.Fatalf("dev at assistant: %v", err)
 	}
@@ -141,12 +144,26 @@ func TestConsentIsThePersonsOwnAtTheModuleAsking(t *testing.T) {
 		t.Fatalf("a delegated run: %v", err)
 	}
 	// Another organisation's installation, and a policy nobody holds.
-	if _, err := k.Issuer.Artifact(ctx, "run", &artifactv1.ArtifactRequest{ParentToken: personAt(t, k, "fixture-dev", "robin"), ActorCredential: robin, InstallationId: state.InstallationID("globex", "robin"), Policy: "robin.intents", Identity: identity}); !errors.Is(err, state.ErrUnknown) {
+	if _, err := k.Issuer.Artifact(ctx, "run", &artifactv1.ArtifactRequest{ParentToken: personAt(t, k, "fixture-dev", "robin"), ActorCredential: robin, InstallationId: state.InstallationID("globex", "robin"), Policy: "robin.intents", Identity: identity}); !denied(err) || !strings.Contains(err.Error(), "belongs to another organization than \"acme\"") {
 		t.Fatalf("globex's installation: %v", err)
 	}
-	if _, err := k.Issuer.Artifact(ctx, "run", &artifactv1.ArtifactRequest{ParentToken: personAt(t, k, "fixture-remi", "robin"), ActorCredential: robin, InstallationId: acmeRobin, Policy: "robin.tasks", Identity: identity}); !errors.Is(err, issuer.ErrRefused) || !strings.Contains(err.Error(), "robin.tasks:run") {
+	// Nor another module's installation at the same organisation, even with
+	// that installation's own namespace as the source.
+	documentsInstallation := state.InstallationID("acme", "documents")
+	elsewhere := fieldNaturalist(1)
+	elsewhere.Source = "acme.documents"
+	if _, err := k.Issuer.Artifact(ctx, "run", &artifactv1.ArtifactRequest{ParentToken: personAt(t, k, "fixture-dev", "robin"), ActorCredential: robin, InstallationId: documentsInstallation, Policy: "robin.intents", Identity: elsewhere}); !denied(err) || !strings.Contains(err.Error(), "is not robin's active installation at acme") {
+		t.Fatalf("documents' installation: %v", err)
+	}
+	if _, err := k.Issuer.Artifact(ctx, "run", &artifactv1.ArtifactRequest{ParentToken: personAt(t, k, "fixture-remi", "robin"), ActorCredential: robin, InstallationId: acmeRobin, Policy: "robin.tasks", Identity: identity}); !denied(err) || !strings.Contains(err.Error(), "robin.tasks:run") {
 		t.Fatalf("a policy kind without the action: %v", err)
 	}
+}
+
+// denied is the shared core's refusal, which the plugin answers PermissionDenied.
+func denied(err error) bool {
+	code, ok := domain.CodeOf(err)
+	return ok && code == domain.Denied
 }
 
 func TestAnInstallationNamesItsNamespace(t *testing.T) {
@@ -155,5 +172,28 @@ func TestAnInstallationNamesItsNamespace(t *testing.T) {
 	inst, ok := k.State.Installation(state.InstallationID("acme", "robin"))
 	if !ok || state.Namespace(inst) != "acme.robin" {
 		t.Fatalf("namespace = %q (%v)", state.Namespace(inst), ok)
+	}
+}
+
+// The core writes the identity's encoding by hand, so a host links no second
+// generated package; it is byte for byte the generated deterministic encoding,
+// negative revisions, empty fields and repeated contracts included.
+func TestTheApprovalDigestIsTheIdentitysDeterministicEncoding(t *testing.T) {
+	for _, id := range []*artifactv1.Identity{
+		fieldNaturalist(3), fieldNaturalist(-2), {Schema: "s", Source: "o", Subject: []byte{0}},
+		{Schema: "s", Source: "o", Subject: []byte("x"), Contracts: []*artifactv1.Contract{{Kind: "k"}, {Name: "n", Digest: "d"}, {}}},
+	} {
+		raw, err := proto.MarshalOptions{Deterministic: true}.Marshal(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sum := sha256.Sum256(raw)
+		mine := decide.ArtifactIdentity{Schema: id.GetSchema(), Source: id.GetSource(), Subject: id.GetSubject(), ExpectedRevision: id.GetExpectedRevision()}
+		for _, c := range id.GetContracts() {
+			mine.Contracts = append(mine.Contracts, decide.ArtifactContract{Kind: c.GetKind(), Name: c.GetName(), Digest: c.GetDigest()})
+		}
+		if got := decide.ArtifactDigest(mine); got != "sha256:"+hex.EncodeToString(sum[:]) {
+			t.Fatalf("%v: digest %s", id, got)
+		}
 	}
 }
