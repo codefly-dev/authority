@@ -874,7 +874,7 @@ the interface, with a suite line, or named as belonging elsewhere.
 | Executable artifact approvals (`Approve`, `Authorize`, `RevokeExecutableArtifact`) | not authority: the signed release (handbook#146) | open |
 | Audit (`EmitAuditEvent`, `DeclareAuditEventTypes`) | not authority: an optional audit interface; with none injected, the module logs each event | the record store |
 | Notifications (`NotifyUser`, `NotifyOrgAdmins`) | host services, optional interfaces | open |
-| Current installation identity and authored namespace | proposed `InstallationService.Current`, confined to the authenticated module in the parent organization | shared core and public RPC tests; host adoption pending |
+| Current installation identity and authored namespace | `InstallationService.Current`, confined to the authenticated module in the parent organization | shared core and public RPC tests; host adoption pending |
 
 The local authority supplies these cases. Each host must run the current suite
 against its own provider; missing required fixtures fail. Earlier Accounts
@@ -1076,8 +1076,9 @@ artifact consent or a lease; artifact approval and authorization remain separate
 `List` remains administrator-only. Invalid credentials, foreign audiences and
 revoked authority refuse instead of returning an empty namespace.
 
-The contract is proposed in handbook
-[`2026-10-26-authored-content-foundations`](https://github.com/obin-ai/handbook/blob/proposal/authored-content-foundations/proposals/2026-10-26-authored-content-foundations.md).
+The scoped contract is carried by the handbook
+[installation and intent-selection decision](https://github.com/obin-ai/handbook/blob/main/decisions/authored-installation-and-intent-selection.md)
+(handbook#403).
 Shared-core tests exercise tenant/audience isolation and revocation; the shared
 conformance suite exercises the generated public RPC. Accounts must adopt this
 method and pass that suite before its consumer deployment is qualified.
