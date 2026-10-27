@@ -6,7 +6,8 @@ name: go
 # bypass host.HTTPTransport and host.DialOptions.
 # tools/packagegate's test is the package gate: every module a run admits
 # ships its package manifest, and its contracts match what `codefly generate
-# contracts` writes from the services' sources.
+# contracts` writes from the services' sources, and every method a host
+# fronting the module receives declares its policy.
 
 on:
   pull_request:

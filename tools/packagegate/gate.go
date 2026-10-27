@@ -5,7 +5,9 @@
 // start ("declares no package manifest, so it names no release"). The manifest,
 // the API contract catalog and the contract files must agree, and the contracts
 // must be what `codefly generate contracts` would write from the services'
-// sources today.
+// sources today. Every method a host fronting the module receives declares
+// the policy the hop enforces, so a host that consumes the policies (one that
+// implements codefly.dev/composition) accepts the module.
 package packagegate
 
 import (
@@ -55,7 +57,17 @@ func Check(dir string) error {
 			stale = append(stale, fmt.Errorf("contract %s/%s is stale, run `codefly generate contracts`: %w", endpoint.Service, endpoint.Endpoint, err))
 		}
 	}
-	return errors.Join(stale...)
+	if err := errors.Join(stale...); err != nil {
+		return err
+	}
+	missing, err := undeclared(dir, manifest, catalog, identities)
+	if err != nil {
+		return err
+	}
+	if len(missing) > 0 {
+		return undeclaredError(missing)
+	}
+	return nil
 }
 
 // fresh compares a contract with the sources `codefly generate contracts`
