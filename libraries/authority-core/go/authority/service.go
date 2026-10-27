@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"github.com/codefly-dev/core/workcontext"
 	"github.com/google/uuid"
@@ -355,6 +356,28 @@ func (src sources) OperationBinding(ctx context.Context, id string) (workcontext
 		return nil
 	})
 	return out, err
+}
+
+// ceiled is m's delivered binding b as usable at org: within what the host's
+// consent at m's installation there allows (domain.Installation.Bindings). An
+// organization with no installation of m leaves b as delivered; whoever needs
+// the installation refuses its absence.
+func ceiled(tx Tx, org string, m domain.Module, b domain.Binding) (domain.Binding, error) {
+	inst, err := installationOf(tx, org, m.Name)
+	if errors.Is(err, domain.ErrNotFound) {
+		return b, nil
+	}
+	if err != nil || inst.Bindings == nil {
+		return b, err
+	}
+	consented, ok := inst.Bindings[b.ID]
+	if !ok {
+		return domain.Binding{}, domain.Refuse("%s's operation binding %q is not one its installation at %s consents to", m.Name, b.ID, org)
+	}
+	b.InvokeScopes = scope.Intersect(b.InvokeScopes, consented.InvokeScopes)
+	b.HeadlessScopes = scope.Intersect(b.HeadlessScopes, consented.HeadlessScopes)
+	b.LookupScopes = scope.Intersect(b.LookupScopes, consented.LookupScopes)
+	return b, nil
 }
 
 // installationOf is an organization's installation of target: its active one

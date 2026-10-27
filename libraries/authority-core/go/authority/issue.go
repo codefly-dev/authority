@@ -253,6 +253,7 @@ func (s *Service) IssueForWorkload(ctx context.Context, w Workload, r IssueReque
 	var module, audience domain.Module
 	var through, scopes Scopes
 	var org, instID string
+	var f fence
 	err := s.store.Read(ctx, func(tx Tx) error {
 		var err error
 		if module, err = tx.ModuleNamed(w.Module); err != nil {
@@ -299,6 +300,9 @@ func (s *Service) IssueForWorkload(ctx context.Context, w Workload, r IssueReque
 		if !ok {
 			return fmt.Errorf("%w: operation binding %q is not one %s declares", workcontext.ErrNoBinding, r.Binding, module.Name)
 		}
+		if binding, err = ceiled(tx, org, module, binding); err != nil {
+			return err
+		}
 		if binding.Audience != audience.Principal {
 			return domain.Refuse("binding %s is addressed to %s, not %s", r.Binding, binding.Audience, audience.Principal)
 		}
@@ -313,6 +317,12 @@ func (s *Service) IssueForWorkload(ctx context.Context, w Workload, r IssueReque
 			return domain.NotNow("%s is not installed at %s", module.Name, org)
 		}
 		instID = inst.ID
+		// What the decision read: the installation's revision moves with
+		// the consent its bindings came from, so a capability minted after a
+		// narrowing committed is refused rather than handed out.
+		if f, err = s.src.fenceIn(tx, org, module.Principal, inst.ID); err != nil {
+			return err
+		}
 		return decide.OwnerAware(audience, scopes)
 	})
 	if err != nil {
@@ -324,6 +334,9 @@ func (s *Service) IssueForWorkload(ctx context.Context, w Workload, r IssueReque
 		InstallationID: instID, OperationBindingID: org + "/" + module.Name + "/" + r.Binding, TTL: clamp(r.TTL, s.cfg.MaxTTL),
 	})
 	if err != nil {
+		return Issued{}, err
+	}
+	if err := f.holds(signed); err != nil {
 		return Issued{}, err
 	}
 	if signed.GetSeal().GetPrincipalEpoch() != module.Generation || signed.GetOperationBinding().GetRevision() != module.Generation {
@@ -384,6 +397,9 @@ func (s *Service) IssueForInstallation(ctx context.Context, w Workload, installa
 			binding, ok := solution.Bindings[r.Binding]
 			if !ok {
 				return domain.Missing("operation binding %q is not one %s declares", r.Binding, solution.Name)
+			}
+			if binding, err = ceiled(tx, inst.Organization, solution, binding); err != nil {
+				return err
 			}
 			if binding.Audience != audience.Principal {
 				return domain.Refuse("binding %q is addressed to %s, not %s", r.Binding, binding.Audience, audience.Principal)
@@ -490,6 +506,16 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 	err = s.store.Read(ctx, func(tx Tx) error {
 		tenant := claims.GetTenantId()
 		var heldHere, sourceCeiling Scopes
+		var err error
+		// A hop back to the module's own audience reaches nothing the parent,
+		// addressed to it already, did not: it is bounded by that parent and
+		// the owner's grants, so the consent that bounds what a module reaches
+		// elsewhere does not apply to it.
+		if binding.Audience != am.Principal {
+			if binding, err = ceiled(tx, tenant, am, binding); err != nil {
+				return err
+			}
+		}
 		bounded := false
 		switch claims.GetOwnerPrincipalKind() {
 		case "human":
@@ -520,7 +546,6 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 		if (bounded || claims.GetOwnerPrincipalKind() == "agent") && !audience.OwnerAware {
 			return decide.OwnerAware(audience, decide.Scopes{{ResourceKind: audience.Name, ResourceOwnerId: claims.GetOwnerPrincipalId()}})
 		}
-		var err error
 		if through, err = decide.ScopesFor(binding, r.Operation, "invoke"); err != nil {
 			return err
 		}

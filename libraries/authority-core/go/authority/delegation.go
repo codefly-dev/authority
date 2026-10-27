@@ -155,6 +155,9 @@ func (s *Service) IssueForDelegation(ctx context.Context, id string, actor Workl
 		if !ok {
 			return domain.Missing("operation binding %q is not one %s declares", r.Binding, am.Name)
 		}
+		if binding, err = ceiled(tx, d.Organization, am, binding); err != nil {
+			return err
+		}
 		if audience, err = tx.Module(r.Audience); err != nil {
 			return notFound(err)
 		}
