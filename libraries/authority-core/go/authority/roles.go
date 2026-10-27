@@ -134,4 +134,3 @@ func (s *Service) ListRoleGrants(ctx context.Context, caller Person, organizatio
 func (s *Service) PersonChanged(ctx context.Context, person string) error {
 	return s.store.Write(ctx, func(tx Tx) error { return tx.BumpPersonEpoch(person) })
 }
-

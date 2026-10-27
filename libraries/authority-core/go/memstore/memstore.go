@@ -22,8 +22,8 @@ type Store struct {
 	mu            sync.RWMutex
 	orgs          map[string]domain.Organization
 	people        map[string]map[string]domain.Person // id → organization → membership
-	roles         map[string]domain.OrgRole // organization/name
-	modules       map[string]domain.Module  // name
+	roles         map[string]domain.OrgRole           // organization/name
+	modules       map[string]domain.Module            // name
 	installations map[string]domain.Installation
 	grants        map[string][]domain.RoleGrant
 	revisions     map[string]uint64
