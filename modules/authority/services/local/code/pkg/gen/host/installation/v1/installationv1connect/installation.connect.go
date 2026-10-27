@@ -43,6 +43,9 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
+	// InstallationServiceCurrentProcedure is the fully-qualified name of the InstallationService's
+	// Current RPC.
+	InstallationServiceCurrentProcedure = "/host.installation.v1.InstallationService/Current"
 	// InstallationServiceInstallProcedure is the fully-qualified name of the InstallationService's
 	// Install RPC.
 	InstallationServiceInstallProcedure = "/host.installation.v1.InstallationService/Install"
@@ -73,6 +76,10 @@ const (
 
 // InstallationServiceClient is a client for the host.installation.v1.InstallationService service.
 type InstallationServiceClient interface {
+	// Current reads only the authenticated module's own active installation,
+	// in the tenant of a current parent addressed to that module. It grants no
+	// artifact approval or content access and exposes no roles or grants.
+	Current(context.Context, *connect.Request[v1.CurrentInstallationRequest]) (*connect.Response[v1.CurrentInstallation], error)
 	// Install composes an installation: its agent principal, its root scope and
 	// the row, pending until the target acknowledges its install step.
 	Install(context.Context, *connect.Request[v1.InstallRequest]) (*connect.Response[v1.Installation], error)
@@ -106,6 +113,12 @@ func NewInstallationServiceClient(httpClient connect.HTTPClient, baseURL string,
 	baseURL = strings.TrimRight(baseURL, "/")
 	installationServiceMethods := v1.File_host_installation_v1_installation_proto.Services().ByName("InstallationService").Methods()
 	return &installationServiceClient{
+		current: connect.NewClient[v1.CurrentInstallationRequest, v1.CurrentInstallation](
+			httpClient,
+			baseURL+InstallationServiceCurrentProcedure,
+			connect.WithSchema(installationServiceMethods.ByName("Current")),
+			connect.WithClientOptions(opts...),
+		),
 		install: connect.NewClient[v1.InstallRequest, v1.Installation](
 			httpClient,
 			baseURL+InstallationServiceInstallProcedure,
@@ -147,12 +160,18 @@ func NewInstallationServiceClient(httpClient connect.HTTPClient, baseURL string,
 
 // installationServiceClient implements InstallationServiceClient.
 type installationServiceClient struct {
+	current        *connect.Client[v1.CurrentInstallationRequest, v1.CurrentInstallation]
 	install        *connect.Client[v1.InstallRequest, v1.Installation]
 	review         *connect.Client[v1.ReviewRequest, v1.ConsentApproval]
 	grantRole      *connect.Client[v1.GrantRoleRequest, v1.Installation]
 	revokeRole     *connect.Client[v1.RevokeRoleRequest, v1.Installation]
 	listRoleGrants *connect.Client[v1.ListRoleGrantsRequest, v1.ListRoleGrantsResponse]
 	list           *connect.Client[v1.ListRequest, v1.ListResponse]
+}
+
+// Current calls host.installation.v1.InstallationService.Current.
+func (c *installationServiceClient) Current(ctx context.Context, req *connect.Request[v1.CurrentInstallationRequest]) (*connect.Response[v1.CurrentInstallation], error) {
+	return c.current.CallUnary(ctx, req)
 }
 
 // Install calls host.installation.v1.InstallationService.Install.
@@ -188,6 +207,10 @@ func (c *installationServiceClient) List(ctx context.Context, req *connect.Reque
 // InstallationServiceHandler is an implementation of the host.installation.v1.InstallationService
 // service.
 type InstallationServiceHandler interface {
+	// Current reads only the authenticated module's own active installation,
+	// in the tenant of a current parent addressed to that module. It grants no
+	// artifact approval or content access and exposes no roles or grants.
+	Current(context.Context, *connect.Request[v1.CurrentInstallationRequest]) (*connect.Response[v1.CurrentInstallation], error)
 	// Install composes an installation: its agent principal, its root scope and
 	// the row, pending until the target acknowledges its install step.
 	Install(context.Context, *connect.Request[v1.InstallRequest]) (*connect.Response[v1.Installation], error)
@@ -217,6 +240,12 @@ type InstallationServiceHandler interface {
 // and JSON codecs. They also support gzip compression.
 func NewInstallationServiceHandler(svc InstallationServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
 	installationServiceMethods := v1.File_host_installation_v1_installation_proto.Services().ByName("InstallationService").Methods()
+	installationServiceCurrentHandler := connect.NewUnaryHandler(
+		InstallationServiceCurrentProcedure,
+		svc.Current,
+		connect.WithSchema(installationServiceMethods.ByName("Current")),
+		connect.WithHandlerOptions(opts...),
+	)
 	installationServiceInstallHandler := connect.NewUnaryHandler(
 		InstallationServiceInstallProcedure,
 		svc.Install,
@@ -255,6 +284,8 @@ func NewInstallationServiceHandler(svc InstallationServiceHandler, opts ...conne
 	)
 	return "/host.installation.v1.InstallationService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case InstallationServiceCurrentProcedure:
+			installationServiceCurrentHandler.ServeHTTP(w, r)
 		case InstallationServiceInstallProcedure:
 			installationServiceInstallHandler.ServeHTTP(w, r)
 		case InstallationServiceReviewProcedure:
@@ -275,6 +306,10 @@ func NewInstallationServiceHandler(svc InstallationServiceHandler, opts ...conne
 
 // UnimplementedInstallationServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedInstallationServiceHandler struct{}
+
+func (UnimplementedInstallationServiceHandler) Current(context.Context, *connect.Request[v1.CurrentInstallationRequest]) (*connect.Response[v1.CurrentInstallation], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.installation.v1.InstallationService.Current is not implemented"))
+}
 
 func (UnimplementedInstallationServiceHandler) Install(context.Context, *connect.Request[v1.InstallRequest]) (*connect.Response[v1.Installation], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.installation.v1.InstallationService.Install is not implemented"))

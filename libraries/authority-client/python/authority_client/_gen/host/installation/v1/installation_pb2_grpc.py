@@ -35,6 +35,11 @@ class InstallationServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
+        self.Current = channel.unary_unary(
+                '/host.installation.v1.InstallationService/Current',
+                request_serializer=host_dot_installation_dot_v1_dot_installation__pb2.CurrentInstallationRequest.SerializeToString,
+                response_deserializer=host_dot_installation_dot_v1_dot_installation__pb2.CurrentInstallation.FromString,
+                _registered_method=True)
         self.Install = channel.unary_unary(
                 '/host.installation.v1.InstallationService/Install',
                 request_serializer=host_dot_installation_dot_v1_dot_installation__pb2.InstallRequest.SerializeToString,
@@ -70,6 +75,15 @@ class InstallationServiceStub(object):
 class InstallationServiceServicer(object):
     """InstallationService is implemented by the host and by the local authority.
     """
+
+    def Current(self, request, context):
+        """Current reads only the authenticated module's own active installation,
+        in the tenant of a current parent addressed to that module. It grants no
+        artifact approval or content access and exposes no roles or grants.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def Install(self, request, context):
         """Install composes an installation: its agent principal, its root scope and
@@ -124,6 +138,11 @@ class InstallationServiceServicer(object):
 
 def add_InstallationServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
+            'Current': grpc.unary_unary_rpc_method_handler(
+                    servicer.Current,
+                    request_deserializer=host_dot_installation_dot_v1_dot_installation__pb2.CurrentInstallationRequest.FromString,
+                    response_serializer=host_dot_installation_dot_v1_dot_installation__pb2.CurrentInstallation.SerializeToString,
+            ),
             'Install': grpc.unary_unary_rpc_method_handler(
                     servicer.Install,
                     request_deserializer=host_dot_installation_dot_v1_dot_installation__pb2.InstallRequest.FromString,
@@ -165,6 +184,33 @@ def add_InstallationServiceServicer_to_server(servicer, server):
 class InstallationService(object):
     """InstallationService is implemented by the host and by the local authority.
     """
+
+    @staticmethod
+    def Current(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/host.installation.v1.InstallationService/Current',
+            host_dot_installation_dot_v1_dot_installation__pb2.CurrentInstallationRequest.SerializeToString,
+            host_dot_installation_dot_v1_dot_installation__pb2.CurrentInstallation.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
 
     @staticmethod
     def Install(request,
