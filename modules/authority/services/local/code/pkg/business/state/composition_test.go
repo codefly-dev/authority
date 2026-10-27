@@ -130,7 +130,12 @@ modules:
 // A composition grants concrete permissions to roles the fixture defines, and
 // a refused document changes nothing.
 func TestCompositionRefusesByName(t *testing.T) {
-	valid := `{organization: acme, name: editor, scopes: [{kind: ledger.entry, actions: [read]}]}`
+	// A valid entry prepended to every roles case below, so a refused later
+	// entry cannot leave it applied. Its kind differs from the cases' own:
+	// one document states each (organisation, role, kind) once, so reusing
+	// ledger.entry here would make every case a duplicate and hide what it
+	// is actually testing.
+	valid := `{organization: acme, name: editor, scopes: [{kind: ledger.audit, actions: [read]}]}`
 	for name, tc := range map[string]struct{ doc, reason string }{
 		"empty":             {"", "the document is empty"},
 		"null":              {"null", "not a mapping"},
@@ -183,5 +188,29 @@ func TestTheShippedDefaultAddsNothing(t *testing.T) {
 	}
 	if lines, err := k.State.ApplyComposition(context.Background(), data); err != nil || len(lines) != 0 {
 		t.Fatalf("%v %v", lines, err)
+	}
+}
+
+// A document whose installation the fixture refuses leaves every role as it
+// was: the applying step that can fail runs before the one that cannot, so
+// nothing is part-applied.
+func TestARefusedInstallationLeavesTheRolesAlone(t *testing.T) {
+	k := fixtureOnly(t)
+	before := k.State.RoleScopes("acme", "editor")
+	_, err := k.State.ApplyComposition(context.Background(), []byte(head+`
+roles:
+  - organization: acme
+    name: editor
+    scopes:
+      - {kind: ledger.entry, actions: [read, write]}
+installations:
+  - {organization: acme, target: atlas, role: viewer, owner: zoe}
+`))
+	if err == nil || !strings.Contains(err.Error(), "not a person of acme") {
+		t.Fatalf("got %v, want the installation refused", err)
+	}
+	after := k.State.RoleScopes("acme", "editor")
+	if !state.Attenuates(before, after) || !state.Attenuates(after, before) {
+		t.Fatalf("a refused document granted the editor anyway: %v → %v", before, after)
 	}
 }

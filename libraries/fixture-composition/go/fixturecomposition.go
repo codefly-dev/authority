@@ -48,9 +48,10 @@ var (
 	actionGrammar = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
 )
 
-// ErrConflict is two sources stating the same thing: the same role's grant on
-// one kind, the same installation, or the same stand-in module.
-var ErrConflict = errors.New("fixture-composition: two sources state the same grant")
+// ErrConflict is the same thing stated twice — the same role's grant on one
+// kind, the same installation, the same stand-in module — whether by two
+// sources (Merge) or twice within one document (Decode).
+var ErrConflict = errors.New("fixture-composition: one statement, stated twice")
 
 // Document is one fixture-composition document.
 type Document struct {
@@ -150,7 +151,19 @@ func Decode(data []byte) (Document, error) {
 	return doc, doc.validate()
 }
 
+// validate holds one document — a single fragment, or a merged one — to the
+// rules that do not depend on the fixture, the one-statement-one-source rule
+// included: the same (organisation, role, kind), the same installation and the
+// same stand-in module are each stated once in a document, as they are stated
+// by one source across documents (Merge).
+//
+// Within one document that rule is what the cross-source rule exists for. The
+// grants of a kind are a UNION — a role holding `documents.collection:read` on
+// `{id: seeded}` and again on `{all: true}` reads every collection, the exact
+// widening the rule refuses between two fragments — and whoever reads the
+// first statement has no reason to look for a second further down the file.
 func (d Document) validate() error {
+	grants := map[string]bool{}
 	for _, r := range d.Roles {
 		key := r.Key()
 		switch {
@@ -163,24 +176,42 @@ func (d Document) validate() error {
 			if err := CheckScope(sc.Kind, sc.Actions); err != nil {
 				return fmt.Errorf("%s: %w", key, err)
 			}
-			grants := make([]resources.Grant, 0, len(sc.Resources))
-			for _, m := range sc.Resources {
-				grants = append(grants, m.Grant())
+			if grants[key+" "+sc.Kind] {
+				return fmt.Errorf("%w: %s's grant on %s is stated twice in one document; state it once, with every action and resource it covers",
+					ErrConflict, key, sc.Kind)
 			}
-			if _, err := resources.Compile(grants); err != nil {
+			grants[key+" "+sc.Kind] = true
+			compiled := make([]resources.Grant, 0, len(sc.Resources))
+			for _, m := range sc.Resources {
+				compiled = append(compiled, m.Grant())
+			}
+			if _, err := resources.Compile(compiled); err != nil {
 				return fmt.Errorf("%s scope %s: %w", key, sc.Kind, err)
 			}
 		}
 	}
+	installations := map[string]bool{}
 	for _, i := range d.Installations {
 		if i.Target == "" || i.Role == "" {
 			return errors.New("an installation names no target or no role")
 		}
+		key := i.Organization + "/" + i.Target
+		if installations[key] {
+			return fmt.Errorf("%w: the installation of %s at %s is stated twice in one document; state it once",
+				ErrConflict, i.Target, i.Organization)
+		}
+		installations[key] = true
 	}
+	modules := map[string]bool{}
 	for _, m := range d.Modules {
 		if !kindGrammar.MatchString(m.Module) || len(m.Kinds) == 0 {
 			return fmt.Errorf("stand-in module %q names no valid module or no kind", m.Module)
 		}
+		if modules[m.Module] {
+			return fmt.Errorf("%w: stand-in module %s is stated twice in one document; state it once, with every kind it serves",
+				ErrConflict, m.Module)
+		}
+		modules[m.Module] = true
 		for _, k := range m.Kinds {
 			if err := CheckScope(k.Kind, k.Actions); err != nil {
 				return fmt.Errorf("stand-in module %s: %w", m.Module, err)
@@ -230,7 +261,9 @@ type Source struct {
 // owns it is the one a reader goes to: a composition narrowing a module's grant
 // to a seeded resource must not be silently widened by the module's, and a
 // module's grant copied into a composition is the drift this exists to end.
-// Within one source the document reads as it does alone.
+// Within ONE source the same rule holds, and for the same reason — the grants
+// of a kind are a union, so a fragment stating one twice widens it exactly as
+// two fragments would — which Decode refuses (validate).
 //
 // The result does not depend on the order the sources are given in: they are
 // merged in the order of their names, and two sources of one name are refused.

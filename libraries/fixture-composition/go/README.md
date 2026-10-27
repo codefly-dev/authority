@@ -15,9 +15,16 @@ composed module ships next to its code, plus the composition's own
 - `Merge` reads each `Source` with `Decode` (an error names the source) and
   combines them. Every statement has exactly one source: a role's grant on one
   kind, one installation, one stand-in module. A second source stating one is
-  `ErrConflict`, naming both sources, even when they agree. Sources are merged
-  in the order of their names, so the result does not depend on the order they
-  were found in.
+  `ErrConflict`, naming both sources, even when they agree; so is a second
+  statement of it **within one document**, which `Decode` refuses, since the
+  grants of a kind are a union and a file stating one twice widens it exactly
+  as two files would. Sources are merged in the order of their names, so the
+  result does not depend on the order they were found in.
+- A statement is keyed by organisation, role and kind — never by which module
+  ships the fragment — so the merge does not enforce that a module grants only
+  at its own kinds, and a composition's fragment deliberately grants at a
+  module's (its seeded collection). See the local service's README, "What the
+  merge does not enforce: ownership".
 - `Encode` writes YAML that `Decode` reads back unchanged.
 
 `go test -race ./...` covers the merge of two module fragments and a
