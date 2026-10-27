@@ -191,23 +191,34 @@ func TestTheShippedDefaultAddsNothing(t *testing.T) {
 	}
 }
 
-// A document whose installation the fixture refuses leaves every role as it
-// was: the applying step that can fail runs before the one that cannot, so
-// nothing is part-applied.
-func TestARefusedInstallationLeavesTheRolesAlone(t *testing.T) {
+// A document the fixture validates but that fails while being APPLIED leaves
+// every role as it was: the applying step that can fail runs before the one
+// that cannot.
+//
+// The document has to fail INSIDE LoadFixture to exercise that, which is the
+// whole point of the ordering. A refused installation does not: an owner the
+// fixture does not define is caught by checkComposedSetup, pure validation
+// that runs before either applying step in both orderings, so such a document
+// never reaches the code the ordering moves. A stand-in module named after a
+// fixture person does: checkComposedSetup only checks its kinds and logs a
+// line, and the core refuses it when the manifest is applied ("names a
+// person; a module's principal is its own"). With the role writes first, that
+// left the editor holding the grant from a document that was refused.
+func TestADocumentRefusedWhileApplyingLeavesTheRolesAlone(t *testing.T) {
 	k := fixtureOnly(t)
 	before := k.State.RoleScopes("acme", "editor")
-	_, err := k.State.ApplyComposition(context.Background(), []byte(head+`
+	lines, err := k.State.ApplyComposition(context.Background(), []byte(head+`
 roles:
   - organization: acme
     name: editor
     scopes:
-      - {kind: ledger.entry, actions: [read, write]}
-installations:
-  - {organization: acme, target: atlas, role: viewer, owner: zoe}
+      - {kind: ledger.entry, actions: [approve]}
+modules:
+  - module: maya
+    kinds: [{kind: maya.things, actions: [read]}]
 `))
-	if err == nil || !strings.Contains(err.Error(), "not a person of acme") {
-		t.Fatalf("got %v, want the installation refused", err)
+	if err == nil || !strings.Contains(err.Error(), "names a person") {
+		t.Fatalf("got %v (%v), want the stand-in module refused while applying", err, lines)
 	}
 	after := k.State.RoleScopes("acme", "editor")
 	if !state.Attenuates(before, after) || !state.Attenuates(after, before) {
