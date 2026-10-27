@@ -396,7 +396,10 @@ func Run(t *testing.T, open Open) {
 	})
 
 	t.Run("a failed transaction leaves nothing behind", func(t *testing.T) {
-		m := f.module("module")
+		// A solution: the core writes its installations whatever the host, where
+		// a module's may be the host's own records (Config.HostInstallsModules).
+		m := f.module(domain.KindSolution)
+		m.Name, m.Principal = f.name("failed"), f.name("failed-principal")
 		inst := domain.Installation{ID: uuid.NewString(), Organization: f.orgA, Target: m.Name, Status: domain.Active, Revision: 1}
 		var before uint64
 		read(t, func(tx authority.Tx) (err error) { before, err = tx.AuthorizationRevision(f.orgA); return err })
