@@ -43,7 +43,7 @@
       "kind": "protobuf",
       "package": "",
       "path": "contracts/api/local/grpc/contract.binpb",
-      "digest": "sha256:6f3b3d06490f1101496a9e8bfadd595d61714296ff243b0ea2d5c351ed220d5f",
+      "digest": "sha256:979bd18dc06b8447e62297ed363c0984ef4c2bbdcf94da6e4f10ca2c81c224f5",
       "services": [
         {
           "name": "LocalService",

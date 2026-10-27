@@ -72,7 +72,8 @@ func (p *Plugin) Current(ctx context.Context, _ *sessionv1.CurrentRequest) (*ses
 func (p *Plugin) ListFixturePeople(context.Context, *sessionv1.ListFixturePeopleRequest) (*sessionv1.ListFixturePeopleResponse, error) {
 	out := &sessionv1.ListFixturePeopleResponse{}
 	for _, person := range p.State.FixturePeople() {
-		out.People = append(out.People, &sessionv1.FixturePerson{PersonId: person.ID, Email: person.Email, OrganizationId: person.Organization, Roles: person.Roles, TeamIds: person.Teams, FixtureToken: person.FixtureToken})
+		out.People = append(out.People, &sessionv1.FixturePerson{PersonId: person.ID, Email: person.Email, OrganizationId: person.Organization,
+			OrganizationDisplayName: p.State.OrganizationDisplayName(person.Organization), Roles: person.Roles, TeamIds: person.Teams, FixtureToken: person.FixtureToken})
 	}
 	return out, nil
 }
