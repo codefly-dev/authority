@@ -10,7 +10,8 @@ import (
 
 func TestCurrentInstallationIsConfinedToTheAuthenticatedAudience(t *testing.T) {
 	h := newHarness(t)
-	parent := h.must(h.root("rob", "store", sc(kind, "read")))
+	// rob and omar read store-x alone: each asks for what they hold.
+	parent := h.must(h.root("rob", "store", owned(kind, "", []string{"read"}, "store-x")))
 	inst, err := h.svc.CurrentInstallation(h.ctx, parent.Token, authority.Workload{Module: "store"})
 	if err != nil || inst.ID != authority.StableInstallationID(acme, "store") || inst.Organization != acme || inst.Target != "store" {
 		t.Fatalf("current installation: %+v %v", inst, err)
@@ -25,7 +26,7 @@ func TestCurrentInstallationIsConfinedToTheAuthenticatedAudience(t *testing.T) {
 	}
 	h.store.PutPerson(domain.Person{ID: "omar", Organization: globex, Roles: []string{"store-reader"}})
 	h.store.PutOrgRole(domain.OrgRole{Organization: globex, Name: "store-reader", Scopes: []domain.RoleScope{{Kind: kind, Actions: []string{"read"}, Resources: []resources.Grant{{ID: "store-x"}}}}})
-	foreign := h.must(h.root("omar", "store", sc(kind, "read")))
+	foreign := h.must(h.root("omar", "store", owned(kind, "", []string{"read"}, "store-x")))
 	other, err := h.svc.CurrentInstallation(h.ctx, foreign.Token, authority.Workload{Module: "store"})
 	if err != nil || other.Organization != globex || other.ID == inst.ID {
 		t.Fatalf("tenant isolation: %+v %v", other, err)
