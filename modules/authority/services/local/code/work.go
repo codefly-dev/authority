@@ -128,16 +128,15 @@ func configureLocalAuthority(ctx context.Context, _ *adapters.Configuration) (Cl
 }
 
 // applyComposition adds the composition's part of the fixture: the workspace
-// configuration document fixture-composition, which a composing workspace
-// supplies for the modules and solutions it composes. The authority module
-// ships an empty default (modules/authority/configurations/local), which a
-// composition's own document replaces whole. A document that does not read, or
-// that the fixture refuses, refuses to boot.
+// configuration document fixture-composition, which the run merges from the
+// fragment every composed module ships next to its code and the composition's
+// own (libraries/fixture-composition). A document that does not read, or that
+// the fixture refuses, refuses to boot.
 func applyComposition(ctx context.Context, st *state.State) error {
 	w := wool.Get(ctx).In("local")
 	document, err := codefly.For(ctx).WorkspaceConfigurationDocument(state.CompositionDocument)
 	if errors.Is(err, codefly.ErrConfigurationDocumentMissing) {
-		return fmt.Errorf("no %s document was delivered; the authority module ships a default, so this run did not compose it", state.CompositionDocument)
+		return fmt.Errorf("no %s document was delivered; the run merges one from the composed modules' fragments (codefly generate %s), so this run did not compose it", state.CompositionDocument, state.CompositionDocument)
 	}
 	if err != nil {
 		return err

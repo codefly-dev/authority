@@ -7,6 +7,7 @@
 package state
 
 import (
+	fixturecomposition "github.com/codefly-dev/authority/libraries/fixture-composition/go"
 	"context"
 	"crypto/ed25519"
 	"errors"
@@ -37,27 +38,14 @@ var (
 )
 
 // Scope is one (kind, actions) pair as the fixture spells it, optionally
-// narrowed to named resources. With no resources it covers every resource of
-// the kind.
-type Scope struct {
-	Kind      string          `yaml:"kind"`
-	Actions   []string        `yaml:"actions"`
-	Resources []ResourceMatch `yaml:"resources"`
-}
+// narrowed to named resources (ResourceMatch). With no resources it covers
+// every resource of the kind. The fixture and the fixture-composition document
+// spell it the same way, so it is the document's own type.
+type Scope = fixturecomposition.Scope
 
 // ResourceMatch is one resource grant as the fixture spells it: exactly one of
 // every resource, one id, an id prefix or a pattern (libraries/resources).
-type ResourceMatch struct {
-	All     bool   `yaml:"all"`
-	ID      string `yaml:"id"`
-	Prefix  string `yaml:"prefix"`
-	Pattern string `yaml:"pattern"`
-}
-
-// Grant is the match as the shared library evaluates it.
-func (r ResourceMatch) Grant() resources.Grant {
-	return resources.Grant{All: r.All, ID: r.ID, Prefix: r.Prefix, Pattern: r.Pattern}
-}
+type ResourceMatch = fixturecomposition.ResourceMatch
 
 // Person is a fixture person.
 type Person struct {
@@ -180,22 +168,13 @@ type fixtureFile struct {
 
 // FixtureModule is one module the fixture composes: its name, which is its
 // principal, and the kinds and actions it serves.
-type FixtureModule struct {
-	Module string  `yaml:"module"`
-	Kinds  []Scope `yaml:"kinds"`
-}
+type FixtureModule = fixturecomposition.Module
 
 // FixtureInstallation is one installation the fixture performs through the
 // real install path, once its target is composed: Role is the installation's
 // own (its agent's), Owner installed it and is granted the installer role,
 // and each of Teams is granted Role.
-type FixtureInstallation struct {
-	Organization string   `yaml:"organization"`
-	Target       string   `yaml:"target"`
-	Role         string   `yaml:"role"`
-	Owner        string   `yaml:"owner"`
-	Teams        []string `yaml:"teams"`
-}
+type FixtureInstallation = fixturecomposition.Installation
 
 // State is the host; every method is safe for concurrent use.
 type State struct {

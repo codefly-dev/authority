@@ -11,6 +11,7 @@ require (
 	github.com/codefly-dev/authority/libraries/authority-core/go v0.0.0
 	github.com/codefly-dev/authority/libraries/conformance/go v0.0.0
 	github.com/codefly-dev/authority/libraries/delivery/go v0.0.0
+	github.com/codefly-dev/authority/libraries/fixture-composition/go v0.0.0
 	github.com/codefly-dev/authority/libraries/hop/go v0.0.0
 	github.com/codefly-dev/authority/libraries/resources/go v0.0.0
 	github.com/codefly-dev/core v0.19.7-0.20261026092055-b23dc13543b2
@@ -94,3 +95,5 @@ replace github.com/codefly-dev/authority/libraries/resources/go => ../../../../.
 replace github.com/codefly-dev/authority/libraries/hop/go => ../../../../../libraries/hop/go
 
 replace github.com/codefly-dev/authority/libraries/authority-core/go => ../../../../../libraries/authority-core/go
+
+replace github.com/codefly-dev/authority/libraries/fixture-composition/go => ../../../../../libraries/fixture-composition/go

@@ -87,9 +87,16 @@ declare the group: declaring it would give it authority bindings of its own.
 The embedded fixture (`code/fixtures/local.yaml`) says who exists and which
 organisation roles they hold, in the authority's own vocabulary only
 (`console.identity`). It names no module's kinds, no solution and no stand-in
-module. Each of those belongs to the workspace that composes it, which adds it
-through the workspace configuration document `fixture-composition`
-(`configurations/local/fixture-composition.yaml` in that workspace):
+module. What the fixture's roles may do at a module is that module's to say,
+once, next to its code; what is truly a composition's own (a collection its
+seed writes, an installation of its solution) is the composition's. Both are
+**fragments** of the workspace configuration document `fixture-composition`:
+
+- a module ships `configurations/<profile>/fixture-composition.yaml` in its own
+  directory: the grants of the fixture's standard roles (viewer, editor, admin,
+  …) at that module's kinds, and nothing about any other module;
+- a composition ships the same file in its own module's directory, for what
+  only it knows: the seeded collection a viewer reads, by id.
 
 ```yaml
 schema: codefly.dev/authority/fixture-composition/v1
@@ -107,18 +114,37 @@ modules:        # a module the run supervises itself, until its own delivery
     kinds: [{kind: oracle.answers, actions: [read]}]
 ```
 
-The authority module ships an empty default
-(`modules/authority/configurations/local/fixture-composition.yaml`, the schema
-line alone). A composing workspace's own document replaces it whole, so a
-composition that supplies none boots on the fixture alone.
+**The run merges them.** Before the local authority boots, `codefly run`
+merges the fragment of every module the workspace composes into the
+workspace's own `configurations/<profile>/fixture-composition.yaml`, which the
+local authority reads (`codefly generate fixture-composition --env local` does
+the same on its own). That file is generated: it says so in its first line and
+is never committed. A hand-written one is never overwritten: `codefly generate`
+refuses, and `codefly run` reads it as it stands and says that no module's
+fragment is applied until it is deleted. The merge
+rules are this repository's, in [`libraries/fixture-composition`](../../../../libraries/fixture-composition/go/README.md),
+the one parser of the document:
+
+- every statement has exactly one source: a role's grant on one kind, one
+  installation, one stand-in module. Two fragments stating the same one are
+  refused naming both, even when they agree, so a composition narrowing a
+  module's grant to its seeded collection is never silently widened by the
+  module's, and a module's grant copied into a playground is refused rather
+  than left to drift;
+- the result does not depend on the order fragments are found in.
+
+The authority module's own fragment
+(`modules/authority/configurations/local/fixture-composition.yaml`) is the
+schema line alone, so a composition of the authority and nothing else boots
+on the fixture alone.
 
 **The contract.** The `schema` line versions the document. Its sections, and
 the fixture's organisation, role and person ids it names (`acme`, `globex`,
 `viewer`, `editor`, `admin`, `alex`, …), are a contract with every composing
 repository. A breaking change is a new schema version, never an edit to v1.
 
-**What is refused.** Each of these refuses the boot by name and changes no
-role:
+**What is refused.** Each of these refuses the merge or the boot by name and
+changes no role:
 - an empty or null document, a section spelled `null`, an unknown field, or a
   schema other than v1;
 - an entry naming a role the fixture does not define, or the generated
@@ -129,7 +155,8 @@ role:
   distinct;
 - a kind or action outside the grammar, surrounding whitespace included;
 - a malformed resource matcher;
-- an installation whose organisation or owner the fixture does not define.
+- an installation whose organisation or owner the fixture does not define;
+- two fragments stating the same grant, installation or stand-in module.
 
 The boot log names each effect, for example `the composition grants
 acme/editor: ledger.entry:[read write]`, or says that the composition adds
