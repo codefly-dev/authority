@@ -167,3 +167,59 @@ func TestMergeOfNothingIsTheSchemaAlone(t *testing.T) {
 		t.Fatalf("%q %v", encoded, err)
 	}
 }
+
+// The one-statement-one-source rule holds inside a fragment too: the grants of
+// a kind are a union, so a fragment stating the same (organisation, role, kind)
+// twice widens it exactly as two fragments would — `{id: seeded}` and again
+// `{all: true}` reads every resource of the kind, the failure the rule exists
+// to stop. The same holds for an installation and a stand-in module.
+func TestADocumentStatingOneThingTwiceIsRefused(t *testing.T) {
+	for name, tc := range map[string]struct{ doc, reason string }{
+		"widening grant": {`roles:
+  - organization: acme
+    name: viewer
+    scopes:
+      - {kind: documents.collection, actions: [read], resources: [{id: seeded}]}
+      - {kind: documents.collection, actions: [read], resources: [{all: true}]}`,
+			"acme/viewer's grant on documents.collection is stated twice in one document"},
+		"two role entries": {`roles:
+  - organization: acme
+    name: viewer
+    scopes: [{kind: documents, actions: [read]}]
+  - organization: acme
+    name: viewer
+    scopes: [{kind: documents, actions: [write]}]`,
+			"acme/viewer's grant on documents is stated twice"},
+		"installation": {`installations:
+  - {organization: acme, target: atlas, role: viewer, owner: alex}
+  - {organization: acme, target: atlas, role: editor, owner: alex}`,
+			"the installation of atlas at acme is stated twice"},
+		"stand-in": {`modules:
+  - {module: oracle, kinds: [{kind: oracle.answers, actions: [read]}]}
+  - {module: oracle, kinds: [{kind: oracle.answers, actions: [write]}]}`,
+			"stand-in module oracle is stated twice"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := fixturecomposition.Decode([]byte(head + tc.doc + "\n"))
+			if !errors.Is(err, fixturecomposition.ErrConflict) || !strings.Contains(err.Error(), tc.reason) {
+				t.Fatalf("got %v, want a conflict naming %q", err, tc.reason)
+			}
+			// The merge names the fragment it came from.
+			_, err = fixturecomposition.Merge([]fixturecomposition.Source{{Name: "module ledger", Data: []byte(head + tc.doc + "\n")}})
+			if !errors.Is(err, fixturecomposition.ErrConflict) || !strings.HasPrefix(err.Error(), "module ledger: ") {
+				t.Fatalf("got %v, want the conflict named against module ledger", err)
+			}
+		})
+	}
+	// One role stating two different kinds, and two roles stating one kind,
+	// are not duplicates.
+	for _, doc := range []string{
+		`roles: [{organization: acme, name: viewer, scopes: [{kind: documents, actions: [read]}, {kind: robin.conversations, actions: [read]}]}]`,
+		`roles: [{organization: acme, name: viewer, scopes: [{kind: documents, actions: [read]}]}, {organization: acme, name: editor, scopes: [{kind: documents, actions: [read]}]}]`,
+		`installations: [{organization: acme, target: atlas, role: viewer, owner: alex}, {organization: globex, target: atlas, role: viewer, owner: zoe}]`,
+	} {
+		if _, err := fixturecomposition.Decode([]byte(head + doc + "\n")); err != nil {
+			t.Errorf("%s: %v", doc, err)
+		}
+	}
+}

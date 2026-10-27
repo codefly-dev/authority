@@ -32,7 +32,9 @@ const CompositionSchema = fixturecomposition.Schema
 // until its own delivery replaces it. The document is read by the library's
 // one parser, which holds every rule that does not depend on the fixture;
 // this checks it against the fixture. Nothing is applied unless the whole
-// document is valid. It returns one line per effect, for the boot log.
+// document is valid, and the one applying step that can fail runs before the
+// one that cannot, so a refused installation leaves every role as it was. It
+// returns one line per effect, for the boot log.
 func (s *State) ApplyComposition(ctx context.Context, data []byte) ([]string, error) {
 	doc, err := fixturecomposition.Decode(data)
 	if err != nil {
@@ -46,12 +48,13 @@ func (s *State) ApplyComposition(ctx context.Context, data []byte) ([]string, er
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", CompositionDocument, err)
 	}
-	s.mu.Lock()
-	for key, role := range roles {
-		s.roles[key] = role
-	}
-	s.refreshRolesLocked()
-	s.mu.Unlock()
+	// The installations and stand-in modules go first, and the role grants
+	// after: everything above was validation, which changed nothing, and of the
+	// two applying steps only this one can fail. Granting first meant a
+	// composition whose installation was then refused had already widened the
+	// fixture's roles — the document was part-applied, against what this says.
+	// (LoadFixture's own internal steps are not individually reversible; a
+	// failure inside it still leaves what it applied before failing.)
 	if len(doc.Installations) > 0 || len(doc.Modules) > 0 {
 		setup, err := yaml.Marshal(fixtureFile{Installations: doc.Installations, Modules: doc.Modules})
 		if err != nil {
@@ -61,6 +64,12 @@ func (s *State) ApplyComposition(ctx context.Context, data []byte) ([]string, er
 			return nil, fmt.Errorf("%s: %w", CompositionDocument, err)
 		}
 	}
+	s.mu.Lock()
+	for key, role := range roles {
+		s.roles[key] = role
+	}
+	s.refreshRolesLocked()
+	s.mu.Unlock()
 	return append(lines, more...), nil
 }
 

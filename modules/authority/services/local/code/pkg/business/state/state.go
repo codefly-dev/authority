@@ -7,7 +7,6 @@
 package state
 
 import (
-	fixturecomposition "github.com/codefly-dev/authority/libraries/fixture-composition/go"
 	"context"
 	"crypto/ed25519"
 	"errors"
@@ -20,6 +19,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/memstore"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
+	fixturecomposition "github.com/codefly-dev/authority/libraries/fixture-composition/go"
 	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"github.com/codefly-dev/core/workloadidentity"

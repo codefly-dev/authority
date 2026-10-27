@@ -130,8 +130,26 @@ the one parser of the document:
   refused naming both, even when they agree, so a composition narrowing a
   module's grant to its seeded collection is never silently widened by the
   module's, and a module's grant copied into a playground is refused rather
-  than left to drift;
+  than left to drift. One **fragment** stating the same one twice is refused
+  too, and for the same reason: the grants of a kind are a union, so a file
+  granting `{id: seeded}` and again `{all: true}` widens exactly as two files
+  would;
 - the result does not depend on the order fragments are found in.
+
+**What the merge does not enforce: ownership.** A statement is keyed by
+organisation, role and kind alone, never by which module ships the fragment, so
+a module's fragment *can* grant at another module's kinds — and a composition's
+fragment does, by design: the robin playground grants its viewer
+`documents.collection` on the collection its own seed writes, a kind the
+document store owns. "One definition per module" is therefore a convention
+about where a grant is written, enforced only in that two fragments cannot
+state the same grant; it is not a check that a module grants on its own kinds.
+Nothing is lost by that: these fragments reach the development fixture alone,
+never a host, and a grant at a kind no composed module serves resolves to
+nothing (the authority intersects every capability with the delivered
+manifests), so the failure mode is a refusal, not a widening. A composition
+that wanted ownership enforced would have to name each kind's owning module in
+the document, which v1 does not.
 
 The authority module's own fragment
 (`modules/authority/configurations/local/fixture-composition.yaml`) is the
