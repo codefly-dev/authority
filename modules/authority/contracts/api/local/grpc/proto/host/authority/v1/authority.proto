@@ -1,0 +1,449 @@
+syntax = "proto3";
+// The authority interface: what a module or solution calls on its host to be
+// issued a Work Context, to have one checked, and to learn the keys it was
+// signed with, and to ask which resources of a kind it covers. Every former spelling (start task, start
+// installation task, exchange audience, start child, renew, the module broker's
+// mints) is Issue with a different `as`.
+package host.authority.v1;
+
+option go_package = "gateway/pkg/gen/host/authority/v1;authorityv1";
+
+import "google/api/annotations.proto";
+import "host/authority/v1/work_context.proto";
+
+// AuthorityService is implemented by the host (accounts) and by the local authority.
+service AuthorityService {
+  // Issue signs a Work Context for one owner shape, one audience and the scopes
+  // asked for, bounded by what the owner holds and what the audience declared.
+  // Served over REST too (POST /v1/authority:issue), for a module with no
+  // generated client of its own, as a Python service: the same request and
+  // answer, in JSON.
+  rpc Issue(IssueRequest) returns (IssueResponse) {
+    option (google.api.http) = {post: "/v1/authority:issue" body: "*"};
+  }
+  // Check verifies a presented Work Context for the audience the caller is,
+  // re-checking the authorization revision and the seal live.
+  rpc Check(CheckRequest) returns (CheckResponse) {
+    option (google.api.http) = {post: "/v1/authority:check" body: "*"};
+  }
+  // Keys returns the issuer and the public keys a verifier pins: the Work
+  // Context keys, and the hop admission keys a module behind the hop checks
+  // each call's admission by.
+  rpc Keys(KeysRequest) returns (KeysResponse);
+  // RegisterAdmissionKey is how the hop tells the authority the public key it
+  // signs call admissions with, so Keys publishes it in admission_keys. The
+  // caller is the hop, proving it with its workload credential, in the
+  // authority's own trust domain; any other workload is refused by name.
+  // Only the public half travels: the hop's seed never leaves it.
+  //
+  // The authority pins one admission key per hop instance (the instance its
+  // workload credential names): the first registration for an instance binds
+  // that key until its lease lapses, the same key renews it, and any other key
+  // for that instance is refused by name until then. A new key comes from a
+  // new hop instance, or from the same one once its previous key has lapsed.
+  // So a captured hop credential cannot replace or add a key for an instance
+  // that has registered. What it does not stop: a holder of a captured
+  // credential who registers before that instance's own first registration
+  // (the hop registers at boot), or in the window after an authority restart
+  // before the hop's next renewal, pins its own key for that instance; the
+  // hop's registration is then refused by name, and its log says so. A
+  // credential binding the key at issuance is what would close that window.
+  //
+  // Each request also carries a proof signed by the key it registers (see
+  // RegisterAdmissionKeyRequest.proof). It shows the registrant holds that
+  // key's private half and binds the request to its credential, the
+  // authority's audience and a fresh, single-use nonce, so a registration
+  // cannot be replayed, retargeted or reused for another credential; it does
+  // not prove the registrant is the hop, since a registrant chooses its key.
+  //
+  // A registration lapses at expires_at_unix unless renewed, so a hop renews
+  // while it runs (a restarted authority learns the key again at the next
+  // renewal) and a key no running hop signs with any more is withdrawn
+  // without being named. While a rotation overlaps, the retiring key (its
+  // instance still renewing) and the new key (a new instance's) are both
+  // registered, and both published.
+  rpc RegisterAdmissionKey(RegisterAdmissionKeyRequest) returns (RegisterAdmissionKeyResponse);
+  // ListResources answers which resources of one kind a checked capability may
+  // act on with one action, decided by the authority at the time of the call
+  // rather than carried in the capability. A module maps the answer onto its
+  // own resources; the authority knows them only by id.
+  rpc ListResources(ListResourcesRequest) returns (ListResourcesResponse);
+  // AttachResource records that one resource now belongs to an installation,
+  // so a role scope its solution declares installation-owned
+  // (RoleV1.installation_owned_scopes) covers it. The caller is the kind's one
+  // serving module (a kind two composed modules declare attaches nothing),
+  // proving itself with its workload credential, and presents a capability
+  // addressed to it, at the organisation's current authorization revision,
+  // holding "create" on the whole kind for the newly created resource. An
+  // owner-selected create must select this installation's principal. Admin or
+  // read alone attaches nothing: an existing resource changes owner through
+  // AuthorizeTransfer, never through an unrestricted administrative capability.
+  // A resource has one owner in an organisation: an id
+  // another installation owns is refused. A store whose attach is refused fails
+  // or rolls back the create it made, and detaches what it deletes
+  // (DetachResource). The owning installation is read from the capability's
+  // verified provenance and never named by the caller: the installation itself
+  // when it is the owner, the installed solution when it is the caller, and
+  // each solution in its actor chain; exactly one must result. Ids are opaque
+  // and compared byte for byte; an id is refused when it is empty, carries
+  // surrounding whitespace, a NUL, CR, LF, tab or "*", or exceeds 128 bytes.
+  // Owned ids travel in every capability holding them, so an installation owns
+  // at most 32 of one kind at a time, refused by name past it. Attaching only
+  // widens what an owned scope covers, so it moves no authorization revision;
+  // a reinstalled installation owns nothing.
+  rpc AttachResource(AttachResourceRequest) returns (AttachResourceResponse);
+  // DetachResource releases one resource from whichever installation of the
+  // organisation owns it, when the kind's one serving module deletes it, so the
+  // id no longer counts toward the owner's bound and may be attached again.
+  // It narrows the owner's roles, so the organisation's authorization revision
+  // moves. Detaching an id no installation owns answers no installation.
+  rpc DetachResource(DetachResourceRequest) returns (DetachResourceResponse);
+  // AuthorizeTransfer decides whether an existing resource may join an
+  // installed solution's principal. The caller is the kind's one serving
+  // module, which attests the resource exists and who owns it now
+  // (from_owner_id), presenting the capability of the person asking: issued
+  // through the target principal's installation and addressed to the caller.
+  // It is allowed when the current owner is the organization or a person of
+  // it (never another solution principal, another organization or an unknown
+  // owner), the person holds admin on that resource from their own
+  // organization grants, and the person's current roles on the principal hold
+  // write on the kind, all read live. An installation acting for itself never
+  // transfers. After authorization succeeds, the authority records the id in
+  // the target installation's owned set in the same write transaction, subject
+  // to the same exclusivity, id and 32-id bounds as AttachResource. Revision,
+  // provenance, serving module and active tenant installation are checked in
+  // that transaction. A refusal records nothing and names its reason. The
+  // store then records the principal as owner; the original creator stays the
+  // author. The store must complete that change or compensate with DetachResource
+  // before exposing the resource. No separate admin attachment path exists.
+  rpc AuthorizeTransfer(AuthorizeTransferRequest) returns (AuthorizeTransferResponse);
+  // Delegate records a signed-in person's grant to a module (the caller's
+  // bearer is the person); Issue with a delegation acts on it.
+  rpc Delegate(DelegateRequest) returns (Delegation);
+  // RevokeDelegation ends a delegation; the next Issue from it is refused.
+  rpc RevokeDelegation(RevokeDelegationRequest) returns (RevokeDelegationResponse);
+  // GetDelegation reads one delegation for the module it is granted to (by its
+  // workload credential) or for its grantor (by the caller's bearer): whether it
+  // still stands. Work that outlives the capability that started it asks this
+  // between issues, so a revoke stops it even when it calls no other module.
+  rpc GetDelegation(GetDelegationRequest) returns (Delegation);
+}
+
+// IssueRequest names on whose behalf the capability is issued.
+message IssueRequest {
+  // Who the capability is for; exactly one.
+  oneof as {
+    // The signed-in person making this call, identified by the bearer the call
+    // carries; the host opened that session at sign-in.
+    PersonSession person = 1;
+    // A module's own workload, proving which module it is.
+    WorkloadCredential workload = 2;
+    // An installation acting for itself, with the scope the organisation consented to.
+    // actor must authenticate a workload of that installation's solution.
+    InstallationRef installation = 3;
+    // One more hop from an existing capability: a child, an exchange or a renewal.
+    string parent_token = 4;
+    // A delegation a person granted the module acting (actor): the capability
+    // is owned by that person and carries the delegation on the module's hop.
+    // No live capability is presented: the authority re-checks the delegation
+    // and what its grantor holds now, so a revoked delegation or a lost role
+    // stops the next issue, and renewing is issuing again.
+    DelegationRef delegation = 11;
+  }
+  // The module principal that may consume the capability.
+  string audience = 5;
+  // The scopes asked for; empty means everything the owner holds at the audience.
+  repeated WorkScopeV1 scopes = 6;
+  // Requested lifetime in seconds; clamped to the issuer's ceiling.
+  int64 ttl_seconds = 7;
+  // The declared binding this capability exercises, when the owner is a workload
+  // or a child acts through one.
+  string operation_binding_id = 8;
+  // The organisation the work runs in. A workload may leave this empty when
+  // exactly one organisation has an active installation of its module.
+  // Otherwise it must name the organisation of the work item;
+  // absent or ambiguous installation authority is refused with a reason.
+  string organization_id = 9;
+  // The acting workload credential; required with parent_token, delegation,
+  // and installation. For installation it must name the installed solution.
+  WorkloadCredential actor = 10;
+  // Which of the binding's operations the capability is for: "invoke" (the
+  // default for a person, a child or a delegation), "headless" (the default for
+  // a workload) or "lookup": the binding's lookup scopes alone, to read a
+  // receipt without the authority to repeat the effect.
+  string operation = 12;
+}
+
+// DelegationRef names one delegation.
+message DelegationRef {
+  // The delegation's id, as Delegate answered it.
+  string delegation_id = 1;
+}
+
+// DelegateRequest is a signed-in person granting a module the right to act for
+// them beyond any session: on scopes they hold, through the module's bindings.
+message DelegateRequest {
+  // The module granted, by principal.
+  string module = 1;
+  // What the module may do for the person; within what the person holds.
+  repeated WorkScopeV1 scopes = 2;
+  // Why, as the person was told (a connected source, a scheduled job).
+  string purpose = 3;
+}
+
+// Delegation is one grant from a person to a module.
+message Delegation {
+  string delegation_id = 1;
+  string organization_id = 2;
+  // The person who granted it, and whom every capability issued from it is for.
+  string grantor = 3;
+  // The module granted.
+  string module = 4;
+  repeated WorkScopeV1 scopes = 5;
+  string purpose = 6;
+  // False once revoked; a revoked delegation issues nothing.
+  bool active = 7;
+}
+
+// GetDelegationRequest names the delegation read; anyone but its module or its
+// grantor is told it does not exist.
+message GetDelegationRequest {
+  string delegation_id = 1;
+  // The module asking, proving which module it is; absent when the grantor asks.
+  WorkloadCredential actor = 2;
+}
+
+// RevokeDelegationRequest ends a delegation; only its grantor may.
+message RevokeDelegationRequest {
+  string delegation_id = 1;
+}
+
+// RevokeDelegationResponse is the delegation as it now stands.
+message RevokeDelegationResponse {
+  Delegation delegation = 1;
+}
+
+// PersonSession names the caller's own session. It carries no field: the person
+// is whoever the bearer on the call authenticates as, so a caller cannot ask for
+// another person's authority by naming a session.
+message PersonSession {
+  reserved 1;
+  reserved "session_id";
+}
+
+// WorkloadCredential proves which module a running process is: the native
+// launcher credential core's workloadidentity defines, signed by the one launcher
+// the host was handed an anchor for.
+message WorkloadCredential {
+  // The launcher-signed credential, as core's native issuer writes it.
+  string credential = 1;
+}
+
+// InstallationRef names an installation acting for itself.
+message InstallationRef {
+  // The installation id.
+  string installation_id = 1;
+}
+
+// IssueResponse carries the signed capability and its decoded form.
+message IssueResponse {
+  // The signed capability, as a caller presents it.
+  string token = 1;
+  // When the capability expires.
+  int64 expires_at_unix = 2;
+  // The decoded capability, for the holder to read its own claims.
+  WorkContextV1 context = 3;
+}
+
+// CheckRequest presents a capability for verification.
+message CheckRequest {
+  // The capability presented.
+  string token = 1;
+  // The audience the caller is; a capability addressed elsewhere is refused.
+  string audience = 2;
+  // The method the capability is presented to: "/package.Service/Method" for a
+  // gRPC call, "<VERB> <path>" for an HTTP request (GET /v1/model/profiles),
+  // matched against the routes the module declares. When set, the check also
+  // applies what the audience module's delivery declares for that method, and
+  // refuses by name a call that does not hold it, a method that declares
+  // nothing, and a method the module does not serve.
+  string method = 3;
+  // Advisory asks for the policy decision without its refusal: the capability
+  // is still verified and refused when it is not sound, but what the method
+  // declares is only reported, in CheckResponse.refusal, and the verified
+  // capability is answered. A hop in a composition that runs permissive
+  // (hop/ENFORCEMENT=warn) asks this way and logs the refusal it did not make.
+  // Hosts may refuse advisory outside local development runs.
+  bool advisory = 4;
+}
+
+// CheckResponse is the verified capability.
+message CheckResponse {
+  // The verified capability.
+  WorkContextV1 context = 1;
+  // The owner's authorization revision as of this check.
+  uint64 authorization_revision = 2;
+  // Refusal is what the method's policy would have refused, verbatim, when the
+  // check was advisory and the policy did not hold; empty when it held.
+  string refusal = 3;
+}
+
+// KeysRequest asks for the verification keys.
+message KeysRequest {}
+
+// KeysResponse is the issuer and its keys.
+message KeysResponse {
+  // The issuer every capability names.
+  string issuer = 1;
+  // The public keys by key id: what a Work Context is signed with, and only
+  // that. Each carries purpose "work-context".
+  repeated PublicKey keys = 2;
+  // The keys a hop signs each call's admission with, each with purpose
+  // "hop-admission": a module behind the hop verifies the admission by one of
+  // them. More than one is published while a hop's key is rotated, so the
+  // retiring and the new key overlap. They are never Work Context keys and are
+  // kept out of keys, so no verifier that reads keys alone can trust one to
+  // sign a Work Context. Empty until a hop registers its key
+  // (RegisterAdmissionKey).
+  repeated PublicKey admission_keys = 3;
+}
+
+// PublicKey is one verification key.
+message PublicKey {
+  // The key id a capability names.
+  string key_id = 1;
+  // The signature algorithm; Ed25519.
+  string algorithm = 2;
+  // The raw public key bytes.
+  bytes public_key = 3;
+  // What the key verifies: "work-context" (a Work Context) or "hop-admission"
+  // (a hop's signed call admission). A verifier uses a key only for its own
+  // purpose.
+  string purpose = 4;
+}
+
+// RegisterAdmissionKeyRequest presents one hop admission key.
+message RegisterAdmissionKeyRequest {
+  // The hop's workload credential; any other workload is refused.
+  WorkloadCredential actor = 1;
+  // The raw Ed25519 public key the hop signs admissions with: 32 bytes.
+  bytes public_key = 2;
+  // Proof that the caller holds public_key's private half: a compact
+  // "<payload>.<signature>" in unpadded base64url, the signature an Ed25519
+  // signature by public_key over the payload, a JSON array of the domain
+  // "codefly-hop-registration-v1", the authority's audience, the hex SHA-256
+  // of actor's credential, the hex public key, a fresh 32-byte hex nonce and
+  // the Unix second it was signed. The authority refuses a proof that does
+  // not verify, names another credential, key or audience, is older than 30
+  // seconds or ahead of its clock, or repeats a nonce it has seen. It proves
+  // possession of the key being registered, which the registrant chose; that
+  // the registrant is the hop rests on actor and the per-instance pin.
+  string proof = 3;
+}
+
+// RegisterAdmissionKeyResponse is the key as Keys now publishes it.
+message RegisterAdmissionKeyResponse {
+  // The published entry, with its key id and purpose "hop-admission".
+  PublicKey key = 1;
+  // When the registration lapses unless the hop registers the key again.
+  int64 expires_at_unix = 2;
+}
+
+// ListResourcesRequest asks about one kind and one action.
+message ListResourcesRequest {
+  // The capability presented.
+  string token = 1;
+  // The audience the caller is; a capability addressed elsewhere is refused.
+  string audience = 2;
+  // The resource kind, as the audience module serves it.
+  string resource_kind = 3;
+  // The action, in the kind's own vocabulary.
+  string action = 4;
+}
+
+// ListResourcesResponse is every grant the capability holds on the kind for the
+// action. A resource is covered when any grant matches its id; no grant means
+// none. A capability that does not hold the action at all is refused instead.
+message ListResourcesResponse {
+  repeated ResourceGrant grants = 1;
+}
+
+// AttachResourceRequest names one resource and the capability it was created under.
+message AttachResourceRequest {
+  // The capability the creating call carried, addressed to the caller.
+  string token = 1;
+  // The module serving resource_kind, proving which module it is.
+  WorkloadCredential actor = 2;
+  // The resource kind, as the caller serves it.
+  string resource_kind = 3;
+  // The resource id, as the caller knows it.
+  string resource_id = 4;
+}
+
+// AttachResourceResponse names the installation that now owns the resource.
+message AttachResourceResponse {
+  // The owning installation, read from the capability's provenance.
+  string installation_id = 1;
+}
+
+// DetachResourceRequest names one resource its serving module deleted.
+message DetachResourceRequest {
+  // The module serving resource_kind, proving which module it is.
+  WorkloadCredential actor = 1;
+  // The organisation the resource belongs to.
+  string organization_id = 2;
+  // The resource kind, as the caller serves it.
+  string resource_kind = 3;
+  // The resource id, as the caller knows it.
+  string resource_id = 4;
+}
+
+// DetachResourceResponse names the installation that owned the resource.
+message DetachResourceResponse {
+  // The installation released from it; empty when none owned it.
+  string installation_id = 1;
+}
+
+// AuthorizeTransferRequest names one existing resource and where it moves.
+message AuthorizeTransferRequest {
+  // The capability of the person asking, addressed to the caller.
+  string token = 1;
+  // The module serving resource_kind, proving which module it is.
+  WorkloadCredential actor = 2;
+  // The resource kind, as the caller serves it.
+  string resource_kind = 3;
+  // The resource id, as the caller knows it.
+  string resource_id = 4;
+  // The resource's current owner, as the caller records it: the organization
+  // or a person of it.
+  string from_owner_id = 5;
+  // The solution principal the resource joins.
+  string to_principal_id = 6;
+}
+
+// AuthorizeTransferResponse is the decision the store records.
+message AuthorizeTransferResponse {
+  // The principal that now owns the resource.
+  string principal_id = 1;
+  // The person who authorized the transfer.
+  string authorized_by = 2;
+}
+
+// ResourceGrant is one way of naming covered resources. Exactly one match is
+// set; resource_owner_id, when set, qualifies it.
+message ResourceGrant {
+  oneof match {
+    // Every resource of the kind.
+    bool all = 1;
+    // Exactly this resource id.
+    string id = 2;
+    // Every resource whose id starts with this.
+    string prefix = 3;
+    // Every resource whose whole id matches this RE2 expression, at most 256
+    // bytes; it is matched against the entire id, as if anchored.
+    string pattern = 4;
+  }
+  // The owner the covered resources must have: a resource is covered when
+  // the match covers its id and it is owned by this principal.
+  string resource_owner_id = 5;
+}

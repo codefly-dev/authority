@@ -1,0 +1,74 @@
+{
+  "grpc": [
+    {
+      "name": "LocalService",
+      "fullName": "api.LocalService",
+      "procedures": [
+        "/api.LocalService/Version"
+      ]
+    },
+    {
+      "name": "ArtifactService",
+      "fullName": "host.artifact.v1.ArtifactService",
+      "procedures": [
+        "/host.artifact.v1.ArtifactService/Approve",
+        "/host.artifact.v1.ArtifactService/Authorize",
+        "/host.artifact.v1.ArtifactService/Revoke"
+      ]
+    },
+    {
+      "name": "AuthorityService",
+      "fullName": "host.authority.v1.AuthorityService",
+      "procedures": [
+        "/host.authority.v1.AuthorityService/Issue",
+        "/host.authority.v1.AuthorityService/Check",
+        "/host.authority.v1.AuthorityService/Keys",
+        "/host.authority.v1.AuthorityService/RegisterAdmissionKey",
+        "/host.authority.v1.AuthorityService/ListResources",
+        "/host.authority.v1.AuthorityService/AttachResource",
+        "/host.authority.v1.AuthorityService/DetachResource",
+        "/host.authority.v1.AuthorityService/AuthorizeTransfer",
+        "/host.authority.v1.AuthorityService/Delegate",
+        "/host.authority.v1.AuthorityService/RevokeDelegation",
+        "/host.authority.v1.AuthorityService/GetDelegation"
+      ]
+    },
+    {
+      "name": "CompositionService",
+      "fullName": "host.composition.v1.CompositionService",
+      "procedures": [
+        "/host.composition.v1.CompositionService/ApplyManifest"
+      ]
+    },
+    {
+      "name": "InstallationService",
+      "fullName": "host.installation.v1.InstallationService",
+      "procedures": [
+        "/host.installation.v1.InstallationService/Install",
+        "/host.installation.v1.InstallationService/Review",
+        "/host.installation.v1.InstallationService/GrantRole",
+        "/host.installation.v1.InstallationService/RevokeRole",
+        "/host.installation.v1.InstallationService/ListRoleGrants",
+        "/host.installation.v1.InstallationService/Current",
+        "/host.installation.v1.InstallationService/List"
+      ]
+    },
+    {
+      "name": "OfferService",
+      "fullName": "host.installation.v1.OfferService",
+      "procedures": [
+        "/host.installation.v1.OfferService/ListOffers",
+        "/host.installation.v1.OfferService/ReviewOffer"
+      ]
+    },
+    {
+      "name": "SessionService",
+      "fullName": "host.session.v1.SessionService",
+      "procedures": [
+        "/host.session.v1.SessionService/SignIn",
+        "/host.session.v1.SessionService/Current",
+        "/host.session.v1.SessionService/ListFixturePeople"
+      ]
+    }
+  ]
+}

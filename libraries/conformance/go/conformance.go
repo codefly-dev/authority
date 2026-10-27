@@ -263,6 +263,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 	c.admissionStatus(t, ctx, f)
 	c.solutionRoleCases(t, ctx, f)
 	c.installationIdentity(t, ctx, f)
+	c.currentInstallation(t, ctx, f)
 	c.sessionDisplayNames(t, ctx, f)
 	c.bindingRefusals(t, ctx, f)
 	c.forwardedContext(t, ctx, f)

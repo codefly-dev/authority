@@ -48,6 +48,20 @@ func (p *Plugin) caller(ctx context.Context) (authority.Person, error) {
 	return p.State.Caller(authorityplugin.Bearer(ctx))
 }
 
+// Current authenticates the module independently; the core verifies its parent
+// and confines the read to its installation, without an admin session.
+func (p *Plugin) Current(ctx context.Context, req *installationv1.CurrentInstallationRequest) (*installationv1.CurrentInstallation, error) {
+	actor, err := p.State.VerifyWorkload(ctx, req.GetActorCredential())
+	if err != nil {
+		return nil, authorityplugin.Status(err)
+	}
+	inst, err := p.State.Service().CurrentInstallation(ctx, req.GetParentToken(), authority.Workload{Module: actor.Name})
+	if err != nil {
+		return nil, authorityplugin.Status(err)
+	}
+	return &installationv1.CurrentInstallation{Id: inst.ID, OrganizationId: inst.Organization, Target: inst.Target, Revision: inst.Revision, Namespace: state.Namespace(inst)}, nil
+}
+
 // Install installs a solution at the caller's organisation, which the caller
 // administers; owner_person_id names who installed it (the caller when
 // empty). Nobody holds a role on it until granted one.

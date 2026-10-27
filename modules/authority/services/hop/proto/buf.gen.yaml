@@ -1,26 +1,29 @@
-version: v1
+# The service's own bindings: api.proto alone, named as the one input so the
+# agent's sync and `codefly generate proto` write the same files; the hop's
+# policy option (authority/hop/v1, vendored to compile) is an import whose
+# bindings the hop library publishes.
+#
 # Go package identity is explicit in api.proto. Managed rewriting couples Go
 # package names to protobuf namespaces and breaks versioned wire packages.
+version: v2
 managed:
   enabled: false
+inputs:
+  - directory: .
+    paths:
+      - api.proto
 plugins:
-  - name: go
-    path: protoc-gen-go
+  - local: protoc-gen-go
     out: ../code/pkg/gen
     opt: paths=source_relative
-  - name: go-grpc
-    path: protoc-gen-go-grpc
+  - local: protoc-gen-go-grpc
     out: ../code/pkg/gen
     opt: paths=source_relative
-  - name: grpc-gateway
-    path: protoc-gen-grpc-gateway
-    out: ../code/pkg/gen
-    opt:
-      - paths=source_relative
-  - name: connect-go
-    path: protoc-gen-connect-go
+  - local: protoc-gen-grpc-gateway
     out: ../code/pkg/gen
     opt: paths=source_relative
-  - name: openapiv2
-    path: protoc-gen-openapiv2
+  - local: protoc-gen-connect-go
+    out: ../code/pkg/gen
+    opt: paths=source_relative
+  - local: protoc-gen-openapiv2
     out: ../openapi

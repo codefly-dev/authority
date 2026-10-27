@@ -40,6 +40,8 @@ const (
 
 // HopServiceClient is a client for the api.HopService service.
 type HopServiceClient interface {
+	// Version is the hop's own method. A caller the authority checked may read
+	// it; the hop serves it without a scope, as the console serves its Version.
 	Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error)
 }
 
@@ -75,6 +77,8 @@ func (c *hopServiceClient) Version(ctx context.Context, req *connect.Request[gen
 
 // HopServiceHandler is an implementation of the api.HopService service.
 type HopServiceHandler interface {
+	// Version is the hop's own method. A caller the authority checked may read
+	// it; the hop serves it without a scope, as the console serves its Version.
 	Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error)
 }
 

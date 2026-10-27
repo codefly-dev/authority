@@ -1,0 +1,23 @@
+syntax = "proto3";
+package api;
+
+// Keep the Go import path stable while the protobuf package remains free to
+// evolve into a versioned wire namespace (for example coordination.v1).
+option go_package = "gateway/pkg/gen;gen";
+
+import "google/api/annotations.proto";
+
+message VersionRequest {
+}
+
+message VersionResponse {
+    string version = 1;
+}
+
+service LocalService {
+    rpc Version(VersionRequest) returns (VersionResponse) {
+        option (google.api.http) = {
+            get: "/version"
+        };
+    }
+}

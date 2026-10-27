@@ -10,6 +10,10 @@ option go_package = "gateway/pkg/gen/host/installation/v1;installationv1";
 
 // InstallationService is implemented by the host and by the local authority.
 service InstallationService {
+  // Current reads only the authenticated module's own active installation,
+  // in the tenant of a current parent addressed to that module. It grants no
+  // artifact approval or content access and exposes no roles or grants.
+  rpc Current(CurrentInstallationRequest) returns (CurrentInstallation);
   // Install composes an installation: its agent principal, its root scope and
   // the row, pending until the target acknowledges its install step.
   rpc Install(InstallRequest) returns (Installation);
@@ -30,6 +34,20 @@ service InstallationService {
   // member's view, which installed solutions they may use, is their navigation and
   // belongs to the entitlement read, not here.
   rpc List(ListRequest) returns (ListResponse);
+}
+
+message CurrentInstallationRequest {
+  string parent_token = 1;
+  string actor_credential = 2;
+}
+
+// CurrentInstallation is request-local metadata, never a lease or consent.
+message CurrentInstallation {
+  string id = 1;
+  string organization_id = 2;
+  string target = 3;
+  uint64 revision = 4;
+  string namespace = 5;
 }
 
 // InstallableService is implemented by a solution; the host calls it once per

@@ -1,0 +1,311 @@
+syntax = "proto3";
+// The installation interface: what is installed at an organisation and who may
+// use it. An installed solution is a principal of its organisation; its roles
+// are levels on the data that principal owns, and a grant of a role is the
+// access. Operations on the host, and one the solution implements, the install
+// step the host calls once per installation.
+package host.installation.v1;
+
+option go_package = "gateway/pkg/gen/host/installation/v1;installationv1";
+
+// InstallationService is implemented by the host and by the local authority.
+service InstallationService {
+  // Current reads only the authenticated module's own active installation,
+  // in the tenant of a current parent addressed to that module. It grants no
+  // artifact approval or content access and exposes no roles or grants.
+  rpc Current(CurrentInstallationRequest) returns (CurrentInstallation);
+  // Install composes an installation: its agent principal, its root scope and
+  // the row, pending until the target acknowledges its install step.
+  rpc Install(InstallRequest) returns (Installation);
+  // Review reads the current offer and installation revision without granting consent.
+  rpc Review(ReviewRequest) returns (ConsentApproval);
+  // GrantRole grants a person or a team one of the solution's roles on the
+  // installation: the access. Idempotent; it leaves existing capabilities
+  // valid. An administrator of the installation's organization, or a holder
+  // of the installer role on that installation, grants.
+  rpc GrantRole(GrantRoleRequest) returns (Installation);
+  // RevokeRole ends one grant; every capability its subject holds from it is
+  // refused at once. Idempotent; the same callers as GrantRole.
+  rpc RevokeRole(RevokeRoleRequest) returns (Installation);
+  // ListRoleGrants answers who holds which role on the installation; the same
+  // callers as GrantRole.
+  rpc ListRoleGrants(ListRoleGrantsRequest) returns (ListRoleGrantsResponse);
+  // List answers what one organisation has installed: an administrator's read. A
+  // member's view, which installed solutions they may use, is their navigation and
+  // belongs to the entitlement read, not here.
+  rpc List(ListRequest) returns (ListResponse);
+}
+
+message CurrentInstallationRequest {
+  string parent_token = 1;
+  string actor_credential = 2;
+}
+
+// CurrentInstallation is request-local metadata, never a lease or consent.
+message CurrentInstallation {
+  string id = 1;
+  string organization_id = 2;
+  string target = 3;
+  uint64 revision = 4;
+  string namespace = 5;
+}
+
+// InstallableService is implemented by a solution; the host calls it once per
+// installation and retries until it is acknowledged.
+service InstallableService {
+  // Install sets up the solution for one installation; it must converge.
+  rpc Install(InstallationNotice) returns (InstallationAck);
+}
+
+// OfferService is the local authority's setup read, served beside
+// InstallationService and not part of codefly.dev/installation: what solutions
+// this run delivered and, for one, what installing it would grant. A host
+// answers its own product's reads. It grants nothing; Install, GrantRole and
+// RevokeRole stay the only changes, each decided by the authority.
+service OfferService {
+  // ListOffers lists the solutions delivered to this run that an administrator
+  // of the organization may install. A module is installed by composition and
+  // is never offered.
+  rpc ListOffers(ListOffersRequest) returns (ListOffersResponse);
+  // ReviewOffer reads one solution's roles, what each grants and the tools
+  // those grants make eligible, with the consent Install takes, from one read
+  // of the authority: the approval names exactly the offer displayed.
+  rpc ReviewOffer(ReviewRequest) returns (ReviewedOffer);
+}
+
+// InstallRequest asks to install one target at one organisation.
+message InstallRequest {
+  // The organisation installing.
+  string organization_id = 1;
+  // The solution or module installed, by its name in the composition.
+  string target = 2;
+  // The role the installation holds; the least privilege it needs.
+  string role = 3;
+  // The accountable person; an administrator of the organisation.
+  string owner_person_id = 4;
+  // Required: the exact offer reviewed by the administrator; unchanged on retry.
+  ConsentApproval approval = 5;
+}
+
+// ReviewRequest names the offer an administrator intends to review.
+message ReviewRequest {
+  string organization_id = 1;
+  string target = 2;
+}
+
+// ConsentApproval binds consent to an immutable target, its reviewed delivery and
+// the installation revision (zero if absent). Review leaves operation_id empty;
+// the caller supplies a fresh UUID and preserves the entire request on retry.
+message ConsentApproval {
+  string target_id = 1;
+  uint64 generation = 2;
+  uint64 expected_revision = 3;
+  string operation_id = 4;
+  // sha256 digest of the reviewed authority offer.
+  string digest = 5;
+}
+
+// GrantRoleRequest grants one role to exactly one person or team.
+message GrantRoleRequest {
+  // The organization the installation belongs to; a request naming another
+  // organization's installation is refused naming the organization, before
+  // the caller's authority is read.
+  string organization_id = 1;
+  // The installation.
+  string installation_id = 2;
+  // One of the roles the solution declares.
+  string role = 3;
+  // The person granted, a member of the organization; exactly one of
+  // person_id and team_id is set.
+  string person_id = 4;
+  // The team granted, a team of the organization.
+  string team_id = 5;
+}
+
+// RevokeRoleRequest ends one grant, named as GrantRole named it.
+message RevokeRoleRequest {
+  // The organization the installation belongs to.
+  string organization_id = 1;
+  // The installation.
+  string installation_id = 2;
+  // The role.
+  string role = 3;
+  // The person; exactly one of person_id and team_id is set.
+  string person_id = 4;
+  // The team.
+  string team_id = 5;
+}
+
+// ListRoleGrantsRequest names one installation.
+message ListRoleGrantsRequest {
+  // The organization the installation belongs to.
+  string organization_id = 1;
+  // The installation.
+  string installation_id = 2;
+}
+
+// ListRoleGrantsResponse is every grant on the installation.
+message ListRoleGrantsResponse {
+  // The grants.
+  repeated RoleGrant grants = 1;
+}
+
+// RoleGrant is one role held by one person or team.
+message RoleGrant {
+  // The role.
+  string role = 1;
+  // The person, when a person holds it.
+  string person_id = 2;
+  // The team, when a team holds it.
+  string team_id = 3;
+}
+
+// ListRequest asks for one organisation's installations.
+message ListRequest {
+  // The organisation.
+  string organization_id = 1;
+}
+
+// ListResponse lists installations.
+message ListResponse {
+  // The installations.
+  repeated Installation installations = 1;
+}
+
+// Installation is one organisation's installation of one target.
+message Installation {
+  // The installation id.
+  string id = 1;
+  // The organisation.
+  string organization_id = 2;
+  // The target installed.
+  string target = 3;
+  // Where the installation stands.
+  Status status = 4;
+  // Bumped on every change that narrows or widens the installation.
+  uint64 revision = 5;
+  // The role the installation holds when it acts for itself (its agent's
+  // role); no person or team inherits it.
+  string role = 6;
+  reserved 7, 8;
+  reserved "team_ids", "agent_principal_id";
+  // The namespace the installation's own authored content belongs to (an
+  // agent's source): the host names it, so a module never chooses which source
+  // an installation may run. A module installed by composition is
+  // "<organization>.<target>".
+  string namespace = 9;
+  // The solution principal: the identity the installation's data is owned by
+  // and the installation acts as for itself, a stable UUID per organization
+  // and target, reused by a reinstall. Empty for a module installation.
+  string principal_id = 10;
+  // The roles the solution declares, sorted.
+  repeated string roles = 11;
+
+  // Status is the installation's lifecycle.
+  enum Status {
+    // Unset.
+    STATUS_UNSPECIFIED = 0;
+    // Installed; the install step has not been acknowledged.
+    STATUS_PENDING = 1;
+    // Usable.
+    STATUS_ACTIVE = 2;
+    // Uninstalled; every capability sealed to it is refused.
+    STATUS_REVOKED = 3;
+  }
+}
+
+// InstallationNotice is what the host hands the solution's install step.
+message InstallationNotice {
+  // The installation being set up.
+  Installation installation = 1;
+}
+
+// InstallationAck acknowledges the install step.
+message InstallationAck {}
+
+// ListOffersRequest names the organization whose administrator reads.
+message ListOffersRequest {
+  string organization_id = 1;
+}
+
+// ListOffersResponse is every delivered solution, by name.
+message ListOffersResponse {
+  repeated Offer offers = 1;
+}
+
+// Offer is one delivered solution.
+message Offer {
+  // The solution's name in the composition: Install's target.
+  string target = 1;
+  // The delivery generation an approval binds.
+  uint64 generation = 2;
+}
+
+// ReviewedOffer is one solution's authority offer and the consent that names it.
+message ReviewedOffer {
+  // What Install takes, with a fresh operation_id; read with the rest.
+  ConsentApproval approval = 1;
+  string target = 2;
+  // Each role the solution declares, the installer role included. Every role
+  // scope is confined to this installation: to what it owns, or to the
+  // resources attached to it.
+  repeated OfferRole roles = 3;
+  // The solution's own installation at the organization; absent before Install.
+  Installation installation = 4;
+  // The permission ceiling: each module the solution calls, and the most it
+  // may ask there. No role reaches beyond it.
+  repeated OfferBinding ceiling = 5;
+  // False when this run delivered no prepared Runnable bindings: no tool is
+  // shown, which says nothing about what a composed binding would expose.
+  bool tools_composed = 6;
+}
+
+// OfferBinding is one declared call from the solution to a module.
+message OfferBinding {
+  string binding = 1;
+  // The module called.
+  string module = 2;
+  repeated OfferScope scopes = 3;
+}
+
+// OfferRole is one declared role and what a grant of it reaches.
+message OfferRole {
+  string name = 1;
+  // The scopes the role declares.
+  repeated OfferScope scopes = 2;
+  // Each composed operation the role's scopes cover.
+  repeated OfferCapability capabilities = 3;
+}
+
+// OfferScope is one declared scope.
+message OfferScope {
+  string resource_kind = 1;
+  repeated string actions = 2;
+  // True when the scope reaches only the resources attached to the
+  // installation, listed in resource_ids (none until one is attached); false
+  // when it reaches every resource the installation owns.
+  bool attached_only = 3;
+  repeated string resource_ids = 4;
+}
+
+// OfferCapability is one module operation a role's scopes cover.
+message OfferCapability {
+  string module = 1;
+  // The operation as the module's authority document names it.
+  string operation = 2;
+  // What a call to it must hold.
+  repeated OfferScope requires = 3;
+  // The tools composed for this operation, from its prepared Runnable
+  // bindings; empty when no binding exposes it as a tool.
+  repeated OfferTool tools = 4;
+}
+
+// OfferTool is one tool-exposed Runnable of an operation.
+message OfferTool {
+  // The tool's name, as its exposure declares it.
+  string name = 1;
+  // The prepared binding a caller names to run it.
+  string binding = 2;
+  // True when the tool changes data.
+  bool write = 3;
+}
