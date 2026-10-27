@@ -1,4 +1,4 @@
-package main
+package forward
 
 import (
 	"strings"
@@ -15,7 +15,7 @@ func TestSignedAdmissionRequiresEnforcementInEveryEnvironment(t *testing.T) {
 
 func TestMissingRoutingNamesTheRequiredCLIProducer(t *testing.T) {
 	for _, raw := range []string{"", "{}", `{"schema":"older"}`} {
-		if _, err := requiredRoutes(raw, nil); err == nil || !strings.Contains(err.Error(), RouteProducerVersion) {
+		if _, err := requiredRoutes(raw); err == nil || !strings.Contains(err.Error(), RouteProducerVersion) {
 			t.Fatalf("missing CLI requirement: %v", err)
 		}
 	}
