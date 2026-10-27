@@ -247,8 +247,11 @@ refuse every admission as `keys_unavailable`.
 `hop-verification/REPLAY_DIRECTORY` is gone. Reservations live in the consumer's
 own store (above), because Codefly delivers a store and does not deliver a
 shared volume. No address, seed, key or store connection is hard-coded. Python
-and Node hosts supply their shared durable replay adapter; Python's async
-adapter must not block the event loop. Readiness continues to check authority
+hosts use the public async `codefly_hop.replaypg.Store(pool)` over their own
+Postgres ([Python client](../authority-client/python/README.md#async-postgres-admission-storage));
+its schema and collection margin match Go. The service supplies its pool and
+schedules collection; the adapter does not block the event loop. Node hosts
+supply their shared durable replay adapter. Readiness continues to check authority
 key availability; deployment health should also check its replay store.
 
 Upgrade the hop and consumers together and remove delivery of `hop/PROOF`.

@@ -29,7 +29,13 @@ jobs:
         with:
           python-version: "3.12"
       - name: install
-        run: python -m pip install . pytest
+        run: python -m pip install . pytest asyncpg
+      # Same runner-owned Postgres as the Go replay adapter's regressions.
+      - name: start Postgres for the hop admission regressions
+        run: |
+          sudo systemctl start postgresql.service
+          sudo -u postgres createuser --superuser "$USER"
+          echo "HOP_TEST_POSTGRES=postgresql:///postgres?host=/var/run/postgresql" >> "$GITHUB_ENV"
       - name: pytest
         run: python -m pytest -q
 
