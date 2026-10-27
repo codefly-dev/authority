@@ -791,8 +791,13 @@ the Robin tools composed for it: the tool-exposed Connect bindings
 solution and granting a role is what makes those tools available to the people
 granted it. An agent's intent declares which of them it uses. The authority still
 decides every call from the person's current grants and the binding. No table is
-maintained by hand: the page joins the authority's own records to the composed
-bindings when the person reviews.
+maintained by hand: `libraries/authority-core/go/offers.Project` joins the
+consistent `authority.ReviewedOffer` to the host's composed prepared bindings.
+It owns role scopes, operation coverage, attached-resource presentation and tool
+selection. Each host adapts its transport-neutral result to its generated protobuf types.
+The local provider uses this shared projection; Accounts must adopt the same
+package to remove its copied projection and qualify host parity.
+Authorization remains in `Service.ReviewOffer`, before projection.
 
 The read is `host.installation.v1.OfferService` (`ListOffers`, `ReviewOffer`),
 served by the local authority beside `InstallationService`. It is not part of
