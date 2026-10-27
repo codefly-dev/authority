@@ -60,14 +60,36 @@ type AuthorityServiceClient interface {
 	Keys(ctx context.Context, in *KeysRequest, opts ...grpc.CallOption) (*KeysResponse, error)
 	// RegisterAdmissionKey is how the hop tells the authority the public key it
 	// signs call admissions with, so Keys publishes it in admission_keys. The
-	// caller is the hop, proving it with its workload credential; any other
-	// workload is refused by name. Only the public half travels: the hop's seed
-	// never leaves it. Registering the same key again is idempotent and renews
-	// it, and a registration lapses at expires_at_unix unless renewed, so a hop
-	// renews while it runs (a restarted authority learns the key again at the
-	// next renewal) and a key no running hop signs with any more is withdrawn
-	// without being named. While a rotation overlaps, the retiring and the new
-	// key are both registered, and both published.
+	// caller is the hop, proving it with its workload credential, in the
+	// authority's own trust domain; any other workload is refused by name.
+	// Only the public half travels: the hop's seed never leaves it.
+	//
+	// The authority pins one admission key per hop instance (the instance its
+	// workload credential names): the first registration for an instance binds
+	// that key until its lease lapses, the same key renews it, and any other key
+	// for that instance is refused by name until then. A new key comes from a
+	// new hop instance, or from the same one once its previous key has lapsed.
+	// So a captured hop credential cannot replace or add a key for an instance
+	// that has registered. What it does not stop: a holder of a captured
+	// credential who registers before that instance's own first registration
+	// (the hop registers at boot), or in the window after an authority restart
+	// before the hop's next renewal, pins its own key for that instance; the
+	// hop's registration is then refused by name, and its log says so. A
+	// credential binding the key at issuance is what would close that window.
+	//
+	// Each request also carries a proof signed by the key it registers (see
+	// RegisterAdmissionKeyRequest.proof). It shows the registrant holds that
+	// key's private half and binds the request to its credential, the
+	// authority's audience and a fresh, single-use nonce, so a registration
+	// cannot be replayed, retargeted or reused for another credential; it does
+	// not prove the registrant is the hop, since a registrant chooses its key.
+	//
+	// A registration lapses at expires_at_unix unless renewed, so a hop renews
+	// while it runs (a restarted authority learns the key again at the next
+	// renewal) and a key no running hop signs with any more is withdrawn
+	// without being named. While a rotation overlaps, the retiring key (its
+	// instance still renewing) and the new key (a new instance's) are both
+	// registered, and both published.
 	RegisterAdmissionKey(ctx context.Context, in *RegisterAdmissionKeyRequest, opts ...grpc.CallOption) (*RegisterAdmissionKeyResponse, error)
 	// ListResources answers which resources of one kind a checked capability may
 	// act on with one action, decided by the authority at the time of the call
@@ -274,14 +296,36 @@ type AuthorityServiceServer interface {
 	Keys(context.Context, *KeysRequest) (*KeysResponse, error)
 	// RegisterAdmissionKey is how the hop tells the authority the public key it
 	// signs call admissions with, so Keys publishes it in admission_keys. The
-	// caller is the hop, proving it with its workload credential; any other
-	// workload is refused by name. Only the public half travels: the hop's seed
-	// never leaves it. Registering the same key again is idempotent and renews
-	// it, and a registration lapses at expires_at_unix unless renewed, so a hop
-	// renews while it runs (a restarted authority learns the key again at the
-	// next renewal) and a key no running hop signs with any more is withdrawn
-	// without being named. While a rotation overlaps, the retiring and the new
-	// key are both registered, and both published.
+	// caller is the hop, proving it with its workload credential, in the
+	// authority's own trust domain; any other workload is refused by name.
+	// Only the public half travels: the hop's seed never leaves it.
+	//
+	// The authority pins one admission key per hop instance (the instance its
+	// workload credential names): the first registration for an instance binds
+	// that key until its lease lapses, the same key renews it, and any other key
+	// for that instance is refused by name until then. A new key comes from a
+	// new hop instance, or from the same one once its previous key has lapsed.
+	// So a captured hop credential cannot replace or add a key for an instance
+	// that has registered. What it does not stop: a holder of a captured
+	// credential who registers before that instance's own first registration
+	// (the hop registers at boot), or in the window after an authority restart
+	// before the hop's next renewal, pins its own key for that instance; the
+	// hop's registration is then refused by name, and its log says so. A
+	// credential binding the key at issuance is what would close that window.
+	//
+	// Each request also carries a proof signed by the key it registers (see
+	// RegisterAdmissionKeyRequest.proof). It shows the registrant holds that
+	// key's private half and binds the request to its credential, the
+	// authority's audience and a fresh, single-use nonce, so a registration
+	// cannot be replayed, retargeted or reused for another credential; it does
+	// not prove the registrant is the hop, since a registrant chooses its key.
+	//
+	// A registration lapses at expires_at_unix unless renewed, so a hop renews
+	// while it runs (a restarted authority learns the key again at the next
+	// renewal) and a key no running hop signs with any more is withdrawn
+	// without being named. While a rotation overlaps, the retiring key (its
+	// instance still renewing) and the new key (a new instance's) are both
+	// registered, and both published.
 	RegisterAdmissionKey(context.Context, *RegisterAdmissionKeyRequest) (*RegisterAdmissionKeyResponse, error)
 	// ListResources answers which resources of one kind a checked capability may
 	// act on with one action, decided by the authority at the time of the call

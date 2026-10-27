@@ -24,6 +24,10 @@ type setupHost struct {
 	calls   []any
 	bearers []string
 	refuse  error
+	// offers, when set, is the host's answer to whether it serves
+	// OfferService: Unimplemented for a host that does not.
+	offers error
+	probes int
 }
 
 func (h *setupHost) record(ctx context.Context, call any) error {
@@ -34,6 +38,19 @@ func (h *setupHost) record(ctx context.Context, call any) error {
 }
 
 func (h *setupHost) ListOffers(ctx context.Context, in *installationv1.ListOffersRequest, _ ...grpc.CallOption) (*installationv1.ListOffersResponse, error) {
+	h.mu.Lock()
+	offers := h.offers
+	if bearerIn(ctx) == "" {
+		h.probes++
+	}
+	h.mu.Unlock()
+	if offers != nil {
+		return nil, offers
+	}
+	// The local authority refuses an unauthenticated read by name.
+	if bearerIn(ctx) == "" {
+		return nil, status.Error(codes.Unauthenticated, "no session")
+	}
 	if h.refuse != nil {
 		return nil, h.refuse
 	}
@@ -160,5 +177,87 @@ func TestAModuleRefusalKeepsItsReasonForAConnectCaller(t *testing.T) {
 	res, body := f.do(t, http.MethodPost, "/records.v1.RecordsService/List", http.Header{"Content-Type": {"application/json"}, "Connect-Protocol-Version": {"1"}})
 	if res.StatusCode != http.StatusUnauthorized || !strings.Contains(body, `"code":"unauthenticated"`) || !strings.Contains(body, "sign in") {
 		t.Fatalf("answered %d: %s", res.StatusCode, body)
+	}
+}
+
+// Review #30 F3: the setup page, its installs and grants included, is mounted
+// only on a host that serves OfferService (the local authority). Another host
+// answers Unimplemented, and the edge serves no setup page at all there, so no
+// cookie-driven install is ever sent to it. An unreachable host is asked again.
+func TestTheSetupPageIsMountedOnlyWhereTheHostServesOffers(t *testing.T) {
+	f, host := newSetup(t)
+	cookie := f.signIn(t)
+	host.offers = status.Error(codes.Unavailable, "connection refused")
+	if res, body := f.do(t, http.MethodGet, "/auth/setup", http.Header{"Cookie": {cookie.String()}}); res.StatusCode != http.StatusServiceUnavailable || !strings.Contains(body, "connection refused") {
+		t.Fatalf("an unreachable host answered %d: %s", res.StatusCode, body)
+	}
+	host.offers = status.Error(codes.Unimplemented, "unknown service host.installation.v1.OfferService")
+	install := url.Values{"action": {"install"}, "target": {"proposals"}, "role": {"viewer"}, "consent": {"on"}, "operationId": {"5d3c0b0e-8f5e-4c3f-9d55-6c1f1a0b7e21"}}
+	if res, body := f.post(t, cookie, f.edge.URL, install); res.StatusCode != http.StatusNotFound || !strings.Contains(body, "serves no setup page") {
+		t.Fatalf("a host without OfferService was sent a setup change: %d %s", res.StatusCode, body)
+	}
+	if res, _ := f.do(t, http.MethodGet, "/auth/setup", http.Header{"Cookie": {cookie.String()}}); res.StatusCode != http.StatusNotFound {
+		t.Fatalf("a host without OfferService served the setup page: %d", res.StatusCode)
+	}
+	if len(host.calls) != 0 || host.probes != 2 {
+		t.Fatalf("calls %v reached the host; it was asked %d times (once unreachable, once answered)", host.calls, host.probes)
+	}
+	// A definite answer is kept: the host is not asked on every request.
+	host.offers = nil
+	if res, _ := f.do(t, http.MethodGet, "/auth/setup", http.Header{"Cookie": {cookie.String()}}); res.StatusCode != http.StatusNotFound || host.probes != 2 {
+		t.Fatalf("the answer was not kept: %d after %d probes", res.StatusCode, host.probes)
+	}
+
+	// With no setup clients at all, the path is not the frontend's either.
+	plain := newFixture(t)
+	if res, _ := plain.do(t, http.MethodGet, "/auth/setup", nil); res.StatusCode != http.StatusNotFound {
+		t.Fatalf("an edge with no setup clients answered %d", res.StatusCode)
+	}
+	if _, path := plain.frontend.last(); path != "" {
+		t.Fatalf("/auth/setup reached the frontend at %s", path)
+	}
+}
+
+// Review #30 F2: the pages that change authority on a click are never framed.
+func TestTheSignInAndSetupPagesRefuseToBeFramed(t *testing.T) {
+	f, _ := newSetup(t)
+	cookie := f.signIn(t)
+	for _, page := range []struct {
+		path   string
+		header http.Header
+	}{{"/auth/sign-in", nil}, {"/auth/setup", http.Header{"Cookie": {cookie.String()}}}, {"/auth/setup?target=proposals", http.Header{"Cookie": {cookie.String()}}}} {
+		res, _ := f.do(t, http.MethodGet, page.path, page.header)
+		if res.StatusCode != http.StatusOK || res.Header.Get("X-Frame-Options") != "DENY" || res.Header.Get("Content-Security-Policy") != "frame-ancestors 'none'" {
+			t.Errorf("%s answered %d with X-Frame-Options %q and CSP %q", page.path, res.StatusCode, res.Header.Get("X-Frame-Options"), res.Header.Get("Content-Security-Policy"))
+		}
+	}
+	res, _ := f.post(t, cookie, f.edge.URL, url.Values{"action": {"install"}, "target": {"proposals"}})
+	if res.Header.Get("X-Frame-Options") != "DENY" {
+		t.Errorf("the setup page re-rendered after a refused change can be framed")
+	}
+}
+
+// Review #30 F1: only a caller that says it speaks Connect is refused in
+// Connect's words; a REST or form caller keeps {"error": reason}.
+func TestAModuleRefusalKeepsTheRESTBodyForARESTCaller(t *testing.T) {
+	f := newFixture(t)
+	for _, tc := range []struct{ name, path, contentType string }{
+		{"JSON POST", "/v1/records/items", "application/json"},
+		{"form POST", "/v1/records/items", "application/x-www-form-urlencoded"},
+		{"no content type", "/v1/records/items", ""},
+		{"JSON POST to a Connect path", "/records.v1.RecordsService/List", "application/json"},
+	} {
+		header := http.Header{}
+		if tc.contentType != "" {
+			header.Set("Content-Type", tc.contentType)
+		}
+		res, body := f.do(t, http.MethodPost, tc.path, header)
+		if res.StatusCode != http.StatusUnauthorized || body != "{\"error\":\"no session: sign in at /auth/sign-in\"}\n" {
+			t.Errorf("%s: answered %d %s", tc.name, res.StatusCode, body)
+		}
+	}
+	res, body := f.do(t, http.MethodGet, "/v1/records/items", nil)
+	if res.StatusCode != http.StatusUnauthorized || !strings.Contains(body, `"error":`) {
+		t.Errorf("GET answered %d %s", res.StatusCode, body)
 	}
 }

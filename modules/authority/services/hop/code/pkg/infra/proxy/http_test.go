@@ -167,3 +167,54 @@ func TestAConnectRefusalKeepsTheAuthoritysReason(t *testing.T) {
 		t.Fatalf("answered %d %s", rec.Code, rec.Body.String())
 	}
 }
+
+// Review #30 F1: only a caller that says it speaks Connect (or gRPC) is
+// refused in Connect's words. A REST or form caller, whose body is JSON or a
+// form and who sends no Connect-Protocol-Version, keeps {"error": reason} and
+// the HTTP status the hop always answered it with.
+func TestARESTCallerKeepsItsErrorBodyAndStatus(t *testing.T) {
+	for code, want := range map[codes.Code]int{
+		codes.Unauthenticated:    http.StatusUnauthorized,
+		codes.PermissionDenied:   http.StatusForbidden,
+		codes.InvalidArgument:    http.StatusBadRequest,
+		codes.NotFound:           http.StatusNotFound,
+		codes.Unavailable:        http.StatusServiceUnavailable,
+		codes.DeadlineExceeded:   http.StatusServiceUnavailable,
+		codes.FailedPrecondition: http.StatusInternalServerError,
+	} {
+		h := &HTTP{Signer: hoptest.Signer("rest"), Decide: func(context.Context, string, metadata.MD) (decide.Decision, error) {
+			return decide.Decision{}, status.Error(code, "the authority said why")
+		}}
+		for name, req := range map[string]*http.Request{
+			"GET":       httptest.NewRequest(http.MethodGet, "/v1/model/profiles", nil),
+			"JSON POST": withType(httptest.NewRequest(http.MethodPost, "/v1/model/invoke", strings.NewReader("{}")), "application/json"),
+			"form POST": withType(httptest.NewRequest(http.MethodPost, "/v1/model/invoke", strings.NewReader("a=b")), "application/x-www-form-urlencoded"),
+		} {
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+			if rec.Code != want || rec.Body.String() != "{\"error\":\"the authority said why\"}\n" {
+				t.Errorf("%v, %s: answered %d %s, want %d {\"error\"}", code, name, rec.Code, rec.Body.String(), want)
+			}
+		}
+	}
+	// A Connect GET says so with ?connect=v1, and a gRPC caller by its content
+	// type: both are still answered in their protocol's words.
+	h := &HTTP{Signer: hoptest.Signer("rest"), Decide: func(context.Context, string, metadata.MD) (decide.Decision, error) {
+		return decide.Decision{}, status.Error(codes.PermissionDenied, "the role lacks robin.tools:read")
+	}}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/robin.chat.v1.ChatService/GetRunnableTools?connect=v1&encoding=json&message=%7B%7D", nil))
+	if rec.Code != http.StatusForbidden || !strings.Contains(rec.Body.String(), `"code":"permission_denied"`) {
+		t.Fatalf("a Connect GET answered %d %s", rec.Code, rec.Body.String())
+	}
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, withType(httptest.NewRequest(http.MethodPost, "/robin.chat.v1.ChatService/GetRunnableTools", strings.NewReader("")), "application/grpc"))
+	if got := rec.Result().Header.Get("Grpc-Status") + rec.Result().Trailer.Get("Grpc-Status"); got != "7" {
+		t.Fatalf("a gRPC caller answered %d grpc-status %q", rec.Code, got)
+	}
+}
+
+func withType(r *http.Request, contentType string) *http.Request {
+	r.Header.Set("Content-Type", contentType)
+	return r
+}

@@ -222,9 +222,10 @@ func (p *Plugin) Keys(context.Context, *authorityv1.KeysRequest) (*authorityv1.K
 }
 
 // RegisterAdmissionKey publishes the hop's admission key in Keys, for the hop
-// alone, until its registration lapses.
+// alone, one key per hop instance, until its registration lapses
+// (issuer.RegisterAdmissionKey says what that guarantees and what it does not).
 func (p *Plugin) RegisterAdmissionKey(ctx context.Context, req *authorityv1.RegisterAdmissionKeyRequest) (*authorityv1.RegisterAdmissionKeyResponse, error) {
-	key, until, err := p.Issuer.RegisterAdmissionKey(ctx, req.GetActor().GetCredential(), req.GetPublicKey())
+	key, until, err := p.Issuer.RegisterAdmissionKey(ctx, req.GetActor().GetCredential(), req.GetPublicKey(), req.GetProof())
 	if err != nil {
 		return nil, Status(err)
 	}

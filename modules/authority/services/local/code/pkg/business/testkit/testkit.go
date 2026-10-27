@@ -65,7 +65,17 @@ func HopWorkload() workloadidentity.Workload {
 // HopCredential is what the launcher signed for the hop's process.
 func (k *Kit) HopCredential(t *testing.T) string {
 	t.Helper()
-	token, err := k.Launcher.Issue(native.Subject{Workload: HopWorkload(), Container: issuer.HopService}, Audience)
+	return k.HopInstanceCredential(t, HopWorkload().Instance)
+}
+
+// HopInstanceCredential is what the launcher signed for one hop process,
+// named by its instance: another instance is another hop process (a
+// restart under a new instance, or a rotation's new hop).
+func (k *Kit) HopInstanceCredential(t *testing.T, instance string) string {
+	t.Helper()
+	workload := HopWorkload()
+	workload.Instance = instance
+	token, err := k.Launcher.Issue(native.Subject{Workload: workload, Container: issuer.HopService}, Audience)
 	if err != nil {
 		t.Fatal(err)
 	}

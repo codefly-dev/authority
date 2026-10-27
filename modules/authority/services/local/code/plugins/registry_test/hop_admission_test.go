@@ -70,22 +70,28 @@ func TestUnderThePlaygroundsIdentityTheHopsRegisteredKeyAdmitsItsStamps(t *testi
 		t.Fatalf("before the hop registered Keys publishes %v: %v", keys.GetAdmissionKeys(), err)
 	}
 
-	// The hop registers, presenting its public half and its credential.
+	// The hop registers, presenting its public half and its credential, and
+	// proving with that key that it holds it.
 	credential, err := os.ReadFile(projected)
 	if err != nil {
 		t.Fatal(err)
 	}
-	id, public := signer.Admission()
-	register := func(credential string, public []byte) (*authorityv1.RegisterAdmissionKeyResponse, error) {
+	id, _ := signer.Admission()
+	register := func(credential string, by *stamp.Signer) (*authorityv1.RegisterAdmissionKeyResponse, error) {
+		proof, err := by.ProveRegistration(credential, testkit.Audience, time.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, public := by.Admission()
 		return client.RegisterAdmissionKey(ctx, &authorityv1.RegisterAdmissionKeyRequest{
-			Actor: &authorityv1.WorkloadCredential{Credential: credential}, PublicKey: public})
+			Actor: &authorityv1.WorkloadCredential{Credential: credential}, PublicKey: public, Proof: proof})
 	}
-	first, err := register(string(credential), public)
+	first, err := register(string(credential), signer)
 	if err != nil || first.GetKey().GetKeyId() != id || first.GetExpiresAtUnix() <= time.Now().Unix() {
 		t.Fatalf("the hop's registration: %v %v", first, err)
 	}
 	// A restart registers again: still one key, renewed.
-	again, err := register(string(credential), public)
+	again, err := register(string(credential), signer)
 	if err != nil || again.GetExpiresAtUnix() < first.GetExpiresAtUnix() {
 		t.Fatalf("the hop's re-registration: %v %v", again, err)
 	}
@@ -132,9 +138,28 @@ func TestUnderThePlaygroundsIdentityTheHopsRegisteredKeyAdmitsItsStamps(t *testi
 
 	// Another workload presenting its key is refused by name, and publishes nothing.
 	_, impostorKey := impostor.Admission()
-	if _, err := register(k.Credential(t, "documents"), impostorKey); status.Code(err) != codes.PermissionDenied ||
+	if _, err := register(k.Credential(t, "documents"), impostor); status.Code(err) != codes.PermissionDenied ||
 		!strings.Contains(err.Error(), "the caller is documents/documents, not the hop (authority/hop)") {
 		t.Fatalf("a module registered an admission key: %v", err)
+	}
+	// Review #28 F1: so is the hop's own credential, captured, presenting
+	// another key without that key's proof, or replaying the hop's proof.
+	hopProof, err := signer.ProveRegistration(string(credential), testkit.Audience, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Review #32 B1: and so is the captured credential with the thief's own
+	// key and a valid proof by it: the hop's instance holds the hop's key.
+	if _, err := register(string(credential), impostor); status.Code(err) != codes.PermissionDenied ||
+		!strings.Contains(err.Error(), "registered admission key "+id) {
+		t.Fatalf("a captured hop credential registered the thief's own key: %v", err)
+	}
+	for name, proof := range map[string]string{"no proof": "", "the hop's proof": hopProof} {
+		if _, err := client.RegisterAdmissionKey(ctx, &authorityv1.RegisterAdmissionKeyRequest{
+			Actor: &authorityv1.WorkloadCredential{Credential: string(credential)}, PublicKey: impostorKey, Proof: proof}); status.Code(err) != codes.PermissionDenied ||
+			!strings.Contains(err.Error(), "registration proof") {
+			t.Fatalf("a captured hop credential with %s registered another key: %v", name, err)
+		}
 	}
 	if keys, _ := client.Keys(ctx, &authorityv1.KeysRequest{}); len(keys.GetAdmissionKeys()) != 1 {
 		t.Fatalf("a refused registration changed Keys: %v", keys.GetAdmissionKeys())

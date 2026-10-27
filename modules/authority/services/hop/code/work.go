@@ -129,14 +129,9 @@ func standInFront(ctx context.Context, config *adapters.Configuration) (Clean, e
 	}
 	client := authorityv1.NewAuthorityServiceClient(authority)
 	// The authority publishes this hop's admission key once the hop registers
-	// it, proving itself with its workload credential: the seed stays here.
-	unregister := hop.Registration{Authority: client, Signer: signer, Credential: hop.RunCredential, Report: func(key *authorityv1.PublicKey, expires time.Time, err error) {
-		if err != nil {
-			w.Warn("the authority does not publish this hop's admission key, so modules behind it admit no call; retrying", wool.Field("reason", err.Error()))
-			return
-		}
-		w.Info("the authority publishes this hop's admission key", wool.Field("admission", key.GetKeyId()), wool.Field("lapses", expires.UTC().Format(time.RFC3339)))
-	}}.Keep(context.WithoutCancel(ctx))
+	// it, proving itself with its workload credential and the key's own
+	// proof: the seed stays here.
+	unregister := hop.Registration{Authority: client, Signer: signer, Credential: hop.RunCredential, Report: registrationReport(w)}.Keep(context.WithoutCancel(ctx))
 	defer func() {
 		if !configured {
 			unregister()
@@ -167,6 +162,22 @@ func standInFront(ctx context.Context, config *adapters.Configuration) (Clean, e
 
 // serveHTTP listens on the hop's http endpoint, as the run allocated it, with
 // the hop's HTTP face.
+// registrationReport logs each change of the registration's outcome: the
+// published key's id (never the seed, never the private key) and when it
+// lapses, or why it is not published. The id and the reason lead each line,
+// in no label the run's log redaction reads as a credential's: a line naming
+// "authority" and "key" before its first "=" or ":" has everything after it
+// masked once the run forwards it, which hid the key id as "admission=****".
+func registrationReport(w *wool.Wool) func(*authorityv1.PublicKey, time.Time, error) {
+	return func(key *authorityv1.PublicKey, expires time.Time, err error) {
+		if err != nil {
+			w.Warn("hop admission not published, so modules behind this hop admit no call; retrying: " + err.Error())
+			return
+		}
+		w.Info(fmt.Sprintf("hop admission %s published, lapsing at %s unless renewed", key.GetKeyId(), expires.UTC().Format(time.RFC3339)))
+	}
+}
+
 func serveHTTP(ctx context.Context, face http.Handler) (func(), error) {
 	instance, err := codefly.For(ctx).API(standards.HTTP).ResolveNetworkInstance()
 	if err != nil {

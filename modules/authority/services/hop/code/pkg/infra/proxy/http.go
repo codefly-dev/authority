@@ -100,13 +100,19 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}).ServeHTTP(w, r)
 }
 
+// connectRefusal answers in Connect's (or gRPC's) words only a caller that
+// says it speaks the protocol: a Connect-Protocol-Version header, or
+// ?connect=v1 on a GET, or a gRPC content type. Without the requirement every
+// GET and every POST of an application/* body (a REST or form caller) would
+// be taken for Connect, and a reader of {"error"} would lose the reason.
+var connectRefusal = connect.NewErrorWriter(connect.WithRequireConnectProtocolHeader())
+
 // refuse answers a refusal in HTTP's words, its reason the decision's own;
 // a Connect caller gets Connect's error, so its client keeps the reason.
 func refuse(w http.ResponseWriter, r *http.Request, err error) {
 	s := status.Convert(err)
-	writer := connect.NewErrorWriter()
-	if writer.IsSupported(r) {
-		_ = writer.Write(w, r, connect.NewError(connect.Code(s.Code()), errors.New(s.Message())))
+	if connectRefusal.IsSupported(r) {
+		_ = connectRefusal.Write(w, r, connect.NewError(connect.Code(s.Code()), errors.New(s.Message())))
 		return
 	}
 	code := http.StatusInternalServerError

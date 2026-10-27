@@ -55,6 +55,7 @@ type signInData struct {
 }
 
 func (e *Edge) signInPage(w http.ResponseWriter, r *http.Request) {
+	forbidFraming(w)
 	people, err := e.Sessions.ListFixturePeople(r.Context(), &sessionv1.ListFixturePeopleRequest{})
 	if err != nil {
 		refuse(w, http.StatusBadGateway, "the authority did not list who signs in: "+status.Convert(err).Message())

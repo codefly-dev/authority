@@ -2,6 +2,10 @@ package hop
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,7 +25,14 @@ const registerRetry = 5 * time.Second
 
 // Registration keeps the hop's admission key registered with the authority,
 // which publishes it in Keys for every module behind the hop: the hop presents
-// the public half with its workload credential, never its seed. A registration
+// the public half with its workload credential, never its seed, and a fresh
+// proof signed by the admission key over that credential, the key and the
+// authority's audience (stamp.ProveRegistration). The authority pins one key
+// per hop instance: this hop's first registration binds its key to its
+// instance, and a captured credential cannot replace or add a key for it
+// while that registration holds. Keep registers at boot, before any request
+// is served, because a first registration by another key would win; the
+// refusal is reported by name. A registration
 // lapses unless renewed, so the hop renews it while it runs, and a restarted
 // authority learns the key again at the next renewal.
 type Registration struct {
@@ -42,14 +53,53 @@ func (r Registration) Register(ctx context.Context) (*authorityv1.PublicKey, tim
 	if err != nil {
 		return nil, time.Time{}, err
 	}
+	audience, err := CredentialAudience(credential)
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+	proof, err := r.Signer.ProveRegistration(credential, audience, time.Now())
+	if err != nil {
+		return nil, time.Time{}, err
+	}
 	_, public := r.Signer.Admission()
 	out, err := r.Authority.RegisterAdmissionKey(ctx, &authorityv1.RegisterAdmissionKeyRequest{
-		Actor: &authorityv1.WorkloadCredential{Credential: credential}, PublicKey: public,
+		Actor: &authorityv1.WorkloadCredential{Credential: credential}, PublicKey: public, Proof: proof,
 	})
 	if err != nil {
 		return nil, time.Time{}, err
 	}
 	return out.GetKey(), time.Unix(out.GetExpiresAtUnix(), 0), nil
+}
+
+// CredentialAudience is the audience the launcher issued this workload's
+// credential for: the authority the credential is presented to, which a
+// registration proof names. It reads the hop's own credential and verifies
+// nothing; the authority attests the credential and refuses a proof naming
+// any audience but its own.
+func CredentialAudience(credential string) (string, error) {
+	parts := strings.Split(credential, ".")
+	if len(parts) != 3 {
+		return "", errors.New("hop: this workload's credential is not a compact JWS, so it names no audience to prove a registration to")
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return "", errors.New("hop: this workload's credential has an unreadable payload")
+	}
+	var claims struct {
+		Audience json.RawMessage `json:"aud"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return "", errors.New("hop: this workload's credential has unreadable claims")
+	}
+	var one string
+	var many []string
+	switch {
+	case json.Unmarshal(claims.Audience, &one) == nil && one != "":
+		return one, nil
+	case json.Unmarshal(claims.Audience, &many) == nil && len(many) == 1 && many[0] != "":
+		return many[0], nil
+	}
+	return "", errors.New("hop: this workload's credential names no single audience to prove a registration to")
 }
 
 // Keep registers the key now, then renews it at a quarter of each lease's

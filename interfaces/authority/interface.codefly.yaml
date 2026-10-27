@@ -2,7 +2,7 @@ kind: interface
 publisher: codefly.dev
 name: authority
 description: What a module or solution calls on its host to be issued, checked and verified authority. Implemented by accounts and by the local authority.
-version: 0.3.3
+version: 0.3.4
 type: connect
 protobuf:
     package: host.authority.v1
