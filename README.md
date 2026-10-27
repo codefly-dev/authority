@@ -103,6 +103,13 @@ the scaffold's proto, `authority` from ours) into one facade directory and fails
 its own build; the Go and Python clients that would replace the solution SDK wait
 on that fix.
 
+After changing a proto, regenerate its bindings and clients with `codefly
+generate` and review the output. For changed files already recorded in
+`tools/noproxygate/generated.json`, refresh their SHA-256 digests from that
+reviewed output; do not add exclusions or change the gate to accept a mismatch.
+Run `GOWORK=off go test -race -count=1 ./...` and `GOWORK=off go vet ./...`
+in `tools/noproxygate` before committing the generated change.
+
 **Where the thinking is.** The Platform Authority Primer (decisions 6 and 7) and the
 handbook proposal that will carry them. Run it with `codefly run` from the module.
 
