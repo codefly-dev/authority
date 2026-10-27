@@ -526,6 +526,9 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		_, err = sp.root(t, f.TeamLeaver, A)
 		refused(t, err, codes.PermissionDenied, "holds no role")
 	})
+	t.Run("a member lists exactly the installations they hold a role on, directly or through a team; holding nothing is an empty list; a revoke or leaving the team drops one at once; another organization's never appear", func(t *testing.T) {
+		sp.heldInstallations(t)
+	})
 	t.Run("a person leaving the organization loses the solution's data at once", func(t *testing.T) {
 		sp.grant(t, A, "viewer", sp.person(t, f.OrgLeaver))
 		before := sp.must(t)(sp.through(t, f.OrgLeaver, A, "store"))

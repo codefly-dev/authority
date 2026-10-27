@@ -178,3 +178,11 @@ it is opaque to callers. Host-owned fixture setup stays on `InstallAsHost`.
 own current installation without an administrator session. The suite checks
 the returned association, namespace, invalid parent and foreign/missing workload
 credentials. This is metadata only; the installation inventory remains admin-only.
+
+`InstallationService.ListHeld` is required by the solution-principal target: a
+member lists exactly the installations of A and B they hold a role on, directly
+or through the team, with those roles; holding nothing, an administrator
+included, is an empty list; a revoke or leaving the team drops one at once;
+another organization's installation never appears, and a caller of another
+organization is refused naming it (`held_installations.go`). A contract without
+`ListHeld` fails that case alone.

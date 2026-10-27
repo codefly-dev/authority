@@ -30,10 +30,16 @@ service InstallationService {
   // ListRoleGrants answers who holds which role on the installation; the same
   // callers as GrantRole.
   rpc ListRoleGrants(ListRoleGrantsRequest) returns (ListRoleGrantsResponse);
-  // List answers what one organisation has installed: an administrator's read. A
-  // member's view, which installed solutions they may use, is their navigation and
-  // belongs to the entitlement read, not here.
+  // List answers what one organisation has installed: an administrator's read.
+  // A member's view, which installed solutions they may use, is ListHeld.
   rpc List(ListRequest) returns (ListResponse);
+  // ListHeld answers the signed-in person which installations of their
+  // organisation they may use: each active installation on which they hold a
+  // role, granted to them or to a team of theirs, with the roles they hold.
+  // It is their navigation and answers their own holdings alone, never who
+  // else holds what. A member holding nothing reads an empty list; a caller
+  // acting at another organisation is refused naming it.
+  rpc ListHeld(ListHeldRequest) returns (ListHeldResponse);
 }
 
 message CurrentInstallationRequest {
@@ -308,4 +314,26 @@ message OfferTool {
   string binding = 2;
   // True when the tool changes data.
   bool write = 3;
+}
+
+// ListHeldRequest names the organisation the person reads at: the one their
+// session was opened at.
+message ListHeldRequest {
+  // The organisation.
+  string organization_id = 1;
+}
+
+// ListHeldResponse is every installation the person holds a role on, sorted
+// by installation id.
+message ListHeldResponse {
+  // The installations.
+  repeated HeldInstallation installations = 1;
+}
+
+// HeldInstallation is one installation the person may use.
+message HeldInstallation {
+  // The installation.
+  Installation installation = 1;
+  // The roles the person holds on it, directly or through a team, sorted.
+  repeated string roles = 2;
 }

@@ -151,6 +151,25 @@ func (h *installationHost) ListRoleGrants(ctx context.Context, in *installationv
 	return &installationv1.ListRoleGrantsResponse{Grants: append([]*installationv1.RoleGrant(nil), h.grants...)}, nil
 }
 
+// ListHeld answers the caller their own holdings as the core does: a member
+// holding a role reads that installation and role, a member holding nothing
+// an empty list, and a session of another organization the core's refusal.
+func (h *installationHost) ListHeld(ctx context.Context, in *installationv1.ListHeldRequest, _ ...grpc.CallOption) (*installationv1.ListHeldResponse, error) {
+	p, err := h.caller(ctx, "ListHeld", in.GetOrganizationId())
+	if status.Code(err) == codes.Unauthenticated {
+		return nil, err
+	}
+	if p.org != in.GetOrganizationId() {
+		return nil, status.Errorf(codes.PermissionDenied, "the installations held at organization %q are read by a member of it, signed in there", in.GetOrganizationId())
+	}
+	out := &installationv1.ListHeldResponse{}
+	if p.holds {
+		out.Installations = []*installationv1.HeldInstallation{{Roles: []string{"viewer"},
+			Installation: &installationv1.Installation{Id: proposalsInstallation, OrganizationId: "acme", Target: "proposals", Status: installationv1.Installation_STATUS_ACTIVE}}}
+	}
+	return out, nil
+}
+
 func (h *installationHost) Install(context.Context, *installationv1.InstallRequest, ...grpc.CallOption) (*installationv1.Installation, error) {
 	return nil, errors.New("the face must never send Install")
 }
@@ -265,6 +284,31 @@ func TestAMemberReadsTheRolesButIsRefusedAGrantWithItsReason(t *testing.T) {
 	refusedWith(t, err, connect.CodePermissionDenied, fmt.Sprintf("installation %s belongs to another organization than \"acme\"", proposalsInstallation))
 	_, err = browser[installationv1.ListRequest, installationv1.ListResponse](t, srv, srv.URL, "maya-session", installationv1.InstallationService_List_FullMethodName, &installationv1.ListRequest{OrganizationId: "acme"})
 	refusedWith(t, err, connect.CodePermissionDenied, `installation administration requires an administrator or owner of organization "acme"`)
+}
+
+// A member lists the installations they may use, with their own session: the
+// one they hold a role on, or none, never refused for holding nothing; a
+// session of another organization is refused by the authority with its reason.
+func TestAMemberListsTheInstallationsTheyHoldThroughTheHostFace(t *testing.T) {
+	srv, host := newHostFace(t)
+	held, err := browser[installationv1.ListHeldRequest, installationv1.ListHeldResponse](t, srv, srv.URL, "maya-session", installationv1.InstallationService_ListHeld_FullMethodName, &installationv1.ListHeldRequest{OrganizationId: "acme"})
+	if err != nil || len(held.GetInstallations()) != 1 || held.GetInstallations()[0].GetInstallation().GetId() != proposalsInstallation || strings.Join(held.GetInstallations()[0].GetRoles(), ",") != "viewer" {
+		t.Fatalf("maya's held installations: %v %v", held, err)
+	}
+	held, err = browser[installationv1.ListHeldRequest, installationv1.ListHeldResponse](t, srv, srv.URL, "zoe-session", installationv1.InstallationService_ListHeld_FullMethodName, &installationv1.ListHeldRequest{OrganizationId: "globex"})
+	if err != nil || len(held.GetInstallations()) != 0 {
+		t.Fatalf("zoe holds nothing at globex and reads an empty list: %v %v", held, err)
+	}
+	_, err = browser[installationv1.ListHeldRequest, installationv1.ListHeldResponse](t, srv, srv.URL, "zoe-session", installationv1.InstallationService_ListHeld_FullMethodName, &installationv1.ListHeldRequest{OrganizationId: "acme"})
+	refusedWith(t, err, connect.CodePermissionDenied, `the installations held at organization "acme" are read by a member of it`)
+	_, err = browser[installationv1.ListHeldRequest, installationv1.ListHeldResponse](t, srv, "http://elsewhere.test", "maya-session", installationv1.InstallationService_ListHeld_FullMethodName, &installationv1.ListHeldRequest{OrganizationId: "acme"})
+	refusedWith(t, err, connect.CodePermissionDenied, "must come from this origin")
+	_, err = browser[installationv1.ListHeldRequest, installationv1.ListHeldResponse](t, srv, srv.URL, "", installationv1.InstallationService_ListHeld_FullMethodName, &installationv1.ListHeldRequest{OrganizationId: "acme"})
+	refusedWith(t, err, connect.CodeUnauthenticated, "no session")
+	calls, bearers := host.sent()
+	if strings.Join(calls, ",") != "ListHeld,ListHeld,ListHeld" || strings.Join(bearers, ",") != "maya-session,zoe-session,zoe-session" {
+		t.Fatalf("the host was sent %v as %v", calls, bearers)
+	}
 }
 
 // Another organization's administrator is refused Acme's installation, by the

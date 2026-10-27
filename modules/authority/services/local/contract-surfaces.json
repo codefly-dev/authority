@@ -50,7 +50,8 @@
         "/host.installation.v1.InstallationService/RevokeRole",
         "/host.installation.v1.InstallationService/ListRoleGrants",
         "/host.installation.v1.InstallationService/Current",
-        "/host.installation.v1.InstallationService/List"
+        "/host.installation.v1.InstallationService/List",
+        "/host.installation.v1.InstallationService/ListHeld"
       ]
     },
     {
