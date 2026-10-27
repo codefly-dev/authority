@@ -92,3 +92,13 @@ func TestTheHostGrantsARoleAsTheAdministratorWould(t *testing.T) {
 		t.Fatalf("the team's role is held: %v", err)
 	}
 }
+
+func TestAComposedModuleReadsAsDelivered(t *testing.T) {
+	h := newHarness(t)
+	m, err := h.svc.Composed(h.ctx, "a")
+	if err != nil || m.Principal != "a" || m.Kind != domain.KindSolution || len(m.Roles) != 4 {
+		t.Fatalf("composed %+v %v", m, err)
+	}
+	_, err = h.svc.Composed(h.ctx, "absent")
+	code(t, err, domain.NotFound)
+}

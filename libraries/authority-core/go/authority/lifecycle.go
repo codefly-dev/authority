@@ -521,3 +521,13 @@ func (s *Service) Installations(ctx context.Context, caller Person, org string) 
 	})
 	return out, err
 }
+
+// Composed answers a composed module by name, as its delivery declared it.
+func (s *Service) Composed(ctx context.Context, name string) (domain.Module, error) {
+	var m domain.Module
+	err := s.store.Read(ctx, func(tx Tx) (err error) {
+		m, err = tx.ModuleNamed(name)
+		return notFound(err)
+	})
+	return m, err
+}
