@@ -1,4 +1,4 @@
-package proxy_test
+package forward_test
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"google.golang.org/grpc/health"
 	healthv1 "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/test/bufconn"
-	gen "hop/pkg/gen"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -16,13 +15,13 @@ import (
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
 	"github.com/codefly-dev/authority/libraries/hop/go"
+	"github.com/codefly-dev/authority/libraries/hop/go/decide"
+	"github.com/codefly-dev/authority/libraries/hop/go/forward"
 	"github.com/codefly-dev/authority/libraries/hop/go/routing"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"hop/pkg/business/decide"
-	"hop/pkg/infra/proxy"
 )
 
 type routeChecker struct {
@@ -73,7 +72,7 @@ func TestPublishedDestinationAndPolicyAreOneSelection(t *testing.T) {
 	decision := decide.Decider{Routes: routes, Authority: checker, Modules: map[string]bool{"module": true}, AudienceOf: func(string) (string, error) { return "module", nil }}
 	for range 2 {
 		refused := 0
-		face := proxy.HTTP{Decide: decision.Decide, Upstreams: map[string]*url.URL{backend.URL: u}, Signer: hoptest.Signer(proof), Refused: func(string, error) { refused++ }}
+		face := forward.HTTP{Decide: decision.Decide, Upstreams: map[string]*url.URL{backend.URL: u}, Signer: hoptest.Signer(proof), Refused: func(string, error) { refused++ }}
 		req := httptest.NewRequest(http.MethodPost, "/gauge.v1.Service/Call?original=yes", nil)
 		req.Header.Set(hop.WorkContextKey, "context")
 		rec := httptest.NewRecorder()
@@ -87,7 +86,7 @@ func TestPublishedDestinationAndPolicyAreOneSelection(t *testing.T) {
 	}
 	// Inverting the grants admits the HTTP route despite the gRPC refusal.
 	checker.denied = "/gauge.v1.Service/Call"
-	face := proxy.HTTP{Decide: decision.Decide, Upstreams: map[string]*url.URL{backend.URL: u}, Signer: hoptest.Signer(proof)}
+	face := forward.HTTP{Decide: decision.Decide, Upstreams: map[string]*url.URL{backend.URL: u}, Signer: hoptest.Signer(proof)}
 	req := httptest.NewRequest(http.MethodPost, "/gauge.v1.Service/Call", nil)
 	req.Header.Set(hop.WorkContextKey, "context")
 	rec := httptest.NewRecorder()
@@ -122,12 +121,12 @@ func TestPublishedDestinationAndPolicyAreOneSelection(t *testing.T) {
 
 func TestGeneratedGRPCRoutesKeepSiblingAndAudienceSeparate(t *testing.T) {
 	a, b := &module{}, &module{}
-	first := routedBackend(t, func(s *grpc.Server) { gen.RegisterHopServiceServer(s, a) })
-	second := routedBackend(t, func(s *grpc.Server) { gen.RegisterHopServiceServer(s, b) })
+	first := routedBackend(t, func(s *grpc.Server) { registerModule(s, a) })
+	second := routedBackend(t, func(s *grpc.Server) { registerModule(s, b) })
 	// The same generated unary protocol can be exported by two independently
 	// scoped audiences. An absent method cannot fall back to either listener.
-	routes := &routing.Routing{Schema: routing.RoutingSchema, Endpoints: []routing.RouteEndpoint{routeEndpoint("first", "grpc", "first", "/api.HopService/Version")}}
-	other := routeEndpoint("second", "grpc", "second", "/api.HopService/Version")
+	routes := &routing.Routing{Schema: routing.RoutingSchema, Endpoints: []routing.RouteEndpoint{routeEndpoint("first", "grpc", "first", versionProcedure)}}
+	other := routeEndpoint("second", "grpc", "second", versionProcedure)
 	other.Audience = "other"
 	routes.Endpoints = append(routes.Endpoints, other)
 	healthServer := health.NewServer()
@@ -136,11 +135,11 @@ func TestGeneratedGRPCRoutesKeepSiblingAndAudienceSeparate(t *testing.T) {
 	routes.Endpoints = append(routes.Endpoints, routeEndpoint("health", "grpc", "third", "/grpc.health.v1.Health/Check", "/grpc.health.v1.Health/Watch"))
 	checker := &routeChecker{}
 	decision := decide.Decider{Routes: routes, Authority: checker, Modules: map[string]bool{"module": true, "other": true}, AudienceOf: func(token string) (string, error) { return token, nil }}
-	p := &proxy.Proxy{Decide: decision.Decide, Signer: hoptest.Signer(proof), Upstreams: map[string]*grpc.ClientConn{"first": first, "second": second, "third": third, "module": second}}
+	p := &forward.Proxy{Decide: decision.Decide, Signer: hoptest.Signer(proof), Upstreams: map[string]*grpc.ClientConn{"first": first, "second": second, "third": third, "module": second}}
 	conn := serve(t, p.ServerOptions(), func(*grpc.Server) {})
 	for _, audience := range []string{"module", "other"} {
 		ctx := metadata.AppendToOutgoingContext(t.Context(), hop.WorkContextKey, audience)
-		if _, err := gen.NewHopServiceClient(conn).Version(ctx, &gen.VersionRequest{}); err != nil {
+		if _, err := version(ctx, conn); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -166,7 +165,7 @@ func TestGeneratedGRPCRoutesKeepSiblingAndAudienceSeparate(t *testing.T) {
 	if _, err = stream.Recv(); status.Code(err) != codes.Canceled {
 		t.Fatalf("stream cancellation: %v", err)
 	}
-	if err := conn.Invoke(ctx, "/unknown.Service/Call", &proxy.Frame{}, &proxy.Frame{}, grpc.ForceCodec(proxy.Codec{})); status.Code(err) != codes.NotFound {
+	if err := conn.Invoke(ctx, "/unknown.Service/Call", &forward.Frame{}, &forward.Frame{}, grpc.ForceCodec(forward.Codec{})); status.Code(err) != codes.NotFound {
 		t.Fatalf("unknown method: %v", err)
 	}
 	if a.reached != 1 || b.reached != 1 {
@@ -183,5 +182,5 @@ func routedBackend(t *testing.T, register func(*grpc.Server)) *grpc.ClientConn {
 	register(server)
 	go func() { _ = server.Serve(listener) }()
 	t.Cleanup(server.Stop)
-	return dial(t, listener, grpc.WithDefaultCallOptions(proxy.CallOptions()...))
+	return dial(t, listener, grpc.WithDefaultCallOptions(forward.CallOptions()...))
 }

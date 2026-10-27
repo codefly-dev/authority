@@ -1,4 +1,4 @@
-package proxy
+package forward
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/hop/go/routing"
 	"google.golang.org/grpc/metadata"
 
-	"hop/pkg/business/decide"
+	"github.com/codefly-dev/authority/libraries/hop/go/decide"
 )
 
 // proxied counts connections to the HTTP proxy this test binary installs before
