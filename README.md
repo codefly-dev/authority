@@ -741,6 +741,18 @@ whoever the host lets list. An installation id is a canonical UUID, as the host
 issues, named by organisation and target so it is the same on every start: a
 module's stored rows keep naming it.
 
+An authenticated `/auth/session` response also supplies `moduleApiBase: "/"`:
+the explicit origin-relative base of this edge's public module procedures.
+Standalone pages pass this optional host field to their solution binding's
+`moduleApiBase` for generated module clients, retaining their cookie fetch.
+An older host may omit it; consumers preserve absence and report an unavailable
+module connection instead of substituting an empty base or inferring an origin.
+Unauthenticated and failed session reads publish no connection. This field is
+not a permission and does not change the solution-runtime `apiBase` or relay
+paths. Listener and upstream endpoints stay server-side, resolved by the
+existing SDK and delivered composition references; no private address is
+projected to the page.
+
 Each call is routed by its path: `/v1/<module>/…` to the module's REST face,
 `/<package.Service>/…` to its Connect face, and every other path to the
 frontend. For a module call the edge issues a Work Context for the person at the
