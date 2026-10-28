@@ -84,12 +84,16 @@ type keys struct {
 	err      error
 	reads    int
 	hold     chan struct{}
+	// literalResponse preserves an empty admission slice for absence tests.
+	// The default still publishes the test hop's key, as existing tests expect.
+	literalResponse bool
 }
 
 func (k *keys) Keys(ctx context.Context, _ *authorityv1.KeysRequest, _ ...grpc.CallOption) (*authorityv1.KeysResponse, error) {
 	k.mu.Lock()
 	k.reads++
 	hold, response, err := k.hold, k.response, k.err
+	literal := k.literalResponse
 	k.mu.Unlock()
 	if hold != nil {
 		select {
@@ -98,7 +102,7 @@ func (k *keys) Keys(ctx context.Context, _ *authorityv1.KeysRequest, _ ...grpc.C
 			return nil, ctx.Err()
 		}
 	}
-	if response != nil && len(response.GetAdmissionKeys()) == 0 {
+	if !literal && response != nil && len(response.GetAdmissionKeys()) == 0 {
 		response = proto.Clone(response).(*authorityv1.KeysResponse)
 		response.AdmissionKeys = []*authorityv1.PublicKey{publishedHop("proof")}
 	}

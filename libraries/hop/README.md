@@ -251,6 +251,16 @@ and Node hosts supply their shared durable replay adapter; Python's async
 adapter must not block the event loop. Readiness continues to check authority
 key availability; deployment health should also check its replay store.
 
+In Go, `Verifier.Ready()` requires fresh Work Context trust and, for an admitting
+verifier, at least one usable published admission key. An initially absent or
+successfully observed last-key withdrawal makes it unready; failed refreshes
+retain the last usable cache through its existing freshness limit. Token-only
+verifiers need no admission key and still refuse stamped calls. Readiness polls
+drive nonblocking, rate-limited refresh and recovery without business traffic.
+This is Go key readiness, not a replay-store probe or an aggregate service-health
+result. Python and TypeScript's analogous missing-admission-key readiness gaps
+remain outside this Go correction; no cross-language readiness fix is implied.
+
 Upgrade the hop and consumers together and remove delivery of `hop/PROOF`.
 Downstream repositories must pin this breaking version and pass their actual
 procedure into `Verify`/`verify`; no method-less overload remains.

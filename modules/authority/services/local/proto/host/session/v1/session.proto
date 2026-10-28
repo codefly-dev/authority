@@ -54,6 +54,9 @@ message FixturePerson {
   repeated string team_ids = 5;
   // The token SignIn takes for them.
   string fixture_token = 6;
+  // The organisation's name, as the fixture spells it, for a page that shows
+  // a person where they sign into; the id above is the identity.
+  string organization_display_name = 7;
 }
 
 // CurrentRequest asks for the caller's own session; the bearer is the call's.

@@ -38,13 +38,14 @@ var signInPage = template.Must(template.ParseFS(signInBuild, "signin/out/index.h
 
 // fixturePerson is one person as the page reads them (web/src/sign-in.tsx).
 type fixturePerson struct {
-	Description    string   `json:"description,omitempty"`
-	StartHere      bool     `json:"startHere,omitempty"`
-	PersonID       string   `json:"personId"`
-	Email          string   `json:"email"`
-	OrganizationID string   `json:"organizationId"`
-	Roles          []string `json:"roles"`
-	FixtureToken   string   `json:"fixtureToken"`
+	Description      string   `json:"description,omitempty"`
+	StartHere        bool     `json:"startHere,omitempty"`
+	PersonID         string   `json:"personId"`
+	Email            string   `json:"email"`
+	OrganizationID   string   `json:"organizationId"`
+	OrganizationName string   `json:"organizationName"`
+	Roles            []string `json:"roles"`
+	FixtureToken     string   `json:"fixtureToken"`
 }
 
 // signInData is the page's data island: html/template writes it as JSON,
@@ -67,7 +68,7 @@ func (e *Edge) signInPage(w http.ResponseWriter, r *http.Request) {
 		if roles == nil {
 			roles = []string{}
 		}
-		data.People = append(data.People, fixturePerson{PersonID: p.GetPersonId(), Email: p.GetEmail(), OrganizationID: p.GetOrganizationId(), Roles: roles, FixtureToken: p.GetFixtureToken()})
+		data.People = append(data.People, fixturePerson{PersonID: p.GetPersonId(), Email: p.GetEmail(), OrganizationID: p.GetOrganizationId(), OrganizationName: p.GetOrganizationDisplayName(), Roles: roles, FixtureToken: p.GetFixtureToken()})
 	}
 	data.People, err = selectSignInPeople(data.People, e.SignInChoices)
 	if err != nil {
