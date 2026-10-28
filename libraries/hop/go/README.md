@@ -56,13 +56,22 @@ re-read as a call on an unknown key does, refused if the read fails.
 `NewVerifier` never fails on an authority that is not serving yet: calls are
 refused with "the authority's published keys are unavailable" until it is, and
 `KeysError()` gives the read's own failure to the module's logs, never to a
-caller. **Readiness uses `Ready()`**: true while trusted keys are held, through
-failed re-reads inside the 15-minute window; false before the first read or once
-the keys are stale. It also starts the same rate-limited, non-blocking re-read a
-call would, so an unready replica (which gets no calls) recovers once the
-authority serves keys, and an idle one never goes stale. Never gate readiness on
-`KeysError()`: a brief authority outage would take every replica out of rotation
-while its keys are still trusted.
+caller. **Key readiness uses `Ready()`**: an admitting verifier needs fresh Work
+Context trust and at least one usable published admission key. A token-only
+verifier needs only the fresh Work Context trust; it still cannot admit stamped
+calls. A successful publication with no usable admission keys, initially or
+after withdrawal, makes the admitting verifier unready once observed. Failed
+re-reads preserve the last usable cache through the 15-minute boundary; readiness
+is false before any successful read or beyond that boundary.
+
+`Ready()` also starts the same rate-limited, non-blocking re-read a call would,
+so polling alone lets an unready replica recover and refreshes an idle one. A
+poll starting a read returns the current snapshot; a later poll observes the
+completed refresh. Never gate readiness on `KeysError()`: a brief authority
+outage must not take replicas out of rotation while their required keys remain
+trusted. Compose key readiness with the service's other health conditions,
+including its replay store; this result probes neither table/grant availability
+nor whether a particular call will be admitted.
 
 `hoptest` is a real authority for a module's own tests: `hoptest.New(t)` signs
 with a fresh key and answers `Keys`; `Issue` mints a Work Context and

@@ -29,8 +29,7 @@ const (
 )
 
 // prepared is one composed Connect operation as `codefly generate
-// runnable-bindings` delivers it; an empty tool is an operation its owner
-// exposes as no tool.
+// runnable-bindings` delivers it; an empty tool uses Core's default exposure.
 func prepared(method, tool string, effect runnablev0.ToolExposure_Effect, actions ...string) *runnablev0.PreparedBinding {
 	scopes := []*basev0.WorkScopeV1{{ResourceKind: "proposals.item", Actions: actions}}
 	p := &runnablev0.PreparedBinding{
@@ -90,12 +89,17 @@ func TestReviewOfferShowsEachRolesOperationsAndTools(t *testing.T) {
 	if _, err := k.State.ApplyManifest(solution); err != nil {
 		t.Fatal(err)
 	}
+	lookupRestricted := prepared(readItems, "read_with_private_lookup", runnablev0.ToolExposure_EFFECT_READ_ONLY, "read")
+	lookupRestricted.Policy.LookupScopes = []*basev0.WorkScopeV1{testkit.Scope("proposals.private-outcome", "read")}
+	lookupRestricted.Policy.InvokeScopes = append(lookupRestricted.Policy.InvokeScopes, lookupRestricted.Policy.LookupScopes...)
+	lookupRestricted = composed(lookupRestricted)
 	offers := &Offers{plugin: &Plugin{State: k.State}, runnables: func(context.Context) (map[string]*runnablev0.PreparedBinding, error) {
 		return map[string]*runnablev0.PreparedBinding{
 			"PROPOSALS__API_CONNECT_READ":       prepared(readItems, "read_item", runnablev0.ToolExposure_EFFECT_READ_ONLY, "read"),
 			"PROPOSALS__API_CONNECT_READ_AGAIN": prepared(readItems, "", runnablev0.ToolExposure_EFFECT_READ_ONLY, "read"),
 			"PROPOSALS__API_ALT_GRPC_READ":      grpcEndpoint(prepared(readItems, "read_item", runnablev0.ToolExposure_EFFECT_READ_ONLY, "read")),
 			"PROPOSALS__API_CONNECT_WRITE":      prepared(writeItems, "write_item", runnablev0.ToolExposure_EFFECT_MUTATION, "write"),
+			"PROPOSALS__API_CONNECT_LOOKUP":     lookupRestricted,
 		}, nil
 	}}
 	admin := signedIn(t, k, "fixture-alex")
@@ -128,11 +132,11 @@ func TestReviewOfferShowsEachRolesOperationsAndTools(t *testing.T) {
 		roles[r.GetName()] = r
 	}
 	viewer := tools(roles["viewer"])
-	if len(viewer) != 1 || viewer[readItems] != "read_item:PROPOSALS__API_CONNECT_READ:false" {
-		t.Fatalf("viewer reaches Read and its one Connect tool, never Write: %v", viewer)
+	if len(viewer) != 2 || viewer["read_item"] != readItems+":PROPOSALS__API_CONNECT_READ:false" || viewer["Read"] != readItems+":PROPOSALS__API_CONNECT_READ_AGAIN:true" {
+		t.Fatalf("viewer reaches Read with explicit and default Core tool metadata, never Write: %v", viewer)
 	}
 	installer := tools(roles[state.InstallerRole])
-	if installer[writeItems] != "write_item:PROPOSALS__API_CONNECT_WRITE:true" {
+	if installer["write_item"] != writeItems+":PROPOSALS__API_CONNECT_WRITE:true" {
 		t.Fatalf("installer reaches Write as a write tool: %v", installer)
 	}
 
@@ -212,12 +216,12 @@ func mustCaller(t *testing.T, k *testkit.Kit, token string) authority.Person {
 	return caller
 }
 
-// tools is operation -> "tool:binding:write" for the role's single tools.
+// tools is tool name -> "operation:binding:write", retaining distinct tools of one operation.
 func tools(r *installationv1.OfferRole) map[string]string {
 	out := map[string]string{}
 	for _, c := range r.GetCapabilities() {
 		for _, tool := range c.GetTools() {
-			out[c.GetOperation()] = tool.GetName() + ":" + tool.GetBinding() + ":" + map[bool]string{true: "true", false: "false"}[tool.GetWrite()]
+			out[tool.GetName()] = c.GetOperation() + ":" + tool.GetBinding() + ":" + map[bool]string{true: "true", false: "false"}[tool.GetWrite()]
 		}
 	}
 	return out
@@ -230,4 +234,27 @@ func contains(list []string, s string) bool {
 		}
 	}
 	return false
+}
+
+// The whole response describes the reviewed delivery even when another one
+// arrives before this host converts the read into its wire message.
+func TestReviewedInstallationRolesStayInTheReviewedSnapshot(t *testing.T) {
+	k := testkit.New(t)
+	caller := mustCaller(t, k, "fixture-alex")
+	offer, err := k.State.Service().ReviewOffer(context.Background(), caller, "acme", "wiki")
+	if err != nil {
+		t.Fatal(err)
+	}
+	redelivered := testkit.Wiki(2)
+	delete(redelivered.Roles, "viewer")
+	if _, err := k.State.ApplyManifest(redelivered); err != nil {
+		t.Fatal(err)
+	}
+	got, err := (&Plugin{State: k.State}).review(offer, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !contains(got.GetInstallation().GetRoles(), "viewer") {
+		t.Fatalf("installation role names came from a later delivery: %v", got.GetInstallation())
+	}
 }

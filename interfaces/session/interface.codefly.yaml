@@ -2,7 +2,7 @@ kind: interface
 publisher: codefly.dev
 name: session
 description: A person signs in at the browser edge, and a page asks who the bearer it was handed is; a module never calls this.
-version: 0.2.0
+version: 0.2.1
 type: connect
 protobuf:
     package: host.session.v1

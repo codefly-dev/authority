@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"slices"
 	"strings"
 
@@ -13,8 +12,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/offers"
 	runnablev0 "github.com/codefly-dev/core/generated/go/codefly/runnable/v0"
 	"github.com/codefly-dev/core/runnable"
 	codefly "github.com/codefly-dev/sdk-go"
@@ -101,100 +99,45 @@ func (o *Offers) ReviewOffer(ctx context.Context, req *installationv1.ReviewRequ
 	return o.plugin.review(offer, bindings)
 }
 
+// review adapts the shared projection to this host's generated wire types.
 func (p *Plugin) review(offer authority.ReviewedOffer, bindings map[string]*runnablev0.PreparedBinding) (*installationv1.ReviewedOffer, error) {
-	m, inst := offer.Module, offer.Installation
-	a := offer.Approval
-	out := &installationv1.ReviewedOffer{Target: m.Name, ToolsComposed: len(bindings) > 0}
-	// A member's read carries no consent tuple: only an administrator consents.
-	if a.Digest != "" {
+	projected, err := offers.Project(offer, bindings)
+	if err != nil {
+		return nil, authorityplugin.Status(err)
+	}
+	out := &installationv1.ReviewedOffer{Target: projected.Target, ToolsComposed: projected.ToolsComposed}
+	if a := projected.Approval; a != nil {
 		out.Approval = &installationv1.ConsentApproval{TargetId: a.TargetID, Generation: a.Generation, ExpectedRevision: a.ExpectedRevision, Digest: a.Digest}
 	}
-	if inst.ID != "" {
-		out.Installation = p.wire(inst)
+	if projected.Installation != nil {
+		// Use the reviewed role names, never a second read of a later delivery.
+		roles := make([]string, 0, len(projected.Roles))
+		for _, role := range projected.Roles {
+			roles = append(roles, role.Name)
+		}
+		out.Installation = wireInstallation(*projected.Installation, roles)
 	}
-	for _, id := range slices.Sorted(maps.Keys(m.Bindings)) {
-		b := m.Bindings[id]
-		out.Ceiling = append(out.Ceiling, &installationv1.OfferBinding{Binding: id, Module: b.Audience, Scopes: offerScopes(b.InvokeScopes, false, nil)})
+	for _, b := range projected.Ceiling {
+		out.Ceiling = append(out.Ceiling, &installationv1.OfferBinding{Binding: b.Binding, Module: b.Module, Scopes: scopesToWire(b.Scopes)})
 	}
-	modules := slices.Clone(offer.Modules)
-	slices.SortFunc(modules, func(a, b domain.Module) int { return strings.Compare(a.Name, b.Name) })
-	for _, name := range slices.Sorted(maps.Keys(m.Roles)) {
-		role := &installationv1.OfferRole{Name: name, Scopes: offerScopes(m.Roles[name], false, nil)}
-		role.Scopes = append(role.Scopes, offerScopes(m.OwnedRoles[name], true, inst.Owned)...)
-		// What the role reaches, by kind and action: its confinement to the
-		// installation narrows resources, never which operations it covers.
-		held := scope.Unowned(stripIDs(append(slices.Clone(m.Roles[name]), m.OwnedRoles[name]...)))
-		for _, target := range modules {
-			for _, method := range slices.Sorted(maps.Keys(target.Methods)) {
-				policy := target.Methods[method]
-				if policy.AnyCheckedCaller || len(policy.Requires) == 0 || !scope.Attenuates(policy.Requires, held) {
-					continue
-				}
-				c := &installationv1.OfferCapability{Module: target.Name, Operation: method, Requires: offerScopes(policy.Requires, false, nil)}
-				tools, err := toolsOf(target.Name, method, held, bindings)
-				if err != nil {
-					return nil, err
-				}
-				c.Tools = tools
-				role.Capabilities = append(role.Capabilities, c)
+	for _, r := range projected.Roles {
+		role := &installationv1.OfferRole{Name: r.Name, Scopes: scopesToWire(r.Scopes)}
+		for _, c := range r.Capabilities {
+			capability := &installationv1.OfferCapability{Module: c.Module, Operation: c.Operation, Requires: scopesToWire(c.Requires)}
+			for _, t := range c.Tools {
+				capability.Tools = append(capability.Tools, &installationv1.OfferTool{Name: t.Name, Binding: t.Binding, Write: t.Write})
 			}
+			role.Capabilities = append(role.Capabilities, capability)
 		}
 		out.Roles = append(out.Roles, role)
 	}
 	return out, nil
 }
 
-// toolsOf is every tool-exposed Connect binding of one operation whose invoke
-// and lookup scopes the role covers: the exposures a tool caller lists. The
-// same tool composed from the operation's Connect and gRPC endpoints is one
-// tool, named by its Connect binding, as a tool caller lists it.
-func toolsOf(module, method string, held []*basev0.WorkScopeV1, bindings map[string]*runnablev0.PreparedBinding) ([]*installationv1.OfferTool, error) {
-	var out []*installationv1.OfferTool
-	keys := slices.Sorted(maps.Keys(bindings))
-	connectFirst := func(key string) int {
-		if bindings[key].GetOperation().GetEndpoint() == "connect" {
-			return 0
-		}
-		return 1
-	}
-	slices.SortStableFunc(keys, func(a, b string) int { return connectFirst(a) - connectFirst(b) })
-	for _, key := range keys {
-		b := bindings[key]
-		op := b.GetOperation()
-		if op.GetModule() != module || op.GetSpelling() != method || b.GetPolicy().GetTool() == nil || b.GetCall().GetConnect() == nil {
-			continue
-		}
-		if !scope.Attenuates(append(slices.Clone(b.GetPolicy().GetInvokeScopes()), b.GetPolicy().GetLookupScopes()...), held) {
-			continue
-		}
-		tool, err := runnable.ToolFromPrepared(b)
-		if err != nil {
-			return nil, status.Errorf(codes.FailedPrecondition, "the composed binding %s is not a valid tool: %v", key, err)
-		}
-		if slices.ContainsFunc(out, func(t *installationv1.OfferTool) bool { return t.GetName() == tool.GetName() }) {
-			continue
-		}
-		out = append(out, &installationv1.OfferTool{Name: tool.GetName(), Binding: key, Write: tool.GetEffect() != runnablev0.ToolExposure_EFFECT_READ_ONLY})
-	}
-	return out, nil
-}
-
-func stripIDs(in []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 {
-	out := make([]*basev0.WorkScopeV1, 0, len(in))
-	for _, sc := range in {
-		out = append(out, &basev0.WorkScopeV1{ResourceKind: sc.GetResourceKind(), Actions: sc.GetActions()})
-	}
-	return out
-}
-
-func offerScopes(in []*basev0.WorkScopeV1, attached bool, owned map[string][]string) []*installationv1.OfferScope {
+func scopesToWire(scopes []*offers.Scope) []*installationv1.OfferScope {
 	var out []*installationv1.OfferScope
-	for _, sc := range scope.Normalize(in) {
-		s := &installationv1.OfferScope{ResourceKind: sc.GetResourceKind(), Actions: sc.GetActions(), AttachedOnly: attached}
-		if attached {
-			s.ResourceIds = slices.Clone(owned[sc.GetResourceKind()])
-		}
-		out = append(out, s)
+	for _, s := range scopes {
+		out = append(out, &installationv1.OfferScope{ResourceKind: s.ResourceKind, Actions: s.Actions, AttachedOnly: s.AttachedOnly, ResourceIds: s.ResourceIDs})
 	}
 	return out
 }

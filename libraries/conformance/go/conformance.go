@@ -328,7 +328,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		listed := c.must(t, ctx, "host.session.v1.SessionService", "ListFixturePeople", map[string]any{})
 		for _, person := range listMsgs(listed, "people") {
 			sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": str(person, "fixture_token")})
-			if str(sess, "person_id") != str(person, "person_id") || str(sess, "organization_id") != str(person, "organization_id") {
+			if str(sess, "person_id") != str(person, "person_id") || str(sess, "organization_id") != str(person, "organization_id") || str(sess, "organization_display_name") != str(person, "organization_display_name") {
 				t.Fatalf("listed %v signed in as %v", person, sess)
 			}
 		}

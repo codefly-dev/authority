@@ -432,6 +432,14 @@ func (s *State) FixturePeople() []Person {
 	return out
 }
 
+// OrganizationDisplayName is an organisation's name as the fixture spells it,
+// or empty for an organisation the fixture does not define.
+func (s *State) OrganizationDisplayName(organization string) string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.orgs[organization]
+}
+
 // Session resolves an open session.
 func (s *State) Session(id string) (Session, error) {
 	s.mu.RLock()

@@ -715,14 +715,18 @@ playground works the way a frontend does in a cell. A frontend sends a browser
 with no session to `/auth/sign-in?return=<path>`, the host's sign-in page. It
 lists the people the authority's fixture defines (the session interface's
 `ListFixturePeople`; a host with a real identity provider lists none), and the
-chosen one is signed in and returned to the path. The edge keeps the bearer in
+chosen one is signed in and returned to the path. Each listed person carries
+`FixturePerson.organization_display_name` from the host's organization record.
+The edge displays that name with the organization ID in its title; older hosts
+that omit the additive field display the ID. A person without an organization
+has no organization label. Configured `SIGN_IN_CHOICES` retain their order. The edge keeps the bearer in
 an `HttpOnly`, `SameSite=Lax` cookie, so the page holds no token. Signing in
 and signing out are writes: each must come from this origin, a return to
 another site lands on the root, and a non-browser caller signs in with a JSON
 `fixtureToken`.
 
 `/auth/session` answers who is signed in (`personId`, `organizationId`,
-`roles`), the `installations` the person may use, each `{id, target}`, which a
+`personDisplayName`, `organizationDisplayName`, `roles`), the `installations` the person may use, each `{id, target}`, which a
 frontend binds its calls to (a robin conversation names its installation), and
 `refused`, the reason for each other target. Both come from `Issue`, once per
 module the edge routes, as a call to that module would: a target is usable when
@@ -782,13 +786,21 @@ The review is the mapping from a role to tools. For each role the solution
 declares, it shows the role's scopes, confined to what the installation owns (or
 to the resources attached to it). It lists every composed module operation those
 scopes cover, from the delivered authority documents. For each operation it names
-the Robin tools composed for it: the tool-exposed Connect bindings
-`codefly generate runnable-bindings` prepared for that operation. Installing a
+the agent tools composed for it: the Connect bindings
+`codefly generate runnable-bindings` prepared for that operation. Core's
+`runnable.ToolFromPrepared` supplies each tool's name and effect, including the
+default metadata when the binding declares none; both invoke and lookup scopes
+must be covered by the role. Installing a
 solution and granting a role is what makes those tools available to the people
 granted it. An agent's intent declares which of them it uses. The authority still
 decides every call from the person's current grants and the binding. No table is
-maintained by hand: the page joins the authority's own records to the composed
-bindings when the person reviews.
+maintained by hand: `libraries/authority-core/go/offers.Project` joins the
+consistent `authority.ReviewedOffer` to the host's composed prepared bindings.
+It owns role scopes, operation coverage, attached-resource presentation and tool
+selection. Each host adapts its transport-neutral result to its generated protobuf types.
+The local provider uses this shared projection; Accounts must adopt the same
+package to remove its copied projection and qualify host parity.
+Authorization remains in `Service.ReviewOffer`, before projection.
 
 The read is `host.installation.v1.OfferService` (`ListOffers`, `ReviewOffer`),
 served by the local authority beside `InstallationService`. It is not part of

@@ -13,7 +13,7 @@ interface:
               - codefly.dev/authority@0.3.4
               - codefly.dev/composition@0.2.0
               - codefly.dev/installation@0.4.0
-              - codefly.dev/session@0.2.0
+              - codefly.dev/session@0.2.1
         # The REST face publishes the authority's keys as a JSON Web Key Set
         # (/.well-known/jwks.json), for a module that reads them by URL.
         - service: local

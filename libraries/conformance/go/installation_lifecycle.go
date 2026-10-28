@@ -17,6 +17,9 @@ type InstallationLifecycleCase struct {
 	Target, Credential, Kind, Team string
 	PauseInstall                   func() (resume func())
 	Revoke                         func(context.Context, string) error
+	// SetAdministrator changes AdminToken's live organization role without
+	// ending its session or membership; true restores its original roles.
+	SetAdministrator func(context.Context, bool) error
 }
 
 func (c *client) installationIdentity(t *testing.T, ctx context.Context, f Fixture) {
@@ -44,8 +47,8 @@ func (c *client) installationIdentity(t *testing.T, ctx context.Context, f Fixtu
 
 func (c *client) installationLifecycle(t *testing.T, ctx context.Context, f Fixture) {
 	t.Run("installation acknowledgement gates exposure and revocation ends authority", func(t *testing.T) {
-		if f.Lifecycle == nil || f.Lifecycle.PauseInstall == nil || f.Lifecycle.Revoke == nil {
-			t.Fatal("required conformance fixture missing: real install acknowledgement and revocation controls")
+		if f.Lifecycle == nil || f.Lifecycle.PauseInstall == nil || f.Lifecycle.Revoke == nil || f.Lifecycle.SetAdministrator == nil {
+			t.Fatal("required conformance fixture missing: real install acknowledgement, administrator role and revocation controls")
 		}
 		l := *f.Lifecycle
 		if l.Target == "" || l.Credential == "" || l.Team == "" {
@@ -66,6 +69,18 @@ func (c *client) installationLifecycle(t *testing.T, ctx context.Context, f Fixt
 		installCtx, cancel := context.WithTimeout(adminCtx, 10*time.Second)
 		defer cancel()
 		request := map[string]any{"organization_id": f.Organization, "target": l.Target, "role": "viewer", "owner_person_id": str(admin, "person_id"), "approval": c.reviewInstallation(t, adminCtx, f.Organization, l.Target)}
+		t.Run("administrator loss after review refuses apply", func(t *testing.T) {
+			if err := l.SetAdministrator(ctx, false); err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				if err := l.SetAdministrator(ctx, true); err != nil {
+					t.Error(err)
+				}
+			}()
+			_, err := c.call(installCtx, "host.installation.v1.InstallationService", "Install", request)
+			refused(t, err, codes.PermissionDenied, "administrator")
+		})
 		for _, tc := range []struct {
 			field  string
 			value  any
@@ -130,14 +145,34 @@ func (c *client) installationLifecycle(t *testing.T, ctx context.Context, f Fixt
 			_, err = c.call(adminCtx, "host.installation.v1.InstallationService", expose, grant)
 			refused(t, err, codes.FailedPrecondition, "pending")
 		})
-		resume()
-		select {
-		case installed := <-resultCh:
-			if installed.err != nil {
-				t.Fatalf("acknowledged install: %v", installed.err)
+		t.Run("administrator loss before acknowledgement leaves no active authority", func(t *testing.T) {
+			if err := l.SetAdministrator(ctx, false); err != nil {
+				t.Fatal(err)
 			}
-		case <-installCtx.Done():
-			t.Fatal("acknowledged install did not finish")
+			defer func() {
+				if err := l.SetAdministrator(ctx, true); err != nil {
+					t.Error(err)
+				}
+			}()
+			resume()
+			select {
+			case installed := <-resultCh:
+				refused(t, installed.err, codes.PermissionDenied, "administrator")
+			case <-installCtx.Done():
+				t.Fatal("acknowledgement did not finish after administrator loss")
+			}
+			_, err := issue()
+			refused(t, err, codes.FailedPrecondition, "pending")
+			_, err = c.call(adminCtx, "host.installation.v1.InstallationService", expose, grant)
+			refused(t, err, codes.PermissionDenied, "organization")
+			_, err = c.call(adminCtx, "host.installation.v1.InstallationService", "Install", request)
+			refused(t, err, codes.PermissionDenied, "administrator")
+		})
+		// Restoring the live administrator lets the unchanged, still-pending
+		// approval resume; the refused acknowledgement created no active grant.
+		installed := c.must(t, adminCtx, "host.installation.v1.InstallationService", "Install", request)
+		if str(installed, "id") != id || enumName(installed, "status") != "STATUS_ACTIVE" {
+			t.Fatalf("restored administrator did not resume the pending installation: %v", installed)
 		}
 		t.Run("acknowledged installation is exposed to its team", func(t *testing.T) {
 			c.must(t, adminCtx, "host.installation.v1.InstallationService", expose, grant)

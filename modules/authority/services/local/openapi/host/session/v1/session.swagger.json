@@ -159,6 +159,10 @@
         "fixtureToken": {
           "type": "string",
           "description": "The token SignIn takes for them."
+        },
+        "organizationDisplayName": {
+          "type": "string",
+          "description": "The organisation's name, as the fixture spells it, for a page that shows\na person where they sign into; the id above is the identity."
         }
       },
       "description": "FixturePerson is one person a fixture run signs in."
