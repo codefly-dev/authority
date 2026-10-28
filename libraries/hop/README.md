@@ -240,9 +240,25 @@ routed to it, while a hop with the retiring seed keeps renewing the retiring
 key; the retiring key lapses `AdmissionLease` after the last hop signing with
 it stops.
 
-`accounts` adopting this (implementing `RegisterAdmissionKey` and publishing what its hop registers) is
-follow-up work in the host; until it does, a cell's modules on this verifier
-refuse every admission as `keys_unavailable`.
+Accounts implements registration and publication in its host adapter and key
+store. That source implementation does not establish adoption in a particular
+running cell.
+
+The Go registration owner exposes an acknowledged publication lease.
+`Registration.Start(ctx)` updates it on every successful renewal, independently
+of the deduplicated Report log. It validates the acknowledged key ID, public
+bytes, algorithm, purpose and future deadline. Failed renewals do not extend a
+prior lease; exact expiry, cancellation and Close make it unready. The shared
+Go `forward.New` consumes that one lease for both forwarding faces and exposes
+`Front.Ready` for host health. Initial registration failure is retried while
+the faces refuse unavailable. Entry and final pre-sign checks gate admission;
+the final check does not reserve the lease through signing or I/O.
+
+This is publication readiness only. It does not change the five-minute
+prepublication rule above, repair signing-key lifetime across reloads, or
+establish that a consumer's generated health endpoint uses the gate. Hosts
+must adopt the predicate in their existing readiness integration. Close stops
+renewal, not publication in the authority's store.
 
 `hop-verification/REPLAY_DIRECTORY` is gone. Reservations live in the consumer's
 own store (above), because Codefly delivers a store and does not deliver a

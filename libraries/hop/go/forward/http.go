@@ -29,11 +29,18 @@ type HTTP struct {
 	Decide    Decide
 	Upstreams map[string]*url.URL
 	Signer    *callstamp.Signer
+	// Ready must be this signer's RegistrationLease.Ready; nil refuses. It is
+	// publication state, not proof that downstream verifiers know the key.
+	Ready func() bool
 	// Refused is told every refusal, so the hop's log names it.
 	Refused func(method string, err error)
 }
 
 func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if err := requirePublication(h.Ready); err != nil {
+		refuse(w, r, err)
+		return
+	}
 	method := r.Method + " " + r.URL.Path
 	if err := routing.CanonicalPath(r.URL.Path, r.URL.EscapedPath()); err != nil {
 		refusal := status.Error(codes.InvalidArgument, err.Error())
@@ -71,6 +78,12 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Connect's server interceptor observes the full procedure, not the HTTP verb.
 	if decision.Route.Transport == "connect" {
 		boundMethod = r.URL.Path
+	}
+	// The final pre-sign check admits this call; it does not reserve the
+	// lease through Stamp or I/O if Close or expiry races after this point.
+	if err := requirePublication(h.Ready); err != nil {
+		refuse(w, r, err)
+		return
 	}
 	if err := hop.Stamp(stamp, id, h.Signer, boundMethod, module, time.Now()); err != nil {
 		refuse(w, r, status.Error(codes.Unauthenticated, err.Error()))

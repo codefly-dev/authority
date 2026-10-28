@@ -106,8 +106,8 @@ func setup(t *testing.T) (through grpc.ClientConnInterface, direct grpc.ClientCo
 	p := &forward.Proxy{
 		Decide:    decide.Decider{Routes: &routing.Routing{Endpoints: []routing.RouteEndpoint{{Audience: "console", Transport: "grpc", Address: "console", Methods: []string{versionProcedure}}}}, Authority: a, Modules: map[string]bool{"console": true}}.Decide,
 		Upstreams: map[string]*grpc.ClientConn{"console": dial(t, moduleListener, grpc.WithDefaultCallOptions(forward.CallOptions()...))},
-		Signer:    hoptest.Signer(proof),
-		Refused:   func(method string, err error) { *refused = append(*refused, method+": "+err.Error()) },
+		Signer:    hoptest.Signer(proof), Ready: published(t, hoptest.Signer(proof)),
+		Refused: func(method string, err error) { *refused = append(*refused, method+": "+err.Error()) },
 	}
 	hopConn := serve(t, p.ServerOptions(), func(*grpc.Server) {})
 	return hopConn, dial(t, moduleListener), m, a, refused

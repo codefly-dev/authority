@@ -33,7 +33,7 @@ func TestAnHTTPRequestIsDecidedThenStampedAndForwarded(t *testing.T) {
 	target, _ := url.Parse(module.URL)
 	var decided string
 	h := &HTTP{
-		Signer:    hoptest.Signer("run-proof"),
+		Signer: hoptest.Signer("run-proof"), Ready: published(t, hoptest.Signer("run-proof")),
 		Upstreams: map[string]*url.URL{target.String(): target},
 		Decide: func(_ context.Context, method string, md metadata.MD) (decide.Decision, error) {
 			decided = method
@@ -84,7 +84,7 @@ func TestAnHTTPRefusalNeverReachesTheModule(t *testing.T) {
 		codes.PermissionDenied: http.StatusForbidden,
 		codes.Unavailable:      http.StatusServiceUnavailable,
 	} {
-		h := &HTTP{Signer: hoptest.Signer("p"), Upstreams: map[string]*url.URL{target.String(): target},
+		h := &HTTP{Signer: hoptest.Signer("p"), Ready: published(t, hoptest.Signer("p")), Upstreams: map[string]*url.URL{target.String(): target},
 			Decide: func(context.Context, string, metadata.MD) (decide.Decision, error) {
 				return decide.Decision{}, status.Error(code, "the authority said why")
 			}}
@@ -132,7 +132,7 @@ func TestHTTPAndConnectIssueTheBindingObservedByTheListener(t *testing.T) {
 			}))
 			defer backend.Close()
 			target, _ := url.Parse(backend.URL)
-			face := HTTP{Signer: hoptest.Signer("binding-test"), Upstreams: map[string]*url.URL{target.String(): target}, Decide: func(context.Context, string, metadata.MD) (decide.Decision, error) {
+			face := HTTP{Signer: hoptest.Signer("binding-test"), Ready: published(t, hoptest.Signer("binding-test")), Upstreams: map[string]*url.URL{target.String(): target}, Decide: func(context.Context, string, metadata.MD) (decide.Decision, error) {
 				return decide.Decision{Module: "module", Identity: hop.IdentityOf(decoded.Context()), Route: &routing.RouteEndpoint{Transport: transport, Address: target.String()}}, nil
 			}}
 			req := httptest.NewRequest(http.MethodPost, procedure, nil)
@@ -155,7 +155,7 @@ func TestHTTPAndConnectIssueTheBindingObservedByTheListener(t *testing.T) {
 // A Connect caller is refused in Connect's words: its client reads the code
 // and the authority's reason, not a status line.
 func TestAConnectRefusalKeepsTheAuthoritysReason(t *testing.T) {
-	h := &HTTP{Signer: hoptest.Signer("refusal"), Decide: func(context.Context, string, metadata.MD) (decide.Decision, error) {
+	h := &HTTP{Signer: hoptest.Signer("refusal"), Ready: published(t, hoptest.Signer("refusal")), Decide: func(context.Context, string, metadata.MD) (decide.Decision, error) {
 		return decide.Decision{}, status.Error(codes.PermissionDenied, "the role lacks robin.tools:read")
 	}}
 	req := httptest.NewRequest(http.MethodPost, "/robin.chat.v1.ChatService/GetRunnableTools", strings.NewReader("{}"))
@@ -182,7 +182,7 @@ func TestARESTCallerKeepsItsErrorBodyAndStatus(t *testing.T) {
 		codes.DeadlineExceeded:   http.StatusServiceUnavailable,
 		codes.FailedPrecondition: http.StatusInternalServerError,
 	} {
-		h := &HTTP{Signer: hoptest.Signer("rest"), Decide: func(context.Context, string, metadata.MD) (decide.Decision, error) {
+		h := &HTTP{Signer: hoptest.Signer("rest"), Ready: published(t, hoptest.Signer("rest")), Decide: func(context.Context, string, metadata.MD) (decide.Decision, error) {
 			return decide.Decision{}, status.Error(code, "the authority said why")
 		}}
 		for name, req := range map[string]*http.Request{
@@ -199,7 +199,7 @@ func TestARESTCallerKeepsItsErrorBodyAndStatus(t *testing.T) {
 	}
 	// A Connect GET says so with ?connect=v1, and a gRPC caller by its content
 	// type: both are still answered in their protocol's words.
-	h := &HTTP{Signer: hoptest.Signer("rest"), Decide: func(context.Context, string, metadata.MD) (decide.Decision, error) {
+	h := &HTTP{Signer: hoptest.Signer("rest"), Ready: published(t, hoptest.Signer("rest")), Decide: func(context.Context, string, metadata.MD) (decide.Decision, error) {
 		return decide.Decision{}, status.Error(codes.PermissionDenied, "the role lacks robin.tools:read")
 	}}
 	rec := httptest.NewRecorder()

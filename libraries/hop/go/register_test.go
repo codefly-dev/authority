@@ -12,6 +12,7 @@ import (
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
 	"github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
+	core "github.com/codefly-dev/core/workcontext"
 	"google.golang.org/grpc"
 )
 
@@ -50,7 +51,7 @@ func (r *registrar) RegisterAdmissionKey(_ context.Context, in *authorityv1.Regi
 	}
 	r.nonces = append(r.nonces, proved.Nonce)
 	return &authorityv1.RegisterAdmissionKeyResponse{
-		Key:           &authorityv1.PublicKey{KeyId: stamp.KeyID(in.GetPublicKey()), PublicKey: in.GetPublicKey(), Purpose: stamp.Purpose},
+		Key:           &authorityv1.PublicKey{KeyId: stamp.KeyID(in.GetPublicKey()), PublicKey: in.GetPublicKey(), Purpose: stamp.Purpose, Algorithm: core.Algorithm},
 		ExpiresAtUnix: time.Now().Add(r.lease).Unix(),
 	}, nil
 }
@@ -70,7 +71,7 @@ func TestTheHopKeepsItsPublicKeyRegisteredUnderItsCredential(t *testing.T) {
 	rotation := 0
 	var reports []string
 	var mu sync.Mutex
-	stop := Registration{Authority: authority, Signer: signer,
+	lease := Registration{Authority: authority, Signer: signer,
 		Credential: func() (string, error) {
 			rotation++
 			return testCredential(testAudience, "credential-"+string(rune('0'+rotation))), nil
@@ -83,7 +84,11 @@ func TestTheHopKeepsItsPublicKeyRegisteredUnderItsCredential(t *testing.T) {
 				return
 			}
 			reports = append(reports, key.GetKeyId())
-		}}.Keep(context.Background())
+		}}.Start(context.Background())
+	first := leaseDeadline(lease)
+	if !lease.Ready() {
+		t.Fatal("initial publication not ready")
+	}
 	mu.Lock()
 	id, public := signer.Admission()
 	if len(reports) != 1 || reports[0] != id {
@@ -94,7 +99,17 @@ func TestTheHopKeepsItsPublicKeyRegisteredUnderItsCredential(t *testing.T) {
 	for authority.calls() < 2 && time.Now().Before(deadline) {
 		time.Sleep(50 * time.Millisecond)
 	}
-	stop()
+	deadline = time.Now().Add(time.Second)
+	for !leaseDeadline(lease).After(first) && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if !lease.ready(first) || lease.ready(leaseDeadline(lease)) {
+		t.Fatal("same-key renewal did not extend lease or exact expiry was accepted")
+	}
+	lease.Close()
+	if lease.Ready() {
+		t.Fatal("closed lease ready")
+	}
 	authority.mu.Lock()
 	defer authority.mu.Unlock()
 	if len(authority.keys) < 2 {
@@ -170,5 +185,5 @@ type registrarFunc func(*authorityv1.RegisterAdmissionKeyRequest)
 
 func (f registrarFunc) RegisterAdmissionKey(_ context.Context, in *authorityv1.RegisterAdmissionKeyRequest, _ ...grpc.CallOption) (*authorityv1.RegisterAdmissionKeyResponse, error) {
 	f(in)
-	return &authorityv1.RegisterAdmissionKeyResponse{Key: &authorityv1.PublicKey{KeyId: stamp.KeyID(in.GetPublicKey())}, ExpiresAtUnix: time.Now().Add(time.Minute).Unix()}, nil
+	return &authorityv1.RegisterAdmissionKeyResponse{Key: &authorityv1.PublicKey{KeyId: stamp.KeyID(in.GetPublicKey()), PublicKey: in.GetPublicKey(), Algorithm: core.Algorithm, Purpose: stamp.Purpose}, ExpiresAtUnix: time.Now().Add(time.Minute).Unix()}, nil
 }

@@ -30,6 +30,9 @@ type Proxy struct {
 	Decide    Decide
 	Upstreams map[string]*grpc.ClientConn
 	Signer    *callstamp.Signer
+	// Ready must be this signer's RegistrationLease.Ready; nil refuses. It is
+	// publication state, not proof that downstream verifiers know the key.
+	Ready func() bool
 	// Refused is told every refusal, so the hop's log names it.
 	Refused func(method string, err error)
 }
@@ -49,6 +52,9 @@ func CallOptions() []grpc.CallOption {
 
 func (p *Proxy) handle(_ any, in grpc.ServerStream) error {
 	method, _ := grpc.MethodFromServerStream(in)
+	if err := requirePublication(p.Ready); err != nil {
+		return err
+	}
 	md, _ := metadata.FromIncomingContext(in.Context())
 	decision, err := p.Decide(in.Context(), method, md)
 	if err != nil {
@@ -63,6 +69,11 @@ func (p *Proxy) handle(_ any, in grpc.ServerStream) error {
 		if !strings.HasPrefix(key, ":") && key != "content-type" && key != "user-agent" && !strings.HasPrefix(key, "grpc-") {
 			out[key] = values
 		}
+	}
+	// This final check is the admission point, not a reservation through
+	// stamping or I/O. An admitted call may finish across Close or expiry.
+	if err := requirePublication(p.Ready); err != nil {
+		return err
 	}
 	if err := hop.Stamp(out, id, p.Signer, method, module, time.Now()); err != nil {
 		return status.Error(codes.Unauthenticated, err.Error())
@@ -95,6 +106,13 @@ func (p *Proxy) handle(_ any, in grpc.ServerStream) error {
 			return err
 		}
 	}
+}
+
+func requirePublication(ready func() bool) error {
+	if ready == nil || !ready() {
+		return status.Error(codes.Unavailable, "the hop has no current admission-key publication lease")
+	}
+	return nil
 }
 
 // back relays the module's header, messages and status to the caller.
