@@ -135,7 +135,7 @@ func TestTheConsentBoundsInstallationAndDelegationIssues(t *testing.T) {
 	t.Run("an issue from a delegation", func(t *testing.T) {
 		h := newHarness(t)
 		rob := h.person("rob")
-		d, err := h.svc.Delegate(h.ctx, rob, "store", []*basev0.WorkScopeV1{owned(kind, "", []string{"read"}, "store-x")}, "a job")
+		d, err := h.svc.Delegate(h.ctx, rob, "store", []*basev0.WorkScopeV1{owned(kind, "", []string{"read"}, "store-x")}, "a job", 0)
 		if err != nil {
 			t.Fatal(err)
 		}

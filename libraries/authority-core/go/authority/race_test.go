@@ -91,7 +91,7 @@ func TestARevokeRacingAnIssueYieldsNoCapability(t *testing.T) {
 		t.Run(name+" racing a delegation", func(t *testing.T) {
 			h := newHarness(t)
 			setup.grant(h)
-			d, err := h.svc.Delegate(h.ctx, h.person("maya"), "a", []*basev0.WorkScopeV1{owned(kind, h.principal(acme, "a"), read)}, "x")
+			d, err := h.svc.Delegate(h.ctx, h.person("maya"), "a", []*basev0.WorkScopeV1{owned(kind, h.principal(acme, "a"), read)}, "x", 0)
 			if err != nil {
 				t.Fatal(err)
 			}

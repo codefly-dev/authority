@@ -123,6 +123,21 @@ made with the session cookie must also carry this origin in `Origin`; a caller
 presenting its bearer itself needs none. The page reads the organization to name
 in each request from `/auth/session`.
 
+### A page delegates a run (2026-10-28)
+
+The face also serves two procedures of the authority's own interface, so a
+person's page can delegate work that outlives their session to a module and read
+that delegation back ([handbook proposal](https://github.com/obin-ai/handbook/blob/main/proposals/2026-10-28-a-person-delegates-a-run-from-the-page.md)):
+
+| Path | What the edge requires before asking the authority |
+|---|---|
+| `/host.authority.v1.AuthorityService/Delegate` | a positive `ttl_seconds`: a delegation made from a page ends after the work it was made for |
+| `/host.authority.v1.AuthorityService/GetDelegation` | no `actor`: a page reads as the grantor; a module's credential is the module's own read |
+
+They are admitted, forwarded and refused exactly as above. Every other procedure
+of `AuthorityService` (`Issue`, `RevokeDelegation`, …) is served to no browser:
+the edge routes these two paths by name, never the package.
+
 Calls the edge routes to a module are refused in Connect's words when the caller
 says it speaks Connect (a `Connect-Protocol-Version` header, or `?connect=v1` on a
 GET) or gRPC, so a generated client keeps the reason (the hop does the same).

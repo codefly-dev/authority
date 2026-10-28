@@ -10,7 +10,7 @@ interface:
           endpoint: grpc
           implements:
               - codefly.dev/artifact@0.1.0
-              - codefly.dev/authority@0.3.4
+              - codefly.dev/authority@0.3.5
               - codefly.dev/composition@0.2.0
               - codefly.dev/installation@0.4.0
               - codefly.dev/session@0.2.1

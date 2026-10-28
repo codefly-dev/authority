@@ -3,6 +3,7 @@ package authority
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
@@ -12,8 +13,10 @@ import (
 
 // Delegate records a person's grant to a module of scopes they hold: at the
 // module, or at an audience one of its bindings addresses (through a
-// solution, its roles on its principal's data).
-func (s *Service) Delegate(ctx context.Context, who Person, module string, scopes Scopes, purpose string) (domain.Delegation, error) {
+// solution, its roles on its principal's data). A positive ttl ends it by
+// itself after that long, clamped to the host's ceiling; zero keeps it until
+// it is revoked.
+func (s *Service) Delegate(ctx context.Context, who Person, module string, scopes Scopes, purpose string, ttl time.Duration) (domain.Delegation, error) {
 	var d domain.Delegation
 	err := s.store.Write(ctx, func(tx Tx) error {
 		p, err := tx.Member(who.Organization, who.ID)
@@ -26,6 +29,9 @@ func (s *Service) Delegate(ctx context.Context, who Person, module string, scope
 		}
 		if len(scopes) == 0 {
 			return domain.Refuse("a delegation names what it grants")
+		}
+		if ttl < 0 {
+			return domain.Malformed("a delegation's lifetime is positive, or zero for none, not %s", ttl)
 		}
 		if len(purpose) > MaxDelegationPurpose {
 			return domain.Malformed("a delegation's purpose is at most %d characters, not %d", MaxDelegationPurpose, len(purpose))
@@ -60,6 +66,9 @@ func (s *Service) Delegate(ctx context.Context, who Person, module string, scope
 			return domain.Refuse("%s delegates what they do not hold", p.ID)
 		}
 		d = domain.Delegation{ID: s.cfg.NewID(), Organization: p.Organization, Grantor: p.ID, Module: m.Name, Purpose: purpose, Scopes: scope.Normalize(scopes)}
+		if ttl > 0 {
+			d.ExpiresAt = s.cfg.Clock().Add(clamp(ttl, s.cfg.MaxDelegationTTL)).UTC()
+		}
 		if err := tx.PutDelegation(d); err != nil {
 			return err
 		}
@@ -71,6 +80,11 @@ func (s *Service) Delegate(ctx context.Context, who Person, module string, scope
 
 // MaxDelegationPurpose bounds the purpose a delegation records.
 const MaxDelegationPurpose = 1024
+
+// DefaultMaxDelegationTTL is the longest a delegation asked for with a
+// lifetime stands when the host sets no ceiling: long enough for a run that
+// waits days on a person's approval.
+const DefaultMaxDelegationTTL = 7 * 24 * time.Hour
 
 // RevokeDelegation ends a delegation: its grantor may, and so may an
 // administrator of its organization acting there. Anyone else learns nothing,
@@ -138,6 +152,9 @@ func (s *Service) IssueForDelegation(ctx context.Context, id string, actor Workl
 		}
 		if d.Revoked {
 			return domain.Refuse("delegation %s is revoked", id)
+		}
+		if !d.Active(s.cfg.Clock()) {
+			return domain.Refuse("delegation %s expired at %s", id, d.ExpiresAt.Format(time.RFC3339))
 		}
 		if am, err = tx.ModuleNamed(actor.Module); err != nil {
 			return notFound(err)
@@ -216,8 +233,8 @@ func (s *Service) IssueForDelegation(ctx context.Context, id string, actor Workl
 	if err != nil {
 		return Issued{}, err
 	}
-	if again, err := s.Delegation(ctx, id, nil, &actor); err != nil || again.Revoked {
-		return Issued{}, domain.Refuse("delegation %s is revoked", id)
+	if again, err := s.Delegation(ctx, id, nil, &actor); err != nil || !again.Active(s.cfg.Clock()) {
+		return Issued{}, domain.Refuse("delegation %s is revoked or expired", id)
 	}
 	if signed.GetOperationBinding().GetRevision() != am.Generation {
 		return Issued{}, domain.Refuse("actor binding changed during issuance")

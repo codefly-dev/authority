@@ -43,7 +43,7 @@ func TestEveryChangeIsJournaledInItsOwnTransaction(t *testing.T) {
 		{"a role revoked", func() error { _, err := svc.RevokeRole(h.ctx, alex, viewer); return err },
 			domain.Event{Kind: domain.RoleRevoked, Organization: acme, Actor: "alex", Subject: inst}},
 		{"a delegation granted", func() error {
-			_, err := svc.Delegate(h.ctx, h.person("rob"), "store", []*basev0.WorkScopeV1{owned(kind, "", []string{"read"}, "store-x")}, "a purpose")
+			_, err := svc.Delegate(h.ctx, h.person("rob"), "store", []*basev0.WorkScopeV1{owned(kind, "", []string{"read"}, "store-x")}, "a purpose", 0)
 			return err
 		}, domain.Event{Kind: domain.DelegationGranted, Organization: acme, Actor: "rob"}},
 		{"an installation uninstalled", func() error { return svc.Uninstall(h.ctx, alex, acme, inst) },

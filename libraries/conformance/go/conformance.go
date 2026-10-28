@@ -885,6 +885,35 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			t.Fatalf("its module reads a revoked delegation as standing: %v", err)
 		}
 	})
+	t.Run("a delegation asked for with a lifetime carries when it ends, and none asked carries none", func(t *testing.T) {
+		dc := f.Delegation
+		if dc == nil {
+			t.Fatal("required conformance fixture missing: the fixture states no delegation case")
+		}
+		scopes := []any{map[string]any{"resource_kind": dc.Kind, "actions": []any{dc.Action}}}
+		grantor := as(ctx, c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": dc.Token}))
+		delegate := func(ttl int64) (protoreflect.Message, error) {
+			return c.call(grantor, "host.authority.v1.AuthorityService", "Delegate", map[string]any{"module": dc.Module, "scopes": scopes, "purpose": "conformance lifetime", "ttl_seconds": ttl})
+		}
+		if _, err := delegate(-1); status.Code(err) != codes.InvalidArgument {
+			t.Fatalf("a negative lifetime: %v", err)
+		}
+		for _, ttl := range []int64{3600, 0} {
+			d, err := delegate(ttl)
+			if err != nil {
+				t.Fatalf("delegate for %d s: %v", ttl, err)
+			}
+			at := field(d, "expires_at_unix").Int()
+			if (ttl > 0) != (at > 0) {
+				t.Fatalf("a delegation asked for %d s ends at %d", ttl, at)
+			}
+			got, err := c.call(ctx, "host.authority.v1.AuthorityService", "GetDelegation", map[string]any{"delegation_id": str(d, "delegation_id"), "actor": map[string]any{"credential": dc.Credential}})
+			if err != nil || field(got, "expires_at_unix").Int() != at || !field(got, "active").Bool() {
+				t.Fatalf("its module reads a delegation asked for %d s as ending at %d, standing %v: %v", ttl, field(got, "expires_at_unix").Int(), field(got, "active").Bool(), err)
+			}
+			c.must(t, grantor, "host.authority.v1.AuthorityService", "RevokeDelegation", map[string]any{"delegation_id": str(d, "delegation_id")})
+		}
+	})
 	t.Run("a manifest moves only forward and a lower generation is refused by name", func(t *testing.T) {
 		if _, err := c.applyManifest(ctx, f, "conformance-probe", "module", 2, []string{"probe"}); err != nil {
 			t.Fatalf("apply: %v", err)

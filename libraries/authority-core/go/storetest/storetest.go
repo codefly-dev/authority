@@ -15,6 +15,7 @@ import (
 	"slices"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
@@ -370,7 +371,8 @@ func Run(t *testing.T, open Open) {
 
 	t.Run("a delegation reads back as written", func(t *testing.T) {
 		d := domain.Delegation{ID: uuid.NewString(), Organization: f.orgA, Grantor: f.onlyA, Module: f.name("module"), Purpose: "a purpose",
-			Scopes: []*basev0.WorkScopeV1{{ResourceKind: "k", Actions: []string{"read"}, ResourceIds: []string{"a"}}}}
+			Scopes:    []*basev0.WorkScopeV1{{ResourceKind: "k", Actions: []string{"read"}, ResourceIds: []string{"a"}}},
+			ExpiresAt: time.Date(2026, 11, 4, 9, 30, 0, 0, time.UTC)}
 		write(t, func(tx authority.Tx) error { return tx.PutDelegation(d) })
 		d.Revoked = true
 		write(t, func(tx authority.Tx) error { return tx.PutDelegation(d) })
@@ -380,7 +382,7 @@ func Run(t *testing.T, open Open) {
 				return err
 			}
 			if got.ID != d.ID || got.Organization != d.Organization || got.Grantor != d.Grantor || got.Module != d.Module || got.Purpose != d.Purpose ||
-				!got.Revoked || !scope.Same(got.Scopes, d.Scopes) {
+				!got.Revoked || !scope.Same(got.Scopes, d.Scopes) || !got.ExpiresAt.Equal(d.ExpiresAt) {
 				t.Errorf("delegation %+v, want %+v", got, d)
 			}
 			all, err := tx.Delegations()

@@ -18,14 +18,14 @@ func TestDelegationRules(t *testing.T) {
 	rob := h.person("rob")
 
 	t.Run("a purpose past its bound is malformed", func(t *testing.T) {
-		_, err := h.svc.Delegate(h.ctx, rob, "store", read, strings.Repeat("p", authority.MaxDelegationPurpose+1))
+		_, err := h.svc.Delegate(h.ctx, rob, "store", read, strings.Repeat("p", authority.MaxDelegationPurpose+1), 0)
 		code(t, err, domain.Invalid)
 	})
 	t.Run("a module not installed at the grantor's organization is refused", func(t *testing.T) {
 		if err := h.svc.UninstallAsHost(h.ctx, acme, authority.StableInstallationID(acme, "store")); err != nil {
 			t.Fatal(err)
 		}
-		_, err := h.svc.Delegate(h.ctx, rob, "store", read, "a job")
+		_, err := h.svc.Delegate(h.ctx, rob, "store", read, "a job", 0)
 		code(t, err, domain.Precondition)
 		refused(t, err, "is not installed")
 	})
@@ -48,7 +48,7 @@ func TestADelegationIsEndedByItsGrantorOrAnAdministratorAlone(t *testing.T) {
 		{"its grantor", rob, true, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := h.svc.Delegate(h.ctx, rob, "store", read, "a job")
+			d, err := h.svc.Delegate(h.ctx, rob, "store", read, "a job", 0)
 			if err != nil {
 				t.Fatal(err)
 			}

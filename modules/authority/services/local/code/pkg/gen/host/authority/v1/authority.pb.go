@@ -299,7 +299,11 @@ type DelegateRequest struct {
 	// What the module may do for the person; within what the person holds.
 	Scopes []*WorkScopeV1 `protobuf:"bytes,2,rep,name=scopes,proto3" json:"scopes,omitempty"`
 	// Why, as the person was told (a connected source, a scheduled job).
-	Purpose       string `protobuf:"bytes,3,opt,name=purpose,proto3" json:"purpose,omitempty"`
+	Purpose string `protobuf:"bytes,3,opt,name=purpose,proto3" json:"purpose,omitempty"`
+	// How long the delegation stands, in seconds: it ends by itself after that,
+	// clamped to the authority's ceiling. 0 keeps it until it is revoked. A
+	// person's page delegating through the browser edge must name one.
+	TtlSeconds    int64 `protobuf:"varint,4,opt,name=ttl_seconds,json=ttlSeconds,proto3" json:"ttl_seconds,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -355,6 +359,13 @@ func (x *DelegateRequest) GetPurpose() string {
 	return ""
 }
 
+func (x *DelegateRequest) GetTtlSeconds() int64 {
+	if x != nil {
+		return x.TtlSeconds
+	}
+	return 0
+}
+
 // Delegation is one grant from a person to a module.
 type Delegation struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
@@ -366,8 +377,10 @@ type Delegation struct {
 	Module  string         `protobuf:"bytes,4,opt,name=module,proto3" json:"module,omitempty"`
 	Scopes  []*WorkScopeV1 `protobuf:"bytes,5,rep,name=scopes,proto3" json:"scopes,omitempty"`
 	Purpose string         `protobuf:"bytes,6,opt,name=purpose,proto3" json:"purpose,omitempty"`
-	// False once revoked; a revoked delegation issues nothing.
-	Active        bool `protobuf:"varint,7,opt,name=active,proto3" json:"active,omitempty"`
+	// False once revoked or expired; such a delegation issues nothing.
+	Active bool `protobuf:"varint,7,opt,name=active,proto3" json:"active,omitempty"`
+	// When it ends by itself, in Unix seconds; 0 when it stands until revoked.
+	ExpiresAtUnix int64 `protobuf:"varint,8,opt,name=expires_at_unix,json=expiresAtUnix,proto3" json:"expires_at_unix,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -451,6 +464,13 @@ func (x *Delegation) GetActive() bool {
 	return false
 }
 
+func (x *Delegation) GetExpiresAtUnix() int64 {
+	if x != nil {
+		return x.ExpiresAtUnix
+	}
+	return 0
+}
+
 // GetDelegationRequest names the delegation read; anyone but its module or its
 // grantor is told it does not exist.
 type GetDelegationRequest struct {
@@ -506,7 +526,8 @@ func (x *GetDelegationRequest) GetActor() *WorkloadCredential {
 	return nil
 }
 
-// RevokeDelegationRequest ends a delegation; only its grantor may.
+// RevokeDelegationRequest ends a delegation; its grantor may, and so may an
+// administrator of its organization.
 type RevokeDelegationRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	DelegationId  string                 `protobuf:"bytes,1,opt,name=delegation_id,json=delegationId,proto3" json:"delegation_id,omitempty"`
@@ -1912,11 +1933,13 @@ const file_host_authority_v1_authority_proto_rawDesc = "" +
 	"\toperation\x18\f \x01(\tR\toperationB\x04\n" +
 	"\x02as\"4\n" +
 	"\rDelegationRef\x12#\n" +
-	"\rdelegation_id\x18\x01 \x01(\tR\fdelegationId\"{\n" +
+	"\rdelegation_id\x18\x01 \x01(\tR\fdelegationId\"\x9c\x01\n" +
 	"\x0fDelegateRequest\x12\x16\n" +
 	"\x06module\x18\x01 \x01(\tR\x06module\x126\n" +
 	"\x06scopes\x18\x02 \x03(\v2\x1e.host.authority.v1.WorkScopeV1R\x06scopes\x12\x18\n" +
-	"\apurpose\x18\x03 \x01(\tR\apurpose\"\xf6\x01\n" +
+	"\apurpose\x18\x03 \x01(\tR\apurpose\x12\x1f\n" +
+	"\vttl_seconds\x18\x04 \x01(\x03R\n" +
+	"ttlSeconds\"\x9e\x02\n" +
 	"\n" +
 	"Delegation\x12#\n" +
 	"\rdelegation_id\x18\x01 \x01(\tR\fdelegationId\x12'\n" +
@@ -1925,7 +1948,8 @@ const file_host_authority_v1_authority_proto_rawDesc = "" +
 	"\x06module\x18\x04 \x01(\tR\x06module\x126\n" +
 	"\x06scopes\x18\x05 \x03(\v2\x1e.host.authority.v1.WorkScopeV1R\x06scopes\x12\x18\n" +
 	"\apurpose\x18\x06 \x01(\tR\apurpose\x12\x16\n" +
-	"\x06active\x18\a \x01(\bR\x06active\"x\n" +
+	"\x06active\x18\a \x01(\bR\x06active\x12&\n" +
+	"\x0fexpires_at_unix\x18\b \x01(\x03R\rexpiresAtUnix\"x\n" +
 	"\x14GetDelegationRequest\x12#\n" +
 	"\rdelegation_id\x18\x01 \x01(\tR\fdelegationId\x12;\n" +
 	"\x05actor\x18\x02 \x01(\v2%.host.authority.v1.WorkloadCredentialR\x05actor\">\n" +
