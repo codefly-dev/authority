@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
@@ -67,6 +68,7 @@ type Config struct {
 // installed on the host's gRPC server, and the HTTP/Connect face, served on
 // the host's HTTP listener.
 type Front struct {
+	publication *hop.RegistrationLease
 	// ServerOptions make the host's gRPC server answer every method it does
 	// not serve itself through the gRPC face.
 	ServerOptions []grpc.ServerOption
@@ -77,6 +79,14 @@ type Front struct {
 	// Close stops renewing the admission key's registration and closes every
 	// connection to a module. It does not close the authority's.
 	Close func()
+}
+
+// Ready reports only an unexpired publication lease for this front's signer.
+// It does not prove that downstream verifiers have learned a newly published
+// key; the prepublication overlap contract still applies. Cancellation of New's
+// context or Close makes it false. Hosts combine it with their other checks.
+func (f *Front) Ready() bool {
+	return f != nil && f.publication.Ready()
 }
 
 // RouteProducerVersion is the first producer revision; no released version is
@@ -91,9 +101,10 @@ func MissingRoutes(err error) error {
 
 // New validates the routes against the modules, dials each published
 // listener over its transport (host.Endpoint, host.DialOptions), refuses any
-// enforcement but enforce, and registers the host's admission key with the
-// authority before it returns, renewing it until Close. A refusal names its
-// reason and leaves nothing open or registered.
+// enforcement but enforce, and attempts admission-key registration before it
+// returns. A registration failure leaves the front unready and both faces
+// unavailable while the same registration loop retries. It renews until ctx is
+// cancelled or Close is called. Invalid configuration returns an error instead.
 func New(ctx context.Context, c Config) (*Front, error) {
 	if c.Signer == nil || c.Authority == nil || c.Credential == nil {
 		return nil, fmt.Errorf("hop: the front door needs the host's signer, the authority's client and the host's workload credential")
@@ -174,32 +185,36 @@ func New(ctx context.Context, c Config) (*Front, error) {
 	// The authority publishes the host's admission key once the host
 	// registers it, proving itself with its workload credential and the key's
 	// own proof: the seed stays here.
-	unregister := hop.Registration{Authority: c.Authority, Signer: c.Signer, Credential: c.Credential, Report: registrationReport(w)}.Keep(context.WithoutCancel(ctx))
+	publication := hop.Registration{Authority: c.Authority, Signer: c.Signer, Credential: c.Credential, Report: registrationReport(w)}.Start(ctx)
 	decision := decide.Decider{Routes: routes, Authority: c.Authority, Modules: modules}.Decide
-	p := &Proxy{Decide: decision, Upstreams: upstreams, Signer: c.Signer, Refused: refused}
+	p := &Proxy{Decide: decision, Upstreams: upstreams, Signer: c.Signer, Refused: refused, Ready: publication.Ready}
 	configured = true
+	var closeOnce sync.Once
 	return &Front{
+		publication:   publication,
 		ServerOptions: p.ServerOptions(),
-		Handler:       &HTTP{Decide: decision, Upstreams: webs, Signer: c.Signer, Refused: refused},
+		Handler:       &HTTP{Decide: decision, Upstreams: webs, Signer: c.Signer, Refused: refused, Ready: publication.Ready},
 		Close: func() {
-			unregister()
-			for _, conn := range upstreams {
-				_ = conn.Close()
-			}
+			closeOnce.Do(func() {
+				publication.Close()
+				for _, conn := range upstreams {
+					_ = conn.Close()
+				}
+			})
 		},
 	}, nil
 }
 
 // registrationReport logs each change of the registration's outcome: the
 // published key's id (never the seed, never the private key) and when it
-// lapses, or why it is not published. The id and the reason lead each line,
+// lapses, or why an attempt failed. The id and the reason lead each line,
 // in no label the run's log redaction reads as a credential's: a line naming
 // "authority" and "key" before its first "=" or ":" has everything after it
 // masked once the run forwards it, which hid the key id as "admission=****".
 func registrationReport(w *wool.Wool) func(*authorityv1.PublicKey, time.Time, error) {
 	return func(key *authorityv1.PublicKey, expires time.Time, err error) {
 		if err != nil {
-			w.Warn("hop admission not published, so modules behind this hop admit no call; retrying: " + err.Error())
+			w.Warn("hop admission registration failed; any acknowledged lease lasts only until its expiry; retrying: " + err.Error())
 			return
 		}
 		w.Info(fmt.Sprintf("hop admission %s published, lapsing at %s unless renewed", key.GetKeyId(), expires.UTC().Format(time.RFC3339)))

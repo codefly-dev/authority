@@ -72,7 +72,7 @@ func TestPublishedDestinationAndPolicyAreOneSelection(t *testing.T) {
 	decision := decide.Decider{Routes: routes, Authority: checker, Modules: map[string]bool{"module": true}, AudienceOf: func(string) (string, error) { return "module", nil }}
 	for range 2 {
 		refused := 0
-		face := forward.HTTP{Decide: decision.Decide, Upstreams: map[string]*url.URL{backend.URL: u}, Signer: hoptest.Signer(proof), Refused: func(string, error) { refused++ }}
+		face := forward.HTTP{Decide: decision.Decide, Upstreams: map[string]*url.URL{backend.URL: u}, Signer: hoptest.Signer(proof), Ready: published(t, hoptest.Signer(proof)), Refused: func(string, error) { refused++ }}
 		req := httptest.NewRequest(http.MethodPost, "/gauge.v1.Service/Call?original=yes", nil)
 		req.Header.Set(hop.WorkContextKey, "context")
 		rec := httptest.NewRecorder()
@@ -86,7 +86,7 @@ func TestPublishedDestinationAndPolicyAreOneSelection(t *testing.T) {
 	}
 	// Inverting the grants admits the HTTP route despite the gRPC refusal.
 	checker.denied = "/gauge.v1.Service/Call"
-	face := forward.HTTP{Decide: decision.Decide, Upstreams: map[string]*url.URL{backend.URL: u}, Signer: hoptest.Signer(proof)}
+	face := forward.HTTP{Decide: decision.Decide, Upstreams: map[string]*url.URL{backend.URL: u}, Signer: hoptest.Signer(proof), Ready: published(t, hoptest.Signer(proof))}
 	req := httptest.NewRequest(http.MethodPost, "/gauge.v1.Service/Call", nil)
 	req.Header.Set(hop.WorkContextKey, "context")
 	rec := httptest.NewRecorder()
@@ -135,7 +135,7 @@ func TestGeneratedGRPCRoutesKeepSiblingAndAudienceSeparate(t *testing.T) {
 	routes.Endpoints = append(routes.Endpoints, routeEndpoint("health", "grpc", "third", "/grpc.health.v1.Health/Check", "/grpc.health.v1.Health/Watch"))
 	checker := &routeChecker{}
 	decision := decide.Decider{Routes: routes, Authority: checker, Modules: map[string]bool{"module": true, "other": true}, AudienceOf: func(token string) (string, error) { return token, nil }}
-	p := &forward.Proxy{Decide: decision.Decide, Signer: hoptest.Signer(proof), Upstreams: map[string]*grpc.ClientConn{"first": first, "second": second, "third": third, "module": second}}
+	p := &forward.Proxy{Decide: decision.Decide, Signer: hoptest.Signer(proof), Ready: published(t, hoptest.Signer(proof)), Upstreams: map[string]*grpc.ClientConn{"first": first, "second": second, "third": third, "module": second}}
 	conn := serve(t, p.ServerOptions(), func(*grpc.Server) {})
 	for _, audience := range []string{"module", "other"} {
 		ctx := metadata.AppendToOutgoingContext(t.Context(), hop.WorkContextKey, audience)

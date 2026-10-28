@@ -1,6 +1,7 @@
 package hop
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -11,6 +12,7 @@ import (
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
 	"github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
+	core "github.com/codefly-dev/core/workcontext"
 	"google.golang.org/grpc"
 )
 
@@ -68,7 +70,13 @@ func (r Registration) Register(ctx context.Context) (*authorityv1.PublicKey, tim
 	if err != nil {
 		return nil, time.Time{}, err
 	}
-	return out.GetKey(), time.Unix(out.GetExpiresAtUnix(), 0), nil
+	key, expires := out.GetKey(), time.Unix(out.GetExpiresAtUnix(), 0)
+	id, _ := r.Signer.Admission()
+	if key.GetKeyId() != id || !bytes.Equal(key.GetPublicKey(), public) ||
+		key.GetAlgorithm() != core.Algorithm || key.GetPurpose() != stamp.Purpose || !time.Now().Before(expires) {
+		return nil, time.Time{}, errors.New("hop: registration did not acknowledge this admission key with a valid publication lease")
+	}
+	return key, expires, nil
 }
 
 // CredentialAudience is the audience the launcher issued this workload's
@@ -108,12 +116,75 @@ func CredentialAudience(credential string) (string, error) {
 // boot says whether its key is published; a failure does not stop renewal,
 // since the authority may answer later.
 func (r Registration) Keep(ctx context.Context) (stop func()) {
+	return r.Start(ctx).Close
+}
+
+// RegistrationLease tracks this signer's acknowledged publication, not whether
+// downstream verifiers have learned its key. It is updated on every renewal,
+// independently of Report's log deduplication. The zero value is unready.
+type RegistrationLease struct {
+	mu      sync.Mutex
+	ctx     context.Context
+	cancel  context.CancelFunc
+	done    chan struct{}
+	expires time.Time
+	closed  bool
+}
+
+// Ready is true strictly before the last acknowledged lease expires, unless
+// cancelled or closed. A failed renewal does not extend that deadline. This is
+// only a publication condition: a new key still needs prepublication overlap.
+func (l *RegistrationLease) Ready() bool {
+	return l.ready(time.Now())
+}
+
+func (l *RegistrationLease) ready(now time.Time) bool {
+	if l == nil {
+		return false
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.ctx != nil && l.ctx.Err() == nil && !l.closed && now.Before(l.expires)
+}
+
+func (l *RegistrationLease) acknowledge(expires time.Time) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if !l.closed && l.ctx.Err() == nil {
+		l.expires = expires
+	}
+}
+
+// Close immediately makes the lease unready, cancels renewal and joins it.
+// It is idempotent; it does not withdraw the authority's published key.
+func (l *RegistrationLease) Close() {
+	if l == nil {
+		return
+	}
+	l.mu.Lock()
+	l.closed = true
+	cancel, done := l.cancel, l.done
+	l.mu.Unlock()
+	if cancel != nil {
+		cancel()
+		<-done
+	}
+}
+
+// Start attempts registration before returning, then retries or renews in the
+// existing loop until ctx is cancelled or Close is called. An initial failure
+// returns an unready lease that can recover. Report remains log-only.
+func (r Registration) Start(ctx context.Context) *RegistrationLease {
 	ctx, cancel := context.WithCancel(ctx)
+	l := &RegistrationLease{ctx: ctx, cancel: cancel, done: make(chan struct{})}
 	var last string
 	attempt := func() time.Duration {
 		call, done := context.WithTimeout(ctx, registerRetry)
 		defer done()
 		key, expires, err := r.Register(call)
+		if err == nil {
+			l.acknowledge(expires)
+		}
 		outcome := "ok " + key.GetKeyId()
 		if err != nil {
 			outcome = err.Error()
@@ -130,10 +201,8 @@ func (r Registration) Keep(ctx context.Context) (stop func()) {
 		return max(time.Until(expires)/4, time.Second)
 	}
 	next := attempt()
-	var wg sync.WaitGroup
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
+		defer close(l.done)
 		timer := time.NewTimer(next)
 		defer timer.Stop()
 		for {
@@ -145,8 +214,5 @@ func (r Registration) Keep(ctx context.Context) (stop func()) {
 			}
 		}
 	}()
-	return func() {
-		cancel()
-		wg.Wait()
-	}
+	return l
 }
