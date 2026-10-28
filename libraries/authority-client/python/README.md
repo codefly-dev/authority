@@ -81,6 +81,50 @@ uv run --no-project --with pytest --with-editable . pytest tests
 
 The tests re-sign the bodies of `../testdata/claims.json` with a test key.
 
+## Async Postgres admission storage
+
+`codefly_hop.replaypg.Store(pool)` is the public async counterpart of Go's
+`hop/replaypg`. Pass an asyncpg-compatible pool connected to the module's own
+store, shared by every replica, and use `Verifier.admit_async` for the entire
+handler lifetime:
+
+```python
+from codefly_hop.replaypg import Store
+
+replay = Store(pool)
+verifier = Verifier(authority_stub, audience=module_identity, replay=replay)
+async with verifier.admit_async(headers, observed_full_procedure) as identity:
+    await handle_request(identity)
+```
+
+The service resolves its connection through Codefly and owns pool construction,
+timeouts, readiness and shutdown. The adapter requires awaited `fetchval` and
+`execute` methods with asyncpg's return values, committing before they return;
+do not supply a connection inside an uncommitted transaction. It imports no
+driver and adds no driver dependency to identity-only consumers. It implements
+the **async** reservation methods only; synchronous verifier calls need a
+synchronous store.
+
+Apply `replaypg.MIGRATION` through the module's migrations, and schedule
+`await replay.collect()` even when other services sharing the store are absent.
+The schema, unchanged nonce keys, database-clock refusal and 60-second collection
+margin match Go, so both languages may use the same table. `finish_async` marks
+completion without deleting the nonce; collection also removes crashed holds
+once safely past retention. Never put pool lifecycle, credentials or a second
+reservation namespace into a consumer adapter.
+
+The real-Postgres tests reuse `HOP_TEST_POSTGRES` in PostgreSQL URI form, supplied
+by the test environment, and create/drop an isolated schema per test. CI runs
+them with the same runner-owned Postgres used by Go. Locally, after selecting a
+test database:
+
+```sh
+uv run --no-project --with pytest --with asyncpg --with-editable . pytest tests
+```
+
+Without `HOP_TEST_POSTGRES`, only the Postgres-dependent cases skip; that run
+does not establish durable admission behavior.
+
 ## Dialling the host
 
 `authority_client.host` is the Go library's `host.Target` / `host.Endpoint` rule
