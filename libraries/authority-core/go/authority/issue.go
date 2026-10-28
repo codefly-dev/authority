@@ -166,7 +166,27 @@ func (s *Service) audienceOf(tx Tx, r *IssueRequest, actor string) error {
 // uninstall committed in between must not turn old scopes into fresh
 // authority.
 func (s *Service) startFenced(ctx context.Context, f fence, in workcontext.StartInput) (Issued, error) {
-	token, signed, err := s.authority.Start(ctx, in)
+	return s.startFencedUntil(ctx, f, in, time.Time{})
+}
+
+// startFencedUntil gives a bounded root one issuance instant. Core.Start reads
+// revision/seal state before its clock; adding an earlier remaining duration to
+// that later instant would move the deadline. Only this mint uses the snapshot:
+// verification, child derivation and post-signing grant checks keep the live clock.
+func (s *Service) startFencedUntil(ctx context.Context, f fence, in workcontext.StartInput, deadline time.Time) (Issued, error) {
+	minter := s.authority
+	if !deadline.IsZero() {
+		now := s.cfg.Clock()
+		remaining := deadline.Sub(now)
+		if remaining <= 0 {
+			return Issued{}, domain.Refuse("delegation expired")
+		}
+		in.TTL = min(in.TTL, remaining)
+		bounded := *s.authority
+		bounded.Now = func() time.Time { return now }
+		minter = &bounded
+	}
+	token, signed, err := minter.Start(ctx, in)
 	if err != nil {
 		return Issued{}, err
 	}
