@@ -19,16 +19,30 @@ import (
 // bounded here, before any conversion, so no host's conversion can overflow
 // it into one that never ends.
 func (s *Service) Delegate(ctx context.Context, who Person, module string, scopes Scopes, purpose string, ttlSeconds int64) (domain.Delegation, error) {
+	return s.delegate(ctx, who, module, "", "", scopes, purpose, ttlSeconds)
+}
+
+func (s *Service) delegate(ctx context.Context, who Person, target, clientID, resource string, scopes Scopes, purpose string, ttlSeconds int64) (domain.Delegation, error) {
 	var d domain.Delegation
 	err := s.store.Write(ctx, func(tx Tx) error {
 		p, err := tx.Member(who.Organization, who.ID)
 		if err != nil {
 			return notFound(err)
 		}
-		m, err := tx.Module(module)
+		m, err := tx.Module(target)
 		if err != nil {
 			return notFound(err)
 		}
+		if clientID != "" {
+			c, err := tx.Client(clientID)
+			if err != nil || c.Disabled {
+				return domain.Refuse("unknown or disabled client")
+			}
+			if m.Kind != domain.KindSolution || resource == "" || ttlSeconds <= 0 {
+				return domain.Malformed("a client delegates an expiring grant for one declared solution resource")
+			}
+		}
+
 		if len(scopes) == 0 {
 			return domain.Refuse("a delegation names what it grants")
 		}
@@ -43,31 +57,17 @@ func (s *Service) Delegate(ctx context.Context, who Person, module string, scope
 		if inst, err := installationOf(tx, p.Organization, m.Name); err != nil || inst.Status != domain.Active {
 			return domain.NotNow("module %q is not installed in organization %s, so nothing could issue from a delegation to it", m.Name, p.Organization)
 		}
-		holdings, err := held(tx, p, m, scopes)
+		holdings, err := delegableScopes(tx, p, m, scopes)
 		if err != nil {
 			return err
-		}
-		for _, b := range m.Bindings {
-			target, err := tx.Module(b.Audience)
-			if err != nil {
-				continue
-			}
-			there, _, _, err := throughSolutions(tx, p, target, []string{m.Principal}, scopes)
-			if err != nil {
-				return err
-			}
-			if m.Kind != domain.KindSolution {
-				if there, err = held(tx, p, target, scopes); err != nil {
-					return err
-				}
-			}
-			holdings = append(holdings, scope.Intersect(there, b.InvokeScopes)...)
-			holdings = append(holdings, scope.Intersect(there, b.LookupScopes)...)
 		}
 		if !scope.Attenuates(scopes, holdings) {
 			return domain.Refuse("%s delegates what they do not hold", p.ID)
 		}
 		d = domain.Delegation{ID: s.cfg.NewID(), Organization: p.Organization, Grantor: p.ID, Module: m.Name, Purpose: purpose, Scopes: scope.Normalize(scopes)}
+		if clientID != "" {
+			d.Module, d.ClientID, d.Audience, d.Resource = "", clientID, m.Principal, resource
+		}
 		if ttlSeconds > 0 {
 			lifetime := s.cfg.MaxDelegationTTL
 			if ttlSeconds < int64(lifetime/time.Second) {
@@ -78,8 +78,11 @@ func (s *Service) Delegate(ctx context.Context, who Person, module string, scope
 		if err := tx.PutDelegation(d); err != nil {
 			return err
 		}
-		return s.journal(ctx, tx, domain.Event{Kind: domain.DelegationGranted, Organization: d.Organization, Actor: d.Grantor, Subject: d.ID,
-			Detail: map[string]string{"module": d.Module, "purpose": d.Purpose}})
+		detail := map[string]string{"module": d.Module, "purpose": d.Purpose}
+		if clientID != "" {
+			detail = map[string]string{"client": clientID, "audience": d.Audience, "resource": resource, "purpose": purpose}
+		}
+		return s.journal(ctx, tx, domain.Event{Kind: domain.DelegationGranted, Organization: d.Organization, Actor: d.Grantor, Subject: d.ID, Detail: detail})
 	})
 	return d, err
 }
@@ -220,10 +223,22 @@ func (s *Service) IssueForDelegation(ctx context.Context, id string, actor Workl
 	if err != nil {
 		return Issued{}, err
 	}
+	// Refreshing near a delegation's end must not buy another MaxTTL. Bound
+	// the signed capability itself, not just the OAuth response's expires_in.
+	ttl := clamp(r.TTL, s.cfg.MaxTTL)
+	if !d.ExpiresAt.IsZero() {
+		remaining := d.ExpiresAt.Sub(s.cfg.Clock())
+		if remaining <= 0 {
+			return Issued{}, domain.Refuse("delegation %s expired", id)
+		}
+		if remaining < ttl {
+			ttl = remaining
+		}
+	}
 	root, err := s.startFenced(ctx, f, workcontext.StartInput{
 		TenantID: d.Organization, OrganizationID: d.Organization, OwnerPrincipalID: d.Grantor, OwnerPrincipalKind: "human",
 		TaskID: s.cfg.NewID(), Audience: audience.Principal, AuthorityScopes: scope.Limits{}.Project(through, scopes),
-		InstallationID: sealTo, TTL: clamp(r.TTL, s.cfg.MaxTTL), ReplayPolicy: workcontext.ReplayIdempotent,
+		InstallationID: sealTo, TTL: ttl, ReplayPolicy: workcontext.ReplayIdempotent,
 	})
 	if err != nil {
 		return Issued{}, err
@@ -234,16 +249,47 @@ func (s *Service) IssueForDelegation(ctx context.Context, id string, actor Workl
 	}
 	token, signed, err := s.authority.Child(ctx, current, workcontext.ChildInput{
 		PrincipalID: am.Principal, PrincipalKind: "service", DelegationID: d.ID, GrantedScopes: scopes, Audience: audience.Principal,
-		TTL: clamp(r.TTL, s.cfg.MaxTTL), ReplayPolicy: workcontext.ReplayIdempotent, OperationBindingID: d.Organization + "/" + am.Name + "/" + r.Binding,
+		TTL: ttl, ReplayPolicy: workcontext.ReplayIdempotent, OperationBindingID: d.Organization + "/" + am.Name + "/" + r.Binding,
 	})
 	if err != nil {
 		return Issued{}, err
 	}
 	if again, err := s.Delegation(ctx, id, nil, &actor); err != nil || !again.Active(s.cfg.Clock()) {
 		return Issued{}, domain.Refuse("delegation %s is revoked or expired", id)
+	} else if !again.ExpiresAt.IsZero() && signed.GetExpiresAtUnix() > again.ExpiresAt.Unix() {
+		// Time can advance while signing, or the store can shorten the grant.
+		return Issued{}, domain.Refuse("the issued capability would outlive delegation %s", id)
 	}
 	if signed.GetOperationBinding().GetRevision() != am.Generation {
 		return Issued{}, domain.Refuse("actor binding changed during issuance")
 	}
 	return Issued{token, signed}, nil
+}
+
+// delegableScopes is the one ceiling for a person's delegation: what they hold
+// here and through this module/solution's declared bindings.
+func delegableScopes(tx Tx, p domain.Person, m domain.Module, scopes Scopes) (Scopes, error) {
+	holdings, err := held(tx, p, m, scopes)
+	if err != nil {
+		return nil, err
+	}
+	for _, b := range m.Bindings {
+		target, err := tx.Module(b.Audience)
+		if err != nil {
+			continue
+		}
+		there, _, _, err := throughSolutions(tx, p, target, []string{m.Principal}, scopes)
+		if err != nil {
+			return nil, err
+		}
+		if m.Kind != domain.KindSolution {
+			if there, err = held(tx, p, target, scopes); err != nil {
+				return nil, err
+			}
+		}
+		holdings = append(holdings, scope.Intersect(there, b.InvokeScopes)...)
+		holdings = append(holdings, scope.Intersect(there, b.LookupScopes)...)
+	}
+
+	return holdings, nil
 }

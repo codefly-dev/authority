@@ -127,11 +127,23 @@ type RoleGrant struct {
 	InstallationID, Role, PersonID, TeamID string
 }
 
-// Delegation is a person's grant to a module to act for them.
+// Client is an external public client identity. Registration gives it no scopes,
+// bindings or installation. Its authority comes only from a person's delegation.
+type Client struct {
+	ID, Name     string
+	RedirectURIs []string
+	Revision     uint64
+	Disabled     bool
+}
+
+// Delegation is a person's grant to a module or an external client to act for them.
 type Delegation struct {
 	ID, Organization, Grantor, Module, Purpose string
-	Scopes                                     []*basev0.WorkScopeV1
-	Revoked                                    bool
+	// A client delegation names exactly one solution audience and its declared
+	// public resource. Module and ClientID are mutually exclusive.
+	ClientID, Audience, Resource string
+	Scopes                       []*basev0.WorkScopeV1
+	Revoked                      bool
 	// ExpiresAt ends the delegation by itself; zero stands until revoked.
 	ExpiresAt time.Time
 }

@@ -931,9 +931,23 @@ revoked, and a negative lifetime is malformed. The core takes the lifetime in
 seconds, the wire's unit, and bounds it before converting, so a lifetime too
 large for a duration is the ceiling, never one that wraps to zero. Past it, `Issue` from the
 delegation is refused and `GetDelegation` answers `active: false`. Unlike a
-revoke, an expiry advances no revision: a capability issued before it lives out
-its own lifetime, at most `MaxTTL`. The edge requires a lifetime of a
+revoke, an expiry advances no revision. A newly issued capability's signed expiry
+is bounded by both `MaxTTL` and the delegation's remaining lifetime, including
+when issuing again near the end; signing that crosses the bound is refused.
+Core's verifier still applies its 30-second clock tolerance. Capabilities minted
+before this bound was introduced retain their original signed expiry. The edge
+requires a lifetime of a
 delegation made from a page ([services/edge](modules/authority/services/edge/README.md#a-page-delegates-a-run-2026-10-28)).
+
+MCP client acquisition is still incomplete. The owner settled a distinct client
+identity with RFC 7591 registration, explicit background-client consent, and a
+resource declared per solution and resolved by the SDK (issuer: the edge origin).
+The shared core now registers scope-free client identities and extends the same
+delegation to them, preserving the client actor through downstream module hops.
+The [acquisition work and owner decisions](docs/mcp-acquisition.md) record the
+tested core path, the host OAuth reuse boundary and the exact continuation point.
+HTTP registration, consent, code/refresh exchange and the live proof are not yet
+wired; the new core operations are not exposed through the public interface.
 
 Revoking a delegation advances the organization's authorization revision in the
 same state update. Previously issued capabilities, including descendants, then
