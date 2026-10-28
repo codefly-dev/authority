@@ -30,7 +30,7 @@ func TestMissingContextDoesNotSendRecordsToDocuments(t *testing.T) {
 	docsURL, _ := url.Parse(documents.URL)
 	recordsURL, _ := url.Parse(records.URL)
 	decision := decide.Decider{Modules: map[string]bool{"documents": true, "records": true}}
-	face := forward.HTTP{Signer: hoptest.Signer("test-run-proof"), Decide: decision.Decide,
+	face := forward.HTTP{Signer: hoptest.Signer("test-run-proof"), Ready: published(t, hoptest.Signer("test-run-proof")), Decide: decision.Decide,
 		Upstreams: map[string]*url.URL{"documents": docsURL, "records": recordsURL}}
 	req := httptest.NewRequest(http.MethodPost, "/records.v1.RecordsService/ReadRecord", strings.NewReader(`{}`))
 	req.Header.Set("Content-Type", "application/json")

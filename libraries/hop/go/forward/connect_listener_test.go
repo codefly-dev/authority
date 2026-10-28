@@ -62,7 +62,7 @@ func TestGRPCAndConnectReachOnePublishedConnectListener(t *testing.T) {
 	}
 	checker := &routeChecker{}
 	decider := decide.Decider{Routes: routes, Authority: checker, Modules: map[string]bool{"module": true}, AudienceOf: func(string) (string, error) { return "module", nil }}
-	p := &forward.Proxy{Decide: decider.Decide, Signer: hoptest.Signer(proof), Upstreams: map[string]*grpc.ClientConn{backend.URL: upstream}}
+	p := &forward.Proxy{Decide: decider.Decide, Signer: hoptest.Signer(proof), Ready: published(t, hoptest.Signer(proof)), Upstreams: map[string]*grpc.ClientConn{backend.URL: upstream}}
 	conn := serve(t, p.ServerOptions(), func(*grpc.Server) {})
 	ctx := metadata.AppendToOutgoingContext(t.Context(), hop.WorkContextKey, "context")
 	got, err := version(ctx, conn)
@@ -70,7 +70,7 @@ func TestGRPCAndConnectReachOnePublishedConnectListener(t *testing.T) {
 		t.Fatalf("grpc: %v %v", got, err)
 	}
 	u, _ := url.Parse(backend.URL)
-	face := httptest.NewServer(&forward.HTTP{Decide: decider.Decide, Signer: hoptest.Signer(proof), Upstreams: map[string]*url.URL{backend.URL: u}})
+	face := httptest.NewServer(&forward.HTTP{Decide: decider.Decide, Signer: hoptest.Signer(proof), Ready: published(t, hoptest.Signer(proof)), Upstreams: map[string]*url.URL{backend.URL: u}})
 	defer face.Close()
 	client := connect.NewClient[emptypb.Empty, wrapperspb.StringValue](&http.Client{Transport: host.HTTPTransport()}, face.URL+versionProcedure)
 	req := connect.NewRequest(&emptypb.Empty{})
@@ -121,7 +121,7 @@ func TestDualPublishedServiceSendsGRPCToItsConnectListener(t *testing.T) {
 		t.Fatal(err)
 	}
 	decider := decide.Decider{Routes: routes, Authority: &routeChecker{}, Modules: map[string]bool{"module": true}, AudienceOf: func(string) (string, error) { return "module", nil }}
-	p := &forward.Proxy{Decide: decider.Decide, Signer: hoptest.Signer(proof), Upstreams: map[string]*grpc.ClientConn{connectURL: connectConn, grpcURL: grpcConn}}
+	p := &forward.Proxy{Decide: decider.Decide, Signer: hoptest.Signer(proof), Ready: published(t, hoptest.Signer(proof)), Upstreams: map[string]*grpc.ClientConn{connectURL: connectConn, grpcURL: grpcConn}}
 	conn := serve(t, p.ServerOptions(), func(*grpc.Server) {})
 	ctx := metadata.AppendToOutgoingContext(t.Context(), hop.WorkContextKey, "context")
 	if _, err := version(ctx, conn); err != nil {

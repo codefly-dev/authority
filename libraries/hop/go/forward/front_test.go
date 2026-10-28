@@ -11,10 +11,12 @@ import (
 	"time"
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
+	"github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
 	hop "github.com/codefly-dev/authority/libraries/hop/go"
 	"github.com/codefly-dev/authority/libraries/hop/go/forward"
 	"github.com/codefly-dev/authority/libraries/hop/go/hoptest"
 	"github.com/codefly-dev/authority/libraries/hop/go/routing"
+	core "github.com/codefly-dev/core/workcontext"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -28,7 +30,7 @@ type gateway struct {
 
 func (h *gateway) RegisterAdmissionKey(_ context.Context, in *authorityv1.RegisterAdmissionKeyRequest, _ ...grpc.CallOption) (*authorityv1.RegisterAdmissionKeyResponse, error) {
 	h.registered.Add(1)
-	return &authorityv1.RegisterAdmissionKeyResponse{Key: &authorityv1.PublicKey{KeyId: "hop-key", PublicKey: in.GetPublicKey()}, ExpiresAtUnix: time.Now().Add(time.Hour).Unix()}, nil
+	return &authorityv1.RegisterAdmissionKeyResponse{Key: &authorityv1.PublicKey{KeyId: stamp.KeyID(in.GetPublicKey()), PublicKey: in.GetPublicKey(), Algorithm: core.Algorithm, Purpose: stamp.Purpose}, ExpiresAtUnix: time.Now().Add(time.Hour).Unix()}, nil
 }
 
 // credential is a workload credential naming the authority it is for; the
@@ -113,7 +115,7 @@ func TestASecondHostStandsInFrontWithNew(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer front.Close()
-	if h.registered.Load() == 0 {
+	if h.registered.Load() == 0 || !front.Ready() {
 		t.Fatal("New returned before registering the host's admission key")
 	}
 	if front.Handler == nil {

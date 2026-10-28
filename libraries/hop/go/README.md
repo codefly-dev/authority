@@ -83,11 +83,12 @@ A host stands in front of modules with one front door, built once at startup:
 the authority module's hop on a laptop, a gateway on a cell. `forward.New`
 validates the generated routes against the modules, dials each published
 listener over its transport (`host.Endpoint`, `host.DialOptions`), refuses any
-enforcement but `enforce`, and registers the host's admission key
-(`Registration.Keep`) before it returns. Every call it then receives is decided
-by the authority's `Check` (`decide`), stamped (`Stamp`) and forwarded,
-unchanged, to the one listener its route publishes: gRPC as opaque frames, HTTP
-and Connect as the request itself.
+enforcement but `enforce`, and attempts registration of the host's admission
+key before returning. One `Registration.Start(ctx)` lease owns renewal and
+retry. If the first attempt fails, construction succeeds with an unready front:
+both faces refuse requests as unavailable until registration succeeds. A ready
+front decides calls with the authority's `Check`, stamps them and forwards
+them unchanged to the published listener.
 
 ```go
 import (
@@ -109,13 +110,49 @@ front, err := forward.New(ctx, forward.Config{
 	Enforcement: enforcement,                                 // "" or "enforce"; anything else refuses
 })
 config.GRPCServerOptions = append(config.GRPCServerOptions, front.ServerOptions...)
-// serve front.Handler on the host's HTTP listener; front.Close() at shutdown
+// Combine front.Ready() with the host's other readiness conditions.
+// Serve front.Handler on the host's HTTP listener; front.Close() at shutdown.
+// ctx is the front's lifetime context: cancellation also makes it unready.
 ```
 
-A refusal names its reason and leaves nothing dialled or registered.
+Invalid configuration returns an error and closes any connections already dialled.
 `forward.MissingRoutes(err)` is the refusal for a routes view the host could not
 read. `decide.Decider`, `forward.Proxy` and `forward.HTTP` are the parts New
 assembles, for a host that needs one face alone.
+
+Both faces check publication at entry and again after policy checking,
+immediately before signing. This final check is the call's admission point,
+not an atomic reservation through Stamp or I/O: an admitted call may continue
+if expiry or Close races afterward. Requests that have not passed that point
+refuse with gRPC Unavailable or HTTP/Connect 503. Direct requests cannot avoid
+this gate by ignoring host readiness.
+
+`RegistrationLease.Ready()` is true only before a valid acknowledged Unix
+deadline and while its context is live and it is not closed. Acknowledgements
+must match the signer's ID and public bytes, Ed25519 algorithm and
+`hop-admission` purpose. Every successful renewal updates the deadline,
+including unchanged-key renewals. A failed renewal preserves an earlier
+unexpired lease but never extends it; at exact expiry the lease is unready.
+Recovery requires a valid acknowledgement. `Close()` immediately makes it
+unready, cancels and joins renewal, and cannot be undone by a late response.
+It does not withdraw the authority's key. `Registration.Keep` remains a
+compatibility wrapper returning Close; `Report` is deduplicated logging,
+not a readiness or expiry feed.
+
+Single-face users must supply `Proxy.Ready` / `HTTP.Ready` from the SAME
+signer's `RegistrationLease.Ready`. Nil refuses. An arbitrary always-true
+callback or another signer's lease is not a supported registration integration.
+Use `Registration.Start`, not a host-owned renewal loop.
+
+**Publication is not propagation.** `Front.Ready` is only a necessary
+publication condition. Warm verifiers do not refresh because an unknown stamp
+arrived. Keep the shared wire README's five-minute prepublication overlap
+before routing traffic to a fresh signer. This gate neither repairs a new key
+under a reused instance nor supplies persistent signing-key storage.
+Hosts consume it in their existing aggregate readiness, only where a hop is
+configured. Authority's composed-hop generated health still needs a supported
+generator-owned readiness seam before it can claim publication health; do not
+edit generated adapters or infer that library tests complete that adoption.
 
 ## Calling out: `Outbound`
 
