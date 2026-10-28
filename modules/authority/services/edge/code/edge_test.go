@@ -212,7 +212,7 @@ func TestAPersonSignsInAtTheEdge(t *testing.T) {
 	res, body := f.do(t, http.MethodGet, "/auth/session", http.Header{"Cookie": {cookie.String()}})
 	var who map[string]any
 	_ = json.Unmarshal([]byte(body), &who)
-	if res.StatusCode != http.StatusOK || who["personId"] != "remi" || who["organizationId"] != "acme" || who["personDisplayName"] != "Rémi" || who["organizationDisplayName"] != "Acme" {
+	if res.StatusCode != http.StatusOK || who["personId"] != "remi" || who["organizationId"] != "acme" || who["personDisplayName"] != "Rémi" || who["organizationDisplayName"] != "Acme" || who["moduleApiBase"] != "/" {
 		t.Fatalf("session answered %d: %s", res.StatusCode, body)
 	}
 	// What the person may use, which the frontend binds its calls to: records,
@@ -234,6 +234,20 @@ func TestAPersonSignsInAtTheEdge(t *testing.T) {
 	}
 	if res, _ := f.signInAs(t, "nobody", "/", f.edge.URL); res.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("an unknown fixture signed in: %d", res.StatusCode)
+	}
+}
+
+func TestTheSessionPublishesNoModuleConnectionWithoutASession(t *testing.T) {
+	r := httptest.NewRequest(http.MethodGet, "/auth/session", nil)
+	w := httptest.NewRecorder()
+	(&Edge{}).ServeHTTP(w, r)
+	var answer map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &answer); err != nil {
+		t.Fatal(err)
+	}
+	_, present := answer["moduleApiBase"]
+	if w.Code != http.StatusUnauthorized || present {
+		t.Fatalf("unauthenticated session answered %d: %s", w.Code, w.Body)
 	}
 }
 
@@ -530,6 +544,13 @@ func TestSessionOutagePreservesCacheAndReportsTheActualReason(t *testing.T) {
 			}
 			if w.Code != want || len(e.held) != cached || !strings.Contains(w.Body.String(), "Current failed: test reason") {
 				t.Fatalf("code=%d cache=%d reason=%s", w.Code, len(e.held), w.Body)
+			}
+			var answer map[string]any
+			if err := json.Unmarshal(w.Body.Bytes(), &answer); err != nil {
+				t.Fatal(err)
+			}
+			if _, present := answer["moduleApiBase"]; present {
+				t.Fatalf("failed session published a module connection: %s", w.Body)
 			}
 		})
 	}
