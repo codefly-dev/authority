@@ -898,7 +898,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		if _, err := delegate(-1); status.Code(err) != codes.InvalidArgument {
 			t.Fatalf("a negative lifetime: %v", err)
 		}
-		for _, ttl := range []int64{3600, 0} {
+		for _, ttl := range []int64{60, 3600, 0} {
 			d, err := delegate(ttl)
 			if err != nil {
 				t.Fatalf("delegate for %d s: %v", ttl, err)
@@ -910,6 +910,12 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			got, err := c.call(ctx, "host.authority.v1.AuthorityService", "GetDelegation", map[string]any{"delegation_id": str(d, "delegation_id"), "actor": map[string]any{"credential": dc.Credential}})
 			if err != nil || field(got, "expires_at_unix").Int() != at || !field(got, "active").Bool() {
 				t.Fatalf("its module reads a delegation asked for %d s as ending at %d, standing %v: %v", ttl, field(got, "expires_at_unix").Int(), field(got, "active").Bool(), err)
+			}
+			out := c.must(t, ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{
+				"delegation": map[string]any{"delegation_id": str(d, "delegation_id")}, "audience": dc.Audience,
+				"actor": map[string]any{"credential": dc.Credential}, "operation_binding_id": dc.Binding})
+			if expiry := field(msg(out, "context"), "expires_at_unix").Int(); at > 0 && expiry > at {
+				t.Fatalf("a capability expires at %d, past its delegation's end %d", expiry, at)
 			}
 			c.must(t, grantor, "host.authority.v1.AuthorityService", "RevokeDelegation", map[string]any{"delegation_id": str(d, "delegation_id")})
 		}

@@ -220,10 +220,22 @@ func (s *Service) IssueForDelegation(ctx context.Context, id string, actor Workl
 	if err != nil {
 		return Issued{}, err
 	}
+	// Refreshing near a delegation's end must not buy another MaxTTL. Bound
+	// the signed capability itself, not just the OAuth response's expires_in.
+	ttl := clamp(r.TTL, s.cfg.MaxTTL)
+	if !d.ExpiresAt.IsZero() {
+		remaining := d.ExpiresAt.Sub(s.cfg.Clock())
+		if remaining <= 0 {
+			return Issued{}, domain.Refuse("delegation %s expired", id)
+		}
+		if remaining < ttl {
+			ttl = remaining
+		}
+	}
 	root, err := s.startFenced(ctx, f, workcontext.StartInput{
 		TenantID: d.Organization, OrganizationID: d.Organization, OwnerPrincipalID: d.Grantor, OwnerPrincipalKind: "human",
 		TaskID: s.cfg.NewID(), Audience: audience.Principal, AuthorityScopes: scope.Limits{}.Project(through, scopes),
-		InstallationID: sealTo, TTL: clamp(r.TTL, s.cfg.MaxTTL), ReplayPolicy: workcontext.ReplayIdempotent,
+		InstallationID: sealTo, TTL: ttl, ReplayPolicy: workcontext.ReplayIdempotent,
 	})
 	if err != nil {
 		return Issued{}, err
@@ -234,13 +246,16 @@ func (s *Service) IssueForDelegation(ctx context.Context, id string, actor Workl
 	}
 	token, signed, err := s.authority.Child(ctx, current, workcontext.ChildInput{
 		PrincipalID: am.Principal, PrincipalKind: "service", DelegationID: d.ID, GrantedScopes: scopes, Audience: audience.Principal,
-		TTL: clamp(r.TTL, s.cfg.MaxTTL), ReplayPolicy: workcontext.ReplayIdempotent, OperationBindingID: d.Organization + "/" + am.Name + "/" + r.Binding,
+		TTL: ttl, ReplayPolicy: workcontext.ReplayIdempotent, OperationBindingID: d.Organization + "/" + am.Name + "/" + r.Binding,
 	})
 	if err != nil {
 		return Issued{}, err
 	}
 	if again, err := s.Delegation(ctx, id, nil, &actor); err != nil || !again.Active(s.cfg.Clock()) {
 		return Issued{}, domain.Refuse("delegation %s is revoked or expired", id)
+	} else if !again.ExpiresAt.IsZero() && signed.GetExpiresAtUnix() > again.ExpiresAt.Unix() {
+		// Time can advance while signing, or the store can shorten the grant.
+		return Issued{}, domain.Refuse("the issued capability would outlive delegation %s", id)
 	}
 	if signed.GetOperationBinding().GetRevision() != am.Generation {
 		return Issued{}, domain.Refuse("actor binding changed during issuance")
