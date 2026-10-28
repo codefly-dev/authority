@@ -223,23 +223,13 @@ func (s *Service) IssueForDelegation(ctx context.Context, id string, actor Workl
 	if err != nil {
 		return Issued{}, err
 	}
-	// Refreshing near a delegation's end must not buy another MaxTTL. Bound
-	// the signed capability itself, not just the OAuth response's expires_in.
+	// Bound the root's signed window at one instant; children cannot outlive it.
 	ttl := clamp(r.TTL, s.cfg.MaxTTL)
-	if !d.ExpiresAt.IsZero() {
-		remaining := d.ExpiresAt.Sub(s.cfg.Clock())
-		if remaining <= 0 {
-			return Issued{}, domain.Refuse("delegation %s expired", id)
-		}
-		if remaining < ttl {
-			ttl = remaining
-		}
-	}
-	root, err := s.startFenced(ctx, f, workcontext.StartInput{
+	root, err := s.startFencedUntil(ctx, f, workcontext.StartInput{
 		TenantID: d.Organization, OrganizationID: d.Organization, OwnerPrincipalID: d.Grantor, OwnerPrincipalKind: "human",
 		TaskID: s.cfg.NewID(), Audience: audience.Principal, AuthorityScopes: scope.Limits{}.Project(through, scopes),
 		InstallationID: sealTo, TTL: ttl, ReplayPolicy: workcontext.ReplayIdempotent,
-	})
+	}, d.ExpiresAt)
 	if err != nil {
 		return Issued{}, err
 	}

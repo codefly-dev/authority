@@ -148,15 +148,12 @@ func (s *Service) IssueForClientDelegation(ctx context.Context, id, clientID, re
 	if err != nil {
 		return Issued{}, err
 	}
-	ttl := min(clamp(r.TTL, s.cfg.MaxTTL), d.ExpiresAt.Sub(s.cfg.Clock()))
-	if ttl <= 0 {
-		return Issued{}, domain.Refuse("client delegation expired")
-	}
-	root, err := s.startFenced(ctx, f, workcontext.StartInput{
+	ttl := clamp(r.TTL, s.cfg.MaxTTL)
+	root, err := s.startFencedUntil(ctx, f, workcontext.StartInput{
 		TenantID: d.Organization, OrganizationID: d.Organization, OwnerPrincipalID: d.Grantor, OwnerPrincipalKind: "human",
 		TaskID: s.cfg.NewID(), Audience: audience.Principal, AuthorityScopes: scopes,
 		InstallationID: inst.ID, TTL: ttl, ReplayPolicy: workcontext.ReplayIdempotent,
-	})
+	}, d.ExpiresAt)
 	if err != nil {
 		return Issued{}, err
 	}

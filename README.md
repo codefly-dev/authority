@@ -934,6 +934,10 @@ delegation is refused and `GetDelegation` answers `active: false`. Unlike a
 revoke, an expiry advances no revision. A newly issued capability's signed expiry
 is bounded by both `MaxTTL` and the delegation's remaining lifetime, including
 when issuing again near the end; signing that crosses the bound is refused.
+For finite module and client delegations, the remaining lifetime and root
+mint use one issuance instant: time spent reading revision/seal state cannot
+extend that signed window. Verification, child derivation and the post-signing
+grant checks still use the live clock, so an expired or shortened grant refuses.
 Core's verifier still applies its 30-second clock tolerance. Capabilities minted
 before this bound was introduced retain their original signed expiry. The edge
 requires a lifetime of a
