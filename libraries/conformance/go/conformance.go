@@ -885,7 +885,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			t.Fatalf("its module reads a revoked delegation as standing: %v", err)
 		}
 	})
-	t.Run("a delegation asked for with a lifetime carries when it ends, and none asked carries none", func(t *testing.T) {
+	t.Run("a delegation asked for with a lifetime carries when it ends and ends then, and none asked carries none", func(t *testing.T) {
 		dc := f.Delegation
 		if dc == nil {
 			t.Fatal("required conformance fixture missing: the fixture states no delegation case")
@@ -912,6 +912,32 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 				t.Fatalf("its module reads a delegation asked for %d s as ending at %d, standing %v: %v", ttl, field(got, "expires_at_unix").Int(), field(got, "active").Bool(), err)
 			}
 			c.must(t, grantor, "host.authority.v1.AuthorityService", "RevokeDelegation", map[string]any{"delegation_id": str(d, "delegation_id")})
+		}
+
+		// The host enforces the end, not only reports it: a one-second
+		// delegation issues, and once past it neither issues nor reads as
+		// standing. The suite cannot move a host's clock, so it waits.
+		d, err := delegate(1)
+		if err != nil {
+			t.Fatalf("delegate for 1 s: %v", err)
+		}
+		id := str(d, "delegation_id")
+		issue := func() error {
+			_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{
+				"delegation": map[string]any{"delegation_id": id}, "audience": dc.Audience,
+				"actor": map[string]any{"credential": dc.Credential}, "operation_binding_id": dc.Binding})
+			return err
+		}
+		if err := issue(); err != nil {
+			t.Fatalf("a standing one-second delegation does not issue: %v", err)
+		}
+		time.Sleep(1500 * time.Millisecond)
+		if err := issue(); status.Code(err) != codes.PermissionDenied {
+			t.Fatalf("an expired delegation issues: %v", err)
+		}
+		got, err := c.call(ctx, "host.authority.v1.AuthorityService", "GetDelegation", map[string]any{"delegation_id": id, "actor": map[string]any{"credential": dc.Credential}})
+		if err != nil || field(got, "active").Bool() {
+			t.Fatalf("its module reads an expired delegation as standing: %v", err)
 		}
 	})
 	t.Run("a manifest moves only forward and a lower generation is refused by name", func(t *testing.T) {

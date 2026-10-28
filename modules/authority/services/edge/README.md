@@ -134,7 +134,9 @@ that delegation back ([handbook proposal](https://github.com/obin-ai/handbook/bl
 | `/host.authority.v1.AuthorityService/Delegate` | a positive `ttl_seconds`: a delegation made from a page ends after the work it was made for |
 | `/host.authority.v1.AuthorityService/GetDelegation` | no `actor`: a page reads as the grantor; a module's credential is the module's own read |
 
-They are admitted, forwarded and refused exactly as above. Every other procedure
+They are admitted, forwarded and refused exactly as above. The edge requires
+`codefly.dev/authority@>=0.3.5`: an older host drops `ttl_seconds` as an unknown
+field and would record a page's delegation as one that never ends. Every other procedure
 of `AuthorityService` (`Issue`, `RevokeDelegation`, …) is served to no browser:
 the edge routes these two paths by name, never the package.
 

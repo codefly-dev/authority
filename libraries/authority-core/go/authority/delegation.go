@@ -13,10 +13,12 @@ import (
 
 // Delegate records a person's grant to a module of scopes they hold: at the
 // module, or at an audience one of its bindings addresses (through a
-// solution, its roles on its principal's data). A positive ttl ends it by
-// itself after that long, clamped to the host's ceiling; zero keeps it until
-// it is revoked.
-func (s *Service) Delegate(ctx context.Context, who Person, module string, scopes Scopes, purpose string, ttl time.Duration) (domain.Delegation, error) {
+// solution, its roles on its principal's data). A positive ttlSeconds ends
+// it by itself after that many seconds, clamped to the host's ceiling; zero
+// keeps it until it is revoked. The lifetime is taken in the wire's unit and
+// bounded here, before any conversion, so no host's conversion can overflow
+// it into one that never ends.
+func (s *Service) Delegate(ctx context.Context, who Person, module string, scopes Scopes, purpose string, ttlSeconds int64) (domain.Delegation, error) {
 	var d domain.Delegation
 	err := s.store.Write(ctx, func(tx Tx) error {
 		p, err := tx.Member(who.Organization, who.ID)
@@ -30,8 +32,8 @@ func (s *Service) Delegate(ctx context.Context, who Person, module string, scope
 		if len(scopes) == 0 {
 			return domain.Refuse("a delegation names what it grants")
 		}
-		if ttl < 0 {
-			return domain.Malformed("a delegation's lifetime is positive, or zero for none, not %s", ttl)
+		if ttlSeconds < 0 {
+			return domain.Malformed("a delegation's lifetime is positive, or zero for none, not %d s", ttlSeconds)
 		}
 		if len(purpose) > MaxDelegationPurpose {
 			return domain.Malformed("a delegation's purpose is at most %d characters, not %d", MaxDelegationPurpose, len(purpose))
@@ -66,8 +68,12 @@ func (s *Service) Delegate(ctx context.Context, who Person, module string, scope
 			return domain.Refuse("%s delegates what they do not hold", p.ID)
 		}
 		d = domain.Delegation{ID: s.cfg.NewID(), Organization: p.Organization, Grantor: p.ID, Module: m.Name, Purpose: purpose, Scopes: scope.Normalize(scopes)}
-		if ttl > 0 {
-			d.ExpiresAt = s.cfg.Clock().Add(clamp(ttl, s.cfg.MaxDelegationTTL)).UTC()
+		if ttlSeconds > 0 {
+			lifetime := s.cfg.MaxDelegationTTL
+			if ttlSeconds < int64(lifetime/time.Second) {
+				lifetime = time.Duration(ttlSeconds) * time.Second
+			}
+			d.ExpiresAt = s.cfg.Clock().Add(lifetime).UTC()
 		}
 		if err := tx.PutDelegation(d); err != nil {
 			return err

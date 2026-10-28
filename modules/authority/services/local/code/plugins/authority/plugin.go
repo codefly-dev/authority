@@ -11,7 +11,6 @@ import (
 	"gateway/pkg/wiring"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/codefly-dev/core/workcontext"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
@@ -122,7 +121,7 @@ func Bearer(ctx context.Context) string {
 
 // Delegate records the signed-in person's grant to a module.
 func (p *Plugin) Delegate(ctx context.Context, req *authorityv1.DelegateRequest) (*authorityv1.Delegation, error) {
-	d, err := p.Issuer.Delegate(withBearer(ctx), req.GetModule(), issuer.FromWire(req.GetScopes()), req.GetPurpose(), time.Duration(req.GetTtlSeconds())*time.Second)
+	d, err := p.Issuer.Delegate(withBearer(ctx), req.GetModule(), issuer.FromWire(req.GetScopes()), req.GetPurpose(), req.GetTtlSeconds())
 	if err != nil {
 		return nil, Status(err)
 	}

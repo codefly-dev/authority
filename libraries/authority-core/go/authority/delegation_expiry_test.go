@@ -28,7 +28,7 @@ func TestADelegationWithALifetimeEndsByItself(t *testing.T) {
 
 	t.Run("it issues until it expires, then refuses", func(t *testing.T) {
 		h, read := setup(t)
-		d, err := h.svc.Delegate(h.ctx, h.person("maya"), "a", read, "a run", time.Hour)
+		d, err := h.svc.Delegate(h.ctx, h.person("maya"), "a", read, "a run", 3600)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -49,7 +49,7 @@ func TestADelegationWithALifetimeEndsByItself(t *testing.T) {
 	})
 	t.Run("a lifetime past the ceiling is clamped to it", func(t *testing.T) {
 		h, read := setup(t)
-		d, err := h.svc.Delegate(h.ctx, h.person("maya"), "a", read, "a run", 365*24*time.Hour)
+		d, err := h.svc.Delegate(h.ctx, h.person("maya"), "a", read, "a run", 365*24*3600)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -57,9 +57,24 @@ func TestADelegationWithALifetimeEndsByItself(t *testing.T) {
 			t.Fatalf("expires at %v, want the ceiling %v", d.ExpiresAt, want)
 		}
 	})
+	// Seconds that overflow a Duration once multiplied (2^55 s is 0 ns after
+	// wrapping) are still a lifetime past the ceiling, or a negative one: never
+	// a delegation that stands until revoked (review of #50).
+	t.Run("a lifetime too large to convert is clamped, never unbounded", func(t *testing.T) {
+		h, read := setup(t)
+		d, err := h.svc.Delegate(h.ctx, h.person("maya"), "a", read, "a run", 1<<55)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := h.now.Add(authority.DefaultMaxDelegationTTL); !d.ExpiresAt.Equal(want) {
+			t.Fatalf("2^55 s expires at %v, want the ceiling %v", d.ExpiresAt, want)
+		}
+		_, err = h.svc.Delegate(h.ctx, h.person("maya"), "a", read, "a run", -(1 << 55))
+		code(t, err, domain.Invalid)
+	})
 	t.Run("a negative lifetime is malformed", func(t *testing.T) {
 		h, read := setup(t)
-		_, err := h.svc.Delegate(h.ctx, h.person("maya"), "a", read, "a run", -time.Second)
+		_, err := h.svc.Delegate(h.ctx, h.person("maya"), "a", read, "a run", -1)
 		code(t, err, domain.Invalid)
 	})
 	t.Run("none asked stands until revoked", func(t *testing.T) {

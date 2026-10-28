@@ -915,7 +915,9 @@ hermetic local authority checks, not full consumer or SaaS-provider qualificatio
 A delegation can end by itself (2026-10-28). `DelegateRequest.ttl_seconds`
 sets `Delegation.expires_at_unix`, clamped to the host's ceiling
 (`Config.MaxDelegationTTL`, seven days by default); zero keeps it until it is
-revoked, and a negative lifetime is malformed. Past it, `Issue` from the
+revoked, and a negative lifetime is malformed. The core takes the lifetime in
+seconds, the wire's unit, and bounds it before converting, so a lifetime too
+large for a duration is the ceiling, never one that wraps to zero. Past it, `Issue` from the
 delegation is refused and `GetDelegation` answers `active: false`. Unlike a
 revoke, an expiry advances no revision: a capability issued before it lives out
 its own lifetime, at most `MaxTTL`. The edge requires a lifetime of a

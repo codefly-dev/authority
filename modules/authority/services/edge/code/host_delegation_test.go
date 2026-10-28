@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"net/http/httptest"
+	"os"
+	"regexp"
+	"strconv"
 	"sync"
 	"testing"
 
@@ -129,5 +132,28 @@ func TestAnEdgeWithoutTheAuthorityServesNoDelegation(t *testing.T) {
 		&authorityv1.DelegateRequest{Module: "robin", TtlSeconds: 3600})
 	if err == nil || errors.Is(err, context.Canceled) {
 		t.Fatalf("an edge with no delegation client served Delegate: %v", err)
+	}
+}
+
+// The edge serves Delegate only in front of a host that enforces a lifetime:
+// one implementing authority 0.3.5 or later. An older host (Accounts at 0.3.4)
+// drops ttl_seconds as an unknown field and would record a page's one-hour
+// delegation as one that never ends, so the edge refuses to be composed with
+// it (review of #50).
+func TestTheEdgeRequiresAHostThatEnforcesADelegationsLifetime(t *testing.T) {
+	raw, err := os.ReadFile("../service.codefly.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := regexp.MustCompile(`(?m)^\s*- interface: codefly\.dev/authority@>=(\d+)\.(\d+)\.(\d+) `).FindStringSubmatch(string(raw))
+	if m == nil {
+		t.Fatal("the edge declares no floor on codefly.dev/authority")
+	}
+	floor := [3]int{}
+	for i := range floor {
+		floor[i], _ = strconv.Atoi(m[i+1])
+	}
+	if floor[0] == 0 && (floor[1] < 3 || floor[1] == 3 && floor[2] < 5) {
+		t.Fatalf("the edge admits authority %d.%d.%d, which ignores a delegation's lifetime; it needs >=0.3.5", floor[0], floor[1], floor[2])
 	}
 }

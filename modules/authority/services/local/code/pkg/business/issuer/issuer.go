@@ -249,19 +249,20 @@ func (i *Issuer) authorizeTransfer(ctx context.Context, req *authorityv1.Authori
 	return &authorityv1.AuthorizeTransferResponse{PrincipalId: d.PrincipalID, AuthorizedBy: d.AuthorizedBy}, nil
 }
 
-// Delegate records the signed-in person's grant to a module; a positive ttl
-// ends it by itself after that long, and zero keeps it until it is revoked.
-func (i *Issuer) Delegate(ctx context.Context, module string, scopes []*basev0.WorkScopeV1, purpose string, ttl time.Duration) (state.Delegation, error) {
-	out, err := i.delegate(ctx, module, scopes, purpose, ttl)
+// Delegate records the signed-in person's grant to a module; a positive
+// ttlSeconds ends it by itself after that many seconds, and zero keeps it
+// until it is revoked.
+func (i *Issuer) Delegate(ctx context.Context, module string, scopes []*basev0.WorkScopeV1, purpose string, ttlSeconds int64) (state.Delegation, error) {
+	out, err := i.delegate(ctx, module, scopes, purpose, ttlSeconds)
 	return out, classify(err)
 }
 
-func (i *Issuer) delegate(ctx context.Context, module string, scopes []*basev0.WorkScopeV1, purpose string, ttl time.Duration) (state.Delegation, error) {
+func (i *Issuer) delegate(ctx context.Context, module string, scopes []*basev0.WorkScopeV1, purpose string, ttlSeconds int64) (state.Delegation, error) {
 	person, err := i.signedIn(ctx)
 	if err != nil {
 		return state.Delegation{}, err
 	}
-	return i.svc.Delegate(ctx, person, module, scopes, purpose, ttl)
+	return i.svc.Delegate(ctx, person, module, scopes, purpose, ttlSeconds)
 }
 
 // Active is whether d still stands by the authority's own clock.
