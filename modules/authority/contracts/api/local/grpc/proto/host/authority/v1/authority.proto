@@ -189,6 +189,10 @@ message DelegateRequest {
   repeated WorkScopeV1 scopes = 2;
   // Why, as the person was told (a connected source, a scheduled job).
   string purpose = 3;
+  // How long the delegation stands, in seconds: it ends by itself after that,
+  // clamped to the authority's ceiling. 0 keeps it until it is revoked. A
+  // person's page delegating through the browser edge must name one.
+  int64 ttl_seconds = 4;
 }
 
 // Delegation is one grant from a person to a module.
@@ -201,8 +205,10 @@ message Delegation {
   string module = 4;
   repeated WorkScopeV1 scopes = 5;
   string purpose = 6;
-  // False once revoked; a revoked delegation issues nothing.
+  // False once revoked or expired; such a delegation issues nothing.
   bool active = 7;
+  // When it ends by itself, in Unix seconds; 0 when it stands until revoked.
+  int64 expires_at_unix = 8;
 }
 
 // GetDelegationRequest names the delegation read; anyone but its module or its
@@ -213,7 +219,8 @@ message GetDelegationRequest {
   WorkloadCredential actor = 2;
 }
 
-// RevokeDelegationRequest ends a delegation; only its grantor may.
+// RevokeDelegationRequest ends a delegation; its grantor may, and so may an
+// administrator of its organization.
 message RevokeDelegationRequest {
   string delegation_id = 1;
 }

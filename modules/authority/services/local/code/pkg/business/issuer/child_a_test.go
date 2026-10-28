@@ -60,7 +60,7 @@ func TestChildRetainsExplicitDelegationAcrossTargetProjection(t *testing.T) {
 			if restricted {
 				grant = append(grant, &base.WorkScopeV1{ResourceKind: "modelservice.profiles", Actions: []string{"read"}, ResourceIds: []string{"a"}})
 			}
-			d, err := k.Issuer.Delegate(person(t, k, "fixture-remi"), "org-directory", grant, "bounded chain")
+			d, err := k.Issuer.Delegate(person(t, k, "fixture-remi"), "org-directory", grant, "bounded chain", 0)
 			if err != nil {
 				t.Fatal(err)
 			}

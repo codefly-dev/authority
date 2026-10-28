@@ -121,11 +121,11 @@ func Bearer(ctx context.Context) string {
 
 // Delegate records the signed-in person's grant to a module.
 func (p *Plugin) Delegate(ctx context.Context, req *authorityv1.DelegateRequest) (*authorityv1.Delegation, error) {
-	d, err := p.Issuer.Delegate(withBearer(ctx), req.GetModule(), issuer.FromWire(req.GetScopes()), req.GetPurpose())
+	d, err := p.Issuer.Delegate(withBearer(ctx), req.GetModule(), issuer.FromWire(req.GetScopes()), req.GetPurpose(), req.GetTtlSeconds())
 	if err != nil {
 		return nil, Status(err)
 	}
-	return delegationOf(d), nil
+	return p.delegationOf(d), nil
 }
 
 // RevokeDelegation ends one of the signed-in person's delegations.
@@ -134,7 +134,7 @@ func (p *Plugin) RevokeDelegation(ctx context.Context, req *authorityv1.RevokeDe
 	if err != nil {
 		return nil, Status(err)
 	}
-	return &authorityv1.RevokeDelegationResponse{Delegation: delegationOf(d)}, nil
+	return &authorityv1.RevokeDelegationResponse{Delegation: p.delegationOf(d)}, nil
 }
 
 // GetDelegation reads one delegation for its module or its grantor.
@@ -143,11 +143,14 @@ func (p *Plugin) GetDelegation(ctx context.Context, req *authorityv1.GetDelegati
 	if err != nil {
 		return nil, Status(err)
 	}
-	return delegationOf(d), nil
+	return p.delegationOf(d), nil
 }
 
-func delegationOf(d state.Delegation) *authorityv1.Delegation {
-	out := &authorityv1.Delegation{DelegationId: d.ID, OrganizationId: d.Organization, Grantor: d.Grantor, Module: d.Module, Purpose: d.Purpose, Active: !d.Revoked}
+func (p *Plugin) delegationOf(d state.Delegation) *authorityv1.Delegation {
+	out := &authorityv1.Delegation{DelegationId: d.ID, OrganizationId: d.Organization, Grantor: d.Grantor, Module: d.Module, Purpose: d.Purpose, Active: p.Issuer.Active(d)}
+	if !d.ExpiresAt.IsZero() {
+		out.ExpiresAtUnix = d.ExpiresAt.Unix()
+	}
 	for _, sc := range d.Scopes {
 		out.Scopes = append(out.Scopes, &authorityv1.WorkScopeV1{
 			ResourceKind: sc.GetResourceKind(), Actions: sc.GetActions(), ResourceIds: sc.GetResourceIds(), ResourceOwnerId: sc.GetResourceOwnerId(),

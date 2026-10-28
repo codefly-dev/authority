@@ -924,6 +924,17 @@ The generated gRPC client regression covers the complete delegation lifecycle;
 the fixture regression checks exact IDs and matcher-syntax refusal. These are
 hermetic local authority checks, not full consumer or SaaS-provider qualification.
 
+A delegation can end by itself (2026-10-28). `DelegateRequest.ttl_seconds`
+sets `Delegation.expires_at_unix`, clamped to the host's ceiling
+(`Config.MaxDelegationTTL`, seven days by default); zero keeps it until it is
+revoked, and a negative lifetime is malformed. The core takes the lifetime in
+seconds, the wire's unit, and bounds it before converting, so a lifetime too
+large for a duration is the ceiling, never one that wraps to zero. Past it, `Issue` from the
+delegation is refused and `GetDelegation` answers `active: false`. Unlike a
+revoke, an expiry advances no revision: a capability issued before it lives out
+its own lifetime, at most `MaxTTL`. The edge requires a lifetime of a
+delegation made from a page ([services/edge](modules/authority/services/edge/README.md#a-page-delegates-a-run-2026-10-28)).
+
 Revoking a delegation advances the organization's authorization revision in the
 same state update. Previously issued capabilities, including descendants, then
 fail the ordinary core verifier. This is deliberately conservative: outstanding

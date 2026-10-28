@@ -44,6 +44,9 @@ type Config struct {
 	InstallationID, PrincipalID func(organization, target string) string
 	// MaxTTL clamps every capability; zero means 15 minutes.
 	MaxTTL time.Duration
+	// MaxDelegationTTL clamps the lifetime a delegation is asked for; zero
+	// means DefaultMaxDelegationTTL.
+	MaxDelegationTTL time.Duration
 	// Replay consumes single-use capabilities. It is required: a deployed
 	// host shares it across replicas, and nothing defaults to memory.
 	Replay workcontext.ReplayStore
@@ -110,6 +113,9 @@ func New(store Store, cfg Config) (*Service, error) {
 	if cfg.MaxTTL <= 0 {
 		cfg.MaxTTL = 15 * time.Minute
 	}
+	if cfg.MaxDelegationTTL <= 0 {
+		cfg.MaxDelegationTTL = DefaultMaxDelegationTTL
+	}
 	s := &Service{store: store, cfg: cfg}
 	s.src = sources{s: s}
 	s.authority = &workcontext.Authority{Issuer: cfg.Issuer, KeyID: cfg.KeyID, Signer: cfg.Signer, Revisions: s.src, Seals: s.src, MaxTTL: cfg.MaxTTL, Now: cfg.Clock}
@@ -127,6 +133,9 @@ func (s *Service) journal(ctx context.Context, tx Tx, e domain.Event) error {
 // Seals and Revisions answer core's verifier and minter from the store.
 func (s *Service) Seals() workcontext.SealSource         { return s.src }
 func (s *Service) Revisions() workcontext.RevisionSource { return s.src }
+
+// Now is the service's clock: what a delegation's expiry is judged against.
+func (s *Service) Now() time.Time { return s.cfg.Clock() }
 
 // Person is an authenticated person: who the session is, at which organization.
 type Person struct {

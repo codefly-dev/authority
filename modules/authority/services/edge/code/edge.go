@@ -78,7 +78,10 @@ type Edge struct {
 	// (host_connect.go); nil serves neither.
 	Offers    Offers
 	Installer Installer
-	Modules   map[string]Module
+	// Delegations serves a page's delegation of a run on the host face
+	// (host_connect.go); nil serves none.
+	Delegations Delegations
+	Modules     map[string]Module
 	// Frontend serves every path no module claims; nil serves none.
 	Frontend *url.URL
 	Now      func() time.Time

@@ -6,6 +6,7 @@ package domain
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
@@ -131,6 +132,14 @@ type Delegation struct {
 	ID, Organization, Grantor, Module, Purpose string
 	Scopes                                     []*basev0.WorkScopeV1
 	Revoked                                    bool
+	// ExpiresAt ends the delegation by itself; zero stands until revoked.
+	ExpiresAt time.Time
+}
+
+// Active is whether the delegation still stands at now: not revoked, and not
+// past its expiry.
+func (d Delegation) Active(now time.Time) bool {
+	return !d.Revoked && (d.ExpiresAt.IsZero() || now.Before(d.ExpiresAt))
 }
 
 // Code classifies a refusal the way a transport reports it.

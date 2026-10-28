@@ -67,8 +67,9 @@ func compose(ctx context.Context) (*Edge, int, func(), error) {
 	}
 	log.Printf("edge: the host is at %s", at)
 	installations := installationv1.NewInstallationServiceClient(conn)
-	edge := &Edge{Sessions: sessionv1.NewSessionServiceClient(conn), Authority: authorityv1.NewAuthorityServiceClient(conn), Installations: installations,
-		Offers: installationv1.NewOfferServiceClient(conn), Installer: installations, Modules: map[string]Module{}}
+	authority := authorityv1.NewAuthorityServiceClient(conn)
+	edge := &Edge{Sessions: sessionv1.NewSessionServiceClient(conn), Authority: authority, Installations: installations,
+		Offers: installationv1.NewOfferServiceClient(conn), Installer: installations, Delegations: authority, Modules: map[string]Module{}}
 	value := func(key string) string {
 		v, _ := codefly.For(ctx).WorkspaceConfiguration("edge", key)
 		return strings.TrimSpace(v)

@@ -5,12 +5,15 @@ import (
 	"errors"
 	"mime"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
 	"connectrpc.com/connect"
+	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
 	installationv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/installation/v1"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
@@ -23,6 +26,14 @@ import (
 // gateway. Each call is sent on through the generated host client with the
 // person's own session; the authority decides it and its refusal reaches the
 // page with its code and reason. The edge decides nothing.
+//
+// The face also serves a page two of the authority's own procedures,
+// AuthorityService Delegate and GetDelegation, so a person's page can delegate
+// a run of theirs to a module and read that delegation back (handbook proposal
+// 2026-10-28-a-person-delegates-a-run-from-the-page). It refuses a delegation
+// with no lifetime, which would stand after the run, and a read naming a
+// module's credential, which is the module's read, not the page's; every
+// other authority procedure (Issue, RevokeDelegation) is served to no browser.
 
 // hostPackage is the path prefix of the host interface this face serves.
 const hostPackage = "/host.installation.v1."
@@ -33,33 +44,77 @@ const hostCallTimeout = 10 * time.Second
 // hostMessageBytes bounds a request: each of these messages is a few names.
 const hostMessageBytes = 64 << 10
 
+// Delegations is the authority's delegation procedures the face serves.
+type Delegations interface {
+	Delegate(ctx context.Context, in *authorityv1.DelegateRequest, opts ...grpc.CallOption) (*authorityv1.Delegation, error)
+	GetDelegation(ctx context.Context, in *authorityv1.GetDelegationRequest, opts ...grpc.CallOption) (*authorityv1.Delegation, error)
+}
+
+// delegationPaths are the authority procedures the face serves, by full path:
+// never the whole package, which carries Issue.
+var delegationPaths = []string{authorityv1.AuthorityService_Delegate_FullMethodName, authorityv1.AuthorityService_GetDelegation_FullMethodName}
+
+type faceProcedure struct {
+	procedure string
+	handler   http.Handler
+}
+
 // hostConnectFace is the procedures a browser may call and nothing else:
 // Install, Current and the solution's InstallableService are not served here.
 func (e *Edge) hostConnectFace() http.Handler {
 	e.faceOnce.Do(func() {
 		mux := http.NewServeMux()
-		for _, p := range []struct {
-			procedure string
-			handler   http.Handler
-		}{
-			{installationv1.InstallationService_List_FullMethodName, forward(installationv1.InstallationService_List_FullMethodName, e.Installer.List)},
-			{installationv1.InstallationService_ListHeld_FullMethodName, forward(installationv1.InstallationService_ListHeld_FullMethodName, e.Installer.ListHeld)},
-			{installationv1.InstallationService_ListRoleGrants_FullMethodName, forward(installationv1.InstallationService_ListRoleGrants_FullMethodName, e.Installer.ListRoleGrants)},
-			{installationv1.InstallationService_GrantRole_FullMethodName, forward(installationv1.InstallationService_GrantRole_FullMethodName, e.Installer.GrantRole)},
-			{installationv1.InstallationService_RevokeRole_FullMethodName, forward(installationv1.InstallationService_RevokeRole_FullMethodName, e.Installer.RevokeRole)},
-			{installationv1.InstallationService_Review_FullMethodName, forward(installationv1.InstallationService_Review_FullMethodName, e.Installer.Review)},
-			{installationv1.OfferService_ListOffers_FullMethodName, forward(installationv1.OfferService_ListOffers_FullMethodName, e.Offers.ListOffers)},
-			{installationv1.OfferService_ReviewOffer_FullMethodName, forward(installationv1.OfferService_ReviewOffer_FullMethodName, e.Offers.ReviewOffer)},
-		} {
+		var procedures []faceProcedure
+		if e.Installer != nil && e.Offers != nil {
+			procedures = e.installationProcedures()
+		}
+		if e.Delegations != nil {
+			procedures = append(procedures, e.delegationProcedures()...)
+		}
+		for _, p := range procedures {
 			mux.Handle(p.procedure, p.handler)
 		}
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			_ = connectRefusal.Write(w, r, connect.NewError(connect.CodeUnimplemented,
-				errors.New("this origin serves "+r.URL.Path+" to no browser: it serves InstallationService List, ListHeld, ListRoleGrants, GrantRole, RevokeRole and Review, and OfferService ListOffers and ReviewOffer")))
+				errors.New("this origin serves "+r.URL.Path+" to no browser: it serves InstallationService List, ListHeld, ListRoleGrants, GrantRole, RevokeRole and Review, OfferService ListOffers and ReviewOffer, and AuthorityService Delegate and GetDelegation")))
 		})
 		e.face = mux
 	})
 	return e.face
+}
+
+// delegationProcedures serves a page's delegation of a run and its read back.
+func (e *Edge) delegationProcedures() []faceProcedure {
+	delegate := func(ctx context.Context, in *authorityv1.DelegateRequest, opts ...grpc.CallOption) (*authorityv1.Delegation, error) {
+		if in.GetTtlSeconds() <= 0 {
+			return nil, status.Error(codes.InvalidArgument, "a page delegates for a lifetime: name ttl_seconds, so the delegation ends after the work it was made for")
+		}
+		return e.Delegations.Delegate(ctx, in, opts...)
+	}
+	read := func(ctx context.Context, in *authorityv1.GetDelegationRequest, opts ...grpc.CallOption) (*authorityv1.Delegation, error) {
+		if in.GetActor() != nil {
+			return nil, status.Error(codes.InvalidArgument, "a page reads a delegation as its grantor: an actor credential is the module's own read")
+		}
+		return e.Delegations.GetDelegation(ctx, in, opts...)
+	}
+	return []faceProcedure{
+		{authorityv1.AuthorityService_Delegate_FullMethodName, forward(authorityv1.AuthorityService_Delegate_FullMethodName, delegate)},
+		{authorityv1.AuthorityService_GetDelegation_FullMethodName, forward(authorityv1.AuthorityService_GetDelegation_FullMethodName, read)},
+	}
+}
+
+// installationProcedures serves the Setup tab's installation reads and changes.
+func (e *Edge) installationProcedures() []faceProcedure {
+	return []faceProcedure{
+		{installationv1.InstallationService_List_FullMethodName, forward(installationv1.InstallationService_List_FullMethodName, e.Installer.List)},
+		{installationv1.InstallationService_ListHeld_FullMethodName, forward(installationv1.InstallationService_ListHeld_FullMethodName, e.Installer.ListHeld)},
+		{installationv1.InstallationService_ListRoleGrants_FullMethodName, forward(installationv1.InstallationService_ListRoleGrants_FullMethodName, e.Installer.ListRoleGrants)},
+		{installationv1.InstallationService_GrantRole_FullMethodName, forward(installationv1.InstallationService_GrantRole_FullMethodName, e.Installer.GrantRole)},
+		{installationv1.InstallationService_RevokeRole_FullMethodName, forward(installationv1.InstallationService_RevokeRole_FullMethodName, e.Installer.RevokeRole)},
+		{installationv1.InstallationService_Review_FullMethodName, forward(installationv1.InstallationService_Review_FullMethodName, e.Installer.Review)},
+		{installationv1.OfferService_ListOffers_FullMethodName, forward(installationv1.OfferService_ListOffers_FullMethodName, e.Offers.ListOffers)},
+		{installationv1.OfferService_ReviewOffer_FullMethodName, forward(installationv1.OfferService_ReviewOffer_FullMethodName, e.Offers.ReviewOffer)},
+	}
 }
 
 // toHost admits a browser's call to the host face: a session, from this
@@ -69,8 +124,8 @@ func (e *Edge) hostConnectFace() http.Handler {
 // before the origin check). No CORS header is ever set.
 func (e *Edge) toHost(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if e.Installer == nil || e.Offers == nil {
-		refuseCall(w, r, http.StatusNotFound, "this edge composes no host installation interface")
+	if (e.Installer == nil || e.Offers == nil) && e.Delegations == nil {
+		refuseCall(w, r, http.StatusNotFound, "this edge composes no host installation or delegation interface")
 		return
 	}
 	bearer, fromCookie := bearerOf(r)
@@ -121,4 +176,6 @@ func forward[Req, Res any](procedure string, call func(context.Context, *Req, ..
 }
 
 // isHostPath is whether path names a procedure of the host face.
-func isHostPath(path string) bool { return strings.HasPrefix(path, hostPackage) }
+func isHostPath(path string) bool {
+	return strings.HasPrefix(path, hostPackage) || slices.Contains(delegationPaths, path)
+}

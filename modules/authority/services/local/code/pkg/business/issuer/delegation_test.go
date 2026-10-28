@@ -56,7 +56,7 @@ func TestADelegationIssuesAsItsGrantorUntilRevoked(t *testing.T) {
 	k := testkit.New(t)
 	remi := person(t, k, "fixture-remi")
 	write := []*authorityv1.WorkScopeV1{{ResourceKind: "documents", Actions: []string{"write"}}}
-	d, err := k.Issuer.Delegate(remi, "org-directory", issuer.FromWire(write), "a connected spreadsheet")
+	d, err := k.Issuer.Delegate(remi, "org-directory", issuer.FromWire(write), "a connected spreadsheet", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,10 +97,10 @@ func TestADelegationIssuesAsItsGrantorUntilRevoked(t *testing.T) {
 func TestNobodyDelegatesWhatTheyDoNotHold(t *testing.T) {
 	k := testkit.New(t)
 	write := []*authorityv1.WorkScopeV1{{ResourceKind: "documents", Actions: []string{"write"}}}
-	if _, err := k.Issuer.Delegate(person(t, k, "fixture-maya"), "org-directory", issuer.FromWire(write), "x"); !errors.Is(err, issuer.ErrRefused) {
+	if _, err := k.Issuer.Delegate(person(t, k, "fixture-maya"), "org-directory", issuer.FromWire(write), "x", 0); !errors.Is(err, issuer.ErrRefused) {
 		t.Fatalf("a viewer delegates write: %v", err)
 	}
-	if _, err := k.Issuer.Delegate(context.Background(), "org-directory", issuer.FromWire(write), "x"); !errors.Is(err, issuer.ErrRefused) {
+	if _, err := k.Issuer.Delegate(context.Background(), "org-directory", issuer.FromWire(write), "x", 0); !errors.Is(err, issuer.ErrRefused) {
 		t.Fatalf("a delegation with no signed-in person: %v", err)
 	}
 }

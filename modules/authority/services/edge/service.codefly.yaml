@@ -14,8 +14,10 @@ agent:
 # reaches the host the composition names in the authority group's endpoint —
 # saas accounts implements the same interfaces — and the local authority that
 # implements all three when it names none (code/host.go).
+# Authority 0.3.5 is the floor: the edge serves a page Delegate, and an older
+# host drops its ttl_seconds and would record a delegation that never ends.
 service-dependencies:
-    - interface: codefly.dev/authority@>=0.2.0 <0.4.0
+    - interface: codefly.dev/authority@>=0.3.5 <0.4.0
     - interface: codefly.dev/session@>=0.2.0 <0.3.0
     - interface: codefly.dev/installation@>=0.1.0 <0.5.0
 workspace-configuration-dependencies:
