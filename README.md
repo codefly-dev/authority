@@ -939,9 +939,15 @@ before this bound was introduced retain their original signed expiry. The edge
 requires a lifetime of a
 delegation made from a page ([services/edge](modules/authority/services/edge/README.md#a-page-delegates-a-run-2026-10-28)).
 
-MCP client acquisition is still incomplete. The [acquisition work and owner
-decisions](docs/mcp-acquisition.md) record the stateless discovery/PKCE checks,
-the delegation reuse boundary, the refresh rule and the outstanding live proof.
+MCP client acquisition is still incomplete. The owner settled a distinct client
+identity with RFC 7591 registration, explicit background-client consent, and a
+resource declared per solution and resolved by the SDK (issuer: the edge origin).
+The shared core now registers scope-free client identities and extends the same
+delegation to them, preserving the client actor through downstream module hops.
+The [acquisition work and owner decisions](docs/mcp-acquisition.md) record the
+tested core path, the host OAuth reuse boundary and the exact continuation point.
+HTTP registration, consent, code/refresh exchange and the live proof are not yet
+wired; the new core operations are not exposed through the public interface.
 
 Revoking a delegation advances the organization's authorization revision in the
 same state update. Previously issued capabilities, including descendants, then

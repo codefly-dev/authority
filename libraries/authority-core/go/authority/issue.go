@@ -664,6 +664,15 @@ func delegationCeiling(tx Tx, parent *basev0.WorkContextV1, ceiling Scopes) (Sco
 		if err != nil {
 			return nil, err
 		}
+		if d.ClientID != "" {
+			// The client's identity is not a module. Keep its original grant
+			// on every descendant rather than trying to resolve it as one.
+			if d.Revoked || d.Module != "" || hop.GetPrincipalKind() != "client" || hop.GetPrincipalId() != d.ClientID || d.Grantor != parent.GetOwnerPrincipalId() || d.Organization != parent.GetOrganizationId() || !slices.Contains(solutionPrincipals(parent, parent.GetAudience()), d.Audience) {
+				return nil, domain.Refuse("the client delegation does not authorize this actor chain")
+			}
+			ceiling = scope.Intersect(ceiling, d.Scopes)
+			continue
+		}
 		m, err := tx.Module(hop.GetPrincipalId())
 		if err != nil {
 			return nil, notFound(err)

@@ -284,6 +284,14 @@ func (src sources) PrincipalEpoch(ctx context.Context, principal string) (uint64
 }
 
 func (src sources) epochIn(tx Tx, principal string) (uint64, error) {
+	if c, err := tx.Client(principal); err == nil {
+		if c.Disabled {
+			return 0, domain.Missing("disabled client %q", principal)
+		}
+		return c.Revision, nil
+	} else if !errors.Is(err, domain.ErrNotFound) {
+		return 0, err
+	}
 	if m, err := tx.Module(principal); err == nil {
 		return m.Generation, nil
 	}

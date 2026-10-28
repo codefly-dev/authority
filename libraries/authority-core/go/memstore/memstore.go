@@ -32,6 +32,7 @@ type Store struct {
 	ownerAware    map[string]uint64
 	delegations   map[string]domain.Delegation
 	tombstones    map[string]domain.Tombstone
+	clients       map[string]domain.Client
 }
 
 // New is an empty store.
@@ -41,6 +42,7 @@ func New() *Store {
 		modules: map[string]domain.Module{}, installations: map[string]domain.Installation{}, grants: map[string][]domain.RoleGrant{},
 		revisions: map[string]uint64{}, personEpochs: map[string]uint64{}, grantEpochs: map[string]uint64{},
 		ownerAware: map[string]uint64{}, delegations: map[string]domain.Delegation{}, tombstones: map[string]domain.Tombstone{},
+		clients: map[string]domain.Client{},
 	}
 }
 
@@ -83,6 +85,7 @@ type state struct {
 	ownerAware    map[string]uint64
 	delegations   map[string]domain.Delegation
 	tombstones    map[string]domain.Tombstone
+	clients       map[string]domain.Client
 }
 
 func (s *Store) snapshot() state {
@@ -92,13 +95,14 @@ func (s *Store) snapshot() state {
 	}
 	return state{modules: maps.Clone(s.modules), installations: maps.Clone(s.installations), grants: grants,
 		revisions: maps.Clone(s.revisions), personEpochs: maps.Clone(s.personEpochs), grantEpochs: maps.Clone(s.grantEpochs),
-		ownerAware: maps.Clone(s.ownerAware), delegations: maps.Clone(s.delegations), tombstones: maps.Clone(s.tombstones)}
+		ownerAware: maps.Clone(s.ownerAware), delegations: maps.Clone(s.delegations), tombstones: maps.Clone(s.tombstones), clients: maps.Clone(s.clients)}
 }
 
 func (s *Store) restore(b state) {
 	s.modules, s.installations, s.grants, s.revisions = b.modules, b.installations, b.grants, b.revisions
 	s.personEpochs, s.grantEpochs, s.ownerAware, s.delegations = b.personEpochs, b.grantEpochs, b.ownerAware, b.delegations
 	s.tombstones = b.tombstones
+	s.clients = b.clients
 }
 
 // PutOrganization, PutPerson, DeletePerson and PutOrgRole seed and change
@@ -388,6 +392,22 @@ func (t tx) PutDelegation(d domain.Delegation) error {
 	t.mustWrite()
 	d.Scopes = cloneScopes(d.Scopes)
 	t.s.delegations[d.ID] = d
+	return nil
+}
+
+func (t tx) Client(id string) (domain.Client, error) {
+	c, ok := t.s.clients[id]
+	if !ok {
+		return c, missing("client", id)
+	}
+	c.RedirectURIs = slices.Clone(c.RedirectURIs)
+	return c, nil
+}
+
+func (t tx) PutClient(c domain.Client) error {
+	t.mustWrite()
+	c.RedirectURIs = slices.Clone(c.RedirectURIs)
+	t.s.clients[c.ID] = c
 	return nil
 }
 

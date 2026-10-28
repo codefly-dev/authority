@@ -77,4 +77,6 @@ type Tx interface {
 	Delegation(id string) (domain.Delegation, error)
 	Delegations() ([]domain.Delegation, error)
 	PutDelegation(domain.Delegation) error
+	Client(id string) (domain.Client, error)
+	PutClient(domain.Client) error
 }

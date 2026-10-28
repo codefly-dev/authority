@@ -65,6 +65,11 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 		if _, err := tx.Person(m.Principal); err == nil {
 			return domain.Refuse("principal %q names a person; a module's principal is its own", m.Principal)
 		}
+		if _, err := tx.Client(m.Principal); err == nil {
+			return domain.Refuse("principal %q names an external client; a module's principal is its own", m.Principal)
+		} else if !errors.Is(err, domain.ErrNotFound) {
+			return err
+		}
 		if _, err := tx.InstallationByPrincipal(m.Principal); err == nil {
 			return domain.Refuse("principal %q names an installed solution's principal; a module's principal is its own", m.Principal)
 		}
@@ -399,6 +404,11 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 		if _, err := tx.TombstoneByPrincipal(principal); err == nil {
 			return domain.Refuse("the principal %q of %s at %s is a withdrawn module's", principal, target, org)
 		} else if err != nil && !errors.Is(err, domain.ErrNotFound) {
+			return err
+		}
+		if _, err := tx.Client(principal); err == nil {
+			return domain.Refuse("installation principal %q belongs to an external client", principal)
+		} else if !errors.Is(err, domain.ErrNotFound) {
 			return err
 		}
 		inst = domain.Installation{ID: id, Organization: org, Target: target, Status: domain.Pending, Revision: existing.Revision + 1,
