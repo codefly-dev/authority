@@ -342,7 +342,10 @@ func (e *Edge) session(w http.ResponseWriter, r *http.Request) {
 	usable, refused := e.usable(r.Context(), bearer)
 	e.namespaces(r.Context(), bearer, sess.GetOrganizationId(), usable)
 	writeJSON(w, http.StatusOK, map[string]any{
-		"personId": sess.GetPersonId(), "organizationId": sess.GetOrganizationId(), "roles": sess.GetRoles(),
+		// This edge mounts its public module procedures at the root. Publish
+		// that path, never a listener/upstream address or a request-derived origin.
+		"moduleApiBase": "/",
+		"personId":      sess.GetPersonId(), "organizationId": sess.GetOrganizationId(), "roles": sess.GetRoles(),
 		"personDisplayName": sess.GetPersonDisplayName(), "organizationDisplayName": sess.GetOrganizationDisplayName(),
 		"installations": usable, "refused": refused,
 	})
