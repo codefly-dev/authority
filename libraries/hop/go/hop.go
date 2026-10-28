@@ -341,20 +341,24 @@ func newVerifier(ctx context.Context, keys KeySource, audience string, replay co
 }
 
 // KeysError is the last failure to read the published keys, nil after a
-// successful read: for the module's logs and readiness, never for a caller.
+// successful usable publication: for the module's logs, never for a caller.
 // A verifier that admits calls also reports ErrNoAdmissionKeys when the keys
-// read but publish no hop admission key.
+// read but publish no hop admission key. Use Ready for key readiness, not this
+// diagnostic: a failed refresh can leave trusted cached keys usable.
 func (v *Verifier) KeysError() error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	return v.failure
 }
 
-// Ready reports whether the verifier holds trusted keys: true from the first
-// successful read, and through failed re-reads while the last keys are inside
-// keyStale; false before any read succeeded or once they are stale. A module's
-// readiness uses it, never KeysError: a brief authority outage must not take a
-// replica out of rotation while its keys are still trusted.
+// Ready reports whether the verifier holds fresh key material for its mode.
+// An admitting verifier also needs at least one usable published admission key;
+// a token-only verifier needs only Work Context trust. A successful publication
+// withdrawing the last admission key makes the admitting verifier unready once
+// observed. Failed re-reads retain the last usable keys through keyStale; before
+// any successful read or beyond keyStale it is false. A module uses this result,
+// never KeysError, for key readiness. It does not probe the replay store or
+// establish that any particular call will be admitted.
 //
 // It also starts the read a call would (keys missing or older than keyMaxAge,
 // or no admission key published, at most once per keyRetry, never waiting for
@@ -368,7 +372,7 @@ func (v *Verifier) Ready() bool {
 	if (v.fetched.IsZero() || now.Sub(v.fetched) > keyMaxAge || unadmitting) && v.inflight == nil && now.Sub(v.tried) >= keyRetry {
 		v.refresh()
 	}
-	return !v.fetched.IsZero() && now.Sub(v.fetched) <= keyStale
+	return !v.fetched.IsZero() && now.Sub(v.fetched) <= keyStale && !unadmitting
 }
 
 // Verify authenticates the call md carries and returns who it is for, from the
