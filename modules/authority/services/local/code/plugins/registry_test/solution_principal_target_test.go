@@ -28,8 +28,10 @@ func TestTheLocalAuthorityMeetsTheSolutionPrincipalTarget(t *testing.T) {
 	k := testkit.New(t)
 	// Two people whose own organisation grants reach one existing resource of
 	// the store's kind (one administers it, one reads it), and a member of a
-	// team no installation is granted to.
-	if err := k.State.LoadFixture(context.Background(), []byte(`roles:
+	// team no installation is granted to, and a team nobody belongs to.
+	if err := k.State.LoadFixture(context.Background(), []byte(`teams:
+  - {organization: acme, id: principal-empty-team}
+roles:
   - organization: acme
     name: principal-store-admin
     scopes:
@@ -84,7 +86,7 @@ people:
 		Store: "principal-store", StoreCredential: k.Credential(t, "principal-store"), Kind: "principal.collection",
 		LegacyStore: "principal-legacy-store", LegacyStoreCredential: k.Credential(t, "principal-legacy-store"), LegacyKind: "principal.legacy",
 		Admin: "fixture-alex", Viewer: "fixture-maya", Editor: "fixture-remi", Member: "fixture-dev", Installer: "fixture-principal-installer",
-		Team: "principal-team", TeamMember: "fixture-principal-team-member", TeamLeaver: "fixture-principal-team-leaver", OrgLeaver: "fixture-principal-org-leaver",
+		Team: "principal-team", EmptyTeam: "principal-empty-team", TeamMember: "fixture-principal-team-member", TeamLeaver: "fixture-principal-team-leaver", OrgLeaver: "fixture-principal-org-leaver",
 		Administrator: "fixture-store-administrator", Reader: "fixture-store-reader", NoteReader: "fixture-principal-note-reader",
 		OtherAdmin: "fixture-zoe", OtherMember: "fixture-omar", OtherTeam: "ops",
 		Existing:               "store-x",

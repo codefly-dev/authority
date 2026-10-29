@@ -152,11 +152,11 @@ func TestWhoMayChangeARoleInOrder(t *testing.T) {
 	// A grant stays revocable after its person left, its team is gone, its
 	// installation was uninstalled, or its role is no longer declared.
 	for name, mutate := range map[string]func(*decide.RoleChange){
-		"an uninstalled installation": func(r *decide.RoleChange) { r.Installation.Status = domain.Revoked },
-		"a role no longer declared":   func(r *decide.RoleChange) { r.Role = "retired" },
-		"a person who left":           func(r *decide.RoleChange) { r.Subject = nil },
-		"a person now elsewhere":      func(r *decide.RoleChange) { r.Subject = &omar },
-		"a team no member carries":    func(r *decide.RoleChange) { r.PersonID, r.TeamID = "", "gone" },
+		"an uninstalled installation":       func(r *decide.RoleChange) { r.Installation.Status = domain.Revoked },
+		"a role no longer declared":         func(r *decide.RoleChange) { r.Role = "retired" },
+		"a person who left":                 func(r *decide.RoleChange) { r.Subject = nil },
+		"a person now elsewhere":            func(r *decide.RoleChange) { r.Subject = &omar },
+		"a team no longer in the directory": func(r *decide.RoleChange) { r.PersonID, r.TeamID = "", "gone" },
 	} {
 		t.Run("revoking "+name, func(t *testing.T) {
 			r := base()

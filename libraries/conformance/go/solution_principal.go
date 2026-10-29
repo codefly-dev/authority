@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/codefly-dev/core/solutionhost"
+	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -65,6 +66,9 @@ import (
 //   - Viewer, Editor, Member, Installer, TeamMember, TeamLeaver, OrgLeaver:
 //     members with no role on A, B or C but what the suite grants; TeamMember
 //     and TeamLeaver belong to Team.
+//   - EmptyTeam: a team of Organization in the host's team directory that
+//     nobody belongs to: a team exists because the host holds it, not because
+//     a member carries it.
 //   - Administrator holds admin, and Reader holds read, on Existing from their
 //     own organization grants at Store, and nothing else of Kind.
 //   - NoteReader holds read on A's own kind ("<A>.note") from their own
@@ -82,6 +86,7 @@ type SolutionPrincipalCase struct {
 	Generation                                     uint64
 	Admin, Viewer, Editor, Member, Installer       string
 	Team, TeamMember, TeamLeaver, OrgLeaver        string
+	EmptyTeam                                      string
 	Administrator, Reader, NoteReader              string
 	OtherAdmin, OtherMember, OtherTeam             string
 	Existing                                       string
@@ -162,7 +167,7 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		t.Fatalf("target: the published contract %s", strings.Join(problems, "; "))
 	}
 	if f.Uninstall == nil || f.RemoveFromTeam == nil || f.RemoveFromOrganization == nil || f.SignManifest == nil || f.SignAuthority == nil ||
-		f.DeliveryCredential == nil || f.Existing == "" || f.OtherOrganization == "" || f.LegacyStore == "" || f.Team == "" || f.OtherTeam == "" || f.C.Solution == "" ||
+		f.DeliveryCredential == nil || f.Existing == "" || f.OtherOrganization == "" || f.LegacyStore == "" || f.Team == "" || f.EmptyTeam == "" || f.OtherTeam == "" || f.C.Solution == "" ||
 		slices.Contains([]string{f.Admin, f.Viewer, f.Editor, f.Member, f.Installer, f.TeamMember, f.TeamLeaver, f.OrgLeaver, f.Administrator, f.Reader, f.NoteReader, f.OtherAdmin, f.OtherMember}, "") {
 		t.Fatal("required conformance fixture missing: solution principal case")
 	}
@@ -366,6 +371,7 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 			"neither a person nor a team":                          {f.Admin, "GrantRole", grant(instA, "viewer", nil), codes.InvalidArgument, "exactly one"},
 			"a person of another organization":                     {f.Admin, "GrantRole", grant(instA, "viewer", sp.person(t, f.OtherMember)), codes.PermissionDenied, "not a member"},
 			"a team of another organization":                       {f.Admin, "GrantRole", grant(instA, "viewer", map[string]any{"team_id": f.OtherTeam}), codes.PermissionDenied, "not a team of"},
+			"a team the host does not hold":                        {f.Admin, "GrantRole", grant(instA, "viewer", map[string]any{"team_id": uuid.NewString()}), codes.PermissionDenied, "not a team of"},
 		} {
 			t.Run(name, func(t *testing.T) {
 				_, err := c.call(sp.as(t, r.caller), "host.installation.v1.InstallationService", r.method, r.fields)
@@ -525,6 +531,17 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		refused(t, sp.check(leaving), codes.PermissionDenied, "revoked")
 		_, err = sp.root(t, f.TeamLeaver, A)
 		refused(t, err, codes.PermissionDenied, "holds no role")
+	})
+	t.Run("a team nobody belongs to yet is granted a role, listed and revoked", func(t *testing.T) {
+		empty := map[string]any{"team_id": f.EmptyTeam}
+		sp.grant(t, A, "viewer", empty)
+		if !slices.Contains(sp.roleGrants(t, f.Admin, f.Organization, A), "viewer team "+f.EmptyTeam) {
+			t.Fatalf("ListRoleGrants does not show the empty team's grant: %v", sp.roleGrants(t, f.Admin, f.Organization, A))
+		}
+		sp.revoke(t, A, "viewer", empty)
+		if slices.Contains(sp.roleGrants(t, f.Admin, f.Organization, A), "viewer team "+f.EmptyTeam) {
+			t.Fatal("ListRoleGrants still shows the empty team's revoked grant")
+		}
 	})
 	t.Run("a member lists exactly the installations they hold a role on, directly or through a team; holding nothing is an empty list; a revoke or leaving the team drops one at once; another organization's never appear", func(t *testing.T) {
 		sp.heldInstallations(t)

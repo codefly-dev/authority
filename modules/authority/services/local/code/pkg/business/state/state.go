@@ -157,7 +157,7 @@ type fixtureFile struct {
 		Name string `yaml:"name"`
 	} `yaml:"organizations"`
 	Teams []struct {
-		ID string `yaml:"id"`
+		ID           string `yaml:"id"`
 		Organization string `yaml:"organization"`
 	} `yaml:"teams"`
 	Roles         []Role                `yaml:"roles"`
@@ -305,6 +305,11 @@ func (s *State) LoadFixture(ctx context.Context, data []byte) error {
 		s.people[p.ID] = p
 		s.byToken[p.FixtureToken] = p.ID
 		s.store.PutPerson(domain.Person{ID: p.ID, Organization: p.Organization, Roles: slices.Clone(p.Roles), Teams: slices.Clone(p.Teams)})
+		// The fixture is this host's team directory: a team it seats a person
+		// in exists, and teams: lists the ones nobody belongs to yet.
+		for _, team := range p.Teams {
+			s.store.PutTeam(p.Organization, team)
+		}
 	}
 	s.refreshRolesLocked()
 	s.mu.Unlock()

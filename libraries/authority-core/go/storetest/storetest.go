@@ -484,7 +484,7 @@ func newFixture() *fixture {
 	reader := []domain.RoleScope{{Kind: "storetest.item", Actions: []string{"read"}}, {Kind: "storetest.note", Actions: []string{"write"}, Resources: []resources.Grant{{ID: "note-1"}}}}
 	f.identity = Identity{
 		Organizations: []domain.Organization{{ID: f.orgA, Name: "Storetest A " + f.run}, {ID: f.orgB, Name: "Storetest B " + f.run}},
-		Teams: []Team{{Organization: f.orgA, ID: f.team}, {Organization: f.orgA, ID: uuid.NewString()}},
+		Teams:         []Team{{Organization: f.orgA, ID: f.team}, {Organization: f.orgA, ID: uuid.NewString()}},
 		Members: []Member{
 			{Organization: f.orgA, Person: f.onlyA, Teams: []string{f.team}, Scopes: reader},
 			{Organization: f.orgA, Person: f.both, Administrator: true},

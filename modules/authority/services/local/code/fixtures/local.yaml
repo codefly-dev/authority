@@ -10,6 +10,8 @@ organizations:
     name: Acme
   - id: globex
     name: Globex
+# The team directory. A team a person below belongs to exists already; list
+# here a team nobody belongs to yet, which a role may still be granted to.
 teams:
   - {organization: acme, id: finance}
   - {organization: acme, id: engineering}

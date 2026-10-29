@@ -229,7 +229,8 @@ type RoleChange struct {
 	Role, PersonID, TeamID string
 	// Subject is the person granted, when PersonID names one the host knows.
 	Subject *domain.Person
-	// TeamOfOrganization: a person of the installation's organization belongs to TeamID.
+	// TeamOfOrganization: the host's team directory holds TeamID in the
+	// installation's organization, whether or not anyone belongs to it yet.
 	TeamOfOrganization bool
 }
 
