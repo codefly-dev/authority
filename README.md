@@ -760,7 +760,8 @@ module (`Issue` with the module as the audience and no scopes, so the token
 carries what the person's roles grant there). It caches the context until
 shortly before it expires. It strips `Authorization`, `Cookie` and every
 `x-codefly-*` header the browser sent, then sets `x-codefly-work-context` and a
-fresh `x-codefly-effect-id` (`receipts.EffectIDHeaderName`) for the call. An
+fresh `x-codefly-effect-id` (`receipts.EffectIDHeaderName`) for the call, dropping
+any `Idempotency-Key`, the SDK's other spelling of the effect id. An
 operation that keeps receipts (Codefly's `sdk-go/receipts`) requires an effect id
 on every call; the edge names each one so a browser never can, and so can never
 replay another person's receipt. Each module call is its own effect: a browser

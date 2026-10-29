@@ -477,6 +477,9 @@ func proxy(target *url.URL, token, effect string, w http.ResponseWriter, r *http
 				pr.Out.Header.Set(WorkContextKey, token)
 			}
 			if effect != "" {
+				// Idempotency-Key is the SDK's HTTP spelling of the effect id;
+				// a caller's would be a second effect id beside the minted one.
+				pr.Out.Header.Del(receipts.IdempotencyKeyHeaderName)
 				pr.Out.Header.Set(receipts.EffectIDHeaderName, effect)
 			}
 		},

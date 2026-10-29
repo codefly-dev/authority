@@ -24,13 +24,16 @@ func TestEachModuleCallCarriesAnEffectIDTheEdgeMinted(t *testing.T) {
 		}
 		return id
 	}
-	if res, _ := f.do(t, http.MethodGet, "/v1/records/types", http.Header{"Cookie": {cookie.String()}, "X-Codefly-Effect-Id": {"forged"}}); res.StatusCode != http.StatusOK {
+	// Idempotency-Key is the SDK's HTTP spelling of the same effect id: left in
+	// place beside the minted one, it would be a second effect id, which the SDK
+	// refuses before running the operation.
+	if res, _ := f.do(t, http.MethodGet, "/v1/records/types", http.Header{"Cookie": {cookie.String()}, "X-Codefly-Effect-Id": {"forged"}, receipts.IdempotencyKeyHeaderName: {"forged"}}); res.StatusCode != http.StatusOK {
 		t.Fatalf("answered %d", res.StatusCode)
 	}
 	seen, _ := f.rest.last()
 	first := minted(seen)
-	if first == "forged" {
-		t.Fatal("the browser named the effect")
+	if first == "forged" || seen.Get(receipts.IdempotencyKeyHeaderName) != "" {
+		t.Fatalf("the browser named the effect: %v", seen)
 	}
 	if res, _ := f.do(t, http.MethodGet, "/v1/records/types", http.Header{"Cookie": {cookie.String()}}); res.StatusCode != http.StatusOK {
 		t.Fatalf("answered %d", res.StatusCode)
@@ -39,10 +42,10 @@ func TestEachModuleCallCarriesAnEffectIDTheEdgeMinted(t *testing.T) {
 		t.Fatal("two calls were minted one effect")
 	}
 	// The Connect face, by the service its path names.
-	if res, _ := f.do(t, http.MethodPost, "/records.v1.RecordsService/Query", http.Header{"Cookie": {cookie.String()}, "Origin": {f.edge.URL}}); res.StatusCode != http.StatusOK {
+	if res, _ := f.do(t, http.MethodPost, "/records.v1.RecordsService/Query", http.Header{"Cookie": {cookie.String()}, "Origin": {f.edge.URL}, receipts.IdempotencyKeyHeaderName: {"forged"}}); res.StatusCode != http.StatusOK {
 		t.Fatalf("a Connect call answered %d", res.StatusCode)
 	}
-	if seen, _ := f.connect.last(); minted(seen) == first {
-		t.Fatal("the Connect call reused an effect")
+	if seen, _ := f.connect.last(); minted(seen) == first || seen.Get(receipts.IdempotencyKeyHeaderName) != "" {
+		t.Fatalf("the Connect call reused an effect or kept the caller's: %v", seen)
 	}
 }
