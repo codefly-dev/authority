@@ -5,6 +5,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/delivered"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/offers"
+	modulecontract "github.com/codefly-dev/core/contracts/module"
 	"slices"
 	"testing"
 )
@@ -14,7 +15,12 @@ func TestInstallationDeclarationCarriageIsOpaqueAndIsolated(t *testing.T) {
 	// another parser or silently repair bytes already covered by a signature.
 	for _, selector := range []string{"", "none", "editor", " editor "} {
 		doc := &delivered.Document{InstallationRole: selector, EdgeDependencies: []domain.EdgeDependency{{Module: " module-id ", Presence: "required"}, {Module: "second", Presence: "optional"}}}
-		m, err := delivered.Module(solutionManifest(), doc)
+		manifest := solutionManifest()
+		manifest.Authority.InstallationRole = selector
+		for _, edge := range doc.EdgeDependencies {
+			manifest.Authority.EdgeDependencies = append(manifest.Authority.EdgeDependencies, modulecontract.EdgeDependency{Module: edge.Module, Presence: edge.Presence})
+		}
+		m, err := delivered.Module(manifest, doc)
 		if err != nil {
 			t.Fatal(err)
 		}

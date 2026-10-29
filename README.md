@@ -1328,3 +1328,16 @@ maintained Codefly path before wire adoption. Shared Go tests do not prove signe
 CLI delivery, Accounts persistence/queue integration, or the host's final
 transactional prerequisite fence. No compatible generated package or live install
 is claimed until those integration gates pass.
+
+
+The two signed delivery carriers must agree on these declarations. Shared
+`delivered.Pair` and `delivered.Module` refuse a different selector or a different
+ordered `(Module, Presence)` dependency list; neither carrier takes precedence.
+Empty and `none` differ, while nil and empty edge lists compare equally. A new
+nonempty declaration present on only one carrier refuses, including an absent
+sidecar. Legacy delivery with both declarations absent remains supported.
+This compares two projections of one authored value; it adds no declaration
+parser, sorting, trimming or defaulting. `FromCore` alone is a projection, not
+paired-delivery admission. Hosts use the shared paired reader before persistence.
+These reader checks still require the generated CLI producer and host wire
+adapters before complete delivery can be enabled.

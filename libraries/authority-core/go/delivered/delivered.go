@@ -65,7 +65,7 @@ func VerifyDocument(document, envelope []byte, keys map[string]crypto.PublicKey,
 }
 
 // Pair holds a verified document to the carrier it was delivered with: the
-// same module, the same generation, and the carrier's own digest.
+// same module, generation, carrier digest and duplicated install declaration.
 func Pair(doc Document, carrierDocument []byte, manifest *solutionhost.ModuleManifest) error {
 	switch {
 	case doc.Module != manifest.Alias:
@@ -75,7 +75,7 @@ func Pair(doc Document, carrierDocument []byte, manifest *solutionhost.ModuleMan
 	case doc.CoreManifestDigest != delivery.Digest(carrierDocument):
 		return domain.Refuse("the authority's document names another manifest than the one delivered with it")
 	}
-	return nil
+	return sameInstallationDeclaration(manifest.Authority, &doc)
 }
 
 // Module is what a verified delivery composes: core's manifest (FromCore),
@@ -83,6 +83,9 @@ func Pair(doc Document, carrierDocument []byte, manifest *solutionhost.ModuleMan
 // withdrawal carries no live declaration.
 func Module(manifest *solutionhost.ModuleManifest, doc *Document) (domain.Module, error) {
 	m := FromCore(manifest)
+	if err := sameInstallationDeclaration(manifest.Authority, doc); err != nil {
+		return m, err
+	}
 	if doc == nil {
 		return m, nil
 	}
@@ -108,6 +111,30 @@ func Module(manifest *solutionhost.ModuleManifest, doc *Document) (domain.Module
 	m.InstallationRole = doc.InstallationRole
 	m.EdgeDependencies = slices.Clone(doc.EdgeDependencies)
 	return m, nil
+}
+
+// sameInstallationDeclaration checks agreement, not declaration validity. Both
+// signed carriers are projections of one authored value. Neither wins a conflict;
+// a missing carrier supplies only the legacy empty declaration.
+func sameInstallationDeclaration(carrier *solutionhost.Authority, doc *Document) error {
+	if carrier == nil {
+		carrier = &solutionhost.Authority{}
+	}
+	if doc == nil {
+		doc = &Document{}
+	}
+	if carrier.InstallationRole != doc.InstallationRole {
+		return domain.Refuse("installation_role differs between the signed manifest and authority document")
+	}
+	if len(carrier.EdgeDependencies) != len(doc.EdgeDependencies) {
+		return domain.Refuse("edge_dependencies differs between the signed manifest and authority document")
+	}
+	for i, edge := range carrier.EdgeDependencies {
+		if edge.Module != doc.EdgeDependencies[i].Module || edge.Presence != doc.EdgeDependencies[i].Presence {
+			return domain.Refuse("edge_dependencies differs between the signed manifest and authority document at entry %d", i)
+		}
+	}
+	return nil
 }
 
 // methods reads what each method declares.
@@ -184,6 +211,10 @@ func FromCore(in *solutionhost.ModuleManifest) domain.Module {
 	m := domain.Module{Name: in.Alias, Principal: in.Alias, Kind: string(in.Kind), Generation: in.Generation, Bindings: map[string]domain.Binding{}}
 	if in.Authority == nil {
 		return m
+	}
+	m.InstallationRole = in.Authority.InstallationRole
+	for _, edge := range in.Authority.EdgeDependencies {
+		m.EdgeDependencies = append(m.EdgeDependencies, domain.EdgeDependency{Module: edge.Module, Presence: edge.Presence})
 	}
 	if in.Authority.Principal != "" {
 		m.Principal = in.Authority.Principal
