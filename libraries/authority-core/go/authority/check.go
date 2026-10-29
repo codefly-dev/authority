@@ -58,9 +58,22 @@ func (s *Service) Check(ctx context.Context, token, audience string) (*workconte
 // method is Check alone. Advisory decides the method but does not enforce it:
 // a sound capability is answered with the method's refusal beside it, the
 // same refusal a check that enforces it returns as its error.
+// The exact reserved InstallationStepHTTPMethod (POST /_codefly/installations)
+// and InstallationStepRPCMethod (/host.installation.v1.InstallableService/Install)
+// instead require a setup-only credential for the current consented pending
+// attempt, independently of delivered method policy. Ordinary capabilities are
+// refused there. The receiver supplies its actual method and delivered audience;
+// it compares verified organization and installation seal with body and carriers
+// before callback or cached acknowledgement. Advisory never relaxes this path.
 func (s *Service) CheckMethod(ctx context.Context, token, audience, method string, advisory bool) (verified *workcontext.Verified, revision uint64, refusal error, err error) {
 	if audience == "" {
 		return nil, 0, nil, domain.Refuse("a check names the audience the caller is")
+	}
+	if method == InstallationStepHTTPMethod || method == InstallationStepRPCMethod {
+		// Setup credentials never enter ordinary checking. Advisory cannot
+		// relax this authentication boundary or activate an installation.
+		verified, revision, err = s.VerifyInstallationStep(ctx, token, audience)
+		return verified, revision, nil, err
 	}
 	if verified, revision, err = s.Check(ctx, token, audience); err != nil || method == "" {
 		return verified, revision, nil, err

@@ -77,7 +77,7 @@ runtime, records and the org-directory page.
   is refused by name (this week's `modelservice` typo); a check refuses another
   audience and a tampered token; an uninstall refuses an outstanding token on the
   next check; an installation acts for itself within its role; a pending
-  installation is issued nothing; a workload is issued its binding's headless
+  installation is issued no ordinary capability; a workload is issued its binding's headless
   scopes and refused an undeclared binding, a binding addressed elsewhere, a
   widened scope, a forged credential; a child hop attenuates and names its actor;
   `Keys` lets an independent core verifier check what was issued; TTL clamps.
@@ -1240,3 +1240,54 @@ The edge serves it to the browser on the Setup tab's Connect face. The shared
 suite proves it in `RunSolutionPrincipalTarget` (`held_installations.go`). The
 edge accepts installation `<0.5.0`; a host must serve `ListHeld` and pass that
 case before a consumer relies on it.
+
+### Pending installation setup delivery
+
+The shared Go owner exposes `IssueInstallationStep(ctx, InstallationStepAttempt,
+remainingLease)` for a **trusted host queue claimant**, and
+`VerifyInstallationStep(ctx, token, audience)` for setup admission. This does not
+change ordinary pending-installation refusal. The attempt pins the canonical
+installation ID, organization, target name, revision and consent receipt, plus
+the original reviewed delivery's principal (`TargetID`), generation and digest.
+A host release-table target UUID is a different identity and remains part of the
+host's immutable target/release/binding check. The claimant persists that original
+association and receipt, never a token, and checks its job lease before minting.
+
+The credential uses Core's existing signer/verifier and a private pending-only
+seal source. Its only scope is `installations:install` on that installation ID.
+An opaque operation binding covers the exact attempt. No agent-role data scopes
+or person/team grants are added. Normal `Verify`, `Check`, child exchange and
+issuance cannot consume it, including after activation at the same revision.
+Expiry is at most one minute, the configured maximum, and the supplied remaining
+lease. The verifier adds no clock-skew extension to this window. Delivery is
+idempotent while the attempt remains pending; the host still owns live queue
+lease validation, retry and completion fencing. A lease cancellation is not
+represented as an Authority revocation and must not be claimed as one.
+
+The existing `Check` transport reaches this verifier only with the exact method
+`POST /_codefly/installations` or
+`/host.installation.v1.InstallableService/Install`. These reserved setup methods
+do not admit an ordinary capability, and advisory mode cannot relax their
+credential checks. Receiver code supplies its own delivered audience and actual
+method. Before invoking a configured callback or returning a cached ACK, it
+compares the verified organization, installation ID and revision against strict
+JSON `{installation_id, organization_id, revision}` and both installation
+headers. An absent callback refuses; a solution may explicitly provide a no-op.
+The owner library alone does not supply that runtime receiver or the host job
+adapter; both require integration qualification.
+
+This is a method-policy compatibility change without a protobuf field or RPC
+change: an older setup sender's ordinary agent capability is not accepted at
+either reserved method. Hosts must adopt the dedicated pending-step issuer and
+receivers must enforce the setup check before enabling canonical installation
+delivery. There is no fallback to an ordinary token, delivered method policy,
+or advisory acceptance when either side has not adopted the setup contract.
+
+`InstallStep` enqueues idempotently and returns failure/pending until that exact
+job acknowledges. Enqueue success is never setup success. Only `Install`'s final
+authorization, consent, generation and revision transaction activates canonical
+state; no queue trigger activates it or a public installation mirror. Revocation,
+replacement approval, redelivery and activation invalidate outstanding setup
+credentials. The final state read is admission, not an atomic reservation through
+callback I/O; a racing state change still prevents final installation activation.
+Module installations and existing fixture-only trusted setup remain unchanged.
