@@ -827,6 +827,15 @@ type CheckRequest struct {
 	// applies what the audience module's delivery declares for that method, and
 	// refuses by name a call that does not hold it, a method that declares
 	// nothing, and a method the module does not serve.
+	// Two exact methods are reserved for installation setup instead of delivered
+	// method policy: "POST /_codefly/installations" and
+	// "/host.installation.v1.InstallableService/Install". They accept only the
+	// setup-only credential for the exact current consented pending installation;
+	// ordinary capabilities are refused, even if delivered policy permits them.
+	// The receiver supplies its actual method and its own delivered audience,
+	// never values selected by the request body. The verified organization and
+	// installation seal must match the setup body and carriers before callback
+	// execution or a cached acknowledgement. Setup admits no ordinary data work.
 	Method string `protobuf:"bytes,3,opt,name=method,proto3" json:"method,omitempty"`
 	// Advisory asks for the policy decision without its refusal: the capability
 	// is still verified and refused when it is not sound, but what the method
@@ -834,6 +843,8 @@ type CheckRequest struct {
 	// capability is answered. A hop in a composition that runs permissive
 	// (hop/ENFORCEMENT=warn) asks this way and logs the refusal it did not make.
 	// Hosts may refuse advisory outside local development runs.
+	// At either reserved setup method, advisory does not relax setup credential
+	// authentication or its pending-attempt checks: a refusal is always an error.
 	Advisory      bool `protobuf:"varint,4,opt,name=advisory,proto3" json:"advisory,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

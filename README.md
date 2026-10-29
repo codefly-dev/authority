@@ -1325,12 +1325,13 @@ intent, pending retry, revocation and final acknowledgement fences still apply.
 This does not implement active installation re-consent or migrate existing active
 installations to a new role selector.
 
-The service proto declarations include the new fields, but generated contracts,
-clients and local wire adapters must be regenerated and qualified through the
-maintained Codefly path before wire adoption. Shared Go tests do not prove signed
-CLI delivery, Accounts persistence/queue integration, or the host's final
-transactional prerequisite fence. No compatible generated package or live install
-is claimed until those integration gates pass.
+The new fields and reserved setup-method comments are exported through maintained
+Codefly generation into local bindings, contracts and Go/Python/TypeScript clients.
+The local document and offer adapters carry them. Tests exercise real signatures
+on both generated delivery messages, the authenticated reader and persistence,
+including disagreement refusal before storage. CLI producer construction and
+Accounts queue/receiver integration still require their own qualification; these
+local tests do not establish a deployed installation.
 
 
 The two signed delivery carriers must agree on these declarations. Shared
@@ -1342,5 +1343,14 @@ sidecar. Legacy delivery with both declarations absent remains supported.
 This compares two projections of one authored value; it adds no declaration
 parser, sorting, trimming or defaulting. `FromCore` alone is a projection, not
 paired-delivery admission. Hosts use the shared paired reader before persistence.
-These reader checks still require the generated CLI producer and host wire
-adapters before complete delivery can be enabled.
+The CLI must fill both generated carriers from the same resolved declaration,
+and each host must adopt its wire adapters before complete delivery is enabled.
+
+The generation baseline used released Codefly 0.1.221 and proto companion 0.0.18:
+unchanged pre-feature proto inputs reproduced their tracked outputs exactly.
+Repeated generation of the new proto and all three clients is byte-identical,
+and `codefly generate contracts authority --check` passes. Client generation
+selects `--module-name api` explicitly to preserve the existing root Go package
+when consuming the exported contracts directory. Only existing reviewed entries
+in the generated-file inventory have their hashes refreshed; no exclusion is
+added. SQL/cell installation evidence remains owned by the integrating host.

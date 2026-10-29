@@ -105,7 +105,10 @@ func (p *Plugin) review(offer authority.ReviewedOffer, bindings map[string]*runn
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}
-	out := &installationv1.ReviewedOffer{Target: projected.Target, ToolsComposed: projected.ToolsComposed}
+	out := &installationv1.ReviewedOffer{Target: projected.Target, ToolsComposed: projected.ToolsComposed, InstallationRole: projected.InstallationRole}
+	for _, d := range projected.EdgeDependencies {
+		out.EdgeDependencies = append(out.EdgeDependencies, &installationv1.OfferDependency{Module: d.Module, Presence: d.Presence})
+	}
 	if a := projected.Approval; a != nil {
 		out.Approval = &installationv1.ConsentApproval{TargetId: a.TargetID, Generation: a.Generation, ExpectedRevision: a.ExpectedRevision, Digest: a.Digest}
 	}
