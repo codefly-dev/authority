@@ -285,6 +285,10 @@ type InstallStep func(ctx context.Context, inst domain.Installation) error
 // while it is pending resumes it. Its principal is stable per organization and
 // target, so a reinstall reuses it; nobody holds a role until granted one,
 // the installing person included. The caller must administer the organization.
+// A delivered installation-role selector is authoritative: a named role is
+// selected unless the caller names that same role, and "none" selects no standing
+// authority when the caller supplies no role. A caller may never supply "none".
+// With no selector, the caller must name a declared role as before.
 func (s *Service) Install(ctx context.Context, caller Person, org, target, agentRole, installedBy string, approval *domain.ConsentApproval, step InstallStep) (domain.Installation, error) {
 	if approval != nil {
 		copy := *approval
@@ -331,8 +335,9 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 			return domain.Missing("%q is not a composed solution; a module is installed by composition", target)
 		}
 		generation = m.Generation
-		if _, ok := m.Roles[agentRole]; !ok {
-			return domain.Missing("role %q is not one %s declares", agentRole, target)
+		selectedRole, err := installationRole(m, agentRole)
+		if err != nil {
+			return err
 		}
 		p, err := tx.Member(org, installedBy)
 		if err != nil && !errors.Is(err, domain.ErrNotFound) {
@@ -357,7 +362,7 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 			}
 		}
 		if err == nil && existing.Status == domain.Pending {
-			if existing.AgentRole != agentRole || existing.InstalledBy != installedBy {
+			if existing.AgentRole != selectedRole || existing.InstalledBy != installedBy {
 				return domain.NotNow("%s is pending at %s as %s for %s; only that install resumes it", target, org, existing.AgentRole, existing.InstalledBy)
 			}
 			// The same install asked again resumes its pending attempt: its
@@ -412,7 +417,7 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 			return err
 		}
 		inst = domain.Installation{ID: id, Organization: org, Target: target, Status: domain.Pending, Revision: existing.Revision + 1,
-			AgentRole: agentRole, PrincipalID: principal, InstalledBy: installedBy}
+			AgentRole: selectedRole, PrincipalID: principal, InstalledBy: installedBy}
 		if approval != nil {
 			inst.Consent = domain.ConsentReceipt{OperationID: approval.OperationID, Intent: intent, Revision: inst.Revision}
 		}
@@ -472,6 +477,28 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 			Detail: map[string]string{"target": current.Target, "revision": fmt.Sprint(current.Revision)}})
 	})
 	return inst, err
+}
+
+// installationRole applies the signed declaration, not a preference derived from
+// role order, human grants or bindings. The request is left unchanged for consent
+// intent and transaction retries. "none" is a stored marker, not a role lookup.
+func installationRole(m domain.Module, requested string) (string, error) {
+	if requested == domain.NoInstallationRole {
+		return "", domain.Refuse("none is an installation_role declaration, not a caller-supplied role")
+	}
+	selected := m.InstallationRole
+	if selected == "" {
+		selected = requested
+	} else if requested != "" && requested != selected {
+		return "", domain.Refuse("role %q cannot override %s's installation_role declaration", requested, m.Name)
+	}
+	if m.InstallationRole == domain.NoInstallationRole {
+		return domain.NoInstallationRole, nil
+	}
+	if _, ok := m.Roles[selected]; !ok {
+		return "", domain.Missing("role %q is not one %s declares", selected, m.Name)
+	}
+	return selected, nil
 }
 
 // requested is the journal entry of an installation attempt recorded pending.

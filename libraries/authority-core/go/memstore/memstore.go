@@ -428,6 +428,7 @@ func cloneScopes(in []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 {
 }
 
 func cloneModule(m domain.Module) domain.Module {
+	m.EdgeDependencies = slices.Clone(m.EdgeDependencies)
 	m.ResourceKinds = cloneScopes(m.ResourceKinds)
 	bindings := make(map[string]domain.Binding, len(m.Bindings))
 	for id, b := range m.Bindings {

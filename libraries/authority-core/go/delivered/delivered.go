@@ -31,6 +31,9 @@ type Document struct {
 	Methods            []Method
 	Roles              []Role
 	OwnerAware         bool
+	// Core validates these declarations; every delivery hop carries them verbatim.
+	InstallationRole string
+	EdgeDependencies []domain.EdgeDependency
 }
 
 // Method is one method's declaration in the document.
@@ -102,6 +105,8 @@ func Module(manifest *solutionhost.ModuleManifest, doc *Document) (domain.Module
 		return m, err
 	}
 	m.OwnerAware = doc.OwnerAware
+	m.InstallationRole = doc.InstallationRole
+	m.EdgeDependencies = slices.Clone(doc.EdgeDependencies)
 	return m, nil
 }
 

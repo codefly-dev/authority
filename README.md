@@ -1291,3 +1291,40 @@ replacement approval, redelivery and activation invalidate outstanding setup
 credentials. The final state read is admission, not an atomic reservation through
 callback I/O; a racing state change still prevents final installation activation.
 Module installations and existing fixture-only trusted setup remain unchanged.
+
+
+### Declared installation authority
+
+The signed authority document and shared Go delivery/offer types carry
+`InstallationRole` and `EdgeDependencies{Module, Presence}`. Core's module parser
+validates the declarations; subsequent carriers preserve the exact strings and
+list order without trimming, defaults or inferred module identities. Edge
+presence (`required` or `optional`) grants nothing. A host resolves those explicit
+catalogue identities and binding audiences to reviewed delivered prerequisites;
+this list is not effective access or a substitute for per-module consent.
+Nil and empty dependency lists mean the same declaration. Absent fields are
+omitted from `domain.Module` JSON, preserving the old review digest. Changes to
+nonempty fields change the consent digest and require a fresh review.
+
+`Install` uses the declaration as follows: an absent selector retains explicit
+caller selection; a named selector selects that declared role, accepting an empty
+request or the same role; literal `none` accepts only an empty role request and
+creates no standing authority. A caller may never submit `none` as a role. A
+conflicting caller role refuses. Canonical `Installation.AgentRole` retains
+`none` as a no-standing-authority marker, not a role or grant row. The installation
+still has its stable principal and can use pending-only setup delivery. Ordinary
+installation issuance refuses, and neither installer nor any person/team receives
+an automatic grant. Existing installer-role and nonempty-role rules are unchanged.
+
+Hosts persist the original request separately from the effective machine role:
+retry the original empty role request, never the stored `none` marker. Consent
+intent, pending retry, revocation and final acknowledgement fences still apply.
+This does not implement active installation re-consent or migrate existing active
+installations to a new role selector.
+
+The service proto declarations include the new fields, but generated contracts,
+clients and local wire adapters must be regenerated and qualified through the
+maintained Codefly path before wire adoption. Shared Go tests do not prove signed
+CLI delivery, Accounts persistence/queue integration, or the host's final
+transactional prerequisite fence. No compatible generated package or live install
+is claimed until those integration gates pass.
