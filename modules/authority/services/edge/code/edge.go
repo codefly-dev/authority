@@ -18,6 +18,8 @@ import (
 	installationv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/installation/v1"
 	sessionv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/session/v1"
 	"github.com/codefly-dev/authority/libraries/authority-client/go/host"
+	"github.com/codefly-dev/sdk-go/receipts"
+	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -151,7 +153,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		refuse(w, http.StatusNotFound, "no module serves "+r.URL.Path)
 		return
 	}
-	proxy(e.Frontend, "", w, r)
+	proxy(e.Frontend, "", "", w, r)
 }
 
 // route is the module a path is for and the face that serves it.
@@ -197,7 +199,9 @@ func (e *Edge) toModule(w http.ResponseWriter, r *http.Request, module Module, t
 		refuseCall(w, r, code, "the authority refused this person at "+module.Name+": "+status.Convert(err).Message())
 		return
 	}
-	proxy(target, wc.token, w, r)
+	// Each module call is its own effect, minted here: an operation that keeps
+	// receipts requires an effect id, and a browser may not name one.
+	proxy(target, wc.token, uuid.NewString(), w, r)
 }
 
 // workContext is the person's Work Context at module, issued by the authority
@@ -450,8 +454,11 @@ func sameOrigin(r *http.Request) bool {
 
 // proxy sends r on to target, with the Work Context the edge holds for it and
 // nothing a caller said about who it is: no Authorization, no Cookie and no
-// x-codefly-* header leaves the edge unless the edge set it.
-func proxy(target *url.URL, token string, w http.ResponseWriter, r *http.Request) {
+// x-codefly-* header leaves the edge unless the edge set it. effect, when set,
+// is the effect id the call is attempted under: the edge names every module
+// call's effect, so a caller can never name one and replay another person's
+// receipt.
+func proxy(target *url.URL, token, effect string, w http.ResponseWriter, r *http.Request) {
 	(&httputil.ReverseProxy{
 		// Never through a proxy from the environment, which would read the
 		// person's Work Context.
@@ -468,6 +475,9 @@ func proxy(target *url.URL, token string, w http.ResponseWriter, r *http.Request
 			}
 			if token != "" {
 				pr.Out.Header.Set(WorkContextKey, token)
+			}
+			if effect != "" {
+				pr.Out.Header.Set(receipts.EffectIDHeaderName, effect)
 			}
 		},
 		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, err error) {
