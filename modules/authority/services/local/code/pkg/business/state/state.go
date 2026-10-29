@@ -156,6 +156,10 @@ type fixtureFile struct {
 		ID   string `yaml:"id"`
 		Name string `yaml:"name"`
 	} `yaml:"organizations"`
+	Teams []struct {
+		ID string `yaml:"id"`
+		Organization string `yaml:"organization"`
+	} `yaml:"teams"`
 	Roles         []Role                `yaml:"roles"`
 	People        []Person              `yaml:"people"`
 	Installations []FixtureInstallation `yaml:"installations"`
@@ -265,6 +269,13 @@ func (s *State) LoadFixture(ctx context.Context, data []byte) error {
 	for _, o := range f.Organizations {
 		s.orgs[o.ID] = o.Name
 		s.store.PutOrganization(domain.Organization{ID: o.ID, Name: o.Name})
+	}
+	for _, team := range f.Teams {
+		if _, ok := s.orgs[team.Organization]; !ok || team.ID == "" {
+			s.mu.Unlock()
+			return fmt.Errorf("fixture: team %q names no id or an unknown organization %q", team.ID, team.Organization)
+		}
+		s.store.PutTeam(team.Organization, team.ID)
 	}
 	for _, r := range f.Roles {
 		if r.Generated && (r.Name != "developer" || len(r.Scopes) != 0) {

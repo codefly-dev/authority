@@ -59,12 +59,13 @@ func decideRoleChange(tx Tx, caller *Person, r RoleRequest, list, revoke bool) (
 			change.Subject = &p
 		}
 	}
-	if r.TeamID != "" {
-		people, err := tx.People(inst.Organization)
+	if r.TeamID != "" && !revoke && !list {
+		// Revocation remains possible after a team was deleted. A new grant
+		// requires the directory entry, not a person who happens to belong.
+		change.TeamOfOrganization, err = tx.TeamExists(inst.Organization, r.TeamID)
 		if err != nil {
 			return inst, err
 		}
-		change.TeamOfOrganization = slices.ContainsFunc(people, func(p domain.Person) bool { return slices.Contains(p.Teams, r.TeamID) })
 	}
 	return inst, decide.ChangeRole(change)
 }

@@ -10,6 +10,10 @@ organizations:
     name: Acme
   - id: globex
     name: Globex
+teams:
+  - {organization: acme, id: finance}
+  - {organization: acme, id: engineering}
+  - {organization: globex, id: ops}
 roles:
   - organization: acme
     name: viewer
