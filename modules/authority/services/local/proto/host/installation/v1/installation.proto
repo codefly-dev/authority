@@ -273,6 +273,7 @@ message ReviewedOffer {
 }
 
 // OfferDependency carries presence only, never scopes or inferred binding ids.
+// Module is the exact signed principal, resolved by the host to its live target.
 message OfferDependency {
   string module = 1;
   string presence = 2;

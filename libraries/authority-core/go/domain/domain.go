@@ -85,8 +85,9 @@ type Module struct {
 // as a no-standing-authority marker, never looked up as a role or granted.
 const NoInstallationRole = "none"
 
-// EdgeDependency is a Core-validated viewer-edge presence requirement. Hosts
-// resolve Module through their delivered catalogue, never from a binding id.
+// EdgeDependency is a Core-validated viewer-edge presence requirement. Module
+// is the exact signed Module.Principal. Hosts resolve it through their catalogue
+// to a live target; it is not a target UUID, route alias or binding id.
 type EdgeDependency struct {
 	Module, Presence string
 }

@@ -1299,9 +1299,12 @@ The signed authority document and shared Go delivery/offer types carry
 `InstallationRole` and `EdgeDependencies{Module, Presence}`. Core's module parser
 validates the declarations; subsequent carriers preserve the exact strings and
 list order without trimming, defaults or inferred module identities. Edge
-presence (`required` or `optional`) grants nothing. A host resolves those explicit
-catalogue identities and binding audiences to reviewed delivered prerequisites;
-this list is not effective access or a substitute for per-module consent.
+presence (`required` or `optional`) grants nothing. Each `Module` is the exact
+signed `domain.Module.Principal`. The host resolves it and binding audiences
+through the existing catalogue to live target UUIDs and bindings, then reviews
+and fences those delivered prerequisites. A principal is never assumed to be a
+target UUID; route aliases, binding IDs and release strings are not fallbacks.
+This list is not effective access or a substitute for per-module consent.
 Nil and empty dependency lists mean the same declaration. Absent fields are
 omitted from `domain.Module` JSON, preserving the old review digest. Changes to
 nonempty fields change the consent digest and require a fresh review.

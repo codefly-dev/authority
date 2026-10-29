@@ -74,7 +74,8 @@ message AuthorityManifestV1 {
   repeated EdgeDependencyV1 edge_dependencies = 9;
 }
 
-// EdgeDependencyV1 names an explicit catalogue module, never a binding id.
+// EdgeDependencyV1 names the exact signed module principal. The host resolves
+// it to a live catalogue target; it is not a target UUID, route alias or binding id.
 message EdgeDependencyV1 {
   string module = 1;
   // Core validates required or optional; delivery does not default this value.
