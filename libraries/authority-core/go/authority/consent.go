@@ -84,6 +84,11 @@ func (s *Service) reviewOffer(ctx context.Context, caller Person, org, target st
 			return refused
 		}
 		inst, err := tx.Installation(s.cfg.InstallationID(org, target))
+		if errors.Is(err, domain.ErrNotFound) && s.cfg.HostInstallsModules {
+			// A host that installs modules names a module page's
+			// installation itself, so it is found by its target.
+			inst, err = installationOf(tx, org, target)
+		}
 		if errors.Is(err, domain.ErrNotFound) {
 			inst, err = domain.Installation{}, nil
 		}

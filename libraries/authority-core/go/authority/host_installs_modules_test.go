@@ -301,3 +301,21 @@ func sameActions(got, want []string) bool {
 	}
 	return true
 }
+
+// A module page's installation a host names itself is the one its offer
+// review reads, as the role holder's capability does.
+func TestAHostNamedModulePageInstallationIsReviewed(t *testing.T) {
+	h := newHostInstalled(t)
+	if _, err := h.svc.ApplyModule(h.ctx, pageModule(1, true)); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.store.Write(h.ctx, func(tx authority.Tx) error {
+		return tx.PutInstallation(domain.Installation{ID: "host-pages", Organization: acme, Target: "pages", Status: domain.Active, Revision: 1})
+	}); err != nil {
+		t.Fatal(err)
+	}
+	offer, err := h.svc.ReviewOffer(h.ctx, authority.Person{ID: "alex", Organization: acme, SessionID: "s"}, acme, "pages")
+	if err != nil || offer.Installation.ID != "host-pages" || len(offer.Module.Roles) != 2 {
+		t.Fatalf("the administrator reviews %+v, %v; want the host's installation host-pages", offer.Installation, err)
+	}
+}
