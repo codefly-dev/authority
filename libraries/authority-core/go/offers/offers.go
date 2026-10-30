@@ -19,12 +19,14 @@ import (
 // Review is presentation of an already-authorized, consistent core read.
 // Approval is absent on a member's read; projection never grants consent.
 type Review struct {
-	Target        string
-	Approval      *domain.ConsentApproval
-	Installation  *domain.Installation
-	Ceiling       []*Binding
-	Roles         []*Role
-	ToolsComposed bool
+	Target           string
+	Approval         *domain.ConsentApproval
+	Installation     *domain.Installation
+	Ceiling          []*Binding
+	Roles            []*Role
+	ToolsComposed    bool
+	InstallationRole string
+	EdgeDependencies []domain.EdgeDependency
 }
 
 type Binding struct {
@@ -62,7 +64,8 @@ type Scope struct {
 func Project(offer authority.ReviewedOffer, bindings map[string]*runnablev0.PreparedBinding) (*Review, error) {
 	m, inst := offer.Module, offer.Installation
 	a := offer.Approval
-	out := &Review{Target: m.Name, ToolsComposed: len(bindings) > 0}
+	out := &Review{Target: m.Name, ToolsComposed: len(bindings) > 0,
+		InstallationRole: m.InstallationRole, EdgeDependencies: slices.Clone(m.EdgeDependencies)}
 	// A member's read carries no consent tuple: only an administrator consents.
 	if a.Digest != "" {
 		out.Approval = &domain.ConsentApproval{TargetID: a.TargetID, Generation: a.Generation, ExpectedRevision: a.ExpectedRevision, Digest: a.Digest}

@@ -392,6 +392,9 @@ func (s *Service) IssueForInstallation(ctx context.Context, w Workload, installa
 		if inst.Status != domain.Active {
 			return domain.NotNow("installation %s is %s: %s is not installed", inst.ID, inst.Status, inst.Target)
 		}
+		if inst.AgentRole == domain.NoInstallationRole {
+			return domain.Refuse("installation %s declares no standing machine authority", inst.ID)
+		}
 		if err = s.audienceOf(tx, &r, w.Module); err != nil {
 			return err
 		}

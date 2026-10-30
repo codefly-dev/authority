@@ -67,6 +67,19 @@ message AuthorityManifestV1 {
   // delivery withdrawing it refuses the owner-selected capabilities issued
   // before. Every solution receiving its roles' scopes declares it.
   bool owner_aware = 7;
+  // Core-validated selector, carried verbatim: empty is legacy caller selection,
+  // "none" declares no standing machine authority, otherwise a declared role.
+  string installation_role = 8;
+  // Viewer-edge presence only; grants no authority. Nil and empty are equivalent.
+  repeated EdgeDependencyV1 edge_dependencies = 9;
+}
+
+// EdgeDependencyV1 names the exact signed module principal. The host resolves
+// it to a live catalogue target; it is not a target UUID, route alias or binding id.
+message EdgeDependencyV1 {
+  string module = 1;
+  // Core validates required or optional; delivery does not default this value.
+  string presence = 2;
 }
 
 // MethodPolicyV1 is what a call to one method must hold, as the module's

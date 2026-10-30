@@ -84,6 +84,8 @@ func newHarness(t *testing.T) *harness {
 	for _, org := range []string{acme, globex} {
 		h.store.PutOrganization(domain.Organization{ID: org, Name: org})
 	}
+	h.store.PutTeam(acme, "team")
+	h.store.PutTeam(globex, "ops")
 	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "admin", Scopes: nil})
 	h.store.PutOrgRole(domain.OrgRole{Organization: globex, Name: "admin", Scopes: nil})
 	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "store-admin", Scopes: []domain.RoleScope{{Kind: kind, Actions: []string{"admin"}, Resources: []resources.Grant{{ID: "store-x"}}}}})

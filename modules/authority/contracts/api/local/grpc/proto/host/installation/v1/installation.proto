@@ -264,6 +264,19 @@ message ReviewedOffer {
   // False when this run delivered no prepared Runnable bindings: no tool is
   // shown, which says nothing about what a composed binding would expose.
   bool tools_composed = 6;
+  // Signed machine-role selector: empty is undeclared, "none" is no standing
+  // authority, otherwise a named role. This is not a person or team grant.
+  string installation_role = 7;
+  // Exact declared viewer-edge presence, covered by the reviewed digest.
+  // Required access and per-module approval are separate host review concerns.
+  repeated OfferDependency edge_dependencies = 8;
+}
+
+// OfferDependency carries presence only, never scopes or inferred binding ids.
+// Module is the exact signed principal, resolved by the host to its live target.
+message OfferDependency {
+  string module = 1;
+  string presence = 2;
 }
 
 // OfferBinding is one declared call from the solution to a module.

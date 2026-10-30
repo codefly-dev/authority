@@ -1,6 +1,6 @@
 {
   "schema": "codefly/module-api-contracts/v1",
-  "package": "local",
+  "package": "codefly/authority",
   "version": "0.1.0",
   "endpoints": [
     {
@@ -8,15 +8,79 @@
       "endpoint": "grpc",
       "api": "grpc",
       "kind": "protobuf",
-      "package": "api",
+      "package": "",
       "path": "contract.binpb",
-      "digest": "sha256:2d74a1ad05ecab544606e2e52630cc5cb6c16729371f091262dfb45a686d2712",
+      "digest": "sha256:b49a5399e647c61b1991fc22bf7fcf8262ab17333dbe01b4afd1d16c346f3ea7",
       "services": [
         {
           "name": "LocalService",
           "fullName": "api.LocalService",
           "procedures": [
             "/api.LocalService/Version"
+          ]
+        },
+        {
+          "name": "ArtifactService",
+          "fullName": "host.artifact.v1.ArtifactService",
+          "procedures": [
+            "/host.artifact.v1.ArtifactService/Approve",
+            "/host.artifact.v1.ArtifactService/Authorize",
+            "/host.artifact.v1.ArtifactService/Revoke"
+          ]
+        },
+        {
+          "name": "AuthorityService",
+          "fullName": "host.authority.v1.AuthorityService",
+          "procedures": [
+            "/host.authority.v1.AuthorityService/AttachResource",
+            "/host.authority.v1.AuthorityService/AuthorizeTransfer",
+            "/host.authority.v1.AuthorityService/Check",
+            "/host.authority.v1.AuthorityService/Delegate",
+            "/host.authority.v1.AuthorityService/DetachResource",
+            "/host.authority.v1.AuthorityService/GetDelegation",
+            "/host.authority.v1.AuthorityService/Issue",
+            "/host.authority.v1.AuthorityService/Keys",
+            "/host.authority.v1.AuthorityService/ListResources",
+            "/host.authority.v1.AuthorityService/RegisterAdmissionKey",
+            "/host.authority.v1.AuthorityService/RevokeDelegation"
+          ]
+        },
+        {
+          "name": "CompositionService",
+          "fullName": "host.composition.v1.CompositionService",
+          "procedures": [
+            "/host.composition.v1.CompositionService/ApplyManifest"
+          ]
+        },
+        {
+          "name": "InstallationService",
+          "fullName": "host.installation.v1.InstallationService",
+          "procedures": [
+            "/host.installation.v1.InstallationService/Current",
+            "/host.installation.v1.InstallationService/GrantRole",
+            "/host.installation.v1.InstallationService/Install",
+            "/host.installation.v1.InstallationService/List",
+            "/host.installation.v1.InstallationService/ListHeld",
+            "/host.installation.v1.InstallationService/ListRoleGrants",
+            "/host.installation.v1.InstallationService/Review",
+            "/host.installation.v1.InstallationService/RevokeRole"
+          ]
+        },
+        {
+          "name": "OfferService",
+          "fullName": "host.installation.v1.OfferService",
+          "procedures": [
+            "/host.installation.v1.OfferService/ListOffers",
+            "/host.installation.v1.OfferService/ReviewOffer"
+          ]
+        },
+        {
+          "name": "SessionService",
+          "fullName": "host.session.v1.SessionService",
+          "procedures": [
+            "/host.session.v1.SessionService/Current",
+            "/host.session.v1.SessionService/ListFixturePeople",
+            "/host.session.v1.SessionService/SignIn"
           ]
         }
       ]

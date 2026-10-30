@@ -16,6 +16,9 @@ func TestTheMemoryStoreMeetsTheStoreContract(t *testing.T) {
 		for _, o := range id.Organizations {
 			s.PutOrganization(o)
 		}
+		for _, team := range id.Teams {
+			s.PutTeam(team.Organization, team.ID)
+		}
 		for _, m := range id.Members {
 			p := domain.Person{ID: m.Person, Organization: m.Organization, Teams: m.Teams}
 			if m.Administrator {

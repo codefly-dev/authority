@@ -35,6 +35,10 @@ type Tx interface {
 	// teams there. A person who is not a member of it is ErrNotFound.
 	Member(organization, id string) (domain.Person, error)
 	People(organization string) ([]domain.Person, error)
+	// TeamExists reads the host's current team directory in this transaction,
+	// independently of membership. Empty teams exist; absent, deleted and
+	// other-organization teams answer false. Storage failures return an error.
+	TeamExists(organization, id string) (bool, error)
 	OrgRole(organization, name string) (domain.OrgRole, error)
 
 	// Module answers by principal, ModuleNamed by name; Modules lists every one.

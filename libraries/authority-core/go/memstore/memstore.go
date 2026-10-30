@@ -22,6 +22,7 @@ type Store struct {
 	mu            sync.RWMutex
 	orgs          map[string]domain.Organization
 	people        map[string]map[string]domain.Person // id → organization → membership
+	teams         map[string]map[string]bool          // organization → team id
 	roles         map[string]domain.OrgRole           // organization/name
 	modules       map[string]domain.Module            // name
 	installations map[string]domain.Installation
@@ -42,7 +43,7 @@ func New() *Store {
 		modules: map[string]domain.Module{}, installations: map[string]domain.Installation{}, grants: map[string][]domain.RoleGrant{},
 		revisions: map[string]uint64{}, personEpochs: map[string]uint64{}, grantEpochs: map[string]uint64{},
 		ownerAware: map[string]uint64{}, delegations: map[string]domain.Delegation{}, tombstones: map[string]domain.Tombstone{},
-		clients: map[string]domain.Client{},
+		clients: map[string]domain.Client{}, teams: map[string]map[string]bool{},
 	}
 }
 
@@ -111,6 +112,24 @@ func (s *Store) PutOrganization(o domain.Organization) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.orgs[o.ID] = o
+}
+
+// PutTeam records an existing team, whether or not it has members.
+func (s *Store) PutTeam(organization, id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.teams[organization] == nil {
+		s.teams[organization] = map[string]bool{}
+	}
+	s.teams[organization][id] = true
+}
+
+// DeleteTeam removes a directory entry. The host owns membership cleanup and
+// the corresponding PersonChanged notifications; this creates no memberships.
+func (s *Store) DeleteTeam(organization, id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.teams[organization], id)
 }
 
 // PutPerson records a person's membership of p.Organization; a person may
@@ -206,6 +225,10 @@ func (t tx) People(org string) ([]domain.Person, error) {
 	}
 	sort.Slice(out, func(a, b int) bool { return out[a].ID < out[b].ID })
 	return out, nil
+}
+
+func (t tx) TeamExists(organization, id string) (bool, error) {
+	return t.s.teams[organization][id], nil
 }
 
 func (t tx) OrgRole(org, name string) (domain.OrgRole, error) {
@@ -428,6 +451,7 @@ func cloneScopes(in []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 {
 }
 
 func cloneModule(m domain.Module) domain.Module {
+	m.EdgeDependencies = slices.Clone(m.EdgeDependencies)
 	m.ResourceKinds = cloneScopes(m.ResourceKinds)
 	bindings := make(map[string]domain.Binding, len(m.Bindings))
 	for id, b := range m.Bindings {

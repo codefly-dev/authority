@@ -156,6 +156,10 @@ type fixtureFile struct {
 		ID   string `yaml:"id"`
 		Name string `yaml:"name"`
 	} `yaml:"organizations"`
+	Teams []struct {
+		ID           string `yaml:"id"`
+		Organization string `yaml:"organization"`
+	} `yaml:"teams"`
 	Roles         []Role                `yaml:"roles"`
 	People        []Person              `yaml:"people"`
 	Installations []FixtureInstallation `yaml:"installations"`
@@ -266,6 +270,13 @@ func (s *State) LoadFixture(ctx context.Context, data []byte) error {
 		s.orgs[o.ID] = o.Name
 		s.store.PutOrganization(domain.Organization{ID: o.ID, Name: o.Name})
 	}
+	for _, team := range f.Teams {
+		if _, ok := s.orgs[team.Organization]; !ok || team.ID == "" {
+			s.mu.Unlock()
+			return fmt.Errorf("fixture: team %q names no id or an unknown organization %q", team.ID, team.Organization)
+		}
+		s.store.PutTeam(team.Organization, team.ID)
+	}
 	for _, r := range f.Roles {
 		if r.Generated && (r.Name != "developer" || len(r.Scopes) != 0) {
 			s.mu.Unlock()
@@ -294,6 +305,11 @@ func (s *State) LoadFixture(ctx context.Context, data []byte) error {
 		s.people[p.ID] = p
 		s.byToken[p.FixtureToken] = p.ID
 		s.store.PutPerson(domain.Person{ID: p.ID, Organization: p.Organization, Roles: slices.Clone(p.Roles), Teams: slices.Clone(p.Teams)})
+		// The fixture is this host's team directory: a team it seats a person
+		// in exists, and teams: lists the ones nobody belongs to yet.
+		for _, team := range p.Teams {
+			s.store.PutTeam(p.Organization, team)
+		}
 	}
 	s.refreshRolesLocked()
 	s.mu.Unlock()

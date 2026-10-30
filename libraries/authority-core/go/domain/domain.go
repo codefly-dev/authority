@@ -66,12 +66,30 @@ type Module struct {
 	Roles map[string][]*basev0.WorkScopeV1
 	// OwnedRoles resolve only to the exact ids attached to this installation.
 	OwnedRoles map[string][]*basev0.WorkScopeV1
+	// InstallationRole is the signed selector: absent leaves selection to the
+	// caller; "none" selects no standing authority; otherwise it names a role.
+	// Omit absent fields from the existing review digest's JSON representation.
+	InstallationRole string `json:",omitempty"`
+	// EdgeDependencies declares viewer-edge presence, never authority or grants.
+	// Nil and empty are equivalent, including in the review digest.
+	EdgeDependencies []EdgeDependency `json:",omitempty"`
 	// OwnerAware: the module compares a resource's owner with an
 	// owner-selected scope, so it may receive one.
 	OwnerAware bool
 	// Methods are what each method the module serves requires of a call, from
 	// its delivered authority document; nil when it declared none.
 	Methods map[string]MethodPolicy
+}
+
+// NoInstallationRole is declaration-only. It is retained on an installation
+// as a no-standing-authority marker, never looked up as a role or granted.
+const NoInstallationRole = "none"
+
+// EdgeDependency is a Core-validated viewer-edge presence requirement. Module
+// is the exact signed Module.Principal. Hosts resolve it through their catalogue
+// to a live target; it is not a target UUID, route alias or binding id.
+type EdgeDependency struct {
+	Module, Presence string
 }
 
 // MethodPolicy is one method's declaration: exactly one of its fields is set.
@@ -101,7 +119,8 @@ const (
 
 // Installation is one organization's installation of one target. A
 // solution's installation is a principal (PrincipalID): its data is owned by
-// it and it acts as it for itself, holding AgentRole.
+// it and it acts as it for itself, holding AgentRole unless it is the
+// declaration-only NoInstallationRole marker (no standing authority).
 type Installation struct {
 	ID, Organization, Target string
 	Status                   Status

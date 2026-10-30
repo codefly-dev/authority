@@ -31,6 +31,12 @@ import (
 type Identity struct {
 	Organizations []domain.Organization
 	Members       []Member
+	Teams         []Team
+}
+
+// Team is an authoritative directory entry, independent of member rows.
+type Team struct {
+	Organization, ID string
 }
 
 // Member is one person's membership of one organization: an administrator
@@ -64,6 +70,26 @@ func Run(t *testing.T, open Open) {
 			t.Fatal(err)
 		}
 	}
+
+	t.Run("team directory includes empty teams and refuses foreign or absent ids", func(t *testing.T) {
+		read(t, func(tx authority.Tx) error {
+			for _, team := range f.identity.Teams {
+				ok, err := tx.TeamExists(team.Organization, team.ID)
+				if err != nil || !ok {
+					t.Errorf("team %+v: exists=%t error=%v", team, ok, err)
+				}
+				ok, err = tx.TeamExists(f.orgB, team.ID)
+				if err != nil || ok {
+					t.Errorf("foreign team %+v: exists=%t error=%v", team, ok, err)
+				}
+			}
+			ok, err := tx.TeamExists(f.orgA, uuid.NewString())
+			if err != nil || ok {
+				t.Errorf("absent team: exists=%t error=%v", ok, err)
+			}
+			return nil
+		})
+	})
 
 	t.Run("identity reads answer what the host seeded", func(t *testing.T) {
 		read(t, func(tx authority.Tx) error {
@@ -458,6 +484,7 @@ func newFixture() *fixture {
 	reader := []domain.RoleScope{{Kind: "storetest.item", Actions: []string{"read"}}, {Kind: "storetest.note", Actions: []string{"write"}, Resources: []resources.Grant{{ID: "note-1"}}}}
 	f.identity = Identity{
 		Organizations: []domain.Organization{{ID: f.orgA, Name: "Storetest A " + f.run}, {ID: f.orgB, Name: "Storetest B " + f.run}},
+		Teams:         []Team{{Organization: f.orgA, ID: f.team}, {Organization: f.orgA, ID: uuid.NewString()}},
 		Members: []Member{
 			{Organization: f.orgA, Person: f.onlyA, Teams: []string{f.team}, Scopes: reader},
 			{Organization: f.orgA, Person: f.both, Administrator: true},

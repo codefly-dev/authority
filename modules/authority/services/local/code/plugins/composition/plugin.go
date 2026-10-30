@@ -138,7 +138,10 @@ func (p *Plugin) document(signed, carrier *compositionv1.SignedManifestV1, core 
 // DocumentOf reads this host's binding of the authority's document as the core's.
 func DocumentOf(in *compositionv1.AuthorityManifestV1) *delivered.Document {
 	doc := &delivered.Document{Module: in.GetModule(), Generation: in.GetGeneration(), CoreManifestDigest: in.GetCoreManifestDigest(),
-		ScopeCeilings: issuer.FromWire(in.GetScopeCeilings()), OwnerAware: in.GetOwnerAware()}
+		ScopeCeilings: issuer.FromWire(in.GetScopeCeilings()), OwnerAware: in.GetOwnerAware(), InstallationRole: in.GetInstallationRole()}
+	for _, d := range in.GetEdgeDependencies() {
+		doc.EdgeDependencies = append(doc.EdgeDependencies, domain.EdgeDependency{Module: d.GetModule(), Presence: d.GetPresence()})
+	}
 	for _, m := range in.GetMethods() {
 		doc.Methods = append(doc.Methods, delivered.Method{Method: m.GetMethod(), Requires: issuer.FromWire(m.GetRequires()), AnyCheckedCaller: m.GetAnyCheckedCaller()})
 	}
