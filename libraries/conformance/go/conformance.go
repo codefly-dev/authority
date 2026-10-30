@@ -929,28 +929,49 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			if expiry := field(msg(out, "context"), "expires_at_unix").Int(); at > 0 && expiry > at {
 				t.Fatalf("a capability expires at %d, past its delegation's end %d", expiry, at)
 			}
+			// The end is the one asked for, read against the host's own clock:
+			// asked before this issue, it is no later than the issue plus its
+			// lifetime. A host may clamp a lifetime shorter, never longer.
+			if now := i64(msg(out, "context"), "issued_at_unix"); at > now+ttl {
+				t.Fatalf("a delegation asked for %d s ends at %d, past the host's now %d plus its lifetime", ttl, at, now)
+			}
 			c.must(t, grantor, "host.authority.v1.AuthorityService", "RevokeDelegation", map[string]any{"delegation_id": str(d, "delegation_id")})
 		}
 
-		// The host enforces the end, not only reports it: a one-second
-		// delegation issues, and once past it neither issues nor reads as
-		// standing. The suite cannot move a host's clock, so it waits.
-		d, err := delegate(1)
+		// The host enforces the end, not only reports it: a short delegation
+		// issues, and once past its end neither issues nor reads as standing.
+		// The suite cannot move a host's clock, so it waits. The lifetime is
+		// long enough that no runner's scheduling consumes it before the first
+		// issue — a host carries the end in whole seconds and a one-second
+		// delegation could be issuable for as little as a few milliseconds —
+		// and the wait is measured on the host's clock, from the end it
+		// carries, so it lasts the lifetime and a second at most.
+		const lifetime = 10
+		d, err := delegate(lifetime)
 		if err != nil {
-			t.Fatalf("delegate for 1 s: %v", err)
+			t.Fatalf("delegate for %d s: %v", lifetime, err)
 		}
-		id := str(d, "delegation_id")
-		issue := func() error {
-			_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{
+		id, at := str(d, "delegation_id"), field(d, "expires_at_unix").Int()
+		issue := func() (protoreflect.Message, error) {
+			return c.call(ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{
 				"delegation": map[string]any{"delegation_id": id}, "audience": dc.Audience,
 				"actor": map[string]any{"credential": dc.Credential}, "operation_binding_id": dc.Binding})
-			return err
 		}
-		if err := issue(); err != nil {
-			t.Fatalf("a standing one-second delegation does not issue: %v", err)
+		out, err := issue()
+		if err != nil {
+			t.Fatalf("a standing %d s delegation does not issue: %v", lifetime, err)
 		}
-		time.Sleep(1500 * time.Millisecond)
-		if err := issue(); status.Code(err) != codes.PermissionDenied {
+		// Asked just before this issue, it ends within its lifetime of the
+		// host's now and not much sooner: a host that ignores the lifetime,
+		// longer or shorter, carries an end outside this window.
+		now := i64(msg(out, "context"), "issued_at_unix")
+		if at > now+lifetime || at < now+lifetime/2 {
+			t.Fatalf("a delegation asked for %d s ends at %d, at the host's now %d", lifetime, at, now)
+		}
+		// The carried end is whole seconds, so the host's own end is before
+		// at+1, and the host's now is past now when the issue answered.
+		time.Sleep(time.Duration(at+1-now)*time.Second + 250*time.Millisecond)
+		if _, err := issue(); status.Code(err) != codes.PermissionDenied {
 			t.Fatalf("an expired delegation issues: %v", err)
 		}
 		got, err := c.call(ctx, "host.authority.v1.AuthorityService", "GetDelegation", map[string]any{"delegation_id": id, "actor": map[string]any{"credential": dc.Credential}})
