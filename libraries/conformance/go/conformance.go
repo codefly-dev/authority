@@ -98,6 +98,10 @@ type Fixture struct {
 	// SignAuthority signs the authority's own document delivered with a manifest,
 	// with the key SignManifest signs with. Required for method-policy conformance.
 	SignAuthority func(document []byte) (envelope []byte, err error)
+	// PagePayload is the signed payload the page a module_page_roles delivery
+	// declares carries, for a host that applies a page only once its signed
+	// payload is prepared. Nil delivers the page declaration alone.
+	PagePayload *solutionhost.FrontendPayload
 
 	// Chain is a required delegate chain: a person signs in,
 	// is issued at Start, and each hop is taken by its module on the previous

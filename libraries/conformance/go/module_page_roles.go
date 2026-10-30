@@ -29,7 +29,7 @@ func (c *client) modulePageRoles(t *testing.T, ctx context.Context, f Fixture) {
 		if f.SignManifest == nil || f.SignAuthority == nil || f.DeliveryCredential == nil || f.AdminToken == "" || f.UnentitledToken == "" || f.ViewerToken == "" {
 			t.Fatal("required conformance fixture missing: signed delivery, an administrator, a viewer and a member holding no role (UnentitledToken)")
 		}
-		page := &solutionhost.Frontend{Title: pageModuleTitle, ExposedModule: "./Page", HostContract: 1}
+		page := &solutionhost.Frontend{Title: pageModuleTitle, ExposedModule: "./Page", HostContract: 1, Payload: f.PagePayload}
 		roles := func(note string) map[string]any {
 			return map[string]any{"scope_ceilings": []any{scopeAsk(note, []string{"read", "write"}, nil)}, "roles": []any{
 				map[string]any{"name": "installer", "scopes": []any{scopeAsk(note, []string{"read", "write"}, nil)}},
