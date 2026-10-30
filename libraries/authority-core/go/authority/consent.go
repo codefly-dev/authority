@@ -62,7 +62,8 @@ type ReviewedOffer struct {
 	Modules      []domain.Module
 }
 
-// ReviewOffer reads one solution's offer. An administrator of org reads it
+// ReviewOffer reads one solution's offer, or a module page's that declares
+// roles. An administrator of org reads it
 // with the consent tuple Install takes. A member of org who holds a role on
 // the solution's active installation there (granted to them or to a team of
 // theirs) reads the same declaration, roles, ceiling and installation without
@@ -101,8 +102,11 @@ func (s *Service) reviewOffer(ctx context.Context, caller Person, org, target st
 		if err != nil {
 			return notFound(err)
 		}
-		if m.Kind != domain.KindSolution {
-			return domain.Missing("%q is not a composed solution; a module is installed by composition", target)
+		// A module page declaring roles is reviewed as a solution is: its
+		// roles are what its Setup shows and grants. Its installation is
+		// still composition's (Install refuses a module).
+		if !decide.RoleGated(m) {
+			return domain.Missing("%q is not a composed solution or a module page declaring roles; a module is installed by composition", target)
 		}
 		if refused == nil {
 			digest, err := offerDigest(m)

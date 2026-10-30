@@ -36,6 +36,15 @@ func TestAModulePageRoleEntitlesItsHolderAlone(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Its offer is reviewed as a solution's: the roles its Setup shows. Its
+	// installation stays composition's.
+	offer, err := h.svc.ReviewOffer(h.ctx, h.admin(acme), acme, "pages")
+	if err != nil || len(offer.Module.Roles) != 2 || offer.Installation.ID != h.inst(acme, "pages").ID || offer.Approval.Digest == "" {
+		t.Fatalf("the administrator reviews the module page's offer: %+v, %v", offer, err)
+	}
+	_, err = h.svc.Install(h.ctx, h.admin(acme), acme, "pages", "", "", h.approval(acme, "pages"), nil)
+	refused(t, err, "a module is installed by composition")
+
 	h.grant("pages", "viewer", "maya")
 	viewer := h.must(h.root("maya", "pages"))
 	exactly(t, viewer, "pages.note", "", []string{"read"})
@@ -83,6 +92,8 @@ func TestAModulePageRoleEntitlesItsHolderAlone(t *testing.T) {
 	}
 	reader := h.must(h.root("ines", "pages"))
 	exactly(t, reader, "pages.note", "", []string{"read"})
+	_, err = h.svc.ReviewOffer(h.ctx, h.admin(acme), acme, "pages")
+	refused(t, err, "a module is installed by composition")
 	_, err = h.root("maya", "pages")
 	refused(t, err, "holds nothing")
 	_, err = h.svc.GrantRole(h.ctx, h.admin(acme), authority.RoleRequest{Organization: acme, InstallationID: h.inst(acme, "pages").ID, Role: "viewer", PersonID: "maya"})
