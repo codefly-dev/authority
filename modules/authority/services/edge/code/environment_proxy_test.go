@@ -48,7 +48,7 @@ func TestTheEdgeNeverForwardsThePersonsWorkContextThroughAnEnvironmentProxy(t *t
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
 	before := proxied.Load()
-	proxy(target, "SECRET-WC", httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1/documents", nil).WithContext(ctx))
+	proxy(target, "SECRET-WC", "", httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1/documents", nil).WithContext(ctx))
 	if n := proxied.Load() - before; n != 0 {
 		t.Fatalf("the edge forwarded the Work Context through the environment proxy (%d connections)", n)
 	}
