@@ -1,12 +1,14 @@
 package authority_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	"github.com/google/uuid"
 )
 
 // pageModule is a module declaring a page; with roles, what a person holds at
@@ -37,13 +39,29 @@ func TestAModulePageRoleEntitlesItsHolderAlone(t *testing.T) {
 	}
 
 	// Its offer is reviewed as a solution's: the roles its Setup shows. Its
-	// installation stays composition's.
+	// installation stays composition's, so the review carries no consent
+	// tuple, and Install refuses it whatever it is handed.
 	offer, err := h.svc.ReviewOffer(h.ctx, h.admin(acme), acme, "pages")
-	if err != nil || len(offer.Module.Roles) != 2 || offer.Installation.ID != h.inst(acme, "pages").ID || offer.Approval.Digest == "" {
+	if err != nil || len(offer.Module.Roles) != 2 || offer.Installation.ID != h.inst(acme, "pages").ID || offer.Approval != (domain.ConsentApproval{}) {
 		t.Fatalf("the administrator reviews the module page's offer: %+v, %v", offer, err)
 	}
+	if approval, err := h.svc.Review(h.ctx, h.admin(acme), acme, "pages"); err != nil || approval != (domain.ConsentApproval{}) {
+		t.Fatalf("a module page's review answers a consent tuple: %+v, %v", approval, err)
+	}
+	// Its review answers no tuple to hand Install, and a well-formed tuple
+	// made up for it is refused for what the target is.
 	_, err = h.svc.Install(h.ctx, h.admin(acme), acme, "pages", "", "", h.approval(acme, "pages"), nil)
+	refused(t, err, "INSTALLATION_APPROVAL_REQUIRED")
+	made := &domain.ConsentApproval{TargetID: "pages", Generation: 1, Digest: "sha256:made-up", OperationID: uuid.NewString()}
+	_, err = h.svc.Install(h.ctx, h.admin(acme), acme, "pages", "", "", made, nil)
 	refused(t, err, "a module is installed by composition")
+	// The administrator's Setup lists it beside the solutions; a member's
+	// read of the list is refused.
+	if names := h.offers(acme); !slices.Contains(names, "pages") || !slices.Contains(names, "a") || slices.Contains(names, "store") {
+		t.Fatalf("the offers are the solutions and the module page, not the bare store: %v", names)
+	}
+	_, err = h.svc.Offers(h.ctx, h.person("maya"), acme)
+	code(t, err, domain.Denied)
 
 	h.grant("pages", "viewer", "maya")
 	viewer := h.must(h.root("maya", "pages"))
@@ -94,6 +112,9 @@ func TestAModulePageRoleEntitlesItsHolderAlone(t *testing.T) {
 	exactly(t, reader, "pages.note", "", []string{"read"})
 	_, err = h.svc.ReviewOffer(h.ctx, h.admin(acme), acme, "pages")
 	refused(t, err, "a module is installed by composition")
+	if names := h.offers(acme); slices.Contains(names, "pages") {
+		t.Fatalf("a module page withdrawing its roles is still offered: %v", names)
+	}
 	_, err = h.root("maya", "pages")
 	refused(t, err, "holds nothing")
 	_, err = h.svc.GrantRole(h.ctx, h.admin(acme), authority.RoleRequest{Organization: acme, InstallationID: h.inst(acme, "pages").ID, Role: "viewer", PersonID: "maya"})
@@ -117,4 +138,18 @@ func TestAModuleWithoutAPageDeclaresNoRoles(t *testing.T) {
 	refused(t, err, "declares roles and no page")
 	_, err = h.root("maya", "pages")
 	code(t, err, domain.NotFound)
+}
+
+// offers are the names an administrator of org is offered to set up.
+func (h *harness) offers(org string) []string {
+	h.t.Helper()
+	offered, err := h.svc.Offers(h.ctx, h.admin(org), org)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	var names []string
+	for _, m := range offered {
+		names = append(names, m.Name)
+	}
+	return names
 }
