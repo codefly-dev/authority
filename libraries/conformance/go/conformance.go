@@ -216,6 +216,12 @@ func (c *client) deliverWithMethods(ctx context.Context, f Fixture, alias string
 // when document names any field, the authority's own document signed by the same
 // key and bound to the manifest by module, generation and digest.
 func (c *client) deliver(ctx context.Context, f Fixture, alias, kind string, generation uint64, kinds []string, document map[string]any, skew uint64, bindings ...solutionhost.AuthorityBinding) (protoreflect.Message, error) {
+	return c.deliverPage(ctx, f, nil, alias, kind, generation, kinds, document, skew, bindings...)
+}
+
+// deliverPage delivers as deliver does, with page as core's manifest's
+// frontend: nil delivers a component without a page.
+func (c *client) deliverPage(ctx context.Context, f Fixture, page *solutionhost.Frontend, alias, kind string, generation uint64, kinds []string, document map[string]any, skew uint64, bindings ...solutionhost.AuthorityBinding) (protoreflect.Message, error) {
 	if f.SignManifest == nil || f.DeliveryCredential == nil {
 		return nil, fmt.Errorf("composition requires a release signer and delivery workload credential")
 	}
@@ -228,6 +234,7 @@ func (c *client) deliver(ctx context.Context, f Fixture, alias, kind string, gen
 		Release:   solutionhost.Release{Publisher: "conformance", Name: alias, Version: "0.1.0"},
 		Workloads: []solutionhost.Workload{{Service: alias, Container: "app"}},
 		Authority: &solutionhost.Authority{Principal: alias, ResourceKinds: kinds},
+		Frontend:  page,
 	}
 	if len(bindings) > 0 {
 		manifest.Authority.Bindings = bindings
@@ -295,6 +302,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 	c.admissionStatus(t, ctx, f)
 	c.solutionRoleCases(t, ctx, f)
 	c.solutionDeclaration(t, ctx, f)
+	c.modulePageRoles(t, ctx, f)
 	c.installationIdentity(t, ctx, f)
 	c.currentInstallation(t, ctx, f)
 	c.sessionDisplayNames(t, ctx, f)
