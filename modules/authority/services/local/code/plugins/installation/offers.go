@@ -59,7 +59,8 @@ type Offers struct {
 	runnables RunnableReader
 }
 
-// ListOffers lists the delivered solutions, for an administrator.
+// ListOffers lists what an administrator sets up: the delivered solutions and
+// the module pages declaring roles (the core decides which).
 func (o *Offers) ListOffers(ctx context.Context, req *installationv1.ListOffersRequest) (*installationv1.ListOffersResponse, error) {
 	caller, err := o.plugin.caller(ctx)
 	if err != nil {

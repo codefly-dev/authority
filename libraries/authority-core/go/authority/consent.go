@@ -47,7 +47,8 @@ func offerDigest(m domain.Module) (string, error) {
 
 // Review reads one consistent offer. It never supplies an operation identity or
 // approves anything; the caller must retain the returned values when consenting.
-// It is an administrator's read: the consent tuple is what Install takes.
+// It is an administrator's read: the consent tuple is what Install takes, and
+// a module page, which composition installs, answers none.
 func (s *Service) Review(ctx context.Context, caller Person, org, target string) (domain.ConsentApproval, error) {
 	offer, err := s.reviewOffer(ctx, caller, org, target, false)
 	return offer.Approval, err
@@ -62,7 +63,8 @@ type ReviewedOffer struct {
 	Modules      []domain.Module
 }
 
-// ReviewOffer reads one solution's offer. An administrator of org reads it
+// ReviewOffer reads one solution's offer, or a module page's that declares
+// roles. An administrator of org reads it
 // with the consent tuple Install takes. A member of org who holds a role on
 // the solution's active installation there (granted to them or to a team of
 // theirs) reads the same declaration, roles, ceiling and installation without
@@ -101,10 +103,14 @@ func (s *Service) reviewOffer(ctx context.Context, caller Person, org, target st
 		if err != nil {
 			return notFound(err)
 		}
-		if m.Kind != domain.KindSolution {
-			return domain.Missing("%q is not a composed solution; a module is installed by composition", target)
+		// A module page declaring roles is reviewed as a solution is: its
+		// roles are what its Setup shows and grants. Its installation is
+		// still composition's (Install refuses a module), so its review
+		// carries no consent tuple: there is nothing to approve.
+		if !decide.RoleGated(m) {
+			return domain.Missing("%q is not a composed solution or a module page declaring roles; a module is installed by composition", target)
 		}
-		if refused == nil {
+		if refused == nil && m.Kind == domain.KindSolution {
 			digest, err := offerDigest(m)
 			if err != nil {
 				return err
@@ -177,7 +183,9 @@ func checkConsent(m domain.Module, existing domain.Installation, a *domain.Conse
 	return false, nil
 }
 
-// Offers lists delivered solution targets, not composition-installed modules.
+// Offers lists what an administrator of org sets up: delivered solutions, and
+// module pages declaring roles (composition installs them; their Setup grants
+// their roles). A module without roles is the organization's roles' alone.
 func (s *Service) Offers(ctx context.Context, caller Person, org string) ([]domain.Module, error) {
 	var out []domain.Module
 	err := s.store.Read(ctx, func(tx Tx) error {
@@ -186,7 +194,7 @@ func (s *Service) Offers(ctx context.Context, caller Person, org string) ([]doma
 		}
 		modules, err := tx.Modules()
 		for _, m := range modules {
-			if m.Kind == domain.KindSolution {
+			if decide.RoleGated(m) {
 				out = append(out, m)
 			}
 		}

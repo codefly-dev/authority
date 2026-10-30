@@ -2,6 +2,7 @@ package conformance
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	"github.com/codefly-dev/core/solutionhost"
@@ -29,7 +30,7 @@ func (c *client) modulePageRoles(t *testing.T, ctx context.Context, f Fixture) {
 		if f.SignManifest == nil || f.SignAuthority == nil || f.DeliveryCredential == nil || f.AdminToken == "" || f.UnentitledToken == "" || f.ViewerToken == "" {
 			t.Fatal("required conformance fixture missing: signed delivery, an administrator, a viewer and a member holding no role (UnentitledToken)")
 		}
-		page := &solutionhost.Frontend{Title: pageModuleTitle, ExposedModule: "./Page", HostContract: 1}
+		page := &solutionhost.Frontend{Title: pageModuleTitle, ExposedModule: "./Page", HostContract: 1, Payload: f.PagePayload}
 		roles := func(note string) map[string]any {
 			return map[string]any{"scope_ceilings": []any{scopeAsk(note, []string{"read", "write"}, nil)}, "roles": []any{
 				map[string]any{"name": "installer", "scopes": []any{scopeAsk(note, []string{"read", "write"}, nil)}},
@@ -76,6 +77,46 @@ func (c *client) modulePageRoles(t *testing.T, ctx context.Context, f Fixture) {
 		if err := role("GrantRole", "viewer"); err != nil {
 			t.Fatal(err)
 		}
+		offered := func(t *testing.T) bool {
+			t.Helper()
+			listed := c.must(t, adminCtx, "host.installation.v1.OfferService", "ListOffers", map[string]any{"organization_id": f.Organization})
+			for _, o := range listMsgs(listed, "offers") {
+				if str(o, "target") == pageModule {
+					return true
+				}
+			}
+			return false
+		}
+		t.Run("its setup reviews its roles, with nothing to consent to", func(t *testing.T) {
+			if f.ReviewOfferNotServed != "" {
+				t.Skipf("this host does not serve OfferService yet: %s", f.ReviewOfferNotServed)
+			}
+			if !offered(t) {
+				t.Fatalf("an administrator's offers at %s do not list %s", f.Organization, pageModule)
+			}
+			review := func(sess protoreflect.Message) (protoreflect.Message, error) {
+				return c.call(as(ctx, sess), "host.installation.v1.OfferService", "ReviewOffer", map[string]any{"organization_id": f.Organization, "target": pageModule})
+			}
+			for name, sess := range map[string]protoreflect.Message{"the administrator": admin, "the role holder": holder} {
+				out, err := review(sess)
+				if err != nil {
+					t.Fatalf("%s reviews %s: %v", name, pageModule, err)
+				}
+				var roles []string
+				for _, r := range listMsgs(out, "roles") {
+					roles = append(roles, str(r, "name"))
+				}
+				slices.Sort(roles)
+				if !slices.Equal(roles, []string{"installer", "viewer"}) || str(msg(out, "installation"), "id") != id {
+					t.Fatalf("%s reviews roles %v at installation %q, want [installer viewer] at %q", name, roles, str(msg(out, "installation"), "id"), id)
+				}
+				if out.Has(out.Descriptor().Fields().ByName("approval")) {
+					t.Fatalf("%s is handed a consent tuple for %s, which composition installs", name, pageModule)
+				}
+			}
+			_, err := review(viewer)
+			refused(t, err, codes.PermissionDenied, "requires an administrator")
+		})
 		var held protoreflect.Message
 		t.Run("the role holder is entitled to exactly the role", func(t *testing.T) {
 			out, err := issue(holder)
@@ -140,6 +181,9 @@ func (c *client) modulePageRoles(t *testing.T, ctx context.Context, f Fixture) {
 				t.Fatalf("organization roles do not decide again: %v", err)
 			}
 			exactScopeOwnedBy(t, msg(out, "context"), f.ReadKind, []string{"read"}, nil, "")
+			if f.ReviewOfferNotServed == "" && offered(t) {
+				t.Fatalf("%s is still offered once it declares no roles", pageModule)
+			}
 		})
 		if err := role("RevokeRole", "viewer"); err != nil {
 			t.Fatal(err)
