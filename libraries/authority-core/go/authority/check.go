@@ -104,7 +104,8 @@ type Grant struct {
 
 // ListResources answers which resources of kind a checked capability may act
 // on with action, decided now: a person's through a solution are its roles on
-// the principal's data, a person's own their organization roles' matchers,
+// the principal's data, a person's at a module page declaring roles that
+// page's roles granted them, a person's own their organization roles' matchers,
 // cut to any ids the capability names; a module's or an installation's own
 // work is bounded by the capability alone.
 func (s *Service) ListResources(ctx context.Context, token, audience, kind, action string) ([]Grant, error) {
@@ -132,9 +133,22 @@ func (s *Service) ListResources(ctx context.Context, token, audience, kind, acti
 			if err != nil {
 				return err
 			}
-			if bounded {
+			at, err := tx.Module(wc.GetAudience())
+			if err != nil && !errors.Is(err, domain.ErrNotFound) {
+				return err
+			}
+			switch {
+			case bounded:
 				rows = scope.Intersect(effective, ceiling)
-			} else {
+			case err == nil && decide.RoleGated(at):
+				// A module page declaring roles answers from its roles, as
+				// issuance does, never from organization roles.
+				h, err := held(tx, p, at, effective)
+				if err != nil {
+					return err
+				}
+				rows = scope.Intersect(effective, h)
+			default:
 				roles, err := orgRoles(tx, p)
 				if err != nil {
 					return err

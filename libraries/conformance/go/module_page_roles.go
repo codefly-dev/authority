@@ -14,7 +14,8 @@ import (
 // installation, never the organization's roles. A module without a page
 // declares none, and a module page declaring none keeps the organization's.
 // The holder is UnentitledToken (no role, no team); ViewerToken is another
-// member, whatever the organization grants them.
+// member, whose organization roles read ReadKind: the module serves ReadKind
+// too, so they would hold it there were organization roles to decide.
 const (
 	pageModule      = "conformance-page-module"
 	pageModuleNote  = pageModule + ".note"
@@ -35,7 +36,11 @@ func (c *client) modulePageRoles(t *testing.T, ctx context.Context, f Fixture) {
 				map[string]any{"name": "viewer", "scopes": []any{scopeAsk(note, []string{"read"}, nil)}},
 			}}
 		}
-		if _, err := c.deliverPage(ctx, f, page, pageModule, "module", 1, []string{pageModuleNote}, roles(pageModuleNote), 0); err != nil {
+		if f.ReadKind == "" {
+			t.Fatal("required conformance fixture missing: ReadKind, which ViewerToken's organization roles read")
+		}
+		served := []string{pageModuleNote, f.ReadKind}
+		if _, err := c.deliverPage(ctx, f, page, pageModule, "module", 1, served, roles(pageModuleNote), 0); err != nil {
 			t.Fatalf("deliver %s with a page and roles: %v", pageModule, err)
 		}
 		admin := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.AdminToken})
@@ -55,9 +60,19 @@ func (c *client) modulePageRoles(t *testing.T, ctx context.Context, f Fixture) {
 				"organization_id": f.Organization, "installation_id": id, "role": name, "person_id": str(holder, "person_id")})
 			return err
 		}
-		issue := func(sess protoreflect.Message) (protoreflect.Message, error) {
-			return c.call(as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": pageModule})
+		issue := func(sess protoreflect.Message, scopes ...any) (protoreflect.Message, error) {
+			fields := map[string]any{"person": map[string]any{}, "audience": pageModule}
+			if len(scopes) > 0 {
+				fields["scopes"] = scopes
+			}
+			return c.call(as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", fields)
 		}
+		list := func(capability protoreflect.Message) (protoreflect.Message, error) {
+			return c.call(ctx, "host.authority.v1.AuthorityService", "ListResources", map[string]any{
+				"token": str(capability, "token"), "audience": pageModule, "resource_kind": pageModuleNote, "action": "read"})
+		}
+		viewer := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
+		readKind := scopeAsk(f.ReadKind, []string{"read"}, nil)
 		if err := role("GrantRole", "viewer"); err != nil {
 			t.Fatal(err)
 		}
@@ -71,9 +86,36 @@ func (c *client) modulePageRoles(t *testing.T, ctx context.Context, f Fixture) {
 			c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(out, "token"), "audience": pageModule})
 			held = out
 		})
-		t.Run("another member holds nothing there, whatever the organization grants them", func(t *testing.T) {
-			_, err := issue(c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken}))
+		t.Run("the role holder lists the page's resources by the role", func(t *testing.T) {
+			if held == nil {
+				t.Skip("the holder was issued nothing")
+			}
+			listed, err := list(held)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := grantsOf(listed); len(got) != 1 || !got[0].All {
+				t.Fatalf("the viewer lists %v, want every %s by the role", got, pageModuleNote)
+			}
+		})
+		t.Run("another member holds and lists nothing there, whatever the organization grants them", func(t *testing.T) {
+			_, err := issue(viewer)
 			refused(t, err, codes.PermissionDenied, c.noRole())
+			_, err = issue(viewer, readKind)
+			refused(t, err, codes.PermissionDenied, c.noRole())
+		})
+		t.Run("a revoked holder lists nothing", func(t *testing.T) {
+			if held == nil {
+				t.Skip("the holder was issued nothing")
+			}
+			if err := role("RevokeRole", "viewer"); err != nil {
+				t.Fatal(err)
+			}
+			_, err := list(held)
+			refused(t, err, codes.PermissionDenied, "")
+			if err := role("GrantRole", "viewer"); err != nil {
+				t.Fatal(err)
+			}
 		})
 		t.Run("a role the module does not declare is refused", func(t *testing.T) {
 			refused(t, role("GrantRole", "editor"), codes.NotFound, `declares no role "editor"`)
@@ -83,7 +125,7 @@ func (c *client) modulePageRoles(t *testing.T, ctx context.Context, f Fixture) {
 			refused(t, err, codes.PermissionDenied, "no page")
 		})
 		t.Run("a module page declaring no roles keeps the organization's", func(t *testing.T) {
-			if _, err := c.deliverPage(ctx, f, page, pageModule, "module", 2, []string{pageModuleNote}, map[string]any{"scope_ceilings": []any{scopeAsk(pageModuleNote, []string{"read", "write"}, nil)}}, 0); err != nil {
+			if _, err := c.deliverPage(ctx, f, page, pageModule, "module", 2, served, map[string]any{"scope_ceilings": []any{scopeAsk(pageModuleNote, []string{"read", "write"}, nil)}}, 0); err != nil {
 				t.Fatalf("redeliver %s without roles: %v", pageModule, err)
 			}
 			if held != nil {
@@ -93,6 +135,11 @@ func (c *client) modulePageRoles(t *testing.T, ctx context.Context, f Fixture) {
 			_, err := issue(holder)
 			refused(t, err, codes.PermissionDenied, "holds nothing")
 			refused(t, role("GrantRole", "viewer"), codes.NotFound, `declares no role "viewer"`)
+			out, err := issue(viewer, readKind)
+			if err != nil {
+				t.Fatalf("organization roles do not decide again: %v", err)
+			}
+			exactScopeOwnedBy(t, msg(out, "context"), f.ReadKind, []string{"read"}, nil, "")
 		})
 		if err := role("RevokeRole", "viewer"); err != nil {
 			t.Fatal(err)

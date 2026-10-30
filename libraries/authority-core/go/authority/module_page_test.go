@@ -5,6 +5,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
+	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
@@ -41,7 +42,20 @@ func TestAModulePageRoleEntitlesItsHolderAlone(t *testing.T) {
 	if err := h.check(viewer); err != nil {
 		t.Fatal(err)
 	}
-	_, err := h.root("maya", "pages", sc("pages.note", "write"))
+	// What she may list is her role's, not her organization roles': an
+	// organization role naming one note does not narrow it, and no
+	// organization role is needed for it.
+	listed, err := h.svc.ListResources(h.ctx, viewer.Token, "pages", "pages.note", "read")
+	if err != nil || len(listed) != 1 || !listed[0].All || listed[0].Owner != "" {
+		t.Fatalf("the viewer lists %v, %v", listed, err)
+	}
+	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "one-note", Scopes: []domain.RoleScope{{Kind: "pages.note", Actions: []string{"read"}, Resources: []resources.Grant{{ID: "x"}}}}})
+	h.store.PutPerson(domain.Person{ID: "maya", Organization: acme, Roles: []string{"one-note"}})
+	if listed, err = h.svc.ListResources(h.ctx, viewer.Token, "pages", "pages.note", "read"); err != nil || len(listed) != 1 || !listed[0].All {
+		t.Fatalf("an organization role narrowed the viewer's listing: %v, %v", listed, err)
+	}
+	h.store.PutPerson(domain.Person{ID: "maya", Organization: acme})
+	_, err = h.root("maya", "pages", sc("pages.note", "write"))
 	refused(t, err, "beyond")
 	heldIs(t, "maya", h.heldBy(h.person("maya"), acme), "pages:[viewer]")
 	for _, other := range []string{"remi", "ines", "alex"} {
@@ -55,6 +69,9 @@ func TestAModulePageRoleEntitlesItsHolderAlone(t *testing.T) {
 	h.revoke("pages", "viewer", "maya", "")
 	_, err = h.root("maya", "pages")
 	refused(t, err, "maya holds no role on pages")
+	if _, err := h.svc.ListResources(h.ctx, viewer.Token, "pages", "pages.note", "read"); err == nil {
+		t.Fatal("a revoked viewer still lists the page's notes")
+	}
 	h.grant("pages", "viewer", "maya")
 	viewer = h.must(h.root("maya", "pages"))
 
