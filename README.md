@@ -698,8 +698,15 @@ at. A request missing its policy or identity is `InvalidArgument`; every other
 refusal is `PermissionDenied` with its reason.
 
 `conformance.RunArtifacts` (`libraries/conformance/go/artifact.go`) is the
-shared case both hosts run, over the published interfaces only, and the local
-authority runs it in `plugins/registry_test/artifact_test.go`. Its fixture is a
+shared case both hosts run, over the published interfaces only. It is a required
+member of `conformance.Fixture` (`Artifacts`), so `conformance.Run` fails a host
+that leaves it out: a host that serves the interface another way can no longer
+pass the suite without ever being asked (2026-10-27, after saas was found
+deciding the interface over a policy document the suite never reached). The
+local authority passes it in `plugins/registry_test/local_authority_test.go`,
+and the case names the statement every composition relies on: an administrator
+applies an intent, a member of a role it is offered to runs it, a
+non-administrator's apply is refused. Its fixture is a
 module installed at one organization under one policy, an administrator and a
 non-administrator approver holding the policy's `activate` and `run`, a member
 holding `run` alone, another module's credential, and another organization's

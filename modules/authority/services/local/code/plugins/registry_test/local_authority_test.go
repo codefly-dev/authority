@@ -21,6 +21,7 @@ import (
 
 	"gateway/pkg/business/testkit"
 	"gateway/pkg/framework"
+	"gateway/plugins/artifact"
 	"gateway/plugins/authority"
 	"gateway/plugins/composition"
 	"gateway/plugins/installation"
@@ -87,8 +88,36 @@ people:
 	if _, err := k.State.ApplyManifest(records); err != nil {
 		t.Fatal(err)
 	}
+	// The artifact case: a module installed at Acme alone whose installed
+	// artifact policy is a resource kind it serves. An administrator and a
+	// member who is not one hold its activate and run actions through a role;
+	// another member holds run alone.
+	const probe, probePolicy = "conformance-probe", "conformance-probe.intent"
+	if _, err := k.State.ApplyManifest(state.Manifest{Name: probe, Principal: probe, Kind: "module", Generation: 1,
+		ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope(probePolicy, "activate", "run")}, Bindings: map[string]state.Binding{}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := k.State.UninstallAsHost(state.InstallationID("globex", probe)); err != nil {
+		t.Fatal(err)
+	}
+	if err := k.State.LoadFixture(context.Background(), []byte(`roles:
+  - organization: acme
+    name: artifact-approver
+    scopes:
+      - {kind: conformance-probe.intent, actions: [activate, run]}
+  - organization: acme
+    name: artifact-runner
+    scopes:
+      - {kind: conformance-probe.intent, actions: [run]}
+people:
+  - {id: artifact-admin, fixture_token: fixture-artifact-admin, organization: acme, roles: [admin, artifact-approver]}
+  - {id: artifact-approver, fixture_token: fixture-artifact-approver, organization: acme, roles: [artifact-approver]}
+  - {id: artifact-runner, fixture_token: fixture-artifact-runner, organization: acme, roles: [artifact-runner]}
+`)); err != nil {
+		t.Fatal(err)
+	}
 	plugins := []framework.Plugin{
-		&authority.Plugin{Issuer: k.Issuer},
+		&authority.Plugin{Issuer: k.Issuer}, &artifact.Plugin{Issuer: k.Issuer},
 		&composition.Plugin{State: k.State, Coordinate: "local", Verifier: testkit.ReleaseVerifier(t, "local"), Carrier: k.CarrierAuthority, Keys: testkit.ReleaseKeys()},
 		&installation.Plugin{State: k.State}, &session.Plugin{State: k.State},
 	}
@@ -174,6 +203,10 @@ people:
 		}
 	}
 	conformance.Run(t, conn, descriptors, conformance.Fixture{
+		Artifacts: &conformance.ArtifactCase{
+			Module: probe, Credential: k.Credential(t, probe), OtherCredential: k.Credential(t, "documents"), Policy: probePolicy,
+			Admin: "fixture-artifact-admin", Approver: "fixture-artifact-approver", Member: "fixture-artifact-runner", OtherAdmin: "fixture-zoe",
+		},
 		InstallationResources: &conformance.InstallationResourcesCase{
 			Owner: "fixture-alex", Viewer: "fixture-maya", Generation: 2,
 			A:     conformance.OwnedInstallation{Solution: "conformance-owner-a", Credential: k.Credential(t, "conformance-owner-a"), Installation: owned["conformance-owner-a"]},
