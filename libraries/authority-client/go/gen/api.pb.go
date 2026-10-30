@@ -4,7 +4,7 @@
 // 	protoc        (unknown)
 // source: api.proto
 
-package api
+package client
 
 import (
 	reflect "reflect"
@@ -113,8 +113,8 @@ const file_api_proto_rawDesc = "" +
 	"\aversion\x18\x01 \x01(\tR\aversion2V\n" +
 	"\fLocalService\x12F\n" +
 	"\aVersion\x12\x13.api.VersionRequest\x1a\x14.api.VersionResponse\"\x10\x82\xd3\xe4\x93\x02\n" +
-	"\x12\b/versionBs\n" +
-	"\acom.apiB\bApiProtoP\x01Z2github.com/codefly-dev/cli/pkg/builder/clients/api\xa2\x02\x03AXX\xaa\x02\x03Api\xca\x02\x03Api\xe2\x02\x0fApi\\GPBMetadata\xea\x02\x03Apib\x06proto3"
+	"\x12\b/versionBv\n" +
+	"\acom.apiB\bApiProtoP\x01Z5github.com/codefly-dev/cli/pkg/builder/clients/client\xa2\x02\x03AXX\xaa\x02\x03Api\xca\x02\x03Api\xe2\x02\x0fApi\\GPBMetadata\xea\x02\x03Apib\x06proto3"
 
 var (
 	file_api_proto_rawDescOnce sync.Once

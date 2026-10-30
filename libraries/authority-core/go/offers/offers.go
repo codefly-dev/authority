@@ -27,6 +27,14 @@ type Review struct {
 	ToolsComposed    bool
 	InstallationRole string
 	EdgeDependencies []domain.EdgeDependency
+	Setup            []*Setup
+}
+
+// Setup is temporary, installation-owned authority, never a standing role.
+type Setup struct {
+	Binding, Module string
+	Methods         []string
+	Scopes          []*Scope
 }
 
 type Binding struct {
@@ -66,6 +74,15 @@ func Project(offer authority.ReviewedOffer, bindings map[string]*runnablev0.Prep
 	a := offer.Approval
 	out := &Review{Target: m.Name, ToolsComposed: len(bindings) > 0,
 		InstallationRole: m.InstallationRole, EdgeDependencies: slices.Clone(m.EdgeDependencies)}
+	for _, entry := range m.Setup {
+		b := m.Bindings[entry.Binding]
+		var scopes []*basev0.WorkScopeV1
+		for _, text := range entry.Scopes {
+			kind, action, _ := strings.Cut(text, ":")
+			scopes = append(scopes, &basev0.WorkScopeV1{ResourceKind: kind, Actions: []string{action}})
+		}
+		out.Setup = append(out.Setup, &Setup{Binding: entry.Binding, Module: b.Audience, Methods: slices.Clone(entry.Methods), Scopes: offerScopes(scope.Normalize(scopes), false, nil)})
+	}
 	// A member's read carries no consent tuple: only an administrator consents.
 	if a.Digest != "" {
 		out.Approval = &domain.ConsentApproval{TargetID: a.TargetID, Generation: a.Generation, ExpectedRevision: a.ExpectedRevision, Digest: a.Digest}

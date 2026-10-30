@@ -19,7 +19,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file host/authority/v1/authority.proto.
  */
 export const file_host_authority_v1_authority: GenFile = /*@__PURE__*/
-  fileDesc("CiFob3N0L2F1dGhvcml0eS92MS9hdXRob3JpdHkucHJvdG8SEWhvc3QuYXV0aG9yaXR5LnYxIuYDCgxJc3N1ZVJlcXVlc3QSMgoGcGVyc29uGAEgASgLMiAuaG9zdC5hdXRob3JpdHkudjEuUGVyc29uU2Vzc2lvbkgAEjkKCHdvcmtsb2FkGAIgASgLMiUuaG9zdC5hdXRob3JpdHkudjEuV29ya2xvYWRDcmVkZW50aWFsSAASOgoMaW5zdGFsbGF0aW9uGAMgASgLMiIuaG9zdC5hdXRob3JpdHkudjEuSW5zdGFsbGF0aW9uUmVmSAASFgoMcGFyZW50X3Rva2VuGAQgASgJSAASNgoKZGVsZWdhdGlvbhgLIAEoCzIgLmhvc3QuYXV0aG9yaXR5LnYxLkRlbGVnYXRpb25SZWZIABIQCghhdWRpZW5jZRgFIAEoCRIuCgZzY29wZXMYBiADKAsyHi5ob3N0LmF1dGhvcml0eS52MS5Xb3JrU2NvcGVWMRITCgt0dGxfc2Vjb25kcxgHIAEoAxIcChRvcGVyYXRpb25fYmluZGluZ19pZBgIIAEoCRIXCg9vcmdhbml6YXRpb25faWQYCSABKAkSNAoFYWN0b3IYCiABKAsyJS5ob3N0LmF1dGhvcml0eS52MS5Xb3JrbG9hZENyZWRlbnRpYWwSEQoJb3BlcmF0aW9uGAwgASgJQgQKAmFzIiYKDURlbGVnYXRpb25SZWYSFQoNZGVsZWdhdGlvbl9pZBgBIAEoCSJ3Cg9EZWxlZ2F0ZVJlcXVlc3QSDgoGbW9kdWxlGAEgASgJEi4KBnNjb3BlcxgCIAMoCzIeLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtTY29wZVYxEg8KB3B1cnBvc2UYAyABKAkSEwoLdHRsX3NlY29uZHMYBCABKAMixwEKCkRlbGVnYXRpb24SFQoNZGVsZWdhdGlvbl9pZBgBIAEoCRIXCg9vcmdhbml6YXRpb25faWQYAiABKAkSDwoHZ3JhbnRvchgDIAEoCRIOCgZtb2R1bGUYBCABKAkSLgoGc2NvcGVzGAUgAygLMh4uaG9zdC5hdXRob3JpdHkudjEuV29ya1Njb3BlVjESDwoHcHVycG9zZRgGIAEoCRIOCgZhY3RpdmUYByABKAgSFwoPZXhwaXJlc19hdF91bml4GAggASgDImMKFEdldERlbGVnYXRpb25SZXF1ZXN0EhUKDWRlbGVnYXRpb25faWQYASABKAkSNAoFYWN0b3IYAiABKAsyJS5ob3N0LmF1dGhvcml0eS52MS5Xb3JrbG9hZENyZWRlbnRpYWwiMAoXUmV2b2tlRGVsZWdhdGlvblJlcXVlc3QSFQoNZGVsZWdhdGlvbl9pZBgBIAEoCSJNChhSZXZva2VEZWxlZ2F0aW9uUmVzcG9uc2USMQoKZGVsZWdhdGlvbhgBIAEoCzIdLmhvc3QuYXV0aG9yaXR5LnYxLkRlbGVnYXRpb24iIQoNUGVyc29uU2Vzc2lvbkoECAEQAlIKc2Vzc2lvbl9pZCIoChJXb3JrbG9hZENyZWRlbnRpYWwSEgoKY3JlZGVudGlhbBgBIAEoCSIqCg9JbnN0YWxsYXRpb25SZWYSFwoPaW5zdGFsbGF0aW9uX2lkGAEgASgJImoKDUlzc3VlUmVzcG9uc2USDQoFdG9rZW4YASABKAkSFwoPZXhwaXJlc19hdF91bml4GAIgASgDEjEKB2NvbnRleHQYAyABKAsyIC5ob3N0LmF1dGhvcml0eS52MS5Xb3JrQ29udGV4dFYxIlEKDENoZWNrUmVxdWVzdBINCgV0b2tlbhgBIAEoCRIQCghhdWRpZW5jZRgCIAEoCRIOCgZtZXRob2QYAyABKAkSEAoIYWR2aXNvcnkYBCABKAgicwoNQ2hlY2tSZXNwb25zZRIxCgdjb250ZXh0GAEgASgLMiAuaG9zdC5hdXRob3JpdHkudjEuV29ya0NvbnRleHRWMRIeChZhdXRob3JpemF0aW9uX3JldmlzaW9uGAIgASgEEg8KB3JlZnVzYWwYAyABKAkiDQoLS2V5c1JlcXVlc3QigAEKDEtleXNSZXNwb25zZRIOCgZpc3N1ZXIYASABKAkSKgoEa2V5cxgCIAMoCzIcLmhvc3QuYXV0aG9yaXR5LnYxLlB1YmxpY0tleRI0Cg5hZG1pc3Npb25fa2V5cxgDIAMoCzIcLmhvc3QuYXV0aG9yaXR5LnYxLlB1YmxpY0tleSJTCglQdWJsaWNLZXkSDgoGa2V5X2lkGAEgASgJEhEKCWFsZ29yaXRobRgCIAEoCRISCgpwdWJsaWNfa2V5GAMgASgMEg8KB3B1cnBvc2UYBCABKAkidgobUmVnaXN0ZXJBZG1pc3Npb25LZXlSZXF1ZXN0EjQKBWFjdG9yGAEgASgLMiUuaG9zdC5hdXRob3JpdHkudjEuV29ya2xvYWRDcmVkZW50aWFsEhIKCnB1YmxpY19rZXkYAiABKAwSDQoFcHJvb2YYAyABKAkiYgocUmVnaXN0ZXJBZG1pc3Npb25LZXlSZXNwb25zZRIpCgNrZXkYASABKAsyHC5ob3N0LmF1dGhvcml0eS52MS5QdWJsaWNLZXkSFwoPZXhwaXJlc19hdF91bml4GAIgASgDIl4KFExpc3RSZXNvdXJjZXNSZXF1ZXN0Eg0KBXRva2VuGAEgASgJEhAKCGF1ZGllbmNlGAIgASgJEhUKDXJlc291cmNlX2tpbmQYAyABKAkSDgoGYWN0aW9uGAQgASgJIkkKFUxpc3RSZXNvdXJjZXNSZXNwb25zZRIwCgZncmFudHMYASADKAsyIC5ob3N0LmF1dGhvcml0eS52MS5SZXNvdXJjZUdyYW50IogBChVBdHRhY2hSZXNvdXJjZVJlcXVlc3QSDQoFdG9rZW4YASABKAkSNAoFYWN0b3IYAiABKAsyJS5ob3N0LmF1dGhvcml0eS52MS5Xb3JrbG9hZENyZWRlbnRpYWwSFQoNcmVzb3VyY2Vfa2luZBgDIAEoCRITCgtyZXNvdXJjZV9pZBgEIAEoCSIxChZBdHRhY2hSZXNvdXJjZVJlc3BvbnNlEhcKD2luc3RhbGxhdGlvbl9pZBgBIAEoCSKSAQoVRGV0YWNoUmVzb3VyY2VSZXF1ZXN0EjQKBWFjdG9yGAEgASgLMiUuaG9zdC5hdXRob3JpdHkudjEuV29ya2xvYWRDcmVkZW50aWFsEhcKD29yZ2FuaXphdGlvbl9pZBgCIAEoCRIVCg1yZXNvdXJjZV9raW5kGAMgASgJEhMKC3Jlc291cmNlX2lkGAQgASgJIjEKFkRldGFjaFJlc291cmNlUmVzcG9uc2USFwoPaW5zdGFsbGF0aW9uX2lkGAEgASgJIrsBChhBdXRob3JpemVUcmFuc2ZlclJlcXVlc3QSDQoFdG9rZW4YASABKAkSNAoFYWN0b3IYAiABKAsyJS5ob3N0LmF1dGhvcml0eS52MS5Xb3JrbG9hZENyZWRlbnRpYWwSFQoNcmVzb3VyY2Vfa2luZBgDIAEoCRITCgtyZXNvdXJjZV9pZBgEIAEoCRIVCg1mcm9tX293bmVyX2lkGAUgASgJEhcKD3RvX3ByaW5jaXBhbF9pZBgGIAEoCSJIChlBdXRob3JpemVUcmFuc2ZlclJlc3BvbnNlEhQKDHByaW5jaXBhbF9pZBgBIAEoCRIVCg1hdXRob3JpemVkX2J5GAIgASgJInUKDVJlc291cmNlR3JhbnQSDQoDYWxsGAEgASgISAASDAoCaWQYAiABKAlIABIQCgZwcmVmaXgYAyABKAlIABIRCgdwYXR0ZXJuGAQgASgJSAASGQoRcmVzb3VyY2Vfb3duZXJfaWQYBSABKAlCBwoFbWF0Y2gy4wgKEEF1dGhvcml0eVNlcnZpY2USagoFSXNzdWUSHy5ob3N0LmF1dGhvcml0eS52MS5Jc3N1ZVJlcXVlc3QaIC5ob3N0LmF1dGhvcml0eS52MS5Jc3N1ZVJlc3BvbnNlIh6C0+STAhg6ASoiEy92MS9hdXRob3JpdHk6aXNzdWUSagoFQ2hlY2sSHy5ob3N0LmF1dGhvcml0eS52MS5DaGVja1JlcXVlc3QaIC5ob3N0LmF1dGhvcml0eS52MS5DaGVja1Jlc3BvbnNlIh6C0+STAhg6ASoiEy92MS9hdXRob3JpdHk6Y2hlY2sSRwoES2V5cxIeLmhvc3QuYXV0aG9yaXR5LnYxLktleXNSZXF1ZXN0Gh8uaG9zdC5hdXRob3JpdHkudjEuS2V5c1Jlc3BvbnNlEncKFFJlZ2lzdGVyQWRtaXNzaW9uS2V5Ei4uaG9zdC5hdXRob3JpdHkudjEuUmVnaXN0ZXJBZG1pc3Npb25LZXlSZXF1ZXN0Gi8uaG9zdC5hdXRob3JpdHkudjEuUmVnaXN0ZXJBZG1pc3Npb25LZXlSZXNwb25zZRJiCg1MaXN0UmVzb3VyY2VzEicuaG9zdC5hdXRob3JpdHkudjEuTGlzdFJlc291cmNlc1JlcXVlc3QaKC5ob3N0LmF1dGhvcml0eS52MS5MaXN0UmVzb3VyY2VzUmVzcG9uc2USZQoOQXR0YWNoUmVzb3VyY2USKC5ob3N0LmF1dGhvcml0eS52MS5BdHRhY2hSZXNvdXJjZVJlcXVlc3QaKS5ob3N0LmF1dGhvcml0eS52MS5BdHRhY2hSZXNvdXJjZVJlc3BvbnNlEmUKDkRldGFjaFJlc291cmNlEiguaG9zdC5hdXRob3JpdHkudjEuRGV0YWNoUmVzb3VyY2VSZXF1ZXN0GikuaG9zdC5hdXRob3JpdHkudjEuRGV0YWNoUmVzb3VyY2VSZXNwb25zZRJuChFBdXRob3JpemVUcmFuc2ZlchIrLmhvc3QuYXV0aG9yaXR5LnYxLkF1dGhvcml6ZVRyYW5zZmVyUmVxdWVzdBosLmhvc3QuYXV0aG9yaXR5LnYxLkF1dGhvcml6ZVRyYW5zZmVyUmVzcG9uc2USTQoIRGVsZWdhdGUSIi5ob3N0LmF1dGhvcml0eS52MS5EZWxlZ2F0ZVJlcXVlc3QaHS5ob3N0LmF1dGhvcml0eS52MS5EZWxlZ2F0aW9uEmsKEFJldm9rZURlbGVnYXRpb24SKi5ob3N0LmF1dGhvcml0eS52MS5SZXZva2VEZWxlZ2F0aW9uUmVxdWVzdBorLmhvc3QuYXV0aG9yaXR5LnYxLlJldm9rZURlbGVnYXRpb25SZXNwb25zZRJXCg1HZXREZWxlZ2F0aW9uEicuaG9zdC5hdXRob3JpdHkudjEuR2V0RGVsZWdhdGlvblJlcXVlc3QaHS5ob3N0LmF1dGhvcml0eS52MS5EZWxlZ2F0aW9uQi9aLWdhdGV3YXkvcGtnL2dlbi9ob3N0L2F1dGhvcml0eS92MTthdXRob3JpdHl2MWIGcHJvdG8z", [file_google_api_annotations, file_host_authority_v1_work_context]);
+  fileDesc("CiFob3N0L2F1dGhvcml0eS92MS9hdXRob3JpdHkucHJvdG8SEWhvc3QuYXV0aG9yaXR5LnYxIqAECgxJc3N1ZVJlcXVlc3QSMgoGcGVyc29uGAEgASgLMiAuaG9zdC5hdXRob3JpdHkudjEuUGVyc29uU2Vzc2lvbkgAEjkKCHdvcmtsb2FkGAIgASgLMiUuaG9zdC5hdXRob3JpdHkudjEuV29ya2xvYWRDcmVkZW50aWFsSAASOgoMaW5zdGFsbGF0aW9uGAMgASgLMiIuaG9zdC5hdXRob3JpdHkudjEuSW5zdGFsbGF0aW9uUmVmSAASFgoMcGFyZW50X3Rva2VuGAQgASgJSAASNgoKZGVsZWdhdGlvbhgLIAEoCzIgLmhvc3QuYXV0aG9yaXR5LnYxLkRlbGVnYXRpb25SZWZIABI4CgVzZXR1cBgNIAEoCzInLmhvc3QuYXV0aG9yaXR5LnYxLkluc3RhbGxhdGlvblNldHVwUmVmSAASEAoIYXVkaWVuY2UYBSABKAkSLgoGc2NvcGVzGAYgAygLMh4uaG9zdC5hdXRob3JpdHkudjEuV29ya1Njb3BlVjESEwoLdHRsX3NlY29uZHMYByABKAMSHAoUb3BlcmF0aW9uX2JpbmRpbmdfaWQYCCABKAkSFwoPb3JnYW5pemF0aW9uX2lkGAkgASgJEjQKBWFjdG9yGAogASgLMiUuaG9zdC5hdXRob3JpdHkudjEuV29ya2xvYWRDcmVkZW50aWFsEhEKCW9wZXJhdGlvbhgMIAEoCUIECgJhcyI6ChRJbnN0YWxsYXRpb25TZXR1cFJlZhISCgpzdGVwX3Rva2VuGAEgASgJEg4KBm1ldGhvZBgCIAEoCSImCg1EZWxlZ2F0aW9uUmVmEhUKDWRlbGVnYXRpb25faWQYASABKAkidwoPRGVsZWdhdGVSZXF1ZXN0Eg4KBm1vZHVsZRgBIAEoCRIuCgZzY29wZXMYAiADKAsyHi5ob3N0LmF1dGhvcml0eS52MS5Xb3JrU2NvcGVWMRIPCgdwdXJwb3NlGAMgASgJEhMKC3R0bF9zZWNvbmRzGAQgASgDIscBCgpEZWxlZ2F0aW9uEhUKDWRlbGVnYXRpb25faWQYASABKAkSFwoPb3JnYW5pemF0aW9uX2lkGAIgASgJEg8KB2dyYW50b3IYAyABKAkSDgoGbW9kdWxlGAQgASgJEi4KBnNjb3BlcxgFIAMoCzIeLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtTY29wZVYxEg8KB3B1cnBvc2UYBiABKAkSDgoGYWN0aXZlGAcgASgIEhcKD2V4cGlyZXNfYXRfdW5peBgIIAEoAyJjChRHZXREZWxlZ2F0aW9uUmVxdWVzdBIVCg1kZWxlZ2F0aW9uX2lkGAEgASgJEjQKBWFjdG9yGAIgASgLMiUuaG9zdC5hdXRob3JpdHkudjEuV29ya2xvYWRDcmVkZW50aWFsIjAKF1Jldm9rZURlbGVnYXRpb25SZXF1ZXN0EhUKDWRlbGVnYXRpb25faWQYASABKAkiTQoYUmV2b2tlRGVsZWdhdGlvblJlc3BvbnNlEjEKCmRlbGVnYXRpb24YASABKAsyHS5ob3N0LmF1dGhvcml0eS52MS5EZWxlZ2F0aW9uIiEKDVBlcnNvblNlc3Npb25KBAgBEAJSCnNlc3Npb25faWQiKAoSV29ya2xvYWRDcmVkZW50aWFsEhIKCmNyZWRlbnRpYWwYASABKAkiKgoPSW5zdGFsbGF0aW9uUmVmEhcKD2luc3RhbGxhdGlvbl9pZBgBIAEoCSJqCg1Jc3N1ZVJlc3BvbnNlEg0KBXRva2VuGAEgASgJEhcKD2V4cGlyZXNfYXRfdW5peBgCIAEoAxIxCgdjb250ZXh0GAMgASgLMiAuaG9zdC5hdXRob3JpdHkudjEuV29ya0NvbnRleHRWMSJRCgxDaGVja1JlcXVlc3QSDQoFdG9rZW4YASABKAkSEAoIYXVkaWVuY2UYAiABKAkSDgoGbWV0aG9kGAMgASgJEhAKCGFkdmlzb3J5GAQgASgIInMKDUNoZWNrUmVzcG9uc2USMQoHY29udGV4dBgBIAEoCzIgLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtDb250ZXh0VjESHgoWYXV0aG9yaXphdGlvbl9yZXZpc2lvbhgCIAEoBBIPCgdyZWZ1c2FsGAMgASgJIg0KC0tleXNSZXF1ZXN0IoABCgxLZXlzUmVzcG9uc2USDgoGaXNzdWVyGAEgASgJEioKBGtleXMYAiADKAsyHC5ob3N0LmF1dGhvcml0eS52MS5QdWJsaWNLZXkSNAoOYWRtaXNzaW9uX2tleXMYAyADKAsyHC5ob3N0LmF1dGhvcml0eS52MS5QdWJsaWNLZXkiUwoJUHVibGljS2V5Eg4KBmtleV9pZBgBIAEoCRIRCglhbGdvcml0aG0YAiABKAkSEgoKcHVibGljX2tleRgDIAEoDBIPCgdwdXJwb3NlGAQgASgJInYKG1JlZ2lzdGVyQWRtaXNzaW9uS2V5UmVxdWVzdBI0CgVhY3RvchgBIAEoCzIlLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtsb2FkQ3JlZGVudGlhbBISCgpwdWJsaWNfa2V5GAIgASgMEg0KBXByb29mGAMgASgJImIKHFJlZ2lzdGVyQWRtaXNzaW9uS2V5UmVzcG9uc2USKQoDa2V5GAEgASgLMhwuaG9zdC5hdXRob3JpdHkudjEuUHVibGljS2V5EhcKD2V4cGlyZXNfYXRfdW5peBgCIAEoAyJeChRMaXN0UmVzb3VyY2VzUmVxdWVzdBINCgV0b2tlbhgBIAEoCRIQCghhdWRpZW5jZRgCIAEoCRIVCg1yZXNvdXJjZV9raW5kGAMgASgJEg4KBmFjdGlvbhgEIAEoCSJJChVMaXN0UmVzb3VyY2VzUmVzcG9uc2USMAoGZ3JhbnRzGAEgAygLMiAuaG9zdC5hdXRob3JpdHkudjEuUmVzb3VyY2VHcmFudCKIAQoVQXR0YWNoUmVzb3VyY2VSZXF1ZXN0Eg0KBXRva2VuGAEgASgJEjQKBWFjdG9yGAIgASgLMiUuaG9zdC5hdXRob3JpdHkudjEuV29ya2xvYWRDcmVkZW50aWFsEhUKDXJlc291cmNlX2tpbmQYAyABKAkSEwoLcmVzb3VyY2VfaWQYBCABKAkiMQoWQXR0YWNoUmVzb3VyY2VSZXNwb25zZRIXCg9pbnN0YWxsYXRpb25faWQYASABKAkikgEKFURldGFjaFJlc291cmNlUmVxdWVzdBI0CgVhY3RvchgBIAEoCzIlLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtsb2FkQ3JlZGVudGlhbBIXCg9vcmdhbml6YXRpb25faWQYAiABKAkSFQoNcmVzb3VyY2Vfa2luZBgDIAEoCRITCgtyZXNvdXJjZV9pZBgEIAEoCSIxChZEZXRhY2hSZXNvdXJjZVJlc3BvbnNlEhcKD2luc3RhbGxhdGlvbl9pZBgBIAEoCSK7AQoYQXV0aG9yaXplVHJhbnNmZXJSZXF1ZXN0Eg0KBXRva2VuGAEgASgJEjQKBWFjdG9yGAIgASgLMiUuaG9zdC5hdXRob3JpdHkudjEuV29ya2xvYWRDcmVkZW50aWFsEhUKDXJlc291cmNlX2tpbmQYAyABKAkSEwoLcmVzb3VyY2VfaWQYBCABKAkSFQoNZnJvbV9vd25lcl9pZBgFIAEoCRIXCg90b19wcmluY2lwYWxfaWQYBiABKAkiSAoZQXV0aG9yaXplVHJhbnNmZXJSZXNwb25zZRIUCgxwcmluY2lwYWxfaWQYASABKAkSFQoNYXV0aG9yaXplZF9ieRgCIAEoCSJ1Cg1SZXNvdXJjZUdyYW50Eg0KA2FsbBgBIAEoCEgAEgwKAmlkGAIgASgJSAASEAoGcHJlZml4GAMgASgJSAASEQoHcGF0dGVybhgEIAEoCUgAEhkKEXJlc291cmNlX293bmVyX2lkGAUgASgJQgcKBW1hdGNoMuMIChBBdXRob3JpdHlTZXJ2aWNlEmoKBUlzc3VlEh8uaG9zdC5hdXRob3JpdHkudjEuSXNzdWVSZXF1ZXN0GiAuaG9zdC5hdXRob3JpdHkudjEuSXNzdWVSZXNwb25zZSIegtPkkwIYOgEqIhMvdjEvYXV0aG9yaXR5Omlzc3VlEmoKBUNoZWNrEh8uaG9zdC5hdXRob3JpdHkudjEuQ2hlY2tSZXF1ZXN0GiAuaG9zdC5hdXRob3JpdHkudjEuQ2hlY2tSZXNwb25zZSIegtPkkwIYOgEqIhMvdjEvYXV0aG9yaXR5OmNoZWNrEkcKBEtleXMSHi5ob3N0LmF1dGhvcml0eS52MS5LZXlzUmVxdWVzdBofLmhvc3QuYXV0aG9yaXR5LnYxLktleXNSZXNwb25zZRJ3ChRSZWdpc3RlckFkbWlzc2lvbktleRIuLmhvc3QuYXV0aG9yaXR5LnYxLlJlZ2lzdGVyQWRtaXNzaW9uS2V5UmVxdWVzdBovLmhvc3QuYXV0aG9yaXR5LnYxLlJlZ2lzdGVyQWRtaXNzaW9uS2V5UmVzcG9uc2USYgoNTGlzdFJlc291cmNlcxInLmhvc3QuYXV0aG9yaXR5LnYxLkxpc3RSZXNvdXJjZXNSZXF1ZXN0GiguaG9zdC5hdXRob3JpdHkudjEuTGlzdFJlc291cmNlc1Jlc3BvbnNlEmUKDkF0dGFjaFJlc291cmNlEiguaG9zdC5hdXRob3JpdHkudjEuQXR0YWNoUmVzb3VyY2VSZXF1ZXN0GikuaG9zdC5hdXRob3JpdHkudjEuQXR0YWNoUmVzb3VyY2VSZXNwb25zZRJlCg5EZXRhY2hSZXNvdXJjZRIoLmhvc3QuYXV0aG9yaXR5LnYxLkRldGFjaFJlc291cmNlUmVxdWVzdBopLmhvc3QuYXV0aG9yaXR5LnYxLkRldGFjaFJlc291cmNlUmVzcG9uc2USbgoRQXV0aG9yaXplVHJhbnNmZXISKy5ob3N0LmF1dGhvcml0eS52MS5BdXRob3JpemVUcmFuc2ZlclJlcXVlc3QaLC5ob3N0LmF1dGhvcml0eS52MS5BdXRob3JpemVUcmFuc2ZlclJlc3BvbnNlEk0KCERlbGVnYXRlEiIuaG9zdC5hdXRob3JpdHkudjEuRGVsZWdhdGVSZXF1ZXN0Gh0uaG9zdC5hdXRob3JpdHkudjEuRGVsZWdhdGlvbhJrChBSZXZva2VEZWxlZ2F0aW9uEiouaG9zdC5hdXRob3JpdHkudjEuUmV2b2tlRGVsZWdhdGlvblJlcXVlc3QaKy5ob3N0LmF1dGhvcml0eS52MS5SZXZva2VEZWxlZ2F0aW9uUmVzcG9uc2USVwoNR2V0RGVsZWdhdGlvbhInLmhvc3QuYXV0aG9yaXR5LnYxLkdldERlbGVnYXRpb25SZXF1ZXN0Gh0uaG9zdC5hdXRob3JpdHkudjEuRGVsZWdhdGlvbkIvWi1nYXRld2F5L3BrZy9nZW4vaG9zdC9hdXRob3JpdHkvdjE7YXV0aG9yaXR5djFiBnByb3RvMw", [file_google_api_annotations, file_host_authority_v1_work_context]);
 
 /**
  * IssueRequest names on whose behalf the capability is issued.
@@ -78,6 +78,15 @@ export type IssueRequest = Message<"host.authority.v1.IssueRequest"> & {
      */
     value: DelegationRef;
     case: "delegation";
+  } | {
+    /**
+     * Current authenticated install callback evidence for one declared setup
+     * method. Independent of standing roles; requires the solution's actor.
+     *
+     * @generated from field: host.authority.v1.InstallationSetupRef setup = 13;
+     */
+    value: InstallationSetupRef;
+    case: "setup";
   } | { case: undefined; value?: undefined };
 
   /**
@@ -146,6 +155,35 @@ export const IssueRequestSchema: GenMessage<IssueRequest> = /*@__PURE__*/
   messageDesc(file_host_authority_v1_authority, 0);
 
 /**
+ * InstallationSetupRef selects one exact method from the reviewed setup grant.
+ * The callback token proves the current attempt; it is not data authority.
+ *
+ * @generated from message host.authority.v1.InstallationSetupRef
+ */
+export type InstallationSetupRef = Message<"host.authority.v1.InstallationSetupRef"> & {
+  /**
+   * The unexpired standard installation callback credential.
+   *
+   * @generated from field: string step_token = 1;
+   */
+  stepToken: string;
+
+  /**
+   * The exact destination method selected by the setup declaration.
+   *
+   * @generated from field: string method = 2;
+   */
+  method: string;
+};
+
+/**
+ * Describes the message host.authority.v1.InstallationSetupRef.
+ * Use `create(InstallationSetupRefSchema)` to create a new message.
+ */
+export const InstallationSetupRefSchema: GenMessage<InstallationSetupRef> = /*@__PURE__*/
+  messageDesc(file_host_authority_v1_authority, 1);
+
+/**
  * DelegationRef names one delegation.
  *
  * @generated from message host.authority.v1.DelegationRef
@@ -164,7 +202,7 @@ export type DelegationRef = Message<"host.authority.v1.DelegationRef"> & {
  * Use `create(DelegationRefSchema)` to create a new message.
  */
 export const DelegationRefSchema: GenMessage<DelegationRef> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 1);
+  messageDesc(file_host_authority_v1_authority, 2);
 
 /**
  * DelegateRequest is a signed-in person granting a module the right to act for
@@ -209,7 +247,7 @@ export type DelegateRequest = Message<"host.authority.v1.DelegateRequest"> & {
  * Use `create(DelegateRequestSchema)` to create a new message.
  */
 export const DelegateRequestSchema: GenMessage<DelegateRequest> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 2);
+  messageDesc(file_host_authority_v1_authority, 3);
 
 /**
  * Delegation is one grant from a person to a module.
@@ -271,7 +309,7 @@ export type Delegation = Message<"host.authority.v1.Delegation"> & {
  * Use `create(DelegationSchema)` to create a new message.
  */
 export const DelegationSchema: GenMessage<Delegation> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 3);
+  messageDesc(file_host_authority_v1_authority, 4);
 
 /**
  * GetDelegationRequest names the delegation read; anyone but its module or its
@@ -298,7 +336,7 @@ export type GetDelegationRequest = Message<"host.authority.v1.GetDelegationReque
  * Use `create(GetDelegationRequestSchema)` to create a new message.
  */
 export const GetDelegationRequestSchema: GenMessage<GetDelegationRequest> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 4);
+  messageDesc(file_host_authority_v1_authority, 5);
 
 /**
  * RevokeDelegationRequest ends a delegation; its grantor may, and so may an
@@ -318,7 +356,7 @@ export type RevokeDelegationRequest = Message<"host.authority.v1.RevokeDelegatio
  * Use `create(RevokeDelegationRequestSchema)` to create a new message.
  */
 export const RevokeDelegationRequestSchema: GenMessage<RevokeDelegationRequest> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 5);
+  messageDesc(file_host_authority_v1_authority, 6);
 
 /**
  * RevokeDelegationResponse is the delegation as it now stands.
@@ -337,7 +375,7 @@ export type RevokeDelegationResponse = Message<"host.authority.v1.RevokeDelegati
  * Use `create(RevokeDelegationResponseSchema)` to create a new message.
  */
 export const RevokeDelegationResponseSchema: GenMessage<RevokeDelegationResponse> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 6);
+  messageDesc(file_host_authority_v1_authority, 7);
 
 /**
  * PersonSession names the caller's own session. It carries no field: the person
@@ -354,7 +392,7 @@ export type PersonSession = Message<"host.authority.v1.PersonSession"> & {
  * Use `create(PersonSessionSchema)` to create a new message.
  */
 export const PersonSessionSchema: GenMessage<PersonSession> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 7);
+  messageDesc(file_host_authority_v1_authority, 8);
 
 /**
  * WorkloadCredential proves which module a running process is: the native
@@ -377,7 +415,7 @@ export type WorkloadCredential = Message<"host.authority.v1.WorkloadCredential">
  * Use `create(WorkloadCredentialSchema)` to create a new message.
  */
 export const WorkloadCredentialSchema: GenMessage<WorkloadCredential> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 8);
+  messageDesc(file_host_authority_v1_authority, 9);
 
 /**
  * InstallationRef names an installation acting for itself.
@@ -398,7 +436,7 @@ export type InstallationRef = Message<"host.authority.v1.InstallationRef"> & {
  * Use `create(InstallationRefSchema)` to create a new message.
  */
 export const InstallationRefSchema: GenMessage<InstallationRef> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 9);
+  messageDesc(file_host_authority_v1_authority, 10);
 
 /**
  * IssueResponse carries the signed capability and its decoded form.
@@ -433,7 +471,7 @@ export type IssueResponse = Message<"host.authority.v1.IssueResponse"> & {
  * Use `create(IssueResponseSchema)` to create a new message.
  */
 export const IssueResponseSchema: GenMessage<IssueResponse> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 10);
+  messageDesc(file_host_authority_v1_authority, 11);
 
 /**
  * CheckRequest presents a capability for verification.
@@ -496,7 +534,7 @@ export type CheckRequest = Message<"host.authority.v1.CheckRequest"> & {
  * Use `create(CheckRequestSchema)` to create a new message.
  */
 export const CheckRequestSchema: GenMessage<CheckRequest> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 11);
+  messageDesc(file_host_authority_v1_authority, 12);
 
 /**
  * CheckResponse is the verified capability.
@@ -532,7 +570,7 @@ export type CheckResponse = Message<"host.authority.v1.CheckResponse"> & {
  * Use `create(CheckResponseSchema)` to create a new message.
  */
 export const CheckResponseSchema: GenMessage<CheckResponse> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 12);
+  messageDesc(file_host_authority_v1_authority, 13);
 
 /**
  * KeysRequest asks for the verification keys.
@@ -547,7 +585,7 @@ export type KeysRequest = Message<"host.authority.v1.KeysRequest"> & {
  * Use `create(KeysRequestSchema)` to create a new message.
  */
 export const KeysRequestSchema: GenMessage<KeysRequest> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 13);
+  messageDesc(file_host_authority_v1_authority, 14);
 
 /**
  * KeysResponse is the issuer and its keys.
@@ -589,7 +627,7 @@ export type KeysResponse = Message<"host.authority.v1.KeysResponse"> & {
  * Use `create(KeysResponseSchema)` to create a new message.
  */
 export const KeysResponseSchema: GenMessage<KeysResponse> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 14);
+  messageDesc(file_host_authority_v1_authority, 15);
 
 /**
  * PublicKey is one verification key.
@@ -633,7 +671,7 @@ export type PublicKey = Message<"host.authority.v1.PublicKey"> & {
  * Use `create(PublicKeySchema)` to create a new message.
  */
 export const PublicKeySchema: GenMessage<PublicKey> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 15);
+  messageDesc(file_host_authority_v1_authority, 16);
 
 /**
  * RegisterAdmissionKeyRequest presents one hop admission key.
@@ -677,7 +715,7 @@ export type RegisterAdmissionKeyRequest = Message<"host.authority.v1.RegisterAdm
  * Use `create(RegisterAdmissionKeyRequestSchema)` to create a new message.
  */
 export const RegisterAdmissionKeyRequestSchema: GenMessage<RegisterAdmissionKeyRequest> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 16);
+  messageDesc(file_host_authority_v1_authority, 17);
 
 /**
  * RegisterAdmissionKeyResponse is the key as Keys now publishes it.
@@ -705,7 +743,7 @@ export type RegisterAdmissionKeyResponse = Message<"host.authority.v1.RegisterAd
  * Use `create(RegisterAdmissionKeyResponseSchema)` to create a new message.
  */
 export const RegisterAdmissionKeyResponseSchema: GenMessage<RegisterAdmissionKeyResponse> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 17);
+  messageDesc(file_host_authority_v1_authority, 18);
 
 /**
  * ListResourcesRequest asks about one kind and one action.
@@ -747,7 +785,7 @@ export type ListResourcesRequest = Message<"host.authority.v1.ListResourcesReque
  * Use `create(ListResourcesRequestSchema)` to create a new message.
  */
 export const ListResourcesRequestSchema: GenMessage<ListResourcesRequest> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 18);
+  messageDesc(file_host_authority_v1_authority, 19);
 
 /**
  * ListResourcesResponse is every grant the capability holds on the kind for the
@@ -768,7 +806,7 @@ export type ListResourcesResponse = Message<"host.authority.v1.ListResourcesResp
  * Use `create(ListResourcesResponseSchema)` to create a new message.
  */
 export const ListResourcesResponseSchema: GenMessage<ListResourcesResponse> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 19);
+  messageDesc(file_host_authority_v1_authority, 20);
 
 /**
  * AttachResourceRequest names one resource and the capability it was created under.
@@ -810,7 +848,7 @@ export type AttachResourceRequest = Message<"host.authority.v1.AttachResourceReq
  * Use `create(AttachResourceRequestSchema)` to create a new message.
  */
 export const AttachResourceRequestSchema: GenMessage<AttachResourceRequest> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 20);
+  messageDesc(file_host_authority_v1_authority, 21);
 
 /**
  * AttachResourceResponse names the installation that now owns the resource.
@@ -831,7 +869,7 @@ export type AttachResourceResponse = Message<"host.authority.v1.AttachResourceRe
  * Use `create(AttachResourceResponseSchema)` to create a new message.
  */
 export const AttachResourceResponseSchema: GenMessage<AttachResourceResponse> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 21);
+  messageDesc(file_host_authority_v1_authority, 22);
 
 /**
  * DetachResourceRequest names one resource its serving module deleted.
@@ -873,7 +911,7 @@ export type DetachResourceRequest = Message<"host.authority.v1.DetachResourceReq
  * Use `create(DetachResourceRequestSchema)` to create a new message.
  */
 export const DetachResourceRequestSchema: GenMessage<DetachResourceRequest> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 22);
+  messageDesc(file_host_authority_v1_authority, 23);
 
 /**
  * DetachResourceResponse names the installation that owned the resource.
@@ -894,7 +932,7 @@ export type DetachResourceResponse = Message<"host.authority.v1.DetachResourceRe
  * Use `create(DetachResourceResponseSchema)` to create a new message.
  */
 export const DetachResourceResponseSchema: GenMessage<DetachResourceResponse> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 23);
+  messageDesc(file_host_authority_v1_authority, 24);
 
 /**
  * AuthorizeTransferRequest names one existing resource and where it moves.
@@ -951,7 +989,7 @@ export type AuthorizeTransferRequest = Message<"host.authority.v1.AuthorizeTrans
  * Use `create(AuthorizeTransferRequestSchema)` to create a new message.
  */
 export const AuthorizeTransferRequestSchema: GenMessage<AuthorizeTransferRequest> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 24);
+  messageDesc(file_host_authority_v1_authority, 25);
 
 /**
  * AuthorizeTransferResponse is the decision the store records.
@@ -979,7 +1017,7 @@ export type AuthorizeTransferResponse = Message<"host.authority.v1.AuthorizeTran
  * Use `create(AuthorizeTransferResponseSchema)` to create a new message.
  */
 export const AuthorizeTransferResponseSchema: GenMessage<AuthorizeTransferResponse> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 25);
+  messageDesc(file_host_authority_v1_authority, 26);
 
 /**
  * ResourceGrant is one way of naming covered resources. Exactly one match is
@@ -1040,7 +1078,7 @@ export type ResourceGrant = Message<"host.authority.v1.ResourceGrant"> & {
  * Use `create(ResourceGrantSchema)` to create a new message.
  */
 export const ResourceGrantSchema: GenMessage<ResourceGrant> = /*@__PURE__*/
-  messageDesc(file_host_authority_v1_authority, 26);
+  messageDesc(file_host_authority_v1_authority, 27);
 
 /**
  * AuthorityService is implemented by the host (accounts) and by the local authority.

@@ -17,7 +17,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file host/composition/v1/composition.proto.
  */
 export const file_host_composition_v1_composition: GenFile = /*@__PURE__*/
-  fileDesc("CiVob3N0L2NvbXBvc2l0aW9uL3YxL2NvbXBvc2l0aW9uLnByb3RvEhNob3N0LmNvbXBvc2l0aW9uLnYxItUBChRBcHBseU1hbmlmZXN0UmVxdWVzdBI3CghtYW5pZmVzdBgBIAEoCzIlLmhvc3QuY29tcG9zaXRpb24udjEuTW9kdWxlTWFuaWZlc3RWMRI2CgdjYXJyaWVyGAIgASgLMiUuaG9zdC5jb21wb3NpdGlvbi52MS5TaWduZWRNYW5pZmVzdFYxEhIKCmNyZWRlbnRpYWwYAyABKAkSOAoJYXV0aG9yaXR5GAQgASgLMiUuaG9zdC5jb21wb3NpdGlvbi52MS5TaWduZWRNYW5pZmVzdFYxIuMCChNBdXRob3JpdHlNYW5pZmVzdFYxEg4KBm1vZHVsZRgBIAEoCRISCgpnZW5lcmF0aW9uGAIgASgEEhwKFGNvcmVfbWFuaWZlc3RfZGlnZXN0GAMgASgJEjQKB21ldGhvZHMYBCADKAsyIy5ob3N0LmNvbXBvc2l0aW9uLnYxLk1ldGhvZFBvbGljeVYxEjYKDnNjb3BlX2NlaWxpbmdzGAUgAygLMh4uaG9zdC5hdXRob3JpdHkudjEuV29ya1Njb3BlVjESKgoFcm9sZXMYBiADKAsyGy5ob3N0LmNvbXBvc2l0aW9uLnYxLlJvbGVWMRITCgtvd25lcl9hd2FyZRgHIAEoCBIZChFpbnN0YWxsYXRpb25fcm9sZRgIIAEoCRJAChFlZGdlX2RlcGVuZGVuY2llcxgJIAMoCzIlLmhvc3QuY29tcG9zaXRpb24udjEuRWRnZURlcGVuZGVuY3lWMSI0ChBFZGdlRGVwZW5kZW5jeVYxEg4KBm1vZHVsZRgBIAEoCRIQCghwcmVzZW5jZRgCIAEoCSJuCg5NZXRob2RQb2xpY3lWMRIOCgZtZXRob2QYASABKAkSMAoIcmVxdWlyZXMYAiADKAsyHi5ob3N0LmF1dGhvcml0eS52MS5Xb3JrU2NvcGVWMRIaChJhbnlfY2hlY2tlZF9jYWxsZXIYAyABKAgiNgoQU2lnbmVkTWFuaWZlc3RWMRIQCghkb2N1bWVudBgBIAEoDBIQCghlbnZlbG9wZRgCIAEoDCJYChVBcHBseU1hbmlmZXN0UmVzcG9uc2USEQoJcHJpbmNpcGFsGAEgASgJEhIKCmdlbmVyYXRpb24YAiABKAQSGAoQaW5zdGFsbGF0aW9uX2lkcxgDIAMoCSKdAgoQTW9kdWxlTWFuaWZlc3RWMRIOCgZtb2R1bGUYASABKAkSEQoJcHJpbmNpcGFsGAIgASgJEgwKBGtpbmQYAyABKAkSEgoKZ2VuZXJhdGlvbhgEIAEoBBIwCghiaW5kaW5ncxgFIAMoCzIeLmhvc3QuY29tcG9zaXRpb24udjEuQmluZGluZ1YxEjsKDnJlc291cmNlX2tpbmRzGAYgAygLMiMuaG9zdC5jb21wb3NpdGlvbi52MS5SZXNvdXJjZUtpbmRWMRIpCgRwYWdlGAcgASgLMhsuaG9zdC5jb21wb3NpdGlvbi52MS5QYWdlVjESKgoFcm9sZXMYCCADKAsyGy5ob3N0LmNvbXBvc2l0aW9uLnYxLlJvbGVWMSKJAQoGUm9sZVYxEgwKBG5hbWUYASABKAkSLgoGc2NvcGVzGAIgAygLMh4uaG9zdC5hdXRob3JpdHkudjEuV29ya1Njb3BlVjESQQoZaW5zdGFsbGF0aW9uX293bmVkX3Njb3BlcxgDIAMoCzIeLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtTY29wZVYxItABCglCaW5kaW5nVjESCgoCaWQYASABKAkSEAoIYXVkaWVuY2UYAiABKAkSNQoNaW52b2tlX3Njb3BlcxgDIAMoCzIeLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtTY29wZVYxEjcKD2hlYWRsZXNzX3Njb3BlcxgEIAMoCzIeLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtTY29wZVYxEjUKDWxvb2t1cF9zY29wZXMYBSADKAsyHi5ob3N0LmF1dGhvcml0eS52MS5Xb3JrU2NvcGVWMSIvCg5SZXNvdXJjZUtpbmRWMRIMCgRraW5kGAEgASgJEg8KB2FjdGlvbnMYAiADKAkiJgoGUGFnZVYxEg0KBXRpdGxlGAEgASgJEg0KBW9yZGVyGAIgASgFMnwKEkNvbXBvc2l0aW9uU2VydmljZRJmCg1BcHBseU1hbmlmZXN0EikuaG9zdC5jb21wb3NpdGlvbi52MS5BcHBseU1hbmlmZXN0UmVxdWVzdBoqLmhvc3QuY29tcG9zaXRpb24udjEuQXBwbHlNYW5pZmVzdFJlc3BvbnNlQjNaMWdhdGV3YXkvcGtnL2dlbi9ob3N0L2NvbXBvc2l0aW9uL3YxO2NvbXBvc2l0aW9udjFiBnByb3RvMw", [file_host_authority_v1_work_context]);
+  fileDesc("CiVob3N0L2NvbXBvc2l0aW9uL3YxL2NvbXBvc2l0aW9uLnByb3RvEhNob3N0LmNvbXBvc2l0aW9uLnYxItUBChRBcHBseU1hbmlmZXN0UmVxdWVzdBI3CghtYW5pZmVzdBgBIAEoCzIlLmhvc3QuY29tcG9zaXRpb24udjEuTW9kdWxlTWFuaWZlc3RWMRI2CgdjYXJyaWVyGAIgASgLMiUuaG9zdC5jb21wb3NpdGlvbi52MS5TaWduZWRNYW5pZmVzdFYxEhIKCmNyZWRlbnRpYWwYAyABKAkSOAoJYXV0aG9yaXR5GAQgASgLMiUuaG9zdC5jb21wb3NpdGlvbi52MS5TaWduZWRNYW5pZmVzdFYxIrkDChNBdXRob3JpdHlNYW5pZmVzdFYxEg4KBm1vZHVsZRgBIAEoCRISCgpnZW5lcmF0aW9uGAIgASgEEhwKFGNvcmVfbWFuaWZlc3RfZGlnZXN0GAMgASgJEjQKB21ldGhvZHMYBCADKAsyIy5ob3N0LmNvbXBvc2l0aW9uLnYxLk1ldGhvZFBvbGljeVYxEjYKDnNjb3BlX2NlaWxpbmdzGAUgAygLMh4uaG9zdC5hdXRob3JpdHkudjEuV29ya1Njb3BlVjESKgoFcm9sZXMYBiADKAsyGy5ob3N0LmNvbXBvc2l0aW9uLnYxLlJvbGVWMRITCgtvd25lcl9hd2FyZRgHIAEoCBIZChFpbnN0YWxsYXRpb25fcm9sZRgIIAEoCRJAChFlZGdlX2RlcGVuZGVuY2llcxgJIAMoCzIlLmhvc3QuY29tcG9zaXRpb24udjEuRWRnZURlcGVuZGVuY3lWMRIwCgVzZXR1cBgKIAMoCzIhLmhvc3QuY29tcG9zaXRpb24udjEuU2V0dXBHcmFudFYxEiIKGm93bmVyX2F3YXJlX3Jlc291cmNlX2tpbmRzGAsgAygJIkAKDFNldHVwR3JhbnRWMRIPCgdiaW5kaW5nGAEgASgJEg8KB21ldGhvZHMYAiADKAkSDgoGc2NvcGVzGAMgAygJIjQKEEVkZ2VEZXBlbmRlbmN5VjESDgoGbW9kdWxlGAEgASgJEhAKCHByZXNlbmNlGAIgASgJIm4KDk1ldGhvZFBvbGljeVYxEg4KBm1ldGhvZBgBIAEoCRIwCghyZXF1aXJlcxgCIAMoCzIeLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtTY29wZVYxEhoKEmFueV9jaGVja2VkX2NhbGxlchgDIAEoCCI2ChBTaWduZWRNYW5pZmVzdFYxEhAKCGRvY3VtZW50GAEgASgMEhAKCGVudmVsb3BlGAIgASgMIlgKFUFwcGx5TWFuaWZlc3RSZXNwb25zZRIRCglwcmluY2lwYWwYASABKAkSEgoKZ2VuZXJhdGlvbhgCIAEoBBIYChBpbnN0YWxsYXRpb25faWRzGAMgAygJIp0CChBNb2R1bGVNYW5pZmVzdFYxEg4KBm1vZHVsZRgBIAEoCRIRCglwcmluY2lwYWwYAiABKAkSDAoEa2luZBgDIAEoCRISCgpnZW5lcmF0aW9uGAQgASgEEjAKCGJpbmRpbmdzGAUgAygLMh4uaG9zdC5jb21wb3NpdGlvbi52MS5CaW5kaW5nVjESOwoOcmVzb3VyY2Vfa2luZHMYBiADKAsyIy5ob3N0LmNvbXBvc2l0aW9uLnYxLlJlc291cmNlS2luZFYxEikKBHBhZ2UYByABKAsyGy5ob3N0LmNvbXBvc2l0aW9uLnYxLlBhZ2VWMRIqCgVyb2xlcxgIIAMoCzIbLmhvc3QuY29tcG9zaXRpb24udjEuUm9sZVYxIokBCgZSb2xlVjESDAoEbmFtZRgBIAEoCRIuCgZzY29wZXMYAiADKAsyHi5ob3N0LmF1dGhvcml0eS52MS5Xb3JrU2NvcGVWMRJBChlpbnN0YWxsYXRpb25fb3duZWRfc2NvcGVzGAMgAygLMh4uaG9zdC5hdXRob3JpdHkudjEuV29ya1Njb3BlVjEi0AEKCUJpbmRpbmdWMRIKCgJpZBgBIAEoCRIQCghhdWRpZW5jZRgCIAEoCRI1Cg1pbnZva2Vfc2NvcGVzGAMgAygLMh4uaG9zdC5hdXRob3JpdHkudjEuV29ya1Njb3BlVjESNwoPaGVhZGxlc3Nfc2NvcGVzGAQgAygLMh4uaG9zdC5hdXRob3JpdHkudjEuV29ya1Njb3BlVjESNQoNbG9va3VwX3Njb3BlcxgFIAMoCzIeLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtTY29wZVYxIi8KDlJlc291cmNlS2luZFYxEgwKBGtpbmQYASABKAkSDwoHYWN0aW9ucxgCIAMoCSImCgZQYWdlVjESDQoFdGl0bGUYASABKAkSDQoFb3JkZXIYAiABKAUyfAoSQ29tcG9zaXRpb25TZXJ2aWNlEmYKDUFwcGx5TWFuaWZlc3QSKS5ob3N0LmNvbXBvc2l0aW9uLnYxLkFwcGx5TWFuaWZlc3RSZXF1ZXN0GiouaG9zdC5jb21wb3NpdGlvbi52MS5BcHBseU1hbmlmZXN0UmVzcG9uc2VCM1oxZ2F0ZXdheS9wa2cvZ2VuL2hvc3QvY29tcG9zaXRpb24vdjE7Y29tcG9zaXRpb252MWIGcHJvdG8z", [file_host_authority_v1_work_context]);
 
 /**
  * ApplyManifestRequest carries the manifest.
@@ -154,6 +154,21 @@ export type AuthorityManifestV1 = Message<"host.composition.v1.AuthorityManifest
    * @generated from field: repeated host.composition.v1.EdgeDependencyV1 edge_dependencies = 9;
    */
   edgeDependencies: EdgeDependencyV1[];
+
+  /**
+   * Resolved installation-only grants; separate from standing roles.
+   *
+   * @generated from field: repeated host.composition.v1.SetupGrantV1 setup = 10;
+   */
+  setup: SetupGrantV1[];
+
+  /**
+   * Only these served kinds enforce resource-owner selectors. Mutually
+   * exclusive with owner_aware true; empty means none.
+   *
+   * @generated from field: repeated string owner_aware_resource_kinds = 11;
+   */
+  ownerAwareResourceKinds: string[];
 };
 
 /**
@@ -162,6 +177,41 @@ export type AuthorityManifestV1 = Message<"host.composition.v1.AuthorityManifest
  */
 export const AuthorityManifestV1Schema: GenMessage<AuthorityManifestV1> = /*@__PURE__*/
   messageDesc(file_host_composition_v1_composition, 1);
+
+/**
+ * SetupGrantV1 retains exact methods even when two methods share requirements.
+ *
+ * @generated from message host.composition.v1.SetupGrantV1
+ */
+export type SetupGrantV1 = Message<"host.composition.v1.SetupGrantV1"> & {
+  /**
+   * The required foreign invoke binding that reaches the destination.
+   *
+   * @generated from field: string binding = 1;
+   */
+  binding: string;
+
+  /**
+   * Exact, unique methods approved for this installation's setup only.
+   *
+   * @generated from field: repeated string methods = 2;
+   */
+  methods: string[];
+
+  /**
+   * Callee-derived requirements as resource-kind:action, within invoke ceiling.
+   *
+   * @generated from field: repeated string scopes = 3;
+   */
+  scopes: string[];
+};
+
+/**
+ * Describes the message host.composition.v1.SetupGrantV1.
+ * Use `create(SetupGrantV1Schema)` to create a new message.
+ */
+export const SetupGrantV1Schema: GenMessage<SetupGrantV1> = /*@__PURE__*/
+  messageDesc(file_host_composition_v1_composition, 2);
 
 /**
  * EdgeDependencyV1 names the exact signed module principal. The host resolves
@@ -188,7 +238,7 @@ export type EdgeDependencyV1 = Message<"host.composition.v1.EdgeDependencyV1"> &
  * Use `create(EdgeDependencyV1Schema)` to create a new message.
  */
 export const EdgeDependencyV1Schema: GenMessage<EdgeDependencyV1> = /*@__PURE__*/
-  messageDesc(file_host_composition_v1_composition, 2);
+  messageDesc(file_host_composition_v1_composition, 3);
 
 /**
  * MethodPolicyV1 is what a call to one method must hold, as the module's
@@ -226,7 +276,7 @@ export type MethodPolicyV1 = Message<"host.composition.v1.MethodPolicyV1"> & {
  * Use `create(MethodPolicyV1Schema)` to create a new message.
  */
 export const MethodPolicyV1Schema: GenMessage<MethodPolicyV1> = /*@__PURE__*/
-  messageDesc(file_host_composition_v1_composition, 3);
+  messageDesc(file_host_composition_v1_composition, 4);
 
 /**
  * SignedManifestV1 is core's signed carrier: the manifest document (JSON) and
@@ -251,7 +301,7 @@ export type SignedManifestV1 = Message<"host.composition.v1.SignedManifestV1"> &
  * Use `create(SignedManifestV1Schema)` to create a new message.
  */
 export const SignedManifestV1Schema: GenMessage<SignedManifestV1> = /*@__PURE__*/
-  messageDesc(file_host_composition_v1_composition, 4);
+  messageDesc(file_host_composition_v1_composition, 5);
 
 /**
  * ApplyManifestResponse says what the host derived.
@@ -286,7 +336,7 @@ export type ApplyManifestResponse = Message<"host.composition.v1.ApplyManifestRe
  * Use `create(ApplyManifestResponseSchema)` to create a new message.
  */
 export const ApplyManifestResponseSchema: GenMessage<ApplyManifestResponse> = /*@__PURE__*/
-  messageDesc(file_host_composition_v1_composition, 5);
+  messageDesc(file_host_composition_v1_composition, 6);
 
 /**
  * ModuleManifestV1 is one module instance at one generation.
@@ -359,7 +409,7 @@ export type ModuleManifestV1 = Message<"host.composition.v1.ModuleManifestV1"> &
  * Use `create(ModuleManifestV1Schema)` to create a new message.
  */
 export const ModuleManifestV1Schema: GenMessage<ModuleManifestV1> = /*@__PURE__*/
-  messageDesc(file_host_composition_v1_composition, 6);
+  messageDesc(file_host_composition_v1_composition, 7);
 
 /**
  * RoleV1 is one role a solution declares.
@@ -397,7 +447,7 @@ export type RoleV1 = Message<"host.composition.v1.RoleV1"> & {
  * Use `create(RoleV1Schema)` to create a new message.
  */
 export const RoleV1Schema: GenMessage<RoleV1> = /*@__PURE__*/
-  messageDesc(file_host_composition_v1_composition, 7);
+  messageDesc(file_host_composition_v1_composition, 8);
 
 /**
  * BindingV1 is one declared call towards another module.
@@ -449,7 +499,7 @@ export type BindingV1 = Message<"host.composition.v1.BindingV1"> & {
  * Use `create(BindingV1Schema)` to create a new message.
  */
 export const BindingV1Schema: GenMessage<BindingV1> = /*@__PURE__*/
-  messageDesc(file_host_composition_v1_composition, 8);
+  messageDesc(file_host_composition_v1_composition, 9);
 
 /**
  * ResourceKindV1 is one kind the module governs and the actions on it.
@@ -477,7 +527,7 @@ export type ResourceKindV1 = Message<"host.composition.v1.ResourceKindV1"> & {
  * Use `create(ResourceKindV1Schema)` to create a new message.
  */
 export const ResourceKindV1Schema: GenMessage<ResourceKindV1> = /*@__PURE__*/
-  messageDesc(file_host_composition_v1_composition, 9);
+  messageDesc(file_host_composition_v1_composition, 10);
 
 /**
  * PageV1 is a module's frontend contribution.
@@ -505,7 +555,7 @@ export type PageV1 = Message<"host.composition.v1.PageV1"> & {
  * Use `create(PageV1Schema)` to create a new message.
  */
 export const PageV1Schema: GenMessage<PageV1> = /*@__PURE__*/
-  messageDesc(file_host_composition_v1_composition, 10);
+  messageDesc(file_host_composition_v1_composition, 11);
 
 /**
  * CompositionService is implemented by the host and by the local authority.

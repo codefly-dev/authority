@@ -270,6 +270,20 @@ message ReviewedOffer {
   // Exact declared viewer-edge presence, covered by the reviewed digest.
   // Required access and per-module approval are separate host review concerns.
   repeated OfferDependency edge_dependencies = 8;
+  // Temporary installation-confined grants, not standing roles.
+  repeated OfferSetup setup = 9;
+}
+
+// OfferSetup explains the exact authority usable only while setup is pending.
+message OfferSetup {
+  // The declared binding.
+  string binding = 1;
+  // The destination principal.
+  string module = 2;
+  // The exact allowed methods, even if other methods share their scopes.
+  repeated string methods = 3;
+  // Requirements, always confined to the pending installation's owner.
+  repeated OfferScope scopes = 4;
 }
 
 // OfferDependency carries presence only, never scopes or inferred binding ids.

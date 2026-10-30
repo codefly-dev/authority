@@ -407,8 +407,10 @@ func (s *Service) IssueForInstallation(ctx context.Context, w Workload, installa
 			return err
 		}
 		// Everything the installation holds for itself is owner-selected.
-		if err := decide.OwnerAware(audience, decide.Scopes{{ResourceKind: audience.Name, ResourceOwnerId: inst.PrincipalID}}); err != nil {
-			return err
+		if audience.Kind == domain.KindSolution || (!audience.OwnerAware && len(audience.OwnerAwareResourceKinds) == 0) {
+			if err := decide.OwnerAware(audience, decide.Scopes{{ResourceKind: audience.Name, ResourceOwnerId: inst.PrincipalID}}); err != nil {
+				return err
+			}
 		}
 		agent, err := decide.RoleScopes(solution, inst, []string{inst.AgentRole})
 		if err != nil {
@@ -568,7 +570,7 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 		default:
 			heldHere = verified.EffectiveScopes()
 		}
-		if (bounded || claims.GetOwnerPrincipalKind() == "agent") && !audience.OwnerAware {
+		if (audience.Kind == domain.KindSolution || len(audience.OwnerAwareResourceKinds) == 0) && (bounded || claims.GetOwnerPrincipalKind() == "agent") && !audience.OwnerAware {
 			return decide.OwnerAware(audience, decide.Scopes{{ResourceKind: audience.Name, ResourceOwnerId: claims.GetOwnerPrincipalId()}})
 		}
 		if through, err = decide.ScopesFor(binding, r.Operation, "invoke"); err != nil {
