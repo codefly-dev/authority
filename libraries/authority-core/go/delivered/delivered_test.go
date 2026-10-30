@@ -49,8 +49,11 @@ func TestCoreBindingOperationsAreReadAsScopesPerOperation(t *testing.T) {
 		!scope.Same(b.HeadlessScopes, scope.Normalize([]*basev0.WorkScopeV1{ws("modelservice.profiles", "read")})) || !scope.Same(b.LookupScopes, b.HeadlessScopes) {
 		t.Fatalf("binding %+v", b)
 	}
-	if bare := delivered.FromCore(&solutionhost.ModuleManifest{Alias: "bare", Generation: 1}); bare.Principal != "bare" || len(bare.Bindings) != 0 {
+	if bare := delivered.FromCore(&solutionhost.ModuleManifest{Alias: "bare", Generation: 1}); bare.Principal != "bare" || len(bare.Bindings) != 0 || bare.Page {
 		t.Fatalf("a manifest without authority composes its alias alone: %+v", bare)
+	}
+	if page := delivered.FromCore(&solutionhost.ModuleManifest{Alias: "page", Generation: 1, Frontend: &solutionhost.Frontend{Title: "Page", ExposedModule: "./Page", HostContract: 1}}); !page.Page {
+		t.Fatal("a manifest declaring a frontend is not read as a page")
 	}
 }
 

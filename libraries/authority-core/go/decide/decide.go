@@ -127,7 +127,9 @@ func HeldRoles(p domain.Person, inst domain.Installation, grants []domain.RoleGr
 // RoleScopes is what roles grant on a solution's installation: the roles'
 // scopes, each selecting only the resources the installation's principal
 // owns. An installation with no principal grants nothing: its scopes would
-// select every owner's resources.
+// select every owner's resources. A module page's installation is its
+// organization's and has no principal: its roles' scopes select no owner,
+// as the organization roles they stand in for select none.
 func RoleScopes(solution domain.Module, inst domain.Installation, roles []string) (Scopes, error) {
 	var literal, attached Scopes
 	for _, role := range roles {
@@ -137,6 +139,9 @@ func RoleScopes(solution domain.Module, inst domain.Installation, roles []string
 				attached = append(attached, &basev0.WorkScopeV1{ResourceKind: sc.GetResourceKind(), Actions: slices.Clone(sc.GetActions()), ResourceIds: slices.Clone(ids)})
 			}
 		}
+	}
+	if solution.Kind != domain.KindSolution {
+		return scope.Normalize(literal), nil
 	}
 	if len(literal) > 0 {
 		if inst.PrincipalID == "" {

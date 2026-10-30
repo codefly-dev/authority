@@ -43,8 +43,8 @@ type Method struct {
 	AnyCheckedCaller bool
 }
 
-// Role is one of a solution's roles: its scopes, and those it declares
-// installation-owned (resolved to the ids each installation owns).
+// Role is one of a solution's or a module page's roles: its scopes, and those
+// it declares installation-owned (resolved to the ids each installation owns).
 type Role struct {
 	Name                      string
 	Scopes, InstallationOwned Scopes
@@ -149,9 +149,9 @@ func methods(in []Method) (map[string]domain.MethodPolicy, error) {
 	return out, nil
 }
 
-// roles reads the roles a solution declares, by name, and the scopes of each
-// it declares installation-owned. Core holds them to the role contract when
-// the module is applied (decide.ValidateModule).
+// roles reads the roles a solution or a module page declares, by name, and
+// the scopes of each it declares installation-owned. Core holds them to the
+// role contract when the module is applied (decide.ValidateModule).
 func roles(in []Role) (map[string]Scopes, map[string]Scopes, error) {
 	owned := map[string]Scopes{}
 	if len(in) == 0 {
@@ -203,12 +203,14 @@ func Ceiled(m domain.Module, ceilings Scopes) (domain.Module, error) {
 }
 
 // FromCore reads core's module manifest as the authority's module. Core's
-// manifest carries no roles; a solution's arrive in the document delivered
-// with it. The manifest is the ceiling here: a resource kind declared with no
-// actions serves whatever the roles grant on it, a binding's operations are
-// its scopes, each "<resource kind>:<action>" as core's manifest writes them.
+// manifest carries no roles; a solution's or a module page's arrive in the
+// document delivered with it, and a manifest declaring a frontend is a page.
+// The manifest is the ceiling here: a resource kind declared with no actions
+// serves whatever the roles grant on it, a binding's operations are its
+// scopes, each "<resource kind>:<action>" as core's manifest writes them.
 func FromCore(in *solutionhost.ModuleManifest) domain.Module {
-	m := domain.Module{Name: in.Alias, Principal: in.Alias, Kind: string(in.Kind), Generation: in.Generation, Bindings: map[string]domain.Binding{}}
+	m := domain.Module{Name: in.Alias, Principal: in.Alias, Kind: string(in.Kind), Generation: in.Generation, Bindings: map[string]domain.Binding{},
+		Page: in.Frontend != nil}
 	if in.Authority == nil {
 		return m
 	}
