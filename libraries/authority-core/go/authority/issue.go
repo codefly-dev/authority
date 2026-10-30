@@ -31,11 +31,13 @@ type Issued struct {
 }
 
 // held is what a person holds at an audience: at a solution, the scopes of the
-// roles granted them on its installation, owned by its principal; at a
-// module, their organization roles within what it serves, resource-scoped
-// roles holding the ids their matchers select of named (decide.OrgScopes).
+// roles granted them on its installation, owned by its principal; at a module
+// page declaring roles, those of its roles granted them on its installation,
+// within what it serves; at any other module, their organization roles within
+// what it serves, resource-scoped roles holding the ids their matchers select
+// of named (decide.OrgScopes).
 func held(tx Tx, p domain.Person, audience domain.Module, named Scopes) (Scopes, error) {
-	if audience.Kind == domain.KindSolution {
+	if decide.RoleGated(audience) {
 		inst, err := installationOf(tx, p.Organization, audience.Name)
 		if errors.Is(err, domain.ErrNotFound) {
 			return nil, nil
@@ -229,7 +231,7 @@ func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest
 		if audience.Kind == domain.KindSolution && !audience.OwnerAware {
 			return decide.OwnerAware(audience, decide.Scopes{{ResourceKind: audience.Name, ResourceOwnerId: inst.PrincipalID}})
 		}
-		if audience.Kind == domain.KindSolution && len(heldHere) == 0 {
+		if decide.RoleGated(audience) && len(heldHere) == 0 {
 			return domain.Refuse("%s holds no role on %s", p.ID, audience.Name)
 		}
 		if r.Binding != "" {

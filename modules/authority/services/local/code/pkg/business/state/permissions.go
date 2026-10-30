@@ -132,7 +132,7 @@ func (s *State) PermissionReport() []string {
 			}
 		}
 		roles := map[string][]*basev0.WorkScopeV1{}
-		if m.Kind == domain.KindSolution {
+		if decide.RoleGated(m) {
 			for name, scopes := range m.Roles {
 				// Statically an installation-owned scope covers its kind; which
 				// ids is each installation's, decided at issue.

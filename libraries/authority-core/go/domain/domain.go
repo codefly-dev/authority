@@ -54,15 +54,22 @@ type Binding struct {
 
 // Module is what a delivery composed for one module or solution: its
 // principal (the audience every capability to it names), what it serves, its
-// bindings, a solution's roles, and whether it checks resource owners.
+// bindings, the roles of a solution or of a module page, and whether it
+// checks resource owners.
 type Module struct {
 	Name, Principal, Kind string
 	Generation            uint64
 	// StandIn is a module a fixture declares until its own delivery replaces it.
-	StandIn       bool
+	StandIn bool
+	// Page: core's signed manifest declares a frontend, the page a person
+	// uses. Only a module with a page may declare roles. It is read when the
+	// module is applied; decisions read Roles, so it is not part of the
+	// review digest and a store need not keep it.
+	Page          bool `json:"-"`
 	ResourceKinds []*basev0.WorkScopeV1
 	Bindings      map[string]Binding
-	// Roles are a solution's roles: levels on the data its principal owns.
+	// Roles are a solution's roles, levels on the data its principal owns, or
+	// a module page's, levels on what it serves at its organization.
 	Roles map[string][]*basev0.WorkScopeV1
 	// OwnedRoles resolve only to the exact ids attached to this installation.
 	OwnedRoles map[string][]*basev0.WorkScopeV1
@@ -198,7 +205,8 @@ func (r *Refusal) Error() string { return r.Reason }
 // Unwrap is the refusal's sentinel, if any.
 func (r *Refusal) Unwrap() error { return r.Cause }
 
-// ErrNoInstallerRole names a solution that declares no installer role.
+// ErrNoInstallerRole names a solution, or a module page declaring roles, that
+// declares no installer role.
 var ErrNoInstallerRole = errors.New("a solution declares an installer role")
 
 // ErrAlreadyInstalled names an install of a target its organization holds

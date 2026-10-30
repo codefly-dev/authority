@@ -13,8 +13,9 @@ import (
 
 // ValidateModule holds a delivered module to its contract: a principal, a
 // generation, bindings whose lookup and headless scopes stay within invoke;
-// a module declares no roles; a solution declares installer, and every role
-// stays within what it serves or consumes through invoke/lookup bindings.
+// a module without a page declares no roles; a solution, or a module page
+// that declares roles, declares installer, and every role stays within what
+// it serves or consumes through invoke/lookup bindings.
 func ValidateModule(m domain.Module) error {
 	if err := validateModule(m); err != nil {
 		return err
@@ -56,14 +57,16 @@ func validateModule(m domain.Module) error {
 		if len(m.OwnedRoles) > 0 {
 			return domain.Refuse("module %q declares installation-owned roles; only a solution declares them", m.Name)
 		}
-		if len(m.Roles) > 0 {
-			return domain.Refuse("module %q declares roles; a module's access is the organization's roles", m.Name)
+		if len(m.Roles) == 0 {
+			return nil
 		}
-		return nil
+		if !m.Page {
+			return domain.Refuse("module %q declares roles and no page; a module's access is the organization's roles unless it declares a page", m.Name)
+		}
 	}
 	if _, ok := m.Roles[domain.InstallerRole]; !ok {
 		return &domain.Refusal{Code: domain.Denied, Cause: domain.ErrNoInstallerRole,
-			Reason: fmt.Sprintf("%s declares %d role(s) and none is %q: a solution declares an installer role", m.Name, len(m.Roles), domain.InstallerRole)}
+			Reason: fmt.Sprintf("%s declares %d role(s) and none is %q: a solution, or a module page declaring roles, declares an installer role", m.Name, len(m.Roles), domain.InstallerRole)}
 	}
 	grantable := slices.Clone(m.ResourceKinds)
 	for _, b := range m.Bindings {
@@ -98,9 +101,17 @@ func validateModule(m domain.Module) error {
 	return nil
 }
 
+// RoleGated reports whether what a person holds at m is the roles granted on
+// its installation: a solution's, or a module page's that declares roles.
+// Otherwise it is their organization roles within what m serves.
+func RoleGated(m domain.Module) bool {
+	return m.Kind == domain.KindSolution || len(m.Roles) > 0
+}
+
 // Narrowed reports whether next narrows what previous granted: a binding
-// removed, readdressed or cut, owner-aware checking withdrawn, or any of a
-// solution's roles cut. A narrowing invalidates capabilities already issued.
+// removed, readdressed or cut, owner-aware checking withdrawn, any of its
+// roles cut, or a module moved between organization roles and its own. A
+// narrowing invalidates capabilities already issued.
 func Narrowed(previous, next domain.Module) bool {
 	if previous.OwnerAware && !next.OwnerAware {
 		return true
@@ -112,8 +123,8 @@ func Narrowed(previous, next domain.Module) bool {
 			return true
 		}
 	}
-	if previous.Kind != domain.KindSolution {
-		return false
+	if RoleGated(previous) != RoleGated(next) {
+		return true
 	}
 	for name, scopes := range previous.OwnedRoles {
 		if !scope.Attenuates(scopes, next.OwnedRoles[name]) {
