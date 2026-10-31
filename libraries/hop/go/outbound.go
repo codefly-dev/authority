@@ -93,6 +93,21 @@ func (o Outbound) IssueForParent(ctx context.Context, parent, binding string, op
 	}, opts...)
 }
 
+// IssueForInstallationSetup exchanges a verified callback credential for one
+// declared setup method. It grants no ordinary pending-installation authority;
+// the issuer rechecks the callback, consent, destination and exact method.
+func (o Outbound) IssueForInstallationSetup(ctx context.Context, stepToken, binding, method string) (Issued, error) {
+	credential, err := o.Credential()
+	if err != nil {
+		return Issued{}, err
+	}
+	return o.ask(ctx, binding, &authorityv1.IssueRequest{
+		As:                 &authorityv1.IssueRequest_Setup{Setup: &authorityv1.InstallationSetupRef{StepToken: stepToken, Method: method}},
+		Actor:              &authorityv1.WorkloadCredential{Credential: credential},
+		OperationBindingId: binding,
+	})
+}
+
 // ForDelegation returns ctx carrying a Work Context issued from a delegation a
 // person granted this module: owned by that person, with this module as actor.
 // No live capability is presented; the authority re-checks the delegation and

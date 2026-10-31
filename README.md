@@ -1356,7 +1356,7 @@ The generation baseline used released Codefly 0.1.221 and proto companion 0.0.18
 unchanged pre-feature proto inputs reproduced their tracked outputs exactly.
 Repeated generation of the new proto and all three clients is byte-identical,
 and `codefly generate contracts authority --check` passes. Client generation
-selects `--module-name api` explicitly to preserve the existing root Go package
+selects `--module-name client` explicitly to preserve the existing root Go package
 when consuming the exported contracts directory. Only existing reviewed entries
 in the generated-file inventory have their hashes refreshed; no exclusion is
 added. SQL/cell installation evidence remains owned by the integrating host.

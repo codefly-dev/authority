@@ -149,6 +149,9 @@ message IssueRequest {
     // and what its grantor holds now, so a revoked delegation or a lost role
     // stops the next issue, and renewing is issuing again.
     DelegationRef delegation = 11;
+    // Current authenticated install callback evidence for one declared setup
+    // method. Independent of standing roles; requires the solution's actor.
+    InstallationSetupRef setup = 13;
   }
   // The module principal that may consume the capability.
   string audience = 5;
@@ -172,6 +175,15 @@ message IssueRequest {
   // a workload) or "lookup": the binding's lookup scopes alone, to read a
   // receipt without the authority to repeat the effect.
   string operation = 12;
+}
+
+// InstallationSetupRef selects one exact method from the reviewed setup grant.
+// The callback token proves the current attempt; it is not data authority.
+message InstallationSetupRef {
+  // The unexpired standard installation callback credential.
+  string step_token = 1;
+  // The exact destination method selected by the setup declaration.
+  string method = 2;
 }
 
 // DelegationRef names one delegation.

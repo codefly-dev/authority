@@ -72,6 +72,21 @@ message AuthorityManifestV1 {
   string installation_role = 8;
   // Viewer-edge presence only; grants no authority. Nil and empty are equivalent.
   repeated EdgeDependencyV1 edge_dependencies = 9;
+  // Resolved installation-only grants; separate from standing roles.
+  repeated SetupGrantV1 setup = 10;
+  // Only these served kinds enforce resource-owner selectors. Mutually
+  // exclusive with owner_aware true; empty means none.
+  repeated string owner_aware_resource_kinds = 11;
+}
+
+// SetupGrantV1 retains exact methods even when two methods share requirements.
+message SetupGrantV1 {
+  // The required foreign invoke binding that reaches the destination.
+  string binding = 1;
+  // Exact, unique methods approved for this installation's setup only.
+  repeated string methods = 2;
+  // Callee-derived requirements as resource-kind:action, within invoke ceiling.
+  repeated string scopes = 3;
 }
 
 // EdgeDependencyV1 names the exact signed module principal. The host resolves

@@ -93,6 +93,9 @@ func configureLocalAuthority(ctx context.Context, _ *adapters.Configuration) (Cl
 	if err != nil {
 		return nil, err
 	}
+	st.OnInstall(func(callCtx context.Context, inst state.Installation) error {
+		return st.DeliverInstallation(callCtx, inst, codefly.For(ctx))
+	})
 	// Keys publishes the hop's admission key once the hop registers it
 	// (RegisterAdmissionKey): nothing about the hop is configured here.
 	wiring.Set(st, issuer.New(st, issuerName, keyID, signing.Public().(ed25519.PublicKey)))

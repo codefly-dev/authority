@@ -1094,8 +1094,8 @@ const file_host_authority_v1_work_context_proto_rawDesc = "" +
 	"\x0erequest_digest\x18\x04 \x01(\tB\n" +
 	"\xbaH\ar\x05\x10\x01\x18\x80\x04R\rrequestDigest\x12&\n" +
 	"\baudience\x18\x05 \x01(\tB\n" +
-	"\xbaH\ar\x05\x10\x01\x18\x80\x04R\baudienceB\xe1\x01\n" +
-	"\x15com.host.authority.v1B\x10WorkContextProtoP\x01ZPgithub.com/codefly-dev/cli/pkg/builder/clients/api/host/authority/v1;authorityv1\xa2\x02\x03HAX\xaa\x02\x11Host.Authority.V1\xca\x02\x11Host\\Authority\\V1\xe2\x02\x1dHost\\Authority\\V1\\GPBMetadata\xea\x02\x13Host::Authority::V1b\x06proto3"
+	"\xbaH\ar\x05\x10\x01\x18\x80\x04R\baudienceB\xe4\x01\n" +
+	"\x15com.host.authority.v1B\x10WorkContextProtoP\x01ZSgithub.com/codefly-dev/cli/pkg/builder/clients/client/host/authority/v1;authorityv1\xa2\x02\x03HAX\xaa\x02\x11Host.Authority.V1\xca\x02\x11Host\\Authority\\V1\xe2\x02\x1dHost\\Authority\\V1\\GPBMetadata\xea\x02\x13Host::Authority::V1b\x06proto3"
 
 var (
 	file_host_authority_v1_work_context_proto_rawDescOnce sync.Once

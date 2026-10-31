@@ -6,7 +6,9 @@ import (
 	"crypto"
 	"gateway/pkg/framework"
 	"gateway/pkg/wiring"
+	modulecontract "github.com/codefly-dev/core/contracts/module"
 	"log"
+	"slices"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/delivered"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
@@ -139,6 +141,10 @@ func (p *Plugin) document(signed, carrier *compositionv1.SignedManifestV1, core 
 func DocumentOf(in *compositionv1.AuthorityManifestV1) *delivered.Document {
 	doc := &delivered.Document{Module: in.GetModule(), Generation: in.GetGeneration(), CoreManifestDigest: in.GetCoreManifestDigest(),
 		ScopeCeilings: issuer.FromWire(in.GetScopeCeilings()), OwnerAware: in.GetOwnerAware(), InstallationRole: in.GetInstallationRole()}
+	doc.OwnerAwareResourceKinds = slices.Clone(in.GetOwnerAwareResourceKinds())
+	for _, entry := range in.GetSetup() {
+		doc.Setup = append(doc.Setup, modulecontract.ResolvedSetup{Binding: entry.GetBinding(), Methods: slices.Clone(entry.GetMethods()), Scopes: slices.Clone(entry.GetScopes())})
+	}
 	for _, d := range in.GetEdgeDependencies() {
 		doc.EdgeDependencies = append(doc.EdgeDependencies, domain.EdgeDependency{Module: d.GetModule(), Presence: d.GetPresence()})
 	}

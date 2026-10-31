@@ -249,6 +249,8 @@ func Status(err error) error {
 		}[c], err.Error())
 	}
 	switch {
+	case errors.Is(err, state.ErrInstallationTransient):
+		return status.Error(codes.Unavailable, "installation callback temporarily unavailable")
 	case errors.Is(err, state.ErrUnknown), errors.Is(err, workcontext.ErrNoBinding):
 		return status.Error(codes.NotFound, err.Error())
 	case errors.Is(err, workcontext.ErrRevoked), errors.Is(err, workcontext.ErrNoSeal),
