@@ -95,17 +95,7 @@ func (s *State) DeliverInstallation(ctx context.Context, inst Installation, tran
 	client := &http.Client{Timeout: time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	response, err := client.Do(req)
 	if err != nil {
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return fmt.Errorf("%w: deadline exceeded", ErrInstallationTransient)
-		}
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		var network *net.OpError
-		if errors.As(err, &network) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-			return fmt.Errorf("%w: transport failed", ErrInstallationTransient)
-		}
-		return fmt.Errorf("installation callback transport failed")
+		return callbackTransportError(ctx, err)
 	}
 	defer response.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
@@ -116,4 +106,20 @@ func (s *State) DeliverInstallation(ctx context.Context, inst Installation, tran
 		return fmt.Errorf("installation callback returned HTTP %d", response.StatusCode)
 	}
 	return nil
+}
+
+// callbackTransportError keeps caller cancellation distinct from an expired
+// transport deadline. HTTP client timeouts can expire independently of ctx.
+func callbackTransportError(ctx context.Context, err error) error {
+	if errors.Is(ctx.Err(), context.Canceled) {
+		return ctx.Err()
+	}
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) || errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Errorf("%w: deadline exceeded", ErrInstallationTransient)
+	}
+	var network *net.OpError
+	if errors.As(err, &network) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return fmt.Errorf("%w: transport failed", ErrInstallationTransient)
+	}
+	return errors.New("installation callback transport failed")
 }
