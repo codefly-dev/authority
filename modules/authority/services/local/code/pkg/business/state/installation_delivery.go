@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -15,6 +17,10 @@ import (
 	"github.com/codefly-dev/core/solutionhost"
 	"github.com/codefly-dev/sdk-go/workcontext"
 )
+
+// ErrInstallationTransient says the already-admitted installation callback could
+// not complete now. It does not represent acknowledgement or durable retry.
+var ErrInstallationTransient = errors.New("installation callback temporarily unavailable")
 
 // DeliverInstallation performs the local host's bounded synchronous callback.
 // It uses only the currently admitted signed delivery. Retries are explicit
@@ -89,11 +95,24 @@ func (s *State) DeliverInstallation(ctx context.Context, inst Installation, tran
 	client := &http.Client{Timeout: time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	response, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("installation callback: %w", err)
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return fmt.Errorf("%w: deadline exceeded", ErrInstallationTransient)
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		var network *net.OpError
+		if errors.As(err, &network) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+			return fmt.Errorf("%w: transport failed", ErrInstallationTransient)
+		}
+		return fmt.Errorf("installation callback transport failed")
 	}
 	defer response.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
-	if response.StatusCode != http.StatusNoContent {
+	if response.StatusCode >= http.StatusInternalServerError {
+		return fmt.Errorf("%w: HTTP %d", ErrInstallationTransient, response.StatusCode)
+	}
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		return fmt.Errorf("installation callback returned HTTP %d", response.StatusCode)
 	}
 	return nil

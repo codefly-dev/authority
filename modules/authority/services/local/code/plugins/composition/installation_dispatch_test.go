@@ -16,13 +16,16 @@ import (
 	authorityv1 "gateway/pkg/gen/host/authority/v1"
 	compositionv1 "gateway/pkg/gen/host/composition/v1"
 	installationv1 "gateway/pkg/gen/host/installation/v1"
+	authorityplugin "gateway/plugins/authority"
 	installationplugin "gateway/plugins/installation"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/core/solutionhost"
 	wc "github.com/codefly-dev/sdk-go/workcontext"
 	"github.com/google/uuid"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 type localTransport struct{}
@@ -104,7 +107,7 @@ func TestInstallationDispatchAuthenticatesAndRetriesUntilAcknowledged(t *testing
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
-		w.WriteHeader(http.StatusNoContent)
+		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
 	_, kit, caller, approval, _ := dispatchOffer(t, []solutionhost.Endpoint{{Name: "web", Service: "api", API: "http", Address: server.URL}})
@@ -112,6 +115,9 @@ func TestInstallationDispatchAuthenticatesAndRetriesUntilAcknowledged(t *testing
 	first, err := dispatchInstall(k, caller, &approval)
 	if err == nil || first.Status != domain.Pending {
 		t.Fatalf("first callback must remain pending: %+v %v", first, err)
+	}
+	if status.Code(authorityplugin.Status(err)) != codes.Unavailable {
+		t.Fatalf("temporary callback failure must remain retryable to delivery: %v", err)
 	}
 	active, err := dispatchInstall(k, caller, &approval)
 	if err != nil || active.Status != domain.Active || active.Revision != first.Revision || calls.Load() != 2 {
@@ -252,5 +258,36 @@ func TestInstallationDispatchRejectsStaleApprovalAfterRedelivery(t *testing.T) {
 	active, err := dispatchInstall(k, caller, &fresh)
 	if err != nil || active.Status != domain.Active || calls.Load() != 2 {
 		t.Fatalf("fresh consent could not converge: %+v %v calls=%d", active, err, calls.Load())
+	}
+}
+
+func TestInstallationCallbackDeadlineIsTransient(t *testing.T) {
+	entered, release := make(chan struct{}), make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { close(entered); <-release }))
+	defer server.Close()
+	defer close(release)
+	_, k, caller, approval, _ := dispatchOffer(t, []solutionhost.Endpoint{{Name: "web", Service: "api", API: "http", Address: server.URL}})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	inst, err := k.State.Service().Install(ctx, caller, "acme", "conformance-solution", "viewer", "alex", &approval, func(ctx context.Context, inst domain.Installation) error {
+		return k.State.DeliverInstallation(ctx, inst, localTransport{})
+	})
+	select {
+	case <-entered:
+	default:
+		t.Fatal("callback was not reached")
+	}
+	if inst.Status != domain.Pending || status.Code(authorityplugin.Status(err)) != codes.Unavailable {
+		t.Fatalf("deadline: %+v %v", inst, err)
+	}
+}
+
+func TestInstallationCallbackRefusalIsNotTransient(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusForbidden) }))
+	defer server.Close()
+	_, k, caller, approval, _ := dispatchOffer(t, []solutionhost.Endpoint{{Name: "web", Service: "api", API: "http", Address: server.URL}})
+	inst, err := dispatchInstall(k, caller, &approval)
+	if err == nil || inst.Status != domain.Pending || status.Code(authorityplugin.Status(err)) == codes.Unavailable {
+		t.Fatalf("refusal misclassified: %+v %v", inst, err)
 	}
 }
