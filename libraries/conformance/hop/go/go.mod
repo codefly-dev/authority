@@ -3,8 +3,8 @@ module github.com/codefly-dev/authority/libraries/conformance/hop/go
 go 1.27.3
 
 require (
-	github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0-20261026232801-7b6569e1f285
-	github.com/codefly-dev/authority/libraries/hop/go v0.1.1-0.20261030222015-dea37afac9ad
+	github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0
+	github.com/codefly-dev/authority/libraries/hop/go v0.0.0
 	github.com/codefly-dev/core v0.19.7-0.20261026092055-b23dc13543b2
 	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12
@@ -51,3 +51,13 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20261012220534-4341edf3f941 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+// The suite is proved against the verifier and the stamp protocol in this
+// checkout, not against a published commit of them: CI runs `go test` per
+// module with no workspace, so a pinned hop would make this module prove the
+// pinned hop. The dependency runs one way — nothing in libraries/hop/go or
+// libraries/authority-client/go imports this suite — so the checkout is the
+// only thing worth proving here.
+replace github.com/codefly-dev/authority/libraries/hop/go => ../../../hop/go
+
+replace github.com/codefly-dev/authority/libraries/authority-client/go => ../../../authority-client/go

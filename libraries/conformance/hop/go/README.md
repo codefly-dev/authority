@@ -23,21 +23,30 @@ holding its reservation, keys that cannot be read, a hop stripping what a
 caller sent. It is built on `hoptest`, a real authority that signs Work
 Contexts with a key of its own, answers `Keys` for them and for the hops it
 publishes, and forwards a call exactly as the hop stamps it. It drives the
-verifier under test through its public entry points alone, on the verifier's
-own clock; what it moves is the hop's signing clock, the authority's, and the
-stamps it signs itself under the hop's test key, so a case that needs a window
-the hop would never sign still has one. A Go verifier plugs in as a `Target`:
+verifier under test through its public entry points alone; what it moves is the
+hop's signing clock, the authority's, the window of an admission the hop's own
+signer writes (`stamp.Signer.SignAt`, the one place that writes the signed
+payload) and — for the one case judging a bound no wall clock reaches twice —
+the verifier's clock, which every verifier takes at construction. So a case
+that needs a window the hop would never sign, or an instant the run cannot wait
+for, has one. A Go verifier plugs in as a `Target`:
 
 ```go
-hopconformance.Run(t, hopconformance.Target{New: func(ctx context.Context, keys hop.KeySource, audience string, replay core.ReplayStore) (hopconformance.Verifier, error) {
-	return hop.NewVerifier(ctx, keys, audience, replay) // or any other verifier
+hopconformance.Run(t, hopconformance.Target{New: func(ctx context.Context, keys hop.KeySource, audience string, replay core.ReplayStore, now func() time.Time) (hopconformance.Verifier, error) {
+	return hop.NewVerifier(ctx, keys, audience, replay, hop.Clock(now)) // or any other verifier
 }})
 ```
 
+`now` is nil in all but that one case, and a nil clock is the verifier's own
+wall clock.
+
 `conformance_test.go` runs it against `hop.Verifier`; CI runs this module like
-every other (`.github/workflows/go.yml`). The module pins `libraries/hop/go` at
-a published commit rather than the checkout, so the hop library never depends
-on its own suite.
+every other (`.github/workflows/go.yml`). The module replaces
+`libraries/hop/go` and `libraries/authority-client/go` with the checkout, as
+the rest of the repository does: CI runs `go test` per module with no
+workspace, so a pinned hop would mean the suite proved a published commit
+rather than the tree it ships in. The dependency still runs one way — neither
+library imports this suite — so neither depends on its own suite.
 
 **`libraries/authority-client/testdata/stamps.json`**, the wire-level half.
 Signed admissions on the wire, as the hop forwards them, each with the verdict
@@ -67,7 +76,7 @@ second delivery must be refused as `stamp_replayed`.
 | --- | --- | --- | --- | --- |
 | The proof is judged under the authority's published admission keys and under no other key; a stamp signed by an unpublished key is refused by name (`stamp_proof`) and starts no key read | a genuine stamp under the published admission key admits; a stamp signed by a key the authority does not publish is refused by name, and reads no keys | `admitted`, `signed by an unpublished key`, `no proof`, `a proof that is no signature`, `a proof with padding`, `a proof in three parts`, `a proof over another domain`, `a proof with six fields`, `a proof whose nonce is sixteen bytes`, `a proof whose nonce is upper-case hex`, `two proofs` | `test_a_verifier_takes_the_hops_key_from_the_authoritys_keys_alone`, `test_a_stamp_signed_by_an_unpublished_key_is_refused_by_name`, `test_a_call_without_the_proof_never_reads_the_keys` | a verifier takes the hop key from the authority keys alone; a stamp signed by an unpublished key is refused by name |
 | Method and audience binding: a stamp for another procedure (`stamp_method`) or another module (`stamp_audience`) is refused, and the refusal does not consume the admission | a stamp for another procedure is refused, and the refusal does not consume the admission; a stamp for another module is refused | `signed for another procedure`, `observed without its leading slash`, `observed with an http verb before the procedure`, `no procedure observed`, `signed for another module` | `test_review_retargeting_and_replay_across_replicas`, `test_another_audience_and_an_expired_context_are_refused` | review probes: read stamp cannot retarget, cross audiences or replay across replicas |
-| `Lifetime` (30 s) and `Skew` (2 s) bound issue and expiry only: issued up to the allowance ahead admits, further is `stamp_issued`; admissible until the allowance past expiry, then `stamp_window`; the signed span is capped at the lifetime exactly, whatever the allowance | an admission issued further ahead than the allowance is refused as issued, not as expired; an admission past its expiry and the allowance is refused; the signed span is capped at the lifetime, inside the window or not; an admission issued the allowance ahead, or spanning exactly the lifetime, admits; an admission stays admissible for the allowance past its expiry | `issued the allowance ahead`, `expired inside the allowance`, `issued further ahead than the allowance`, `expired by the allowance`, `a span longer than the lifetime`, `a span longer than the lifetime inside the window`, `expiring when issued`, `a negative issue instant` | `test_signed_admission_window_is_bounded`, `test_a_clock_difference_inside_the_allowance_still_admits`, `test_a_clock_difference_beyond_the_allowance_is_refused` | a clock difference inside the allowance still admits; beyond the allowance is refused as `stamp_issued` / `stamp_window`; expired stamps refuse before consumption |
+| `Lifetime` (30 s) and `Skew` (2 s) bound issue and expiry only: issued up to the allowance ahead admits, further is `stamp_issued`; admissible until the allowance past expiry, then `stamp_window`; the signed span is capped at the lifetime exactly, whatever the allowance | an admission issued further ahead than the allowance is refused as issued, not as expired; an admission past its expiry and the allowance is refused; the signed span is capped at the lifetime, inside the window or not; an admission issued the allowance ahead, or spanning exactly the lifetime, admits; an admission is admissible for the allowance past its expiry, and refused at its end (both verdicts on one admission, at the verifier's injected clock) | `issued the allowance ahead`, `expired inside the allowance`, `issued further ahead than the allowance`, `expired by the allowance`, `a span longer than the lifetime`, `a span longer than the lifetime inside the window`, `expiring when issued`, `a negative issue instant` | `test_signed_admission_window_is_bounded`, `test_a_clock_difference_inside_the_allowance_still_admits`, `test_a_clock_difference_beyond_the_allowance_is_refused` | a clock difference inside the allowance still admits; beyond the allowance is refused as `stamp_issued` / `stamp_window`; expired stamps refuse before consumption |
 | Token-digest binding (`x-codefly-hop-context` and the digest the proof signs): a swapped, forged or unsigned token under the stamp is `stamp_digest`; no token, or two, is `stamp_token` | the stamp binds the one Work Context the authority checked (eight cases) | `a swapped work context`, `a forged work context under a rewritten digest`, `a context digest disagreeing with the proof`, `no work context`, `two work contexts` | `test_a_token_the_authority_did_not_sign_is_refused_even_with_a_matching_digest`, `test_duplicate_proof_and_token_are_refused_before_consumption` | the stamp must bind the token under this run's proof; the reservation is taken before the work context and released on refusal |
 | The advisory key is always refused (`stamp_advisory`), and the hop never signs an advisory refusal | an advisory refusal never admits; the hop never signs an advisory refusal | `an advisory refusal` | the vector alone (before it, no Python case refused the key) | the vector alone (before it, no TypeScript case refused the key) |
 | A single-use admission is reserved before the keys are read, held until the handler returns, retained to expiry plus the allowance, refused across every verifier sharing the store (`stamp_replayed`); a refusal after the reservation keeps the nonce and ends the hold; an invalid stamp reserves nothing; a store that cannot answer refuses (`stamp_store`); a reservation the store judges past its retention is `stamp_window` | a single-use admission is held while its handler runs and refused across verifiers sharing the store; concurrent deliveries of one admission have one winner across verifiers; a call refused after its reservation keeps the nonce and ends its hold, and an invalid stamp reserves nothing; a store that cannot answer refuses admission, naming no backend failure; a reservation the store judges past its retention is refused on the window | the second delivery of every admitted vector (`replay`) | `test_a_second_delivery_of_one_admission_is_refused_while_and_after_the_first_runs`, `test_admit_async_holds_the_reservation_until_the_handler_returns`, `test_admit_releases_its_hold_however_the_handler_ends`, `test_the_reservation_is_taken_before_the_work_context_and_released_on_refusal`, `test_review_concurrent_replay_and_store_failure`, `test_async_replay_has_one_winner_across_replicas`, `test_a_reservation_is_retained_past_expiry_by_the_allowance`; `test_replaypg.py` over Postgres | a second delivery of one admission is refused while and after the first runs; concurrent replay has one winner and a failed store refuses admission; admit releases its hold however the handler ends; a reservation is retained past expiry by the allowance |
@@ -96,13 +105,13 @@ These are what the target does not prove, named rather than skipped.
   admitting what it writes: run its stamps through `hop.Verifier` with
   `hoptest` publishing its key, or add them to `stamps.json`.
 - **The rotation case proves the read after the withdrawal, not the interval.**
-  `Run` cannot move a verifier's clock, so it proves that a verifier reading
-  `Keys` after the retiring key is withdrawn refuses it; that a verifier
-  re-reads within five minutes, retries at most every ten seconds and trusts
-  unreadable keys for fifteen minutes at most is each implementation's own
-  fixed-clock test (`libraries/hop/go/published_test.go`, `fixture_test.go`;
-  `test_hop.py`; `work-context.test.mjs`). Readiness (`Ready`/`ready`) is not
-  part of the target either.
+  It proves that a verifier reading `Keys` after the retiring key is withdrawn
+  refuses it; that a verifier re-reads within five minutes, retries at most
+  every ten seconds and trusts unreadable keys for fifteen minutes at most is
+  each implementation's own fixed-clock test
+  (`libraries/hop/go/published_test.go`, `fixture_test.go`; `test_hop.py`;
+  `work-context.test.mjs`). Readiness (`Ready`/`ready`) is not part of the
+  target either.
 - **The arrival instant is Go's.** That the window is judged and the nonce
   reserved when the call reaches the server, before its body is read
   (`Verifier.StatsHandler`), and that a second delivery held past collection is
@@ -110,11 +119,6 @@ These are what the target does not prove, named rather than skipped.
   `libraries/hop/go/transport_postgres_test.go`, which needs
   `HOP_TEST_POSTGRES`. Python and TypeScript verify before the body by
   construction.
-- **The expiry-side allowance in `Run` is timed.** An admission that expired
-  this second is admissible for the allowance; `Run` fails only a refusal
-  observed less than a second after signing, and repeats a slower run rather
-  than misjudge it. The exact bound is `stamps.json` (`expired inside the
-  allowance`, `expired by the allowance`), at a fixed clock.
 
 ## Running
 

@@ -13,10 +13,12 @@
 // wire with the verdict every verifier must reach at a fixed clock, written by
 // the Go hop library's test and replayed by Go, Python and TypeScript.
 //
-// Run drives the verifier under test through its public entry points alone,
-// on the verifier's own clock. What the suite moves is the hop's signing
-// clock, the authority's, and the stamps it signs itself under the hop's test
-// key, so a case that needs a window the hop would never sign still has one.
+// Run drives the verifier under test through its public entry points alone.
+// What it moves is the hop's signing clock, the authority's, the window of an
+// admission the hop's own signer writes for it, and — for the one case that
+// judges a bound no wall clock can reach twice — the verifier's own clock,
+// which every verifier takes at construction. So a case that needs a window
+// the hop would never sign, or an instant the run cannot wait for, has one.
 // A verifier passes by answering every case as the contract states, with the
 // refusal.Reason the contract names; no case may be loosened so that an
 // implementation passes.
@@ -24,12 +26,8 @@ package hopconformance
 
 import (
 	"context"
-	"crypto/ed25519"
-	"crypto/rand"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"strings"
 	"sync/atomic"
@@ -75,7 +73,13 @@ type Target struct {
 	// every replica shares (hop.SharedReplayStore). It never fails on an
 	// authority that is not serving keys yet: calls are refused, with the
 	// reason, until they are read.
-	New func(ctx context.Context, keys hop.KeySource, audience string, replay core.ReplayStore) (Verifier, error)
+	//
+	// now is the clock the verifier judges every window on; a nil now is the
+	// verifier's own wall clock, which is what all but one case passes. Every
+	// verifier takes one (Go's hop.Clock, Python's now=, TypeScript's fourth
+	// constructor argument), because a bound judged against the second the
+	// suite happens to run in is not judged.
+	New func(ctx context.Context, keys hop.KeySource, audience string, replay core.ReplayStore, now func() time.Time) (Verifier, error)
 }
 
 // The module every case stands behind, the procedure its calls arrive on, and
@@ -104,11 +108,6 @@ func Run(t *testing.T, target Target) {
 		t.Fatal("hopconformance: the target builds no verifier")
 	}
 	t.Setenv(resources.EnvironmentPrefix, "local")
-	// The suite signs some stamps itself under the key hoptest derives for a
-	// hop's label; the two derivations must agree or every such case misreads.
-	if hex.EncodeToString(hopKey(Hop).Public().(ed25519.PublicKey)) != hoptest.PublicKey(Hop) {
-		t.Fatal("hopconformance: the suite's hop key is not the one hoptest publishes")
-	}
 	s := suite{target: target}
 	s.keys(t)
 	s.binding(t)
@@ -121,10 +120,19 @@ func Run(t *testing.T, target Target) {
 
 type suite struct{ target Target }
 
-// verifier builds the target's verifier, failing the case when it cannot.
+// verifier builds the target's verifier on its own clock, failing the case
+// when it cannot.
 func (s suite) verifier(t *testing.T, keys hop.KeySource, audience string, replay core.ReplayStore) Verifier {
 	t.Helper()
-	v, err := s.target.New(context.Background(), keys, audience, replay)
+	return s.verifierAt(t, keys, audience, replay, nil)
+}
+
+// verifierAt is verifier with the clock the verifier judges every window on,
+// for a case that must judge a bound exactly rather than race the second it
+// runs in.
+func (s suite) verifierAt(t *testing.T, keys hop.KeySource, audience string, replay core.ReplayStore, now func() time.Time) Verifier {
+	t.Helper()
+	v, err := s.target.New(context.Background(), keys, audience, replay, now)
 	if err != nil {
 		t.Fatalf("the target builds no verifier: %v", err)
 	}
@@ -142,34 +150,13 @@ func forward(t *testing.T, token, label, method string) metadata.MD {
 	return hoptest.Forward(t, token, label, method)
 }
 
-// hopKey is the signing key hoptest derives for the hop that signs as label.
-// Production seeds come only from Codefly; this one signs fixtures.
-func hopKey(label string) ed25519.PrivateKey {
-	seed := sha256.Sum256([]byte(label))
-	return ed25519.NewKeyFromSeed(seed[:])
-}
-
-// proof is the signed admission the hop that signs as label writes for a call
-// carrying token, with the fields the suite chooses: the payload the contract
-// fixes, under the hop's key. The suite signs these itself because a hop never
-// issues a window outside the contract, and the cases need one.
-func proof(t *testing.T, label, method, audience, token string, issued, expires int64) string {
-	t.Helper()
-	nonce := make([]byte, 32)
-	if _, err := rand.Read(nonce); err != nil {
-		t.Fatal(err)
-	}
-	sum := sha256.Sum256([]byte(token))
-	payload, err := json.Marshal([]any{"codefly-hop-v1", method, audience, hex.EncodeToString(sum[:]), hex.EncodeToString(nonce), issued, expires})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return base64.RawURLEncoding.EncodeToString(payload) + "." + base64.RawURLEncoding.EncodeToString(ed25519.Sign(hopKey(label), payload))
-}
-
-// stampedAt is forward with the admission's window chosen by the suite:
-// the identity headers the hop writes, and a proof issued at issued, expiring
-// at expires, for method and audience.
+// stampedAt is forward with the admission's window chosen by the suite: the
+// identity headers the hop writes, and the admission the hop's own signer
+// writes for method and audience over the window issued..expires. A hop never
+// chooses a window — stamp.Signer.Sign takes it from its clock and the token's
+// expiry — so the suite names one through stamp.Signer.SignAt, which writes
+// the same signed payload under the same key. Nothing here builds a payload or
+// derives a key of its own: the protocol lives in one place.
 func stampedAt(t *testing.T, token, label, method, audience string, issued, expires int64) metadata.MD {
 	t.Helper()
 	decoded, err := core.Decode(token)
@@ -178,11 +165,15 @@ func stampedAt(t *testing.T, token, label, method, audience string, issued, expi
 	}
 	md := metadata.Pairs(hop.WorkContextKey, token)
 	// The hop's stamp, signed at the token's own start so an expired token can
-	// still carry its identity headers; the proof is then the suite's.
+	// still carry its identity headers; the admission is then the suite's.
 	if err := hop.Stamp(md, hop.IdentityOf(decoded.Context()), hoptest.Signer(label), method, audience, time.Unix(decoded.Context().GetNotBeforeUnix(), 0)); err != nil {
 		t.Fatal(err)
 	}
-	md.Set(hop.ProofKey, proof(t, label, method, audience, token, issued, expires))
+	admission, err := hoptest.Signer(label).SignAt(token, method, audience, issued, expires)
+	if err != nil {
+		t.Fatal(err)
+	}
+	md.Set(hop.ProofKey, admission)
 	return md
 }
 

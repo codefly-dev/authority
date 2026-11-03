@@ -42,7 +42,20 @@ that far ahead of the verifier's clock, and stays admissible until that far past
 its expiry. Being issued further ahead than the allowance has its own reason,
 `stamp_issued`, so a verifier running behind is not diagnosed as an expiry. The
 signed span (`expires - issued`) is still capped at 30 seconds exactly, so the
-allowance cannot mint a longer-lived admission.
+allowance cannot mint a longer-lived admission. The boundary is exact in each
+direction: `expires + Skew <= now` refuses, so the last admissible instant is
+the second before the allowance is spent.
+
+Every verifier takes the clock it judges those bounds on at construction —
+`hop.Clock(now)` on `NewVerifier`, Python's `now=`, TypeScript's fourth
+constructor argument — and a deployment passes none, so the clock is the wall
+clock. It exists so a suite can state a bound at the instant it holds instead
+of racing the second it runs in; nothing else may move a verifier's clock. A
+window the hop would never sign is written the same way, by the hop's own
+signer: `stamp.Signer.SignAt` writes the admission `Sign` writes over a window
+the caller names, judging neither bound. `Sign` is what a hop calls, and keeps
+its own refusals; `SignAt` is the one other place the signed payload is
+written, so no suite copies it.
 
 For gRPC and Connect, `method` is `/package.Service/Procedure`, including the
 leading slash. HTTP routes use `VERB /actual/path`, not the matched route template.

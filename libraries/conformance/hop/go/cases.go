@@ -85,7 +85,7 @@ func (s suite) keys(t *testing.T) {
 		refused(t, err, refusal.StampProof)
 		// The hop's admission key never authenticates a Work Context, even
 		// under the key id it is published with.
-		forger := &core.Authority{Issuer: hoptest.Issuer, KeyID: hoptest.Published(Hop).GetKeyId(), Key: hopKey(Hop), Revisions: core.FixtureRevisions(), Seals: core.FixtureSeals()}
+		forger := &core.Authority{Issuer: hoptest.Issuer, KeyID: hoptest.Published(Hop).GetKeyId(), Key: hoptest.AdmissionKey(Hop), Revisions: core.FixtureRevisions(), Seals: core.FixtureSeals()}
 		forged, _, err := forger.Start(ctx, core.StartInput{
 			TenantID: core.FixtureTenant, OwnerPrincipalID: core.FixturePrincipal, OwnerPrincipalKind: "human",
 			OrganizationID: core.FixtureOrganization, TaskID: core.FixtureTask, Audience: Audience,
@@ -233,27 +233,20 @@ func (s suite) window(t *testing.T) {
 		admitted(t)(v.Verify(ctx, at(t, a, now+skew, now+skew+lifetime), Method))
 		admitted(t)(v.Verify(ctx, at(t, a, now, now+lifetime), Method))
 	})
-	t.Run("an admission stays admissible for the allowance past its expiry", func(t *testing.T) {
+	t.Run("an admission is admissible for the allowance past its expiry, and refused at its end", func(t *testing.T) {
 		a := authority(t)
-		v := s.verifier(t, a, Audience, newReservations())
-		// The expiry-side allowance is judged on the verifier's own clock,
-		// which the suite cannot move: an admission that expired this very
-		// second is admissible for the allowance, so a conforming verifier
-		// can refuse it only once more than a second has passed. A refusal
-		// sooner is a failure; a slower run is repeated, never misjudged.
-		for attempt := 1; ; attempt++ {
-			start := time.Now()
-			_, err := v.Verify(ctx, at(t, a, start.Unix()-10, start.Unix()), Method)
-			if err == nil {
-				return
-			}
-			if since := time.Since(start); since < time.Second {
-				t.Fatalf("an admission expired this second, inside the allowance, was refused after %v: %v", since, err)
-			}
-			if attempt == 5 {
-				t.Fatalf("the case could not run inside the allowance in %d attempts: %v", attempt, err)
-			}
-		}
+		// The allowance is judged on the verifier's clock, so the case names
+		// it: the last admissible instant is the second before the allowance
+		// is spent (Expires+Skew <= now refuses), and that second refuses on
+		// the window, not as a token the authority never signed. Both verdicts
+		// are on one admission, read by two verifiers of one implementation.
+		expires := time.Now().Unix()
+		md := at(t, a, expires-10, expires)
+		inside := func() time.Time { return time.Unix(expires+skew-1, 0) }
+		spent := func() time.Time { return time.Unix(expires+skew, 0) }
+		admitted(t)(s.verifierAt(t, a, Audience, newReservations(), inside).Verify(ctx, md, Method))
+		_, err := s.verifierAt(t, a, Audience, newReservations(), spent).Verify(ctx, md, Method)
+		refused(t, err, refusal.StampWindow)
 	})
 	t.Run("a fresh stamp does not revive an expired Work Context", func(t *testing.T) {
 		a := authority(t)
@@ -533,9 +526,9 @@ func (s suite) startup(t *testing.T) {
 	t.Run("a verifier needs the authority's keys, an audience and a replay store", func(t *testing.T) {
 		a := authority(t)
 		for name, build := range map[string]func() (Verifier, error){
-			"no keys":         func() (Verifier, error) { return s.target.New(ctx, nil, Audience, newReservations()) },
-			"no audience":     func() (Verifier, error) { return s.target.New(ctx, a, "", newReservations()) },
-			"no replay store": func() (Verifier, error) { return s.target.New(ctx, a, Audience, nil) },
+			"no keys":         func() (Verifier, error) { return s.target.New(ctx, nil, Audience, newReservations(), nil) },
+			"no audience":     func() (Verifier, error) { return s.target.New(ctx, a, "", newReservations(), nil) },
+			"no replay store": func() (Verifier, error) { return s.target.New(ctx, a, Audience, nil, nil) },
 		} {
 			if _, err := build(); err == nil {
 				t.Fatalf("%s: a verifier was built", name)
@@ -546,15 +539,15 @@ func (s suite) startup(t *testing.T) {
 		a := authority(t)
 		for _, environment := range []string{"", "staging", "production", "local-docker", " local"} {
 			t.Setenv(resources.EnvironmentPrefix, environment)
-			if _, err := s.target.New(ctx, a, Audience, hoptest.Replay()); err == nil {
+			if _, err := s.target.New(ctx, a, Audience, hoptest.Replay(), nil); err == nil {
 				t.Fatalf("environment %q admitted a process-local store", environment)
 			}
-			if _, err := s.target.New(ctx, a, Audience, newReservations()); err != nil {
+			if _, err := s.target.New(ctx, a, Audience, newReservations(), nil); err != nil {
 				t.Fatalf("environment %q refused a shared store: %v", environment, err)
 			}
 		}
 		t.Setenv(resources.EnvironmentPrefix, "local")
-		if _, err := s.target.New(ctx, a, Audience, hoptest.Replay()); err != nil {
+		if _, err := s.target.New(ctx, a, Audience, hoptest.Replay(), nil); err != nil {
 			t.Fatalf("a local run refused a process-local store: %v", err)
 		}
 	})

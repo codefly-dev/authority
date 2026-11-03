@@ -57,6 +57,9 @@ func NewSigner(seed string) (*Signer, error) {
 func (s *Signer) PublicKey() string { return hex.EncodeToString(s.key.Public().(ed25519.PublicKey)) }
 
 // Sign is called only after the authority admits the exact method and audience.
+// It chooses the window itself, from its clock and the token's expiry, and
+// refuses to stamp an expired context; SignAt writes the same admission for a
+// window a caller chooses.
 func (s *Signer) Sign(token, method, audience string, now time.Time, tokenExpiry int64) (string, error) {
 	if s == nil || len(s.key) != ed25519.PrivateKeySize || token == "" || method == "" || audience == "" {
 		return "", errors.New("hop: signing needs a token, exact method, audience and signing key")
@@ -68,12 +71,27 @@ func (s *Signer) Sign(token, method, audience string, now time.Time, tokenExpiry
 	if expires <= now.Unix() {
 		return "", errors.New("hop: cannot stamp an expired context")
 	}
+	return s.SignAt(token, method, audience, now.Unix(), expires)
+}
+
+// SignAt writes the admission Sign writes, over the window the caller names:
+// the one signed payload this protocol fixes, under the signer's key, with a
+// fresh nonce. It judges neither bound, so a window no hop would ever sign —
+// one issued ahead, one already expired, one spanning longer than the
+// Lifetime — can be written to prove what a verifier does with it. A hop signs
+// with Sign; this is for the tests and the conformance suites that need such a
+// window, and it is the only place that writes one, so no suite copies the
+// payload.
+func (s *Signer) SignAt(token, method, audience string, issued, expires int64) (string, error) {
+	if s == nil || len(s.key) != ed25519.PrivateKeySize || token == "" || method == "" || audience == "" {
+		return "", errors.New("hop: signing needs a token, exact method, audience and signing key")
+	}
 	nonce := make([]byte, 32)
 	if _, err := rand.Read(nonce); err != nil {
 		return "", errors.New("hop: cannot generate call nonce")
 	}
 	digest := sha256.Sum256([]byte(token))
-	payload, err := json.Marshal([]any{"codefly-hop-v1", method, audience, hex.EncodeToString(digest[:]), hex.EncodeToString(nonce), now.Unix(), expires})
+	payload, err := json.Marshal([]any{"codefly-hop-v1", method, audience, hex.EncodeToString(digest[:]), hex.EncodeToString(nonce), issued, expires})
 	if err != nil {
 		return "", err
 	}
