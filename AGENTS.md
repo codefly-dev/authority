@@ -38,4 +38,6 @@ https://github.com/obin-ai/handbook/blob/main/getting-started/development.md:
    lines per change, stop and ask past 2,000.
 6. `pkg/conformance` is the suite every implementation must pass, and core's
    conformance kit is a required test. A change that passes here and fails
-   against `accounts` is a bug here.
+   against `accounts` is a bug here. The hop side has the same rule:
+   `libraries/conformance/hop/go` and `testdata/stamps.json` are the suite every
+   hop verifier (Go, Python, TypeScript) must pass, never loosened for one.

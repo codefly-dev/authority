@@ -274,14 +274,34 @@ type Verifier struct {
 // It waits for that first read while ctx allows, and never fails on it: a
 // module starts before its authority serves keys, and refuses calls, with the
 // reason, until they are read.
-func NewVerifier(ctx context.Context, keys KeySource, audience string, replay core.ReplayStore) (*Verifier, error) {
+//
+// Clock is the only option, and a deployment passes none.
+func NewVerifier(ctx context.Context, keys KeySource, audience string, replay core.ReplayStore, opts ...VerifierOption) (*Verifier, error) {
 	if replay == nil {
 		return nil, refusal.Configuration
 	}
 	if err := durableOutsideLocal(replay); err != nil {
 		return nil, err
 	}
-	return newVerifier(ctx, keys, audience, replay)
+	return newVerifier(ctx, keys, audience, replay, opts...)
+}
+
+// VerifierOption shapes a verifier as it is built. Clock is the only one.
+type VerifierOption func(*Verifier)
+
+// Clock judges every window — a stamp's issue and expiry, a Work Context's,
+// the age of the keys held — on now instead of the wall clock. The Python and
+// TypeScript verifiers take the same clock as a constructor argument; this is
+// the Go verifier's, so a conformance suite can judge a bound exactly instead
+// of racing the second it runs in. A nil now, or no option, is the wall clock.
+// Reservation retention is still measured monotonically from arrival, as it
+// must be: a store's own clock is not this one.
+func Clock(now func() time.Time) VerifierOption {
+	return func(v *Verifier) {
+		if now != nil {
+			v.now = now
+		}
+	}
 }
 
 // SharedReplayStore is a replay store that reports whether it is the durable
@@ -325,11 +345,16 @@ func NewTokenVerifier(ctx context.Context, keys KeySource, audience string) (*Ve
 	return newVerifier(ctx, keys, audience, nil)
 }
 
-func newVerifier(ctx context.Context, keys KeySource, audience string, replay core.ReplayStore) (*Verifier, error) {
+func newVerifier(ctx context.Context, keys KeySource, audience string, replay core.ReplayStore, opts ...VerifierOption) (*Verifier, error) {
 	if keys == nil || audience == "" {
 		return nil, refusal.Configuration
 	}
 	v := &Verifier{source: keys, audience: audience, replay: replay, now: time.Now, timeout: keyTimeout}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(v)
+		}
+	}
 	v.mu.Lock()
 	done := v.refresh()
 	v.mu.Unlock()

@@ -2,7 +2,9 @@ name: clients
 
 # The authority client's Python and TypeScript readers are tested on each pull
 # request and on main, beside the Go modules (go.yml): the three read the
-# shared testdata/claims.json, so a reader drifting in one language fails here.
+# shared testdata/claims.json, the bare-token testdata/vectors.json and the hop
+# conformance target's testdata/stamps.json, so a reader or a verifier drifting
+# in one language fails here.
 
 on:
   pull_request:

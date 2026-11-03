@@ -43,7 +43,12 @@ through failed re-reads inside the 15-minute window; false before the first read
 or once they are stale. It also starts the same rate-limited, non-blocking re-read a
 call would, so an unready replica recovers and an idle one never goes stale. Never
 gate readiness on `keys_error`. `codefly_hop` reads the hop's signed fixture (`../../hop/testdata/stamped.json`)
-as the Go library writes it.
+as the Go library writes it, and replays the hop conformance target's wire
+vectors (`../testdata/stamps.json`, `tests/test_stamps.py`) through `verify` and
+`verify_async` alike: every signed admission there must reach Go's verdict, for
+the same reason, reading the same identity. The target, its cases and the gaps
+it states are in [`libraries/conformance/hop/go`](../../conformance/hop/go/README.md);
+Python's stated one is that `codefly_hop.replaypg` is async only.
 
 `codefly_hop` and `authority_client` are one distribution so that one pinned
 commit installs both, and no dependency is ever resolved by name from a public

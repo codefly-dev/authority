@@ -1,0 +1,3378 @@
+[
+  {
+    "name": "admitted",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCI0OWYyMGNmMzU4YjdkNDlhOGQ1NGM4ODcwNDY3Yjg5ZmNlYWVkOTlmZTZmZjQwMWM0ZGMxYmViOWIyYzQ0YWRhIiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.QRk6s-XJzg_Bl-vAxdwIhzBFKex2sU6wyI56YXHYqFP1RZs7hMW3vHmAwgJ_iJawlasNNQsHpBHTQyXVogBWDA"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": true,
+    "replay": "stamp_replayed",
+    "identity": {
+      "owner": "principal-owner",
+      "owner_kind": "human",
+      "tenant": "tenant-conformance",
+      "actors": [],
+      "scopes": [
+        "documents.collection:read"
+      ],
+      "binding": "",
+      "task": "task-conformance",
+      "expires": 1792818600
+    }
+  },
+  {
+    "name": "admitted inside its lifetime",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCJiNDQ4ZTA0YWFlMDkxODBiM2IxNzBjODI5YjE3NjlhZWYyNzY2NDUyNzRkNzQwNWJjN2VhZjE2YjNkYmM3YmVjIiwxNzkyODE3OTk1LDE3OTI4MTgwMDVd.f1YMzzOvZvIe6uDjmqzv83DBtf64u1-qkQc-ePJMfnSWsNnNlQ-dk8lFXrs7jwck0nLx_raZ07yL2sj51T7qDQ"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": true,
+    "replay": "stamp_replayed",
+    "identity": {
+      "owner": "principal-owner",
+      "owner_kind": "human",
+      "tenant": "tenant-conformance",
+      "actors": [],
+      "scopes": [
+        "documents.collection:read"
+      ],
+      "binding": "",
+      "task": "task-conformance",
+      "expires": 1792818600
+    }
+  },
+  {
+    "name": "issued the allowance ahead",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCI4ZTVlOGFlMWRkMTc2MzM5OTQ4MGU2NWQ4YWJhNWU5M2I4YzU0YmIwYWQ4ZjY4MTAzZjk2MmIwMGMzNTZkYzBmIiwxNzkyODE4MDAyLDE3OTI4MTgwMzJd.YCyHUb7lPO-26ob6IRiKDzw1qQ-UnHphiEEAXUbDTwtSs7kl0L1Z5kNX4kwl5PJPBuEl6RLfG6pjnnA3KSkWAw"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": true,
+    "replay": "stamp_replayed",
+    "identity": {
+      "owner": "principal-owner",
+      "owner_kind": "human",
+      "tenant": "tenant-conformance",
+      "actors": [],
+      "scopes": [
+        "documents.collection:read"
+      ],
+      "binding": "",
+      "task": "task-conformance",
+      "expires": 1792818600
+    }
+  },
+  {
+    "name": "expired inside the allowance",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCJiNTNlOTk3YjYzZDQ0ZmZjNTM1ODZmOGNhZWYyMTVlYzUyZDI5Y2Y2ZjdhZWVkNWVjYzM3Y2EyYjc3OWZhN2NhIiwxNzkyODE3OTY5LDE3OTI4MTc5OTld.QtZ_O_8VJLjInRuddF_zyt5f1qKBaWHghm7cnQML9t3HdRekRvxClD36x4IKKEjcxXHe7PVJXup8_CyENv8DCQ"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": true,
+    "replay": "stamp_replayed",
+    "identity": {
+      "owner": "principal-owner",
+      "owner_kind": "human",
+      "tenant": "tenant-conformance",
+      "actors": [],
+      "scopes": [
+        "documents.collection:read"
+      ],
+      "binding": "",
+      "task": "task-conformance",
+      "expires": 1792818600
+    }
+  },
+  {
+    "name": "signed by the retiring key during a rotation's overlap",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        },
+        {
+          "keyId": "hop-290f50868de99ad8",
+          "algorithm": "Ed25519",
+          "publicKey": "QzlEUkBMmSk4ausEIR4jEBzSPj3mQXhmVRH5xwGThds=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCJiNzk4NTNiOTQ2MTg0YjBjZWVmMmJhN2NiOTExMzU3OTg5MTc5YTBjZDkwNGZlMWI5MDI2YmVmNTRlMTM4YmQ4IiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.FhuM9vi0SzakrxoHXgceJa9FRTPSkjIWVXC64vphYiX0j7A-ZtmH9mYis1GvtFETo9Wjx8AgkSVX3uIMpHtqCQ"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": true,
+    "replay": "stamp_replayed",
+    "identity": {
+      "owner": "principal-owner",
+      "owner_kind": "human",
+      "tenant": "tenant-conformance",
+      "actors": [],
+      "scopes": [
+        "documents.collection:read"
+      ],
+      "binding": "",
+      "task": "task-conformance",
+      "expires": 1792818600
+    }
+  },
+  {
+    "name": "an owner-selected scope is not the whole kind",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "c74bec3e471d0e18928092cddb855b6e4126289fbfba2c2207028d58253e2b69"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsImM3NGJlYzNlNDcxZDBlMTg5MjgwOTJjZGRiODU1YjZlNDEyNjI4OWZiZmJhMmMyMjA3MDI4ZDU4MjUzZTJiNjkiLCI5NmUyNDhiZmM0ZGRmZjVlOTJjMTc3MTM0ZGQyODI3ZWRlZWI3NmRlMDhiYzA5MDE5NzAyMjVhMmI3NWIyODI5IiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.VrqV4GcFSj6fgSpEA6DSoN-c02g1a4jUrhgevgdF8NYXZt6TH1OMVOMAeHTFHIYxxqoCI26Eb9MSzcpAfBjsBA"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        ""
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEeCglkb2N1bWVudHMSBHJlYWQiC3ByaW5jaXBhbC11sgEFaHVtYW7KARhvcmdhbml6YXRpb24tY29uZm9ybWFuY2XSAR4IAhIYaW5zdGFsbGF0aW9uLWNvbmZvcm1hbmNlGAM.sO_dJwnUATR1p1F7uu-_hIHAA-XgKAdzM-at0tKbRYcZTfBP9d9N28sOR1jENZw5k5-uFTZDuMrXeVmeppPwAg"
+      ]
+    ],
+    "accept": true,
+    "replay": "stamp_replayed",
+    "identity": {
+      "owner": "principal-owner",
+      "owner_kind": "human",
+      "tenant": "tenant-conformance",
+      "actors": [],
+      "scopes": [],
+      "binding": "",
+      "task": "task-conformance",
+      "expires": 1792818600
+    }
+  },
+  {
+    "name": "issued further ahead than the allowance",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCI2ZjZlM2JiNjNmNTAzNWRlZmRhYzBkNTQ4YjA3YmU3YTE0OGZmNGZhMjRiODY2NGNiODgxYmUxNmRjNDQ2NGE4IiwxNzkyODE4MDAzLDE3OTI4MTgwMzNd.xwnjU0CcNrPcQICt5LH6yC2wlqz1_XluoHsXahMLzlIZTGWYRrTKIPNqRxAm26duOLXC3saJ2kQ7aeVfGjH3BA"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_issued"
+  },
+  {
+    "name": "expired by the allowance",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCJkYzNhZGI5OWQ1MmEzMDQ1MTIxNDYyN2I3YjgwNDZkMDk2YmJjNWI5ZmM2ZjM2NjYwNmM5NTU2NzA5Nzc0NWIyIiwxNzkyODE3OTY4LDE3OTI4MTc5OThd.CbFMvsB6wKKqKmL4E03k7NIBEPXBQm-mx44WanR4PBgkZ0Hm0SF-f-xzrkKQT-TmyXgUuMuAfIpafMXo4QVNAA"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_window"
+  },
+  {
+    "name": "a span longer than the lifetime",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCIyOTI0YjgwZGFiZmRlOGMxNDQzYTMwZjIwZDk1OThlODAxOTE2MjlkNGRmODY3MTQ3MTJmNTZmMjkzYWU5NzdkIiwxNzkyODE4MDAwLDE3OTI4MTgwMzFd.aU88afac37y5vqmmUwyR-qb_DwoYKvctaSqETFdYt-x_ytdV_7kYGCcnABxClOvgcsPNZWFlLB5zuw0Qima1Cw"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_window"
+  },
+  {
+    "name": "a span longer than the lifetime inside the window",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCI2ZmE4NDViMmRhYjU4YTU5NjMyZjQ1MDc5OTNlYTkzOGZlOTQ3NmQ2YWEyYWNjZTgxZTBmNTNiZGQ2NzM4YjdiIiwxNzkyODE3OTgwLDE3OTI4MTgwMTFd.ZqmdsuycnZb29wCh4IP0eJZsD0pKlbQOfw3hSexhrMQmsxcinJntuYd9Ipn6DzLJcDxvRp9no3d8QljwtQzCCA"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_window"
+  },
+  {
+    "name": "expiring when issued",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCI3MTg0ODU4OWU5MDlkYjg3ZjZjYmNmYzRiOTY5OWU5ZTJkMjMzMmIwYWVlN2EwMmM4MmU1YmY3NThjYTI5Njg2IiwxNzkyODE4MDAwLDE3OTI4MTgwMDBd.w8rPr7KgkklA9uz-81loHi_vaAa1_nc0MbYx7teA9L_rpesaLYKCi4-N9YUc1qHH8pf2klXY09G23l-ClsLvCg"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_window"
+  },
+  {
+    "name": "a negative issue instant",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCI1OThkOWM0MTk4ZjU4YmVkMjcyMzNhYjI1YzJkY2E5MjEzYWYxYTE1ZjAxMTIwMmFlZDc5ZWNjZGZjMjU2ZTVkIiwtMSwxNzkyODE4MDMwXQ.JwaQGdNJPgdhaapC1tavqQx86hPe6RP_9OfC1cAhvQciwPb82ujv5h_KKMZhAXFWFUE-GfgQ_FX6i9pTTEZSDw"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_window"
+  },
+  {
+    "name": "signed for another procedure",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvV3JpdGUiLCJkb2N1bWVudHMiLCI5NzhmMGVkMjNmNGM1YTk2MzY3Y2IyYjhiZGEwNzM2OGExMDE4YjU3MTdlYzY3MTEwNGViYTdlOTMyOGViYWI0IiwiNTQ4MjJiOTA3NGM4NDQ3OTk3NWViNTI4ZGQ4MjIyNmJjMDZhMTRjNGI2NzcxMzVhYmJkY2FkOTlhZTljYjcxOCIsMTc5MjgxODAwMCwxNzkyODE4MDMwXQ.kc5E2f2uGHN6DCE4CirFYa02B_mVgZBDLB31d05AFUolhhyyhGj9GhmoQKHlyTQEJmXMxlMiUDd198XGVpTLDQ"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_method"
+  },
+  {
+    "name": "observed without its leading slash",
+    "audience": "documents",
+    "method": "test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCI5YjNlMGNhMjJiMmNmYjI0NGMxZTgxMjcwMDk1ZWY4NDAyMTVjYzE2MGNkNDFkYWZhOWU4YWE2MTFhMGZhZDJhIiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.idUjtd6V1zhPxmTyyTt7s_b8KajNWFuLKcfsREH8xYkvAG0xV7urknQ-iJUDauBVMqJ4qSF1SrdhW60ozuJGDg"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_method"
+  },
+  {
+    "name": "observed with an http verb before the procedure",
+    "audience": "documents",
+    "method": "POST /test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCJlNWEyOWZjZWFkMGEwZDcyZmEyZTRmMTk2OGJiOGRkYWFmNDZkZGI4MWQ0MmUwOTRjMDgxZDgxMTdkM2JhZGEwIiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.yjMROxjwxlj74S_uUJPsKtRUj67aTIYtUX-oMjBtXl9MzpJoNDcx4Hkzw46NW_-q1xju6La9FxxwxkZg9tu6Aw"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_method"
+  },
+  {
+    "name": "no procedure observed",
+    "audience": "documents",
+    "method": "",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCIxMDg1YjllMzY1OWFmNDU1Y2RkNGU1ZTc2MzI2NmZhOTMzMGIzMmI1MDYyNzIyNmEyMGEyM2IzYmFkMTIxNmM0IiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.jLbDMDAE-vDeExocKFdDzi16VoPWGMadaOcwjwQheDPI7IfVIL2RE8swHgLcG2R--NwlQzBylC_eBlSsow4rDw"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_method"
+  },
+  {
+    "name": "signed for another module",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsInJlY29yZHMiLCI5NzhmMGVkMjNmNGM1YTk2MzY3Y2IyYjhiZGEwNzM2OGExMDE4YjU3MTdlYzY3MTEwNGViYTdlOTMyOGViYWI0IiwiZTI0YWNkNjVlOTBjMGMzMDYyYzJmYjI3N2FiYzgwZmFiZjkyM2Q1MTI4MTM2ZjBjNDQ0NDI1OGYxZWQ1ZDcyZiIsMTc5MjgxODAwMCwxNzkyODE4MDMwXQ.iZ34htA5j87IRRSi_Qm714bQdF6j1ZicbYgxnOsRAc8H_IfEG_IkhlYi1ZtOTKINxM-ZXCiekZPKjnipTKCsDA"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_audience"
+  },
+  {
+    "name": "signed by an unpublished key",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCI3N2I1MDFiNTNhNjYwMGU5ZDkyNjc2YjA5NmFlZDdhYjE0YjcwMTcwYjUwOWI3MDcwMDFjOTBiYmYxNzUyZjE0IiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.kq06Xjx1UaHEdwpX4W8P9njOxC4bDkr2xkukk2HMtkOHoWUpNgtuhmr4o_fSX9fwm0m4y3AkkovbQsAvaHXJAQ"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_proof"
+  },
+  {
+    "name": "signed by the retiring key after it is withdrawn",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCI4MjdmM2JjY2EzZGZmNTY3ZGNiYzVjMWQ3ZjMwZDc4MzFmOGFjMjAyZTE1MTNiMTA3MmIwZTc5NTc5NjNmZWQ5IiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.Nl0tK5rLA6rpp6_-CKn6JW3yfh-4i1hcd27qmQvQTGX_hX9WnDvR8beGthmhPGV9MEuYYD7pv913OnfRMPWzAw"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_proof"
+  },
+  {
+    "name": "signed by an admission key published among the work context keys",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        },
+        {
+          "keyId": "hop-9acfaba683d77d14",
+          "algorithm": "Ed25519",
+          "publicKey": "3sHqY1RP6EDBTuMZNGSDyXau58cBDWct+7qGJnA2LdE=",
+          "purpose": "hop-admission"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCIyNzcxZjE4M2RmNjI5Yjk0ZGI1OGQ5ZjhiNTczMzIxY2ZhNGU1NDkwY2FkZDcxZTE0MWQzZjk2NDE5MjVhY2VjIiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.11CvotSBjQQ_iuMKckiOnx2T4Epr_4PU2bYjWqLvz4_VmoS_9ReiSrYsaRKplGjhom7fc5Bov0G4EwNk2K0WDw"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_proof"
+  },
+  {
+    "name": "no admission key published",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCIzMjkzMzI4ZTlmNjhhNjU0OTU2YWFiMjg2NDIwNjFhMWExMzk5NmJlNDJmZTg4NzNiZTBiZTY0YzQ1N2NhNjk3IiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.X5iXZEyf6SzJzs5bUeEoXFyPuzbIMAHOnNkJKscioI1NuvIJJ_BMaFt8jGPMSfd62ZXVVr84gq6UyYnN8BB4DQ"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "keys_unavailable"
+  },
+  {
+    "name": "an admission key published under another purpose",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "work-context"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCI1YWYyYzc0ZGU2NjliODhmODA3ZjZkYzcyM2MwMmQzYzlmZWMyYTA2MTVmOGZiMmQ5NzlkZDBkMmM2YjU0OTZhIiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.ezXt4ZogbpChX8xQ7zEIqkqUvXITL9rc8RvWEhbKhNN8SRAAsnsGcGuRpu8vRFRi0tYK8hZFU8sLuW_RZh2MBg"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "keys_unavailable"
+  },
+  {
+    "name": "the authority's keys cannot be read",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": null,
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCI0YjY4NmUxZjU0MzYxZDZjNWEyYTJhYTk4ZWQ5ZjYxZjE0MTAxNTQ5MDE4NzkzZjk3ZDNhMWRlOWVmN2Q2ZmI4IiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.zk3tofwA-zOzcLQGAc8LgklzxcMU4hiAhzpPKT9ZDI7F6hUwaZmC0M0NVCeWBqrahXtq9dAfq5DsyI1jAISRBg"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "keys_unavailable"
+  },
+  {
+    "name": "no proof",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_proof"
+  },
+  {
+    "name": "a proof that is no signature",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "another-run"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_proof"
+  },
+  {
+    "name": "a proof with padding",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCI1MjA3ODAzMWY1ZmQ0YTcxYWUzNzVkMGUxNjA4NGNmNTM0NzY2ZDE2ZmM5ZTcwNTViZmQ1NzJlMDE0OWJhYTk3IiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd=.EJ5vHrV182vXzPwcuBBLUIJePS45gyhWYiujF1FtBjU9ko8WIROiy7xqCBnBt3XXZrVFwPaTSGNd5qBVAkJoBw"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_proof"
+  },
+  {
+    "name": "a proof in three parts",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCJmOTUyNzZlNzRlNWNjZDg3MDRmYWIwNjVjYjM0YmZkOTcxN2JmMmM0ZTgzNDRkMjMzYjAxOTdkMTc2YjYxYTNjIiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.17jaAlQ3cPvSvLxoTwRmhv4smwZj96aGsKikG0AV-JU_RJGsxyFo50rdQjYMeqgxcQ6_aqqbXzFdueFMPxQRBQ.x"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_proof"
+  },
+  {
+    "name": "a proof over another domain",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MCIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCJkYThjNGRlYmQyOThkMWQ0ZDcwOGVmZjhhM2I1YWFiOGY2MzM2OTdmNjlkYWNkZmU5MjFjMzY5NzQ4Y2FmMmY1IiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.Qbe6U4Ami35Cy0ylyBpfSkp7eIeCchn_92Ya_GZrZOAWLUFff5PXCMIdGJb-_uT9cXR54eC8Ep-4IjtlcTJUCw"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_proof"
+  },
+  {
+    "name": "a proof with six fields",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCI0NzU4ODAyMGQ4Nzc2OTkxOWI2YTUwNzIwNTMzYTliMDU2NjU4NzJlMWY0Yjc2ODk1NTczZDk4OWRjNzBiYzM3IiwxNzkyODE4MDAwXQ.2CCZ5pCXCx9AGPMBpX_Y5UDCpHdAxWGL2JO1d90gPxS0Eys3pVrPYmA-6m7xPBrAU6Nxx4C08lb5U34h2PpPBw"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_proof"
+  },
+  {
+    "name": "a proof whose nonce is sixteen bytes",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCJjYjExMTgxYTRlYThjOWUzMWIyNTc1NzgyYzYyMTAwMSIsMTc5MjgxODAwMCwxNzkyODE4MDMwXQ.jExUaAhH-hrptbC59U6Gc8CYoC7p4BBKVN4TfWcNI__7N7IHR4ElEUqdPsQzgb0dzNqgNLLF4Pv3bvqvLwNNAA"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_proof"
+  },
+  {
+    "name": "a proof whose nonce is upper-case hex",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCI4MkI1RkRBMDgwMTI4MjRDNjQ5MTlBODU2QzZFRUQ0MzhBMkJBMjQzMzVENzA1OEQ1MkRBQkIxNEU1QzI5ODQ0IiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.XoKbHYkIwIFLj3oVCnPBuhcSpTXCLBIDWagGt2XMtbrtNJmnIbjbPTQMRNhMwutpp8Vd5tniEoMzKzIf1MqTDg"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_proof"
+  },
+  {
+    "name": "two proofs",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCJjNTFiNWY4YTcwMDk5OTY4ZWJiYWUzOGE0MTM4MWY1NjM3OGVlYzAxYmQyZDI0NDgzM2QzOTIzODQyZDQxNzhmIiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.ASX8vGMFGYniAKHMyTapa4FSCKzOQVLWeT9m-MGT5C6Hjm_9goN9nv21iYQxi6uRfbZumtiTfaYumCDeuge_Ag"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCJjNTFiNWY4YTcwMDk5OTY4ZWJiYWUzOGE0MTM4MWY1NjM3OGVlYzAxYmQyZDI0NDgzM2QzOTIzODQyZDQxNzhmIiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.ASX8vGMFGYniAKHMyTapa4FSCKzOQVLWeT9m-MGT5C6Hjm_9goN9nv21iYQxi6uRfbZumtiTfaYumCDeuge_Ag"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_proof"
+  },
+  {
+    "name": "a swapped work context",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "0afa3f570ff489031fbc8557bbe8bec68b925c9c440074978d64e6c7391ae066"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCIxYTE3OTFmZmU4ZWUwYWU2NDk1Nzk3MGZkOTU5OTE1MGJjYTI1MTU2NGRiMDdhMWI4ZjE4MDY0YjQ0MmRjODIxIiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.y_0m8yDUqTVkJ0kFr7aryu8mMqDrIOCCVvCx1blAd8LyVq1KwqqYFmWtakUX2t3Q7XouaHvOdEKk3yGYC-hMAg"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIKdGFzay1vdGhlcnokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.4ufLtEixHGZI9dP-d4OnhFsLRjOj7MPSGynQVqvI1AxIoxBitMEL2Kl7qCDqJ2Q3QzxTuljPn-sShuJkYcYDDg"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_digest"
+  },
+  {
+    "name": "a forged work context under a rewritten digest",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "97c670a2953f69708939a0c4280acdbd3c46606b796e1abaa45468d94cb46823"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCI1MjcxNThiNDc3ZjIwNDFmYzU5OTcxYWE3ZTMwNTRhMzQwMDMxYjQ4YjRlMWMyMTFhYWZlODBiYjg2OWY1ODFmIiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.l4gT15ZXPHBbzWoBOLvEBUvJW76dKJ21BkNW4i8BRXSpqR39afiXoPtPxCLKhp8gN7gP4WPEtQ44gHi1dBscCg"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_digest"
+  },
+  {
+    "name": "a context digest disagreeing with the proof",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "0000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCJmZGE5NDAyZmFhOWNmNTRiNzVlMjRjMTFhYjVkMWUwZTM0NDQyMGFmNDY1OTNjZDU4Y2IyYjVmOWE4MGM3NzI5IiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.qn9o5Dhru8fQLvVaUDOlfqBZcUJDPQ496m-ai-cBDq2DyhGNitJafpYHXljFhv7-EGDaiO3EeNj3S5vRDEzZBw"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_digest"
+  },
+  {
+    "name": "no work context",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCJmYmVjNzNhNzMwZWYwZmI3NDUxYWU3MTU2OWJiNjY3OGY5Mjc2ZDYzNWQxMzUzOTk4ODM5ZmY3ODM3YWNmZjBiIiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.pgTeJSz8g0W-NwVFkXXMn217H89V8vwqkqoRYTdBezBJ0lH2YT_bvtCcvMHVKlcqL0AGOfCU1rS1hZAOFGKSCg"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_token"
+  },
+  {
+    "name": "two work contexts",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCJjODQ5ZDg4MTU1ZDRkOWIyODI5NjlmZDJhNWM5ZTBmMDJmZjA4Y2Q3NmQwM2VkNTc4N2FiODkyNTAwNjQwNWYyIiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.2wRC22TV1UI10oUGwKRkc5t_IwWy9aY08mE1XEJrN7tkbVifTOrMnpt_K0I3lRPbSDQduntnEXXPTOkndn1HAQ"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_token"
+  },
+  {
+    "name": "an advisory refusal",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-advisory",
+        "write scope missing"
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCI5OTAyNjYyYmUwOTc5Y2M4ZDcyMjNkNWM0ZGJiODZmOGNlNmRiM2QxYjllYzRhYmY2YmM1ZWJmNzc5ZDEwNzM5IiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.2EGrnlCmGxxJSa7PcZaDiSGsJ02cgT3rDNU0A9crTX3ZTRSAymjEFR_PRU26JzzVBzxAvgn7lZV94tVL0fvXBg"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_advisory"
+  },
+  {
+    "name": "a stamped tenant the token does not bear out",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCIzNTU1ODIwZTQ0OGFiODMwMjcwNWJmZDU5YTUxMTk2MzliN2NmNTNmNjVhNmFjODFlMDE5ZTQ2YjI4ZGViZTIxIiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.uO_lpGHNKExoZHo_RufYY2_tm7HwFwK_1NVJuIAcckJGKaCaapeK959UOCed69i-OgS4IDDd6k_qdkj5BYV6Bg"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "globex"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_identity"
+  },
+  {
+    "name": "a stamped scope the token does not bear out",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCJhNzhmNjg4ZjQ2Njg2OWE1Mjg3MDM2ZTY4NjlhMDE2MjBiZmVlNTFmMWUxZGFhNzc1MTJkNjI5YmFmYzRiNjFiIiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.mOrDErv-MZjP7uQBx8DgZoAL5UwqMjPTjLChoAxDmCo4bP-Xog7vwqdwyEHwIRhc9pvsWiDKfLYi2IYIJjYbCg"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read,documents.collection:admin"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_identity"
+  },
+  {
+    "name": "a stamped owner the token does not bear out",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "remi"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCI1NTcwMTFjMGRmOTY2MmVkZjQzMGQxMjJhMzY1ZTU5MWJmNTEwYjQxNTc3YzIzYjU5M2NjNzg5OGRkOTBlZWY0IiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.ZaT7IA4FGPwzd9u80f2Jhexe8xV2V7TQ3IFoqUBp_b6HbAuFCGl71dSEtvWXV7xh2Q2xH1PEbzvHzdRiSM-pCg"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_identity"
+  },
+  {
+    "name": "a stamped actor the token does not bear out",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        "robin"
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCIyMzQ2ZTg2NWRkNjFmMDQyYzgxMDU5YWQ1M2NmOGQ2YTUxYjEzY2NjMTRhZWQ5MmQwMzhiN2Y3ZDkyNTAwYzA5IiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.XQgbTsww-D56W4bolt7W7YKLWbZgN2XC0XTzFtT1fRXSp3Qwfg-ev0MvzcfPC2Z3Q_-CsXbFSLmOi9o5PHZKAg"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_identity"
+  },
+  {
+    "name": "a stamped identity header repeated",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCIxNDBhMmRhNjU3MjZjZmFhZmU3OTRmODlmMTRiODcwYmY5NzAyZTExNjBlMGUwNTNkZWY2OGI5YWNmMTcwNGZkIiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.6gKdkc8b4UX5xJLxtDmUOHMNQLpnv6-trYHCMldX4Gu8VXQFivvJiK38iyEiv0MiwveDpmIozz3J3B9zuDDNBg"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+      ]
+    ],
+    "accept": false,
+    "reason": "stamp_identity"
+  },
+  {
+    "name": "an expired work context under a fresh stamp",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "750f5d13feaa0e8c6e43d93ae92eaad4cfa3908279cb8c46de3cf1ecb20240f0"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792814400"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjc1MGY1ZDEzZmVhYTBlOGM2ZTQzZDkzYWU5MmVhYWQ0Y2ZhMzkwODI3OWNiOGM0NmRlM2NmMWVjYjIwMjQwZjAiLCI3NmNhZDczZThjMzAwNzVjODEwN2Q3ZmFkZTM3ODljMDdlNDE0ZDQ5MzQzMDMxMWYxMDgyNWZjNTBmOTBjYmY3IiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.ReKizywWsXBCwTUKVv2kf9-t5RMG3sv7DR1KBqE1DBcKfR8I-66ohgv1sY0cYpYF9qc3uasc44U0YdPGVznKBQ"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMwsL7w1gY4sL7w1gZAwNrw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.1wthqt43WON_ZZwiDqOgTGZ__6SqOwRG6mB1M7fP89hohv2_C_RPETkEwD8X7V6QS1txPzTiTHzexr6iF51DBA"
+      ]
+    ],
+    "accept": false,
+    "reason": "expired"
+  },
+  {
+    "name": "a work context for another module under a stamp for this one",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "67351c098880c6fc8e991d3f589bab754008cabebe6c0a164cf05c764650a19a"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjY3MzUxYzA5ODg4MGM2ZmM4ZTk5MWQzZjU4OWJhYjc1NDAwOGNhYmViZTZjMGExNjRjZjA1Yzc2NDY1MGExOWEiLCJlODE4ZmM5MmZiY2U3ZjE2M2E4YTVmMWE1ZjBhNzY3YzhjYjgyZTE2ZWYxMThkZGNhMTZmMWJlN2FkYWRkMjNmIiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.6LhN_zA8WYIiiBeMHJJnse5jUBzeAe-H4SH2Hs4kK9bai4SwwnNHksWLrzN58Xcu4l28WbeOaF8CtFSYcZGICw"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0KgdyZWNvcmRzMND28NYGOND28NYGQKj78NYGSiRhZDgyOTM1NC1jZTNlLTQ3YzEtYTRjMy1mYjEwOTVlNzYzZWRQB1oKc2luZ2xlLXVzZWISdGVuYW50LWNvbmZvcm1hbmNlag9wcmluY2lwYWwtb3duZXJyEHRhc2stY29uZm9ybWFuY2V6JDIzMGYzMGVlLWZlOGYtNDk2MS04MTk2LTYzNGEwYzdkNjlkM4oBHAoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBHJlYWSKASIKFGRvY3VtZW50cy5jb2xsZWN0aW9uEgV3cml0ZRoDYy0xsgEFaHVtYW7KARhvcmdhbml6YXRpb24tY29uZm9ybWFuY2XSAR4IAhIYaW5zdGFsbGF0aW9uLWNvbmZvcm1hbmNlGAM.6NJVCVKVdg87k1N34GpCO3qzjESlxFiEKEVmMkSP3L1tE5jGXvTuIWpW-cZmQ4AAds7gkm82Gr1xqcMpfzQNCA"
+      ]
+    ],
+    "accept": false,
+    "reason": "audience"
+  },
+  {
+    "name": "a work context signed by the hop's admission key",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "690b9c1fdbdb974976aa9757e7038f703a65d9658a2a5bb1aec99702e464325b"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjY5MGI5YzFmZGJkYjk3NDk3NmFhOTc1N2U3MDM4ZjcwM2E2NWQ5NjU4YTJhNWJiMWFlYzk5NzAyZTQ2NDMyNWIiLCIwMTQwMjE4MmI4ZTE2N2Y1MWQwYjQyOGJkYzcyZDM1MThmYWYzN2FkNTMwOGI0MGNmNjVjNWNmZjk3MDU3MzFhIiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.J6-Wg6_5Oy15f3Q9YdIVEvtBNgnmk-dTOWQn04WastDgpdygttFZAVf_izcCDoCtL-jcNxUMV5COZD9iLl0NBQ"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoUaG9wLWMzOTI2MWI0NjA3Mjk1ZTkiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.G7zfZriO2tOY_EcVagmsg-61U8i5omRjdC0hLv2NvyiUcWwfI8VwX6IZV5hBXuYvC_DTJ7K0TQ-ylIdZgzQcCA"
+      ]
+    ],
+    "accept": false,
+    "reason": "unknown_key"
+  },
+  {
+    "name": "a work context signed by a key the authority does not publish",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "dab067ef424fe6365bbb9d0cb0a6a26554cab0731c166b8ca88c29578c0b941d"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsImRhYjA2N2VmNDI0ZmU2MzY1YmJiOWQwY2IwYTZhMjY1NTRjYWIwNzMxYzE2NmI4Y2E4OGMyOTU3OGMwYjk0MWQiLCJlOGFmYWFkYTExODEzYWU4MGE5ZGIyMzU5NDcwZjRjMDc5ZTVmNDFjNDE5NGJkOTNjNzlhMDM1YzY2MDAxNjdiIiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.cJg18UBJFamjH2kKwitoAO-4W4umxOkJcO5aOWB0ZbqWCYtgF4_qf216ewSok604ZoOGQhyWA0aSrz3NVSyKBQ"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLXJvdGF0ZWQiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.EzpcbR9E7oYhg-jSrG9iSHB1o1-ROFjm31Ii5n2pUWoV4BQLqL2s15l8Xpbj9NBKnO8ngUuXOwxv4-Z6gMsxDA"
+      ]
+    ],
+    "accept": false,
+    "reason": "unknown_key"
+  },
+  {
+    "name": "a forged work context signature under a stamp over it",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-context",
+        "97c670a2953f69708939a0c4280acdbd3c46606b796e1abaa45468d94cb46823"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3YzY3MGEyOTUzZjY5NzA4OTM5YTBjNDI4MGFjZGJkM2M0NjYwNmI3OTZlMWFiYWE0NTQ2OGQ5NGNiNDY4MjMiLCI3ZTkxN2FlMGNkNmRiOGE1NWExMWVjOWYzMjFiYzhkOTI2OTE3ZGZjZDEyYmM1YWM2MDhmNjgzNzg3ZDc0NjUyIiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.wej2SbvC2gEhrOHwWisTsTlc5arVhpvgYgtkIf7E1OpKkUm_Z7Me1k7RO-7Bn7rCPo8wlew7hRpddgHOaSpNCw"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ]
+    ],
+    "accept": false,
+    "reason": "signature"
+  }
+]

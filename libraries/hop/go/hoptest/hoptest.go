@@ -152,13 +152,29 @@ func Forward(t testing.TB, token, proof, method string) metadata.MD {
 	return md
 }
 
+// seed is the key material the hop that signs as label uses, derived here and
+// nowhere else so that Signer, AdmissionKey and every suite reading them agree
+// by construction. Production seeds come only from Codefly.
+func seed(label string) [32]byte { return sha256.Sum256([]byte(label)) }
+
 // Signer derives a public test key. Production seeds come only from Codefly.
 // An Authority publishes its admission key once PublishHop names label.
 func Signer(label string) *stamp.Signer {
-	sum := sha256.Sum256([]byte(label))
+	sum := seed(label)
 	signer, _ := stamp.NewSigner(hex.EncodeToString(sum[:]))
 	return signer
 }
+
+// AdmissionKey is the private key behind Signer(label), for the one case that
+// must sign something that is not an admission under a hop's key: a Work
+// Context, to prove that an admission key authenticates none. Nothing in
+// production holds this key; a hop signs through Signer.
+func AdmissionKey(label string) ed25519.PrivateKey {
+	sum := seed(label)
+	return ed25519.NewKeyFromSeed(sum[:])
+}
+
+// PublicKey is the admission key of the hop that signs as label, hex.
 func PublicKey(label string) string { return Signer(label).PublicKey() }
 
 // Published is the admission key of the hop that signs as label, as an
