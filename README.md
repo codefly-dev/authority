@@ -564,6 +564,26 @@ codefly-dev/cli#1128:
 Every refusal through the hop is also in the hop's log, naming the module, the
 method and the reason.
 
+### The hop side is a conformance target too (2026-11-03)
+
+The suite above proves an authority. The other half of every admitted call,
+the hop's stamp and the module-side verifier, is held to the same rule: **one
+contract, N implementations, one suite.** A hop or a verifier in any language
+is proved by passing `libraries/conformance/hop/go`, not by whoever wrote it,
+and no case there is loosened so that an implementation passes. The target has
+two halves: `hopconformance.Run`, built on `hoptest`, drives the cases that
+need a live authority and more than one verifier (a rotation's overlap, a store
+two replicas share, a handler holding its single-use reservation, keys that
+cannot be read) against a Go verifier, and runs against `hop.Verifier` in CI;
+`libraries/authority-client/testdata/stamps.json` holds the signed admissions
+on the wire with the verdict every verifier must reach at a fixed clock, written
+by the Go hop library's test and replayed by Go, Python and TypeScript, beside
+the bare-token `vectors.json`. The package README lists every case, where each
+language proves it, and the gaps it states rather than skips (TypeScript ships
+no durable replay store; the hop exists in Go alone). The host-side gate, the
+accounts service running the authority suite and serving `RegisterAdmissionKey`,
+is codefly-dev/module-saas-starter#1291.
+
 ### Each method declares what a call must hold, and Check decides
 
 The declaration is the authority's, not core's and not a host SDK's: the method

@@ -307,3 +307,17 @@ documents and records. The regression
 suite covers the read-to-delete and zero-scope fabricated-stamp probes from the
 two independent reviews, cross-audience use, repeated and concurrent admission,
 expiry, duplicate headers, store failure, and cross-instance durable reservations.
+
+## Conformance
+
+The admission path is a conformance target of its own,
+[`libraries/conformance/hop/go`](../conformance/hop/go/README.md): one
+contract (this document), N verifiers, one suite. `hopconformance.Run` drives
+the behavioural cases against a Go verifier over `hoptest`;
+`libraries/authority-client/testdata/stamps.json`, written by
+`go/vectors_test.go` and regenerated with `-update-vectors`, carries the signed
+admissions on the wire with the verdict Go, Python and TypeScript must each
+reach at a fixed clock, beside the bare-token `vectors.json`. `testdata/stamped.json`
+remains the one forwarded call every language reads as Go wrote it; the
+vectors derive from it. A verifier in a new language, or a second hop, is proved
+by that target, and a case is never loosened so that an implementation passes.

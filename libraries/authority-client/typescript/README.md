@@ -37,6 +37,17 @@ outside the run named exactly `local` the constructor refuses a store whose
 `shared` is not true (`replay_store_not_shared`). See the [admission
 protocol](../../hop/README.md).
 
+`tests/stamps.test.mjs` replays the hop conformance target's wire vectors
+(`../testdata/stamps.json`, written by Go): every signed admission there must
+reach Go's verdict, for the same reason, reading the same identity. The target,
+its cases and the gaps it states are in
+[`libraries/conformance/hop/go`](../../conformance/hop/go/README.md). The gap
+stated for TypeScript: this package ships no durable replay store, so its
+single-use admission is proved for the verifier's logic on an in-memory store,
+and a Node host supplies the store every replica shares (`reserve`/`finish`/
+`consume`, `shared: true`); Go and Python prove the durable contract over
+Postgres.
+
 `claims.scopes` contains frozen copies of the final actor's grants, or the owner's
 when no actor exists. Each scope is evaluated independently; an omitted resource
 ID asks for the whole kind; no wildcard or admin implication occurs.
