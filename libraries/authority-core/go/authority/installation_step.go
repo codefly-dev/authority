@@ -33,6 +33,22 @@ type InstallationStepAttempt struct {
 	Digest                                         string
 }
 
+// PendingInstallationStep snapshots the current attempt for a trusted host's
+// synchronous dispatcher. The supplied pending installation must still match;
+// this neither reviews nor consents to a changed offer. Durable dispatchers keep
+// the reviewed attempt in their job instead. IssueInstallationStep rechecks it.
+func (s *Service) PendingInstallationStep(ctx context.Context, expected domain.Installation) (InstallationStepAttempt, error) {
+	src, err := s.stepSource(ctx, expected.ID)
+	if err != nil {
+		return InstallationStepAttempt{}, err
+	}
+	a := src.attempt
+	if expected.Status != domain.Pending || expected.Organization != a.Organization || expected.Target != a.Target || expected.Revision != a.Revision || expected.Consent != a.Consent {
+		return InstallationStepAttempt{}, domain.NotNow("installation step attempt changed")
+	}
+	return a, nil
+}
+
 // IssueInstallationStep grants only delivery of this installation's setup, not
 // its agent role or any data access. ttl must fit the claimant's remaining lease.
 // Queue custody stays with the host; lease loss is not an Authority state change.

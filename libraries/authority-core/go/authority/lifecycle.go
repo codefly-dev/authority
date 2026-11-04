@@ -95,7 +95,7 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 				}
 			}
 		}
-		if exists && previous.OwnerAware && !m.OwnerAware {
+		if exists && decide.OwnerAwareNarrowed(previous, m) {
 			if err := tx.BumpOwnerAwareRevision(m.Principal); err != nil {
 				return err
 			}

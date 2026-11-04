@@ -75,6 +75,10 @@ func (s *Service) CheckMethod(ctx context.Context, token, audience, method strin
 		verified, revision, err = s.VerifyInstallationStep(ctx, token, audience)
 		return verified, revision, nil, err
 	}
+	if isSetupOperation(token) {
+		verified, revision, err = s.verifyInstallationSetup(ctx, token, audience, method)
+		return verified, revision, nil, err
+	}
 	if verified, revision, err = s.Check(ctx, token, audience); err != nil || method == "" {
 		return verified, revision, nil, err
 	}

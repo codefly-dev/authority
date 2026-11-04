@@ -9,6 +9,7 @@ import (
 	"time"
 
 	resources "github.com/codefly-dev/authority/libraries/resources/go"
+	modulecontract "github.com/codefly-dev/core/contracts/module"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
@@ -77,6 +78,10 @@ type Module struct {
 	// caller; "none" selects no standing authority; otherwise it names a role.
 	// Omit absent fields from the existing review digest's JSON representation.
 	InstallationRole string `json:",omitempty"`
+	// Setup is installation-only authority, separate from all standing roles.
+	Setup []modulecontract.ResolvedSetup `json:",omitempty"`
+	// OwnerAwareResourceKinds names only the kinds whose owner selectors are enforced.
+	OwnerAwareResourceKinds []string `json:",omitempty"`
 	// EdgeDependencies declares viewer-edge presence, never authority or grants.
 	// Nil and empty are equivalent, including in the review digest.
 	EdgeDependencies []EdgeDependency `json:",omitempty"`

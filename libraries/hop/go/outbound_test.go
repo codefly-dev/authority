@@ -98,3 +98,32 @@ func TestForModuleLeavesAnEmptyOrganizationToTheAuthority(t *testing.T) {
 		})
 	}
 }
+
+func TestIssueForInstallationSetupNamesOnlyTheStepAndMethod(t *testing.T) {
+	a := &authority{}
+	credential := "first-workload"
+	o := Outbound{Authority: a, Credential: func() (string, error) { return credential, nil }}
+	for _, current := range []string{"first-workload", "rotated-workload"} {
+		credential = current
+		issued, err := o.IssueForInstallationSetup(context.Background(), "private-step", "schema-binding", "/records.v1.Schema/Define")
+		if err != nil {
+			t.Fatal(err)
+		}
+		req := a.asked
+		if req.GetSetup().GetStepToken() != "private-step" || req.GetSetup().GetMethod() != "/records.v1.Schema/Define" || req.GetActor().GetCredential() != current || req.GetOperationBindingId() != "schema-binding" || len(req.GetScopes()) != 0 || req.GetOrganizationId() != "" {
+			t.Fatalf("setup issue: %v", req)
+		}
+		ctx := metadata.NewOutgoingContext(context.Background(), metadata.Pairs("request-id", "kept", WorkContextKey, "old"))
+		md, _ := metadata.FromOutgoingContext(issued.Carry(ctx))
+		if got := md.Get(WorkContextKey); len(got) != 1 || got[0] != "issued" {
+			t.Fatalf("destination credential: %v", got)
+		}
+		if got := md.Get("request-id"); len(got) != 1 || got[0] != "kept" {
+			t.Fatalf("metadata: %v", got)
+		}
+	}
+	a.err = errors.New("revoked")
+	if _, err := o.IssueForInstallationSetup(context.Background(), "private-step", "schema-binding", "/records.v1.Schema/Define"); !errors.Is(err, a.err) || !strings.Contains(err.Error(), "schema-binding") {
+		t.Fatalf("refusal: %v", err)
+	}
+}

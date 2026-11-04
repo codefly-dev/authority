@@ -176,6 +176,20 @@
       },
       "description": "InstallationRef names an installation acting for itself."
     },
+    "v1InstallationSetupRef": {
+      "type": "object",
+      "properties": {
+        "stepToken": {
+          "type": "string",
+          "description": "The unexpired standard installation callback credential."
+        },
+        "method": {
+          "type": "string",
+          "description": "The exact destination method selected by the setup declaration."
+        }
+      },
+      "description": "InstallationSetupRef selects one exact method from the reviewed setup grant.\nThe callback token proves the current attempt; it is not data authority."
+    },
     "v1IssueRequest": {
       "type": "object",
       "properties": {
@@ -198,6 +212,10 @@
         "delegation": {
           "$ref": "#/definitions/v1DelegationRef",
           "description": "A delegation a person granted the module acting (actor): the capability\nis owned by that person and carries the delegation on the module's hop.\nNo live capability is presented: the authority re-checks the delegation\nand what its grantor holds now, so a revoked delegation or a lost role\nstops the next issue, and renewing is issuing again."
+        },
+        "setup": {
+          "$ref": "#/definitions/v1InstallationSetupRef",
+          "description": "Current authenticated install callback evidence for one declared setup\nmethod. Independent of standing roles; requires the solution's actor."
         },
         "audience": {
           "type": "string",

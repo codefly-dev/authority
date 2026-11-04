@@ -195,6 +195,12 @@ func (i *Issuer) issue(ctx context.Context, req *authorityv1.IssueRequest) (*aut
 			return nil, werr
 		}
 		out, err = i.svc.IssueForInstallation(ctx, w, as.Installation.GetInstallationId(), r)
+	case *authorityv1.IssueRequest_Setup:
+		w, werr := i.workload(ctx, req.GetActor().GetCredential(), "setup acts through its solution's workload")
+		if werr != nil {
+			return nil, werr
+		}
+		out, err = i.svc.IssueForInstallationSetup(ctx, w, as.Setup.GetStepToken(), as.Setup.GetMethod(), r)
 	case *authorityv1.IssueRequest_ParentToken:
 		w, werr := i.workload(ctx, req.GetActor().GetCredential(), "a child hop names the module acting")
 		if werr != nil {

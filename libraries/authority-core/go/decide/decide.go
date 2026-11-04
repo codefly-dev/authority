@@ -194,8 +194,10 @@ func Child(binding string, throughSolution bool) error {
 // OwnerAware refuses owner-selected scopes to an audience that does not
 // declare owner-aware checking: its module could read them as the whole kind.
 func OwnerAware(audience domain.Module, scopes Scopes) error {
-	if scope.HasOwner(scopes) && !audience.OwnerAware {
-		return domain.Refuse("%s does not declare owner-aware checking, so it receives no owner-selected scope", audience.Principal)
+	for _, sc := range scopes {
+		if sc.GetResourceOwnerId() != "" && !audience.OwnerAware && !slices.Contains(audience.OwnerAwareResourceKinds, sc.GetResourceKind()) {
+			return domain.Refuse("%s does not declare owner-aware checking for %s, so it receives no owner-selected scope", audience.Principal, sc.GetResourceKind())
+		}
 	}
 	return nil
 }

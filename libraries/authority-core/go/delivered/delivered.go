@@ -8,6 +8,8 @@ package delivered
 
 import (
 	"crypto"
+	modulecontract "github.com/codefly-dev/core/contracts/module"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -32,8 +34,10 @@ type Document struct {
 	Roles              []Role
 	OwnerAware         bool
 	// Core validates these declarations; every delivery hop carries them verbatim.
-	InstallationRole string
-	EdgeDependencies []domain.EdgeDependency
+	Setup                   []modulecontract.ResolvedSetup
+	OwnerAwareResourceKinds []string
+	InstallationRole        string
+	EdgeDependencies        []domain.EdgeDependency
 }
 
 // Method is one method's declaration in the document.
@@ -108,6 +112,7 @@ func Module(manifest *solutionhost.ModuleManifest, doc *Document) (domain.Module
 		return m, err
 	}
 	m.OwnerAware = doc.OwnerAware
+	m.OwnerAwareResourceKinds = slices.Clone(doc.OwnerAwareResourceKinds)
 	m.InstallationRole = doc.InstallationRole
 	m.EdgeDependencies = slices.Clone(doc.EdgeDependencies)
 	return m, nil
@@ -122,6 +127,12 @@ func sameInstallationDeclaration(carrier *solutionhost.Authority, doc *Document)
 	}
 	if doc == nil {
 		doc = &Document{}
+	}
+	if !slices.Equal(carrier.OwnerAwareResourceKinds, doc.OwnerAwareResourceKinds) {
+		return domain.Refuse("owner_aware_resource_kinds differs between signed carriers")
+	}
+	if len(carrier.Setup) != len(doc.Setup) || (len(carrier.Setup) > 0 && !reflect.DeepEqual(carrier.Setup, doc.Setup)) {
+		return domain.Refuse("setup differs between signed carriers")
 	}
 	if carrier.InstallationRole != doc.InstallationRole {
 		return domain.Refuse("installation_role differs between the signed manifest and authority document")
@@ -215,6 +226,12 @@ func FromCore(in *solutionhost.ModuleManifest) domain.Module {
 		return m
 	}
 	m.InstallationRole = in.Authority.InstallationRole
+	m.Setup = slices.Clone(in.Authority.Setup)
+	for i := range m.Setup {
+		m.Setup[i].Methods = slices.Clone(m.Setup[i].Methods)
+		m.Setup[i].Scopes = slices.Clone(m.Setup[i].Scopes)
+	}
+	m.OwnerAwareResourceKinds = slices.Clone(in.Authority.OwnerAwareResourceKinds)
 	for _, edge := range in.Authority.EdgeDependencies {
 		m.EdgeDependencies = append(m.EdgeDependencies, domain.EdgeDependency{Module: edge.Module, Presence: edge.Presence})
 	}

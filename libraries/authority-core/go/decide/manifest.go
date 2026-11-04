@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
@@ -26,6 +27,34 @@ func ValidateModule(m domain.Module) error {
 func validateModule(m domain.Module) error {
 	if m.Name == "" || m.Principal == "" || m.Generation == 0 {
 		return domain.Refuse("a manifest names its module, its principal and a generation")
+	}
+	seenKinds := map[string]bool{}
+	for _, kind := range m.OwnerAwareResourceKinds {
+		if m.OwnerAware || seenKinds[kind] || !slices.ContainsFunc(m.ResourceKinds, func(sc *basev0.WorkScopeV1) bool { return sc.GetResourceKind() == kind }) {
+			return domain.Refuse("owner-aware resource kinds must be unique served kinds without global owner-awareness")
+		}
+		seenKinds[kind] = true
+	}
+	seenSetup := map[string]bool{}
+	for _, setup := range m.Setup {
+		b, ok := m.Bindings[setup.Binding]
+		if m.Kind != domain.KindSolution || !ok || seenSetup[setup.Binding] || b.Audience == m.Principal || len(setup.Methods) == 0 || len(setup.Scopes) == 0 {
+			return domain.Refuse("setup requires a solution's unique foreign binding, exact methods and resolved scopes")
+		}
+		seenSetup[setup.Binding] = true
+		seenMethods := map[string]bool{}
+		for _, method := range setup.Methods {
+			if seenMethods[method] || strings.ContainsAny(method, "*{}") || delivery.ValidateMethodPolicy(method, false, map[string][]string{"setup": {"invoke"}}, false) != nil {
+				return domain.Refuse("setup requires unique exact methods")
+			}
+			seenMethods[method] = true
+		}
+		for _, text := range setup.Scopes {
+			kind, action, ok := strings.Cut(text, ":")
+			if !ok || kind == "" || action == "" || !scope.Attenuates(Scopes{{ResourceKind: kind, Actions: []string{action}}}, b.InvokeScopes) {
+				return domain.Refuse("setup scopes exceed the binding invoke ceiling")
+			}
+		}
 	}
 	for _, method := range slices.Sorted(maps.Keys(m.Methods)) {
 		policy := m.Methods[method]
@@ -113,7 +142,7 @@ func RoleGated(m domain.Module) bool {
 // roles cut, or a module moved between organization roles and its own. A
 // narrowing invalidates capabilities already issued.
 func Narrowed(previous, next domain.Module) bool {
-	if previous.OwnerAware && !next.OwnerAware {
+	if OwnerAwareNarrowed(previous, next) {
 		return true
 	}
 	for id, old := range previous.Bindings {
@@ -192,4 +221,15 @@ func Served(m domain.Module) Scopes {
 		}
 	}
 	return scope.Normalize(served)
+}
+
+// OwnerAwareNarrowed uses the existing audience epoch for withdrawal of any kind.
+func OwnerAwareNarrowed(previous, next domain.Module) bool {
+	if next.OwnerAware {
+		return false
+	}
+	if previous.OwnerAware {
+		return true
+	}
+	return slices.ContainsFunc(previous.OwnerAwareResourceKinds, func(kind string) bool { return !slices.Contains(next.OwnerAwareResourceKinds, kind) })
 }

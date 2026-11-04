@@ -434,8 +434,8 @@ const file_host_artifact_v1_artifact_proto_rawDesc = "" +
 	"\x0fArtifactService\x12H\n" +
 	"\aApprove\x12!.host.artifact.v1.ArtifactRequest\x1a\x1a.host.artifact.v1.Approval\x12J\n" +
 	"\tAuthorize\x12!.host.artifact.v1.ArtifactRequest\x1a\x1a.host.artifact.v1.Approval\x12E\n" +
-	"\x06Revoke\x12\x1f.host.artifact.v1.RevokeRequest\x1a\x1a.host.artifact.v1.ApprovalB\xd7\x01\n" +
-	"\x14com.host.artifact.v1B\rArtifactProtoP\x01ZNgithub.com/codefly-dev/cli/pkg/builder/clients/api/host/artifact/v1;artifactv1\xa2\x02\x03HAX\xaa\x02\x10Host.Artifact.V1\xca\x02\x10Host\\Artifact\\V1\xe2\x02\x1cHost\\Artifact\\V1\\GPBMetadata\xea\x02\x12Host::Artifact::V1b\x06proto3"
+	"\x06Revoke\x12\x1f.host.artifact.v1.RevokeRequest\x1a\x1a.host.artifact.v1.ApprovalB\xda\x01\n" +
+	"\x14com.host.artifact.v1B\rArtifactProtoP\x01ZQgithub.com/codefly-dev/cli/pkg/builder/clients/client/host/artifact/v1;artifactv1\xa2\x02\x03HAX\xaa\x02\x10Host.Artifact.V1\xca\x02\x10Host\\Artifact\\V1\xe2\x02\x1cHost\\Artifact\\V1\\GPBMetadata\xea\x02\x12Host::Artifact::V1b\x06proto3"
 
 var (
 	file_host_artifact_v1_artifact_proto_rawDescOnce sync.Once

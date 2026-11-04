@@ -438,8 +438,8 @@ const file_host_session_v1_session_proto_rawDesc = "" +
 	"\x0eSessionService\x12b\n" +
 	"\x06SignIn\x12\x1e.host.session.v1.SignInRequest\x1a\x18.host.session.v1.Session\"\x1e\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/v1/session:sign-in\x12Y\n" +
 	"\aCurrent\x12\x1f.host.session.v1.CurrentRequest\x1a\x18.host.session.v1.Session\"\x13\x82\xd3\xe4\x93\x02\r\x12\v/v1/session\x12\x8e\x01\n" +
-	"\x11ListFixturePeople\x12).host.session.v1.ListFixturePeopleRequest\x1a*.host.session.v1.ListFixturePeopleResponse\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/v1/session/fixture-peopleB\xcf\x01\n" +
-	"\x13com.host.session.v1B\fSessionProtoP\x01ZLgithub.com/codefly-dev/cli/pkg/builder/clients/api/host/session/v1;sessionv1\xa2\x02\x03HSX\xaa\x02\x0fHost.Session.V1\xca\x02\x0fHost\\Session\\V1\xe2\x02\x1bHost\\Session\\V1\\GPBMetadata\xea\x02\x11Host::Session::V1b\x06proto3"
+	"\x11ListFixturePeople\x12).host.session.v1.ListFixturePeopleRequest\x1a*.host.session.v1.ListFixturePeopleResponse\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/v1/session/fixture-peopleB\xd2\x01\n" +
+	"\x13com.host.session.v1B\fSessionProtoP\x01ZOgithub.com/codefly-dev/cli/pkg/builder/clients/client/host/session/v1;sessionv1\xa2\x02\x03HSX\xaa\x02\x0fHost.Session.V1\xca\x02\x0fHost\\Session\\V1\xe2\x02\x1bHost\\Session\\V1\\GPBMetadata\xea\x02\x11Host::Session::V1b\x06proto3"
 
 var (
 	file_host_session_v1_session_proto_rawDescOnce sync.Once
