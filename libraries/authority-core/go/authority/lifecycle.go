@@ -95,6 +95,11 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 				}
 			}
 		}
+		if exists {
+			if err := s.dropRoleGrants(ctx, tx, previous, m); err != nil {
+				return err
+			}
+		}
 		if exists && previous.OwnerAware && !m.OwnerAware {
 			if err := tx.BumpOwnerAwareRevision(m.Principal); err != nil {
 				return err
@@ -140,6 +145,51 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 		return nil
 	})
 	return ids, err
+}
+
+// dropRoleGrants deletes, on every installation of the module, the grants of
+// each role previous declared and next does not; a module page redelivered
+// without roles drops them all. A grant of a role nobody declares any more
+// would otherwise sleep in the store until a later generation declared the
+// name again, and its holders would hold whatever that generation meant by
+// it, with no administrator having granted that. Each deletion is journaled
+// as a revocation by the delivery.
+func (s *Service) dropRoleGrants(ctx context.Context, tx Tx, previous, next domain.Module) error {
+	var dropped []string
+	for name := range previous.Roles {
+		if _, kept := next.Roles[name]; !kept {
+			dropped = append(dropped, name)
+		}
+	}
+	if len(dropped) == 0 {
+		return nil
+	}
+	all, err := tx.Installations("")
+	if err != nil {
+		return err
+	}
+	for _, inst := range all {
+		if inst.Target != previous.Name {
+			continue
+		}
+		grants, err := tx.RoleGrants(inst.ID)
+		if err != nil {
+			return err
+		}
+		for _, g := range grants {
+			if !slices.Contains(dropped, g.Role) {
+				continue
+			}
+			if err := tx.DeleteRoleGrant(g); err != nil {
+				return err
+			}
+			r := RoleRequest{Organization: inst.Organization, InstallationID: inst.ID, Role: g.Role, PersonID: g.PersonID, TeamID: g.TeamID}
+			if err := s.journal(ctx, tx, r.event(domain.RoleRevoked, "delivery:"+next.Name)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // OrganizationAdded holds every composed module installed at an organization

@@ -83,11 +83,15 @@ func (s *Service) reviewOffer(ctx context.Context, caller Person, org, target st
 		if code, ok := domain.CodeOf(refused); refused != nil && (!members || !ok || code != domain.Denied) {
 			return refused
 		}
-		inst, err := tx.Installation(s.cfg.InstallationID(org, target))
-		if errors.Is(err, domain.ErrNotFound) && s.cfg.HostInstallsModules {
-			// A host that installs modules names a module page's
-			// installation itself, so it is found by its target.
+		var inst domain.Installation
+		var err error
+		if s.cfg.HostInstallsModules {
+			// A host that installs modules names a module page's installation
+			// itself, so it is found by its target, as issuance finds it: the
+			// active one before any the core retired under its own id.
 			inst, err = installationOf(tx, org, target)
+		} else {
+			inst, err = tx.Installation(s.cfg.InstallationID(org, target))
 		}
 		if errors.Is(err, domain.ErrNotFound) {
 			inst, err = domain.Installation{}, nil

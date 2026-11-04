@@ -15,7 +15,7 @@ import (
 // generation, bindings whose lookup and headless scopes stay within invoke;
 // a module without a page declares no roles; a solution, or a module page
 // that declares roles, declares installer, and every role stays within what
-// it serves or consumes through invoke/lookup bindings.
+// it serves, or, for a solution alone, consumes through invoke/lookup bindings.
 func ValidateModule(m domain.Module) error {
 	if err := validateModule(m); err != nil {
 		return err
@@ -68,10 +68,18 @@ func validateModule(m domain.Module) error {
 		return &domain.Refusal{Code: domain.Denied, Cause: domain.ErrNoInstallerRole,
 			Reason: fmt.Sprintf("%s declares %d role(s) and none is %q: a solution, or a module page declaring roles, declares an installer role", m.Name, len(m.Roles), domain.InstallerRole)}
 	}
-	grantable := slices.Clone(m.ResourceKinds)
-	for _, b := range m.Bindings {
-		grantable = append(grantable, b.InvokeScopes...)
-		grantable = append(grantable, b.LookupScopes...)
+	// A solution's roles reach through its bindings (a person's capability
+	// through a solution carries the solution's role at each module it
+	// invokes), so a role may name what a binding consumes. A module page's
+	// never do: at a module it reaches, the person holds their own grants,
+	// cut to the binding. A role naming a consumed kind there would be
+	// accepted and decide nothing, so it is refused instead.
+	grantable := Served(m)
+	if m.Kind == domain.KindSolution {
+		for _, b := range m.Bindings {
+			grantable = append(grantable, b.InvokeScopes...)
+			grantable = append(grantable, b.LookupScopes...)
+		}
 	}
 	for _, name := range slices.Sorted(maps.Keys(m.Roles)) {
 		scopes := m.Roles[name]
@@ -82,6 +90,9 @@ func validateModule(m domain.Module) error {
 			return domain.Refuse("role %q of %s selects an owner; a role's owner is its installation's principal", name, m.Name)
 		}
 		if !scope.Attenuates(scopes, grantable) {
+			if m.Kind != domain.KindSolution {
+				return domain.Refuse("role %q of %s grants beyond what %s serves; a module page's roles never reach what it consumes", name, m.Name, m.Name)
+			}
 			return domain.Refuse("role %q of %s grants beyond what %s serves or explicitly consumes through invoke/lookup bindings", name, m.Name, m.Name)
 		}
 	}
