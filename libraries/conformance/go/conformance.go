@@ -120,6 +120,11 @@ type Fixture struct {
 	// InstallationChain exercises successive module actors under one installed
 	// solution's role. Omission fails conformance.
 	InstallationChain *InstallationChainCase
+	// Artifacts is the artifact interface (codefly.dev/artifact): a person's
+	// consent to an exact authored artifact a module runs, decided as every
+	// host decides it (RunArtifacts). Omission fails conformance: a host that
+	// serves the interface another way passes nothing else here.
+	Artifacts *ArtifactCase
 
 	// SlowChecks is retained for source compatibility. Expiry is now always
 	// checked: omitting a fixture option must not silently remove a contract case.
@@ -670,6 +675,12 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 	})
 	t.Run("installation-owned role scopes cover only what the installation owns", func(t *testing.T) {
 		c.installationResources(t, ctx, f)
+	})
+	t.Run("an artifact is approved by a person present and run against that approval", func(t *testing.T) {
+		if f.Artifacts == nil {
+			t.Fatal("required conformance fixture missing: the fixture states no artifact case")
+		}
+		RunArtifacts(t, conn, descriptors, *f.Artifacts)
 	})
 	t.Run("a check naming a method applies what the module's delivery declares", func(t *testing.T) {
 		if f.SignManifest == nil || f.SignAuthority == nil {
