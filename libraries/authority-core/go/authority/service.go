@@ -400,25 +400,37 @@ func ceiled(tx Tx, org string, m domain.Module, b domain.Binding) (domain.Bindin
 // installationOf is an organization's installation of target: its active one
 // when it has one, since a host that installs modules keeps the records of the
 // installations it retired beside the one it made again.
+// installationOf is org's installation of target: the active one, else the
+// most recently retired. An empty organization names no installation, and is
+// never a wildcard: a store asked for "" answers every organization's. Two
+// active installations of one target is a store that broke its invariant, and
+// it fails closed rather than letting store order choose whose grants decide.
 func installationOf(tx Tx, org, target string) (domain.Installation, error) {
+	if org == "" {
+		return domain.Installation{}, fmt.Errorf("installation of %s: no organization named: %w", target, domain.ErrNotFound)
+	}
 	all, err := tx.Installations(org)
 	if err != nil {
 		return domain.Installation{}, err
 	}
-	var found *domain.Installation
-	for i, inst := range all {
+	var active, retired []domain.Installation
+	for _, inst := range all {
 		if inst.Target != target {
 			continue
 		}
 		if inst.Status == domain.Active {
-			return inst, nil
-		}
-		if found == nil {
-			found = &all[i]
+			active = append(active, inst)
+		} else {
+			retired = append(retired, inst)
 		}
 	}
-	if found != nil {
-		return *found, nil
+	switch {
+	case len(active) == 1:
+		return active[0], nil
+	case len(active) > 1:
+		return domain.Installation{}, fmt.Errorf("%d active installations of %s at %s; one organization installs a target once", len(active), target, org)
+	case len(retired) > 0:
+		return retired[0], nil
 	}
 	return domain.Installation{}, fmt.Errorf("installation of %s at %s: %w", target, org, domain.ErrNotFound)
 }
