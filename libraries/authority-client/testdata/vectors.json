@@ -305,6 +305,194 @@
     "reason": "unknown_key"
   },
   {
+    "name": "issued in a window open since before the epoch",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2Uw8OP_________ATjw4_________8BQJAcSiRhMjBhZWZmNy04NDBjLTQ2OTMtOGNhMy0wNGE1NDA0YmQ5MWVQB1oKaWRlbXBvdGVudGISdGVuYW50LWNvbmZvcm1hbmNlag9wcmluY2lwYWwtb3duZXJyEHRhc2stY29uZm9ybWFuY2V6JGY3ZDIzZmFkLWUyNTEtNDNjMy1hZjMyLTNjNTNlOWNjMGVjMooBDgoGcmVjb3JkEgRyZWFksgEFaHVtYW7KARhvcmdhbml6YXRpb24tY29uZm9ybWFuY2XSAR4IAhIYaW5zdGFsbGF0aW9uLWNvbmZvcm1hbmNlGAM.3sfe-oqVJyYfas0x-pFjyQO7eCVtohIGC5NngMHqvDtJfnhC0I8MpjEO2LhCQBTW-WKUNFMgtMSESXIdODVFDg",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": true
+  },
+  {
+    "name": "no issued-at in a window open since before the epoch",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2Uw8OP_________AUCQHEokYTIwYWVmZjctODQwYy00NjkzLThjYTMtMDRhNTQwNGJkOTFlUAdaCmlkZW1wb3RlbnRiEnRlbmFudC1jb25mb3JtYW5jZWoPcHJpbmNpcGFsLW93bmVychB0YXNrLWNvbmZvcm1hbmNleiRmN2QyM2ZhZC1lMjUxLTQzYzMtYWYzMi0zYzUzZTljYzBlYzKKAQ4KBnJlY29yZBIEcmVhZLIBBWh1bWFuygEYb3JnYW5pemF0aW9uLWNvbmZvcm1hbmNl0gEeCAISGGluc3RhbGxhdGlvbi1jb25mb3JtYW5jZRgD.zFw-Cn5IGoTvNoASqcsm1Z9F0EeBD2ipaRpPsJaYez76-LLriUEz94vOKBULdJWbsY2uzcOeV9cfKvyjU1m3AQ",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "malformed"
+  },
+  {
+    "name": "issued as its window opens",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.ccIoRo1Phc6RcTq3N_mL0z1r5EbZfw-v-Z8WXu4FGlJ6kprieciqWuU4kSPwplc0Itwdfk3mTSGIhQBbPeR7Dw",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893601,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": true
+  },
+  {
+    "name": "issued at the edge of the clock allowance",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4v8X11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.u3Y3Y5TiZGI-F2qhNsbQCazp-uEtD3TyQsfLfvY8O8zIjcjmDXKZ9XowzBVeQnzbUANiCmlHDfTzwCw4fxV1Bw",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893601,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": true
+  },
+  {
+    "name": "issued just before it expires",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4r-H11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.288BBu4jkwlx37me0jNN6UgelbxF_D-I_PVbAzr0LKTUuZYE3qJkpkH9aZ_PZPn_gFxmi_VVWL3ZPkKxYWXGBA",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792897199,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": true
+  },
+  {
+    "name": "no issued-at",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.v6Ya9DJCbTUN6-JzNgA1ZxWZe5HozwR_yrB9delfALMTL6oNn8_SeXb2UtauFOFRCyGp7E85cyMMZyZPMYnwDQ",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893601,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "malformed"
+  },
+  {
+    "name": "issued before its window opens",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4n8X11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.lsOrl9yOwTgXCKyiG8W7dyXwTvUv7Rz72VbTeUzdVg7tzhH2seihPmLhK3Cbo-KBh033YomujeRA33-3ja7tCw",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893601,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "malformed"
+  },
+  {
+    "name": "issued as it expires",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4sOH11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.7wHjXCgrRMatRJQSWSOI6hqqaLVEhIzu_J3sqULPrfkZ4ckuzu98NJyoNdMS_FBTIr5zhN3gUtC_pLb9aTnuAw",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792897199,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "malformed"
+  },
+  {
+    "name": "issued after it expires",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4seH11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.yPn08ZAqlPTk7gySk8lA6KwIniSDPeBP5n1j2l1jMmQjE4yu-vwG7xR8vakLpCTuJHgL9z6aUlVGTDmuO9YXAQ",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792897199,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "malformed"
+  },
+  {
+    "name": "issued in the future",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4wMX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.gDrhRwI2aF4c2vh6-qmiDO_69Z0UrqXfVgzsFLOHeiUZ1ww6L0Hv0duvWtUtBdba9If91PuHI9LPc8t9YvC1Aw",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893601,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "malformed"
+  },
+  {
+    "name": "a sound issued-at in a closed window",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.ccIoRo1Phc6RcTq3N_mL0z1r5EbZfw-v-Z8WXu4FGlJ6kprieciqWuU4kSPwplc0Itwdfk3mTSGIhQBbPeR7Dw",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792897230,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "expired"
+  },
+  {
+    "name": "a sound issued-at in a window not yet open",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.ccIoRo1Phc6RcTq3N_mL0z1r5EbZfw-v-Z8WXu4FGlJ6kprieciqWuU4kSPwplc0Itwdfk3mTSGIhQBbPeR7Dw",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893569,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "not_yet_valid"
+  },
+  {
+    "name": "no issued-at in a closed window",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.v6Ya9DJCbTUN6-JzNgA1ZxWZe5HozwR_yrB9delfALMTL6oNn8_SeXb2UtauFOFRCyGp7E85cyMMZyZPMYnwDQ",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792897230,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "expired"
+  },
+  {
+    "name": "issued in the future in a window not yet open",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4vsX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.FXF76FSDxEkMAPSrxVWRZhtbzi3xBYgTmfwrNS6lsu8N-uCFEmPb3veKARMt4qLnnfVaPU9CnmZmG8WFpj4dCg",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893569,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "not_yet_valid"
+  },
+  {
+    "name": "no not-before",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2U4oMX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.TjHp9wcVhG67OHdRmUBcKyK7I2bcAI2kTO15Cfrr7B7GZ06SrCNnnk257eJuUKZ7sldwKuo05l2DFxdoGbSoCw",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893601,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "malformed"
+  },
+  {
+    "name": "no expiry",
+    "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.Slcy9Nt10UWuoUQL2A4Ru1ka-hTl-vrKeqoWNfeNfZYgVONMRM9BfLxU5ZF6paBpdq0c7yz0k-TBS-rMlUMEDg",
+    "audience": "codefly.test/conformance",
+    "issuer": "https://authority.codefly.test",
+    "now": 1792893601,
+    "keys": {
+      "conformance-1": "O2onvM62pC1io6jQKm8Nc2UyFXcd4kOmOsBIoYtZ2ik="
+    },
+    "accept": false,
+    "reason": "malformed"
+  },
+  {
     "name": "payload padding",
     "token": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoNY29uZm9ybWFuY2UtMSIeaHR0cHM6Ly9hdXRob3JpdHkuY29kZWZseS50ZXN0Khhjb2RlZmx5LnRlc3QvY29uZm9ybWFuY2UwoMX11gY4oMX11gZAsOH11gZKJGEyMGFlZmY3LTg0MGMtNDY5My04Y2EzLTA0YTU0MDRiZDkxZVAHWgppZGVtcG90ZW50YhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokZjdkMjNmYWQtZTI1MS00M2MzLWFmMzItM2M1M2U5Y2MwZWMyigEOCgZyZWNvcmQSBHJlYWSyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw=.ccIoRo1Phc6RcTq3N_mL0z1r5EbZfw-v-Z8WXu4FGlJ6kprieciqWuU4kSPwplc0Itwdfk3mTSGIhQBbPeR7Dw",
     "audience": "codefly.test/conformance",

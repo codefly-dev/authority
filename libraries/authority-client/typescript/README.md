@@ -23,9 +23,14 @@ the bound token with `boundToken` first): Core's decode path (size, the
 contract's `buf.validate`
 rules run by protovalidate, unknown fields, canonical encoding, lifetime), the
 issuer, the key (never Core's public conformance key), the Ed25519 signature,
-the audience, the window, and attenuation and grant shape. Who the call is for
-comes from the claims; a stamp that disagrees is refused. The shared
-`../testdata/vectors.json`, written by Go, holds every rule to Go's verdict. A
+the audience, the window (both ends stated; not-before and expiry within the
+skew; then the issued-at present, not before not-before, before expiry and not
+after now plus the skew, each `malformed` as Go reports it), and attenuation
+and grant shape, as of Core v0.19.19. Who the call is for comes from the
+claims; a stamp that disagrees is refused. The shared
+`../testdata/vectors.json`, written by Go against the Core it pins, holds each
+of these rules to Go's verdict; the rules are restated rather than shared, so a
+rule Core adds later is held only once a vector is written for it. A
 read's own failure is kept in `verifier.keysError` for logs, never sent to a
 caller. **Readiness uses `verifier.ready()`**: true while trusted keys are held,
 through failed re-reads inside the 15-minute window; false before the first read

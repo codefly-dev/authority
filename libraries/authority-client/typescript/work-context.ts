@@ -106,6 +106,9 @@ export function authenticateToken(token: string, audience: string, trust: Trust)
     throw new Unauthenticated(Reason.Malformed);
   }
   const notBefore = Number(context.notBeforeUnix), expires = Number(context.expiresAtUnix);
+  // Core's checkWindowStated: both ends of the window are stated (zero is
+  // absent, not 1970) before the lifetime subtracts them.
+  if (notBefore === 0 || expires === 0) throw new Unauthenticated(Reason.Malformed);
   if (expires - notBefore > MAX_LIFETIME_SECONDS) throw new Unauthenticated(Reason.Lifetime);
   if (context.issuer !== trust.issuer) throw new Unauthenticated(Reason.Issuer);
   const raw = trust.keys.get(context.keyId);
@@ -122,6 +125,14 @@ export function authenticateToken(token: string, audience: string, trust: Trust)
   const now = (trust.now ?? Date.now)() / 1000;
   if (now + SKEW_SECONDS < notBefore) throw new Unauthenticated(Reason.NotYetValid);
   if (!(now - SKEW_SECONDS < expires)) throw new Unauthenticated(Reason.Expired);
+  // Core's checkIssuedAt, after both ends of the window so a closed or unopened
+  // window keeps its own reason: present (zero is absent), not before
+  // not-before, before expiry, not after now + skew. Core gives these no
+  // category of their own, so each is malformed.
+  const issued = Number(context.issuedAtUnix);
+  if (issued === 0 || issued < notBefore || !(issued < expires) || issued > now + SKEW_SECONDS) {
+    throw new Unauthenticated(Reason.Malformed);
+  }
   checkStructure(context);
   const effective = context.actorChain.at(-1)?.grantedScopes ?? context.authorityScopes;
   const scopes = Object.freeze(effective.map(scope => Object.freeze({

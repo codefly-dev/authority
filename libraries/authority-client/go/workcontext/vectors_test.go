@@ -99,7 +99,63 @@ func vectors(t *testing.T) []vector {
 	emptySignature := unsigned
 	emptySignature.Name, emptySignature.Token = "empty signature", payload+"."
 	out = append(out, forged, unsigned, emptySignature, elsewhere, expired, early, issuer, unknown)
+	out = append(out, windowVectors(t, build)...)
 	return append(out, encodingVectors(t, out[0])...)
+}
+
+// windowVectors hold every instant a capability claims to Core's rules and
+// Core's order (core v0.19.19). checkWindowStated, in the decode path: both ends of the
+// window are stated, zero being absent. checkWindow: not-before, then expiry,
+// then the issued-at last — present, not before not-before, before expiry, not
+// after now + skew. Core gives these ErrInvalid with no category of their own,
+// so the reader names them malformed.
+//
+// Each refusal rewrites one claim and leaves the rest of the window sound, at a
+// clock where no other rule fires, so a reader missing that one rule accepts
+// it. The accepted and window-first cases are there so a reader cannot pass by
+// refusing every unusual issued-at, or by judging it before the window.
+func windowVectors(t *testing.T, build func(string, string, func(*basev0.WorkContextV1), ed25519.PrivateKey, string) vector) []vector {
+	t.Helper()
+	session := body(t, "session")
+	notBefore, expires := session.GetNotBeforeUnix(), session.GetExpiresAtUnix()
+	skew := int64(core.DefaultSkew / time.Second)
+	at := func(name string, change func(*basev0.WorkContextV1), now int64, reason string) vector {
+		v := build(name, "session", change, nil, reason)
+		v.Now = now
+		return v
+	}
+	issued := func(unix int64) func(*basev0.WorkContextV1) {
+		return func(c *basev0.WorkContextV1) { c.IssuedAtUnix = unix }
+	}
+	open := notBefore + 1
+	// A window open since before the epoch is the one place an absent issued-at
+	// sits at or after not-before, so only the presence rule refuses it there;
+	// elsewhere the not-before rule refuses absence too, by accident.
+	preEpoch := func(issuedAt int64) func(*basev0.WorkContextV1) {
+		return func(c *basev0.WorkContextV1) {
+			c.NotBeforeUnix, c.IssuedAtUnix, c.ExpiresAtUnix = -3600, issuedAt, 3600
+		}
+	}
+	return []vector{
+		at("issued in a window open since before the epoch", preEpoch(-3600), 1, ""),
+		at("no issued-at in a window open since before the epoch", preEpoch(0), 1, "malformed"),
+		at("issued as its window opens", issued(notBefore), open, ""),
+		at("issued at the edge of the clock allowance", issued(open+skew), open, ""),
+		at("issued just before it expires", issued(expires-1), expires-1, ""),
+		at("no issued-at", issued(0), open, "malformed"),
+		at("issued before its window opens", issued(notBefore-1), open, "malformed"),
+		// The clock sits a second before expiry, so the issued-at is inside
+		// now + skew: only the expiry rule can refuse it.
+		at("issued as it expires", issued(expires), expires-1, "malformed"),
+		at("issued after it expires", issued(expires+1), expires-1, "malformed"),
+		at("issued in the future", issued(open+skew+1), open, "malformed"),
+		at("a sound issued-at in a closed window", nil, expires+skew, "expired"),
+		at("a sound issued-at in a window not yet open", nil, notBefore-skew-1, "not_yet_valid"),
+		at("no issued-at in a closed window", issued(0), expires+skew, "expired"),
+		at("issued in the future in a window not yet open", issued(notBefore+skew), notBefore-skew-1, "not_yet_valid"),
+		at("no not-before", func(c *basev0.WorkContextV1) { c.NotBeforeUnix = 0 }, open, "malformed"),
+		at("no expiry", func(c *basev0.WorkContextV1) { c.ExpiresAtUnix = 0 }, open, "malformed"),
+	}
 }
 
 // Encoding variants share a valid signed control. Text variants preserve the

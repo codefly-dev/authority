@@ -17,8 +17,11 @@ A module does not call this directly: `hop.Verifier`
 runs it on every call. `Authenticate` is the generated-code-free check it rests
 on, which the shared conformance suite also drives against both hosts.
 
-It checks one digest-bound token with Core's Inspector: canonical decode,
-issuer, signature, audience, window and attenuation. This authenticates identity
+It checks one digest-bound token with Core's Inspector: canonical decode
+(both ends of the window stated, a lifetime of at most a day), issuer,
+signature, audience, the window (not-before, expiry, then the issued-at) and
+attenuation. Core's window refusals beyond not-before and expiry carry no
+category of their own and are reported as `malformed`. This authenticates identity
 only. Method authorization and replay protection require `hop.Verifier` and the
 [signed admission protocol](../../hop/README.md). A token digest alone does not
 prove that the hop made a live Check.
@@ -31,7 +34,10 @@ Actions are literal. `Context()` is a deep copy of the authenticated claims.
 
 `../testdata/vectors.json` is written by `workcontext/vectors_test.go`
 (`go test ./workcontext -args -update-vectors`): tokens and Go's verdict on
-each, which the Python and TypeScript readers must reach too.
+each, which the Python and TypeScript readers must reach too. Those readers
+restate Core's rules rather than call them, so the file is what holds them to
+Go: a rule a Core bump adds needs a vector here before it is held anywhere
+else.
 
 From this directory, run `GOWORK=off go test -race ./...` and `go vet ./...`.
 The tests re-sign the bodies of `../testdata/claims.json` with a test key of
