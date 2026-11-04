@@ -4,13 +4,19 @@
 check: the stamp binds exactly one token to this run's hop proof by its digest,
 and the token itself must carry a valid Ed25519 signature under the authority's
 published key, name the pinned issuer, be addressed to this module and be inside
-its window, judged in Core's order and by Core's rules: the decode path (size,
-schema, unknown fields, canonical encoding, lifetime), the issuer pin, the key
-(never Core's public conformance key), the signature, the audience, the window,
-and the chain's attenuation and grant shape. The schema rules are the contract's
-own ``buf.validate`` declarations, run by protovalidate against the published
-contract descriptor, not restated here. ``testdata/vectors.json``, written by the
-Go test, holds every rule to Go's verdict.
+its window, judged in Core's order and by Core's rules as of core v0.19.19: the
+decode path (size, schema, unknown fields, canonical encoding, both ends of the
+window stated, lifetime), the issuer pin, the key (never Core's public
+conformance key), the signature, the audience, the window (not-before, expiry,
+then the issued-at: present, not before not-before, before expiry, not after
+now + ``SKEW``), and the chain's attenuation and grant shape. The schema rules
+are the contract's own ``buf.validate`` declarations, run by protovalidate
+against the published contract descriptor, not restated here.
+
+The rules are restated, not shared, so parity is tested, not guaranteed:
+``testdata/vectors.json``, written by the Go test against the Core it pins,
+holds each rule above to Go's verdict, and a rule Core adds later is held only
+once a vector is written for it.
 
 The SaaS Python SDK's verifier was not reused because it refuses tokens Core
 accepts (several scope rows of one kind, Core's own grant fixture).
@@ -252,6 +258,10 @@ def authenticate_token(token: str, audience: str, trust: Trust) -> Claims:
     context.DiscardUnknownFields()
     if context.SerializeToString(deterministic=True) != payload:
         raise Unauthenticated(Reason.MALFORMED)
+    # Core's checkWindowStated: both ends of the window are stated (zero is
+    # absent, not 1970) before the lifetime subtracts them.
+    if context.not_before_unix == 0 or context.expires_at_unix == 0:
+        raise Unauthenticated(Reason.MALFORMED)
     if context.expires_at_unix - context.not_before_unix > MAX_LIFETIME.total_seconds():
         raise Unauthenticated(Reason.LIFETIME)
     if context.issuer != trust.issuer:
@@ -272,6 +282,7 @@ def authenticate_token(token: str, audience: str, trust: Trust) -> Claims:
         raise Unauthenticated(Reason.NOTYETVALID)
     if not now - SKEW.total_seconds() < context.expires_at_unix:
         raise Unauthenticated(Reason.EXPIRED)
+    _check_issued_at(context, now)
     _check_structure(context)
     scopes = context.actor_chain[-1].granted_scopes if context.actor_chain else context.authority_scopes
     return Claims(
@@ -302,6 +313,22 @@ def scope_contained(child, parents) -> bool:
         if not child.resource_ids or any(i not in ids for i in child.resource_ids):
             return False
     return True
+
+
+def _check_issued_at(context, now: float) -> None:
+    """Core's checkIssuedAt, run after both ends of the window so a closed or
+    unopened window keeps its own reason: the issued-at is present (zero is
+    absent), not before not-before, before expiry, and not after now + SKEW.
+    Core gives these no category of their own, so each is malformed."""
+    issued = context.issued_at_unix
+    if issued == 0:
+        raise Unauthenticated(Reason.MALFORMED)
+    if issued < context.not_before_unix:
+        raise Unauthenticated(Reason.MALFORMED)
+    if not issued < context.expires_at_unix:
+        raise Unauthenticated(Reason.MALFORMED)
+    if issued > now + SKEW.total_seconds():
+        raise Unauthenticated(Reason.MALFORMED)
 
 
 def _identity(context, hop=None) -> tuple:

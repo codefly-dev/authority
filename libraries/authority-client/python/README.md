@@ -58,12 +58,17 @@ index.
 token (a caller holding a call's headers extracts the bound token with
 `bound_token` first); then Core's rules in Core's order: the decode path (size, the
 contract's `buf.validate` schema rules run by protovalidate against the packaged
-contract descriptor, unknown fields, canonical encoding, a lifetime of at most a
-day), the issuer pin, the key (never Core's public conformance key), the Ed25519
-signature, the audience is this module, not-before and expiry within Core's
-30-second skew, and the chain's attenuation and grant shape. Go writes
-`../testdata/vectors.json` with its verdict on each case; this reader's tests
-must reach the same verdict, for the same reason. It consumes nothing and asks
+contract descriptor, unknown fields, canonical encoding, both ends of the window
+stated, a lifetime of at most a day), the issuer pin, the key (never Core's
+public conformance key), the Ed25519 signature, the audience is this module,
+not-before and expiry within Core's 30-second skew, then the issued-at (present,
+not before not-before, before expiry, not after now plus the skew; each refused
+as `malformed`, which is the reason Go reports), and the chain's attenuation and
+grant shape. These are Core v0.19.19's rules, restated here rather than shared,
+so parity is tested, not guaranteed: Go writes `../testdata/vectors.json` with
+its verdict on each case, against the Core it pins, and this reader's tests
+must reach the same verdict, for the same reason. A rule Core adds later is
+held only once a vector is written for it. It consumes nothing and asks
 the authority nothing: liveness is the hop's Check, bound by the digest.
 
 `authority_client/contract.binpb` links to the published `../contract`
