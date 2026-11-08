@@ -193,11 +193,11 @@ func (s *Service) reconverge(ctx context.Context, tx Tx, previous, next domain.M
 		return err
 	}
 	narrowed := decide.Narrowed(previous, next)
-	digest, err := offerDigest(next)
+	digest, err := OfferDigest(next)
 	if err != nil {
 		return err
 	}
-	approvedDigest, err := offerDigest(previous)
+	approvedDigest, err := OfferDigest(previous)
 	if err != nil {
 		return err
 	}
@@ -663,7 +663,7 @@ func (s *Service) upgrade(ctx context.Context, tx Tx, caller Person, current *do
 // receipt is the consent an approval of m's current offer records: the
 // operation, its intent, the revision it binds and what it approved.
 func receipt(a *domain.ConsentApproval, intent string, revision uint64, m domain.Module) domain.ConsentReceipt {
-	digest, _ := offerDigest(m) // checkConsent computed it already; m marshals
+	digest, _ := OfferDigest(m) // checkConsent computed it already; m marshals
 	r := domain.ConsentReceipt{Revision: revision, Generation: m.Generation, Digest: digest}
 	if a != nil {
 		r.OperationID, r.Intent = a.OperationID, intent

@@ -54,7 +54,9 @@ type Tx interface {
 	PutTombstone(domain.Tombstone) error
 	// ApprovedModule answers the declaration of module name at generation, as
 	// it stood when an installation's consent approved it; PutApprovedModule
-	// keeps one, keyed by name and generation, idempotently. The core writes
+	// keeps one, keyed by name and generation: rewriting the same declaration
+	// is accepted, a different one at a kept (name, generation) is refused
+	// with domain.ErrApprovedDeclarationKept and changes nothing. The core writes
 	// it whenever a consent is taken or advances (Install, an upgrade, a
 	// re-convergence), and reads it to decide what the holders of an
 	// installation whose consent is behind the delivered generation hold:

@@ -155,7 +155,7 @@ func (s *Service) stepSource(ctx context.Context, id string) (stepSeals, error) 
 		if !decide.RoleGated(m) || m.Principal == "" || m.Generation == 0 {
 			return domain.Refuse("setup requires a delivered solution or module page declaring roles")
 		}
-		digest, err := offerDigest(m)
+		digest, err := OfferDigest(m)
 		if err != nil {
 			return err
 		}

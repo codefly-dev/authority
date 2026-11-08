@@ -318,8 +318,26 @@ func (t tx) ApprovedModule(name string, generation uint64) (domain.Module, error
 
 func (t tx) PutApprovedModule(m domain.Module) error {
 	t.mustWrite()
-	t.s.approved[approvedKey(m.Name, m.Generation)] = cloneModule(m)
+	key := approvedKey(m.Name, m.Generation)
+	if kept, ok := t.s.approved[key]; ok {
+		same, err := sameOffer(kept, m)
+		if err != nil || same {
+			return err
+		}
+		return fmt.Errorf("%s generation %d: %w", m.Name, m.Generation, domain.ErrApprovedDeclarationKept)
+	}
+	t.s.approved[key] = cloneModule(m)
 	return nil
+}
+
+// sameOffer: a and b are the same declaration, as a consent sees it.
+func sameOffer(a, b domain.Module) (bool, error) {
+	da, err := authority.OfferDigest(cloneModule(a))
+	if err != nil {
+		return false, err
+	}
+	db, err := authority.OfferDigest(cloneModule(b))
+	return da == db, err
 }
 
 func (t tx) Installation(id string) (domain.Installation, error) {

@@ -35,9 +35,12 @@ func memberAs(tx Tx, caller Person, org string) (domain.Person, error) {
 	return tx.Member(org, caller.ID)
 }
 
-// offerDigest covers every authority declaration in the reviewed module. JSON
-// sorts map keys; the receipt therefore covers roles, ceilings and bindings too.
-func offerDigest(m domain.Module) (string, error) {
+// OfferDigest is the digest a consent records of the offer it approved
+// (ConsentReceipt.Digest), covering every authority declaration in the
+// reviewed module. JSON sorts map keys; the receipt therefore covers roles,
+// ceilings and bindings too. A host comparing a declaration it holds with
+// what a consent approved compares this.
+func OfferDigest(m domain.Module) (string, error) {
 	raw, err := json.Marshal(m)
 	if err != nil {
 		return "", err
@@ -137,7 +140,7 @@ func (s *Service) reviewOffer(ctx context.Context, caller Person, org, target st
 			return domain.Missing("%q is not a composed solution or a module page declaring roles; a module without roles is installed by composition", target)
 		}
 		if refused == nil {
-			digest, err := offerDigest(m)
+			digest, err := OfferDigest(m)
 			if err != nil {
 				return err
 			}
@@ -202,7 +205,7 @@ func checkConsent(m domain.Module, existing domain.Installation, a *domain.Conse
 	if a.TargetID != m.Principal || a.Generation != m.Generation {
 		return false, domain.NotNow("INSTALLATION_APPROVAL_GENERATION_CHANGED: the reviewed target or generation changed; review and approve again")
 	}
-	digest, err := offerDigest(m)
+	digest, err := OfferDigest(m)
 	if err != nil {
 		return false, err
 	}

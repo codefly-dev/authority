@@ -278,6 +278,26 @@ func Run(t *testing.T, open Open) {
 		})
 	})
 
+	t.Run("an approved declaration is never replaced by a different one", func(t *testing.T) {
+		kept := f.module(domain.KindSolution)
+		kept.Name, kept.Principal = f.name("kept"), f.name("kept-principal")
+		other := kept
+		other.Roles = map[string][]*basev0.WorkScopeV1{domain.InstallerRole: kept.Roles[domain.InstallerRole]}
+		write(t, func(tx authority.Tx) error { return tx.PutApprovedModule(kept) })
+		if err := store.Write(ctx, func(tx authority.Tx) error { return tx.PutApprovedModule(other) }); !errors.Is(err, domain.ErrApprovedDeclarationKept) {
+			t.Errorf("a different declaration at a kept generation was answered %v, want ErrApprovedDeclarationKept", err)
+		}
+		write(t, func(tx authority.Tx) error { return tx.PutApprovedModule(kept) }) // identical: accepted
+		read(t, func(tx authority.Tx) error {
+			got, err := tx.ApprovedModule(kept.Name, kept.Generation)
+			if err != nil {
+				return err
+			}
+			sameModule(t, got, kept)
+			return nil
+		})
+	})
+
 	t.Run("an installation reads back as written", func(t *testing.T) {
 		inst := domain.Installation{ID: uuid.NewString(), Organization: f.orgA, Target: f.name("target"), Status: domain.Pending, Revision: 3,
 			AgentRole: "viewer", PrincipalID: uuid.NewString(), InstalledBy: f.onlyA,
