@@ -101,9 +101,6 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 			if err := s.reconverge(ctx, tx, previous, stored); err != nil {
 				return err
 			}
-			if err := s.dropRoleGrants(ctx, tx, previous, m); err != nil {
-				return err
-			}
 		}
 		if err := s.journal(ctx, tx, domain.Event{Kind: domain.ModuleApplied, Subject: m.Name, Detail: map[string]string{"principal": m.Principal, "kind": m.Kind, "generation": fmt.Sprint(m.Generation)}}); err != nil {
 			return err
@@ -132,13 +129,13 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 				}
 			case err != nil:
 				return err
-			case inst.Status == domain.Revoked && (withdrawn || wasChosen):
-				// A module withdrawn and delivered again is installed again,
-				// at a revision above every capability sealed before, as is
-				// one that stops being chosen: it is composition's, present
-				// everywhere. Otherwise an installation an administrator
-				// uninstalled stays uninstalled (Uninstall refuses a
-				// composition installation anyway).
+			case inst.Status == domain.Revoked && inst.PrincipalID == "" && (withdrawn || wasChosen):
+				// A composition installation withdrawn and delivered again is
+				// installed again, at a revision above every capability
+				// sealed before, as is one of a module that stops being
+				// chosen: it is composition's, present everywhere. A chosen
+				// installation (it has a principal) an administrator
+				// uninstalled stays uninstalled whatever the module becomes.
 				inst.Status, inst.Revision = domain.Active, inst.Revision+1
 				if err := tx.PutInstallation(inst); err != nil {
 					return err
@@ -186,8 +183,10 @@ func (s *Service) endCompositionInstallations(ctx context.Context, tx Tx, target
 // widened. The approved surface compared is previous, the generation the
 // consent names; a consent already behind previous cannot be proven a
 // superset of next and keeps offering its upgrade (its widening is then
-// "approved generation N is behind"). A receipt recorded before the consent
-// kept its generation stands for previous. Role grants are never touched here.
+// "approved generation N is behind"); a receipt recorded before the consent
+// kept its generation approved an unknown one and offers its upgrade once.
+// When a consent advances, the grants of roles next no longer declares end
+// with it (dropUndeclaredGrants); no other grant is touched here.
 func (s *Service) reconverge(ctx context.Context, tx Tx, previous, next domain.Module) error {
 	all, err := tx.Installations("")
 	if err != nil {
@@ -210,12 +209,11 @@ func (s *Service) reconverge(ctx context.Context, tx Tx, previous, next domain.M
 		}
 		moved := narrowed
 		if inst.Consent.OperationID != "" {
-			if inst.Consent.Generation == 0 {
-				inst.Consent.Generation, inst.Consent.Digest = previous.Generation, approvedDigest
-				moved = true
-			}
 			asks := widened
-			if inst.Consent.Generation != previous.Generation || inst.Consent.Digest != approvedDigest {
+			switch {
+			case inst.Consent.Generation == 0:
+				asks = []string{"approved generation unknown: review and approve the delivered offer"}
+			case inst.Consent.Generation != previous.Generation || inst.Consent.Digest != approvedDigest:
 				asks = []string{fmt.Sprintf("approved generation %d is behind the delivered %d", inst.Consent.Generation, previous.Generation)}
 			}
 			detail := map[string]string{"target": inst.Target, "approved_generation": fmt.Sprint(inst.Consent.Generation), "generation": fmt.Sprint(next.Generation)}
@@ -223,6 +221,17 @@ func (s *Service) reconverge(ctx context.Context, tx Tx, previous, next domain.M
 				inst.Consent.Generation, inst.Consent.Digest = next.Generation, digest
 				moved = true
 				detail["revision"] = fmt.Sprint(inst.Revision + 1)
+				if role := inst.AgentRole; role != "" && role != domain.NoInstallationRole {
+					if _, declared := next.Roles[role]; !declared {
+						detail["agent_role_undeclared"] = role
+					}
+				}
+				if err := tx.PutApprovedModule(next); err != nil {
+					return err
+				}
+				if err := s.dropUndeclaredGrants(ctx, tx, inst, next, "delivery:"+next.Name); err != nil {
+					return err
+				}
 				if err := s.journal(ctx, tx, domain.Event{Kind: domain.InstallationReconverged, Organization: inst.Organization, Subject: inst.ID, Detail: detail}); err != nil {
 					return err
 				}
@@ -245,51 +254,6 @@ func (s *Service) reconverge(ctx context.Context, tx Tx, previous, next domain.M
 	for _, org := range slices.Sorted(maps.Keys(changed)) {
 		if err := tx.BumpAuthorizationRevision(org); err != nil {
 			return err
-		}
-	}
-	return nil
-}
-
-// dropRoleGrants deletes, on every installation of the module, the grants of
-// each role previous declared and next does not; a module page redelivered
-// without roles drops them all. A grant of a role nobody declares any more
-// would otherwise sleep in the store until a later generation declared the
-// name again, and its holders would hold whatever that generation meant by
-// it, with no administrator having granted that. Each deletion is journaled
-// as a revocation by the delivery.
-func (s *Service) dropRoleGrants(ctx context.Context, tx Tx, previous, next domain.Module) error {
-	var dropped []string
-	for name := range previous.Roles {
-		if _, kept := next.Roles[name]; !kept {
-			dropped = append(dropped, name)
-		}
-	}
-	if len(dropped) == 0 {
-		return nil
-	}
-	all, err := tx.Installations("")
-	if err != nil {
-		return err
-	}
-	for _, inst := range all {
-		if inst.Target != previous.Name {
-			continue
-		}
-		grants, err := tx.RoleGrants(inst.ID)
-		if err != nil {
-			return err
-		}
-		for _, g := range grants {
-			if !slices.Contains(dropped, g.Role) {
-				continue
-			}
-			if err := tx.DeleteRoleGrant(g); err != nil {
-				return err
-			}
-			r := RoleRequest{Organization: inst.Organization, InstallationID: inst.ID, Role: g.Role, PersonID: g.PersonID, TeamID: g.TeamID}
-			if err := s.journal(ctx, tx, r.event(domain.RoleRevoked, "delivery:"+next.Name)); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
@@ -445,13 +409,16 @@ type InstallStep func(ctx context.Context, inst domain.Installation) error
 // target, so a reinstall reuses it; nobody holds a role until granted one,
 // the installing person included. The caller must administer the organization.
 // On an active installation, a fresh approval of an offer its consent has not
-// approved (a redelivery that asked more) is an upgrade: the installation
-// stays active, its consent moves to the approved generation, its revision
-// moves and every role grant is kept; no step runs, since the installation is
-// set up already and a delivery converges its target. A fresh approval of the
-// offer the consent already approved is refused as already installed. Role
-// grants are deleted by RevokeRole and by an uninstall alone, never by an
-// install.
+// approved (a redelivery that asked more) is an upgrade: the step runs first
+// (idempotent by contract, so a failed one is retried by the same approval),
+// on the installation as it will stand, then one transaction moves the
+// consent to the approved generation, its revision and its agent role, keeps
+// its installer and every grant of a role still declared, and the
+// installation is active throughout. A fresh approval of the offer the consent
+// already approved is refused as already installed. A module page holds no
+// standing authority: it declares installation_role none and is refused any
+// other selection. Role grants are deleted by RevokeRole and by an uninstall
+// alone, never by an install.
 // A delivered installation-role selector is authoritative: a named role is
 // selected unless the caller names that same role, and "none" selects no standing
 // authority when the caller supplies no role. A caller may never supply "none".
@@ -475,13 +442,14 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 	var inst domain.Installation
 	var generation uint64
 	var intent string
-	var replayed bool
+	var replayed, upgrading bool
+	var selectedRole string
 	requestedOwner := installedBy
 	if installedBy == "" && caller.ID != "" {
 		installedBy = caller.ID
 	}
 	err := s.store.Write(ctx, func(tx Tx) error {
-		replayed = false
+		replayed, upgrading = false, false
 		if err := authorize(tx); err != nil {
 			return err
 		}
@@ -503,9 +471,12 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 			return domain.Missing("%q is not a composed solution or a module page declaring roles; a module without roles is installed by composition", target)
 		}
 		generation = m.Generation
-		selectedRole, err := installationRole(m, agentRole)
+		selectedRole, err = installationRole(m, agentRole)
 		if err != nil {
 			return err
+		}
+		if m.Kind != domain.KindSolution && selectedRole != domain.NoInstallationRole {
+			return domain.Refuse("%s is a module page and holds no standing authority: it declares installation_role none, not %q", m.Name, selectedRole)
 		}
 		p, err := tx.Member(org, installedBy)
 		if err != nil && !errors.Is(err, domain.ErrNotFound) {
@@ -558,21 +529,15 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 				return &domain.Refusal{Code: domain.Denied, Cause: domain.ErrAlreadyInstalled, Reason: fmt.Sprintf("%s is already installed at %s", target, org)}
 			}
 			// An upgrade: the administrator reviewed the delivered offer and
-			// approved what it asks beyond the consent that stands. The
-			// installation stays active with its grants; its consent, agent
-			// role and revision move with the approval.
-			existing.Revision++
-			existing.Consent = receipt(approval, intent, existing.Revision, m)
-			existing.AgentRole, existing.InstalledBy = selectedRole, installedBy
-			if err := tx.PutInstallation(existing); err != nil {
-				return err
-			}
-			if err := tx.BumpAuthorizationRevision(org); err != nil {
-				return err
-			}
-			inst, replayed = existing, true
-			return s.journal(ctx, tx, domain.Event{Kind: domain.InstallationUpgraded, Organization: org, Actor: caller.ID, Subject: existing.ID,
-				Detail: map[string]string{"target": target, "role": existing.AgentRole, "generation": fmt.Sprint(m.Generation), "revision": fmt.Sprint(existing.Revision), "operation": approval.OperationID}})
+			// approved what it asks beyond the consent that stands. Nothing is
+			// written yet: the step runs on the installation as it will
+			// stand, and the transaction after it moves the consent.
+			upgrading = true
+			inst = existing
+			inst.Revision++
+			inst.Consent = receipt(approval, intent, inst.Revision, m)
+			inst.AgentRole = selectedRole
+			return nil
 		}
 		principal := s.cfg.PrincipalID(org, target)
 		if _, err := tx.Module(principal); err == nil {
@@ -604,6 +569,9 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 			AgentRole: selectedRole, PrincipalID: principal, InstalledBy: installedBy}
 		if approval != nil {
 			inst.Consent = receipt(approval, intent, inst.Revision, m)
+			if err := tx.PutApprovedModule(m); err != nil {
+				return err
+			}
 		}
 		if err := tx.PutInstallation(inst); err != nil {
 			return err
@@ -638,6 +606,12 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 			if err != nil {
 				return err
 			}
+			if !same && upgrading {
+				if current.Status != domain.Active || current.Revision+1 != inst.Revision || m.Generation != generation {
+					return domain.NotNow("installation %s changed before its upgrade was recorded", inst.ID)
+				}
+				return s.upgrade(ctx, tx, caller, &current, approval, intent, selectedRole, m, &inst)
+			}
 			if !same {
 				return domain.NotNow("INSTALLATION_APPROVAL_OPERATION_CONFLICT: approval changed before acknowledgement")
 			}
@@ -658,6 +632,32 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 			Detail: map[string]string{"target": current.Target, "revision": fmt.Sprint(current.Revision)}})
 	})
 	return inst, err
+}
+
+// upgrade records an approved upgrade on the active installation current,
+// after its step converged: the consent, revision and agent role move, the
+// installer stays, the approved generation is kept, grants of roles m no
+// longer declares end, and the organization's authorization revision moves so
+// what the earlier consent issued ends. The upgrader is the journal's actor.
+func (s *Service) upgrade(ctx context.Context, tx Tx, caller Person, current *domain.Installation, approval *domain.ConsentApproval, intent, selectedRole string, m domain.Module, out *domain.Installation) error {
+	current.Revision++
+	current.Consent = receipt(approval, intent, current.Revision, m)
+	current.AgentRole = selectedRole
+	if err := tx.PutInstallation(*current); err != nil {
+		return err
+	}
+	if err := tx.PutApprovedModule(m); err != nil {
+		return err
+	}
+	if err := tx.BumpAuthorizationRevision(current.Organization); err != nil {
+		return err
+	}
+	if err := s.dropUndeclaredGrants(ctx, tx, *current, m, caller.ID); err != nil {
+		return err
+	}
+	*out = *current
+	return s.journal(ctx, tx, domain.Event{Kind: domain.InstallationUpgraded, Organization: current.Organization, Actor: caller.ID, Subject: current.ID,
+		Detail: map[string]string{"target": current.Target, "role": current.AgentRole, "generation": fmt.Sprint(m.Generation), "revision": fmt.Sprint(current.Revision), "operation": approval.OperationID}})
 }
 
 // receipt is the consent an approval of m's current offer records: the

@@ -142,7 +142,7 @@ func TestInstallationDeclarationDigestAndStaleApproval(t *testing.T) {
 				if field == "selector" {
 					m.InstallationRole = "author"
 				} else {
-					m.EdgeDependencies = []domain.EdgeDependency{{Module: "catalogue-id", Presence: "required"}}
+					m.EdgeDependencies = []domain.EdgeDependency{{Module: "store", Presence: "required"}}
 				}
 				return tx.PutModule(m)
 			})
@@ -212,7 +212,7 @@ func TestInstallationDeclarationStoreSnapshotsDoNotAlias(t *testing.T) {
 	m := solution("b", true)
 	m.Generation++
 	m.InstallationRole = "none"
-	m.EdgeDependencies = []domain.EdgeDependency{{Module: "catalogue-id", Presence: "required"}}
+	m.EdgeDependencies = []domain.EdgeDependency{{Module: "store", Presence: "required"}}
 	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
 		t.Fatal(err)
 	}
@@ -221,7 +221,7 @@ func TestInstallationDeclarationStoreSnapshotsDoNotAlias(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if offer.Module.EdgeDependencies[0].Module != "catalogue-id" {
+	if offer.Module.EdgeDependencies[0].Module != "store" {
 		t.Fatal("store aliases input")
 	}
 	offer.Module.EdgeDependencies[0].Module = "mutated review"
@@ -229,7 +229,7 @@ func TestInstallationDeclarationStoreSnapshotsDoNotAlias(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if again.Module.EdgeDependencies[0].Module != "catalogue-id" || again.Approval.Digest != offer.Approval.Digest {
+	if again.Module.EdgeDependencies[0].Module != "store" || again.Approval.Digest != offer.Approval.Digest {
 		t.Fatal("store aliases output")
 	}
 }

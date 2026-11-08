@@ -216,7 +216,8 @@ func (c *client) modulePageRoles(t *testing.T, ctx context.Context, f Fixture) {
 			refused(t, err, codes.PermissionDenied, "no page")
 		})
 		t.Run("a module page declaring no roles keeps the organization's", func(t *testing.T) {
-			if _, err := c.deliverPage(ctx, f, page, pageModule, "module", 2, served, map[string]any{"scope_ceilings": []any{scopeAsk(pageModuleNote, []string{"read", "write"}, nil)}}, 0); err != nil {
+			// Still no standing authority: a module declares none, roles or not.
+			if _, err := c.deliverPage(ctx, f, page, pageModule, "module", 2, served, map[string]any{"scope_ceilings": []any{scopeAsk(pageModuleNote, []string{"read", "write"}, nil)}, "installation_role": "none"}, 0); err != nil {
 				t.Fatalf("redeliver %s without roles: %v", pageModule, err)
 			}
 			if held != nil {

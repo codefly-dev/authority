@@ -57,11 +57,16 @@ type InstallationServiceClient interface {
 	// acknowledges its install step, or active at once for a target that
 	// declares no install endpoint (a module page has none). On an
 	// active installation, a fresh approval of a newer offer than its consent
-	// approved (Installation.upgrade_available) is an upgrade: the installation
-	// stays active, its role grants are kept, its consent moves to the approved
-	// generation and its revision moves; no install step runs. A fresh approval
-	// of the offer already approved is refused as already installed. An install
-	// never deletes a role grant: RevokeRole and an uninstall alone do.
+	// approved (Installation.upgrade_available) is an upgrade: the install step
+	// runs again (it converges idempotently; the host converges the closure
+	// there), then the installation, active throughout, moves its consent to
+	// the approved generation and its revision; its grants are kept but those
+	// of a role the approved offer no longer declares. Until the upgrade, the
+	// holders hold what the approved offer granted, never what the delivered
+	// one asks. A fresh approval of the offer already approved is refused as
+	// already installed. A module page holds no standing authority (its
+	// installation_role is none). An install never deletes a role grant
+	// otherwise: RevokeRole and an uninstall do.
 	Install(ctx context.Context, in *InstallRequest, opts ...grpc.CallOption) (*Installation, error)
 	// Review reads the current offer and installation revision without granting consent.
 	Review(ctx context.Context, in *ReviewRequest, opts ...grpc.CallOption) (*ConsentApproval, error)
@@ -197,11 +202,16 @@ type InstallationServiceServer interface {
 	// acknowledges its install step, or active at once for a target that
 	// declares no install endpoint (a module page has none). On an
 	// active installation, a fresh approval of a newer offer than its consent
-	// approved (Installation.upgrade_available) is an upgrade: the installation
-	// stays active, its role grants are kept, its consent moves to the approved
-	// generation and its revision moves; no install step runs. A fresh approval
-	// of the offer already approved is refused as already installed. An install
-	// never deletes a role grant: RevokeRole and an uninstall alone do.
+	// approved (Installation.upgrade_available) is an upgrade: the install step
+	// runs again (it converges idempotently; the host converges the closure
+	// there), then the installation, active throughout, moves its consent to
+	// the approved generation and its revision; its grants are kept but those
+	// of a role the approved offer no longer declares. Until the upgrade, the
+	// holders hold what the approved offer granted, never what the delivered
+	// one asks. A fresh approval of the offer already approved is refused as
+	// already installed. A module page holds no standing authority (its
+	// installation_role is none). An install never deletes a role grant
+	// otherwise: RevokeRole and an uninstall do.
 	Install(context.Context, *InstallRequest) (*Installation, error)
 	// Review reads the current offer and installation revision without granting consent.
 	Review(context.Context, *ReviewRequest) (*ConsentApproval, error)

@@ -281,11 +281,29 @@ declaration ends, every role grant stays, and `installation.reconverged` is
 journaled. Asking more leaves the installation on its consent, active with its
 grants, with `upgrade_available` true and `installation.upgrade_available`
 journaled naming what widened; an administrator approves it with a fresh
-`Review` and `Install` on the same installation, which stays active, keeps its
-grants and runs no install step (`installation.upgraded`). A consent already
-behind the delivered generation cannot be proven to cover the next one and
-keeps offering its upgrade. Role grants end by `RevokeRole` and by an uninstall
-alone; an install never deletes one.
+`Review` and `Install` on the same installation: its install step runs again
+(idempotent; the host converges the closure there), then the installation,
+active throughout, moves its consent, revision and agent role, keeps its
+installer and its grants but those of a role the approved offer no longer
+declares (`installation.upgraded`). Until then its holders hold what the
+**approved** generation granted: issuance, `GrantRole` and a role holder's
+`ReviewOffer` resolve from the declaration the consent approved, which the
+store keeps per target and generation (`Tx.ApprovedModule`,
+`Tx.PutApprovedModule`, written whenever a consent is taken or advances), never
+from the delivered one. A consent already behind the delivered generation
+cannot be proven to cover the next one and keeps offering its upgrade. A
+consent recorded before its generation was kept approved an unknown offer: the
+next delivery offers an upgrade once, naming that, and its holders hold the
+delivered roles until one review settles it; a host that knows the approved
+generation writes it, with the module at that generation, before its first
+`ApplyModule` on the new core. Role grants end by `RevokeRole`, by an uninstall,
+and, for a role the approved offer no longer declares, when the consent
+advances (re-convergence or upgrade); an install never deletes one otherwise.
+
+**What a host's store must keep** for this: the consent's approved generation
+and digest on the installation, and the approved declaration per (target,
+generation) for every generation an active consent names (one it no longer
+names may be dropped). `libraries/authority-core/go/storetest` proves both.
 
 Workloads name the organization of the work item. The local convenience of
 omitting it works only for a sole active installing organization; it is not a

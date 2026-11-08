@@ -109,7 +109,7 @@ func (p *Plugin) review(offer authority.ReviewedOffer, bindings map[string]*runn
 		return nil, authorityplugin.Status(err)
 	}
 	out := &installationv1.ReviewedOffer{Target: projected.Target, ToolsComposed: projected.ToolsComposed, InstallationRole: projected.InstallationRole,
-		RolesDeclared: projected.RolesDeclared, Page: projected.Page, Closure: projected.Closure}
+		RolesDeclared: projected.RolesDeclared, Page: projected.Page, Closure: projected.Closure, OptionalEdges: projected.OptionalEdges}
 	for _, d := range projected.EdgeDependencies {
 		out.EdgeDependencies = append(out.EdgeDependencies, &installationv1.OfferDependency{Module: d.Module, Presence: d.Presence})
 	}

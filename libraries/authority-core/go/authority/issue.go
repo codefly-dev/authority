@@ -49,7 +49,11 @@ func held(tx Tx, p domain.Person, audience domain.Module, named Scopes) (Scopes,
 		if err != nil {
 			return nil, err
 		}
-		role, err := decide.RoleScopes(audience, inst, decide.HeldRoles(p, inst, grants))
+		approved, err := approvedModule(tx, inst, audience)
+		if err != nil {
+			return nil, err
+		}
+		role, err := decide.RoleScopes(approved, inst, decide.HeldRoles(p, inst, grants))
 		if err != nil {
 			return nil, err
 		}
@@ -85,7 +89,11 @@ func solutionCeiling(tx Tx, p domain.Person, principals []string) (ceiling Scope
 			if gerr != nil {
 				return nil, false, gerr
 			}
-			if role, err = decide.RoleScopes(m, inst, decide.HeldRoles(p, inst, grants)); err != nil {
+			approved, aerr := approvedModule(tx, inst, m)
+			if aerr != nil {
+				return nil, false, aerr
+			}
+			if role, err = decide.RoleScopes(approved, inst, decide.HeldRoles(p, inst, grants)); err != nil {
 				return nil, false, err
 			}
 		} else if !errors.Is(err, domain.ErrNotFound) {
@@ -559,6 +567,9 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 			solution, err := tx.ModuleNamed(inst.Target)
 			if err != nil {
 				return notFound(err)
+			}
+			if solution, err = approvedModule(tx, inst, solution); err != nil {
+				return err
 			}
 			agent, err := decide.RoleScopes(solution, inst, []string{inst.AgentRole})
 			if err != nil {

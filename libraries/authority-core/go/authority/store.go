@@ -52,6 +52,17 @@ type Tx interface {
 	Tombstone(name string) (domain.Tombstone, error)
 	TombstoneByPrincipal(principal string) (domain.Tombstone, error)
 	PutTombstone(domain.Tombstone) error
+	// ApprovedModule answers the declaration of module name at generation, as
+	// it stood when an installation's consent approved it; PutApprovedModule
+	// keeps one, keyed by name and generation, idempotently. The core writes
+	// it whenever a consent is taken or advances (Install, an upgrade, a
+	// re-convergence), and reads it to decide what the holders of an
+	// installation whose consent is behind the delivered generation hold:
+	// the approved roles, never the delivered ones. A host's store must keep
+	// every generation an active installation's consent names; it may drop
+	// one no consent names any more.
+	ApprovedModule(name string, generation uint64) (domain.Module, error)
+	PutApprovedModule(domain.Module) error
 
 	Installation(id string) (domain.Installation, error)
 	InstallationByPrincipal(principal string) (domain.Installation, error)

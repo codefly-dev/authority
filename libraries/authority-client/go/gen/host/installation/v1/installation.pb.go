@@ -889,9 +889,11 @@ type Installation struct {
 	// or by the host's own setup).
 	ApprovedGeneration uint64 `protobuf:"varint,12,opt,name=approved_generation,json=approvedGeneration,proto3" json:"approved_generation,omitempty"`
 	// True when the delivered generation asks more than approved_generation
-	// did: the installation stands, active with its grants, until an
-	// administrator reviews the offer and approves it with Install. A host
-	// renders it as an update available.
+	// did, or approved_generation is unknown (a consent recorded before it was
+	// kept): the installation stands, active with its grants, its holders
+	// holding what the approved offer granted, until an administrator reviews
+	// the offer and approves it with Install. A host renders it as an update
+	// available.
 	UpgradeAvailable bool `protobuf:"varint,13,opt,name=upgrade_available,json=upgradeAvailable,proto3" json:"upgrade_available,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
@@ -1272,8 +1274,12 @@ type ReviewedOffer struct {
 	// installed with the target, holding no standing authority; a host that
 	// installs modules by its administrators' consent converges these with the
 	// install. A role-gated target reached is chosen by its own review and is
-	// not listed.
-	Closure       []string `protobuf:"bytes,11,rep,name=closure,proto3" json:"closure,omitempty"`
+	// not listed. A binding audience or a required edge dependency that is not
+	// composed refuses the review: the closure cannot be installed.
+	Closure []string `protobuf:"bytes,11,rep,name=closure,proto3" json:"closure,omitempty"`
+	// The optional edge dependencies the target and its closure declare, by
+	// module name: present when composed, never installed with the target.
+	OptionalEdges []string `protobuf:"bytes,12,rep,name=optional_edges,json=optionalEdges,proto3" json:"optional_edges,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1381,6 +1387,13 @@ func (x *ReviewedOffer) GetPage() bool {
 func (x *ReviewedOffer) GetClosure() []string {
 	if x != nil {
 		return x.Closure
+	}
+	return nil
+}
+
+func (x *ReviewedOffer) GetOptionalEdges() []string {
+	if x != nil {
+		return x.OptionalEdges
 	}
 	return nil
 }
@@ -2007,7 +2020,7 @@ const file_host_installation_v1_installation_proto_rawDesc = "" +
 	"\x06target\x18\x01 \x01(\tR\x06target\x12\x1e\n" +
 	"\n" +
 	"generation\x18\x02 \x01(\x04R\n" +
-	"generation\"\xa4\x04\n" +
+	"generation\"\xcb\x04\n" +
 	"\rReviewedOffer\x12A\n" +
 	"\bapproval\x18\x01 \x01(\v2%.host.installation.v1.ConsentApprovalR\bapproval\x12\x16\n" +
 	"\x06target\x18\x02 \x01(\tR\x06target\x125\n" +
@@ -2020,7 +2033,8 @@ const file_host_installation_v1_installation_proto_rawDesc = "" +
 	"\x0eroles_declared\x18\t \x01(\bR\rrolesDeclared\x12\x12\n" +
 	"\x04page\x18\n" +
 	" \x01(\bR\x04page\x12\x18\n" +
-	"\aclosure\x18\v \x03(\tR\aclosure\"E\n" +
+	"\aclosure\x18\v \x03(\tR\aclosure\x12%\n" +
+	"\x0eoptional_edges\x18\f \x03(\tR\roptionalEdges\"E\n" +
 	"\x0fOfferDependency\x12\x16\n" +
 	"\x06module\x18\x01 \x01(\tR\x06module\x12\x1a\n" +
 	"\bpresence\x18\x02 \x01(\tR\bpresence\"z\n" +

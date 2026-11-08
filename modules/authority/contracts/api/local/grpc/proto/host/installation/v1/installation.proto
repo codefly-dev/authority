@@ -25,11 +25,16 @@ service InstallationService {
   // acknowledges its install step, or active at once for a target that
   // declares no install endpoint (a module page has none). On an
   // active installation, a fresh approval of a newer offer than its consent
-  // approved (Installation.upgrade_available) is an upgrade: the installation
-  // stays active, its role grants are kept, its consent moves to the approved
-  // generation and its revision moves; no install step runs. A fresh approval
-  // of the offer already approved is refused as already installed. An install
-  // never deletes a role grant: RevokeRole and an uninstall alone do.
+  // approved (Installation.upgrade_available) is an upgrade: the install step
+  // runs again (it converges idempotently; the host converges the closure
+  // there), then the installation, active throughout, moves its consent to
+  // the approved generation and its revision; its grants are kept but those
+  // of a role the approved offer no longer declares. Until the upgrade, the
+  // holders hold what the approved offer granted, never what the delivered
+  // one asks. A fresh approval of the offer already approved is refused as
+  // already installed. A module page holds no standing authority (its
+  // installation_role is none). An install never deletes a role grant
+  // otherwise: RevokeRole and an uninstall do.
   rpc Install(InstallRequest) returns (Installation);
   // Review reads the current offer and installation revision without granting consent.
   rpc Review(ReviewRequest) returns (ConsentApproval);
@@ -235,9 +240,11 @@ message Installation {
   // or by the host's own setup).
   uint64 approved_generation = 12;
   // True when the delivered generation asks more than approved_generation
-  // did: the installation stands, active with its grants, until an
-  // administrator reviews the offer and approves it with Install. A host
-  // renders it as an update available.
+  // did, or approved_generation is unknown (a consent recorded before it was
+  // kept): the installation stands, active with its grants, its holders
+  // holding what the approved offer granted, until an administrator reviews
+  // the offer and approves it with Install. A host renders it as an update
+  // available.
   bool upgrade_available = 13;
 
   // Status is the installation's lifecycle.
@@ -319,8 +326,12 @@ message ReviewedOffer {
   // installed with the target, holding no standing authority; a host that
   // installs modules by its administrators' consent converges these with the
   // install. A role-gated target reached is chosen by its own review and is
-  // not listed.
+  // not listed. A binding audience or a required edge dependency that is not
+  // composed refuses the review: the closure cannot be installed.
   repeated string closure = 11;
+  // The optional edge dependencies the target and its closure declare, by
+  // module name: present when composed, never installed with the target.
+  repeated string optional_edges = 12;
 }
 
 // OfferDependency carries presence only, never scopes or inferred binding ids.

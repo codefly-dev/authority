@@ -243,6 +243,41 @@ func Run(t *testing.T, open Open) {
 		})
 	})
 
+	t.Run("an approved generation is kept per module and generation", func(t *testing.T) {
+		first := f.module(domain.KindSolution)
+		first.Name, first.Principal = f.name("approved"), f.name("approved-principal")
+		second := first
+		second.Generation = 2
+		second.Roles = map[string][]*basev0.WorkScopeV1{domain.InstallerRole: first.Roles[domain.InstallerRole]}
+		write(t, func(tx authority.Tx) error {
+			if err := tx.PutApprovedModule(first); err != nil {
+				return err
+			}
+			if err := tx.PutApprovedModule(second); err != nil {
+				return err
+			}
+			return tx.PutApprovedModule(second) // idempotent
+		})
+		read(t, func(tx authority.Tx) error {
+			got, err := tx.ApprovedModule(first.Name, 1)
+			if err != nil {
+				return err
+			}
+			sameModule(t, got, first)
+			if got, err = tx.ApprovedModule(first.Name, 2); err != nil {
+				return err
+			}
+			sameModule(t, got, second)
+			if _, err := tx.ApprovedModule(first.Name, 3); !errors.Is(err, domain.ErrNotFound) {
+				t.Errorf("a generation never approved reads %v, want ErrNotFound", err)
+			}
+			if _, err := tx.ApprovedModule(f.name("never"), 1); !errors.Is(err, domain.ErrNotFound) {
+				t.Errorf("a module never approved reads %v, want ErrNotFound", err)
+			}
+			return nil
+		})
+	})
+
 	t.Run("an installation reads back as written", func(t *testing.T) {
 		inst := domain.Installation{ID: uuid.NewString(), Organization: f.orgA, Target: f.name("target"), Status: domain.Pending, Revision: 3,
 			AgentRole: "viewer", PrincipalID: uuid.NewString(), InstalledBy: f.onlyA,

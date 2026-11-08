@@ -75,6 +75,10 @@ type ReviewedOffer struct {
 	// consent converges them with the install; a role-gated target reached
 	// is chosen by its own review and is not listed.
 	Closure []string
+	// OptionalEdges are the optional edge dependencies the target and its
+	// closure declare, by module name: present when composed, never
+	// installed by the install.
+	OptionalEdges []string
 }
 
 // ReviewOffer reads one role-gated target's offer: a solution's, or a module
@@ -138,14 +142,26 @@ func (s *Service) reviewOffer(ctx context.Context, caller Person, org, target st
 				return err
 			}
 			out = domain.ConsentApproval{TargetID: m.Principal, Generation: m.Generation, ExpectedRevision: inst.Revision, Digest: digest}
+		} else {
+			// A role holder reads what they hold: the declaration their
+			// installation's consent approved, not one delivered since.
+			if m, err = approvedModule(tx, inst, m); err != nil {
+				return err
+			}
 		}
 		offer.Module, offer.Installation = m, inst
 		offer.RolesDeclared, offer.Page = len(m.Roles) > 0, m.Page || (m.Kind != domain.KindSolution && len(m.Roles) > 0)
 		if offer.Modules, err = tx.Modules(); err != nil {
 			return err
 		}
-		offer.Closure = decide.Closure(m, offer.Modules)
-		return nil
+		if !members {
+			return nil // Review hands the consent tuple alone
+		}
+		// The setup read says what the install brings along; a binding or a
+		// required edge naming something not composed refuses it, since that
+		// install could not converge.
+		offer.Closure, offer.OptionalEdges, err = decide.Closure(m, offer.Modules)
+		return err
 	})
 	offer.Approval = out
 	return offer, err

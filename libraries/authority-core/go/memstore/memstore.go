@@ -34,6 +34,7 @@ type Store struct {
 	delegations   map[string]domain.Delegation
 	tombstones    map[string]domain.Tombstone
 	clients       map[string]domain.Client
+	approved      map[string]domain.Module // name\x00generation
 }
 
 // New is an empty store.
@@ -43,7 +44,7 @@ func New() *Store {
 		modules: map[string]domain.Module{}, installations: map[string]domain.Installation{}, grants: map[string][]domain.RoleGrant{},
 		revisions: map[string]uint64{}, personEpochs: map[string]uint64{}, grantEpochs: map[string]uint64{},
 		ownerAware: map[string]uint64{}, delegations: map[string]domain.Delegation{}, tombstones: map[string]domain.Tombstone{},
-		clients: map[string]domain.Client{}, teams: map[string]map[string]bool{},
+		clients: map[string]domain.Client{}, teams: map[string]map[string]bool{}, approved: map[string]domain.Module{},
 	}
 }
 
@@ -87,6 +88,7 @@ type state struct {
 	delegations   map[string]domain.Delegation
 	tombstones    map[string]domain.Tombstone
 	clients       map[string]domain.Client
+	approved      map[string]domain.Module
 }
 
 func (s *Store) snapshot() state {
@@ -96,7 +98,8 @@ func (s *Store) snapshot() state {
 	}
 	return state{modules: maps.Clone(s.modules), installations: maps.Clone(s.installations), grants: grants,
 		revisions: maps.Clone(s.revisions), personEpochs: maps.Clone(s.personEpochs), grantEpochs: maps.Clone(s.grantEpochs),
-		ownerAware: maps.Clone(s.ownerAware), delegations: maps.Clone(s.delegations), tombstones: maps.Clone(s.tombstones), clients: maps.Clone(s.clients)}
+		ownerAware: maps.Clone(s.ownerAware), delegations: maps.Clone(s.delegations), tombstones: maps.Clone(s.tombstones), clients: maps.Clone(s.clients),
+		approved: maps.Clone(s.approved)}
 }
 
 func (s *Store) restore(b state) {
@@ -104,6 +107,7 @@ func (s *Store) restore(b state) {
 	s.personEpochs, s.grantEpochs, s.ownerAware, s.delegations = b.personEpochs, b.grantEpochs, b.ownerAware, b.delegations
 	s.tombstones = b.tombstones
 	s.clients = b.clients
+	s.approved = b.approved
 }
 
 // PutOrganization, PutPerson, DeletePerson and PutOrgRole seed and change
@@ -297,6 +301,24 @@ func (t tx) TombstoneByPrincipal(principal string) (domain.Tombstone, error) {
 func (t tx) PutTombstone(tomb domain.Tombstone) error {
 	t.mustWrite()
 	t.s.tombstones[tomb.Name] = tomb
+	return nil
+}
+
+func approvedKey(name string, generation uint64) string {
+	return fmt.Sprintf("%s\x00%d", name, generation)
+}
+
+func (t tx) ApprovedModule(name string, generation uint64) (domain.Module, error) {
+	m, ok := t.s.approved[approvedKey(name, generation)]
+	if !ok {
+		return m, missing("approved generation", approvedKey(name, generation))
+	}
+	return cloneModule(m), nil
+}
+
+func (t tx) PutApprovedModule(m domain.Module) error {
+	t.mustWrite()
+	t.s.approved[approvedKey(m.Name, m.Generation)] = cloneModule(m)
 	return nil
 }
 

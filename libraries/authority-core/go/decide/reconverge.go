@@ -59,8 +59,12 @@ func Widens(approved, next domain.Module) []string {
 		}
 	}
 	for _, d := range next.EdgeDependencies {
-		if !slices.Contains(approved.EdgeDependencies, d) {
+		i := slices.IndexFunc(approved.EdgeDependencies, func(a domain.EdgeDependency) bool { return a.Module == d.Module })
+		switch {
+		case i < 0:
 			out = append(out, fmt.Sprintf("edge dependency on %s (%s) added", d.Module, d.Presence))
+		case approved.EdgeDependencies[i].Presence == EdgeOptional && d.Presence != EdgeOptional:
+			out = append(out, fmt.Sprintf("edge dependency on %s made required", d.Module))
 		}
 	}
 	if next.InstallationRole != approved.InstallationRole && next.InstallationRole != domain.NoInstallationRole {
@@ -86,11 +90,12 @@ func Widens(approved, next domain.Module) []string {
 }
 
 // UpgradeAvailable reports whether inst, an installation of m, stands on a
-// consent approved at a generation behind the delivered one: a redelivery
-// asked more than the approved offer and waits for an administrator's
-// approval (Install with a fresh review). An installation the host or
-// composition installed without consent never offers one.
+// consent approved at a generation behind the delivered one (or at one
+// unknown, recorded before the generation was kept): a redelivery asked more
+// than the approved offer, or the approved offer is unknown, and an
+// administrator's approval (Install with a fresh review) is waited for. An
+// installation the host or composition installed without consent never
+// offers one.
 func UpgradeAvailable(inst domain.Installation, m domain.Module) bool {
-	return inst.Status == domain.Active && inst.Target == m.Name && inst.Consent.OperationID != "" &&
-		inst.Consent.Generation != 0 && inst.Consent.Generation < m.Generation
+	return inst.Status == domain.Active && inst.Target == m.Name && inst.Consent.OperationID != "" && inst.Consent.Generation < m.Generation
 }

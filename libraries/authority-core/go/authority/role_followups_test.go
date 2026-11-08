@@ -68,6 +68,9 @@ func TestARedeliveryDroppingARoleDropsItsGrants(t *testing.T) {
 	}
 	_, err := h.root("maya", "a")
 	refused(t, err, "holds no role")
+	// The wider declaration asks more: an administrator upgrades to it
+	// before its viewer can be granted.
+	h.install(acme, "a")
 	h.grant("a", "viewer", "maya")
 	exactly(t, h.must(h.root("maya", "a")), "a.note", h.principal(acme, "a"), []string{"read", "write"})
 

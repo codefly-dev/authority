@@ -14,12 +14,11 @@ import (
 // pageModule is a module declaring a page; with roles, what a person holds at
 // it is the roles granted them on its organization's installation, and it is
 // chosen by an administrator's review, as a solution is. It declares no
-// standing authority of its own.
+// standing authority of its own, roles or not.
 func pageModule(generation uint64, roles bool) domain.Module {
 	m := domain.Module{Name: "pages", Principal: "pages", Kind: domain.KindModule, Generation: generation, Page: true,
-		ResourceKinds: []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}}
+		InstallationRole: domain.NoInstallationRole, ResourceKinds: []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}}
 	if roles {
-		m.InstallationRole = domain.NoInstallationRole
 		m.Roles = map[string][]*basev0.WorkScopeV1{
 			domain.InstallerRole: {sc("pages.note", "read", "write")},
 			"viewer":             {sc("pages.note", "read")},
@@ -176,6 +175,49 @@ func TestAModulePageIsOfferedReviewedAndInstalledLikeASolution(t *testing.T) {
 	}
 	_, err = h.root("maya", "pages")
 	code(t, err, domain.Precondition)
+	// Composition's again: globex's composition installation, which the
+	// module being chosen ended, is present again; acme's chosen one, which
+	// an administrator uninstalled, stays uninstalled, and no second
+	// installation is made beside it.
+	if _, err := h.svc.ApplyModule(h.ctx, pageModule(4, false)); err != nil {
+		t.Fatal(err)
+	}
+	if there, err := h.svc.Installations(h.ctx, h.admin(globex), globex); err != nil || !slices.ContainsFunc(there, func(i domain.Installation) bool {
+		return i.Target == "pages" && i.Status == domain.Active && i.PrincipalID == ""
+	}) {
+		t.Fatalf("globex's composition installation did not come back: %v %v", there, err)
+	}
+	at := func(i domain.Installation) bool { return i.Target == "pages" }
+	all, err := h.svc.Installations(h.ctx, h.admin(acme), acme)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := len(slices.DeleteFunc(slices.Clone(all), func(i domain.Installation) bool { return !at(i) })); n != 1 {
+		t.Fatalf("acme has %d installations of the module page, want its one uninstalled: %v", n, all)
+	}
+	if i := all[slices.IndexFunc(all, at)]; i.ID != inst.ID || i.Status != domain.Revoked {
+		t.Fatalf("the uninstalled chosen installation was revived by the module becoming composition's: %+v", i)
+	}
+	_, err = h.root("ines", "pages")
+	code(t, err, domain.Precondition)
+}
+
+// A module page holds no standing authority: it declares installation_role
+// none, and an install selecting a role for it is refused by name.
+func TestAModulePageHoldsNoStandingAuthority(t *testing.T) {
+	h := newHarness(t)
+	undeclared := pageModule(1, true)
+	undeclared.InstallationRole = ""
+	if _, err := h.svc.ApplyModule(h.ctx, undeclared); err != nil {
+		t.Fatal(err)
+	}
+	_, err := h.svc.Install(h.ctx, h.admin(acme), acme, "pages", "viewer", "alex", h.approval(acme, "pages"), nil)
+	refused(t, err, `pages is a module page and holds no standing authority: it declares installation_role none, not "viewer"`)
+	_, err = h.svc.Install(h.ctx, h.admin(acme), acme, "pages", "", "alex", h.approval(acme, "pages"), nil)
+	code(t, err, domain.NotFound) // no selector and no role named: nothing selected
+	if all, err := h.svc.Installations(h.ctx, h.admin(acme), acme); err != nil || slices.ContainsFunc(all, func(i domain.Installation) bool { return i.Target == "pages" }) {
+		t.Fatalf("a refused install left an installation: %v %v", all, err)
+	}
 }
 
 // A module declaring no roles is never offered or installed by an
