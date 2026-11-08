@@ -91,6 +91,10 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 		if err := s.adoptLegacyReach(ctx, tx, false); err != nil {
 			return err
 		}
+		before, err := reachesBefore(tx, m.Name)
+		if err != nil {
+			return err
+		}
 		if exists && previous.OwnerAware && !m.OwnerAware {
 			if err := tx.BumpOwnerAwareRevision(m.Principal); err != nil {
 				return err
@@ -118,7 +122,7 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 				return err
 			}
 		}
-		if err := s.reconvergeReach(ctx, tx, m.Name); err != nil {
+		if err := s.reconvergeReach(ctx, tx, m.Name, before); err != nil {
 			return err
 		}
 		if err := s.journal(ctx, tx, domain.Event{Kind: domain.ModuleApplied, Subject: m.Name, Detail: map[string]string{"principal": m.Principal, "kind": m.Kind, "generation": fmt.Sprint(m.Generation)}}); err != nil {

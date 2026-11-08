@@ -49,22 +49,26 @@ func reachWidens(inst domain.Installation, now offeredReach) ([]string, error) {
 	return decide.ReachWidens(approved, now.rows), nil
 }
 
-// reconvergeReach holds every other consented installation to the reach its
-// consent approved, once applied changed the composition: a module
-// redelivered, or newly composed, can change what a role on a solution
-// reaches without the solution changing. Where the reach its approved
-// declaration has now asks nothing new, the consent advances to it, the
-// revision moves (what was issued under the wider reach ends) and the change
-// is journaled as installation.reconverged; where it asks more, the consent
-// stands, holders keep the approved reach (approvedReach), and
-// installation.upgrade_available names what widened.
-func (s *Service) reconvergeReach(ctx context.Context, tx Tx, applied string) error {
+// consentedNow is an active consented installation whose consent recorded
+// its reach, the approved declaration of its target, and what that
+// declaration's roles reach in the composition a transaction reads.
+type consentedNow struct {
+	inst domain.Installation
+	m    domain.Module
+	now  offeredReach
+}
+
+// consentedReaches is every consentedNow but those of applied, the reach
+// computed once per target generation. A consent whose approved declaration
+// is refused (not kept) is skipped: its holders are refused by name until an
+// administrator approves again.
+func consentedReaches(tx Tx, applied string) ([]consentedNow, error) {
 	all, err := tx.Installations("")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	computed := map[string]offeredReach{}
-	changed := map[string]bool{}
+	var out []consentedNow
 	for _, inst := range all {
 		if inst.Target == applied || inst.Status != domain.Active || inst.Consent.OperationID == "" || inst.Consent.ReachDigest == "" {
 			continue
@@ -74,23 +78,62 @@ func (s *Service) reconvergeReach(ctx context.Context, tx Tx, applied string) er
 			continue
 		}
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if m, err = approvedModule(tx, inst, m); err != nil {
 			if unadoptable(err) {
-				continue // its holders are refused by name until an administrator approves again
+				continue
 			}
-			return err
+			return nil, err
 		}
 		key := fmt.Sprintf("%s@%d", m.Name, m.Generation)
 		now, ok := computed[key]
 		if !ok {
 			if now, err = reachIn(tx, m); err != nil {
-				return err
+				return nil, err
 			}
 			computed[key] = now
 		}
+		out = append(out, consentedNow{inst, m, now})
+	}
+	return out, nil
+}
+
+// reachesBefore is what each consented installation's roles reach, by
+// installation, before a delivery changes the composition.
+func reachesBefore(tx Tx, applied string) (map[string]string, error) {
+	list, err := consentedReaches(tx, applied)
+	out := map[string]string{}
+	for _, c := range list {
+		out[c.inst.ID] = c.now.digest
+	}
+	return out, err
+}
+
+// reconvergeReach holds every other consented installation to the reach its
+// consent approved, once applied changed the composition: a module
+// redelivered, or newly composed, can change what a role on a solution
+// reaches without the solution changing. Where the reach its approved
+// declaration has now asks nothing new, the consent advances to it, the
+// revision moves (what was issued under the wider reach ends) and the change
+// is journaled as installation.reconverged; where it asks more, the consent
+// stands, holders keep the approved reach (approvedReach), and
+// installation.upgrade_available names what widened. An installation whose
+// reach the delivery did not change (before, as reachesBefore read it) is
+// left as it is and journals nothing: a widening already offered is not
+// offered again by every later delivery.
+func (s *Service) reconvergeReach(ctx context.Context, tx Tx, applied string, before map[string]string) error {
+	list, err := consentedReaches(tx, applied)
+	if err != nil {
+		return err
+	}
+	changed := map[string]bool{}
+	for _, c := range list {
+		inst, m, now := c.inst, c.m, c.now
 		if now.digest == inst.Consent.ReachDigest {
+			continue
+		}
+		if was, ok := before[inst.ID]; ok && was == now.digest {
 			continue
 		}
 		asks, err := reachWidens(inst, now)

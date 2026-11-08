@@ -1,6 +1,7 @@
 package authority_test
 
 import (
+	"context"
 	"errors"
 	"maps"
 	"math/rand"
@@ -532,4 +533,39 @@ func TestALegacyConsentWhoseApprovedGenerationIsNotKeptNeverRefusesADelivery(t *
 	}
 	_, err := h.root("maya", "a")
 	refused(t, err, "that installation "+a.ID+" approved is not kept")
+}
+
+// A widening is journaled once: two unrelated deliveries after it, which
+// change nothing a's roles reach, journal nothing for a's installation.
+func TestAWideningIsJournaledOnce(t *testing.T) {
+	h := reachHarness(t)
+	offered := 0
+	cfg := h.cfg
+	cfg.Journal = func(_ context.Context, _ authority.Tx, e domain.Event) error {
+		if e.Kind == domain.InstallationUpgradeAvailable && e.Subject == h.inst(acme, "a").ID {
+			offered++
+		}
+		return nil
+	}
+	svc, err := authority.New(h.store, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.svc = svc
+	widenDownstream(t, h)
+	if offered != 1 {
+		t.Fatalf("the widening was journaled %d times, want once", offered)
+	}
+	for _, name := range []string{"unrelated-one", "unrelated-two"} {
+		if _, err := h.svc.ApplyModule(h.ctx, domain.Module{Name: name, Principal: name, Kind: domain.KindModule, Generation: 1,
+			ResourceKinds: []*basev0.WorkScopeV1{sc(name+".item", "read")}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if offered != 1 {
+		t.Fatalf("unrelated deliveries journaled the widening again: %d times in all", offered)
+	}
+	if up, err := h.svc.UpgradeAvailable(h.ctx, h.stored(acme, "a")); err != nil || !up {
+		t.Fatalf("the upgrade is no longer offered: %v %v", up, err)
+	}
 }
