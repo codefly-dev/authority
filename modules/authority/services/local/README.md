@@ -97,16 +97,18 @@ through each reached module's bindings (what a person-owned hop can carry:
 the role within what the module serves, cut to each binding and to the limits
 the chain carries, as issuance cuts it), and on the holder's own session for
 an edge the solution's page calls (no scopes: the holder's own grants decide
-there). There is one row per module and way, its path a shortest witness:
-the walk is a fixed point over each module and the limits the chain carries
-there, so re-entries and self-bindings are counted; it starts where a
-holder's chains can (at the solution, naming a binding there, or from a
-delegation through a binding), takes invoke and lookup hops apart, and walks
-through a hop that carries nothing for one role, so the reaches of the roles
-a person holds, joined, bound what they hold together. The consent records,
-with each reached module, the policy of each of its operations, so an
-operation two roles reach only together is judged on the approved policy
-against both roles' approved scopes. A recorded reach is trusted only when
+there). There is one row per module and way, its path a shortest witness.
+The walk is a join fixed point: each module keeps one limit, the join of
+every limit a chain can arrive with, and is walked again only when it grows,
+so re-entries and self-bindings are counted and the cost stays polynomial
+(milliseconds on dense compositions of 16 modules and 8 kinds). It starts
+where a holder's chains can (at the solution, naming a binding there, or
+from a delegation through a binding) and takes invoke and lookup hops apart.
+Beside each role's reach, the consent records the reach of all the declared
+roles held together; a person holding several roles is held to it, within
+those roles' scopes. Each row records the policy of every declared method
+of its module, each face of an operation its own, so a call is judged on
+the approved policy of the face it uses. A recorded reach is trusted only when
 its digest is the one the approval named. Each row lists the
 operations its scopes are admitted to, one per operation (a Connect route
 `POST /pkg.Service/Method` is the gRPC procedure). A binding's headless

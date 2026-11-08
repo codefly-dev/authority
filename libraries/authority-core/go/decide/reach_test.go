@@ -144,13 +144,13 @@ func TestReachOnThePersonsSessionCarriesNoScopes(t *testing.T) {
 }
 
 // One operation on two faces is one capability: a module declaring its gRPC
-// procedure and its Connect route lists the operation once, and two
-// bindings to the same module make one row.
+// procedure and its Connect route lists the operation once, each face
+// keeping its own policy, and two bindings to the same module make one row.
 func TestOneOperationOnTwoFacesIsOneCapability(t *testing.T) {
 	app, modules := reachComposition()
 	docs := modules["docs"]
 	docs.Methods = maps.Clone(docs.Methods)
-	docs.Methods["POST /docs.v1.Docs/Get"] = docs.Methods["/docs.v1.Docs/Get"]
+	docs.Methods["POST /docs.v1.Docs/Get"] = domain.MethodPolicy{Requires: []*basev0.WorkScopeV1{rs("docs.doc", "write")}}
 	modules["docs"] = docs
 	app.Bindings = map[string]domain.Binding{
 		"docs-connect": {ID: "docs-connect", Audience: "docs", InvokeScopes: []*basev0.WorkScopeV1{rs("docs.doc", "read")}},
@@ -166,6 +166,11 @@ func TestOneOperationOnTwoFacesIsOneCapability(t *testing.T) {
 			n++
 			if !slices.Equal(r.Operations, []string{"/docs.v1.Docs/Get", "GET /docs/{id}"}) {
 				t.Fatalf("docs lists %v, want the procedure once whatever face serves it", r.Operations)
+			}
+			// Each face keeps its own policy, as the module checks it.
+			if c := r.Policies["POST /docs.v1.Docs/Get"]; !sameScopes(c.Requires, []*basev0.WorkScopeV1{rs("docs.doc", "write")}) ||
+				!sameScopes(r.Policies["/docs.v1.Docs/Get"].Requires, []*basev0.WorkScopeV1{rs("docs.doc", "read")}) {
+				t.Fatalf("the faces' policies are %v", r.Policies)
 			}
 		}
 	}
@@ -338,7 +343,7 @@ func TestReachEncodesCanonically(t *testing.T) {
 	docs.Methods["/docs.v1.Docs/Purge"] = domain.MethodPolicy{Requires: []*basev0.WorkScopeV1{rs("docs.doc", "write")}}
 	modules["docs"] = docs
 	wider, _ := decide.ReachOf(app, slices.Collect(maps.Values(modules)))
-	if _, d, _ := decide.EncodeReach(wider); d == digest || fmt.Sprint(decide.ReachWidens(all, wider)) != "[role editor reaches /docs.v1.Docs/Purge at app > docs operation /docs.v1.Docs/Purge at docs requires less]" {
+	if _, d, _ := decide.EncodeReach(wider); d == digest || fmt.Sprint(decide.ReachWidens(all, wider)) != "[the roles together reach /docs.v1.Docs/Purge at app > docs operation /docs.v1.Docs/Purge at docs requires less role editor reaches /docs.v1.Docs/Purge at app > docs operation /docs.v1.Docs/Purge at docs requires less]" {
 		t.Fatalf("a relaxed method policy is not a widening: %v", decide.ReachWidens(all, wider))
 	}
 }

@@ -27,6 +27,11 @@ const (
 	ConfinedToAttached     = "attached"     // the resources attached to the installation
 )
 
+// JointRoles is the key of the reach of every role declared, held together,
+// beside each role's own in what ReachOf answers: what a person holding
+// several roles reaches is within it, and within those roles' scopes.
+const JointRoles = ""
+
 // Reach is every place a holder of role on target can cause an operation, as
 // a static maximum computed from declarations alone; modules is the
 // composition by principal. One row per module, way and confinement:
@@ -40,23 +45,25 @@ const (
 //     scopes, one hop each, and constrained by the chain's limits:
 //     scope.ParentLimits, Constrain and Project). Chains start where a
 //     holder's can: the capability at the target, the same naming one of its
-//     bindings, and a delegation to the target issued through a binding. The
-//     walk is a fixed point over (module, limits) states: limits come from a
-//     finite set of declared scopes, so the states are finitely many and the
-//     walk ends; a module re-entered under other limits is accounted for. A
-//     hop carrying nothing for this role is walked through all the same,
-//     since another role held with it may keep the chain going: the union of
-//     the reaches of the roles a person holds bounds what they hold together.
-//     The row's scopes are the union over every state reaching the module;
-//     its Path is a shortest way there, a witness.
+//     bindings, and a delegation to the target issued through a binding.
+//     The walk is a join fixed point: each module keeps one limit, the join
+//     of every limit a chain can arrive with (a kind any arrival leaves
+//     unconstrained is unconstrained; otherwise the union of what arrives),
+//     and is walked again only when its limit grows. Issuance is monotone in
+//     the limits, so every chain's limits at a module are within its joined
+//     one, and the rows bound what any chain carries; limits only grow and
+//     take finitely many values, so the walk ends after polynomially many
+//     steps. A hop that carries nothing ends its chain, as issuance refuses
+//     it.
 //   - On an edge dependency of the target, on the holder's own session
 //     ("person"): the holder's own grants there decide, so the row carries
 //     no scopes and no operations.
 //
 // Each row lists the operations of its module its scopes are admitted to
-// (AdmitMethod), one per operation: a Connect route "POST /pkg.Service/M" is
-// the gRPC procedure "/pkg.Service/M". A binding or edge naming a module not
-// composed reaches nothing.
+// (AdmitMethod), one per operation whatever face serves it (Operation), and
+// the policy of every declared method of the module, each face its own
+// (Policies). A binding or edge naming a module not composed reaches
+// nothing.
 //
 // It is an upper bound of what issuance admits for the holder: issuance also
 // intersects the holder's roles on other solutions on the path, delegation
@@ -69,7 +76,10 @@ func Reach(target domain.Module, role string, modules map[string]domain.Module) 
 	if !declared {
 		return nil, domain.Missing("%s declares no role %q", target.Name, role)
 	}
-	owned := target.OwnedRoles[role]
+	return reach(target, literal, target.OwnedRoles[role], modules), nil
+}
+
+func reach(target domain.Module, literal, owned Scopes, modules map[string]domain.Module) []domain.ReachRow {
 	held := scope.Unowned(append(slices.Clone(literal), owned...))
 	rows := map[string]*domain.ReachRow{}
 	add := func(m domain.Module, path []string, via, confinement string, scopes Scopes) {
@@ -80,9 +90,6 @@ func Reach(target domain.Module, role string, modules map[string]domain.Module) 
 			rows[key] = row
 		}
 		row.Scopes = scope.Normalize(append(row.Scopes, scopes...))
-		if via != ReachPerson {
-			row.Operations, row.Policies = Operations(m, row.Scopes), Policies(m)
-		}
 	}
 	served := target.ResourceKinds
 	root := []string{target.Name}
@@ -98,18 +105,26 @@ func Reach(target domain.Module, role string, modules map[string]domain.Module) 
 			add(target, root, ReachRole, ConfinedToAttached, on)
 		}
 	}
-	type state struct {
-		module domain.Module
-		path   []string
-		limits scope.Limits
-	}
-	var queue []state
-	seen := map[string]bool{}
-	enqueue := func(st state) {
-		key := st.module.Name + "\x00" + limitsKey(st.limits)
-		if !seen[key] {
-			seen[key] = true
-			queue = append(queue, st)
+	// One joined limit per module; a module is walked again when it grows.
+	limitsAt := map[string]scope.Limits{}
+	pathTo := map[string][]string{}
+	var queue []string
+	queued := map[string]bool{}
+	arrive := func(m domain.Module, path []string, limits scope.Limits) {
+		was, ok := limitsAt[m.Name]
+		if ok {
+			joined := joinLimits(was, limits)
+			if limitsKey(joined) == limitsKey(was) {
+				return
+			}
+			limits = joined
+		} else {
+			pathTo[m.Name] = slices.Clone(path)
+		}
+		limitsAt[m.Name] = limits
+		if !queued[m.Name] {
+			queued[m.Name] = true
+			queue = append(queue, m.Name)
 		}
 	}
 	rootAt := func(scopes Scopes) scope.Limits {
@@ -120,24 +135,20 @@ func Reach(target domain.Module, role string, modules map[string]domain.Module) 
 	// hop invokes, or looks up, never uses the headless scopes; its
 	// authority scopes project the kinds of what it uses onto what it
 	// carries, and the hop's grant joins the chain.
-	type hopped struct {
-		carried Scopes
-		limits  scope.Limits
-	}
-	hops := func(limits scope.Limits, b domain.Binding, next domain.Module) []hopped {
-		var out []hopped
+	hops := func(from []string, limits scope.Limits, b domain.Binding, next domain.Module) {
+		path := append(slices.Clone(from), next.Name)
 		for _, operation := range []string{"invoke", "lookup"} {
 			through, _ := ScopesFor(b, operation, "")
-			if len(through) == 0 {
+			carried := limits.Constrain(scope.Intersect(scope.Intersect(held, next.ResourceKinds), through))
+			if len(carried) == 0 {
 				continue
 			}
-			carried := limits.Constrain(scope.Intersect(scope.Intersect(held, next.ResourceKinds), through))
-			out = append(out, hopped{carried, scope.ParentLimits(&basev0.WorkContextV1{
+			add(next, path, ReachBinding, "", carried)
+			arrive(next, path, scope.ParentLimits(&basev0.WorkContextV1{
 				AuthorityScopes: maps.Clone(limits).Project(through, carried),
 				ActorChain:      []*basev0.WorkActorV1{{GrantedScopes: carried}},
-			})})
+			}))
 		}
-		return out
 	}
 	// Where a holder's chains start: the capability IssueForPerson mints at
 	// the target; the same naming one of the target's bindings, which also
@@ -145,7 +156,7 @@ func Reach(target domain.Module, role string, modules map[string]domain.Module) 
 	// a delegation to the target issued through one of its bindings, which
 	// starts at the binding's audience with no limit from the target.
 	direct := scope.Intersect(held, served)
-	enqueue(state{target, root, rootAt(direct)})
+	arrive(target, root, rootAt(direct))
 	for _, id := range slices.Sorted(maps.Keys(target.Bindings)) {
 		b := target.Bindings[id]
 		next, ok := modules[b.Audience]
@@ -153,34 +164,22 @@ func Reach(target domain.Module, role string, modules map[string]domain.Module) 
 			continue
 		}
 		naming := scope.Intersect(scope.Intersect(held, next.ResourceKinds), b.InvokeScopes)
-		enqueue(state{target, root, rootAt(scope.Normalize(append(slices.Clone(direct), naming...)))})
-		path := []string{target.Name, next.Name}
-		for _, h := range hops(scope.Limits{}, b, next) {
-			if len(h.carried) > 0 {
-				add(next, path, ReachBinding, "", h.carried)
-			}
-			enqueue(state{next, path, h.limits})
-		}
+		arrive(target, root, rootAt(scope.Normalize(append(slices.Clone(direct), naming...))))
+		hops(root, scope.Limits{}, b, next)
 	}
 	for len(queue) > 0 {
-		current := queue[0]
+		name := queue[0]
 		queue = queue[1:]
-		for _, id := range slices.Sorted(maps.Keys(current.module.Bindings)) {
-			b := current.module.Bindings[id]
-			next, ok := modules[b.Audience]
-			if !ok {
-				continue
-			}
-			// A hop carrying nothing for this role is still walked: another
-			// role held with it may keep the chain going, and each role's
-			// walk then follows that chain, so the union of the reaches of
-			// the roles a person holds bounds what they hold together.
-			path := append(slices.Clone(current.path), next.Name)
-			for _, h := range hops(current.limits, b, next) {
-				if len(h.carried) > 0 {
-					add(next, path, ReachBinding, "", h.carried)
-				}
-				enqueue(state{next, path, h.limits})
+		queued[name] = false
+		current := target
+		if name != target.Name {
+			current = moduleNamed(modules, name)
+		}
+		limits := limitsAt[name]
+		for _, id := range slices.Sorted(maps.Keys(current.Bindings)) {
+			b := current.Bindings[id]
+			if next, ok := modules[b.Audience]; ok {
+				hops(pathTo[name], limits, b, next)
 			}
 		}
 	}
@@ -191,9 +190,42 @@ func Reach(target domain.Module, role string, modules map[string]domain.Module) 
 	}
 	out := make([]domain.ReachRow, 0, len(rows))
 	for _, key := range slices.Sorted(maps.Keys(rows)) {
-		out = append(out, *rows[key])
+		row := *rows[key]
+		if row.Via != ReachPerson {
+			m := moduleNamed(modules, row.Module)
+			if row.Module == target.Name {
+				m = target
+			}
+			row.Operations, row.Policies = Operations(m, row.Scopes), Policies(m)
+		}
+		out = append(out, row)
 	}
-	return out, nil
+	return out
+}
+
+// moduleNamed is the module of modules (by principal) named name.
+func moduleNamed(modules map[string]domain.Module, name string) domain.Module {
+	if m, ok := modules[name]; ok && m.Name == name {
+		return m
+	}
+	for _, m := range modules {
+		if m.Name == name {
+			return m
+		}
+	}
+	return domain.Module{}
+}
+
+// joinLimits is the least limit both a and b are within: a kind either
+// leaves unconstrained is unconstrained; otherwise what either admits.
+func joinLimits(a, b scope.Limits) scope.Limits {
+	out := scope.Limits{}
+	for kind, rows := range a {
+		if other, ok := b[kind]; ok {
+			out[kind] = scope.Normalize(append(slices.Clone(rows), other...))
+		}
+	}
+	return out
 }
 
 // limitsKey names a chain's limits canonically, a walk state's identity.
@@ -222,16 +254,10 @@ func Operations(m domain.Module, held Scopes) []string {
 	return slices.Sorted(maps.Keys(set))
 }
 
-// Policies is what each operation of m requires, by operation (Operation),
-// as m declares it: on two faces, the gRPC procedure's.
+// Policies is what each method m declares requires, by declared method:
+// each face of an operation keeps its own policy, as the module checks it.
 func Policies(m domain.Module) map[string]domain.MethodPolicy {
-	out := map[string]domain.MethodPolicy{}
-	for _, method := range slices.Sorted(maps.Keys(m.Methods)) {
-		if _, ok := out[Operation(method)]; !ok {
-			out[Operation(method)] = m.Methods[method]
-		}
-	}
-	return out
+	return maps.Clone(m.Methods)
 }
 
 // Operation is the operation a declared method or an incoming call names:
@@ -250,19 +276,26 @@ func Operation(method string) string {
 	return "/" + path
 }
 
-// ReachOf is Reach for every role target declares, by role.
+// ReachOf is Reach for every role target declares, by role, and, under
+// JointRoles, the reach of all of them held together.
 func ReachOf(target domain.Module, modules []domain.Module) (map[string][]domain.ReachRow, error) {
 	byPrincipal := map[string]domain.Module{}
 	for _, m := range modules {
 		byPrincipal[m.Principal] = m
 	}
 	out := map[string][]domain.ReachRow{}
-	for role := range target.Roles {
+	var literal, owned Scopes
+	for _, role := range slices.Sorted(maps.Keys(target.Roles)) {
 		rows, err := Reach(target, role, byPrincipal)
 		if err != nil {
 			return nil, err
 		}
 		out[role] = rows
+		literal = append(literal, target.Roles[role]...)
+		owned = append(owned, target.OwnedRoles[role]...)
+	}
+	if len(target.Roles) > 1 {
+		out[JointRoles] = reach(target, scope.Normalize(literal), scope.Normalize(owned), byPrincipal)
 	}
 	return out, nil
 }
@@ -381,6 +414,10 @@ func DecodeReach(text string) (map[string][]domain.ReachRow, error) {
 func ReachWidens(approved, next map[string][]domain.ReachRow) []string {
 	var out []string
 	for _, role := range slices.Sorted(maps.Keys(next)) {
+		who, reaches := "role "+role, "reaches"
+		if role == JointRoles {
+			who, reaches = "the roles together", "reach"
+		}
 		for _, row := range next[role] {
 			at := row.Module
 			if row.Via != ReachRole {
@@ -391,14 +428,14 @@ func ReachWidens(approved, next map[string][]domain.ReachRow) []string {
 			})
 			switch {
 			case i < 0:
-				out = append(out, fmt.Sprintf("role %s reaches %s (%s)", role, at, row.Via))
+				out = append(out, fmt.Sprintf("%s %s %s (%s)", who, reaches, at, row.Via))
 			case !scope.Attenuates(row.Scopes, approved[role][i].Scopes):
-				out = append(out, fmt.Sprintf("role %s reaches further at %s", role, at))
+				out = append(out, fmt.Sprintf("%s %s further at %s", who, reaches, at))
 			default:
 				was := approved[role][i]
 				for _, op := range row.Operations {
 					if !slices.Contains(was.Operations, op) {
-						out = append(out, fmt.Sprintf("role %s reaches %s at %s", role, op, at))
+						out = append(out, fmt.Sprintf("%s %s %s at %s", who, reaches, op, at))
 					}
 				}
 				for _, op := range slices.Sorted(maps.Keys(row.Policies)) {

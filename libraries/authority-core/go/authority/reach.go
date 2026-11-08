@@ -276,17 +276,31 @@ func (s *Service) approvedReach(tx Tx, owner reachOwner, module string) (held Sc
 		if err != nil {
 			return err
 		}
-		// The roles held together: their scopes there joined, so an
-		// operation two roles cover only together is the reach of both.
 		here := reachCell{policies: map[string]domain.MethodPolicy{}}
-		for _, role := range roles {
-			cell := index[role][module]
-			here.scopes = append(here.scopes, cell.scopes...)
-			for op, p := range cell.policies {
-				here.policies[op] = p
+		switch len(roles) {
+		case 0:
+		case 1:
+			here = index[roles[0]][module]
+		default:
+			// Roles held together reach what all the declared roles reach
+			// together (decide.JointRoles), within the held roles' scopes:
+			// a chain one role keeps going may carry another's further, and
+			// an operation two roles cover only together is theirs.
+			m, err := tx.ModuleNamed(inst.Target)
+			if err != nil {
+				return notFound(err)
 			}
+			if m, err = approvedModule(tx, inst, m); err != nil {
+				return err
+			}
+			var declared Scopes
+			for _, role := range roles {
+				declared = append(declared, m.Roles[role]...)
+				declared = append(declared, m.OwnedRoles[role]...)
+			}
+			joint := index[decide.JointRoles][module]
+			here = reachCell{scopes: scope.Intersect(joint.scopes, scope.Unowned(declared)), policies: joint.policies}
 		}
-		here.scopes = scope.Normalize(here.scopes)
 		cells = append(cells, here)
 		if !bounded {
 			held, bounded = here.scopes, true
