@@ -252,7 +252,7 @@ type ConsentApproval struct {
 	Generation, ExpectedRevision uint64
 	OperationID, Digest          string
 	// ReachDigest is the digest of what each of the target's roles reaches
-	// in the composition reviewed (decide.ReachDigest): the consent covers
+	// in the composition reviewed (decide.EncodeReach): the consent covers
 	// it, not the target's declaration alone.
 	ReachDigest string
 }
@@ -288,7 +288,8 @@ type ConsentReceipt struct {
 	// (decide.EncodeReach), and ReachDigest its digest: what holders hold
 	// through the target at most until an administrator approves a wider
 	// one. Empty ReachDigest is a receipt recorded before reach was kept:
-	// its reach is unknown, and it offers its upgrade once.
+	// it adopts, once, the reach its approved declaration has then
+	// (installation.reach_adopted), and is held to that until adopted.
 	ReachDigest, Reach string
 }
 
@@ -309,6 +310,10 @@ const (
 	// installation's consent approved; Detail "widened" names what. The
 	// installation stays as it is until Install approves the new offer.
 	InstallationUpgradeAvailable EventKind = "installation.upgrade_available"
+	// InstallationReachAdopted: a consent recorded before reach was kept
+	// adopted, once, the reach its approved declaration has as the
+	// composition stands; Detail "reach" names its digest.
+	InstallationReachAdopted EventKind = "installation.reach_adopted"
 	// InstallationUpgraded: an administrator approved a newer offer on an
 	// active installation, which keeps its grants.
 	InstallationUpgraded EventKind = "installation.upgraded"

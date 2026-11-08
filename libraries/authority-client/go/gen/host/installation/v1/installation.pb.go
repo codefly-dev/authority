@@ -902,11 +902,13 @@ type Installation struct {
 	// True when the delivered generation asks more than approved_generation
 	// did, when what the roles reach in the composition now (a module the
 	// target reaches redelivered, or newly composed) asks more than the
-	// consent approved, or when either approved one is unknown (a consent
-	// recorded before it was kept): the installation stands, active with its
-	// grants, its holders holding what the approved offer and reach granted,
-	// until an administrator reviews the offer and approves it with Install. A
-	// host renders it as an update available.
+	// consent approved, or when the approved generation is unknown (a consent
+	// recorded before it was kept; one recorded before reach was kept adopts
+	// the reach it has once, and asks nothing for it): the installation
+	// stands, active with its grants, its holders and its agent holding what
+	// the approved offer and reach granted, until an administrator reviews the
+	// offer and approves it with Install. A host renders it as an update
+	// available.
 	UpgradeAvailable bool `protobuf:"varint,13,opt,name=upgrade_available,json=upgradeAvailable,proto3" json:"upgrade_available,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
@@ -1598,11 +1600,14 @@ func (x *OfferRole) GetReach() []*OfferReach {
 	return nil
 }
 
-// OfferReach is one place a role reaches. Issuance never widens past it; it
-// is an upper bound (resources and owners are checked at each call).
+// OfferReach is one module a role reaches, one way. Issuance, for a holder
+// or for the installation's agent, never carries past it; it is an upper
+// bound (resources and owners are checked at each call).
 type OfferReach struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The modules from the target to module, by name, the target first.
+	// A shortest way from the target to module, by module name, the target
+	// first: a witness. Every way there, re-entries included, is accounted for
+	// in scopes and operations.
 	Path   []string `protobuf:"bytes,1,rep,name=path,proto3" json:"path,omitempty"`
 	Module string   `protobuf:"bytes,2,opt,name=module,proto3" json:"module,omitempty"`
 	// "role": the role's own scopes on the target; "binding": the target, then

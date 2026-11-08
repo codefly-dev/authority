@@ -16,8 +16,9 @@ import (
 // delivery of a module the solution reaches that lets the role do more (a
 // method policy relaxed) offers the solution's installation an upgrade,
 // though the solution did not change; until an administrator approves it,
-// the holder reads, and holds, the approved reach: the newly admitted
-// operation is refused through the solution. A fresh Review and Install
+// the holder reads, and holds, the approved reach, and so does the
+// installation's own agent: the newly admitted operation is refused to both
+// through the solution. A fresh Review and Install
 // approves the wider reach on the same installation.
 const (
 	reachSolution = "conformance-reach"
@@ -108,6 +109,17 @@ func (c *client) reachConsent(t *testing.T, ctx context.Context, f Fixture) {
 			_, err = c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(hop, "token"), "audience": reachStore, "method": method})
 			return err
 		}
+		// agentCall is the installation's own agent (installer) calling method
+		// at the store through the solution's binding.
+		agentCall := func(method string) error {
+			at, err := c.call(ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"installation": map[string]any{"installation_id": id},
+				"actor": map[string]any{"credential": f.DeliveryCredential(reachSolution)}, "audience": reachStore, "operation_binding_id": "store"})
+			if err != nil {
+				return err
+			}
+			_, err = c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(at, "token"), "audience": reachStore, "method": method})
+			return err
+		}
 		if f.ReviewOfferNotServed == "" {
 			if got := reached(t, admin); !slices.Equal(got, []string{reachGet}) {
 				t.Fatalf("the editor reaches %v at the store, want [%s]", got, reachGet)
@@ -140,6 +152,10 @@ func (c *client) reachConsent(t *testing.T, ctx context.Context, f Fixture) {
 				t.Fatalf("the approved reach is refused while an upgrade is pending: %v", err)
 			}
 			refused(t, call(reachPurge), codes.PermissionDenied, "approved")
+			if err := agentCall(reachGet); err != nil {
+				t.Fatalf("the agent's approved reach is refused while an upgrade is pending: %v", err)
+			}
+			refused(t, agentCall(reachPurge), codes.PermissionDenied, "approved")
 			_, err := c.call(adminCtx, "host.installation.v1.InstallationService", "Install", map[string]any{"organization_id": f.Organization, "target": reachSolution,
 				"role": "installer", "owner_person_id": str(admin, "person_id"), "approval": approval})
 			refused(t, err, codes.FailedPrecondition, "INSTALLATION_APPROVAL_")
@@ -153,6 +169,9 @@ func (c *client) reachConsent(t *testing.T, ctx context.Context, f Fixture) {
 			}
 			if err := call(reachPurge); err != nil {
 				t.Fatalf("the approved wider reach is refused: %v", err)
+			}
+			if err := agentCall(reachPurge); err != nil {
+				t.Fatalf("the approved wider reach is refused to the agent: %v", err)
 			}
 		})
 	})

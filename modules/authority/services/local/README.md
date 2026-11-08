@@ -97,16 +97,24 @@ through each reached module's bindings (what a person-owned hop can carry:
 the role within what the module serves, cut to each binding and to the limits
 the chain carries, as issuance cuts it), and on the holder's own session for
 an edge the solution's page calls (no scopes: the holder's own grants decide
-there). Each row lists the operations its scopes are admitted to, one per
-operation whatever face serves it. `Review` hands `reach_digest` with the
+there). There is one row per module and way, its path a shortest witness:
+the walk is a fixed point over each module and the limits the chain carries
+there, so re-entries and self-bindings are counted. Each row lists the
+operations its scopes are admitted to, one per operation (a Connect route
+`POST /pkg.Service/Method` is the gRPC procedure). A binding's headless
+scopes are its module acting for nobody: a hop for a person, a delegation or
+an installation's agent never exercises them. `Review` hands `reach_digest` with the
 consent tuple and `Install` refuses an approval whose reach moved
 (`INSTALLATION_APPROVAL_REACH_CHANGED`). A delivery of any module that widens
 an installed solution's reach (a method relaxed, a binding added or widened,
 a module newly reachable) leaves its consent standing and sets
 `upgrade_available`, though the solution did not change; until an
-administrator approves, holders hold the approved reach: a hop through the
-solution carries no more than it lists, and a call to an operation it does
-not list is refused by name. A delivery that only narrows the reach
+administrator approves, holders, delegations through the solution and the
+installation's own agent hold the approved reach: a hop carries no more than
+it lists, and a call to an operation it does not list is refused by name. A
+consent recorded before reach was kept adopts, once, the reach it has
+(journaled `installation.reach_adopted`), before the next delivery or when
+the host starts (`ReconcileOrganizations`, or `AdoptLegacyReach`). A delivery that only narrows the reach
 re-converges the consent without a click. The reach is an upper bound:
 resources and owners are still checked at every call.
 

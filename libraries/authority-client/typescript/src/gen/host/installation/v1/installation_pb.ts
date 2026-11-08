@@ -523,11 +523,13 @@ export type Installation = Message<"host.installation.v1.Installation"> & {
    * True when the delivered generation asks more than approved_generation
    * did, when what the roles reach in the composition now (a module the
    * target reaches redelivered, or newly composed) asks more than the
-   * consent approved, or when either approved one is unknown (a consent
-   * recorded before it was kept): the installation stands, active with its
-   * grants, its holders holding what the approved offer and reach granted,
-   * until an administrator reviews the offer and approves it with Install. A
-   * host renders it as an update available.
+   * consent approved, or when the approved generation is unknown (a consent
+   * recorded before it was kept; one recorded before reach was kept adopts
+   * the reach it has once, and asks nothing for it): the installation
+   * stands, active with its grants, its holders and its agent holding what
+   * the approved offer and reach granted, until an administrator reviews the
+   * offer and approves it with Install. A host renders it as an update
+   * available.
    *
    * @generated from field: bool upgrade_available = 13;
    */
@@ -896,14 +898,17 @@ export const OfferRoleSchema: GenMessage<OfferRole> = /*@__PURE__*/
   messageDesc(file_host_installation_v1_installation, 21);
 
 /**
- * OfferReach is one place a role reaches. Issuance never widens past it; it
- * is an upper bound (resources and owners are checked at each call).
+ * OfferReach is one module a role reaches, one way. Issuance, for a holder
+ * or for the installation's agent, never carries past it; it is an upper
+ * bound (resources and owners are checked at each call).
  *
  * @generated from message host.installation.v1.OfferReach
  */
 export type OfferReach = Message<"host.installation.v1.OfferReach"> & {
   /**
-   * The modules from the target to module, by name, the target first.
+   * A shortest way from the target to module, by module name, the target
+   * first: a witness. Every way there, re-entries included, is accounted for
+   * in scopes and operations.
    *
    * @generated from field: repeated string path = 1;
    */

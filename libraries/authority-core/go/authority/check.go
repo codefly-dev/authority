@@ -86,7 +86,7 @@ func (s *Service) CheckMethod(ctx context.Context, token, audience, method strin
 		if refusal = decide.AdmitMethod(m, method, verified.EffectiveScopes()); refusal != nil {
 			return nil
 		}
-		refusal, err = withinApprovedReach(tx, verified.Context(), m, method)
+		refusal, err = s.withinApprovedReach(tx, verified.Context(), m, method)
 		return err
 	})
 	if err != nil {
@@ -227,25 +227,51 @@ func effectiveOf(wc *basev0.WorkContextV1) Scopes {
 	return wc.GetAuthorityScopes()
 }
 
-// withinApprovedReach refuses a person's call through a solution to a method
-// of m that the reach the solution's installation consent approved does not
-// list for the roles the person holds there (approvedReach): a delivery of m,
-// or of the solution, that admits more than was approved admits nobody more
-// until an administrator approves the upgrade.
-func withinApprovedReach(tx Tx, wc *basev0.WorkContextV1, m domain.Module, method string) (error, error) {
-	if wc.GetOwnerPrincipalKind() != "human" {
+// withinApprovedReach refuses a call to a method of m that the reach a
+// consented solution's installation approved does not list for its caller:
+// a person acting through the solution, for the roles they hold on it, or
+// the installation's own agent, for its agent role (approvedReach). A
+// delivery of m, or of the solution, that admits more than was approved
+// admits nobody more until an administrator approves the upgrade. A person's
+// call through no solution is not looked up further.
+func (s *Service) withinApprovedReach(tx Tx, wc *basev0.WorkContextV1, m domain.Module, method string) (error, error) {
+	owner := reachOwner{}
+	switch wc.GetOwnerPrincipalKind() {
+	case "agent":
+		owner.agent = wc.GetOwnerPrincipalId()
+	case "human":
+		owner.principals = solutionPrincipals(wc, m.Principal)
+		if !anySolution(tx, owner.principals) {
+			return nil, nil
+		}
+		p, err := tx.Member(wc.GetTenantId(), wc.GetOwnerPrincipalId())
+		if err != nil {
+			return domain.Refuse("the owner %s is no longer a member", wc.GetOwnerPrincipalId()), nil
+		}
+		owner.person = &p
+	default:
 		return nil, nil
 	}
-	p, err := tx.Member(wc.GetTenantId(), wc.GetOwnerPrincipalId())
-	if err != nil {
-		return domain.Refuse("the owner %s is no longer a member", wc.GetOwnerPrincipalId()), nil
-	}
-	_, operations, bounded, err := approvedReach(tx, p, solutionPrincipals(wc, m.Principal), m.Name)
+	_, operations, bounded, err := s.approvedReach(tx, owner, m.Name)
 	if err != nil || !bounded {
 		return nil, err
 	}
-	if key, ok := decide.MethodKey(m, method); ok && operations[key] {
+	op := decide.Operation(method)
+	if key, ok := decide.MethodKey(m, method); ok {
+		op = decide.Operation(key)
+	}
+	if operations[op] {
 		return nil, nil
 	}
 	return domain.Refuse("%s at %s is beyond the reach its solution's installation approved; an administrator approves the upgrade that reaches it", method, m.Name), nil
+}
+
+// anySolution is whether a solution is among principals.
+func anySolution(tx Tx, principals []string) bool {
+	for _, principal := range principals {
+		if m, err := tx.Module(principal); err == nil && m.Kind == domain.KindSolution {
+			return true
+		}
+	}
+	return false
 }

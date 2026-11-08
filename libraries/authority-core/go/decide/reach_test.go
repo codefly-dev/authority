@@ -5,6 +5,7 @@ import (
 	"maps"
 	"math/rand"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
@@ -27,7 +28,7 @@ func byPrincipal(modules ...domain.Module) map[string]domain.Module {
 
 func rowAt(rows []domain.ReachRow, via, confinement string, path ...string) *domain.ReachRow {
 	for i := range rows {
-		if slices.Equal(rows[i].Path, path) && rows[i].Via == via && rows[i].Confinement == confinement {
+		if rows[i].Module == path[len(path)-1] && rows[i].Via == via && rows[i].Confinement == confinement {
 			return &rows[i]
 		}
 	}
@@ -142,10 +143,15 @@ func TestReachOnThePersonsSessionCarriesNoScopes(t *testing.T) {
 	}
 }
 
-// One operation on two faces is one capability: two bindings to the same
-// module (a Connect and a gRPC face) make one row, its operation listed once.
+// One operation on two faces is one capability: a module declaring its gRPC
+// procedure and its Connect route lists the operation once, and two
+// bindings to the same module make one row.
 func TestOneOperationOnTwoFacesIsOneCapability(t *testing.T) {
 	app, modules := reachComposition()
+	docs := modules["docs"]
+	docs.Methods = maps.Clone(docs.Methods)
+	docs.Methods["POST /docs.v1.Docs/Get"] = docs.Methods["/docs.v1.Docs/Get"]
+	modules["docs"] = docs
 	app.Bindings = map[string]domain.Binding{
 		"docs-connect": {ID: "docs-connect", Audience: "docs", InvokeScopes: []*basev0.WorkScopeV1{rs("docs.doc", "read")}},
 		"docs-grpc":    {ID: "docs-grpc", Audience: "docs", InvokeScopes: []*basev0.WorkScopeV1{rs("docs.doc", "read")}},
@@ -159,23 +165,31 @@ func TestOneOperationOnTwoFacesIsOneCapability(t *testing.T) {
 		if r.Module == "docs" {
 			n++
 			if !slices.Equal(r.Operations, []string{"/docs.v1.Docs/Get", "GET /docs/{id}"}) {
-				t.Fatalf("docs lists %v", r.Operations)
+				t.Fatalf("docs lists %v, want the procedure once whatever face serves it", r.Operations)
 			}
 		}
 	}
 	if n != 1 {
 		t.Fatalf("docs is reached in %d rows, want one", n)
 	}
+	if decide.Operation("POST /docs.v1.Docs/Get") != "/docs.v1.Docs/Get" || decide.Operation("POST /docs/{id}") != "POST /docs/{id}" || decide.Operation("GET /docs.v1.Docs/Get") != "GET /docs.v1.Docs/Get" {
+		t.Fatal("Operation names a face wrongly")
+	}
 }
 
-// Reach terminates on a cycle: a module already on the path is not walked
-// again, and the hop's own audience is not a hop.
+// Reach terminates on a cycle and accounts for re-entry: docs is entered
+// from app for its documents alone, then again from model for its notes,
+// and through its own binding; the walk ends, and docs' row holds both
+// kinds, as issuance would carry them.
 func TestReachTerminatesOnACycle(t *testing.T) {
 	app, modules := reachComposition()
+	app.Roles["editor"] = append(app.Roles["editor"], rs("docs.note", "read"), rs("docs.draft", "read"))
 	docs, model := modules["docs"], modules["model"]
-	docs.Bindings["self"] = domain.Binding{ID: "self", Audience: "docs", InvokeScopes: []*basev0.WorkScopeV1{rs("docs.doc", "read")}}
+	docs.ResourceKinds = append(docs.ResourceKinds, rs("docs.note", "read"), rs("docs.draft", "read"))
+	docs.Bindings = maps.Clone(docs.Bindings)
+	docs.Bindings["self"] = domain.Binding{ID: "self", Audience: "docs", InvokeScopes: []*basev0.WorkScopeV1{rs("docs.draft", "read")}}
 	model.Bindings = map[string]domain.Binding{
-		"docs": {ID: "docs", Audience: "docs", InvokeScopes: []*basev0.WorkScopeV1{rs("docs.doc", "read")}},
+		"docs": {ID: "docs", Audience: "docs", InvokeScopes: []*basev0.WorkScopeV1{rs("docs.note", "read")}},
 		"app":  {ID: "app", Audience: "app", InvokeScopes: []*basev0.WorkScopeV1{rs("app.note", "read")}},
 	}
 	modules["docs"], modules["model"] = docs, model
@@ -183,14 +197,12 @@ func TestReachTerminatesOnACycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, r := range rows {
-		seen := map[string]bool{}
-		for _, m := range r.Path {
-			if seen[m] {
-				t.Fatalf("a path revisits %s: %v", m, r.Path)
-			}
-			seen[m] = true
-		}
+	row := rowAt(rows, decide.ReachBinding, "", "docs")
+	if row == nil || !sameScopes(row.Scopes, []*basev0.WorkScopeV1{rs("docs.doc", "read", "write"), rs("docs.note", "read"), rs("docs.draft", "read")}) {
+		t.Fatalf("docs, re-entered, is reached as %+v", row)
+	}
+	if back := rowAt(rows, decide.ReachBinding, "", "app"); back == nil || !sameScopes(back.Scopes, []*basev0.WorkScopeV1{rs("app.note", "read")}) {
+		t.Fatalf("app, re-entered through model, is reached as %+v", back)
 	}
 }
 
@@ -235,10 +247,8 @@ func randomComposition(r *rand.Rand) (domain.Module, map[string]domain.Module) {
 }
 
 // Reach through a binding never exceeds the role, what the module serves,
-// or any binding on the path for the kinds that binding names (a kind a
-// hop's binding does not name is not limited by it, as issuance does not
-// limit it); and reach is monotone: removing a binding never adds a row or
-// widens one.
+// or the bindings into the module; and reach is monotone: removing a
+// binding never adds a row or widens one.
 func TestReachThroughABindingNeverExceedsTheRoleOrAnyBindingOnThePath(t *testing.T) {
 	for seed := int64(0); seed < 300; seed++ {
 		target, modules := randomComposition(rand.New(rand.NewSource(seed)))
@@ -254,21 +264,19 @@ func TestReachThroughABindingNeverExceedsTheRoleOrAnyBindingOnThePath(t *testing
 			if !scope.Attenuates(row.Scopes, role) || !scope.Attenuates(row.Scopes, modules[row.Module].ResourceKinds) {
 				t.Fatalf("seed %d: %v reaches %v beyond the role %v or what it serves", seed, row.Path, row.Scopes, role)
 			}
-			for i := 1; i < len(row.Path); i++ {
-				b := modules[row.Path[i-1]].Bindings[row.Path[i]]
-				named := map[string]bool{}
-				for _, sc := range b.InvokeScopes {
-					named[sc.GetResourceKind()] = true
-				}
-				var limited []*basev0.WorkScopeV1
-				for _, sc := range row.Scopes {
-					if named[sc.GetResourceKind()] {
-						limited = append(limited, sc)
+			// Whatever path reached it, a hop's scopes come from one binding
+			// into the module.
+			var into []*basev0.WorkScopeV1
+			for _, m := range modules {
+				for _, b := range m.Bindings {
+					if b.Audience == row.Module {
+						into = append(into, b.InvokeScopes...)
+						into = append(into, b.LookupScopes...)
 					}
 				}
-				if !scope.Attenuates(limited, b.InvokeScopes) {
-					t.Fatalf("seed %d: %v reaches %v beyond the binding %s > %s (%v)", seed, row.Path, row.Scopes, row.Path[i-1], row.Path[i], b.InvokeScopes)
-				}
+			}
+			if !scope.Attenuates(row.Scopes, into) {
+				t.Fatalf("seed %d: %s is reached with %v beyond every binding into it (%v)", seed, row.Module, row.Scopes, into)
 			}
 		}
 	}
@@ -316,6 +324,10 @@ func TestReachEncodesCanonically(t *testing.T) {
 	back, err := decide.DecodeReach(text)
 	if err != nil || len(decide.ReachWidens(all, back)) != 0 || len(decide.ReachWidens(back, all)) != 0 {
 		t.Fatalf("decoded %v (%v)", back, err)
+	}
+	// The text names explicit fields, never a generated type's own marshaling.
+	if !strings.Contains(text, `"scopes":[{"kind":"docs.doc","actions":["read","write"]}]`) || strings.Contains(text, "ResourceKind") || strings.Contains(text, "resource_kind") {
+		t.Fatalf("the recorded reach is not the explicit encoding: %s", text)
 	}
 	again, digestAgain, _ := decide.EncodeReach(back)
 	if again != text || digestAgain != digest {

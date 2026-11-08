@@ -85,6 +85,12 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 			return domain.Refuse("principal %q names an installed solution's principal; a module's principal is its own", m.Principal)
 		}
 		m.ResourceKinds = scope.Normalize(m.ResourceKinds)
+		// A consent recorded before reach was kept adopts the reach it has
+		// before this delivery changes the composition, so what the
+		// delivery widens is measured against it.
+		if err := s.adoptLegacyReach(ctx, tx); err != nil {
+			return err
+		}
 		if exists && previous.OwnerAware && !m.OwnerAware {
 			if err := tx.BumpOwnerAwareRevision(m.Principal); err != nil {
 				return err
@@ -101,6 +107,14 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 				return err
 			}
 			if err := s.reconverge(ctx, tx, previous, stored); err != nil {
+				return err
+			}
+		}
+		if withdrawn {
+			// Delivered again after a withdrawal: an installation a host kept
+			// active through it (Config.HostInstallsModules) follows this
+			// generation, and the grants of a role it no longer declares end.
+			if err := s.dropGrantsAfterWithdrawal(ctx, tx, m); err != nil {
 				return err
 			}
 		}
@@ -145,6 +159,23 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 	return ids, err
 }
 
+// dropGrantsAfterWithdrawal ends, on every active installation of m, the
+// grants of a role m no longer declares.
+func (s *Service) dropGrantsAfterWithdrawal(ctx context.Context, tx Tx, m domain.Module) error {
+	all, err := tx.Installations("")
+	if err != nil {
+		return err
+	}
+	for _, inst := range all {
+		if inst.Target == m.Name && inst.Status == domain.Active {
+			if err := s.dropUndeclaredGrants(ctx, tx, inst, m, "delivery:"+m.Name); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // reconverge moves every active installation of previous to next. A
 // narrowing raises each one's revision, so what was issued under the wider
 // declaration ends. An installation consented to is held to what its consent
@@ -159,8 +190,8 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 // "approved generation N is behind"); a receipt recorded before the consent
 // kept its generation approved an unknown one and offers its upgrade once.
 // What next's roles reach in the composition counts as asked too
-// (decide.ReachWidens against the approved reach; one recorded before reach
-// was kept is unknown and asks once), and an advancing consent records it.
+// (decide.ReachWidens against the approved reach, which a consent recorded
+// before reach was kept adopted first), and an advancing consent records it.
 // When a consent advances, the grants of roles next no longer declares end
 // with it (dropUndeclaredGrants). An installation no consent holds (a
 // module's, which composition installed, or one a host installed without
@@ -294,11 +325,15 @@ func (s *Service) OrganizationAdded(ctx context.Context, org string) ([]string, 
 	return ids, err
 }
 
-// ReconcileOrganizations holds every composed module at every organization
-// (OrganizationAdded at each), and does nothing when the host installs modules: what a host runs when it starts, so an
+// ReconcileOrganizations adopts the reach of every consent recorded before
+// reach was kept (AdoptLegacyReach), then holds every composed module at every organization
+// (OrganizationAdded at each), and does nothing more when the host installs modules: what a host runs when it starts, so an
 // organization created while the authority could not record it still holds
 // the modules it may use.
 func (s *Service) ReconcileOrganizations(ctx context.Context) error {
+	if err := s.AdoptLegacyReach(ctx); err != nil {
+		return err
+	}
 	if s.cfg.HostInstallsModules {
 		return nil // nothing is installed by the core to reconcile
 	}

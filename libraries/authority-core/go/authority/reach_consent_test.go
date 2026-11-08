@@ -138,8 +138,8 @@ func TestAModulesRedeliveryThatWidensASolutionsReachOffersAnUpgrade(t *testing.T
 }
 
 // A module's redelivery that narrows a solution's reach re-converges: the
-// store cutting its binding to the legacy store narrows what a's viewer
-// reaches; a's consent advances to the narrower reach with no click, its
+// store requiring write to Read narrows what a's viewer reaches there (read
+// alone); a's consent advances to the narrower reach with no click, its
 // revision moves (what was issued under the wider reach ends), no upgrade
 // is offered, and the grants are kept.
 func TestAModulesRedeliveryThatNarrowsASolutionsReachReconverges(t *testing.T) {
@@ -147,7 +147,9 @@ func TestAModulesRedeliveryThatNarrowsASolutionsReachReconverges(t *testing.T) {
 	h.grant("a", "viewer", "remi")
 	before := h.stored(acme, "a")
 	issued := h.must(h.root("remi", "a"))
-	if _, err := h.svc.ApplyModule(h.ctx, storeAt(3, "admin", false)); err != nil {
+	stricter := storeAt(3, "admin", true)
+	stricter.Methods[storeRead] = domain.MethodPolicy{Requires: []*basev0.WorkScopeV1{sc(kind, "read", "write")}}
+	if _, err := h.svc.ApplyModule(h.ctx, stricter); err != nil {
 		t.Fatal(err)
 	}
 	inst := h.stored(acme, "a")
@@ -155,8 +157,8 @@ func TestAModulesRedeliveryThatNarrowsASolutionsReachReconverges(t *testing.T) {
 		t.Fatalf("a's consent did not re-converge on the narrower reach: %+v, was %+v", inst, before)
 	}
 	reach, err := decide.DecodeReach(inst.Consent.Reach)
-	if err != nil || slices.ContainsFunc(reach["viewer"], func(r domain.ReachRow) bool { return slices.Equal(r.Path, []string{"a", "store", "legacy-store"}) }) {
-		t.Fatalf("the approved reach still lists the cut path: %+v (%v)", reach["viewer"], err)
+	if err != nil || slices.ContainsFunc(reach["viewer"], func(r domain.ReachRow) bool { return r.Module == "store" && slices.Contains(r.Operations, storeRead) }) {
+		t.Fatalf("the approved reach still lists what the viewer no longer reaches: %+v (%v)", reach["viewer"], err)
 	}
 	if up, err := h.svc.UpgradeAvailable(h.ctx, inst); err != nil || up {
 		t.Fatalf("a narrowing offers an upgrade: %v %v", up, err)

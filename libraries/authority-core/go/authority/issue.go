@@ -437,12 +437,23 @@ func (s *Service) IssueForInstallation(ctx context.Context, w Workload, installa
 			if binding.Audience != audience.Principal {
 				return domain.Refuse("binding %q is addressed to %s, not %s", r.Binding, binding.Audience, audience.Principal)
 			}
+			if r.Operation == "headless" {
+				return domain.Refuse("binding %q's headless scopes are %s acting for nobody; the installation acting for itself invokes or looks up", r.Binding, solution.Name)
+			}
 			through, err := decide.ScopesFor(binding, r.Operation, "invoke")
 			if err != nil {
 				return err
 			}
 			heldHere = scope.Intersect(heldHere, through)
 			bindingID = r.Binding
+		}
+		// The installation's agent is held to the reach its consent approved.
+		approved, _, capped, err := s.approvedReach(tx, reachOwner{agent: inst.PrincipalID}, audience.Name)
+		if err != nil {
+			return err
+		}
+		if capped {
+			heldHere = scope.Intersect(heldHere, approved)
 		}
 		if scopes, err = decide.Issue(r.Scopes, heldHere); err != nil {
 			return err
@@ -562,7 +573,7 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 			// What a solution on the path reaches is held to the reach
 			// its installation's consent approved.
 			var capped bool
-			if approved, _, capped, err = approvedReach(tx, p, solutionPrincipals(claims, am.Principal), audience.Name); err != nil {
+			if approved, _, capped, err = s.approvedReach(tx, reachOwner{person: &p, principals: solutionPrincipals(claims, am.Principal)}, audience.Name); err != nil {
 				return err
 			}
 			if capped {
@@ -585,11 +596,25 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 				return err
 			}
 			heldHere = scope.Intersect(agent, audience.ResourceKinds)
+			// The agent is held to the reach its installation's consent
+			// approved, as its holders are.
+			approved, _, capped, err := s.approvedReach(tx, reachOwner{agent: inst.PrincipalID}, audience.Name)
+			if err != nil {
+				return err
+			}
+			if capped {
+				heldHere = scope.Intersect(heldHere, approved)
+			}
 		default:
 			heldHere = verified.EffectiveScopes()
 		}
 		if (bounded || claims.GetOwnerPrincipalKind() == "agent") && !audience.OwnerAware {
 			return decide.OwnerAware(audience, decide.Scopes{{ResourceKind: audience.Name, ResourceOwnerId: claims.GetOwnerPrincipalId()}})
+		}
+		// Headless is the module acting as itself, for nobody: a hop for
+		// an owner other than the module never exercises it.
+		if r.Operation == "headless" && claims.GetOwnerPrincipalId() != am.Principal {
+			return domain.Refuse("binding %q's headless scopes are %s acting for nobody; a hop for %s invokes or looks up", r.Binding, am.Name, claims.GetOwnerPrincipalId())
 		}
 		if through, err = decide.ScopesFor(binding, r.Operation, "invoke"); err != nil {
 			return err
