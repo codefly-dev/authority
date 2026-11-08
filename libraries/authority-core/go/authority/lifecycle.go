@@ -88,7 +88,7 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 		// A consent recorded before reach was kept adopts the reach it has
 		// before this delivery changes the composition, so what the
 		// delivery widens is measured against it.
-		if err := s.adoptLegacyReach(ctx, tx); err != nil {
+		if err := s.adoptLegacyReach(ctx, tx, false); err != nil {
 			return err
 		}
 		if exists && previous.OwnerAware && !m.OwnerAware {

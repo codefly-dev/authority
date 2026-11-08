@@ -483,3 +483,53 @@ func TestEachFaceOfAnOperationIsHeldToItsOwnApprovedPolicy(t *testing.T) {
 	}
 	refused(t, h.callStore(at, storePurge), "requires "+kind+":admin")
 }
+
+// One installation's state never refuses a delivery: a legacy consent whose
+// approved generation the store does not keep (a host migration may record
+// one) is skipped by the adoption, left unadopted and offering its upgrade,
+// its holders refused by name; another legacy consent is adopted; a delivery
+// of an unrelated module and a host's start both succeed.
+func TestALegacyConsentWhoseApprovedGenerationIsNotKeptNeverRefusesADelivery(t *testing.T) {
+	h := newHarness(t)
+	h.grant("a", "viewer", "maya")
+	widened := solution("a", true).Roles
+	widened["extra"] = []*basev0.WorkScopeV1{sc("a.note", "read")}
+	for _, generation := range []uint64{2, 3} {
+		if _, err := h.svc.ApplyModule(h.ctx, at("a", generation, widened)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	unkept := h.stored(acme, "a")
+	unkept.Consent.Generation, unkept.Consent.ReachDigest, unkept.Consent.Reach = 2, "", "" // generation 2 was never approved, so never kept
+	adoptable := h.stored(acme, "b")
+	adoptable.Consent.ReachDigest, adoptable.Consent.Reach = "", ""
+	if err := h.store.Write(h.ctx, func(tx authority.Tx) error {
+		if err := tx.PutInstallation(unkept); err != nil {
+			return err
+		}
+		return tx.PutInstallation(adoptable)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.AdoptLegacyReach(h.ctx); err != nil {
+		t.Fatalf("a host's start fails on one installation's state: %v", err)
+	}
+	h.legacy("b")
+	unrelated := domain.Module{Name: "replica", Principal: "replica", Kind: domain.KindModule, Generation: 1, OwnerAware: true,
+		ResourceKinds: []*basev0.WorkScopeV1{sc(kind, "read")}}
+	if _, err := h.svc.ApplyModule(h.ctx, unrelated); err != nil {
+		t.Fatalf("a delivery of an unrelated module is refused by one installation's state: %v", err)
+	}
+	if b := h.stored(acme, "b"); b.Consent.ReachDigest == "" {
+		t.Fatal("the adoptable legacy consent was not adopted")
+	}
+	a := h.stored(acme, "a")
+	if a.Consent.ReachDigest != "" {
+		t.Fatalf("the unkept consent was adopted: %+v", a.Consent)
+	}
+	if up, err := h.svc.UpgradeAvailable(h.ctx, a); err != nil || !up {
+		t.Fatalf("the unkept consent offers no upgrade: %v %v", up, err)
+	}
+	_, err := h.root("maya", "a")
+	refused(t, err, "that installation "+a.ID+" approved is not kept")
+}

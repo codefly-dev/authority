@@ -77,6 +77,9 @@ func (s *Service) reconvergeReach(ctx context.Context, tx Tx, applied string) er
 			return err
 		}
 		if m, err = approvedModule(tx, inst, m); err != nil {
+			if unadoptable(err) {
+				continue // its holders are refused by name until an administrator approves again
+			}
 			return err
 		}
 		key := fmt.Sprintf("%s@%d", m.Name, m.Generation)
@@ -348,7 +351,17 @@ func (s *Service) approvedReach(tx Tx, owner reachOwner, module string) (held Sc
 // before a delivery changes the composition and when a host starts, so a
 // later widening is measured against it and capped. Each adoption is
 // journaled as installation.reach_adopted; nothing issued ends.
-func (s *Service) adoptLegacyReach(ctx context.Context, tx Tx) error {
+//
+// A consent whose approved declaration cannot be read (a generation the
+// store does not keep, or keeps as something other than what was approved:
+// a host migration may record such an approval) is skipped, never failing
+// the pass: its reach stays unadopted, it offers its upgrade, and its
+// holders stay refused by name (approvedModule), so it fails closed until an
+// administrator approves the delivered offer. A delivery's pass skips it
+// silently, since every delivery would repeat it; a host's start
+// (journalSkips) journals it once per start as
+// installation.upgrade_available, naming why its reach was not adopted.
+func (s *Service) adoptLegacyReach(ctx context.Context, tx Tx, journalSkips bool) error {
 	all, err := tx.Installations("")
 	if err != nil {
 		return err
@@ -365,7 +378,16 @@ func (s *Service) adoptLegacyReach(ctx context.Context, tx Tx) error {
 			return err
 		}
 		if m, err = approvedModule(tx, inst, m); err != nil {
-			return err
+			if !unadoptable(err) {
+				return err
+			}
+			if journalSkips {
+				if err := s.journal(ctx, tx, domain.Event{Kind: domain.InstallationUpgradeAvailable, Organization: inst.Organization, Subject: inst.ID,
+					Detail: map[string]string{"target": inst.Target, "approved_generation": fmt.Sprint(inst.Consent.Generation), "reach_unadopted": err.Error()}}); err != nil {
+					return err
+				}
+			}
+			continue
 		}
 		now, err := reachIn(tx, m)
 		if err != nil {
@@ -386,7 +408,15 @@ func (s *Service) adoptLegacyReach(ctx context.Context, tx Tx) error {
 // AdoptLegacyReach is adoptLegacyReach in one transaction, for a host that
 // starts without reconciling organizations.
 func (s *Service) AdoptLegacyReach(ctx context.Context) error {
-	return s.store.Write(ctx, func(tx Tx) error { return s.adoptLegacyReach(ctx, tx) })
+	return s.store.Write(ctx, func(tx Tx) error { return s.adoptLegacyReach(ctx, tx, true) })
+}
+
+// unadoptable is whether err is an installation's own state refusing its
+// approved declaration, which one installation's pass skips, rather than
+// the store failing.
+func unadoptable(err error) bool {
+	_, refused := domain.CodeOf(err)
+	return refused
 }
 
 // UpgradeAvailable reports whether inst offers an upgrade an administrator
