@@ -36,14 +36,19 @@ const (
 //   - Through the target's bindings and onward through each reached module's
 //     bindings, self-bindings and re-entries included ("binding"): what a
 //     hop acting for the holder can carry, as issuance cuts it (the role
-//     within what the module serves, cut to the binding's invoke and lookup
-//     scopes and constrained by the chain's limits: scope.ParentLimits,
-//     Constrain and Project). The walk is a fixed point over (module, limits)
-//     states: limits come from a finite set of declared scopes, so the states
-//     are finitely many and the walk ends; a state reached again adds
-//     nothing, and a module re-entered under other limits is accounted for.
+//     within what the module serves, cut to the binding's invoke or lookup
+//     scopes, one hop each, and constrained by the chain's limits:
+//     scope.ParentLimits, Constrain and Project). Chains start where a
+//     holder's can: the capability at the target, the same naming one of its
+//     bindings, and a delegation to the target issued through a binding. The
+//     walk is a fixed point over (module, limits) states: limits come from a
+//     finite set of declared scopes, so the states are finitely many and the
+//     walk ends; a module re-entered under other limits is accounted for. A
+//     hop carrying nothing for this role is walked through all the same,
+//     since another role held with it may keep the chain going: the union of
+//     the reaches of the roles a person holds bounds what they hold together.
 //     The row's scopes are the union over every state reaching the module;
-//     its Path is the shortest way there, a witness.
+//     its Path is a shortest way there, a witness.
 //   - On an edge dependency of the target, on the holder's own session
 //     ("person"): the holder's own grants there decide, so the row carries
 //     no scopes and no operations.
@@ -76,7 +81,7 @@ func Reach(target domain.Module, role string, modules map[string]domain.Module) 
 		}
 		row.Scopes = scope.Normalize(append(row.Scopes, scopes...))
 		if via != ReachPerson {
-			row.Operations = Operations(m, row.Scopes)
+			row.Operations, row.Policies = Operations(m, row.Scopes), Policies(m)
 		}
 	}
 	served := target.ResourceKinds
@@ -93,15 +98,70 @@ func Reach(target domain.Module, role string, modules map[string]domain.Module) 
 			add(target, root, ReachRole, ConfinedToAttached, on)
 		}
 	}
-	// The holder's capability at the target, as IssueForPerson mints it.
-	direct := scope.Intersect(held, served)
 	type state struct {
 		module domain.Module
 		path   []string
 		limits scope.Limits
 	}
-	queue := []state{{target, root, scope.ParentLimits(&basev0.WorkContextV1{AuthorityScopes: scope.Limits{}.Project(direct, direct)})}}
-	seen := map[string]bool{target.Name + "\x00" + limitsKey(queue[0].limits): true}
+	var queue []state
+	seen := map[string]bool{}
+	enqueue := func(st state) {
+		key := st.module.Name + "\x00" + limitsKey(st.limits)
+		if !seen[key] {
+			seen[key] = true
+			queue = append(queue, st)
+		}
+	}
+	rootAt := func(scopes Scopes) scope.Limits {
+		return scope.ParentLimits(&basev0.WorkContextV1{AuthorityScopes: scope.Limits{}.Project(scopes, scopes)})
+	}
+	// hops are what each hop over b from a capability with limits carries
+	// at next, and the child's limits, as IssueChild mints the child: the
+	// hop invokes, or looks up, never uses the headless scopes; its
+	// authority scopes project the kinds of what it uses onto what it
+	// carries, and the hop's grant joins the chain.
+	type hopped struct {
+		carried Scopes
+		limits  scope.Limits
+	}
+	hops := func(limits scope.Limits, b domain.Binding, next domain.Module) []hopped {
+		var out []hopped
+		for _, operation := range []string{"invoke", "lookup"} {
+			through, _ := ScopesFor(b, operation, "")
+			if len(through) == 0 {
+				continue
+			}
+			carried := limits.Constrain(scope.Intersect(scope.Intersect(held, next.ResourceKinds), through))
+			out = append(out, hopped{carried, scope.ParentLimits(&basev0.WorkContextV1{
+				AuthorityScopes: maps.Clone(limits).Project(through, carried),
+				ActorChain:      []*basev0.WorkActorV1{{GrantedScopes: carried}},
+			})})
+		}
+		return out
+	}
+	// Where a holder's chains start: the capability IssueForPerson mints at
+	// the target; the same naming one of the target's bindings, which also
+	// carries what the holder holds through it (its invoke scopes there); and
+	// a delegation to the target issued through one of its bindings, which
+	// starts at the binding's audience with no limit from the target.
+	direct := scope.Intersect(held, served)
+	enqueue(state{target, root, rootAt(direct)})
+	for _, id := range slices.Sorted(maps.Keys(target.Bindings)) {
+		b := target.Bindings[id]
+		next, ok := modules[b.Audience]
+		if !ok {
+			continue
+		}
+		naming := scope.Intersect(scope.Intersect(held, next.ResourceKinds), b.InvokeScopes)
+		enqueue(state{target, root, rootAt(scope.Normalize(append(slices.Clone(direct), naming...)))})
+		path := []string{target.Name, next.Name}
+		for _, h := range hops(scope.Limits{}, b, next) {
+			if len(h.carried) > 0 {
+				add(next, path, ReachBinding, "", h.carried)
+			}
+			enqueue(state{next, path, h.limits})
+		}
+	}
 	for len(queue) > 0 {
 		current := queue[0]
 		queue = queue[1:]
@@ -111,28 +171,17 @@ func Reach(target domain.Module, role string, modules map[string]domain.Module) 
 			if !ok {
 				continue
 			}
-			invoke, _ := ScopesFor(b, "invoke", "")
-			lookup, _ := ScopesFor(b, "lookup", "")
-			through := scope.Normalize(append(slices.Clone(invoke), lookup...))
-			carried := current.limits.Constrain(scope.Intersect(scope.Intersect(held, next.ResourceKinds), through))
-			if len(carried) == 0 {
-				continue
-			}
+			// A hop carrying nothing for this role is still walked: another
+			// role held with it may keep the chain going, and each role's
+			// walk then follows that chain, so the union of the reaches of
+			// the roles a person holds bounds what they hold together.
 			path := append(slices.Clone(current.path), next.Name)
-			add(next, path, ReachBinding, "", carried)
-			// The child's limits, as IssueChild mints the child: its
-			// authority scopes project the binding's kinds onto what it
-			// carries, and the hop's grant joins the chain.
-			child := scope.ParentLimits(&basev0.WorkContextV1{
-				AuthorityScopes: maps.Clone(current.limits).Project(through, carried),
-				ActorChain:      []*basev0.WorkActorV1{{GrantedScopes: carried}},
-			})
-			key := next.Name + "\x00" + limitsKey(child)
-			if seen[key] {
-				continue
+			for _, h := range hops(current.limits, b, next) {
+				if len(h.carried) > 0 {
+					add(next, path, ReachBinding, "", h.carried)
+				}
+				enqueue(state{next, path, h.limits})
 			}
-			seen[key] = true
-			queue = append(queue, state{next, path, child})
 		}
 	}
 	for _, d := range target.EdgeDependencies {
@@ -173,6 +222,18 @@ func Operations(m domain.Module, held Scopes) []string {
 	return slices.Sorted(maps.Keys(set))
 }
 
+// Policies is what each operation of m requires, by operation (Operation),
+// as m declares it: on two faces, the gRPC procedure's.
+func Policies(m domain.Module) map[string]domain.MethodPolicy {
+	out := map[string]domain.MethodPolicy{}
+	for _, method := range slices.Sorted(maps.Keys(m.Methods)) {
+		if _, ok := out[Operation(method)]; !ok {
+			out[Operation(method)] = m.Methods[method]
+		}
+	}
+	return out
+}
+
 // Operation is the operation a declared method or an incoming call names:
 // a Connect call "POST /pkg.Service/Method" is the gRPC procedure
 // "/pkg.Service/Method", one operation on two faces; anything else is
@@ -209,12 +270,19 @@ func ReachOf(target domain.Module, modules []domain.Module) (map[string][]domain
 // The text a consent records: explicit fields, so its digest moves only
 // when the reach does, never with how a generated type marshals.
 type reachRowText struct {
-	Path        []string    `json:"path"`
-	Module      string      `json:"module"`
-	Via         string      `json:"via"`
-	Confinement string      `json:"confinement,omitempty"`
-	Scopes      []scopeLine `json:"scopes,omitempty"`
-	Operations  []string    `json:"operations,omitempty"`
+	Path        []string     `json:"path"`
+	Module      string       `json:"module"`
+	Via         string       `json:"via"`
+	Confinement string       `json:"confinement,omitempty"`
+	Scopes      []scopeLine  `json:"scopes,omitempty"`
+	Operations  []string     `json:"operations,omitempty"`
+	Policies    []policyLine `json:"policies,omitempty"`
+}
+
+type policyLine struct {
+	Operation        string      `json:"operation"`
+	AnyCheckedCaller bool        `json:"any_checked_caller,omitempty"`
+	Requires         []scopeLine `json:"requires,omitempty"`
 }
 
 type scopeLine struct {
@@ -227,6 +295,10 @@ type scopeLine struct {
 func scopeText(sc *basev0.WorkScopeV1) scopeLine {
 	return scopeLine{Kind: sc.GetResourceKind(), Actions: slices.Sorted(slices.Values(sc.GetActions())),
 		IDs: slices.Sorted(slices.Values(sc.GetResourceIds())), Owner: sc.GetResourceOwnerId()}
+}
+
+func (l scopeLine) scope() *basev0.WorkScopeV1 {
+	return &basev0.WorkScopeV1{ResourceKind: l.Kind, Actions: l.Actions, ResourceIds: l.IDs, ResourceOwnerId: l.Owner}
 }
 
 func (l scopeLine) key() string {
@@ -244,6 +316,13 @@ func EncodeReach(reach map[string][]domain.ReachRow) (text, digest string, err e
 			for _, sc := range scope.Normalize(r.Scopes) {
 				line.Scopes = append(line.Scopes, scopeText(sc))
 			}
+			for _, op := range slices.Sorted(maps.Keys(r.Policies)) {
+				p := policyLine{Operation: op, AnyCheckedCaller: r.Policies[op].AnyCheckedCaller}
+				for _, sc := range scope.Normalize(r.Policies[op].Requires) {
+					p.Requires = append(p.Requires, scopeText(sc))
+				}
+				line.Policies = append(line.Policies, p)
+			}
 			lines = append(lines, line)
 		}
 		out[role] = lines
@@ -252,8 +331,11 @@ func EncodeReach(reach map[string][]domain.ReachRow) (text, digest string, err e
 	if err != nil {
 		return "", "", err
 	}
-	return string(raw), fmt.Sprintf("sha256:%x", sha256.Sum256(raw)), nil
+	return string(raw), DigestReach(string(raw)), nil
 }
+
+// DigestReach is the digest of the text EncodeReach wrote.
+func DigestReach(text string) string { return fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(text))) }
 
 // DecodeReach reads what EncodeReach wrote.
 func DecodeReach(text string) (map[string][]domain.ReachRow, error) {
@@ -270,7 +352,17 @@ func DecodeReach(text string) (map[string][]domain.ReachRow, error) {
 		for _, l := range lines {
 			row := domain.ReachRow{Path: l.Path, Module: l.Module, Via: l.Via, Confinement: l.Confinement, Operations: l.Operations}
 			for _, s := range l.Scopes {
-				row.Scopes = append(row.Scopes, &basev0.WorkScopeV1{ResourceKind: s.Kind, Actions: s.Actions, ResourceIds: s.IDs, ResourceOwnerId: s.Owner})
+				row.Scopes = append(row.Scopes, s.scope())
+			}
+			for _, p := range l.Policies {
+				if row.Policies == nil {
+					row.Policies = map[string]domain.MethodPolicy{}
+				}
+				policy := domain.MethodPolicy{AnyCheckedCaller: p.AnyCheckedCaller}
+				for _, s := range p.Requires {
+					policy.Requires = append(policy.Requires, s.scope())
+				}
+				row.Policies[p.Operation] = policy
 			}
 			rows = append(rows, row)
 		}
@@ -281,7 +373,9 @@ func DecodeReach(text string) (map[string][]domain.ReachRow, error) {
 
 // ReachWidens lists what next reaches beyond approved, by role: a module,
 // way or confinement approved has no row for, scopes that do not attenuate
-// the approved row's, or an operation the approved row does not list. Empty
+// the approved row's, an operation the approved row does not list, or an
+// operation of the module added, opened to any checked caller or requiring
+// less than approved (which roles held together could reach). Empty
 // means next asks nothing new: a narrowing, or nothing moved. A row's path
 // is a witness, never compared.
 func ReachWidens(approved, next map[string][]domain.ReachRow) []string {
@@ -301,9 +395,21 @@ func ReachWidens(approved, next map[string][]domain.ReachRow) []string {
 			case !scope.Attenuates(row.Scopes, approved[role][i].Scopes):
 				out = append(out, fmt.Sprintf("role %s reaches further at %s", role, at))
 			default:
+				was := approved[role][i]
 				for _, op := range row.Operations {
-					if !slices.Contains(approved[role][i].Operations, op) {
+					if !slices.Contains(was.Operations, op) {
 						out = append(out, fmt.Sprintf("role %s reaches %s at %s", role, op, at))
+					}
+				}
+				for _, op := range slices.Sorted(maps.Keys(row.Policies)) {
+					p, before := row.Policies[op], was.Policies[op]
+					switch _, ok := was.Policies[op]; {
+					case !ok:
+						out = append(out, fmt.Sprintf("operation %s added at %s", op, row.Module))
+					case p.AnyCheckedCaller && !before.AnyCheckedCaller:
+						out = append(out, fmt.Sprintf("operation %s at %s opened to any checked caller", op, row.Module))
+					case !p.AnyCheckedCaller && !scope.Attenuates(before.Requires, p.Requires):
+						out = append(out, fmt.Sprintf("operation %s at %s requires less", op, row.Module))
 					}
 				}
 			}

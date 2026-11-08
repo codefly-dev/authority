@@ -263,13 +263,15 @@ type ConsentApproval struct {
 // itself, the target's bindings acting for the holder, or the holder's own
 // session; the Scopes the holder's capability there can carry at most (none
 // on their own session, where their own grants decide), how the role
-// confines them on the target, and the Operations of Module those scopes are
-// admitted to.
+// confines them on the target, the Operations of Module those scopes are
+// admitted to, and the Policies of every operation of Module as declared
+// then, by operation: what roles held together are admitted to there.
 type ReachRow struct {
 	Path                     []string
 	Module, Via, Confinement string
 	Scopes                   []*basev0.WorkScopeV1
 	Operations               []string
+	Policies                 map[string]MethodPolicy
 }
 
 // ConsentReceipt binds an unchanged retry to its resulting installation

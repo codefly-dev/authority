@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
@@ -94,7 +93,7 @@ type Service struct {
 	src       sources
 	// reaches caches each approved reach by its digest, indexed for
 	// enforcement (consentedReach); a digest names one reach for ever.
-	reaches sync.Map
+	reaches reachCache
 }
 
 // New builds the service.

@@ -338,7 +338,7 @@ func TestReachEncodesCanonically(t *testing.T) {
 	docs.Methods["/docs.v1.Docs/Purge"] = domain.MethodPolicy{Requires: []*basev0.WorkScopeV1{rs("docs.doc", "write")}}
 	modules["docs"] = docs
 	wider, _ := decide.ReachOf(app, slices.Collect(maps.Values(modules)))
-	if _, d, _ := decide.EncodeReach(wider); d == digest || fmt.Sprint(decide.ReachWidens(all, wider)) != "[role editor reaches /docs.v1.Docs/Purge at app > docs]" {
+	if _, d, _ := decide.EncodeReach(wider); d == digest || fmt.Sprint(decide.ReachWidens(all, wider)) != "[role editor reaches /docs.v1.Docs/Purge at app > docs operation /docs.v1.Docs/Purge at docs requires less]" {
 		t.Fatalf("a relaxed method policy is not a widening: %v", decide.ReachWidens(all, wider))
 	}
 }

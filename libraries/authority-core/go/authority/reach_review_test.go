@@ -1,6 +1,7 @@
 package authority_test
 
 import (
+	"errors"
 	"maps"
 	"math/rand"
 	"slices"
@@ -239,10 +240,17 @@ func soundComposition(r *rand.Rand) []domain.Module {
 		for j := 0; j < 3; j++ {
 			m.Methods[fmtMethod(name, j)] = domain.MethodPolicy{Requires: some(1)}
 		}
+		// The first operation is declared on its gRPC and its Connect face.
+		m.Methods["POST "+fmtMethod(name, 0)] = m.Methods[fmtMethod(name, 0)]
 		for _, other := range names {
 			if r.Intn(2) == 0 {
 				id := "to-" + other
-				m.Bindings[id] = domain.Binding{ID: id, Audience: other, InvokeScopes: some(1)}
+				invoke := some(1)
+				var lookup []*basev0.WorkScopeV1
+				if r.Intn(2) == 0 {
+					lookup = scope.Intersect(some(1), invoke)
+				}
+				m.Bindings[id] = domain.Binding{ID: id, Audience: other, InvokeScopes: invoke, LookupScopes: lookup}
 			}
 		}
 		if i == 0 {
@@ -250,11 +258,13 @@ func soundComposition(r *rand.Rand) []domain.Module {
 			for _, b := range m.Bindings {
 				grantable = append(grantable, b.InvokeScopes...)
 			}
-			role := scope.Intersect(some(1), grantable)
-			if len(role) == 0 {
-				role = slices.Clone(m.ResourceKinds)
+			role := func() []*basev0.WorkScopeV1 {
+				if role := scope.Intersect(some(1), grantable); len(role) > 0 {
+					return role
+				}
+				return slices.Clone(m.ResourceKinds)
 			}
-			m.Kind, m.Roles = domain.KindSolution, map[string][]*basev0.WorkScopeV1{domain.InstallerRole: slices.Clone(m.ResourceKinds), "r": role}
+			m.Kind, m.Roles = domain.KindSolution, map[string][]*basev0.WorkScopeV1{domain.InstallerRole: slices.Clone(m.ResourceKinds), "r": role(), "s": role()}
 		}
 		out = append(out, m)
 	}
@@ -266,12 +276,16 @@ func fmtMethod(module string, n int) string {
 }
 
 // Reach is an upper bound of the uncapped runtime: over random compositions
-// and random chains (cycles, self-bindings and re-entries included), for a
-// person holding the role and for the installation's agent holding it, no
-// capability issuance mints carries a kind or action Reach does not list at
-// its audience, and no operation CheckMethod admits there is missing from
-// Reach's operations. The solution is installed by its host without consent,
-// so nothing caps the runtime by the reach it is measured against.
+// (bindings with invoke and lookup scopes, self-bindings, re-entries and
+// cycles, an operation on its gRPC and Connect faces) and random chains, no
+// capability issuance mints carries, at its audience, a kind or action the
+// owner's reach does not list there, and no operation CheckMethod admits,
+// on either face, is missing from it. Owners and starting points: a person
+// holding two roles at once (reach: the union of both roles'), from a root
+// at the solution, plain or naming a binding, and from a delegation to the
+// solution; the installation's agent, from its root. Hops invoke or look up.
+// The solution is installed by its host without consent, so nothing caps the
+// runtime by the reach it is measured against. Seeded, so deterministic.
 func TestTheRuntimeNeverAdmitsBeyondReach(t *testing.T) {
 	for seed := int64(0); seed < 120; seed++ {
 		r := rand.New(rand.NewSource(seed))
@@ -290,6 +304,7 @@ func TestTheRuntimeNeverAdmitsBeyondReach(t *testing.T) {
 			t.Fatalf("seed %d: %v", seed, err)
 		}
 		h.grant("app", "r", "maya")
+		h.grant("app", "s", "maya")
 		byPrincipal := map[string]domain.Module{}
 		for _, m := range modules {
 			stored, err := h.svc.Composed(h.ctx, m.Name)
@@ -298,61 +313,114 @@ func TestTheRuntimeNeverAdmitsBeyondReach(t *testing.T) {
 			}
 			byPrincipal[m.Principal] = stored
 		}
-		rows, err := decide.Reach(byPrincipal["app"], "r", byPrincipal)
-		if err != nil {
-			t.Fatal(err)
+		type bound struct {
+			cells map[string][]*basev0.WorkScopeV1
+			ops   map[string]map[string]bool
 		}
-		cells := map[string][]*basev0.WorkScopeV1{}
-		ops := map[string]map[string]bool{}
-		for _, row := range rows {
-			cells[row.Module] = append(cells[row.Module], row.Scopes...)
-			if ops[row.Module] == nil {
-				ops[row.Module] = map[string]bool{}
+		reachOf := func(roles ...string) bound {
+			b := bound{map[string][]*basev0.WorkScopeV1{}, map[string]map[string]bool{}}
+			for _, role := range roles {
+				rows, err := decide.Reach(byPrincipal["app"], role, byPrincipal)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, row := range rows {
+					if row.Via != decide.ReachPerson {
+						b.cells[row.Module] = append(b.cells[row.Module], row.Scopes...)
+					}
+				}
 			}
-			for _, op := range row.Operations {
-				ops[row.Module][op] = true
+			// The roles held together are admitted to what their joined
+			// scopes cover at each module.
+			for module, scopes := range b.cells {
+				b.ops[module] = map[string]bool{}
+				for _, op := range decide.Operations(byPrincipal[module], scope.Normalize(scopes)) {
+					b.ops[module][op] = true
+				}
 			}
+			return b
 		}
-		verify := func(at authority.Issued, module string, chain []string) {
-			got := scope.Unowned(effective(at))
-			if !scope.Attenuates(got, cells[module]) {
-				t.Fatalf("seed %d: %v carries %v at %s beyond its reach %v", seed, chain, got, module, cells[module])
+		person, agent := reachOf("r", "s"), reachOf("r")
+		verify := func(b bound, at authority.Issued, module string, chain []string) {
+			// What a capability carries for kinds its audience does not
+			// serve (a root naming a binding) is usable only further on.
+			got := scope.Intersect(scope.Unowned(effective(at)), byPrincipal[module].ResourceKinds)
+			if !scope.Attenuates(got, b.cells[module]) {
+				t.Fatalf("seed %d: %v carries %v at %s beyond its reach %v", seed, chain, got, module, b.cells[module])
 			}
 			for _, method := range slices.Sorted(maps.Keys(byPrincipal[module].Methods)) {
-				if _, _, _, err := h.svc.CheckMethod(h.ctx, at.Token, module, method, false); err == nil && !ops[module][decide.Operation(method)] {
-					t.Fatalf("seed %d: %v is admitted to %s at %s, which its reach does not list (%v)", seed, chain, method, module, ops[module])
+				if _, _, _, err := h.svc.CheckMethod(h.ctx, at.Token, module, method, false); err == nil && !b.ops[module][decide.Operation(method)] {
+					t.Fatalf("seed %d: %v is admitted to %s at %s, which its reach does not list (%v)", seed, chain, method, module, b.ops[module])
 				}
 			}
 		}
-		roots := map[string]func() (authority.Issued, error){
-			"person": func() (authority.Issued, error) { return h.root("maya", "app") },
-			"agent": func() (authority.Issued, error) {
-				return h.svc.IssueForInstallation(h.ctx, authority.Workload{Module: "app"}, inst.ID, authority.IssueRequest{Audience: "app"})
-			},
+		pick := func(m domain.Module) string {
+			ids := slices.Sorted(maps.Keys(m.Bindings))
+			if len(ids) == 0 {
+				return ""
+			}
+			return ids[r.Intn(len(ids))]
 		}
-		for _, owner := range slices.Sorted(maps.Keys(roots)) {
-			for walk := 0; walk < 6; walk++ {
-				at, err := roots[owner]()
-				if err != nil {
-					break // the role holds nothing on the solution itself
+		type start struct {
+			owner string
+			reach bound
+			root  func() (authority.Issued, string, error)
+		}
+		starts := []start{
+			{"person", person, func() (authority.Issued, string, error) {
+				at, err := h.root("maya", "app")
+				return at, "app", err
+			}},
+			{"person naming a binding", person, func() (authority.Issued, string, error) {
+				at, err := h.svc.IssueForPerson(h.ctx, h.person("maya"), authority.IssueRequest{Audience: "app", Binding: pick(byPrincipal["app"])})
+				return at, "app", err
+			}},
+			{"delegation", person, func() (authority.Issued, string, error) {
+				id := pick(byPrincipal["app"])
+				if id == "" {
+					return authority.Issued{}, "", errNothing
 				}
-				module, chain := "app", []string{owner, "app"}
-				verify(at, module, chain)
+				target := byPrincipal[byPrincipal["app"].Bindings[id].Audience]
+				d, err := h.svc.Delegate(h.ctx, h.person("maya"), "app", scope.Intersect(target.ResourceKinds, byPrincipal["app"].Bindings[id].InvokeScopes), "a run", 3600)
+				if err != nil {
+					return authority.Issued{}, "", err
+				}
+				at, err := h.svc.IssueForDelegation(h.ctx, d.ID, authority.Workload{Module: "app"}, authority.IssueRequest{Binding: id})
+				return at, target.Name, err
+			}},
+			{"agent", agent, func() (authority.Issued, string, error) {
+				at, err := h.svc.IssueForInstallation(h.ctx, authority.Workload{Module: "app"}, inst.ID, authority.IssueRequest{Audience: "app"})
+				return at, "app", err
+			}},
+		}
+		for _, st := range starts {
+			for walk := 0; walk < 5; walk++ {
+				at, module, err := st.root()
+				if err != nil {
+					continue // this start holds nothing here
+				}
+				chain := []string{st.owner, module}
+				verify(st.reach, at, module, chain)
 				for hop := 0; hop < 6; hop++ {
-					ids := slices.Sorted(maps.Keys(byPrincipal[module].Bindings))
-					if len(ids) == 0 {
+					id := pick(byPrincipal[module])
+					if id == "" {
 						break
 					}
-					id := ids[r.Intn(len(ids))]
-					next, err := h.svc.IssueChild(h.ctx, at.Token, authority.Workload{Module: module}, authority.IssueRequest{Binding: id})
+					operation := ""
+					if r.Intn(2) == 0 {
+						operation = "lookup"
+					}
+					next, err := h.svc.IssueChild(h.ctx, at.Token, authority.Workload{Module: module}, authority.IssueRequest{Binding: id, Operation: operation})
 					if err != nil {
 						continue
 					}
 					at, module = next, byPrincipal[module].Bindings[id].Audience
 					chain = append(chain, module)
-					verify(at, module, chain)
+					verify(st.reach, at, module, chain)
 				}
 			}
 		}
 	}
 }
+
+var errNothing = errors.New("nothing to start from")

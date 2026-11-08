@@ -34,9 +34,16 @@ func AdmitMethod(m domain.Module, method string, held Scopes) error {
 			return domain.Refuse("%s: %v", audience, err)
 		}
 	}
-	switch {
-	case !ok:
+	if !ok {
 		return domain.Missing("%s serves no method %s", audience, method)
+	}
+	return AdmitPolicy(audience, method, p, held)
+}
+
+// AdmitPolicy is AdmitMethod once the policy is found: p, what audience
+// declares for method, applied to held.
+func AdmitPolicy(audience, method string, p domain.MethodPolicy, held Scopes) error {
+	switch {
 	case p.AnyCheckedCaller && len(p.Requires) > 0:
 		return domain.Refuse("%s declares for %s both that it requires scopes and that it requires none", audience, method)
 	case p.AnyCheckedCaller:

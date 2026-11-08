@@ -99,7 +99,15 @@ the chain carries, as issuance cuts it), and on the holder's own session for
 an edge the solution's page calls (no scopes: the holder's own grants decide
 there). There is one row per module and way, its path a shortest witness:
 the walk is a fixed point over each module and the limits the chain carries
-there, so re-entries and self-bindings are counted. Each row lists the
+there, so re-entries and self-bindings are counted; it starts where a
+holder's chains can (at the solution, naming a binding there, or from a
+delegation through a binding), takes invoke and lookup hops apart, and walks
+through a hop that carries nothing for one role, so the reaches of the roles
+a person holds, joined, bound what they hold together. The consent records,
+with each reached module, the policy of each of its operations, so an
+operation two roles reach only together is judged on the approved policy
+against both roles' approved scopes. A recorded reach is trusted only when
+its digest is the one the approval named. Each row lists the
 operations its scopes are admitted to, one per operation (a Connect route
 `POST /pkg.Service/Method` is the gRPC procedure). A binding's headless
 scopes are its module acting for nobody: a hop for a person, a delegation or

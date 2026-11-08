@@ -252,7 +252,7 @@ func (s *Service) withinApprovedReach(tx Tx, wc *basev0.WorkContextV1, m domain.
 	default:
 		return nil, nil
 	}
-	_, operations, bounded, err := s.approvedReach(tx, owner, m.Name)
+	_, admits, bounded, err := s.approvedReach(tx, owner, m.Name)
 	if err != nil || !bounded {
 		return nil, err
 	}
@@ -260,7 +260,7 @@ func (s *Service) withinApprovedReach(tx Tx, wc *basev0.WorkContextV1, m domain.
 	if key, ok := decide.MethodKey(m, method); ok {
 		op = decide.Operation(key)
 	}
-	if operations[op] {
+	if admits(op) {
 		return nil, nil
 	}
 	return domain.Refuse("%s at %s is beyond the reach its solution's installation approved; an administrator approves the upgrade that reaches it", method, m.Name), nil
