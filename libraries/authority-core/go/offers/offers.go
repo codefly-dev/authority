@@ -27,6 +27,9 @@ type Review struct {
 	ToolsComposed    bool
 	InstallationRole string
 	EdgeDependencies []domain.EdgeDependency
+	// RolesDeclared, Page and Closure are the core's (authority.ReviewedOffer).
+	RolesDeclared, Page bool
+	Closure             []string
 }
 
 type Binding struct {
@@ -65,7 +68,8 @@ func Project(offer authority.ReviewedOffer, bindings map[string]*runnablev0.Prep
 	m, inst := offer.Module, offer.Installation
 	a := offer.Approval
 	out := &Review{Target: m.Name, ToolsComposed: len(bindings) > 0,
-		InstallationRole: m.InstallationRole, EdgeDependencies: slices.Clone(m.EdgeDependencies)}
+		InstallationRole: m.InstallationRole, EdgeDependencies: slices.Clone(m.EdgeDependencies),
+		RolesDeclared: offer.RolesDeclared, Page: offer.Page, Closure: slices.Clone(offer.Closure)}
 	// A member's read carries no consent tuple: only an administrator consents.
 	if a.Digest != "" {
 		out.Approval = &domain.ConsentApproval{TargetID: a.TargetID, Generation: a.Generation, ExpectedRevision: a.ExpectedRevision, Digest: a.Digest}

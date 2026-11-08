@@ -27,6 +27,12 @@ if _version_not_supported:
 
 class InstallationServiceStub(object):
     """InstallationService is implemented by the host and by the local authority.
+    Its target is any role-gated target: a solution, or a module page declaring
+    roles (the core's decide.RoleGated). Both are chosen by an administrator
+    through Review and Install and set up through role grants. A module
+    declaring no roles is never installed here: it is present wherever it is
+    composed and comes along as the closure of a target that reaches it,
+    holding no roles.
     """
 
     def __init__(self, channel):
@@ -79,6 +85,12 @@ class InstallationServiceStub(object):
 
 class InstallationServiceServicer(object):
     """InstallationService is implemented by the host and by the local authority.
+    Its target is any role-gated target: a solution, or a module page declaring
+    roles (the core's decide.RoleGated). Both are chosen by an administrator
+    through Review and Install and set up through role grants. A module
+    declaring no roles is never installed here: it is present wherever it is
+    composed and comes along as the closure of a target that reaches it,
+    holding no roles.
     """
 
     def Current(self, request, context):
@@ -91,8 +103,10 @@ class InstallationServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def Install(self, request, context):
-        """Install composes an installation: its agent principal, its root scope and
-        the row, pending until the target acknowledges its install step. On an
+        """Install composes an installation of a role-gated target: its agent
+        principal, its root scope and the row, pending until the target
+        acknowledges its install step, or active at once for a target that
+        declares no install endpoint (a module page has none). On an
         active installation, a fresh approval of a newer offer than its consent
         approved (Installation.upgrade_available) is an upgrade: the installation
         stays active, its role grants are kept, its consent moves to the approved
@@ -210,6 +224,12 @@ def add_InstallationServiceServicer_to_server(servicer, server):
  # This class is part of an EXPERIMENTAL API.
 class InstallationService(object):
     """InstallationService is implemented by the host and by the local authority.
+    Its target is any role-gated target: a solution, or a module page declaring
+    roles (the core's decide.RoleGated). Both are chosen by an administrator
+    through Review and Install and set up through role grants. A module
+    declaring no roles is never installed here: it is present wherever it is
+    composed and comes along as the closure of a target that reaches it,
+    holding no roles.
     """
 
     @staticmethod
@@ -430,8 +450,10 @@ class InstallationService(object):
 
 
 class InstallableServiceStub(object):
-    """InstallableService is implemented by a solution; the host calls it once per
-    installation and retries until it is acknowledged.
+    """InstallableService is implemented by a target that declares an install
+    endpoint (a solution may; a module page does not); the host calls it once
+    per installation and retries until it is acknowledged. A target without it
+    is active as soon as its installation is recorded.
     """
 
     def __init__(self, channel):
@@ -448,8 +470,10 @@ class InstallableServiceStub(object):
 
 
 class InstallableServiceServicer(object):
-    """InstallableService is implemented by a solution; the host calls it once per
-    installation and retries until it is acknowledged.
+    """InstallableService is implemented by a target that declares an install
+    endpoint (a solution may; a module page does not); the host calls it once
+    per installation and retries until it is acknowledged. A target without it
+    is active as soon as its installation is recorded.
     """
 
     def Install(self, request, context):
@@ -476,8 +500,10 @@ def add_InstallableServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class InstallableService(object):
-    """InstallableService is implemented by a solution; the host calls it once per
-    installation and retries until it is acknowledged.
+    """InstallableService is implemented by a target that declares an install
+    endpoint (a solution may; a module page does not); the host calls it once
+    per installation and retries until it is acknowledged. A target without it
+    is active as soon as its installation is recorded.
     """
 
     @staticmethod
@@ -510,10 +536,11 @@ class InstallableService(object):
 
 class OfferServiceStub(object):
     """OfferService is the local authority's setup read, served beside
-    InstallationService and not part of codefly.dev/installation: what solutions
-    this run delivered and, for one, what installing it would grant. A host
-    answers its own product's reads. It grants nothing; Install, GrantRole and
-    RevokeRole stay the only changes, each decided by the authority.
+    InstallationService and not part of codefly.dev/installation: what targets
+    this run delivered that an administrator chooses and, for one, what
+    installing it would grant. A host answers its own product's reads. It
+    grants nothing; Install, GrantRole and RevokeRole stay the only changes,
+    each decided by the authority.
     """
 
     def __init__(self, channel):
@@ -536,25 +563,29 @@ class OfferServiceStub(object):
 
 class OfferServiceServicer(object):
     """OfferService is the local authority's setup read, served beside
-    InstallationService and not part of codefly.dev/installation: what solutions
-    this run delivered and, for one, what installing it would grant. A host
-    answers its own product's reads. It grants nothing; Install, GrantRole and
-    RevokeRole stay the only changes, each decided by the authority.
+    InstallationService and not part of codefly.dev/installation: what targets
+    this run delivered that an administrator chooses and, for one, what
+    installing it would grant. A host answers its own product's reads. It
+    grants nothing; Install, GrantRole and RevokeRole stay the only changes,
+    each decided by the authority.
     """
 
     def ListOffers(self, request, context):
-        """ListOffers lists the solutions delivered to this run that an administrator
-        of the organization may install. A module is installed by composition and
-        is never offered.
+        """ListOffers lists the role-gated targets delivered to this run that an
+        administrator of the organization may install: the solutions and the
+        module pages declaring roles. A module declaring no roles is installed by
+        composition and is never offered.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def ReviewOffer(self, request, context):
-        """ReviewOffer reads one solution's roles, what each grants and the tools
+        """ReviewOffer reads one target's roles, what each grants and the tools
         those grants make eligible, with the consent Install takes, from one read
-        of the authority: the approval names exactly the offer displayed.
+        of the authority: the approval names exactly the offer displayed. A
+        member holding a role on the target's installation reads the same
+        without the consent.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -583,10 +614,11 @@ def add_OfferServiceServicer_to_server(servicer, server):
  # This class is part of an EXPERIMENTAL API.
 class OfferService(object):
     """OfferService is the local authority's setup read, served beside
-    InstallationService and not part of codefly.dev/installation: what solutions
-    this run delivered and, for one, what installing it would grant. A host
-    answers its own product's reads. It grants nothing; Install, GrantRole and
-    RevokeRole stay the only changes, each decided by the authority.
+    InstallationService and not part of codefly.dev/installation: what targets
+    this run delivered that an administrator chooses and, for one, what
+    installing it would grant. A host answers its own product's reads. It
+    grants nothing; Install, GrantRole and RevokeRole stay the only changes,
+    each decided by the authority.
     """
 
     @staticmethod

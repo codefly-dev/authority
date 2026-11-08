@@ -47,8 +47,8 @@ func offerDigest(m domain.Module) (string, error) {
 
 // Review reads one consistent offer. It never supplies an operation identity or
 // approves anything; the caller must retain the returned values when consenting.
-// It is an administrator's read: the consent tuple is what Install takes, and
-// a module page, which composition installs, answers none.
+// It is an administrator's read of a role-gated target (a solution, or a
+// module page declaring roles): the consent tuple is what Install takes.
 func (s *Service) Review(ctx context.Context, caller Person, org, target string) (domain.ConsentApproval, error) {
 	offer, err := s.reviewOffer(ctx, caller, org, target, false)
 	return offer.Approval, err
@@ -61,10 +61,24 @@ type ReviewedOffer struct {
 	Module       domain.Module
 	Installation domain.Installation
 	Modules      []domain.Module
+	// RolesDeclared: the target declares roles, which its Setup grants.
+	// Always true for a solution; a module is offered only when it does.
+	RolesDeclared bool
+	// Page: the target declares a page a person opens, as the stored
+	// declaration knows it. A module declaring roles always has one (a
+	// delivery without a page declares no roles); a solution's is read as
+	// delivered, and a store that does not keep the flag answers false.
+	Page bool
+	// Closure is what installing the target brings along: the modules it
+	// reaches, transitively, that hold no roles of their own, by name
+	// (decide.Closure). A host that installs modules by its administrators'
+	// consent converges them with the install; a role-gated target reached
+	// is chosen by its own review and is not listed.
+	Closure []string
 }
 
-// ReviewOffer reads one solution's offer, or a module page's that declares
-// roles. An administrator of org reads it
+// ReviewOffer reads one role-gated target's offer: a solution's, or a module
+// page's that declares roles. An administrator of org reads it
 // with the consent tuple Install takes. A member of org who holds a role on
 // the solution's active installation there (granted to them or to a team of
 // theirs) reads the same declaration, roles, ceiling and installation without
@@ -112,14 +126,13 @@ func (s *Service) reviewOffer(ctx context.Context, caller Person, org, target st
 		if err != nil {
 			return notFound(err)
 		}
-		// A module page declaring roles is reviewed as a solution is: its
-		// roles are what its Setup shows and grants. Its installation is
-		// still composition's (Install refuses a module), so its review
-		// carries no consent tuple: there is nothing to approve.
+		// A module page declaring roles is reviewed, consented to and
+		// installed as a solution is: its roles are what its Setup shows and
+		// grants. A module without roles is composition's: nothing to review.
 		if !decide.RoleGated(m) {
-			return domain.Missing("%q is not a composed solution or a module page declaring roles; a module is installed by composition", target)
+			return domain.Missing("%q is not a composed solution or a module page declaring roles; a module without roles is installed by composition", target)
 		}
-		if refused == nil && m.Kind == domain.KindSolution {
+		if refused == nil {
 			digest, err := offerDigest(m)
 			if err != nil {
 				return err
@@ -127,8 +140,12 @@ func (s *Service) reviewOffer(ctx context.Context, caller Person, org, target st
 			out = domain.ConsentApproval{TargetID: m.Principal, Generation: m.Generation, ExpectedRevision: inst.Revision, Digest: digest}
 		}
 		offer.Module, offer.Installation = m, inst
-		offer.Modules, err = tx.Modules()
-		return err
+		offer.RolesDeclared, offer.Page = len(m.Roles) > 0, m.Page || (m.Kind != domain.KindSolution && len(m.Roles) > 0)
+		if offer.Modules, err = tx.Modules(); err != nil {
+			return err
+		}
+		offer.Closure = decide.Closure(m, offer.Modules)
+		return nil
 	})
 	offer.Approval = out
 	return offer, err
@@ -192,9 +209,10 @@ func checkConsent(m domain.Module, existing domain.Installation, a *domain.Conse
 	return false, nil
 }
 
-// Offers lists what an administrator of org sets up: delivered solutions, and
-// module pages declaring roles (composition installs them; their Setup grants
-// their roles). A module without roles is the organization's roles' alone.
+// Offers lists what an administrator of org sets up: the role-gated targets,
+// delivered solutions and module pages declaring roles, each chosen through
+// Review and Install. A module without roles is never offered: composition
+// installs it, and the organization's roles decide at it.
 func (s *Service) Offers(ctx context.Context, caller Person, org string) ([]domain.Module, error) {
 	var out []domain.Module
 	err := s.store.Read(ctx, func(tx Tx) error {

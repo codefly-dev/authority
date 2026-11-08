@@ -9,13 +9,21 @@ package host.installation.v1;
 option go_package = "gateway/pkg/gen/host/installation/v1;installationv1";
 
 // InstallationService is implemented by the host and by the local authority.
+// Its target is any role-gated target: a solution, or a module page declaring
+// roles (the core's decide.RoleGated). Both are chosen by an administrator
+// through Review and Install and set up through role grants. A module
+// declaring no roles is never installed here: it is present wherever it is
+// composed and comes along as the closure of a target that reaches it,
+// holding no roles.
 service InstallationService {
   // Current reads only the authenticated module's own active installation,
   // in the tenant of a current parent addressed to that module. It grants no
   // artifact approval or content access and exposes no roles or grants.
   rpc Current(CurrentInstallationRequest) returns (CurrentInstallation);
-  // Install composes an installation: its agent principal, its root scope and
-  // the row, pending until the target acknowledges its install step. On an
+  // Install composes an installation of a role-gated target: its agent
+  // principal, its root scope and the row, pending until the target
+  // acknowledges its install step, or active at once for a target that
+  // declares no install endpoint (a module page has none). On an
   // active installation, a fresh approval of a newer offer than its consent
   // approved (Installation.upgrade_available) is an upgrade: the installation
   // stays active, its role grants are kept, its consent moves to the approved
@@ -62,26 +70,32 @@ message CurrentInstallation {
   string namespace = 5;
 }
 
-// InstallableService is implemented by a solution; the host calls it once per
-// installation and retries until it is acknowledged.
+// InstallableService is implemented by a target that declares an install
+// endpoint (a solution may; a module page does not); the host calls it once
+// per installation and retries until it is acknowledged. A target without it
+// is active as soon as its installation is recorded.
 service InstallableService {
   // Install sets up the solution for one installation; it must converge.
   rpc Install(InstallationNotice) returns (InstallationAck);
 }
 
 // OfferService is the local authority's setup read, served beside
-// InstallationService and not part of codefly.dev/installation: what solutions
-// this run delivered and, for one, what installing it would grant. A host
-// answers its own product's reads. It grants nothing; Install, GrantRole and
-// RevokeRole stay the only changes, each decided by the authority.
+// InstallationService and not part of codefly.dev/installation: what targets
+// this run delivered that an administrator chooses and, for one, what
+// installing it would grant. A host answers its own product's reads. It
+// grants nothing; Install, GrantRole and RevokeRole stay the only changes,
+// each decided by the authority.
 service OfferService {
-  // ListOffers lists the solutions delivered to this run that an administrator
-  // of the organization may install. A module is installed by composition and
-  // is never offered.
+  // ListOffers lists the role-gated targets delivered to this run that an
+  // administrator of the organization may install: the solutions and the
+  // module pages declaring roles. A module declaring no roles is installed by
+  // composition and is never offered.
   rpc ListOffers(ListOffersRequest) returns (ListOffersResponse);
-  // ReviewOffer reads one solution's roles, what each grants and the tools
+  // ReviewOffer reads one target's roles, what each grants and the tools
   // those grants make eligible, with the consent Install takes, from one read
-  // of the authority: the approval names exactly the offer displayed.
+  // of the authority: the approval names exactly the offer displayed. A
+  // member holding a role on the target's installation reads the same
+  // without the consent.
   rpc ReviewOffer(ReviewRequest) returns (ReviewedOffer);
 }
 
@@ -89,7 +103,8 @@ service OfferService {
 message InstallRequest {
   // The organisation installing.
   string organization_id = 1;
-  // The solution or module installed, by its name in the composition.
+  // The target installed, by its name in the composition: a solution, or a
+  // module page declaring roles.
   string target = 2;
   // The role the installation holds; the least privilege it needs.
   string role = 3;
@@ -252,20 +267,20 @@ message ListOffersRequest {
   string organization_id = 1;
 }
 
-// ListOffersResponse is every delivered solution, by name.
+// ListOffersResponse is every delivered target an administrator chooses, by name.
 message ListOffersResponse {
   repeated Offer offers = 1;
 }
 
-// Offer is one delivered solution.
+// Offer is one delivered target an administrator chooses.
 message Offer {
-  // The solution's name in the composition: Install's target.
+  // The target's name in the composition: Install's target.
   string target = 1;
   // The delivery generation an approval binds.
   uint64 generation = 2;
 }
 
-// ReviewedOffer is one solution's authority offer and the consent that names it.
+// ReviewedOffer is one target's authority offer and the consent that names it.
 message ReviewedOffer {
   // What Install takes, with a fresh operation_id; read with the rest.
   ConsentApproval approval = 1;
@@ -288,6 +303,24 @@ message ReviewedOffer {
   // Exact declared viewer-edge presence, covered by the reviewed digest.
   // Required access and per-module approval are separate host review concerns.
   repeated OfferDependency edge_dependencies = 8;
+  // True when the target declares roles, which its Setup grants: always for
+  // a solution; a module is offered only when it does. A host reads it here
+  // instead of asking each module.
+  bool roles_declared = 9;
+  // True when the target declares a page a person opens, as the authority's
+  // stored declaration knows it. A module declaring roles always has one (a
+  // delivery declaring roles without a page is refused); a solution's is
+  // read as delivered, and a host whose store does not keep the flag answers
+  // false for it.
+  bool page = 10;
+  // What installing the target brings along: every module it reaches through
+  // its bindings and edge dependencies, transitively, that holds no roles of
+  // its own, by its name in the composition, sorted. Such a module is
+  // installed with the target, holding no standing authority; a host that
+  // installs modules by its administrators' consent converges these with the
+  // install. A role-gated target reached is chosen by its own review and is
+  // not listed.
+  repeated string closure = 11;
 }
 
 // OfferDependency carries presence only, never scopes or inferred binding ids.

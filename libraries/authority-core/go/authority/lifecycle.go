@@ -15,8 +15,12 @@ import (
 
 // ApplyModule records a delivered module at a newer generation and holds a
 // module installation at every organization, unless the host installs
-// modules itself (Config.HostInstallsModules; a solution is installed
-// explicitly). A narrowing invalidates the capabilities issued before it; a
+// modules itself (Config.HostInstallsModules) or the target is role-gated
+// (decide.RoleGated: a solution, or a module page declaring roles), which an
+// administrator chooses through Review and Install. A module that becomes
+// role-gated is chosen from then on: its composition installations end; one
+// that stops declaring roles is composition's again, present at every
+// organization, its chosen installations kept. A narrowing invalidates the capabilities issued before it; a
 // withdrawn owner-aware declaration refuses its owner-selected ones for good.
 // An active installation consented to survives the delivery: its consent
 // re-converges on the new generation when the reviewed offer asks nothing the
@@ -104,7 +108,14 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 		if err := s.journal(ctx, tx, domain.Event{Kind: domain.ModuleApplied, Subject: m.Name, Detail: map[string]string{"principal": m.Principal, "kind": m.Kind, "generation": fmt.Sprint(m.Generation)}}); err != nil {
 			return err
 		}
-		if m.Kind == domain.KindSolution || s.cfg.HostInstallsModules {
+		if s.cfg.HostInstallsModules {
+			return nil
+		}
+		chosen, wasChosen := decide.RoleGated(m), exists && decide.RoleGated(previous)
+		if chosen {
+			if !wasChosen && exists {
+				return s.endCompositionInstallations(ctx, tx, m.Name)
+			}
 			return nil
 		}
 		orgs, err := tx.Organizations()
@@ -121,12 +132,13 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 				}
 			case err != nil:
 				return err
-			case inst.Status == domain.Revoked && withdrawn:
+			case inst.Status == domain.Revoked && (withdrawn || wasChosen):
 				// A module withdrawn and delivered again is installed again,
-				// at a revision above every capability sealed before. Only a
-				// withdrawal is undone this way: an installation an
-				// administrator uninstalled stays uninstalled (Uninstall
-				// refuses a module's anyway).
+				// at a revision above every capability sealed before, as is
+				// one that stops being chosen: it is composition's, present
+				// everywhere. Otherwise an installation an administrator
+				// uninstalled stays uninstalled (Uninstall refuses a
+				// composition installation anyway).
 				inst.Status, inst.Revision = domain.Active, inst.Revision+1
 				if err := tx.PutInstallation(inst); err != nil {
 					return err
@@ -138,6 +150,29 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 		return nil
 	})
 	return ids, err
+}
+
+// endCompositionInstallations retires every installation of target that
+// composition made (no principal: never chosen through Install): the target
+// now declares roles, so it is chosen, and an administrator installs it from
+// Setup. A chosen installation, which has a principal, is kept.
+func (s *Service) endCompositionInstallations(ctx context.Context, tx Tx, target string) error {
+	all, err := tx.Installations("")
+	if err != nil {
+		return err
+	}
+	for _, inst := range all {
+		if inst.Target != target || inst.PrincipalID != "" || inst.Status == domain.Revoked {
+			continue
+		}
+		if err := s.revoke(tx, inst); err != nil {
+			return err
+		}
+		if err := s.journal(ctx, tx, uninstalled("delivery:"+target, inst)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // reconverge moves every active installation of previous to next. A
@@ -281,8 +316,8 @@ func (s *Service) OrganizationAdded(ctx context.Context, org string) ([]string, 
 			return err
 		}
 		for _, m := range modules {
-			if m.Kind == domain.KindSolution {
-				continue
+			if decide.RoleGated(m) {
+				continue // chosen through Review and Install
 			}
 			id := s.cfg.InstallationID(org, m.Name)
 			if _, err := tx.Installation(id); errors.Is(err, domain.ErrNotFound) {
@@ -331,7 +366,7 @@ func (s *Service) ReconcileOrganizations(ctx context.Context) error {
 		}
 		for _, org := range orgs {
 			for _, m := range modules {
-				if m.Kind != domain.KindSolution && !held[s.cfg.InstallationID(org.ID, m.Name)] {
+				if !decide.RoleGated(m) && !held[s.cfg.InstallationID(org.ID, m.Name)] {
 					missing = append(missing, org.ID)
 					break
 				}
@@ -361,7 +396,7 @@ func (s *Service) WithdrawModule(ctx context.Context, name string) error {
 		if err != nil {
 			return notFound(err)
 		}
-		hostOwned := s.cfg.HostInstallsModules && withdrawn.Kind != domain.KindSolution
+		hostOwned := s.cfg.HostInstallsModules && !decide.RoleGated(withdrawn)
 		for _, inst := range all {
 			if inst.Target == name && inst.Status != domain.Revoked && !hostOwned {
 				if err := s.revoke(tx, inst); err != nil {
@@ -395,12 +430,18 @@ func (s *Service) WithdrawModule(ctx context.Context, name string) error {
 	})
 }
 
-// InstallStep converges one installation; a retry may repeat it.
+// InstallStep converges one installation; a retry may repeat it. It is
+// optional: a host passes nil for a target that declares no install endpoint
+// (a module page has none; a solution may), and the installation is active
+// as soon as it is recorded.
 type InstallStep func(ctx context.Context, inst domain.Installation) error
 
-// Install installs a solution at an organization: pending until its step
-// converges, then active; the host's own setup asking the same install
-// while it is pending resumes it. Its principal is stable per organization and
+// Install installs a role-gated target (a solution, or a module page
+// declaring roles) at an organization: pending until its step converges, then
+// active; the host's own setup asking the same install while it is pending
+// resumes it. A module declaring no roles is never installed here: it is
+// composition's, present wherever composed and brought along as the closure
+// of what reaches it. Its principal is stable per organization and
 // target, so a reinstall reuses it; nobody holds a role until granted one,
 // the installing person included. The caller must administer the organization.
 // On an active installation, a fresh approval of an offer its consent has not
@@ -424,7 +465,8 @@ func (s *Service) Install(ctx context.Context, caller Person, org, target, agent
 }
 
 // InstallAsHost is for trusted host setup, never a request handler. It installs
-// a solution without person authorization; an absent person cannot select it.
+// a role-gated target without person authorization; an absent person cannot
+// select it.
 func (s *Service) InstallAsHost(ctx context.Context, org, target, agentRole, installedBy string, step InstallStep) (domain.Installation, error) {
 	return s.install(ctx, func(Tx) error { return nil }, Person{}, org, target, agentRole, installedBy, nil, step)
 }
@@ -457,8 +499,8 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 		if err != nil && !errors.Is(err, domain.ErrNotFound) {
 			return err
 		}
-		if err != nil || m.Kind != domain.KindSolution {
-			return domain.Missing("%q is not a composed solution; a module is installed by composition", target)
+		if err != nil || !decide.RoleGated(m) {
+			return domain.Missing("%q is not a composed solution or a module page declaring roles; a module without roles is installed by composition", target)
 		}
 		generation = m.Generation
 		selectedRole, err := installationRole(m, agentRole)
@@ -658,11 +700,12 @@ func requested(caller Person, inst domain.Installation) domain.Event {
 			"revision": fmt.Sprint(inst.Revision), "operation": inst.Consent.OperationID}}
 }
 
-// Uninstall disables a solution installation and its principal at once, clears
+// Uninstall disables a chosen installation and its principal at once, clears
 // its grants (with RevokeRole, the one other place a grant ends) and revokes
 // capabilities sealed to it or its organization. The
-// caller must currently administer the organization. Module installations
-// belong to host composition and cannot be uninstalled by a person.
+// caller must currently administer the organization. A composition
+// installation (a module without roles, holding no principal) belongs to host
+// composition and cannot be uninstalled by a person.
 func (s *Service) Uninstall(ctx context.Context, caller Person, organization, installationID string) error {
 	return s.store.Write(ctx, func(tx Tx) error {
 		p, err := memberAs(tx, caller, organization)
@@ -681,7 +724,7 @@ func (s *Service) Uninstall(ctx context.Context, caller Person, organization, in
 		// This identity survives withdrawal of the module manifest. A
 		// solution always has both its own principal and an installer.
 		if inst.PrincipalID == "" || inst.InstalledBy == "" {
-			return domain.Refuse("%s is a module, installed by composition: it is withdrawn, never uninstalled", inst.Target)
+			return domain.Refuse("%s is installed by composition: it is withdrawn, never uninstalled", inst.Target)
 		}
 		if err := s.revoke(tx, inst); err != nil {
 			return err
@@ -700,7 +743,7 @@ func (s *Service) UninstallAsHost(ctx context.Context, organization, installatio
 			return err
 		}
 		if s.cfg.HostInstallsModules && inst.PrincipalID == "" {
-			if m, err := tx.ModuleNamed(inst.Target); err == nil && m.Kind != domain.KindSolution {
+			if m, err := tx.ModuleNamed(inst.Target); err == nil && !decide.RoleGated(m) {
 				return domain.Refuse("%s is a module installed by its host's consent; the host uninstalls it", inst.Target)
 			}
 		}

@@ -76,6 +76,7 @@ func TestARedeliveryDroppingARoleDropsItsGrants(t *testing.T) {
 	if _, err := h.svc.ApplyModule(h.ctx, pageModule(1, true)); err != nil {
 		t.Fatal(err)
 	}
+	h.installAs(acme, "pages", "")
 	h.grant("pages", "viewer", "maya")
 	exactly(t, h.must(h.root("maya", "pages")), "pages.note", "", []string{"read"})
 	if _, err := h.svc.ApplyModule(h.ctx, pageModule(2, false)); err != nil {

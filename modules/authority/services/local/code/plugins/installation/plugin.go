@@ -64,9 +64,12 @@ func (p *Plugin) Current(ctx context.Context, req *installationv1.CurrentInstall
 	return &installationv1.CurrentInstallation{Id: inst.ID, OrganizationId: inst.Organization, Target: inst.Target, Revision: inst.Revision, Namespace: state.Namespace(inst)}, nil
 }
 
-// Install installs a solution at the caller's organisation, which the caller
-// administers; owner_person_id names who installed it (the caller when
-// empty). Nobody holds a role on it until granted one.
+// Install installs a role-gated target (a solution, or a module page
+// declaring roles) at the caller's organisation, which the caller administers;
+// owner_person_id names who installed it (the caller when empty). Nobody holds
+// a role on it until granted one. The install step is the host's hook
+// (State.OnInstall); none set, the installation is active at once, as a
+// target without an install endpoint is.
 func (p *Plugin) Install(ctx context.Context, req *installationv1.InstallRequest) (*installationv1.Installation, error) {
 	caller, err := p.caller(ctx)
 	if err != nil {

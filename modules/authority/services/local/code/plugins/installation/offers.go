@@ -60,8 +60,9 @@ type Offers struct {
 	runnables RunnableReader
 }
 
-// ListOffers lists what an administrator sets up: the delivered solutions and
-// the module pages declaring roles (the core decides which).
+// ListOffers lists what an administrator sets up: the role-gated targets, the
+// delivered solutions and the module pages declaring roles (the core decides
+// which; a module without roles is never offered).
 func (o *Offers) ListOffers(ctx context.Context, req *installationv1.ListOffersRequest) (*installationv1.ListOffersResponse, error) {
 	caller, err := o.plugin.caller(ctx)
 	if err != nil {
@@ -107,7 +108,8 @@ func (p *Plugin) review(offer authority.ReviewedOffer, bindings map[string]*runn
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}
-	out := &installationv1.ReviewedOffer{Target: projected.Target, ToolsComposed: projected.ToolsComposed, InstallationRole: projected.InstallationRole}
+	out := &installationv1.ReviewedOffer{Target: projected.Target, ToolsComposed: projected.ToolsComposed, InstallationRole: projected.InstallationRole,
+		RolesDeclared: projected.RolesDeclared, Page: projected.Page, Closure: projected.Closure}
 	for _, d := range projected.EdgeDependencies {
 		out.EdgeDependencies = append(out.EdgeDependencies, &installationv1.OfferDependency{Module: d.Module, Presence: d.Presence})
 	}

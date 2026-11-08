@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"github.com/codefly-dev/core/workcontext"
@@ -151,8 +152,8 @@ func (s *Service) stepSource(ctx context.Context, id string) (stepSeals, error) 
 		if err != nil {
 			return notFound(err)
 		}
-		if m.Kind != domain.KindSolution || m.Principal == "" || m.Generation == 0 {
-			return domain.Refuse("setup requires a delivered solution")
+		if !decide.RoleGated(m) || m.Principal == "" || m.Generation == 0 {
+			return domain.Refuse("setup requires a delivered solution or module page declaring roles")
 		}
 		digest, err := offerDigest(m)
 		if err != nil {

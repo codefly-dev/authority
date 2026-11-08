@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file host/installation/v1/installation.proto.
  */
 export const file_host_installation_v1_installation: GenFile = /*@__PURE__*/
-  fileDesc("Cidob3N0L2luc3RhbGxhdGlvbi92MS9pbnN0YWxsYXRpb24ucHJvdG8SFGhvc3QuaW5zdGFsbGF0aW9uLnYxIkwKGkN1cnJlbnRJbnN0YWxsYXRpb25SZXF1ZXN0EhQKDHBhcmVudF90b2tlbhgBIAEoCRIYChBhY3Rvcl9jcmVkZW50aWFsGAIgASgJIm8KE0N1cnJlbnRJbnN0YWxsYXRpb24SCgoCaWQYASABKAkSFwoPb3JnYW5pemF0aW9uX2lkGAIgASgJEg4KBnRhcmdldBgDIAEoCRIQCghyZXZpc2lvbhgEIAEoBBIRCgluYW1lc3BhY2UYBSABKAkimQEKDkluc3RhbGxSZXF1ZXN0EhcKD29yZ2FuaXphdGlvbl9pZBgBIAEoCRIOCgZ0YXJnZXQYAiABKAkSDAoEcm9sZRgDIAEoCRIXCg9vd25lcl9wZXJzb25faWQYBCABKAkSNwoIYXBwcm92YWwYBSABKAsyJS5ob3N0Lmluc3RhbGxhdGlvbi52MS5Db25zZW50QXBwcm92YWwiOAoNUmV2aWV3UmVxdWVzdBIXCg9vcmdhbml6YXRpb25faWQYASABKAkSDgoGdGFyZ2V0GAIgASgJInkKD0NvbnNlbnRBcHByb3ZhbBIRCgl0YXJnZXRfaWQYASABKAkSEgoKZ2VuZXJhdGlvbhgCIAEoBBIZChFleHBlY3RlZF9yZXZpc2lvbhgDIAEoBBIUCgxvcGVyYXRpb25faWQYBCABKAkSDgoGZGlnZXN0GAUgASgJInYKEEdyYW50Um9sZVJlcXVlc3QSFwoPb3JnYW5pemF0aW9uX2lkGAEgASgJEhcKD2luc3RhbGxhdGlvbl9pZBgCIAEoCRIMCgRyb2xlGAMgASgJEhEKCXBlcnNvbl9pZBgEIAEoCRIPCgd0ZWFtX2lkGAUgASgJIncKEVJldm9rZVJvbGVSZXF1ZXN0EhcKD29yZ2FuaXphdGlvbl9pZBgBIAEoCRIXCg9pbnN0YWxsYXRpb25faWQYAiABKAkSDAoEcm9sZRgDIAEoCRIRCglwZXJzb25faWQYBCABKAkSDwoHdGVhbV9pZBgFIAEoCSJJChVMaXN0Um9sZUdyYW50c1JlcXVlc3QSFwoPb3JnYW5pemF0aW9uX2lkGAEgASgJEhcKD2luc3RhbGxhdGlvbl9pZBgCIAEoCSJJChZMaXN0Um9sZUdyYW50c1Jlc3BvbnNlEi8KBmdyYW50cxgBIAMoCzIfLmhvc3QuaW5zdGFsbGF0aW9uLnYxLlJvbGVHcmFudCI9CglSb2xlR3JhbnQSDAoEcm9sZRgBIAEoCRIRCglwZXJzb25faWQYAiABKAkSDwoHdGVhbV9pZBgDIAEoCSImCgtMaXN0UmVxdWVzdBIXCg9vcmdhbml6YXRpb25faWQYASABKAkiSQoMTGlzdFJlc3BvbnNlEjkKDWluc3RhbGxhdGlvbnMYASADKAsyIi5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsYXRpb24ilQMKDEluc3RhbGxhdGlvbhIKCgJpZBgBIAEoCRIXCg9vcmdhbml6YXRpb25faWQYAiABKAkSDgoGdGFyZ2V0GAMgASgJEjkKBnN0YXR1cxgEIAEoDjIpLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbi5TdGF0dXMSEAoIcmV2aXNpb24YBSABKAQSDAoEcm9sZRgGIAEoCRIRCgluYW1lc3BhY2UYCSABKAkSFAoMcHJpbmNpcGFsX2lkGAogASgJEg0KBXJvbGVzGAsgAygJEhsKE2FwcHJvdmVkX2dlbmVyYXRpb24YDCABKAQSGQoRdXBncmFkZV9hdmFpbGFibGUYDSABKAgiWwoGU3RhdHVzEhYKElNUQVRVU19VTlNQRUNJRklFRBAAEhIKDlNUQVRVU19QRU5ESU5HEAESEQoNU1RBVFVTX0FDVElWRRACEhIKDlNUQVRVU19SRVZPS0VEEANKBAgHEAhKBAgIEAlSCHRlYW1faWRzUhJhZ2VudF9wcmluY2lwYWxfaWQiTgoSSW5zdGFsbGF0aW9uTm90aWNlEjgKDGluc3RhbGxhdGlvbhgBIAEoCzIiLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbiIRCg9JbnN0YWxsYXRpb25BY2siLAoRTGlzdE9mZmVyc1JlcXVlc3QSFwoPb3JnYW5pemF0aW9uX2lkGAEgASgJIkEKEkxpc3RPZmZlcnNSZXNwb25zZRIrCgZvZmZlcnMYASADKAsyGy5ob3N0Lmluc3RhbGxhdGlvbi52MS5PZmZlciIrCgVPZmZlchIOCgZ0YXJnZXQYASABKAkSEgoKZ2VuZXJhdGlvbhgCIAEoBCLsAgoNUmV2aWV3ZWRPZmZlchI3CghhcHByb3ZhbBgBIAEoCzIlLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkNvbnNlbnRBcHByb3ZhbBIOCgZ0YXJnZXQYAiABKAkSLgoFcm9sZXMYAyADKAsyHy5ob3N0Lmluc3RhbGxhdGlvbi52MS5PZmZlclJvbGUSOAoMaW5zdGFsbGF0aW9uGAQgASgLMiIuaG9zdC5pbnN0YWxsYXRpb24udjEuSW5zdGFsbGF0aW9uEjMKB2NlaWxpbmcYBSADKAsyIi5ob3N0Lmluc3RhbGxhdGlvbi52MS5PZmZlckJpbmRpbmcSFgoOdG9vbHNfY29tcG9zZWQYBiABKAgSGQoRaW5zdGFsbGF0aW9uX3JvbGUYByABKAkSQAoRZWRnZV9kZXBlbmRlbmNpZXMYCCADKAsyJS5ob3N0Lmluc3RhbGxhdGlvbi52MS5PZmZlckRlcGVuZGVuY3kiMwoPT2ZmZXJEZXBlbmRlbmN5Eg4KBm1vZHVsZRgBIAEoCRIQCghwcmVzZW5jZRgCIAEoCSJhCgxPZmZlckJpbmRpbmcSDwoHYmluZGluZxgBIAEoCRIOCgZtb2R1bGUYAiABKAkSMAoGc2NvcGVzGAMgAygLMiAuaG9zdC5pbnN0YWxsYXRpb24udjEuT2ZmZXJTY29wZSKIAQoJT2ZmZXJSb2xlEgwKBG5hbWUYASABKAkSMAoGc2NvcGVzGAIgAygLMiAuaG9zdC5pbnN0YWxsYXRpb24udjEuT2ZmZXJTY29wZRI7CgxjYXBhYmlsaXRpZXMYAyADKAsyJS5ob3N0Lmluc3RhbGxhdGlvbi52MS5PZmZlckNhcGFiaWxpdHkiYQoKT2ZmZXJTY29wZRIVCg1yZXNvdXJjZV9raW5kGAEgASgJEg8KB2FjdGlvbnMYAiADKAkSFQoNYXR0YWNoZWRfb25seRgDIAEoCBIUCgxyZXNvdXJjZV9pZHMYBCADKAkimAEKD09mZmVyQ2FwYWJpbGl0eRIOCgZtb2R1bGUYASABKAkSEQoJb3BlcmF0aW9uGAIgASgJEjIKCHJlcXVpcmVzGAMgAygLMiAuaG9zdC5pbnN0YWxsYXRpb24udjEuT2ZmZXJTY29wZRIuCgV0b29scxgEIAMoCzIfLmhvc3QuaW5zdGFsbGF0aW9uLnYxLk9mZmVyVG9vbCI5CglPZmZlclRvb2wSDAoEbmFtZRgBIAEoCRIPCgdiaW5kaW5nGAIgASgJEg0KBXdyaXRlGAMgASgIIioKD0xpc3RIZWxkUmVxdWVzdBIXCg9vcmdhbml6YXRpb25faWQYASABKAkiUQoQTGlzdEhlbGRSZXNwb25zZRI9Cg1pbnN0YWxsYXRpb25zGAEgAygLMiYuaG9zdC5pbnN0YWxsYXRpb24udjEuSGVsZEluc3RhbGxhdGlvbiJbChBIZWxkSW5zdGFsbGF0aW9uEjgKDGluc3RhbGxhdGlvbhgBIAEoCzIiLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbhINCgVyb2xlcxgCIAMoCTLzBQoTSW5zdGFsbGF0aW9uU2VydmljZRJmCgdDdXJyZW50EjAuaG9zdC5pbnN0YWxsYXRpb24udjEuQ3VycmVudEluc3RhbGxhdGlvblJlcXVlc3QaKS5ob3N0Lmluc3RhbGxhdGlvbi52MS5DdXJyZW50SW5zdGFsbGF0aW9uElMKB0luc3RhbGwSJC5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsUmVxdWVzdBoiLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbhJUCgZSZXZpZXcSIy5ob3N0Lmluc3RhbGxhdGlvbi52MS5SZXZpZXdSZXF1ZXN0GiUuaG9zdC5pbnN0YWxsYXRpb24udjEuQ29uc2VudEFwcHJvdmFsElcKCUdyYW50Um9sZRImLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkdyYW50Um9sZVJlcXVlc3QaIi5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsYXRpb24SWQoKUmV2b2tlUm9sZRInLmhvc3QuaW5zdGFsbGF0aW9uLnYxLlJldm9rZVJvbGVSZXF1ZXN0GiIuaG9zdC5pbnN0YWxsYXRpb24udjEuSW5zdGFsbGF0aW9uEmsKDkxpc3RSb2xlR3JhbnRzEisuaG9zdC5pbnN0YWxsYXRpb24udjEuTGlzdFJvbGVHcmFudHNSZXF1ZXN0GiwuaG9zdC5pbnN0YWxsYXRpb24udjEuTGlzdFJvbGVHcmFudHNSZXNwb25zZRJNCgRMaXN0EiEuaG9zdC5pbnN0YWxsYXRpb24udjEuTGlzdFJlcXVlc3QaIi5ob3N0Lmluc3RhbGxhdGlvbi52MS5MaXN0UmVzcG9uc2USWQoITGlzdEhlbGQSJS5ob3N0Lmluc3RhbGxhdGlvbi52MS5MaXN0SGVsZFJlcXVlc3QaJi5ob3N0Lmluc3RhbGxhdGlvbi52MS5MaXN0SGVsZFJlc3BvbnNlMnAKEkluc3RhbGxhYmxlU2VydmljZRJaCgdJbnN0YWxsEiguaG9zdC5pbnN0YWxsYXRpb24udjEuSW5zdGFsbGF0aW9uTm90aWNlGiUuaG9zdC5pbnN0YWxsYXRpb24udjEuSW5zdGFsbGF0aW9uQWNrMsgBCgxPZmZlclNlcnZpY2USXwoKTGlzdE9mZmVycxInLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkxpc3RPZmZlcnNSZXF1ZXN0GiguaG9zdC5pbnN0YWxsYXRpb24udjEuTGlzdE9mZmVyc1Jlc3BvbnNlElcKC1Jldmlld09mZmVyEiMuaG9zdC5pbnN0YWxsYXRpb24udjEuUmV2aWV3UmVxdWVzdBojLmhvc3QuaW5zdGFsbGF0aW9uLnYxLlJldmlld2VkT2ZmZXJCNVozZ2F0ZXdheS9wa2cvZ2VuL2hvc3QvaW5zdGFsbGF0aW9uL3YxO2luc3RhbGxhdGlvbnYxYgZwcm90bzM");
+  fileDesc("Cidob3N0L2luc3RhbGxhdGlvbi92MS9pbnN0YWxsYXRpb24ucHJvdG8SFGhvc3QuaW5zdGFsbGF0aW9uLnYxIkwKGkN1cnJlbnRJbnN0YWxsYXRpb25SZXF1ZXN0EhQKDHBhcmVudF90b2tlbhgBIAEoCRIYChBhY3Rvcl9jcmVkZW50aWFsGAIgASgJIm8KE0N1cnJlbnRJbnN0YWxsYXRpb24SCgoCaWQYASABKAkSFwoPb3JnYW5pemF0aW9uX2lkGAIgASgJEg4KBnRhcmdldBgDIAEoCRIQCghyZXZpc2lvbhgEIAEoBBIRCgluYW1lc3BhY2UYBSABKAkimQEKDkluc3RhbGxSZXF1ZXN0EhcKD29yZ2FuaXphdGlvbl9pZBgBIAEoCRIOCgZ0YXJnZXQYAiABKAkSDAoEcm9sZRgDIAEoCRIXCg9vd25lcl9wZXJzb25faWQYBCABKAkSNwoIYXBwcm92YWwYBSABKAsyJS5ob3N0Lmluc3RhbGxhdGlvbi52MS5Db25zZW50QXBwcm92YWwiOAoNUmV2aWV3UmVxdWVzdBIXCg9vcmdhbml6YXRpb25faWQYASABKAkSDgoGdGFyZ2V0GAIgASgJInkKD0NvbnNlbnRBcHByb3ZhbBIRCgl0YXJnZXRfaWQYASABKAkSEgoKZ2VuZXJhdGlvbhgCIAEoBBIZChFleHBlY3RlZF9yZXZpc2lvbhgDIAEoBBIUCgxvcGVyYXRpb25faWQYBCABKAkSDgoGZGlnZXN0GAUgASgJInYKEEdyYW50Um9sZVJlcXVlc3QSFwoPb3JnYW5pemF0aW9uX2lkGAEgASgJEhcKD2luc3RhbGxhdGlvbl9pZBgCIAEoCRIMCgRyb2xlGAMgASgJEhEKCXBlcnNvbl9pZBgEIAEoCRIPCgd0ZWFtX2lkGAUgASgJIncKEVJldm9rZVJvbGVSZXF1ZXN0EhcKD29yZ2FuaXphdGlvbl9pZBgBIAEoCRIXCg9pbnN0YWxsYXRpb25faWQYAiABKAkSDAoEcm9sZRgDIAEoCRIRCglwZXJzb25faWQYBCABKAkSDwoHdGVhbV9pZBgFIAEoCSJJChVMaXN0Um9sZUdyYW50c1JlcXVlc3QSFwoPb3JnYW5pemF0aW9uX2lkGAEgASgJEhcKD2luc3RhbGxhdGlvbl9pZBgCIAEoCSJJChZMaXN0Um9sZUdyYW50c1Jlc3BvbnNlEi8KBmdyYW50cxgBIAMoCzIfLmhvc3QuaW5zdGFsbGF0aW9uLnYxLlJvbGVHcmFudCI9CglSb2xlR3JhbnQSDAoEcm9sZRgBIAEoCRIRCglwZXJzb25faWQYAiABKAkSDwoHdGVhbV9pZBgDIAEoCSImCgtMaXN0UmVxdWVzdBIXCg9vcmdhbml6YXRpb25faWQYASABKAkiSQoMTGlzdFJlc3BvbnNlEjkKDWluc3RhbGxhdGlvbnMYASADKAsyIi5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsYXRpb24ilQMKDEluc3RhbGxhdGlvbhIKCgJpZBgBIAEoCRIXCg9vcmdhbml6YXRpb25faWQYAiABKAkSDgoGdGFyZ2V0GAMgASgJEjkKBnN0YXR1cxgEIAEoDjIpLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbi5TdGF0dXMSEAoIcmV2aXNpb24YBSABKAQSDAoEcm9sZRgGIAEoCRIRCgluYW1lc3BhY2UYCSABKAkSFAoMcHJpbmNpcGFsX2lkGAogASgJEg0KBXJvbGVzGAsgAygJEhsKE2FwcHJvdmVkX2dlbmVyYXRpb24YDCABKAQSGQoRdXBncmFkZV9hdmFpbGFibGUYDSABKAgiWwoGU3RhdHVzEhYKElNUQVRVU19VTlNQRUNJRklFRBAAEhIKDlNUQVRVU19QRU5ESU5HEAESEQoNU1RBVFVTX0FDVElWRRACEhIKDlNUQVRVU19SRVZPS0VEEANKBAgHEAhKBAgIEAlSCHRlYW1faWRzUhJhZ2VudF9wcmluY2lwYWxfaWQiTgoSSW5zdGFsbGF0aW9uTm90aWNlEjgKDGluc3RhbGxhdGlvbhgBIAEoCzIiLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbiIRCg9JbnN0YWxsYXRpb25BY2siLAoRTGlzdE9mZmVyc1JlcXVlc3QSFwoPb3JnYW5pemF0aW9uX2lkGAEgASgJIkEKEkxpc3RPZmZlcnNSZXNwb25zZRIrCgZvZmZlcnMYASADKAsyGy5ob3N0Lmluc3RhbGxhdGlvbi52MS5PZmZlciIrCgVPZmZlchIOCgZ0YXJnZXQYASABKAkSEgoKZ2VuZXJhdGlvbhgCIAEoBCKjAwoNUmV2aWV3ZWRPZmZlchI3CghhcHByb3ZhbBgBIAEoCzIlLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkNvbnNlbnRBcHByb3ZhbBIOCgZ0YXJnZXQYAiABKAkSLgoFcm9sZXMYAyADKAsyHy5ob3N0Lmluc3RhbGxhdGlvbi52MS5PZmZlclJvbGUSOAoMaW5zdGFsbGF0aW9uGAQgASgLMiIuaG9zdC5pbnN0YWxsYXRpb24udjEuSW5zdGFsbGF0aW9uEjMKB2NlaWxpbmcYBSADKAsyIi5ob3N0Lmluc3RhbGxhdGlvbi52MS5PZmZlckJpbmRpbmcSFgoOdG9vbHNfY29tcG9zZWQYBiABKAgSGQoRaW5zdGFsbGF0aW9uX3JvbGUYByABKAkSQAoRZWRnZV9kZXBlbmRlbmNpZXMYCCADKAsyJS5ob3N0Lmluc3RhbGxhdGlvbi52MS5PZmZlckRlcGVuZGVuY3kSFgoOcm9sZXNfZGVjbGFyZWQYCSABKAgSDAoEcGFnZRgKIAEoCBIPCgdjbG9zdXJlGAsgAygJIjMKD09mZmVyRGVwZW5kZW5jeRIOCgZtb2R1bGUYASABKAkSEAoIcHJlc2VuY2UYAiABKAkiYQoMT2ZmZXJCaW5kaW5nEg8KB2JpbmRpbmcYASABKAkSDgoGbW9kdWxlGAIgASgJEjAKBnNjb3BlcxgDIAMoCzIgLmhvc3QuaW5zdGFsbGF0aW9uLnYxLk9mZmVyU2NvcGUiiAEKCU9mZmVyUm9sZRIMCgRuYW1lGAEgASgJEjAKBnNjb3BlcxgCIAMoCzIgLmhvc3QuaW5zdGFsbGF0aW9uLnYxLk9mZmVyU2NvcGUSOwoMY2FwYWJpbGl0aWVzGAMgAygLMiUuaG9zdC5pbnN0YWxsYXRpb24udjEuT2ZmZXJDYXBhYmlsaXR5ImEKCk9mZmVyU2NvcGUSFQoNcmVzb3VyY2Vfa2luZBgBIAEoCRIPCgdhY3Rpb25zGAIgAygJEhUKDWF0dGFjaGVkX29ubHkYAyABKAgSFAoMcmVzb3VyY2VfaWRzGAQgAygJIpgBCg9PZmZlckNhcGFiaWxpdHkSDgoGbW9kdWxlGAEgASgJEhEKCW9wZXJhdGlvbhgCIAEoCRIyCghyZXF1aXJlcxgDIAMoCzIgLmhvc3QuaW5zdGFsbGF0aW9uLnYxLk9mZmVyU2NvcGUSLgoFdG9vbHMYBCADKAsyHy5ob3N0Lmluc3RhbGxhdGlvbi52MS5PZmZlclRvb2wiOQoJT2ZmZXJUb29sEgwKBG5hbWUYASABKAkSDwoHYmluZGluZxgCIAEoCRINCgV3cml0ZRgDIAEoCCIqCg9MaXN0SGVsZFJlcXVlc3QSFwoPb3JnYW5pemF0aW9uX2lkGAEgASgJIlEKEExpc3RIZWxkUmVzcG9uc2USPQoNaW5zdGFsbGF0aW9ucxgBIAMoCzImLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkhlbGRJbnN0YWxsYXRpb24iWwoQSGVsZEluc3RhbGxhdGlvbhI4CgxpbnN0YWxsYXRpb24YASABKAsyIi5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsYXRpb24SDQoFcm9sZXMYAiADKAky8wUKE0luc3RhbGxhdGlvblNlcnZpY2USZgoHQ3VycmVudBIwLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkN1cnJlbnRJbnN0YWxsYXRpb25SZXF1ZXN0GikuaG9zdC5pbnN0YWxsYXRpb24udjEuQ3VycmVudEluc3RhbGxhdGlvbhJTCgdJbnN0YWxsEiQuaG9zdC5pbnN0YWxsYXRpb24udjEuSW5zdGFsbFJlcXVlc3QaIi5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsYXRpb24SVAoGUmV2aWV3EiMuaG9zdC5pbnN0YWxsYXRpb24udjEuUmV2aWV3UmVxdWVzdBolLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkNvbnNlbnRBcHByb3ZhbBJXCglHcmFudFJvbGUSJi5ob3N0Lmluc3RhbGxhdGlvbi52MS5HcmFudFJvbGVSZXF1ZXN0GiIuaG9zdC5pbnN0YWxsYXRpb24udjEuSW5zdGFsbGF0aW9uElkKClJldm9rZVJvbGUSJy5ob3N0Lmluc3RhbGxhdGlvbi52MS5SZXZva2VSb2xlUmVxdWVzdBoiLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbhJrCg5MaXN0Um9sZUdyYW50cxIrLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkxpc3RSb2xlR3JhbnRzUmVxdWVzdBosLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkxpc3RSb2xlR3JhbnRzUmVzcG9uc2USTQoETGlzdBIhLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkxpc3RSZXF1ZXN0GiIuaG9zdC5pbnN0YWxsYXRpb24udjEuTGlzdFJlc3BvbnNlElkKCExpc3RIZWxkEiUuaG9zdC5pbnN0YWxsYXRpb24udjEuTGlzdEhlbGRSZXF1ZXN0GiYuaG9zdC5pbnN0YWxsYXRpb24udjEuTGlzdEhlbGRSZXNwb25zZTJwChJJbnN0YWxsYWJsZVNlcnZpY2USWgoHSW5zdGFsbBIoLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbk5vdGljZRolLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbkFjazLIAQoMT2ZmZXJTZXJ2aWNlEl8KCkxpc3RPZmZlcnMSJy5ob3N0Lmluc3RhbGxhdGlvbi52MS5MaXN0T2ZmZXJzUmVxdWVzdBooLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkxpc3RPZmZlcnNSZXNwb25zZRJXCgtSZXZpZXdPZmZlchIjLmhvc3QuaW5zdGFsbGF0aW9uLnYxLlJldmlld1JlcXVlc3QaIy5ob3N0Lmluc3RhbGxhdGlvbi52MS5SZXZpZXdlZE9mZmVyQjVaM2dhdGV3YXkvcGtnL2dlbi9ob3N0L2luc3RhbGxhdGlvbi92MTtpbnN0YWxsYXRpb252MWIGcHJvdG8z");
 
 /**
  * @generated from message host.installation.v1.CurrentInstallationRequest
@@ -93,7 +93,8 @@ export type InstallRequest = Message<"host.installation.v1.InstallRequest"> & {
   organizationId: string;
 
   /**
-   * The solution or module installed, by its name in the composition.
+   * The target installed, by its name in the composition: a solution, or a
+   * module page declaring roles.
    *
    * @generated from field: string target = 2;
    */
@@ -624,7 +625,7 @@ export const ListOffersRequestSchema: GenMessage<ListOffersRequest> = /*@__PURE_
   messageDesc(file_host_installation_v1_installation, 15);
 
 /**
- * ListOffersResponse is every delivered solution, by name.
+ * ListOffersResponse is every delivered target an administrator chooses, by name.
  *
  * @generated from message host.installation.v1.ListOffersResponse
  */
@@ -643,13 +644,13 @@ export const ListOffersResponseSchema: GenMessage<ListOffersResponse> = /*@__PUR
   messageDesc(file_host_installation_v1_installation, 16);
 
 /**
- * Offer is one delivered solution.
+ * Offer is one delivered target an administrator chooses.
  *
  * @generated from message host.installation.v1.Offer
  */
 export type Offer = Message<"host.installation.v1.Offer"> & {
   /**
-   * The solution's name in the composition: Install's target.
+   * The target's name in the composition: Install's target.
    *
    * @generated from field: string target = 1;
    */
@@ -671,7 +672,7 @@ export const OfferSchema: GenMessage<Offer> = /*@__PURE__*/
   messageDesc(file_host_installation_v1_installation, 17);
 
 /**
- * ReviewedOffer is one solution's authority offer and the consent that names it.
+ * ReviewedOffer is one target's authority offer and the consent that names it.
  *
  * @generated from message host.installation.v1.ReviewedOffer
  */
@@ -735,6 +736,39 @@ export type ReviewedOffer = Message<"host.installation.v1.ReviewedOffer"> & {
    * @generated from field: repeated host.installation.v1.OfferDependency edge_dependencies = 8;
    */
   edgeDependencies: OfferDependency[];
+
+  /**
+   * True when the target declares roles, which its Setup grants: always for
+   * a solution; a module is offered only when it does. A host reads it here
+   * instead of asking each module.
+   *
+   * @generated from field: bool roles_declared = 9;
+   */
+  rolesDeclared: boolean;
+
+  /**
+   * True when the target declares a page a person opens, as the authority's
+   * stored declaration knows it. A module declaring roles always has one (a
+   * delivery declaring roles without a page is refused); a solution's is
+   * read as delivered, and a host whose store does not keep the flag answers
+   * false for it.
+   *
+   * @generated from field: bool page = 10;
+   */
+  page: boolean;
+
+  /**
+   * What installing the target brings along: every module it reaches through
+   * its bindings and edge dependencies, transitively, that holds no roles of
+   * its own, by its name in the composition, sorted. Such a module is
+   * installed with the target, holding no standing authority; a host that
+   * installs modules by its administrators' consent converges these with the
+   * install. A role-gated target reached is chosen by its own review and is
+   * not listed.
+   *
+   * @generated from field: repeated string closure = 11;
+   */
+  closure: string[];
 };
 
 /**
@@ -1021,6 +1055,12 @@ export const HeldInstallationSchema: GenMessage<HeldInstallation> = /*@__PURE__*
 
 /**
  * InstallationService is implemented by the host and by the local authority.
+ * Its target is any role-gated target: a solution, or a module page declaring
+ * roles (the core's decide.RoleGated). Both are chosen by an administrator
+ * through Review and Install and set up through role grants. A module
+ * declaring no roles is never installed here: it is present wherever it is
+ * composed and comes along as the closure of a target that reaches it,
+ * holding no roles.
  *
  * @generated from service host.installation.v1.InstallationService
  */
@@ -1038,8 +1078,10 @@ export const InstallationService: GenService<{
     output: typeof CurrentInstallationSchema;
   },
   /**
-   * Install composes an installation: its agent principal, its root scope and
-   * the row, pending until the target acknowledges its install step. On an
+   * Install composes an installation of a role-gated target: its agent
+   * principal, its root scope and the row, pending until the target
+   * acknowledges its install step, or active at once for a target that
+   * declares no install endpoint (a module page has none). On an
    * active installation, a fresh approval of a newer offer than its consent
    * approved (Installation.upgrade_available) is an upgrade: the installation
    * stays active, its role grants are kept, its consent moves to the approved
@@ -1129,8 +1171,10 @@ export const InstallationService: GenService<{
   serviceDesc(file_host_installation_v1_installation, 0);
 
 /**
- * InstallableService is implemented by a solution; the host calls it once per
- * installation and retries until it is acknowledged.
+ * InstallableService is implemented by a target that declares an install
+ * endpoint (a solution may; a module page does not); the host calls it once
+ * per installation and retries until it is acknowledged. A target without it
+ * is active as soon as its installation is recorded.
  *
  * @generated from service host.installation.v1.InstallableService
  */
@@ -1150,18 +1194,20 @@ export const InstallableService: GenService<{
 
 /**
  * OfferService is the local authority's setup read, served beside
- * InstallationService and not part of codefly.dev/installation: what solutions
- * this run delivered and, for one, what installing it would grant. A host
- * answers its own product's reads. It grants nothing; Install, GrantRole and
- * RevokeRole stay the only changes, each decided by the authority.
+ * InstallationService and not part of codefly.dev/installation: what targets
+ * this run delivered that an administrator chooses and, for one, what
+ * installing it would grant. A host answers its own product's reads. It
+ * grants nothing; Install, GrantRole and RevokeRole stay the only changes,
+ * each decided by the authority.
  *
  * @generated from service host.installation.v1.OfferService
  */
 export const OfferService: GenService<{
   /**
-   * ListOffers lists the solutions delivered to this run that an administrator
-   * of the organization may install. A module is installed by composition and
-   * is never offered.
+   * ListOffers lists the role-gated targets delivered to this run that an
+   * administrator of the organization may install: the solutions and the
+   * module pages declaring roles. A module declaring no roles is installed by
+   * composition and is never offered.
    *
    * @generated from rpc host.installation.v1.OfferService.ListOffers
    */
@@ -1171,9 +1217,11 @@ export const OfferService: GenService<{
     output: typeof ListOffersResponseSchema;
   },
   /**
-   * ReviewOffer reads one solution's roles, what each grants and the tools
+   * ReviewOffer reads one target's roles, what each grants and the tools
    * those grants make eligible, with the consent Install takes, from one read
-   * of the authority: the approval names exactly the offer displayed.
+   * of the authority: the approval names exactly the offer displayed. A
+   * member holding a role on the target's installation reads the same
+   * without the consent.
    *
    * @generated from rpc host.installation.v1.OfferService.ReviewOffer
    */

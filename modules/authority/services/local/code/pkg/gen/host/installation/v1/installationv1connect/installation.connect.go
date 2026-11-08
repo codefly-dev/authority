@@ -83,8 +83,10 @@ type InstallationServiceClient interface {
 	// in the tenant of a current parent addressed to that module. It grants no
 	// artifact approval or content access and exposes no roles or grants.
 	Current(context.Context, *connect.Request[v1.CurrentInstallationRequest]) (*connect.Response[v1.CurrentInstallation], error)
-	// Install composes an installation: its agent principal, its root scope and
-	// the row, pending until the target acknowledges its install step. On an
+	// Install composes an installation of a role-gated target: its agent
+	// principal, its root scope and the row, pending until the target
+	// acknowledges its install step, or active at once for a target that
+	// declares no install endpoint (a module page has none). On an
 	// active installation, a fresh approval of a newer offer than its consent
 	// approved (Installation.upgrade_available) is an upgrade: the installation
 	// stays active, its role grants are kept, its consent moves to the approved
@@ -238,8 +240,10 @@ type InstallationServiceHandler interface {
 	// in the tenant of a current parent addressed to that module. It grants no
 	// artifact approval or content access and exposes no roles or grants.
 	Current(context.Context, *connect.Request[v1.CurrentInstallationRequest]) (*connect.Response[v1.CurrentInstallation], error)
-	// Install composes an installation: its agent principal, its root scope and
-	// the row, pending until the target acknowledges its install step. On an
+	// Install composes an installation of a role-gated target: its agent
+	// principal, its root scope and the row, pending until the target
+	// acknowledges its install step, or active at once for a target that
+	// declares no install endpoint (a module page has none). On an
 	// active installation, a fresh approval of a newer offer than its consent
 	// approved (Installation.upgrade_available) is an upgrade: the installation
 	// stays active, its role grants are kept, its consent moves to the approved
@@ -461,13 +465,16 @@ func (UnimplementedInstallableServiceHandler) Install(context.Context, *connect.
 
 // OfferServiceClient is a client for the host.installation.v1.OfferService service.
 type OfferServiceClient interface {
-	// ListOffers lists the solutions delivered to this run that an administrator
-	// of the organization may install. A module is installed by composition and
-	// is never offered.
+	// ListOffers lists the role-gated targets delivered to this run that an
+	// administrator of the organization may install: the solutions and the
+	// module pages declaring roles. A module declaring no roles is installed by
+	// composition and is never offered.
 	ListOffers(context.Context, *connect.Request[v1.ListOffersRequest]) (*connect.Response[v1.ListOffersResponse], error)
-	// ReviewOffer reads one solution's roles, what each grants and the tools
+	// ReviewOffer reads one target's roles, what each grants and the tools
 	// those grants make eligible, with the consent Install takes, from one read
-	// of the authority: the approval names exactly the offer displayed.
+	// of the authority: the approval names exactly the offer displayed. A
+	// member holding a role on the target's installation reads the same
+	// without the consent.
 	ReviewOffer(context.Context, *connect.Request[v1.ReviewRequest]) (*connect.Response[v1.ReviewedOffer], error)
 }
 
@@ -515,13 +522,16 @@ func (c *offerServiceClient) ReviewOffer(ctx context.Context, req *connect.Reque
 
 // OfferServiceHandler is an implementation of the host.installation.v1.OfferService service.
 type OfferServiceHandler interface {
-	// ListOffers lists the solutions delivered to this run that an administrator
-	// of the organization may install. A module is installed by composition and
-	// is never offered.
+	// ListOffers lists the role-gated targets delivered to this run that an
+	// administrator of the organization may install: the solutions and the
+	// module pages declaring roles. A module declaring no roles is installed by
+	// composition and is never offered.
 	ListOffers(context.Context, *connect.Request[v1.ListOffersRequest]) (*connect.Response[v1.ListOffersResponse], error)
-	// ReviewOffer reads one solution's roles, what each grants and the tools
+	// ReviewOffer reads one target's roles, what each grants and the tools
 	// those grants make eligible, with the consent Install takes, from one read
-	// of the authority: the approval names exactly the offer displayed.
+	// of the authority: the approval names exactly the offer displayed. A
+	// member holding a role on the target's installation reads the same
+	// without the consent.
 	ReviewOffer(context.Context, *connect.Request[v1.ReviewRequest]) (*connect.Response[v1.ReviewedOffer], error)
 }
 
