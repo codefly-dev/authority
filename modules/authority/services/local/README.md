@@ -69,24 +69,25 @@ Beside the installation interface the local authority serves
 `host.installation.v1.OfferService` for the edge's setup page. It is an
 administrator's read and grants nothing:
 
-- `ListOffers`: the role-gated targets, the delivered solutions and the module
-  pages declaring roles, which an administrator chooses through `Review` and
-  `Install`. A module declaring no roles is installed by composition and is
-  never offered: it is present wherever it is composed and comes along as the
-  closure of a target that reaches it.
-- `ReviewOffer`: one target's roles, the composed operations each role's scopes
-  cover (from the delivered authority documents), and the tools composed for
-  those operations, read with its consent tuple in one transaction; with
-  `roles_declared`, `page` (as the stored declaration knows it) and `closure`
-  (the modules without roles the target reaches, which install with it), so a
+- `ListOffers`: the delivered solutions, which an administrator installs
+  through `Review` and `Install`. A module is never offered, roles or not.
+- `ReviewOffer`: one solution's roles, the composed operations each role's
+  scopes cover (from the delivered authority documents), and the tools
+  composed for those operations, read with its consent tuple in one
+  transaction; with `roles_declared`, `page` (as the stored declaration knows
+  it) and `closure` (every module the solution reaches, roles or not), so a
   host asks nothing per module.
 
-A module page is installed as a solution is: offered, reviewed with a consent
-tuple, installed by `Install` (active at once, since it declares no install
-endpoint), set up through role grants, upgraded in place and uninstalled by an
-administrator. When a module starts declaring roles it is chosen from then on,
-and its composition installations end; when it stops, it is composition's
-again, present at every organization, its chosen installations kept.
+Only a solution is installed by an administrator. Every module, with or
+without roles, with or without a page, is installed by composition in every
+organization where it is composed, holding no principal and no standing
+authority; `Review`, `Install` and `ReviewOffer` refuse it `NOT_FOUND`, and a
+person never uninstalls it. A module page's roles decide who may use it (its
+page included): `GrantRole`, `RevokeRole`, `ListRoleGrants` and `ListHeld`
+work on its composition installation as on a solution's, and a person is
+issued at its audience only for a role held there. A module that gains or
+loses roles keeps its installation; the grants of a role a delivery stops
+declaring end with that delivery, the others stay.
 
 The tools come from the workspace group `runnable-bindings`, read through the
 SDK as a tool caller reads it. Only Connect-callable bindings with a tool

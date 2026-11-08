@@ -83,10 +83,10 @@ type InstallationServiceClient interface {
 	// in the tenant of a current parent addressed to that module. It grants no
 	// artifact approval or content access and exposes no roles or grants.
 	Current(context.Context, *connect.Request[v1.CurrentInstallationRequest]) (*connect.Response[v1.CurrentInstallation], error)
-	// Install composes an installation of a role-gated target: its agent
-	// principal, its root scope and the row, pending until the target
-	// acknowledges its install step, or active at once for a target that
-	// declares no install endpoint (a module page has none). On an
+	// Install composes an installation of a solution: its agent principal,
+	// its root scope and the row, pending until the solution acknowledges its
+	// install step, or active at once for one that declares no install
+	// endpoint. A module is refused NOT_FOUND: composition installs it. On an
 	// active installation, a fresh approval of a newer offer than its consent
 	// approved (Installation.upgrade_available) is an upgrade: the install step
 	// runs again (it converges idempotently; the host converges the closure
@@ -95,14 +95,14 @@ type InstallationServiceClient interface {
 	// of a role the approved offer no longer declares. Until the upgrade, the
 	// holders hold what the approved offer granted, never what the delivered
 	// one asks. A fresh approval of the offer already approved is refused as
-	// already installed. A module page holds no standing authority (its
-	// installation_role is none). An install never deletes a role grant
-	// otherwise: RevokeRole and an uninstall do.
+	// already installed. An install never deletes a role grant otherwise:
+	// RevokeRole and an uninstall do.
 	Install(context.Context, *connect.Request[v1.InstallRequest]) (*connect.Response[v1.Installation], error)
 	// Review reads the current offer and installation revision without granting consent.
 	Review(context.Context, *connect.Request[v1.ReviewRequest]) (*connect.Response[v1.ConsentApproval], error)
-	// GrantRole grants a person or a team one of the solution's roles on the
-	// installation: the access. Idempotent; it leaves existing capabilities
+	// GrantRole grants a person or a team one of the roles the installation's
+	// target declares (a solution's, or a module page's on its composition
+	// installation): the access. Idempotent; it leaves existing capabilities
 	// valid. An administrator of the installation's organization, or a holder
 	// of the installer role on that installation, grants.
 	GrantRole(context.Context, *connect.Request[v1.GrantRoleRequest]) (*connect.Response[v1.Installation], error)
@@ -245,10 +245,10 @@ type InstallationServiceHandler interface {
 	// in the tenant of a current parent addressed to that module. It grants no
 	// artifact approval or content access and exposes no roles or grants.
 	Current(context.Context, *connect.Request[v1.CurrentInstallationRequest]) (*connect.Response[v1.CurrentInstallation], error)
-	// Install composes an installation of a role-gated target: its agent
-	// principal, its root scope and the row, pending until the target
-	// acknowledges its install step, or active at once for a target that
-	// declares no install endpoint (a module page has none). On an
+	// Install composes an installation of a solution: its agent principal,
+	// its root scope and the row, pending until the solution acknowledges its
+	// install step, or active at once for one that declares no install
+	// endpoint. A module is refused NOT_FOUND: composition installs it. On an
 	// active installation, a fresh approval of a newer offer than its consent
 	// approved (Installation.upgrade_available) is an upgrade: the install step
 	// runs again (it converges idempotently; the host converges the closure
@@ -257,14 +257,14 @@ type InstallationServiceHandler interface {
 	// of a role the approved offer no longer declares. Until the upgrade, the
 	// holders hold what the approved offer granted, never what the delivered
 	// one asks. A fresh approval of the offer already approved is refused as
-	// already installed. A module page holds no standing authority (its
-	// installation_role is none). An install never deletes a role grant
-	// otherwise: RevokeRole and an uninstall do.
+	// already installed. An install never deletes a role grant otherwise:
+	// RevokeRole and an uninstall do.
 	Install(context.Context, *connect.Request[v1.InstallRequest]) (*connect.Response[v1.Installation], error)
 	// Review reads the current offer and installation revision without granting consent.
 	Review(context.Context, *connect.Request[v1.ReviewRequest]) (*connect.Response[v1.ConsentApproval], error)
-	// GrantRole grants a person or a team one of the solution's roles on the
-	// installation: the access. Idempotent; it leaves existing capabilities
+	// GrantRole grants a person or a team one of the roles the installation's
+	// target declares (a solution's, or a module page's on its composition
+	// installation): the access. Idempotent; it leaves existing capabilities
 	// valid. An administrator of the installation's organization, or a holder
 	// of the installer role on that installation, grants.
 	GrantRole(context.Context, *connect.Request[v1.GrantRoleRequest]) (*connect.Response[v1.Installation], error)
@@ -475,10 +475,9 @@ func (UnimplementedInstallableServiceHandler) Install(context.Context, *connect.
 
 // OfferServiceClient is a client for the host.installation.v1.OfferService service.
 type OfferServiceClient interface {
-	// ListOffers lists the role-gated targets delivered to this run that an
-	// administrator of the organization may install: the solutions and the
-	// module pages declaring roles. A module declaring no roles is installed by
-	// composition and is never offered.
+	// ListOffers lists the solutions delivered to this run that an
+	// administrator of the organization may install. A module, roles or not,
+	// is installed by composition and is never offered.
 	ListOffers(context.Context, *connect.Request[v1.ListOffersRequest]) (*connect.Response[v1.ListOffersResponse], error)
 	// ReviewOffer reads one target's roles, what each grants and the tools
 	// those grants make eligible, with the consent Install takes, from one read
@@ -532,10 +531,9 @@ func (c *offerServiceClient) ReviewOffer(ctx context.Context, req *connect.Reque
 
 // OfferServiceHandler is an implementation of the host.installation.v1.OfferService service.
 type OfferServiceHandler interface {
-	// ListOffers lists the role-gated targets delivered to this run that an
-	// administrator of the organization may install: the solutions and the
-	// module pages declaring roles. A module declaring no roles is installed by
-	// composition and is never offered.
+	// ListOffers lists the solutions delivered to this run that an
+	// administrator of the organization may install. A module, roles or not,
+	// is installed by composition and is never offered.
 	ListOffers(context.Context, *connect.Request[v1.ListOffersRequest]) (*connect.Response[v1.ListOffersResponse], error)
 	// ReviewOffer reads one target's roles, what each grants and the tools
 	// those grants make eligible, with the consent Install takes, from one read

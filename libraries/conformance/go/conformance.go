@@ -82,13 +82,13 @@ type Fixture struct {
 	HostDomain         string
 	SignManifest       func(document []byte) (envelope []byte, err error)
 	DeliveryCredential func(module string) string
-	// InstallModule, for a host whose administrators install each module by
-	// their own consent, installs one the suite just delivered at the
-	// organizations the suite uses, through the host's own path; it must be
-	// idempotent, since a module is delivered again at newer generations. nil:
-	// delivery installs a module at every organization. It is never called
-	// for a module page declaring roles: that one is chosen, and the suite
-	// installs it through InstallationService.Install as it does a solution.
+	// InstallModule, for a host that installs modules itself, installs one
+	// the suite just delivered, by composition, at every organization where
+	// the suite composes it (Organization and OtherAdminToken's), through the
+	// host's own path; it must be idempotent, since a module is delivered
+	// again at newer generations. It is called for every module, a module
+	// page declaring roles included: only a solution is installed by an
+	// administrator. nil: delivery installs a module at every organization.
 	InstallModule func(ctx context.Context, module string) error
 	// Resources is required and states what a person covers on one kind.
 	Resources *ResourceCase
@@ -262,9 +262,8 @@ func (c *client) deliverPage(ctx context.Context, f Fixture, page *solutionhost.
 	request := map[string]any{
 		"carrier": map[string]any{"document": carrier, "envelope": envelope}, "credential": f.DeliveryCredential(alias)}
 	if document == nil {
-		return installed(ctx, f, alias, kind, false)(c.call(ctx, "host.composition.v1.CompositionService", "ApplyManifest", request))
+		return installed(ctx, f, alias, kind)(c.call(ctx, "host.composition.v1.CompositionService", "ApplyManifest", request))
 	}
-	_, chosen := document["roles"]
 	d, err := c.files.FindDescriptorByName("host.composition.v1.AuthorityManifestV1")
 	if err != nil {
 		return nil, err
@@ -287,16 +286,14 @@ func (c *client) deliverPage(ctx context.Context, f Fixture, page *solutionhost.
 		return nil, err
 	}
 	request["authority"] = map[string]any{"document": authority, "envelope": signed}
-	return installed(ctx, f, alias, kind, chosen)(c.call(ctx, "host.composition.v1.CompositionService", "ApplyManifest", request))
+	return installed(ctx, f, alias, kind)(c.call(ctx, "host.composition.v1.CompositionService", "ApplyManifest", request))
 }
 
-// installed has the host install a module it just composed, when its
-// administrators install modules by consent (Fixture.InstallModule). A
-// module declaring roles (chosen) is installed through Install by the suite,
-// never here.
-func installed(ctx context.Context, f Fixture, alias, kind string, chosen bool) func(protoreflect.Message, error) (protoreflect.Message, error) {
+// installed has the host install a module it just composed, when it installs
+// modules itself (Fixture.InstallModule): every module, roles or not.
+func installed(ctx context.Context, f Fixture, alias, kind string) func(protoreflect.Message, error) (protoreflect.Message, error) {
 	return func(out protoreflect.Message, err error) (protoreflect.Message, error) {
-		if err != nil || kind != "module" || chosen || f.InstallModule == nil {
+		if err != nil || kind != "module" || f.InstallModule == nil {
 			return out, err
 		}
 		if err := f.InstallModule(ctx, alias); err != nil {

@@ -13,14 +13,13 @@ import (
 // is required.
 const EdgeOptional = "optional"
 
-// Closure is what installing m at an organization brings with it: every
-// module m reaches through its bindings and its required edge dependencies,
-// transitively through what those reach, that holds no roles of its own,
-// sorted by name. Such a module is present wherever it is composed and
-// installed with the target that reaches it, holding no standing authority;
-// a host that installs modules by its administrators' consent converges these
-// with the install. A role-gated target reached (a solution, or a module page
-// declaring roles) is chosen by its own review and is neither listed nor
+// Closure is what m depends on at an organization: every module m reaches
+// through its bindings and its required edge dependencies, transitively
+// through what those reach, roles or not, page or not, sorted by name.
+// Composition installs every module wherever it is composed, so the closure
+// reports what a solution needs present; a host whose composition is per
+// organization converges it with the install. A solution reached is
+// installed by its own administrator's review and is neither listed nor
 // walked through; m itself is never listed. Bindings and edges name a
 // module's principal, resolved in modules, the composition as the store
 // answers it: a binding audience or a required edge that is not composed is
@@ -43,7 +42,7 @@ func Closure(m domain.Module, modules []domain.Module) (closure, optional []stri
 			return nil
 		}
 		seen[c.Name] = true
-		if RoleGated(c) {
+		if c.Kind == domain.KindSolution {
 			return nil
 		}
 		closure = append(closure, c.Name)

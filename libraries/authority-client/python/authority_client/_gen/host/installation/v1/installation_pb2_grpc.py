@@ -27,12 +27,12 @@ if _version_not_supported:
 
 class InstallationServiceStub(object):
     """InstallationService is implemented by the host and by the local authority.
-    Its target is any role-gated target: a solution, or a module page declaring
-    roles (the core's decide.RoleGated). Both are chosen by an administrator
-    through Review and Install and set up through role grants. A module
-    declaring no roles is never installed here: it is present wherever it is
-    composed and comes along as the closure of a target that reaches it,
-    holding no roles.
+    Install takes a solution alone, chosen by an administrator through Review
+    and Install. A module, roles or not, page or not, is never installed here:
+    composition installs it in every organisation where it is composed,
+    holding no principal and no standing authority. Its roles, when it
+    declares any, decide who may use it, through GrantRole on that composition
+    installation as on a solution's.
     """
 
     def __init__(self, channel):
@@ -85,12 +85,12 @@ class InstallationServiceStub(object):
 
 class InstallationServiceServicer(object):
     """InstallationService is implemented by the host and by the local authority.
-    Its target is any role-gated target: a solution, or a module page declaring
-    roles (the core's decide.RoleGated). Both are chosen by an administrator
-    through Review and Install and set up through role grants. A module
-    declaring no roles is never installed here: it is present wherever it is
-    composed and comes along as the closure of a target that reaches it,
-    holding no roles.
+    Install takes a solution alone, chosen by an administrator through Review
+    and Install. A module, roles or not, page or not, is never installed here:
+    composition installs it in every organisation where it is composed,
+    holding no principal and no standing authority. Its roles, when it
+    declares any, decide who may use it, through GrantRole on that composition
+    installation as on a solution's.
     """
 
     def Current(self, request, context):
@@ -103,10 +103,10 @@ class InstallationServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def Install(self, request, context):
-        """Install composes an installation of a role-gated target: its agent
-        principal, its root scope and the row, pending until the target
-        acknowledges its install step, or active at once for a target that
-        declares no install endpoint (a module page has none). On an
+        """Install composes an installation of a solution: its agent principal,
+        its root scope and the row, pending until the solution acknowledges its
+        install step, or active at once for one that declares no install
+        endpoint. A module is refused NOT_FOUND: composition installs it. On an
         active installation, a fresh approval of a newer offer than its consent
         approved (Installation.upgrade_available) is an upgrade: the install step
         runs again (it converges idempotently; the host converges the closure
@@ -115,9 +115,8 @@ class InstallationServiceServicer(object):
         of a role the approved offer no longer declares. Until the upgrade, the
         holders hold what the approved offer granted, never what the delivered
         one asks. A fresh approval of the offer already approved is refused as
-        already installed. A module page holds no standing authority (its
-        installation_role is none). An install never deletes a role grant
-        otherwise: RevokeRole and an uninstall do.
+        already installed. An install never deletes a role grant otherwise:
+        RevokeRole and an uninstall do.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -131,8 +130,9 @@ class InstallationServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def GrantRole(self, request, context):
-        """GrantRole grants a person or a team one of the solution's roles on the
-        installation: the access. Idempotent; it leaves existing capabilities
+        """GrantRole grants a person or a team one of the roles the installation's
+        target declares (a solution's, or a module page's on its composition
+        installation): the access. Idempotent; it leaves existing capabilities
         valid. An administrator of the installation's organization, or a holder
         of the installer role on that installation, grants.
         """
@@ -229,12 +229,12 @@ def add_InstallationServiceServicer_to_server(servicer, server):
  # This class is part of an EXPERIMENTAL API.
 class InstallationService(object):
     """InstallationService is implemented by the host and by the local authority.
-    Its target is any role-gated target: a solution, or a module page declaring
-    roles (the core's decide.RoleGated). Both are chosen by an administrator
-    through Review and Install and set up through role grants. A module
-    declaring no roles is never installed here: it is present wherever it is
-    composed and comes along as the closure of a target that reaches it,
-    holding no roles.
+    Install takes a solution alone, chosen by an administrator through Review
+    and Install. A module, roles or not, page or not, is never installed here:
+    composition installs it in every organisation where it is composed,
+    holding no principal and no standing authority. Its roles, when it
+    declares any, decide who may use it, through GrantRole on that composition
+    installation as on a solution's.
     """
 
     @staticmethod
@@ -455,10 +455,10 @@ class InstallationService(object):
 
 
 class InstallableServiceStub(object):
-    """InstallableService is implemented by a target that declares an install
-    endpoint (a solution may; a module page does not); the host calls it once
-    per installation and retries until it is acknowledged. A target without it
-    is active as soon as its installation is recorded.
+    """InstallableService is implemented by a solution that declares an install
+    endpoint; the host calls it once per installation and retries until it is
+    acknowledged. A solution without it is active as soon as its installation
+    is recorded.
     """
 
     def __init__(self, channel):
@@ -475,10 +475,10 @@ class InstallableServiceStub(object):
 
 
 class InstallableServiceServicer(object):
-    """InstallableService is implemented by a target that declares an install
-    endpoint (a solution may; a module page does not); the host calls it once
-    per installation and retries until it is acknowledged. A target without it
-    is active as soon as its installation is recorded.
+    """InstallableService is implemented by a solution that declares an install
+    endpoint; the host calls it once per installation and retries until it is
+    acknowledged. A solution without it is active as soon as its installation
+    is recorded.
     """
 
     def Install(self, request, context):
@@ -505,10 +505,10 @@ def add_InstallableServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class InstallableService(object):
-    """InstallableService is implemented by a target that declares an install
-    endpoint (a solution may; a module page does not); the host calls it once
-    per installation and retries until it is acknowledged. A target without it
-    is active as soon as its installation is recorded.
+    """InstallableService is implemented by a solution that declares an install
+    endpoint; the host calls it once per installation and retries until it is
+    acknowledged. A solution without it is active as soon as its installation
+    is recorded.
     """
 
     @staticmethod
@@ -576,10 +576,9 @@ class OfferServiceServicer(object):
     """
 
     def ListOffers(self, request, context):
-        """ListOffers lists the role-gated targets delivered to this run that an
-        administrator of the organization may install: the solutions and the
-        module pages declaring roles. A module declaring no roles is installed by
-        composition and is never offered.
+        """ListOffers lists the solutions delivered to this run that an
+        administrator of the organization may install. A module, roles or not,
+        is installed by composition and is never offered.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')

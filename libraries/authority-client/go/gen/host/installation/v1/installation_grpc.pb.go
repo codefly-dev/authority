@@ -41,21 +41,21 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
 // InstallationService is implemented by the host and by the local authority.
-// Its target is any role-gated target: a solution, or a module page declaring
-// roles (the core's decide.RoleGated). Both are chosen by an administrator
-// through Review and Install and set up through role grants. A module
-// declaring no roles is never installed here: it is present wherever it is
-// composed and comes along as the closure of a target that reaches it,
-// holding no roles.
+// Install takes a solution alone, chosen by an administrator through Review
+// and Install. A module, roles or not, page or not, is never installed here:
+// composition installs it in every organisation where it is composed,
+// holding no principal and no standing authority. Its roles, when it
+// declares any, decide who may use it, through GrantRole on that composition
+// installation as on a solution's.
 type InstallationServiceClient interface {
 	// Current reads only the authenticated module's own active installation,
 	// in the tenant of a current parent addressed to that module. It grants no
 	// artifact approval or content access and exposes no roles or grants.
 	Current(ctx context.Context, in *CurrentInstallationRequest, opts ...grpc.CallOption) (*CurrentInstallation, error)
-	// Install composes an installation of a role-gated target: its agent
-	// principal, its root scope and the row, pending until the target
-	// acknowledges its install step, or active at once for a target that
-	// declares no install endpoint (a module page has none). On an
+	// Install composes an installation of a solution: its agent principal,
+	// its root scope and the row, pending until the solution acknowledges its
+	// install step, or active at once for one that declares no install
+	// endpoint. A module is refused NOT_FOUND: composition installs it. On an
 	// active installation, a fresh approval of a newer offer than its consent
 	// approved (Installation.upgrade_available) is an upgrade: the install step
 	// runs again (it converges idempotently; the host converges the closure
@@ -64,14 +64,14 @@ type InstallationServiceClient interface {
 	// of a role the approved offer no longer declares. Until the upgrade, the
 	// holders hold what the approved offer granted, never what the delivered
 	// one asks. A fresh approval of the offer already approved is refused as
-	// already installed. A module page holds no standing authority (its
-	// installation_role is none). An install never deletes a role grant
-	// otherwise: RevokeRole and an uninstall do.
+	// already installed. An install never deletes a role grant otherwise:
+	// RevokeRole and an uninstall do.
 	Install(ctx context.Context, in *InstallRequest, opts ...grpc.CallOption) (*Installation, error)
 	// Review reads the current offer and installation revision without granting consent.
 	Review(ctx context.Context, in *ReviewRequest, opts ...grpc.CallOption) (*ConsentApproval, error)
-	// GrantRole grants a person or a team one of the solution's roles on the
-	// installation: the access. Idempotent; it leaves existing capabilities
+	// GrantRole grants a person or a team one of the roles the installation's
+	// target declares (a solution's, or a module page's on its composition
+	// installation): the access. Idempotent; it leaves existing capabilities
 	// valid. An administrator of the installation's organization, or a holder
 	// of the installer role on that installation, grants.
 	GrantRole(ctx context.Context, in *GrantRoleRequest, opts ...grpc.CallOption) (*Installation, error)
@@ -186,21 +186,21 @@ func (c *installationServiceClient) ListHeld(ctx context.Context, in *ListHeldRe
 // for forward compatibility.
 //
 // InstallationService is implemented by the host and by the local authority.
-// Its target is any role-gated target: a solution, or a module page declaring
-// roles (the core's decide.RoleGated). Both are chosen by an administrator
-// through Review and Install and set up through role grants. A module
-// declaring no roles is never installed here: it is present wherever it is
-// composed and comes along as the closure of a target that reaches it,
-// holding no roles.
+// Install takes a solution alone, chosen by an administrator through Review
+// and Install. A module, roles or not, page or not, is never installed here:
+// composition installs it in every organisation where it is composed,
+// holding no principal and no standing authority. Its roles, when it
+// declares any, decide who may use it, through GrantRole on that composition
+// installation as on a solution's.
 type InstallationServiceServer interface {
 	// Current reads only the authenticated module's own active installation,
 	// in the tenant of a current parent addressed to that module. It grants no
 	// artifact approval or content access and exposes no roles or grants.
 	Current(context.Context, *CurrentInstallationRequest) (*CurrentInstallation, error)
-	// Install composes an installation of a role-gated target: its agent
-	// principal, its root scope and the row, pending until the target
-	// acknowledges its install step, or active at once for a target that
-	// declares no install endpoint (a module page has none). On an
+	// Install composes an installation of a solution: its agent principal,
+	// its root scope and the row, pending until the solution acknowledges its
+	// install step, or active at once for one that declares no install
+	// endpoint. A module is refused NOT_FOUND: composition installs it. On an
 	// active installation, a fresh approval of a newer offer than its consent
 	// approved (Installation.upgrade_available) is an upgrade: the install step
 	// runs again (it converges idempotently; the host converges the closure
@@ -209,14 +209,14 @@ type InstallationServiceServer interface {
 	// of a role the approved offer no longer declares. Until the upgrade, the
 	// holders hold what the approved offer granted, never what the delivered
 	// one asks. A fresh approval of the offer already approved is refused as
-	// already installed. A module page holds no standing authority (its
-	// installation_role is none). An install never deletes a role grant
-	// otherwise: RevokeRole and an uninstall do.
+	// already installed. An install never deletes a role grant otherwise:
+	// RevokeRole and an uninstall do.
 	Install(context.Context, *InstallRequest) (*Installation, error)
 	// Review reads the current offer and installation revision without granting consent.
 	Review(context.Context, *ReviewRequest) (*ConsentApproval, error)
-	// GrantRole grants a person or a team one of the solution's roles on the
-	// installation: the access. Idempotent; it leaves existing capabilities
+	// GrantRole grants a person or a team one of the roles the installation's
+	// target declares (a solution's, or a module page's on its composition
+	// installation): the access. Idempotent; it leaves existing capabilities
 	// valid. An administrator of the installation's organization, or a holder
 	// of the installer role on that installation, grants.
 	GrantRole(context.Context, *GrantRoleRequest) (*Installation, error)
@@ -487,10 +487,10 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// InstallableService is implemented by a target that declares an install
-// endpoint (a solution may; a module page does not); the host calls it once
-// per installation and retries until it is acknowledged. A target without it
-// is active as soon as its installation is recorded.
+// InstallableService is implemented by a solution that declares an install
+// endpoint; the host calls it once per installation and retries until it is
+// acknowledged. A solution without it is active as soon as its installation
+// is recorded.
 type InstallableServiceClient interface {
 	// Install sets up the solution for one installation; it must converge.
 	Install(ctx context.Context, in *InstallationNotice, opts ...grpc.CallOption) (*InstallationAck, error)
@@ -518,10 +518,10 @@ func (c *installableServiceClient) Install(ctx context.Context, in *Installation
 // All implementations must embed UnimplementedInstallableServiceServer
 // for forward compatibility.
 //
-// InstallableService is implemented by a target that declares an install
-// endpoint (a solution may; a module page does not); the host calls it once
-// per installation and retries until it is acknowledged. A target without it
-// is active as soon as its installation is recorded.
+// InstallableService is implemented by a solution that declares an install
+// endpoint; the host calls it once per installation and retries until it is
+// acknowledged. A solution without it is active as soon as its installation
+// is recorded.
 type InstallableServiceServer interface {
 	// Install sets up the solution for one installation; it must converge.
 	Install(context.Context, *InstallationNotice) (*InstallationAck, error)
@@ -609,10 +609,9 @@ const (
 // grants nothing; Install, GrantRole and RevokeRole stay the only changes,
 // each decided by the authority.
 type OfferServiceClient interface {
-	// ListOffers lists the role-gated targets delivered to this run that an
-	// administrator of the organization may install: the solutions and the
-	// module pages declaring roles. A module declaring no roles is installed by
-	// composition and is never offered.
+	// ListOffers lists the solutions delivered to this run that an
+	// administrator of the organization may install. A module, roles or not,
+	// is installed by composition and is never offered.
 	ListOffers(ctx context.Context, in *ListOffersRequest, opts ...grpc.CallOption) (*ListOffersResponse, error)
 	// ReviewOffer reads one target's roles, what each grants and the tools
 	// those grants make eligible, with the consent Install takes, from one read
@@ -661,10 +660,9 @@ func (c *offerServiceClient) ReviewOffer(ctx context.Context, in *ReviewRequest,
 // grants nothing; Install, GrantRole and RevokeRole stay the only changes,
 // each decided by the authority.
 type OfferServiceServer interface {
-	// ListOffers lists the role-gated targets delivered to this run that an
-	// administrator of the organization may install: the solutions and the
-	// module pages declaring roles. A module declaring no roles is installed by
-	// composition and is never offered.
+	// ListOffers lists the solutions delivered to this run that an
+	// administrator of the organization may install. A module, roles or not,
+	// is installed by composition and is never offered.
 	ListOffers(context.Context, *ListOffersRequest) (*ListOffersResponse, error)
 	// ReviewOffer reads one target's roles, what each grants and the tools
 	// those grants make eligible, with the consent Install takes, from one read

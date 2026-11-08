@@ -219,8 +219,7 @@ type InstallRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The organisation installing.
 	OrganizationId string `protobuf:"bytes,1,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"`
-	// The target installed, by its name in the composition: a solution, or a
-	// module page declaring roles.
+	// The solution installed, by its name in the composition.
 	Target string `protobuf:"bytes,2,opt,name=target,proto3" json:"target,omitempty"`
 	// The role the installation holds; the least privilege it needs.
 	Role string `protobuf:"bytes,3,opt,name=role,proto3" json:"role,omitempty"`
@@ -1258,24 +1257,20 @@ type ReviewedOffer struct {
 	// Exact declared viewer-edge presence, covered by the reviewed digest.
 	// Required access and per-module approval are separate host review concerns.
 	EdgeDependencies []*OfferDependency `protobuf:"bytes,8,rep,name=edge_dependencies,json=edgeDependencies,proto3" json:"edge_dependencies,omitempty"`
-	// True when the target declares roles, which its Setup grants: always for
-	// a solution; a module is offered only when it does. A host reads it here
-	// instead of asking each module.
+	// True when the solution declares roles, which its Setup grants.
 	RolesDeclared bool `protobuf:"varint,9,opt,name=roles_declared,json=rolesDeclared,proto3" json:"roles_declared,omitempty"`
-	// True when the target declares a page a person opens, as the authority's
-	// stored declaration knows it. A module declaring roles always has one (a
-	// delivery declaring roles without a page is refused); a solution's is
-	// read as delivered, and a host whose store does not keep the flag answers
-	// false for it.
+	// True when the solution declares a page a person opens, as the
+	// authority's stored declaration knows it; a host whose store does not
+	// keep the flag answers false.
 	Page bool `protobuf:"varint,10,opt,name=page,proto3" json:"page,omitempty"`
-	// What installing the target brings along: every module it reaches through
-	// its bindings and edge dependencies, transitively, that holds no roles of
-	// its own, by its name in the composition, sorted. Such a module is
-	// installed with the target, holding no standing authority; a host that
-	// installs modules by its administrators' consent converges these with the
-	// install. A role-gated target reached is chosen by its own review and is
-	// not listed. A binding audience or a required edge dependency that is not
-	// composed refuses the review: the closure cannot be installed.
+	// What the solution depends on: every module it reaches through its
+	// bindings and required edge dependencies, transitively, roles or not, by
+	// its name in the composition, sorted. Composition installs every module
+	// wherever it is composed; a host whose composition is per organisation
+	// converges these with the install. A solution reached is installed by its
+	// own review and is not listed. A binding audience or a required edge
+	// dependency that is not composed refuses the review: the closure cannot
+	// be installed.
 	Closure []string `protobuf:"bytes,11,rep,name=closure,proto3" json:"closure,omitempty"`
 	// The optional edge dependencies the target and its closure declare, by
 	// module name: present when composed, never installed with the target.

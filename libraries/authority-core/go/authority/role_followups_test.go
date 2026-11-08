@@ -74,12 +74,11 @@ func TestARedeliveryDroppingARoleDropsItsGrants(t *testing.T) {
 	h.grant("a", "viewer", "maya")
 	exactly(t, h.must(h.root("maya", "a")), "a.note", h.principal(acme, "a"), []string{"read", "write"})
 
-	// A module page redelivered without roles drops them all; declaring
-	// roles again entitles nobody.
+	// A module page redelivered without roles drops them all from its
+	// composition installation; declaring roles again entitles nobody.
 	if _, err := h.svc.ApplyModule(h.ctx, pageModule(1, true)); err != nil {
 		t.Fatal(err)
 	}
-	h.installAs(acme, "pages", "")
 	h.grant("pages", "viewer", "maya")
 	exactly(t, h.must(h.root("maya", "pages")), "pages.note", "", []string{"read"})
 	if _, err := h.svc.ApplyModule(h.ctx, pageModule(2, false)); err != nil {
@@ -113,13 +112,23 @@ func TestAModulePageRoleNamesOnlyWhatItServes(t *testing.T) {
 	refused(t, err, "never reach what it consumes")
 }
 
-// On a host that installs modules, a module page's offer is reviewed at the
-// installation issuance decides on: the host's active record, never a record
-// the core retired under its own id.
-func TestAModulePageReviewFindsTheActiveInstallationOnAHostThatInstallsModules(t *testing.T) {
+// On a host that installs modules, a module page declaring roles is the
+// host's to install, as any module is: the core installs nothing of it and
+// offers nothing. Its roles are granted, held and issued at the host's
+// active record, which has no principal, never at a record the core retired
+// under its own id.
+func TestAModulePageOnAHostThatInstallsModulesIsGrantedAtTheHostsRecord(t *testing.T) {
 	h := newHostInstalled(t)
+	h.store.PutPerson(domain.Person{ID: "maya", Organization: acme})
 	if _, err := h.svc.ApplyModule(h.ctx, pageModule(1, true)); err != nil {
 		t.Fatal(err)
+	}
+	if all := h.installations(); len(all) != 0 {
+		t.Fatalf("the core installed %v on a host that installs modules", all)
+	}
+	alex, maya := authority.Person{ID: "alex", Organization: acme, SessionID: "s"}, authority.Person{ID: "maya", Organization: acme, SessionID: "m"}
+	if offered, err := h.svc.Offers(h.ctx, alex, acme); err != nil || len(offered) != 0 {
+		t.Fatalf("the module page is offered: %v %v", offered, err)
 	}
 	coreID := authority.StableInstallationID(acme, "pages")
 	if err := h.store.Write(h.ctx, func(tx authority.Tx) error {
@@ -130,10 +139,23 @@ func TestAModulePageReviewFindsTheActiveInstallationOnAHostThatInstallsModules(t
 	}); err != nil {
 		t.Fatal(err)
 	}
-	offer, err := h.svc.ReviewOffer(h.ctx, h.person("alex"), acme, "pages")
-	if err != nil || offer.Installation.ID != "host-pages" || offer.Installation.Status != domain.Active {
-		t.Fatalf("the review found %+v (%v), want the host's active record", offer.Installation, err)
+	if _, err := h.svc.GrantRole(h.ctx, alex, authority.RoleRequest{Organization: acme, InstallationID: "host-pages", Role: "viewer", PersonID: "maya"}); err != nil {
+		t.Fatal(err)
 	}
+	held, err := h.svc.HeldInstallations(h.ctx, maya, acme)
+	if err != nil || len(held) != 1 || held[0].Installation.ID != "host-pages" || !slices.Equal(held[0].Roles, []string{"viewer"}) {
+		t.Fatalf("maya holds %+v (%v), want viewer at the host's record", held, err)
+	}
+	issued, err := h.svc.IssueForPerson(h.ctx, maya, authority.IssueRequest{Audience: "pages"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := issued.Context.GetSeal().GetInstallationId(); got != "host-pages" {
+		t.Fatalf("issued at installation %q, want the host's active record", got)
+	}
+	exactly(t, issued, "pages.note", "", []string{"read"})
+	_, err = h.svc.IssueForPerson(h.ctx, alex, authority.IssueRequest{Audience: "pages"})
+	refused(t, err, "alex holds no role on pages")
 }
 
 // Two active installations of one target in one organization is a store that

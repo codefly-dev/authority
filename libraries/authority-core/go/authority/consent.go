@@ -50,8 +50,9 @@ func OfferDigest(m domain.Module) (string, error) {
 
 // Review reads one consistent offer. It never supplies an operation identity or
 // approves anything; the caller must retain the returned values when consenting.
-// It is an administrator's read of a role-gated target (a solution, or a
-// module page declaring roles): the consent tuple is what Install takes.
+// It is an administrator's read of a solution: the consent tuple is what
+// Install takes. A module, roles or not, is installed by composition and
+// answers none.
 func (s *Service) Review(ctx context.Context, caller Person, org, target string) (domain.ConsentApproval, error) {
 	offer, err := s.reviewOffer(ctx, caller, org, target, false)
 	return offer.Approval, err
@@ -64,19 +65,16 @@ type ReviewedOffer struct {
 	Module       domain.Module
 	Installation domain.Installation
 	Modules      []domain.Module
-	// RolesDeclared: the target declares roles, which its Setup grants.
-	// Always true for a solution; a module is offered only when it does.
+	// RolesDeclared: the solution declares roles, which its Setup grants.
 	RolesDeclared bool
-	// Page: the target declares a page a person opens, as the stored
-	// declaration knows it. A module declaring roles always has one (a
-	// delivery without a page declares no roles); a solution's is read as
-	// delivered, and a store that does not keep the flag answers false.
+	// Page: the solution declares a page a person opens, as the stored
+	// declaration knows it; a store that does not keep the flag answers
+	// false.
 	Page bool
-	// Closure is what installing the target brings along: the modules it
-	// reaches, transitively, that hold no roles of their own, by name
-	// (decide.Closure). A host that installs modules by its administrators'
-	// consent converges them with the install; a role-gated target reached
-	// is chosen by its own review and is not listed.
+	// Closure is the modules the solution reaches, transitively, by name
+	// (decide.Closure), roles or not. Composition installs every module, so
+	// the closure reports what the solution depends on; a host whose
+	// composition is per organization converges it with the install.
 	Closure []string
 	// OptionalEdges are the optional edge dependencies the target and its
 	// closure declare, by module name: present when composed, never
@@ -84,8 +82,7 @@ type ReviewedOffer struct {
 	OptionalEdges []string
 }
 
-// ReviewOffer reads one role-gated target's offer: a solution's, or a module
-// page's that declares roles. An administrator of org reads it
+// ReviewOffer reads one solution's offer. An administrator of org reads it
 // with the consent tuple Install takes. A member of org who holds a role on
 // the solution's active installation there (granted to them or to a team of
 // theirs) reads the same declaration, roles, ceiling and installation without
@@ -104,16 +101,7 @@ func (s *Service) reviewOffer(ctx context.Context, caller Person, org, target st
 		if code, ok := domain.CodeOf(refused); refused != nil && (!members || !ok || code != domain.Denied) {
 			return refused
 		}
-		var inst domain.Installation
-		var err error
-		if s.cfg.HostInstallsModules {
-			// A host that installs modules names a module page's installation
-			// itself, so it is found by its target, as issuance finds it: the
-			// active one before any the core retired under its own id.
-			inst, err = installationOf(tx, org, target)
-		} else {
-			inst, err = tx.Installation(s.cfg.InstallationID(org, target))
-		}
+		inst, err := tx.Installation(s.cfg.InstallationID(org, target))
 		if errors.Is(err, domain.ErrNotFound) {
 			inst, err = domain.Installation{}, nil
 		}
@@ -133,11 +121,11 @@ func (s *Service) reviewOffer(ctx context.Context, caller Person, org, target st
 		if err != nil {
 			return notFound(err)
 		}
-		// A module page declaring roles is reviewed, consented to and
-		// installed as a solution is: its roles are what its Setup shows and
-		// grants. A module without roles is composition's: nothing to review.
-		if !decide.RoleGated(m) {
-			return domain.Missing("%q is not a composed solution or a module page declaring roles; a module without roles is installed by composition", target)
+		// Only a solution is reviewed, consented to and installed by an
+		// administrator. A module, roles or not, is composition's: nothing to
+		// review; its roles are granted on its composition installation.
+		if m.Kind != domain.KindSolution {
+			return domain.Missing("%q is not a composed solution; a module is installed by composition", target)
 		}
 		if refused == nil {
 			digest, err := OfferDigest(m)
@@ -153,7 +141,7 @@ func (s *Service) reviewOffer(ctx context.Context, caller Person, org, target st
 			}
 		}
 		offer.Module, offer.Installation = m, inst
-		offer.RolesDeclared, offer.Page = len(m.Roles) > 0, m.Page || (m.Kind != domain.KindSolution && len(m.Roles) > 0)
+		offer.RolesDeclared, offer.Page = len(m.Roles) > 0, m.Page
 		if offer.Modules, err = tx.Modules(); err != nil {
 			return err
 		}
@@ -228,10 +216,10 @@ func checkConsent(m domain.Module, existing domain.Installation, a *domain.Conse
 	return false, nil
 }
 
-// Offers lists what an administrator of org sets up: the role-gated targets,
-// delivered solutions and module pages declaring roles, each chosen through
-// Review and Install. A module without roles is never offered: composition
-// installs it, and the organization's roles decide at it.
+// Offers lists what an administrator of org sets up: the delivered
+// solutions, each installed through Review and Install. A module is never
+// offered, roles or not: composition installs it, and its roles, or the
+// organization's when it declares none, decide who may use it.
 func (s *Service) Offers(ctx context.Context, caller Person, org string) ([]domain.Module, error) {
 	var out []domain.Module
 	err := s.store.Read(ctx, func(tx Tx) error {
@@ -240,7 +228,7 @@ func (s *Service) Offers(ctx context.Context, caller Person, org string) ([]doma
 		}
 		modules, err := tx.Modules()
 		for _, m := range modules {
-			if decide.RoleGated(m) {
+			if m.Kind == domain.KindSolution {
 				out = append(out, m)
 			}
 		}
