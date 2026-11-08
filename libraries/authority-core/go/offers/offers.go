@@ -41,6 +41,18 @@ type Role struct {
 	Name         string
 	Scopes       []*Scope
 	Capabilities []*Capability
+	// Reach is the core's (authority.ReviewedOffer.Reach, decide.Reach).
+	Reach []*Reach
+}
+
+// Reach is one place the role reaches: Module along Path, Via the role, a
+// binding or the holder's own session, the most its capability there
+// carries and the operations those scopes are admitted to.
+type Reach struct {
+	Path                     []string
+	Module, Via, Confinement string
+	Scopes                   []*Scope
+	Operations               []string
 }
 
 type Capability struct {
@@ -72,7 +84,7 @@ func Project(offer authority.ReviewedOffer, bindings map[string]*runnablev0.Prep
 		RolesDeclared: offer.RolesDeclared, Page: offer.Page, Closure: slices.Clone(offer.Closure), OptionalEdges: slices.Clone(offer.OptionalEdges)}
 	// A member's read carries no consent tuple: only an administrator consents.
 	if a.Digest != "" {
-		out.Approval = &domain.ConsentApproval{TargetID: a.TargetID, Generation: a.Generation, ExpectedRevision: a.ExpectedRevision, Digest: a.Digest}
+		out.Approval = &domain.ConsentApproval{TargetID: a.TargetID, Generation: a.Generation, ExpectedRevision: a.ExpectedRevision, Digest: a.Digest, ReachDigest: a.ReachDigest}
 	}
 	if inst.ID != "" {
 		out.Installation = &inst
@@ -85,6 +97,10 @@ func Project(offer authority.ReviewedOffer, bindings map[string]*runnablev0.Prep
 	slices.SortFunc(modules, func(a, b domain.Module) int { return strings.Compare(a.Name, b.Name) })
 	for _, name := range slices.Sorted(maps.Keys(m.Roles)) {
 		role := &Role{Name: name, Scopes: offerScopes(m.Roles[name], false, nil)}
+		for _, r := range offer.Reach[name] {
+			role.Reach = append(role.Reach, &Reach{Path: slices.Clone(r.Path), Module: r.Module, Via: r.Via, Confinement: r.Confinement,
+				Scopes: offerScopes(r.Scopes, false, nil), Operations: slices.Clone(r.Operations)})
+		}
 		role.Scopes = append(role.Scopes, offerScopes(m.OwnedRoles[name], true, inst.Owned)...)
 		// What the role reaches, by kind and action: its confinement to the
 		// installation narrows resources, never which operations it covers.

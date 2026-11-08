@@ -89,6 +89,27 @@ issued at its audience only for a role held there. A module that gains or
 loses roles keeps its installation; the grants of a role a delivery stops
 declaring end with that delivery, the others stay.
 
+**Consent covers reach.** Each role in `ReviewOffer` carries its `reach`: every
+place a holder can cause an operation, as a static maximum computed by the
+core from declarations alone (`decide.Reach`): on the solution itself (its
+scopes and their confinement), through the solution's bindings and onward
+through each reached module's bindings (what a person-owned hop can carry:
+the role within what the module serves, cut to each binding and to the limits
+the chain carries, as issuance cuts it), and on the holder's own session for
+an edge the solution's page calls (no scopes: the holder's own grants decide
+there). Each row lists the operations its scopes are admitted to, one per
+operation whatever face serves it. `Review` hands `reach_digest` with the
+consent tuple and `Install` refuses an approval whose reach moved
+(`INSTALLATION_APPROVAL_REACH_CHANGED`). A delivery of any module that widens
+an installed solution's reach (a method relaxed, a binding added or widened,
+a module newly reachable) leaves its consent standing and sets
+`upgrade_available`, though the solution did not change; until an
+administrator approves, holders hold the approved reach: a hop through the
+solution carries no more than it lists, and a call to an operation it does
+not list is refused by name. A delivery that only narrows the reach
+re-converges the consent without a click. The reach is an upper bound:
+resources and owners are still checked at every call.
+
 The tools come from the workspace group `runnable-bindings`, read through the
 SDK as a tool caller reads it. Only Connect-callable bindings with a tool
 exposure whose invoke and lookup scopes the role covers are listed, one per tool

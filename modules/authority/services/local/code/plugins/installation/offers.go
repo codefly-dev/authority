@@ -11,7 +11,6 @@ import (
 	authorityplugin "gateway/plugins/authority"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
-	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/offers"
 	runnablev0 "github.com/codefly-dev/core/generated/go/codefly/runnable/v0"
@@ -113,7 +112,7 @@ func (p *Plugin) review(offer authority.ReviewedOffer, bindings map[string]*runn
 		out.EdgeDependencies = append(out.EdgeDependencies, &installationv1.OfferDependency{Module: d.Module, Presence: d.Presence})
 	}
 	if a := projected.Approval; a != nil {
-		out.Approval = &installationv1.ConsentApproval{TargetId: a.TargetID, Generation: a.Generation, ExpectedRevision: a.ExpectedRevision, Digest: a.Digest}
+		out.Approval = &installationv1.ConsentApproval{TargetId: a.TargetID, Generation: a.Generation, ExpectedRevision: a.ExpectedRevision, Digest: a.Digest, ReachDigest: a.ReachDigest}
 	}
 	if projected.Installation != nil {
 		// Use the reviewed role names, never a second read of a later delivery.
@@ -121,7 +120,7 @@ func (p *Plugin) review(offer authority.ReviewedOffer, bindings map[string]*runn
 		for _, role := range projected.Roles {
 			roles = append(roles, role.Name)
 		}
-		out.Installation = wireInstallation(*projected.Installation, roles, decide.UpgradeAvailable(*projected.Installation, offer.Module))
+		out.Installation = wireInstallation(*projected.Installation, roles, offer.UpgradeAvailable)
 	}
 	for _, b := range projected.Ceiling {
 		out.Ceiling = append(out.Ceiling, &installationv1.OfferBinding{Binding: b.Binding, Module: b.Module, Scopes: scopesToWire(b.Scopes)})
@@ -134,6 +133,10 @@ func (p *Plugin) review(offer authority.ReviewedOffer, bindings map[string]*runn
 				capability.Tools = append(capability.Tools, &installationv1.OfferTool{Name: t.Name, Binding: t.Binding, Write: t.Write})
 			}
 			role.Capabilities = append(role.Capabilities, capability)
+		}
+		for _, r := range r.Reach {
+			role.Reach = append(role.Reach, &installationv1.OfferReach{Path: r.Path, Module: r.Module, Via: r.Via, Scopes: scopesToWire(r.Scopes),
+				Confinement: r.Confinement, Operations: r.Operations})
 		}
 		out.Roles = append(out.Roles, role)
 	}

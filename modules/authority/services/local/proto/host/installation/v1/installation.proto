@@ -133,6 +133,11 @@ message ConsentApproval {
   string operation_id = 4;
   // sha256 digest of the reviewed authority offer.
   string digest = 5;
+  // sha256 digest of what each of the target's roles reaches, directly and
+  // transitively, in the composition reviewed (ReviewedOffer roles' reach):
+  // the consent covers it. Required; Install refuses an approval whose reach
+  // changed since it was reviewed (INSTALLATION_APPROVAL_REACH_CHANGED).
+  string reach_digest = 6;
 }
 
 // GrantRoleRequest grants one role to exactly one person or team.
@@ -238,11 +243,13 @@ message Installation {
   // or by the host's own setup).
   uint64 approved_generation = 12;
   // True when the delivered generation asks more than approved_generation
-  // did, or approved_generation is unknown (a consent recorded before it was
-  // kept): the installation stands, active with its grants, its holders
-  // holding what the approved offer granted, until an administrator reviews
-  // the offer and approves it with Install. A host renders it as an update
-  // available.
+  // did, when what the roles reach in the composition now (a module the
+  // target reaches redelivered, or newly composed) asks more than the
+  // consent approved, or when either approved one is unknown (a consent
+  // recorded before it was kept): the installation stands, active with its
+  // grants, its holders holding what the approved offer and reach granted,
+  // until an administrator reviews the offer and approves it with Install. A
+  // host renders it as an update available.
   bool upgrade_available = 13;
 
   // Status is the installation's lifecycle.
@@ -350,6 +357,32 @@ message OfferRole {
   repeated OfferScope scopes = 2;
   // Each composed operation the role's scopes cover.
   repeated OfferCapability capabilities = 3;
+  // Every place a holder of the role can cause an operation, as a static
+  // maximum: on the target, through the target's bindings and onward, and
+  // on the holder's own session. An administrator's review reads it in the
+  // composition now; a holder's, as the installation's consent approved it.
+  repeated OfferReach reach = 4;
+}
+
+// OfferReach is one place a role reaches. Issuance never widens past it; it
+// is an upper bound (resources and owners are checked at each call).
+message OfferReach {
+  // The modules from the target to module, by name, the target first.
+  repeated string path = 1;
+  string module = 2;
+  // "role": the role's own scopes on the target; "binding": the target, then
+  // each module on the path, acting for the holder; "person": an edge the
+  // target's page calls on the holder's own session, where the holder's own
+  // grants decide (no scopes, no operations).
+  string via = 3;
+  // The most a holder's capability at module can carry.
+  repeated OfferScope scopes = 4;
+  // On the target: "installation" (the installation's own data) or
+  // "attached" (what is attached to it); empty otherwise.
+  string confinement = 5;
+  // The operations of module those scopes are admitted to, by its declared
+  // method policies; one per operation, whatever face serves it.
+  repeated string operations = 6;
 }
 
 // OfferScope is one declared scope.

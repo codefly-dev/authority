@@ -104,6 +104,9 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 				return err
 			}
 		}
+		if err := s.reconvergeReach(ctx, tx, m.Name); err != nil {
+			return err
+		}
 		if err := s.journal(ctx, tx, domain.Event{Kind: domain.ModuleApplied, Subject: m.Name, Detail: map[string]string{"principal": m.Principal, "kind": m.Kind, "generation": fmt.Sprint(m.Generation)}}); err != nil {
 			return err
 		}
@@ -155,6 +158,9 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 // superset of next and keeps offering its upgrade (its widening is then
 // "approved generation N is behind"); a receipt recorded before the consent
 // kept its generation approved an unknown one and offers its upgrade once.
+// What next's roles reach in the composition counts as asked too
+// (decide.ReachWidens against the approved reach; one recorded before reach
+// was kept is unknown and asks once), and an advancing consent records it.
 // When a consent advances, the grants of roles next no longer declares end
 // with it (dropUndeclaredGrants). An installation no consent holds (a
 // module's, which composition installed, or one a host installed without
@@ -176,6 +182,10 @@ func (s *Service) reconverge(ctx context.Context, tx Tx, previous, next domain.M
 		return err
 	}
 	widened := decide.Widens(previous, next)
+	reach, err := reachIn(tx, next)
+	if err != nil {
+		return err
+	}
 	changed := map[string]bool{}
 	for _, inst := range all {
 		if inst.Target != previous.Name || inst.Status != domain.Active {
@@ -193,10 +203,17 @@ func (s *Service) reconverge(ctx context.Context, tx Tx, previous, next domain.M
 				asks = []string{"approved generation unknown: review and approve the delivered offer"}
 			case inst.Consent.Generation != previous.Generation || inst.Consent.Digest != approvedDigest:
 				asks = []string{fmt.Sprintf("approved generation %d is behind the delivered %d", inst.Consent.Generation, previous.Generation)}
+			default:
+				further, err := reachWidens(inst, reach)
+				if err != nil {
+					return err
+				}
+				asks = append(slices.Clone(asks), further...)
 			}
 			detail := map[string]string{"target": inst.Target, "approved_generation": fmt.Sprint(inst.Consent.Generation), "generation": fmt.Sprint(next.Generation)}
 			if len(asks) == 0 {
 				inst.Consent.Generation, inst.Consent.Digest = next.Generation, digest
+				inst.Consent.ReachDigest, inst.Consent.Reach = reach.digest, reach.text
 				moved = true
 				detail["revision"] = fmt.Sprint(inst.Revision + 1)
 				if role := inst.AgentRole; role != "" && role != domain.NoInstallationRole {
@@ -447,6 +464,10 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 		if err != nil {
 			return err
 		}
+		reach, err := reachIn(tx, m)
+		if err != nil {
+			return err
+		}
 		p, err := tx.Member(org, installedBy)
 		if err != nil && !errors.Is(err, domain.ErrNotFound) {
 			return err
@@ -460,7 +481,7 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 			return err
 		}
 		if approval != nil {
-			same, err := checkConsent(m, existing, approval, intent)
+			same, err := checkConsent(m, existing, approval, intent, reach)
 			if err != nil {
 				return err
 			}
@@ -482,7 +503,7 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 			// receipt, so the superseded operation can neither resume nor acknowledge.
 			if approval != nil && existing.Consent.OperationID != approval.OperationID {
 				existing.Revision++
-				existing.Consent = receipt(approval, intent, existing.Revision, m)
+				existing.Consent = receipt(approval, intent, existing.Revision, m, reach)
 				inst = existing
 				if err := tx.PutInstallation(existing); err != nil {
 					return err
@@ -493,8 +514,8 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 			return nil
 		}
 		if err == nil && existing.Status != domain.Revoked {
-			current := receipt(approval, intent, 0, m)
-			if approval == nil || (existing.Consent.Generation == current.Generation && existing.Consent.Digest == current.Digest) {
+			current := receipt(approval, intent, 0, m, reach)
+			if approval == nil || (existing.Consent.Generation == current.Generation && existing.Consent.Digest == current.Digest && existing.Consent.ReachDigest == current.ReachDigest) {
 				return &domain.Refusal{Code: domain.Denied, Cause: domain.ErrAlreadyInstalled, Reason: fmt.Sprintf("%s is already installed at %s", target, org)}
 			}
 			// An upgrade: the administrator reviewed the delivered offer and
@@ -504,7 +525,7 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 			upgrading = true
 			inst = existing
 			inst.Revision++
-			inst.Consent = receipt(approval, intent, inst.Revision, m)
+			inst.Consent = receipt(approval, intent, inst.Revision, m, reach)
 			inst.AgentRole = selectedRole
 			return nil
 		}
@@ -537,7 +558,7 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 		inst = domain.Installation{ID: id, Organization: org, Target: target, Status: domain.Pending, Revision: existing.Revision + 1,
 			AgentRole: selectedRole, PrincipalID: principal, InstalledBy: installedBy}
 		if approval != nil {
-			inst.Consent = receipt(approval, intent, inst.Revision, m)
+			inst.Consent = receipt(approval, intent, inst.Revision, m, reach)
 			if err := tx.PutApprovedModule(m); err != nil {
 				return err
 			}
@@ -571,7 +592,11 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 			return err
 		}
 		if err == nil && approval != nil {
-			same, err := checkConsent(m, current, approval, intent)
+			reach, err := reachIn(tx, m)
+			if err != nil {
+				return err
+			}
+			same, err := checkConsent(m, current, approval, intent, reach)
 			if err != nil {
 				return err
 			}
@@ -579,7 +604,7 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 				if current.Status != domain.Active || current.Revision+1 != inst.Revision || m.Generation != generation {
 					return domain.NotNow("installation %s changed before its upgrade was recorded", inst.ID)
 				}
-				return s.upgrade(ctx, tx, caller, &current, approval, intent, selectedRole, m, &inst)
+				return s.upgrade(ctx, tx, caller, &current, approval, intent, selectedRole, m, reach, &inst)
 			}
 			if !same {
 				return domain.NotNow("INSTALLATION_APPROVAL_OPERATION_CONFLICT: approval changed before acknowledgement")
@@ -608,9 +633,9 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 // installer stays, the approved generation is kept, grants of roles m no
 // longer declares end, and the organization's authorization revision moves so
 // what the earlier consent issued ends. The upgrader is the journal's actor.
-func (s *Service) upgrade(ctx context.Context, tx Tx, caller Person, current *domain.Installation, approval *domain.ConsentApproval, intent, selectedRole string, m domain.Module, out *domain.Installation) error {
+func (s *Service) upgrade(ctx context.Context, tx Tx, caller Person, current *domain.Installation, approval *domain.ConsentApproval, intent, selectedRole string, m domain.Module, reach offeredReach, out *domain.Installation) error {
 	current.Revision++
-	current.Consent = receipt(approval, intent, current.Revision, m)
+	current.Consent = receipt(approval, intent, current.Revision, m, reach)
 	current.AgentRole = selectedRole
 	if err := tx.PutInstallation(*current); err != nil {
 		return err
@@ -630,10 +655,11 @@ func (s *Service) upgrade(ctx context.Context, tx Tx, caller Person, current *do
 }
 
 // receipt is the consent an approval of m's current offer records: the
-// operation, its intent, the revision it binds and what it approved.
-func receipt(a *domain.ConsentApproval, intent string, revision uint64, m domain.Module) domain.ConsentReceipt {
+// operation, its intent, the revision it binds and what it approved, the
+// reach of m's roles included.
+func receipt(a *domain.ConsentApproval, intent string, revision uint64, m domain.Module, reach offeredReach) domain.ConsentReceipt {
 	digest, _ := OfferDigest(m) // checkConsent computed it already; m marshals
-	r := domain.ConsentReceipt{Revision: revision, Generation: m.Generation, Digest: digest}
+	r := domain.ConsentReceipt{Revision: revision, Generation: m.Generation, Digest: digest, ReachDigest: reach.digest, Reach: reach.text}
 	if a != nil {
 		r.OperationID, r.Intent = a.OperationID, intent
 	}

@@ -77,7 +77,9 @@ func TestAModuleIsInstalledByCompositionInEveryOrganisation(t *testing.T) {
 				t.Fatalf("%s at %s is not a composition installation: %+v", target, org, inst)
 			}
 		}
-		if slices.ContainsFunc(all, func(i domain.Installation) bool { return i.Organization == org && i.Target == "a" && org != acme && org != globex }) {
+		if slices.ContainsFunc(all, func(i domain.Installation) bool {
+			return i.Organization == org && i.Target == "a" && org != acme && org != globex
+		}) {
 			t.Fatalf("composition installed a solution at %s: %v", org, all)
 		}
 	}

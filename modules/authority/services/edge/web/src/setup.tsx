@@ -26,7 +26,7 @@ type Role = { name: string; scopes: Scope[]; capabilities: Capability[] };
 type Installation = { id: string; target: string; status: string; revision: string; role: string };
 type Review = {
 	target: string;
-	approval: { targetId: string; generation: string; expectedRevision: string; digest: string };
+	approval: { targetId: string; generation: string; expectedRevision: string; digest: string; reachDigest: string };
 	roles: Role[];
 	ceiling: { binding: string; module: string; scopes: Scope[] }[];
 	installation?: Installation;
@@ -152,6 +152,7 @@ function Install({ data, review }: { data: SetupData; review: Review }) {
 		generation: review.approval.generation,
 		expectedRevision: review.approval.expectedRevision,
 		digest: review.approval.digest,
+		reachDigest: review.approval.reachDigest,
 		operationId: data.operationId,
 	};
 	return (

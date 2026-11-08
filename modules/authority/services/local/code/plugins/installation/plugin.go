@@ -12,7 +12,6 @@ import (
 	"slices"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
-	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
@@ -79,7 +78,7 @@ func (p *Plugin) Install(ctx context.Context, req *installationv1.InstallRequest
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}
-	return p.wire(inst), nil
+	return p.wire(ctx, inst), nil
 }
 
 func (p *Plugin) installStep() authority.InstallStep {
@@ -107,7 +106,7 @@ func (p *Plugin) change(ctx context.Context, do func(context.Context, authority.
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}
-	return p.wire(inst), nil
+	return p.wire(ctx, inst), nil
 }
 
 // ListRoleGrants answers who holds which role on the installation.
@@ -148,7 +147,7 @@ func (p *Plugin) List(ctx context.Context, req *installationv1.ListRequest) (*in
 	})
 	out := &installationv1.ListResponse{}
 	for _, inst := range all {
-		out.Installations = append(out.Installations, p.wire(inst))
+		out.Installations = append(out.Installations, p.wire(ctx, inst))
 	}
 	return out, nil
 }
@@ -166,15 +165,16 @@ func (p *Plugin) ListHeld(ctx context.Context, req *installationv1.ListHeldReque
 	}
 	out := &installationv1.ListHeldResponse{}
 	for _, h := range held {
-		out.Installations = append(out.Installations, &installationv1.HeldInstallation{Installation: p.wire(h.Installation), Roles: h.Roles})
+		out.Installations = append(out.Installations, &installationv1.HeldInstallation{Installation: p.wire(ctx, h.Installation), Roles: h.Roles})
 	}
 	return out, nil
 }
 
 // wire converts an installation to the interface's message, with the roles
-// its target declares and whether the delivered generation offers an upgrade
-// (the core decides).
-func (p *Plugin) wire(i state.Installation) *installationv1.Installation {
+// its target declares and whether what is delivered, the target or a module
+// its roles reach, offers an upgrade (the core decides; a read it cannot
+// make answers none).
+func (p *Plugin) wire(ctx context.Context, i state.Installation) *installationv1.Installation {
 	var roles []string
 	upgrade := false
 	if m, ok := p.State.Module(i.Target); ok {
@@ -182,7 +182,7 @@ func (p *Plugin) wire(i state.Installation) *installationv1.Installation {
 			roles = append(roles, name)
 		}
 		slices.Sort(roles)
-		upgrade = decide.UpgradeAvailable(i, m)
+		upgrade, _ = p.State.Service().UpgradeAvailable(ctx, i)
 	}
 	return wireInstallation(i, roles, upgrade)
 }
@@ -203,7 +203,7 @@ func approvalFromWire(a *installationv1.ConsentApproval) *domain.ConsentApproval
 	if a == nil {
 		return nil
 	}
-	return &domain.ConsentApproval{TargetID: a.GetTargetId(), Generation: a.GetGeneration(), ExpectedRevision: a.GetExpectedRevision(), OperationID: a.GetOperationId(), Digest: a.GetDigest()}
+	return &domain.ConsentApproval{TargetID: a.GetTargetId(), Generation: a.GetGeneration(), ExpectedRevision: a.GetExpectedRevision(), OperationID: a.GetOperationId(), Digest: a.GetDigest(), ReachDigest: a.GetReachDigest()}
 }
 
 // Review reads the exact authority offer without recording consent.
@@ -216,5 +216,5 @@ func (p *Plugin) Review(ctx context.Context, req *installationv1.ReviewRequest) 
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}
-	return &installationv1.ConsentApproval{TargetId: a.TargetID, Generation: a.Generation, ExpectedRevision: a.ExpectedRevision, Digest: a.Digest}, nil
+	return &installationv1.ConsentApproval{TargetId: a.TargetID, Generation: a.Generation, ExpectedRevision: a.ExpectedRevision, Digest: a.Digest, ReachDigest: a.ReachDigest}, nil
 }

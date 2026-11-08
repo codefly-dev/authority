@@ -83,8 +83,11 @@ func (s *Service) CheckMethod(ctx context.Context, token, audience, method strin
 		if err != nil {
 			return notFound(err)
 		}
-		refusal = decide.AdmitMethod(m, method, verified.EffectiveScopes())
-		return nil
+		if refusal = decide.AdmitMethod(m, method, verified.EffectiveScopes()); refusal != nil {
+			return nil
+		}
+		refusal, err = withinApprovedReach(tx, verified.Context(), m, method)
+		return err
 	})
 	if err != nil {
 		return nil, 0, nil, err
@@ -222,4 +225,27 @@ func effectiveOf(wc *basev0.WorkContextV1) Scopes {
 		return chain[len(chain)-1].GetGrantedScopes()
 	}
 	return wc.GetAuthorityScopes()
+}
+
+// withinApprovedReach refuses a person's call through a solution to a method
+// of m that the reach the solution's installation consent approved does not
+// list for the roles the person holds there (approvedReach): a delivery of m,
+// or of the solution, that admits more than was approved admits nobody more
+// until an administrator approves the upgrade.
+func withinApprovedReach(tx Tx, wc *basev0.WorkContextV1, m domain.Module, method string) (error, error) {
+	if wc.GetOwnerPrincipalKind() != "human" {
+		return nil, nil
+	}
+	p, err := tx.Member(wc.GetTenantId(), wc.GetOwnerPrincipalId())
+	if err != nil {
+		return domain.Refuse("the owner %s is no longer a member", wc.GetOwnerPrincipalId()), nil
+	}
+	_, operations, bounded, err := approvedReach(tx, p, solutionPrincipals(wc, m.Principal), m.Name)
+	if err != nil || !bounded {
+		return nil, err
+	}
+	if key, ok := decide.MethodKey(m, method); ok && operations[key] {
+		return nil, nil
+	}
+	return domain.Refuse("%s at %s is beyond the reach its solution's installation approved; an administrator approves the upgrade that reaches it", method, m.Name), nil
 }

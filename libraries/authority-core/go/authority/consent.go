@@ -80,6 +80,14 @@ type ReviewedOffer struct {
 	// closure declare, by module name: present when composed, never
 	// installed by the install.
 	OptionalEdges []string
+	// Reach is what each role reaches, directly and transitively
+	// (decide.Reach): in the composition now on an administrator's read,
+	// which the approval's ReachDigest names; as the installation's consent
+	// approved it on a holder's read.
+	Reach map[string][]domain.ReachRow
+	// UpgradeAvailable: the installation's consent stands behind what is
+	// delivered, its declaration or its reach (Service.UpgradeAvailable).
+	UpgradeAvailable bool
 }
 
 // ReviewOffer reads one solution's offer. An administrator of org reads it
@@ -132,12 +140,36 @@ func (s *Service) reviewOffer(ctx context.Context, caller Person, org, target st
 			if err != nil {
 				return err
 			}
-			out = domain.ConsentApproval{TargetID: m.Principal, Generation: m.Generation, ExpectedRevision: inst.Revision, Digest: digest}
+			reach, err := reachIn(tx, m)
+			if err != nil {
+				return err
+			}
+			out = domain.ConsentApproval{TargetID: m.Principal, Generation: m.Generation, ExpectedRevision: inst.Revision, Digest: digest, ReachDigest: reach.digest}
+			offer.Reach = reach.rows
+			if inst.ID != "" {
+				if offer.UpgradeAvailable, err = upgradeAvailable(tx, inst, m); err != nil {
+					return err
+				}
+			}
 		} else {
 			// A role holder reads what they hold: the declaration their
-			// installation's consent approved, not one delivered since.
+			// installation's consent approved, not one delivered since, and
+			// the reach it approved, not one a delivery widened since.
+			if offer.UpgradeAvailable, err = upgradeAvailable(tx, inst, m); err != nil {
+				return err
+			}
 			if m, err = approvedModule(tx, inst, m); err != nil {
 				return err
+			}
+			if offer.Reach, err = decide.DecodeReach(inst.Consent.Reach); err != nil {
+				return err
+			}
+			if inst.Consent.ReachDigest == "" {
+				reach, err := reachIn(tx, m)
+				if err != nil {
+					return err
+				}
+				offer.Reach = reach.rows
 			}
 		}
 		offer.Module, offer.Installation = m, inst
@@ -189,7 +221,7 @@ func consentIntent(caller Person, org, target, role, owner string, a *domain.Con
 	return fmt.Sprintf("%x", sha256.Sum256(raw)), nil
 }
 
-func checkConsent(m domain.Module, existing domain.Installation, a *domain.ConsentApproval, intent string) (bool, error) {
+func checkConsent(m domain.Module, existing domain.Installation, a *domain.ConsentApproval, intent string, reach offeredReach) (bool, error) {
 	if a.TargetID != m.Principal || a.Generation != m.Generation {
 		return false, domain.NotNow("INSTALLATION_APPROVAL_GENERATION_CHANGED: the reviewed target or generation changed; review and approve again")
 	}
@@ -199,6 +231,9 @@ func checkConsent(m domain.Module, existing domain.Installation, a *domain.Conse
 	}
 	if a.Digest != digest {
 		return false, domain.NotNow("INSTALLATION_APPROVAL_DIGEST_CHANGED: the reviewed authority offer changed; review and approve again")
+	}
+	if a.ReachDigest != reach.digest {
+		return false, domain.NotNow("INSTALLATION_APPROVAL_REACH_CHANGED: what the offer's roles reach changed, or the approval names no reach; review and approve again")
 	}
 	receipt := existing.Consent
 	if receipt.OperationID == a.OperationID {

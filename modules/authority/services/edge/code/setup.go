@@ -189,7 +189,7 @@ func (e *Edge) change(ctx context.Context, sess *sessionv1.Session, form url.Val
 		generation, _ := strconv.ParseUint(form.Get("generation"), 10, 64)
 		revision, _ := strconv.ParseUint(form.Get("expectedRevision"), 10, 64)
 		inst, err := e.Installer.Install(ctx, &installationv1.InstallRequest{OrganizationId: org, Target: form.Get("target"), Role: form.Get("role"), OwnerPersonId: sess.GetPersonId(),
-			Approval: &installationv1.ConsentApproval{TargetId: form.Get("targetId"), Generation: generation, ExpectedRevision: revision, Digest: form.Get("digest"), OperationId: form.Get("operationId")}})
+			Approval: &installationv1.ConsentApproval{TargetId: form.Get("targetId"), Generation: generation, ExpectedRevision: revision, Digest: form.Get("digest"), ReachDigest: form.Get("reachDigest"), OperationId: form.Get("operationId")}})
 		if err != nil {
 			return "", err
 		}

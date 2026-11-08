@@ -251,6 +251,25 @@ type ConsentApproval struct {
 	TargetID                     string
 	Generation, ExpectedRevision uint64
 	OperationID, Digest          string
+	// ReachDigest is the digest of what each of the target's roles reaches
+	// in the composition reviewed (decide.ReachDigest): the consent covers
+	// it, not the target's declaration alone.
+	ReachDigest string
+}
+
+// ReachRow is one place a holder of a role on a target can cause an
+// operation, as a static maximum (decide.Reach): Module, reached along Path
+// (module names, the target first, Module last), Via the role on the target
+// itself, the target's bindings acting for the holder, or the holder's own
+// session; the Scopes the holder's capability there can carry at most (none
+// on their own session, where their own grants decide), how the role
+// confines them on the target, and the Operations of Module those scopes are
+// admitted to.
+type ReachRow struct {
+	Path                     []string
+	Module, Via, Confinement string
+	Scopes                   []*basev0.WorkScopeV1
+	Operations               []string
 }
 
 // ConsentReceipt binds an unchanged retry to its resulting installation
@@ -265,6 +284,12 @@ type ConsentReceipt struct {
 	Revision            uint64
 	Generation          uint64
 	Digest              string
+	// Reach is the reach approved, each role's rows as canonical JSON
+	// (decide.EncodeReach), and ReachDigest its digest: what holders hold
+	// through the target at most until an administrator approves a wider
+	// one. Empty ReachDigest is a receipt recorded before reach was kept:
+	// its reach is unknown, and it offers its upgrade once.
+	ReachDigest, Reach string
 }
 
 // EventKind names one change of authority the core makes.

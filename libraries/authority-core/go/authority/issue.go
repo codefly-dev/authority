@@ -538,7 +538,7 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 	var f fence
 	err = s.store.Read(ctx, func(tx Tx) error {
 		tenant := claims.GetTenantId()
-		var heldHere, sourceCeiling Scopes
+		var heldHere, sourceCeiling, approved Scopes
 		var err error
 		// A hop back to the module's own audience reaches nothing the parent,
 		// addressed to it already, did not: it is bounded by that parent and
@@ -558,6 +558,15 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 			}
 			if heldHere, sourceCeiling, bounded, err = throughSolutions(tx, p, audience, solutionPrincipals(claims, am.Principal), namedBy(r.Scopes, claims)); err != nil {
 				return err
+			}
+			// What a solution on the path reaches is held to the reach
+			// its installation's consent approved.
+			var capped bool
+			if approved, _, capped, err = approvedReach(tx, p, solutionPrincipals(claims, am.Principal), audience.Name); err != nil {
+				return err
+			}
+			if capped {
+				sourceCeiling = scope.Intersect(sourceCeiling, approved)
 			}
 		case "agent":
 			inst, err := tx.InstallationByPrincipal(claims.GetOwnerPrincipalId())

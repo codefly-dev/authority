@@ -85,7 +85,11 @@ func redeclaredRoles() declaration {
 // host, rendered by renderOffer. Each capability is a composed operation the
 // role's scopes cover, a curator's attached scope included; observer's list
 // covers none. No operation is a tool: the suite composes no Runnable binding,
-// which is host configuration outside the declaration.
+// which is host configuration outside the declaration. Each role's reach
+// (decide.Reach) is the same on every host: on the solution, its own scopes
+// confined to the installation and the operations they are admitted to
+// (GET /status admits any checked caller); through the store binding, what a
+// hop can carry and the store's operations it is admitted to.
 const declaredOfferV1 = `target conformance-declared generation 1
 installation STATUS_ACTIVE roles [curator editor installer observer viewer]
 ceiling store -> conformance-declared-store: conformance-declared-store.item [read write]
@@ -95,6 +99,8 @@ role curator
   capability conformance-declared GET /pages/{id} requires conformance-declared.page [read] tools []
   capability conformance-declared-store /conformance.declared.Store/Get requires conformance-declared-store.item [read] tools []
   capability conformance-declared-store /conformance.declared.Store/Put requires conformance-declared-store.item [write] tools []
+  reach binding conformance-declared > conformance-declared-store: conformance-declared-store.item [read write] operations [/conformance.declared.Store/Get /conformance.declared.Store/Ping /conformance.declared.Store/Put]
+  reach role conformance-declared (installation): conformance-declared.page [read] operations [GET /pages/{id} GET /status]
 role editor
   scope conformance-declared-store.item [read write]
   scope conformance-declared.page [read write]
@@ -102,6 +108,8 @@ role editor
   capability conformance-declared PUT /pages/{id} requires conformance-declared.page [write] tools []
   capability conformance-declared-store /conformance.declared.Store/Get requires conformance-declared-store.item [read] tools []
   capability conformance-declared-store /conformance.declared.Store/Put requires conformance-declared-store.item [write] tools []
+  reach binding conformance-declared > conformance-declared-store: conformance-declared-store.item [read write] operations [/conformance.declared.Store/Get /conformance.declared.Store/Ping /conformance.declared.Store/Put]
+  reach role conformance-declared (installation): conformance-declared.page [read write] operations [GET /pages/{id} GET /status PUT /pages/{id}]
 role installer
   scope conformance-declared-store.item [read write]
   scope conformance-declared.page [publish read write]
@@ -110,13 +118,18 @@ role installer
   capability conformance-declared PUT /pages/{id} requires conformance-declared.page [write] tools []
   capability conformance-declared-store /conformance.declared.Store/Get requires conformance-declared-store.item [read] tools []
   capability conformance-declared-store /conformance.declared.Store/Put requires conformance-declared-store.item [write] tools []
+  reach binding conformance-declared > conformance-declared-store: conformance-declared-store.item [read write] operations [/conformance.declared.Store/Get /conformance.declared.Store/Ping /conformance.declared.Store/Put]
+  reach role conformance-declared (installation): conformance-declared.page [publish read write] operations [GET /pages/{id} GET /status POST /pages/{id}/publish PUT /pages/{id}]
 role observer
   scope conformance-declared.page [list]
+  reach role conformance-declared (installation): conformance-declared.page [list] operations [GET /status]
 role viewer
   scope conformance-declared-store.item [read]
   scope conformance-declared.page [read]
   capability conformance-declared GET /pages/{id} requires conformance-declared.page [read] tools []
   capability conformance-declared-store /conformance.declared.Store/Get requires conformance-declared-store.item [read] tools []
+  reach binding conformance-declared > conformance-declared-store: conformance-declared-store.item [read] operations [/conformance.declared.Store/Get /conformance.declared.Store/Ping]
+  reach role conformance-declared (installation): conformance-declared.page [read] operations [GET /pages/{id} GET /status]
 `
 
 const declaredOfferV2 = `target conformance-declared generation 2
@@ -127,11 +140,15 @@ role curator
   scope conformance-declared.page [read]
   capability conformance-declared GET /pages/{id} requires conformance-declared.page [read] tools []
   capability conformance-declared-store /conformance.declared.Store/Get requires conformance-declared-store.item [read] tools []
+  reach binding conformance-declared > conformance-declared-store: conformance-declared-store.item [read] operations [/conformance.declared.Store/Get /conformance.declared.Store/Ping]
+  reach role conformance-declared (installation): conformance-declared.page [read] operations [GET /pages/{id} GET /status]
 role editor
   scope conformance-declared-store.item [read]
   scope conformance-declared.page [read]
   capability conformance-declared GET /pages/{id} requires conformance-declared.page [read] tools []
   capability conformance-declared-store /conformance.declared.Store/Get requires conformance-declared-store.item [read] tools []
+  reach binding conformance-declared > conformance-declared-store: conformance-declared-store.item [read] operations [/conformance.declared.Store/Get /conformance.declared.Store/Ping]
+  reach role conformance-declared (installation): conformance-declared.page [read] operations [GET /pages/{id} GET /status]
 role installer
   scope conformance-declared-store.item [read write]
   scope conformance-declared.page [publish read write]
@@ -140,11 +157,15 @@ role installer
   capability conformance-declared PUT /pages/{id} requires conformance-declared.page [write] tools []
   capability conformance-declared-store /conformance.declared.Store/Get requires conformance-declared-store.item [read] tools []
   capability conformance-declared-store /conformance.declared.Store/Put requires conformance-declared-store.item [write] tools []
+  reach binding conformance-declared > conformance-declared-store: conformance-declared-store.item [read write] operations [/conformance.declared.Store/Get /conformance.declared.Store/Ping /conformance.declared.Store/Put]
+  reach role conformance-declared (installation): conformance-declared.page [publish read write] operations [GET /pages/{id} GET /status POST /pages/{id}/publish PUT /pages/{id}]
 role viewer
   scope conformance-declared-store.item [read]
   scope conformance-declared.page [read]
   capability conformance-declared GET /pages/{id} requires conformance-declared.page [read] tools []
   capability conformance-declared-store /conformance.declared.Store/Get requires conformance-declared-store.item [read] tools []
+  reach binding conformance-declared > conformance-declared-store: conformance-declared-store.item [read] operations [/conformance.declared.Store/Get /conformance.declared.Store/Ping]
+  reach role conformance-declared (installation): conformance-declared.page [read] operations [GET /pages/{id} GET /status]
 `
 
 func (d declaration) document() map[string]any {
@@ -431,6 +452,18 @@ func renderOffer(offer protoreflect.Message) string {
 			}
 			slices.Sort(tools)
 			lines = append(lines, fmt.Sprintf("  capability %s %s requires %s tools [%s]\n", str(cp, "module"), str(cp, "operation"), renderScopes(listMsgs(cp, "requires")), strings.Join(tools, " ")))
+		}
+		slices.Sort(lines)
+		b.WriteString(strings.Join(lines, ""))
+		lines = nil
+		for _, rr := range listMsgs(r, "reach") {
+			where := strings.Join(listStrings(rr, "path"), " > ")
+			if c := str(rr, "confinement"); c != "" {
+				where += " (" + c + ")"
+			}
+			ops := listStrings(rr, "operations")
+			slices.Sort(ops)
+			lines = append(lines, fmt.Sprintf("  reach %s %s: %s operations %v\n", str(rr, "via"), where, renderScopes(listMsgs(rr, "scopes")), ops))
 		}
 		slices.Sort(lines)
 		b.WriteString(strings.Join(lines, ""))
