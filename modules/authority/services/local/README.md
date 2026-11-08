@@ -254,6 +254,26 @@ acknowledge it. Shared conformance observes the pending state while that step is
 blocked, then verifies exposure after acknowledgement and refusal after revocation.
 See `libraries/conformance/go/README.md` for the complete host comparison contract.
 
+**An installation survives delivery.** Its consent records the generation and
+offer digest the administrator approved (`Installation.approved_generation`).
+When a target is delivered again, the core compares the new reviewed surface,
+what `Review` and `ReviewOffer` show (kind, each role and installation-owned
+role with its scopes, each binding with its audience and scopes, each edge
+dependency, the installation role selector, each method's policy), with the
+one the consent approved. Asking nothing new (nothing added, nothing reaching
+further, no standing authority asked, no method callable with less) re-converges
+every active installation without a click: the consent advances to the new
+generation, the revision moves so what was issued under the earlier
+declaration ends, every role grant stays, and `installation.reconverged` is
+journaled. Asking more leaves the installation on its consent, active with its
+grants, with `upgrade_available` true and `installation.upgrade_available`
+journaled naming what widened; an administrator approves it with a fresh
+`Review` and `Install` on the same installation, which stays active, keeps its
+grants and runs no install step (`installation.upgraded`). A consent already
+behind the delivered generation cannot be proven to cover the next one and
+keeps offering its upgrade. Role grants end by `RevokeRole` and by an uninstall
+alone; an install never deletes one.
+
 Workloads name the organization of the work item. The local convenience of
 omitting it works only for a sole active installing organization; it is not a
 shared host requirement. Method admission checks kind/action while preserving

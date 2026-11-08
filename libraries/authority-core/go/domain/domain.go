@@ -248,10 +248,18 @@ type ConsentApproval struct {
 	OperationID, Digest          string
 }
 
-// ConsentReceipt binds an unchanged retry to its resulting installation revision.
+// ConsentReceipt binds an unchanged retry to its resulting installation
+// revision, and records what the approval consented to: the generation and
+// the offer digest reviewed. A redelivery whose reviewed offer asks nothing
+// the approved one did not advances both (the installation re-converges); one
+// that asks more leaves them, and the installation offers an upgrade until an
+// administrator approves the new offer. Zero Generation is a receipt recorded
+// before this was kept: it stands for the generation delivered then.
 type ConsentReceipt struct {
 	OperationID, Intent string
 	Revision            uint64
+	Generation          uint64
+	Digest              string
 }
 
 // EventKind names one change of authority the core makes.
@@ -264,13 +272,23 @@ const (
 	InstallationRequested   EventKind = "installation.requested"
 	InstallationActivated   EventKind = "installation.activated"
 	InstallationUninstalled EventKind = "installation.uninstalled"
-	RoleGranted             EventKind = "role.granted"
-	RoleRevoked             EventKind = "role.revoked"
-	DelegationGranted       EventKind = "delegation.granted"
-	DelegationRevoked       EventKind = "delegation.revoked"
-	ResourceAttached        EventKind = "resource.attached"
-	ResourceDetached        EventKind = "resource.detached"
-	ResourceTransferred     EventKind = "resource.transferred"
+	// InstallationReconverged: a redelivery asked nothing new of an active
+	// installation's consent, which now stands at the delivered generation.
+	InstallationReconverged EventKind = "installation.reconverged"
+	// InstallationUpgradeAvailable: a redelivery asks more than an active
+	// installation's consent approved; Detail "widened" names what. The
+	// installation stays as it is until Install approves the new offer.
+	InstallationUpgradeAvailable EventKind = "installation.upgrade_available"
+	// InstallationUpgraded: an administrator approved a newer offer on an
+	// active installation, which keeps its grants.
+	InstallationUpgraded EventKind = "installation.upgraded"
+	RoleGranted          EventKind = "role.granted"
+	RoleRevoked          EventKind = "role.revoked"
+	DelegationGranted    EventKind = "delegation.granted"
+	DelegationRevoked    EventKind = "delegation.revoked"
+	ResourceAttached     EventKind = "resource.attached"
+	ResourceDetached     EventKind = "resource.detached"
+	ResourceTransferred  EventKind = "resource.transferred"
 )
 
 // Event is one change of authority, journaled by the host in the transaction

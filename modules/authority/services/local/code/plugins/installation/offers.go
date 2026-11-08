@@ -11,6 +11,7 @@ import (
 	authorityplugin "gateway/plugins/authority"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/offers"
 	runnablev0 "github.com/codefly-dev/core/generated/go/codefly/runnable/v0"
@@ -119,7 +120,7 @@ func (p *Plugin) review(offer authority.ReviewedOffer, bindings map[string]*runn
 		for _, role := range projected.Roles {
 			roles = append(roles, role.Name)
 		}
-		out.Installation = wireInstallation(*projected.Installation, roles)
+		out.Installation = wireInstallation(*projected.Installation, roles, decide.UpgradeAvailable(*projected.Installation, offer.Module))
 	}
 	for _, b := range projected.Ceiling {
 		out.Ceiling = append(out.Ceiling, &installationv1.OfferBinding{Binding: b.Binding, Module: b.Module, Scopes: scopesToWire(b.Scopes)})

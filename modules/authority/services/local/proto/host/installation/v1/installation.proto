@@ -15,7 +15,13 @@ service InstallationService {
   // artifact approval or content access and exposes no roles or grants.
   rpc Current(CurrentInstallationRequest) returns (CurrentInstallation);
   // Install composes an installation: its agent principal, its root scope and
-  // the row, pending until the target acknowledges its install step.
+  // the row, pending until the target acknowledges its install step. On an
+  // active installation, a fresh approval of a newer offer than its consent
+  // approved (Installation.upgrade_available) is an upgrade: the installation
+  // stays active, its role grants are kept, its consent moves to the approved
+  // generation and its revision moves; no install step runs. A fresh approval
+  // of the offer already approved is refused as already installed. An install
+  // never deletes a role grant: RevokeRole and an uninstall alone do.
   rpc Install(InstallRequest) returns (Installation);
   // Review reads the current offer and installation revision without granting consent.
   rpc Review(ReviewRequest) returns (ConsentApproval);
@@ -206,6 +212,18 @@ message Installation {
   string principal_id = 10;
   // The roles the solution declares, sorted.
   repeated string roles = 11;
+  // The delivery generation the installation's consent approved. A
+  // redelivery that asks nothing new of the organization (no role, binding,
+  // edge dependency or method added, none reaching further, no standing
+  // authority asked) advances it without a click; one that asks more leaves
+  // it. Zero for an installation installed without consent (by composition
+  // or by the host's own setup).
+  uint64 approved_generation = 12;
+  // True when the delivered generation asks more than approved_generation
+  // did: the installation stands, active with its grants, until an
+  // administrator reviews the offer and approves it with Install. A host
+  // renders it as an update available.
+  bool upgrade_available = 13;
 
   // Status is the installation's lifecycle.
   enum Status {

@@ -92,7 +92,13 @@ class InstallationServiceServicer(object):
 
     def Install(self, request, context):
         """Install composes an installation: its agent principal, its root scope and
-        the row, pending until the target acknowledges its install step.
+        the row, pending until the target acknowledges its install step. On an
+        active installation, a fresh approval of a newer offer than its consent
+        approved (Installation.upgrade_available) is an upgrade: the installation
+        stays active, its role grants are kept, its consent moves to the approved
+        generation and its revision moves; no install step runs. A fresh approval
+        of the offer already approved is refused as already installed. An install
+        never deletes a role grant: RevokeRole and an uninstall alone do.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')

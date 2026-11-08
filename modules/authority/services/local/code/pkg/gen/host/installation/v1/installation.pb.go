@@ -879,9 +879,21 @@ type Installation struct {
 	// and target, reused by a reinstall. Empty for a module installation.
 	PrincipalId string `protobuf:"bytes,10,opt,name=principal_id,json=principalId,proto3" json:"principal_id,omitempty"`
 	// The roles the solution declares, sorted.
-	Roles         []string `protobuf:"bytes,11,rep,name=roles,proto3" json:"roles,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Roles []string `protobuf:"bytes,11,rep,name=roles,proto3" json:"roles,omitempty"`
+	// The delivery generation the installation's consent approved. A
+	// redelivery that asks nothing new of the organization (no role, binding,
+	// edge dependency or method added, none reaching further, no standing
+	// authority asked) advances it without a click; one that asks more leaves
+	// it. Zero for an installation installed without consent (by composition
+	// or by the host's own setup).
+	ApprovedGeneration uint64 `protobuf:"varint,12,opt,name=approved_generation,json=approvedGeneration,proto3" json:"approved_generation,omitempty"`
+	// True when the delivered generation asks more than approved_generation
+	// did: the installation stands, active with its grants, until an
+	// administrator reviews the offer and approves it with Install. A host
+	// renders it as an update available.
+	UpgradeAvailable bool `protobuf:"varint,13,opt,name=upgrade_available,json=upgradeAvailable,proto3" json:"upgrade_available,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *Installation) Reset() {
@@ -975,6 +987,20 @@ func (x *Installation) GetRoles() []string {
 		return x.Roles
 	}
 	return nil
+}
+
+func (x *Installation) GetApprovedGeneration() uint64 {
+	if x != nil {
+		return x.ApprovedGeneration
+	}
+	return 0
+}
+
+func (x *Installation) GetUpgradeAvailable() bool {
+	if x != nil {
+		return x.UpgradeAvailable
+	}
+	return false
 }
 
 // InstallationNotice is what the host hands the solution's install step.
@@ -1911,7 +1937,7 @@ const file_host_installation_v1_installation_proto_rawDesc = "" +
 	"\vListRequest\x12'\n" +
 	"\x0forganization_id\x18\x01 \x01(\tR\x0eorganizationId\"X\n" +
 	"\fListResponse\x12H\n" +
-	"\rinstallations\x18\x01 \x03(\v2\".host.installation.v1.InstallationR\rinstallations\"\xb0\x03\n" +
+	"\rinstallations\x18\x01 \x03(\v2\".host.installation.v1.InstallationR\rinstallations\"\x8e\x04\n" +
 	"\fInstallation\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12'\n" +
 	"\x0forganization_id\x18\x02 \x01(\tR\x0eorganizationId\x12\x16\n" +
@@ -1922,7 +1948,9 @@ const file_host_installation_v1_installation_proto_rawDesc = "" +
 	"\tnamespace\x18\t \x01(\tR\tnamespace\x12!\n" +
 	"\fprincipal_id\x18\n" +
 	" \x01(\tR\vprincipalId\x12\x14\n" +
-	"\x05roles\x18\v \x03(\tR\x05roles\"[\n" +
+	"\x05roles\x18\v \x03(\tR\x05roles\x12/\n" +
+	"\x13approved_generation\x18\f \x01(\x04R\x12approvedGeneration\x12+\n" +
+	"\x11upgrade_available\x18\r \x01(\bR\x10upgradeAvailable\"[\n" +
 	"\x06Status\x12\x16\n" +
 	"\x12STATUS_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eSTATUS_PENDING\x10\x01\x12\x11\n" +

@@ -988,6 +988,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 	})
 	c.resourceMethod(t, ctx, f)
 	c.installationLifecycle(t, ctx, f)
+	c.installationSurvivesDelivery(t, ctx, f)
 	c.organizationIsolation(t, ctx, f)
 	c.admissionKeys(t, ctx, f)
 }

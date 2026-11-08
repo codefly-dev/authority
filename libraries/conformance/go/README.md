@@ -28,6 +28,7 @@ providing different labels does not remove an obligation.
 | A solution's roles and permissions are identical on every host | `solutionDeclaration` (no host fixture beyond `UnentitledToken`): the suite delivers `conformance-declared` (an installer, two roles reaching `conformance-declared-store` through its binding, an attached-only role and a role covering no operation) and installs it as `AdminToken`. `ReviewOffer` must equal one golden offer on every host (host ids, the opaque digest and `tools_composed` left out); a grant of each role to `UnentitledToken` issues exactly its declared scopes within the ceiling, every other ceiling action refused; a redelivery narrowing two roles and withdrawing one changes both answers to exactly the new declaration and refuses the capabilities issued before it. A host that does not serve `OfferService` yet names why in `ReviewOfferNotServed`, which skips the offer comparison alone and fails once the host serves it. |
 | A module page's roles, never the organization's | `modulePageRoles` (no host fixture beyond `UnentitledToken`, `ViewerToken` and `AdminToken`; the delivery workloads `conformance-page-module` and `conformance-headless-roles`; `PagePayload` when the host applies a page only from its prepared signed payload): the suite delivers a module whose core manifest declares a frontend with an installer and a viewer role, serving its own kind and `ReadKind`; an administrator's `ListOffers` lists it, and `ReviewOffer` answers its two roles and its installation to the administrator and to the role holder with no consent tuple (composition installs it), and refuses `ViewerToken`; the viewer granted to `UnentitledToken` issues exactly its scope, owner-blind, and `ListResources` answers by that role (every resource), nothing once revoked; `ViewerToken` holds no role there, its organization's read on `ReadKind` included; an undeclared role is refused; a module declaring roles and no page is refused; redelivered without roles, the earlier capability is refused and `ViewerToken`'s organization roles decide again (`ReadKind` read), and it is no longer offered. |
 | Installation identity, installed caller, explicit organization, pending, active and revoked states | `InstalledSolution`, `InstalledCredential`, `Lifecycle` |
+| An installation survives delivery | `installationSurvivesDelivery` (no host fixture beyond `AdminToken` and `UnentitledToken`; the delivery workload `conformance-redelivered`): the suite delivers a solution, installs it as `AdminToken` and grants its viewer to `UnentitledToken`; a redelivery narrowing the viewer re-converges the installation (active, `approved_generation` advanced, revision moved, the grant kept, the earlier capability refused, a fresh `Install` refused as already installed); a redelivery adding a role leaves it on its consent (`approved_generation` unchanged, `upgrade_available` true, the grant and the earlier capability kept, the new role grantable); a fresh `Review` and `Install` upgrade it in place (same id, active, `approved_generation` current, both grants kept, the earlier capability refused). |
 | Absent installation versus no entitlement | `FailedPrecondition` with the absent-installation reason versus `PermissionDenied` with the holds-nothing reason |
 | Inventory access | Admin and owner allowed; ordinary member, anonymous and foreign-organization reads refused |
 | Resource discovery and whole-kind policy admission | `Resources`, plus resource-limited method admission without widening resource authority |
@@ -96,7 +97,8 @@ implements it. The model, in full, is the doc comment on
   naming another organization's installation is refused;
 - a new grant leaves existing capabilities valid; a revoke, leaving a team or
   the organization, an uninstall or a withdrawn `owner_aware` invalidates them
-  permanently; an uninstall clears the installation's role grants;
+  permanently; an uninstall clears the installation's role grants, and an
+  install never does;
 - a capability through the solution, a person's or U's own, is confined to U's
   data by owner-selected scopes (`WorkScopeV1.resource_owner_id`, field 4),
   issued only to audiences declaring owner-aware checking, solutions included;
@@ -177,6 +179,15 @@ retry returns the installation without repeating its install step; changed
 inputs, a newer delivery, a changed revision or revocation refuse with a named
 `INSTALLATION_APPROVAL_*` reason. A refusal requires a fresh review, not a retry
 that silently substitutes current state.
+
+The consent records the generation and offer digest approved
+(`Installation.approved_generation`). A redelivery whose reviewed surface asks
+nothing the approved one did not re-converges an active installation without a
+click; one that asks more leaves it on its consent with
+`Installation.upgrade_available` true, until a fresh Review and Install on the
+same installation approve the new offer in place, grants kept and no install
+step run. A fresh approval of the offer already approved is refused as already
+installed.
 
 The lifecycle case reads Review through the published contract, checks missing
 and mismatched approvals, preserves approval across acknowledgement, and checks

@@ -47,7 +47,13 @@ type InstallationServiceClient interface {
 	// artifact approval or content access and exposes no roles or grants.
 	Current(ctx context.Context, in *CurrentInstallationRequest, opts ...grpc.CallOption) (*CurrentInstallation, error)
 	// Install composes an installation: its agent principal, its root scope and
-	// the row, pending until the target acknowledges its install step.
+	// the row, pending until the target acknowledges its install step. On an
+	// active installation, a fresh approval of a newer offer than its consent
+	// approved (Installation.upgrade_available) is an upgrade: the installation
+	// stays active, its role grants are kept, its consent moves to the approved
+	// generation and its revision moves; no install step runs. A fresh approval
+	// of the offer already approved is refused as already installed. An install
+	// never deletes a role grant: RevokeRole and an uninstall alone do.
 	Install(ctx context.Context, in *InstallRequest, opts ...grpc.CallOption) (*Installation, error)
 	// Review reads the current offer and installation revision without granting consent.
 	Review(ctx context.Context, in *ReviewRequest, opts ...grpc.CallOption) (*ConsentApproval, error)
@@ -173,7 +179,13 @@ type InstallationServiceServer interface {
 	// artifact approval or content access and exposes no roles or grants.
 	Current(context.Context, *CurrentInstallationRequest) (*CurrentInstallation, error)
 	// Install composes an installation: its agent principal, its root scope and
-	// the row, pending until the target acknowledges its install step.
+	// the row, pending until the target acknowledges its install step. On an
+	// active installation, a fresh approval of a newer offer than its consent
+	// approved (Installation.upgrade_available) is an upgrade: the installation
+	// stays active, its role grants are kept, its consent moves to the approved
+	// generation and its revision moves; no install step runs. A fresh approval
+	// of the offer already approved is refused as already installed. An install
+	// never deletes a role grant: RevokeRole and an uninstall alone do.
 	Install(context.Context, *InstallRequest) (*Installation, error)
 	// Review reads the current offer and installation revision without granting consent.
 	Review(context.Context, *ReviewRequest) (*ConsentApproval, error)

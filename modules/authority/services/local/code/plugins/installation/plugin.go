@@ -12,6 +12,7 @@ import (
 	"slices"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
@@ -168,24 +169,28 @@ func (p *Plugin) ListHeld(ctx context.Context, req *installationv1.ListHeldReque
 }
 
 // wire converts an installation to the interface's message, with the roles
-// its solution declares.
+// its target declares and whether the delivered generation offers an upgrade
+// (the core decides).
 func (p *Plugin) wire(i state.Installation) *installationv1.Installation {
 	var roles []string
+	upgrade := false
 	if m, ok := p.State.Module(i.Target); ok {
 		for name := range m.Roles {
 			roles = append(roles, name)
 		}
 		slices.Sort(roles)
+		upgrade = decide.UpgradeAvailable(i, m)
 	}
-	return wireInstallation(i, roles)
+	return wireInstallation(i, roles, upgrade)
 }
 
-func wireInstallation(i state.Installation, roles []string) *installationv1.Installation {
+func wireInstallation(i state.Installation, roles []string, upgrade bool) *installationv1.Installation {
 	st := map[state.Status]installationv1.Installation_Status{
 		state.Pending: installationv1.Installation_STATUS_PENDING, state.Active: installationv1.Installation_STATUS_ACTIVE, state.Revoked: installationv1.Installation_STATUS_REVOKED,
 	}[i.Status]
 	return &installationv1.Installation{Id: i.ID, OrganizationId: i.Organization, Target: i.Target, Status: st, Revision: i.Revision,
-		Role: i.AgentRole, PrincipalId: i.PrincipalID, Namespace: state.Namespace(i), Roles: roles}
+		Role: i.AgentRole, PrincipalId: i.PrincipalID, Namespace: state.Namespace(i), Roles: roles,
+		ApprovedGeneration: i.Consent.Generation, UpgradeAvailable: upgrade}
 }
 
 // New is the registry's constructor: the plugin over what Configure wired.

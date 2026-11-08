@@ -246,7 +246,7 @@ func Run(t *testing.T, open Open) {
 	t.Run("an installation reads back as written", func(t *testing.T) {
 		inst := domain.Installation{ID: uuid.NewString(), Organization: f.orgA, Target: f.name("target"), Status: domain.Pending, Revision: 3,
 			AgentRole: "viewer", PrincipalID: uuid.NewString(), InstalledBy: f.onlyA,
-			Consent: domain.ConsentReceipt{OperationID: uuid.NewString(), Intent: "intent", Revision: 3},
+			Consent: domain.ConsentReceipt{OperationID: uuid.NewString(), Intent: "intent", Revision: 3, Generation: 2, Digest: "sha256:reviewed"},
 			Owned:   map[string][]string{"store.item": {"a", "b"}}}
 		module := domain.Installation{ID: uuid.NewString(), Organization: f.orgB, Target: f.name("module"), Status: domain.Active, Revision: 1}
 		write(t, func(tx authority.Tx) error {
