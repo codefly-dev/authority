@@ -252,8 +252,11 @@ func TestPublishedKeysAreRereadOnRotationAndExpireWhenUnreadable(t *testing.T) {
 }
 
 // Review r44 B1, first probe: after a rotation, a caller without the proof,
-// with a cancelled context, every keyRetry, must neither read the keys nor
-// stop the genuine call carrying the new key.
+// with a cancelled context, every keyRetry, must not stop the genuine call
+// carrying the new key. A call carrying no stamp reads nothing; a stamp under
+// a key the verifier does not hold reads the keys at most once per
+// signerRetry, however many arrive (the bounded re-read that admits a
+// restarted hop's fresh key).
 func TestAnUnauthenticatedCallerNeitherReadsNorStarvesTheKeys(t *testing.T) {
 	first, second := newSigner("first"), newSigner("second")
 	source := &keys{response: &authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{first.published()}}}
@@ -264,24 +267,32 @@ func TestAnUnauthenticatedCallerNeitherReadsNorStarvesTheKeys(t *testing.T) {
 	source.set(&authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{second.published()}}, nil, nil)
 	cancelled, cancel := context.WithCancel(context.Background())
 	cancel()
-	genuine, unauthenticatedReads := 0, 0
+	genuine, unstamped := 0, 0
 	for i := 0; i < 100; i++ {
 		clock = clock.Add(keyRetry)
 		before := source.count()
-		for _, md := range []metadata.MD{metadata.Pairs(WorkContextKey, "garbage"), forwarded(t, second.issue(t, clock, "documents"), "another-run", "")} {
-			if _, err := v.Verify(cancelled, md, "/test.Service/Read"); err == nil {
-				t.Fatal("a call without this run's proof was admitted")
-			}
+		if _, err := v.Verify(cancelled, metadata.Pairs(WorkContextKey, "garbage"), "/test.Service/Read"); err == nil {
+			t.Fatal("a call without a stamp was admitted")
 		}
 		settled(v)
-		unauthenticatedReads += source.count() - before
+		unstamped += source.count() - before
+		before = source.count()
+		for range 5 {
+			if _, err := v.Verify(cancelled, forwarded(t, second.issue(t, clock, "documents"), "another-run", ""), "/test.Service/Read"); err == nil {
+				t.Fatal("a call without this run's proof was admitted")
+			}
+			settled(v)
+		}
+		if reads := source.count() - before; reads > 1 {
+			t.Fatalf("five stamps under an unknown key inside one signerRetry drove %d key reads", reads)
+		}
 		if _, err := v.Verify(context.Background(), forwarded(t, second.issue(t, clock, "documents"), "proof", ""), "/test.Service/Read"); err == nil {
 			genuine++
 		}
 		settled(v)
 	}
-	if genuine != 100 || unauthenticatedReads != 0 {
-		t.Fatalf("admitted %d/100 genuine calls; %d key reads caused by calls without the proof", genuine, unauthenticatedReads)
+	if genuine != 100 || unstamped != 0 {
+		t.Fatalf("admitted %d/100 genuine calls; %d key reads caused by calls carrying no stamp", genuine, unstamped)
 	}
 }
 

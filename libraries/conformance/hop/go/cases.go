@@ -44,20 +44,32 @@ func (s suite) keys(t *testing.T) {
 			t.Fatalf("the authenticated claims are not the token's: %+v", id)
 		}
 	})
-	t.Run("a stamp signed by a key the authority does not publish is refused by name, and reads no keys", func(t *testing.T) {
+	t.Run("a stamp signed by a key the authority does not publish is refused by name, after at most one read however many arrive", func(t *testing.T) {
 		a := authority(t)
 		source := &counting{KeySource: a}
 		v := s.verifier(t, source, Audience, newReservations())
 		reads := source.reads.Load()
-		_, err := v.Verify(ctx, forward(t, a.Issue(t, Audience, read), "an-unpublished-hop", Method), Method)
-		refused(t, err, refusal.StampProof)
-		// A read the verifier started would have begun by now; a caller
-		// presenting an unknown key must not be able to drive the authority's
-		// keys.
-		time.Sleep(50 * time.Millisecond)
-		if got := source.reads.Load(); got != reads {
-			t.Fatalf("an unpublished key caused %d key reads", got-reads)
+		for range 20 {
+			_, err := v.Verify(ctx, forward(t, a.Issue(t, Audience, read), "an-unpublished-hop", Method), Method)
+			refused(t, err, refusal.StampProof)
 		}
+		// A read the verifier started would have begun by now. A stamp under a
+		// key the verifier does not hold may re-read the published keys once,
+		// bounded by the implementation's interval; a caller presenting unknown
+		// keys must not drive one read per call.
+		time.Sleep(50 * time.Millisecond)
+		if got := source.reads.Load(); got-reads > 1 {
+			t.Fatalf("twenty stamps under an unpublished key caused %d key reads", got-reads)
+		}
+	})
+	t.Run("a hop that registers after the verifier read Keys is admitted on its first stamp", func(t *testing.T) {
+		// A restarted gateway registers a fresh admission key and signs with
+		// it at once: the module must not refuse it until its keys age out.
+		a := authority(t)
+		v := s.verifier(t, a, Audience, newReservations())
+		admitted(t)(v.Verify(ctx, forward(t, a.Issue(t, Audience, read), Hop, Method), Method))
+		a.PublishHop("restarted")
+		admitted(t)(v.Verify(ctx, forward(t, a.Issue(t, Audience, read), "restarted", Method), Method))
 	})
 	t.Run("a rotation's overlap admits both keys, and a verifier reading Keys after the retiring key is withdrawn refuses it", func(t *testing.T) {
 		a := hoptest.New(t).PublishHop("retiring", "current")

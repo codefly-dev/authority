@@ -32,6 +32,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"slices"
 	"strconv"
@@ -230,11 +231,19 @@ type KeySource interface {
 // without it: its key is not held, or the held keys are keyStale old. A failed
 // read keeps the last keys until they are keyStale old; then every call is
 // refused, as the hop refuses a call it cannot check.
+//
+// A stamp signed by no admission key held starts one read too, at most once per
+// signerRetry for every such stamp together (a stamp names no key id, so the
+// bound cannot be per key): a hop that registered a fresh key since the last
+// read — a restarted gateway signs with its new key at once — is admitted after
+// one read instead of after keyMaxAge, and a flood of stamps under unknown keys
+// costs the authority one read per signerRetry, never one per call.
 const (
-	keyRetry   = 10 * time.Second
-	keyMaxAge  = 5 * time.Minute
-	keyStale   = 15 * time.Minute
-	keyTimeout = 5 * time.Second
+	keyRetry    = 10 * time.Second
+	signerRetry = 10 * time.Second
+	keyMaxAge   = 5 * time.Minute
+	keyStale    = 15 * time.Minute
+	keyTimeout  = 5 * time.Second
 )
 
 // errKeysUnavailable is the one reason a caller is given when keys are
@@ -261,6 +270,7 @@ type Verifier struct {
 	admission []string      // the published hop admission keys, hex, read with trust
 	fetched   time.Time     // when trust was read
 	tried     time.Time     // when the last read started
+	signer    time.Time     // when a stamp under no held key last started a read
 	inflight  chan struct{} // closed when the running read ends; nil when none runs
 	failure   error         // the last read's failure, for KeysError
 }
@@ -489,17 +499,17 @@ func (v *Verifier) trustFor(ctx context.Context, keyID string) (workcontext.Trus
 }
 
 // admissionKey is the published hop admission key the admission md carries is
-// signed by. It is judged on the keys held: the admission is what a call has
-// not yet proven, so neither a stamp signed by no published key nor keys past
-// keyMaxAge start a read here, and a caller without an admission can neither
-// drive the authority's keys nor delay the read a genuine call needs. Only
-// when no trusted keys are held at all (never read, or past keyStale, as on an
-// idle replica's first call), or the last read published no admission key (the
-// hop had not registered yet), does it start a read, at most once per keyRetry
-// as readiness does, and wait for it. A hop's new key is therefore learnt on
-// the next read an admitted call or readiness starts, within keyMaxAge, so an
-// authority publishes it that long before its hop signs with it, beside the
-// retiring key.
+// signed by. It is judged on the keys held. When no trusted keys are held at
+// all (never read, or past keyStale, as on an idle replica's first call), or
+// the last read published no admission key (the hop had not registered yet),
+// it starts a read, at most once per keyRetry as readiness does, and waits for
+// it. A stamp signed by none of the keys held may be a hop's that registered
+// since the last read (a restarted gateway signs with its fresh key at once,
+// and keyMaxAge is five minutes away): it starts one read, at most once per
+// signerRetry for every such stamp together, waits for it, and is judged again
+// on what it published; still unknown, it is refused as stamp_proof. A flood
+// of stamps under unknown keys therefore costs one read per signerRetry, and a
+// caller inside that window is refused on the keys held without waiting.
 func (v *Verifier) admissionKey(ctx context.Context, md metadata.MD) (string, error) {
 	v.mu.Lock()
 	// Holding no published admission key is holding no key to judge by: the
@@ -525,7 +535,29 @@ func (v *Verifier) admissionKey(ctx context.Context, md metadata.MD) (string, er
 		return "", errKeysUnavailable
 	}
 	key := stamp.SignedBy(md, v.admission)
-	if key == "" {
+	if key != "" {
+		return key, nil
+	}
+	now := v.now()
+	if len(md.Get(ProofKey)) != 1 || v.inflight != nil || now.Sub(v.signer) < signerRetry {
+		return "", fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.StampProof)
+	}
+	v.signer = now
+	slog.Info("hop: a stamp is signed by no admission key held; re-reading the authority's published keys once",
+		"audience", v.audience, "held_admission_keys", len(v.admission), "next_reread_after", signerRetry)
+	wait = v.refresh()
+	v.mu.Unlock()
+	awaited := v.await(ctx, wait)
+	v.mu.Lock()
+	if awaited != nil {
+		return "", awaited
+	}
+	if err := v.trusted(); err != nil {
+		return "", err
+	}
+	if key = stamp.SignedBy(md, v.admission); key == "" {
+		slog.Info("hop: after re-reading the published keys the stamp is still signed by no admission key; refused as stamp_proof",
+			"audience", v.audience, "held_admission_keys", len(v.admission))
 		return "", fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.StampProof)
 	}
 	return key, nil
