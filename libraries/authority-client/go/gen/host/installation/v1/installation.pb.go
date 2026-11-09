@@ -910,8 +910,16 @@ type Installation struct {
 	// offer and approves it with Install. A host renders it as an update
 	// available.
 	UpgradeAvailable bool `protobuf:"varint,13,opt,name=upgrade_available,json=upgradeAvailable,proto3" json:"upgrade_available,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// What the target's roles name through one of its bindings that the
+	// composition does not reach now, one condition per role and binding (a
+	// module that binding reaches no longer consumes it, or is not composed):
+	// a readiness condition beside upgrade_available. The delivery that left
+	// it stands; it grants nothing there, as each hop narrows, and clears by
+	// itself once a later delivery reaches it again. A host renders it as a
+	// degraded condition naming each.
+	Unreached     []string `protobuf:"bytes,14,rep,name=unreached,proto3" json:"unreached,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Installation) Reset() {
@@ -1019,6 +1027,13 @@ func (x *Installation) GetUpgradeAvailable() bool {
 		return x.UpgradeAvailable
 	}
 	return false
+}
+
+func (x *Installation) GetUnreached() []string {
+	if x != nil {
+		return x.Unreached
+	}
+	return nil
 }
 
 // InstallationNotice is what the host hands the solution's install step.
@@ -2113,7 +2128,7 @@ const file_host_installation_v1_installation_proto_rawDesc = "" +
 	"\vListRequest\x12'\n" +
 	"\x0forganization_id\x18\x01 \x01(\tR\x0eorganizationId\"X\n" +
 	"\fListResponse\x12H\n" +
-	"\rinstallations\x18\x01 \x03(\v2\".host.installation.v1.InstallationR\rinstallations\"\x8e\x04\n" +
+	"\rinstallations\x18\x01 \x03(\v2\".host.installation.v1.InstallationR\rinstallations\"\xac\x04\n" +
 	"\fInstallation\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12'\n" +
 	"\x0forganization_id\x18\x02 \x01(\tR\x0eorganizationId\x12\x16\n" +
@@ -2126,7 +2141,8 @@ const file_host_installation_v1_installation_proto_rawDesc = "" +
 	" \x01(\tR\vprincipalId\x12\x14\n" +
 	"\x05roles\x18\v \x03(\tR\x05roles\x12/\n" +
 	"\x13approved_generation\x18\f \x01(\x04R\x12approvedGeneration\x12+\n" +
-	"\x11upgrade_available\x18\r \x01(\bR\x10upgradeAvailable\"[\n" +
+	"\x11upgrade_available\x18\r \x01(\bR\x10upgradeAvailable\x12\x1c\n" +
+	"\tunreached\x18\x0e \x03(\tR\tunreached\"[\n" +
 	"\x06Status\x12\x16\n" +
 	"\x12STATUS_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eSTATUS_PENDING\x10\x01\x12\x11\n" +

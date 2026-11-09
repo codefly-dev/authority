@@ -253,6 +253,14 @@ message Installation {
   // offer and approves it with Install. A host renders it as an update
   // available.
   bool upgrade_available = 13;
+  // What the target's roles name through one of its bindings that the
+  // composition does not reach now, one condition per role and binding (a
+  // module that binding reaches no longer consumes it, or is not composed):
+  // a readiness condition beside upgrade_available. The delivery that left
+  // it stands; it grants nothing there, as each hop narrows, and clears by
+  // itself once a later delivery reaches it again. A host renders it as a
+  // degraded condition naming each.
+  repeated string unreached = 14;
 
   // Status is the installation's lifecycle.
   enum Status {

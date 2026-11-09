@@ -38,7 +38,7 @@ func reachIn(tx Tx, m domain.Module) (offeredReach, error) {
 // A consent recorded before reach was kept asks nothing: it adopts what its
 // approved declaration reaches now (adoptLegacyReach), which is what its
 // holders hold now.
-func reachWidens(inst domain.Installation, now offeredReach) ([]string, error) {
+func reachWidens(inst domain.Installation, now offeredReach, declared domain.Module) ([]string, error) {
 	if inst.Consent.ReachDigest == "" {
 		return nil, nil
 	}
@@ -46,7 +46,7 @@ func reachWidens(inst domain.Installation, now offeredReach) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return decide.ReachWidens(approved, now.rows), nil
+	return decide.ReachWidensWithin(approved, now.rows, declared), nil
 }
 
 // consentedNow is an active consented installation whose consent recorded
@@ -136,7 +136,7 @@ func (s *Service) reconvergeReach(ctx context.Context, tx Tx, applied string, be
 		if was, ok := before[inst.ID]; ok && was == now.digest {
 			continue
 		}
-		asks, err := reachWidens(inst, now)
+		asks, err := reachWidens(inst, now, m)
 		if err != nil {
 			return err
 		}
@@ -494,6 +494,6 @@ func upgradeAvailable(tx Tx, inst domain.Installation, m domain.Module) (bool, e
 	if err != nil || now.digest == inst.Consent.ReachDigest {
 		return false, err
 	}
-	asks, err := reachWidens(inst, now)
+	asks, err := reachWidens(inst, now, m)
 	return len(asks) > 0, err
 }

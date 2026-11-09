@@ -185,39 +185,80 @@ func TestReachIsDeclaredThroughABinding(t *testing.T) {
 	refused(t, err, `names billing.invoice:read through binding "agent", which reaches it nowhere`)
 }
 
-// Delivery order is free, and a reach once declared holds: a solution
-// naming what an agent not yet composed reaches is accepted, and the agent's
-// own delivery is then held to reach it; a later delivery that would leave
-// it unreached is refused naming the reach.
-func TestAReachIsHeldAtEveryDelivery(t *testing.T) {
-	h := newHarness(t)
-	for _, m := range []domain.Module{
-		{Name: "model", Principal: "model", Kind: domain.KindModule, Generation: 1, ResourceKinds: []*basev0.WorkScopeV1{sc("model.profiles", "read", "invoke")}, SharedKinds: []string{"model.profiles"}},
-		{Name: "docs", Principal: "docs", Kind: domain.KindModule, Generation: 1, OwnerAware: true, ResourceKinds: []*basev0.WorkScopeV1{sc("docs.doc", "read", "write")}},
-	} {
-		if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
+// Delivery order is free, and a module's release is never tied to the
+// solutions reaching through it: a solution naming what an agent not yet
+// composed reaches is accepted; an agent delivered without what the solution
+// names through it is accepted too, the solution's reach reported unreached
+// on its installation (journaled once) and a turn's hop there refused by
+// name; the agent redelivered with it re-converges the reach by itself.
+func TestAnUnreachedReachIsReportedAndReconverges(t *testing.T) {
+	t.Run("a reach through a module not yet composed waits for it", func(t *testing.T) {
+		h := newHarness(t)
+		wiki, _ := reachSolutions()
+		if _, err := h.svc.ApplyModule(h.ctx, wiki); err != nil {
 			t.Fatal(err)
 		}
+		h.installAs(acme, "wiki", "")
+		if gaps, _ := h.svc.Unreached(h.ctx, h.stored(acme, "wiki")); len(gaps) != 1 || gaps[0] != "role viewer reaches nothing of docs.doc:read, model.profiles:invoke, model.profiles:read through agent: agent not composed" {
+			t.Fatalf("a reach waiting for its module is reported so: %v", gaps)
+		}
+	})
+	h := newHarness(t)
+	svc, events := journaled(h)
+	h.svc = svc
+	reachComposition(t, h, true)
+	h.grant("wiki", "viewer", "maya")
+	wiki := h.stored(acme, "wiki")
+	if gaps, _ := h.svc.Unreached(h.ctx, wiki); len(gaps) != 0 {
+		t.Fatalf("a composition reaching what the wiki names reports %v", gaps)
 	}
-	wiki, _ := reachSolutions()
-	if _, err := h.svc.ApplyModule(h.ctx, wiki); err != nil {
-		t.Fatalf("a reach through a module not yet composed waits for it: %v", err)
+	agent, err := h.svc.Composed(h.ctx, "agent")
+	if err != nil {
+		t.Fatal(err)
 	}
-	agent := domain.Module{Name: "agent", Principal: "agent", Kind: domain.KindModule, Generation: 1, OwnerAware: true,
-		ResourceKinds: []*basev0.WorkScopeV1{sc("agent.intents", "read", "run"), sc("agent.tasks", "execute")},
-		Bindings: map[string]domain.Binding{
-			"model": {ID: "model", Audience: "model", InvokeScopes: []*basev0.WorkScopeV1{sc("model.profiles", "read", "invoke")}},
-		}}
-	_, err := h.svc.ApplyModule(h.ctx, agent)
-	refused(t, err, `delivering agent at 1 would leave a reach unreached: role "viewer" of wiki names docs.doc:read through binding "agent"`)
-	agent.Bindings["evidence"] = domain.Binding{ID: "evidence", Audience: "docs", InvokeScopes: []*basev0.WorkScopeV1{sc("docs.doc", "read")}}
-	if _, err := h.svc.ApplyModule(h.ctx, agent); err != nil {
-		t.Fatalf("the agent reaches what the wiki names through it: %v", err)
-	}
+	withModel := agent.Bindings["model"]
 	agent.Generation = 2
 	delete(agent.Bindings, "model")
-	_, err = h.svc.ApplyModule(h.ctx, agent)
-	refused(t, err, `names model.profiles:invoke, model.profiles:read through binding "agent"`)
+	if _, err := h.svc.ApplyModule(h.ctx, agent); err != nil {
+		t.Fatalf("an agent delivered without what a solution names through it is accepted: %v", err)
+	}
+	gaps, err := h.svc.Unreached(h.ctx, h.stored(acme, "wiki"))
+	if err != nil || len(gaps) != 1 || gaps[0] != "role viewer reaches nothing of model.profiles:invoke, model.profiles:read through agent: no module agent reaches consumes it for a person" {
+		t.Fatalf("the wiki's reach is reported unreached: %v %v", gaps, err)
+	}
+	if e, ok := lastEvent(*events, domain.InstallationReachUnreached); !ok || e.Subject != wiki.ID || !strings.Contains(e.Detail["unreached"], "model.profiles") {
+		t.Fatalf("installation.reach_unreached was not journaled: %+v %v", e, ok)
+	}
+	atAgent := h.must(h.page("maya", "wiki", "agent"))
+	_, err = h.onward(atAgent, "model")
+	refused(t, err, `operation binding "model" is not one agent declares`)
+	h.must(h.onward(atAgent, "evidence"))
+
+	agent.Generation = 3
+	agent.Bindings["model"] = withModel
+	if _, err := h.svc.ApplyModule(h.ctx, agent); err != nil {
+		t.Fatal(err)
+	}
+	if gaps, _ := h.svc.Unreached(h.ctx, h.stored(acme, "wiki")); len(gaps) != 0 {
+		t.Fatalf("the reach did not re-converge: %v", gaps)
+	}
+	if e, ok := lastEvent(*events, domain.InstallationReachRestored); !ok || e.Subject != wiki.ID {
+		t.Fatalf("installation.reach_restored was not journaled: %+v %v", e, ok)
+	}
+	if up, _ := h.svc.UpgradeAvailable(h.ctx, h.stored(acme, "wiki")); up {
+		t.Fatal("a declared reach reached again asks the administrator nothing new")
+	}
+	atAgent = h.must(h.page("maya", "wiki", "agent"))
+	exactly(t, h.must(h.onward(atAgent, "model")), "model.profiles", "", []string{"invoke", "read"})
+	reported := map[domain.EventKind]int{}
+	for _, e := range *events {
+		if e.Subject == wiki.ID {
+			reported[e.Kind]++
+		}
+	}
+	if reported[domain.InstallationReachUnreached] != 1 || reported[domain.InstallationReachRestored] != 1 {
+		t.Fatalf("each change is journaled once, got %v", reported)
+	}
 }
 
 // The install review shows a kind reached through the agent where it is

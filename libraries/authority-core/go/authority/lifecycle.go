@@ -13,32 +13,86 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
 )
 
-// reachable holds every composed module's roles, once m is composed in place
-// of its previous generation, to reach what they name through a binding
-// (decide.Unreached); m's own first.
-func reachable(tx Tx, m domain.Module) error {
+// composition is every composed module by principal.
+func composition(tx Tx) (map[string]domain.Module, error) {
 	all, err := tx.Modules()
+	composed := make(map[string]domain.Module, len(all))
+	for _, m := range all {
+		composed[m.Principal] = m
+	}
+	return composed, err
+}
+
+// unreachedNow is, per composed module naming a reach through a binding, what
+// the composition leaves unreached of it (decide.UnreachedOf), joined.
+func unreachedNow(tx Tx) (map[string]string, error) {
+	composed, err := composition(tx)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]string{}
+	for _, m := range composed {
+		if gaps := decide.UnreachedOf(m, composed); len(gaps) > 0 {
+			out[m.Name] = strings.Join(gaps, "; ")
+		}
+	}
+	return out, nil
+}
+
+// journalReach journals, once per change against before (unreachedNow
+// before the delivery), each active installation whose target's declared
+// reach a delivery left unreached or reached again. The delivery stands
+// either way: an unreached reach grants nothing there, as each hop narrows.
+func (s *Service) journalReach(ctx context.Context, tx Tx, before map[string]string) error {
+	after, err := unreachedNow(tx)
 	if err != nil {
 		return err
 	}
-	composed := map[string]domain.Module{}
-	for _, other := range all {
-		if other.Name != m.Name {
-			composed[other.Principal] = other
-		}
+	changed := map[string]bool{}
+	for name := range before {
+		changed[name] = before[name] != after[name]
 	}
-	composed[m.Principal] = m
-	if err := decide.Unreached(m, composed); err != nil {
+	for name := range after {
+		changed[name] = before[name] != after[name]
+	}
+	all, err := tx.Installations("")
+	if err != nil {
 		return err
 	}
-	for _, principal := range slices.Sorted(maps.Keys(composed)) {
-		if other := composed[principal]; other.Name != m.Name {
-			if err := decide.Unreached(other, composed); err != nil {
-				return domain.Refuse("delivering %s at %d would leave a reach unreached: %v", m.Name, m.Generation, err)
-			}
+	for _, inst := range all {
+		if inst.Status != domain.Active || !changed[inst.Target] {
+			continue
+		}
+		e := domain.Event{Kind: domain.InstallationReachRestored, Organization: inst.Organization, Subject: inst.ID, Detail: map[string]string{"target": inst.Target}}
+		if after[inst.Target] != "" {
+			e.Kind, e.Detail["unreached"] = domain.InstallationReachUnreached, after[inst.Target]
+		}
+		if err := s.journal(ctx, tx, e); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+// Unreached is what inst's target names through a binding that the
+// composition does not reach now (decide.UnreachedOf): a readiness condition
+// of the installation, beside an upgrade available, which re-converges by
+// itself once a delivery reaches it again.
+func (s *Service) Unreached(ctx context.Context, inst domain.Installation) ([]string, error) {
+	var out []string
+	err := s.store.Read(ctx, func(tx Tx) error {
+		m, err := tx.ModuleNamed(inst.Target)
+		if errors.Is(err, domain.ErrNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		composed, err := composition(tx)
+		out = decide.UnreachedOf(m, composed)
+		return err
+	})
+	return out, err
 }
 
 // ApplyModule records a delivered module at a newer generation and holds a
@@ -113,11 +167,21 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 			return domain.Refuse("principal %q names an installed solution's principal; a module's principal is its own", m.Principal)
 		}
 		m.ResourceKinds = scope.Normalize(m.ResourceKinds)
-		// What a role names through a binding is reachable from it in the
-		// composition this delivery leaves, the delivered module's and every
-		// other's: a later delivery that composes or narrows a module a reach
-		// walks through is held to it as the first one was (decide.Unreached).
-		if err := reachable(tx, m); err != nil {
+		// What the delivered module's roles name through a binding is
+		// reachable from it in the composition this delivery leaves
+		// (decide.Unreached). What it leaves of another module's is reported
+		// on that module's installations, never refused (journalReach).
+		composed, err := composition(tx)
+		if err != nil {
+			return err
+		}
+		delete(composed, previous.Principal)
+		composed[m.Principal] = m
+		if err := decide.Unreached(m, composed); err != nil {
+			return err
+		}
+		unreachedBefore, err := unreachedNow(tx)
+		if err != nil {
 			return err
 		}
 		// A consent recorded before reach was kept adopts the reach it has
@@ -158,6 +222,9 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 			}
 		}
 		if err := s.reconvergeReach(ctx, tx, m.Name, before); err != nil {
+			return err
+		}
+		if err := s.journalReach(ctx, tx, unreachedBefore); err != nil {
 			return err
 		}
 		if err := s.journal(ctx, tx, domain.Event{Kind: domain.ModuleApplied, Subject: m.Name, Detail: map[string]string{"principal": m.Principal, "kind": m.Kind, "generation": fmt.Sprint(m.Generation)}}); err != nil {
@@ -274,7 +341,7 @@ func (s *Service) reconverge(ctx context.Context, tx Tx, previous, next domain.M
 			case inst.Consent.Generation != previous.Generation || inst.Consent.Digest != approvedDigest:
 				asks = []string{fmt.Sprintf("approved generation %d is behind the delivered %d", inst.Consent.Generation, previous.Generation)}
 			default:
-				further, err := reachWidens(inst, reach)
+				further, err := reachWidens(inst, reach, previous)
 				if err != nil {
 					return err
 				}
@@ -453,13 +520,20 @@ func (s *Service) WithdrawModule(ctx context.Context, name string) error {
 			}
 		}
 		m := withdrawn
+		unreachedBefore, err := unreachedNow(tx)
+		if err != nil {
+			return err
+		}
 		if err := tx.PutTombstone(domain.Tombstone{Name: m.Name, Principal: m.Principal, Generation: m.Generation}); err != nil {
 			return err
 		}
 		if err := s.journal(ctx, tx, domain.Event{Kind: domain.ModuleWithdrawn, Subject: m.Name, Detail: map[string]string{"principal": m.Principal, "generation": fmt.Sprint(m.Generation)}}); err != nil {
 			return err
 		}
-		return tx.DeleteModule(name)
+		if err := tx.DeleteModule(name); err != nil {
+			return err
+		}
+		return s.journalReach(ctx, tx, unreachedBefore)
 	})
 }
 

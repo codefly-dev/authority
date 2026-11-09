@@ -33,31 +33,61 @@ func ValidateModule(m domain.Module) error {
 
 // Unreached refuses, by name, a scope a role of m names through one of its
 // bindings that the composition (modules by principal) does not reach from
-// that binding: what the binding carries for a person (invoke, lookup), and
-// onward what the bindings of each module it reaches carry, transitively —
-// the hops a holder's capability can take, each cut to its binding. A walk
-// that meets a module not yet composed leaves what it would reach to that
-// module's delivery: the scope is held again then (the authority re-validates
-// every composed module's reach at each delivery), so delivery order is free.
+// that binding (ReachedThrough). A walk that meets a module not composed yet
+// leaves the scope to that module's delivery, so delivery order is free; a
+// later delivery is never refused for it either, which would tie every
+// module's release to every solution reaching through it: what it leaves
+// unreached is reported (UnreachedOf), grants nothing there (each hop
+// narrows), and re-converges by itself once a delivery reaches it again.
 func Unreached(m domain.Module, composed map[string]domain.Module) error {
-	for _, role := range slices.Sorted(maps.Keys(m.Through)) {
-		for _, id := range slices.Sorted(maps.Keys(m.Through[role])) {
-			reached, complete := ReachedThrough(m.Bindings[id], composed)
-			if complete && !scope.Attenuates(m.Through[role][id], reached) {
-				return domain.Refuse("role %q of %s names %s through binding %q, which reaches it nowhere in the composition: neither %q nor a module it reaches consumes it for a person",
-					role, m.Name, beyond(m.Through[role][id], reached), id, id)
-			}
+	for _, g := range reachGaps(m, composed) {
+		if len(g.missing) == 0 {
+			return domain.Refuse("role %q of %s names %s through binding %q, which reaches it nowhere in the composition: neither %q nor a module it reaches consumes it for a person",
+				g.role, m.Name, g.scopes, g.binding, g.binding)
 		}
 	}
 	return nil
 }
 
+// UnreachedOf is what m's roles name through a binding that the composition
+// does not reach now, one condition per role and binding, sorted: the
+// readiness of an installation of m, which re-converges by itself.
+func UnreachedOf(m domain.Module, composed map[string]domain.Module) []string {
+	var out []string
+	for _, g := range reachGaps(m, composed) {
+		if len(g.missing) > 0 {
+			out = append(out, fmt.Sprintf("role %s reaches nothing of %s through %s: %s not composed", g.role, g.scopes, g.binding, strings.Join(g.missing, ", ")))
+			continue
+		}
+		out = append(out, fmt.Sprintf("role %s reaches nothing of %s through %s: no module %s reaches consumes it for a person", g.role, g.scopes, g.binding, g.binding))
+	}
+	return out
+}
+
+type reachGap struct {
+	role, binding, scopes string
+	missing               []string
+}
+
+func reachGaps(m domain.Module, composed map[string]domain.Module) []reachGap {
+	var out []reachGap
+	for _, role := range slices.Sorted(maps.Keys(m.Through)) {
+		for _, id := range slices.Sorted(maps.Keys(m.Through[role])) {
+			reached, missing := ReachedThrough(m.Bindings[id], composed)
+			if gap := beyond(m.Through[role][id], reached); gap != "" {
+				out = append(out, reachGap{role: role, binding: id, scopes: gap, missing: missing})
+			}
+		}
+	}
+	return out
+}
+
 // ReachedThrough is what a holder's capability can carry through binding b
 // and onward through the composition (modules by principal): b's invoke and
-// lookup scopes, and those of every binding of each module reached. complete
-// is false when the walk met a module the composition does not hold yet.
-func ReachedThrough(b domain.Binding, composed map[string]domain.Module) (reached Scopes, complete bool) {
-	complete = true
+// lookup scopes, and those of every binding of each module reached. missing
+// names, sorted, each principal the walk met that the composition does not
+// hold.
+func ReachedThrough(b domain.Binding, composed map[string]domain.Module) (reached Scopes, missing []string) {
 	seen := map[string]bool{}
 	queue := []domain.Binding{b}
 	for len(queue) > 0 {
@@ -71,14 +101,15 @@ func ReachedThrough(b domain.Binding, composed map[string]domain.Module) (reache
 		seen[current.Audience] = true
 		next, ok := composed[current.Audience]
 		if !ok {
-			complete = false
+			missing = append(missing, current.Audience)
 			continue
 		}
 		for _, id := range slices.Sorted(maps.Keys(next.Bindings)) {
 			queue = append(queue, next.Bindings[id])
 		}
 	}
-	return scope.Normalize(reached), complete
+	slices.Sort(missing)
+	return scope.Normalize(reached), missing
 }
 
 // beyond spells, "kind:action, …", what of scopes is not within within.

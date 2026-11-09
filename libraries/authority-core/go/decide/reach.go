@@ -412,6 +412,17 @@ func DecodeReach(text string) (map[string][]domain.ReachRow, error) {
 // means next asks nothing new: a narrowing, or nothing moved. A row's path
 // is a witness, never compared.
 func ReachWidens(approved, next map[string][]domain.ReachRow) []string {
+	return ReachWidensWithin(approved, next, domain.Module{})
+}
+
+// ReachWidensWithin is ReachWidens for an installation whose approved
+// declaration is declared: a row onward through a binding whose scopes are
+// within what the role names through that binding (domain.Module.Through)
+// asks nothing new, whether it is new or reaches further, since the
+// administrator consented to the declaration naming it. A declared reach a
+// delivery left unreached then re-converges by itself once a later delivery
+// reaches it again (decide.UnreachedOf).
+func ReachWidensWithin(approved, next map[string][]domain.ReachRow, declared domain.Module) []string {
 	var out []string
 	for _, role := range slices.Sorted(maps.Keys(next)) {
 		who, reaches := "role "+role, "reaches"
@@ -426,7 +437,9 @@ func ReachWidens(approved, next map[string][]domain.ReachRow) []string {
 			i := slices.IndexFunc(approved[role], func(a domain.ReachRow) bool {
 				return a.Module == row.Module && a.Via == row.Via && a.Confinement == row.Confinement
 			})
+			consented := row.Via == ReachBinding && len(row.Path) > 1 && scope.Attenuates(row.Scopes, declaredThrough(declared, role, row.Path[1]))
 			switch {
+			case consented && (i < 0 || !scope.Attenuates(row.Scopes, approved[role][i].Scopes)):
 			case i < 0:
 				out = append(out, fmt.Sprintf("%s %s %s (%s)", who, reaches, at, row.Via))
 			case !scope.Attenuates(row.Scopes, approved[role][i].Scopes):
@@ -449,6 +462,25 @@ func ReachWidens(approved, next map[string][]domain.ReachRow) []string {
 						out = append(out, fmt.Sprintf("operation %s at %s requires less", op, row.Module))
 					}
 				}
+			}
+		}
+	}
+	return out
+}
+
+// declaredThrough is what role (every role, for JointRoles) of declared names
+// through its bindings addressed to audience, the first module on a path: a
+// path names modules, and a module's principal is its name (the render
+// refuses a contract claiming another).
+func declaredThrough(declared domain.Module, role, audience string) Scopes {
+	var out Scopes
+	for name, bindings := range declared.Through {
+		if role != JointRoles && name != role {
+			continue
+		}
+		for id, scopes := range bindings {
+			if b, ok := declared.Bindings[id]; ok && b.Audience == audience {
+				out = append(out, scopes...)
 			}
 		}
 	}

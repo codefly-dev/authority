@@ -324,6 +324,14 @@ const (
 	// installation's consent approved; Detail "widened" names what. The
 	// installation stays as it is until Install approves the new offer.
 	InstallationUpgradeAvailable EventKind = "installation.upgrade_available"
+	// InstallationReachUnreached: a delivery left what the installation's
+	// target names through a binding unreached (decide.UnreachedOf); Detail
+	// "unreached" names each. It grants nothing there until a delivery
+	// reaches it again (InstallationReachRestored).
+	InstallationReachUnreached EventKind = "installation.reach_unreached"
+	// InstallationReachRestored: a delivery reaches again everything the
+	// installation's target names through a binding.
+	InstallationReachRestored EventKind = "installation.reach_restored"
 	// InstallationReachAdopted: a consent recorded before reach was kept
 	// adopted, once, the reach its approved declaration has as the
 	// composition stands; Detail "reach" names its digest.

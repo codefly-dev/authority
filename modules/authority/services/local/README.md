@@ -118,9 +118,14 @@ from a role scope's `through:` in the module contract), what the modules that
 binding reaches consume onward: a wiki viewer's role names the model's profiles
 and the document store's read through its binding to the agent. Delivery holds
 each reachable from its binding in the composition (`decide.Unreached`), at the
-declaring module's delivery and at every later one, so a delivery that would
-leave a declared reach unreached is refused naming it; a walk that meets a
-module not yet composed waits for that module's delivery. A module may declare
+declaring module's own delivery, which is refused naming a kind its binding
+reaches nowhere. A later delivery of a module the reach walks through (an
+agent dropping a binding, or withdrawn) is never refused for it: the
+installation reports it in `Installation.unreached` (journaled once per change
+as `installation.reach_unreached`, then `installation.reach_restored`), grants
+nothing there, as each hop narrows, and re-converges by itself once a delivery
+reaches it again, asking the administrator nothing new for a reach its approved
+declaration names. A walk that meets a module not yet composed waits for it. A module may declare
 kinds `shared` (the authority document's `shared_kinds`, from a scope
 ceiling's `shared: true`): kinds no owner holds, such as a model's profiles. A
 scope of one is issued unselected, even through a solution's binding; every

@@ -173,11 +173,12 @@ func (p *Plugin) ListHeld(ctx context.Context, req *installationv1.ListHeldReque
 }
 
 // wire converts an installation to the interface's message, with the roles
-// its target declares and whether what is delivered, the target or a module
-// its roles reach, offers an upgrade (the core decides; a read it cannot
-// make answers none).
+// its target declares, whether what is delivered, the target or a module its
+// roles reach, offers an upgrade, and what its declared reach the
+// composition leaves unreached (the core decides; a read it cannot make
+// answers none).
 func (p *Plugin) wire(ctx context.Context, i state.Installation) *installationv1.Installation {
-	var roles []string
+	var roles, unreached []string
 	upgrade := false
 	if m, ok := p.State.Module(i.Target); ok {
 		for name := range m.Roles {
@@ -185,8 +186,11 @@ func (p *Plugin) wire(ctx context.Context, i state.Installation) *installationv1
 		}
 		slices.Sort(roles)
 		upgrade, _ = p.State.Service().UpgradeAvailable(ctx, i)
+		unreached, _ = p.State.Service().Unreached(ctx, i)
 	}
-	return wireInstallation(i, roles, upgrade)
+	out := wireInstallation(i, roles, upgrade)
+	out.Unreached = unreached
+	return out
 }
 
 func wireInstallation(i state.Installation, roles []string, upgrade bool) *installationv1.Installation {

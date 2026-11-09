@@ -26,7 +26,7 @@ services:
         kind: protobuf
         package: ""
         path: contracts/api/local/grpc/contract.binpb
-        digest: sha256:b2ddb5728c3845b3adbe32ea6c5371b68cfc9017b58ab8ea9e3c9781e7995095
+        digest: sha256:7c4c520b4f10f00d0d21eca210a5cf18f6dfad641ff703b9f36743157806ffd0
       - endpoint: rest
         kind: openapi
         package: api.proto
