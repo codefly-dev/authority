@@ -200,11 +200,15 @@ func indexReach(reach map[string][]domain.ReachRow) reachIndex {
 	return out
 }
 
-// admits is whether the approved cell admits operation: its approved policy
-// applied to the scopes the cell holds, the roles held together.
-func (c reachCell) admits(module, operation string) bool {
+// admits is whether the approved cell admits operation for a call carrying
+// effective: its approved policy applied both to the scopes the cell holds,
+// the roles held together, and to what the call itself carries. A call
+// narrowed below the role is held to the approved policy on its own scopes,
+// so a delivery relaxing what an operation requires admits no narrowed call
+// to it before an administrator approves the relaxation.
+func (c reachCell) admits(module, operation string, effective Scopes) bool {
 	p, ok := c.policies[operation]
-	return ok && decide.AdmitPolicy(module, operation, p, c.scopes) == nil
+	return ok && decide.AdmitPolicy(module, operation, p, c.scopes) == nil && decide.AdmitPolicy(module, operation, p, effective) == nil
 }
 
 // consentedReach is the reach inst's consent approved, indexed and cached by
@@ -298,17 +302,18 @@ type reachOwner struct {
 // holds there: a person's roles granted on each consented solution on the
 // path, intersected across them; an agent's own installation role. held is
 // the scopes; admits reports whether an operation of module is admitted by
-// the policy approved for it to the roles' scopes there, held together. bounded
+// the policy approved for it to the roles' scopes there, held together, and
+// to the scopes the call itself carries. bounded
 // is false when no consented solution bounds it (none on the path, or an
 // installation installed by its host without consent). A delivery of the
 // solution, or of any module it reaches, that asks more than its consent
 // approved therefore grants nobody, person or agent, the wider reach until
 // an administrator approves it.
-func (s *Service) approvedReach(tx Tx, owner reachOwner, module string) (held Scopes, admits func(operation string) bool, bounded bool, err error) {
+func (s *Service) approvedReach(tx Tx, owner reachOwner, module string) (held Scopes, admits func(operation string, effective Scopes) bool, bounded bool, err error) {
 	var cells []reachCell
-	admits = func(operation string) bool {
+	admits = func(operation string, effective Scopes) bool {
 		for _, c := range cells {
-			if !c.admits(module, operation) {
+			if !c.admits(module, operation, effective) {
 				return false
 			}
 		}

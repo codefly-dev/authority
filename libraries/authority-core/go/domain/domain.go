@@ -336,6 +336,12 @@ const (
 	// adopted, once, the reach its approved declaration has as the
 	// composition stands; Detail "reach" names its digest.
 	InstallationReachAdopted EventKind = "installation.reach_adopted"
+	// InstallationRoleReachWidened: a delivery widened what a module page's
+	// role reaches through its bindings; the grants of that role on the
+	// page's installation ended with it (each journaled as role.revoked),
+	// and an administrator grants it again knowing what it now reaches.
+	// Detail "roles" names the roles, "widened" what widened.
+	InstallationRoleReachWidened EventKind = "installation.role_reach_widened"
 	// InstallationUpgraded: an administrator approved a newer offer on an
 	// active installation, which keeps its grants.
 	InstallationUpgraded EventKind = "installation.upgraded"

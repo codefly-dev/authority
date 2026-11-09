@@ -171,3 +171,43 @@ func TestAModulesRedeliveryThatNarrowsASolutionsReachReconverges(t *testing.T) {
 	}
 	exactly(t, h.must(h.root("remi", "a")), "a.note", h.principal(acme, "a"), []string{"read"})
 }
+
+// A call narrowed below its role is held to the approved policy on what it
+// carries itself: with Purge approved as requiring write, maya's capability
+// through a asked read alone is refused Purge; the store relaxing Purge to
+// read offers an upgrade, and until an administrator approves it the
+// narrowed capability is still refused, though the role's approved reach
+// (read and write) satisfies the approved policy. Once approved, it is
+// admitted.
+func TestANarrowedCallIsHeldToTheApprovedPolicyOnItsOwnScopes(t *testing.T) {
+	h := newHarness(t)
+	if _, err := h.svc.ApplyModule(h.ctx, storeAt(2, "write", true)); err != nil {
+		t.Fatal(err)
+	}
+	h.install(acme, "a")
+	h.grant("a", "author", "maya")
+	full := h.must(h.through("maya", "a", "store"))
+	if err := h.callStore(full, storePurge); err != nil {
+		t.Fatalf("the author's full capability is refused the approved Purge: %v", err)
+	}
+	readOnly := owned(kind, h.principal(acme, "a"), []string{"read"})
+	narrowed := h.must(h.through("maya", "a", "store", readOnly))
+	refused(t, h.callStore(narrowed, storePurge), "requires "+kind+":write")
+
+	if _, err := h.svc.ApplyModule(h.ctx, storeAt(3, "read", true)); err != nil {
+		t.Fatal(err)
+	}
+	if up, err := h.svc.UpgradeAvailable(h.ctx, h.stored(acme, "a")); err != nil || !up {
+		t.Fatalf("relaxing Purge offers no upgrade: %v %v", up, err)
+	}
+	refused(t, h.callStore(narrowed, storePurge), "beyond the reach its solution's installation approved")
+	if err := h.callStore(narrowed, storeRead); err != nil {
+		t.Fatalf("the narrowed capability lost the approved Read: %v", err)
+	}
+
+	h.install(acme, "a") // the administrator approves the relaxation
+	narrowed = h.must(h.through("maya", "a", "store", readOnly))
+	if err := h.callStore(narrowed, storePurge); err != nil {
+		t.Fatalf("the approved relaxation is refused: %v", err)
+	}
+}

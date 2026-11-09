@@ -86,7 +86,7 @@ func (s *Service) CheckMethod(ctx context.Context, token, audience, method strin
 		if refusal = decide.AdmitMethod(m, method, verified.EffectiveScopes()); refusal != nil {
 			return nil
 		}
-		refusal, err = s.withinApprovedReach(tx, verified.Context(), m, method)
+		refusal, err = s.withinApprovedReach(tx, verified.Context(), verified.EffectiveScopes(), m, method)
 		return err
 	})
 	if err != nil {
@@ -232,9 +232,11 @@ func effectiveOf(wc *basev0.WorkContextV1) Scopes {
 // a person acting through the solution, for the roles they hold on it, or
 // the installation's own agent, for its agent role (approvedReach). A
 // delivery of m, or of the solution, that admits more than was approved
-// admits nobody more until an administrator approves the upgrade. A person's
+// admits nobody more until an administrator approves the upgrade, and the
+// approved policy holds on effective, what the call itself carries, as well
+// as on the approved reach. A person's
 // call through no solution is not looked up further.
-func (s *Service) withinApprovedReach(tx Tx, wc *basev0.WorkContextV1, m domain.Module, method string) (error, error) {
+func (s *Service) withinApprovedReach(tx Tx, wc *basev0.WorkContextV1, effective Scopes, m domain.Module, method string) (error, error) {
 	owner := reachOwner{}
 	switch wc.GetOwnerPrincipalKind() {
 	case "agent":
@@ -257,7 +259,7 @@ func (s *Service) withinApprovedReach(tx Tx, wc *basev0.WorkContextV1, m domain.
 		return nil, err
 	}
 	// Each face of an operation is held to its own approved policy.
-	if key, ok := decide.MethodKey(m, method); ok && admits(key) {
+	if key, ok := decide.MethodKey(m, method); ok && admits(key, effective) {
 		return nil, nil
 	}
 	return domain.Refuse("%s at %s is beyond the reach its solution's installation approved; an administrator approves the upgrade that reaches it", method, m.Name), nil

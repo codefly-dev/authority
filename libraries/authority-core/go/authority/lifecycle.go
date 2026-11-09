@@ -194,6 +194,10 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 		if err != nil {
 			return err
 		}
+		pagesBefore, err := pageReaches(tx)
+		if err != nil {
+			return err
+		}
 		if exists && previous.OwnerAware && !m.OwnerAware {
 			if err := tx.BumpOwnerAwareRevision(m.Principal); err != nil {
 				return err
@@ -222,6 +226,9 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 			}
 		}
 		if err := s.reconvergeReach(ctx, tx, m.Name, before); err != nil {
+			return err
+		}
+		if err := s.dropWidenedPageGrants(ctx, tx, m.Name, pagesBefore); err != nil {
 			return err
 		}
 		if err := s.journalReach(ctx, tx, unreachedBefore); err != nil {
