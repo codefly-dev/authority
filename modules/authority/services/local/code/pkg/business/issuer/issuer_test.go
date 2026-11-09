@@ -592,7 +592,7 @@ func TestPersonIssuanceCanonicalizesTeamsWithoutChangingTheSession(t *testing.T)
 // Globex's documents role names the collection kind, and Omar holds none of
 // it; documents checks owners, so on their own session neither reaches a
 // collection there (RBAC-4a).
-func TestGlobexCollectionReadIsAnExplicitFixtureGrant(t *testing.T) {
+func TestNoOrganizationRoleReadsDocumentsCollectionsOnItsOwnSession(t *testing.T) {
 	k := testkit.New(t)
 	for _, token := range []string{"fixture-zoe", "fixture-omar"} {
 		t.Run(token, func(t *testing.T) {

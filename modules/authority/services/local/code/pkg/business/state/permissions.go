@@ -154,7 +154,13 @@ func (s *State) PermissionReport() []string {
 				}
 				lines = append(lines, fmt.Sprintf("role %s × %s@%d × %s: %s", role, m.Name, m.Generation, method, result))
 			}
-			if !covered {
+			switch {
+			case covered:
+			case m.OwnerAware && !decide.RoleGated(m):
+				// Organization roles reach no owned kind here (RBAC-4a): a
+				// solution's or a module page's role does.
+				lines = append(lines, fmt.Sprintf("%s@%d %s: checks owners; reached through a role on the installation that owns the data, never an organization role", m.Name, m.Generation, method))
+			default:
 				lines = append(lines, fmt.Sprintf("WARN %s@%d %s: no single declared role covers this method", m.Name, m.Generation, method))
 			}
 		}

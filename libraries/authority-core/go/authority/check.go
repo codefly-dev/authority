@@ -152,6 +152,12 @@ func (s *Service) ListResources(ctx context.Context, token, audience, kind, acti
 				}
 				rows = scope.Intersect(effective, h)
 			default:
+				// Organization roles reach no owned kind of a module that
+				// checks owners (decide.OrgScopes): a capability issued
+				// before it adopted owner checks answers none of it.
+				if err == nil && at.OwnerAware && !slices.Contains(at.SharedKinds, kind) {
+					return nil
+				}
 				roles, err := orgRoles(tx, p)
 				if err != nil {
 					return err

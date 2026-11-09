@@ -256,15 +256,25 @@ func TestOrganizationGrantsAndModules(t *testing.T) {
 }
 
 // Withdrawing owner-aware checking is a narrowing: owner-selected
-// capabilities already issued to the module end with it.
-func TestWithdrawingOwnerAwareIsANarrowing(t *testing.T) {
-	aware := domain.Module{Name: "store", Principal: "store", Kind: domain.KindModule, Generation: 1, OwnerAware: true}
+// capabilities already issued to the module end with it. Adopting it is one
+// too, as is a kind no longer shared: what an organization role held there
+// unselected on a person's own session is no longer held (RBAC-4a).
+func TestWithdrawingOrAdoptingOwnerAwareIsANarrowing(t *testing.T) {
+	aware := domain.Module{Name: "store", Principal: "store", Kind: domain.KindModule, Generation: 1, OwnerAware: true, SharedKinds: []string{"profiles"}}
 	blind := aware
-	blind.OwnerAware, blind.Generation = false, 2
+	blind.OwnerAware, blind.SharedKinds, blind.Generation = false, nil, 2
 	if !decide.Narrowed(aware, blind) {
 		t.Fatal("withdrawing owner-aware checking is not a narrowing")
 	}
-	if decide.Narrowed(blind, aware) {
-		t.Fatal("declaring owner-aware checking is a narrowing")
+	if !decide.Narrowed(blind, aware) {
+		t.Fatal("adopting owner-aware checking is not a narrowing")
+	}
+	unshared := aware
+	unshared.SharedKinds, unshared.Generation = nil, 2
+	if !decide.Narrowed(aware, unshared) {
+		t.Fatal("a kind no longer shared is not a narrowing")
+	}
+	if decide.Narrowed(unshared, aware) {
+		t.Fatal("sharing a kind is a narrowing")
 	}
 }

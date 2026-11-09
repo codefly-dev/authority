@@ -61,6 +61,24 @@ func OrgScopes(roles []domain.OrgRole, audience domain.Module, named Scopes) Sco
 	return scope.Intersect(scope.Normalize(held), audience.ResourceKinds)
 }
 
+// OwnSession names why a person's own session was refused at an audience
+// that checks owners (RBAC-4a): organization roles reach none of its owned
+// kinds there. An ask naming only shared kinds, or a refusal at an audience
+// that checks no owner, is answered as refused.
+func OwnSession(audience domain.Module, asked Scopes, refused error) error {
+	if !audience.OwnerAware || RoleGated(audience) {
+		return refused
+	}
+	owned := len(asked) == 0
+	for _, sc := range asked {
+		owned = owned || !slices.Contains(audience.SharedKinds, sc.GetResourceKind())
+	}
+	if !owned {
+		return refused
+	}
+	return domain.Refuse("%v: %s checks owners, so an organization role reaches none of its owned data on a person's own session; reach it through a role on the installation that owns it", refused, audience.Name)
+}
+
 // heldIDs is what a role scope's matchers hold of kind: every resource when
 // they name none or All; otherwise each ID matcher's id, and of a prefix or a
 // pattern only the ids named on kind that it matches. A token cannot carry a

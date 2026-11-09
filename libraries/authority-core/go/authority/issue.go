@@ -39,7 +39,8 @@ type Issued struct {
 // page declaring roles, those of its roles granted them on its installation,
 // within what it serves; at any other module, their organization roles within
 // what it serves, resource-scoped roles holding the ids their matchers select
-// of named (decide.OrgScopes).
+// of named; at a module that checks owners only the kinds it declares shared
+// (decide.OrgScopes, RBAC-4a).
 func held(tx Tx, p domain.Person, audience domain.Module, named Scopes) (Scopes, error) {
 	if decide.RoleGated(audience) {
 		inst, err := installationOf(tx, p.Organization, audience.Name)
@@ -282,6 +283,9 @@ func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest
 			heldHere = scope.Normalize(append(heldHere, through...))
 		}
 		if scopes, err = decide.Issue(r.Scopes, heldHere); err != nil {
+			if r.Binding == "" {
+				return decide.OwnSession(audience, r.Scopes, err)
+			}
 			return err
 		}
 		return decide.OwnerAware(audience, scopes)

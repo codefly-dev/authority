@@ -108,7 +108,7 @@ func TestRBACIssuanceMatrix(t *testing.T) {
 		{id: "M16b", principal: "person on own session, resource-scoped organization role", target: "module (owner-aware)", resource: "the granted id",
 			issue: func(h *harness) (authority.Issued, error) {
 				return h.root("rob", "store", &basev0.WorkScopeV1{ResourceKind: kind, Actions: []string{"read"}, ResourceIds: []string{"store-x"}})
-			}, refuse: "asked beyond what the owner holds"},
+			}, refuse: "store checks owners, so an organization role reaches none of its owned data"},
 		{id: "M17", principal: "person on own session, other ids", target: "module not owner-aware (organization roles)", resource: "outside the grant",
 			issue: func(h *harness) (authority.Issued, error) {
 				return h.root("rob", "ledger", &basev0.WorkScopeV1{ResourceKind: ledgerKind, Actions: []string{"read"}, ResourceIds: []string{"entry-y"}})
@@ -119,13 +119,13 @@ func TestRBACIssuanceMatrix(t *testing.T) {
 		{id: "M19", principal: "person: organization administrator (every kind, every action) on own session", target: "module (owner-aware)", resource: "a solution installation's data",
 			issue: func(h *harness) (authority.Issued, error) {
 				return h.root("boss", "store", owned(kind, h.principal(acme, "a"), []string{"read"}))
-			}, refuse: "asked beyond what the owner holds"},
+			}, refuse: "store checks owners, so an organization role reaches none of its owned data"},
 		{id: "M19b", principal: "person: organization administrator (every kind, every action) on own session", target: "module (owner-aware)", resource: "the whole kind, unowned",
 			issue:  func(h *harness) (authority.Issued, error) { return h.root("boss", "store", sc(kind, "read")) },
-			refuse: "asked beyond what the owner holds"},
+			refuse: "store checks owners, so an organization role reaches none of its owned data"},
 		{id: "M19c", principal: "person: organization administrator (every kind, every action) on own session", target: "module (owner-aware)", resource: "anything",
 			issue:  func(h *harness) (authority.Issued, error) { return h.root("boss", "store") },
-			refuse: "the owner holds nothing at this audience"},
+			refuse: "store checks owners, so an organization role reaches none of its owned data"},
 		{id: "M19d", principal: "person: organization administrator (every kind, every action) on own session", target: "module not owner-aware", resource: "the whole kind",
 			issue: func(h *harness) (authority.Issued, error) { return h.root("boss", "legacy-store") },
 			allow: &row{legacyKind, noOwner, []string{"read"}, nil}},

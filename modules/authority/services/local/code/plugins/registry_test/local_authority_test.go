@@ -75,6 +75,9 @@ people:
 	}
 	model := testkit.Model(2)
 	model.ResourceKinds = append(model.ResourceKinds, testkit.Scope("documents", "read", "write"))
+	// Shared at the model, so Rémi holds it there on his own session and the
+	// parent-limits case's dropped kind is really held (RBAC-4a).
+	model.SharedKinds = append(model.SharedKinds, "documents")
 	model.Bindings = map[string]state.Binding{
 		"records": testkit.OrgDirectory(1).Bindings["records"],
 		"self":    {ID: "self", Audience: "model", InvokeScopes: model.ResourceKinds},
