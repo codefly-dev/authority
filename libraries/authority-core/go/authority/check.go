@@ -132,13 +132,13 @@ func (s *Service) ListResources(ctx context.Context, token, audience, kind, acti
 			if err != nil {
 				return domain.Refuse("the owner %s is no longer a member", wc.GetOwnerPrincipalId())
 			}
-			ceiling, bounded, err := solutionCeiling(tx, p, solutionPrincipals(wc, wc.GetAudience()))
-			if err != nil {
-				return err
-			}
 			at, err := tx.Module(wc.GetAudience())
 			if err != nil && !errors.Is(err, domain.ErrNotFound) {
 				return err
+			}
+			ceiling, bounded, cerr := solutionCeiling(tx, p, solutionPrincipals(wc, wc.GetAudience()), at)
+			if cerr != nil {
+				return cerr
 			}
 			switch {
 			case bounded:

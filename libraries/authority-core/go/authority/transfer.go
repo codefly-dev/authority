@@ -80,9 +80,12 @@ func (s *Service) AuthorizeTransfer(ctx context.Context, r TransferRequest) (Tra
 			return domain.Refuse("the person no longer belongs to the capability's organization")
 		}
 		t.Person = p
+		// The installations the capability came through own what they
+		// attach: a solution's, and a module page's declaring roles, whose
+		// roles reach this store owner-selected to it (decide.ModuleRoleAt).
 		for _, principal := range solutionPrincipals(wc, wc.GetAudience()) {
-			if m, err := tx.Module(principal); err == nil && m.Kind == domain.KindSolution {
-				if inst, err := installationOf(tx, wc.GetTenantId(), m.Name); err == nil {
+			if m, err := tx.Module(principal); err == nil && decide.RoleGated(m) {
+				if inst, err := installationOf(tx, wc.GetTenantId(), m.Name); err == nil && inst.PrincipalID != "" {
 					t.Through = append(t.Through, inst.PrincipalID)
 				}
 			}

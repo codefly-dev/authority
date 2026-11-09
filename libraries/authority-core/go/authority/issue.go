@@ -74,18 +74,19 @@ func held(tx Tx, p domain.Person, audience domain.Module, named Scopes) (Scopes,
 // path names; with none, of each module page declaring roles it names: a role
 // reaches through its target's bindings whichever kind declares it, and a
 // solution on the path decides alone, as it always has. bounded distinguishes
-// no such target from one granting nothing.
-func solutionCeiling(tx Tx, p domain.Person, principals []string) (ceiling Scopes, bounded bool, err error) {
+// no such target from one granting nothing. A module page's roles are read as
+// audience receives them (decide.ModuleRoleAt).
+func solutionCeiling(tx Tx, p domain.Person, principals []string, audience domain.Module) (ceiling Scopes, bounded bool, err error) {
 	isSolution := func(m domain.Module) bool { return m.Kind == domain.KindSolution }
-	if ceiling, bounded, err = rolesCeiling(tx, p, principals, isSolution); err != nil || bounded {
+	if ceiling, bounded, err = rolesCeiling(tx, p, principals, audience, isSolution); err != nil || bounded {
 		return ceiling, bounded, err
 	}
-	return rolesCeiling(tx, p, principals, decide.RoleGated)
+	return rolesCeiling(tx, p, principals, audience, decide.RoleGated)
 }
 
 // rolesCeiling intersects the current roles of each target the path names
 // that counts.
-func rolesCeiling(tx Tx, p domain.Person, principals []string, counts func(domain.Module) bool) (ceiling Scopes, bounded bool, err error) {
+func rolesCeiling(tx Tx, p domain.Person, principals []string, audience domain.Module, counts func(domain.Module) bool) (ceiling Scopes, bounded bool, err error) {
 	seen := map[string]bool{}
 	for _, principal := range principals {
 		if seen[principal] {
@@ -113,6 +114,7 @@ func rolesCeiling(tx Tx, p domain.Person, principals []string, counts func(domai
 			if role, err = decide.RoleScopes(approved, inst, decide.HeldRoles(p, inst, grants)); err != nil {
 				return nil, false, err
 			}
+			role = decide.ModuleRoleAt(m, inst, audience, role)
 		} else if !errors.Is(err, domain.ErrNotFound) {
 			return nil, false, err
 		}
@@ -131,7 +133,7 @@ func rolesCeiling(tx Tx, p domain.Person, principals []string, counts func(domai
 // (confined to its principal's data), else the roles of the module pages
 // declaring roles on it, the person's own grants otherwise.
 func throughSolutions(tx Tx, p domain.Person, audience domain.Module, principals []string, named Scopes) (h, ceiling Scopes, bounded bool, err error) {
-	if ceiling, bounded, err = solutionCeiling(tx, p, principals); err != nil {
+	if ceiling, bounded, err = solutionCeiling(tx, p, principals, audience); err != nil {
 		return
 	}
 	if !bounded {

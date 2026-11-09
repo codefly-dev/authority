@@ -249,11 +249,15 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 			inst, err := tx.Installation(id)
 			switch {
 			case errors.Is(err, domain.ErrNotFound):
-				if err := tx.PutInstallation(domain.Installation{ID: id, Organization: org.ID, Target: m.Name, Status: domain.Active, Revision: 1}); err != nil {
+				if err := tx.PutInstallation(s.composedInstallation(org.ID, m.Name)); err != nil {
 					return err
 				}
 			case err != nil:
 				return err
+			case inst.PrincipalID == "":
+				if err := tx.PutInstallation(s.withComposedPrincipal(inst)); err != nil {
+					return err
+				}
 			case inst.Status == domain.Revoked && withdrawn:
 				// A module withdrawn and delivered again is installed again,
 				// at a revision above every capability sealed before. Only a
@@ -423,12 +427,16 @@ func (s *Service) OrganizationAdded(ctx context.Context, org string) ([]string, 
 				continue // installed by an administrator, through Review and Install
 			}
 			id := s.cfg.InstallationID(org, m.Name)
-			if _, err := tx.Installation(id); errors.Is(err, domain.ErrNotFound) {
-				if err := tx.PutInstallation(domain.Installation{ID: id, Organization: org, Target: m.Name, Status: domain.Active, Revision: 1}); err != nil {
+			if inst, err := tx.Installation(id); errors.Is(err, domain.ErrNotFound) {
+				if err := tx.PutInstallation(s.composedInstallation(org, m.Name)); err != nil {
 					return err
 				}
 			} else if err != nil {
 				return err
+			} else if inst.PrincipalID == "" {
+				if err := tx.PutInstallation(s.withComposedPrincipal(inst)); err != nil {
+					return err
+				}
 			}
 			ids = append(ids, id)
 		}
@@ -892,7 +900,7 @@ func (s *Service) UninstallAsHost(ctx context.Context, organization, installatio
 		if err != nil {
 			return err
 		}
-		if s.cfg.HostInstallsModules && inst.PrincipalID == "" {
+		if s.cfg.HostInstallsModules && inst.InstalledBy == "" {
 			if m, err := tx.ModuleNamed(inst.Target); err == nil && m.Kind != domain.KindSolution {
 				return domain.Refuse("%s is a module installed by its host's consent; the host uninstalls it", inst.Target)
 			}
@@ -902,6 +910,26 @@ func (s *Service) UninstallAsHost(ctx context.Context, organization, installatio
 		}
 		return s.journal(ctx, tx, uninstalled("", inst))
 	})
+}
+
+// composedInstallation is a module's installation at org by composition:
+// active, holding no standing authority and no consent, with the principal
+// that owns what the module's page creates in a module that checks owners,
+// as a solution's installation owns what its page creates
+// (decide.ModuleRoleAt).
+func (s *Service) composedInstallation(org, module string) domain.Installation {
+	return domain.Installation{ID: s.cfg.InstallationID(org, module), Organization: org, Target: module, Status: domain.Active, Revision: 1,
+		PrincipalID: s.cfg.PrincipalID(org, module)}
+}
+
+// withComposedPrincipal gives a composition installation recorded before
+// module installations held a principal its principal, at a revision above
+// every capability sealed to it before: those carried the module page's roles
+// unselected, across every owner, and end here.
+func (s *Service) withComposedPrincipal(inst domain.Installation) domain.Installation {
+	inst.PrincipalID = s.cfg.PrincipalID(inst.Organization, inst.Target)
+	inst.Revision++
+	return inst
 }
 
 func uninstalled(actor string, inst domain.Installation) domain.Event {

@@ -36,7 +36,7 @@ func TestADeliveryWideningAPageRolesReachEndsItsGrants(t *testing.T) {
 	}
 	h.grant("pages", "viewer", "maya")
 	h.grant("pages", domain.InstallerRole, "remi")
-	exactly(t, h.must(h.through("maya", "pages", "store")), kind, "", []string{"read"})
+	exactly(t, h.must(h.through("maya", "pages", "store")), kind, h.principal(acme, "pages"), []string{"read"})
 	revision := h.pagesAt(acme).Revision
 
 	// The page widens its viewer to write at the store.
@@ -60,11 +60,11 @@ func TestADeliveryWideningAPageRolesReachEndsItsGrants(t *testing.T) {
 	if e, ok := lastEvent(*events, domain.RoleRevoked); !ok || e.Detail["person"] != "maya" || e.Actor != "delivery:pages" {
 		t.Fatalf("maya's grant was not journaled as revoked by the delivery: %+v %v", e, ok)
 	}
-	exactly(t, h.must(h.through("remi", "pages", "store")), kind, "", []string{"read"})
+	exactly(t, h.must(h.through("remi", "pages", "store")), kind, h.principal(acme, "pages"), []string{"read"})
 
 	// Granted again, the wider reach is issued.
 	h.grant("pages", "viewer", "maya")
-	exactly(t, h.must(h.through("maya", "pages", "store")), kind, "", []string{"read", "write"})
+	exactly(t, h.must(h.through("maya", "pages", "store")), kind, h.principal(acme, "pages"), []string{"read", "write"})
 
 	// A module the page reaches adding an operation the viewer reaches
 	// widens it too; the installer's reach there gains the operation as
@@ -95,7 +95,7 @@ func TestADeliveryWideningAPageRolesReachEndsItsGrants(t *testing.T) {
 	if grants := h.roleGrants("pages"); !slices.ContainsFunc(grants, func(g domain.RoleGrant) bool { return g.Role == "viewer" && g.PersonID == "maya" }) {
 		t.Fatalf("a narrowing ended the viewer's grant: %+v", grants)
 	}
-	exactly(t, h.must(h.through("maya", "pages", "store")), kind, "", []string{"read"})
+	exactly(t, h.must(h.through("maya", "pages", "store")), kind, h.principal(acme, "pages"), []string{"read"})
 }
 
 // A module page's installation carrying a consent receipt (a host that

@@ -126,38 +126,29 @@ func TestAModulePageRoleNamesWhatItServesOrConsumes(t *testing.T) {
 // binding, a child narrowed to the role intersected with the binding, and
 // nothing beyond: not an action the binding does not carry, not an action the
 // role does not grant, not without the role, and not on their own session at
-// the module the page reaches, where their own grants still decide.
+// the module the page reaches, where their own grants still decide. At a
+// module that checks owners the role reaches only the page installation's
+// own data (RBAC-1).
 func TestAModulePageRoleReachesThroughThePagesBinding(t *testing.T) {
 	h := newHarness(t)
-	m := pageModule(1, true)
-	m.Bindings = map[string]domain.Binding{
-		"store":  {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write")}},
-		"legacy": {ID: "legacy", Audience: "legacy-store", InvokeScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}},
-	}
-	m.Roles[domain.InstallerRole] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(kind, "read", "write")}
-	m.Roles["viewer"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read"), sc(legacyKind, "read")}
-	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
-		t.Fatal(err)
-	}
+	ledgerPage(t, h)
 	h.grant("pages", "viewer", "maya")
 
-	child := h.must(h.through("maya", "pages", "store"))
-	exactly(t, child, kind, "", []string{"read"})
+	child := h.must(h.through("maya", "pages", "ledger"))
+	exactly(t, child, ledgerKind, "", []string{"read"})
 	if err := h.check(child); err != nil {
-		t.Fatalf("the child checks at the store: %v", err)
+		t.Fatalf("the child checks at the ledger: %v", err)
 	}
-	// A page's role selects no owner, so a module that checks none is reached
-	// as well: only a solution's roles confine to its principal's data.
-	exactly(t, h.must(h.through("maya", "pages", "legacy")), legacyKind, "", []string{"read"})
-	_, err := h.through("maya", "pages", "store", sc(kind, "write"))
-	refused(t, err, "a child widens what its owner holds through binding \"store\"")
-	_, err = h.through("remi", "pages", "store")
+	exactly(t, h.must(h.through("maya", "pages", "store")), kind, h.principal(acme, "pages"), []string{"read"})
+	_, err := h.through("maya", "pages", "ledger", sc(ledgerKind, "write"))
+	refused(t, err, "a child widens what its owner holds through binding \"ledger\"")
+	_, err = h.through("remi", "pages", "ledger")
 	refused(t, err, "holds no role on pages")
-	_, err = h.root("maya", "store")
+	_, err = h.root("maya", "ledger")
 	refused(t, err, "the owner holds nothing at this audience")
 
 	h.revoke("pages", "viewer", "maya", "")
-	_, err = h.through("maya", "pages", "store")
+	_, err = h.through("maya", "pages", "ledger")
 	refused(t, err, "holds no role on pages")
 }
 

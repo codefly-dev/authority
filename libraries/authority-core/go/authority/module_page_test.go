@@ -43,8 +43,9 @@ func (h *harness) pagesAt(org string) domain.Installation {
 
 // A module is installed by composition in every organisation: delivered,
 // with roles or without, it is installed at each organization, and at one
-// added or reconciled later, holding no principal, no agent role and no
-// consent: none of them through a review.
+// added or reconciled later, holding no agent role and no consent: none of
+// them through a review. Its principal owns what its page creates in a module
+// that checks owners, as a solution installation's does (RBAC-1).
 func TestAModuleIsInstalledByCompositionInEveryOrganisation(t *testing.T) {
 	h := newHarness(t)
 	if _, err := h.svc.ApplyModule(h.ctx, pageModule(1, true)); err != nil {
@@ -72,7 +73,7 @@ func TestAModuleIsInstalledByCompositionInEveryOrganisation(t *testing.T) {
 			if i < 0 {
 				t.Fatalf("composition did not install %s at %s: %v", target, org, all)
 			}
-			if inst := all[i]; inst.ID != h.inst(org, target).ID || inst.Status != domain.Active || inst.PrincipalID != "" || inst.AgentRole != "" ||
+			if inst := all[i]; inst.ID != h.inst(org, target).ID || inst.Status != domain.Active || inst.PrincipalID != h.principal(org, target) || inst.AgentRole != "" ||
 				inst.InstalledBy != "" || inst.Consent != (domain.ConsentReceipt{}) {
 				t.Fatalf("%s at %s is not a composition installation: %+v", target, org, inst)
 			}
@@ -128,7 +129,7 @@ func TestAModuleThatGainsOrLosesRolesKeepsItsInstallation(t *testing.T) {
 	inst := h.pagesAt(acme)
 	kept := func(when string) {
 		t.Helper()
-		if now := h.pagesAt(acme); now.ID != inst.ID || now.Status != domain.Active || now.PrincipalID != "" {
+		if now := h.pagesAt(acme); now.ID != inst.ID || now.Status != domain.Active || now.PrincipalID != h.principal(acme, "pages") {
 			t.Fatalf("%s moved the installation: %+v, was %+v", when, now, inst)
 		}
 	}
@@ -285,8 +286,9 @@ func TestNobodyHoldsARoleWithoutAGrant(t *testing.T) {
 }
 
 // A module page holds no standing machine authority, whatever its delivery
-// selects: its composition installation has no principal and no agent role,
-// and nothing is issued as that installation acting for itself.
+// selects: its composition installation has no agent role (its principal owns
+// its page's data and acts for nobody), and nothing is issued as that
+// installation acting for itself.
 func TestAModulePageHoldsNoStandingAuthority(t *testing.T) {
 	h := newHarness(t)
 	selecting := pageModule(1, true)
@@ -295,7 +297,7 @@ func TestAModulePageHoldsNoStandingAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	inst := h.pagesAt(acme)
-	if inst.PrincipalID != "" || inst.AgentRole != "" {
+	if inst.AgentRole != "" || inst.InstalledBy != "" {
 		t.Fatalf("a module page's installation holds standing authority: %+v", inst)
 	}
 	_, err := h.svc.IssueForInstallation(h.ctx, authority.Workload{Module: "pages"}, inst.ID, authority.IssueRequest{Audience: "pages"})

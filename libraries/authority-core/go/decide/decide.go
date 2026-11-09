@@ -11,6 +11,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
 	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	"google.golang.org/protobuf/proto"
 )
 
 // Scopes is a scope list.
@@ -154,6 +155,32 @@ func RoleScopes(solution domain.Module, inst domain.Installation, roles []string
 		}
 	}
 	return scope.Normalize(append(literal, attached...)), nil
+}
+
+// ModuleRoleAt is a role-gated module's role scopes as audience, another
+// module, receives them. An audience that checks owners receives them
+// owner-selected to the module's installation's principal, exactly as a
+// solution's roles are (RoleScopes): its own data, never the whole kind across
+// every owner. A kind audience declares shared stays unselected. An
+// installation recorded without a principal owns nothing there, so its roles
+// carry nothing of the audience's owned kinds. An audience that checks no
+// owner, or the module itself, receives the roles as they are.
+func ModuleRoleAt(m domain.Module, inst domain.Installation, audience domain.Module, role Scopes) Scopes {
+	if m.Kind == domain.KindSolution || !audience.OwnerAware || audience.Principal == m.Principal {
+		return role
+	}
+	out := make(Scopes, 0, len(role))
+	for _, sc := range role {
+		switch {
+		case slices.Contains(audience.SharedKinds, sc.GetResourceKind()):
+			out = append(out, sc)
+		case inst.PrincipalID != "":
+			c := proto.CloneOf(sc)
+			c.ResourceOwnerId = inst.PrincipalID
+			out = append(out, c)
+		}
+	}
+	return scope.Normalize(out)
 }
 
 // Issue is asked within held: held when nothing is asked; refused, naming
