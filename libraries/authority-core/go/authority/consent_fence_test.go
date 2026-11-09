@@ -135,12 +135,12 @@ func TestTheConsentBoundsInstallationAndDelegationIssues(t *testing.T) {
 	t.Run("an issue from a delegation", func(t *testing.T) {
 		h := newHarness(t)
 		rob := h.person("rob")
-		d, err := h.svc.Delegate(h.ctx, rob, "store", []*basev0.WorkScopeV1{owned(kind, "", []string{"read"}, "store-x")}, "a job", 0)
+		d, err := h.svc.Delegate(h.ctx, rob, "ledger", []*basev0.WorkScopeV1{owned(ledgerKind, "", []string{"read"}, "entry-x")}, "a job", 0)
 		if err != nil {
 			t.Fatal(err)
 		}
-		h.consented(acme, "store", map[string]domain.Binding{})
-		_, err = h.svc.IssueForDelegation(h.ctx, d.ID, authority.Workload{Module: "store"}, authority.IssueRequest{Binding: "legacy"})
+		h.consented(acme, "ledger", map[string]domain.Binding{})
+		_, err = h.svc.IssueForDelegation(h.ctx, d.ID, authority.Workload{Module: "ledger"}, authority.IssueRequest{Binding: "legacy"})
 		refusedByConsent(t, err)
 	})
 }

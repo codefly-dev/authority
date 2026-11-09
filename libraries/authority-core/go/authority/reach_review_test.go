@@ -153,20 +153,21 @@ func TestADelegationThroughASolutionIsHeldToTheApprovedReach(t *testing.T) {
 
 // A hop for a person never exercises a binding's headless scopes, which are
 // its module acting for nobody: through a headless-only binding, rob's hop
-// from the store is refused by name.
+// from the ledger is refused by name.
 func TestAHeadlessHopForAPersonIsRefused(t *testing.T) {
 	h := newHarness(t)
 	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "legacy-reader", Scopes: []domain.RoleScope{{Kind: legacyKind, Actions: []string{"read"}}}})
-	h.store.PutPerson(domain.Person{ID: "rob", Organization: acme, Roles: []string{"store-reader", "legacy-reader"}})
-	m := storeAt(2, "admin", true)
+	h.store.PutPerson(domain.Person{ID: "rob", Organization: acme, Roles: []string{"ledger-reader", "legacy-reader"}})
+	m := ledger()
+	m.Generation = 2
 	m.Bindings["quiet"] = domain.Binding{ID: "quiet", Audience: "legacy-store", HeadlessScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}}
 	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
 		t.Fatal(err)
 	}
-	at := h.must(h.root("rob", "store"))
-	_, err := h.svc.IssueChild(h.ctx, at.Token, authority.Workload{Module: "store"}, authority.IssueRequest{Binding: "quiet", Operation: "headless"})
+	at := h.must(h.root("rob", "ledger"))
+	_, err := h.svc.IssueChild(h.ctx, at.Token, authority.Workload{Module: "ledger"}, authority.IssueRequest{Binding: "quiet", Operation: "headless"})
 	refused(t, err, "acting for nobody")
-	if _, err := h.svc.IssueForWorkload(h.ctx, authority.Workload{Module: "store"}, authority.IssueRequest{Binding: "quiet", Organization: acme}); err != nil {
+	if _, err := h.svc.IssueForWorkload(h.ctx, authority.Workload{Module: "ledger"}, authority.IssueRequest{Binding: "quiet", Organization: acme}); err != nil {
 		t.Fatalf("the module acting for nobody is refused its headless scopes: %v", err)
 	}
 }

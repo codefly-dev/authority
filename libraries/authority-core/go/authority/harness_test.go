@@ -20,7 +20,12 @@ import (
 
 // The fixture mirrors the conformance target (RunSolutionPrincipalTarget): two
 // solutions A and B and a solution C that checks no owners, a store serving
-// "collection" (owner-aware) and a legacy store (not), people at acme and globex.
+// "collection" (owner-aware), a legacy store and a ledger (neither checks
+// owners), people at acme and globex.
+//
+// Organization roles reach no owner's data at the owner-aware store (RBAC-4a):
+// rob's and ada's store roles hold nothing there on their own session, and the
+// tests of an organization role's own reach read the owner-blind ledger.
 const (
 	kind, legacyKind = "collection", "legacy"
 	acme, globex     = "acme", "globex"
@@ -90,11 +95,12 @@ func newHarness(t *testing.T) *harness {
 	h.store.PutOrgRole(domain.OrgRole{Organization: globex, Name: "admin", Scopes: nil})
 	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "store-admin", Scopes: []domain.RoleScope{{Kind: kind, Actions: []string{"admin"}, Resources: []resources.Grant{{ID: "store-x"}}}}})
 	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "store-reader", Scopes: []domain.RoleScope{{Kind: kind, Actions: []string{"read"}, Resources: []resources.Grant{{ID: "store-x"}}}}})
+	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "ledger-reader", Scopes: []domain.RoleScope{{Kind: ledgerKind, Actions: []string{"read"}, Resources: []resources.Grant{{ID: "entry-x"}}}}})
 	for _, p := range []domain.Person{
 		{ID: "alex", Organization: acme, Roles: []string{"admin"}},
 		{ID: "maya", Organization: acme}, {ID: "remi", Organization: acme}, {ID: "dev", Organization: acme},
 		{ID: "ines", Organization: acme}, {ID: "tam", Organization: acme, Teams: []string{"team"}}, {ID: "tal", Organization: acme, Teams: []string{"team"}},
-		{ID: "ada", Organization: acme, Roles: []string{"store-admin"}}, {ID: "rob", Organization: acme, Roles: []string{"store-reader"}},
+		{ID: "ada", Organization: acme, Roles: []string{"store-admin"}}, {ID: "rob", Organization: acme, Roles: []string{"store-reader", "ledger-reader"}},
 		{ID: "zoe", Organization: globex, Roles: []string{"admin"}}, {ID: "omar", Organization: globex, Teams: []string{"ops"}},
 	} {
 		h.store.PutPerson(p)
@@ -107,6 +113,7 @@ func newHarness(t *testing.T) *harness {
 				"legacy": {ID: "legacy", Audience: "legacy-store", InvokeScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}},
 			}},
 		{Name: "legacy-store", Principal: "legacy-store", Kind: domain.KindModule, Generation: 1, ResourceKinds: []*basev0.WorkScopeV1{sc(legacyKind, "read")}},
+		ledger(),
 		solution("a", true), solution("b", true), solution("c", false),
 	} {
 		if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {

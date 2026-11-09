@@ -131,18 +131,18 @@ func TestAPersonIsIssuedWhatHerRolesHoldAtTheAudienceAndNoMore(t *testing.T) {
 	k := testkit.New(t)
 	maya := person(t, k, "fixture-maya")
 	out, err := k.Issuer.Issue(maya, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents",
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "records",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	wc := out.GetContext()
-	if wc.GetOwnerPrincipalId() != "maya" || wc.GetTenantId() != "acme" || wc.GetAudience() != "documents" {
+	if wc.GetOwnerPrincipalId() != "maya" || wc.GetTenantId() != "acme" || wc.GetAudience() != "records" {
 		t.Fatalf("context = %v", wc)
 	}
-	// The viewer reads documents. She reads collections only by prefix and
-	// pattern, which a token cannot carry and never carries as the whole
-	// kind: an ask naming no collection carries none.
+	// The viewer reads records and their types. She reads collections only by
+	// prefix and pattern, which a token cannot carry and never carries as the
+	// whole kind: an ask naming no collection carries none.
 	got := map[string]string{}
 	for _, sc := range wc.GetAuthorityScopes() {
 		got[sc.GetResourceKind()] = strings.Join(sc.GetActions(), ",")
@@ -150,10 +150,10 @@ func TestAPersonIsIssuedWhatHerRolesHoldAtTheAudienceAndNoMore(t *testing.T) {
 			t.Fatalf("the token names no resource: %v", sc)
 		}
 	}
-	if len(got) != 1 || got["documents"] != "read" {
+	if len(got) != 2 || got["records.records"] != "read" || got["records.types"] != "read" {
 		t.Fatalf("viewer scopes = %v", wc.GetAuthorityScopes())
 	}
-	if wc.GetSeal().GetInstallationId() != state.InstallationID("acme", "documents") {
+	if wc.GetSeal().GetInstallationId() != state.InstallationID("acme", "records") {
 		t.Fatalf("sealed to %q", wc.GetSeal().GetInstallationId())
 	}
 	if wc.GetAttributionTeamIds()[0] != "finance" {
@@ -161,8 +161,8 @@ func TestAPersonIsIssuedWhatHerRolesHoldAtTheAudienceAndNoMore(t *testing.T) {
 	}
 	// Asking beyond the role is refused, not narrowed silently.
 	_, err = k.Issuer.Issue(maya, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents",
-		Scopes: scopes(testkit.Scope("documents", "write")),
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "records",
+		Scopes: scopes(testkit.Scope("records.records", "write")),
 	})
 	if !errors.Is(err, issuer.ErrRefused) {
 		t.Fatalf("beyond the role: %v", err)
@@ -170,11 +170,32 @@ func TestAPersonIsIssuedWhatHerRolesHoldAtTheAudienceAndNoMore(t *testing.T) {
 	// Asking a subset is honoured.
 	remi := person(t, k, "fixture-remi")
 	out, err = k.Issuer.Issue(remi, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents",
-		Scopes: scopes(testkit.Scope("documents", "read")),
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "records",
+		Scopes: scopes(testkit.Scope("records.records", "read")),
 	})
-	if err != nil || strings.Join(out.GetContext().GetAuthorityScopes()[0].GetActions(), ",") != "read" {
+	if err != nil || len(effectiveScopes(out.GetContext())) != 1 || actions(out.GetContext(), "records.records") != "read" {
 		t.Fatalf("subset: %v %v", err, out.GetContext().GetAuthorityScopes())
+	}
+}
+
+// RBAC-4a: documents checks owners, so the organization roles that name it
+// reach nothing there on a person's own session, the administrator's
+// included, whatever is asked. Its data is reached through a role on the
+// installation that owns it.
+func TestAnOrganizationRoleReachesNothingAtAModuleThatChecksOwners(t *testing.T) {
+	k := testkit.New(t)
+	for _, tc := range []struct{ token, kind, action string }{
+		{"fixture-maya", "documents", "read"}, {"fixture-remi", "documents", "write"},
+		{"fixture-alex", "documents", "ingest"}, {"fixture-alex", "documents.collection", "admin"},
+		{"fixture-zoe", "documents", "write"},
+	} {
+		for _, ask := range [][]*authorityv1.WorkScopeV1{nil, scopes(testkit.Scope(tc.kind, tc.action))} {
+			_, err := k.Issuer.Issue(person(t, k, tc.token), &authorityv1.IssueRequest{
+				As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents", Scopes: ask})
+			if !errors.Is(err, issuer.ErrRefused) {
+				t.Fatalf("%s at documents asking %v: %v", tc.token, ask, err)
+			}
+		}
 	}
 }
 
@@ -205,18 +226,18 @@ func TestCheckAcceptsForTheAudienceAndRefusesForAnother(t *testing.T) {
 	ctx := context.Background()
 	maya := person(t, k, "fixture-maya")
 	out, err := k.Issuer.Issue(maya, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents"})
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "records"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	checked, err := k.Issuer.Check(ctx, out.GetToken(), "documents", "")
+	checked, err := k.Issuer.Check(ctx, out.GetToken(), "records", "")
 	if err != nil || checked.GetContext().GetOwnerPrincipalId() != "maya" || checked.GetAuthorizationRevision() == 0 {
 		t.Fatalf("check: %v %v", err, checked)
 	}
 	if _, err := k.Issuer.Check(ctx, out.GetToken(), "model", ""); !errors.Is(err, workcontext.ErrInvalid) {
 		t.Fatalf("another audience: %v", err)
 	}
-	if _, err := k.Issuer.Check(ctx, out.GetToken()+"x", "documents", ""); err == nil {
+	if _, err := k.Issuer.Check(ctx, out.GetToken()+"x", "records", ""); err == nil {
 		t.Fatal("a tampered token verified")
 	}
 	if _, err := k.Issuer.Check(ctx, out.GetToken(), "", ""); !errors.Is(err, issuer.ErrRefused) {
@@ -389,7 +410,7 @@ func TestAChildHopAttenuatesAndNamesItsActorAndItsBinding(t *testing.T) {
 		t.Fatalf("a hop that names no binding: %v", err)
 	}
 	elsewhere, err := k.Issuer.Issue(maya, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents"})
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "records"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -415,13 +436,13 @@ func TestKeysLetAnIndependentVerifierCheckWhatWasIssued(t *testing.T) {
 	}
 	maya := person(t, k, "fixture-maya")
 	out, err := k.Issuer.Issue(maya, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents"})
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "records"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	// A module's verifier: core's, pinned to what Keys published and to its own audience.
 	verifier := &workcontext.Verifier{
-		Issuer: keys.GetIssuer(), Audience: "documents",
+		Issuer: keys.GetIssuer(), Audience: "records",
 		Keys:      map[string]ed25519.PublicKey{keys.GetKeys()[0].GetKeyId(): ed25519.PublicKey(keys.GetKeys()[0].GetPublicKey())},
 		Revisions: k.State.Service().Revisions(), Seals: k.State.Service().Seals(), Grants: noGrants{}, Replay: workcontext.NewMemoryReplayStore(), Now: func() time.Time { return k.Now },
 	}
@@ -434,7 +455,7 @@ func TestTTLIsClampedToTheCeiling(t *testing.T) {
 	k := testkit.New(t)
 	maya := person(t, k, "fixture-maya")
 	out, err := k.Issuer.Issue(maya, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents", TtlSeconds: 3600,
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "records", TtlSeconds: 3600,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -489,7 +510,7 @@ func TestABindingNamingIssueMayLeaveItsAudienceToTheBinding(t *testing.T) {
 func TestTheDeveloperRoleHoldsWhatEachComposedModuleServes(t *testing.T) {
 	k := testkit.New(t)
 	held, err := k.PersonScopes(t, "dev", "records")
-	if err != nil || len(held) != 2 {
+	if err != nil || len(held) != 3 {
 		t.Fatalf("dev at records: %v %v", held, err)
 	}
 	if _, err := k.State.ApplyManifest(state.Manifest{Name: "probe", Principal: "probe", Kind: "module", Generation: 1,
@@ -541,13 +562,15 @@ func TestPersonIssuanceCanonicalizesTeamsWithoutChangingTheSession(t *testing.T)
 			}
 			before := slices.Clone(session.Teams)
 			ctx := issuer.WithSession(context.Background(), session.ID)
+			// Alex's administrator role reaches the evaluation module, which
+			// checks no owner.
 			out, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
-				As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents",
+				As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "evaluation",
 			})
 			if err != nil {
 				t.Fatal(err)
 			}
-			checked, err := k.Issuer.Check(ctx, out.GetToken(), "documents", "")
+			checked, err := k.Issuer.Check(ctx, out.GetToken(), "evaluation", "")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -566,25 +589,19 @@ func TestPersonIssuanceCanonicalizesTeamsWithoutChangingTheSession(t *testing.T)
 	}
 }
 
+// Globex's documents role names the collection kind, and Omar holds none of
+// it; documents checks owners, so on their own session neither reaches a
+// collection there (RBAC-4a).
 func TestGlobexCollectionReadIsAnExplicitFixtureGrant(t *testing.T) {
 	k := testkit.New(t)
 	for _, token := range []string{"fixture-zoe", "fixture-omar"} {
 		t.Run(token, func(t *testing.T) {
-			out, err := k.Issuer.Issue(person(t, k, token), &authorityv1.IssueRequest{
+			_, err := k.Issuer.Issue(person(t, k, token), &authorityv1.IssueRequest{
 				As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents",
 				Scopes: scopes(testkit.Scope("documents.collection", "read")),
 			})
-			if token == "fixture-omar" {
-				if !errors.Is(err, issuer.ErrRefused) {
-					t.Fatalf("ungranted collection read: %v", err)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			if out.GetContext().GetOrganizationId() != "globex" {
-				t.Fatal("grant escaped its organization")
+			if !errors.Is(err, issuer.ErrRefused) {
+				t.Fatalf("a collection read on the person's own session at documents: %v", err)
 			}
 		})
 	}

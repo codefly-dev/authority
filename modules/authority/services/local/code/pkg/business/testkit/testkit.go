@@ -109,23 +109,29 @@ func Evaluation(generation uint64) state.Manifest {
 			Scope("evaluation.datasets", "write"), Scope("evaluation.labels", "write", "approve", "admin")}}
 }
 
-// Documents is a module with one binding towards model.
+// Documents is a module with one binding towards model. It checks owners, as
+// the document store does: an organization role reaches nothing there on a
+// person's own session (RBAC-4a); a solution's role and an installation reach
+// their own principal's data.
 func Documents(generation uint64) state.Manifest {
 	return state.Manifest{Name: "documents", Principal: "documents", Kind: "module", Generation: generation, OwnerAware: true,
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("documents", "read", "write", "ingest"), Scope("documents.collection", "read", "transfer", "admin")},
 		Bindings: map[string]state.Binding{
 			"model": {ID: "model", Audience: "model",
-				InvokeScopes: []*basev0.WorkScopeV1{Scope("modelservice.profiles", "invoke", "read")}, HeadlessScopes: []*basev0.WorkScopeV1{Scope("modelservice.profiles", "invoke", "read")}},
+				InvokeScopes: []*basev0.WorkScopeV1{Scope("modelservice.profiles", "invoke", "read"), Scope("modelservice.datasets", "read")}, HeadlessScopes: []*basev0.WorkScopeV1{Scope("modelservice.profiles", "invoke", "read")}},
 			"runtime-admission": {ID: "runtime-admission", Audience: "runtime",
 				InvokeScopes: []*basev0.WorkScopeV1{Scope("runtime.task", "admit", "read")}, HeadlessScopes: []*basev0.WorkScopeV1{Scope("runtime.task", "read")}},
 		},
 	}
 }
 
-// Model is the module documents calls.
+// Model is the module documents calls. It checks owners of its datasets; its
+// profiles are shared, so an organization role reaches them on a person's own
+// session and an installation's datasets are its own.
 func Model(generation uint64) state.Manifest {
 	return state.Manifest{Name: "model", Principal: "model", Kind: "module", Generation: generation, OwnerAware: true,
-		ResourceKinds: []*basev0.WorkScopeV1{Scope("modelservice.profiles", "invoke", "read", "admin")}}
+		SharedKinds:   []string{"modelservice.profiles"},
+		ResourceKinds: []*basev0.WorkScopeV1{Scope("modelservice.profiles", "invoke", "read", "admin"), Scope("modelservice.datasets", "read")}}
 }
 
 // Runtime is the module documents fans work out through.
@@ -134,21 +140,27 @@ func Runtime(generation uint64) state.Manifest {
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("runtime.task", "admit", "read")}}
 }
 
-// Records is the module the directory page reads.
+// Records is the module the directory page reads. It checks no owner, as the
+// record store does, so a person's organization roles reach it on their own
+// session; it calls the model as documents does, so a person's chain crosses
+// modules their organization roles reach.
 func Records(generation uint64) state.Manifest {
-	return state.Manifest{Name: "records", Principal: "records", Kind: "module", Generation: generation, OwnerAware: true,
-		ResourceKinds: []*basev0.WorkScopeV1{Scope("records.records", "read", "write"), Scope("records.types", "read")}}
+	return state.Manifest{Name: "records", Principal: "records", Kind: "module", Generation: generation,
+		ResourceKinds: []*basev0.WorkScopeV1{Scope("records.records", "read", "write"), Scope("records.types", "read"), Scope("records.collection", "read", "admin")},
+		Bindings:      map[string]state.Binding{"model": Documents(generation).Bindings["model"]}}
 }
 
-// OrgDirectory is a module with a page; it reads records for the viewer through
-// its one binding, records, which is the binding its hop on the viewer's context
-// names.
+// OrgDirectory is a module with a page; it reads and writes records for the
+// viewer through its binding records, which is the binding its hop on the
+// viewer's context names, and a lookup through it reads alone. It checks no
+// owner, as the directory does.
 func OrgDirectory(generation uint64) state.Manifest {
-	return state.Manifest{Name: "org-directory", Principal: "org-directory", Kind: "module", Generation: generation, OwnerAware: true,
+	return state.Manifest{Name: "org-directory", Principal: "org-directory", Kind: "module", Generation: generation,
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("directory.entry", "read", "write")},
 		Bindings: map[string]state.Binding{
 			"records": {ID: "records", Audience: "records",
-				InvokeScopes: []*basev0.WorkScopeV1{Scope("records.records", "read"), Scope("records.types", "read")}, HeadlessScopes: []*basev0.WorkScopeV1{Scope("records.types", "read")}},
+				InvokeScopes: []*basev0.WorkScopeV1{Scope("records.records", "read", "write")}, HeadlessScopes: []*basev0.WorkScopeV1{Scope("records.records", "read")},
+				LookupScopes: []*basev0.WorkScopeV1{Scope("records.records", "read")}},
 			// The page asks documents for a person: the first hop of a delegate chain.
 			"documents": {ID: "documents", Audience: "documents",
 				InvokeScopes: []*basev0.WorkScopeV1{Scope("documents", "read", "write")}, HeadlessScopes: []*basev0.WorkScopeV1{Scope("documents", "read")},
@@ -256,10 +268,13 @@ func Matrix() []conformance.Expectation {
 		return conformance.Expectation{Token: token, Audience: audience, Kind: kind, Action: action}
 	}
 	return []conformance.Expectation{
-		// Acme's organisation roles at documents and records.
-		allow("fixture-maya", "documents", "documents", "read"), deny("fixture-maya", "documents", "documents", "write"),
-		allow("fixture-remi", "documents", "documents", "write"), deny("fixture-remi", "documents", "documents", "ingest"),
-		allow("fixture-alex", "documents", "documents", "ingest"), allow("fixture-alex", "documents", "documents.collection", "admin"),
+		// Acme's organisation roles name documents, but documents checks
+		// owners: on a person's own session they reach none of it, the
+		// administrator's included (RBAC-4a). Records checks no owner, so the
+		// same roles reach it.
+		deny("fixture-maya", "documents", "documents", "read"), deny("fixture-maya", "documents", "documents", "write"),
+		deny("fixture-remi", "documents", "documents", "write"), deny("fixture-remi", "documents", "documents", "ingest"),
+		deny("fixture-alex", "documents", "documents", "ingest"), deny("fixture-alex", "documents", "documents.collection", "admin"),
 		deny("fixture-alex", "documents", "documents.collection", "share"),
 		allow("fixture-maya", "records", "records.records", "read"), deny("fixture-maya", "records", "records.records", "write"),
 		allow("fixture-remi", "records", "records.records", "write"), deny("fixture-remi", "records", "records.types", "write"),
@@ -279,10 +294,11 @@ func Matrix() []conformance.Expectation {
 		allow("fixture-alex", "wiki", "wiki.page", "publish"), allow("fixture-maya", "wiki", "wiki.page", "read"),
 		deny("fixture-maya", "wiki", "wiki.page", "write"), allow("fixture-remi", "wiki", "wiki.page", "read"),
 		deny("fixture-remi", "wiki", "wiki.page", "write"),
-		// Globex: its own installation of the wiki, and a documents role of its own.
+		// Globex: its own installation of the wiki, and a documents role of its
+		// own, which reaches nothing there on Zoe's own session either.
 		allow("fixture-zoe", "wiki", "wiki.page", "publish"), allow("fixture-omar", "wiki", "wiki.page", "write"),
-		deny("fixture-omar", "wiki", "wiki.page", "publish"), allow("fixture-zoe", "documents", "documents", "write"),
-		allow("fixture-zoe", "documents", "documents.collection", "read"),
+		deny("fixture-omar", "wiki", "wiki.page", "publish"), deny("fixture-zoe", "documents", "documents", "write"),
+		deny("fixture-zoe", "documents", "documents.collection", "read"),
 		deny("fixture-omar", "documents", "documents.collection", "read"),
 		deny("fixture-omar", "documents", "documents", "read"),
 	}

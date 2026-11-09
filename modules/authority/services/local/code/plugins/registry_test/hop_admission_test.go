@@ -108,14 +108,14 @@ func TestUnderThePlaygroundsIdentityTheHopsRegisteredKeyAdmitsItsStamps(t *testi
 		published = append(published, hex.EncodeToString(key.GetPublicKey()))
 	}
 
-	issued, err := k.PersonIssue(t, "maya", "documents")
+	issued, err := k.PersonIssue(t, "maya", "records")
 	if err != nil {
 		t.Fatal(err)
 	}
 	// The run's clock: the testkit's starts at a fixed instant.
 	now := time.Unix(issued.GetContext().GetNotBeforeUnix(), 0)
 	stamped := func(by *stamp.Signer) metadata.MD {
-		proof, err := by.Sign(issued.GetToken(), "/test.Service/Read", "documents", now, issued.GetExpiresAtUnix())
+		proof, err := by.Sign(issued.GetToken(), "/test.Service/Read", "records", now, issued.GetExpiresAtUnix())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -127,7 +127,7 @@ func TestUnderThePlaygroundsIdentityTheHopsRegisteredKeyAdmitsItsStamps(t *testi
 	if key == "" {
 		t.Fatal("a genuine stamp is signed by no published key")
 	}
-	if _, err := stamp.Check(md, key, "/test.Service/Read", "documents", now); err != nil {
+	if _, err := stamp.Check(md, key, "/test.Service/Read", "records", now); err != nil {
 		t.Fatalf("a genuine stamp under the published key: %v", err)
 	}
 	other := sha256.Sum256([]byte("not the hop"))

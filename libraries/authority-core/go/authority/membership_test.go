@@ -13,13 +13,13 @@ import (
 // session was opened at, never from another one.
 func TestAPersonOfTwoOrganizationsActsOnlyAsTheMemberOfTheSessions(t *testing.T) {
 	h := newHarness(t)
-	h.store.PutOrgRole(domain.OrgRole{Organization: globex, Name: "store-writer", Scopes: []domain.RoleScope{{Kind: kind, Actions: []string{"write"}}}})
-	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "store-plain-reader", Scopes: []domain.RoleScope{{Kind: kind, Actions: []string{"read"}}}})
-	h.store.PutPerson(domain.Person{ID: "pat", Organization: acme, Roles: []string{"store-plain-reader"}})
-	h.store.PutPerson(domain.Person{ID: "pat", Organization: globex, Roles: []string{"admin", "store-writer"}})
+	h.store.PutOrgRole(domain.OrgRole{Organization: globex, Name: "ledger-writer", Scopes: []domain.RoleScope{{Kind: ledgerKind, Actions: []string{"write"}}}})
+	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "ledger-plain-reader", Scopes: []domain.RoleScope{{Kind: ledgerKind, Actions: []string{"read"}}}})
+	h.store.PutPerson(domain.Person{ID: "pat", Organization: acme, Roles: []string{"ledger-plain-reader"}})
+	h.store.PutPerson(domain.Person{ID: "pat", Organization: globex, Roles: []string{"admin", "ledger-writer"}})
 	atAcme := authority.Person{ID: "pat", Organization: acme, SessionID: "s-acme"}
 	atGlobex := authority.Person{ID: "pat", Organization: globex, SessionID: "s-globex"}
-	read, write := []*basev0.WorkScopeV1{sc(kind, "read")}, []*basev0.WorkScopeV1{sc(kind, "write")}
+	read, write := []*basev0.WorkScopeV1{sc(ledgerKind, "read")}, []*basev0.WorkScopeV1{sc(ledgerKind, "write")}
 
 	for _, tc := range []struct {
 		name    string
@@ -33,7 +33,7 @@ func TestAPersonOfTwoOrganizationsActsOnlyAsTheMemberOfTheSessions(t *testing.T)
 		{"acme's role does not reach globex", atGlobex, read, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := h.svc.IssueForPerson(h.ctx, tc.who, authority.IssueRequest{Audience: "store", Scopes: tc.scopes})
+			_, err := h.svc.IssueForPerson(h.ctx, tc.who, authority.IssueRequest{Audience: "ledger", Scopes: tc.scopes})
 			if tc.allowed && err != nil {
 				t.Fatal(err)
 			}
@@ -73,9 +73,9 @@ func TestAPersonOfTwoOrganizationsActsOnlyAsTheMemberOfTheSessions(t *testing.T)
 
 	t.Run("leaving one organization leaves the other membership standing", func(t *testing.T) {
 		h.store.DeleteMember(acme, "pat")
-		_, err := h.svc.IssueForPerson(h.ctx, atAcme, authority.IssueRequest{Audience: "store", Scopes: read})
+		_, err := h.svc.IssueForPerson(h.ctx, atAcme, authority.IssueRequest{Audience: "ledger", Scopes: read})
 		refused(t, err, "no longer a member")
-		if _, err := h.svc.IssueForPerson(h.ctx, atGlobex, authority.IssueRequest{Audience: "store", Scopes: write}); err != nil {
+		if _, err := h.svc.IssueForPerson(h.ctx, atGlobex, authority.IssueRequest{Audience: "ledger", Scopes: write}); err != nil {
 			t.Fatal(err)
 		}
 	})

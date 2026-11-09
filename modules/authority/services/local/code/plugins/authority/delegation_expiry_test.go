@@ -43,7 +43,7 @@ func TestADelegationsLifetimeCrossesTheWire(t *testing.T) {
 	delegate := func(ttl int64) *authorityv1.Delegation {
 		t.Helper()
 		d, err := client.Delegate(person, &authorityv1.DelegateRequest{Module: "org-directory", Purpose: "one run", TtlSeconds: ttl,
-			Scopes: []*authorityv1.WorkScopeV1{{ResourceKind: "documents", Actions: []string{"write"}}}})
+			Scopes: []*authorityv1.WorkScopeV1{{ResourceKind: "records.records", Actions: []string{"write"}}}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -70,7 +70,7 @@ func TestADelegationsLifetimeCrossesTheWire(t *testing.T) {
 		t.Fatalf("2^55 s ends %d s after the kit's start, want the seven-day ceiling", at)
 	}
 	if _, err := client.Delegate(person, &authorityv1.DelegateRequest{Module: "org-directory", Purpose: "one run", TtlSeconds: -(1 << 55),
-		Scopes: []*authorityv1.WorkScopeV1{{ResourceKind: "documents", Actions: []string{"write"}}}}); status.Code(err) != codes.InvalidArgument {
+		Scopes: []*authorityv1.WorkScopeV1{{ResourceKind: "records.records", Actions: []string{"write"}}}}); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("-2^55 s: %v", err)
 	}
 }

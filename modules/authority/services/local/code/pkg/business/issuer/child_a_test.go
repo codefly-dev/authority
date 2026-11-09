@@ -13,7 +13,7 @@ import (
 )
 
 // The explicit grant covers both targets, even though its first token is
-// projected only at documents. A binding is not an implicit transitive grant.
+// projected only at records. A binding is not an implicit transitive grant.
 func declareDelegationChain(t *testing.T, k *testkit.Kit) {
 	t.Helper()
 	directory := testkit.OrgDirectory(2)
@@ -32,12 +32,12 @@ func TestChildUsesOnlyCurrentTargetBinding(t *testing.T) {
 	}
 	req := &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_ParentToken{ParentToken: p.Token},
 		Actor:    &authorityv1.WorkloadCredential{Credential: k.Credential(t, "org-directory")},
-		Audience: "documents", OperationBindingId: "documents"}
+		Audience: "records", OperationBindingId: "records"}
 	out, err := k.Issuer.Issue(context.Background(), req)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(effectiveScopes(out.Context)) != 1 || actions(out.Context, "documents") != "read,write" {
+	if len(effectiveScopes(out.Context)) != 1 || actions(out.Context, "records.records") != "read,write" {
 		t.Fatalf("child retained unrelated parent grants: %v", effectiveScopes(out.Context))
 	}
 	req.Scopes = scopes(testkit.Scope("directory.entry", "read"))
@@ -56,7 +56,7 @@ func TestChildRetainsExplicitDelegationAcrossTargetProjection(t *testing.T) {
 			if _, err := k.State.ApplyManifest(model); err != nil {
 				t.Fatal(err)
 			}
-			grant := []*base.WorkScopeV1{testkit.Scope("documents", "read")}
+			grant := []*base.WorkScopeV1{testkit.Scope("records.records", "read")}
 			if restricted {
 				grant = append(grant, &base.WorkScopeV1{ResourceKind: "modelservice.profiles", Actions: []string{"read"}, ResourceIds: []string{"a"}})
 			}
@@ -67,12 +67,12 @@ func TestChildRetainsExplicitDelegationAcrossTargetProjection(t *testing.T) {
 			first, err := k.Issuer.Issue(context.Background(), &authorityv1.IssueRequest{
 				As:       &authorityv1.IssueRequest_Delegation{Delegation: &authorityv1.DelegationRef{DelegationId: d.ID}},
 				Actor:    &authorityv1.WorkloadCredential{Credential: k.Credential(t, "org-directory")},
-				Audience: "documents", OperationBindingId: "documents"})
+				Audience: "records", OperationBindingId: "records"})
 			if err != nil {
 				t.Fatal(err)
 			}
 			req := &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_ParentToken{ParentToken: first.Token},
-				Actor:    &authorityv1.WorkloadCredential{Credential: k.Credential(t, "documents")},
+				Actor:    &authorityv1.WorkloadCredential{Credential: k.Credential(t, "records")},
 				Audience: "model", OperationBindingId: "model"}
 			out, err := k.Issuer.Issue(context.Background(), req)
 			if !restricted {
@@ -137,22 +137,22 @@ func TestBindingProjectionPersistsAndServiceOwnerNeverGainsNewAuthority(t *testi
 				})
 			} else {
 				// A read-only binding constrains this kind on later hops too.
-				docs := testkit.Documents(2)
-				b := docs.Bindings["model"]
+				records := testkit.Records(2)
+				b := records.Bindings["model"]
 				b.InvokeScopes = []*base.WorkScopeV1{testkit.Scope("modelservice.profiles", "read")}
 				b.HeadlessScopes = nil
-				docs.Bindings["model"] = b
-				if _, err := k.State.ApplyManifest(docs); err != nil {
+				records.Bindings["model"] = b
+				if _, err := k.State.ApplyManifest(records); err != nil {
 					t.Fatal(err)
 				}
 				root, e := k.Issuer.Issue(person(t, k, "fixture-remi"), &authorityv1.IssueRequest{
-					As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents",
+					As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "records",
 				})
 				if e != nil {
 					t.Fatal(e)
 				}
 				parent, err = k.Issuer.Issue(context.Background(), &authorityv1.IssueRequest{
-					As: &authorityv1.IssueRequest_ParentToken{ParentToken: root.Token}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, "documents")},
+					As: &authorityv1.IssueRequest_ParentToken{ParentToken: root.Token}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, "records")},
 					Audience: "model", OperationBindingId: "model",
 				})
 			}

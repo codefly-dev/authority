@@ -29,6 +29,11 @@ func IsAdministrator(p domain.Person) bool {
 // the whole kind, so Issue refuses an ask naming any other id and an empty
 // ask carries those ids. named is what the decision is about: the ask, and
 // the capability a hop or a delegation derives from.
+//
+// At an audience that checks owners, organization roles reach no owner's
+// data: only a kind the audience declares shared is held (AnyKind spans those
+// alone). An owner's data there is reached through a role granted on the
+// installation that owns it (RBAC-4a).
 func OrgScopes(roles []domain.OrgRole, audience domain.Module, named Scopes) Scopes {
 	var held Scopes
 	for _, role := range roles {
@@ -41,6 +46,9 @@ func OrgScopes(roles []domain.OrgRole, audience domain.Module, named Scopes) Sco
 				}
 			}
 			for _, kind := range kinds {
+				if audience.OwnerAware && !slices.Contains(audience.SharedKinds, kind) {
+					continue
+				}
 				ids, all := heldIDs(sc.Resources, kind, named)
 				if !all && len(ids) == 0 {
 					// No row: a row naming no id is the whole kind.

@@ -31,11 +31,21 @@ roles:
           - {prefix: "derived\x1fdirectory"}
           - {prefix: "derived\x1fwiki"}
           - {pattern: "shared-[a-z]+"}
+      # The same matchers at the record store, which checks no owner: there an
+      # organization role reaches what it names on the person's own session,
+      # where at documents, which checks owners, it reaches nothing (RBAC-4a).
+      - kind: records.collection
+        actions: [read]
+        resources:
+          - {prefix: "derived\x1fdirectory"}
+          - {prefix: "derived\x1fwiki"}
+          - {pattern: "shared-[a-z]+"}
   - organization: acme
     name: editor
     scopes:
       - {kind: documents, actions: [read, write]}
       - {kind: documents.collection, actions: [read]}
+      - {kind: records.collection, actions: [read]}
       - {kind: records.records, actions: [read, write]}
       - {kind: records.types, actions: [read]}
       - {kind: directory.entry, actions: [read, write]}
