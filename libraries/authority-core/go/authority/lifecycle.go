@@ -164,7 +164,7 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 			return err
 		}
 		if _, err := tx.InstallationByPrincipal(m.Principal); err == nil {
-			return domain.Refuse("principal %q names an installed solution's principal; a module's principal is its own", m.Principal)
+			return domain.Refuse("principal %q names an installation's principal; a module's principal is its own", m.Principal)
 		}
 		m.ResourceKinds = scope.Normalize(m.ResourceKinds)
 		// What the delivered module's roles name through a binding is
@@ -249,19 +249,32 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 			inst, err := tx.Installation(id)
 			switch {
 			case errors.Is(err, domain.ErrNotFound):
-				if err := tx.PutInstallation(domain.Installation{ID: id, Organization: org.ID, Target: m.Name, Status: domain.Active, Revision: 1}); err != nil {
+				inst, err := s.composedInstallation(tx, org.ID, m.Name)
+				if err != nil {
+					return err
+				}
+				if err := tx.PutInstallation(inst); err != nil {
 					return err
 				}
 			case err != nil:
 				return err
-			case inst.Status == domain.Revoked && withdrawn:
-				// A module withdrawn and delivered again is installed again,
-				// at a revision above every capability sealed before. Only a
-				// withdrawal is undone this way: an installation the host
-				// retired stays retired (Uninstall refuses a module's).
-				inst.Status, inst.Revision = domain.Active, inst.Revision+1
-				if err := tx.PutInstallation(inst); err != nil {
+			default:
+				changed, err := s.withComposedPrincipal(tx, &inst)
+				if err != nil {
 					return err
+				}
+				if inst.Status == domain.Revoked && withdrawn {
+					// A module withdrawn and delivered again is installed again,
+					// at a revision above every capability sealed before. Only a
+					// withdrawal is undone this way: an installation the host
+					// retired stays retired (Uninstall refuses a module's).
+					inst.Status, changed = domain.Active, true
+				}
+				if changed {
+					inst.Revision++
+					if err := tx.PutInstallation(inst); err != nil {
+						return err
+					}
 				}
 			}
 			ids = append(ids, id)
@@ -423,12 +436,23 @@ func (s *Service) OrganizationAdded(ctx context.Context, org string) ([]string, 
 				continue // installed by an administrator, through Review and Install
 			}
 			id := s.cfg.InstallationID(org, m.Name)
-			if _, err := tx.Installation(id); errors.Is(err, domain.ErrNotFound) {
-				if err := tx.PutInstallation(domain.Installation{ID: id, Organization: org, Target: m.Name, Status: domain.Active, Revision: 1}); err != nil {
+			if inst, err := tx.Installation(id); errors.Is(err, domain.ErrNotFound) {
+				composed, err := s.composedInstallation(tx, org, m.Name)
+				if err != nil {
+					return err
+				}
+				if err := tx.PutInstallation(composed); err != nil {
 					return err
 				}
 			} else if err != nil {
 				return err
+			} else if changed, err := s.withComposedPrincipal(tx, &inst); err != nil {
+				return err
+			} else if changed {
+				inst.Revision++
+				if err := tx.PutInstallation(inst); err != nil {
+					return err
+				}
 			}
 			ids = append(ids, id)
 		}
@@ -467,9 +491,11 @@ func (s *Service) ReconcileOrganizations(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		// An installation recorded before composition gave module
+		// installations a principal is missing one (withComposedPrincipal).
 		held := map[string]bool{}
 		for _, inst := range all {
-			held[inst.ID] = true
+			held[inst.ID] = inst.PrincipalID != "" || inst.Status == domain.Revoked
 		}
 		for _, org := range orgs {
 			for _, m := range modules {
@@ -685,29 +711,7 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 			return nil
 		}
 		principal := s.cfg.PrincipalID(org, target)
-		if _, err := tx.Module(principal); err == nil {
-			return domain.Refuse("the principal %q of %s at %s names a module", principal, target, org)
-		} else if err != nil && !errors.Is(err, domain.ErrNotFound) {
-			return err
-		}
-		if _, err := tx.Person(principal); err == nil {
-			return domain.Refuse("the principal %q of %s at %s names a person", principal, target, org)
-		} else if err != nil && !errors.Is(err, domain.ErrNotFound) {
-			return err
-		}
-		if other, err := tx.InstallationByPrincipal(principal); err == nil && other.ID != id {
-			return domain.Refuse("the principal %q of %s at %s is another installation's", principal, target, org)
-		} else if err != nil && !errors.Is(err, domain.ErrNotFound) {
-			return err
-		}
-		if _, err := tx.TombstoneByPrincipal(principal); err == nil {
-			return domain.Refuse("the principal %q of %s at %s is a withdrawn module's", principal, target, org)
-		} else if err != nil && !errors.Is(err, domain.ErrNotFound) {
-			return err
-		}
-		if _, err := tx.Client(principal); err == nil {
-			return domain.Refuse("installation principal %q belongs to an external client", principal)
-		} else if !errors.Is(err, domain.ErrNotFound) {
+		if err := principalFree(tx, principal, id, target, org); err != nil {
 			return err
 		}
 		inst = domain.Installation{ID: id, Organization: org, Target: target, Status: domain.Pending, Revision: existing.Revision + 1,
@@ -892,7 +896,7 @@ func (s *Service) UninstallAsHost(ctx context.Context, organization, installatio
 		if err != nil {
 			return err
 		}
-		if s.cfg.HostInstallsModules && inst.PrincipalID == "" {
+		if s.cfg.HostInstallsModules && inst.InstalledBy == "" {
 			if m, err := tx.ModuleNamed(inst.Target); err == nil && m.Kind != domain.KindSolution {
 				return domain.Refuse("%s is a module installed by its host's consent; the host uninstalls it", inst.Target)
 			}
@@ -902,6 +906,70 @@ func (s *Service) UninstallAsHost(ctx context.Context, organization, installatio
 		}
 		return s.journal(ctx, tx, uninstalled("", inst))
 	})
+}
+
+// composedInstallation is a module's installation at org by composition:
+// active, holding no standing authority and no consent, with the principal
+// that owns what the module's page creates in a module that checks owners,
+// as a solution's installation owns what its page creates
+// (decide.ModuleRoleAt). A principal another identity already holds is not
+// taken: the installation then holds none and owns nothing (fails closed).
+func (s *Service) composedInstallation(tx Tx, org, module string) (domain.Installation, error) {
+	inst := domain.Installation{ID: s.cfg.InstallationID(org, module), Organization: org, Target: module, Status: domain.Active, Revision: 1}
+	_, err := s.withComposedPrincipal(tx, &inst)
+	return inst, err
+}
+
+// withComposedPrincipal gives a composition installation recorded without a
+// principal its principal, when no other identity holds it, and reports
+// whether it did. The caller raises the revision, so capabilities sealed to it
+// before end at their next check.
+func (s *Service) withComposedPrincipal(tx Tx, inst *domain.Installation) (bool, error) {
+	if inst.PrincipalID != "" {
+		return false, nil
+	}
+	principal := s.cfg.PrincipalID(inst.Organization, inst.Target)
+	if err := principalFree(tx, principal, inst.ID, inst.Target, inst.Organization); err != nil {
+		if _, refused := domain.CodeOf(err); refused {
+			return false, nil
+		}
+		return false, err
+	}
+	inst.PrincipalID = principal
+	return true, nil
+}
+
+// principalFree refuses an installation principal another identity holds: a
+// module, a person, another installation, a withdrawn module or an external
+// client. Every installation principal, a solution's or a composition's,
+// is checked here.
+func principalFree(tx Tx, principal, id, target, org string) error {
+	if _, err := tx.Module(principal); err == nil {
+		return domain.Refuse("the principal %q of %s at %s names a module", principal, target, org)
+	} else if !errors.Is(err, domain.ErrNotFound) {
+		return err
+	}
+	if _, err := tx.Person(principal); err == nil {
+		return domain.Refuse("the principal %q of %s at %s names a person", principal, target, org)
+	} else if !errors.Is(err, domain.ErrNotFound) {
+		return err
+	}
+	if other, err := tx.InstallationByPrincipal(principal); err == nil && other.ID != id {
+		return domain.Refuse("the principal %q of %s at %s is another installation's", principal, target, org)
+	} else if err != nil && !errors.Is(err, domain.ErrNotFound) {
+		return err
+	}
+	if _, err := tx.TombstoneByPrincipal(principal); err == nil {
+		return domain.Refuse("the principal %q of %s at %s is a withdrawn module's", principal, target, org)
+	} else if !errors.Is(err, domain.ErrNotFound) {
+		return err
+	}
+	if _, err := tx.Client(principal); err == nil {
+		return domain.Refuse("installation principal %q belongs to an external client", principal)
+	} else if !errors.Is(err, domain.ErrNotFound) {
+		return err
+	}
+	return nil
 }
 
 func uninstalled(actor string, inst domain.Installation) domain.Event {

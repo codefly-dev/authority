@@ -131,8 +131,8 @@ func Artifact(caller ArtifactCaller, inst domain.Installation, found bool, reque
 	}
 	// The identity establishes no resource id of the policy kind, so the
 	// parent holds the action on the whole kind, for the artifact's owner: the
-	// installation's (a module installation has none, so an owner-unrestricted
-	// scope), or the owner the parent's scopes are held for, whose artifacts
+	// installation's principal (a module's composition installation's
+	// included), or the owner the parent's scopes are held for, whose artifacts
 	// live in its own installation's namespace.
 	owner, namespace := inst.PrincipalID, Namespace(inst)
 	if caller.Owner != "" {

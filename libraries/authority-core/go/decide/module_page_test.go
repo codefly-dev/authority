@@ -84,3 +84,45 @@ func TestAModulePageRoleChangeIsANarrowing(t *testing.T) {
 		}
 	}
 }
+
+// RBAC-1: a role-gated module's role scopes as another module receives them.
+func TestRBAC1ModuleRoleAtSelectsTheInstallationAsOwner(t *testing.T) {
+	read := func(kind string) *basev0.WorkScopeV1 {
+		return &basev0.WorkScopeV1{ResourceKind: kind, Actions: []string{"read"}}
+	}
+	page := domain.Module{Name: "page", Principal: "page", Kind: domain.KindModule, Roles: map[string][]*basev0.WorkScopeV1{"viewer": {read("store.item")}}}
+	solution := domain.Module{Name: "sol", Principal: "sol", Kind: domain.KindSolution}
+	store := domain.Module{Name: "store", Principal: "store", Kind: domain.KindModule, OwnerAware: true, SharedKinds: []string{"store.shared"}}
+	blind := domain.Module{Name: "blind", Principal: "blind", Kind: domain.KindModule}
+	selfAware := page
+	selfAware.OwnerAware = true
+	role := []*basev0.WorkScopeV1{read("store.item"), read("store.shared")}
+	inst := domain.Installation{ID: "i", PrincipalID: "p-1"}
+	for _, c := range []struct {
+		name        string
+		m, audience domain.Module
+		inst        domain.Installation
+		wantOwner   map[string]string // kind -> owner; absent: not held
+	}{
+		{"owner-aware audience: selected to the installation, shared unselected", page, store, inst, map[string]string{"store.item": "p-1", "store.shared": ""}},
+		{"no principal: nothing owned, shared kept", page, store, domain.Installation{ID: "i"}, map[string]string{"store.shared": ""}},
+		{"an audience checking no owner: unchanged", page, blind, inst, map[string]string{"store.item": "", "store.shared": ""}},
+		{"the module itself: unchanged", page, selfAware, inst, map[string]string{"store.item": "", "store.shared": ""}},
+		{"a solution's: already selected by RoleScopes, unchanged here", solution, store, inst, map[string]string{"store.item": "", "store.shared": ""}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			got := map[string]string{}
+			for _, s := range decide.ModuleRoleAt(c.m, c.inst, c.audience, role) {
+				got[s.GetResourceKind()] = s.GetResourceOwnerId()
+			}
+			if len(got) != len(c.wantOwner) {
+				t.Fatalf("got %v, want %v", got, c.wantOwner)
+			}
+			for k, o := range c.wantOwner {
+				if owner, ok := got[k]; !ok || owner != o {
+					t.Fatalf("got %v, want %v", got, c.wantOwner)
+				}
+			}
+		})
+	}
+}

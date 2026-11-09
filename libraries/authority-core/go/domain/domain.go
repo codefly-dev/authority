@@ -139,7 +139,9 @@ const (
 // Installation is one organization's installation of one target. A
 // solution's installation is a principal (PrincipalID): its data is owned by
 // it and it acts as it for itself, holding AgentRole unless it is the
-// declaration-only NoInstallationRole marker (no standing authority).
+// declaration-only NoInstallationRole marker (no standing authority). A
+// module's composition installation is a principal too, owning what its page
+// creates in a module that checks owners; it never acts for itself.
 type Installation struct {
 	ID, Organization, Target string
 	Status                   Status

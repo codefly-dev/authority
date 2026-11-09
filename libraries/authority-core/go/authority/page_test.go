@@ -19,18 +19,12 @@ func (h *harness) page(person, target, audience string, scopes ...*basev0.WorkSc
 // no binding to, on the person's own access.
 func TestAPagesCallGoesThroughItsTargetsBinding(t *testing.T) {
 	h := newHarness(t)
-	m := pageModule(1, true)
-	m.Bindings = map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write")}}}
-	m.Roles[domain.InstallerRole] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(kind, "read", "write")}
-	m.Roles["viewer"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read")}
-	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
-		t.Fatal(err)
-	}
+	ledgerPage(t, h)
 	h.grant("pages", "viewer", "maya")
 
-	t.Run("a module page's viewer reaches the store through the page's binding, read alone", func(t *testing.T) {
-		got := h.must(h.page("maya", "pages", "store"))
-		exactly(t, got, kind, "", []string{"read"})
+	t.Run("a module page's viewer reaches the ledger through the page's binding, read alone", func(t *testing.T) {
+		got := h.must(h.page("maya", "pages", "ledger"))
+		exactly(t, got, ledgerKind, "", []string{"read"})
 		if chain := got.Context.GetActorChain(); len(chain) == 0 || chain[len(chain)-1].GetPrincipalId() != "pages" {
 			t.Fatalf("the page's target is the actor of the hop: %v", chain)
 		}
@@ -38,10 +32,13 @@ func TestAPagesCallGoesThroughItsTargetsBinding(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+	t.Run("and the owner-aware store's kind as the page installation's data (RBAC-1)", func(t *testing.T) {
+		exactly(t, h.must(h.page("maya", "pages", "store")), kind, h.principal(acme, "pages"), []string{"read"})
+	})
 	t.Run("and is refused what the role lacks, or with no role", func(t *testing.T) {
-		_, err := h.page("maya", "pages", "store", sc(kind, "write"))
-		refused(t, err, `a child widens what its owner holds through binding "store"`)
-		_, err = h.page("remi", "pages", "store")
+		_, err := h.page("maya", "pages", "ledger", sc(ledgerKind, "write"))
+		refused(t, err, `a child widens what its owner holds through binding "ledger"`)
+		_, err = h.page("remi", "pages", "ledger")
 		refused(t, err, "holds no role on pages")
 	})
 	t.Run("a module the page's target declares no binding to is on the person's own access", func(t *testing.T) {
@@ -67,13 +64,7 @@ func TestAPagesCallGoesThroughItsTargetsBinding(t *testing.T) {
 // page hop with a further hop after it.
 func TestAPageHopIsThePersonPresent(t *testing.T) {
 	h := newHarness(t)
-	m := pageModule(1, true)
-	m.Bindings = map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write")}}}
-	m.Roles[domain.InstallerRole] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(kind, "read", "write")}
-	m.Roles["viewer"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read")}
-	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
-		t.Fatal(err)
-	}
+	ledgerPage(t, h)
 	h.grant("pages", "viewer", "maya")
 	kindOf := func(i authority.Issued) []string {
 		var kinds []string
@@ -82,17 +73,17 @@ func TestAPageHopIsThePersonPresent(t *testing.T) {
 		}
 		return kinds
 	}
-	viaPage := h.must(h.page("maya", "pages", "store"))
+	viaPage := h.must(h.page("maya", "pages", "ledger"))
 	if got := kindOf(viaPage); len(got) != 1 || got[0] != decide.PageActor || !decide.PresentThroughPage(viaPage.Context.GetActorChain()) {
 		t.Fatalf("the page hop's actors are %v", got)
 	}
-	viaModule := h.must(h.through("maya", "pages", "store"))
+	viaModule := h.must(h.through("maya", "pages", "ledger"))
 	if got := kindOf(viaModule); len(got) != 1 || got[0] != "service" || decide.PresentThroughPage(viaModule.Context.GetActorChain()) {
 		t.Fatalf("a module's hop over the same binding is %v", got)
 	}
-	// The store hopping on onward from the page hop: the chain grows, and
+	// The ledger hopping on onward from the page hop: the chain grows, and
 	// is no longer the person present.
-	onward, err := h.hop(viaPage, "self")
+	onward, err := h.svc.IssueChild(h.ctx, viaPage.Token, authority.Workload{Module: "ledger"}, authority.IssueRequest{Binding: "self"})
 	if err != nil {
 		t.Fatal(err)
 	}

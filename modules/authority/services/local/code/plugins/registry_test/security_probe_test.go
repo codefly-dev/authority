@@ -320,8 +320,11 @@ func TestReviewArtifactCannotEscapeScopeOwner(t *testing.T) {
 				}
 				if scenario == "unowned-installation" {
 					target, ok = k.State.Installation(state.InstallationID("acme", "documents"))
-					if !ok || target.PrincipalID != "" {
-						t.Fatal("expected module installation without solution principal")
+					// A module's composition installation: its principal is its
+					// own (RBAC-1), never the solution principal the parent's
+					// scopes are owned by.
+					if !ok || target.PrincipalID == "" || target.PrincipalID == own.PrincipalID || target.InstalledBy != "" {
+						t.Fatalf("expected a module's composition installation, got %+v", target)
 					}
 				}
 				identity := &artifactv1.Identity{Schema: "review/v1", Source: state.Namespace(target), Subject: []byte(`{"name":"artifact"}`)}
