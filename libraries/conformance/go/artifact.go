@@ -52,7 +52,8 @@ type ArtifactCase struct {
 	Admin, Approver, Member, OtherAdmin string
 }
 
-// RunArtifacts proves a host decides artifact consent as every host does.
+// RunArtifacts proves a host decides artifact consent as every host does. It
+// is what Fixture.Artifacts runs; a host may also run it alone.
 func RunArtifacts(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f ArtifactCase) {
 	t.Helper()
 	c, err := newClient(conn, descriptors)
@@ -148,6 +149,23 @@ func RunArtifacts(t *testing.T, conn grpc.ClientConnInterface, descriptors []byt
 			}
 			refused(t, err, codes.PermissionDenied, "")
 		}
+	})
+	// The statement every composition relies on, in one place: an
+	// administrator applies an intent; a member of a role the intent is
+	// offered to (holding the policy's run action) runs it; a member who is
+	// not an administrator and holds no activate action is refused consent.
+	t.Run("an administrator applies, a role's member runs, a non-administrator's apply is refused", func(t *testing.T) {
+		id := identity("conformance-applied-intent", revision)
+		applied := c.must(t, ctx, artifactService, "Approve", ask(both, f.Credential, installation, f.Policy, id))
+		if str(applied, "digest") != digestOf(t, id) {
+			t.Fatalf("the administrator's apply = %v", applied)
+		}
+		same(t, c.must(t, ctx, artifactService, "Authorize", ask(parent(t, f.Member, nil), f.Credential, installation, f.Policy, id)), applied)
+		_, err := call("Approve", ask(parent(t, f.Member, nil), f.Credential, installation, f.Policy, identity("conformance-member-intent", revision)))
+		if err == nil {
+			t.Fatal("a member without activate applied an intent")
+		}
+		refused(t, err, codes.PermissionDenied, "")
 	})
 	t.Run("the policy's activate action is consent, administrator or not", func(t *testing.T) {
 		approver := parent(t, f.Approver, nil)
