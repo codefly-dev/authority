@@ -42,6 +42,10 @@ const nonceRetention = stamp.RegistrationWindow + stamp.Skew
 const (
 	HopModule  = "authority"
 	HopService = "hop"
+	// EdgeModule/EdgeService is the module edge, the one workload a person's
+	// Issue may name a page through (page_target).
+	EdgeModule  = "authority"
+	EdgeService = "edge"
 )
 
 type admission struct {

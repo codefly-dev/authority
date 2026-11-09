@@ -191,6 +191,9 @@ func (s *Service) IssueForDelegation(ctx context.Context, id string, actor Workl
 			return domain.Refuse("binding %q is addressed to %s, not %s", r.Binding, binding.Audience, audience.Principal)
 		}
 
+		if r.Operation == "headless" {
+			return domain.Refuse("binding %q's headless scopes are %s acting for nobody; a delegation acts for its grantor", r.Binding, am.Name)
+		}
 		if through, err = decide.ScopesFor(binding, r.Operation, "invoke"); err != nil {
 			return err
 		}
@@ -203,6 +206,14 @@ func (s *Service) IssueForDelegation(ctx context.Context, id string, actor Workl
 			return err
 		}
 		ceiling := scope.Intersect(scope.Intersect(d.Scopes, h), through)
+		// Through a consented solution, the grantor holds its approved reach.
+		approved, _, capped, err := s.approvedReach(tx, reachOwner{person: &p, principals: []string{am.Principal}}, audience.Name)
+		if err != nil {
+			return err
+		}
+		if capped {
+			ceiling = scope.Intersect(ceiling, approved)
+		}
 		if len(ceiling) == 0 {
 			return domain.Refuse("delegation %s grants nothing %s still holds at %s through binding %q", id, d.Grantor, audience.Name, r.Binding)
 		}
@@ -271,11 +282,6 @@ func delegableScopes(tx Tx, p domain.Person, m domain.Module, scopes Scopes) (Sc
 		there, _, _, err := throughSolutions(tx, p, target, []string{m.Principal}, scopes)
 		if err != nil {
 			return nil, err
-		}
-		if m.Kind != domain.KindSolution {
-			if there, err = held(tx, p, target, scopes); err != nil {
-				return nil, err
-			}
 		}
 		holdings = append(holdings, scope.Intersect(there, b.InvokeScopes)...)
 		holdings = append(holdings, scope.Intersect(there, b.LookupScopes)...)

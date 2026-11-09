@@ -147,8 +147,13 @@ type AuthorityManifestV1 struct {
 	InstallationRole string `protobuf:"bytes,8,opt,name=installation_role,json=installationRole,proto3" json:"installation_role,omitempty"`
 	// Viewer-edge presence only; grants no authority. Nil and empty are equivalent.
 	EdgeDependencies []*EdgeDependencyV1 `protobuf:"bytes,9,rep,name=edge_dependencies,json=edgeDependencies,proto3" json:"edge_dependencies,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// The served kinds the module declares unowned: shared infrastructure (a
+	// model's profiles) no owner holds a resource of. A scope of one is issued
+	// unselected, even through a solution's binding; every other kind keeps its
+	// owner selector. Each is one of scope_ceilings' kinds.
+	SharedKinds   []string `protobuf:"bytes,10,rep,name=shared_kinds,json=sharedKinds,proto3" json:"shared_kinds,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AuthorityManifestV1) Reset() {
@@ -244,6 +249,13 @@ func (x *AuthorityManifestV1) GetEdgeDependencies() []*EdgeDependencyV1 {
 	return nil
 }
 
+func (x *AuthorityManifestV1) GetSharedKinds() []string {
+	if x != nil {
+		return x.SharedKinds
+	}
+	return nil
+}
+
 // EdgeDependencyV1 names the exact signed module principal. The host resolves
 // it to a live catalogue target; it is not a target UUID, route alias or binding id.
 type EdgeDependencyV1 struct {
@@ -311,8 +323,13 @@ type MethodPolicyV1 struct {
 	Requires []*v1.WorkScopeV1 `protobuf:"bytes,2,rep,name=requires,proto3" json:"requires,omitempty"`
 	// The method asks nothing beyond a Work Context the authority checked.
 	AnyCheckedCaller bool `protobuf:"varint,3,opt,name=any_checked_caller,json=anyCheckedCaller,proto3" json:"any_checked_caller,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// What a call may exercise beyond what it requires, beside requires (the
+	// method's authority.hop.v1.Policy.carries): an effect the module performs
+	// on some calls alone. Nothing requires it; a binding whose ceiling is
+	// derived from the calls it names includes it.
+	Carries       []*v1.WorkScopeV1 `protobuf:"bytes,4,rep,name=carries,proto3" json:"carries,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *MethodPolicyV1) Reset() {
@@ -364,6 +381,13 @@ func (x *MethodPolicyV1) GetAnyCheckedCaller() bool {
 		return x.AnyCheckedCaller
 	}
 	return false
+}
+
+func (x *MethodPolicyV1) GetCarries() []*v1.WorkScopeV1 {
+	if x != nil {
+		return x.Carries
+	}
+	return nil
 }
 
 // SignedManifestV1 is core's signed carrier: the manifest document (JSON) and
@@ -610,8 +634,15 @@ type RoleV1 struct {
 	// scope limited to the ids that installation owns of the kind; a kind it owns
 	// nothing of grants nothing, and never the whole kind.
 	InstallationOwnedScopes []*v1.WorkScopeV1 `protobuf:"bytes,3,rep,name=installation_owned_scopes,json=installationOwnedScopes,proto3" json:"installation_owned_scopes,omitempty"`
-	unknownFields           protoimpl.UnknownFields
-	sizeCache               protoimpl.SizeCache
+	// Scopes the role grants downstream of one of the unit's own bindings: a
+	// kind a module that binding reaches serves or consumes, carried onward at
+	// each hop and cut to each binding there. The authority holds each
+	// reachable from its binding in the composition and refuses the delivery
+	// naming it when it is not. A role's grant is scopes and every through's
+	// scopes together.
+	Through       []*RoleThroughV1 `protobuf:"bytes,4,rep,name=through,proto3" json:"through,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RoleV1) Reset() {
@@ -665,6 +696,68 @@ func (x *RoleV1) GetInstallationOwnedScopes() []*v1.WorkScopeV1 {
 	return nil
 }
 
+func (x *RoleV1) GetThrough() []*RoleThroughV1 {
+	if x != nil {
+		return x.Through
+	}
+	return nil
+}
+
+// RoleThroughV1 is what a role names through one binding of its unit.
+type RoleThroughV1 struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The binding's id, one the unit declares.
+	Binding string `protobuf:"bytes,1,opt,name=binding,proto3" json:"binding,omitempty"`
+	// The kinds and actions reached through it, never ids or an owner.
+	Scopes        []*v1.WorkScopeV1 `protobuf:"bytes,2,rep,name=scopes,proto3" json:"scopes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RoleThroughV1) Reset() {
+	*x = RoleThroughV1{}
+	mi := &file_host_composition_v1_composition_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RoleThroughV1) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RoleThroughV1) ProtoMessage() {}
+
+func (x *RoleThroughV1) ProtoReflect() protoreflect.Message {
+	mi := &file_host_composition_v1_composition_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RoleThroughV1.ProtoReflect.Descriptor instead.
+func (*RoleThroughV1) Descriptor() ([]byte, []int) {
+	return file_host_composition_v1_composition_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *RoleThroughV1) GetBinding() string {
+	if x != nil {
+		return x.Binding
+	}
+	return ""
+}
+
+func (x *RoleThroughV1) GetScopes() []*v1.WorkScopeV1 {
+	if x != nil {
+		return x.Scopes
+	}
+	return nil
+}
+
 // BindingV1 is one declared call towards another module.
 type BindingV1 struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -687,7 +780,7 @@ type BindingV1 struct {
 
 func (x *BindingV1) Reset() {
 	*x = BindingV1{}
-	mi := &file_host_composition_v1_composition_proto_msgTypes[8]
+	mi := &file_host_composition_v1_composition_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -699,7 +792,7 @@ func (x *BindingV1) String() string {
 func (*BindingV1) ProtoMessage() {}
 
 func (x *BindingV1) ProtoReflect() protoreflect.Message {
-	mi := &file_host_composition_v1_composition_proto_msgTypes[8]
+	mi := &file_host_composition_v1_composition_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -712,7 +805,7 @@ func (x *BindingV1) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BindingV1.ProtoReflect.Descriptor instead.
 func (*BindingV1) Descriptor() ([]byte, []int) {
-	return file_host_composition_v1_composition_proto_rawDescGZIP(), []int{8}
+	return file_host_composition_v1_composition_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *BindingV1) GetId() string {
@@ -763,7 +856,7 @@ type ResourceKindV1 struct {
 
 func (x *ResourceKindV1) Reset() {
 	*x = ResourceKindV1{}
-	mi := &file_host_composition_v1_composition_proto_msgTypes[9]
+	mi := &file_host_composition_v1_composition_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -775,7 +868,7 @@ func (x *ResourceKindV1) String() string {
 func (*ResourceKindV1) ProtoMessage() {}
 
 func (x *ResourceKindV1) ProtoReflect() protoreflect.Message {
-	mi := &file_host_composition_v1_composition_proto_msgTypes[9]
+	mi := &file_host_composition_v1_composition_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -788,7 +881,7 @@ func (x *ResourceKindV1) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResourceKindV1.ProtoReflect.Descriptor instead.
 func (*ResourceKindV1) Descriptor() ([]byte, []int) {
-	return file_host_composition_v1_composition_proto_rawDescGZIP(), []int{9}
+	return file_host_composition_v1_composition_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ResourceKindV1) GetKind() string {
@@ -818,7 +911,7 @@ type PageV1 struct {
 
 func (x *PageV1) Reset() {
 	*x = PageV1{}
-	mi := &file_host_composition_v1_composition_proto_msgTypes[10]
+	mi := &file_host_composition_v1_composition_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -830,7 +923,7 @@ func (x *PageV1) String() string {
 func (*PageV1) ProtoMessage() {}
 
 func (x *PageV1) ProtoReflect() protoreflect.Message {
-	mi := &file_host_composition_v1_composition_proto_msgTypes[10]
+	mi := &file_host_composition_v1_composition_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -843,7 +936,7 @@ func (x *PageV1) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PageV1.ProtoReflect.Descriptor instead.
 func (*PageV1) Descriptor() ([]byte, []int) {
-	return file_host_composition_v1_composition_proto_rawDescGZIP(), []int{10}
+	return file_host_composition_v1_composition_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *PageV1) GetTitle() string {
@@ -871,7 +964,7 @@ const file_host_composition_v1_composition_proto_rawDesc = "" +
 	"\n" +
 	"credential\x18\x03 \x01(\tR\n" +
 	"credential\x12C\n" +
-	"\tauthority\x18\x04 \x01(\v2%.host.composition.v1.SignedManifestV1R\tauthority\"\xda\x03\n" +
+	"\tauthority\x18\x04 \x01(\v2%.host.composition.v1.SignedManifestV1R\tauthority\"\xfd\x03\n" +
 	"\x13AuthorityManifestV1\x12\x16\n" +
 	"\x06module\x18\x01 \x01(\tR\x06module\x12\x1e\n" +
 	"\n" +
@@ -884,14 +977,17 @@ const file_host_composition_v1_composition_proto_rawDesc = "" +
 	"\vowner_aware\x18\a \x01(\bR\n" +
 	"ownerAware\x12+\n" +
 	"\x11installation_role\x18\b \x01(\tR\x10installationRole\x12R\n" +
-	"\x11edge_dependencies\x18\t \x03(\v2%.host.composition.v1.EdgeDependencyV1R\x10edgeDependencies\"F\n" +
+	"\x11edge_dependencies\x18\t \x03(\v2%.host.composition.v1.EdgeDependencyV1R\x10edgeDependencies\x12!\n" +
+	"\fshared_kinds\x18\n" +
+	" \x03(\tR\vsharedKinds\"F\n" +
 	"\x10EdgeDependencyV1\x12\x16\n" +
 	"\x06module\x18\x01 \x01(\tR\x06module\x12\x1a\n" +
-	"\bpresence\x18\x02 \x01(\tR\bpresence\"\x92\x01\n" +
+	"\bpresence\x18\x02 \x01(\tR\bpresence\"\xcc\x01\n" +
 	"\x0eMethodPolicyV1\x12\x16\n" +
 	"\x06method\x18\x01 \x01(\tR\x06method\x12:\n" +
 	"\brequires\x18\x02 \x03(\v2\x1e.host.authority.v1.WorkScopeV1R\brequires\x12,\n" +
-	"\x12any_checked_caller\x18\x03 \x01(\bR\x10anyCheckedCaller\"J\n" +
+	"\x12any_checked_caller\x18\x03 \x01(\bR\x10anyCheckedCaller\x128\n" +
+	"\acarries\x18\x04 \x03(\v2\x1e.host.authority.v1.WorkScopeV1R\acarries\"J\n" +
 	"\x10SignedManifestV1\x12\x1a\n" +
 	"\bdocument\x18\x01 \x01(\fR\bdocument\x12\x1a\n" +
 	"\benvelope\x18\x02 \x01(\fR\benvelope\"\x80\x01\n" +
@@ -911,11 +1007,15 @@ const file_host_composition_v1_composition_proto_rawDesc = "" +
 	"\bbindings\x18\x05 \x03(\v2\x1e.host.composition.v1.BindingV1R\bbindings\x12J\n" +
 	"\x0eresource_kinds\x18\x06 \x03(\v2#.host.composition.v1.ResourceKindV1R\rresourceKinds\x12/\n" +
 	"\x04page\x18\a \x01(\v2\x1b.host.composition.v1.PageV1R\x04page\x121\n" +
-	"\x05roles\x18\b \x03(\v2\x1b.host.composition.v1.RoleV1R\x05roles\"\xb0\x01\n" +
+	"\x05roles\x18\b \x03(\v2\x1b.host.composition.v1.RoleV1R\x05roles\"\xee\x01\n" +
 	"\x06RoleV1\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x126\n" +
 	"\x06scopes\x18\x02 \x03(\v2\x1e.host.authority.v1.WorkScopeV1R\x06scopes\x12Z\n" +
-	"\x19installation_owned_scopes\x18\x03 \x03(\v2\x1e.host.authority.v1.WorkScopeV1R\x17installationOwnedScopes\"\x8a\x02\n" +
+	"\x19installation_owned_scopes\x18\x03 \x03(\v2\x1e.host.authority.v1.WorkScopeV1R\x17installationOwnedScopes\x12<\n" +
+	"\athrough\x18\x04 \x03(\v2\".host.composition.v1.RoleThroughV1R\athrough\"a\n" +
+	"\rRoleThroughV1\x12\x18\n" +
+	"\abinding\x18\x01 \x01(\tR\abinding\x126\n" +
+	"\x06scopes\x18\x02 \x03(\v2\x1e.host.authority.v1.WorkScopeV1R\x06scopes\"\x8a\x02\n" +
 	"\tBindingV1\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
 	"\baudience\x18\x02 \x01(\tR\baudience\x12C\n" +
@@ -944,7 +1044,7 @@ func file_host_composition_v1_composition_proto_rawDescGZIP() []byte {
 	return file_host_composition_v1_composition_proto_rawDescData
 }
 
-var file_host_composition_v1_composition_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_host_composition_v1_composition_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_host_composition_v1_composition_proto_goTypes = []any{
 	(*ApplyManifestRequest)(nil),  // 0: host.composition.v1.ApplyManifestRequest
 	(*AuthorityManifestV1)(nil),   // 1: host.composition.v1.AuthorityManifestV1
@@ -954,36 +1054,40 @@ var file_host_composition_v1_composition_proto_goTypes = []any{
 	(*ApplyManifestResponse)(nil), // 5: host.composition.v1.ApplyManifestResponse
 	(*ModuleManifestV1)(nil),      // 6: host.composition.v1.ModuleManifestV1
 	(*RoleV1)(nil),                // 7: host.composition.v1.RoleV1
-	(*BindingV1)(nil),             // 8: host.composition.v1.BindingV1
-	(*ResourceKindV1)(nil),        // 9: host.composition.v1.ResourceKindV1
-	(*PageV1)(nil),                // 10: host.composition.v1.PageV1
-	(*v1.WorkScopeV1)(nil),        // 11: host.authority.v1.WorkScopeV1
+	(*RoleThroughV1)(nil),         // 8: host.composition.v1.RoleThroughV1
+	(*BindingV1)(nil),             // 9: host.composition.v1.BindingV1
+	(*ResourceKindV1)(nil),        // 10: host.composition.v1.ResourceKindV1
+	(*PageV1)(nil),                // 11: host.composition.v1.PageV1
+	(*v1.WorkScopeV1)(nil),        // 12: host.authority.v1.WorkScopeV1
 }
 var file_host_composition_v1_composition_proto_depIdxs = []int32{
 	6,  // 0: host.composition.v1.ApplyManifestRequest.manifest:type_name -> host.composition.v1.ModuleManifestV1
 	4,  // 1: host.composition.v1.ApplyManifestRequest.carrier:type_name -> host.composition.v1.SignedManifestV1
 	4,  // 2: host.composition.v1.ApplyManifestRequest.authority:type_name -> host.composition.v1.SignedManifestV1
 	3,  // 3: host.composition.v1.AuthorityManifestV1.methods:type_name -> host.composition.v1.MethodPolicyV1
-	11, // 4: host.composition.v1.AuthorityManifestV1.scope_ceilings:type_name -> host.authority.v1.WorkScopeV1
+	12, // 4: host.composition.v1.AuthorityManifestV1.scope_ceilings:type_name -> host.authority.v1.WorkScopeV1
 	7,  // 5: host.composition.v1.AuthorityManifestV1.roles:type_name -> host.composition.v1.RoleV1
 	2,  // 6: host.composition.v1.AuthorityManifestV1.edge_dependencies:type_name -> host.composition.v1.EdgeDependencyV1
-	11, // 7: host.composition.v1.MethodPolicyV1.requires:type_name -> host.authority.v1.WorkScopeV1
-	8,  // 8: host.composition.v1.ModuleManifestV1.bindings:type_name -> host.composition.v1.BindingV1
-	9,  // 9: host.composition.v1.ModuleManifestV1.resource_kinds:type_name -> host.composition.v1.ResourceKindV1
-	10, // 10: host.composition.v1.ModuleManifestV1.page:type_name -> host.composition.v1.PageV1
-	7,  // 11: host.composition.v1.ModuleManifestV1.roles:type_name -> host.composition.v1.RoleV1
-	11, // 12: host.composition.v1.RoleV1.scopes:type_name -> host.authority.v1.WorkScopeV1
-	11, // 13: host.composition.v1.RoleV1.installation_owned_scopes:type_name -> host.authority.v1.WorkScopeV1
-	11, // 14: host.composition.v1.BindingV1.invoke_scopes:type_name -> host.authority.v1.WorkScopeV1
-	11, // 15: host.composition.v1.BindingV1.headless_scopes:type_name -> host.authority.v1.WorkScopeV1
-	11, // 16: host.composition.v1.BindingV1.lookup_scopes:type_name -> host.authority.v1.WorkScopeV1
-	0,  // 17: host.composition.v1.CompositionService.ApplyManifest:input_type -> host.composition.v1.ApplyManifestRequest
-	5,  // 18: host.composition.v1.CompositionService.ApplyManifest:output_type -> host.composition.v1.ApplyManifestResponse
-	18, // [18:19] is the sub-list for method output_type
-	17, // [17:18] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	12, // 7: host.composition.v1.MethodPolicyV1.requires:type_name -> host.authority.v1.WorkScopeV1
+	12, // 8: host.composition.v1.MethodPolicyV1.carries:type_name -> host.authority.v1.WorkScopeV1
+	9,  // 9: host.composition.v1.ModuleManifestV1.bindings:type_name -> host.composition.v1.BindingV1
+	10, // 10: host.composition.v1.ModuleManifestV1.resource_kinds:type_name -> host.composition.v1.ResourceKindV1
+	11, // 11: host.composition.v1.ModuleManifestV1.page:type_name -> host.composition.v1.PageV1
+	7,  // 12: host.composition.v1.ModuleManifestV1.roles:type_name -> host.composition.v1.RoleV1
+	12, // 13: host.composition.v1.RoleV1.scopes:type_name -> host.authority.v1.WorkScopeV1
+	12, // 14: host.composition.v1.RoleV1.installation_owned_scopes:type_name -> host.authority.v1.WorkScopeV1
+	8,  // 15: host.composition.v1.RoleV1.through:type_name -> host.composition.v1.RoleThroughV1
+	12, // 16: host.composition.v1.RoleThroughV1.scopes:type_name -> host.authority.v1.WorkScopeV1
+	12, // 17: host.composition.v1.BindingV1.invoke_scopes:type_name -> host.authority.v1.WorkScopeV1
+	12, // 18: host.composition.v1.BindingV1.headless_scopes:type_name -> host.authority.v1.WorkScopeV1
+	12, // 19: host.composition.v1.BindingV1.lookup_scopes:type_name -> host.authority.v1.WorkScopeV1
+	0,  // 20: host.composition.v1.CompositionService.ApplyManifest:input_type -> host.composition.v1.ApplyManifestRequest
+	5,  // 21: host.composition.v1.CompositionService.ApplyManifest:output_type -> host.composition.v1.ApplyManifestResponse
+	21, // [21:22] is the sub-list for method output_type
+	20, // [20:21] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_host_composition_v1_composition_proto_init() }
@@ -997,7 +1101,7 @@ func file_host_composition_v1_composition_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_host_composition_v1_composition_proto_rawDesc), len(file_host_composition_v1_composition_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -154,7 +154,7 @@ func (s *Service) stepSource(ctx context.Context, id string) (stepSeals, error) 
 		if m.Kind != domain.KindSolution || m.Principal == "" || m.Generation == 0 {
 			return domain.Refuse("setup requires a delivered solution")
 		}
-		digest, err := offerDigest(m)
+		digest, err := OfferDigest(m)
 		if err != nil {
 			return err
 		}

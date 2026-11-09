@@ -34,9 +34,16 @@ func AdmitMethod(m domain.Module, method string, held Scopes) error {
 			return domain.Refuse("%s: %v", audience, err)
 		}
 	}
-	switch {
-	case !ok:
+	if !ok {
 		return domain.Missing("%s serves no method %s", audience, method)
+	}
+	return AdmitPolicy(audience, method, p, held)
+}
+
+// AdmitPolicy is AdmitMethod once the policy is found: p, what audience
+// declares for method, applied to held.
+func AdmitPolicy(audience, method string, p domain.MethodPolicy, held Scopes) error {
+	switch {
 	case p.AnyCheckedCaller && len(p.Requires) > 0:
 		return domain.Refuse("%s declares for %s both that it requires scopes and that it requires none", audience, method)
 	case p.AnyCheckedCaller:
@@ -62,9 +69,16 @@ func AdmitMethod(m domain.Module, method string, held Scopes) error {
 // routeOf is the route a module declares that an HTTP request "<VERB> <path>"
 // is for.
 func routeOf(methods map[string]domain.MethodPolicy, request string) (domain.MethodPolicy, bool, error) {
+	key, ok, err := routeKey(methods, request)
+	return methods[key], ok, err
+}
+
+// routeKey is the declared route template "<VERB> <template>" an HTTP request
+// "<VERB> <path>" is an instance of; two matching templates are an error.
+func routeKey(methods map[string]domain.MethodPolicy, request string) (string, bool, error) {
 	verb, path, ok := strings.Cut(request, " ")
 	if !ok || !strings.HasPrefix(path, "/") {
-		return domain.MethodPolicy{}, false, nil
+		return "", false, nil
 	}
 	var found []string
 	for declared := range methods {
@@ -74,12 +88,12 @@ func routeOf(methods map[string]domain.MethodPolicy, request string) (domain.Met
 	}
 	switch len(found) {
 	case 0:
-		return domain.MethodPolicy{}, false, nil
+		return "", false, nil
 	case 1:
-		return methods[found[0]], true, nil
+		return found[0], true, nil
 	}
 	slices.Sort(found)
-	return domain.MethodPolicy{}, false, fmt.Errorf("%s matches more than one declared route (%s)", request, strings.Join(found, ", "))
+	return "", false, fmt.Errorf("%s matches more than one declared route (%s)", request, strings.Join(found, ", "))
 }
 
 // describe names what a call holds, for a refusal.

@@ -59,8 +59,8 @@ type Offers struct {
 	runnables RunnableReader
 }
 
-// ListOffers lists what an administrator sets up: the delivered solutions and
-// the module pages declaring roles (the core decides which).
+// ListOffers lists what an administrator sets up: the delivered solutions
+// (the core decides which; a module, roles or not, is never offered).
 func (o *Offers) ListOffers(ctx context.Context, req *installationv1.ListOffersRequest) (*installationv1.ListOffersResponse, error) {
 	caller, err := o.plugin.caller(ctx)
 	if err != nil {
@@ -106,12 +106,13 @@ func (p *Plugin) review(offer authority.ReviewedOffer, bindings map[string]*runn
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}
-	out := &installationv1.ReviewedOffer{Target: projected.Target, ToolsComposed: projected.ToolsComposed, InstallationRole: projected.InstallationRole}
+	out := &installationv1.ReviewedOffer{Target: projected.Target, ToolsComposed: projected.ToolsComposed, InstallationRole: projected.InstallationRole,
+		RolesDeclared: projected.RolesDeclared, Page: projected.Page, Closure: projected.Closure, OptionalEdges: projected.OptionalEdges}
 	for _, d := range projected.EdgeDependencies {
 		out.EdgeDependencies = append(out.EdgeDependencies, &installationv1.OfferDependency{Module: d.Module, Presence: d.Presence})
 	}
 	if a := projected.Approval; a != nil {
-		out.Approval = &installationv1.ConsentApproval{TargetId: a.TargetID, Generation: a.Generation, ExpectedRevision: a.ExpectedRevision, Digest: a.Digest}
+		out.Approval = &installationv1.ConsentApproval{TargetId: a.TargetID, Generation: a.Generation, ExpectedRevision: a.ExpectedRevision, Digest: a.Digest, ReachDigest: a.ReachDigest}
 	}
 	if projected.Installation != nil {
 		// Use the reviewed role names, never a second read of a later delivery.
@@ -119,7 +120,7 @@ func (p *Plugin) review(offer authority.ReviewedOffer, bindings map[string]*runn
 		for _, role := range projected.Roles {
 			roles = append(roles, role.Name)
 		}
-		out.Installation = wireInstallation(*projected.Installation, roles)
+		out.Installation = wireInstallation(*projected.Installation, roles, offer.UpgradeAvailable)
 	}
 	for _, b := range projected.Ceiling {
 		out.Ceiling = append(out.Ceiling, &installationv1.OfferBinding{Binding: b.Binding, Module: b.Module, Scopes: scopesToWire(b.Scopes)})
@@ -132,6 +133,10 @@ func (p *Plugin) review(offer authority.ReviewedOffer, bindings map[string]*runn
 				capability.Tools = append(capability.Tools, &installationv1.OfferTool{Name: t.Name, Binding: t.Binding, Write: t.Write})
 			}
 			role.Capabilities = append(role.Capabilities, capability)
+		}
+		for _, r := range r.Reach {
+			role.Reach = append(role.Reach, &installationv1.OfferReach{Path: r.Path, Module: r.Module, Via: r.Via, Scopes: scopesToWire(r.Scopes),
+				Confinement: r.Confinement, Operations: r.Operations})
 		}
 		out.Roles = append(out.Roles, role)
 	}

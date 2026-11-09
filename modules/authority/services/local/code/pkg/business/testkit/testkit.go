@@ -58,6 +58,11 @@ func (k *Kit) Credential(t *testing.T, module string) string {
 
 // HopWorkload is the hop as the launcher starts it: the authority module's
 // hop service, the one workload that registers admission keys.
+// EdgeWorkload is the module edge's process, as the launcher declares it.
+func EdgeWorkload() workloadidentity.Workload {
+	return workloadidentity.Workload{TrustDomain: HopWorkload().TrustDomain, Module: issuer.EdgeModule, Service: issuer.EdgeService, Instance: "edge-1"}
+}
+
 func HopWorkload() workloadidentity.Workload {
 	return workloadidentity.Workload{TrustDomain: "local.test", Module: issuer.HopModule, Service: issuer.HopService, Instance: "hop-1"}
 }
@@ -66,6 +71,16 @@ func HopWorkload() workloadidentity.Workload {
 func (k *Kit) HopCredential(t *testing.T) string {
 	t.Helper()
 	return k.HopInstanceCredential(t, HopWorkload().Instance)
+}
+
+// EdgeCredential is what the launcher signed for the module edge's process.
+func (k *Kit) EdgeCredential(t *testing.T) string {
+	t.Helper()
+	token, err := k.Launcher.Issue(native.Subject{Workload: EdgeWorkload(), Container: issuer.EdgeService}, Audience)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return token
 }
 
 // HopInstanceCredential is what the launcher signed for one hop process,
@@ -305,10 +320,11 @@ func Bare(t *testing.T) *Kit {
 	// manifests from their own workloads.
 	// robin and assistant are declared for the artifact tests, which compose
 	// them themselves.
-	for _, module := range []string{"model", "runtime", "records", "org-directory", "documents", "wiki", "proposals", "conformance-probe", "conformance-uninstalled", "conformance-solution", "conformance-methods", "robin", "assistant", "evaluation", "principal-a", "principal-b", "principal-c", "principal-store", "principal-legacy-store", "conformance-owner-a", "conformance-owner-b", "conformance-store", "conformance-declared", "conformance-declared-store", "conformance-page-module", "conformance-headless-roles"} {
+	for _, module := range []string{"model", "runtime", "records", "org-directory", "documents", "wiki", "proposals", "conformance-probe", "conformance-uninstalled", "conformance-solution", "conformance-methods", "robin", "assistant", "evaluation", "principal-a", "principal-b", "principal-c", "principal-store", "principal-legacy-store", "conformance-owner-a", "conformance-owner-b", "conformance-store", "conformance-declared", "conformance-declared-store", "conformance-page-module", "conformance-page-calls", "conformance-headless-roles", "conformance-redelivered", "conformance-reach", "conformance-reach-store"} {
 		launcher.Declare(Workload(module))
 	}
 	launcher.Declare(HopWorkload())
+	launcher.Declare(EdgeWorkload())
 	_, signing, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatal(err)

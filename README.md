@@ -1223,6 +1223,37 @@ The 0.3.1 authority version is an additive pre-stable revision selected for
 this refresh so existing `>=0.2.0 <0.4.0` consumers admit it. It retains 0.3.0's
 `AuthorizeTransfer` and adds attachment operations. Composition remains 0.2.0.
 
+## Interface evolution, 2026-11-09
+
+`codefly.dev/authority@0.3.6` adds `IssueRequest.page_target` (field 13): a
+person's `Issue` naming the target whose page made the call is issued through
+that target's binding (the core's `IssueForPage`), honoured only when the
+actor is the host's module edge by its own workload credential. Additive; the
+edge requires `>=0.3.6 <0.4.0`.
+
+`codefly.dev/composition@0.2.1` adds `RoleV1.through` (what a role names
+downstream through one of its bindings), the authority document's
+`shared_kinds` (kinds a module serves that no owner holds, issued unselected)
+and `MethodPolicyV1.carries` (what a call may exercise beyond `requires`,
+never relaxing it). Additive on the wire; a host's store must keep `through`
+and shared kinds (`storetest`).
+
+`codefly.dev/installation@0.5.0` is breaking, so it moves the minor version:
+
+- `Install` requires `ConsentApproval.reach_digest`, the digest of what each
+  role reaches that `Review` answered, and refuses an approval whose reach
+  moved (`INSTALLATION_APPROVAL_REACH_CHANGED`). A client rebuilding the
+  approval field by field must carry it; the edge's setup page does.
+- A module is installed by composition in every organization: `Offers`,
+  `Review`, `ReviewOffer` and `Install` answer a module `NotFound` ("a module
+  is installed by composition"); only a solution is chosen.
+- Additive: `OfferRole.reach`, `OfferReach`, `ReviewedOffer.optional_edges`
+  and `Installation.unreached` (field 14, a declared reach a later delivery
+  left unreached, reported and never refused).
+
+The local authority implements all three; `accounts` keeps 0.3.5 / 0.2.0 /
+0.4.0 until it adopts them and passes the shared conformance suite.
+
 ## Current installation metadata for a module
 
 The installation interface advances to `0.3.0` for this additive capability.

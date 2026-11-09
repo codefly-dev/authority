@@ -172,6 +172,15 @@ message IssueRequest {
   // a workload) or "lookup": the binding's lookup scopes alone, to read a
   // receipt without the authority to repeat the effect.
   string operation = 12;
+  // With person: the target (a solution or a module page) whose page made
+  // this call on the host's module edge. One rule for every page, the one its
+  // backend is held to: when the target declares a binding to the audience,
+  // the capability is issued through it, the person's role on the target cut
+  // to the binding, with the target as the hop's actor (operation_binding_id
+  // names it when the target declares more than one); when it declares none,
+  // the person's own access at the audience decides. Set by the host's edge,
+  // which knows the page it serves; empty is the person's own access.
+  string page_target = 13;
 }
 
 // DelegationRef names one delegation.

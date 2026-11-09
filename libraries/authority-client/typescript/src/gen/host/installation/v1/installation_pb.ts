@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file host/installation/v1/installation.proto.
  */
 export const file_host_installation_v1_installation: GenFile = /*@__PURE__*/
-  fileDesc("Cidob3N0L2luc3RhbGxhdGlvbi92MS9pbnN0YWxsYXRpb24ucHJvdG8SFGhvc3QuaW5zdGFsbGF0aW9uLnYxIkwKGkN1cnJlbnRJbnN0YWxsYXRpb25SZXF1ZXN0EhQKDHBhcmVudF90b2tlbhgBIAEoCRIYChBhY3Rvcl9jcmVkZW50aWFsGAIgASgJIm8KE0N1cnJlbnRJbnN0YWxsYXRpb24SCgoCaWQYASABKAkSFwoPb3JnYW5pemF0aW9uX2lkGAIgASgJEg4KBnRhcmdldBgDIAEoCRIQCghyZXZpc2lvbhgEIAEoBBIRCgluYW1lc3BhY2UYBSABKAkimQEKDkluc3RhbGxSZXF1ZXN0EhcKD29yZ2FuaXphdGlvbl9pZBgBIAEoCRIOCgZ0YXJnZXQYAiABKAkSDAoEcm9sZRgDIAEoCRIXCg9vd25lcl9wZXJzb25faWQYBCABKAkSNwoIYXBwcm92YWwYBSABKAsyJS5ob3N0Lmluc3RhbGxhdGlvbi52MS5Db25zZW50QXBwcm92YWwiOAoNUmV2aWV3UmVxdWVzdBIXCg9vcmdhbml6YXRpb25faWQYASABKAkSDgoGdGFyZ2V0GAIgASgJInkKD0NvbnNlbnRBcHByb3ZhbBIRCgl0YXJnZXRfaWQYASABKAkSEgoKZ2VuZXJhdGlvbhgCIAEoBBIZChFleHBlY3RlZF9yZXZpc2lvbhgDIAEoBBIUCgxvcGVyYXRpb25faWQYBCABKAkSDgoGZGlnZXN0GAUgASgJInYKEEdyYW50Um9sZVJlcXVlc3QSFwoPb3JnYW5pemF0aW9uX2lkGAEgASgJEhcKD2luc3RhbGxhdGlvbl9pZBgCIAEoCRIMCgRyb2xlGAMgASgJEhEKCXBlcnNvbl9pZBgEIAEoCRIPCgd0ZWFtX2lkGAUgASgJIncKEVJldm9rZVJvbGVSZXF1ZXN0EhcKD29yZ2FuaXphdGlvbl9pZBgBIAEoCRIXCg9pbnN0YWxsYXRpb25faWQYAiABKAkSDAoEcm9sZRgDIAEoCRIRCglwZXJzb25faWQYBCABKAkSDwoHdGVhbV9pZBgFIAEoCSJJChVMaXN0Um9sZUdyYW50c1JlcXVlc3QSFwoPb3JnYW5pemF0aW9uX2lkGAEgASgJEhcKD2luc3RhbGxhdGlvbl9pZBgCIAEoCSJJChZMaXN0Um9sZUdyYW50c1Jlc3BvbnNlEi8KBmdyYW50cxgBIAMoCzIfLmhvc3QuaW5zdGFsbGF0aW9uLnYxLlJvbGVHcmFudCI9CglSb2xlR3JhbnQSDAoEcm9sZRgBIAEoCRIRCglwZXJzb25faWQYAiABKAkSDwoHdGVhbV9pZBgDIAEoCSImCgtMaXN0UmVxdWVzdBIXCg9vcmdhbml6YXRpb25faWQYASABKAkiSQoMTGlzdFJlc3BvbnNlEjkKDWluc3RhbGxhdGlvbnMYASADKAsyIi5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsYXRpb24i3QIKDEluc3RhbGxhdGlvbhIKCgJpZBgBIAEoCRIXCg9vcmdhbml6YXRpb25faWQYAiABKAkSDgoGdGFyZ2V0GAMgASgJEjkKBnN0YXR1cxgEIAEoDjIpLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbi5TdGF0dXMSEAoIcmV2aXNpb24YBSABKAQSDAoEcm9sZRgGIAEoCRIRCgluYW1lc3BhY2UYCSABKAkSFAoMcHJpbmNpcGFsX2lkGAogASgJEg0KBXJvbGVzGAsgAygJIlsKBlN0YXR1cxIWChJTVEFUVVNfVU5TUEVDSUZJRUQQABISCg5TVEFUVVNfUEVORElORxABEhEKDVNUQVRVU19BQ1RJVkUQAhISCg5TVEFUVVNfUkVWT0tFRBADSgQIBxAISgQICBAJUgh0ZWFtX2lkc1ISYWdlbnRfcHJpbmNpcGFsX2lkIk4KEkluc3RhbGxhdGlvbk5vdGljZRI4CgxpbnN0YWxsYXRpb24YASABKAsyIi5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsYXRpb24iEQoPSW5zdGFsbGF0aW9uQWNrIiwKEUxpc3RPZmZlcnNSZXF1ZXN0EhcKD29yZ2FuaXphdGlvbl9pZBgBIAEoCSJBChJMaXN0T2ZmZXJzUmVzcG9uc2USKwoGb2ZmZXJzGAEgAygLMhsuaG9zdC5pbnN0YWxsYXRpb24udjEuT2ZmZXIiKwoFT2ZmZXISDgoGdGFyZ2V0GAEgASgJEhIKCmdlbmVyYXRpb24YAiABKAQi7AIKDVJldmlld2VkT2ZmZXISNwoIYXBwcm92YWwYASABKAsyJS5ob3N0Lmluc3RhbGxhdGlvbi52MS5Db25zZW50QXBwcm92YWwSDgoGdGFyZ2V0GAIgASgJEi4KBXJvbGVzGAMgAygLMh8uaG9zdC5pbnN0YWxsYXRpb24udjEuT2ZmZXJSb2xlEjgKDGluc3RhbGxhdGlvbhgEIAEoCzIiLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbhIzCgdjZWlsaW5nGAUgAygLMiIuaG9zdC5pbnN0YWxsYXRpb24udjEuT2ZmZXJCaW5kaW5nEhYKDnRvb2xzX2NvbXBvc2VkGAYgASgIEhkKEWluc3RhbGxhdGlvbl9yb2xlGAcgASgJEkAKEWVkZ2VfZGVwZW5kZW5jaWVzGAggAygLMiUuaG9zdC5pbnN0YWxsYXRpb24udjEuT2ZmZXJEZXBlbmRlbmN5IjMKD09mZmVyRGVwZW5kZW5jeRIOCgZtb2R1bGUYASABKAkSEAoIcHJlc2VuY2UYAiABKAkiYQoMT2ZmZXJCaW5kaW5nEg8KB2JpbmRpbmcYASABKAkSDgoGbW9kdWxlGAIgASgJEjAKBnNjb3BlcxgDIAMoCzIgLmhvc3QuaW5zdGFsbGF0aW9uLnYxLk9mZmVyU2NvcGUiiAEKCU9mZmVyUm9sZRIMCgRuYW1lGAEgASgJEjAKBnNjb3BlcxgCIAMoCzIgLmhvc3QuaW5zdGFsbGF0aW9uLnYxLk9mZmVyU2NvcGUSOwoMY2FwYWJpbGl0aWVzGAMgAygLMiUuaG9zdC5pbnN0YWxsYXRpb24udjEuT2ZmZXJDYXBhYmlsaXR5ImEKCk9mZmVyU2NvcGUSFQoNcmVzb3VyY2Vfa2luZBgBIAEoCRIPCgdhY3Rpb25zGAIgAygJEhUKDWF0dGFjaGVkX29ubHkYAyABKAgSFAoMcmVzb3VyY2VfaWRzGAQgAygJIpgBCg9PZmZlckNhcGFiaWxpdHkSDgoGbW9kdWxlGAEgASgJEhEKCW9wZXJhdGlvbhgCIAEoCRIyCghyZXF1aXJlcxgDIAMoCzIgLmhvc3QuaW5zdGFsbGF0aW9uLnYxLk9mZmVyU2NvcGUSLgoFdG9vbHMYBCADKAsyHy5ob3N0Lmluc3RhbGxhdGlvbi52MS5PZmZlclRvb2wiOQoJT2ZmZXJUb29sEgwKBG5hbWUYASABKAkSDwoHYmluZGluZxgCIAEoCRINCgV3cml0ZRgDIAEoCCIqCg9MaXN0SGVsZFJlcXVlc3QSFwoPb3JnYW5pemF0aW9uX2lkGAEgASgJIlEKEExpc3RIZWxkUmVzcG9uc2USPQoNaW5zdGFsbGF0aW9ucxgBIAMoCzImLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkhlbGRJbnN0YWxsYXRpb24iWwoQSGVsZEluc3RhbGxhdGlvbhI4CgxpbnN0YWxsYXRpb24YASABKAsyIi5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsYXRpb24SDQoFcm9sZXMYAiADKAky8wUKE0luc3RhbGxhdGlvblNlcnZpY2USZgoHQ3VycmVudBIwLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkN1cnJlbnRJbnN0YWxsYXRpb25SZXF1ZXN0GikuaG9zdC5pbnN0YWxsYXRpb24udjEuQ3VycmVudEluc3RhbGxhdGlvbhJTCgdJbnN0YWxsEiQuaG9zdC5pbnN0YWxsYXRpb24udjEuSW5zdGFsbFJlcXVlc3QaIi5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsYXRpb24SVAoGUmV2aWV3EiMuaG9zdC5pbnN0YWxsYXRpb24udjEuUmV2aWV3UmVxdWVzdBolLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkNvbnNlbnRBcHByb3ZhbBJXCglHcmFudFJvbGUSJi5ob3N0Lmluc3RhbGxhdGlvbi52MS5HcmFudFJvbGVSZXF1ZXN0GiIuaG9zdC5pbnN0YWxsYXRpb24udjEuSW5zdGFsbGF0aW9uElkKClJldm9rZVJvbGUSJy5ob3N0Lmluc3RhbGxhdGlvbi52MS5SZXZva2VSb2xlUmVxdWVzdBoiLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbhJrCg5MaXN0Um9sZUdyYW50cxIrLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkxpc3RSb2xlR3JhbnRzUmVxdWVzdBosLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkxpc3RSb2xlR3JhbnRzUmVzcG9uc2USTQoETGlzdBIhLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkxpc3RSZXF1ZXN0GiIuaG9zdC5pbnN0YWxsYXRpb24udjEuTGlzdFJlc3BvbnNlElkKCExpc3RIZWxkEiUuaG9zdC5pbnN0YWxsYXRpb24udjEuTGlzdEhlbGRSZXF1ZXN0GiYuaG9zdC5pbnN0YWxsYXRpb24udjEuTGlzdEhlbGRSZXNwb25zZTJwChJJbnN0YWxsYWJsZVNlcnZpY2USWgoHSW5zdGFsbBIoLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbk5vdGljZRolLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbkFjazLIAQoMT2ZmZXJTZXJ2aWNlEl8KCkxpc3RPZmZlcnMSJy5ob3N0Lmluc3RhbGxhdGlvbi52MS5MaXN0T2ZmZXJzUmVxdWVzdBooLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkxpc3RPZmZlcnNSZXNwb25zZRJXCgtSZXZpZXdPZmZlchIjLmhvc3QuaW5zdGFsbGF0aW9uLnYxLlJldmlld1JlcXVlc3QaIy5ob3N0Lmluc3RhbGxhdGlvbi52MS5SZXZpZXdlZE9mZmVyQjVaM2dhdGV3YXkvcGtnL2dlbi9ob3N0L2luc3RhbGxhdGlvbi92MTtpbnN0YWxsYXRpb252MWIGcHJvdG8z");
+  fileDesc("Cidob3N0L2luc3RhbGxhdGlvbi92MS9pbnN0YWxsYXRpb24ucHJvdG8SFGhvc3QuaW5zdGFsbGF0aW9uLnYxIkwKGkN1cnJlbnRJbnN0YWxsYXRpb25SZXF1ZXN0EhQKDHBhcmVudF90b2tlbhgBIAEoCRIYChBhY3Rvcl9jcmVkZW50aWFsGAIgASgJIm8KE0N1cnJlbnRJbnN0YWxsYXRpb24SCgoCaWQYASABKAkSFwoPb3JnYW5pemF0aW9uX2lkGAIgASgJEg4KBnRhcmdldBgDIAEoCRIQCghyZXZpc2lvbhgEIAEoBBIRCgluYW1lc3BhY2UYBSABKAkimQEKDkluc3RhbGxSZXF1ZXN0EhcKD29yZ2FuaXphdGlvbl9pZBgBIAEoCRIOCgZ0YXJnZXQYAiABKAkSDAoEcm9sZRgDIAEoCRIXCg9vd25lcl9wZXJzb25faWQYBCABKAkSNwoIYXBwcm92YWwYBSABKAsyJS5ob3N0Lmluc3RhbGxhdGlvbi52MS5Db25zZW50QXBwcm92YWwiOAoNUmV2aWV3UmVxdWVzdBIXCg9vcmdhbml6YXRpb25faWQYASABKAkSDgoGdGFyZ2V0GAIgASgJIo8BCg9Db25zZW50QXBwcm92YWwSEQoJdGFyZ2V0X2lkGAEgASgJEhIKCmdlbmVyYXRpb24YAiABKAQSGQoRZXhwZWN0ZWRfcmV2aXNpb24YAyABKAQSFAoMb3BlcmF0aW9uX2lkGAQgASgJEg4KBmRpZ2VzdBgFIAEoCRIUCgxyZWFjaF9kaWdlc3QYBiABKAkidgoQR3JhbnRSb2xlUmVxdWVzdBIXCg9vcmdhbml6YXRpb25faWQYASABKAkSFwoPaW5zdGFsbGF0aW9uX2lkGAIgASgJEgwKBHJvbGUYAyABKAkSEQoJcGVyc29uX2lkGAQgASgJEg8KB3RlYW1faWQYBSABKAkidwoRUmV2b2tlUm9sZVJlcXVlc3QSFwoPb3JnYW5pemF0aW9uX2lkGAEgASgJEhcKD2luc3RhbGxhdGlvbl9pZBgCIAEoCRIMCgRyb2xlGAMgASgJEhEKCXBlcnNvbl9pZBgEIAEoCRIPCgd0ZWFtX2lkGAUgASgJIkkKFUxpc3RSb2xlR3JhbnRzUmVxdWVzdBIXCg9vcmdhbml6YXRpb25faWQYASABKAkSFwoPaW5zdGFsbGF0aW9uX2lkGAIgASgJIkkKFkxpc3RSb2xlR3JhbnRzUmVzcG9uc2USLwoGZ3JhbnRzGAEgAygLMh8uaG9zdC5pbnN0YWxsYXRpb24udjEuUm9sZUdyYW50Ij0KCVJvbGVHcmFudBIMCgRyb2xlGAEgASgJEhEKCXBlcnNvbl9pZBgCIAEoCRIPCgd0ZWFtX2lkGAMgASgJIiYKC0xpc3RSZXF1ZXN0EhcKD29yZ2FuaXphdGlvbl9pZBgBIAEoCSJJCgxMaXN0UmVzcG9uc2USOQoNaW5zdGFsbGF0aW9ucxgBIAMoCzIiLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbiKoAwoMSW5zdGFsbGF0aW9uEgoKAmlkGAEgASgJEhcKD29yZ2FuaXphdGlvbl9pZBgCIAEoCRIOCgZ0YXJnZXQYAyABKAkSOQoGc3RhdHVzGAQgASgOMikuaG9zdC5pbnN0YWxsYXRpb24udjEuSW5zdGFsbGF0aW9uLlN0YXR1cxIQCghyZXZpc2lvbhgFIAEoBBIMCgRyb2xlGAYgASgJEhEKCW5hbWVzcGFjZRgJIAEoCRIUCgxwcmluY2lwYWxfaWQYCiABKAkSDQoFcm9sZXMYCyADKAkSGwoTYXBwcm92ZWRfZ2VuZXJhdGlvbhgMIAEoBBIZChF1cGdyYWRlX2F2YWlsYWJsZRgNIAEoCBIRCgl1bnJlYWNoZWQYDiADKAkiWwoGU3RhdHVzEhYKElNUQVRVU19VTlNQRUNJRklFRBAAEhIKDlNUQVRVU19QRU5ESU5HEAESEQoNU1RBVFVTX0FDVElWRRACEhIKDlNUQVRVU19SRVZPS0VEEANKBAgHEAhKBAgIEAlSCHRlYW1faWRzUhJhZ2VudF9wcmluY2lwYWxfaWQiTgoSSW5zdGFsbGF0aW9uTm90aWNlEjgKDGluc3RhbGxhdGlvbhgBIAEoCzIiLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbiIRCg9JbnN0YWxsYXRpb25BY2siLAoRTGlzdE9mZmVyc1JlcXVlc3QSFwoPb3JnYW5pemF0aW9uX2lkGAEgASgJIkEKEkxpc3RPZmZlcnNSZXNwb25zZRIrCgZvZmZlcnMYASADKAsyGy5ob3N0Lmluc3RhbGxhdGlvbi52MS5PZmZlciIrCgVPZmZlchIOCgZ0YXJnZXQYASABKAkSEgoKZ2VuZXJhdGlvbhgCIAEoBCK7AwoNUmV2aWV3ZWRPZmZlchI3CghhcHByb3ZhbBgBIAEoCzIlLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkNvbnNlbnRBcHByb3ZhbBIOCgZ0YXJnZXQYAiABKAkSLgoFcm9sZXMYAyADKAsyHy5ob3N0Lmluc3RhbGxhdGlvbi52MS5PZmZlclJvbGUSOAoMaW5zdGFsbGF0aW9uGAQgASgLMiIuaG9zdC5pbnN0YWxsYXRpb24udjEuSW5zdGFsbGF0aW9uEjMKB2NlaWxpbmcYBSADKAsyIi5ob3N0Lmluc3RhbGxhdGlvbi52MS5PZmZlckJpbmRpbmcSFgoOdG9vbHNfY29tcG9zZWQYBiABKAgSGQoRaW5zdGFsbGF0aW9uX3JvbGUYByABKAkSQAoRZWRnZV9kZXBlbmRlbmNpZXMYCCADKAsyJS5ob3N0Lmluc3RhbGxhdGlvbi52MS5PZmZlckRlcGVuZGVuY3kSFgoOcm9sZXNfZGVjbGFyZWQYCSABKAgSDAoEcGFnZRgKIAEoCBIPCgdjbG9zdXJlGAsgAygJEhYKDm9wdGlvbmFsX2VkZ2VzGAwgAygJIjMKD09mZmVyRGVwZW5kZW5jeRIOCgZtb2R1bGUYASABKAkSEAoIcHJlc2VuY2UYAiABKAkiYQoMT2ZmZXJCaW5kaW5nEg8KB2JpbmRpbmcYASABKAkSDgoGbW9kdWxlGAIgASgJEjAKBnNjb3BlcxgDIAMoCzIgLmhvc3QuaW5zdGFsbGF0aW9uLnYxLk9mZmVyU2NvcGUiuQEKCU9mZmVyUm9sZRIMCgRuYW1lGAEgASgJEjAKBnNjb3BlcxgCIAMoCzIgLmhvc3QuaW5zdGFsbGF0aW9uLnYxLk9mZmVyU2NvcGUSOwoMY2FwYWJpbGl0aWVzGAMgAygLMiUuaG9zdC5pbnN0YWxsYXRpb24udjEuT2ZmZXJDYXBhYmlsaXR5Ei8KBXJlYWNoGAQgAygLMiAuaG9zdC5pbnN0YWxsYXRpb24udjEuT2ZmZXJSZWFjaCKSAQoKT2ZmZXJSZWFjaBIMCgRwYXRoGAEgAygJEg4KBm1vZHVsZRgCIAEoCRILCgN2aWEYAyABKAkSMAoGc2NvcGVzGAQgAygLMiAuaG9zdC5pbnN0YWxsYXRpb24udjEuT2ZmZXJTY29wZRITCgtjb25maW5lbWVudBgFIAEoCRISCgpvcGVyYXRpb25zGAYgAygJImEKCk9mZmVyU2NvcGUSFQoNcmVzb3VyY2Vfa2luZBgBIAEoCRIPCgdhY3Rpb25zGAIgAygJEhUKDWF0dGFjaGVkX29ubHkYAyABKAgSFAoMcmVzb3VyY2VfaWRzGAQgAygJIpgBCg9PZmZlckNhcGFiaWxpdHkSDgoGbW9kdWxlGAEgASgJEhEKCW9wZXJhdGlvbhgCIAEoCRIyCghyZXF1aXJlcxgDIAMoCzIgLmhvc3QuaW5zdGFsbGF0aW9uLnYxLk9mZmVyU2NvcGUSLgoFdG9vbHMYBCADKAsyHy5ob3N0Lmluc3RhbGxhdGlvbi52MS5PZmZlclRvb2wiOQoJT2ZmZXJUb29sEgwKBG5hbWUYASABKAkSDwoHYmluZGluZxgCIAEoCRINCgV3cml0ZRgDIAEoCCIqCg9MaXN0SGVsZFJlcXVlc3QSFwoPb3JnYW5pemF0aW9uX2lkGAEgASgJIlEKEExpc3RIZWxkUmVzcG9uc2USPQoNaW5zdGFsbGF0aW9ucxgBIAMoCzImLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkhlbGRJbnN0YWxsYXRpb24iWwoQSGVsZEluc3RhbGxhdGlvbhI4CgxpbnN0YWxsYXRpb24YASABKAsyIi5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsYXRpb24SDQoFcm9sZXMYAiADKAky8wUKE0luc3RhbGxhdGlvblNlcnZpY2USZgoHQ3VycmVudBIwLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkN1cnJlbnRJbnN0YWxsYXRpb25SZXF1ZXN0GikuaG9zdC5pbnN0YWxsYXRpb24udjEuQ3VycmVudEluc3RhbGxhdGlvbhJTCgdJbnN0YWxsEiQuaG9zdC5pbnN0YWxsYXRpb24udjEuSW5zdGFsbFJlcXVlc3QaIi5ob3N0Lmluc3RhbGxhdGlvbi52MS5JbnN0YWxsYXRpb24SVAoGUmV2aWV3EiMuaG9zdC5pbnN0YWxsYXRpb24udjEuUmV2aWV3UmVxdWVzdBolLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkNvbnNlbnRBcHByb3ZhbBJXCglHcmFudFJvbGUSJi5ob3N0Lmluc3RhbGxhdGlvbi52MS5HcmFudFJvbGVSZXF1ZXN0GiIuaG9zdC5pbnN0YWxsYXRpb24udjEuSW5zdGFsbGF0aW9uElkKClJldm9rZVJvbGUSJy5ob3N0Lmluc3RhbGxhdGlvbi52MS5SZXZva2VSb2xlUmVxdWVzdBoiLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbhJrCg5MaXN0Um9sZUdyYW50cxIrLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkxpc3RSb2xlR3JhbnRzUmVxdWVzdBosLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkxpc3RSb2xlR3JhbnRzUmVzcG9uc2USTQoETGlzdBIhLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkxpc3RSZXF1ZXN0GiIuaG9zdC5pbnN0YWxsYXRpb24udjEuTGlzdFJlc3BvbnNlElkKCExpc3RIZWxkEiUuaG9zdC5pbnN0YWxsYXRpb24udjEuTGlzdEhlbGRSZXF1ZXN0GiYuaG9zdC5pbnN0YWxsYXRpb24udjEuTGlzdEhlbGRSZXNwb25zZTJwChJJbnN0YWxsYWJsZVNlcnZpY2USWgoHSW5zdGFsbBIoLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbk5vdGljZRolLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkluc3RhbGxhdGlvbkFjazLIAQoMT2ZmZXJTZXJ2aWNlEl8KCkxpc3RPZmZlcnMSJy5ob3N0Lmluc3RhbGxhdGlvbi52MS5MaXN0T2ZmZXJzUmVxdWVzdBooLmhvc3QuaW5zdGFsbGF0aW9uLnYxLkxpc3RPZmZlcnNSZXNwb25zZRJXCgtSZXZpZXdPZmZlchIjLmhvc3QuaW5zdGFsbGF0aW9uLnYxLlJldmlld1JlcXVlc3QaIy5ob3N0Lmluc3RhbGxhdGlvbi52MS5SZXZpZXdlZE9mZmVyQjVaM2dhdGV3YXkvcGtnL2dlbi9ob3N0L2luc3RhbGxhdGlvbi92MTtpbnN0YWxsYXRpb252MWIGcHJvdG8z");
 
 /**
  * @generated from message host.installation.v1.CurrentInstallationRequest
@@ -93,7 +93,7 @@ export type InstallRequest = Message<"host.installation.v1.InstallRequest"> & {
   organizationId: string;
 
   /**
-   * The solution or module installed, by its name in the composition.
+   * The solution installed, by its name in the composition.
    *
    * @generated from field: string target = 2;
    */
@@ -186,6 +186,16 @@ export type ConsentApproval = Message<"host.installation.v1.ConsentApproval"> & 
    * @generated from field: string digest = 5;
    */
   digest: string;
+
+  /**
+   * sha256 digest of what each of the target's roles reaches, directly and
+   * transitively, in the composition reviewed (ReviewedOffer roles' reach):
+   * the consent covers it. Required; Install refuses an approval whose reach
+   * changed since it was reviewed (INSTALLATION_APPROVAL_REACH_CHANGED).
+   *
+   * @generated from field: string reach_digest = 6;
+   */
+  reachDigest: string;
 };
 
 /**
@@ -496,6 +506,47 @@ export type Installation = Message<"host.installation.v1.Installation"> & {
    * @generated from field: repeated string roles = 11;
    */
   roles: string[];
+
+  /**
+   * The delivery generation the installation's consent approved. A
+   * redelivery that asks nothing new of the organization (no role, binding,
+   * edge dependency or method added, none reaching further, no standing
+   * authority asked) advances it without a click; one that asks more leaves
+   * it. Zero for an installation installed without consent (by composition
+   * or by the host's own setup).
+   *
+   * @generated from field: uint64 approved_generation = 12;
+   */
+  approvedGeneration: bigint;
+
+  /**
+   * True when the delivered generation asks more than approved_generation
+   * did, when what the roles reach in the composition now (a module the
+   * target reaches redelivered, or newly composed) asks more than the
+   * consent approved, or when the approved generation is unknown (a consent
+   * recorded before it was kept; one recorded before reach was kept adopts
+   * the reach it has once, and asks nothing for it): the installation
+   * stands, active with its grants, its holders and its agent holding what
+   * the approved offer and reach granted, until an administrator reviews the
+   * offer and approves it with Install. A host renders it as an update
+   * available.
+   *
+   * @generated from field: bool upgrade_available = 13;
+   */
+  upgradeAvailable: boolean;
+
+  /**
+   * What the target's roles name through one of its bindings that the
+   * composition does not reach now, one condition per role and binding (a
+   * module that binding reaches no longer consumes it, or is not composed):
+   * a readiness condition beside upgrade_available. The delivery that left
+   * it stands; it grants nothing there, as each hop narrows, and clears by
+   * itself once a later delivery reaches it again. A host renders it as a
+   * degraded condition naming each.
+   *
+   * @generated from field: repeated string unreached = 14;
+   */
+  unreached: string[];
 };
 
 /**
@@ -602,7 +653,7 @@ export const ListOffersRequestSchema: GenMessage<ListOffersRequest> = /*@__PURE_
   messageDesc(file_host_installation_v1_installation, 15);
 
 /**
- * ListOffersResponse is every delivered solution, by name.
+ * ListOffersResponse is every delivered target an administrator chooses, by name.
  *
  * @generated from message host.installation.v1.ListOffersResponse
  */
@@ -621,13 +672,13 @@ export const ListOffersResponseSchema: GenMessage<ListOffersResponse> = /*@__PUR
   messageDesc(file_host_installation_v1_installation, 16);
 
 /**
- * Offer is one delivered solution.
+ * Offer is one delivered target an administrator chooses.
  *
  * @generated from message host.installation.v1.Offer
  */
 export type Offer = Message<"host.installation.v1.Offer"> & {
   /**
-   * The solution's name in the composition: Install's target.
+   * The target's name in the composition: Install's target.
    *
    * @generated from field: string target = 1;
    */
@@ -649,7 +700,7 @@ export const OfferSchema: GenMessage<Offer> = /*@__PURE__*/
   messageDesc(file_host_installation_v1_installation, 17);
 
 /**
- * ReviewedOffer is one solution's authority offer and the consent that names it.
+ * ReviewedOffer is one target's authority offer and the consent that names it.
  *
  * @generated from message host.installation.v1.ReviewedOffer
  */
@@ -713,6 +764,44 @@ export type ReviewedOffer = Message<"host.installation.v1.ReviewedOffer"> & {
    * @generated from field: repeated host.installation.v1.OfferDependency edge_dependencies = 8;
    */
   edgeDependencies: OfferDependency[];
+
+  /**
+   * True when the solution declares roles, which its Setup grants.
+   *
+   * @generated from field: bool roles_declared = 9;
+   */
+  rolesDeclared: boolean;
+
+  /**
+   * True when the solution declares a page a person opens, as the
+   * authority's stored declaration knows it; a host whose store does not
+   * keep the flag answers false.
+   *
+   * @generated from field: bool page = 10;
+   */
+  page: boolean;
+
+  /**
+   * What the solution depends on: every module it reaches through its
+   * bindings and required edge dependencies, transitively, roles or not, by
+   * its name in the composition, sorted. Composition installs every module
+   * wherever it is composed; a host whose composition is per organisation
+   * converges these with the install. A solution reached is installed by its
+   * own review and is not listed. A binding audience or a required edge
+   * dependency that is not composed refuses the review: the closure cannot
+   * be installed.
+   *
+   * @generated from field: repeated string closure = 11;
+   */
+  closure: string[];
+
+  /**
+   * The optional edge dependencies the target and its closure declare, by
+   * module name: present when composed, never installed with the target.
+   *
+   * @generated from field: repeated string optional_edges = 12;
+   */
+  optionalEdges: string[];
 };
 
 /**
@@ -802,6 +891,16 @@ export type OfferRole = Message<"host.installation.v1.OfferRole"> & {
    * @generated from field: repeated host.installation.v1.OfferCapability capabilities = 3;
    */
   capabilities: OfferCapability[];
+
+  /**
+   * Every place a holder of the role can cause an operation, as a static
+   * maximum: on the target, through the target's bindings and onward, and
+   * on the holder's own session. An administrator's review reads it in the
+   * composition now; a holder's, as the installation's consent approved it.
+   *
+   * @generated from field: repeated host.installation.v1.OfferReach reach = 4;
+   */
+  reach: OfferReach[];
 };
 
 /**
@@ -810,6 +909,69 @@ export type OfferRole = Message<"host.installation.v1.OfferRole"> & {
  */
 export const OfferRoleSchema: GenMessage<OfferRole> = /*@__PURE__*/
   messageDesc(file_host_installation_v1_installation, 21);
+
+/**
+ * OfferReach is one module a role reaches, one way. Issuance, for a holder
+ * or for the installation's agent, never carries past it; it is an upper
+ * bound (resources and owners are checked at each call).
+ *
+ * @generated from message host.installation.v1.OfferReach
+ */
+export type OfferReach = Message<"host.installation.v1.OfferReach"> & {
+  /**
+   * A shortest way from the target to module, by module name, the target
+   * first: a witness. Every way there, re-entries included, is accounted for
+   * in scopes and operations.
+   *
+   * @generated from field: repeated string path = 1;
+   */
+  path: string[];
+
+  /**
+   * @generated from field: string module = 2;
+   */
+  module: string;
+
+  /**
+   * "role": the role's own scopes on the target; "binding": the target, then
+   * each module on the path, acting for the holder; "person": an edge the
+   * target's page calls on the holder's own session, where the holder's own
+   * grants decide (no scopes, no operations).
+   *
+   * @generated from field: string via = 3;
+   */
+  via: string;
+
+  /**
+   * The most a holder's capability at module can carry.
+   *
+   * @generated from field: repeated host.installation.v1.OfferScope scopes = 4;
+   */
+  scopes: OfferScope[];
+
+  /**
+   * On the target: "installation" (the installation's own data) or
+   * "attached" (what is attached to it); empty otherwise.
+   *
+   * @generated from field: string confinement = 5;
+   */
+  confinement: string;
+
+  /**
+   * The operations of module those scopes are admitted to, by its declared
+   * method policies; one per operation, whatever face serves it.
+   *
+   * @generated from field: repeated string operations = 6;
+   */
+  operations: string[];
+};
+
+/**
+ * Describes the message host.installation.v1.OfferReach.
+ * Use `create(OfferReachSchema)` to create a new message.
+ */
+export const OfferReachSchema: GenMessage<OfferReach> = /*@__PURE__*/
+  messageDesc(file_host_installation_v1_installation, 22);
 
 /**
  * OfferScope is one declared scope.
@@ -847,7 +1009,7 @@ export type OfferScope = Message<"host.installation.v1.OfferScope"> & {
  * Use `create(OfferScopeSchema)` to create a new message.
  */
 export const OfferScopeSchema: GenMessage<OfferScope> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 22);
+  messageDesc(file_host_installation_v1_installation, 23);
 
 /**
  * OfferCapability is one module operation a role's scopes cover.
@@ -888,7 +1050,7 @@ export type OfferCapability = Message<"host.installation.v1.OfferCapability"> & 
  * Use `create(OfferCapabilitySchema)` to create a new message.
  */
 export const OfferCapabilitySchema: GenMessage<OfferCapability> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 23);
+  messageDesc(file_host_installation_v1_installation, 24);
 
 /**
  * OfferTool is one tool-exposed Runnable of an operation.
@@ -923,7 +1085,7 @@ export type OfferTool = Message<"host.installation.v1.OfferTool"> & {
  * Use `create(OfferToolSchema)` to create a new message.
  */
 export const OfferToolSchema: GenMessage<OfferTool> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 24);
+  messageDesc(file_host_installation_v1_installation, 25);
 
 /**
  * ListHeldRequest names the organisation the person reads at: the one their
@@ -945,7 +1107,7 @@ export type ListHeldRequest = Message<"host.installation.v1.ListHeldRequest"> & 
  * Use `create(ListHeldRequestSchema)` to create a new message.
  */
 export const ListHeldRequestSchema: GenMessage<ListHeldRequest> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 25);
+  messageDesc(file_host_installation_v1_installation, 26);
 
 /**
  * ListHeldResponse is every installation the person holds a role on, sorted
@@ -967,7 +1129,7 @@ export type ListHeldResponse = Message<"host.installation.v1.ListHeldResponse"> 
  * Use `create(ListHeldResponseSchema)` to create a new message.
  */
 export const ListHeldResponseSchema: GenMessage<ListHeldResponse> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 26);
+  messageDesc(file_host_installation_v1_installation, 27);
 
 /**
  * HeldInstallation is one installation the person may use.
@@ -995,10 +1157,16 @@ export type HeldInstallation = Message<"host.installation.v1.HeldInstallation"> 
  * Use `create(HeldInstallationSchema)` to create a new message.
  */
 export const HeldInstallationSchema: GenMessage<HeldInstallation> = /*@__PURE__*/
-  messageDesc(file_host_installation_v1_installation, 27);
+  messageDesc(file_host_installation_v1_installation, 28);
 
 /**
  * InstallationService is implemented by the host and by the local authority.
+ * Install takes a solution alone, chosen by an administrator through Review
+ * and Install. A module, roles or not, page or not, is never installed here:
+ * composition installs it in every organisation where it is composed,
+ * holding no principal and no standing authority. Its roles, when it
+ * declares any, decide who may use it, through GrantRole on that composition
+ * installation as on a solution's.
  *
  * @generated from service host.installation.v1.InstallationService
  */
@@ -1016,8 +1184,20 @@ export const InstallationService: GenService<{
     output: typeof CurrentInstallationSchema;
   },
   /**
-   * Install composes an installation: its agent principal, its root scope and
-   * the row, pending until the target acknowledges its install step.
+   * Install composes an installation of a solution: its agent principal,
+   * its root scope and the row, pending until the solution acknowledges its
+   * install step, or active at once for one that declares no install
+   * endpoint. A module is refused NOT_FOUND: composition installs it. On an
+   * active installation, a fresh approval of a newer offer than its consent
+   * approved (Installation.upgrade_available) is an upgrade: the install step
+   * runs again (it converges idempotently; the host converges the closure
+   * there), then the installation, active throughout, moves its consent to
+   * the approved generation and its revision; its grants are kept but those
+   * of a role the approved offer no longer declares. Until the upgrade, the
+   * holders hold what the approved offer granted, never what the delivered
+   * one asks. A fresh approval of the offer already approved is refused as
+   * already installed. An install never deletes a role grant otherwise:
+   * RevokeRole and an uninstall do.
    *
    * @generated from rpc host.installation.v1.InstallationService.Install
    */
@@ -1037,8 +1217,9 @@ export const InstallationService: GenService<{
     output: typeof ConsentApprovalSchema;
   },
   /**
-   * GrantRole grants a person or a team one of the solution's roles on the
-   * installation: the access. Idempotent; it leaves existing capabilities
+   * GrantRole grants a person or a team one of the roles the installation's
+   * target declares (a solution's, or a module page's on its composition
+   * installation): the access. Idempotent; it leaves existing capabilities
    * valid. An administrator of the installation's organization, or a holder
    * of the installer role on that installation, grants.
    *
@@ -1101,8 +1282,10 @@ export const InstallationService: GenService<{
   serviceDesc(file_host_installation_v1_installation, 0);
 
 /**
- * InstallableService is implemented by a solution; the host calls it once per
- * installation and retries until it is acknowledged.
+ * InstallableService is implemented by a solution that declares an install
+ * endpoint; the host calls it once per installation and retries until it is
+ * acknowledged. A solution without it is active as soon as its installation
+ * is recorded.
  *
  * @generated from service host.installation.v1.InstallableService
  */
@@ -1122,18 +1305,19 @@ export const InstallableService: GenService<{
 
 /**
  * OfferService is the local authority's setup read, served beside
- * InstallationService and not part of codefly.dev/installation: what solutions
- * this run delivered and, for one, what installing it would grant. A host
- * answers its own product's reads. It grants nothing; Install, GrantRole and
- * RevokeRole stay the only changes, each decided by the authority.
+ * InstallationService and not part of codefly.dev/installation: what targets
+ * this run delivered that an administrator chooses and, for one, what
+ * installing it would grant. A host answers its own product's reads. It
+ * grants nothing; Install, GrantRole and RevokeRole stay the only changes,
+ * each decided by the authority.
  *
  * @generated from service host.installation.v1.OfferService
  */
 export const OfferService: GenService<{
   /**
-   * ListOffers lists the solutions delivered to this run that an administrator
-   * of the organization may install. A module is installed by composition and
-   * is never offered.
+   * ListOffers lists the solutions delivered to this run that an
+   * administrator of the organization may install. A module, roles or not,
+   * is installed by composition and is never offered.
    *
    * @generated from rpc host.installation.v1.OfferService.ListOffers
    */
@@ -1143,9 +1327,11 @@ export const OfferService: GenService<{
     output: typeof ListOffersResponseSchema;
   },
   /**
-   * ReviewOffer reads one solution's roles, what each grants and the tools
+   * ReviewOffer reads one target's roles, what each grants and the tools
    * those grants make eligible, with the consent Install takes, from one read
-   * of the authority: the approval names exactly the offer displayed.
+   * of the authority: the approval names exactly the offer displayed. A
+   * member holding a role on the target's installation reads the same
+   * without the consent.
    *
    * @generated from rpc host.installation.v1.OfferService.ReviewOffer
    */

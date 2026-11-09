@@ -22,6 +22,10 @@ type IssueRequest struct {
 	Audience, Binding, Operation, Organization string
 	Scopes                                     Scopes
 	TTL                                        time.Duration
+	// page marks the hop IssueForPage takes for a page's call: its actor is
+	// the page's target, of kind decide.PageActor, the person present. Unset
+	// by every caller outside this package, so no module's hop is ever one.
+	page bool
 }
 
 // Issued is a signed capability and its claims.
@@ -49,7 +53,11 @@ func held(tx Tx, p domain.Person, audience domain.Module, named Scopes) (Scopes,
 		if err != nil {
 			return nil, err
 		}
-		role, err := decide.RoleScopes(audience, inst, decide.HeldRoles(p, inst, grants))
+		approved, err := approvedModule(tx, inst, audience)
+		if err != nil {
+			return nil, err
+		}
+		role, err := decide.RoleScopes(approved, inst, decide.HeldRoles(p, inst, grants))
 		if err != nil {
 			return nil, err
 		}
@@ -63,8 +71,21 @@ func held(tx Tx, p domain.Person, audience domain.Module, named Scopes) (Scopes,
 }
 
 // solutionCeiling intersects the current roles of each solution the verified
-// path names; bounded distinguishes no solution from a solution granting nothing.
+// path names; with none, of each module page declaring roles it names: a role
+// reaches through its target's bindings whichever kind declares it, and a
+// solution on the path decides alone, as it always has. bounded distinguishes
+// no such target from one granting nothing.
 func solutionCeiling(tx Tx, p domain.Person, principals []string) (ceiling Scopes, bounded bool, err error) {
+	isSolution := func(m domain.Module) bool { return m.Kind == domain.KindSolution }
+	if ceiling, bounded, err = rolesCeiling(tx, p, principals, isSolution); err != nil || bounded {
+		return ceiling, bounded, err
+	}
+	return rolesCeiling(tx, p, principals, decide.RoleGated)
+}
+
+// rolesCeiling intersects the current roles of each target the path names
+// that counts.
+func rolesCeiling(tx Tx, p domain.Person, principals []string, counts func(domain.Module) bool) (ceiling Scopes, bounded bool, err error) {
 	seen := map[string]bool{}
 	for _, principal := range principals {
 		if seen[principal] {
@@ -75,7 +96,7 @@ func solutionCeiling(tx Tx, p domain.Person, principals []string) (ceiling Scope
 		if err != nil {
 			return nil, false, notFound(err)
 		}
-		if m.Kind != domain.KindSolution {
+		if !counts(m) {
 			continue
 		}
 		inst, err := installationOf(tx, p.Organization, m.Name)
@@ -85,7 +106,11 @@ func solutionCeiling(tx Tx, p domain.Person, principals []string) (ceiling Scope
 			if gerr != nil {
 				return nil, false, gerr
 			}
-			if role, err = decide.RoleScopes(m, inst, decide.HeldRoles(p, inst, grants)); err != nil {
+			approved, aerr := approvedModule(tx, inst, m)
+			if aerr != nil {
+				return nil, false, aerr
+			}
+			if role, err = decide.RoleScopes(approved, inst, decide.HeldRoles(p, inst, grants)); err != nil {
 				return nil, false, err
 			}
 		} else if !errors.Is(err, domain.ErrNotFound) {
@@ -103,7 +128,8 @@ func solutionCeiling(tx Tx, p domain.Person, principals []string) (ceiling Scope
 
 // throughSolutions is what a person holds at audience on a path through
 // principals: the solutions' roles alone when a solution is on the path
-// (confined to its principal's data), the person's own grants otherwise.
+// (confined to its principal's data), else the roles of the module pages
+// declaring roles on it, the person's own grants otherwise.
 func throughSolutions(tx Tx, p domain.Person, audience domain.Module, principals []string, named Scopes) (h, ceiling Scopes, bounded bool, err error) {
 	if ceiling, bounded, err = solutionCeiling(tx, p, principals); err != nil {
 		return
@@ -137,7 +163,7 @@ func namedBy(asked Scopes, parent *basev0.WorkContextV1) Scopes {
 func solutionPrincipals(wc *basev0.WorkContextV1, current string) []string {
 	out := []string{current}
 	for _, actor := range wc.GetActorChain() {
-		if actor.GetPrincipalKind() == "service" {
+		if kind := actor.GetPrincipalKind(); kind == "service" || kind == decide.PageActor {
 			out = append(out, actor.GetPrincipalId())
 		}
 	}
@@ -429,12 +455,23 @@ func (s *Service) IssueForInstallation(ctx context.Context, w Workload, installa
 			if binding.Audience != audience.Principal {
 				return domain.Refuse("binding %q is addressed to %s, not %s", r.Binding, binding.Audience, audience.Principal)
 			}
+			if r.Operation == "headless" {
+				return domain.Refuse("binding %q's headless scopes are %s acting for nobody; the installation acting for itself invokes or looks up", r.Binding, solution.Name)
+			}
 			through, err := decide.ScopesFor(binding, r.Operation, "invoke")
 			if err != nil {
 				return err
 			}
 			heldHere = scope.Intersect(heldHere, through)
 			bindingID = r.Binding
+		}
+		// The installation's agent is held to the reach its consent approved.
+		approved, _, capped, err := s.approvedReach(tx, reachOwner{agent: inst.PrincipalID}, audience.Name)
+		if err != nil {
+			return err
+		}
+		if capped {
+			heldHere = scope.Intersect(heldHere, approved)
 		}
 		if scopes, err = decide.Issue(r.Scopes, heldHere); err != nil {
 			return err
@@ -530,7 +567,7 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 	var f fence
 	err = s.store.Read(ctx, func(tx Tx) error {
 		tenant := claims.GetTenantId()
-		var heldHere, sourceCeiling Scopes
+		var heldHere, sourceCeiling, approved Scopes
 		var err error
 		// A hop back to the module's own audience reaches nothing the parent,
 		// addressed to it already, did not: it is bounded by that parent and
@@ -551,6 +588,15 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 			if heldHere, sourceCeiling, bounded, err = throughSolutions(tx, p, audience, solutionPrincipals(claims, am.Principal), namedBy(r.Scopes, claims)); err != nil {
 				return err
 			}
+			// What a solution on the path reaches is held to the reach
+			// its installation's consent approved.
+			var capped bool
+			if approved, _, capped, err = s.approvedReach(tx, reachOwner{person: &p, principals: solutionPrincipals(claims, am.Principal)}, audience.Name); err != nil {
+				return err
+			}
+			if capped {
+				sourceCeiling = scope.Intersect(sourceCeiling, approved)
+			}
 		case "agent":
 			inst, err := tx.InstallationByPrincipal(claims.GetOwnerPrincipalId())
 			if err != nil || inst.Status != domain.Active {
@@ -560,16 +606,39 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 			if err != nil {
 				return notFound(err)
 			}
+			if solution, err = approvedModule(tx, inst, solution); err != nil {
+				return err
+			}
 			agent, err := decide.RoleScopes(solution, inst, []string{inst.AgentRole})
 			if err != nil {
 				return err
 			}
 			heldHere = scope.Intersect(agent, audience.ResourceKinds)
+			// The agent is held to the reach its installation's consent
+			// approved, as its holders are.
+			approved, _, capped, err := s.approvedReach(tx, reachOwner{agent: inst.PrincipalID}, audience.Name)
+			if err != nil {
+				return err
+			}
+			if capped {
+				heldHere = scope.Intersect(heldHere, approved)
+			}
 		default:
 			heldHere = verified.EffectiveScopes()
 		}
-		if (bounded || claims.GetOwnerPrincipalKind() == "agent") && !audience.OwnerAware {
+		// Only a solution's roles select its principal's data; a module
+		// page's select no owner, so its audience need not check one. A kind
+		// the audience declares shared is held unselected (decide.Unselect):
+		// no owner holds a resource of it.
+		heldHere, sourceCeiling = decide.Unselect(audience, heldHere), decide.Unselect(audience, sourceCeiling)
+		confined := bounded && anySolution(tx, solutionPrincipals(claims, am.Principal)) && scope.HasOwner(heldHere)
+		if (confined || claims.GetOwnerPrincipalKind() == "agent" && scope.HasOwner(heldHere)) && !audience.OwnerAware {
 			return decide.OwnerAware(audience, decide.Scopes{{ResourceKind: audience.Name, ResourceOwnerId: claims.GetOwnerPrincipalId()}})
+		}
+		// Headless is the module acting as itself, for nobody: a hop for
+		// an owner other than the module never exercises it.
+		if r.Operation == "headless" && claims.GetOwnerPrincipalId() != am.Principal {
+			return domain.Refuse("binding %q's headless scopes are %s acting for nobody; a hop for %s invokes or looks up", r.Binding, am.Name, claims.GetOwnerPrincipalId())
 		}
 		if through, err = decide.ScopesFor(binding, r.Operation, "invoke"); err != nil {
 			return err
@@ -588,10 +657,14 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 		}
 		scopes = ceiling
 		if len(r.Scopes) > 0 {
-			if !scope.Attenuates(r.Scopes, ceiling) {
-				return decide.Child(r.Binding, bounded)
+			// A shared kind is asked as it is held, unselected
+			// (decide.Unselect); every other scope as the caller named it,
+			// owner-selected through a solution.
+			asked := decide.Unselect(audience, r.Scopes)
+			if !scope.Attenuates(asked, ceiling) {
+				return decide.Child(r.Binding, confined)
 			}
-			scopes = scope.Normalize(r.Scopes)
+			scopes = scope.Normalize(asked)
 		}
 		if err := decide.OwnerAware(audience, scopes); err != nil {
 			return err
@@ -653,6 +726,9 @@ func (s *Service) derive(ctx context.Context, verified *workcontext.Verified, am
 			}
 		} else {
 			in.PrincipalID, in.PrincipalKind, in.DelegationID = am.Principal, "service", claims.GetSessionId()
+			if r.page {
+				in.PrincipalKind = decide.PageActor
+			}
 			in.OperationBindingID = tenant + "/" + am.Name + "/" + r.Binding
 		}
 		var signed *basev0.WorkContextV1

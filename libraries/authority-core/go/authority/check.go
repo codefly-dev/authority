@@ -83,8 +83,11 @@ func (s *Service) CheckMethod(ctx context.Context, token, audience, method strin
 		if err != nil {
 			return notFound(err)
 		}
-		refusal = decide.AdmitMethod(m, method, verified.EffectiveScopes())
-		return nil
+		if refusal = decide.AdmitMethod(m, method, verified.EffectiveScopes()); refusal != nil {
+			return nil
+		}
+		refusal, err = s.withinApprovedReach(tx, verified.Context(), verified.EffectiveScopes(), m, method)
+		return err
 	})
 	if err != nil {
 		return nil, 0, nil, err
@@ -222,4 +225,52 @@ func effectiveOf(wc *basev0.WorkContextV1) Scopes {
 		return chain[len(chain)-1].GetGrantedScopes()
 	}
 	return wc.GetAuthorityScopes()
+}
+
+// withinApprovedReach refuses a call to a method of m that the reach a
+// consented solution's installation approved does not list for its caller:
+// a person acting through the solution, for the roles they hold on it, or
+// the installation's own agent, for its agent role (approvedReach). A
+// delivery of m, or of the solution, that admits more than was approved
+// admits nobody more until an administrator approves the upgrade, and the
+// approved policy holds on effective, what the call itself carries, as well
+// as on the approved reach. A person's
+// call through no solution is not looked up further.
+func (s *Service) withinApprovedReach(tx Tx, wc *basev0.WorkContextV1, effective Scopes, m domain.Module, method string) (error, error) {
+	owner := reachOwner{}
+	switch wc.GetOwnerPrincipalKind() {
+	case "agent":
+		owner.agent = wc.GetOwnerPrincipalId()
+	case "human":
+		owner.principals = solutionPrincipals(wc, m.Principal)
+		if !anySolution(tx, owner.principals) {
+			return nil, nil
+		}
+		p, err := tx.Member(wc.GetTenantId(), wc.GetOwnerPrincipalId())
+		if err != nil {
+			return domain.Refuse("the owner %s is no longer a member", wc.GetOwnerPrincipalId()), nil
+		}
+		owner.person = &p
+	default:
+		return nil, nil
+	}
+	_, admits, bounded, err := s.approvedReach(tx, owner, m.Name)
+	if err != nil || !bounded {
+		return nil, err
+	}
+	// Each face of an operation is held to its own approved policy.
+	if key, ok := decide.MethodKey(m, method); ok && admits(key, effective) {
+		return nil, nil
+	}
+	return domain.Refuse("%s at %s is beyond the reach its solution's installation approved; an administrator approves the upgrade that reaches it", method, m.Name), nil
+}
+
+// anySolution is whether a solution is among principals.
+func anySolution(tx Tx, principals []string) bool {
+	for _, principal := range principals {
+		if m, err := tx.Module(principal); err == nil && m.Kind == domain.KindSolution {
+			return true
+		}
+	}
+	return false
 }

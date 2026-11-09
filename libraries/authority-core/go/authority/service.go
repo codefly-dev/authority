@@ -91,6 +91,9 @@ type Service struct {
 	cfg       Config
 	authority *workcontext.Authority
 	src       sources
+	// reaches caches each approved reach by its digest, indexed for
+	// enforcement (consentedReach); a digest names one reach for ever.
+	reaches reachCache
 }
 
 // New builds the service.

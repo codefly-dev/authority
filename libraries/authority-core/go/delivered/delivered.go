@@ -8,6 +8,7 @@ package delivered
 
 import (
 	"crypto"
+	"maps"
 	"slices"
 	"strings"
 
@@ -34,6 +35,9 @@ type Document struct {
 	// Core validates these declarations; every delivery hop carries them verbatim.
 	InstallationRole string
 	EdgeDependencies []domain.EdgeDependency
+	// SharedKinds are the served kinds the module declares unowned
+	// (domain.Module.SharedKinds).
+	SharedKinds []string
 }
 
 // Method is one method's declaration in the document.
@@ -48,6 +52,9 @@ type Method struct {
 type Role struct {
 	Name                      string
 	Scopes, InstallationOwned Scopes
+	// Through are the scopes the role names downstream of each of the
+	// module's own bindings, by binding id (domain.Module.Through).
+	Through map[string]Scopes
 }
 
 // VerifyDocument checks the document's signature against the pinned release
@@ -104,12 +111,13 @@ func Module(manifest *solutionhost.ModuleManifest, doc *Document) (domain.Module
 	if m, err = Ceiled(m, doc.ScopeCeilings); err != nil {
 		return m, err
 	}
-	if m.Roles, m.OwnedRoles, err = roles(doc.Roles); err != nil {
+	if m.Roles, m.OwnedRoles, m.Through, err = roles(doc.Roles); err != nil {
 		return m, err
 	}
 	m.OwnerAware = doc.OwnerAware
 	m.InstallationRole = doc.InstallationRole
 	m.EdgeDependencies = slices.Clone(doc.EdgeDependencies)
+	m.SharedKinds = slices.Clone(doc.SharedKinds)
 	return m, nil
 }
 
@@ -149,25 +157,41 @@ func methods(in []Method) (map[string]domain.MethodPolicy, error) {
 	return out, nil
 }
 
-// roles reads the roles a solution or a module page declares, by name, and
-// the scopes of each it declares installation-owned. Core holds them to the
-// role contract when the module is applied (decide.ValidateModule).
-func roles(in []Role) (map[string]Scopes, map[string]Scopes, error) {
+// roles reads the roles a solution or a module page declares, by name, the
+// scopes of each it declares installation-owned, and those it names through
+// each of its bindings, which are part of the role's grant. Core holds them
+// to the role contract when the module is applied (decide.ValidateModule).
+func roles(in []Role) (map[string]Scopes, map[string]Scopes, map[string]map[string]Scopes, error) {
 	owned := map[string]Scopes{}
 	if len(in) == 0 {
-		return nil, owned, nil
+		return nil, owned, nil, nil
 	}
 	out := make(map[string]Scopes, len(in))
+	var through map[string]map[string]Scopes
 	for _, role := range in {
 		if _, twice := out[role.Name]; twice || role.Name == "" {
-			return nil, nil, domain.Malformed("the authority's document lists role %q twice or unnamed", role.Name)
+			return nil, nil, nil, domain.Malformed("the authority's document lists role %q twice or unnamed", role.Name)
 		}
-		out[role.Name] = scope.Normalize(role.Scopes)
+		grant := slices.Clone(role.Scopes)
+		for _, binding := range slices.Sorted(maps.Keys(role.Through)) {
+			if binding == "" || len(role.Through[binding]) == 0 {
+				return nil, nil, nil, domain.Malformed("role %q names an empty through: a binding and the scopes reached through it", role.Name)
+			}
+			if through == nil {
+				through = map[string]map[string]Scopes{}
+			}
+			if through[role.Name] == nil {
+				through[role.Name] = map[string]Scopes{}
+			}
+			through[role.Name][binding] = scope.Normalize(role.Through[binding])
+			grant = append(grant, role.Through[binding]...)
+		}
+		out[role.Name] = scope.Normalize(grant)
 		if len(role.InstallationOwned) > 0 {
 			owned[role.Name] = role.InstallationOwned
 		}
 	}
-	return out, owned, nil
+	return out, owned, through, nil
 }
 
 // Ceiled gives each of the module's own kinds the actions its document

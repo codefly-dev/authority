@@ -52,6 +52,14 @@ func decideRoleChange(tx Tx, caller *Person, r RoleRequest, list, revoke bool) (
 	if err != nil && !errors.Is(err, domain.ErrNotFound) {
 		return inst, err
 	}
+	// A grant names a role the installation's consent approved: the
+	// delivered declaration decides only once an administrator upgraded to
+	// it. A revoke and a list need no declaration.
+	if err == nil && !revoke && !list {
+		if solution, err = approvedModule(tx, inst, solution); err != nil {
+			return inst, err
+		}
+	}
 	change := decide.RoleChange{RequestOrganization: r.Organization, RequestedID: r.InstallationID, Installation: inst, Solution: solution,
 		Caller: c, CallerRoles: decide.HeldRoles(c, inst, grants), List: list, Revoke: revoke, Role: r.Role, PersonID: r.PersonID, TeamID: r.TeamID}
 	if r.PersonID != "" {

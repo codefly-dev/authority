@@ -5,9 +5,11 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	hop "github.com/codefly-dev/authority/libraries/hop/go"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -72,6 +74,10 @@ type Module struct {
 
 // Edge serves the browser.
 type Edge struct {
+	// Credential is this edge's workload credential, read on each use
+	// (hop.RunCredential): what proves to the authority that a page it names
+	// is the module edge's. Nil reads the run's.
+	Credential    func() (string, error)
 	SignInChoices []signInChoice
 	Sessions      Sessions
 	Authority     Issuer
@@ -145,6 +151,22 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		e.toHost(w, r)
 		return
 	}
+	if page, procedure, aimed, ok := pageCall(r); aimed {
+		if !ok {
+			refuseCall(w, r, http.StatusNotFound, "not a page's module call: POST /api/solutions/<alias>/proxy/_browser/<package.Service>/<Method>")
+			return
+		}
+		module, target, routed := e.route(procedure)
+		if !routed || module.REST != nil && target == module.REST {
+			refuseCall(w, r, http.StatusNotFound, "no module serves "+procedure)
+			return
+		}
+		out := r.Clone(context.WithValue(r.Context(), pageKey{}, page))
+		out.URL.Path, out.URL.RawPath = procedure, ""
+		out.RequestURI = out.URL.RequestURI()
+		e.toModule(w, out, module, target)
+		return
+	}
 	if module, target, ok := e.route(r.URL.Path); ok {
 		e.toModule(w, r, module, target)
 		return
@@ -190,7 +212,7 @@ func (e *Edge) toModule(w http.ResponseWriter, r *http.Request, module Module, t
 		refuseCall(w, r, http.StatusForbidden, "a write must come from this origin")
 		return
 	}
-	wc, err := e.workContext(r.Context(), bearer, module.Name)
+	wc, err := e.workContext(r.Context(), bearer, module.Name, pageOf(r))
 	if err != nil {
 		code := http.StatusForbidden
 		if status.Code(err) == codes.Unauthenticated {
@@ -207,8 +229,8 @@ func (e *Edge) toModule(w http.ResponseWriter, r *http.Request, module Module, t
 // workContext is the person's Work Context at module, issued by the authority
 // for everything the person holds there and held until shortly before it
 // lapses. The hop narrows each call to what its method requires.
-func (e *Edge) workContext(ctx context.Context, bearer, module string) (held, error) {
-	key := sha256.Sum256([]byte(bearer + "\x00" + module))
+func (e *Edge) workContext(ctx context.Context, bearer, module, page string) (held, error) {
+	key := sha256.Sum256([]byte(bearer + "\x00" + module + "\x00" + page))
 	e.mu.Lock()
 	for key, h := range e.held {
 		if !e.now().Before(h.renew) {
@@ -223,10 +245,22 @@ func (e *Edge) workContext(ctx context.Context, bearer, module string) (held, er
 	e.mu.Unlock()
 	ctx, cancel := context.WithTimeout(metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+bearer), 10*time.Second)
 	defer cancel()
-	issued, err := e.Authority.Issue(ctx, &authorityv1.IssueRequest{
-		As:       &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}},
-		Audience: module,
-	})
+	req := &authorityv1.IssueRequest{
+		As:         &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}},
+		Audience:   module,
+		PageTarget: page,
+	}
+	if page != "" {
+		// The page is this host's module edge's to name, and the authority
+		// takes it from no one else: the edge proves itself with its own
+		// workload credential (module-identity), as the hop does.
+		credential, err := e.credential()
+		if err != nil {
+			return held{}, status.Error(codes.Unavailable, "the edge holds no workload credential to name a page with: "+err.Error())
+		}
+		req.Actor = &authorityv1.WorkloadCredential{Credential: credential}
+	}
+	issued, err := e.Authority.Issue(ctx, req)
 	if err != nil {
 		return held{}, err
 	}
@@ -381,7 +415,7 @@ func (e *Edge) usable(ctx context.Context, bearer string) ([]installation, map[s
 	}
 	results := make(chan result, len(e.Modules))
 	for name := range e.Modules {
-		go func() { wc, err := e.workContext(ctx, bearer, name); results <- result{name, wc, err} }()
+		go func() { wc, err := e.workContext(ctx, bearer, name, ""); results <- result{name, wc, err} }()
 	}
 	usable, refused := []installation{}, map[string]string{}
 	for range e.Modules {
@@ -518,4 +552,52 @@ func writeJSON(w http.ResponseWriter, code int, body any) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(body)
+}
+
+// A page's module call, at the path a hosted page reaches its modules on
+// (/api/solutions/<alias>/proxy/_browser/<package.Service>/<Method>, the
+// saas host's own): the edge names the page to the authority's Issue
+// (page_target), which issues through the page's target's binding to the
+// module when the target declares one, the person present on the page, and
+// on the person's own access otherwise. The page is the path's, never a
+// header a browser sent, and is a route alias or nothing; the held context
+// is keyed on it, as the saas gateway keys its own.
+const pageCallPrefix = "/api/solutions/"
+
+var (
+	pageAlias     = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
+	pageProcedure = regexp.MustCompile(`^/(?:[A-Za-z_][A-Za-z0-9_]*\.)+[A-Za-z_][A-Za-z0-9_]*/[A-Za-z_][A-Za-z0-9_]*$`)
+)
+
+type pageKey struct{}
+
+// pageCall is the page and the module procedure a page's module call names.
+// aimed: the path is one (under /api/solutions/<…>/proxy/_browser), which
+// nothing else serves; ok: it is well formed, and is served as one.
+func pageCall(r *http.Request) (page, procedure string, aimed, ok bool) {
+	rest, found := strings.CutPrefix(r.URL.Path, pageCallPrefix)
+	if !found {
+		return "", "", false, false
+	}
+	page, rest, found = strings.Cut(rest, "/proxy/_browser")
+	if !found {
+		return "", "", false, false
+	}
+	if r.Method != http.MethodPost || r.URL.EscapedPath() != r.URL.Path || !pageAlias.MatchString(page) ||
+		!pageProcedure.MatchString(rest) || strings.HasPrefix(rest, "/host.") || strings.HasPrefix(rest, "/saas.") {
+		return "", "", true, false
+	}
+	return page, rest, true, true
+}
+
+func pageOf(r *http.Request) string {
+	page, _ := r.Context().Value(pageKey{}).(string)
+	return page
+}
+
+func (e *Edge) credential() (string, error) {
+	if e.Credential != nil {
+		return e.Credential()
+	}
+	return hop.RunCredential()
 }

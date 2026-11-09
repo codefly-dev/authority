@@ -144,3 +144,16 @@ Calls the edge routes to a module are refused in Connect's words when the caller
 says it speaks Connect (a `Connect-Protocol-Version` header, or `?connect=v1` on a
 GET) or gRPC, so a generated client keeps the reason (the hop does the same).
 Every other caller, a REST or form caller included, keeps `{"error": reason}`.
+
+## A page's module calls
+
+A page reaches its modules at the path a hosted page does,
+`POST /api/solutions/<alias>/proxy/_browser/<package.Service>/<Method>`, the
+saas host's own. The edge takes the page from that path (a route alias, or
+nothing: anything else under it is refused), names it to the authority's
+`Issue` as `page_target` with its own workload credential as the actor
+(`module-identity`), keys the held Work Context on it, and sends the module
+the procedure and the Work Context alone. The authority issues through the
+page's target's binding to the module when it declares one, the person
+present on the page, and on the person's own access when it declares none.
+A shell hands a page this path as its `moduleApiBase`.

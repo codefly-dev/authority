@@ -243,11 +243,67 @@ func Run(t *testing.T, open Open) {
 		})
 	})
 
+	t.Run("an approved generation is kept per module and generation", func(t *testing.T) {
+		first := f.module(domain.KindSolution)
+		first.Name, first.Principal = f.name("approved"), f.name("approved-principal")
+		second := first
+		second.Generation = 2
+		second.Roles = map[string][]*basev0.WorkScopeV1{domain.InstallerRole: first.Roles[domain.InstallerRole]}
+		write(t, func(tx authority.Tx) error {
+			if err := tx.PutApprovedModule(first); err != nil {
+				return err
+			}
+			if err := tx.PutApprovedModule(second); err != nil {
+				return err
+			}
+			return tx.PutApprovedModule(second) // idempotent
+		})
+		read(t, func(tx authority.Tx) error {
+			got, err := tx.ApprovedModule(first.Name, 1)
+			if err != nil {
+				return err
+			}
+			sameModule(t, got, first)
+			if got, err = tx.ApprovedModule(first.Name, 2); err != nil {
+				return err
+			}
+			sameModule(t, got, second)
+			if _, err := tx.ApprovedModule(first.Name, 3); !errors.Is(err, domain.ErrNotFound) {
+				t.Errorf("a generation never approved reads %v, want ErrNotFound", err)
+			}
+			if _, err := tx.ApprovedModule(f.name("never"), 1); !errors.Is(err, domain.ErrNotFound) {
+				t.Errorf("a module never approved reads %v, want ErrNotFound", err)
+			}
+			return nil
+		})
+	})
+
+	t.Run("an approved declaration is never replaced by a different one", func(t *testing.T) {
+		kept := f.module(domain.KindSolution)
+		kept.Name, kept.Principal = f.name("kept"), f.name("kept-principal")
+		other := kept
+		other.Roles = map[string][]*basev0.WorkScopeV1{domain.InstallerRole: kept.Roles[domain.InstallerRole]}
+		write(t, func(tx authority.Tx) error { return tx.PutApprovedModule(kept) })
+		if err := store.Write(ctx, func(tx authority.Tx) error { return tx.PutApprovedModule(other) }); !errors.Is(err, domain.ErrApprovedDeclarationKept) {
+			t.Errorf("a different declaration at a kept generation was answered %v, want ErrApprovedDeclarationKept", err)
+		}
+		write(t, func(tx authority.Tx) error { return tx.PutApprovedModule(kept) }) // identical: accepted
+		read(t, func(tx authority.Tx) error {
+			got, err := tx.ApprovedModule(kept.Name, kept.Generation)
+			if err != nil {
+				return err
+			}
+			sameModule(t, got, kept)
+			return nil
+		})
+	})
+
 	t.Run("an installation reads back as written", func(t *testing.T) {
 		inst := domain.Installation{ID: uuid.NewString(), Organization: f.orgA, Target: f.name("target"), Status: domain.Pending, Revision: 3,
 			AgentRole: "viewer", PrincipalID: uuid.NewString(), InstalledBy: f.onlyA,
-			Consent: domain.ConsentReceipt{OperationID: uuid.NewString(), Intent: "intent", Revision: 3},
-			Owned:   map[string][]string{"store.item": {"a", "b"}}}
+			Consent: domain.ConsentReceipt{OperationID: uuid.NewString(), Intent: "intent", Revision: 3, Generation: 2, Digest: "sha256:reviewed",
+				ReachDigest: "sha256:reach", Reach: `{"viewer":[{"path":["a","store"],"module":"store","via":"binding"}]}`},
+			Owned: map[string][]string{"store.item": {"a", "b"}}}
 		module := domain.Installation{ID: uuid.NewString(), Organization: f.orgB, Target: f.name("module"), Status: domain.Active, Revision: 1}
 		write(t, func(tx authority.Tx) error {
 			if err := tx.PutInstallation(inst); err != nil {
@@ -503,9 +559,12 @@ func (f *fixture) module(kind string) domain.Module {
 		Bindings:      map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: read, HeadlessScopes: read, LookupScopes: read}},
 		Methods:       map[string]domain.MethodPolicy{"/s.S/Read": {Requires: read}, "GET /open": {AnyCheckedCaller: true}}}
 	if kind == domain.KindSolution {
-		m.Roles = map[string][]*basev0.WorkScopeV1{domain.InstallerRole: read, "viewer": read}
+		onward := []*basev0.WorkScopeV1{{ResourceKind: "storetest.onward", Actions: []string{"read"}}}
+		m.Roles = map[string][]*basev0.WorkScopeV1{domain.InstallerRole: read, "viewer": append(slices.Clone(read), onward...)}
 		m.OwnedRoles = map[string][]*basev0.WorkScopeV1{"viewer": {{ResourceKind: "store.item", Actions: []string{"read"}}}}
+		m.Through = map[string]map[string][]*basev0.WorkScopeV1{"viewer": {"store": onward}}
 	}
+	m.SharedKinds = []string{"storetest.item"}
 	return m
 }
 
@@ -537,6 +596,16 @@ func sameModule(t *testing.T, got, want domain.Module) {
 	for method, p := range want.Methods {
 		g := got.Methods[method]
 		ok = ok && g.AnyCheckedCaller == p.AnyCheckedCaller && sameScopes(g.Requires, p.Requires)
+	}
+	// A shared kind and what a role names through a binding decide issuance
+	// and delivery: a store that drops either issues owner-selected scopes a
+	// module cannot check, or reports no reach a delivery left unreached.
+	ok = ok && sameSet(got.SharedKinds, want.SharedKinds) && len(got.Through) == len(want.Through)
+	for role, bindings := range want.Through {
+		ok = ok && len(got.Through[role]) == len(bindings)
+		for id, scopes := range bindings {
+			ok = ok && sameScopes(got.Through[role][id], scopes)
+		}
 	}
 	if !ok {
 		t.Errorf("module reads %+v, want %+v", got, want)

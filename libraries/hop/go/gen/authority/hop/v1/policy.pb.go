@@ -40,8 +40,15 @@ type Policy struct {
 	// AnyCheckedCaller lets through any call whose Work Context the authority
 	// checked, holding nothing in particular.
 	AnyCheckedCaller bool `protobuf:"varint,2,opt,name=any_checked_caller,json=anyCheckedCaller,proto3" json:"any_checked_caller,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// Carries lists what a call may exercise beyond what it requires, only
+	// beside requires: an effect the module performs on some calls alone, on
+	// the call's own capability (a first write creating, and attaching to the
+	// caller's installation, the collection it writes to). The hop requires
+	// none of it; a binding whose ceiling is derived from the calls it names
+	// includes it, so a caller holding it can exercise it through that binding.
+	Carries       []*Requirement `protobuf:"bytes,3,rep,name=carries,proto3" json:"carries,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Policy) Reset() {
@@ -86,6 +93,13 @@ func (x *Policy) GetAnyCheckedCaller() bool {
 		return x.AnyCheckedCaller
 	}
 	return false
+}
+
+func (x *Policy) GetCarries() []*Requirement {
+	if x != nil {
+		return x.Carries
+	}
+	return nil
 }
 
 // Requirement is actions on one resource kind, spelled in the kind's own
@@ -167,10 +181,11 @@ var File_authority_hop_v1_policy_proto protoreflect.FileDescriptor
 
 const file_authority_hop_v1_policy_proto_rawDesc = "" +
 	"\n" +
-	"\x1dauthority/hop/v1/policy.proto\x12\x10authority.hop.v1\x1a google/protobuf/descriptor.proto\"q\n" +
+	"\x1dauthority/hop/v1/policy.proto\x12\x10authority.hop.v1\x1a google/protobuf/descriptor.proto\"\xaa\x01\n" +
 	"\x06Policy\x129\n" +
 	"\brequires\x18\x01 \x03(\v2\x1d.authority.hop.v1.RequirementR\brequires\x12,\n" +
-	"\x12any_checked_caller\x18\x02 \x01(\bR\x10anyCheckedCaller\"L\n" +
+	"\x12any_checked_caller\x18\x02 \x01(\bR\x10anyCheckedCaller\x127\n" +
+	"\acarries\x18\x03 \x03(\v2\x1d.authority.hop.v1.RequirementR\acarries\"L\n" +
 	"\vRequirement\x12#\n" +
 	"\rresource_kind\x18\x01 \x01(\tR\fresourceKind\x12\x18\n" +
 	"\aactions\x18\x02 \x03(\tR\aactions:R\n" +
@@ -196,13 +211,14 @@ var file_authority_hop_v1_policy_proto_goTypes = []any{
 }
 var file_authority_hop_v1_policy_proto_depIdxs = []int32{
 	1, // 0: authority.hop.v1.Policy.requires:type_name -> authority.hop.v1.Requirement
-	2, // 1: authority.hop.v1.policy:extendee -> google.protobuf.MethodOptions
-	0, // 2: authority.hop.v1.policy:type_name -> authority.hop.v1.Policy
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	2, // [2:3] is the sub-list for extension type_name
-	1, // [1:2] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	1, // 1: authority.hop.v1.Policy.carries:type_name -> authority.hop.v1.Requirement
+	2, // 2: authority.hop.v1.policy:extendee -> google.protobuf.MethodOptions
+	0, // 3: authority.hop.v1.policy:type_name -> authority.hop.v1.Policy
+	4, // [4:4] is the sub-list for method output_type
+	4, // [4:4] is the sub-list for method input_type
+	3, // [3:4] is the sub-list for extension type_name
+	2, // [2:3] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_authority_hop_v1_policy_proto_init() }

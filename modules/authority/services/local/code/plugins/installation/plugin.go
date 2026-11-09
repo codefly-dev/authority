@@ -56,16 +56,21 @@ func (p *Plugin) Current(ctx context.Context, req *installationv1.CurrentInstall
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}
-	inst, err := p.State.Service().CurrentInstallation(ctx, req.GetParentToken(), authority.Workload{Module: actor.Name})
+	// The namespace is where the parent authors: the installation's own, or,
+	// for a parent owned by a solution installation, that installation's.
+	inst, namespace, err := p.State.Service().CurrentAuthoring(ctx, req.GetParentToken(), authority.Workload{Module: actor.Name})
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}
-	return &installationv1.CurrentInstallation{Id: inst.ID, OrganizationId: inst.Organization, Target: inst.Target, Revision: inst.Revision, Namespace: state.Namespace(inst)}, nil
+	return &installationv1.CurrentInstallation{Id: inst.ID, OrganizationId: inst.Organization, Target: inst.Target, Revision: inst.Revision, Namespace: namespace}, nil
 }
 
 // Install installs a solution at the caller's organisation, which the caller
 // administers; owner_person_id names who installed it (the caller when
-// empty). Nobody holds a role on it until granted one.
+// empty). Nobody holds a role on it until granted one. The install step is
+// the host's hook (State.OnInstall); none set, the installation is active at
+// once, as a solution without an install endpoint is. A module is refused:
+// composition installs it.
 func (p *Plugin) Install(ctx context.Context, req *installationv1.InstallRequest) (*installationv1.Installation, error) {
 	caller, err := p.caller(ctx)
 	if err != nil {
@@ -75,7 +80,7 @@ func (p *Plugin) Install(ctx context.Context, req *installationv1.InstallRequest
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}
-	return p.wire(inst), nil
+	return p.wire(ctx, inst), nil
 }
 
 func (p *Plugin) installStep() authority.InstallStep {
@@ -103,7 +108,7 @@ func (p *Plugin) change(ctx context.Context, do func(context.Context, authority.
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}
-	return p.wire(inst), nil
+	return p.wire(ctx, inst), nil
 }
 
 // ListRoleGrants answers who holds which role on the installation.
@@ -144,7 +149,7 @@ func (p *Plugin) List(ctx context.Context, req *installationv1.ListRequest) (*in
 	})
 	out := &installationv1.ListResponse{}
 	for _, inst := range all {
-		out.Installations = append(out.Installations, p.wire(inst))
+		out.Installations = append(out.Installations, p.wire(ctx, inst))
 	}
 	return out, nil
 }
@@ -162,30 +167,39 @@ func (p *Plugin) ListHeld(ctx context.Context, req *installationv1.ListHeldReque
 	}
 	out := &installationv1.ListHeldResponse{}
 	for _, h := range held {
-		out.Installations = append(out.Installations, &installationv1.HeldInstallation{Installation: p.wire(h.Installation), Roles: h.Roles})
+		out.Installations = append(out.Installations, &installationv1.HeldInstallation{Installation: p.wire(ctx, h.Installation), Roles: h.Roles})
 	}
 	return out, nil
 }
 
 // wire converts an installation to the interface's message, with the roles
-// its solution declares.
-func (p *Plugin) wire(i state.Installation) *installationv1.Installation {
-	var roles []string
+// its target declares, whether what is delivered, the target or a module its
+// roles reach, offers an upgrade, and what its declared reach the
+// composition leaves unreached (the core decides; a read it cannot make
+// answers none).
+func (p *Plugin) wire(ctx context.Context, i state.Installation) *installationv1.Installation {
+	var roles, unreached []string
+	upgrade := false
 	if m, ok := p.State.Module(i.Target); ok {
 		for name := range m.Roles {
 			roles = append(roles, name)
 		}
 		slices.Sort(roles)
+		upgrade, _ = p.State.Service().UpgradeAvailable(ctx, i)
+		unreached, _ = p.State.Service().Unreached(ctx, i)
 	}
-	return wireInstallation(i, roles)
+	out := wireInstallation(i, roles, upgrade)
+	out.Unreached = unreached
+	return out
 }
 
-func wireInstallation(i state.Installation, roles []string) *installationv1.Installation {
+func wireInstallation(i state.Installation, roles []string, upgrade bool) *installationv1.Installation {
 	st := map[state.Status]installationv1.Installation_Status{
 		state.Pending: installationv1.Installation_STATUS_PENDING, state.Active: installationv1.Installation_STATUS_ACTIVE, state.Revoked: installationv1.Installation_STATUS_REVOKED,
 	}[i.Status]
 	return &installationv1.Installation{Id: i.ID, OrganizationId: i.Organization, Target: i.Target, Status: st, Revision: i.Revision,
-		Role: i.AgentRole, PrincipalId: i.PrincipalID, Namespace: state.Namespace(i), Roles: roles}
+		Role: i.AgentRole, PrincipalId: i.PrincipalID, Namespace: state.Namespace(i), Roles: roles,
+		ApprovedGeneration: i.Consent.Generation, UpgradeAvailable: upgrade}
 }
 
 // New is the registry's constructor: the plugin over what Configure wired.
@@ -195,7 +209,7 @@ func approvalFromWire(a *installationv1.ConsentApproval) *domain.ConsentApproval
 	if a == nil {
 		return nil
 	}
-	return &domain.ConsentApproval{TargetID: a.GetTargetId(), Generation: a.GetGeneration(), ExpectedRevision: a.GetExpectedRevision(), OperationID: a.GetOperationId(), Digest: a.GetDigest()}
+	return &domain.ConsentApproval{TargetID: a.GetTargetId(), Generation: a.GetGeneration(), ExpectedRevision: a.GetExpectedRevision(), OperationID: a.GetOperationId(), Digest: a.GetDigest(), ReachDigest: a.GetReachDigest()}
 }
 
 // Review reads the exact authority offer without recording consent.
@@ -208,5 +222,5 @@ func (p *Plugin) Review(ctx context.Context, req *installationv1.ReviewRequest) 
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}
-	return &installationv1.ConsentApproval{TargetId: a.TargetID, Generation: a.Generation, ExpectedRevision: a.ExpectedRevision, Digest: a.Digest}, nil
+	return &installationv1.ConsentApproval{TargetId: a.TargetID, Generation: a.Generation, ExpectedRevision: a.ExpectedRevision, Digest: a.Digest, ReachDigest: a.ReachDigest}, nil
 }

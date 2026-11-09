@@ -112,3 +112,68 @@ func TestTheDigestCoversTheWholeIdentity(t *testing.T) {
 		seen[d] = true
 	}
 }
+
+// Consent in person admits one actor between the person and the asking
+// module: the page hop of the page's own target, the person present on that
+// page. A module's hop, or a page hop with any hop after it, is refused.
+func TestConsentInPersonAdmitsThePagePresentPersonAlone(t *testing.T) {
+	module := domain.Module{Name: "agent", Principal: "agent", ResourceKinds: []*basev0.WorkScopeV1{sc("agent.intents", "activate", "run")}}
+	inst := domain.Installation{ID: "i-1", Organization: "acme", Target: "agent", Status: domain.Active}
+	identity := &decide.ArtifactIdentity{Schema: "s/v1", Source: "acme.agent", Subject: []byte("x")}
+	caller := func(chain ...*basev0.WorkActorV1) decide.ArtifactCaller {
+		return decide.ArtifactCaller{Module: module, Audience: "agent", Tenant: "acme", OwnerKind: "human", Held: []*basev0.WorkScopeV1{sc("agent.intents", "activate", "run")},
+			Delegated: len(chain) > 0, PagePresent: decide.PresentThroughPage(chain)}
+	}
+	page := &basev0.WorkActorV1{PrincipalId: "builder", PrincipalKind: decide.PageActor}
+	service := &basev0.WorkActorV1{PrincipalId: "builder", PrincipalKind: "service"}
+	if err := decide.Artifact(caller(page), inst, true, "i-1", "agent.intents", decide.ArtifactActivate, identity); err != nil {
+		t.Fatalf("the person present on a page consents: %v", err)
+	}
+	for name, chain := range map[string][]*basev0.WorkActorV1{
+		"a module acting":              {service},
+		"a page hop, then a module":    {page, {PrincipalId: "agent-worker", PrincipalKind: "service"}},
+		"a module, then a page's kind": {service, page},
+	} {
+		if err := decide.Artifact(caller(chain...), inst, true, "i-1", "agent.intents", decide.ArtifactActivate, identity); err == nil || !strings.Contains(err.Error(), "person present") {
+			t.Fatalf("%s: want the person-present refusal, got %v", name, err)
+		}
+	}
+}
+
+// An owned parent's artifact is its owner's: the action owned by that owner,
+// the source its installation's namespace; scopes held for two owners name no
+// one artifact owner.
+func TestAnOwnedParentsArtifactIsItsOwners(t *testing.T) {
+	module := domain.Module{Name: "agent", Principal: "agent", ResourceKinds: []*basev0.WorkScopeV1{sc("agent.intents", "activate", "run")}}
+	inst := domain.Installation{ID: "i-1", Organization: "acme", Target: "agent", Status: domain.Active}
+	held := []*basev0.WorkScopeV1{{ResourceKind: "agent.intents", Actions: []string{"activate", "run"}, ResourceOwnerId: "builder-principal"}}
+	owner, err := decide.ArtifactOwner(held, "agent.intents")
+	if err != nil || owner != "builder-principal" {
+		t.Fatalf("owner %q %v", owner, err)
+	}
+	caller := decide.ArtifactCaller{Module: module, Audience: "agent", Tenant: "acme", OwnerKind: "human", Held: held, Owner: owner, OwnerNamespace: "acme.builder"}
+	id := func(source string) *decide.ArtifactIdentity {
+		return &decide.ArtifactIdentity{Schema: "s/v1", Source: source, Subject: []byte("x")}
+	}
+	if err := decide.Artifact(caller, inst, true, "i-1", "agent.intents", decide.ArtifactActivate, id("acme.builder")); err != nil {
+		t.Fatalf("the owner's artifact in its namespace: %v", err)
+	}
+	for _, source := range []string{"acme.agent", "acme.other"} {
+		if err := decide.Artifact(caller, inst, true, "i-1", "agent.intents", decide.ArtifactActivate, id(source)); err == nil || !strings.Contains(err.Error(), "namespace") {
+			t.Fatalf("%s: %v", source, err)
+		}
+	}
+	unowned := caller
+	unowned.Owner, unowned.OwnerNamespace = "", ""
+	if err := decide.Artifact(unowned, inst, true, "i-1", "agent.intents", decide.ArtifactActivate, id("acme.agent")); err == nil {
+		t.Fatal("scopes owned by the builder do not hold the module installation's own artifact")
+	}
+	noNamespace := caller
+	noNamespace.OwnerNamespace = ""
+	if err := decide.Artifact(noNamespace, inst, true, "i-1", "agent.intents", decide.ArtifactRun, id("acme.builder")); err == nil {
+		t.Fatal("an owner with no installation here has no namespace")
+	}
+	if _, err := decide.ArtifactOwner(append(held, sc("agent.intents", "run")), "agent.intents"); err == nil {
+		t.Fatal("owned beside unowned names no one owner")
+	}
+}

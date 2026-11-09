@@ -4,23 +4,125 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
 	delivery "github.com/codefly-dev/authority/libraries/delivery/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	"google.golang.org/protobuf/proto"
 )
 
 // ValidateModule holds a delivered module to its contract: a principal, a
 // generation, bindings whose lookup and headless scopes stay within invoke;
 // a module without a page declares no roles; a solution, or a module page
 // that declares roles, declares installer, and every role stays within what
-// it serves, or, for a solution alone, consumes through invoke/lookup bindings.
+// it serves, consumes through its invoke/lookup bindings, or names through
+// one of them (domain.Module.Through); a shared kind is one it serves.
 func ValidateModule(m domain.Module) error {
 	if err := validateModule(m); err != nil {
 		return err
 	}
+	for _, kind := range m.SharedKinds {
+		if !slices.ContainsFunc(Served(m), func(sc *basev0.WorkScopeV1) bool { return sc.GetResourceKind() == kind }) {
+			return domain.Refuse("%s declares %s shared, a kind it does not serve", m.Name, kind)
+		}
+	}
 	return noOwners(m)
+}
+
+// Unreached refuses, by name, a scope a role of m names through one of its
+// bindings that the composition (modules by principal) does not reach from
+// that binding (ReachedThrough). A walk that meets a module not composed yet
+// leaves the scope to that module's delivery, so delivery order is free; a
+// later delivery is never refused for it either, which would tie every
+// module's release to every solution reaching through it: what it leaves
+// unreached is reported (UnreachedOf), grants nothing there (each hop
+// narrows), and re-converges by itself once a delivery reaches it again.
+func Unreached(m domain.Module, composed map[string]domain.Module) error {
+	for _, g := range reachGaps(m, composed) {
+		if len(g.missing) == 0 {
+			return domain.Refuse("role %q of %s names %s through binding %q, which reaches it nowhere in the composition: neither %q nor a module it reaches consumes it for a person",
+				g.role, m.Name, g.scopes, g.binding, g.binding)
+		}
+	}
+	return nil
+}
+
+// UnreachedOf is what m's roles name through a binding that the composition
+// does not reach now, one condition per role and binding, sorted: the
+// readiness of an installation of m, which re-converges by itself.
+func UnreachedOf(m domain.Module, composed map[string]domain.Module) []string {
+	var out []string
+	for _, g := range reachGaps(m, composed) {
+		if len(g.missing) > 0 {
+			out = append(out, fmt.Sprintf("role %s reaches nothing of %s through %s: %s not composed", g.role, g.scopes, g.binding, strings.Join(g.missing, ", ")))
+			continue
+		}
+		out = append(out, fmt.Sprintf("role %s reaches nothing of %s through %s: no module %s reaches consumes it for a person", g.role, g.scopes, g.binding, g.binding))
+	}
+	return out
+}
+
+type reachGap struct {
+	role, binding, scopes string
+	missing               []string
+}
+
+func reachGaps(m domain.Module, composed map[string]domain.Module) []reachGap {
+	var out []reachGap
+	for _, role := range slices.Sorted(maps.Keys(m.Through)) {
+		for _, id := range slices.Sorted(maps.Keys(m.Through[role])) {
+			reached, missing := ReachedThrough(m.Bindings[id], composed)
+			if gap := beyond(m.Through[role][id], reached); gap != "" {
+				out = append(out, reachGap{role: role, binding: id, scopes: gap, missing: missing})
+			}
+		}
+	}
+	return out
+}
+
+// ReachedThrough is what a holder's capability can carry through binding b
+// and onward through the composition (modules by principal): b's invoke and
+// lookup scopes, and those of every binding of each module reached. missing
+// names, sorted, each principal the walk met that the composition does not
+// hold.
+func ReachedThrough(b domain.Binding, composed map[string]domain.Module) (reached Scopes, missing []string) {
+	seen := map[string]bool{}
+	queue := []domain.Binding{b}
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+		reached = append(reached, current.InvokeScopes...)
+		reached = append(reached, current.LookupScopes...)
+		if seen[current.Audience] {
+			continue
+		}
+		seen[current.Audience] = true
+		next, ok := composed[current.Audience]
+		if !ok {
+			missing = append(missing, current.Audience)
+			continue
+		}
+		for _, id := range slices.Sorted(maps.Keys(next.Bindings)) {
+			queue = append(queue, next.Bindings[id])
+		}
+	}
+	slices.Sort(missing)
+	return scope.Normalize(reached), missing
+}
+
+// beyond spells, "kind:action, …", what of scopes is not within within.
+func beyond(scopes, within Scopes) string {
+	var out []string
+	for _, sc := range scope.Normalize(scopes) {
+		for _, action := range sc.GetActions() {
+			if !scope.Attenuates(Scopes{{ResourceKind: sc.GetResourceKind(), Actions: []string{action}}}, within) {
+				out = append(out, sc.GetResourceKind()+":"+action)
+			}
+		}
+	}
+	return strings.Join(out, ", ")
 }
 
 func validateModule(m domain.Module) error {
@@ -68,17 +170,25 @@ func validateModule(m domain.Module) error {
 		return &domain.Refusal{Code: domain.Denied, Cause: domain.ErrNoInstallerRole,
 			Reason: fmt.Sprintf("%s declares %d role(s) and none is %q: a solution, or a module page declaring roles, declares an installer role", m.Name, len(m.Roles), domain.InstallerRole)}
 	}
-	// A solution's roles reach through its bindings (a person's capability
-	// through a solution carries the solution's role at each module it
-	// invokes), so a role may name what a binding consumes. A module page's
-	// never do: at a module it reaches, the person holds their own grants,
-	// cut to the binding. A role naming a consumed kind there would be
-	// accepted and decide nothing, so it is refused instead.
-	grantable := Served(m)
-	if m.Kind == domain.KindSolution {
-		for _, b := range m.Bindings {
-			grantable = append(grantable, b.InvokeScopes...)
-			grantable = append(grantable, b.LookupScopes...)
+	// A role reaches through its target's bindings, a solution's and a
+	// module page's alike (a person's capability through either carries the
+	// role at each module it invokes, cut to the binding at each hop), so a
+	// role may name what it serves and what its bindings consume, and, onward
+	// (consent covers reach), what it declares reached through one of its
+	// bindings: one a person's capability travels (invoke or lookup).
+	grantable := Grantable(m)
+	for _, name := range slices.Sorted(maps.Keys(m.Through)) {
+		if _, declared := m.Roles[name]; !declared {
+			return domain.Refuse("%s names scopes through a binding for role %q, which it does not declare", m.Name, name)
+		}
+		for _, id := range slices.Sorted(maps.Keys(m.Through[name])) {
+			b, ok := m.Bindings[id]
+			if !ok {
+				return domain.Refuse("role %q of %s names scopes through binding %q, which %s does not declare", name, m.Name, id, m.Name)
+			}
+			if len(b.InvokeScopes) == 0 && len(b.LookupScopes) == 0 {
+				return domain.Refuse("role %q of %s names scopes through binding %q, which carries nothing for a person (no invoke or lookup scopes)", name, m.Name, id)
+			}
 		}
 	}
 	for _, name := range slices.Sorted(maps.Keys(m.Roles)) {
@@ -89,11 +199,12 @@ func validateModule(m domain.Module) error {
 		if scope.HasOwner(scopes) {
 			return domain.Refuse("role %q of %s selects an owner; a role's owner is its installation's principal", name, m.Name)
 		}
-		if !scope.Attenuates(scopes, grantable) {
-			if m.Kind != domain.KindSolution {
-				return domain.Refuse("role %q of %s grants beyond what %s serves; a module page's roles never reach what it consumes", name, m.Name, m.Name)
-			}
-			return domain.Refuse("role %q of %s grants beyond what %s serves or explicitly consumes through invoke/lookup bindings", name, m.Name, m.Name)
+		within := grantable
+		for _, through := range m.Through[name] {
+			within = append(slices.Clone(within), through...)
+		}
+		if !scope.Attenuates(scopes, within) {
+			return domain.Refuse("role %q of %s grants beyond what %s serves or explicitly consumes through invoke/lookup bindings; a kind reached downstream of a binding is named through it", name, m.Name, m.Name)
 		}
 	}
 	for _, name := range slices.Sorted(maps.Keys(m.OwnedRoles)) {
@@ -203,4 +314,33 @@ func Served(m domain.Module) Scopes {
 		}
 	}
 	return scope.Normalize(served)
+}
+
+// Grantable is what m's roles may name without naming a binding: what m
+// serves and what its own bindings consume for a person (invoke, lookup).
+func Grantable(m domain.Module) Scopes {
+	grantable := Served(m)
+	for _, id := range slices.Sorted(maps.Keys(m.Bindings)) {
+		grantable = append(grantable, m.Bindings[id].InvokeScopes...)
+		grantable = append(grantable, m.Bindings[id].LookupScopes...)
+	}
+	return grantable
+}
+
+// Unselect is scopes as audience receives them: a scope of a kind the
+// audience declares shared (SharedKinds) carries no owner selector, since no
+// owner holds a resource of it; every other scope is unchanged.
+func Unselect(audience domain.Module, scopes Scopes) Scopes {
+	if len(audience.SharedKinds) == 0 {
+		return scopes
+	}
+	out := make(Scopes, 0, len(scopes))
+	for _, sc := range scopes {
+		if sc.GetResourceOwnerId() != "" && slices.Contains(audience.SharedKinds, sc.GetResourceKind()) {
+			sc = proto.Clone(sc).(*basev0.WorkScopeV1)
+			sc.ResourceOwnerId = ""
+		}
+		out = append(out, sc)
+	}
+	return scope.Normalize(out)
 }

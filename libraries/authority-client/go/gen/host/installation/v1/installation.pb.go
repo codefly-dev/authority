@@ -219,7 +219,7 @@ type InstallRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The organisation installing.
 	OrganizationId string `protobuf:"bytes,1,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"`
-	// The solution or module installed, by its name in the composition.
+	// The solution installed, by its name in the composition.
 	Target string `protobuf:"bytes,2,opt,name=target,proto3" json:"target,omitempty"`
 	// The role the installation holds; the least privilege it needs.
 	Role string `protobuf:"bytes,3,opt,name=role,proto3" json:"role,omitempty"`
@@ -359,7 +359,12 @@ type ConsentApproval struct {
 	ExpectedRevision uint64                 `protobuf:"varint,3,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
 	OperationId      string                 `protobuf:"bytes,4,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
 	// sha256 digest of the reviewed authority offer.
-	Digest        string `protobuf:"bytes,5,opt,name=digest,proto3" json:"digest,omitempty"`
+	Digest string `protobuf:"bytes,5,opt,name=digest,proto3" json:"digest,omitempty"`
+	// sha256 digest of what each of the target's roles reaches, directly and
+	// transitively, in the composition reviewed (ReviewedOffer roles' reach):
+	// the consent covers it. Required; Install refuses an approval whose reach
+	// changed since it was reviewed (INSTALLATION_APPROVAL_REACH_CHANGED).
+	ReachDigest   string `protobuf:"bytes,6,opt,name=reach_digest,json=reachDigest,proto3" json:"reach_digest,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -425,6 +430,13 @@ func (x *ConsentApproval) GetOperationId() string {
 func (x *ConsentApproval) GetDigest() string {
 	if x != nil {
 		return x.Digest
+	}
+	return ""
+}
+
+func (x *ConsentApproval) GetReachDigest() string {
+	if x != nil {
+		return x.ReachDigest
 	}
 	return ""
 }
@@ -879,7 +891,33 @@ type Installation struct {
 	// and target, reused by a reinstall. Empty for a module installation.
 	PrincipalId string `protobuf:"bytes,10,opt,name=principal_id,json=principalId,proto3" json:"principal_id,omitempty"`
 	// The roles the solution declares, sorted.
-	Roles         []string `protobuf:"bytes,11,rep,name=roles,proto3" json:"roles,omitempty"`
+	Roles []string `protobuf:"bytes,11,rep,name=roles,proto3" json:"roles,omitempty"`
+	// The delivery generation the installation's consent approved. A
+	// redelivery that asks nothing new of the organization (no role, binding,
+	// edge dependency or method added, none reaching further, no standing
+	// authority asked) advances it without a click; one that asks more leaves
+	// it. Zero for an installation installed without consent (by composition
+	// or by the host's own setup).
+	ApprovedGeneration uint64 `protobuf:"varint,12,opt,name=approved_generation,json=approvedGeneration,proto3" json:"approved_generation,omitempty"`
+	// True when the delivered generation asks more than approved_generation
+	// did, when what the roles reach in the composition now (a module the
+	// target reaches redelivered, or newly composed) asks more than the
+	// consent approved, or when the approved generation is unknown (a consent
+	// recorded before it was kept; one recorded before reach was kept adopts
+	// the reach it has once, and asks nothing for it): the installation
+	// stands, active with its grants, its holders and its agent holding what
+	// the approved offer and reach granted, until an administrator reviews the
+	// offer and approves it with Install. A host renders it as an update
+	// available.
+	UpgradeAvailable bool `protobuf:"varint,13,opt,name=upgrade_available,json=upgradeAvailable,proto3" json:"upgrade_available,omitempty"`
+	// What the target's roles name through one of its bindings that the
+	// composition does not reach now, one condition per role and binding (a
+	// module that binding reaches no longer consumes it, or is not composed):
+	// a readiness condition beside upgrade_available. The delivery that left
+	// it stands; it grants nothing there, as each hop narrows, and clears by
+	// itself once a later delivery reaches it again. A host renders it as a
+	// degraded condition naming each.
+	Unreached     []string `protobuf:"bytes,14,rep,name=unreached,proto3" json:"unreached,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -973,6 +1011,27 @@ func (x *Installation) GetPrincipalId() string {
 func (x *Installation) GetRoles() []string {
 	if x != nil {
 		return x.Roles
+	}
+	return nil
+}
+
+func (x *Installation) GetApprovedGeneration() uint64 {
+	if x != nil {
+		return x.ApprovedGeneration
+	}
+	return 0
+}
+
+func (x *Installation) GetUpgradeAvailable() bool {
+	if x != nil {
+		return x.UpgradeAvailable
+	}
+	return false
+}
+
+func (x *Installation) GetUnreached() []string {
+	if x != nil {
+		return x.Unreached
 	}
 	return nil
 }
@@ -1105,7 +1164,7 @@ func (x *ListOffersRequest) GetOrganizationId() string {
 	return ""
 }
 
-// ListOffersResponse is every delivered solution, by name.
+// ListOffersResponse is every delivered target an administrator chooses, by name.
 type ListOffersResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Offers        []*Offer               `protobuf:"bytes,1,rep,name=offers,proto3" json:"offers,omitempty"`
@@ -1150,10 +1209,10 @@ func (x *ListOffersResponse) GetOffers() []*Offer {
 	return nil
 }
 
-// Offer is one delivered solution.
+// Offer is one delivered target an administrator chooses.
 type Offer struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The solution's name in the composition: Install's target.
+	// The target's name in the composition: Install's target.
 	Target string `protobuf:"bytes,1,opt,name=target,proto3" json:"target,omitempty"`
 	// The delivery generation an approval binds.
 	Generation    uint64 `protobuf:"varint,2,opt,name=generation,proto3" json:"generation,omitempty"`
@@ -1205,7 +1264,7 @@ func (x *Offer) GetGeneration() uint64 {
 	return 0
 }
 
-// ReviewedOffer is one solution's authority offer and the consent that names it.
+// ReviewedOffer is one target's authority offer and the consent that names it.
 type ReviewedOffer struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// What Install takes, with a fresh operation_id; read with the rest.
@@ -1229,8 +1288,26 @@ type ReviewedOffer struct {
 	// Exact declared viewer-edge presence, covered by the reviewed digest.
 	// Required access and per-module approval are separate host review concerns.
 	EdgeDependencies []*OfferDependency `protobuf:"bytes,8,rep,name=edge_dependencies,json=edgeDependencies,proto3" json:"edge_dependencies,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// True when the solution declares roles, which its Setup grants.
+	RolesDeclared bool `protobuf:"varint,9,opt,name=roles_declared,json=rolesDeclared,proto3" json:"roles_declared,omitempty"`
+	// True when the solution declares a page a person opens, as the
+	// authority's stored declaration knows it; a host whose store does not
+	// keep the flag answers false.
+	Page bool `protobuf:"varint,10,opt,name=page,proto3" json:"page,omitempty"`
+	// What the solution depends on: every module it reaches through its
+	// bindings and required edge dependencies, transitively, roles or not, by
+	// its name in the composition, sorted. Composition installs every module
+	// wherever it is composed; a host whose composition is per organisation
+	// converges these with the install. A solution reached is installed by its
+	// own review and is not listed. A binding audience or a required edge
+	// dependency that is not composed refuses the review: the closure cannot
+	// be installed.
+	Closure []string `protobuf:"bytes,11,rep,name=closure,proto3" json:"closure,omitempty"`
+	// The optional edge dependencies the target and its closure declare, by
+	// module name: present when composed, never installed with the target.
+	OptionalEdges []string `protobuf:"bytes,12,rep,name=optional_edges,json=optionalEdges,proto3" json:"optional_edges,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ReviewedOffer) Reset() {
@@ -1315,6 +1392,34 @@ func (x *ReviewedOffer) GetInstallationRole() string {
 func (x *ReviewedOffer) GetEdgeDependencies() []*OfferDependency {
 	if x != nil {
 		return x.EdgeDependencies
+	}
+	return nil
+}
+
+func (x *ReviewedOffer) GetRolesDeclared() bool {
+	if x != nil {
+		return x.RolesDeclared
+	}
+	return false
+}
+
+func (x *ReviewedOffer) GetPage() bool {
+	if x != nil {
+		return x.Page
+	}
+	return false
+}
+
+func (x *ReviewedOffer) GetClosure() []string {
+	if x != nil {
+		return x.Closure
+	}
+	return nil
+}
+
+func (x *ReviewedOffer) GetOptionalEdges() []string {
+	if x != nil {
+		return x.OptionalEdges
 	}
 	return nil
 }
@@ -1442,7 +1547,12 @@ type OfferRole struct {
 	// The scopes the role declares.
 	Scopes []*OfferScope `protobuf:"bytes,2,rep,name=scopes,proto3" json:"scopes,omitempty"`
 	// Each composed operation the role's scopes cover.
-	Capabilities  []*OfferCapability `protobuf:"bytes,3,rep,name=capabilities,proto3" json:"capabilities,omitempty"`
+	Capabilities []*OfferCapability `protobuf:"bytes,3,rep,name=capabilities,proto3" json:"capabilities,omitempty"`
+	// Every place a holder of the role can cause an operation, as a static
+	// maximum: on the target, through the target's bindings and onward, and
+	// on the holder's own session. An administrator's review reads it in the
+	// composition now; a holder's, as the installation's consent approved it.
+	Reach         []*OfferReach `protobuf:"bytes,4,rep,name=reach,proto3" json:"reach,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1498,6 +1608,112 @@ func (x *OfferRole) GetCapabilities() []*OfferCapability {
 	return nil
 }
 
+func (x *OfferRole) GetReach() []*OfferReach {
+	if x != nil {
+		return x.Reach
+	}
+	return nil
+}
+
+// OfferReach is one module a role reaches, one way. Issuance, for a holder
+// or for the installation's agent, never carries past it; it is an upper
+// bound (resources and owners are checked at each call).
+type OfferReach struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// A shortest way from the target to module, by module name, the target
+	// first: a witness. Every way there, re-entries included, is accounted for
+	// in scopes and operations.
+	Path   []string `protobuf:"bytes,1,rep,name=path,proto3" json:"path,omitempty"`
+	Module string   `protobuf:"bytes,2,opt,name=module,proto3" json:"module,omitempty"`
+	// "role": the role's own scopes on the target; "binding": the target, then
+	// each module on the path, acting for the holder; "person": an edge the
+	// target's page calls on the holder's own session, where the holder's own
+	// grants decide (no scopes, no operations).
+	Via string `protobuf:"bytes,3,opt,name=via,proto3" json:"via,omitempty"`
+	// The most a holder's capability at module can carry.
+	Scopes []*OfferScope `protobuf:"bytes,4,rep,name=scopes,proto3" json:"scopes,omitempty"`
+	// On the target: "installation" (the installation's own data) or
+	// "attached" (what is attached to it); empty otherwise.
+	Confinement string `protobuf:"bytes,5,opt,name=confinement,proto3" json:"confinement,omitempty"`
+	// The operations of module those scopes are admitted to, by its declared
+	// method policies; one per operation, whatever face serves it.
+	Operations    []string `protobuf:"bytes,6,rep,name=operations,proto3" json:"operations,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OfferReach) Reset() {
+	*x = OfferReach{}
+	mi := &file_host_installation_v1_installation_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OfferReach) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OfferReach) ProtoMessage() {}
+
+func (x *OfferReach) ProtoReflect() protoreflect.Message {
+	mi := &file_host_installation_v1_installation_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OfferReach.ProtoReflect.Descriptor instead.
+func (*OfferReach) Descriptor() ([]byte, []int) {
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *OfferReach) GetPath() []string {
+	if x != nil {
+		return x.Path
+	}
+	return nil
+}
+
+func (x *OfferReach) GetModule() string {
+	if x != nil {
+		return x.Module
+	}
+	return ""
+}
+
+func (x *OfferReach) GetVia() string {
+	if x != nil {
+		return x.Via
+	}
+	return ""
+}
+
+func (x *OfferReach) GetScopes() []*OfferScope {
+	if x != nil {
+		return x.Scopes
+	}
+	return nil
+}
+
+func (x *OfferReach) GetConfinement() string {
+	if x != nil {
+		return x.Confinement
+	}
+	return ""
+}
+
+func (x *OfferReach) GetOperations() []string {
+	if x != nil {
+		return x.Operations
+	}
+	return nil
+}
+
 // OfferScope is one declared scope.
 type OfferScope struct {
 	state        protoimpl.MessageState `protogen:"open.v1"`
@@ -1514,7 +1730,7 @@ type OfferScope struct {
 
 func (x *OfferScope) Reset() {
 	*x = OfferScope{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[22]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1526,7 +1742,7 @@ func (x *OfferScope) String() string {
 func (*OfferScope) ProtoMessage() {}
 
 func (x *OfferScope) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[22]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1539,7 +1755,7 @@ func (x *OfferScope) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OfferScope.ProtoReflect.Descriptor instead.
 func (*OfferScope) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{22}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *OfferScope) GetResourceKind() string {
@@ -1587,7 +1803,7 @@ type OfferCapability struct {
 
 func (x *OfferCapability) Reset() {
 	*x = OfferCapability{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[23]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1599,7 +1815,7 @@ func (x *OfferCapability) String() string {
 func (*OfferCapability) ProtoMessage() {}
 
 func (x *OfferCapability) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[23]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1612,7 +1828,7 @@ func (x *OfferCapability) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OfferCapability.ProtoReflect.Descriptor instead.
 func (*OfferCapability) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{23}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *OfferCapability) GetModule() string {
@@ -1658,7 +1874,7 @@ type OfferTool struct {
 
 func (x *OfferTool) Reset() {
 	*x = OfferTool{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[24]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1670,7 +1886,7 @@ func (x *OfferTool) String() string {
 func (*OfferTool) ProtoMessage() {}
 
 func (x *OfferTool) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[24]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1683,7 +1899,7 @@ func (x *OfferTool) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OfferTool.ProtoReflect.Descriptor instead.
 func (*OfferTool) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{24}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *OfferTool) GetName() string {
@@ -1719,7 +1935,7 @@ type ListHeldRequest struct {
 
 func (x *ListHeldRequest) Reset() {
 	*x = ListHeldRequest{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[25]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1731,7 +1947,7 @@ func (x *ListHeldRequest) String() string {
 func (*ListHeldRequest) ProtoMessage() {}
 
 func (x *ListHeldRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[25]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1744,7 +1960,7 @@ func (x *ListHeldRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListHeldRequest.ProtoReflect.Descriptor instead.
 func (*ListHeldRequest) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{25}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *ListHeldRequest) GetOrganizationId() string {
@@ -1766,7 +1982,7 @@ type ListHeldResponse struct {
 
 func (x *ListHeldResponse) Reset() {
 	*x = ListHeldResponse{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[26]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1778,7 +1994,7 @@ func (x *ListHeldResponse) String() string {
 func (*ListHeldResponse) ProtoMessage() {}
 
 func (x *ListHeldResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[26]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1791,7 +2007,7 @@ func (x *ListHeldResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListHeldResponse.ProtoReflect.Descriptor instead.
 func (*ListHeldResponse) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{26}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *ListHeldResponse) GetInstallations() []*HeldInstallation {
@@ -1814,7 +2030,7 @@ type HeldInstallation struct {
 
 func (x *HeldInstallation) Reset() {
 	*x = HeldInstallation{}
-	mi := &file_host_installation_v1_installation_proto_msgTypes[27]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1826,7 +2042,7 @@ func (x *HeldInstallation) String() string {
 func (*HeldInstallation) ProtoMessage() {}
 
 func (x *HeldInstallation) ProtoReflect() protoreflect.Message {
-	mi := &file_host_installation_v1_installation_proto_msgTypes[27]
+	mi := &file_host_installation_v1_installation_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1839,7 +2055,7 @@ func (x *HeldInstallation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HeldInstallation.ProtoReflect.Descriptor instead.
 func (*HeldInstallation) Descriptor() ([]byte, []int) {
-	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{27}
+	return file_host_installation_v1_installation_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *HeldInstallation) GetInstallation() *Installation {
@@ -1878,7 +2094,7 @@ const file_host_installation_v1_installation_proto_rawDesc = "" +
 	"\bapproval\x18\x05 \x01(\v2%.host.installation.v1.ConsentApprovalR\bapproval\"P\n" +
 	"\rReviewRequest\x12'\n" +
 	"\x0forganization_id\x18\x01 \x01(\tR\x0eorganizationId\x12\x16\n" +
-	"\x06target\x18\x02 \x01(\tR\x06target\"\xb6\x01\n" +
+	"\x06target\x18\x02 \x01(\tR\x06target\"\xd9\x01\n" +
 	"\x0fConsentApproval\x12\x1b\n" +
 	"\ttarget_id\x18\x01 \x01(\tR\btargetId\x12\x1e\n" +
 	"\n" +
@@ -1886,7 +2102,8 @@ const file_host_installation_v1_installation_proto_rawDesc = "" +
 	"generation\x12+\n" +
 	"\x11expected_revision\x18\x03 \x01(\x04R\x10expectedRevision\x12!\n" +
 	"\foperation_id\x18\x04 \x01(\tR\voperationId\x12\x16\n" +
-	"\x06digest\x18\x05 \x01(\tR\x06digest\"\xae\x01\n" +
+	"\x06digest\x18\x05 \x01(\tR\x06digest\x12!\n" +
+	"\freach_digest\x18\x06 \x01(\tR\vreachDigest\"\xae\x01\n" +
 	"\x10GrantRoleRequest\x12'\n" +
 	"\x0forganization_id\x18\x01 \x01(\tR\x0eorganizationId\x12'\n" +
 	"\x0finstallation_id\x18\x02 \x01(\tR\x0einstallationId\x12\x12\n" +
@@ -1911,7 +2128,7 @@ const file_host_installation_v1_installation_proto_rawDesc = "" +
 	"\vListRequest\x12'\n" +
 	"\x0forganization_id\x18\x01 \x01(\tR\x0eorganizationId\"X\n" +
 	"\fListResponse\x12H\n" +
-	"\rinstallations\x18\x01 \x03(\v2\".host.installation.v1.InstallationR\rinstallations\"\xb0\x03\n" +
+	"\rinstallations\x18\x01 \x03(\v2\".host.installation.v1.InstallationR\rinstallations\"\xac\x04\n" +
 	"\fInstallation\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12'\n" +
 	"\x0forganization_id\x18\x02 \x01(\tR\x0eorganizationId\x12\x16\n" +
@@ -1922,7 +2139,10 @@ const file_host_installation_v1_installation_proto_rawDesc = "" +
 	"\tnamespace\x18\t \x01(\tR\tnamespace\x12!\n" +
 	"\fprincipal_id\x18\n" +
 	" \x01(\tR\vprincipalId\x12\x14\n" +
-	"\x05roles\x18\v \x03(\tR\x05roles\"[\n" +
+	"\x05roles\x18\v \x03(\tR\x05roles\x12/\n" +
+	"\x13approved_generation\x18\f \x01(\x04R\x12approvedGeneration\x12+\n" +
+	"\x11upgrade_available\x18\r \x01(\bR\x10upgradeAvailable\x12\x1c\n" +
+	"\tunreached\x18\x0e \x03(\tR\tunreached\"[\n" +
 	"\x06Status\x12\x16\n" +
 	"\x12STATUS_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eSTATUS_PENDING\x10\x01\x12\x11\n" +
@@ -1939,7 +2159,7 @@ const file_host_installation_v1_installation_proto_rawDesc = "" +
 	"\x06target\x18\x01 \x01(\tR\x06target\x12\x1e\n" +
 	"\n" +
 	"generation\x18\x02 \x01(\x04R\n" +
-	"generation\"\xcf\x03\n" +
+	"generation\"\xcb\x04\n" +
 	"\rReviewedOffer\x12A\n" +
 	"\bapproval\x18\x01 \x01(\v2%.host.installation.v1.ConsentApprovalR\bapproval\x12\x16\n" +
 	"\x06target\x18\x02 \x01(\tR\x06target\x125\n" +
@@ -1948,18 +2168,34 @@ const file_host_installation_v1_installation_proto_rawDesc = "" +
 	"\aceiling\x18\x05 \x03(\v2\".host.installation.v1.OfferBindingR\aceiling\x12%\n" +
 	"\x0etools_composed\x18\x06 \x01(\bR\rtoolsComposed\x12+\n" +
 	"\x11installation_role\x18\a \x01(\tR\x10installationRole\x12R\n" +
-	"\x11edge_dependencies\x18\b \x03(\v2%.host.installation.v1.OfferDependencyR\x10edgeDependencies\"E\n" +
+	"\x11edge_dependencies\x18\b \x03(\v2%.host.installation.v1.OfferDependencyR\x10edgeDependencies\x12%\n" +
+	"\x0eroles_declared\x18\t \x01(\bR\rrolesDeclared\x12\x12\n" +
+	"\x04page\x18\n" +
+	" \x01(\bR\x04page\x12\x18\n" +
+	"\aclosure\x18\v \x03(\tR\aclosure\x12%\n" +
+	"\x0eoptional_edges\x18\f \x03(\tR\roptionalEdges\"E\n" +
 	"\x0fOfferDependency\x12\x16\n" +
 	"\x06module\x18\x01 \x01(\tR\x06module\x12\x1a\n" +
 	"\bpresence\x18\x02 \x01(\tR\bpresence\"z\n" +
 	"\fOfferBinding\x12\x18\n" +
 	"\abinding\x18\x01 \x01(\tR\abinding\x12\x16\n" +
 	"\x06module\x18\x02 \x01(\tR\x06module\x128\n" +
-	"\x06scopes\x18\x03 \x03(\v2 .host.installation.v1.OfferScopeR\x06scopes\"\xa4\x01\n" +
+	"\x06scopes\x18\x03 \x03(\v2 .host.installation.v1.OfferScopeR\x06scopes\"\xdc\x01\n" +
 	"\tOfferRole\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x128\n" +
 	"\x06scopes\x18\x02 \x03(\v2 .host.installation.v1.OfferScopeR\x06scopes\x12I\n" +
-	"\fcapabilities\x18\x03 \x03(\v2%.host.installation.v1.OfferCapabilityR\fcapabilities\"\x93\x01\n" +
+	"\fcapabilities\x18\x03 \x03(\v2%.host.installation.v1.OfferCapabilityR\fcapabilities\x126\n" +
+	"\x05reach\x18\x04 \x03(\v2 .host.installation.v1.OfferReachR\x05reach\"\xc6\x01\n" +
+	"\n" +
+	"OfferReach\x12\x12\n" +
+	"\x04path\x18\x01 \x03(\tR\x04path\x12\x16\n" +
+	"\x06module\x18\x02 \x01(\tR\x06module\x12\x10\n" +
+	"\x03via\x18\x03 \x01(\tR\x03via\x128\n" +
+	"\x06scopes\x18\x04 \x03(\v2 .host.installation.v1.OfferScopeR\x06scopes\x12 \n" +
+	"\vconfinement\x18\x05 \x01(\tR\vconfinement\x12\x1e\n" +
+	"\n" +
+	"operations\x18\x06 \x03(\tR\n" +
+	"operations\"\x93\x01\n" +
 	"\n" +
 	"OfferScope\x12#\n" +
 	"\rresource_kind\x18\x01 \x01(\tR\fresourceKind\x12\x18\n" +
@@ -2013,7 +2249,7 @@ func file_host_installation_v1_installation_proto_rawDescGZIP() []byte {
 }
 
 var file_host_installation_v1_installation_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_host_installation_v1_installation_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
+var file_host_installation_v1_installation_proto_msgTypes = make([]protoimpl.MessageInfo, 29)
 var file_host_installation_v1_installation_proto_goTypes = []any{
 	(Installation_Status)(0),           // 0: host.installation.v1.Installation.Status
 	(*CurrentInstallationRequest)(nil), // 1: host.installation.v1.CurrentInstallationRequest
@@ -2038,12 +2274,13 @@ var file_host_installation_v1_installation_proto_goTypes = []any{
 	(*OfferDependency)(nil),            // 20: host.installation.v1.OfferDependency
 	(*OfferBinding)(nil),               // 21: host.installation.v1.OfferBinding
 	(*OfferRole)(nil),                  // 22: host.installation.v1.OfferRole
-	(*OfferScope)(nil),                 // 23: host.installation.v1.OfferScope
-	(*OfferCapability)(nil),            // 24: host.installation.v1.OfferCapability
-	(*OfferTool)(nil),                  // 25: host.installation.v1.OfferTool
-	(*ListHeldRequest)(nil),            // 26: host.installation.v1.ListHeldRequest
-	(*ListHeldResponse)(nil),           // 27: host.installation.v1.ListHeldResponse
-	(*HeldInstallation)(nil),           // 28: host.installation.v1.HeldInstallation
+	(*OfferReach)(nil),                 // 23: host.installation.v1.OfferReach
+	(*OfferScope)(nil),                 // 24: host.installation.v1.OfferScope
+	(*OfferCapability)(nil),            // 25: host.installation.v1.OfferCapability
+	(*OfferTool)(nil),                  // 26: host.installation.v1.OfferTool
+	(*ListHeldRequest)(nil),            // 27: host.installation.v1.ListHeldRequest
+	(*ListHeldResponse)(nil),           // 28: host.installation.v1.ListHeldResponse
+	(*HeldInstallation)(nil),           // 29: host.installation.v1.HeldInstallation
 }
 var file_host_installation_v1_installation_proto_depIdxs = []int32{
 	5,  // 0: host.installation.v1.InstallRequest.approval:type_name -> host.installation.v1.ConsentApproval
@@ -2057,40 +2294,42 @@ var file_host_installation_v1_installation_proto_depIdxs = []int32{
 	13, // 8: host.installation.v1.ReviewedOffer.installation:type_name -> host.installation.v1.Installation
 	21, // 9: host.installation.v1.ReviewedOffer.ceiling:type_name -> host.installation.v1.OfferBinding
 	20, // 10: host.installation.v1.ReviewedOffer.edge_dependencies:type_name -> host.installation.v1.OfferDependency
-	23, // 11: host.installation.v1.OfferBinding.scopes:type_name -> host.installation.v1.OfferScope
-	23, // 12: host.installation.v1.OfferRole.scopes:type_name -> host.installation.v1.OfferScope
-	24, // 13: host.installation.v1.OfferRole.capabilities:type_name -> host.installation.v1.OfferCapability
-	23, // 14: host.installation.v1.OfferCapability.requires:type_name -> host.installation.v1.OfferScope
-	25, // 15: host.installation.v1.OfferCapability.tools:type_name -> host.installation.v1.OfferTool
-	28, // 16: host.installation.v1.ListHeldResponse.installations:type_name -> host.installation.v1.HeldInstallation
-	13, // 17: host.installation.v1.HeldInstallation.installation:type_name -> host.installation.v1.Installation
-	1,  // 18: host.installation.v1.InstallationService.Current:input_type -> host.installation.v1.CurrentInstallationRequest
-	3,  // 19: host.installation.v1.InstallationService.Install:input_type -> host.installation.v1.InstallRequest
-	4,  // 20: host.installation.v1.InstallationService.Review:input_type -> host.installation.v1.ReviewRequest
-	6,  // 21: host.installation.v1.InstallationService.GrantRole:input_type -> host.installation.v1.GrantRoleRequest
-	7,  // 22: host.installation.v1.InstallationService.RevokeRole:input_type -> host.installation.v1.RevokeRoleRequest
-	8,  // 23: host.installation.v1.InstallationService.ListRoleGrants:input_type -> host.installation.v1.ListRoleGrantsRequest
-	11, // 24: host.installation.v1.InstallationService.List:input_type -> host.installation.v1.ListRequest
-	26, // 25: host.installation.v1.InstallationService.ListHeld:input_type -> host.installation.v1.ListHeldRequest
-	14, // 26: host.installation.v1.InstallableService.Install:input_type -> host.installation.v1.InstallationNotice
-	16, // 27: host.installation.v1.OfferService.ListOffers:input_type -> host.installation.v1.ListOffersRequest
-	4,  // 28: host.installation.v1.OfferService.ReviewOffer:input_type -> host.installation.v1.ReviewRequest
-	2,  // 29: host.installation.v1.InstallationService.Current:output_type -> host.installation.v1.CurrentInstallation
-	13, // 30: host.installation.v1.InstallationService.Install:output_type -> host.installation.v1.Installation
-	5,  // 31: host.installation.v1.InstallationService.Review:output_type -> host.installation.v1.ConsentApproval
-	13, // 32: host.installation.v1.InstallationService.GrantRole:output_type -> host.installation.v1.Installation
-	13, // 33: host.installation.v1.InstallationService.RevokeRole:output_type -> host.installation.v1.Installation
-	9,  // 34: host.installation.v1.InstallationService.ListRoleGrants:output_type -> host.installation.v1.ListRoleGrantsResponse
-	12, // 35: host.installation.v1.InstallationService.List:output_type -> host.installation.v1.ListResponse
-	27, // 36: host.installation.v1.InstallationService.ListHeld:output_type -> host.installation.v1.ListHeldResponse
-	15, // 37: host.installation.v1.InstallableService.Install:output_type -> host.installation.v1.InstallationAck
-	17, // 38: host.installation.v1.OfferService.ListOffers:output_type -> host.installation.v1.ListOffersResponse
-	19, // 39: host.installation.v1.OfferService.ReviewOffer:output_type -> host.installation.v1.ReviewedOffer
-	29, // [29:40] is the sub-list for method output_type
-	18, // [18:29] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	24, // 11: host.installation.v1.OfferBinding.scopes:type_name -> host.installation.v1.OfferScope
+	24, // 12: host.installation.v1.OfferRole.scopes:type_name -> host.installation.v1.OfferScope
+	25, // 13: host.installation.v1.OfferRole.capabilities:type_name -> host.installation.v1.OfferCapability
+	23, // 14: host.installation.v1.OfferRole.reach:type_name -> host.installation.v1.OfferReach
+	24, // 15: host.installation.v1.OfferReach.scopes:type_name -> host.installation.v1.OfferScope
+	24, // 16: host.installation.v1.OfferCapability.requires:type_name -> host.installation.v1.OfferScope
+	26, // 17: host.installation.v1.OfferCapability.tools:type_name -> host.installation.v1.OfferTool
+	29, // 18: host.installation.v1.ListHeldResponse.installations:type_name -> host.installation.v1.HeldInstallation
+	13, // 19: host.installation.v1.HeldInstallation.installation:type_name -> host.installation.v1.Installation
+	1,  // 20: host.installation.v1.InstallationService.Current:input_type -> host.installation.v1.CurrentInstallationRequest
+	3,  // 21: host.installation.v1.InstallationService.Install:input_type -> host.installation.v1.InstallRequest
+	4,  // 22: host.installation.v1.InstallationService.Review:input_type -> host.installation.v1.ReviewRequest
+	6,  // 23: host.installation.v1.InstallationService.GrantRole:input_type -> host.installation.v1.GrantRoleRequest
+	7,  // 24: host.installation.v1.InstallationService.RevokeRole:input_type -> host.installation.v1.RevokeRoleRequest
+	8,  // 25: host.installation.v1.InstallationService.ListRoleGrants:input_type -> host.installation.v1.ListRoleGrantsRequest
+	11, // 26: host.installation.v1.InstallationService.List:input_type -> host.installation.v1.ListRequest
+	27, // 27: host.installation.v1.InstallationService.ListHeld:input_type -> host.installation.v1.ListHeldRequest
+	14, // 28: host.installation.v1.InstallableService.Install:input_type -> host.installation.v1.InstallationNotice
+	16, // 29: host.installation.v1.OfferService.ListOffers:input_type -> host.installation.v1.ListOffersRequest
+	4,  // 30: host.installation.v1.OfferService.ReviewOffer:input_type -> host.installation.v1.ReviewRequest
+	2,  // 31: host.installation.v1.InstallationService.Current:output_type -> host.installation.v1.CurrentInstallation
+	13, // 32: host.installation.v1.InstallationService.Install:output_type -> host.installation.v1.Installation
+	5,  // 33: host.installation.v1.InstallationService.Review:output_type -> host.installation.v1.ConsentApproval
+	13, // 34: host.installation.v1.InstallationService.GrantRole:output_type -> host.installation.v1.Installation
+	13, // 35: host.installation.v1.InstallationService.RevokeRole:output_type -> host.installation.v1.Installation
+	9,  // 36: host.installation.v1.InstallationService.ListRoleGrants:output_type -> host.installation.v1.ListRoleGrantsResponse
+	12, // 37: host.installation.v1.InstallationService.List:output_type -> host.installation.v1.ListResponse
+	28, // 38: host.installation.v1.InstallationService.ListHeld:output_type -> host.installation.v1.ListHeldResponse
+	15, // 39: host.installation.v1.InstallableService.Install:output_type -> host.installation.v1.InstallationAck
+	17, // 40: host.installation.v1.OfferService.ListOffers:output_type -> host.installation.v1.ListOffersResponse
+	19, // 41: host.installation.v1.OfferService.ReviewOffer:output_type -> host.installation.v1.ReviewedOffer
+	31, // [31:42] is the sub-list for method output_type
+	20, // [20:31] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_host_installation_v1_installation_proto_init() }
@@ -2104,7 +2343,7 @@ func file_host_installation_v1_installation_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_host_installation_v1_installation_proto_rawDesc), len(file_host_installation_v1_installation_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   28,
+			NumMessages:   29,
 			NumExtensions: 0,
 			NumServices:   3,
 		},

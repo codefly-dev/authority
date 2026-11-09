@@ -65,6 +65,10 @@ type Fixture struct {
 	// HopCredential is the workload credential of the composition's hop, the
 	// one workload that registers admission keys.
 	HopCredential string
+	// EdgeCredential is the workload credential of the host's module edge,
+	// the one workload a person's Issue may name a page through
+	// (page_target): the person present on that page.
+	EdgeCredential string
 
 	// ReviewOfferNotServed is why this host does not serve
 	// OfferService.ReviewOffer yet. Set, the declaration case skips comparing
@@ -82,11 +86,13 @@ type Fixture struct {
 	HostDomain         string
 	SignManifest       func(document []byte) (envelope []byte, err error)
 	DeliveryCredential func(module string) string
-	// InstallModule, for a host whose administrators install each module by
-	// their own consent, installs one the suite just delivered at the
-	// organizations the suite uses, through the host's own path; it must be
-	// idempotent, since a module is delivered again at newer generations. nil:
-	// delivery installs a module at every organization.
+	// InstallModule, for a host that installs modules itself, installs one
+	// the suite just delivered, by composition, at every organization where
+	// the suite composes it (Organization and OtherAdminToken's), through the
+	// host's own path; it must be idempotent, since a module is delivered
+	// again at newer generations. It is called for every module, a module
+	// page declaring roles included: only a solution is installed by an
+	// administrator. nil: delivery installs a module at every organization.
 	InstallModule func(ctx context.Context, module string) error
 	// Resources is required and states what a person covers on one kind.
 	Resources *ResourceCase
@@ -243,6 +249,12 @@ func (c *client) deliverPage(ctx context.Context, f Fixture, page *solutionhost.
 	if len(bindings) > 0 {
 		manifest.Authority.Bindings = bindings
 	}
+	// The two signed carriers are projections of one authored declaration:
+	// what the authority document says of the installation role, core's
+	// manifest says too.
+	if role, ok := document["installation_role"].(string); ok {
+		manifest.Authority.InstallationRole = role
+	}
 	carrier, err := solutionhost.SignedPayload(manifest)
 	if err != nil {
 		return nil, err
@@ -281,8 +293,8 @@ func (c *client) deliverPage(ctx context.Context, f Fixture, page *solutionhost.
 	return installed(ctx, f, alias, kind)(c.call(ctx, "host.composition.v1.CompositionService", "ApplyManifest", request))
 }
 
-// installed has the host install a module it just composed, when its
-// administrators install modules by consent (Fixture.InstallModule).
+// installed has the host install a module it just composed, when it installs
+// modules itself (Fixture.InstallModule): every module, roles or not.
 func installed(ctx context.Context, f Fixture, alias, kind string) func(protoreflect.Message, error) (protoreflect.Message, error) {
 	return func(out protoreflect.Message, err error) (protoreflect.Message, error) {
 		if err != nil || kind != "module" || f.InstallModule == nil {
@@ -307,6 +319,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 	c.solutionRoleCases(t, ctx, f)
 	c.solutionDeclaration(t, ctx, f)
 	c.modulePageRoles(t, ctx, f)
+	c.pageCalls(t, ctx, f)
 	c.installationIdentity(t, ctx, f)
 	c.currentInstallation(t, ctx, f)
 	c.sessionDisplayNames(t, ctx, f)
@@ -988,6 +1001,8 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 	})
 	c.resourceMethod(t, ctx, f)
 	c.installationLifecycle(t, ctx, f)
+	c.installationSurvivesDelivery(t, ctx, f)
+	c.reachConsent(t, ctx, f)
 	c.organizationIsolation(t, ctx, f)
 	c.admissionKeys(t, ctx, f)
 }

@@ -16,10 +16,16 @@ agent:
 # implements all three when it names none (code/host.go).
 # Authority 0.3.5 is the floor: the edge serves a page Delegate, and an older
 # host drops its ttl_seconds and would record a delegation that never ends.
+# Authority 0.3.6 adds page_target: the edge names the page a module call
+# comes from (/api/solutions/<alias>/proxy/_browser/...), and proves it is
+# this host's module edge with its own workload credential (module-identity
+# below), the one caller the authority takes a page from.
+# Installation 0.5.0: the setup page posts the reach_digest a review answered,
+# which Install requires.
 service-dependencies:
-    - interface: codefly.dev/authority@>=0.3.5 <0.4.0
+    - interface: codefly.dev/authority@>=0.3.6 <0.4.0
     - interface: codefly.dev/session@>=0.2.0 <0.3.0
-    - interface: codefly.dev/installation@>=0.1.0 <0.5.0
+    - interface: codefly.dev/installation@>=0.5.0 <0.6.0
 workspace-configuration-dependencies:
     # The modules the edge routes to, their REST and Connect faces, and the
     # frontend every other path serves (code/main.go).
@@ -38,3 +44,7 @@ spec:
         source-dir: ""
         with-cgo: false
         with-workspace: false
+# The edge is a workload of its own: the run vouches for it, and it presents
+# that credential when it names a page to the authority's Issue, so no other
+# workload can mint the page hop, the person present on a page.
+module-identity: true

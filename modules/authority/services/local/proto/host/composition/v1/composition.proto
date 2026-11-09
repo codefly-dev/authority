@@ -72,6 +72,11 @@ message AuthorityManifestV1 {
   string installation_role = 8;
   // Viewer-edge presence only; grants no authority. Nil and empty are equivalent.
   repeated EdgeDependencyV1 edge_dependencies = 9;
+  // The served kinds the module declares unowned: shared infrastructure (a
+  // model's profiles) no owner holds a resource of. A scope of one is issued
+  // unselected, even through a solution's binding; every other kind keeps its
+  // owner selector. Each is one of scope_ceilings' kinds.
+  repeated string shared_kinds = 10;
 }
 
 // EdgeDependencyV1 names the exact signed module principal. The host resolves
@@ -93,6 +98,11 @@ message MethodPolicyV1 {
   repeated host.authority.v1.WorkScopeV1 requires = 2;
   // The method asks nothing beyond a Work Context the authority checked.
   bool any_checked_caller = 3;
+  // What a call may exercise beyond what it requires, beside requires (the
+  // method's authority.hop.v1.Policy.carries): an effect the module performs
+  // on some calls alone. Nothing requires it; a binding whose ceiling is
+  // derived from the calls it names includes it.
+  repeated host.authority.v1.WorkScopeV1 carries = 4;
 }
 
 // SignedManifestV1 is core's signed carrier: the manifest document (JSON) and
@@ -148,6 +158,21 @@ message RoleV1 {
   // scope limited to the ids that installation owns of the kind; a kind it owns
   // nothing of grants nothing, and never the whole kind.
   repeated host.authority.v1.WorkScopeV1 installation_owned_scopes = 3;
+  // Scopes the role grants downstream of one of the unit's own bindings: a
+  // kind a module that binding reaches serves or consumes, carried onward at
+  // each hop and cut to each binding there. The authority holds each
+  // reachable from its binding in the composition and refuses the delivery
+  // naming it when it is not. A role's grant is scopes and every through's
+  // scopes together.
+  repeated RoleThroughV1 through = 4;
+}
+
+// RoleThroughV1 is what a role names through one binding of its unit.
+message RoleThroughV1 {
+  // The binding's id, one the unit declares.
+  string binding = 1;
+  // The kinds and actions reached through it, never ids or an owner.
+  repeated host.authority.v1.WorkScopeV1 scopes = 2;
 }
 
 // BindingV1 is one declared call towards another module.

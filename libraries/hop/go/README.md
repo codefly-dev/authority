@@ -53,6 +53,13 @@ next one. Keys are re-read when a token names a key the verifier does not hold
 than 5 minutes (the held keys serve meanwhile); keys that cannot be re-read are
 trusted for 15 minutes at most, and a call on keys older than that waits for the
 re-read as a call on an unknown key does, refused if the read fails.
+A stamp signed by no admission key held is re-read for too: a hop that
+registered since the last read — a restarted gateway signs with its fresh key at
+once — is admitted after one read, not after the keys age out. That read is
+bounded for every such stamp together (a stamp names no key id), at most one per
+10 s however many arrive, and logged; the call waits for it, and a stamp still
+signed by no published key is refused as `stamp_proof`. Inside the bound an
+unknown signer is refused on the keys held, without waiting.
 `NewVerifier` never fails on an authority that is not serving yet: calls are
 refused with "the authority's published keys are unavailable" until it is, and
 `KeysError()` gives the read's own failure to the module's logs, never to a

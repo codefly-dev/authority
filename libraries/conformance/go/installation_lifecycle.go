@@ -90,6 +90,7 @@ func (c *client) installationLifecycle(t *testing.T, ctx context.Context, f Fixt
 			{"generation", uint64(2), "GENERATION_CHANGED"},
 			{"expected_revision", uint64(1), "REVISION_CHANGED"},
 			{"digest", "sha256:unreviewed", "DIGEST_CHANGED"},
+			{"reach_digest", "sha256:unreviewed", "REACH_CHANGED"},
 		} {
 			bad := clone(request)
 			approval := clone(request["approval"].(map[string]any))
@@ -212,5 +213,5 @@ func (c *client) installationLifecycle(t *testing.T, ctx context.Context, f Fixt
 func (c *client) reviewInstallation(t *testing.T, ctx context.Context, org, target string) map[string]any {
 	t.Helper()
 	a := c.must(t, ctx, "host.installation.v1.InstallationService", "Review", map[string]any{"organization_id": org, "target": target})
-	return map[string]any{"target_id": str(a, "target_id"), "generation": u64(a, "generation"), "expected_revision": u64(a, "expected_revision"), "digest": str(a, "digest"), "operation_id": uuid.NewString()}
+	return map[string]any{"target_id": str(a, "target_id"), "generation": u64(a, "generation"), "expected_revision": u64(a, "expected_revision"), "digest": str(a, "digest"), "reach_digest": str(a, "reach_digest"), "operation_id": uuid.NewString()}
 }

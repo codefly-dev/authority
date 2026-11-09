@@ -73,6 +73,13 @@ type Module struct {
 	Roles map[string][]*basev0.WorkScopeV1
 	// OwnedRoles resolve only to the exact ids attached to this installation.
 	OwnedRoles map[string][]*basev0.WorkScopeV1
+	// Through are, per role and per binding of the module's own, the scopes
+	// the role names downstream of that binding: kinds a module it reaches
+	// serves or consumes, carried onward at each hop and cut to each binding
+	// there. They are part of the role (Roles holds them too); Through says
+	// how each is reached, which delivery holds reachable in the composition
+	// (decide.ValidateModuleIn).
+	Through map[string]map[string][]*basev0.WorkScopeV1 `json:",omitempty"`
 	// InstallationRole is the signed selector: absent leaves selection to the
 	// caller; "none" selects no standing authority; otherwise it names a role.
 	// Omit absent fields from the existing review digest's JSON representation.
@@ -83,6 +90,11 @@ type Module struct {
 	// OwnerAware: the module compares a resource's owner with an
 	// owner-selected scope, so it may receive one.
 	OwnerAware bool
+	// SharedKinds are the kinds the module declares unowned: shared
+	// infrastructure (a model's profiles), no resource of which any owner
+	// holds. A scope of one is issued unselected, even through a solution;
+	// every other kind keeps its owner selector. Each is a kind it serves.
+	SharedKinds []string `json:",omitempty"`
 	// Methods are what each method the module serves requires of a call, from
 	// its delivered authority document; nil when it declared none.
 	Methods map[string]MethodPolicy
@@ -216,6 +228,11 @@ var ErrAlreadyInstalled = errors.New("already installed")
 // ErrNotFound is what a store answers for a missing record.
 var ErrNotFound = errors.New("not found")
 
+// ErrApprovedDeclarationKept is what a store answers for a declaration
+// written at a (module, generation) it already keeps a different one for: an
+// approved declaration is what a consent approved, and is never replaced.
+var ErrApprovedDeclarationKept = errors.New("a different declaration is kept for this approved generation")
+
 // Refuse builds a Denied refusal.
 func Refuse(format string, args ...any) error { return refusal(Denied, format, args...) }
 
@@ -246,12 +263,48 @@ type ConsentApproval struct {
 	TargetID                     string
 	Generation, ExpectedRevision uint64
 	OperationID, Digest          string
+	// ReachDigest is the digest of what each of the target's roles reaches
+	// in the composition reviewed (decide.EncodeReach): the consent covers
+	// it, not the target's declaration alone.
+	ReachDigest string
 }
 
-// ConsentReceipt binds an unchanged retry to its resulting installation revision.
+// ReachRow is one place a holder of a role on a target can cause an
+// operation, as a static maximum (decide.Reach): Module, reached along Path
+// (module names, the target first, Module last), Via the role on the target
+// itself, the target's bindings acting for the holder, or the holder's own
+// session; the Scopes the holder's capability there can carry at most (none
+// on their own session, where their own grants decide), how the role
+// confines them on the target, the Operations of Module those scopes are
+// admitted to, and the Policies of every operation of Module as declared
+// then, by operation: what roles held together are admitted to there.
+type ReachRow struct {
+	Path                     []string
+	Module, Via, Confinement string
+	Scopes                   []*basev0.WorkScopeV1
+	Operations               []string
+	Policies                 map[string]MethodPolicy
+}
+
+// ConsentReceipt binds an unchanged retry to its resulting installation
+// revision, and records what the approval consented to: the generation and
+// the offer digest reviewed. A redelivery whose reviewed offer asks nothing
+// the approved one did not advances both (the installation re-converges); one
+// that asks more leaves them, and the installation offers an upgrade until an
+// administrator approves the new offer. Zero Generation is a receipt recorded
+// before this was kept: it stands for the generation delivered then.
 type ConsentReceipt struct {
 	OperationID, Intent string
 	Revision            uint64
+	Generation          uint64
+	Digest              string
+	// Reach is the reach approved, each role's rows as canonical JSON
+	// (decide.EncodeReach), and ReachDigest its digest: what holders hold
+	// through the target at most until an administrator approves a wider
+	// one. Empty ReachDigest is a receipt recorded before reach was kept:
+	// it adopts, once, the reach its approved declaration has then
+	// (installation.reach_adopted), and is held to that until adopted.
+	ReachDigest, Reach string
 }
 
 // EventKind names one change of authority the core makes.
@@ -264,13 +317,41 @@ const (
 	InstallationRequested   EventKind = "installation.requested"
 	InstallationActivated   EventKind = "installation.activated"
 	InstallationUninstalled EventKind = "installation.uninstalled"
-	RoleGranted             EventKind = "role.granted"
-	RoleRevoked             EventKind = "role.revoked"
-	DelegationGranted       EventKind = "delegation.granted"
-	DelegationRevoked       EventKind = "delegation.revoked"
-	ResourceAttached        EventKind = "resource.attached"
-	ResourceDetached        EventKind = "resource.detached"
-	ResourceTransferred     EventKind = "resource.transferred"
+	// InstallationReconverged: a redelivery asked nothing new of an active
+	// installation's consent, which now stands at the delivered generation.
+	InstallationReconverged EventKind = "installation.reconverged"
+	// InstallationUpgradeAvailable: a redelivery asks more than an active
+	// installation's consent approved; Detail "widened" names what. The
+	// installation stays as it is until Install approves the new offer.
+	InstallationUpgradeAvailable EventKind = "installation.upgrade_available"
+	// InstallationReachUnreached: a delivery left what the installation's
+	// target names through a binding unreached (decide.UnreachedOf); Detail
+	// "unreached" names each. It grants nothing there until a delivery
+	// reaches it again (InstallationReachRestored).
+	InstallationReachUnreached EventKind = "installation.reach_unreached"
+	// InstallationReachRestored: a delivery reaches again everything the
+	// installation's target names through a binding.
+	InstallationReachRestored EventKind = "installation.reach_restored"
+	// InstallationReachAdopted: a consent recorded before reach was kept
+	// adopted, once, the reach its approved declaration has as the
+	// composition stands; Detail "reach" names its digest.
+	InstallationReachAdopted EventKind = "installation.reach_adopted"
+	// InstallationRoleReachWidened: a delivery widened what a module page's
+	// role reaches through its bindings; the grants of that role on the
+	// page's installation ended with it (each journaled as role.revoked),
+	// and an administrator grants it again knowing what it now reaches.
+	// Detail "roles" names the roles, "widened" what widened.
+	InstallationRoleReachWidened EventKind = "installation.role_reach_widened"
+	// InstallationUpgraded: an administrator approved a newer offer on an
+	// active installation, which keeps its grants.
+	InstallationUpgraded EventKind = "installation.upgraded"
+	RoleGranted          EventKind = "role.granted"
+	RoleRevoked          EventKind = "role.revoked"
+	DelegationGranted    EventKind = "delegation.granted"
+	DelegationRevoked    EventKind = "delegation.revoked"
+	ResourceAttached     EventKind = "resource.attached"
+	ResourceDetached     EventKind = "resource.detached"
+	ResourceTransferred  EventKind = "resource.transferred"
 )
 
 // Event is one change of authority, journaled by the host in the transaction

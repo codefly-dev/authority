@@ -231,6 +231,10 @@
         "operation": {
           "type": "string",
           "description": "Which of the binding's operations the capability is for: \"invoke\" (the\ndefault for a person, a child or a delegation), \"headless\" (the default for\na workload) or \"lookup\": the binding's lookup scopes alone, to read a\nreceipt without the authority to repeat the effect."
+        },
+        "pageTarget": {
+          "type": "string",
+          "description": "With person: the target (a solution or a module page) whose page made\nthis call on the host's module edge. One rule for every page, the one its\nbackend is held to: when the target declares a binding to the audience,\nthe capability is issued through it, the person's role on the target cut\nto the binding, with the target as the hop's actor (operation_binding_id\nnames it when the target declares more than one); when it declares none,\nthe person's own access at the audience decides. Set by the host's edge,\nwhich knows the page it serves; empty is the person's own access."
         }
       },
       "description": "IssueRequest names on whose behalf the capability is issued."

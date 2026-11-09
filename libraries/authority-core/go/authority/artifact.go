@@ -57,9 +57,41 @@ func (s *Service) DecideArtifact(ctx context.Context, parent string, actor Workl
 		return domain.Installation{}, err
 	}
 	caller := decide.ArtifactCaller{Module: module, Audience: claims.GetAudience(), Tenant: claims.GetTenantId(),
-		OwnerKind: claims.GetOwnerPrincipalKind(), Delegated: verified.Actor() != nil, Held: verified.EffectiveScopes()}
+		OwnerKind: claims.GetOwnerPrincipalKind(), Delegated: verified.Actor() != nil, PagePresent: decide.PresentThroughPage(claims.GetActorChain()),
+		Held: verified.EffectiveScopes()}
+	// An owned parent's artifacts are its owner's, in the namespace of the
+	// installation that owner is the principal of, in this organization.
+	if caller.Owner, err = decide.ArtifactOwner(caller.Held, policy); err != nil {
+		return domain.Installation{}, err
+	}
+	if caller.Owner != "" {
+		if caller.OwnerNamespace, err = s.ownerNamespace(ctx, claims.GetTenantId(), caller.Owner); err != nil {
+			return domain.Installation{}, err
+		}
+	}
 	if err := decide.Artifact(caller, inst, found, installation, policy, action, identity); err != nil {
 		return domain.Installation{}, err
 	}
 	return inst, nil
+}
+
+// ownerNamespace is the namespace of the installation owner is the principal
+// of, active in tenant: where an owned parent's artifacts live. Empty when
+// owner holds no such installation.
+func (s *Service) ownerNamespace(ctx context.Context, tenant, owner string) (string, error) {
+	namespace := ""
+	err := s.store.Read(ctx, func(tx Tx) error {
+		owning, err := tx.InstallationByPrincipal(owner)
+		if errors.Is(err, domain.ErrNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if owning.Organization == tenant && owning.Status == domain.Active {
+			namespace = decide.Namespace(owning)
+		}
+		return nil
+	})
+	return namespace, err
 }

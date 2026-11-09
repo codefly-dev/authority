@@ -63,7 +63,16 @@ type IssueRequest struct {
 	// default for a person, a child or a delegation), "headless" (the default for
 	// a workload) or "lookup": the binding's lookup scopes alone, to read a
 	// receipt without the authority to repeat the effect.
-	Operation     string `protobuf:"bytes,12,opt,name=operation,proto3" json:"operation,omitempty"`
+	Operation string `protobuf:"bytes,12,opt,name=operation,proto3" json:"operation,omitempty"`
+	// With person: the target (a solution or a module page) whose page made
+	// this call on the host's module edge. One rule for every page, the one its
+	// backend is held to: when the target declares a binding to the audience,
+	// the capability is issued through it, the person's role on the target cut
+	// to the binding, with the target as the hop's actor (operation_binding_id
+	// names it when the target declares more than one); when it declares none,
+	// the person's own access at the audience decides. Set by the host's edge,
+	// which knows the page it serves; empty is the person's own access.
+	PageTarget    string `protobuf:"bytes,13,opt,name=page_target,json=pageTarget,proto3" json:"page_target,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -195,6 +204,13 @@ func (x *IssueRequest) GetActor() *WorkloadCredential {
 func (x *IssueRequest) GetOperation() string {
 	if x != nil {
 		return x.Operation
+	}
+	return ""
+}
+
+func (x *IssueRequest) GetPageTarget() string {
+	if x != nil {
+		return x.PageTarget
 	}
 	return ""
 }
@@ -1924,7 +1940,7 @@ var File_host_authority_v1_authority_proto protoreflect.FileDescriptor
 
 const file_host_authority_v1_authority_proto_rawDesc = "" +
 	"\n" +
-	"!host/authority/v1/authority.proto\x12\x11host.authority.v1\x1a\x1cgoogle/api/annotations.proto\x1a$host/authority/v1/work_context.proto\"\xf3\x04\n" +
+	"!host/authority/v1/authority.proto\x12\x11host.authority.v1\x1a\x1cgoogle/api/annotations.proto\x1a$host/authority/v1/work_context.proto\"\x94\x05\n" +
 	"\fIssueRequest\x12:\n" +
 	"\x06person\x18\x01 \x01(\v2 .host.authority.v1.PersonSessionH\x00R\x06person\x12C\n" +
 	"\bworkload\x18\x02 \x01(\v2%.host.authority.v1.WorkloadCredentialH\x00R\bworkload\x12H\n" +
@@ -1941,7 +1957,9 @@ const file_host_authority_v1_authority_proto_rawDesc = "" +
 	"\x0forganization_id\x18\t \x01(\tR\x0eorganizationId\x12;\n" +
 	"\x05actor\x18\n" +
 	" \x01(\v2%.host.authority.v1.WorkloadCredentialR\x05actor\x12\x1c\n" +
-	"\toperation\x18\f \x01(\tR\toperationB\x04\n" +
+	"\toperation\x18\f \x01(\tR\toperation\x12\x1f\n" +
+	"\vpage_target\x18\r \x01(\tR\n" +
+	"pageTargetB\x04\n" +
 	"\x02as\"4\n" +
 	"\rDelegationRef\x12#\n" +
 	"\rdelegation_id\x18\x01 \x01(\tR\fdelegationId\"\x9c\x01\n" +

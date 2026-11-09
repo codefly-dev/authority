@@ -9,18 +9,37 @@ package host.installation.v1;
 option go_package = "gateway/pkg/gen/host/installation/v1;installationv1";
 
 // InstallationService is implemented by the host and by the local authority.
+// Install takes a solution alone, chosen by an administrator through Review
+// and Install. A module, roles or not, page or not, is never installed here:
+// composition installs it in every organisation where it is composed,
+// holding no principal and no standing authority. Its roles, when it
+// declares any, decide who may use it, through GrantRole on that composition
+// installation as on a solution's.
 service InstallationService {
   // Current reads only the authenticated module's own active installation,
   // in the tenant of a current parent addressed to that module. It grants no
   // artifact approval or content access and exposes no roles or grants.
   rpc Current(CurrentInstallationRequest) returns (CurrentInstallation);
-  // Install composes an installation: its agent principal, its root scope and
-  // the row, pending until the target acknowledges its install step.
+  // Install composes an installation of a solution: its agent principal,
+  // its root scope and the row, pending until the solution acknowledges its
+  // install step, or active at once for one that declares no install
+  // endpoint. A module is refused NOT_FOUND: composition installs it. On an
+  // active installation, a fresh approval of a newer offer than its consent
+  // approved (Installation.upgrade_available) is an upgrade: the install step
+  // runs again (it converges idempotently; the host converges the closure
+  // there), then the installation, active throughout, moves its consent to
+  // the approved generation and its revision; its grants are kept but those
+  // of a role the approved offer no longer declares. Until the upgrade, the
+  // holders hold what the approved offer granted, never what the delivered
+  // one asks. A fresh approval of the offer already approved is refused as
+  // already installed. An install never deletes a role grant otherwise:
+  // RevokeRole and an uninstall do.
   rpc Install(InstallRequest) returns (Installation);
   // Review reads the current offer and installation revision without granting consent.
   rpc Review(ReviewRequest) returns (ConsentApproval);
-  // GrantRole grants a person or a team one of the solution's roles on the
-  // installation: the access. Idempotent; it leaves existing capabilities
+  // GrantRole grants a person or a team one of the roles the installation's
+  // target declares (a solution's, or a module page's on its composition
+  // installation): the access. Idempotent; it leaves existing capabilities
   // valid. An administrator of the installation's organization, or a holder
   // of the installer role on that installation, grants.
   rpc GrantRole(GrantRoleRequest) returns (Installation);
@@ -56,26 +75,31 @@ message CurrentInstallation {
   string namespace = 5;
 }
 
-// InstallableService is implemented by a solution; the host calls it once per
-// installation and retries until it is acknowledged.
+// InstallableService is implemented by a solution that declares an install
+// endpoint; the host calls it once per installation and retries until it is
+// acknowledged. A solution without it is active as soon as its installation
+// is recorded.
 service InstallableService {
   // Install sets up the solution for one installation; it must converge.
   rpc Install(InstallationNotice) returns (InstallationAck);
 }
 
 // OfferService is the local authority's setup read, served beside
-// InstallationService and not part of codefly.dev/installation: what solutions
-// this run delivered and, for one, what installing it would grant. A host
-// answers its own product's reads. It grants nothing; Install, GrantRole and
-// RevokeRole stay the only changes, each decided by the authority.
+// InstallationService and not part of codefly.dev/installation: what targets
+// this run delivered that an administrator chooses and, for one, what
+// installing it would grant. A host answers its own product's reads. It
+// grants nothing; Install, GrantRole and RevokeRole stay the only changes,
+// each decided by the authority.
 service OfferService {
-  // ListOffers lists the solutions delivered to this run that an administrator
-  // of the organization may install. A module is installed by composition and
-  // is never offered.
+  // ListOffers lists the solutions delivered to this run that an
+  // administrator of the organization may install. A module, roles or not,
+  // is installed by composition and is never offered.
   rpc ListOffers(ListOffersRequest) returns (ListOffersResponse);
-  // ReviewOffer reads one solution's roles, what each grants and the tools
+  // ReviewOffer reads one target's roles, what each grants and the tools
   // those grants make eligible, with the consent Install takes, from one read
-  // of the authority: the approval names exactly the offer displayed.
+  // of the authority: the approval names exactly the offer displayed. A
+  // member holding a role on the target's installation reads the same
+  // without the consent.
   rpc ReviewOffer(ReviewRequest) returns (ReviewedOffer);
 }
 
@@ -83,7 +107,7 @@ service OfferService {
 message InstallRequest {
   // The organisation installing.
   string organization_id = 1;
-  // The solution or module installed, by its name in the composition.
+  // The solution installed, by its name in the composition.
   string target = 2;
   // The role the installation holds; the least privilege it needs.
   string role = 3;
@@ -109,6 +133,11 @@ message ConsentApproval {
   string operation_id = 4;
   // sha256 digest of the reviewed authority offer.
   string digest = 5;
+  // sha256 digest of what each of the target's roles reaches, directly and
+  // transitively, in the composition reviewed (ReviewedOffer roles' reach):
+  // the consent covers it. Required; Install refuses an approval whose reach
+  // changed since it was reviewed (INSTALLATION_APPROVAL_REACH_CHANGED).
+  string reach_digest = 6;
 }
 
 // GrantRoleRequest grants one role to exactly one person or team.
@@ -206,6 +235,32 @@ message Installation {
   string principal_id = 10;
   // The roles the solution declares, sorted.
   repeated string roles = 11;
+  // The delivery generation the installation's consent approved. A
+  // redelivery that asks nothing new of the organization (no role, binding,
+  // edge dependency or method added, none reaching further, no standing
+  // authority asked) advances it without a click; one that asks more leaves
+  // it. Zero for an installation installed without consent (by composition
+  // or by the host's own setup).
+  uint64 approved_generation = 12;
+  // True when the delivered generation asks more than approved_generation
+  // did, when what the roles reach in the composition now (a module the
+  // target reaches redelivered, or newly composed) asks more than the
+  // consent approved, or when the approved generation is unknown (a consent
+  // recorded before it was kept; one recorded before reach was kept adopts
+  // the reach it has once, and asks nothing for it): the installation
+  // stands, active with its grants, its holders and its agent holding what
+  // the approved offer and reach granted, until an administrator reviews the
+  // offer and approves it with Install. A host renders it as an update
+  // available.
+  bool upgrade_available = 13;
+  // What the target's roles name through one of its bindings that the
+  // composition does not reach now, one condition per role and binding (a
+  // module that binding reaches no longer consumes it, or is not composed):
+  // a readiness condition beside upgrade_available. The delivery that left
+  // it stands; it grants nothing there, as each hop narrows, and clears by
+  // itself once a later delivery reaches it again. A host renders it as a
+  // degraded condition naming each.
+  repeated string unreached = 14;
 
   // Status is the installation's lifecycle.
   enum Status {
@@ -234,20 +289,20 @@ message ListOffersRequest {
   string organization_id = 1;
 }
 
-// ListOffersResponse is every delivered solution, by name.
+// ListOffersResponse is every delivered target an administrator chooses, by name.
 message ListOffersResponse {
   repeated Offer offers = 1;
 }
 
-// Offer is one delivered solution.
+// Offer is one delivered target an administrator chooses.
 message Offer {
-  // The solution's name in the composition: Install's target.
+  // The target's name in the composition: Install's target.
   string target = 1;
   // The delivery generation an approval binds.
   uint64 generation = 2;
 }
 
-// ReviewedOffer is one solution's authority offer and the consent that names it.
+// ReviewedOffer is one target's authority offer and the consent that names it.
 message ReviewedOffer {
   // What Install takes, with a fresh operation_id; read with the rest.
   ConsentApproval approval = 1;
@@ -270,6 +325,24 @@ message ReviewedOffer {
   // Exact declared viewer-edge presence, covered by the reviewed digest.
   // Required access and per-module approval are separate host review concerns.
   repeated OfferDependency edge_dependencies = 8;
+  // True when the solution declares roles, which its Setup grants.
+  bool roles_declared = 9;
+  // True when the solution declares a page a person opens, as the
+  // authority's stored declaration knows it; a host whose store does not
+  // keep the flag answers false.
+  bool page = 10;
+  // What the solution depends on: every module it reaches through its
+  // bindings and required edge dependencies, transitively, roles or not, by
+  // its name in the composition, sorted. Composition installs every module
+  // wherever it is composed; a host whose composition is per organisation
+  // converges these with the install. A solution reached is installed by its
+  // own review and is not listed. A binding audience or a required edge
+  // dependency that is not composed refuses the review: the closure cannot
+  // be installed.
+  repeated string closure = 11;
+  // The optional edge dependencies the target and its closure declare, by
+  // module name: present when composed, never installed with the target.
+  repeated string optional_edges = 12;
 }
 
 // OfferDependency carries presence only, never scopes or inferred binding ids.
@@ -294,6 +367,35 @@ message OfferRole {
   repeated OfferScope scopes = 2;
   // Each composed operation the role's scopes cover.
   repeated OfferCapability capabilities = 3;
+  // Every place a holder of the role can cause an operation, as a static
+  // maximum: on the target, through the target's bindings and onward, and
+  // on the holder's own session. An administrator's review reads it in the
+  // composition now; a holder's, as the installation's consent approved it.
+  repeated OfferReach reach = 4;
+}
+
+// OfferReach is one module a role reaches, one way. Issuance, for a holder
+// or for the installation's agent, never carries past it; it is an upper
+// bound (resources and owners are checked at each call).
+message OfferReach {
+  // A shortest way from the target to module, by module name, the target
+  // first: a witness. Every way there, re-entries included, is accounted for
+  // in scopes and operations.
+  repeated string path = 1;
+  string module = 2;
+  // "role": the role's own scopes on the target; "binding": the target, then
+  // each module on the path, acting for the holder; "person": an edge the
+  // target's page calls on the holder's own session, where the holder's own
+  // grants decide (no scopes, no operations).
+  string via = 3;
+  // The most a holder's capability at module can carry.
+  repeated OfferScope scopes = 4;
+  // On the target: "installation" (the installation's own data) or
+  // "attached" (what is attached to it); empty otherwise.
+  string confinement = 5;
+  // The operations of module those scopes are admitted to, by its declared
+  // method policies; one per operation, whatever face serves it.
+  repeated string operations = 6;
 }
 
 // OfferScope is one declared scope.

@@ -21,6 +21,13 @@ message Policy {
   // AnyCheckedCaller lets through any call whose Work Context the authority
   // checked, holding nothing in particular.
   bool any_checked_caller = 2;
+  // Carries lists what a call may exercise beyond what it requires, only
+  // beside requires: an effect the module performs on some calls alone, on
+  // the call's own capability (a first write creating, and attaching to the
+  // caller's installation, the collection it writes to). The hop requires
+  // none of it; a binding whose ceiling is derived from the calls it names
+  // includes it, so a caller holding it can exercise it through that binding.
+  repeated Requirement carries = 3;
 }
 
 // Requirement is actions on one resource kind, spelled in the kind's own

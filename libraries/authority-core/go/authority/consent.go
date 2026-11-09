@@ -35,9 +35,12 @@ func memberAs(tx Tx, caller Person, org string) (domain.Person, error) {
 	return tx.Member(org, caller.ID)
 }
 
-// offerDigest covers every authority declaration in the reviewed module. JSON
-// sorts map keys; the receipt therefore covers roles, ceilings and bindings too.
-func offerDigest(m domain.Module) (string, error) {
+// OfferDigest is the digest a consent records of the offer it approved
+// (ConsentReceipt.Digest), covering every authority declaration in the
+// reviewed module. JSON sorts map keys; the receipt therefore covers roles,
+// ceilings and bindings too. A host comparing a declaration it holds with
+// what a consent approved compares this.
+func OfferDigest(m domain.Module) (string, error) {
 	raw, err := json.Marshal(m)
 	if err != nil {
 		return "", err
@@ -47,8 +50,9 @@ func offerDigest(m domain.Module) (string, error) {
 
 // Review reads one consistent offer. It never supplies an operation identity or
 // approves anything; the caller must retain the returned values when consenting.
-// It is an administrator's read: the consent tuple is what Install takes, and
-// a module page, which composition installs, answers none.
+// It is an administrator's read of a solution: the consent tuple is what
+// Install takes. A module, roles or not, is installed by composition and
+// answers none.
 func (s *Service) Review(ctx context.Context, caller Person, org, target string) (domain.ConsentApproval, error) {
 	offer, err := s.reviewOffer(ctx, caller, org, target, false)
 	return offer.Approval, err
@@ -61,10 +65,32 @@ type ReviewedOffer struct {
 	Module       domain.Module
 	Installation domain.Installation
 	Modules      []domain.Module
+	// RolesDeclared: the solution declares roles, which its Setup grants.
+	RolesDeclared bool
+	// Page: the solution declares a page a person opens, as the stored
+	// declaration knows it; a store that does not keep the flag answers
+	// false.
+	Page bool
+	// Closure is the modules the solution reaches, transitively, by name
+	// (decide.Closure), roles or not. Composition installs every module, so
+	// the closure reports what the solution depends on; a host whose
+	// composition is per organization converges it with the install.
+	Closure []string
+	// OptionalEdges are the optional edge dependencies the target and its
+	// closure declare, by module name: present when composed, never
+	// installed by the install.
+	OptionalEdges []string
+	// Reach is what each role reaches, directly and transitively
+	// (decide.Reach): in the composition now on an administrator's read,
+	// which the approval's ReachDigest names; as the installation's consent
+	// approved it on a holder's read.
+	Reach map[string][]domain.ReachRow
+	// UpgradeAvailable: the installation's consent stands behind what is
+	// delivered, its declaration or its reach (Service.UpgradeAvailable).
+	UpgradeAvailable bool
 }
 
-// ReviewOffer reads one solution's offer, or a module page's that declares
-// roles. An administrator of org reads it
+// ReviewOffer reads one solution's offer. An administrator of org reads it
 // with the consent tuple Install takes. A member of org who holds a role on
 // the solution's active installation there (granted to them or to a team of
 // theirs) reads the same declaration, roles, ceiling and installation without
@@ -83,16 +109,7 @@ func (s *Service) reviewOffer(ctx context.Context, caller Person, org, target st
 		if code, ok := domain.CodeOf(refused); refused != nil && (!members || !ok || code != domain.Denied) {
 			return refused
 		}
-		var inst domain.Installation
-		var err error
-		if s.cfg.HostInstallsModules {
-			// A host that installs modules names a module page's installation
-			// itself, so it is found by its target, as issuance finds it: the
-			// active one before any the core retired under its own id.
-			inst, err = installationOf(tx, org, target)
-		} else {
-			inst, err = tx.Installation(s.cfg.InstallationID(org, target))
-		}
+		inst, err := tx.Installation(s.cfg.InstallationID(org, target))
 		if errors.Is(err, domain.ErrNotFound) {
 			inst, err = domain.Installation{}, nil
 		}
@@ -112,22 +129,61 @@ func (s *Service) reviewOffer(ctx context.Context, caller Person, org, target st
 		if err != nil {
 			return notFound(err)
 		}
-		// A module page declaring roles is reviewed as a solution is: its
-		// roles are what its Setup shows and grants. Its installation is
-		// still composition's (Install refuses a module), so its review
-		// carries no consent tuple: there is nothing to approve.
-		if !decide.RoleGated(m) {
-			return domain.Missing("%q is not a composed solution or a module page declaring roles; a module is installed by composition", target)
+		// Only a solution is reviewed, consented to and installed by an
+		// administrator. A module, roles or not, is composition's: nothing to
+		// review; its roles are granted on its composition installation.
+		if m.Kind != domain.KindSolution {
+			return domain.Missing("%q is not a composed solution; a module is installed by composition", target)
 		}
-		if refused == nil && m.Kind == domain.KindSolution {
-			digest, err := offerDigest(m)
+		if refused == nil {
+			digest, err := OfferDigest(m)
 			if err != nil {
 				return err
 			}
-			out = domain.ConsentApproval{TargetID: m.Principal, Generation: m.Generation, ExpectedRevision: inst.Revision, Digest: digest}
+			reach, err := reachIn(tx, m)
+			if err != nil {
+				return err
+			}
+			out = domain.ConsentApproval{TargetID: m.Principal, Generation: m.Generation, ExpectedRevision: inst.Revision, Digest: digest, ReachDigest: reach.digest}
+			offer.Reach = reach.rows
+			if inst.ID != "" {
+				if offer.UpgradeAvailable, err = upgradeAvailable(tx, inst, m); err != nil {
+					return err
+				}
+			}
+		} else {
+			// A role holder reads what they hold: the declaration their
+			// installation's consent approved, not one delivered since, and
+			// the reach it approved, not one a delivery widened since.
+			if offer.UpgradeAvailable, err = upgradeAvailable(tx, inst, m); err != nil {
+				return err
+			}
+			if m, err = approvedModule(tx, inst, m); err != nil {
+				return err
+			}
+			if offer.Reach, err = decide.DecodeReach(inst.Consent.Reach); err != nil {
+				return err
+			}
+			if inst.Consent.ReachDigest == "" {
+				reach, err := reachIn(tx, m)
+				if err != nil {
+					return err
+				}
+				offer.Reach = reach.rows
+			}
 		}
 		offer.Module, offer.Installation = m, inst
-		offer.Modules, err = tx.Modules()
+		offer.RolesDeclared, offer.Page = len(m.Roles) > 0, m.Page
+		if offer.Modules, err = tx.Modules(); err != nil {
+			return err
+		}
+		if !members {
+			return nil // Review hands the consent tuple alone
+		}
+		// The setup read says what the install brings along; a binding or a
+		// required edge naming something not composed refuses it, since that
+		// install could not converge.
+		offer.Closure, offer.OptionalEdges, err = decide.Closure(m, offer.Modules)
 		return err
 	})
 	offer.Approval = out
@@ -165,16 +221,19 @@ func consentIntent(caller Person, org, target, role, owner string, a *domain.Con
 	return fmt.Sprintf("%x", sha256.Sum256(raw)), nil
 }
 
-func checkConsent(m domain.Module, existing domain.Installation, a *domain.ConsentApproval, intent string) (bool, error) {
+func checkConsent(m domain.Module, existing domain.Installation, a *domain.ConsentApproval, intent string, reach offeredReach) (bool, error) {
 	if a.TargetID != m.Principal || a.Generation != m.Generation {
 		return false, domain.NotNow("INSTALLATION_APPROVAL_GENERATION_CHANGED: the reviewed target or generation changed; review and approve again")
 	}
-	digest, err := offerDigest(m)
+	digest, err := OfferDigest(m)
 	if err != nil {
 		return false, err
 	}
 	if a.Digest != digest {
 		return false, domain.NotNow("INSTALLATION_APPROVAL_DIGEST_CHANGED: the reviewed authority offer changed; review and approve again")
+	}
+	if a.ReachDigest != reach.digest {
+		return false, domain.NotNow("INSTALLATION_APPROVAL_REACH_CHANGED: what the offer's roles reach changed, or the approval names no reach; review and approve again")
 	}
 	receipt := existing.Consent
 	if receipt.OperationID == a.OperationID {
@@ -192,9 +251,10 @@ func checkConsent(m domain.Module, existing domain.Installation, a *domain.Conse
 	return false, nil
 }
 
-// Offers lists what an administrator of org sets up: delivered solutions, and
-// module pages declaring roles (composition installs them; their Setup grants
-// their roles). A module without roles is the organization's roles' alone.
+// Offers lists what an administrator of org sets up: the delivered
+// solutions, each installed through Review and Install. A module is never
+// offered, roles or not: composition installs it, and its roles, or the
+// organization's when it declares none, decide who may use it.
 func (s *Service) Offers(ctx context.Context, caller Person, org string) ([]domain.Module, error) {
 	var out []domain.Module
 	err := s.store.Read(ctx, func(tx Tx) error {
@@ -203,7 +263,7 @@ func (s *Service) Offers(ctx context.Context, caller Person, org string) ([]doma
 		}
 		modules, err := tx.Modules()
 		for _, m := range modules {
-			if decide.RoleGated(m) {
+			if m.Kind == domain.KindSolution {
 				out = append(out, m)
 			}
 		}

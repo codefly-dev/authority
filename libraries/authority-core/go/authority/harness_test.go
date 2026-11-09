@@ -136,9 +136,15 @@ func (h *harness) admin(org string) authority.Person {
 }
 
 func (h *harness) install(org, target string) domain.Installation {
+	return h.installAs(org, target, "author")
+}
+
+// installAs installs target at org through the administrator's review, with
+// role as the installation's agent role ("" leaves it to the declaration).
+func (h *harness) installAs(org, target, role string) domain.Installation {
 	h.t.Helper()
 	admin := h.admin(org)
-	inst, err := h.svc.Install(h.ctx, admin, org, target, "author", admin.ID, h.approval(org, target), nil)
+	inst, err := h.svc.Install(h.ctx, admin, org, target, role, admin.ID, h.approval(org, target), nil)
 	if err != nil {
 		h.t.Fatal(err)
 	}
