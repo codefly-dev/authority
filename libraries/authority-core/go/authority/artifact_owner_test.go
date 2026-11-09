@@ -79,3 +79,34 @@ func TestAnOwnersArtifactIsInItsOwnersNamespace(t *testing.T) {
 		t.Fatalf("the viewer runs the builder's artifact: %v", err)
 	}
 }
+
+// The namespace an owned parent authors in is its owner's installation's; an
+// unowned parent's is the module installation's own.
+func TestTheParentAuthorsInItsOwnersNamespace(t *testing.T) {
+	h := newHarness(t)
+	agent := domain.Module{Name: "agent", Principal: "agent", Kind: domain.KindModule, Generation: 1, OwnerAware: true,
+		ResourceKinds: []*basev0.WorkScopeV1{sc("agent.intents", "read", "activate", "run")}}
+	if _, err := h.svc.ApplyModule(h.ctx, agent); err != nil {
+		t.Fatal(err)
+	}
+	builder := domain.Module{Name: "builder", Principal: "builder", Kind: domain.KindSolution, Generation: 1, OwnerAware: true, Page: true,
+		InstallationRole: domain.NoInstallationRole, ResourceKinds: []*basev0.WorkScopeV1{sc("builder.note", "read")},
+		Bindings: map[string]domain.Binding{"agent": {ID: "agent", Audience: "agent", InvokeScopes: []*basev0.WorkScopeV1{sc("agent.intents", "read", "run")}}},
+		Roles: map[string][]*basev0.WorkScopeV1{domain.InstallerRole: {sc("builder.note", "read")}, "viewer": {sc("builder.note", "read"), sc("agent.intents", "read", "run")}}}
+	if _, err := h.svc.ApplyModule(h.ctx, builder); err != nil {
+		t.Fatal(err)
+	}
+	h.installAs(acme, "builder", "")
+	h.grant("builder", "viewer", "remi")
+	owned := h.must(h.page("remi", "builder", "agent"))
+	inst, namespace, err := h.svc.CurrentAuthoring(h.ctx, owned.Token, authority.Workload{Module: "agent"})
+	if err != nil || namespace != acme+".builder" || inst.Target != "agent" {
+		t.Fatalf("an owned parent authors in %q at %s (%v)", namespace, inst.Target, err)
+	}
+	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "agent-reader", Scopes: []domain.RoleScope{{Kind: "agent.intents", Actions: []string{"read"}}}})
+	h.store.PutPerson(domain.Person{ID: "lea", Organization: acme, Roles: []string{"agent-reader"}})
+	own := h.must(h.root("lea", "agent"))
+	if _, namespace, err := h.svc.CurrentAuthoring(h.ctx, own.Token, authority.Workload{Module: "agent"}); err != nil || namespace != acme+".agent" {
+		t.Fatalf("an unowned parent authors in %q (%v)", namespace, err)
+	}
+}

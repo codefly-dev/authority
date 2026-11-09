@@ -56,11 +56,13 @@ func (p *Plugin) Current(ctx context.Context, req *installationv1.CurrentInstall
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}
-	inst, err := p.State.Service().CurrentInstallation(ctx, req.GetParentToken(), authority.Workload{Module: actor.Name})
+	// The namespace is where the parent authors: the installation's own, or,
+	// for a parent owned by a solution installation, that installation's.
+	inst, namespace, err := p.State.Service().CurrentAuthoring(ctx, req.GetParentToken(), authority.Workload{Module: actor.Name})
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}
-	return &installationv1.CurrentInstallation{Id: inst.ID, OrganizationId: inst.Organization, Target: inst.Target, Revision: inst.Revision, Namespace: state.Namespace(inst)}, nil
+	return &installationv1.CurrentInstallation{Id: inst.ID, OrganizationId: inst.Organization, Target: inst.Target, Revision: inst.Revision, Namespace: namespace}, nil
 }
 
 // Install installs a solution at the caller's organisation, which the caller

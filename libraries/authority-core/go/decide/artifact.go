@@ -62,15 +62,25 @@ type ArtifactCaller struct {
 // ArtifactOwner is the one owner the held scopes of policy are owned by, or
 // "" when none is owned; mixed owners (or owned beside unowned) are refused.
 func ArtifactOwner(held Scopes, policy string) (string, error) {
-	owners := map[string]bool{}
+	var of Scopes
 	for _, sc := range held {
 		if sc.GetResourceKind() == policy {
-			owners[sc.GetResourceOwnerId()] = true
+			of = append(of, sc)
 		}
+	}
+	return ScopesOwner(of)
+}
+
+// ScopesOwner is the one owner every scope of held is owned by, or "" when
+// none is owned; mixed owners (or owned beside unowned) are refused.
+func ScopesOwner(held Scopes) (string, error) {
+	owners := map[string]bool{}
+	for _, sc := range held {
+		owners[sc.GetResourceOwnerId()] = true
 	}
 	switch {
 	case len(owners) > 1:
-		return "", domain.Refuse("the parent holds %s for more than one owner; an artifact is one owner's", policy)
+		return "", domain.Refuse("the parent's scopes are held for more than one owner; an artifact is one owner's")
 	case len(owners) == 1:
 		for owner := range owners {
 			return owner, nil
