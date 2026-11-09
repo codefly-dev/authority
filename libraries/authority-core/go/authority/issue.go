@@ -628,10 +628,11 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 		default:
 			heldHere = verified.EffectiveScopes()
 		}
-		// Only a solution's roles select its principal's data; a module
-		// page's select no owner, so its audience need not check one. A kind
-		// the audience declares shared is held unselected (decide.Unselect):
-		// no owner holds a resource of it.
+		// A solution's roles select its principal's data; a module page's
+		// select its composition installation's at an audience that checks
+		// owners and none elsewhere (decide.ModuleRoleAt). A kind the audience
+		// declares shared is held unselected (decide.Unselect): no owner holds
+		// a resource of it.
 		heldHere, sourceCeiling = decide.Unselect(audience, heldHere), decide.Unselect(audience, sourceCeiling)
 		confined := bounded && anySolution(tx, solutionPrincipals(claims, am.Principal)) && scope.HasOwner(heldHere)
 		if (confined || claims.GetOwnerPrincipalKind() == "agent" && scope.HasOwner(heldHere)) && !audience.OwnerAware {

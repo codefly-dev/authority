@@ -217,3 +217,79 @@ func ledgerPage(t *testing.T, h *harness) {
 		t.Fatal(err)
 	}
 }
+
+// RBAC-1 review: a composition installation's principal is checked as a
+// solution installation's is. A module delivered under the principal the
+// page's installation would take (squatting it) leaves the installation
+// without one, owning nothing, rather than sharing an identity with it.
+func TestRBAC1ACompositionPrincipalAnotherIdentityHoldsIsNotTaken(t *testing.T) {
+	h := newHarness(t)
+	squatted := h.principal(acme, "pages")
+	if _, err := h.svc.ApplyModule(h.ctx, domain.Module{Name: "squatter", Principal: squatted, Kind: domain.KindModule, Generation: 1,
+		ResourceKinds: []*basev0.WorkScopeV1{sc("squatter.item", "read")}}); err != nil {
+		t.Fatal(err)
+	}
+	pageReachingTheStore(t, h)
+	if got := h.pagesAt(acme).PrincipalID; got != "" {
+		t.Fatalf("the page's installation took principal %q, which module squatter holds", got)
+	}
+	_, err := h.page("maya", "pages", "store")
+	refused(t, err, `holds nothing at store through binding "store"`)
+	// Elsewhere the principal is free and taken.
+	if got := h.pagesAt(globex).PrincipalID; got != h.principal(globex, "pages") {
+		t.Fatalf("globex's page installation holds %q", got)
+	}
+}
+
+// RBAC-1 review: a module withdrawn while its installations held no
+// principal, and delivered again, is installed again AND given its
+// principal, at one raised revision.
+func TestRBAC1AWithdrawnModuleDeliveredAgainIsActiveWithItsPrincipal(t *testing.T) {
+	h := newHarness(t)
+	pageReachingTheStore(t, h)
+	inst := h.pagesAt(acme)
+	inst.PrincipalID = ""
+	if err := h.store.Write(h.ctx, func(tx authority.Tx) error { return tx.PutInstallation(inst) }); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.WithdrawModule(h.ctx, "pages"); err != nil {
+		t.Fatal(err)
+	}
+	var withdrawn domain.Installation
+	if err := h.store.Read(h.ctx, func(tx authority.Tx) (err error) { withdrawn, err = tx.Installation(inst.ID); return err }); err != nil {
+		t.Fatal(err)
+	}
+	m := pageModule(2, true)
+	m.Bindings = map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read")}}}
+	m.Roles["viewer"] = append(m.Roles["viewer"], sc(kind, "read"))
+	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
+		t.Fatal(err)
+	}
+	var now domain.Installation
+	if err := h.store.Read(h.ctx, func(tx authority.Tx) (err error) { now, err = tx.Installation(inst.ID); return err }); err != nil {
+		t.Fatal(err)
+	}
+	if now.Status != domain.Active || now.PrincipalID != h.principal(acme, "pages") || now.Revision != withdrawn.Revision+1 {
+		t.Fatalf("redelivered after withdrawal: %+v, withdrawn %+v", now, withdrawn)
+	}
+}
+
+// RBAC-1 review: reconciling organizations gives every composition
+// installation recorded without a principal its principal, without waiting
+// for its module to be delivered again.
+func TestRBAC1ReconcilingGivesARecordedInstallationItsPrincipal(t *testing.T) {
+	h := newHarness(t)
+	pageReachingTheStore(t, h)
+	inst := h.pagesAt(acme)
+	inst.PrincipalID = ""
+	if err := h.store.Write(h.ctx, func(tx authority.Tx) error { return tx.PutInstallation(inst) }); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.ReconcileOrganizations(h.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if now := h.pagesAt(acme); now.PrincipalID != h.principal(acme, "pages") || now.Revision != inst.Revision+1 {
+		t.Fatalf("reconciled %+v, was %+v", now, inst)
+	}
+	exactly(t, h.must(h.page("maya", "pages", "store")), kind, h.principal(acme, "pages"), []string{"read"})
+}
