@@ -15,8 +15,8 @@ func (h *harness) page(person, target, audience string, scopes ...*basev0.WorkSc
 
 // One rule for every page: a call a page makes on the host's module edge to a
 // module its target declares a binding to is issued through that binding,
-// the person's role on the target cut to it; to a module its target declares
-// no binding to, on the person's own access.
+// the person's role on the target cut to it; to its own target, the person's
+// roles there; to a module its target declares no binding to, refused.
 func TestAPagesCallGoesThroughItsTargetsBinding(t *testing.T) {
 	h := newHarness(t)
 	ledgerPage(t, h)
@@ -41,12 +41,24 @@ func TestAPagesCallGoesThroughItsTargetsBinding(t *testing.T) {
 		_, err = h.page("remi", "pages", "ledger")
 		refused(t, err, "holds no role on pages")
 	})
-	t.Run("a module the page's target declares no binding to is on the person's own access", func(t *testing.T) {
+	t.Run("a module the page's target declares no binding to is refused, whatever the person's own access (RBAC-3)", func(t *testing.T) {
 		h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "legacy-reader", Scopes: []domain.RoleScope{{Kind: legacyKind, Actions: []string{"read"}}}})
 		h.store.PutPerson(domain.Person{ID: "lea", Organization: acme, Roles: []string{"legacy-reader"}})
-		exactly(t, h.must(h.page("lea", "pages", "legacy-store")), legacyKind, "", []string{"read"})
-		_, err := h.page("maya", "pages", "legacy-store")
-		refused(t, err, "the owner holds nothing at this audience")
+		for _, person := range []string{"lea", "maya"} {
+			_, err := h.page(person, "pages", "legacy-store")
+			refused(t, err, "pages declares no binding to legacy-store")
+		}
+		// Naming a binding does not reopen it: the name must be one the
+		// target declares to that audience.
+		_, err := h.svc.IssueForPage(h.ctx, h.person("lea"), "pages", authority.IssueRequest{Audience: "legacy-store", Binding: "store"})
+		refused(t, err, "pages declares no binding to legacy-store")
+		// The person's own access there is unchanged on their own session.
+		exactly(t, h.must(h.root("lea", "legacy-store")), legacyKind, "", []string{"read"})
+	})
+	t.Run("the page's call to its own target is the person's roles there", func(t *testing.T) {
+		exactly(t, h.must(h.page("maya", "pages", "pages")), "pages.note", "", []string{"read"})
+		_, err := h.page("remi", "pages", "pages")
+		refused(t, err, "holds no role on pages")
 	})
 	t.Run("a solution's page goes through the solution's binding, as its backend does", func(t *testing.T) {
 		h.grant("a", "viewer", "tal")
