@@ -93,6 +93,17 @@ roles decide alone. A module that gains or
 loses roles keeps its installation; the grants of a role a delivery stops
 declaring end with that delivery, the others stay.
 
+**A page's call goes through its target's binding.** One rule for every page,
+a module page's or a solution's, the one its backend is held to: a person's
+`Issue` naming `page_target` (set by the host's module edge, which knows the
+page it serves) is issued, when that target declares a binding to the
+audience, as the target's own hop over it (`IssueForPage`): the person's
+capability at the target, then the binding, so they hold there their role on
+the target cut to the binding, with the target as the actor. A module the
+target declares no binding to is an edge on the person's own access, as an
+`Issue` naming no page. This repository's local edge names no page yet, so a
+page served by it reaches every module on the person's own access.
+
 **Consent covers reach.** Each role in `ReviewOffer` carries its `reach`: every
 place a holder can cause an operation, as a static maximum computed by the
 core from declarations alone (`decide.Reach`): on the solution itself (its

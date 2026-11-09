@@ -182,7 +182,11 @@ func (i *Issuer) issue(ctx context.Context, req *authorityv1.IssueRequest) (*aut
 		if perr != nil {
 			return nil, perr
 		}
-		out, err = i.svc.IssueForPerson(ctx, person, r)
+		if page := req.GetPageTarget(); page != "" {
+			out, err = i.svc.IssueForPage(ctx, person, page, r)
+		} else {
+			out, err = i.svc.IssueForPerson(ctx, person, r)
+		}
 	case *authorityv1.IssueRequest_Workload:
 		w, werr := i.workload(ctx, as.Workload.GetCredential(), "a workload issue names the module asking")
 		if werr != nil {
