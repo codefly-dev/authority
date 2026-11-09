@@ -559,8 +559,12 @@ func (f *fixture) module(kind string) domain.Module {
 		Bindings:      map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: read, HeadlessScopes: read, LookupScopes: read}},
 		Methods:       map[string]domain.MethodPolicy{"/s.S/Read": {Requires: read}, "GET /open": {AnyCheckedCaller: true}}}
 	if kind == domain.KindSolution {
-		m.Roles = map[string][]*basev0.WorkScopeV1{domain.InstallerRole: read, "viewer": read}
+		onward := []*basev0.WorkScopeV1{{ResourceKind: "storetest.onward", Actions: []string{"read"}}}
+		m.Roles = map[string][]*basev0.WorkScopeV1{domain.InstallerRole: read, "viewer": append(slices.Clone(read), onward...)}
 		m.OwnedRoles = map[string][]*basev0.WorkScopeV1{"viewer": {{ResourceKind: "store.item", Actions: []string{"read"}}}}
+		m.Through = map[string]map[string][]*basev0.WorkScopeV1{"viewer": {"store": onward}}
+	} else {
+		m.SharedKinds = []string{"storetest.item"}
 	}
 	return m
 }
@@ -593,6 +597,16 @@ func sameModule(t *testing.T, got, want domain.Module) {
 	for method, p := range want.Methods {
 		g := got.Methods[method]
 		ok = ok && g.AnyCheckedCaller == p.AnyCheckedCaller && sameScopes(g.Requires, p.Requires)
+	}
+	// A shared kind and what a role names through a binding decide issuance
+	// and delivery: a store that drops either issues owner-selected scopes a
+	// module cannot check, or reports no reach a delivery left unreached.
+	ok = ok && sameSet(got.SharedKinds, want.SharedKinds) && len(got.Through) == len(want.Through)
+	for role, bindings := range want.Through {
+		ok = ok && len(got.Through[role]) == len(bindings)
+		for id, scopes := range bindings {
+			ok = ok && sameScopes(got.Through[role][id], scopes)
+		}
 	}
 	if !ok {
 		t.Errorf("module reads %+v, want %+v", got, want)
