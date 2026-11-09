@@ -13,6 +13,34 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
 )
 
+// reachable holds every composed module's roles, once m is composed in place
+// of its previous generation, to reach what they name through a binding
+// (decide.Unreached); m's own first.
+func reachable(tx Tx, m domain.Module) error {
+	all, err := tx.Modules()
+	if err != nil {
+		return err
+	}
+	composed := map[string]domain.Module{}
+	for _, other := range all {
+		if other.Name != m.Name {
+			composed[other.Principal] = other
+		}
+	}
+	composed[m.Principal] = m
+	if err := decide.Unreached(m, composed); err != nil {
+		return err
+	}
+	for _, principal := range slices.Sorted(maps.Keys(composed)) {
+		if other := composed[principal]; other.Name != m.Name {
+			if err := decide.Unreached(other, composed); err != nil {
+				return domain.Refuse("delivering %s at %d would leave a reach unreached: %v", m.Name, m.Generation, err)
+			}
+		}
+	}
+	return nil
+}
+
 // ApplyModule records a delivered module at a newer generation and holds a
 // module installation at every organization, unless the host installs
 // modules itself (Config.HostInstallsModules). Only a solution is installed
@@ -29,19 +57,7 @@ import (
 // approved one did not (reconverge), and otherwise stands, offering an
 // upgrade; its role grants are kept either way.
 func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, error) {
-	// Its roles may name what its bindings reach in the composition as it
-	// stands (decide.Grantable).
-	composed := map[string]domain.Module{}
-	if err := s.store.Read(ctx, func(tx Tx) error {
-		all, err := tx.Modules()
-		for _, other := range all {
-			composed[other.Principal] = other
-		}
-		return err
-	}); err != nil {
-		return nil, err
-	}
-	if err := decide.ValidateModuleIn(m, composed); err != nil {
+	if err := decide.ValidateModule(m); err != nil {
 		return nil, err
 	}
 	m.ResourceKinds = decide.Served(m)
@@ -97,6 +113,13 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 			return domain.Refuse("principal %q names an installed solution's principal; a module's principal is its own", m.Principal)
 		}
 		m.ResourceKinds = scope.Normalize(m.ResourceKinds)
+		// What a role names through a binding is reachable from it in the
+		// composition this delivery leaves, the delivered module's and every
+		// other's: a later delivery that composes or narrows a module a reach
+		// walks through is held to it as the first one was (decide.Unreached).
+		if err := reachable(tx, m); err != nil {
+			return err
+		}
 		// A consent recorded before reach was kept adopts the reach it has
 		// before this delivery changes the composition, so what the
 		// delivery widens is measured against it.

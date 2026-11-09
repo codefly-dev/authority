@@ -73,6 +73,13 @@ type Module struct {
 	Roles map[string][]*basev0.WorkScopeV1
 	// OwnedRoles resolve only to the exact ids attached to this installation.
 	OwnedRoles map[string][]*basev0.WorkScopeV1
+	// Through are, per role and per binding of the module's own, the scopes
+	// the role names downstream of that binding: kinds a module it reaches
+	// serves or consumes, carried onward at each hop and cut to each binding
+	// there. They are part of the role (Roles holds them too); Through says
+	// how each is reached, which delivery holds reachable in the composition
+	// (decide.ValidateModuleIn).
+	Through map[string]map[string][]*basev0.WorkScopeV1 `json:",omitempty"`
 	// InstallationRole is the signed selector: absent leaves selection to the
 	// caller; "none" selects no standing authority; otherwise it names a role.
 	// Omit absent fields from the existing review digest's JSON representation.

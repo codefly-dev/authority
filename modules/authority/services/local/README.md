@@ -111,15 +111,20 @@ context on it, and presents its own workload credential (`module-identity`) as
 the actor; an `Issue` naming a page with no actor or another workload's is
 refused. The shared conformance suite holds both hosts to it.
 
-**Roles name what they reach; shared kinds go unselected.** A solution's
-or module page's role may name what its bindings consume and what the
-bindings of every module they reach consume (`decide.Grantable`, checked at
-delivery against the composition): a wiki viewer's role names the model's
-profiles and the document store's read its agent reaches for a turn. A
-module may declare kinds `shared` (the authority document's `shared_kinds`):
-shared infrastructure no owner holds, such as a model's profiles. A scope of
-one is issued unselected, even through a solution's binding; every other
-kind keeps its owner selector, and a module that checks no owner still
+**Roles name what they reach, through a binding; shared kinds go unselected.**
+A solution's or module page's role may name what it serves and what its own
+bindings consume, and, declared through one of its bindings (`RoleV1.through`,
+from a role scope's `through:` in the module contract), what the modules that
+binding reaches consume onward: a wiki viewer's role names the model's profiles
+and the document store's read through its binding to the agent. Delivery holds
+each reachable from its binding in the composition (`decide.Unreached`), at the
+declaring module's delivery and at every later one, so a delivery that would
+leave a declared reach unreached is refused naming it; a walk that meets a
+module not yet composed waits for that module's delivery. A module may declare
+kinds `shared` (the authority document's `shared_kinds`, from a scope
+ceiling's `shared: true`): kinds no owner holds, such as a model's profiles. A
+scope of one is issued unselected, even through a solution's binding; every
+other kind keeps its owner selector, and a module that checks no owner still
 receives no owner-selected scope.
 
 **Consent covers reach.** Each role in `ReviewOffer` carries its `reach`: every

@@ -95,9 +95,10 @@ func TestARedeliveryDroppingARoleDropsItsGrants(t *testing.T) {
 }
 
 // A module page's role reaches through the page's bindings as a solution's
-// does, and onward through the bindings of the modules they reach: it may
-// name what those consume (the store's own binding carries the kind's
-// write), and nothing it neither serves nor reaches.
+// does: it may name what a binding consumes, and, declared through that
+// binding, what the modules it reaches consume onward (the store's own
+// binding carries the kind's write); never what nothing reaches, nor a kind
+// reached downstream it does not declare through its binding.
 func TestAModulePageRoleNamesWhatItServesOrConsumes(t *testing.T) {
 	h := newHarness(t)
 	m := pageModule(1, true)
@@ -108,13 +109,17 @@ func TestAModulePageRoleNamesWhatItServesOrConsumes(t *testing.T) {
 	}
 	m.Generation = 2
 	m.Roles["viewer"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read", "write")}
-	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
-		t.Fatalf("the store's own binding reaches the kind's write, so a role may name it: %v", err)
-	}
-	m.Generation = 3
-	m.Roles["viewer"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc("unreached.kind", "read")}
 	_, err := h.svc.ApplyModule(h.ctx, m)
 	refused(t, err, "grants beyond what pages serves or explicitly consumes")
+	m.Through = map[string]map[string][]*basev0.WorkScopeV1{"viewer": {"store": {sc(kind, "write")}}}
+	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
+		t.Fatalf("the store's own binding reaches the kind's write, so a role may name it through the binding: %v", err)
+	}
+	m.Generation = 3
+	m.Roles["viewer"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read"), sc("unreached.kind", "read")}
+	m.Through = map[string]map[string][]*basev0.WorkScopeV1{"viewer": {"store": {sc("unreached.kind", "read")}}}
+	_, err = h.svc.ApplyModule(h.ctx, m)
+	refused(t, err, `names unreached.kind:read through binding "store", which reaches it nowhere`)
 }
 
 // A person holding only a module page's role is issued, through the page's

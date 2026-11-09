@@ -17,7 +17,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file host/composition/v1/composition.proto.
  */
 export const file_host_composition_v1_composition: GenFile = /*@__PURE__*/
-  fileDesc("CiVob3N0L2NvbXBvc2l0aW9uL3YxL2NvbXBvc2l0aW9uLnByb3RvEhNob3N0LmNvbXBvc2l0aW9uLnYxItUBChRBcHBseU1hbmlmZXN0UmVxdWVzdBI3CghtYW5pZmVzdBgBIAEoCzIlLmhvc3QuY29tcG9zaXRpb24udjEuTW9kdWxlTWFuaWZlc3RWMRI2CgdjYXJyaWVyGAIgASgLMiUuaG9zdC5jb21wb3NpdGlvbi52MS5TaWduZWRNYW5pZmVzdFYxEhIKCmNyZWRlbnRpYWwYAyABKAkSOAoJYXV0aG9yaXR5GAQgASgLMiUuaG9zdC5jb21wb3NpdGlvbi52MS5TaWduZWRNYW5pZmVzdFYxIvkCChNBdXRob3JpdHlNYW5pZmVzdFYxEg4KBm1vZHVsZRgBIAEoCRISCgpnZW5lcmF0aW9uGAIgASgEEhwKFGNvcmVfbWFuaWZlc3RfZGlnZXN0GAMgASgJEjQKB21ldGhvZHMYBCADKAsyIy5ob3N0LmNvbXBvc2l0aW9uLnYxLk1ldGhvZFBvbGljeVYxEjYKDnNjb3BlX2NlaWxpbmdzGAUgAygLMh4uaG9zdC5hdXRob3JpdHkudjEuV29ya1Njb3BlVjESKgoFcm9sZXMYBiADKAsyGy5ob3N0LmNvbXBvc2l0aW9uLnYxLlJvbGVWMRITCgtvd25lcl9hd2FyZRgHIAEoCBIZChFpbnN0YWxsYXRpb25fcm9sZRgIIAEoCRJAChFlZGdlX2RlcGVuZGVuY2llcxgJIAMoCzIlLmhvc3QuY29tcG9zaXRpb24udjEuRWRnZURlcGVuZGVuY3lWMRIUCgxzaGFyZWRfa2luZHMYCiADKAkiNAoQRWRnZURlcGVuZGVuY3lWMRIOCgZtb2R1bGUYASABKAkSEAoIcHJlc2VuY2UYAiABKAkibgoOTWV0aG9kUG9saWN5VjESDgoGbWV0aG9kGAEgASgJEjAKCHJlcXVpcmVzGAIgAygLMh4uaG9zdC5hdXRob3JpdHkudjEuV29ya1Njb3BlVjESGgoSYW55X2NoZWNrZWRfY2FsbGVyGAMgASgIIjYKEFNpZ25lZE1hbmlmZXN0VjESEAoIZG9jdW1lbnQYASABKAwSEAoIZW52ZWxvcGUYAiABKAwiWAoVQXBwbHlNYW5pZmVzdFJlc3BvbnNlEhEKCXByaW5jaXBhbBgBIAEoCRISCgpnZW5lcmF0aW9uGAIgASgEEhgKEGluc3RhbGxhdGlvbl9pZHMYAyADKAkinQIKEE1vZHVsZU1hbmlmZXN0VjESDgoGbW9kdWxlGAEgASgJEhEKCXByaW5jaXBhbBgCIAEoCRIMCgRraW5kGAMgASgJEhIKCmdlbmVyYXRpb24YBCABKAQSMAoIYmluZGluZ3MYBSADKAsyHi5ob3N0LmNvbXBvc2l0aW9uLnYxLkJpbmRpbmdWMRI7Cg5yZXNvdXJjZV9raW5kcxgGIAMoCzIjLmhvc3QuY29tcG9zaXRpb24udjEuUmVzb3VyY2VLaW5kVjESKQoEcGFnZRgHIAEoCzIbLmhvc3QuY29tcG9zaXRpb24udjEuUGFnZVYxEioKBXJvbGVzGAggAygLMhsuaG9zdC5jb21wb3NpdGlvbi52MS5Sb2xlVjEiiQEKBlJvbGVWMRIMCgRuYW1lGAEgASgJEi4KBnNjb3BlcxgCIAMoCzIeLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtTY29wZVYxEkEKGWluc3RhbGxhdGlvbl9vd25lZF9zY29wZXMYAyADKAsyHi5ob3N0LmF1dGhvcml0eS52MS5Xb3JrU2NvcGVWMSLQAQoJQmluZGluZ1YxEgoKAmlkGAEgASgJEhAKCGF1ZGllbmNlGAIgASgJEjUKDWludm9rZV9zY29wZXMYAyADKAsyHi5ob3N0LmF1dGhvcml0eS52MS5Xb3JrU2NvcGVWMRI3Cg9oZWFkbGVzc19zY29wZXMYBCADKAsyHi5ob3N0LmF1dGhvcml0eS52MS5Xb3JrU2NvcGVWMRI1Cg1sb29rdXBfc2NvcGVzGAUgAygLMh4uaG9zdC5hdXRob3JpdHkudjEuV29ya1Njb3BlVjEiLwoOUmVzb3VyY2VLaW5kVjESDAoEa2luZBgBIAEoCRIPCgdhY3Rpb25zGAIgAygJIiYKBlBhZ2VWMRINCgV0aXRsZRgBIAEoCRINCgVvcmRlchgCIAEoBTJ8ChJDb21wb3NpdGlvblNlcnZpY2USZgoNQXBwbHlNYW5pZmVzdBIpLmhvc3QuY29tcG9zaXRpb24udjEuQXBwbHlNYW5pZmVzdFJlcXVlc3QaKi5ob3N0LmNvbXBvc2l0aW9uLnYxLkFwcGx5TWFuaWZlc3RSZXNwb25zZUIzWjFnYXRld2F5L3BrZy9nZW4vaG9zdC9jb21wb3NpdGlvbi92MTtjb21wb3NpdGlvbnYxYgZwcm90bzM", [file_host_authority_v1_work_context]);
+  fileDesc("CiVob3N0L2NvbXBvc2l0aW9uL3YxL2NvbXBvc2l0aW9uLnByb3RvEhNob3N0LmNvbXBvc2l0aW9uLnYxItUBChRBcHBseU1hbmlmZXN0UmVxdWVzdBI3CghtYW5pZmVzdBgBIAEoCzIlLmhvc3QuY29tcG9zaXRpb24udjEuTW9kdWxlTWFuaWZlc3RWMRI2CgdjYXJyaWVyGAIgASgLMiUuaG9zdC5jb21wb3NpdGlvbi52MS5TaWduZWRNYW5pZmVzdFYxEhIKCmNyZWRlbnRpYWwYAyABKAkSOAoJYXV0aG9yaXR5GAQgASgLMiUuaG9zdC5jb21wb3NpdGlvbi52MS5TaWduZWRNYW5pZmVzdFYxIvkCChNBdXRob3JpdHlNYW5pZmVzdFYxEg4KBm1vZHVsZRgBIAEoCRISCgpnZW5lcmF0aW9uGAIgASgEEhwKFGNvcmVfbWFuaWZlc3RfZGlnZXN0GAMgASgJEjQKB21ldGhvZHMYBCADKAsyIy5ob3N0LmNvbXBvc2l0aW9uLnYxLk1ldGhvZFBvbGljeVYxEjYKDnNjb3BlX2NlaWxpbmdzGAUgAygLMh4uaG9zdC5hdXRob3JpdHkudjEuV29ya1Njb3BlVjESKgoFcm9sZXMYBiADKAsyGy5ob3N0LmNvbXBvc2l0aW9uLnYxLlJvbGVWMRITCgtvd25lcl9hd2FyZRgHIAEoCBIZChFpbnN0YWxsYXRpb25fcm9sZRgIIAEoCRJAChFlZGdlX2RlcGVuZGVuY2llcxgJIAMoCzIlLmhvc3QuY29tcG9zaXRpb24udjEuRWRnZURlcGVuZGVuY3lWMRIUCgxzaGFyZWRfa2luZHMYCiADKAkiNAoQRWRnZURlcGVuZGVuY3lWMRIOCgZtb2R1bGUYASABKAkSEAoIcHJlc2VuY2UYAiABKAkibgoOTWV0aG9kUG9saWN5VjESDgoGbWV0aG9kGAEgASgJEjAKCHJlcXVpcmVzGAIgAygLMh4uaG9zdC5hdXRob3JpdHkudjEuV29ya1Njb3BlVjESGgoSYW55X2NoZWNrZWRfY2FsbGVyGAMgASgIIjYKEFNpZ25lZE1hbmlmZXN0VjESEAoIZG9jdW1lbnQYASABKAwSEAoIZW52ZWxvcGUYAiABKAwiWAoVQXBwbHlNYW5pZmVzdFJlc3BvbnNlEhEKCXByaW5jaXBhbBgBIAEoCRISCgpnZW5lcmF0aW9uGAIgASgEEhgKEGluc3RhbGxhdGlvbl9pZHMYAyADKAkinQIKEE1vZHVsZU1hbmlmZXN0VjESDgoGbW9kdWxlGAEgASgJEhEKCXByaW5jaXBhbBgCIAEoCRIMCgRraW5kGAMgASgJEhIKCmdlbmVyYXRpb24YBCABKAQSMAoIYmluZGluZ3MYBSADKAsyHi5ob3N0LmNvbXBvc2l0aW9uLnYxLkJpbmRpbmdWMRI7Cg5yZXNvdXJjZV9raW5kcxgGIAMoCzIjLmhvc3QuY29tcG9zaXRpb24udjEuUmVzb3VyY2VLaW5kVjESKQoEcGFnZRgHIAEoCzIbLmhvc3QuY29tcG9zaXRpb24udjEuUGFnZVYxEioKBXJvbGVzGAggAygLMhsuaG9zdC5jb21wb3NpdGlvbi52MS5Sb2xlVjEivgEKBlJvbGVWMRIMCgRuYW1lGAEgASgJEi4KBnNjb3BlcxgCIAMoCzIeLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtTY29wZVYxEkEKGWluc3RhbGxhdGlvbl9vd25lZF9zY29wZXMYAyADKAsyHi5ob3N0LmF1dGhvcml0eS52MS5Xb3JrU2NvcGVWMRIzCgd0aHJvdWdoGAQgAygLMiIuaG9zdC5jb21wb3NpdGlvbi52MS5Sb2xlVGhyb3VnaFYxIlAKDVJvbGVUaHJvdWdoVjESDwoHYmluZGluZxgBIAEoCRIuCgZzY29wZXMYAiADKAsyHi5ob3N0LmF1dGhvcml0eS52MS5Xb3JrU2NvcGVWMSLQAQoJQmluZGluZ1YxEgoKAmlkGAEgASgJEhAKCGF1ZGllbmNlGAIgASgJEjUKDWludm9rZV9zY29wZXMYAyADKAsyHi5ob3N0LmF1dGhvcml0eS52MS5Xb3JrU2NvcGVWMRI3Cg9oZWFkbGVzc19zY29wZXMYBCADKAsyHi5ob3N0LmF1dGhvcml0eS52MS5Xb3JrU2NvcGVWMRI1Cg1sb29rdXBfc2NvcGVzGAUgAygLMh4uaG9zdC5hdXRob3JpdHkudjEuV29ya1Njb3BlVjEiLwoOUmVzb3VyY2VLaW5kVjESDAoEa2luZBgBIAEoCRIPCgdhY3Rpb25zGAIgAygJIiYKBlBhZ2VWMRINCgV0aXRsZRgBIAEoCRINCgVvcmRlchgCIAEoBTJ8ChJDb21wb3NpdGlvblNlcnZpY2USZgoNQXBwbHlNYW5pZmVzdBIpLmhvc3QuY29tcG9zaXRpb24udjEuQXBwbHlNYW5pZmVzdFJlcXVlc3QaKi5ob3N0LmNvbXBvc2l0aW9uLnYxLkFwcGx5TWFuaWZlc3RSZXNwb25zZUIzWjFnYXRld2F5L3BrZy9nZW4vaG9zdC9jb21wb3NpdGlvbi92MTtjb21wb3NpdGlvbnYxYgZwcm90bzM", [file_host_authority_v1_work_context]);
 
 /**
  * ApplyManifestRequest carries the manifest.
@@ -400,6 +400,18 @@ export type RoleV1 = Message<"host.composition.v1.RoleV1"> & {
    * @generated from field: repeated host.authority.v1.WorkScopeV1 installation_owned_scopes = 3;
    */
   installationOwnedScopes: WorkScopeV1[];
+
+  /**
+   * Scopes the role grants downstream of one of the unit's own bindings: a
+   * kind a module that binding reaches serves or consumes, carried onward at
+   * each hop and cut to each binding there. The authority holds each
+   * reachable from its binding in the composition and refuses the delivery
+   * naming it when it is not. A role's grant is scopes and every through's
+   * scopes together.
+   *
+   * @generated from field: repeated host.composition.v1.RoleThroughV1 through = 4;
+   */
+  through: RoleThroughV1[];
 };
 
 /**
@@ -408,6 +420,34 @@ export type RoleV1 = Message<"host.composition.v1.RoleV1"> & {
  */
 export const RoleV1Schema: GenMessage<RoleV1> = /*@__PURE__*/
   messageDesc(file_host_composition_v1_composition, 7);
+
+/**
+ * RoleThroughV1 is what a role names through one binding of its unit.
+ *
+ * @generated from message host.composition.v1.RoleThroughV1
+ */
+export type RoleThroughV1 = Message<"host.composition.v1.RoleThroughV1"> & {
+  /**
+   * The binding's id, one the unit declares.
+   *
+   * @generated from field: string binding = 1;
+   */
+  binding: string;
+
+  /**
+   * The kinds and actions reached through it, never ids or an owner.
+   *
+   * @generated from field: repeated host.authority.v1.WorkScopeV1 scopes = 2;
+   */
+  scopes: WorkScopeV1[];
+};
+
+/**
+ * Describes the message host.composition.v1.RoleThroughV1.
+ * Use `create(RoleThroughV1Schema)` to create a new message.
+ */
+export const RoleThroughV1Schema: GenMessage<RoleThroughV1> = /*@__PURE__*/
+  messageDesc(file_host_composition_v1_composition, 8);
 
 /**
  * BindingV1 is one declared call towards another module.
@@ -459,7 +499,7 @@ export type BindingV1 = Message<"host.composition.v1.BindingV1"> & {
  * Use `create(BindingV1Schema)` to create a new message.
  */
 export const BindingV1Schema: GenMessage<BindingV1> = /*@__PURE__*/
-  messageDesc(file_host_composition_v1_composition, 8);
+  messageDesc(file_host_composition_v1_composition, 9);
 
 /**
  * ResourceKindV1 is one kind the module governs and the actions on it.
@@ -487,7 +527,7 @@ export type ResourceKindV1 = Message<"host.composition.v1.ResourceKindV1"> & {
  * Use `create(ResourceKindV1Schema)` to create a new message.
  */
 export const ResourceKindV1Schema: GenMessage<ResourceKindV1> = /*@__PURE__*/
-  messageDesc(file_host_composition_v1_composition, 9);
+  messageDesc(file_host_composition_v1_composition, 10);
 
 /**
  * PageV1 is a module's frontend contribution.
@@ -515,7 +555,7 @@ export type PageV1 = Message<"host.composition.v1.PageV1"> & {
  * Use `create(PageV1Schema)` to create a new message.
  */
 export const PageV1Schema: GenMessage<PageV1> = /*@__PURE__*/
-  messageDesc(file_host_composition_v1_composition, 10);
+  messageDesc(file_host_composition_v1_composition, 11);
 
 /**
  * CompositionService is implemented by the host and by the local authority.

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
@@ -16,14 +17,10 @@ import (
 // generation, bindings whose lookup and headless scopes stay within invoke;
 // a module without a page declares no roles; a solution, or a module page
 // that declares roles, declares installer, and every role stays within what
-// it serves, or, for a solution alone, consumes through invoke/lookup bindings.
-func ValidateModule(m domain.Module) error { return ValidateModuleIn(m, nil) }
-
-// ValidateModuleIn is ValidateModule in a composition (modules by
-// principal): a role may also name what the bindings of the modules its
-// bindings reach consume (Grantable).
-func ValidateModuleIn(m domain.Module, composed map[string]domain.Module) error {
-	if err := validateModule(m, composed); err != nil {
+// it serves, consumes through its invoke/lookup bindings, or names through
+// one of them (domain.Module.Through); a shared kind is one it serves.
+func ValidateModule(m domain.Module) error {
+	if err := validateModule(m); err != nil {
 		return err
 	}
 	for _, kind := range m.SharedKinds {
@@ -34,7 +31,70 @@ func ValidateModuleIn(m domain.Module, composed map[string]domain.Module) error 
 	return noOwners(m)
 }
 
-func validateModule(m domain.Module, composed map[string]domain.Module) error {
+// Unreached refuses, by name, a scope a role of m names through one of its
+// bindings that the composition (modules by principal) does not reach from
+// that binding: what the binding carries for a person (invoke, lookup), and
+// onward what the bindings of each module it reaches carry, transitively —
+// the hops a holder's capability can take, each cut to its binding. A walk
+// that meets a module not yet composed leaves what it would reach to that
+// module's delivery: the scope is held again then (the authority re-validates
+// every composed module's reach at each delivery), so delivery order is free.
+func Unreached(m domain.Module, composed map[string]domain.Module) error {
+	for _, role := range slices.Sorted(maps.Keys(m.Through)) {
+		for _, id := range slices.Sorted(maps.Keys(m.Through[role])) {
+			reached, complete := ReachedThrough(m.Bindings[id], composed)
+			if complete && !scope.Attenuates(m.Through[role][id], reached) {
+				return domain.Refuse("role %q of %s names %s through binding %q, which reaches it nowhere in the composition: neither %q nor a module it reaches consumes it for a person",
+					role, m.Name, beyond(m.Through[role][id], reached), id, id)
+			}
+		}
+	}
+	return nil
+}
+
+// ReachedThrough is what a holder's capability can carry through binding b
+// and onward through the composition (modules by principal): b's invoke and
+// lookup scopes, and those of every binding of each module reached. complete
+// is false when the walk met a module the composition does not hold yet.
+func ReachedThrough(b domain.Binding, composed map[string]domain.Module) (reached Scopes, complete bool) {
+	complete = true
+	seen := map[string]bool{}
+	queue := []domain.Binding{b}
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+		reached = append(reached, current.InvokeScopes...)
+		reached = append(reached, current.LookupScopes...)
+		if seen[current.Audience] {
+			continue
+		}
+		seen[current.Audience] = true
+		next, ok := composed[current.Audience]
+		if !ok {
+			complete = false
+			continue
+		}
+		for _, id := range slices.Sorted(maps.Keys(next.Bindings)) {
+			queue = append(queue, next.Bindings[id])
+		}
+	}
+	return scope.Normalize(reached), complete
+}
+
+// beyond spells, "kind:action, …", what of scopes is not within within.
+func beyond(scopes, within Scopes) string {
+	var out []string
+	for _, sc := range scope.Normalize(scopes) {
+		for _, action := range sc.GetActions() {
+			if !scope.Attenuates(Scopes{{ResourceKind: sc.GetResourceKind(), Actions: []string{action}}}, within) {
+				out = append(out, sc.GetResourceKind()+":"+action)
+			}
+		}
+	}
+	return strings.Join(out, ", ")
+}
+
+func validateModule(m domain.Module) error {
 	if m.Name == "" || m.Principal == "" || m.Generation == 0 {
 		return domain.Refuse("a manifest names its module, its principal and a generation")
 	}
@@ -81,11 +141,25 @@ func validateModule(m domain.Module, composed map[string]domain.Module) error {
 	}
 	// A role reaches through its target's bindings, a solution's and a
 	// module page's alike (a person's capability through either carries the
-	// role at each module it invokes, cut to the binding at each hop), and
-	// onward through each reached module's bindings (consent covers reach),
-	// so a role may name what those bindings consume, and nothing it neither
-	// serves nor reaches.
-	grantable := Grantable(m, composed)
+	// role at each module it invokes, cut to the binding at each hop), so a
+	// role may name what it serves and what its bindings consume, and, onward
+	// (consent covers reach), what it declares reached through one of its
+	// bindings: one a person's capability travels (invoke or lookup).
+	grantable := Grantable(m)
+	for _, name := range slices.Sorted(maps.Keys(m.Through)) {
+		if _, declared := m.Roles[name]; !declared {
+			return domain.Refuse("%s names scopes through a binding for role %q, which it does not declare", m.Name, name)
+		}
+		for _, id := range slices.Sorted(maps.Keys(m.Through[name])) {
+			b, ok := m.Bindings[id]
+			if !ok {
+				return domain.Refuse("role %q of %s names scopes through binding %q, which %s does not declare", name, m.Name, id, m.Name)
+			}
+			if len(b.InvokeScopes) == 0 && len(b.LookupScopes) == 0 {
+				return domain.Refuse("role %q of %s names scopes through binding %q, which carries nothing for a person (no invoke or lookup scopes)", name, m.Name, id)
+			}
+		}
+	}
 	for _, name := range slices.Sorted(maps.Keys(m.Roles)) {
 		scopes := m.Roles[name]
 		if len(scopes) == 0 && len(m.OwnedRoles[name]) == 0 {
@@ -94,8 +168,12 @@ func validateModule(m domain.Module, composed map[string]domain.Module) error {
 		if scope.HasOwner(scopes) {
 			return domain.Refuse("role %q of %s selects an owner; a role's owner is its installation's principal", name, m.Name)
 		}
-		if !scope.Attenuates(scopes, grantable) {
-			return domain.Refuse("role %q of %s grants beyond what %s serves or explicitly consumes through invoke/lookup bindings, its own or those of the modules they reach", name, m.Name, m.Name)
+		within := grantable
+		for _, through := range m.Through[name] {
+			within = append(slices.Clone(within), through...)
+		}
+		if !scope.Attenuates(scopes, within) {
+			return domain.Refuse("role %q of %s grants beyond what %s serves or explicitly consumes through invoke/lookup bindings; a kind reached downstream of a binding is named through it", name, m.Name, m.Name)
 		}
 	}
 	for _, name := range slices.Sorted(maps.Keys(m.OwnedRoles)) {
@@ -207,27 +285,13 @@ func Served(m domain.Module) Scopes {
 	return scope.Normalize(served)
 }
 
-// Grantable is what m's roles may name: what m serves, what its bindings
-// consume for a person (invoke, lookup), and what the bindings of every module
-// its bindings reach consume, transitively through composed (by principal):
-// a holder's hop through m carries the role at each of those modules, cut to
-// each binding. A module not composed reaches nothing.
-func Grantable(m domain.Module, composed map[string]domain.Module) Scopes {
+// Grantable is what m's roles may name without naming a binding: what m
+// serves and what its own bindings consume for a person (invoke, lookup).
+func Grantable(m domain.Module) Scopes {
 	grantable := Served(m)
-	seen := map[string]bool{m.Principal: true}
-	queue := []domain.Module{m}
-	for len(queue) > 0 {
-		current := queue[0]
-		queue = queue[1:]
-		for _, id := range slices.Sorted(maps.Keys(current.Bindings)) {
-			b := current.Bindings[id]
-			grantable = append(grantable, b.InvokeScopes...)
-			grantable = append(grantable, b.LookupScopes...)
-			if next, ok := composed[b.Audience]; ok && !seen[b.Audience] {
-				seen[b.Audience] = true
-				queue = append(queue, next)
-			}
-		}
+	for _, id := range slices.Sorted(maps.Keys(m.Bindings)) {
+		grantable = append(grantable, m.Bindings[id].InvokeScopes...)
+		grantable = append(grantable, m.Bindings[id].LookupScopes...)
 	}
 	return grantable
 }

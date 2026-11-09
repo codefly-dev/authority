@@ -172,3 +172,26 @@ func TestADocumentIsPairedWithItsCarrier(t *testing.T) {
 		t.Run(name, func(t *testing.T) { code(t, delivered.Pair(doc, carrier, m), domain.Denied) })
 	}
 }
+
+// A role's scopes named through a binding are part of its grant, and the
+// module keeps how each is reached (domain.Module.Through); an empty through
+// is refused by name.
+func TestARoleNamesWhatItReachesThroughABinding(t *testing.T) {
+	doc := &delivered.Document{Module: "pages", Generation: 2, OwnerAware: true,
+		ScopeCeilings: []*basev0.WorkScopeV1{ws("pages.page", "read")},
+		Roles: []delivered.Role{{Name: "installer", Scopes: []*basev0.WorkScopeV1{ws("pages.page", "read")}},
+			{Name: "viewer", Scopes: []*basev0.WorkScopeV1{ws("pages.page", "read")},
+				Through: map[string]delivered.Scopes{"agent": {ws("model.profiles", "invoke"), ws("docs.doc", "read")}}}},
+	}
+	m, err := delivered.Module(solutionManifest(), doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := scope.Normalize([]*basev0.WorkScopeV1{ws("pages.page", "read"), ws("model.profiles", "invoke"), ws("docs.doc", "read")})
+	if !scope.Same(m.Roles["viewer"], want) || len(m.Through) != 1 || len(m.Through["viewer"]["agent"]) != 2 {
+		t.Fatalf("roles %v through %v", m.Roles, m.Through)
+	}
+	doc.Roles[1].Through = map[string]delivered.Scopes{"agent": nil}
+	_, err = delivered.Module(solutionManifest(), doc)
+	code(t, err, domain.Invalid)
+}
