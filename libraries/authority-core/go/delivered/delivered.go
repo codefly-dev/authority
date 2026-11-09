@@ -34,6 +34,9 @@ type Document struct {
 	// Core validates these declarations; every delivery hop carries them verbatim.
 	InstallationRole string
 	EdgeDependencies []domain.EdgeDependency
+	// SharedKinds are the served kinds the module declares unowned
+	// (domain.Module.SharedKinds).
+	SharedKinds []string
 }
 
 // Method is one method's declaration in the document.
@@ -110,6 +113,7 @@ func Module(manifest *solutionhost.ModuleManifest, doc *Document) (domain.Module
 	m.OwnerAware = doc.OwnerAware
 	m.InstallationRole = doc.InstallationRole
 	m.EdgeDependencies = slices.Clone(doc.EdgeDependencies)
+	m.SharedKinds = slices.Clone(doc.SharedKinds)
 	return m, nil
 }
 

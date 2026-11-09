@@ -95,8 +95,9 @@ func TestARedeliveryDroppingARoleDropsItsGrants(t *testing.T) {
 }
 
 // A module page's role reaches through the page's bindings as a solution's
-// does: it may name what a binding consumes, and nothing it neither serves
-// nor consumes.
+// does, and onward through the bindings of the modules they reach: it may
+// name what those consume (the store's own binding carries the kind's
+// write), and nothing it neither serves nor reaches.
 func TestAModulePageRoleNamesWhatItServesOrConsumes(t *testing.T) {
 	h := newHarness(t)
 	m := pageModule(1, true)
@@ -107,6 +108,11 @@ func TestAModulePageRoleNamesWhatItServesOrConsumes(t *testing.T) {
 	}
 	m.Generation = 2
 	m.Roles["viewer"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read", "write")}
+	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
+		t.Fatalf("the store's own binding reaches the kind's write, so a role may name it: %v", err)
+	}
+	m.Generation = 3
+	m.Roles["viewer"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc("unreached.kind", "read")}
 	_, err := h.svc.ApplyModule(h.ctx, m)
 	refused(t, err, "grants beyond what pages serves or explicitly consumes")
 }

@@ -111,6 +111,17 @@ context on it, and presents its own workload credential (`module-identity`) as
 the actor; an `Issue` naming a page with no actor or another workload's is
 refused. The shared conformance suite holds both hosts to it.
 
+**Roles name what they reach; shared kinds go unselected.** A solution's
+or module page's role may name what its bindings consume and what the
+bindings of every module they reach consume (`decide.Grantable`, checked at
+delivery against the composition): a wiki viewer's role names the model's
+profiles and the document store's read its agent reaches for a turn. A
+module may declare kinds `shared` (the authority document's `shared_kinds`):
+shared infrastructure no owner holds, such as a model's profiles. A scope of
+one is issued unselected, even through a solution's binding; every other
+kind keeps its owner selector, and a module that checks no owner still
+receives no owner-selected scope.
+
 **Consent covers reach.** Each role in `ReviewOffer` carries its `reach`: every
 place a holder can cause an operation, as a static maximum computed by the
 core from declarations alone (`decide.Reach`): on the solution itself (its

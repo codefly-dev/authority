@@ -83,6 +83,11 @@ type Module struct {
 	// OwnerAware: the module compares a resource's owner with an
 	// owner-selected scope, so it may receive one.
 	OwnerAware bool
+	// SharedKinds are the kinds the module declares unowned: shared
+	// infrastructure (a model's profiles), no resource of which any owner
+	// holds. A scope of one is issued unselected, even through a solution;
+	// every other kind keeps its owner selector. Each is a kind it serves.
+	SharedKinds []string `json:",omitempty"`
 	// Methods are what each method the module serves requires of a call, from
 	// its delivered authority document; nil when it declared none.
 	Methods map[string]MethodPolicy

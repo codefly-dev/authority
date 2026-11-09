@@ -142,6 +142,7 @@ func DocumentOf(in *compositionv1.AuthorityManifestV1) *delivered.Document {
 	for _, d := range in.GetEdgeDependencies() {
 		doc.EdgeDependencies = append(doc.EdgeDependencies, domain.EdgeDependency{Module: d.GetModule(), Presence: d.GetPresence()})
 	}
+	doc.SharedKinds = append(doc.SharedKinds, in.GetSharedKinds()...)
 	for _, m := range in.GetMethods() {
 		doc.Methods = append(doc.Methods, delivered.Method{Method: m.GetMethod(), Requires: issuer.FromWire(m.GetRequires()), AnyCheckedCaller: m.GetAnyCheckedCaller()})
 	}

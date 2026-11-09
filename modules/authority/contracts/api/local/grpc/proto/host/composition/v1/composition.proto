@@ -72,6 +72,11 @@ message AuthorityManifestV1 {
   string installation_role = 8;
   // Viewer-edge presence only; grants no authority. Nil and empty are equivalent.
   repeated EdgeDependencyV1 edge_dependencies = 9;
+  // The served kinds the module declares unowned: shared infrastructure (a
+  // model's profiles) no owner holds a resource of. A scope of one is issued
+  // unselected, even through a solution's binding; every other kind keeps its
+  // owner selector. Each is one of scope_ceilings' kinds.
+  repeated string shared_kinds = 10;
 }
 
 // EdgeDependencyV1 names the exact signed module principal. The host resolves

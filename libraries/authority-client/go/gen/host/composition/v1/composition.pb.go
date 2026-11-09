@@ -147,8 +147,13 @@ type AuthorityManifestV1 struct {
 	InstallationRole string `protobuf:"bytes,8,opt,name=installation_role,json=installationRole,proto3" json:"installation_role,omitempty"`
 	// Viewer-edge presence only; grants no authority. Nil and empty are equivalent.
 	EdgeDependencies []*EdgeDependencyV1 `protobuf:"bytes,9,rep,name=edge_dependencies,json=edgeDependencies,proto3" json:"edge_dependencies,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// The served kinds the module declares unowned: shared infrastructure (a
+	// model's profiles) no owner holds a resource of. A scope of one is issued
+	// unselected, even through a solution's binding; every other kind keeps its
+	// owner selector. Each is one of scope_ceilings' kinds.
+	SharedKinds   []string `protobuf:"bytes,10,rep,name=shared_kinds,json=sharedKinds,proto3" json:"shared_kinds,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AuthorityManifestV1) Reset() {
@@ -240,6 +245,13 @@ func (x *AuthorityManifestV1) GetInstallationRole() string {
 func (x *AuthorityManifestV1) GetEdgeDependencies() []*EdgeDependencyV1 {
 	if x != nil {
 		return x.EdgeDependencies
+	}
+	return nil
+}
+
+func (x *AuthorityManifestV1) GetSharedKinds() []string {
+	if x != nil {
+		return x.SharedKinds
 	}
 	return nil
 }
@@ -871,7 +883,7 @@ const file_host_composition_v1_composition_proto_rawDesc = "" +
 	"\n" +
 	"credential\x18\x03 \x01(\tR\n" +
 	"credential\x12C\n" +
-	"\tauthority\x18\x04 \x01(\v2%.host.composition.v1.SignedManifestV1R\tauthority\"\xda\x03\n" +
+	"\tauthority\x18\x04 \x01(\v2%.host.composition.v1.SignedManifestV1R\tauthority\"\xfd\x03\n" +
 	"\x13AuthorityManifestV1\x12\x16\n" +
 	"\x06module\x18\x01 \x01(\tR\x06module\x12\x1e\n" +
 	"\n" +
@@ -884,7 +896,9 @@ const file_host_composition_v1_composition_proto_rawDesc = "" +
 	"\vowner_aware\x18\a \x01(\bR\n" +
 	"ownerAware\x12+\n" +
 	"\x11installation_role\x18\b \x01(\tR\x10installationRole\x12R\n" +
-	"\x11edge_dependencies\x18\t \x03(\v2%.host.composition.v1.EdgeDependencyV1R\x10edgeDependencies\"F\n" +
+	"\x11edge_dependencies\x18\t \x03(\v2%.host.composition.v1.EdgeDependencyV1R\x10edgeDependencies\x12!\n" +
+	"\fshared_kinds\x18\n" +
+	" \x03(\tR\vsharedKinds\"F\n" +
 	"\x10EdgeDependencyV1\x12\x16\n" +
 	"\x06module\x18\x01 \x01(\tR\x06module\x12\x1a\n" +
 	"\bpresence\x18\x02 \x01(\tR\bpresence\"\x92\x01\n" +

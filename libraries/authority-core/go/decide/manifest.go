@@ -9,6 +9,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
 	delivery "github.com/codefly-dev/authority/libraries/delivery/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	"google.golang.org/protobuf/proto"
 )
 
 // ValidateModule holds a delivered module to its contract: a principal, a
@@ -16,14 +17,24 @@ import (
 // a module without a page declares no roles; a solution, or a module page
 // that declares roles, declares installer, and every role stays within what
 // it serves, or, for a solution alone, consumes through invoke/lookup bindings.
-func ValidateModule(m domain.Module) error {
-	if err := validateModule(m); err != nil {
+func ValidateModule(m domain.Module) error { return ValidateModuleIn(m, nil) }
+
+// ValidateModuleIn is ValidateModule in a composition (modules by
+// principal): a role may also name what the bindings of the modules its
+// bindings reach consume (Grantable).
+func ValidateModuleIn(m domain.Module, composed map[string]domain.Module) error {
+	if err := validateModule(m, composed); err != nil {
 		return err
+	}
+	for _, kind := range m.SharedKinds {
+		if !slices.ContainsFunc(Served(m), func(sc *basev0.WorkScopeV1) bool { return sc.GetResourceKind() == kind }) {
+			return domain.Refuse("%s declares %s shared, a kind it does not serve", m.Name, kind)
+		}
 	}
 	return noOwners(m)
 }
 
-func validateModule(m domain.Module) error {
+func validateModule(m domain.Module, composed map[string]domain.Module) error {
 	if m.Name == "" || m.Principal == "" || m.Generation == 0 {
 		return domain.Refuse("a manifest names its module, its principal and a generation")
 	}
@@ -70,14 +81,11 @@ func validateModule(m domain.Module) error {
 	}
 	// A role reaches through its target's bindings, a solution's and a
 	// module page's alike (a person's capability through either carries the
-	// role at each module it invokes, cut to the binding at each hop), so a
-	// role may name what a binding consumes, and nothing it neither serves
-	// nor consumes.
-	grantable := Served(m)
-	for _, b := range m.Bindings {
-		grantable = append(grantable, b.InvokeScopes...)
-		grantable = append(grantable, b.LookupScopes...)
-	}
+	// role at each module it invokes, cut to the binding at each hop), and
+	// onward through each reached module's bindings (consent covers reach),
+	// so a role may name what those bindings consume, and nothing it neither
+	// serves nor reaches.
+	grantable := Grantable(m, composed)
 	for _, name := range slices.Sorted(maps.Keys(m.Roles)) {
 		scopes := m.Roles[name]
 		if len(scopes) == 0 && len(m.OwnedRoles[name]) == 0 {
@@ -87,7 +95,7 @@ func validateModule(m domain.Module) error {
 			return domain.Refuse("role %q of %s selects an owner; a role's owner is its installation's principal", name, m.Name)
 		}
 		if !scope.Attenuates(scopes, grantable) {
-			return domain.Refuse("role %q of %s grants beyond what %s serves or explicitly consumes through invoke/lookup bindings", name, m.Name, m.Name)
+			return domain.Refuse("role %q of %s grants beyond what %s serves or explicitly consumes through invoke/lookup bindings, its own or those of the modules they reach", name, m.Name, m.Name)
 		}
 	}
 	for _, name := range slices.Sorted(maps.Keys(m.OwnedRoles)) {
@@ -197,4 +205,47 @@ func Served(m domain.Module) Scopes {
 		}
 	}
 	return scope.Normalize(served)
+}
+
+// Grantable is what m's roles may name: what m serves, what its bindings
+// consume for a person (invoke, lookup), and what the bindings of every module
+// its bindings reach consume, transitively through composed (by principal):
+// a holder's hop through m carries the role at each of those modules, cut to
+// each binding. A module not composed reaches nothing.
+func Grantable(m domain.Module, composed map[string]domain.Module) Scopes {
+	grantable := Served(m)
+	seen := map[string]bool{m.Principal: true}
+	queue := []domain.Module{m}
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+		for _, id := range slices.Sorted(maps.Keys(current.Bindings)) {
+			b := current.Bindings[id]
+			grantable = append(grantable, b.InvokeScopes...)
+			grantable = append(grantable, b.LookupScopes...)
+			if next, ok := composed[b.Audience]; ok && !seen[b.Audience] {
+				seen[b.Audience] = true
+				queue = append(queue, next)
+			}
+		}
+	}
+	return grantable
+}
+
+// Unselect is scopes as audience receives them: a scope of a kind the
+// audience declares shared (SharedKinds) carries no owner selector, since no
+// owner holds a resource of it; every other scope is unchanged.
+func Unselect(audience domain.Module, scopes Scopes) Scopes {
+	if len(audience.SharedKinds) == 0 {
+		return scopes
+	}
+	out := make(Scopes, 0, len(scopes))
+	for _, sc := range scopes {
+		if sc.GetResourceOwnerId() != "" && slices.Contains(audience.SharedKinds, sc.GetResourceKind()) {
+			sc = proto.Clone(sc).(*basev0.WorkScopeV1)
+			sc.ResourceOwnerId = ""
+		}
+		out = append(out, sc)
+	}
+	return scope.Normalize(out)
 }

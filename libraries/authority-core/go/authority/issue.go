@@ -627,9 +627,12 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 			heldHere = verified.EffectiveScopes()
 		}
 		// Only a solution's roles select its principal's data; a module
-		// page's select no owner, so its audience need not check one.
-		confined := bounded && anySolution(tx, solutionPrincipals(claims, am.Principal))
-		if (confined || claims.GetOwnerPrincipalKind() == "agent") && !audience.OwnerAware {
+		// page's select no owner, so its audience need not check one. A kind
+		// the audience declares shared is held unselected (decide.Unselect):
+		// no owner holds a resource of it.
+		heldHere, sourceCeiling = decide.Unselect(audience, heldHere), decide.Unselect(audience, sourceCeiling)
+		confined := bounded && anySolution(tx, solutionPrincipals(claims, am.Principal)) && scope.HasOwner(heldHere)
+		if (confined || claims.GetOwnerPrincipalKind() == "agent" && scope.HasOwner(heldHere)) && !audience.OwnerAware {
 			return decide.OwnerAware(audience, decide.Scopes{{ResourceKind: audience.Name, ResourceOwnerId: claims.GetOwnerPrincipalId()}})
 		}
 		// Headless is the module acting as itself, for nobody: a hop for

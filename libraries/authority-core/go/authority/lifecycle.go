@@ -29,7 +29,19 @@ import (
 // approved one did not (reconverge), and otherwise stands, offering an
 // upgrade; its role grants are kept either way.
 func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, error) {
-	if err := decide.ValidateModule(m); err != nil {
+	// Its roles may name what its bindings reach in the composition as it
+	// stands (decide.Grantable).
+	composed := map[string]domain.Module{}
+	if err := s.store.Read(ctx, func(tx Tx) error {
+		all, err := tx.Modules()
+		for _, other := range all {
+			composed[other.Principal] = other
+		}
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	if err := decide.ValidateModuleIn(m, composed); err != nil {
 		return nil, err
 	}
 	m.ResourceKinds = decide.Served(m)
