@@ -563,9 +563,8 @@ func (f *fixture) module(kind string) domain.Module {
 		m.Roles = map[string][]*basev0.WorkScopeV1{domain.InstallerRole: read, "viewer": append(slices.Clone(read), onward...)}
 		m.OwnedRoles = map[string][]*basev0.WorkScopeV1{"viewer": {{ResourceKind: "store.item", Actions: []string{"read"}}}}
 		m.Through = map[string]map[string][]*basev0.WorkScopeV1{"viewer": {"store": onward}}
-	} else {
-		m.SharedKinds = []string{"storetest.item"}
 	}
+	m.SharedKinds = []string{"storetest.item"}
 	return m
 }
 
