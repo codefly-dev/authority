@@ -92,7 +92,7 @@ func TestTheParentAuthorsInItsOwnersNamespace(t *testing.T) {
 	builder := domain.Module{Name: "builder", Principal: "builder", Kind: domain.KindSolution, Generation: 1, OwnerAware: true, Page: true,
 		InstallationRole: domain.NoInstallationRole, ResourceKinds: []*basev0.WorkScopeV1{sc("builder.note", "read")},
 		Bindings: map[string]domain.Binding{"agent": {ID: "agent", Audience: "agent", InvokeScopes: []*basev0.WorkScopeV1{sc("agent.intents", "read", "run")}}},
-		Roles: map[string][]*basev0.WorkScopeV1{domain.InstallerRole: {sc("builder.note", "read")}, "viewer": {sc("builder.note", "read"), sc("agent.intents", "read", "run")}}}
+		Roles:    map[string][]*basev0.WorkScopeV1{domain.InstallerRole: {sc("builder.note", "read")}, "viewer": {sc("builder.note", "read"), sc("agent.intents", "read", "run")}}}
 	if _, err := h.svc.ApplyModule(h.ctx, builder); err != nil {
 		t.Fatal(err)
 	}

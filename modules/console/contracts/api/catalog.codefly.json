@@ -10,7 +10,7 @@
       "kind": "protobuf",
       "package": "api",
       "path": "contracts/api/api/connect/contract.binpb",
-      "digest": "sha256:c35de6868957850522d16a6b7f7d6116e4baae6f56455b706cb6bdac2edc1d10",
+      "digest": "sha256:2ff3a330f0d092c04010c80c7190faf517fbb03c14a2dcaf7d4487dd19242996",
       "services": [
         {
           "name": "ApiService",
@@ -29,7 +29,7 @@
       "kind": "protobuf",
       "package": "api",
       "path": "contracts/api/api/grpc/contract.binpb",
-      "digest": "sha256:c35de6868957850522d16a6b7f7d6116e4baae6f56455b706cb6bdac2edc1d10",
+      "digest": "sha256:2ff3a330f0d092c04010c80c7190faf517fbb03c14a2dcaf7d4487dd19242996",
       "services": [
         {
           "name": "ApiService",

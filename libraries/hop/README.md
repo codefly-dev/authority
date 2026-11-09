@@ -19,6 +19,19 @@ argument would have lost admission silently. A caller holding metadata now
 extracts the bound token with `stamp.Context` / `bound_token` / `boundToken`
 first, which is two visible calls and neither of them an admission.
 
+## The method declaration
+
+`proto/authority/hop/v1/policy.proto` is what a module marks each method it
+serves with: `requires` (every action on its kind, all held) or
+`any_checked_caller`, exactly one. `carries`, only beside `requires`, lists
+what a call may exercise beyond what it requires: an effect the module
+performs on some calls alone, on the call's own capability (a first write that
+creates, and attaches to the caller's installation, the collection it writes
+to). The hop requires none of it. A binding whose ceiling is derived from the
+calls it names (core's module contract, `calls`) includes it, so a caller that
+holds it can exercise it through that binding and one that does not is cut to
+what the calls require.
+
 ## Issuance and verification
 
 After the authority's live `Check` admits the method, the hop writes its identity

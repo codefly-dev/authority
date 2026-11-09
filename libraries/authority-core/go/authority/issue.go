@@ -657,10 +657,14 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 		}
 		scopes = ceiling
 		if len(r.Scopes) > 0 {
-			if !scope.Attenuates(r.Scopes, ceiling) {
+			// A shared kind is asked as it is held, unselected
+			// (decide.Unselect); every other scope as the caller named it,
+			// owner-selected through a solution.
+			asked := decide.Unselect(audience, r.Scopes)
+			if !scope.Attenuates(asked, ceiling) {
 				return decide.Child(r.Binding, confined)
 			}
-			scopes = scope.Normalize(r.Scopes)
+			scopes = scope.Normalize(asked)
 		}
 		if err := decide.OwnerAware(audience, scopes); err != nil {
 			return err

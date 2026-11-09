@@ -323,8 +323,13 @@ type MethodPolicyV1 struct {
 	Requires []*v1.WorkScopeV1 `protobuf:"bytes,2,rep,name=requires,proto3" json:"requires,omitempty"`
 	// The method asks nothing beyond a Work Context the authority checked.
 	AnyCheckedCaller bool `protobuf:"varint,3,opt,name=any_checked_caller,json=anyCheckedCaller,proto3" json:"any_checked_caller,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// What a call may exercise beyond what it requires, beside requires (the
+	// method's authority.hop.v1.Policy.carries): an effect the module performs
+	// on some calls alone. Nothing requires it; a binding whose ceiling is
+	// derived from the calls it names includes it.
+	Carries       []*v1.WorkScopeV1 `protobuf:"bytes,4,rep,name=carries,proto3" json:"carries,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *MethodPolicyV1) Reset() {
@@ -376,6 +381,13 @@ func (x *MethodPolicyV1) GetAnyCheckedCaller() bool {
 		return x.AnyCheckedCaller
 	}
 	return false
+}
+
+func (x *MethodPolicyV1) GetCarries() []*v1.WorkScopeV1 {
+	if x != nil {
+		return x.Carries
+	}
+	return nil
 }
 
 // SignedManifestV1 is core's signed carrier: the manifest document (JSON) and
@@ -970,11 +982,12 @@ const file_host_composition_v1_composition_proto_rawDesc = "" +
 	" \x03(\tR\vsharedKinds\"F\n" +
 	"\x10EdgeDependencyV1\x12\x16\n" +
 	"\x06module\x18\x01 \x01(\tR\x06module\x12\x1a\n" +
-	"\bpresence\x18\x02 \x01(\tR\bpresence\"\x92\x01\n" +
+	"\bpresence\x18\x02 \x01(\tR\bpresence\"\xcc\x01\n" +
 	"\x0eMethodPolicyV1\x12\x16\n" +
 	"\x06method\x18\x01 \x01(\tR\x06method\x12:\n" +
 	"\brequires\x18\x02 \x03(\v2\x1e.host.authority.v1.WorkScopeV1R\brequires\x12,\n" +
-	"\x12any_checked_caller\x18\x03 \x01(\bR\x10anyCheckedCaller\"J\n" +
+	"\x12any_checked_caller\x18\x03 \x01(\bR\x10anyCheckedCaller\x128\n" +
+	"\acarries\x18\x04 \x03(\v2\x1e.host.authority.v1.WorkScopeV1R\acarries\"J\n" +
 	"\x10SignedManifestV1\x12\x1a\n" +
 	"\bdocument\x18\x01 \x01(\fR\bdocument\x12\x1a\n" +
 	"\benvelope\x18\x02 \x01(\fR\benvelope\"\x80\x01\n" +
@@ -1056,24 +1069,25 @@ var file_host_composition_v1_composition_proto_depIdxs = []int32{
 	7,  // 5: host.composition.v1.AuthorityManifestV1.roles:type_name -> host.composition.v1.RoleV1
 	2,  // 6: host.composition.v1.AuthorityManifestV1.edge_dependencies:type_name -> host.composition.v1.EdgeDependencyV1
 	12, // 7: host.composition.v1.MethodPolicyV1.requires:type_name -> host.authority.v1.WorkScopeV1
-	9,  // 8: host.composition.v1.ModuleManifestV1.bindings:type_name -> host.composition.v1.BindingV1
-	10, // 9: host.composition.v1.ModuleManifestV1.resource_kinds:type_name -> host.composition.v1.ResourceKindV1
-	11, // 10: host.composition.v1.ModuleManifestV1.page:type_name -> host.composition.v1.PageV1
-	7,  // 11: host.composition.v1.ModuleManifestV1.roles:type_name -> host.composition.v1.RoleV1
-	12, // 12: host.composition.v1.RoleV1.scopes:type_name -> host.authority.v1.WorkScopeV1
-	12, // 13: host.composition.v1.RoleV1.installation_owned_scopes:type_name -> host.authority.v1.WorkScopeV1
-	8,  // 14: host.composition.v1.RoleV1.through:type_name -> host.composition.v1.RoleThroughV1
-	12, // 15: host.composition.v1.RoleThroughV1.scopes:type_name -> host.authority.v1.WorkScopeV1
-	12, // 16: host.composition.v1.BindingV1.invoke_scopes:type_name -> host.authority.v1.WorkScopeV1
-	12, // 17: host.composition.v1.BindingV1.headless_scopes:type_name -> host.authority.v1.WorkScopeV1
-	12, // 18: host.composition.v1.BindingV1.lookup_scopes:type_name -> host.authority.v1.WorkScopeV1
-	0,  // 19: host.composition.v1.CompositionService.ApplyManifest:input_type -> host.composition.v1.ApplyManifestRequest
-	5,  // 20: host.composition.v1.CompositionService.ApplyManifest:output_type -> host.composition.v1.ApplyManifestResponse
-	20, // [20:21] is the sub-list for method output_type
-	19, // [19:20] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+	12, // 8: host.composition.v1.MethodPolicyV1.carries:type_name -> host.authority.v1.WorkScopeV1
+	9,  // 9: host.composition.v1.ModuleManifestV1.bindings:type_name -> host.composition.v1.BindingV1
+	10, // 10: host.composition.v1.ModuleManifestV1.resource_kinds:type_name -> host.composition.v1.ResourceKindV1
+	11, // 11: host.composition.v1.ModuleManifestV1.page:type_name -> host.composition.v1.PageV1
+	7,  // 12: host.composition.v1.ModuleManifestV1.roles:type_name -> host.composition.v1.RoleV1
+	12, // 13: host.composition.v1.RoleV1.scopes:type_name -> host.authority.v1.WorkScopeV1
+	12, // 14: host.composition.v1.RoleV1.installation_owned_scopes:type_name -> host.authority.v1.WorkScopeV1
+	8,  // 15: host.composition.v1.RoleV1.through:type_name -> host.composition.v1.RoleThroughV1
+	12, // 16: host.composition.v1.RoleThroughV1.scopes:type_name -> host.authority.v1.WorkScopeV1
+	12, // 17: host.composition.v1.BindingV1.invoke_scopes:type_name -> host.authority.v1.WorkScopeV1
+	12, // 18: host.composition.v1.BindingV1.headless_scopes:type_name -> host.authority.v1.WorkScopeV1
+	12, // 19: host.composition.v1.BindingV1.lookup_scopes:type_name -> host.authority.v1.WorkScopeV1
+	0,  // 20: host.composition.v1.CompositionService.ApplyManifest:input_type -> host.composition.v1.ApplyManifestRequest
+	5,  // 21: host.composition.v1.CompositionService.ApplyManifest:output_type -> host.composition.v1.ApplyManifestResponse
+	21, // [21:22] is the sub-list for method output_type
+	20, // [20:21] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_host_composition_v1_composition_proto_init() }

@@ -29,6 +29,11 @@ func reachComposition(t *testing.T, h *harness, modelShared bool) {
 			"model":               {ID: "model", Audience: "model", InvokeScopes: []*basev0.WorkScopeV1{sc("model.profiles", "read", "invoke")}},
 			"evidence":            {ID: "evidence", Audience: "docs", InvokeScopes: []*basev0.WorkScopeV1{sc("docs.doc", "read")}},
 			"configuration-write": {ID: "configuration-write", Audience: "docs", InvokeScopes: []*basev0.WorkScopeV1{sc("docs.doc", "write")}},
+			// A runnable operation's prepared binding (one per operation, its
+			// invoke scopes the operation's own), and one of the agent's own
+			// operations as a runnable, addressed to the agent itself.
+			"DOCS__SEARCH": {ID: "DOCS__SEARCH", Audience: "docs", InvokeScopes: []*basev0.WorkScopeV1{sc("docs.doc", "read")}},
+			"AGENT__READ":  {ID: "AGENT__READ", Audience: "agent", InvokeScopes: []*basev0.WorkScopeV1{sc("agent.intents", "read")}},
 		}}
 	for _, m := range []domain.Module{model, docs, agent} {
 		if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
@@ -288,5 +293,34 @@ func TestTheReviewShowsAReachThroughTheAgent(t *testing.T) {
 	slices.Sort(paths)
 	if want := []string{"wiki > agent > docs: binding", "wiki > agent > model: binding"}; !slices.Equal(paths, want) {
 		t.Fatalf("the review shows %v, want %v", paths, want)
+	}
+}
+
+// A runnable tool asks its operation's own scopes, selected to the owner its
+// capability is confined to (the solution's installation, which the asking
+// module reads from its own admitted scopes): issued through the operation's
+// prepared binding, and through one of the agent's own operations as a
+// runnable addressed to the agent itself; a kind the audience declares shared
+// is asked and issued unselected. Owner-blind, the ask is the whole kind and
+// is refused as a widening; another owner's too.
+func TestARunnableAsksItsOperationsScopesThroughTheSolution(t *testing.T) {
+	h := newHarness(t)
+	reachComposition(t, h, true)
+	h.grant("wiki", "viewer", "maya")
+	wiki := h.principal(acme, "wiki")
+	owned := func(kind, owner string, actions ...string) *basev0.WorkScopeV1 {
+		return &basev0.WorkScopeV1{ResourceKind: kind, Actions: actions, ResourceOwnerId: owner}
+	}
+	atAgent := h.must(h.page("maya", "wiki", "agent"))
+	exactly(t, h.must(h.onward(atAgent, "DOCS__SEARCH", owned("docs.doc", wiki, "read"))), "docs.doc", wiki, []string{"read"})
+	exactly(t, h.must(h.onward(atAgent, "AGENT__READ", owned("agent.intents", wiki, "read"))), "agent.intents", wiki, []string{"read"})
+	exactly(t, h.must(h.onward(atAgent, "model", owned("model.profiles", wiki, "invoke"))), "model.profiles", "", []string{"invoke"})
+	for name, ask := range map[string]*basev0.WorkScopeV1{
+		"the whole kind": sc("docs.doc", "read"), "another owner": owned("docs.doc", "someone-else", "read"), "beyond the role": owned("docs.doc", wiki, "write"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := h.onward(atAgent, "DOCS__SEARCH", ask)
+			refused(t, err, `a child widens what its owner holds through binding "DOCS__SEARCH"`)
+		})
 	}
 }

@@ -10,7 +10,7 @@
       "kind": "protobuf",
       "package": "api",
       "path": "contracts/api/hop/grpc/contract.binpb",
-      "digest": "sha256:a85d37ee2ac63dcaa92f00ce43e9d7ca180d3f76006739b47716b5dcd1b1f8e2",
+      "digest": "sha256:e9849a71fb10c6592c4bbfcaec60278d47cc329b80da848b1a1886b61d96e592",
       "services": [
         {
           "name": "HopService",
@@ -43,7 +43,7 @@
       "kind": "protobuf",
       "package": "",
       "path": "contracts/api/local/grpc/contract.binpb",
-      "digest": "sha256:7c4c520b4f10f00d0d21eca210a5cf18f6dfad641ff703b9f36743157806ffd0",
+      "digest": "sha256:8aac734a2108b5b783a6b6e1fe720a17655c52e5369e23fafeade0e20718c403",
       "services": [
         {
           "name": "LocalService",

@@ -98,6 +98,11 @@ message MethodPolicyV1 {
   repeated host.authority.v1.WorkScopeV1 requires = 2;
   // The method asks nothing beyond a Work Context the authority checked.
   bool any_checked_caller = 3;
+  // What a call may exercise beyond what it requires, beside requires (the
+  // method's authority.hop.v1.Policy.carries): an effect the module performs
+  // on some calls alone. Nothing requires it; a binding whose ceiling is
+  // derived from the calls it names includes it.
+  repeated host.authority.v1.WorkScopeV1 carries = 4;
 }
 
 // SignedManifestV1 is core's signed carrier: the manifest document (JSON) and
