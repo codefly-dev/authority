@@ -139,3 +139,41 @@ func TestConsentInPersonAdmitsThePagePresentPersonAlone(t *testing.T) {
 		}
 	}
 }
+
+// An owned parent's artifact is its owner's: the action owned by that owner,
+// the source its installation's namespace; scopes held for two owners name no
+// one artifact owner.
+func TestAnOwnedParentsArtifactIsItsOwners(t *testing.T) {
+	module := domain.Module{Name: "agent", Principal: "agent", ResourceKinds: []*basev0.WorkScopeV1{sc("agent.intents", "activate", "run")}}
+	inst := domain.Installation{ID: "i-1", Organization: "acme", Target: "agent", Status: domain.Active}
+	held := []*basev0.WorkScopeV1{{ResourceKind: "agent.intents", Actions: []string{"activate", "run"}, ResourceOwnerId: "builder-principal"}}
+	owner, err := decide.ArtifactOwner(held, "agent.intents")
+	if err != nil || owner != "builder-principal" {
+		t.Fatalf("owner %q %v", owner, err)
+	}
+	caller := decide.ArtifactCaller{Module: module, Audience: "agent", Tenant: "acme", OwnerKind: "human", Held: held, Owner: owner, OwnerNamespace: "acme.builder"}
+	id := func(source string) *decide.ArtifactIdentity {
+		return &decide.ArtifactIdentity{Schema: "s/v1", Source: source, Subject: []byte("x")}
+	}
+	if err := decide.Artifact(caller, inst, true, "i-1", "agent.intents", decide.ArtifactActivate, id("acme.builder")); err != nil {
+		t.Fatalf("the owner's artifact in its namespace: %v", err)
+	}
+	for _, source := range []string{"acme.agent", "acme.other"} {
+		if err := decide.Artifact(caller, inst, true, "i-1", "agent.intents", decide.ArtifactActivate, id(source)); err == nil || !strings.Contains(err.Error(), "namespace") {
+			t.Fatalf("%s: %v", source, err)
+		}
+	}
+	unowned := caller
+	unowned.Owner, unowned.OwnerNamespace = "", ""
+	if err := decide.Artifact(unowned, inst, true, "i-1", "agent.intents", decide.ArtifactActivate, id("acme.agent")); err == nil {
+		t.Fatal("scopes owned by the builder do not hold the module installation's own artifact")
+	}
+	noNamespace := caller
+	noNamespace.OwnerNamespace = ""
+	if err := decide.Artifact(noNamespace, inst, true, "i-1", "agent.intents", decide.ArtifactRun, id("acme.builder")); err == nil {
+		t.Fatal("an owner with no installation here has no namespace")
+	}
+	if _, err := decide.ArtifactOwner(append(held, sc("agent.intents", "run")), "agent.intents"); err == nil {
+		t.Fatal("owned beside unowned names no one owner")
+	}
+}

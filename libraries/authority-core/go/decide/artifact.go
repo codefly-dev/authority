@@ -50,6 +50,33 @@ type ArtifactCaller struct {
 	// hop, is not.
 	PagePresent bool
 	Held        Scopes
+	// Owner is the principal the parent's scopes of the policy are owned by,
+	// when they are owned: a person reaching the module through a solution's
+	// binding holds them on that solution installation's data alone. Its
+	// artifacts are that owner's: the action is held owned by it, and their
+	// source is OwnerNamespace, the owning installation's namespace. Empty:
+	// the module installation's own, as before.
+	Owner, OwnerNamespace string
+}
+
+// ArtifactOwner is the one owner the held scopes of policy are owned by, or
+// "" when none is owned; mixed owners (or owned beside unowned) are refused.
+func ArtifactOwner(held Scopes, policy string) (string, error) {
+	owners := map[string]bool{}
+	for _, sc := range held {
+		if sc.GetResourceKind() == policy {
+			owners[sc.GetResourceOwnerId()] = true
+		}
+	}
+	switch {
+	case len(owners) > 1:
+		return "", domain.Refuse("the parent holds %s for more than one owner; an artifact is one owner's", policy)
+	case len(owners) == 1:
+		for owner := range owners {
+			return owner, nil
+		}
+	}
+	return "", nil
 }
 
 // PageActor is the kind of the one hop a host's module edge takes for a call
@@ -93,14 +120,23 @@ func Artifact(caller ArtifactCaller, inst domain.Installation, found bool, reque
 		return domain.Refuse("%s is not an artifact policy of %s: it serves no such kind", policy, caller.Module.Name)
 	}
 	// The identity establishes no resource id of the policy kind, so the
-	// parent holds the action on the whole kind, for the installation's owner
-	// (a module installation has none, so an owner-unrestricted scope).
-	needed := Scopes{{ResourceKind: policy, Actions: []string{action}, ResourceOwnerId: inst.PrincipalID}}
+	// parent holds the action on the whole kind, for the artifact's owner: the
+	// installation's (a module installation has none, so an owner-unrestricted
+	// scope), or the owner the parent's scopes are held for, whose artifacts
+	// live in its own installation's namespace.
+	owner, namespace := inst.PrincipalID, Namespace(inst)
+	if caller.Owner != "" {
+		if caller.OwnerNamespace == "" {
+			return domain.Refuse("the owner %s of the parent's %s holds no installation here, so it has no namespace", caller.Owner, policy)
+		}
+		owner, namespace = caller.Owner, caller.OwnerNamespace
+	}
+	needed := Scopes{{ResourceKind: policy, Actions: []string{action}, ResourceOwnerId: owner}}
 	if !scope.Attenuates(needed, caller.Held) {
 		return domain.Refuse("the parent does not hold %s:%s on the whole kind at %s; an artifact identity names no resource of the policy", policy, action, caller.Module.Name)
 	}
-	if identity != nil && identity.Source != Namespace(inst) {
-		return domain.Refuse("artifact source %q is not installation %s's namespace %q", identity.Source, inst.ID, Namespace(inst))
+	if identity != nil && identity.Source != namespace {
+		return domain.Refuse("artifact source %q is not the namespace %q of the artifact's owner", identity.Source, namespace)
 	}
 	return nil
 }

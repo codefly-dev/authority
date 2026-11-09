@@ -59,6 +59,28 @@ func (s *Service) DecideArtifact(ctx context.Context, parent string, actor Workl
 	caller := decide.ArtifactCaller{Module: module, Audience: claims.GetAudience(), Tenant: claims.GetTenantId(),
 		OwnerKind: claims.GetOwnerPrincipalKind(), Delegated: verified.Actor() != nil, PagePresent: decide.PresentThroughPage(claims.GetActorChain()),
 		Held: verified.EffectiveScopes()}
+	// An owned parent's artifacts are its owner's, in the namespace of the
+	// installation that owner is the principal of, in this organization.
+	if caller.Owner, err = decide.ArtifactOwner(caller.Held, policy); err != nil {
+		return domain.Installation{}, err
+	}
+	if caller.Owner != "" {
+		if err := s.store.Read(ctx, func(tx Tx) error {
+			owning, err := tx.InstallationByPrincipal(caller.Owner)
+			if errors.Is(err, domain.ErrNotFound) {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			if owning.Organization == claims.GetTenantId() && owning.Status == domain.Active {
+				caller.OwnerNamespace = decide.Namespace(owning)
+			}
+			return nil
+		}); err != nil {
+			return domain.Installation{}, err
+		}
+	}
 	if err := decide.Artifact(caller, inst, found, installation, policy, action, identity); err != nil {
 		return domain.Installation{}, err
 	}
