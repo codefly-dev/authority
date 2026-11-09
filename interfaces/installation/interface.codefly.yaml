@@ -2,7 +2,7 @@ kind: interface
 publisher: codefly.dev
 name: installation
 description: What is installed at an organisation and who may use it.
-version: 0.4.1
+version: 0.5.0
 type: connect
 protobuf:
     package: host.installation.v1
