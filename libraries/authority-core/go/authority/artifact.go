@@ -57,7 +57,8 @@ func (s *Service) DecideArtifact(ctx context.Context, parent string, actor Workl
 		return domain.Installation{}, err
 	}
 	caller := decide.ArtifactCaller{Module: module, Audience: claims.GetAudience(), Tenant: claims.GetTenantId(),
-		OwnerKind: claims.GetOwnerPrincipalKind(), Delegated: verified.Actor() != nil, Held: verified.EffectiveScopes()}
+		OwnerKind: claims.GetOwnerPrincipalKind(), Delegated: verified.Actor() != nil, PagePresent: decide.PresentThroughPage(claims.GetActorChain()),
+		Held: verified.EffectiveScopes()}
 	if err := decide.Artifact(caller, inst, found, installation, policy, action, identity); err != nil {
 		return domain.Installation{}, err
 	}

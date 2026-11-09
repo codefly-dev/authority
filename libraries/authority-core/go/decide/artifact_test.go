@@ -112,3 +112,30 @@ func TestTheDigestCoversTheWholeIdentity(t *testing.T) {
 		seen[d] = true
 	}
 }
+
+// Consent in person admits one actor between the person and the asking
+// module: the page hop of the page's own target, the person present on that
+// page. A module's hop, or a page hop with any hop after it, is refused.
+func TestConsentInPersonAdmitsThePagePresentPersonAlone(t *testing.T) {
+	module := domain.Module{Name: "agent", Principal: "agent", ResourceKinds: []*basev0.WorkScopeV1{sc("agent.intents", "activate", "run")}}
+	inst := domain.Installation{ID: "i-1", Organization: "acme", Target: "agent", Status: domain.Active}
+	identity := &decide.ArtifactIdentity{Schema: "s/v1", Source: "acme.agent", Subject: []byte("x")}
+	caller := func(chain ...*basev0.WorkActorV1) decide.ArtifactCaller {
+		return decide.ArtifactCaller{Module: module, Audience: "agent", Tenant: "acme", OwnerKind: "human", Held: []*basev0.WorkScopeV1{sc("agent.intents", "activate", "run")},
+			Delegated: len(chain) > 0, PagePresent: decide.PresentThroughPage(chain)}
+	}
+	page := &basev0.WorkActorV1{PrincipalId: "builder", PrincipalKind: decide.PageActor}
+	service := &basev0.WorkActorV1{PrincipalId: "builder", PrincipalKind: "service"}
+	if err := decide.Artifact(caller(page), inst, true, "i-1", "agent.intents", decide.ArtifactActivate, identity); err != nil {
+		t.Fatalf("the person present on a page consents: %v", err)
+	}
+	for name, chain := range map[string][]*basev0.WorkActorV1{
+		"a module acting":              {service},
+		"a page hop, then a module":    {page, {PrincipalId: "agent-worker", PrincipalKind: "service"}},
+		"a module, then a page's kind": {service, page},
+	} {
+		if err := decide.Artifact(caller(chain...), inst, true, "i-1", "agent.intents", decide.ArtifactActivate, identity); err == nil || !strings.Contains(err.Error(), "person present") {
+			t.Fatalf("%s: want the person-present refusal, got %v", name, err)
+		}
+	}
+}

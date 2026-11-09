@@ -189,6 +189,7 @@ people:
 		OwnerToken:      "fixture-owner",
 		OtherAdminToken: "fixture-zoe",
 		HopCredential:   k.HopCredential(t),
+		EdgeCredential:  k.EdgeCredential(t),
 		SlowChecks:      true,
 		SolutionRoles: &conformance.SolutionRoleCase{
 			Solution: "wiki", Credential: k.Credential(t, "wiki"), Token: "fixture-maya", Outsider: "fixture-no-roles",

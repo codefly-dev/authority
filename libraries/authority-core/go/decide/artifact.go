@@ -44,7 +44,23 @@ type ArtifactCaller struct {
 	// and whether a module acts between its owner and the asking module.
 	Audience, Tenant, OwnerKind string
 	Delegated                   bool
-	Held                        Scopes
+	// PagePresent: the one actor between the owner and the asking module is
+	// the page hop of the page's own target (PageActor), the person present
+	// on that page. Any other actor, or a page hop followed by any further
+	// hop, is not.
+	PagePresent bool
+	Held        Scopes
+}
+
+// PageActor is the kind of the one hop a host's module edge takes for a call
+// a page makes (authority.IssueForPage): the person present on the page,
+// acting through the page's target's binding. Only that path mints it.
+const PageActor = "page"
+
+// PresentThroughPage reports whether chain is exactly one page hop: a person
+// present on a page, and nothing acting after it.
+func PresentThroughPage(chain []*basev0.WorkActorV1) bool {
+	return len(chain) == 1 && chain[0].GetPrincipalKind() == PageActor
 }
 
 // Namespace is the source an installation's authored artifacts belong to:
@@ -67,7 +83,7 @@ func Artifact(caller ArtifactCaller, inst domain.Installation, found bool, reque
 		return domain.Malformed("an artifact names its schema, source and subject")
 	case caller.Audience != caller.Module.Principal:
 		return domain.Refuse("%s asks about a context addressed to %s", caller.Module.Name, caller.Audience)
-	case action == ArtifactActivate && (caller.OwnerKind != "human" || caller.Delegated):
+	case action == ArtifactActivate && (caller.OwnerKind != "human" || (caller.Delegated && !caller.PagePresent)):
 		return domain.Refuse("consent to an artifact is given by a person present, not through a module acting for them")
 	case !found || inst.Organization != caller.Tenant:
 		return ForeignInstallation(requested, caller.Tenant)

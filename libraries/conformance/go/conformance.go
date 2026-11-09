@@ -65,6 +65,10 @@ type Fixture struct {
 	// HopCredential is the workload credential of the composition's hop, the
 	// one workload that registers admission keys.
 	HopCredential string
+	// EdgeCredential is the workload credential of the host's module edge,
+	// the one workload a person's Issue may name a page through
+	// (page_target): the person present on that page.
+	EdgeCredential string
 
 	// ReviewOfferNotServed is why this host does not serve
 	// OfferService.ReviewOffer yet. Set, the declaration case skips comparing
@@ -315,6 +319,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 	c.solutionRoleCases(t, ctx, f)
 	c.solutionDeclaration(t, ctx, f)
 	c.modulePageRoles(t, ctx, f)
+	c.pageCalls(t, ctx, f)
 	c.installationIdentity(t, ctx, f)
 	c.currentInstallation(t, ctx, f)
 	c.sessionDisplayNames(t, ctx, f)

@@ -183,6 +183,12 @@ func (i *Issuer) issue(ctx context.Context, req *authorityv1.IssueRequest) (*aut
 			return nil, perr
 		}
 		if page := req.GetPageTarget(); page != "" {
+			// The page is the module edge's to name: its own workload
+			// credential proves it, and no other workload mints the page hop.
+			w, werr := i.state.AttestWorkload(ctx, req.GetActor().GetCredential())
+			if werr != nil || w.Module != EdgeModule || w.Service != EdgeService {
+				return nil, fmt.Errorf("%w: a page is named by this host's module edge (%s/%s) alone", ErrRefused, EdgeModule, EdgeService)
+			}
 			out, err = i.svc.IssueForPage(ctx, person, page, r)
 		} else {
 			out, err = i.svc.IssueForPerson(ctx, person, r)

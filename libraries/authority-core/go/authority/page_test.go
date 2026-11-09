@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
@@ -58,4 +59,44 @@ func TestAPagesCallGoesThroughItsTargetsBinding(t *testing.T) {
 			t.Fatalf("through the page %v, through the backend %v", effective(got), effective(want))
 		}
 	})
+}
+
+// The page hop is of kind page, the person present; a module's hop over the
+// same binding is a service's, and nothing but IssueForPage mints the first.
+// Consent in person admits the page hop alone: not a module's hop, not a
+// page hop with a further hop after it.
+func TestAPageHopIsThePersonPresent(t *testing.T) {
+	h := newHarness(t)
+	m := pageModule(1, true)
+	m.Bindings = map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write")}}}
+	m.Roles[domain.InstallerRole] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(kind, "read", "write")}
+	m.Roles["viewer"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read")}
+	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
+		t.Fatal(err)
+	}
+	h.grant("pages", "viewer", "maya")
+	kindOf := func(i authority.Issued) []string {
+		var kinds []string
+		for _, a := range i.Context.GetActorChain() {
+			kinds = append(kinds, a.GetPrincipalKind())
+		}
+		return kinds
+	}
+	viaPage := h.must(h.page("maya", "pages", "store"))
+	if got := kindOf(viaPage); len(got) != 1 || got[0] != decide.PageActor || !decide.PresentThroughPage(viaPage.Context.GetActorChain()) {
+		t.Fatalf("the page hop's actors are %v", got)
+	}
+	viaModule := h.must(h.through("maya", "pages", "store"))
+	if got := kindOf(viaModule); len(got) != 1 || got[0] != "service" || decide.PresentThroughPage(viaModule.Context.GetActorChain()) {
+		t.Fatalf("a module's hop over the same binding is %v", got)
+	}
+	// The store hopping on onward from the page hop: the chain grows, and
+	// is no longer the person present.
+	onward, err := h.hop(viaPage, "self")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := kindOf(onward); len(got) != 2 || got[0] != decide.PageActor || got[1] != "service" || decide.PresentThroughPage(onward.Context.GetActorChain()) {
+		t.Fatalf("a hop after the page hop is %v", got)
+	}
 }

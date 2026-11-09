@@ -16,8 +16,11 @@ import (
 // person's Work Context: the person's capability at target (their roles
 // there), then target's hop over the binding, so the person holds at the
 // audience their role on target cut to the binding, and nothing of their own
-// grants there. r.Binding names the binding when target declares more than
-// one to the audience. When target declares none, the audience is an edge
+// grants there. That hop's actor is of kind decide.PageActor: the person
+// present on the target's page, which consent in person admits as it admits
+// no other actor (decide.Artifact). Only this path takes it; a host serves it
+// to its module edge alone. r.Binding names the binding when target declares
+// more than one to the audience. When target declares none, the audience is an edge
 // the page reaches on the person's own session, and their own access there
 // decides, as IssueForPerson answers.
 func (s *Service) IssueForPage(ctx context.Context, who Person, target string, r IssueRequest) (Issued, error) {
@@ -46,7 +49,7 @@ func (s *Service) IssueForPage(ctx context.Context, who Person, target string, r
 	if err != nil {
 		return Issued{}, err
 	}
-	return s.IssueChild(ctx, root.Token, Workload{Module: page.Name}, IssueRequest{Audience: r.Audience, Binding: binding, Operation: r.Operation, Scopes: r.Scopes, TTL: r.TTL})
+	return s.IssueChild(ctx, root.Token, Workload{Module: page.Name}, IssueRequest{Audience: r.Audience, Binding: binding, Operation: r.Operation, Scopes: r.Scopes, TTL: r.TTL, page: true})
 }
 
 // pageBinding is the binding of page a person's call at audience goes

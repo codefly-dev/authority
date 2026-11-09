@@ -27,6 +27,7 @@ import (
 type standIn struct {
 	mu     sync.Mutex
 	issued []string
+	pages  []string
 }
 
 func bearerIn(ctx context.Context) string {
@@ -69,6 +70,11 @@ func (s *standIn) Issue(ctx context.Context, in *authorityv1.IssueRequest, _ ...
 	}
 	s.mu.Lock()
 	s.issued = append(s.issued, in.GetAudience())
+	s.pages = append(s.pages, in.GetPageTarget())
+	if in.GetPageTarget() != "" && in.GetActor().GetCredential() != "edge-credential" {
+		s.mu.Unlock()
+		return nil, status.Error(codes.PermissionDenied, "a page is named by the module edge alone")
+	}
 	s.mu.Unlock()
 	return &authorityv1.IssueResponse{
 		Token: "wc-" + in.GetAudience(), ExpiresAtUnix: time.Now().Add(5 * time.Minute).Unix(),
@@ -139,7 +145,7 @@ type fixture struct {
 
 func newFixture(t *testing.T) fixture {
 	f := fixture{authority: &standIn{}, rest: newUpstream(t), connect: newUpstream(t), frontend: newUpstream(t), secrets: newUpstream(t)}
-	e := &Edge{Sessions: f.authority, Authority: f.authority, Installations: f.authority, Frontend: mustURL(t, f.frontend.URL), Modules: map[string]Module{
+	e := &Edge{Credential: func() (string, error) { return "edge-credential", nil }, Sessions: f.authority, Authority: f.authority, Installations: f.authority, Frontend: mustURL(t, f.frontend.URL), Modules: map[string]Module{
 		"records": {Name: "records", REST: mustURL(t, f.rest.URL), Connect: mustURL(t, f.connect.URL), Services: []string{"records.v1.RecordsService"}},
 		"secrets": {Name: "secrets", REST: mustURL(t, f.secrets.URL)},
 	}}
@@ -452,7 +458,7 @@ func TestCacheEvictsOnExpiryAndSignOut(t *testing.T) {
 	f := newFixture(t)
 	now := time.Now()
 	e := &Edge{Authority: f.authority, Now: func() time.Time { return now }}
-	if _, err := e.workContext(context.Background(), "remi-session", "records"); err != nil {
+	if _, err := e.workContext(context.Background(), "remi-session", "records", ""); err != nil {
 		t.Fatal(err)
 	}
 	if len(e.held) != 1 {
@@ -460,14 +466,14 @@ func TestCacheEvictsOnExpiryAndSignOut(t *testing.T) {
 	}
 	now = now.Add(time.Hour)
 	// Even a refused refresh must remove old contexts.
-	if _, err := e.workContext(context.Background(), "remi-session", "down"); err == nil {
+	if _, err := e.workContext(context.Background(), "remi-session", "down", ""); err == nil {
 		t.Fatal("expected refused target")
 	}
 	if len(e.held) != 0 {
 		t.Fatal("expired context retained")
 	}
 	now = time.Now()
-	if _, err := e.workContext(context.Background(), "remi-session", "records"); err != nil {
+	if _, err := e.workContext(context.Background(), "remi-session", "records", ""); err != nil {
 		t.Fatal(err)
 	}
 	req := httptest.NewRequest(http.MethodPost, "http://edge.test/auth/sign-out", nil)
@@ -508,7 +514,7 @@ func TestSignOutFencesAnInflightCacheWrite(t *testing.T) {
 	s := &blockedIssuer{standIn: &standIn{}, started: make(chan string, 1), release: make(chan struct{})}
 	e := &Edge{Authority: s}
 	done := make(chan struct{})
-	go func() { defer close(done); _, _ = e.workContext(context.Background(), "remi-session", "records") }()
+	go func() { defer close(done); _, _ = e.workContext(context.Background(), "remi-session", "records", "") }()
 	<-s.started
 	e.evict("remi-session")
 	close(s.release)
@@ -531,7 +537,7 @@ func TestSessionOutagePreservesCacheAndReportsTheActualReason(t *testing.T) {
 		t.Run(code.String(), func(t *testing.T) {
 			s := &standIn{}
 			e := &Edge{Authority: s, Sessions: failingCurrent{s, status.Error(code, "Current failed: test reason")}}
-			if _, err := e.workContext(context.Background(), "remi-session", "records"); err != nil {
+			if _, err := e.workContext(context.Background(), "remi-session", "records", ""); err != nil {
 				t.Fatal(err)
 			}
 			r := httptest.NewRequest(http.MethodGet, "/auth/session", nil)
@@ -553,5 +559,52 @@ func TestSessionOutagePreservesCacheAndReportsTheActualReason(t *testing.T) {
 				t.Fatalf("failed session published a module connection: %s", w.Body)
 			}
 		})
+	}
+}
+
+// A page reaches its modules at the path a hosted page does
+// (/api/solutions/<alias>/proxy/_browser/<procedure>), and the edge names the
+// page to the authority (page_target), keyed apart from a call naming no page
+// or another; the module receives the procedure, the Work Context and nothing
+// else. A page that is no route alias, a hostile procedure, a host procedure
+// or a method other than POST is refused, and nothing reaches the module.
+func TestAPagesModuleCallNamesThePageToTheAuthority(t *testing.T) {
+	f := newFixture(t)
+	cookie := f.signIn(t)
+	call := func(path string) int {
+		t.Helper()
+		res, _ := f.do(t, http.MethodPost, path, http.Header{"Cookie": {cookie.String()}, "Origin": {f.edge.URL}, "X-Codefly-Page": {"forged"}})
+		return res.StatusCode
+	}
+	if code := call("/api/solutions/org-directory/proxy/_browser/records.v1.RecordsService/Query"); code != http.StatusOK {
+		t.Fatalf("a page's module call answered %d", code)
+	}
+	if seen, path := f.connect.last(); path != "/records.v1.RecordsService/Query" || seen.Get(WorkContextKey) != "wc-records" || seen.Get("X-Codefly-Page") != "" {
+		t.Fatalf("the module received %s with %v", path, seen)
+	}
+	if got := f.authority.pages; len(got) != 1 || got[0] != "org-directory" {
+		t.Fatalf("the authority was asked for pages %v", got)
+	}
+	call("/api/solutions/org-directory/proxy/_browser/records.v1.RecordsService/Query")
+	call("/records.v1.RecordsService/Query")
+	call("/api/solutions/people/proxy/_browser/records.v1.RecordsService/Query")
+	if got := f.authority.pages; len(got) != 3 || got[1] != "" || got[2] != "people" {
+		t.Fatalf("held per page, issued again for another: %v", got)
+	}
+	for _, path := range []string{
+		"/api/solutions/Org_Directory/proxy/_browser/records.v1.RecordsService/Query",
+		"/api/solutions/org-directory/proxy/_browser/host.authority.v1.AuthorityService/Issue",
+		"/api/solutions/org-directory/proxy/_browser/records.v1.RecordsService/Query/extra",
+		"/api/solutions/org-directory/proxy/_browser/nothing.v1.Service/Read",
+	} {
+		if code := call(path); code == http.StatusOK {
+			t.Fatalf("%s answered %d", path, code)
+		}
+	}
+	if len(f.authority.pages) != 3 {
+		t.Fatalf("a refused page call reached the authority: %v", f.authority.pages)
+	}
+	if res, _ := f.do(t, http.MethodGet, "/api/solutions/org-directory/proxy/_browser/records.v1.RecordsService/Query", http.Header{"Cookie": {cookie.String()}}); res.StatusCode != http.StatusNotFound {
+		t.Fatalf("a GET answered %d", res.StatusCode)
 	}
 }

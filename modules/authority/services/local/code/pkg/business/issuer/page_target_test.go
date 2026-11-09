@@ -15,9 +15,17 @@ import (
 func TestAPersonIssueNamingAPageGoesThroughItsTargetsBinding(t *testing.T) {
 	k := testkit.New(t)
 	viaPage, err := k.Issuer.Issue(person(t, k, "fixture-remi"), &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents", PageTarget: "org-directory"})
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents", PageTarget: "org-directory",
+		Actor: &authorityv1.WorkloadCredential{Credential: k.EdgeCredential(t)}})
 	if err != nil {
 		t.Fatal(err)
+	}
+	// Only the module edge names a page: not a module, not a caller with none.
+	for _, actor := range []*authorityv1.WorkloadCredential{nil, {Credential: k.Credential(t, "org-directory")}} {
+		if _, err := k.Issuer.Issue(person(t, k, "fixture-remi"), &authorityv1.IssueRequest{
+			As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents", PageTarget: "org-directory", Actor: actor}); err == nil {
+			t.Fatalf("a page named with actor %v was honoured", actor)
+		}
 	}
 	p, err := k.Issuer.Issue(person(t, k, "fixture-remi"), &authorityv1.IssueRequest{
 		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "org-directory"})
@@ -33,7 +41,7 @@ func TestAPersonIssueNamingAPageGoesThroughItsTargetsBinding(t *testing.T) {
 		t.Fatalf("through the page %q, through the backend %q", got, want)
 	}
 	chain := viaPage.Context.GetActorChain()
-	if len(chain) == 0 || chain[len(chain)-1].GetPrincipalId() != "org-directory" {
+	if len(chain) != 1 || chain[0].GetPrincipalId() != "org-directory" || chain[0].GetPrincipalKind() != "page" {
 		t.Fatalf("the page's target acts the hop: %v", chain)
 	}
 }

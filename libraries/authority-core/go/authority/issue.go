@@ -22,6 +22,10 @@ type IssueRequest struct {
 	Audience, Binding, Operation, Organization string
 	Scopes                                     Scopes
 	TTL                                        time.Duration
+	// page marks the hop IssueForPage takes for a page's call: its actor is
+	// the page's target, of kind decide.PageActor, the person present. Unset
+	// by every caller outside this package, so no module's hop is ever one.
+	page bool
 }
 
 // Issued is a signed capability and its claims.
@@ -159,7 +163,7 @@ func namedBy(asked Scopes, parent *basev0.WorkContextV1) Scopes {
 func solutionPrincipals(wc *basev0.WorkContextV1, current string) []string {
 	out := []string{current}
 	for _, actor := range wc.GetActorChain() {
-		if actor.GetPrincipalKind() == "service" {
+		if kind := actor.GetPrincipalKind(); kind == "service" || kind == decide.PageActor {
 			out = append(out, actor.GetPrincipalId())
 		}
 	}
@@ -715,6 +719,9 @@ func (s *Service) derive(ctx context.Context, verified *workcontext.Verified, am
 			}
 		} else {
 			in.PrincipalID, in.PrincipalKind, in.DelegationID = am.Principal, "service", claims.GetSessionId()
+			if r.page {
+				in.PrincipalKind = decide.PageActor
+			}
 			in.OperationBindingID = tenant + "/" + am.Name + "/" + r.Binding
 		}
 		var signed *basev0.WorkContextV1

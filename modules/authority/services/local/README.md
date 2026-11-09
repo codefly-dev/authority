@@ -101,8 +101,15 @@ audience, as the target's own hop over it (`IssueForPage`): the person's
 capability at the target, then the binding, so they hold there their role on
 the target cut to the binding, with the target as the actor. A module the
 target declares no binding to is an edge on the person's own access, as an
-`Issue` naming no page. This repository's local edge names no page yet, so a
-page served by it reaches every module on the person's own access.
+`Issue` naming no page. That hop's one actor is the target, of kind `page`:
+the person present on the page, which consent in person (an artifact's
+`activate`) admits as it admits no other actor; any hop after it is a
+module's again. Only the module edge names a page: the edge serves a page's
+module calls at `/api/solutions/<alias>/proxy/_browser/<package.Service>/<Method>`
+(the path a hosted page reaches them on), names the alias, keys its held
+context on it, and presents its own workload credential (`module-identity`) as
+the actor; an `Issue` naming a page with no actor or another workload's is
+refused. The shared conformance suite holds both hosts to it.
 
 **Consent covers reach.** Each role in `ReviewOffer` carries its `reach`: every
 place a holder can cause an operation, as a static maximum computed by the
