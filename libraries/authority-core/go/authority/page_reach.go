@@ -70,8 +70,21 @@ func bindingReach(m domain.Module, modules []domain.Module) (map[string][]domain
 func widenedPageRoles(was, now pageReach) (map[string]bool, []string, error) {
 	widened := map[string]bool{}
 	var asks []string
+	// A page role is compared on what it can do: its scopes and the
+	// operations they admit at each module. A row's Policies list every
+	// method of the module, so a method added there that the role can never
+	// call would otherwise end its grants; a relaxed or newly admitted
+	// operation the role can call is in Operations.
+	admitted := func(rows []domain.ReachRow) []domain.ReachRow {
+		out := make([]domain.ReachRow, len(rows))
+		for i, row := range rows {
+			row.Policies = nil
+			out[i] = row
+		}
+		return out
+	}
 	widens := func(role string, before, after []domain.ReachRow) []string {
-		return decide.ReachWidensWithin(map[string][]domain.ReachRow{role: before}, map[string][]domain.ReachRow{role: after}, was.m)
+		return decide.ReachWidensWithin(map[string][]domain.ReachRow{role: admitted(before)}, map[string][]domain.ReachRow{role: admitted(after)}, was.m)
 	}
 	var left []string
 	for _, role := range slices.Sorted(maps.Keys(now.m.Roles)) {
@@ -143,7 +156,10 @@ func (s *Service) dropWidenedPageGrants(ctx context.Context, tx Tx, applied stri
 		}
 		roles := slices.Sorted(maps.Keys(widened))
 		for _, inst := range all {
-			if inst.Target != name || inst.Status != domain.Active || inst.Consent.OperationID != "" {
+			// Every active installation of the page, a consent receipt on it
+			// or not: no consent caps a module page's reach (approvedReach
+			// bounds solutions alone), so none may skip this.
+			if inst.Target != name || inst.Status != domain.Active {
 				continue
 			}
 			grants, err := tx.RoleGrants(inst.ID)

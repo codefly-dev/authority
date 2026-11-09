@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
@@ -75,8 +76,19 @@ func TestADeliveryWideningAPageRolesReachEndsItsGrants(t *testing.T) {
 		t.Fatalf("a downstream widening kept grants: %+v", grants)
 	}
 
-	// A narrowing keeps every grant.
+	// A method added at the store that no page role can call (it requires
+	// admin) widens nothing a holder can do, and ends no grant.
 	h.grant("pages", "viewer", "maya")
+	compact := storeAt(3, "write", false)
+	compact.Methods["/store.v1.Store/Compact"] = domain.MethodPolicy{Requires: []*basev0.WorkScopeV1{sc(kind, "admin")}}
+	if _, err := svc.ApplyModule(h.ctx, compact); err != nil {
+		t.Fatal(err)
+	}
+	if grants := h.roleGrants("pages"); !slices.ContainsFunc(grants, func(g domain.RoleGrant) bool { return g.Role == "viewer" && g.PersonID == "maya" }) {
+		t.Fatalf("a method the role can never call ended its grant: %+v", grants)
+	}
+
+	// A narrowing keeps every grant.
 	if _, err := svc.ApplyModule(h.ctx, pageReachingStore(3, "read")); err != nil {
 		t.Fatal(err)
 	}
@@ -84,4 +96,25 @@ func TestADeliveryWideningAPageRolesReachEndsItsGrants(t *testing.T) {
 		t.Fatalf("a narrowing ended the viewer's grant: %+v", grants)
 	}
 	exactly(t, h.must(h.through("maya", "pages", "store")), kind, "", []string{"read"})
+}
+
+// A module page's installation carrying a consent receipt (a host that
+// installs modules may record one) is held the same: no consent caps a
+// module page's reach, so a widening ends its role's grants there too.
+func TestAPageInstallationWithAConsentReceiptStillEndsWidenedGrants(t *testing.T) {
+	h := newHarness(t)
+	if _, err := h.svc.ApplyModule(h.ctx, pageReachingStore(1, "read")); err != nil {
+		t.Fatal(err)
+	}
+	inst := h.pagesAt(acme)
+	inst.Consent.OperationID = "host-op"
+	if err := h.store.Write(h.ctx, func(tx authority.Tx) error { return tx.PutInstallation(inst) }); err != nil {
+		t.Fatal(err)
+	}
+	h.grant("pages", "viewer", "maya")
+	if _, err := h.svc.ApplyModule(h.ctx, pageReachingStore(2, "read", "write")); err != nil {
+		t.Fatal(err)
+	}
+	_, err := h.through("maya", "pages", "store")
+	refused(t, err, "holds no role on pages")
 }
