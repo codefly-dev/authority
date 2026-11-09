@@ -77,6 +77,13 @@ func BenchmarkReachOf32Modules10Kinds(b *testing.B) { benchmarkReachOf(b, 32, 10
 // ReachOf runs inside a delivery's write transaction, a review and an
 // install: on dense compositions it stays within milliseconds, whatever
 // the seed.
+//
+// The budget separates the polynomial walk from the exponential one it
+// replaced (12 modules / 6 kinds took 3 s, 16 / 8 did not finish), not
+// one machine's speed: the polynomial walk takes about 65 ms on the
+// largest shape, about 560 ms under the race detector, which CI runs.
+const reachBudget = 2 * time.Second
+
 func TestReachOfIsFastOnDenseCompositions(t *testing.T) {
 	for _, shape := range [][2]int{{8, 5}, {12, 6}, {16, 8}, {32, 10}} {
 		for seed := int64(1); seed <= 5; seed++ {
@@ -86,7 +93,7 @@ func TestReachOfIsFastOnDenseCompositions(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if took := time.Since(start); took > 250*time.Millisecond {
+			if took := time.Since(start); took > reachBudget {
 				t.Fatalf("%d modules, %d kinds, seed %d: ReachOf took %v (roles %v)", shape[0], shape[1], seed, took, slices.Sorted(maps.Keys(reach)))
 			}
 		}
