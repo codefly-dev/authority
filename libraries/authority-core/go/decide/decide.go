@@ -69,9 +69,17 @@ func OwnSession(audience domain.Module, asked Scopes, refused error) error {
 	if !audience.OwnerAware || RoleGated(audience) {
 		return refused
 	}
-	owned := len(asked) == 0
+	ownedKind := func(kind string) bool {
+		return !slices.Contains(audience.SharedKinds, kind) &&
+			slices.ContainsFunc(audience.ResourceKinds, func(sc *basev0.WorkScopeV1) bool { return sc.GetResourceKind() == kind })
+	}
+	owned := false
+	if len(asked) == 0 {
+		// An empty ask names the rule only when nothing was held at all.
+		owned = strings.Contains(refused.Error(), "holds nothing")
+	}
 	for _, sc := range asked {
-		owned = owned || !slices.Contains(audience.SharedKinds, sc.GetResourceKind())
+		owned = owned || ownedKind(sc.GetResourceKind())
 	}
 	if !owned {
 		return refused

@@ -143,7 +143,7 @@ func (s *State) PermissionReport() []string {
 				roles[role.Name] = decide.OrgScopes([]domain.OrgRole{role}, m, nil)
 			}
 		}
-		for method := range m.Methods {
+		for method, policy := range m.Methods {
 			covered := false
 			for role, scopes := range roles {
 				result := "covered statically; identity, installation and resource checks still apply"
@@ -156,7 +156,9 @@ func (s *State) PermissionReport() []string {
 			}
 			switch {
 			case covered:
-			case m.OwnerAware && !decide.RoleGated(m):
+			case m.OwnerAware && !decide.RoleGated(m) && slices.ContainsFunc(policy.Requires, func(sc *basev0.WorkScopeV1) bool {
+				return !slices.Contains(m.SharedKinds, sc.GetResourceKind())
+			}):
 				// Organization roles reach no owned kind here (RBAC-4a): a
 				// solution's or a module page's role does.
 				lines = append(lines, fmt.Sprintf("%s@%d %s: checks owners; reached through a role on the installation that owns the data, never an organization role", m.Name, m.Generation, method))

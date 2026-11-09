@@ -1,6 +1,7 @@
 package decide_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
@@ -185,4 +186,30 @@ func TestOrganizationRolesReachNoOwnersDataAtAnOwnerAwareModule(t *testing.T) {
 	shared.SharedKinds = []string{"note"}
 	same(t, decide.OrgScopes(every, shared, nil), []*basev0.WorkScopeV1{sc("note", "read")})
 	same(t, decide.OrgScopes(every, store, nil), []*basev0.WorkScopeV1{sc("collection", "read", "write"), sc("note", "read")})
+}
+
+// OwnSession names the RBAC-4a rule only for an owned kind the audience
+// serves, or an empty ask refused for holding nothing; any other refusal is
+// answered as it was.
+func TestOwnSessionNamesTheRuleOnlyForOwnedData(t *testing.T) {
+	aware := store
+	aware.OwnerAware, aware.SharedKinds = true, []string{"note"}
+	nothing, beyond := domain.Refuse("the owner holds nothing at this audience"), domain.Refuse("asked beyond what the owner holds")
+	named := func(err error) bool { return strings.Contains(err.Error(), "checks owners") }
+	if !named(decide.OwnSession(aware, nil, nothing)) || !named(decide.OwnSession(aware, ids([]string{"read"}, "x"), beyond)) {
+		t.Fatal("an owned ask or an empty ask holding nothing is not named")
+	}
+	gated := aware
+	gated.Roles = map[string][]*basev0.WorkScopeV1{"viewer": {sc("collection", "read")}}
+	for name, err := range map[string]error{
+		"a shared kind":         decide.OwnSession(aware, []*basev0.WorkScopeV1{sc("note", "read")}, beyond),
+		"an unserved kind":      decide.OwnSession(aware, []*basev0.WorkScopeV1{sc("elsewhere", "read")}, beyond),
+		"an empty ask refused":  decide.OwnSession(aware, nil, domain.Refuse("the audience declares note without its actions")),
+		"an owner-blind module": decide.OwnSession(store, ids([]string{"read"}, "x"), beyond),
+		"a role-gated module":   decide.OwnSession(gated, ids([]string{"read"}, "x"), beyond),
+	} {
+		if named(err) {
+			t.Errorf("%s is named as RBAC-4a: %v", name, err)
+		}
+	}
 }

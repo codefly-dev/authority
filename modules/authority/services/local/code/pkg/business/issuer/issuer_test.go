@@ -192,7 +192,7 @@ func TestAnOrganizationRoleReachesNothingAtAModuleThatChecksOwners(t *testing.T)
 		for _, ask := range [][]*authorityv1.WorkScopeV1{nil, scopes(testkit.Scope(tc.kind, tc.action))} {
 			_, err := k.Issuer.Issue(person(t, k, tc.token), &authorityv1.IssueRequest{
 				As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents", Scopes: ask})
-			if !errors.Is(err, issuer.ErrRefused) {
+			if !errors.Is(err, issuer.ErrRefused) || !strings.Contains(err.Error(), "documents checks owners") {
 				t.Fatalf("%s at documents asking %v: %v", tc.token, ask, err)
 			}
 		}
