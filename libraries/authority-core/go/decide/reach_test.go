@@ -127,6 +127,40 @@ func TestReachThroughBindingsAndEdges(t *testing.T) {
 	}
 }
 
+// A module page's role reaches through the page's binding as a solution's
+// does: "through the page, in docs", the role cut to the binding, with no
+// confinement on the page itself, and its edge on the person's own session.
+func TestAModulePageRoleReachesThroughItsBinding(t *testing.T) {
+	_, modules := reachComposition()
+	page := domain.Module{Name: "people", Principal: "people", Kind: domain.KindModule, Generation: 1, Page: true, InstallationRole: domain.NoInstallationRole,
+		ResourceKinds: []*basev0.WorkScopeV1{rs("people.entry", "read", "write")},
+		Roles: map[string][]*basev0.WorkScopeV1{
+			domain.InstallerRole: {rs("people.entry", "read", "write"), rs("docs.doc", "read", "write")},
+			"viewer":             {rs("people.entry", "read"), rs("docs.doc", "read")},
+		},
+		Bindings:         map[string]domain.Binding{"rows": {ID: "rows", Audience: "docs", InvokeScopes: []*basev0.WorkScopeV1{rs("docs.doc", "read", "write")}}},
+		EdgeDependencies: []domain.EdgeDependency{{Module: "model", Presence: "optional"}},
+	}
+	if err := decide.ValidateModule(page); err != nil {
+		t.Fatalf("a page role naming what its binding consumes is a valid declaration: %v", err)
+	}
+	rows, err := decide.Reach(page, "viewer", modules)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if on := rowAt(rows, decide.ReachRole, "", "people"); on == nil || !sameScopes(on.Scopes, []*basev0.WorkScopeV1{rs("people.entry", "read")}) {
+		t.Fatalf("on the page, the viewer reaches %+v", on)
+	}
+	docs := rowAt(rows, decide.ReachBinding, "", "people", "docs")
+	if docs == nil || !sameScopes(docs.Scopes, []*basev0.WorkScopeV1{rs("docs.doc", "read")}) ||
+		!slices.Equal(docs.Operations, []string{"/docs.v1.Docs/Get", "GET /docs/{id}"}) || !slices.Equal(docs.Path, []string{"people", "docs"}) {
+		t.Fatalf("through the page, docs is reached as %+v", docs)
+	}
+	if model := rowAt(rows, decide.ReachPerson, "", "people", "model"); model == nil || len(model.Scopes) > 0 {
+		t.Fatalf("the edge is reached on the person's own session, scopeless: %+v", model)
+	}
+}
+
 // Reach on the person's session carries no scopes: the holder's own grants
 // at the edge's module decide, so the row says so and lists nothing.
 func TestReachOnThePersonsSessionCarriesNoScopes(t *testing.T) {

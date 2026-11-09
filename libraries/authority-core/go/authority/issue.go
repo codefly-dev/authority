@@ -67,8 +67,21 @@ func held(tx Tx, p domain.Person, audience domain.Module, named Scopes) (Scopes,
 }
 
 // solutionCeiling intersects the current roles of each solution the verified
-// path names; bounded distinguishes no solution from a solution granting nothing.
+// path names; with none, of each module page declaring roles it names: a role
+// reaches through its target's bindings whichever kind declares it, and a
+// solution on the path decides alone, as it always has. bounded distinguishes
+// no such target from one granting nothing.
 func solutionCeiling(tx Tx, p domain.Person, principals []string) (ceiling Scopes, bounded bool, err error) {
+	isSolution := func(m domain.Module) bool { return m.Kind == domain.KindSolution }
+	if ceiling, bounded, err = rolesCeiling(tx, p, principals, isSolution); err != nil || bounded {
+		return ceiling, bounded, err
+	}
+	return rolesCeiling(tx, p, principals, decide.RoleGated)
+}
+
+// rolesCeiling intersects the current roles of each target the path names
+// that counts.
+func rolesCeiling(tx Tx, p domain.Person, principals []string, counts func(domain.Module) bool) (ceiling Scopes, bounded bool, err error) {
 	seen := map[string]bool{}
 	for _, principal := range principals {
 		if seen[principal] {
@@ -79,7 +92,7 @@ func solutionCeiling(tx Tx, p domain.Person, principals []string) (ceiling Scope
 		if err != nil {
 			return nil, false, notFound(err)
 		}
-		if m.Kind != domain.KindSolution {
+		if !counts(m) {
 			continue
 		}
 		inst, err := installationOf(tx, p.Organization, m.Name)
@@ -111,7 +124,8 @@ func solutionCeiling(tx Tx, p domain.Person, principals []string) (ceiling Scope
 
 // throughSolutions is what a person holds at audience on a path through
 // principals: the solutions' roles alone when a solution is on the path
-// (confined to its principal's data), the person's own grants otherwise.
+// (confined to its principal's data), else the roles of the module pages
+// declaring roles on it, the person's own grants otherwise.
 func throughSolutions(tx Tx, p domain.Person, audience domain.Module, principals []string, named Scopes) (h, ceiling Scopes, bounded bool, err error) {
 	if ceiling, bounded, err = solutionCeiling(tx, p, principals); err != nil {
 		return
@@ -608,7 +622,10 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 		default:
 			heldHere = verified.EffectiveScopes()
 		}
-		if (bounded || claims.GetOwnerPrincipalKind() == "agent") && !audience.OwnerAware {
+		// Only a solution's roles select its principal's data; a module
+		// page's select no owner, so its audience need not check one.
+		confined := bounded && anySolution(tx, solutionPrincipals(claims, am.Principal))
+		if (confined || claims.GetOwnerPrincipalKind() == "agent") && !audience.OwnerAware {
 			return decide.OwnerAware(audience, decide.Scopes{{ResourceKind: audience.Name, ResourceOwnerId: claims.GetOwnerPrincipalId()}})
 		}
 		// Headless is the module acting as itself, for nobody: a hop for
@@ -634,7 +651,7 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 		scopes = ceiling
 		if len(r.Scopes) > 0 {
 			if !scope.Attenuates(r.Scopes, ceiling) {
-				return decide.Child(r.Binding, bounded)
+				return decide.Child(r.Binding, confined)
 			}
 			scopes = scope.Normalize(r.Scopes)
 		}

@@ -85,7 +85,11 @@ authority; `Review`, `Install` and `ReviewOffer` refuse it `NOT_FOUND`, and a
 person never uninstalls it. A module page's roles decide who may use it (its
 page included): `GrantRole`, `RevokeRole`, `ListRoleGrants` and `ListHeld`
 work on its composition installation as on a solution's, and a person is
-issued at its audience only for a role held there. A module that gains or
+issued at its audience only for a role held there. Its roles reach through its
+bindings as a solution's do: a role may name what a binding consumes, and a
+holder's hop through the page carries the role cut to the binding (never an
+owner: a page has no principal); with a solution on the path, the solutions'
+roles decide alone. A module that gains or
 loses roles keeps its installation; the grants of a role a delivery stops
 declaring end with that delivery, the others stay.
 

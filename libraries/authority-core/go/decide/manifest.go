@@ -68,18 +68,15 @@ func validateModule(m domain.Module) error {
 		return &domain.Refusal{Code: domain.Denied, Cause: domain.ErrNoInstallerRole,
 			Reason: fmt.Sprintf("%s declares %d role(s) and none is %q: a solution, or a module page declaring roles, declares an installer role", m.Name, len(m.Roles), domain.InstallerRole)}
 	}
-	// A solution's roles reach through its bindings (a person's capability
-	// through a solution carries the solution's role at each module it
-	// invokes), so a role may name what a binding consumes. A module page's
-	// never do: at a module it reaches, the person holds their own grants,
-	// cut to the binding. A role naming a consumed kind there would be
-	// accepted and decide nothing, so it is refused instead.
+	// A role reaches through its target's bindings, a solution's and a
+	// module page's alike (a person's capability through either carries the
+	// role at each module it invokes, cut to the binding at each hop), so a
+	// role may name what a binding consumes, and nothing it neither serves
+	// nor consumes.
 	grantable := Served(m)
-	if m.Kind == domain.KindSolution {
-		for _, b := range m.Bindings {
-			grantable = append(grantable, b.InvokeScopes...)
-			grantable = append(grantable, b.LookupScopes...)
-		}
+	for _, b := range m.Bindings {
+		grantable = append(grantable, b.InvokeScopes...)
+		grantable = append(grantable, b.LookupScopes...)
 	}
 	for _, name := range slices.Sorted(maps.Keys(m.Roles)) {
 		scopes := m.Roles[name]
@@ -90,9 +87,6 @@ func validateModule(m domain.Module) error {
 			return domain.Refuse("role %q of %s selects an owner; a role's owner is its installation's principal", name, m.Name)
 		}
 		if !scope.Attenuates(scopes, grantable) {
-			if m.Kind != domain.KindSolution {
-				return domain.Refuse("role %q of %s grants beyond what %s serves; a module page's roles never reach what it consumes", name, m.Name, m.Name)
-			}
 			return domain.Refuse("role %q of %s grants beyond what %s serves or explicitly consumes through invoke/lookup bindings", name, m.Name, m.Name)
 		}
 	}

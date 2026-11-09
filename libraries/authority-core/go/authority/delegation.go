@@ -283,11 +283,6 @@ func delegableScopes(tx Tx, p domain.Person, m domain.Module, scopes Scopes) (Sc
 		if err != nil {
 			return nil, err
 		}
-		if m.Kind != domain.KindSolution {
-			if there, err = held(tx, p, target, scopes); err != nil {
-				return nil, err
-			}
-		}
 		holdings = append(holdings, scope.Intersect(there, b.InvokeScopes)...)
 		holdings = append(holdings, scope.Intersect(there, b.LookupScopes)...)
 	}

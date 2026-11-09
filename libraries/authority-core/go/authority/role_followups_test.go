@@ -94,22 +94,60 @@ func TestARedeliveryDroppingARoleDropsItsGrants(t *testing.T) {
 	}
 }
 
-// A module page's role names what the page serves. A role over a kind the
-// page only consumes through a binding would be accepted and decide nothing
-// (at the module it reaches, a person holds their own grants, cut to the
-// binding), so it is refused by name. A solution's roles reach through its
-// bindings and may name what they consume, as the harness's do.
-func TestAModulePageRoleNamesOnlyWhatItServes(t *testing.T) {
+// A module page's role reaches through the page's bindings as a solution's
+// does: it may name what a binding consumes, and nothing it neither serves
+// nor consumes.
+func TestAModulePageRoleNamesWhatItServesOrConsumes(t *testing.T) {
 	h := newHarness(t)
 	m := pageModule(1, true)
 	m.Bindings = map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read")}}}
+	m.Roles["viewer"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read")}
 	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
-		t.Fatalf("a page consuming a kind through a binding is accepted: %v", err)
+		t.Fatalf("a page role naming what its binding consumes is accepted: %v", err)
 	}
 	m.Generation = 2
-	m.Roles["viewer"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read")}
+	m.Roles["viewer"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read", "write")}
 	_, err := h.svc.ApplyModule(h.ctx, m)
-	refused(t, err, "never reach what it consumes")
+	refused(t, err, "grants beyond what pages serves or explicitly consumes")
+}
+
+// A person holding only a module page's role is issued, through the page's
+// binding, a child narrowed to the role intersected with the binding, and
+// nothing beyond: not an action the binding does not carry, not an action the
+// role does not grant, not without the role, and not on their own session at
+// the module the page reaches, where their own grants still decide.
+func TestAModulePageRoleReachesThroughThePagesBinding(t *testing.T) {
+	h := newHarness(t)
+	m := pageModule(1, true)
+	m.Bindings = map[string]domain.Binding{
+		"store":  {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write")}},
+		"legacy": {ID: "legacy", Audience: "legacy-store", InvokeScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}},
+	}
+	m.Roles[domain.InstallerRole] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(kind, "read", "write")}
+	m.Roles["viewer"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read"), sc(legacyKind, "read")}
+	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
+		t.Fatal(err)
+	}
+	h.grant("pages", "viewer", "maya")
+
+	child := h.must(h.through("maya", "pages", "store"))
+	exactly(t, child, kind, "", []string{"read"})
+	if err := h.check(child); err != nil {
+		t.Fatalf("the child checks at the store: %v", err)
+	}
+	// A page's role selects no owner, so a module that checks none is reached
+	// as well: only a solution's roles confine to its principal's data.
+	exactly(t, h.must(h.through("maya", "pages", "legacy")), legacyKind, "", []string{"read"})
+	_, err := h.through("maya", "pages", "store", sc(kind, "write"))
+	refused(t, err, "a child widens what its owner holds through binding \"store\"")
+	_, err = h.through("remi", "pages", "store")
+	refused(t, err, "holds no role on pages")
+	_, err = h.root("maya", "store")
+	refused(t, err, "the owner holds nothing at this audience")
+
+	h.revoke("pages", "viewer", "maya", "")
+	_, err = h.through("maya", "pages", "store")
+	refused(t, err, "holds no role on pages")
 }
 
 // On a host that installs modules, a module page declaring roles is the
