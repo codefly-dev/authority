@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -31,22 +32,102 @@ func TestAVerifierTakesTheHopsKeyFromTheAuthoritysKeysAlone(t *testing.T) {
 }
 
 // A stamp signed by a key the authority does not publish is refused as
-// stamp_proof, and causes no read of the authority's keys: a caller cannot
-// make the verifier re-read by presenting an unknown key.
+// stamp_proof after one re-read of the authority's keys, and a second such
+// stamp inside signerRetry is refused on the keys held, reading nothing: a
+// caller cannot make the verifier read more than once per signerRetry.
 func TestAStampSignedByAnUnpublishedKeyIsRefusedByName(t *testing.T) {
 	authority := newSigner("published")
 	source := &keys{response: &authorityv1.KeysResponse{Issuer: authority.issuer, Keys: []*authorityv1.PublicKey{authority.published()}}}
 	v, _ := NewVerifier(context.Background(), source, "documents", core.NewMemoryReplayStore())
 	settled(v)
+	clock := time.Now()
+	v.now = func() time.Time { return clock }
 	reads := source.count()
-	_, err := v.Verify(context.Background(), forwarded(t, authority.issue(t, time.Now(), "documents"), "an-unpublished-hop", ""), "/test.Service/Read")
 	var reason refusal.Reason
-	if !errors.As(err, &reason) || reason != refusal.StampProof {
-		t.Fatalf("want %s: %v", refusal.StampProof, err)
+	for range 2 {
+		_, err := v.Verify(context.Background(), forwarded(t, authority.issue(t, clock, "documents"), "an-unpublished-hop", ""), "/test.Service/Read")
+		if !errors.As(err, &reason) || reason != refusal.StampProof {
+			t.Fatalf("want %s: %v", refusal.StampProof, err)
+		}
+		settled(v)
 	}
+	if source.count()-reads != 1 {
+		t.Fatalf("two stamps under an unpublished key inside signerRetry caused %d key reads, want 1", source.count()-reads)
+	}
+}
+
+// W7 (2026-11-09): the saas gateway registers a fresh admission key every time
+// it starts and signs with it at once. A module that read the keys before the
+// restart holds only the old key; the first stamp under the new one re-reads
+// the published keys and is admitted, without waiting out keyMaxAge.
+func TestARestartedHopsFreshKeyIsAdmittedWithoutWaitingKeyMaxAge(t *testing.T) {
+	authority := newSigner("published")
+	source := &keys{response: &authorityv1.KeysResponse{Issuer: authority.issuer, Keys: []*authorityv1.PublicKey{authority.published()},
+		AdmissionKeys: []*authorityv1.PublicKey{publishedHop("gateway-before-restart")}}}
+	v, _ := NewVerifier(context.Background(), source, "documents", core.NewMemoryReplayStore())
 	settled(v)
-	if source.count() != reads {
-		t.Fatalf("an unpublished key caused %d key reads", source.count()-reads)
+	clock := time.Now()
+	v.now = func() time.Time { return clock }
+	v.fetched, v.tried = clock, clock
+	// The gateway restarts and registers its fresh key; the old one is withdrawn.
+	source.set(&authorityv1.KeysResponse{Issuer: authority.issuer, Keys: []*authorityv1.PublicKey{authority.published()},
+		AdmissionKeys: []*authorityv1.PublicKey{publishedHop("gateway-after-restart")}}, nil, nil)
+	clock = clock.Add(time.Second) // far inside keyMaxAge and keyRetry
+	reads := source.count()
+	id, err := v.Verify(context.Background(), forwarded(t, authority.issue(t, clock, "documents"), "gateway-after-restart", ""), "/test.Service/Read")
+	if err != nil || id.Owner != core.FixturePrincipal {
+		t.Fatalf("the restarted gateway's first stamp: %+v %v", id, err)
+	}
+	if source.count()-reads != 1 {
+		t.Fatalf("admitting the fresh key took %d key reads, want 1", source.count()-reads)
+	}
+	if _, err := v.Verify(context.Background(), forwarded(t, authority.issue(t, clock, "documents"), "gateway-after-restart", ""), "/test.Service/Read"); err != nil {
+		t.Fatalf("the fresh key's next stamp: %v", err)
+	}
+	if source.count()-reads != 1 {
+		t.Fatalf("a held key read the keys again: %d reads", source.count()-reads)
+	}
+}
+
+// A flood of stamps under keys nobody publishes costs the authority one read
+// per signerRetry, whatever their number, and each is refused as stamp_proof.
+func TestAFloodOfUnknownSignersCostsOneReadPerSignerRetry(t *testing.T) {
+	authority := newSigner("published")
+	source := &keys{response: &authorityv1.KeysResponse{Issuer: authority.issuer, Keys: []*authorityv1.PublicKey{authority.published()},
+		AdmissionKeys: []*authorityv1.PublicKey{publishedHop("the-hop")}}}
+	v, _ := NewVerifier(context.Background(), source, "documents", core.NewMemoryReplayStore())
+	settled(v)
+	start := time.Now()
+	clock := start
+	v.now = func() time.Time { return clock }
+	v.fetched, v.tried = clock, clock
+	token := authority.issue(t, clock, "documents")
+	flood := func(n int) int {
+		before := source.count()
+		var reason refusal.Reason
+		for i := range n {
+			_, err := v.Verify(context.Background(), forwarded(t, token, fmt.Sprintf("forged-%d", i), ""), "/test.Service/Read")
+			if !errors.As(err, &reason) || reason != refusal.StampProof {
+				t.Fatalf("stamp %d under an unknown key: %v", i, err)
+			}
+		}
+		settled(v)
+		return source.count() - before
+	}
+	if reads := flood(200); reads != 1 {
+		t.Fatalf("200 unknown signers drove %d key reads, want 1", reads)
+	}
+	clock = start.Add(signerRetry - time.Second)
+	if reads := flood(50); reads != 0 {
+		t.Fatalf("inside signerRetry, unknown signers drove %d key reads, want 0", reads)
+	}
+	clock = start.Add(signerRetry)
+	if reads := flood(50); reads != 1 {
+		t.Fatalf("after signerRetry, unknown signers drove %d key reads, want 1", reads)
+	}
+	// The genuine hop is never held up by the flood.
+	if _, err := v.Verify(context.Background(), forwarded(t, authority.issue(t, clock, "documents"), "the-hop", ""), "/test.Service/Read"); err != nil {
+		t.Fatalf("the genuine hop during the flood: %v", err)
 	}
 }
 
