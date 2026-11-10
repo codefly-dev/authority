@@ -88,6 +88,59 @@ func shape(i authority.Issued) string {
 	return strings.Join(rows, " ")
 }
 
+// The session a view is keyed by is the one every hop of the chain carries as the
+// first hop's delegation, at any depth: a hop reads it back from its parent token,
+// so a view cannot be shed by hopping.
+func TestARoleViewSessionIsCarriedBelowTheFirstHop(t *testing.T) {
+	h := newHarness(t)
+	h.grant("a", "author", "maya")
+	h.grant("a", "viewer", "maya")
+	viewer, err := h.viewing("maya", "a", "viewer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	hop := h.must(h.hopOf(h.must(h.rootAs(viewer, "a")), "a", "store"))
+	for depth := 1; depth <= 3; depth++ {
+		chain := hop.Context.GetActorChain()
+		if len(chain) != depth || chain[0].GetDelegationId() != viewer.SessionID {
+			t.Fatalf("depth %d: chain of %d hops, first delegation %q, want the view's session %q", depth, len(chain), chain[0].GetDelegationId(), viewer.SessionID)
+		}
+		hop = h.must(h.hop(hop, "self"))
+	}
+}
+
+// A delegation made under a view is cut to the view when it is made, and what
+// it holds when exercised is bounded by that, whatever its grantor is granted
+// since: a delegation names no session, so the grantor is read in full then.
+func TestADelegationMadeUnderARoleViewHoldsWhatTheViewHolds(t *testing.T) {
+	h := newHarness(t)
+	h.grant("a", "author", "maya")
+	h.grant("a", "viewer", "maya")
+	viewer, err := h.viewing("maya", "a", "viewer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mine := func(action string) authority.Scopes {
+		return authority.Scopes{owned(kind, h.principal(acme, "a"), []string{action})}
+	}
+	if _, err := h.svc.Delegate(h.ctx, h.person("maya"), "a", mine("write"), "a job", 0); err != nil {
+		t.Fatalf("setup: maya delegates a write as author: %v", err)
+	}
+	_, err = h.svc.Delegate(h.ctx, viewer, "a", mine("write"), "a job", 0)
+	refused(t, err, "delegates what they do not hold")
+	d, err := h.svc.Delegate(h.ctx, viewer, "a", mine("read"), "a job", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := h.svc.IssueForDelegation(h.ctx, d.ID, authority.Workload{Module: "a"}, authority.IssueRequest{Binding: "store"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if holds(got, kind, "write") || !holds(got, kind, "read") {
+		t.Fatalf("a delegation made as viewer holds %v", effective(got))
+	}
+}
+
 // T1, T2, T5: a view names roles the caller holds on that installation now,
 // through the view they call from, and nothing else.
 func TestARoleViewOnlyNarrows(t *testing.T) {

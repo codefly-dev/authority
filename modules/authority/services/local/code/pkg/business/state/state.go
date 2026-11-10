@@ -457,6 +457,10 @@ func (s *State) OpenRoleView(ctx context.Context, parent, installationID string,
 	sess.ID, sess.RoleView = id, view.Roles
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if _, open := s.sessions[parent]; !open {
+		// The parent ended while the core decided: the view opens no session of its own.
+		return Session{}, fmt.Errorf("%w: an open session is required", ErrUnauthenticated)
+	}
 	s.sessions[id] = sess
 	return sess, nil
 }

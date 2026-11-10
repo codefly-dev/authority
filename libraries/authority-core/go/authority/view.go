@@ -90,6 +90,15 @@ func heldSentence(held []string) string {
 	return "you act as " + strings.Join(held, ", ")
 }
 
+// RoleViewOf is the role view session was opened with, or domain.ErrNotFound
+// for a session that has none. A host reads it to say what a session views and
+// to refuse, by name, a mint of its own that the view does not govern.
+func (s *Service) RoleViewOf(ctx context.Context, session string) (domain.RoleView, error) {
+	var v domain.RoleView
+	err := s.store.Read(ctx, func(tx Tx) (err error) { v, err = tx.RoleView(session); return err })
+	return v, err
+}
+
 // personAs is the person a session acts as, read now: a member of the
 // organization their session was opened at, narrowed to the role view the
 // session was fixed to, if any. It and personFor are the only readers of a
@@ -105,6 +114,8 @@ func personAs(tx Tx, caller Person) (domain.Person, error) {
 func personFor(tx Tx, org, id, session string) (domain.Person, error) {
 	p, err := tx.Member(org, id)
 	if err != nil || session == "" {
+		// No session, no view: a capability whose root names none (a delegation's)
+		// or a host that authenticated no session. Nothing here can be narrowed.
 		return p, err
 	}
 	v, err := tx.RoleView(session)
@@ -129,7 +140,11 @@ func personOfClaims(tx Tx, wc *basev0.WorkContextV1) (domain.Person, error) {
 
 // rootSession is the session a person's capability descends from: a root
 // carries it as its own, and every hop keeps it as the delegation of the first
-// hop, which no later hop rewrites (derive).
+// hop, which no later hop rewrites (derive). A capability issued for a
+// delegation instead names the delegation there, not a session: its grantor is
+// read under no view, and what it holds is bounded by the scopes the
+// delegation was made with, which Delegate cut to the view of the session that
+// made it (TestADelegationMadeUnderARoleViewHoldsWhatTheViewHolds).
 func rootSession(wc *basev0.WorkContextV1) string {
 	if chain := wc.GetActorChain(); len(chain) > 0 {
 		return chain[0].GetDelegationId()

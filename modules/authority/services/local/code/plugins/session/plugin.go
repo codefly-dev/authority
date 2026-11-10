@@ -55,7 +55,6 @@ func (p *Plugin) SignIn(_ context.Context, req *sessionv1.SignInRequest) (*sessi
 	return wire(sess, sess.ID), nil
 }
 
-// New is the registry's constructor: the plugin over what Configure wired.
 // wire is a session as the interface answers it.
 func wire(sess state.Session, bearer string) *sessionv1.Session {
 	out := &sessionv1.Session{PersonDisplayName: sess.PersonDisplayName, OrganizationDisplayName: sess.OrganizationDisplayName, SessionId: sess.ID, PersonId: sess.Person, OrganizationId: sess.Organization, Roles: sess.Roles, TeamIds: sess.Teams, Bearer: bearer}
@@ -103,4 +102,5 @@ func (p *Plugin) ListFixturePeople(context.Context, *sessionv1.ListFixturePeople
 	return out, nil
 }
 
+// New is the registry's constructor: the plugin over what Configure wired.
 func New() framework.Plugin { return &Plugin{State: wiring.State()} }
