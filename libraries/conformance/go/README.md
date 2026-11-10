@@ -82,6 +82,19 @@ active installing organizations or none, naming “must name the organization of
 the work item”. `WorkloadOrganizations` supplies these two fixtures. Successful
 single-organization inference remains a local convenience, not a shared promise.
 
+## Fixture rule: own sessions and modules that check owners (RBAC-4a)
+
+A person's organization roles on their own session reach no owned kind of a
+module that checks owners; they reach a kind it declares shared, and every kind
+of a module that checks no owner. So a host's fixture puts each case that starts
+from a person's own session (Audience/ReadKind, Chain, ChildScopes, Lookup,
+Delegation, ParentLimits, Resources and the Matrix's allow rows) on modules that
+check no owner or on shared kinds, and the cases that reach an installation's
+data (SolutionRoles, InstallationChain, InstallationResources) on modules that
+check owners. A Matrix deny row at a module that checks owners states the rule
+for the host. ParentLimits refuses a fixture whose dropped kind the person does
+not hold at the root, since its refusal would then prove nothing.
+
 ## Target: solution principal (not yet part of `Run`)
 
 `RunSolutionPrincipalTarget` specifies solution identity before any host

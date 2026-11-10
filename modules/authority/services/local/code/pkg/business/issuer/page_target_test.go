@@ -9,13 +9,13 @@ import (
 )
 
 // A page's call names its target: org-directory declares a binding to
-// documents, so the person's capability there is the directory's hop over it,
+// records, so the person's capability there is the directory's hop over it,
 // exactly the child its own workload would be issued, with org-directory the
 // actor; with no page named, the person's own access answers.
 func TestAPersonIssueNamingAPageGoesThroughItsTargetsBinding(t *testing.T) {
 	k := testkit.New(t)
 	viaPage, err := k.Issuer.Issue(person(t, k, "fixture-remi"), &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents", PageTarget: "org-directory",
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "records", PageTarget: "org-directory",
 		Actor: &authorityv1.WorkloadCredential{Credential: k.EdgeCredential(t)}})
 	if err != nil {
 		t.Fatal(err)
@@ -23,7 +23,7 @@ func TestAPersonIssueNamingAPageGoesThroughItsTargetsBinding(t *testing.T) {
 	// Only the module edge names a page: not a module, not a caller with none.
 	for _, actor := range []*authorityv1.WorkloadCredential{nil, {Credential: k.Credential(t, "org-directory")}} {
 		if _, err := k.Issuer.Issue(person(t, k, "fixture-remi"), &authorityv1.IssueRequest{
-			As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents", PageTarget: "org-directory", Actor: actor}); err == nil {
+			As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "records", PageTarget: "org-directory", Actor: actor}); err == nil {
 			t.Fatalf("a page named with actor %v was honoured", actor)
 		}
 	}
@@ -33,11 +33,11 @@ func TestAPersonIssueNamingAPageGoesThroughItsTargetsBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	viaBackend, err := k.Issuer.Issue(context.Background(), &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_ParentToken{ParentToken: p.Token},
-		Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, "org-directory")}, Audience: "documents", OperationBindingId: "documents"})
+		Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, "org-directory")}, Audience: "records", OperationBindingId: "records"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := actions(viaPage.Context, "documents"), actions(viaBackend.Context, "documents"); got != want || got == "" {
+	if got, want := actions(viaPage.Context, "records.records"), actions(viaBackend.Context, "records.records"); got != want || got == "" {
 		t.Fatalf("through the page %q, through the backend %q", got, want)
 	}
 	chain := viaPage.Context.GetActorChain()

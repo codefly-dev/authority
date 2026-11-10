@@ -71,7 +71,7 @@ func TestAttachmentRefusalsAndExclusiveBoundedLifecycle(t *testing.T) {
 	}
 	_, err := h.svc.AttachResource(h.ctx, authority.AttachmentRequest{Token: token, Store: authority.Workload{Module: "a"}, Kind: kind, ResourceID: "x"})
 	refused(t, err, "does not serve")
-	wrong := h.must(h.root("ada", "store"))
+	wrong := h.must(h.root("rob", "ledger"))
 	_, err = h.svc.AttachResource(h.ctx, authority.AttachmentRequest{Token: wrong.Token, Store: authority.Workload{Module: "a"}, Kind: "a.note", ResourceID: "x"})
 	refused(t, err, "audience")
 	var before domain.Installation

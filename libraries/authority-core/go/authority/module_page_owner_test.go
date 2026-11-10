@@ -185,19 +185,20 @@ func TestRBAC1AModulePageAttachesWhatItWroteBeforeItHeldAPrincipal(t *testing.T)
 	exactly(t, viewer, kind, mine, []string{"read"}, "store-x")
 }
 
-// ledger is a module that checks no owner, with a binding to itself: what a
-// module page's role reaches as it is (decide.ModuleRoleAt), for the tests of
-// a page's binding that are not about owners.
+// ledger is a module that checks no owner, with a binding to itself and one
+// to the legacy store: what a module page's role reaches as it is
+// (decide.ModuleRoleAt), and what an organization role reaches on a person's
+// own session, for the tests that are not about owners. The harness delivers
+// it.
 const ledgerKind = "ledger.entry"
 
-func applyLedger(t *testing.T, h *harness) {
-	t.Helper()
-	l := domain.Module{Name: "ledger", Principal: "ledger", Kind: domain.KindModule, Generation: 1,
+func ledger() domain.Module {
+	return domain.Module{Name: "ledger", Principal: "ledger", Kind: domain.KindModule, Generation: 1,
 		ResourceKinds: []*basev0.WorkScopeV1{sc(ledgerKind, "read", "write")},
-		Bindings:      map[string]domain.Binding{"self": {ID: "self", Audience: "ledger", InvokeScopes: []*basev0.WorkScopeV1{sc(ledgerKind, "read", "write")}}}}
-	if _, err := h.svc.ApplyModule(h.ctx, l); err != nil {
-		t.Fatal(err)
-	}
+		Bindings: map[string]domain.Binding{
+			"self":   {ID: "self", Audience: "ledger", InvokeScopes: []*basev0.WorkScopeV1{sc(ledgerKind, "read", "write")}, HeadlessScopes: []*basev0.WorkScopeV1{sc(ledgerKind, "read")}},
+			"legacy": {ID: "legacy", Audience: "legacy-store", InvokeScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}},
+		}}
 }
 
 // ledgerPage is a module page whose viewer reads the ledger and whose
@@ -205,7 +206,6 @@ func applyLedger(t *testing.T, h *harness) {
 // owner-aware store.
 func ledgerPage(t *testing.T, h *harness) {
 	t.Helper()
-	applyLedger(t, h)
 	m := pageModule(1, true)
 	m.Bindings = map[string]domain.Binding{
 		"ledger": {ID: "ledger", Audience: "ledger", InvokeScopes: []*basev0.WorkScopeV1{sc(ledgerKind, "read", "write")}},

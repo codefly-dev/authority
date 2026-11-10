@@ -231,12 +231,22 @@ func RoleGated(m domain.Module) bool {
 }
 
 // Narrowed reports whether next narrows what previous granted: a binding
-// removed, readdressed or cut, owner-aware checking withdrawn, any of its
-// roles cut, or a module moved between organization roles and its own. A
-// narrowing invalidates capabilities already issued.
+// removed, readdressed or cut, owner-aware checking withdrawn or adopted, a
+// kind no longer shared at a module that checks owners, any of its roles cut,
+// or a module moved between organization roles and its own. A narrowing
+// invalidates capabilities already issued. Adopting owner checks narrows too:
+// what an organization role or a module's role held there unselected is no
+// longer held (RBAC-4a, ModuleRoleAt).
 func Narrowed(previous, next domain.Module) bool {
-	if previous.OwnerAware && !next.OwnerAware {
+	if previous.OwnerAware != next.OwnerAware {
 		return true
+	}
+	if next.OwnerAware {
+		for _, kind := range previous.SharedKinds {
+			if !slices.Contains(next.SharedKinds, kind) {
+				return true
+			}
+		}
 	}
 	for id, old := range previous.Bindings {
 		b, ok := next.Bindings[id]

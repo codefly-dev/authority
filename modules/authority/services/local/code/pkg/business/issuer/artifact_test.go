@@ -115,7 +115,7 @@ func TestConsentIsThePersonsOwnAtTheModuleAsking(t *testing.T) {
 	identity := fieldNaturalist(1)
 
 	// A context addressed to another module is not consent at robin.
-	if _, err := k.Issuer.Artifact(ctx, "activate", &artifactv1.ArtifactRequest{ParentToken: personAt(t, k, "fixture-alex", "documents"), ActorCredential: robin, InstallationId: acmeRobin, Policy: "robin.intents", Identity: identity}); !denied(err) || !strings.Contains(err.Error(), "addressed to documents") {
+	if _, err := k.Issuer.Artifact(ctx, "activate", &artifactv1.ArtifactRequest{ParentToken: personAt(t, k, "fixture-alex", "evaluation"), ActorCredential: robin, InstallationId: acmeRobin, Policy: "robin.intents", Identity: identity}); !denied(err) || !strings.Contains(err.Error(), "addressed to evaluation") {
 		t.Fatalf("another audience: %v", err)
 	}
 	// Nor is robin's context presented by another module.

@@ -26,6 +26,13 @@ func (c *client) parentLimits(t *testing.T, ctx context.Context, f ParentLimitsC
 		return map[string]any{"parent_token": str(parent, "token"), "actor": map[string]any{"credential": h.Credential}, "audience": h.Audience, "operation_binding_id": h.Binding}
 	}
 	self := Hop{Credential: f.Credential, Audience: f.Root, Binding: f.SelfBinding}
+	// The dropped kind must be one the person holds at the root, or its
+	// refusal below proves nothing about the parent's limit.
+	held := rootRequest()
+	held["scopes"] = []any{scopeAsk(f.DroppedKind, []string{f.Action}, nil)}
+	if _, err := c.call(as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", held); err != nil {
+		t.Fatalf("parent-limits fixture: the person must hold %s %s at %s on their own session: %v", f.DroppedKind, f.Action, f.Root, err)
+	}
 	t.Run("action-specific resources", func(t *testing.T) {
 		req := rootRequest()
 		req["scopes"] = []any{

@@ -19,7 +19,7 @@ import (
 func issued(t *testing.T, k *testkit.Kit, fixtureToken string, scopes []*authorityv1.WorkScopeV1) string {
 	t.Helper()
 	out, err := k.Issuer.Issue(person(t, k, fixtureToken), &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents", Scopes: scopes,
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "records", Scopes: scopes,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -43,16 +43,18 @@ func covered(t *testing.T, owned []authority.Grant) *resources.Matcher {
 	return m
 }
 
-// The authority answers which collections a person reads from her roles, now.
+// The authority answers which collections a person reads from her roles, now,
+// at records, which checks no owner (at documents, which does, her roles reach
+// none on her own session: RBAC-4a).
 // Maya reads by prefix and pattern, which a token cannot carry: she names the
 // collections she acts on, and an ask naming none carries none of the kind.
 func TestTheAuthorityAnswersWhichResourcesAContextCovers(t *testing.T) {
 	k := testkit.New(t)
 	ctx := context.Background()
 	named := issued(t, k, "fixture-maya", []*authorityv1.WorkScopeV1{
-		{ResourceKind: "documents.collection", Actions: []string{"read"}, ResourceIds: []string{"derived\x1fdirectory", "shared-finance"}},
+		{ResourceKind: "records.collection", Actions: []string{"read"}, ResourceIds: []string{"derived\x1fdirectory", "shared-finance"}},
 	})
-	maya, err := k.Issuer.ListResources(ctx, named, "documents", "documents.collection", "read")
+	maya, err := k.Issuer.ListResources(ctx, named, "records", "records.collection", "read")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,17 +67,17 @@ func TestTheAuthorityAnswersWhichResourcesAContextCovers(t *testing.T) {
 	if m.All() {
 		t.Error("maya reads every collection")
 	}
-	if _, err := k.Issuer.ListResources(ctx, issued(t, k, "fixture-maya", nil), "documents", "documents.collection", "read"); !errors.Is(err, issuer.ErrRefused) {
+	if _, err := k.Issuer.ListResources(ctx, issued(t, k, "fixture-maya", nil), "records", "records.collection", "read"); !errors.Is(err, issuer.ErrRefused) {
 		t.Fatalf("an ask naming no collection carried the kind: %v", err)
 	}
-	remi, err := k.Issuer.ListResources(ctx, issued(t, k, "fixture-remi", nil), "documents", "documents.collection", "read")
+	remi, err := k.Issuer.ListResources(ctx, issued(t, k, "fixture-remi", nil), "records", "records.collection", "read")
 	if err != nil || !covered(t, remi).All() {
 		t.Fatalf("an editor reads every collection: %v %v", remi, err)
 	}
-	if _, err := k.Issuer.ListResources(ctx, named, "documents", "documents.collection", "admin"); !errors.Is(err, issuer.ErrRefused) {
+	if _, err := k.Issuer.ListResources(ctx, named, "records", "records.collection", "admin"); !errors.Is(err, issuer.ErrRefused) {
 		t.Fatalf("an action the context does not hold: %v", err)
 	}
-	if _, err := k.Issuer.ListResources(ctx, named, "documents", "documents.nothing", "read"); err == nil {
+	if _, err := k.Issuer.ListResources(ctx, named, "records", "records.nothing", "read"); err == nil {
 		t.Fatal("a kind the module does not serve")
 	}
 }
@@ -86,16 +88,16 @@ func TestTheAuthorityAnswersWhichResourcesAContextCovers(t *testing.T) {
 func TestANarrowedContextCoversOnlyTheIDsItNamesThatTheOwnerHolds(t *testing.T) {
 	k := testkit.New(t)
 	_, err := k.Issuer.Issue(person(t, k, "fixture-maya"), &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents",
-		Scopes: []*authorityv1.WorkScopeV1{{ResourceKind: "documents.collection", Actions: []string{"read"}, ResourceIds: []string{"derived\x1fdirectory", "secret"}}},
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "records",
+		Scopes: []*authorityv1.WorkScopeV1{{ResourceKind: "records.collection", Actions: []string{"read"}, ResourceIds: []string{"derived\x1fdirectory", "secret"}}},
 	})
 	if !errors.Is(err, issuer.ErrRefused) || !strings.Contains(err.Error(), "widens") {
 		t.Fatalf("an ask naming an id the owner does not hold: %v", err)
 	}
 	token := issued(t, k, "fixture-maya", []*authorityv1.WorkScopeV1{
-		{ResourceKind: "documents.collection", Actions: []string{"read"}, ResourceIds: []string{"derived\x1fdirectory"}},
+		{ResourceKind: "records.collection", Actions: []string{"read"}, ResourceIds: []string{"derived\x1fdirectory"}},
 	})
-	grants, err := k.Issuer.ListResources(context.Background(), token, "documents", "documents.collection", "read")
+	grants, err := k.Issuer.ListResources(context.Background(), token, "records", "records.collection", "read")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -28,9 +28,9 @@ func TestChildPreservesVerifiedTaskAndActorProvenance(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newHarness(t)
-			narrow := sc(kind, "read")
-			narrow.ResourceIds = []string{"store-x"}
-			root := h.must(h.root("rob", "store", narrow))
+			narrow := sc(ledgerKind, "read")
+			narrow.ResourceIds = []string{"entry-x"}
+			root := h.must(h.root("rob", "ledger", narrow))
 			c := root.Context
 			minter := workcontext.Authority{Issuer: h.cfg.Issuer, KeyID: h.cfg.KeyID, Signer: h.cfg.Signer,
 				Seals: h.svc.Seals(), Revisions: h.svc.Revisions(), Now: h.cfg.Clock}
@@ -47,12 +47,12 @@ func TestChildPreservesVerifiedTaskAndActorProvenance(t *testing.T) {
 				t.Fatal(err)
 			}
 			for _, kind := range tc.actors {
-				parent, err := h.svc.Verify(h.ctx, token, "store")
+				parent, err := h.svc.Verify(h.ctx, token, "ledger")
 				if err != nil {
 					t.Fatal(err)
 				}
 				actor := workcontext.ChildInput{PrincipalID: "omar", PrincipalKind: kind, OrganizationID: globex,
-					DelegationID: parent.Context().GetSessionId(), Audience: "store",
+					DelegationID: parent.Context().GetSessionId(), Audience: "ledger",
 					GrantedScopes: parent.EffectiveScopes(), TTL: 4 * time.Minute}
 				if kind == "agent" {
 					actor.PrincipalID, actor.AgentID = h.principal(globex, "a"), "a"
@@ -64,13 +64,13 @@ func TestChildPreservesVerifiedTaskAndActorProvenance(t *testing.T) {
 			}
 			// Both exchanges must preserve populated values and absent fields.
 			for step := range 2 {
-				parent, _, err := h.svc.Check(h.ctx, token, "store")
+				parent, _, err := h.svc.Check(h.ctx, token, "ledger")
 				if err != nil {
 					t.Fatalf("parent %d was not valid: %v", step, err)
 				}
 				before := parent.Context()
-				child := h.must(h.svc.IssueChild(h.ctx, token, authority.Workload{Module: "store"}, authority.IssueRequest{Binding: "self"}))
-				checked, _, err := h.svc.Check(h.ctx, child.Token, "store")
+				child := h.must(h.svc.IssueChild(h.ctx, token, authority.Workload{Module: "ledger"}, authority.IssueRequest{Binding: "self"}))
+				checked, _, err := h.svc.Check(h.ctx, child.Token, "ledger")
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -99,14 +99,14 @@ func TestChildPreservesVerifiedTaskAndActorProvenance(t *testing.T) {
 					}
 				}
 				last := after.GetActorChain()[len(after.GetActorChain())-1]
-				if last.GetPrincipalId() != "store" || last.GetPrincipalKind() != "service" || last.GetDelegationId() != before.GetSessionId() ||
+				if last.GetPrincipalId() != "ledger" || last.GetPrincipalKind() != "service" || last.GetDelegationId() != before.GetSessionId() ||
 					after.GetParentSessionId() != before.GetSessionId() || after.GetSessionId() == before.GetSessionId() ||
-					after.GetExpiresAtUnix() > before.GetExpiresAtUnix() || after.GetOperationBinding().GetBindingId() != acme+"/store/self" {
+					after.GetExpiresAtUnix() > before.GetExpiresAtUnix() || after.GetOperationBinding().GetBindingId() != acme+"/ledger/self" {
 					t.Fatal("child changed the required binding, lineage or lifetime")
 				}
 				// The binding allows read/write; the owner holds read, and the
 				// parent restricts its resources. Preserve both limits.
-				exactly(t, child, kind, "", []string{"read"}, "store-x")
+				exactly(t, child, ledgerKind, "", []string{"read"}, "entry-x")
 				if !workcontext.ScopesAttenuate(checked.EffectiveScopes(), parent.EffectiveScopes()) {
 					t.Fatal("child recovered authority the parent did not hold")
 				}

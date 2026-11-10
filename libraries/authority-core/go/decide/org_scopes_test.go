@@ -1,6 +1,7 @@
 package decide_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
@@ -156,4 +157,59 @@ func TestAWholeKindRoleAbsorbsAResourceScopedOne(t *testing.T) {
 func TestAnAnyKindRoleNamingIDsHoldsThemOnEachKind(t *testing.T) {
 	held := decide.OrgScopes(role(domain.RoleScope{Kind: scope.AnyKind, Actions: []string{"read"}, Resources: []resources.Grant{{ID: "x"}}}), store, nil)
 	same(t, held, []*basev0.WorkScopeV1{owned("collection", "", []string{"read"}, "x"), owned("note", "", []string{"read"}, "x")})
+}
+
+// RBAC-4a: at a module that checks owners, organization roles reach no
+// owner's data. A role naming the kind, every kind (AnyKind), or ids of it
+// holds nothing there; a kind the module declares shared is held as at any
+// module, and the same roles hold the kind where no owner is checked.
+func TestOrganizationRolesReachNoOwnersDataAtAnOwnerAwareModule(t *testing.T) {
+	aware := store
+	aware.OwnerAware = true
+	every := role(domain.RoleScope{Kind: scope.AnyKind, Actions: []string{scope.AnyAction}})
+	for name, roles := range map[string][]domain.OrgRole{
+		"the kind":     role(domain.RoleScope{Kind: "collection", Actions: []string{"read", "write"}}),
+		"every kind":   every,
+		"an id of it":  role(collectionRead(resources.Grant{ID: "store-x"})),
+		"every action": role(domain.RoleScope{Kind: "collection", Actions: []string{scope.AnyAction}}),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if held := decide.OrgScopes(roles, aware, nil); len(held) != 0 {
+				t.Fatalf("an organization role holds %v at an owner-aware module", held)
+			}
+			if held := decide.OrgScopes(roles, aware, ids([]string{"read"}, "store-x")); len(held) != 0 {
+				t.Fatalf("an ask naming an id is held as %v at an owner-aware module", held)
+			}
+		})
+	}
+	shared := aware
+	shared.SharedKinds = []string{"note"}
+	same(t, decide.OrgScopes(every, shared, nil), []*basev0.WorkScopeV1{sc("note", "read")})
+	same(t, decide.OrgScopes(every, store, nil), []*basev0.WorkScopeV1{sc("collection", "read", "write"), sc("note", "read")})
+}
+
+// OwnSession names the RBAC-4a rule only for an owned kind the audience
+// serves, or an empty ask refused for holding nothing; any other refusal is
+// answered as it was.
+func TestOwnSessionNamesTheRuleOnlyForOwnedData(t *testing.T) {
+	aware := store
+	aware.OwnerAware, aware.SharedKinds = true, []string{"note"}
+	nothing, beyond := domain.Refuse("the owner holds nothing at this audience"), domain.Refuse("asked beyond what the owner holds")
+	named := func(err error) bool { return strings.Contains(err.Error(), "checks owners") }
+	if !named(decide.OwnSession(aware, nil, nothing)) || !named(decide.OwnSession(aware, ids([]string{"read"}, "x"), beyond)) {
+		t.Fatal("an owned ask or an empty ask holding nothing is not named")
+	}
+	gated := aware
+	gated.Roles = map[string][]*basev0.WorkScopeV1{"viewer": {sc("collection", "read")}}
+	for name, err := range map[string]error{
+		"a shared kind":         decide.OwnSession(aware, []*basev0.WorkScopeV1{sc("note", "read")}, beyond),
+		"an unserved kind":      decide.OwnSession(aware, []*basev0.WorkScopeV1{sc("elsewhere", "read")}, beyond),
+		"an empty ask refused":  decide.OwnSession(aware, nil, domain.Refuse("the audience declares note without its actions")),
+		"an owner-blind module": decide.OwnSession(store, ids([]string{"read"}, "x"), beyond),
+		"a role-gated module":   decide.OwnSession(gated, ids([]string{"read"}, "x"), beyond),
+	} {
+		if named(err) {
+			t.Errorf("%s is named as RBAC-4a: %v", name, err)
+		}
+	}
 }
