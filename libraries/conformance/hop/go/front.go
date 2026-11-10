@@ -12,6 +12,7 @@ import (
 	"time"
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
+	"github.com/codefly-dev/authority/libraries/authority-client/go/host"
 	"github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
 	hop "github.com/codefly-dev/authority/libraries/hop/go"
 	hopforward "github.com/codefly-dev/authority/libraries/hop/go/forward"
@@ -208,7 +209,7 @@ func connectCall(t *testing.T, base, procedure, token string) connectOutcome {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Connect-Protocol-Version", "1")
 	req.Header.Set(hop.WorkContextKey, token)
-	resp, err := (&http.Client{Transport: &http.Transport{Proxy: nil}, Timeout: 10 * time.Second}).Do(req)
+	resp, err := (&http.Client{Transport: host.HTTPTransport(), Timeout: 10 * time.Second}).Do(req)
 	if err != nil {
 		t.Fatalf("%s: %v", procedure, err)
 	}
