@@ -3,9 +3,10 @@ module github.com/codefly-dev/authority/libraries/conformance/hop/go
 go 1.27.3
 
 require (
-	github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0
-	github.com/codefly-dev/authority/libraries/hop/go v0.0.0
+	github.com/codefly-dev/authority/libraries/authority-client/go v0.2.1-0.20261109220601-1f0887616bde
+	github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261109220601-1f0887616bde
 	github.com/codefly-dev/core v0.19.20-0.20261109211818-3e7b38e3d9ad
+	golang.org/x/net v0.62.0
 	google.golang.org/grpc v1.85.0
 	google.golang.org/protobuf v1.36.12
 )
@@ -15,9 +16,11 @@ require (
 	buf.build/go/protovalidate v1.4.0 // indirect
 	cel.dev/cel-go v0.32.0 // indirect
 	cel.dev/expr v0.25.3 // indirect
+	connectrpc.com/connect v1.21.1 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
+	github.com/codefly-dev/sdk-go v0.4.0 // indirect
 	github.com/go-openapi/analysis v1.0.1 // indirect
 	github.com/go-openapi/errors v0.22.9 // indirect
 	github.com/go-openapi/jsonpointer v1.0.2 // indirect
@@ -42,7 +45,6 @@ require (
 	github.com/yoheimuta/go-protoparser/v4 v4.14.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/exp v0.0.0-20261014143641-f0251eb4aa3e // indirect
-	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/term v0.47.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
@@ -56,7 +58,9 @@ require (
 // module with no workspace, so a pinned hop would make this module prove the
 // pinned hop. The dependency runs one way — nothing in libraries/hop/go or
 // libraries/authority-client/go imports this suite — so the checkout is the
-// only thing worth proving here.
+// only thing worth proving here. The required versions are published commits
+// this suite builds against, so a host outside this repository can import it
+// (RunFront) and pins the hop it proves itself.
 replace github.com/codefly-dev/authority/libraries/hop/go => ../../../hop/go
 
 replace github.com/codefly-dev/authority/libraries/authority-client/go => ../../../authority-client/go

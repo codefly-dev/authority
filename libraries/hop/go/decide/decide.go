@@ -6,7 +6,10 @@ package decide
 
 import (
 	"context"
+	"errors"
 	"github.com/codefly-dev/authority/libraries/hop/go/routing"
+	"slices"
+	"strconv"
 	"strings"
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
@@ -25,11 +28,7 @@ type Checker interface {
 	Check(ctx context.Context, in *authorityv1.CheckRequest, opts ...grpc.CallOption) (*authorityv1.CheckResponse, error)
 }
 
-// Decider decides for the modules a hop stands in front of. A caller addresses
-// its Work Context to the module it calls, so the hop reads the module from the
-// context's audience, unverified, and the authority's Check verifies that
-// audience and that the module serves the method. A context addressed to a
-// module the hop does not front is refused before the authority is asked.
+// Decision is the module a call is for, who it acts for, and where it goes.
 type Decision struct {
 	Module   string
 	Identity hop.Identity
@@ -37,6 +36,15 @@ type Decision struct {
 	Route *routing.RouteEndpoint
 }
 
+// Decider decides for the modules a hop stands in front of. A caller addresses
+// its Work Context to the module it calls, so the hop reads the module from the
+// context's audience, unverified, and the authority's Check verifies that
+// audience and that the module serves the method. A context addressed to a
+// module the hop does not front is refused before the authority is asked, and
+// so is one addressed to a fronted module for a method only other fronted
+// modules publish: the caller presented the wrong module's context
+// (PermissionDenied, naming both). A method no fronted module publishes is
+// NotFound, and an ambiguous one keeps its own reason.
 type Decider struct {
 	Routes    *routing.Routing
 	Authority Checker
@@ -85,6 +93,18 @@ func (d Decider) decide(ctx context.Context, method string, md metadata.MD) (Dec
 	}
 	selected, policy, routeErr := d.Routes.Resolve(module, transport, method)
 	if routeErr != nil {
+		// A destination another fronted module publishes is known: the
+		// context is for the wrong module, which is a refusal of the caller,
+		// never an unknown destination. The authority is not asked. Only the
+		// addressed module publishing nothing leads here; an ambiguity in
+		// its own routes is refused by that reason.
+		var none *routing.NoDestinationError
+		if !errors.As(routeErr, &none) {
+			return Decision{}, status.Error(codes.NotFound, routeErr.Error())
+		}
+		if owners := d.publishers(transport, method, module); len(owners) > 0 {
+			return Decision{}, status.Errorf(codes.PermissionDenied, "the call to %s is for %s, but its Work Context is addressed to %q; a Work Context is honoured only at the module it is addressed to", method, strings.Join(owners, ", "), module)
+		}
 		return Decision{}, status.Error(codes.NotFound, routeErr.Error())
 	}
 	route := &selected
@@ -101,6 +121,24 @@ func (d Decider) decide(ctx context.Context, method string, md metadata.MD) (Dec
 	}
 	id := IdentityOf(checked.GetContext())
 	return Decision{Module: module, Identity: id, Route: route}, nil
+}
+
+// publishers are the modules this hop fronts, other than addressed, that
+// publish method on transport, in a stable order. A module whose own routes
+// match it ambiguously still publishes it.
+func (d Decider) publishers(transport, method, addressed string) []string {
+	var owners []string
+	for module, fronted := range d.Modules {
+		if !fronted || module == addressed {
+			continue
+		}
+		var none *routing.NoDestinationError
+		if _, _, err := d.Routes.Resolve(module, transport, method); !errors.As(err, &none) {
+			owners = append(owners, strconv.Quote(module))
+		}
+	}
+	slices.Sort(owners)
+	return owners
 }
 
 // IdentityOf reads who the authority's checked context is for, with the one

@@ -45,7 +45,9 @@ every other (`.github/workflows/go.yml`). The module replaces
 `libraries/hop/go` and `libraries/authority-client/go` with the checkout, as
 the rest of the repository does: CI runs `go test` per module with no
 workspace, so a pinned hop would mean the suite proved a published commit
-rather than the tree it ships in. The dependency still runs one way — neither
+rather than the tree it ships in. Its required versions are published commits
+the suite builds against, so a host outside this repository can import it and
+pins, in its own go.mod, the hop it proves. The dependency still runs one way — neither
 library imports this suite — so neither depends on its own suite.
 
 **`libraries/authority-client/testdata/stamps.json`**, the wire-level half.
@@ -87,6 +89,26 @@ second delivery must be refused as `stamp_replayed`.
 | The hop strips every stamp a caller sent, signs the exact procedure, the audience and the token's digest within the lifetime, caps the admission at the Work Context's expiry and stamps no expired one | the hop strips every stamp a caller sent before writing its own; the hop signs the exact procedure, the audience and the token's digest, within the lifetime; the hop caps an admission at the Work Context's expiry and stamps no expired one | the headers of every vector are what `hop.Stamp` writes | no hop | no hop |
 | A verifier needs the authority's keys, an audience and a replay store; outside the run named exactly `local` it refuses a store that does not declare itself shared; every refusal is a stable code with fixed text | a verifier needs the authority's keys, an audience and a replay store; outside a local run a replay store that does not declare itself shared is refused, and one that does is admitted; every refusal carries a stable code with fixed text | construction-time: no vector | `test_a_verifier_needs_keys_and_an_audience`, `test_startup_requires_a_shared_store_outside_exactly_local`, `test_bare_token_stale_wait_async_and_safe_reasons` | startup requires a shared store outside exactly local; every named reason has distinct code and safe text |
 
+## What every hop's front door must pass
+
+**`RunFront(t, FrontTarget)`** proves a host's hop, not a verifier: what a
+host stands when the composition names modules for it. `Stand` is handed what
+Codefly hands the host (the modules, the generated `hop-routes/ROUTES`) and
+the authority it asks, and returns the face the hop endpoint serves HTTP and
+Connect on. Every refusal names its reason, and a refusal of the caller is
+never reported as a destination that does not exist:
+
+| Contract line | `RunFront` case |
+| --- | --- |
+| A Work Context addressed to one fronted module, presented for a procedure another fronted module publishes, is `PermissionDenied`, naming both modules, and the authority is not asked | a context for another module is refused by name |
+| A procedure no fronted module publishes is `NotFound`, whatever the context, and the authority is not asked | only an unknown destination is not found |
+| The control: the same context at its own module is checked by the authority and reaches that module | the control call before both refusals |
+
+`conformance_test.go` runs it against the library's front door
+(`forward.New`), which is exactly what `modules/authority/services/hop` stands
+with what Codefly delivers to it. A host that stands the hop itself (a gateway
+on a cell) runs `RunFront` with its own `Stand` in its own tests.
+
 ## Stated gaps
 
 These are what the target does not prove, named rather than skipped.
@@ -119,6 +141,9 @@ These are what the target does not prove, named rather than skipped.
   `libraries/hop/go/transport_postgres_test.go`, which needs
   `HOP_TEST_POSTGRES`. Python and TypeScript verify before the body by
   construction.
+- **`RunFront` drives the HTTP and Connect face.** The gRPC face takes the
+  same decision (`decide.Decider`), whose wrong-audience and unknown-destination
+  verdicts for gRPC procedures are `libraries/hop/go/decide/audience_test.go`.
 
 ## Running
 
