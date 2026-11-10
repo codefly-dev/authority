@@ -4,6 +4,8 @@ package session
 
 import (
 	"context"
+	"maps"
+	"slices"
 
 	"gateway/pkg/framework"
 	"gateway/pkg/wiring"
@@ -50,10 +52,33 @@ func (p *Plugin) SignIn(_ context.Context, req *sessionv1.SignInRequest) (*sessi
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}
-	return &sessionv1.Session{PersonDisplayName: sess.PersonDisplayName, OrganizationDisplayName: sess.OrganizationDisplayName, SessionId: sess.ID, PersonId: sess.Person, OrganizationId: sess.Organization, Roles: sess.Roles, TeamIds: sess.Teams, Bearer: sess.ID}, nil
+	return wire(sess, sess.ID), nil
 }
 
 // New is the registry's constructor: the plugin over what Configure wired.
+// wire is a session as the interface answers it.
+func wire(sess state.Session, bearer string) *sessionv1.Session {
+	out := &sessionv1.Session{PersonDisplayName: sess.PersonDisplayName, OrganizationDisplayName: sess.OrganizationDisplayName, SessionId: sess.ID, PersonId: sess.Person, OrganizationId: sess.Organization, Roles: sess.Roles, TeamIds: sess.Teams, Bearer: bearer}
+	for _, id := range slices.Sorted(maps.Keys(sess.RoleView)) {
+		out.RoleView = append(out.RoleView, &sessionv1.RoleViewEntry{InstallationId: id, Roles: sess.RoleView[id]})
+	}
+	return out
+}
+
+// OpenRoleView opens a session that acts as some of the roles the caller's own
+// session acts as on one installation.
+func (p *Plugin) OpenRoleView(ctx context.Context, req *sessionv1.OpenRoleViewRequest) (*sessionv1.Session, error) {
+	bearer := authorityplugin.Bearer(ctx)
+	if bearer == "" {
+		return nil, status.Error(codes.Unauthenticated, "the call carries no session bearer")
+	}
+	sess, err := p.State.OpenRoleView(ctx, bearer, req.GetInstallationId(), req.GetRoles())
+	if err != nil {
+		return nil, authorityplugin.Status(err)
+	}
+	return wire(sess, sess.ID), nil
+}
+
 // Current answers the session the call's bearer belongs to. The bearer is not
 // handed back: the caller already holds it.
 func (p *Plugin) Current(ctx context.Context, _ *sessionv1.CurrentRequest) (*sessionv1.Session, error) {
@@ -65,7 +90,7 @@ func (p *Plugin) Current(ctx context.Context, _ *sessionv1.CurrentRequest) (*ses
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "the bearer names no open session")
 	}
-	return &sessionv1.Session{PersonDisplayName: sess.PersonDisplayName, OrganizationDisplayName: sess.OrganizationDisplayName, SessionId: sess.ID, PersonId: sess.Person, OrganizationId: sess.Organization, Roles: sess.Roles, TeamIds: sess.Teams}, nil
+	return wire(sess, ""), nil
 }
 
 // ListFixturePeople answers every fixture person, for the edge's sign-in page.

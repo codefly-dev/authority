@@ -149,6 +149,9 @@ type Session struct {
 	Organization            string
 	Roles                   []string
 	Teams                   []string
+	// RoleView is the roles this session acts as, per installation, when it
+	// was opened as a role view; the authority core holds the record.
+	RoleView map[string][]string
 }
 
 type fixtureFile struct {
@@ -434,6 +437,27 @@ func (s *State) SignIn(token string) (Session, error) {
 	sess := Session{PersonDisplayName: name, OrganizationDisplayName: s.orgs[p.Organization], ID: uuid.NewString(), Person: p.ID,
 		Organization: p.Organization, Roles: slices.Clone(p.Roles), Teams: slices.Clone(p.Teams)}
 	s.sessions[sess.ID] = sess
+	return sess, nil
+}
+
+// OpenRoleView opens a session that acts as roles of installationID which the
+// session parent acts as: the core decides and records it, and this host only
+// keeps the session it names, listed as the person's own.
+func (s *State) OpenRoleView(ctx context.Context, parent, installationID string, roles []string) (Session, error) {
+	caller, err := s.Caller(parent)
+	if err != nil {
+		return Session{}, err
+	}
+	sess, _ := s.Session(parent)
+	id := uuid.NewString()
+	view, err := s.svc.OpenRoleView(ctx, caller, authority.RoleViewRequest{Organization: caller.Organization, InstallationID: installationID, SessionID: id, Roles: roles})
+	if err != nil {
+		return Session{}, err
+	}
+	sess.ID, sess.RoleView = id, view.Roles
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sessions[id] = sess
 	return sess, nil
 }
 

@@ -27,6 +27,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	SessionService_SignIn_FullMethodName            = "/host.session.v1.SessionService/SignIn"
 	SessionService_Current_FullMethodName           = "/host.session.v1.SessionService/Current"
+	SessionService_OpenRoleView_FullMethodName      = "/host.session.v1.SessionService/OpenRoleView"
 	SessionService_ListFixturePeople_FullMethodName = "/host.session.v1.SessionService/ListFixturePeople"
 )
 
@@ -43,6 +44,17 @@ type SessionServiceClient interface {
 	// never read from a header the request wrote. The bearer itself is not
 	// handed back. An unknown or ended session is unauthenticated.
 	Current(ctx context.Context, in *CurrentRequest, opts ...grpc.CallOption) (*Session, error)
+	// OpenRoleView opens a session that acts as some of the roles the caller
+	// holds on one installation: a role view. The caller's bearer is the session
+	// it is opened from. The host records the view, decided by the authority, as
+	// the session's own; a client never supplies it. A view only narrows: it names
+	// roles the calling session acts as now, so a viewing session opens only
+	// narrower ones, and a role view on one installation reaches no other. The
+	// session it was opened from is untouched and stays the way back to all of the
+	// person's roles. A page, a Work Context, an impersonated session and a
+	// client's delegated credential hold no session of a person to call from and
+	// are refused.
+	OpenRoleView(ctx context.Context, in *OpenRoleViewRequest, opts ...grpc.CallOption) (*Session, error)
 	// ListFixturePeople answers who this authority signs in by fixture token, for
 	// the browser edge's sign-in page: the people are defined once, in the
 	// authority's fixture. A host that signs real people in through its identity
@@ -78,6 +90,16 @@ func (c *sessionServiceClient) Current(ctx context.Context, in *CurrentRequest, 
 	return out, nil
 }
 
+func (c *sessionServiceClient) OpenRoleView(ctx context.Context, in *OpenRoleViewRequest, opts ...grpc.CallOption) (*Session, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Session)
+	err := c.cc.Invoke(ctx, SessionService_OpenRoleView_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *sessionServiceClient) ListFixturePeople(ctx context.Context, in *ListFixturePeopleRequest, opts ...grpc.CallOption) (*ListFixturePeopleResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListFixturePeopleResponse)
@@ -101,6 +123,17 @@ type SessionServiceServer interface {
 	// never read from a header the request wrote. The bearer itself is not
 	// handed back. An unknown or ended session is unauthenticated.
 	Current(context.Context, *CurrentRequest) (*Session, error)
+	// OpenRoleView opens a session that acts as some of the roles the caller
+	// holds on one installation: a role view. The caller's bearer is the session
+	// it is opened from. The host records the view, decided by the authority, as
+	// the session's own; a client never supplies it. A view only narrows: it names
+	// roles the calling session acts as now, so a viewing session opens only
+	// narrower ones, and a role view on one installation reaches no other. The
+	// session it was opened from is untouched and stays the way back to all of the
+	// person's roles. A page, a Work Context, an impersonated session and a
+	// client's delegated credential hold no session of a person to call from and
+	// are refused.
+	OpenRoleView(context.Context, *OpenRoleViewRequest) (*Session, error)
 	// ListFixturePeople answers who this authority signs in by fixture token, for
 	// the browser edge's sign-in page: the people are defined once, in the
 	// authority's fixture. A host that signs real people in through its identity
@@ -121,6 +154,9 @@ func (UnimplementedSessionServiceServer) SignIn(context.Context, *SignInRequest)
 }
 func (UnimplementedSessionServiceServer) Current(context.Context, *CurrentRequest) (*Session, error) {
 	return nil, status.Error(codes.Unimplemented, "method Current not implemented")
+}
+func (UnimplementedSessionServiceServer) OpenRoleView(context.Context, *OpenRoleViewRequest) (*Session, error) {
+	return nil, status.Error(codes.Unimplemented, "method OpenRoleView not implemented")
 }
 func (UnimplementedSessionServiceServer) ListFixturePeople(context.Context, *ListFixturePeopleRequest) (*ListFixturePeopleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListFixturePeople not implemented")
@@ -182,6 +218,24 @@ func _SessionService_Current_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SessionService_OpenRoleView_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OpenRoleViewRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).OpenRoleView(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_OpenRoleView_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).OpenRoleView(ctx, req.(*OpenRoleViewRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _SessionService_ListFixturePeople_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListFixturePeopleRequest)
 	if err := dec(in); err != nil {
@@ -214,6 +268,10 @@ var SessionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Current",
 			Handler:    _SessionService_Current_Handler,
+		},
+		{
+			MethodName: "OpenRoleView",
+			Handler:    _SessionService_OpenRoleView_Handler,
 		},
 		{
 			MethodName: "ListFixturePeople",

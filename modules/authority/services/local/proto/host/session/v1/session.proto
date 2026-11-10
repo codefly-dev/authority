@@ -22,6 +22,19 @@ service SessionService {
   rpc Current(CurrentRequest) returns (Session) {
     option (google.api.http) = {get: "/v1/session"};
   }
+  // OpenRoleView opens a session that acts as some of the roles the caller
+  // holds on one installation: a role view. The caller's bearer is the session
+  // it is opened from. The host records the view, decided by the authority, as
+  // the session's own; a client never supplies it. A view only narrows: it names
+  // roles the calling session acts as now, so a viewing session opens only
+  // narrower ones, and a role view on one installation reaches no other. The
+  // session it was opened from is untouched and stays the way back to all of the
+  // person's roles. A page, a Work Context, an impersonated session and a
+  // client's delegated credential hold no session of a person to call from and
+  // are refused.
+  rpc OpenRoleView(OpenRoleViewRequest) returns (Session) {
+    option (google.api.http) = {post: "/v1/session:open-role-view" body: "*"};
+  }
   // ListFixturePeople answers who this authority signs in by fixture token, for
   // the browser edge's sign-in page: the people are defined once, in the
   // authority's fixture. A host that signs real people in through its identity
@@ -59,6 +72,22 @@ message FixturePerson {
   string organization_display_name = 7;
 }
 
+// OpenRoleViewRequest names the installation and the roles to act as on it.
+message OpenRoleViewRequest {
+  // The installation, of the organisation the caller is signed into.
+  string installation_id = 1;
+  // The roles to act as, each one the caller acts as on it now; at least one.
+  repeated string roles = 2;
+}
+
+// RoleViewEntry is the roles a session acts as on one installation.
+message RoleViewEntry {
+  // The installation.
+  string installation_id = 1;
+  // The roles acted as there, sorted.
+  repeated string roles = 2;
+}
+
 // CurrentRequest asks for the caller's own session; the bearer is the call's.
 message CurrentRequest {}
 
@@ -88,4 +117,8 @@ message Session {
   string person_display_name = 7;
   // The signed-in organisation's display name.
   string organization_display_name = 8;
+  // The role view this session was opened with, by installation: it acts as
+  // these roles there and as every role it holds elsewhere. Empty for a session
+  // that is not a role view.
+  repeated RoleViewEntry role_view = 9;
 }
