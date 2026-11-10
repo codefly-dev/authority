@@ -143,7 +143,8 @@ func ResourceGrants(roles []domain.OrgRole, kind, action string) []resources.Gra
 }
 
 // HeldRoles are the roles a person holds on one installation: granted on it
-// to them, or to a team they belong to. Grants on any other installation
+// to them, or to a team they belong to, within their role view on it when
+// the session has one (domain.RoleView). Grants on any other installation
 // count for nothing here, however the caller gathered them.
 func HeldRoles(p domain.Person, inst domain.Installation, grants []domain.RoleGrant) []string {
 	var roles []string
@@ -156,7 +157,12 @@ func HeldRoles(p domain.Person, inst domain.Installation, grants []domain.RoleGr
 		}
 	}
 	slices.Sort(roles)
-	return slices.Compact(roles)
+	roles = slices.Compact(roles)
+	if view, viewing := p.View[inst.ID]; viewing {
+		// A role view narrows: only what is both held and viewed.
+		roles = slices.DeleteFunc(roles, func(r string) bool { return !slices.Contains(view, r) })
+	}
+	return roles
 }
 
 // RoleScopes is what roles grant on a solution's installation: the roles'

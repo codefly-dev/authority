@@ -128,7 +128,7 @@ func (s *Service) ListResources(ctx context.Context, token, audience, kind, acti
 	err = s.store.Read(ctx, func(tx Tx) error {
 		rows := effective
 		if wc.GetOwnerPrincipalKind() == "human" {
-			p, err := tx.Member(wc.GetTenantId(), wc.GetOwnerPrincipalId())
+			p, err := personOfClaims(tx, wc)
 			if err != nil {
 				return domain.Refuse("the owner %s is no longer a member", wc.GetOwnerPrincipalId())
 			}
@@ -252,7 +252,7 @@ func (s *Service) withinApprovedReach(tx Tx, wc *basev0.WorkContextV1, effective
 		if !anySolution(tx, owner.principals) {
 			return nil, nil
 		}
-		p, err := tx.Member(wc.GetTenantId(), wc.GetOwnerPrincipalId())
+		p, err := personOfClaims(tx, wc)
 		if err != nil {
 			return domain.Refuse("the owner %s is no longer a member", wc.GetOwnerPrincipalId()), nil
 		}

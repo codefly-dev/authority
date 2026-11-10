@@ -25,7 +25,7 @@ func (s *Service) Delegate(ctx context.Context, who Person, module string, scope
 func (s *Service) delegate(ctx context.Context, who Person, target, clientID, resource string, scopes Scopes, purpose string, ttlSeconds int64) (domain.Delegation, error) {
 	var d domain.Delegation
 	err := s.store.Write(ctx, func(tx Tx) error {
-		p, err := tx.Member(who.Organization, who.ID)
+		p, err := personAs(tx, who)
 		if err != nil {
 			return notFound(err)
 		}
@@ -197,7 +197,7 @@ func (s *Service) IssueForDelegation(ctx context.Context, id string, actor Workl
 		if through, err = decide.ScopesFor(binding, r.Operation, "invoke"); err != nil {
 			return err
 		}
-		p, err := tx.Member(d.Organization, d.Grantor)
+		p, err := memberRecord(tx, d.Organization, d.Grantor)
 		if err != nil {
 			return domain.Refuse("the grantor %s is no longer a member", d.Grantor)
 		}

@@ -235,6 +235,7 @@ func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest
 	var audience domain.Module
 	var heldHere, scopes Scopes
 	var inst domain.Installation
+	var viewing string
 	err := s.store.Read(ctx, func(tx Tx) error {
 		var err error
 		if err = s.audienceOf(tx, &r, ""); err != nil {
@@ -243,10 +244,14 @@ func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest
 		if audience, err = tx.Module(r.Audience); err != nil {
 			return notFound(err)
 		}
-		p, err := tx.Member(who.Organization, who.ID)
+		p, err := personAs(tx, who)
+		if c, ok := domain.CodeOf(err); ok && c == domain.Denied {
+			return err
+		}
 		if err != nil || p.Organization != who.Organization {
 			return domain.Refuse("the session's person is no longer a member of %s", who.Organization)
 		}
+		viewing = viewNote(tx, p)
 		inst, err = installationOf(tx, p.Organization, audience.Name)
 		if err != nil || inst.Status != domain.Active {
 			return domain.NotNow("audience %q is not installed in this organization, so there is no installation to seal the capability to", audience.Principal)
@@ -291,7 +296,7 @@ func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest
 		return decide.OwnerAware(audience, scopes)
 	})
 	if err != nil {
-		return Issued{}, err
+		return Issued{}, underView(viewing, err)
 	}
 	return s.startFenced(ctx, f, workcontext.StartInput{
 		TenantID: who.Organization, OrganizationID: who.Organization,
@@ -532,7 +537,7 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 	var through, scopes, authorityScopes Scopes
 	var claims *basev0.WorkContextV1
 	var verified *workcontext.Verified
-	var sealTo string
+	var sealTo, viewing string
 	err := s.store.Read(ctx, func(tx Tx) error {
 		var err error
 		if am, err = tx.ModuleNamed(actor.Module); err != nil {
@@ -587,10 +592,11 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 		bounded := false
 		switch claims.GetOwnerPrincipalKind() {
 		case "human":
-			p, err := tx.Member(tenant, claims.GetOwnerPrincipalId())
+			p, err := personOfClaims(tx, claims)
 			if err != nil {
 				return domain.Refuse("the owner %s is no longer a member", claims.GetOwnerPrincipalId())
 			}
+			viewing = viewNote(tx, p)
 			if heldHere, sourceCeiling, bounded, err = throughSolutions(tx, p, audience, solutionPrincipals(claims, am.Principal), namedBy(r.Scopes, claims)); err != nil {
 				return err
 			}
@@ -686,7 +692,7 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 		return err
 	})
 	if err != nil {
-		return Issued{}, err
+		return Issued{}, underView(viewing, err)
 	}
 	return s.derive(ctx, verified, am, audience, r, scopes, authorityScopes, sealTo, f)
 }

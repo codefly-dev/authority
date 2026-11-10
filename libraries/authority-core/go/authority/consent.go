@@ -32,7 +32,7 @@ func memberAs(tx Tx, caller Person, org string) (domain.Person, error) {
 	if caller.ID == "" || org == "" || caller.Organization != org {
 		return domain.Person{}, fmt.Errorf("%q acting at %q: %w", caller.ID, org, domain.ErrNotFound)
 	}
-	return tx.Member(org, caller.ID)
+	return personAs(tx, caller)
 }
 
 // OfferDigest is the digest a consent records of the offer it approved

@@ -262,7 +262,7 @@ func (src sources) holds(tx Tx, principal string, inst domain.Installation) (boo
 	} else if !errors.Is(err, domain.ErrNotFound) {
 		return false, err
 	}
-	if _, err := tx.Member(inst.Organization, principal); err == nil {
+	if _, err := memberRecord(tx, inst.Organization, principal); err == nil {
 		return true, nil
 	} else if !errors.Is(err, domain.ErrNotFound) {
 		return false, err

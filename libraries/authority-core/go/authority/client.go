@@ -59,7 +59,7 @@ func (s *Service) Client(ctx context.Context, id string) (domain.Client, error) 
 func (s *Service) ClientScopes(ctx context.Context, who Person, audience string) (Scopes, error) {
 	var scopes Scopes
 	err := s.store.Read(ctx, func(tx Tx) error {
-		p, err := tx.Member(who.Organization, who.ID)
+		p, err := personAs(tx, who)
 		if err != nil {
 			return notFound(err)
 		}
@@ -121,7 +121,7 @@ func (s *Service) IssueForClientDelegation(ctx context.Context, id, clientID, re
 		if audience.Kind != domain.KindSolution {
 			return domain.Refuse("the delegated audience is no longer a solution")
 		}
-		p, err := tx.Member(d.Organization, d.Grantor)
+		p, err := memberRecord(tx, d.Organization, d.Grantor)
 		if err != nil {
 			return domain.Refuse("the grantor is no longer a member")
 		}

@@ -30,6 +30,28 @@ type Organization struct {
 type Person struct {
 	ID, Organization string
 	Roles, Teams     []string
+	// View is the role view the person acts under: per installation id, the
+	// only roles they use there. nil acts as every role they hold. It is set
+	// by the authority from the session's stored view, never by a host or a
+	// caller (authority.personFor), and only ever narrows.
+	View map[string][]string
+}
+
+// RoleView is a session's fixed role view: the roles a person chose to act
+// as on an installation, for as long as the session lives. It is a server
+// record keyed by the session, never a claim a client sends, and it only
+// narrows: a view opened from a viewing session holds a subset of that
+// session's effective roles. A view is never changed or widened; to act as
+// all their roles again a person uses the session it was opened from.
+type RoleView struct {
+	// SessionID is the session the view fixes; Parent is the session it was
+	// opened from.
+	SessionID, Parent string
+	// Person and Organization are who the session is.
+	Person, Organization string
+	// Roles are the roles viewed, per installation id. An installation absent
+	// from it is not narrowed.
+	Roles map[string][]string
 }
 
 // OrgRole is a named set of scopes at one organization.
@@ -329,6 +351,9 @@ const (
 	// InstallationReconverged: a redelivery asked nothing new of an active
 	// installation's consent, which now stands at the delivered generation.
 	InstallationReconverged EventKind = "installation.reconverged"
+	// RoleViewOpened: a person fixed a session to act as some of the roles
+	// they hold on an installation; Detail "roles" names them.
+	RoleViewOpened EventKind = "role_view.opened"
 	// InstallationUpgradeAvailable: a redelivery asks more than an active
 	// installation's consent approved; Detail "widened" names what. The
 	// installation stays as it is until Install approves the new offer.
