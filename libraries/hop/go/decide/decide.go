@@ -7,6 +7,8 @@ package decide
 import (
 	"context"
 	"github.com/codefly-dev/authority/libraries/hop/go/routing"
+	"slices"
+	"strconv"
 	"strings"
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
@@ -29,7 +31,10 @@ type Checker interface {
 // its Work Context to the module it calls, so the hop reads the module from the
 // context's audience, unverified, and the authority's Check verifies that
 // audience and that the module serves the method. A context addressed to a
-// module the hop does not front is refused before the authority is asked.
+// module the hop does not front is refused before the authority is asked, and
+// so is one addressed to a fronted module for a method another fronted module
+// publishes: the caller presented the wrong module's context (PermissionDenied,
+// naming both). Only a method no fronted module publishes is NotFound.
 type Decision struct {
 	Module   string
 	Identity hop.Identity
@@ -85,6 +90,12 @@ func (d Decider) decide(ctx context.Context, method string, md metadata.MD) (Dec
 	}
 	selected, policy, routeErr := d.Routes.Resolve(module, transport, method)
 	if routeErr != nil {
+		// A destination another fronted module publishes is known: the
+		// context is for the wrong module, which is a refusal of the caller,
+		// never an unknown destination. The authority is not asked.
+		if owners := d.publishers(transport, method, module); len(owners) > 0 {
+			return Decision{}, status.Errorf(codes.PermissionDenied, "the call to %s is for %s, but its Work Context is addressed to %q; a Work Context is honoured only at the module it is addressed to", method, strings.Join(owners, ", "), module)
+		}
 		return Decision{}, status.Error(codes.NotFound, routeErr.Error())
 	}
 	route := &selected
@@ -101,6 +112,22 @@ func (d Decider) decide(ctx context.Context, method string, md metadata.MD) (Dec
 	}
 	id := IdentityOf(checked.GetContext())
 	return Decision{Module: module, Identity: id, Route: route}, nil
+}
+
+// publishers are the modules this hop fronts, other than addressed, that
+// publish method on transport, in a stable order.
+func (d Decider) publishers(transport, method, addressed string) []string {
+	var owners []string
+	for module, fronted := range d.Modules {
+		if !fronted || module == addressed {
+			continue
+		}
+		if _, _, err := d.Routes.Resolve(module, transport, method); err == nil {
+			owners = append(owners, strconv.Quote(module))
+		}
+	}
+	slices.Sort(owners)
+	return owners
 }
 
 // IdentityOf reads who the authority's checked context is for, with the one
