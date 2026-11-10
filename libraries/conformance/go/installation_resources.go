@@ -276,4 +276,59 @@ func (c *client) installationResources(t *testing.T, ctx context.Context, fixtur
 			t.Fatalf("detaching an id nobody owns answers no installation: %v %v", out, err)
 		}
 	})
+	// A module page's role reaches Store as its installation's data (RBAC-1),
+	// so what the page's person creates there is that installation's: the
+	// serving module attaches it to the page's composition installation, as it
+	// does a solution's. A role without create attaches nothing.
+	t.Run("a resource a module page creates is attached to the page's installation", func(t *testing.T) {
+		if fixture.EdgeCredential == "" || fixture.AdminToken == "" || fixture.UnentitledToken == "" {
+			t.Fatal("required conformance fixture missing: the module edge's credential, an administrator and a member holding no role")
+		}
+		const page, note = "conformance-page-attach", "conformance-page-attach.note"
+		document := map[string]any{"scope_ceilings": []any{scopeAsk(note, []string{"read", "write"}, nil)}, "installation_role": "none", "roles": []any{
+			map[string]any{"name": "installer", "scopes": []any{scopeAsk(note, []string{"read", "write"}, nil), scopeAsk(f.Kind, []string{"create", "read"}, nil)}},
+			map[string]any{"name": "viewer", "scopes": []any{scopeAsk(note, []string{"read"}, nil), read}},
+		}}
+		frontend := &solutionhost.Frontend{Title: "Conformance page attach", ExposedModule: "./Page", HostContract: 1, Payload: fixture.PagePayload}
+		if _, err := c.deliverPage(ctx, fixture, frontend, page, "module", 1, []string{note}, document, 0,
+			solutionhost.AuthorityBinding{ID: binding, Audience: f.Store, Operations: map[string][]string{"invoke": both}}); err != nil {
+			t.Fatalf("deliver %s with a page and a binding to %s: %v", page, f.Store, err)
+		}
+		admin := signIn(fixture.AdminToken)
+		var id, principal string
+		for _, inst := range listMsgs(c.must(t, admin, "host.installation.v1.InstallationService", "List", map[string]any{"organization_id": fixture.Organization}), "installations") {
+			if str(inst, "target") == page && enumName(inst, "status") == "STATUS_ACTIVE" {
+				id, principal = str(inst, "id"), str(inst, "principal_id")
+			}
+		}
+		if id == "" || principal == "" {
+			t.Fatalf("%s's composition installation %q names principal %q", page, id, principal)
+		}
+		person := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": fixture.UnentitledToken})
+		pageCall := func(t *testing.T) protoreflect.Message {
+			t.Helper()
+			out, err := c.call(as(ctx, person), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.Store,
+				"page_target": page, "actor": map[string]any{"credential": fixture.EdgeCredential}})
+			if err != nil {
+				t.Fatalf("the page's call at %s: %v", f.Store, err)
+			}
+			return out
+		}
+		role := func(method, role string) {
+			c.must(t, admin, "host.installation.v1.InstallationService", method, map[string]any{
+				"organization_id": fixture.Organization, "installation_id": id, "role": role, "person_id": str(person, "person_id")})
+		}
+		grant := func(name string) { role("GrantRole", name); t.Cleanup(func() { role("RevokeRole", name) }) }
+		grant("viewer")
+		_, err := attach(str(pageCall(t), "token"), f.StoreCredential, "conformance-page-viewer")
+		refused(t, err, codes.PermissionDenied, "holds no create")
+		grant("installer")
+		out, err := attach(str(pageCall(t), "token"), f.StoreCredential, "conformance-page-created")
+		if err != nil {
+			t.Fatalf("the page's create at %s attaches: %v", f.Store, err)
+		}
+		if got := str(out, "installation_id"); got != id {
+			t.Fatalf("a module page's create attached to %q, want its installation %s", got, id)
+		}
+	})
 }

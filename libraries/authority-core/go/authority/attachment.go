@@ -61,6 +61,12 @@ func (s *Service) AttachResource(ctx context.Context, r AttachmentRequest) (stri
 		} else if !errors.Is(err, domain.ErrNotFound) {
 			return err
 		}
+		// The installations the capability came through own what it creates:
+		// a solution's, and a module page's declaring roles, whose roles reach
+		// this store owner-selected to its principal (decide.ModuleRoleAt),
+		// the same installations AuthorizeTransfer counts. The serving module
+		// never owns through itself, and a module installation without a
+		// principal owns nothing.
 		for _, principal := range solutionPrincipals(wc, actor.Principal) {
 			m, err := tx.Module(principal)
 			if err != nil {
@@ -71,6 +77,20 @@ func (s *Service) AttachResource(ctx context.Context, r AttachmentRequest) (stri
 				if err != nil {
 					return err
 				}
+				candidates = append(candidates, inst.ID)
+				continue
+			}
+			if principal == actor.Principal || !decide.RoleGated(m) {
+				continue
+			}
+			inst, err := installationOf(tx, wc.GetTenantId(), m.Name)
+			if errors.Is(err, domain.ErrNotFound) {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+			if inst.PrincipalID != "" {
 				candidates = append(candidates, inst.ID)
 			}
 		}
