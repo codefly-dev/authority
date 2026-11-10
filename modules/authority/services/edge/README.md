@@ -101,7 +101,7 @@ signed-in person, over Connect, on this origin, at the paths the proto names:
 | Path | Who the authority answers |
 |---|---|
 | `/host.installation.v1.InstallationService/List` | an administrator of the organization |
-| `/host.installation.v1.InstallationService/ListHeld` | any member, for themselves: the installations they hold a role on (none is an empty list) |
+| `/host.installation.v1.InstallationService/ListHeld` | any member, for themselves: the installations they hold a role on (none is an empty list), and `composed`: the organization's installations of the modules that declare no roles, which a page names by when it consumes one through its binding |
 | `/host.installation.v1.InstallationService/Review` | an administrator (the consent tuple) |
 | `/host.installation.v1.InstallationService/ListRoleGrants` | an administrator, or the installation's installer-role holder |
 | `/host.installation.v1.InstallationService/GrantRole` | the same |

@@ -2,6 +2,7 @@ package authority_test
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
@@ -85,4 +86,37 @@ func TestHeldInstallationsAreTheCallersOwnRoles(t *testing.T) {
 		t.Fatal(err)
 	}
 	heldIs(t, "tam, b uninstalled", h.heldBy(tam, acme), "c:[viewer]")
+}
+
+// A page that consumes a module declaring no roles names its installation by
+// composition. Nobody holds a role there, so it is never "held"; only a member
+// of the organization reads it, a solution's installation is never in it, and
+// it grants nothing (the person's own session at an owner-aware module is still
+// refused).
+func TestComposedInstallationsAreTheRolelessModulesOfTheOrganization(t *testing.T) {
+	h := newHarness(t)
+	maya := h.person("maya")
+	composed, err := h.svc.ComposedInstallations(h.ctx, maya, acme)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, i := range composed {
+		if i.Organization != acme {
+			t.Fatalf("an installation of %q was answered at %s", i.Organization, acme)
+		}
+		got = append(got, i.Target)
+	}
+	slices.Sort(got)
+	if want := []string{"ledger", "legacy-store", "store"}; !slices.Equal(got, want) {
+		t.Fatalf("composed = %v, want %v (modules declaring no roles; no solution)", got, want)
+	}
+	for _, i := range composed {
+		if i.ID != h.inst(acme, i.Target).ID {
+			t.Fatalf("%s is installation %s, want the organization's stable %s", i.Target, i.ID, h.inst(acme, i.Target).ID)
+		}
+	}
+	heldIs(t, "maya, who holds no role on a role-less module", h.heldBy(maya, acme))
+	_, err = h.svc.ComposedInstallations(h.ctx, h.person("omar"), acme)
+	code(t, err, domain.Denied)
 }

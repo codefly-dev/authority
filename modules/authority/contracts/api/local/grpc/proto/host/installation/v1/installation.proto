@@ -443,6 +443,14 @@ message ListHeldRequest {
 message ListHeldResponse {
   // The installations.
   repeated HeldInstallation installations = 1;
+  // The organisation's active installations by composition of the modules that
+  // declare no roles, which a page that consumes such a module through its
+  // binding names the module's installation by. Nobody holds a role on them,
+  // so they are not "held" and are never merged into installations: a module
+  // that checks owners answers a person's own session nothing, and a page's
+  // call reaches it through the page's own binding (a role of the page's
+  // installation). Sorted by installation id.
+  repeated Installation composed = 2;
 }
 
 // HeldInstallation is one installation the person may use.

@@ -65,3 +65,36 @@ func rolesHeld(tx Tx, p domain.Person, org string, inst domain.Installation) ([]
 	}
 	return decide.HeldRoles(p, inst, grants), nil
 }
+
+// ComposedInstallations are org's active installations by composition of the
+// modules that declare no roles, sorted by id, read by a member of org signed
+// in there. Nobody holds a role on one, so HeldInstallations never lists it;
+// a page that consumes such a module through its binding names the module's
+// installation by it. Naming it grants nothing: a module that checks owners
+// answers a person's own session nothing, and the page's call is issued
+// through the page's binding.
+func (s *Service) ComposedInstallations(ctx context.Context, caller Person, org string) ([]domain.Installation, error) {
+	var out []domain.Installation
+	err := s.store.Read(ctx, func(tx Tx) error {
+		if _, err := memberAs(tx, caller, org); errors.Is(err, domain.ErrNotFound) {
+			return domain.Refuse("the installations composed at organization %q are read by a member of it, signed in there", org)
+		} else if err != nil {
+			return err
+		}
+		all, err := tx.Installations(org)
+		if err != nil {
+			return err
+		}
+		for _, inst := range all {
+			if inst.ID == "" || inst.Organization != org || inst.Status != domain.Active {
+				continue
+			}
+			if m, err := tx.ModuleNamed(inst.Target); err == nil && m.Kind != domain.KindSolution && !decide.RoleGated(m) {
+				out = append(out, inst)
+			}
+		}
+		return nil
+	})
+	slices.SortFunc(out, func(a, b domain.Installation) int { return strings.Compare(a.ID, b.ID) })
+	return out, err
+}
