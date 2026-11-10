@@ -563,6 +563,10 @@ func (f *fixture) module(kind string) domain.Module {
 		m.Roles = map[string][]*basev0.WorkScopeV1{domain.InstallerRole: read, "viewer": append(slices.Clone(read), onward...)}
 		m.OwnedRoles = map[string][]*basev0.WorkScopeV1{"viewer": {{ResourceKind: "store.item", Actions: []string{"read"}}}}
 		m.Through = map[string]map[string][]*basev0.WorkScopeV1{"viewer": {"store": onward}}
+		// The installer's write on the solution's own, unshared page kind.
+		m.ResourceKinds = append(m.ResourceKinds, &basev0.WorkScopeV1{ResourceKind: "storetest.page", Actions: []string{"read", "write"}})
+		m.Roles[domain.InstallerRole] = append(slices.Clone(read), &basev0.WorkScopeV1{ResourceKind: "storetest.page", Actions: []string{"write"}})
+		m.SourceGovernance = []*basev0.WorkScopeV1{{ResourceKind: "storetest.page", Actions: []string{"write"}}}
 	}
 	m.SharedKinds = []string{"storetest.item"}
 	return m
@@ -601,6 +605,9 @@ func sameModule(t *testing.T, got, want domain.Module) {
 	// and delivery: a store that drops either issues owner-selected scopes a
 	// module cannot check, or reports no reach a delivery left unreached.
 	ok = ok && sameSet(got.SharedKinds, want.SharedKinds) && len(got.Through) == len(want.Through)
+	// The scopes that govern a solution's sources decide who manages them: a
+	// store that drops them leaves an approved declaration that governs none.
+	ok = ok && sameScopes(got.SourceGovernance, want.SourceGovernance)
 	for role, bindings := range want.Through {
 		ok = ok && len(got.Through[role]) == len(bindings)
 		for id, scopes := range bindings {

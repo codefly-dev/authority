@@ -1259,6 +1259,41 @@ and shared kinds (`storetest`).
 The local authority implements all three; `accounts` keeps 0.3.5 / 0.2.0 /
 0.4.0 until it adopts them and passes the shared conformance suite.
 
+## The scopes that govern a solution's sources (2026-11-10)
+
+A host decides who manages a data source tied to one installation of a
+solution. The solution's author names the scope that does so in its module
+contract (`source_governance`, core v0.19.22); core's signed manifest carries
+it as `authority.source_governance`, and `delivered.FromCore` reads it into
+`domain.Module.SourceGovernance` for every host. No interface or wire type
+changes: the declaration rides on the manifest the host already verifies.
+
+- **Held to the roles where applied** (`decide.ValidateModule`): only a
+  solution declares it (a module page's installations are composed, never
+  approved); each scope is a whole action on one of the solution's own kinds
+  that its own ceiling names literally on the whole kind (no ids), not a
+  shared kind, granted directly by a role and reached by none through a
+  binding.
+- **Approved with the offer.** `OfferDigest` covers it (omitted when empty, so
+  no earlier digest moves) and `decide.Widens` lists a governing scope added
+  or moved, so a redelivery that changes who governs waits for an
+  administrator; `ApprovedDeclaration` answers the approved generation until
+  then. Governance is answered only where someone approved it: a consent at
+  a kept generation (an administrator's review, whoever made the
+  installation), or, with no consent, a host's own install of a solution
+  naming its installer. A legacy consent (an operation and no kept
+  generation) and an installation made by composition (no installer) approve
+  no governing scope until a review records one.
+- **What a host does with it:** read `ApprovedDeclaration` for the target
+  installation, admit only a scope it names (`decide.Governs`), then ask the
+  core whether it issues the person that scope there (`IssueForPerson`), never
+  a role-ranking inference of its own. A host store keeps the field on both the
+  current and the approved declarations (`storetest`).
+- **Shown to an administrator:** `offers.Review.SourceGovernance` projects it;
+  a host's review surface must display it before asking for approval. The
+  installation interface's review message does not carry it yet, so a host
+  that renders the review from that message alone does not show it.
+
 ## Current installation metadata for a module
 
 The installation interface advances to `0.3.0` for this additive capability.

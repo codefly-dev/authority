@@ -3,6 +3,7 @@ package authority_test
 import (
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
@@ -87,5 +88,87 @@ func TestAnApprovedDeclarationThatIsNotTheConsentedOfferRefusesIssuance(t *testi
 	// A target no longer composed is not found, not a declaration.
 	if _, err := h.svc.ApprovedDeclaration(h.ctx, domain.Installation{Target: "never"}); !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("an uncomposed target answers %v, want ErrNotFound", err)
+	}
+}
+
+// A redelivery that names a scope governing the installation's sources asks
+// something new of the organization: until an administrator approves it, the
+// approved declaration governs no source, and a host reading it admits nobody
+// by the new scope. Approved, it governs.
+func TestAGoverningScopeAddedByARedeliveryWaitsForApproval(t *testing.T) {
+	h := newHarness(t)
+	governed := solution("a", true)
+	governed.Generation = 2
+	governed.SourceGovernance = []*basev0.WorkScopeV1{sc("a.note", "write")}
+	if _, err := h.svc.ApplyModule(h.ctx, governed); err != nil {
+		t.Fatal(err)
+	}
+	inst := h.stored(acme, "a")
+	upgrade, err := h.svc.UpgradeAvailable(h.ctx, inst)
+	if err != nil || !upgrade {
+		t.Fatalf("a governing scope added asks no approval: upgrade %v, %v", upgrade, err)
+	}
+	m, err := h.svc.ApprovedDeclaration(h.ctx, inst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Generation != 1 || len(m.SourceGovernance) != 0 {
+		t.Fatalf("before approval the declaration at generation %d governs by %v", m.Generation, m.SourceGovernance)
+	}
+	if _, err := h.svc.Install(h.ctx, h.admin(acme), acme, "a", "author", "remi", h.approval(acme, "a"), nil); err != nil {
+		t.Fatal(err)
+	}
+	if m, err = h.svc.ApprovedDeclaration(h.ctx, h.stored(acme, "a")); err != nil || m.Generation != 2 || len(m.SourceGovernance) != 1 {
+		t.Fatalf("after approval the declaration at generation %d governs by %v (%v)", m.Generation, m.SourceGovernance, err)
+	}
+}
+
+// A consent recorded before the approved generation was kept proves no
+// approved baseline: the declaration it answers governs no source, whatever
+// a delivery since names, until its review records one.
+func TestALegacyConsentApprovesNoGoverningScope(t *testing.T) {
+	h := newHarness(t)
+	governed := solution("a", true)
+	governed.Generation = 2
+	governed.SourceGovernance = []*basev0.WorkScopeV1{sc("a.note", "read")}
+	if _, err := h.svc.ApplyModule(h.ctx, governed); err != nil {
+		t.Fatal(err)
+	}
+	legacy := h.stored(acme, "a")
+	if legacy.Consent.OperationID == "" {
+		t.Fatal("the harness installed a without a consent")
+	}
+	legacy.Consent.Generation, legacy.Consent.Digest = 0, ""
+	if err := h.store.Write(h.ctx, func(tx authority.Tx) error { return tx.PutInstallation(legacy) }); err != nil {
+		t.Fatal(err)
+	}
+	m, err := h.svc.ApprovedDeclaration(h.ctx, h.stored(acme, "a"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(m.SourceGovernance) != 0 {
+		t.Fatalf("a legacy consent approves the governing scopes %v it never saw", m.SourceGovernance)
+	}
+	if _, err := h.svc.Install(h.ctx, h.admin(acme), acme, "a", "author", "remi", h.approval(acme, "a"), nil); err != nil {
+		t.Fatal(err)
+	}
+	if m, err = h.svc.ApprovedDeclaration(h.ctx, h.stored(acme, "a")); err != nil || len(m.SourceGovernance) != 1 {
+		t.Fatalf("after its review the declaration governs by %v (%v)", m.SourceGovernance, err)
+	}
+}
+
+// A delivery naming a governing action its own ceiling does not serve is
+// refused where it is applied: a role's grant of it would be held at a
+// binding's audience, or widened in by a later ceiling no review covers.
+func TestADeliveryGoverningByAnActionItDoesNotServeIsRefused(t *testing.T) {
+	h := newHarness(t)
+	m := solution("a", true)
+	m.Generation = 2
+	m.ResourceKinds = []*basev0.WorkScopeV1{sc("a.note", "read")}
+	m.Roles["author"] = []*basev0.WorkScopeV1{sc("a.note", "read"), sc(kind, "create", "read", "write")}
+	m.Roles[domain.InstallerRole] = []*basev0.WorkScopeV1{sc("a.note", "read"), sc(kind, "admin", "create", "read", "write")}
+	m.SourceGovernance = []*basev0.WorkScopeV1{sc("a.note", "write")}
+	if _, err := h.svc.ApplyModule(h.ctx, m); err == nil || !strings.Contains(err.Error(), "which its own ceiling does not name") {
+		t.Fatalf("a governing action the solution does not serve: %v", err)
 	}
 }

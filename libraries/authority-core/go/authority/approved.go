@@ -45,7 +45,35 @@ func (s *Service) ApprovedDeclaration(ctx context.Context, inst domain.Installat
 // administrator approved. A digest that differs only because the module's
 // encoding changed fails the same way, closed: the installation reads as an
 // upgrade, and its review records the digest anew.
+//
+// The scopes that govern the installation's sources are answered only where
+// someone approved them (approvedGovernance).
 func approvedModule(tx Tx, inst domain.Installation, m domain.Module) (domain.Module, error) {
+	approved, err := approvedGeneration(tx, inst, m)
+	if err == nil && !approvedGovernance(inst) {
+		approved.SourceGovernance = nil
+	}
+	return approved, err
+}
+
+// approvedGovernance reports whether inst's declaration may govern its
+// sources: only where someone approved it. A consent at a kept generation is
+// an administrator's review, whoever made the installation; with no consent,
+// only a host's own install of a solution, naming its installer and holding a
+// principal of its own, approved it. A legacy consent (an operation and no
+// kept generation) proves no approved baseline, and an installation made by
+// composition (no installer) was never approved at all, even after its
+// target's delivery becomes a solution — until an administrator reviews it:
+// who manages its sources is never something no administrator has seen.
+func approvedGovernance(inst domain.Installation) bool {
+	if inst.Consent.OperationID != "" {
+		return inst.Consent.Generation != 0
+	}
+	return inst.InstalledBy != "" && inst.PrincipalID != ""
+}
+
+// approvedGeneration is approvedModule before governance is held to it.
+func approvedGeneration(tx Tx, inst domain.Installation, m domain.Module) (domain.Module, error) {
 	c := inst.Consent
 	if c.OperationID == "" || c.Generation == 0 || c.Generation >= m.Generation || inst.Target != m.Name {
 		return m, nil
