@@ -6,10 +6,55 @@ link its own generated package. Both the local authority and Accounts must run
 the same suite against their actual providers.
 
 Required fixture omissions fail. They are fixture failures, not evidence that a
-host implements the behaviour. Missing interface fields fail, just like missing fixtures. Expiry always waits past Core's clock skew; `SlowChecks` remains only for
+host implements the behaviour. Missing interface fields fail, just like missing fixtures. Expiry always checks past Core's clock skew; `SlowChecks` remains only for
 source compatibility. Refusal assertions check the public code and named
 reason; the comparison records the complete returned reason, including any
 implementation prefix.
+
+## Isolated parallel runs
+
+Use `RunParallel(t, factory)` for the shared `Run` scenarios. The factory is
+called **after** each scenario's `t.Parallel()`, with that scenario's `*testing.T`
+and a new `*Clock`. It returns the connection, descriptors and `Fixture`. Build
+the real host with `clock.Now` in its existing issuance and verification clock
+configuration, and register teardown with that scenario's `t.Cleanup`.
+
+Each invocation owns its store, organizations/tenants, installations, delivery
+state, sessions, launcher and signing keys. Identical fixture names are safe
+only in separate stores; a new organization alone does not isolate host-wide
+module generations or release trust. The local runner demonstrates this with a
+fresh state, launcher, release key, authority key and gRPC server per scenario.
+No fixture factory may mutate process environment, shared server singletons or
+another scenario's database. Go's `-parallel` bounds the number of live fixtures.
+Nested assertions remain ordered within their stateful scenario: redelivery,
+revocation and reinstall checks still exercise the same transitions.
+
+The controlled clock is frozen while RPCs run. The expiry scenario checks that a
+capability is accepted inside Core's skew allowance, then refused with the same
+`Unauthenticated` / `expired` assertion after the allowance. The delegation
+scenario also moves the clock past its carried end and keeps both refusal and
+inactive-read assertions. Clock changes restore at scenario/subtest cleanup.
+
+`Run(t, conn, descriptors, fixture)` remains compatible with existing host
+adapters and live services. It uses `fixture.Clock` when supplied; without an
+injected clock it retains the real waits and serial execution. It never skips
+expiry. Accounts must migrate its fixture before selecting `RunParallel`: its
+current runner uses `t.Setenv`, package-wide server singletons and one database.
+Move environment/dependency setup outside parallel cases, inject host services
+instead of shared singletons, and give each factory invocation its own database
+and clock. Merely wrapping its current setup in the factory is unsafe. The
+separate `RunArtifacts` and `RunSolutionPrincipalTarget` entry points and
+Accounts-only tests retain their existing execution order.
+
+Measure the local shared run with `go test -json -count=1 -run
+'^TestTheLocalAuthorityPassesTheSuiteEveryImplementationMustPass$'
+./plugins/registry_test` from `modules/authority/services/local/code`. Use the
+package elapsed time or the parent's run-to-pass timestamps: Go excludes time
+spent in parallel children from the parent's reported `Elapsed`. Compare all
+subtest names as well as failures/skips. Validate isolation with `go test -race
+-count=3 -parallel=16 -run
+'^Test(TheLocalAuthorityPassesTheSuiteEveryImplementationMustPass|ConformanceFixturesIsolateKeysSessionsAndClocks)$'
+./plugins/registry_test`.
 
 The local fixture contains Acme and Globex; Maya is a viewer, Remi an editor,
 Alex an administrator, Dev the developer, Zoe a Globex administrator, and Omar

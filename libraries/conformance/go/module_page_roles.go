@@ -31,7 +31,7 @@ const (
 )
 
 func (c *client) modulePageRoles(t *testing.T, ctx context.Context, f Fixture) {
-	t.Run("a module page is installed by composition; its roles decide who is listed for it and who may use it", func(t *testing.T) {
+	c.run(t, f, "a module page is installed by composition; its roles decide who is listed for it and who may use it", func(t *testing.T, c *client, f Fixture) {
 		if f.SignManifest == nil || f.SignAuthority == nil || f.DeliveryCredential == nil || f.AdminToken == "" || f.OtherAdminToken == "" || f.UnentitledToken == "" || f.ViewerToken == "" || f.Audience == "" || f.ReadKind == "" {
 			t.Fatal("required conformance fixture missing: signed delivery, an administrator here and in another organization, a viewer reading ReadKind, a member holding no role (UnentitledToken) and a composed module without roles (Audience)")
 		}

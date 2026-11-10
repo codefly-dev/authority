@@ -4,8 +4,11 @@ package registry_test
 
 import (
 	"context"
+	"crypto"
 	core "github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
+	delivery "github.com/codefly-dev/authority/libraries/delivery/go"
+	"github.com/codefly-dev/core/solutionhost"
 	"net"
 	"os"
 	"path/filepath"
@@ -33,7 +36,11 @@ import (
 )
 
 func TestTheLocalAuthorityPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
-	k := testkit.New(t)
+	conformance.RunParallel(t, localConformanceFixture)
+}
+
+func localConformanceFixture(t *testing.T, clock *conformance.Clock) (grpc.ClientConnInterface, []byte, conformance.Fixture) {
+	k := testkit.NewWithClock(t, clock.Now)
 	testkit.SolutionTools(t, k)
 	// The staleness probe revokes the viewer's own role, so her access to the
 	// wiki must be hers alone: the composition's team grants become the same
@@ -87,9 +94,10 @@ people:
 	if _, err := k.State.ApplyManifest(records); err != nil {
 		t.Fatal(err)
 	}
+	signer, verifier := testkit.NewRelease(t, "local")
 	plugins := []framework.Plugin{
 		&authority.Plugin{Issuer: k.Issuer},
-		&composition.Plugin{State: k.State, Coordinate: "local", Verifier: testkit.ReleaseVerifier(t, "local"), Carrier: k.CarrierAuthority, Keys: testkit.ReleaseKeys()},
+		&composition.Plugin{State: k.State, Coordinate: "local", Verifier: verifier, Carrier: k.CarrierAuthority, Keys: map[string]crypto.PublicKey{signer.KeyID(): signer.Public()}},
 		&installation.Plugin{State: k.State}, &session.Plugin{State: k.State},
 	}
 	server := grpc.NewServer()
@@ -173,7 +181,7 @@ people:
 			adminPerson = person
 		}
 	}
-	conformance.Run(t, conn, descriptors, conformance.Fixture{
+	return conn, descriptors, conformance.Fixture{
 		InstallationResources: &conformance.InstallationResourcesCase{
 			Owner: "fixture-alex", Viewer: "fixture-maya", Generation: 2,
 			A:     conformance.OwnedInstallation{Solution: "conformance-owner-a", Credential: k.Credential(t, "conformance-owner-a"), Installation: owned["conformance-owner-a"]},
@@ -237,8 +245,8 @@ people:
 		// Deliveries are signed with the kit's release key and carried by the
 		// module's own workload under the launcher.
 		HostCoordinate: "local", HostDomain: "local",
-		SignManifest:       testkit.SignDocument,
-		SignAuthority:      testkit.SignAuthority,
+		SignManifest:       func(doc []byte) ([]byte, error) { return solutionhost.SignEnvelope(doc, signer) },
+		SignAuthority:      func(doc []byte) ([]byte, error) { return delivery.Sign(doc, signer.KeyID(), signer.Sign) },
 		DeliveryCredential: func(module string) string { return k.Credential(t, module) },
 		Matrix:             testkit.Matrix(),
 		ParentLimits: &conformance.ParentLimitsCase{Token: "fixture-remi", Root: "model", Credential: k.Credential(t, "model"), SelfBinding: "self",
@@ -270,7 +278,7 @@ people:
 		// Rémi at the page; the page asks documents; documents asks the model,
 		// for a read Rémi holds at the model and his first token never carried.
 		Chain: &chain,
-	})
+	}
 }
 
 // directGrants replaces each team's grant of role on installation id with the

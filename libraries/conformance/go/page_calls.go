@@ -37,7 +37,7 @@ const (
 )
 
 func (c *client) pageCalls(t *testing.T, ctx context.Context, f Fixture) {
-	t.Run("a page's call goes through its target's binding, the person present, named by the module edge alone", func(t *testing.T) {
+	c.run(t, f, "a page's call goes through its target's binding, the person present, named by the module edge alone", func(t *testing.T, c *client, f Fixture) {
 		if f.EdgeCredential == "" || f.WorkloadCredential == "" || f.SignManifest == nil || f.SignAuthority == nil || f.DeliveryCredential == nil || f.AdminToken == "" || f.UnentitledToken == "" || f.Elsewhere == "" {
 			t.Fatal("required conformance fixture missing: the module edge's credential (EdgeCredential), a module's (WorkloadCredential), signed delivery, an administrator, a member holding no role (UnentitledToken) and a composed module the page declares no binding to (Elsewhere)")
 		}

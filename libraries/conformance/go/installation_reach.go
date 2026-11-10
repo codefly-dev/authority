@@ -29,7 +29,7 @@ const (
 )
 
 func (c *client) reachConsent(t *testing.T, ctx context.Context, f Fixture) {
-	t.Run("consent covers what a role reaches through the solution", func(t *testing.T) {
+	c.run(t, f, "consent covers what a role reaches through the solution", func(t *testing.T, c *client, f Fixture) {
 		if f.SignManifest == nil || f.SignAuthority == nil || f.DeliveryCredential == nil || f.AdminToken == "" || f.UnentitledToken == "" {
 			t.Fatal("required conformance fixture missing: signed delivery, an administrator and a member holding no role (UnentitledToken)")
 		}

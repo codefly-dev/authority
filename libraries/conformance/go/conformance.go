@@ -34,6 +34,10 @@ import (
 
 // Fixture is what the suite assumes the implementation seeded.
 type Fixture struct {
+	// Clock controls the real host clock in an isolated fixture. RunParallel
+	// supplies it; Run may set it when driving a host with an injected clock.
+	Clock *Clock
+
 	// WorkloadOrganizations proves both mandatory empty-tenant isolation refusals.
 	WorkloadOrganizations *WorkloadOrganizationsCase
 	Organization          string // the one organisation the people belong to
@@ -314,6 +318,10 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 	if err != nil {
 		t.Fatalf("conformance: %v", err)
 	}
+	run(t, c, f)
+}
+
+func run(t *testing.T, c *client, f Fixture) {
 	ctx := context.Background()
 	c.admissionStatus(t, ctx, f)
 	c.solutionRoleCases(t, ctx, f)
@@ -325,20 +333,20 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 	c.sessionDisplayNames(t, ctx, f)
 	c.bindingRefusals(t, ctx, f)
 	c.forwardedContext(t, ctx, f)
-	t.Run("parent per-kind limits survive audience changes", func(t *testing.T) {
+	c.run(t, f, "parent per-kind limits survive audience changes", func(t *testing.T, c *client, f Fixture) {
 		if f.ParentLimits == nil {
 			t.Fatal("fixture supplies no parent-limit round trip")
 		}
 		c.parentLimits(t, ctx, *f.ParentLimits)
 	})
 
-	t.Run("keys name one Ed25519 key and an issuer", func(t *testing.T) {
+	c.run(t, f, "keys name one Ed25519 key and an issuer", func(t *testing.T, c *client, f Fixture) {
 		keys := c.must(t, ctx, "host.authority.v1.AuthorityService", "Keys", map[string]any{})
 		if str(keys, "issuer") == "" || count(keys, "keys") == 0 || str(listMsgs(keys, "keys")[0], "algorithm") != "Ed25519" {
 			t.Fatalf("keys: %v", keys)
 		}
 	})
-	t.Run("a fixture person signs in and an unknown token is refused", func(t *testing.T) {
+	c.run(t, f, "a fixture person signs in and an unknown token is refused", func(t *testing.T, c *client, f Fixture) {
 		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
 		if str(sess, "session_id") == "" || str(sess, "bearer") == "" || str(sess, "organization_id") != f.Organization {
 			t.Fatalf("sign in: %v", sess)
@@ -348,7 +356,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			t.Fatalf("unknown token: %v", err)
 		}
 	})
-	t.Run("every fixture person listed signs in as that person", func(t *testing.T) {
+	c.run(t, f, "every fixture person listed signs in as that person", func(t *testing.T, c *client, f Fixture) {
 		// A host that signs real people in lists none, and the line holds.
 		listed := c.must(t, ctx, "host.session.v1.SessionService", "ListFixturePeople", map[string]any{})
 		for _, person := range listMsgs(listed, "people") {
@@ -358,7 +366,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			}
 		}
 	})
-	t.Run("a page asks who its bearer is, and a bearer naming no session is refused", func(t *testing.T) {
+	c.run(t, f, "a page asks who its bearer is, and a bearer naming no session is refused", func(t *testing.T, c *client, f Fixture) {
 		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
 		current := c.must(t, as(ctx, sess), "host.session.v1.SessionService", "Current", map[string]any{})
 		if str(current, "session_id") != str(sess, "session_id") || str(current, "person_id") != str(sess, "person_id") || str(current, "organization_id") != f.Organization || str(current, "bearer") != "" {
@@ -373,7 +381,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			}
 		}
 	})
-	t.Run("a person is issued, checked, and refused elsewhere", func(t *testing.T) {
+	c.run(t, f, "a person is issued, checked, and refused elsewhere", func(t *testing.T, c *client, f Fixture) {
 		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
 		asViewer := as(ctx, sess)
 		read := []any{map[string]any{"resource_kind": f.ReadKind, "actions": []any{"read"}}}
@@ -393,14 +401,14 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			t.Fatalf("beyond the role must be PermissionDenied, got %v", err)
 		}
 	})
-	t.Run("an empty ask means everything the owner holds at the audience", func(t *testing.T) {
+	c.run(t, f, "an empty ask means everything the owner holds at the audience", func(t *testing.T, c *client, f Fixture) {
 		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
 		out := c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.Audience})
 		if count(msg(out, "context"), "authority_scopes") == 0 {
 			t.Fatalf("an empty ask was issued nothing: %v", out)
 		}
 	})
-	t.Run("the permission matrix holds, allow and deny", func(t *testing.T) {
+	c.run(t, f, "the permission matrix holds, allow and deny", func(t *testing.T, c *client, f Fixture) {
 		if len(f.Matrix) == 0 {
 			t.Fatal("required conformance fixture missing: the fixture states no matrix")
 		}
@@ -424,7 +432,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			}
 		}
 	})
-	t.Run("a callee refuses what does not verify, by name", func(t *testing.T) {
+	c.run(t, f, "a callee refuses what does not verify, by name", func(t *testing.T, c *client, f Fixture) {
 		// The callee contract, as the hop will enforce it: a token is accepted only
 		// when its signature holds, its window is open, it is addressed to this
 		// audience, and the authority it was sealed to still stands. Each failure
@@ -444,14 +452,21 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			t.Fatal("a check at an audience that is not composed is refused")
 		}
 		// A window is honoured with core's clock skew: a token is refused once it
-		// is past its expiry by more than DefaultSkew (30 s). Waiting that long is
-		// required; the fast check also asserts the window the token states.
+		// is past its expiry by more than DefaultSkew (30 s). The isolated host
+		// uses the suite clock; a live host retains the wall-clock check.
 		short := c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.Audience, "scopes": read, "ttl_seconds": int64(1)})
 		if i64(msg(short, "context"), "expires_at_unix")-i64(msg(short, "context"), "issued_at_unix") > 1 {
 			t.Fatalf("a one-second window is issued as asked: %v", msg(short, "context"))
 		}
 		t.Run("an expired capability is refused after clock skew", func(t *testing.T) {
-			time.Sleep(workcontext.DefaultSkew + 2*time.Second)
+			issued := time.Unix(i64(msg(short, "context"), "issued_at_unix"), 0)
+			expires := time.Unix(i64(msg(short, "context"), "expires_at_unix"), 0)
+			if f.Clock != nil {
+				// Expiry alone must not reject a token still inside the skew window.
+				atHostTime(t, f, issued, expires.Add(workcontext.DefaultSkew-time.Second))
+				c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(short, "token"), "audience": f.Audience})
+			}
+			atHostTime(t, f, issued, expires.Add(workcontext.DefaultSkew+time.Second))
 			_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(short, "token"), "audience": f.Audience})
 			refused(t, err, codes.Unauthenticated, "expired")
 		})
@@ -493,7 +508,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "GrantRole", role(name))
 		}
 	})
-	t.Run("every refusal reaches the caller with a reason", func(t *testing.T) {
+	c.run(t, f, "every refusal reaches the caller with a reason", func(t *testing.T, c *client, f Fixture) {
 		_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.Audience})
 		if code := status.Code(err); code != codes.PermissionDenied && code != codes.Unauthenticated {
 			t.Fatalf("a person-owned issue with no bearer: %v", err)
@@ -516,8 +531,8 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			t.Fatalf("garbage token: %v", err)
 		}
 	})
-	c.workloadOrganizations(t, ctx, f.WorkloadOrganizations)
-	t.Run("a workload is issued its own binding and nothing it did not declare", func(t *testing.T) {
+	c.workloadOrganizations(t, ctx, f)
+	c.run(t, f, "a workload is issued its own binding and nothing it did not declare", func(t *testing.T, c *client, f Fixture) {
 		workload := map[string]any{"workload": map[string]any{"credential": f.WorkloadCredential}, "audience": f.BindingAudience, "organization_id": f.Organization}
 		req := clone(workload)
 		req["operation_binding_id"] = f.Binding
@@ -541,7 +556,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			t.Fatalf("a forged credential: %v", err)
 		}
 	})
-	t.Run("an installation acts for itself", func(t *testing.T) {
+	c.run(t, f, "an installation acts for itself", func(t *testing.T, c *client, f Fixture) {
 		if f.InstalledCredential == "" {
 			t.Fatal("fixture must supply the installed solution workload credential")
 		}
@@ -574,7 +589,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			}
 		}
 	})
-	t.Run("an installation issue authenticates its own solution workload", func(t *testing.T) {
+	c.run(t, f, "an installation issue authenticates its own solution workload", func(t *testing.T, c *client, f Fixture) {
 		for _, credential := range []string{"", "forged-workload", f.WorkloadCredential} {
 			if credential != "" && credential == f.InstalledCredential {
 				t.Fatal("fixture must provide a different module workload")
@@ -585,13 +600,13 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			}
 		}
 	})
-	t.Run("a module tool binding carries the person's solution role", func(t *testing.T) {
+	c.run(t, f, "a module tool binding carries the person's solution role", func(t *testing.T, c *client, f Fixture) {
 		if f.SolutionTools == nil {
 			t.Fatal("required conformance fixture missing: fixture supplies no module-to-solution tool case")
 		}
 		c.solutionTools(t, ctx, f, *f.SolutionTools)
 	})
-	t.Run("a child hop attenuates and names its actor and its binding", func(t *testing.T) {
+	c.run(t, f, "a child hop attenuates and names its actor and its binding", func(t *testing.T, c *client, f Fixture) {
 		// The hop rule: a module hops only on a token addressed to it, and the hop
 		// names the binding it exercises, so the child is sealed within the
 		// module's installation and carries exactly the binding's scopes the
@@ -644,7 +659,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			t.Fatalf("a module hops only on a token addressed to it: %v", err)
 		}
 	})
-	t.Run("a delegate chain inherits the owner's authority at each audience", func(t *testing.T) {
+	c.run(t, f, "a delegate chain inherits the owner's authority at each audience", func(t *testing.T, c *client, f Fixture) {
 		if f.Chain == nil || len(f.Chain.Hops) < 2 {
 			t.Fatal("required conformance fixture missing: the fixture states no delegate chain")
 		}
@@ -669,22 +684,22 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			t.Fatalf("a module hops only on a token addressed to it, also down a chain: %v", err)
 		}
 	})
-	t.Run("child target projection preserves explicit delegation restrictions", func(t *testing.T) {
+	c.run(t, f, "child target projection preserves explicit delegation restrictions", func(t *testing.T, c *client, f Fixture) {
 		if f.ChildScopes == nil {
 			t.Fatal("required conformance fixture missing: the fixture states no child-scope case")
 		}
 		c.childScopes(t, ctx, *f.ChildScopes)
 	})
-	t.Run("an installation owner survives successive module actors", func(t *testing.T) {
+	c.run(t, f, "an installation owner survives successive module actors", func(t *testing.T, c *client, f Fixture) {
 		if f.InstallationChain == nil {
 			t.Fatal("required conformance fixture missing: the fixture states no installation-owned chain")
 		}
 		c.installationChain(t, ctx, f, *f.InstallationChain)
 	})
-	t.Run("installation-owned role scopes cover only what the installation owns", func(t *testing.T) {
+	c.run(t, f, "installation-owned role scopes cover only what the installation owns", func(t *testing.T, c *client, f Fixture) {
 		c.installationResources(t, ctx, f)
 	})
-	t.Run("a check naming a method applies what the module's delivery declares", func(t *testing.T) {
+	c.run(t, f, "a check naming a method applies what the module's delivery declares", func(t *testing.T, c *client, f Fixture) {
 		if f.SignManifest == nil || f.SignAuthority == nil {
 			t.Fatal("required conformance fixture missing: the fixture signs no authority document")
 		}
@@ -754,7 +769,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			t.Fatal("with no document delivered, a check naming a method is refused and one naming none is not")
 		}
 	})
-	t.Run("the authority answers which resources a context covers, by grant", func(t *testing.T) {
+	c.run(t, f, "the authority answers which resources a context covers, by grant", func(t *testing.T, c *client, f Fixture) {
 		rc := f.Resources
 		if rc == nil {
 			t.Fatal("required conformance fixture missing: the fixture states no resource case")
@@ -831,7 +846,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		_, err = issue([]any{scopeAsk(rc.Kind, []string{rc.Action}, nil)})
 		refused(t, err, codes.PermissionDenied, "what the owner holds")
 	})
-	t.Run("a lookup through a binding carries only the binding's lookup scopes", func(t *testing.T) {
+	c.run(t, f, "a lookup through a binding carries only the binding's lookup scopes", func(t *testing.T, c *client, f Fixture) {
 		lc := f.Lookup
 		if lc == nil {
 			t.Fatal("required conformance fixture missing: the fixture states no lookup case")
@@ -851,7 +866,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			t.Fatalf("lookup carries %q, want only %s", got, lc.Lookup)
 		}
 	})
-	t.Run("a delegation issues as its grantor through its module, until revoked", func(t *testing.T) {
+	c.run(t, f, "a delegation issues as its grantor through its module, until revoked", func(t *testing.T, c *client, f Fixture) {
 		dc := f.Delegation
 		if dc == nil {
 			t.Fatal("required conformance fixture missing: the fixture states no delegation case")
@@ -910,7 +925,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			t.Fatalf("its module reads a revoked delegation as standing: %v", err)
 		}
 	})
-	t.Run("a delegation asked for with a lifetime carries when it ends and ends then, and none asked carries none", func(t *testing.T) {
+	c.run(t, f, "a delegation asked for with a lifetime carries when it ends and ends then, and none asked carries none", func(t *testing.T, c *client, f Fixture) {
 		dc := f.Delegation
 		if dc == nil {
 			t.Fatal("required conformance fixture missing: the fixture states no delegation case")
@@ -953,12 +968,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 
 		// The host enforces the end, not only reports it: a short delegation
 		// issues, and once past its end neither issues nor reads as standing.
-		// The suite cannot move a host's clock, so it waits. The lifetime is
-		// long enough that no runner's scheduling consumes it before the first
-		// issue — a host carries the end in whole seconds and a one-second
-		// delegation could be issuable for as little as a few milliseconds —
-		// and the wait is measured on the host's clock, from the end it
-		// carries, so it lasts the lifetime and a second at most.
+		// Advance the injected clock past the carried end; a live host waits.
 		const lifetime = 10
 		d, err := delegate(lifetime)
 		if err != nil {
@@ -983,7 +993,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 		}
 		// The carried end is whole seconds, so the host's own end is before
 		// at+1, and the host's now is past now when the issue answered.
-		time.Sleep(time.Duration(at+1-now)*time.Second + 250*time.Millisecond)
+		atHostTime(t, f, time.Unix(now, 0), time.Unix(at+1, 0).Add(250*time.Millisecond))
 		if _, err := issue(); status.Code(err) != codes.PermissionDenied {
 			t.Fatalf("an expired delegation issues: %v", err)
 		}
@@ -992,7 +1002,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 			t.Fatalf("its module reads an expired delegation as standing: %v", err)
 		}
 	})
-	t.Run("a manifest moves only forward and a lower generation is refused by name", func(t *testing.T) {
+	c.run(t, f, "a manifest moves only forward and a lower generation is refused by name", func(t *testing.T, c *client, f Fixture) {
 		if _, err := c.applyManifest(ctx, f, "conformance-probe", "module", 2, []string{"probe"}); err != nil {
 			t.Fatalf("apply: %v", err)
 		}
@@ -1041,8 +1051,9 @@ func grantsOf(m protoreflect.Message) []resources.Grant {
 // --- the dynamic client -----------------------------------------------------
 
 type client struct {
-	conn  grpc.ClientConnInterface
-	files *protoregistry.Files
+	factory Factory
+	conn    grpc.ClientConnInterface
+	files   *protoregistry.Files
 }
 
 func newClient(conn grpc.ClientConnInterface, descriptors []byte) (*client, error) {

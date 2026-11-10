@@ -11,7 +11,7 @@ import (
 // Admission errors distinguish an absent installation from a person who cannot
 // use an installed audience. Navigation must not need an administrative List.
 func (c *client) admissionStatus(t *testing.T, ctx context.Context, f Fixture) {
-	t.Run("installation inventory is an administrator read", func(t *testing.T) {
+	c.run(t, f, "installation inventory is an administrator read", func(t *testing.T, c *client, f Fixture) {
 		t.Run("an organization owner can list installations", func(t *testing.T) {
 			if f.OwnerToken == "" {
 				t.Fatal("required conformance fixture missing: organization owner distinct from admin")
@@ -46,7 +46,7 @@ func (c *client) admissionStatus(t *testing.T, ctx context.Context, f Fixture) {
 			})
 		}
 	})
-	t.Run("an uninstalled audience is a failed precondition", func(t *testing.T) {
+	c.run(t, f, "an uninstalled audience is a failed precondition", func(t *testing.T, c *client, f Fixture) {
 		const target = "conformance-uninstalled"
 		if _, err := c.applyManifest(ctx, f, target, "solution", 1, []string{"conformance.uninstalled"}); err != nil {
 			t.Fatal(err)
@@ -55,7 +55,7 @@ func (c *client) admissionStatus(t *testing.T, ctx context.Context, f Fixture) {
 		_, err := c.call(as(ctx, viewer), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": target})
 		refused(t, err, codes.FailedPrecondition, fmt.Sprintf("audience %q is not installed in this organization, so there is no installation to seal the capability to", target))
 	})
-	t.Run("a person without grants cannot use an installed audience", func(t *testing.T) {
+	c.run(t, f, "a person without grants cannot use an installed audience", func(t *testing.T, c *client, f Fixture) {
 		if f.UnentitledToken == "" {
 			t.Fatal("required conformance fixture missing: person without roles or teams")
 		}

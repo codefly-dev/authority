@@ -183,7 +183,26 @@ func releaseSigner() *solutionhost.InMemorySigner {
 // ReleaseVerifier pins the kit's release key for the host domain.
 func ReleaseVerifier(t *testing.T, domain string) *solutionhost.Verifier {
 	t.Helper()
-	der, err := x509.MarshalPKIXPublicKey(releaseSigner().Public())
+	return releaseVerifier(t, domain, releaseSigner())
+}
+
+// NewRelease gives an isolated fixture its own delivery signing key and trust.
+func NewRelease(t *testing.T, domain string) (*solutionhost.InMemorySigner, *solutionhost.Verifier) {
+	t.Helper()
+	_, key, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer, err := solutionhost.NewInMemorySigner(ReleaseKeyID, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return signer, releaseVerifier(t, domain, signer)
+}
+
+func releaseVerifier(t *testing.T, domain string, signer *solutionhost.InMemorySigner) *solutionhost.Verifier {
+	t.Helper()
+	der, err := x509.MarshalPKIXPublicKey(signer.Public())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,6 +329,16 @@ func DefaultCompositionPath() string {
 // Bare is a state and an issuer with nothing composed and no fixture loaded.
 func Bare(t *testing.T) *Kit {
 	t.Helper()
+	// Existing fixtures keep their readable epoch and advancing wall clock.
+	now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+	started := time.Now()
+	k := bareWithClock(t, func() time.Time { return now.Add(time.Since(started)) })
+	k.Now = now
+	return k
+}
+
+func bareWithClock(t *testing.T, clock func() time.Time) *Kit {
+	t.Helper()
 	launcher, err := native.NewIssuer()
 	if err != nil {
 		t.Fatal(err)
@@ -329,22 +358,28 @@ func Bare(t *testing.T) *Kit {
 	if err != nil {
 		t.Fatal(err)
 	}
-	now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
-	started := time.Now()
-	// The clock starts at a fixed instant, for readable timestamps, and
-	// advances with the wall clock, so a window closes as it would on a laptop.
-	st, err := state.New(launcher.Anchor(), Audience, issuer.Config(Audience, "local-1", signing, func() time.Time { return now.Add(time.Since(started)) }))
+	st, err := state.New(launcher.Anchor(), Audience, issuer.Config(Audience, "local-1", signing, clock))
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &Kit{State: st, Launcher: launcher, Now: now, Issuer: issuer.New(st, Audience, "local-1", signing.Public().(ed25519.PublicKey))}
+	return &Kit{State: st, Launcher: launcher, Now: clock(), Issuer: issuer.New(st, Audience, "local-1", signing.Public().(ed25519.PublicKey))}
 }
 
 // New composes the suite's modules, loads the fixture, and applies the test
 // kit's composition document, which grants their kinds and installs the wiki.
 func New(t *testing.T) *Kit {
 	t.Helper()
-	k := Bare(t)
+	return compose(t, Bare(t))
+}
+
+// NewWithClock composes an isolated host using the caller's issuance/check clock.
+func NewWithClock(t *testing.T, clock func() time.Time) *Kit {
+	t.Helper()
+	return compose(t, bareWithClock(t, clock))
+}
+
+func compose(t *testing.T, k *Kit) *Kit {
+	t.Helper()
 	for _, m := range []state.Manifest{Model(1), Runtime(1), Records(1), OrgDirectory(1), Documents(1), Wiki(1), Evaluation(1)} {
 		if _, err := k.State.ApplyManifest(m); err != nil {
 			t.Fatal(err)

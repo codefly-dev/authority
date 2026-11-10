@@ -9,16 +9,22 @@ import (
 )
 
 func (c *client) bindingRefusals(t *testing.T, ctx context.Context, f Fixture) {
-	for _, tc := range []struct {
+	type testCase struct {
 		name, binding, audience, action, reason string
 		code                                    codes.Code
-	}{
-		{"a child naming an undeclared binding is refused by name", "undeclared", f.BindingAudience, "read", "undeclared", codes.NotFound},
-		{"a child naming the wrong binding audience is refused by name", f.Binding, f.Elsewhere, "read", "addressed", codes.PermissionDenied},
-		{"a child naming no binding is refused by name", "", f.BindingAudience, "read", "names the binding", codes.PermissionDenied},
-		{"a child widening its owner's current binding grants is refused by name", f.Binding, f.BindingAudience, "conformance-unheld", "widens", codes.PermissionDenied},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
+	}
+	cases := func(f Fixture) []testCase {
+		return []testCase{
+			{"a child naming an undeclared binding is refused by name", "undeclared", f.BindingAudience, "read", "undeclared", codes.NotFound},
+			{"a child naming the wrong binding audience is refused by name", f.Binding, f.Elsewhere, "read", "addressed", codes.PermissionDenied},
+			{"a child naming no binding is refused by name", "", f.BindingAudience, "read", "names the binding", codes.PermissionDenied},
+			{"a child widening its owner's current binding grants is refused by name", f.Binding, f.BindingAudience, "conformance-unheld", "widens", codes.PermissionDenied},
+		}
+	}
+	for index, tc := range cases(f) {
+		c.run(t, f, tc.name, func(t *testing.T, c *client, f Fixture) {
+			// Resolve fixture values only after this scenario owns its host.
+			tc := cases(f)[index]
 			sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
 			root := c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.WorkloadModule, "operation_binding_id": f.Binding})
 			_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"parent_token": str(root, "token"), "actor": map[string]any{"credential": f.WorkloadCredential}, "operation_binding_id": tc.binding, "audience": tc.audience, "scopes": []any{scopeAsk(f.ReadKind, []string{tc.action}, nil)}})
@@ -28,7 +34,7 @@ func (c *client) bindingRefusals(t *testing.T, ctx context.Context, f Fixture) {
 }
 
 func (c *client) resourceMethod(t *testing.T, ctx context.Context, f Fixture) {
-	t.Run("a resource limited scope passes method admission without becoming kind wide", func(t *testing.T) {
+	c.run(t, f, "a resource limited scope passes method admission without becoming kind wide", func(t *testing.T, c *client, f Fixture) {
 		if f.Resources == nil || len(f.Resources.Covered) == 0 || f.SignManifest == nil || f.SignAuthority == nil {
 			t.Fatal("required conformance fixture missing: resources and signed method policy")
 		}
