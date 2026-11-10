@@ -132,6 +132,7 @@ func TestADelegationMadeUnderARoleViewHoldsWhatTheViewHolds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	h.grant("a", "installer", "maya") // granted since: the delegation is still what the view held
 	got, err := h.svc.IssueForDelegation(h.ctx, d.ID, authority.Workload{Module: "a"}, authority.IssueRequest{Binding: "store"})
 	if err != nil {
 		t.Fatal(err)
