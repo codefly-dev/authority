@@ -173,9 +173,10 @@ func TestAHeadlessHopForAPersonIsRefused(t *testing.T) {
 }
 
 // A module withdrawn and delivered again on a host that installs modules
-// follows the new generation on the host's active record: the grants of a
-// role it no longer declares end; the others stay.
-func TestAModuleDeliveredAgainAfterAWithdrawalDropsUndeclaredGrants(t *testing.T) {
+// keeps the host's active record, but no grant: each role granted on it ended
+// with the withdrawal, so a redelivery cannot give a grant a meaning nobody
+// approved (delivery_widening_test.go proves the widening it prevents).
+func TestAModuleDeliveredAgainAfterAWithdrawalHoldsNoGrants(t *testing.T) {
 	h := newHostInstalled(t)
 	h.store.PutPerson(domain.Person{ID: "maya", Organization: acme})
 	if _, err := h.svc.ApplyModule(h.ctx, pageModule(1, true)); err != nil {
@@ -203,9 +204,9 @@ func TestAModuleDeliveredAgainAfterAWithdrawalDropsUndeclaredGrants(t *testing.T
 	if _, err := h.svc.ApplyModule(h.ctx, again); err != nil {
 		t.Fatal(err)
 	}
-	grants, err := h.svc.ListRoleGrants(h.ctx, alex, acme, "host-pages")
-	if err != nil || len(grants) != 1 || grants[0].Role != domain.InstallerRole {
-		t.Fatalf("after the redelivery the grants are %v (%v), want the installer's alone", grants, err)
+	var grants []domain.RoleGrant
+	if err := h.store.Read(h.ctx, func(tx authority.Tx) (err error) { grants, err = tx.RoleGrants("host-pages"); return }); err != nil || len(grants) != 0 {
+		t.Fatalf("after the redelivery the grants are %v (%v), want none", grants, err)
 	}
 }
 

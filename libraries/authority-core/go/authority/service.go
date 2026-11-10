@@ -22,6 +22,13 @@ import (
 	"github.com/google/uuid"
 )
 
+// DefaultMaxTTL is the longest a capability lives. Removing a grant moves a
+// revision, which ends what was issued under it at the next check; the
+// lifetime is what bounds the rest (a grant that expires on its own moves
+// nothing), so it is fifteen minutes, not the hour the Work Context library
+// defaults to.
+const DefaultMaxTTL = 15 * time.Minute
+
 // KeySource answers the public keys a capability is verified with, by key id.
 type KeySource interface {
 	PublicKeys(ctx context.Context) (map[string]ed25519.PublicKey, error)
@@ -42,7 +49,11 @@ type Config struct {
 	// target and the principal it is; nil means the stable UUIDs below, so a
 	// reinstall keeps both and its data is never orphaned.
 	InstallationID, PrincipalID func(organization, target string) string
-	// MaxTTL clamps every capability; zero means 15 minutes.
+	// MaxTTL clamps every capability; zero means DefaultMaxTTL. A host states
+	// it from DefaultMaxTTL rather than from the Work Context library's own
+	// default (an hour): the lifetime is the bound on everything a revision
+	// does not reach (an expired grant, a stolen token), so a host that raises
+	// it names why.
 	MaxTTL time.Duration
 	// MaxDelegationTTL clamps the lifetime a delegation is asked for; zero
 	// means DefaultMaxDelegationTTL.
@@ -114,7 +125,7 @@ func New(store Store, cfg Config) (*Service, error) {
 		cfg.PrincipalID = StablePrincipalID
 	}
 	if cfg.MaxTTL <= 0 {
-		cfg.MaxTTL = 15 * time.Minute
+		cfg.MaxTTL = DefaultMaxTTL
 	}
 	if cfg.MaxDelegationTTL <= 0 {
 		cfg.MaxDelegationTTL = DefaultMaxDelegationTTL
