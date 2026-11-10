@@ -15,9 +15,10 @@ type WorkloadOrganizationCase struct{ Credential, Module, Binding, Audience stri
 // has no active installation. Neither principal has a delivered tenant pin.
 type WorkloadOrganizationsCase struct{ Ambiguous, None WorkloadOrganizationCase }
 
-func (c *client) workloadOrganizations(t *testing.T, ctx context.Context, f *WorkloadOrganizationsCase) {
+func (c *client) workloadOrganizations(t *testing.T, ctx context.Context, fixture Fixture) {
 	for _, name := range []string{"ambiguous", "none"} {
-		t.Run("an empty workload organization with "+name+" installations is refused", func(t *testing.T) {
+		c.run(t, fixture, "an empty workload organization with "+name+" installations is refused", func(t *testing.T, c *client, fixture Fixture) {
+			f := fixture.WorkloadOrganizations
 			if f == nil {
 				t.Fatal("required conformance fixture missing: ambiguous and absent workload installations")
 			}

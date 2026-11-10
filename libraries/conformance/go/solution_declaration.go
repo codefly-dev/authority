@@ -226,7 +226,7 @@ func (r declaredRole) held(kind string) []string {
 }
 
 func (c *client) solutionDeclaration(t *testing.T, ctx context.Context, f Fixture) {
-	t.Run("a solution's roles and permissions are exactly its declaration", func(t *testing.T) {
+	c.run(t, f, "a solution's roles and permissions are exactly its declaration", func(t *testing.T, c *client, f Fixture) {
 		if f.SignManifest == nil || f.SignAuthority == nil || f.DeliveryCredential == nil || f.AdminToken == "" || f.UnentitledToken == "" {
 			t.Fatal("required conformance fixture missing: signed delivery, an administrator and a member holding no role (UnentitledToken)")
 		}

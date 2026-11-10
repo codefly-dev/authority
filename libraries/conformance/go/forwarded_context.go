@@ -26,7 +26,7 @@ import (
 // the same check every module runs behind the hop (workcontext.AuthenticateToken,
 // under hop.Verifier), never a copy of it.
 func (c *client) forwardedContext(t *testing.T, ctx context.Context, f Fixture) {
-	t.Run("a module authenticates the forwarded context against the published keys", func(t *testing.T) {
+	c.run(t, f, "a module authenticates the forwarded context against the published keys", func(t *testing.T, c *client, f Fixture) {
 		published := c.must(t, ctx, "host.authority.v1.AuthorityService", "Keys", map[string]any{})
 		trust := forwarded.Trust{Issuer: str(published, "issuer"), Keys: map[string]ed25519.PublicKey{}}
 		for _, key := range listMsgs(published, "keys") {

@@ -22,7 +22,7 @@ import (
 // caller learns which installations exist. A module nobody composed is
 // NotFound by name wherever it is named.
 func (c *client) organizationIsolation(t *testing.T, ctx context.Context, f Fixture) {
-	t.Run("every installation call stays inside the caller's organization, and an absent installation answers as a foreign one", func(t *testing.T) {
+	c.run(t, f, "every installation call stays inside the caller's organization, and an absent installation answers as a foreign one", func(t *testing.T, c *client, f Fixture) {
 		if f.InstalledSolution == "" {
 			t.Fatal("required conformance fixture missing: an active installation")
 		}
@@ -80,7 +80,7 @@ func (c *client) organizationIsolation(t *testing.T, ctx context.Context, f Fixt
 // entry; any other workload, and a key that is not an Ed25519 public key, is
 // refused by name.
 func (c *client) admissionKeys(t *testing.T, ctx context.Context, f Fixture) {
-	t.Run("only the hop registers an admission key, published apart from the Work Context keys", func(t *testing.T) {
+	c.run(t, f, "only the hop registers an admission key, published apart from the Work Context keys", func(t *testing.T, c *client, f Fixture) {
 		if f.HopCredential == "" {
 			t.Fatal("required conformance fixture missing: the hop's workload credential")
 		}

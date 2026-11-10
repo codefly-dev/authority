@@ -24,7 +24,7 @@ func refused(t *testing.T, err error, code codes.Code, reason string) {
 }
 
 func (c *client) sessionDisplayNames(t *testing.T, ctx context.Context, f Fixture) {
-	t.Run("Current names the person and organization for display", func(t *testing.T) {
+	c.run(t, f, "Current names the person and organization for display", func(t *testing.T, c *client, f Fixture) {
 		descriptor, err := c.files.FindDescriptorByName("host.session.v1.Session")
 		if err != nil {
 			t.Fatal(err)
