@@ -328,6 +328,23 @@ func TestRBAC1AModulePageAttachesWhatItCreatesToItsInstallation(t *testing.T) {
 	_, err = attach(h, h.must(h.page("maya", "pages", "store")).Token, "store-viewer")
 	refused(t, err, "holds no create")
 
+	// The serving module never owns through itself, even once it declares
+	// roles (and so is role-gated) and its own installation holds a principal.
+	var store domain.Module
+	if err := h.store.Read(h.ctx, func(tx authority.Tx) (err error) { store, err = tx.ModuleNamed("store"); return err }); err != nil {
+		t.Fatal(err)
+	}
+	store.Generation++
+	store.Page, store.InstallationRole = true, domain.NoInstallationRole
+	store.Roles = map[string][]*basev0.WorkScopeV1{domain.InstallerRole: {sc(kind, "read")}, "viewer": {sc(kind, "read")}}
+	if _, err := h.svc.ApplyModule(h.ctx, store); err != nil {
+		t.Fatal(err)
+	}
+	owner, err = attach(h, h.must(h.page("ada", "pages", "store")).Token, "store-second")
+	if err != nil || owner != h.pagesAt(acme).ID {
+		t.Fatalf("with a role-gated serving module, the page's create attached to %q (%v), want %s", owner, err, h.pagesAt(acme).ID)
+	}
+
 	// A capability issued while the installation held its principal attaches
 	// nothing once the installation is recorded without one.
 	issued := h.must(h.page("ada", "pages", "store"))
