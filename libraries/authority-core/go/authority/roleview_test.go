@@ -35,7 +35,9 @@ func (h *harness) rootAs(who authority.Person, target string, scopes ...*basev0.
 	return h.svc.IssueForPerson(h.ctx, who, authority.IssueRequest{Audience: target, Scopes: scopes})
 }
 
-func holds(i authority.Issued, kind, action string) bool { return scope.HoldsAction(effective(i), kind, action) }
+func holds(i authority.Issued, kind, action string) bool {
+	return scope.HoldsAction(effective(i), kind, action)
+}
 
 // The sharpest case of the whole feature: a person holding author and viewer
 // who acts as viewer is admitted, at the root and at every hop below it,
