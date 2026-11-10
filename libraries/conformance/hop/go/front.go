@@ -39,13 +39,14 @@ type FrontTarget struct {
 }
 
 // The two modules the front door cases stand in front of, and the Connect
-// procedure each publishes.
+// procedure each publishes. No procedure contains a module's name, so a
+// refusal names a module only by naming it.
 const (
 	FrontModule      = "documents"
-	FrontProcedure   = "/documents.v1.Service/Get"
+	FrontProcedure   = "/alpha.v1.Service/Get"
 	OtherModule      = "records"
-	OtherProcedure   = "/records.v1.Service/List"
-	UnknownProcedure = "/unknown.v1.Service/Call"
+	OtherProcedure   = "/beta.v1.Service/List"
+	UnknownProcedure = "/gamma.v1.Service/Call"
 )
 
 // RunFront drives the front door cases against a host's hop. A refusal names

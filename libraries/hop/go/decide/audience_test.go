@@ -86,3 +86,39 @@ func TestAnUnfrontedPublisherIsNotNamed(t *testing.T) {
 		t.Fatalf("got %v; want NotFound naming no unfronted module", err)
 	}
 }
+
+// Only the addressed module publishing nothing is a wrong audience. Its own
+// ambiguous routes keep their own reason; another module's ambiguous routes
+// still make it a publisher; several publishers are named in order; a
+// trailing {name=**} template publishes what it matches.
+func TestAWrongAudienceIsDecidedOnPublicationAlone(t *testing.T) {
+	routes := &routing.Routing{Endpoints: []routing.RouteEndpoint{
+		{Audience: "documents", Service: "a", Transport: "http", Address: "unused", Methods: []string{"GET /v1/items/{id}", "GET /v1/{kind}/7", "GET /v1/things/{id}", "GET /v1/{kind}/9"}},
+		{Audience: "records", Service: "a", Transport: "http", Address: "unused", Methods: []string{"GET /v1/items/{id}", "GET /v1/shared"}},
+		{Audience: "annotations", Service: "a", Transport: "http", Address: "unused", Methods: []string{"GET /v1/shared", "GET /v1/files/{path=**}"}},
+		{Audience: "tracing", Service: "a", Transport: "http", Address: "unused", Methods: []string{"GET /v1/spans"}},
+	}}
+	for _, tc := range []struct {
+		name, method, addressed string
+		code                    codes.Code
+		says                    string
+	}{
+		{"the addressed module's own routes are ambiguous", "GET /v1/items/7", "documents", codes.NotFound, "documents GET /v1/items/7 has 2 matching published destinations"},
+		{"another module publishes it ambiguously", "GET /v1/things/9", "records", codes.PermissionDenied, `is for "documents", but its Work Context is addressed to "records"`},
+		{"two other modules publish it", "GET /v1/shared", "tracing", codes.PermissionDenied, `is for "annotations", "records", but`},
+		{"a trailing wildcard publishes it", "GET /v1/files/a/b.txt", "tracing", codes.PermissionDenied, `is for "annotations", but`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			authority := &counted{}
+			d := Decider{Routes: routes, Authority: authority, Modules: map[string]bool{"documents": true, "records": true, "annotations": true, "tracing": true},
+				AudienceOf: func(string) (string, error) { return tc.addressed, nil }}
+			_, err := d.Decide(context.Background(), tc.method, metadata.Pairs(hop.WorkContextKey, "x"))
+			if status.Code(err) != tc.code || !strings.Contains(status.Convert(err).Message(), tc.says) {
+				t.Fatalf("got %v; want %v saying %s", err, tc.code, tc.says)
+			}
+			if authority.checks != 0 {
+				t.Errorf("the authority was asked about a call the hop refuses on its routes")
+			}
+		})
+	}
+}

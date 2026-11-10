@@ -235,7 +235,20 @@ func (r *Routing) Resolve(audience, transport, method string) (RouteEndpoint, st
 	if len(matched) == 1 {
 		return matched[0].endpoint, matched[0].policy, nil
 	}
+	if len(matched) == 0 {
+		return RouteEndpoint{}, "", &NoDestinationError{Audience: audience, Method: method}
+	}
 	return RouteEndpoint{}, "", fmt.Errorf("hop routes: %s %s has %d matching published destinations", audience, method, len(matched))
+}
+
+// NoDestinationError is Resolve's answer when nothing audience publishes
+// matches method: not an ambiguity, which is refused by its own reason.
+type NoDestinationError struct {
+	Audience, Method string
+}
+
+func (e *NoDestinationError) Error() string {
+	return fmt.Sprintf("hop routes: %s %s has 0 matching published destinations", e.Audience, e.Method)
 }
 
 // ResolvedURL validates a resolved HTTP or Connect destination without allowing
