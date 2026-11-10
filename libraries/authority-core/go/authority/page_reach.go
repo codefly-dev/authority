@@ -9,23 +9,24 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
 // pageReach is what each role of a module page (a module declaring roles,
-// installed by composition, so held by no consent) reaches through its
-// bindings, the declaration it reaches with, and the composition it was
-// read in.
+// installed by composition, so held by no consent), or of a solution, reaches
+// through its bindings, the declaration it reaches with, and the composition
+// it was read in.
 type pageReach struct {
 	m       domain.Module
 	rows    map[string][]domain.ReachRow
 	modules []domain.Module
 }
 
-// pageReaches is every composed module page's pageReach, by name. What a
-// page's role reaches on the page itself follows its delivered declaration,
-// as every composition installation does; only what it reaches beyond the
-// page, through its bindings, is compared.
+// pageReaches is the pageReach of every composed module that declares roles,
+// a solution or a page, by name. Both what a role reaches on the module itself
+// and what it reaches through its bindings are compared; a solution whose
+// installation a consent holds is skipped where the grants are dropped.
 func pageReaches(tx Tx) (map[string]pageReach, error) {
 	modules, err := tx.Modules()
 	if err != nil {
@@ -33,7 +34,7 @@ func pageReaches(tx Tx) (map[string]pageReach, error) {
 	}
 	out := map[string]pageReach{}
 	for _, m := range modules {
-		if m.Kind == domain.KindSolution || !decide.RoleGated(m) {
+		if !decide.RoleGated(m) {
 			continue
 		}
 		rows, err := bindingReach(m, modules)
@@ -87,9 +88,23 @@ func widenedPageRoles(was, now pageReach) (map[string]bool, []string, error) {
 		return decide.ReachWidensWithin(map[string][]domain.ReachRow{role: admitted(before)}, map[string][]domain.ReachRow{role: admitted(after)}, was.m)
 	}
 	var left []string
-	for _, role := range slices.Sorted(maps.Keys(now.m.Roles)) {
-		if further := widens(role, was.rows[role], now.rows[role]); len(further) > 0 {
+	names := map[string]bool{}
+	for role := range now.m.Roles {
+		names[role] = true
+	}
+	for role := range now.m.OwnedRoles {
+		names[role] = true
+	}
+	for _, role := range slices.Sorted(maps.Keys(names)) {
+		// What the role reaches on the page itself counts as much as what it
+		// reaches through the page's bindings: a grant of a role is an
+		// administrator's approval of what the role meant then, never of a
+		// wider meaning a later delivery gave the same name.
+		own := ownWidened(was.m, now.m, role)
+		further := widens(role, was.rows[role], now.rows[role])
+		if len(own)+len(further) > 0 {
 			widened[role] = true
+			asks = append(asks, own...)
 			asks = append(asks, further...)
 			continue
 		}
@@ -120,6 +135,21 @@ func widenedPageRoles(was, now pageReach) (map[string]bool, []string, error) {
 	return widened, asks, nil
 }
 
+// ownWidened is what a role of next reaches on the module itself beyond what
+// the role of the same name reached in was: the role's own scopes, and the
+// installation-owned role's. A role was did not declare has no grants to
+// widen.
+func ownWidened(was, next domain.Module, role string) []string {
+	var out []string
+	if before, ok := was.Roles[role]; ok && !scope.Attenuates(next.Roles[role], before) {
+		out = append(out, "role "+role+" reaches further on "+next.Name)
+	}
+	if before, ok := was.OwnedRoles[role]; ok && !scope.Attenuates(next.OwnedRoles[role], before) {
+		out = append(out, "installation-owned role "+role+" reaches further on "+next.Name)
+	}
+	return out
+}
+
 // dropWidenedPageGrants ends, once a delivery changed the composition, the
 // grants of every module page role whose reach through the page's bindings
 // widened beyond what it reached before (decide.ReachWidensWithin against the
@@ -130,8 +160,10 @@ func widenedPageRoles(was, now pageReach) (map[string]bool, []string, error) {
 // grant ends), each grant is journaled as role.revoked, and
 // installation.role_reach_widened names what widened, for an administrator
 // to grant again. A widening of the roles held together ends every role's
-// grants. What a role reaches on the page itself is not compared: it follows
-// the delivered declaration, as every composition installation does.
+// grants. So does what a role reaches on the module itself, and so does the
+// widening of a solution no consent holds (one its host installed): the
+// grants of an installation nothing approved never take a wider meaning from
+// a delivery.
 func (s *Service) dropWidenedPageGrants(ctx context.Context, tx Tx, applied string, before map[string]pageReach) error {
 	after, err := pageReaches(tx)
 	if err != nil {
@@ -160,6 +192,12 @@ func (s *Service) dropWidenedPageGrants(ctx context.Context, tx Tx, applied stri
 			// or not: no consent caps a module page's reach (approvedReach
 			// bounds solutions alone), so none may skip this.
 			if inst.Target != name || inst.Status != domain.Active {
+				continue
+			}
+			// A consent holds a solution's installation to what it approved
+			// (reconverge, approvedReach); only one no consent holds is
+			// compared here.
+			if after[name].m.Kind == domain.KindSolution && inst.Consent.OperationID != "" {
 				continue
 			}
 			grants, err := tx.RoleGrants(inst.ID)
