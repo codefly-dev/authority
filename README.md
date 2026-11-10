@@ -90,7 +90,10 @@ runtime, records and the org-directory page.
   converges; workload credentials are the launcher's word and nothing else.
 - `pkg/conformance`: the interface-level suite, driven only through the generated
   clients, asserting gRPC codes and that every refusal names its reason. The host
-  runs the same suite against accounts in step 3.
+  runs the same suite against accounts in step 3. The local host-interface run
+  uses isolated parallel fixtures and a controlled clock; adapter migration and
+  serial/live compatibility are described in
+  [the shared suite guide](libraries/conformance/go/README.md#isolated-parallel-runs).
 
 **CLI and agent gaps (2026-10-21), to file.** The go-grpc agent (0.1.58)
 generates adapters for `proto/api.proto`'s service only, and its plugin registry

@@ -32,7 +32,7 @@ func (c *client) solutionRoleCases(t *testing.T, ctx context.Context, f Fixture)
 		"a signed solution role cannot exceed the served manifest ceiling",
 	}
 	for _, name := range names {
-		t.Run(name, func(t *testing.T) {
+		c.run(t, f, name, func(t *testing.T, c *client, f Fixture) {
 			if f.SolutionRoles == nil || f.SignManifest == nil || f.SignAuthority == nil {
 				t.Fatal("required conformance fixture missing: signed solution roles and installed viewer entitlement")
 			}

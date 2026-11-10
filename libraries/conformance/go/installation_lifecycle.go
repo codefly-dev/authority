@@ -23,17 +23,23 @@ type InstallationLifecycleCase struct {
 }
 
 func (c *client) installationIdentity(t *testing.T, ctx context.Context, f Fixture) {
-	for _, tc := range []struct {
+	type testCase struct {
 		name, id, credential, org, reason string
 		code                              codes.Code
-	}{
-		// An absent installation answers as another organization's does: a
-		// solution learns nothing of which organizations installed what.
-		{"an installation issue verifies the installation exists", "conformance-missing-installation", f.InstalledCredential, "", "installation", codes.PermissionDenied},
-		{"an installation issue authenticates the installed solution", f.InstalledSolution, f.WorkloadCredential, "", "installed solution", codes.PermissionDenied},
-		{"an installation issue cannot name a different organization", f.InstalledSolution, f.InstalledCredential, "conformance-foreign-org", "organization", codes.PermissionDenied},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
+	}
+	cases := func(f Fixture) []testCase {
+		return []testCase{
+			// An absent installation answers as another organization's does: a
+			// solution learns nothing of which organizations installed what.
+			{"an installation issue verifies the installation exists", "conformance-missing-installation", f.InstalledCredential, "", "installation", codes.PermissionDenied},
+			{"an installation issue authenticates the installed solution", f.InstalledSolution, f.WorkloadCredential, "", "installed solution", codes.PermissionDenied},
+			{"an installation issue cannot name a different organization", f.InstalledSolution, f.InstalledCredential, "conformance-foreign-org", "organization", codes.PermissionDenied},
+		}
+	}
+	for index, tc := range cases(f) {
+		c.run(t, f, tc.name, func(t *testing.T, c *client, f Fixture) {
+			// Resolve fixture values only after this scenario owns its host.
+			tc := cases(f)[index]
 			if f.InstalledSolution == "" || f.InstalledCredential == "" {
 				t.Fatal("required conformance fixture missing: active installed solution and its credential")
 			}
@@ -46,7 +52,7 @@ func (c *client) installationIdentity(t *testing.T, ctx context.Context, f Fixtu
 }
 
 func (c *client) installationLifecycle(t *testing.T, ctx context.Context, f Fixture) {
-	t.Run("installation acknowledgement gates exposure and revocation ends authority", func(t *testing.T) {
+	c.run(t, f, "installation acknowledgement gates exposure and revocation ends authority", func(t *testing.T, c *client, f Fixture) {
 		if f.Lifecycle == nil || f.Lifecycle.PauseInstall == nil || f.Lifecycle.Revoke == nil || f.Lifecycle.SetAdministrator == nil {
 			t.Fatal("required conformance fixture missing: real install acknowledgement, administrator role and revocation controls")
 		}

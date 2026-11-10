@@ -8,7 +8,7 @@ import (
 )
 
 func (c *client) currentInstallation(t *testing.T, ctx context.Context, f Fixture) {
-	t.Run("a module reads only its current installation", func(t *testing.T) {
+	c.run(t, f, "a module reads only its current installation", func(t *testing.T, c *client, f Fixture) {
 		viewer := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
 		parent := c.must(t, as(ctx, viewer), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.WorkloadModule})
 		req := map[string]any{"parent_token": str(parent, "token"), "actor_credential": f.WorkloadCredential}
