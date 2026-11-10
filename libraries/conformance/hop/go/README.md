@@ -45,7 +45,9 @@ every other (`.github/workflows/go.yml`). The module replaces
 `libraries/hop/go` and `libraries/authority-client/go` with the checkout, as
 the rest of the repository does: CI runs `go test` per module with no
 workspace, so a pinned hop would mean the suite proved a published commit
-rather than the tree it ships in. The dependency still runs one way — neither
+rather than the tree it ships in. Its required versions are published commits
+the suite builds against, so a host outside this repository can import it and
+pins, in its own go.mod, the hop it proves. The dependency still runs one way — neither
 library imports this suite — so neither depends on its own suite.
 
 **`libraries/authority-client/testdata/stamps.json`**, the wire-level half.
