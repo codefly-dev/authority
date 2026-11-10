@@ -372,12 +372,11 @@ func (s *Service) IssueForWorkload(ctx context.Context, w Workload, r IssueReque
 		if err != nil || inst.Status != domain.Active {
 			return domain.NotNow("%s is not installed at %s", module.Name, org)
 		}
-		// What a module defines or writes at a module that checks owners is
-		// born owned by its installation, the rule its page's roles already
-		// follow (decide.ModuleRoleAt): owner-selected, never the whole kind.
+		// What a module creates at a module that checks owners is born owned by
+		// its installation, the rule its page's roles already follow
+		// (decide.ModuleRoleAt); a read it is declared is left as declared.
 		asked := r.Scopes
 		if len(through) > 0 {
-			held := len(through)
 			// An ask that names an owner keeps it, so another's data is refused, not rewritten.
 			var unowned, named Scopes
 			for _, sc := range asked {
@@ -387,9 +386,11 @@ func (s *Service) IssueForWorkload(ctx context.Context, w Workload, r IssueReque
 					named = append(named, sc)
 				}
 			}
-			asked = append(decide.ModuleRoleAt(module, inst, audience, unowned), named...)
-			if through = decide.ModuleRoleAt(module, inst, audience, through); len(through) == 0 {
-				return domain.Refuse("%s has no principal recorded for its installation %s, so its %d headless scopes at %s (which checks owners) would be born unowned; the host must record the installation's composed principal", module.Name, inst.ID, held, audience.Principal)
+			unowned, _ = decide.HeadlessAt(module, inst, audience, unowned)
+			asked = append(unowned, named...)
+			var withheld int
+			if through, withheld = decide.HeadlessAt(module, inst, audience, through); withheld > 0 {
+				return domain.Refuse("%s has no principal recorded for its installation %s, so what it creates at %s (which checks owners) would be born unowned; the host must record the installation's composed principal", module.Name, inst.ID, audience.Principal)
 			}
 		}
 		if scopes, err = decide.Issue(asked, through); err != nil {

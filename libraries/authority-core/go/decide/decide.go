@@ -222,6 +222,48 @@ func ModuleRoleAt(m domain.Module, inst domain.Installation, audience domain.Mod
 	return scope.Normalize(out)
 }
 
+// CreatingActions are the actions that bring data into being. A module holding
+// one at a module that checks owners creates data there, and it is born owned.
+var CreatingActions = []string{"define", "write", "create"}
+
+// HeadlessAt is what a module's headless scopes carry at audience: the actions
+// that create data are owner-selected to the module's installation exactly as
+// ModuleRoleAt selects a role, so what the module defines is born owned by it;
+// every other action (a read, a listing, a redaction) stays as declared, because
+// a module reading a kind across owners creates nothing and selecting that read
+// to its own installation would show it nothing. withheld counts the creating
+// scopes dropped for want of an installation principal.
+func HeadlessAt(m domain.Module, inst domain.Installation, audience domain.Module, scopes Scopes) (out Scopes, withheld int) {
+	if m.Kind == domain.KindSolution || !audience.OwnerAware || audience.Principal == m.Principal {
+		return scopes, 0
+	}
+	for _, sc := range scopes {
+		var creating, rest []string
+		for _, a := range sc.GetActions() {
+			if slices.Contains(CreatingActions, a) {
+				creating = append(creating, a)
+			} else {
+				rest = append(rest, a)
+			}
+		}
+		if len(creating) == 0 {
+			out = append(out, sc)
+			continue
+		}
+		if len(rest) > 0 {
+			c := proto.CloneOf(sc)
+			c.Actions = rest
+			out = append(out, c)
+		}
+		c := proto.CloneOf(sc)
+		c.Actions = creating
+		owned := ModuleRoleAt(m, inst, audience, Scopes{c})
+		withheld += 1 - len(owned)
+		out = append(out, owned...)
+	}
+	return scope.Normalize(out), withheld
+}
+
 // Issue is asked within held: held when nothing is asked; refused, naming
 // why, when the ask names an action the owner does not hold ("beyond") or
 // resources or an owner wider than it holds them ("widens").
