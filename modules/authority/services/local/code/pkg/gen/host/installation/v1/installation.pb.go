@@ -1976,6 +1976,14 @@ type ListHeldResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The installations.
 	Installations []*HeldInstallation `protobuf:"bytes,1,rep,name=installations,proto3" json:"installations,omitempty"`
+	// The organisation's active installations by composition of the modules that
+	// declare no roles, which a page that consumes such a module through its
+	// binding names the module's installation by. Nobody holds a role on them,
+	// so they are not "held" and are never merged into installations: a module
+	// that checks owners answers a person's own session nothing, and a page's
+	// call reaches it through the page's own binding (a role of the page's
+	// installation). Sorted by installation id.
+	Composed      []*Installation `protobuf:"bytes,2,rep,name=composed,proto3" json:"composed,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2013,6 +2021,13 @@ func (*ListHeldResponse) Descriptor() ([]byte, []int) {
 func (x *ListHeldResponse) GetInstallations() []*HeldInstallation {
 	if x != nil {
 		return x.Installations
+	}
+	return nil
+}
+
+func (x *ListHeldResponse) GetComposed() []*Installation {
+	if x != nil {
+		return x.Composed
 	}
 	return nil
 }
@@ -2212,9 +2227,10 @@ const file_host_installation_v1_installation_proto_rawDesc = "" +
 	"\abinding\x18\x02 \x01(\tR\abinding\x12\x14\n" +
 	"\x05write\x18\x03 \x01(\bR\x05write\":\n" +
 	"\x0fListHeldRequest\x12'\n" +
-	"\x0forganization_id\x18\x01 \x01(\tR\x0eorganizationId\"`\n" +
+	"\x0forganization_id\x18\x01 \x01(\tR\x0eorganizationId\"\xa0\x01\n" +
 	"\x10ListHeldResponse\x12L\n" +
-	"\rinstallations\x18\x01 \x03(\v2&.host.installation.v1.HeldInstallationR\rinstallations\"p\n" +
+	"\rinstallations\x18\x01 \x03(\v2&.host.installation.v1.HeldInstallationR\rinstallations\x12>\n" +
+	"\bcomposed\x18\x02 \x03(\v2\".host.installation.v1.InstallationR\bcomposed\"p\n" +
 	"\x10HeldInstallation\x12F\n" +
 	"\finstallation\x18\x01 \x01(\v2\".host.installation.v1.InstallationR\finstallation\x12\x14\n" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles2\xf3\x05\n" +
@@ -2301,34 +2317,35 @@ var file_host_installation_v1_installation_proto_depIdxs = []int32{
 	24, // 16: host.installation.v1.OfferCapability.requires:type_name -> host.installation.v1.OfferScope
 	26, // 17: host.installation.v1.OfferCapability.tools:type_name -> host.installation.v1.OfferTool
 	29, // 18: host.installation.v1.ListHeldResponse.installations:type_name -> host.installation.v1.HeldInstallation
-	13, // 19: host.installation.v1.HeldInstallation.installation:type_name -> host.installation.v1.Installation
-	1,  // 20: host.installation.v1.InstallationService.Current:input_type -> host.installation.v1.CurrentInstallationRequest
-	3,  // 21: host.installation.v1.InstallationService.Install:input_type -> host.installation.v1.InstallRequest
-	4,  // 22: host.installation.v1.InstallationService.Review:input_type -> host.installation.v1.ReviewRequest
-	6,  // 23: host.installation.v1.InstallationService.GrantRole:input_type -> host.installation.v1.GrantRoleRequest
-	7,  // 24: host.installation.v1.InstallationService.RevokeRole:input_type -> host.installation.v1.RevokeRoleRequest
-	8,  // 25: host.installation.v1.InstallationService.ListRoleGrants:input_type -> host.installation.v1.ListRoleGrantsRequest
-	11, // 26: host.installation.v1.InstallationService.List:input_type -> host.installation.v1.ListRequest
-	27, // 27: host.installation.v1.InstallationService.ListHeld:input_type -> host.installation.v1.ListHeldRequest
-	14, // 28: host.installation.v1.InstallableService.Install:input_type -> host.installation.v1.InstallationNotice
-	16, // 29: host.installation.v1.OfferService.ListOffers:input_type -> host.installation.v1.ListOffersRequest
-	4,  // 30: host.installation.v1.OfferService.ReviewOffer:input_type -> host.installation.v1.ReviewRequest
-	2,  // 31: host.installation.v1.InstallationService.Current:output_type -> host.installation.v1.CurrentInstallation
-	13, // 32: host.installation.v1.InstallationService.Install:output_type -> host.installation.v1.Installation
-	5,  // 33: host.installation.v1.InstallationService.Review:output_type -> host.installation.v1.ConsentApproval
-	13, // 34: host.installation.v1.InstallationService.GrantRole:output_type -> host.installation.v1.Installation
-	13, // 35: host.installation.v1.InstallationService.RevokeRole:output_type -> host.installation.v1.Installation
-	9,  // 36: host.installation.v1.InstallationService.ListRoleGrants:output_type -> host.installation.v1.ListRoleGrantsResponse
-	12, // 37: host.installation.v1.InstallationService.List:output_type -> host.installation.v1.ListResponse
-	28, // 38: host.installation.v1.InstallationService.ListHeld:output_type -> host.installation.v1.ListHeldResponse
-	15, // 39: host.installation.v1.InstallableService.Install:output_type -> host.installation.v1.InstallationAck
-	17, // 40: host.installation.v1.OfferService.ListOffers:output_type -> host.installation.v1.ListOffersResponse
-	19, // 41: host.installation.v1.OfferService.ReviewOffer:output_type -> host.installation.v1.ReviewedOffer
-	31, // [31:42] is the sub-list for method output_type
-	20, // [20:31] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	13, // 19: host.installation.v1.ListHeldResponse.composed:type_name -> host.installation.v1.Installation
+	13, // 20: host.installation.v1.HeldInstallation.installation:type_name -> host.installation.v1.Installation
+	1,  // 21: host.installation.v1.InstallationService.Current:input_type -> host.installation.v1.CurrentInstallationRequest
+	3,  // 22: host.installation.v1.InstallationService.Install:input_type -> host.installation.v1.InstallRequest
+	4,  // 23: host.installation.v1.InstallationService.Review:input_type -> host.installation.v1.ReviewRequest
+	6,  // 24: host.installation.v1.InstallationService.GrantRole:input_type -> host.installation.v1.GrantRoleRequest
+	7,  // 25: host.installation.v1.InstallationService.RevokeRole:input_type -> host.installation.v1.RevokeRoleRequest
+	8,  // 26: host.installation.v1.InstallationService.ListRoleGrants:input_type -> host.installation.v1.ListRoleGrantsRequest
+	11, // 27: host.installation.v1.InstallationService.List:input_type -> host.installation.v1.ListRequest
+	27, // 28: host.installation.v1.InstallationService.ListHeld:input_type -> host.installation.v1.ListHeldRequest
+	14, // 29: host.installation.v1.InstallableService.Install:input_type -> host.installation.v1.InstallationNotice
+	16, // 30: host.installation.v1.OfferService.ListOffers:input_type -> host.installation.v1.ListOffersRequest
+	4,  // 31: host.installation.v1.OfferService.ReviewOffer:input_type -> host.installation.v1.ReviewRequest
+	2,  // 32: host.installation.v1.InstallationService.Current:output_type -> host.installation.v1.CurrentInstallation
+	13, // 33: host.installation.v1.InstallationService.Install:output_type -> host.installation.v1.Installation
+	5,  // 34: host.installation.v1.InstallationService.Review:output_type -> host.installation.v1.ConsentApproval
+	13, // 35: host.installation.v1.InstallationService.GrantRole:output_type -> host.installation.v1.Installation
+	13, // 36: host.installation.v1.InstallationService.RevokeRole:output_type -> host.installation.v1.Installation
+	9,  // 37: host.installation.v1.InstallationService.ListRoleGrants:output_type -> host.installation.v1.ListRoleGrantsResponse
+	12, // 38: host.installation.v1.InstallationService.List:output_type -> host.installation.v1.ListResponse
+	28, // 39: host.installation.v1.InstallationService.ListHeld:output_type -> host.installation.v1.ListHeldResponse
+	15, // 40: host.installation.v1.InstallableService.Install:output_type -> host.installation.v1.InstallationAck
+	17, // 41: host.installation.v1.OfferService.ListOffers:output_type -> host.installation.v1.ListOffersResponse
+	19, // 42: host.installation.v1.OfferService.ReviewOffer:output_type -> host.installation.v1.ReviewedOffer
+	32, // [32:43] is the sub-list for method output_type
+	21, // [21:32] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_host_installation_v1_installation_proto_init() }

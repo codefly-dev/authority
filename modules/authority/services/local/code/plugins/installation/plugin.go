@@ -165,9 +165,16 @@ func (p *Plugin) ListHeld(ctx context.Context, req *installationv1.ListHeldReque
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}
+	composed, err := p.State.Service().ComposedInstallations(ctx, caller, req.GetOrganizationId())
+	if err != nil {
+		return nil, authorityplugin.Status(err)
+	}
 	out := &installationv1.ListHeldResponse{}
 	for _, h := range held {
 		out.Installations = append(out.Installations, &installationv1.HeldInstallation{Installation: p.wire(ctx, h.Installation), Roles: h.Roles})
+	}
+	for _, c := range composed {
+		out.Composed = append(out.Composed, p.wire(ctx, c))
 	}
 	return out, nil
 }
