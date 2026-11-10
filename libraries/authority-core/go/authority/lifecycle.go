@@ -531,10 +531,15 @@ func (s *Service) WithdrawModule(ctx context.Context, name string) error {
 		}
 		hostOwned := s.cfg.HostInstallsModules && withdrawn.Kind != domain.KindSolution
 		for _, inst := range all {
-			if inst.Target == name && inst.Status != domain.Revoked && !hostOwned {
+			if inst.Target != name || inst.Status == domain.Revoked {
+				continue
+			}
+			if !hostOwned {
 				if err := s.revoke(tx, inst); err != nil {
 					return err
 				}
+			} else if err := s.endGrantsOfWithdrawn(ctx, tx, inst); err != nil {
+				return err
 			}
 		}
 		delegations, err := tx.Delegations()
@@ -568,6 +573,27 @@ func (s *Service) WithdrawModule(ctx context.Context, name string) error {
 		}
 		return s.journalReach(ctx, tx, unreachedBefore)
 	})
+}
+
+// endGrantsOfWithdrawn ends every grant on an installation the host keeps
+// through its module's withdrawal. The installation stays (the host owns it),
+// but a grant kept would hold whatever a later delivery of the same role name
+// meant, which nobody approved: each grant is journaled as role.revoked and
+// the installation's and the organization's revisions move, so what was issued
+// under the grants ends.
+func (s *Service) endGrantsOfWithdrawn(ctx context.Context, tx Tx, inst domain.Installation) error {
+	grants, err := tx.RoleGrants(inst.ID)
+	if err != nil || len(grants) == 0 {
+		return err
+	}
+	if err := s.dropUndeclaredGrants(ctx, tx, inst, domain.Module{Name: inst.Target}, "withdrawn:"+inst.Target); err != nil {
+		return err
+	}
+	inst.Revision++
+	if err := tx.PutInstallation(inst); err != nil {
+		return err
+	}
+	return tx.BumpAuthorizationRevision(inst.Organization)
 }
 
 // InstallStep converges one installation; a retry may repeat it. It is
@@ -604,6 +630,11 @@ func (s *Service) Install(ctx context.Context, caller Person, org, target, agent
 
 // InstallAsHost is for trusted host setup, never a request handler. It installs
 // a solution without person authorization; an absent person cannot select it.
+// It records no consent, so the installation follows every delivery of its
+// solution (reconverge): a role a delivery widens is held by its grants at
+// once. That is the setup's own doing and no person can reach it: Install
+// refuses a person's request without a consent, which holds the installation
+// to what it approved.
 func (s *Service) InstallAsHost(ctx context.Context, org, target, agentRole, installedBy string, step InstallStep) (domain.Installation, error) {
 	return s.install(ctx, func(Tx) error { return nil }, Person{}, org, target, agentRole, installedBy, nil, step)
 }
