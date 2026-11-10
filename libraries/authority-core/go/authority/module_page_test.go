@@ -328,3 +328,28 @@ func (h *harness) offers(org string) []string {
 	}
 	return names
 }
+
+// An installation made by composition was never approved, so a delivery
+// that turns its module page into a solution declaring a governing scope
+// governs nothing there: no administrator has seen who would manage its
+// sources. Only an installation someone installed as a solution governs.
+func TestACompositionInstallationGovernsNoSourceAfterItsTargetBecomesASolution(t *testing.T) {
+	h := newHarness(t)
+	if _, err := h.svc.ApplyModule(h.ctx, pageModule(1, true)); err != nil {
+		t.Fatal(err)
+	}
+	solution := pageModule(2, true)
+	solution.Kind, solution.OwnerAware = domain.KindSolution, true
+	solution.InstallationRole = ""
+	solution.SourceGovernance = []*basev0.WorkScopeV1{sc("pages.note", "write")}
+	if _, err := h.svc.ApplyModule(h.ctx, solution); err != nil {
+		t.Fatalf("the kind change is refused (which would close this path too; update the test): %v", err)
+	}
+	m, err := h.svc.ApprovedDeclaration(h.ctx, h.pagesAt(acme))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(m.SourceGovernance) != 0 {
+		t.Fatalf("a composition installation governs by %v, which no administrator approved", m.SourceGovernance)
+	}
+}

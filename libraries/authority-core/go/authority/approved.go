@@ -46,17 +46,35 @@ func (s *Service) ApprovedDeclaration(ctx context.Context, inst domain.Installat
 // encoding changed fails the same way, closed: the installation reads as an
 // upgrade, and its review records the digest anew.
 //
-// A consent recorded before the approved generation was kept (an operation
-// and no generation) proves no approved baseline, so it answers the composed
-// module without the scopes that govern its sources: who manages the
-// installation's sources is never something an administrator has not seen,
-// and the legacy consent upgrades by its review like any other.
+// The scopes that govern the installation's sources are answered only where
+// someone approved them (approvedGovernance).
 func approvedModule(tx Tx, inst domain.Installation, m domain.Module) (domain.Module, error) {
-	c := inst.Consent
-	if c.OperationID != "" && c.Generation == 0 && inst.Target == m.Name {
-		m.SourceGovernance = nil
-		return m, nil
+	approved, err := approvedGeneration(tx, inst, m)
+	if err == nil && !approvedGovernance(inst) {
+		approved.SourceGovernance = nil
 	}
+	return approved, err
+}
+
+// approvedGovernance reports whether inst's declaration may govern its
+// sources: only an installation someone installed as a solution — an
+// administrator's reviewed consent, or a host's own install naming its
+// installer — whose consent, if any, names the generation it approved. A
+// legacy consent (an operation and no kept generation) proves no approved
+// baseline, and an installation made by composition (no installer, no
+// principal of its own) was never approved at all, even after its target's
+// delivery becomes a solution: who manages its sources is never something no
+// administrator has seen. Each upgrades by its review like any other.
+func approvedGovernance(inst domain.Installation) bool {
+	if inst.InstalledBy == "" || inst.PrincipalID == "" {
+		return false
+	}
+	return inst.Consent.OperationID == "" || inst.Consent.Generation != 0
+}
+
+// approvedGeneration is approvedModule before governance is held to it.
+func approvedGeneration(tx Tx, inst domain.Installation, m domain.Module) (domain.Module, error) {
+	c := inst.Consent
 	if c.OperationID == "" || c.Generation == 0 || c.Generation >= m.Generation || inst.Target != m.Name {
 		return m, nil
 	}

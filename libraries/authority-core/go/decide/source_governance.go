@@ -14,7 +14,8 @@ import (
 // waits for that approval (Widens); a module page's installations are
 // composed and never approved, so nothing would. Each scope is a whole action
 // (never a wildcard, an id or an owner) on one of m's own kinds, one its own
-// ceiling names literally (served here, not underwritten by a binding), not
+// ceiling names literally on the whole kind (served here, not underwritten by
+// a binding nor restricted to ids a later delivery may lift), not
 // one it declares shared (no installation owns it, so it would govern every
 // installation's sources), granted directly by one of its roles and reached
 // by none through a binding, so whoever governs holds it on the installation
@@ -29,8 +30,7 @@ func sourceGovernance(m domain.Module) error {
 		if len(governing.GetResourceIds()) > 0 || governing.GetResourceOwnerId() != "" {
 			return domain.Refuse("%s governs its sources by %s with resource ids or an owner; a governing scope names a whole kind", m.Name, kind)
 		}
-		i := slices.IndexFunc(m.ResourceKinds, func(sc *basev0.WorkScopeV1) bool { return sc.GetResourceKind() == kind })
-		if i < 0 {
+		if !slices.ContainsFunc(m.ResourceKinds, func(sc *basev0.WorkScopeV1) bool { return sc.GetResourceKind() == kind }) {
 			return domain.Refuse("%s governs its sources by %s, which is not a kind it declares", m.Name, kind)
 		}
 		if slices.Contains(m.SharedKinds, kind) {
@@ -50,8 +50,8 @@ func sourceGovernance(m domain.Module) error {
 			if action == "" || action == scope.AnyAction {
 				return domain.Refuse("%s governs its sources by %s:%q; a governing scope names one action, never every one", m.Name, kind, action)
 			}
-			if !slices.Contains(m.ResourceKinds[i].GetActions(), action) {
-				return domain.Refuse("%s governs its sources by %s:%s, which its own ceiling does not name", m.Name, kind, action)
+			if !servedWhole(m, kind, action) {
+				return domain.Refuse("%s governs its sources by %s:%s, which its own ceiling does not name on the whole kind", m.Name, kind, action)
 			}
 			if !GrantedByARole(m, kind, action) {
 				return domain.Refuse("%s governs its sources by %s:%s, which none of its roles grants", m.Name, kind, action)
@@ -59,6 +59,16 @@ func sourceGovernance(m domain.Module) error {
 		}
 	}
 	return nil
+}
+
+// servedWhole reports whether m's own ceiling names action on the whole of
+// kind, literally: not through the any-action a kind no document ceiled
+// carries, and not on some of its ids only. A ceiling a later delivery widens
+// is no review's, so a governing scope must be whole already where approved.
+func servedWhole(m domain.Module, kind, action string) bool {
+	return slices.ContainsFunc(m.ResourceKinds, func(sc *basev0.WorkScopeV1) bool {
+		return sc.GetResourceKind() == kind && len(sc.GetResourceIds()) == 0 && sc.GetResourceOwnerId() == "" && slices.Contains(sc.GetActions(), action)
+	})
 }
 
 // GrantedByARole reports whether one of m's roles grants action on the whole

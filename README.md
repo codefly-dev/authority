@@ -1271,14 +1271,18 @@ changes: the declaration rides on the manifest the host already verifies.
 - **Held to the roles where applied** (`decide.ValidateModule`): only a
   solution declares it (a module page's installations are composed, never
   approved); each scope is a whole action on one of the solution's own kinds
-  that its own ceiling names literally, not a shared kind, granted directly by
-  a role and reached by none through a binding.
+  that its own ceiling names literally on the whole kind (no ids), not a
+  shared kind, granted directly by a role and reached by none through a
+  binding.
 - **Approved with the offer.** `OfferDigest` covers it (omitted when empty, so
   no earlier digest moves) and `decide.Widens` lists a governing scope added
   or moved, so a redelivery that changes who governs waits for an
   administrator; `ApprovedDeclaration` answers the approved generation until
-  then. A legacy consent (an operation and no kept generation) approves no
-  governing scope until its review records one.
+  then. Governance is answered only for an installation someone installed as
+  a solution (an administrator's consent, or a host install naming its
+  installer): a legacy consent (an operation and no kept generation) and an
+  installation made by composition (no installer) approve no governing scope
+  until a review records one.
 - **What a host does with it:** read `ApprovedDeclaration` for the target
   installation, admit only a scope it names (`decide.Governs`), then ask the
   core whether it issues the person that scope there (`IssueForPerson`), never

@@ -99,3 +99,21 @@ func TestGovernsAndGrantedByARole(t *testing.T) {
 		t.Fatal("GrantedByARole answers another grant than the roles make")
 	}
 }
+
+// A governing action the own ceiling names only on some ids is not served on
+// the whole kind: a later delivery lifting the ids — which no review covers —
+// would activate it.
+func TestAGoverningActionCeiledToSomeIdsIsRefused(t *testing.T) {
+	m := governedSolution()
+	m.ResourceKinds = []*basev0.WorkScopeV1{
+		{ResourceKind: "notes.page", Actions: []string{"write"}, ResourceIds: []string{"one"}},
+		rsc("notes.page", "read", "publish"), rsc("notes.profile", "read"),
+	}
+	// A binding underwrites the editors' whole-kind write, so the roles stay
+	// valid and only the governing scope is at issue.
+	m.Bindings = map[string]domain.Binding{"pages": {ID: "pages", Audience: "pages", InvokeScopes: []*basev0.WorkScopeV1{rsc("notes.page", "write")}}}
+	err := decide.ValidateModule(m)
+	if err == nil || !strings.Contains(err.Error(), "notes.page:write, which its own ceiling does not name on the whole kind") {
+		t.Fatalf("a governing action ceiled to some ids: %v", err)
+	}
+}
