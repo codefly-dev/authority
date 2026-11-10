@@ -1138,7 +1138,12 @@ must adopt the version and fields before claiming this contract.
 `codefly.dev/composition@0.2.0` adds `RoleV1.installation_owned_scopes`: a role
 scope held only on the resources its installation owns. The kind's one serving
 module attaches a resource from a capability holding `create` on the whole kind
-for a newly created resource. Existing resources change owner through
+for a newly created resource. The owner is the one installation the capability
+came through: a solution's on its path, or a module page's that declares roles
+and holds a principal (its roles reach an owner-aware module owner-selected to
+that principal), the same installations `AuthorizeTransfer` counts. The serving
+module never owns through itself, a module installation without a principal
+owns nothing, and two such installations on one path are refused. Existing resources change owner through
 `AuthorizeTransfer`: the serving module attests the current owner and presents
 a person's capability through the target installation. The existing policy
 requires that person's live organization admin grant on the resource and write
