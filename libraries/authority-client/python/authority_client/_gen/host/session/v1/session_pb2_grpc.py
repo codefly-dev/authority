@@ -45,6 +45,11 @@ class SessionServiceStub(object):
                 request_serializer=host_dot_session_dot_v1_dot_session__pb2.CurrentRequest.SerializeToString,
                 response_deserializer=host_dot_session_dot_v1_dot_session__pb2.Session.FromString,
                 _registered_method=True)
+        self.OpenRoleView = channel.unary_unary(
+                '/host.session.v1.SessionService/OpenRoleView',
+                request_serializer=host_dot_session_dot_v1_dot_session__pb2.OpenRoleViewRequest.SerializeToString,
+                response_deserializer=host_dot_session_dot_v1_dot_session__pb2.Session.FromString,
+                _registered_method=True)
         self.ListFixturePeople = channel.unary_unary(
                 '/host.session.v1.SessionService/ListFixturePeople',
                 request_serializer=host_dot_session_dot_v1_dot_session__pb2.ListFixturePeopleRequest.SerializeToString,
@@ -73,6 +78,22 @@ class SessionServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def OpenRoleView(self, request, context):
+        """OpenRoleView opens a session that acts as some of the roles the caller
+        holds on one installation: a role view. The caller's bearer is the session
+        it is opened from. The host records the view, decided by the authority, as
+        the session's own; a client never supplies it. A view only narrows: it names
+        roles the calling session acts as now, so a viewing session opens only
+        narrower ones, and a role view on one installation reaches no other. The
+        session it was opened from is untouched and stays the way back to all of the
+        person's roles. A page, a Work Context, an impersonated session and a
+        client's delegated credential hold no session of a person to call from and
+        are refused.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def ListFixturePeople(self, request, context):
         """ListFixturePeople answers who this authority signs in by fixture token, for
         the browser edge's sign-in page: the people are defined once, in the
@@ -94,6 +115,11 @@ def add_SessionServiceServicer_to_server(servicer, server):
             'Current': grpc.unary_unary_rpc_method_handler(
                     servicer.Current,
                     request_deserializer=host_dot_session_dot_v1_dot_session__pb2.CurrentRequest.FromString,
+                    response_serializer=host_dot_session_dot_v1_dot_session__pb2.Session.SerializeToString,
+            ),
+            'OpenRoleView': grpc.unary_unary_rpc_method_handler(
+                    servicer.OpenRoleView,
+                    request_deserializer=host_dot_session_dot_v1_dot_session__pb2.OpenRoleViewRequest.FromString,
                     response_serializer=host_dot_session_dot_v1_dot_session__pb2.Session.SerializeToString,
             ),
             'ListFixturePeople': grpc.unary_unary_rpc_method_handler(
@@ -156,6 +182,33 @@ class SessionService(object):
             target,
             '/host.session.v1.SessionService/Current',
             host_dot_session_dot_v1_dot_session__pb2.CurrentRequest.SerializeToString,
+            host_dot_session_dot_v1_dot_session__pb2.Session.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def OpenRoleView(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/host.session.v1.SessionService/OpenRoleView',
+            host_dot_session_dot_v1_dot_session__pb2.OpenRoleViewRequest.SerializeToString,
             host_dot_session_dot_v1_dot_session__pb2.Session.FromString,
             options,
             channel_credentials,

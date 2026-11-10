@@ -63,6 +63,40 @@
         ]
       }
     },
+    "/v1/session:open-role-view": {
+      "post": {
+        "summary": "OpenRoleView opens a session that acts as some of the roles the caller\nholds on one installation: a role view. The caller's bearer is the session\nit is opened from. The host records the view, decided by the authority, as\nthe session's own; a client never supplies it. A view only narrows: it names\nroles the calling session acts as now, so a viewing session opens only\nnarrower ones, and a role view on one installation reaches no other. The\nsession it was opened from is untouched and stays the way back to all of the\nperson's roles. A page, a Work Context, an impersonated session and a\nclient's delegated credential hold no session of a person to call from and\nare refused.",
+        "operationId": "SessionService_OpenRoleView",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1Session"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "OpenRoleViewRequest names the installation and the roles to act as on it.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1OpenRoleViewRequest"
+            }
+          }
+        ],
+        "tags": [
+          "SessionService"
+        ]
+      }
+    },
     "/v1/session:sign-in": {
       "post": {
         "summary": "SignIn opens a session for a fixture person by their fixture token.",
@@ -181,6 +215,40 @@
       },
       "description": "ListFixturePeopleResponse is every fixture person, in the fixture's order."
     },
+    "v1OpenRoleViewRequest": {
+      "type": "object",
+      "properties": {
+        "installationId": {
+          "type": "string",
+          "description": "The installation, of the organisation the caller is signed into."
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The roles to act as, each one the caller acts as on it now; at least one."
+        }
+      },
+      "description": "OpenRoleViewRequest names the installation and the roles to act as on it."
+    },
+    "v1RoleViewEntry": {
+      "type": "object",
+      "properties": {
+        "installationId": {
+          "type": "string",
+          "description": "The installation."
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The roles acted as there, sorted."
+        }
+      },
+      "description": "RoleViewEntry is the roles a session acts as on one installation."
+    },
     "v1Session": {
       "type": "object",
       "properties": {
@@ -221,6 +289,14 @@
         "organizationDisplayName": {
           "type": "string",
           "description": "The signed-in organisation's display name."
+        },
+        "roleView": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1RoleViewEntry"
+          },
+          "description": "The role view this session was opened with, by installation: it acts as\nthese roles there and as every role it holds elsewhere. Empty for a session\nthat is not a role view."
         }
       },
       "description": "Session is an open session."

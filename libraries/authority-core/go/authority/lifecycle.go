@@ -649,7 +649,7 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 		if err != nil {
 			return err
 		}
-		p, err := tx.Member(org, installedBy)
+		p, err := memberRecord(tx, org, installedBy)
 		if err != nil && !errors.Is(err, domain.ErrNotFound) {
 			return err
 		}

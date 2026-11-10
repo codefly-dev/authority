@@ -42,6 +42,9 @@ const (
 	SessionServiceSignInProcedure = "/host.session.v1.SessionService/SignIn"
 	// SessionServiceCurrentProcedure is the fully-qualified name of the SessionService's Current RPC.
 	SessionServiceCurrentProcedure = "/host.session.v1.SessionService/Current"
+	// SessionServiceOpenRoleViewProcedure is the fully-qualified name of the SessionService's
+	// OpenRoleView RPC.
+	SessionServiceOpenRoleViewProcedure = "/host.session.v1.SessionService/OpenRoleView"
 	// SessionServiceListFixturePeopleProcedure is the fully-qualified name of the SessionService's
 	// ListFixturePeople RPC.
 	SessionServiceListFixturePeopleProcedure = "/host.session.v1.SessionService/ListFixturePeople"
@@ -56,6 +59,17 @@ type SessionServiceClient interface {
 	// never read from a header the request wrote. The bearer itself is not
 	// handed back. An unknown or ended session is unauthenticated.
 	Current(context.Context, *connect.Request[v1.CurrentRequest]) (*connect.Response[v1.Session], error)
+	// OpenRoleView opens a session that acts as some of the roles the caller
+	// holds on one installation: a role view. The caller's bearer is the session
+	// it is opened from. The host records the view, decided by the authority, as
+	// the session's own; a client never supplies it. A view only narrows: it names
+	// roles the calling session acts as now, so a viewing session opens only
+	// narrower ones, and a role view on one installation reaches no other. The
+	// session it was opened from is untouched and stays the way back to all of the
+	// person's roles. A page, a Work Context, an impersonated session and a
+	// client's delegated credential hold no session of a person to call from and
+	// are refused.
+	OpenRoleView(context.Context, *connect.Request[v1.OpenRoleViewRequest]) (*connect.Response[v1.Session], error)
 	// ListFixturePeople answers who this authority signs in by fixture token, for
 	// the browser edge's sign-in page: the people are defined once, in the
 	// authority's fixture. A host that signs real people in through its identity
@@ -86,6 +100,12 @@ func NewSessionServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(sessionServiceMethods.ByName("Current")),
 			connect.WithClientOptions(opts...),
 		),
+		openRoleView: connect.NewClient[v1.OpenRoleViewRequest, v1.Session](
+			httpClient,
+			baseURL+SessionServiceOpenRoleViewProcedure,
+			connect.WithSchema(sessionServiceMethods.ByName("OpenRoleView")),
+			connect.WithClientOptions(opts...),
+		),
 		listFixturePeople: connect.NewClient[v1.ListFixturePeopleRequest, v1.ListFixturePeopleResponse](
 			httpClient,
 			baseURL+SessionServiceListFixturePeopleProcedure,
@@ -99,6 +119,7 @@ func NewSessionServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 type sessionServiceClient struct {
 	signIn            *connect.Client[v1.SignInRequest, v1.Session]
 	current           *connect.Client[v1.CurrentRequest, v1.Session]
+	openRoleView      *connect.Client[v1.OpenRoleViewRequest, v1.Session]
 	listFixturePeople *connect.Client[v1.ListFixturePeopleRequest, v1.ListFixturePeopleResponse]
 }
 
@@ -110,6 +131,11 @@ func (c *sessionServiceClient) SignIn(ctx context.Context, req *connect.Request[
 // Current calls host.session.v1.SessionService.Current.
 func (c *sessionServiceClient) Current(ctx context.Context, req *connect.Request[v1.CurrentRequest]) (*connect.Response[v1.Session], error) {
 	return c.current.CallUnary(ctx, req)
+}
+
+// OpenRoleView calls host.session.v1.SessionService.OpenRoleView.
+func (c *sessionServiceClient) OpenRoleView(ctx context.Context, req *connect.Request[v1.OpenRoleViewRequest]) (*connect.Response[v1.Session], error) {
+	return c.openRoleView.CallUnary(ctx, req)
 }
 
 // ListFixturePeople calls host.session.v1.SessionService.ListFixturePeople.
@@ -126,6 +152,17 @@ type SessionServiceHandler interface {
 	// never read from a header the request wrote. The bearer itself is not
 	// handed back. An unknown or ended session is unauthenticated.
 	Current(context.Context, *connect.Request[v1.CurrentRequest]) (*connect.Response[v1.Session], error)
+	// OpenRoleView opens a session that acts as some of the roles the caller
+	// holds on one installation: a role view. The caller's bearer is the session
+	// it is opened from. The host records the view, decided by the authority, as
+	// the session's own; a client never supplies it. A view only narrows: it names
+	// roles the calling session acts as now, so a viewing session opens only
+	// narrower ones, and a role view on one installation reaches no other. The
+	// session it was opened from is untouched and stays the way back to all of the
+	// person's roles. A page, a Work Context, an impersonated session and a
+	// client's delegated credential hold no session of a person to call from and
+	// are refused.
+	OpenRoleView(context.Context, *connect.Request[v1.OpenRoleViewRequest]) (*connect.Response[v1.Session], error)
 	// ListFixturePeople answers who this authority signs in by fixture token, for
 	// the browser edge's sign-in page: the people are defined once, in the
 	// authority's fixture. A host that signs real people in through its identity
@@ -152,6 +189,12 @@ func NewSessionServiceHandler(svc SessionServiceHandler, opts ...connect.Handler
 		connect.WithSchema(sessionServiceMethods.ByName("Current")),
 		connect.WithHandlerOptions(opts...),
 	)
+	sessionServiceOpenRoleViewHandler := connect.NewUnaryHandler(
+		SessionServiceOpenRoleViewProcedure,
+		svc.OpenRoleView,
+		connect.WithSchema(sessionServiceMethods.ByName("OpenRoleView")),
+		connect.WithHandlerOptions(opts...),
+	)
 	sessionServiceListFixturePeopleHandler := connect.NewUnaryHandler(
 		SessionServiceListFixturePeopleProcedure,
 		svc.ListFixturePeople,
@@ -164,6 +207,8 @@ func NewSessionServiceHandler(svc SessionServiceHandler, opts ...connect.Handler
 			sessionServiceSignInHandler.ServeHTTP(w, r)
 		case SessionServiceCurrentProcedure:
 			sessionServiceCurrentHandler.ServeHTTP(w, r)
+		case SessionServiceOpenRoleViewProcedure:
+			sessionServiceOpenRoleViewHandler.ServeHTTP(w, r)
 		case SessionServiceListFixturePeopleProcedure:
 			sessionServiceListFixturePeopleHandler.ServeHTTP(w, r)
 		default:
@@ -181,6 +226,10 @@ func (UnimplementedSessionServiceHandler) SignIn(context.Context, *connect.Reque
 
 func (UnimplementedSessionServiceHandler) Current(context.Context, *connect.Request[v1.CurrentRequest]) (*connect.Response[v1.Session], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.session.v1.SessionService.Current is not implemented"))
+}
+
+func (UnimplementedSessionServiceHandler) OpenRoleView(context.Context, *connect.Request[v1.OpenRoleViewRequest]) (*connect.Response[v1.Session], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.session.v1.SessionService.OpenRoleView is not implemented"))
 }
 
 func (UnimplementedSessionServiceHandler) ListFixturePeople(context.Context, *connect.Request[v1.ListFixturePeopleRequest]) (*connect.Response[v1.ListFixturePeopleResponse], error) {

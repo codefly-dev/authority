@@ -174,6 +174,7 @@ func Run(t *testing.T, open Open) {
 				"by principal":    second(tx.InstallationByPrincipal(uuid.NewString())),
 				"empty principal": second(tx.InstallationByPrincipal("")),
 				"delegation":      second(tx.Delegation(uuid.NewString())),
+				"role view":       second(tx.RoleView(uuid.NewString())),
 			} {
 				if !errors.Is(err, domain.ErrNotFound) {
 					t.Errorf("%s: %v", name, err)
@@ -474,6 +475,40 @@ func Run(t *testing.T, open Open) {
 			if !slices.ContainsFunc(all, func(x domain.Delegation) bool { return x.ID == d.ID }) ||
 				!sort.SliceIsSorted(all, func(a, b int) bool { return all[a].ID < all[b].ID }) {
 				t.Error("Delegations omits it or is not sorted by id")
+			}
+			return nil
+		})
+	})
+
+	t.Run("a role view reads back as written, per session, and rolls back with its transaction", func(t *testing.T) {
+		v := domain.RoleView{SessionID: uuid.NewString(), Parent: uuid.NewString(), Person: f.onlyA, Organization: f.orgA,
+			Roles: map[string][]string{uuid.NewString(): {"editor", "viewer"}, uuid.NewString(): {"viewer"}}}
+		failure := errors.New("the decision refused")
+		if err := store.Write(ctx, func(tx authority.Tx) error { return errors.Join(tx.PutRoleView(v), failure) }); !errors.Is(err, failure) {
+			t.Fatalf("the transaction's own error is returned: %v", err)
+		}
+		read(t, func(tx authority.Tx) error {
+			if _, err := tx.RoleView(v.SessionID); !errors.Is(err, domain.ErrNotFound) {
+				t.Errorf("a view written in a failed transaction survived: %v", err)
+			}
+			return nil
+		})
+		write(t, func(tx authority.Tx) error { return tx.PutRoleView(v) })
+		read(t, func(tx authority.Tx) error {
+			got, err := tx.RoleView(v.SessionID)
+			if err != nil {
+				return err
+			}
+			if got.SessionID != v.SessionID || got.Parent != v.Parent || got.Person != v.Person || got.Organization != v.Organization || len(got.Roles) != len(v.Roles) {
+				t.Errorf("role view %+v, want %+v", got, v)
+			}
+			for inst, roles := range v.Roles {
+				if !slices.Equal(got.Roles[inst], roles) {
+					t.Errorf("view of %s is %v, want %v", inst, got.Roles[inst], roles)
+				}
+			}
+			if _, err := tx.RoleView(uuid.NewString()); !errors.Is(err, domain.ErrNotFound) {
+				t.Errorf("another session has a view: %v", err)
 			}
 			return nil
 		})

@@ -212,6 +212,116 @@ func (x *FixturePerson) GetOrganizationDisplayName() string {
 	return ""
 }
 
+// OpenRoleViewRequest names the installation and the roles to act as on it.
+type OpenRoleViewRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The installation, of the organisation the caller is signed into.
+	InstallationId string `protobuf:"bytes,1,opt,name=installation_id,json=installationId,proto3" json:"installation_id,omitempty"`
+	// The roles to act as, each one the caller acts as on it now; at least one.
+	Roles         []string `protobuf:"bytes,2,rep,name=roles,proto3" json:"roles,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OpenRoleViewRequest) Reset() {
+	*x = OpenRoleViewRequest{}
+	mi := &file_host_session_v1_session_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OpenRoleViewRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OpenRoleViewRequest) ProtoMessage() {}
+
+func (x *OpenRoleViewRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_host_session_v1_session_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OpenRoleViewRequest.ProtoReflect.Descriptor instead.
+func (*OpenRoleViewRequest) Descriptor() ([]byte, []int) {
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *OpenRoleViewRequest) GetInstallationId() string {
+	if x != nil {
+		return x.InstallationId
+	}
+	return ""
+}
+
+func (x *OpenRoleViewRequest) GetRoles() []string {
+	if x != nil {
+		return x.Roles
+	}
+	return nil
+}
+
+// RoleViewEntry is the roles a session acts as on one installation.
+type RoleViewEntry struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The installation.
+	InstallationId string `protobuf:"bytes,1,opt,name=installation_id,json=installationId,proto3" json:"installation_id,omitempty"`
+	// The roles acted as there, sorted.
+	Roles         []string `protobuf:"bytes,2,rep,name=roles,proto3" json:"roles,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RoleViewEntry) Reset() {
+	*x = RoleViewEntry{}
+	mi := &file_host_session_v1_session_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RoleViewEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RoleViewEntry) ProtoMessage() {}
+
+func (x *RoleViewEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_host_session_v1_session_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RoleViewEntry.ProtoReflect.Descriptor instead.
+func (*RoleViewEntry) Descriptor() ([]byte, []int) {
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *RoleViewEntry) GetInstallationId() string {
+	if x != nil {
+		return x.InstallationId
+	}
+	return ""
+}
+
+func (x *RoleViewEntry) GetRoles() []string {
+	if x != nil {
+		return x.Roles
+	}
+	return nil
+}
+
 // CurrentRequest asks for the caller's own session; the bearer is the call's.
 type CurrentRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -221,7 +331,7 @@ type CurrentRequest struct {
 
 func (x *CurrentRequest) Reset() {
 	*x = CurrentRequest{}
-	mi := &file_host_session_v1_session_proto_msgTypes[3]
+	mi := &file_host_session_v1_session_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -233,7 +343,7 @@ func (x *CurrentRequest) String() string {
 func (*CurrentRequest) ProtoMessage() {}
 
 func (x *CurrentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_host_session_v1_session_proto_msgTypes[3]
+	mi := &file_host_session_v1_session_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -246,7 +356,7 @@ func (x *CurrentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CurrentRequest.ProtoReflect.Descriptor instead.
 func (*CurrentRequest) Descriptor() ([]byte, []int) {
-	return file_host_session_v1_session_proto_rawDescGZIP(), []int{3}
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{5}
 }
 
 // SignInRequest presents a fixture token.
@@ -260,7 +370,7 @@ type SignInRequest struct {
 
 func (x *SignInRequest) Reset() {
 	*x = SignInRequest{}
-	mi := &file_host_session_v1_session_proto_msgTypes[4]
+	mi := &file_host_session_v1_session_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -272,7 +382,7 @@ func (x *SignInRequest) String() string {
 func (*SignInRequest) ProtoMessage() {}
 
 func (x *SignInRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_host_session_v1_session_proto_msgTypes[4]
+	mi := &file_host_session_v1_session_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -285,7 +395,7 @@ func (x *SignInRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SignInRequest.ProtoReflect.Descriptor instead.
 func (*SignInRequest) Descriptor() ([]byte, []int) {
-	return file_host_session_v1_session_proto_rawDescGZIP(), []int{4}
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *SignInRequest) GetFixtureToken() string {
@@ -316,13 +426,17 @@ type Session struct {
 	PersonDisplayName string `protobuf:"bytes,7,opt,name=person_display_name,json=personDisplayName,proto3" json:"person_display_name,omitempty"`
 	// The signed-in organisation's display name.
 	OrganizationDisplayName string `protobuf:"bytes,8,opt,name=organization_display_name,json=organizationDisplayName,proto3" json:"organization_display_name,omitempty"`
-	unknownFields           protoimpl.UnknownFields
-	sizeCache               protoimpl.SizeCache
+	// The role view this session was opened with, by installation: it acts as
+	// these roles there and as every role it holds elsewhere. Empty for a session
+	// that is not a role view.
+	RoleView      []*RoleViewEntry `protobuf:"bytes,9,rep,name=role_view,json=roleView,proto3" json:"role_view,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Session) Reset() {
 	*x = Session{}
-	mi := &file_host_session_v1_session_proto_msgTypes[5]
+	mi := &file_host_session_v1_session_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -334,7 +448,7 @@ func (x *Session) String() string {
 func (*Session) ProtoMessage() {}
 
 func (x *Session) ProtoReflect() protoreflect.Message {
-	mi := &file_host_session_v1_session_proto_msgTypes[5]
+	mi := &file_host_session_v1_session_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -347,7 +461,7 @@ func (x *Session) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Session.ProtoReflect.Descriptor instead.
 func (*Session) Descriptor() ([]byte, []int) {
-	return file_host_session_v1_session_proto_rawDescGZIP(), []int{5}
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *Session) GetSessionId() string {
@@ -406,6 +520,13 @@ func (x *Session) GetOrganizationDisplayName() string {
 	return ""
 }
 
+func (x *Session) GetRoleView() []*RoleViewEntry {
+	if x != nil {
+		return x.RoleView
+	}
+	return nil
+}
+
 var File_host_session_v1_session_proto protoreflect.FileDescriptor
 
 const file_host_session_v1_session_proto_rawDesc = "" +
@@ -421,10 +542,16 @@ const file_host_session_v1_session_proto_rawDesc = "" +
 	"\x05roles\x18\x04 \x03(\tR\x05roles\x12\x19\n" +
 	"\bteam_ids\x18\x05 \x03(\tR\ateamIds\x12#\n" +
 	"\rfixture_token\x18\x06 \x01(\tR\ffixtureToken\x12:\n" +
-	"\x19organization_display_name\x18\a \x01(\tR\x17organizationDisplayName\"\x10\n" +
+	"\x19organization_display_name\x18\a \x01(\tR\x17organizationDisplayName\"T\n" +
+	"\x13OpenRoleViewRequest\x12'\n" +
+	"\x0finstallation_id\x18\x01 \x01(\tR\x0einstallationId\x12\x14\n" +
+	"\x05roles\x18\x02 \x03(\tR\x05roles\"N\n" +
+	"\rRoleViewEntry\x12'\n" +
+	"\x0finstallation_id\x18\x01 \x01(\tR\x0einstallationId\x12\x14\n" +
+	"\x05roles\x18\x02 \x03(\tR\x05roles\"\x10\n" +
 	"\x0eCurrentRequest\"4\n" +
 	"\rSignInRequest\x12#\n" +
-	"\rfixture_token\x18\x01 \x01(\tR\ffixtureToken\"\xa3\x02\n" +
+	"\rfixture_token\x18\x01 \x01(\tR\ffixtureToken\"\xe0\x02\n" +
 	"\aSession\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1b\n" +
@@ -434,10 +561,12 @@ const file_host_session_v1_session_proto_rawDesc = "" +
 	"\bteam_ids\x18\x05 \x03(\tR\ateamIds\x12\x16\n" +
 	"\x06bearer\x18\x06 \x01(\tR\x06bearer\x12.\n" +
 	"\x13person_display_name\x18\a \x01(\tR\x11personDisplayName\x12:\n" +
-	"\x19organization_display_name\x18\b \x01(\tR\x17organizationDisplayName2\xe0\x02\n" +
+	"\x19organization_display_name\x18\b \x01(\tR\x17organizationDisplayName\x12;\n" +
+	"\trole_view\x18\t \x03(\v2\x1e.host.session.v1.RoleViewEntryR\broleView2\xd7\x03\n" +
 	"\x0eSessionService\x12b\n" +
 	"\x06SignIn\x12\x1e.host.session.v1.SignInRequest\x1a\x18.host.session.v1.Session\"\x1e\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/v1/session:sign-in\x12Y\n" +
-	"\aCurrent\x12\x1f.host.session.v1.CurrentRequest\x1a\x18.host.session.v1.Session\"\x13\x82\xd3\xe4\x93\x02\r\x12\v/v1/session\x12\x8e\x01\n" +
+	"\aCurrent\x12\x1f.host.session.v1.CurrentRequest\x1a\x18.host.session.v1.Session\"\x13\x82\xd3\xe4\x93\x02\r\x12\v/v1/session\x12u\n" +
+	"\fOpenRoleView\x12$.host.session.v1.OpenRoleViewRequest\x1a\x18.host.session.v1.Session\"%\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v1/session:open-role-view\x12\x8e\x01\n" +
 	"\x11ListFixturePeople\x12).host.session.v1.ListFixturePeopleRequest\x1a*.host.session.v1.ListFixturePeopleResponse\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/v1/session/fixture-peopleB\xcf\x01\n" +
 	"\x13com.host.session.v1B\fSessionProtoP\x01ZLgithub.com/codefly-dev/cli/pkg/builder/clients/api/host/session/v1;sessionv1\xa2\x02\x03HSX\xaa\x02\x0fHost.Session.V1\xca\x02\x0fHost\\Session\\V1\xe2\x02\x1bHost\\Session\\V1\\GPBMetadata\xea\x02\x11Host::Session::V1b\x06proto3"
 
@@ -453,28 +582,33 @@ func file_host_session_v1_session_proto_rawDescGZIP() []byte {
 	return file_host_session_v1_session_proto_rawDescData
 }
 
-var file_host_session_v1_session_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_host_session_v1_session_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_host_session_v1_session_proto_goTypes = []any{
 	(*ListFixturePeopleRequest)(nil),  // 0: host.session.v1.ListFixturePeopleRequest
 	(*ListFixturePeopleResponse)(nil), // 1: host.session.v1.ListFixturePeopleResponse
 	(*FixturePerson)(nil),             // 2: host.session.v1.FixturePerson
-	(*CurrentRequest)(nil),            // 3: host.session.v1.CurrentRequest
-	(*SignInRequest)(nil),             // 4: host.session.v1.SignInRequest
-	(*Session)(nil),                   // 5: host.session.v1.Session
+	(*OpenRoleViewRequest)(nil),       // 3: host.session.v1.OpenRoleViewRequest
+	(*RoleViewEntry)(nil),             // 4: host.session.v1.RoleViewEntry
+	(*CurrentRequest)(nil),            // 5: host.session.v1.CurrentRequest
+	(*SignInRequest)(nil),             // 6: host.session.v1.SignInRequest
+	(*Session)(nil),                   // 7: host.session.v1.Session
 }
 var file_host_session_v1_session_proto_depIdxs = []int32{
 	2, // 0: host.session.v1.ListFixturePeopleResponse.people:type_name -> host.session.v1.FixturePerson
-	4, // 1: host.session.v1.SessionService.SignIn:input_type -> host.session.v1.SignInRequest
-	3, // 2: host.session.v1.SessionService.Current:input_type -> host.session.v1.CurrentRequest
-	0, // 3: host.session.v1.SessionService.ListFixturePeople:input_type -> host.session.v1.ListFixturePeopleRequest
-	5, // 4: host.session.v1.SessionService.SignIn:output_type -> host.session.v1.Session
-	5, // 5: host.session.v1.SessionService.Current:output_type -> host.session.v1.Session
-	1, // 6: host.session.v1.SessionService.ListFixturePeople:output_type -> host.session.v1.ListFixturePeopleResponse
-	4, // [4:7] is the sub-list for method output_type
-	1, // [1:4] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	4, // 1: host.session.v1.Session.role_view:type_name -> host.session.v1.RoleViewEntry
+	6, // 2: host.session.v1.SessionService.SignIn:input_type -> host.session.v1.SignInRequest
+	5, // 3: host.session.v1.SessionService.Current:input_type -> host.session.v1.CurrentRequest
+	3, // 4: host.session.v1.SessionService.OpenRoleView:input_type -> host.session.v1.OpenRoleViewRequest
+	0, // 5: host.session.v1.SessionService.ListFixturePeople:input_type -> host.session.v1.ListFixturePeopleRequest
+	7, // 6: host.session.v1.SessionService.SignIn:output_type -> host.session.v1.Session
+	7, // 7: host.session.v1.SessionService.Current:output_type -> host.session.v1.Session
+	7, // 8: host.session.v1.SessionService.OpenRoleView:output_type -> host.session.v1.Session
+	1, // 9: host.session.v1.SessionService.ListFixturePeople:output_type -> host.session.v1.ListFixturePeopleResponse
+	6, // [6:10] is the sub-list for method output_type
+	2, // [2:6] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_host_session_v1_session_proto_init() }
@@ -488,7 +622,7 @@ func file_host_session_v1_session_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_host_session_v1_session_proto_rawDesc), len(file_host_session_v1_session_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

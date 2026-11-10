@@ -63,7 +63,7 @@ func decideRoleChange(tx Tx, caller *Person, r RoleRequest, list, revoke bool) (
 	change := decide.RoleChange{RequestOrganization: r.Organization, RequestedID: r.InstallationID, Installation: inst, Solution: solution,
 		Caller: c, CallerRoles: decide.HeldRoles(c, inst, grants), List: list, Revoke: revoke, Role: r.Role, PersonID: r.PersonID, TeamID: r.TeamID}
 	if r.PersonID != "" {
-		if p, err := tx.Member(inst.Organization, r.PersonID); err == nil {
+		if p, err := memberRecord(tx, inst.Organization, r.PersonID); err == nil {
 			change.Subject = &p
 		}
 	}
