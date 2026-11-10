@@ -293,3 +293,49 @@ func TestRBAC1ReconcilingGivesARecordedInstallationItsPrincipal(t *testing.T) {
 	}
 	exactly(t, h.must(h.page("maya", "pages", "store")), kind, h.principal(acme, "pages"), []string{"read"})
 }
+
+// RBAC-1 (attachment): a module page whose role holds create on an
+// owner-aware store's kind attaches what its person creates there to the
+// page's installation, exactly as a solution's does: the store's first write
+// into a fresh resource is the installation's, and a viewer then reads it as
+// that installation's data. A role without create attaches nothing, and an
+// installation recorded without a principal owns nothing, so nothing attaches
+// through it.
+func TestRBAC1AModulePageAttachesWhatItCreatesToItsInstallation(t *testing.T) {
+	h := newHarness(t)
+	m := pageModule(1, true)
+	m.Bindings = map[string]domain.Binding{
+		"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write", "create")}},
+	}
+	m.Roles[domain.InstallerRole] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(kind, "read", "write", "create")}
+	m.Roles["viewer"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read")}
+	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
+		t.Fatal(err)
+	}
+	h.grant("pages", domain.InstallerRole, "ada")
+	h.grant("pages", "viewer", "maya")
+	mine := h.principal(acme, "pages")
+
+	owner, err := attach(h, h.must(h.page("ada", "pages", "store")).Token, "store-new")
+	if err != nil || owner != h.pagesAt(acme).ID {
+		t.Fatalf("a module page's create attached to %q (%v), want its installation %s", owner, err, h.pagesAt(acme).ID)
+	}
+	if got := h.pagesAt(acme).Owned[kind]; len(got) != 1 || got[0] != "store-new" {
+		t.Fatalf("the installation's attachments are %v", got)
+	}
+	exactly(t, h.must(h.page("maya", "pages", "store", owned(kind, mine, []string{"read"}, "store-new"))), kind, mine, []string{"read"}, "store-new")
+
+	_, err = attach(h, h.must(h.page("maya", "pages", "store")).Token, "store-viewer")
+	refused(t, err, "holds no create")
+
+	// A capability issued while the installation held its principal attaches
+	// nothing once the installation is recorded without one.
+	issued := h.must(h.page("ada", "pages", "store"))
+	inst := h.pagesAt(acme)
+	inst.PrincipalID = ""
+	if err := h.store.Write(h.ctx, func(tx authority.Tx) error { return tx.PutInstallation(inst) }); err != nil {
+		t.Fatal(err)
+	}
+	_, err = attach(h, issued.Token, "store-orphan")
+	refused(t, err, "issued through no installation")
+}
