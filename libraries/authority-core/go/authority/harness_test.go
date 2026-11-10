@@ -14,6 +14,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/memstore"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
 	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
@@ -91,8 +92,13 @@ func newHarness(t *testing.T) *harness {
 	}
 	h.store.PutTeam(acme, "team")
 	h.store.PutTeam(globex, "ops")
-	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "admin", Scopes: nil})
-	h.store.PutOrgRole(domain.OrgRole{Organization: globex, Name: "admin", Scopes: nil})
+	// An administrator holds every kind and action of its organization, as the
+	// hosts answer it (the saas store answers owner and admin as AnyKind/AnyAction),
+	// so the fixtures hold the grant-set form production is moving to, not an
+	// administrator that is one only by name.
+	anything := []domain.RoleScope{{Kind: scope.AnyKind, Actions: []string{scope.AnyAction}}}
+	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "admin", Scopes: anything})
+	h.store.PutOrgRole(domain.OrgRole{Organization: globex, Name: "admin", Scopes: anything})
 	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "store-admin", Scopes: []domain.RoleScope{{Kind: kind, Actions: []string{"admin"}, Resources: []resources.Grant{{ID: "store-x"}}}}})
 	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "store-reader", Scopes: []domain.RoleScope{{Kind: kind, Actions: []string{"read"}, Resources: []resources.Grant{{ID: "store-x"}}}}})
 	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "ledger-reader", Scopes: []domain.RoleScope{{Kind: ledgerKind, Actions: []string{"read"}, Resources: []resources.Grant{{ID: "entry-x"}}}}})
