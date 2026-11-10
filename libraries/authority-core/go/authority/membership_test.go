@@ -16,7 +16,13 @@ func TestAPersonOfTwoOrganizationsActsOnlyAsTheMemberOfTheSessions(t *testing.T)
 	h.store.PutOrgRole(domain.OrgRole{Organization: globex, Name: "ledger-writer", Scopes: []domain.RoleScope{{Kind: ledgerKind, Actions: []string{"write"}}}})
 	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "ledger-plain-reader", Scopes: []domain.RoleScope{{Kind: ledgerKind, Actions: []string{"read"}}}})
 	h.store.PutPerson(domain.Person{ID: "pat", Organization: acme, Roles: []string{"ledger-plain-reader"}})
-	h.store.PutPerson(domain.Person{ID: "pat", Organization: globex, Roles: []string{"admin", "ledger-writer"}})
+	h.store.PutPerson(domain.Person{ID: "pat", Organization: globex, Roles: []string{"ledger-writer"}})
+	// An administrator holds every kind and action of its organization, so the
+	// issuance rows above use a person who is not one; administration is pam's.
+	h.store.PutPerson(domain.Person{ID: "pam", Organization: acme, Roles: []string{"ledger-plain-reader"}})
+	h.store.PutPerson(domain.Person{ID: "pam", Organization: globex, Roles: []string{"admin"}})
+	pamAtAcme := authority.Person{ID: "pam", Organization: acme, SessionID: "p-acme"}
+	pamAtGlobex := authority.Person{ID: "pam", Organization: globex, SessionID: "p-globex"}
 	atAcme := authority.Person{ID: "pat", Organization: acme, SessionID: "s-acme"}
 	atGlobex := authority.Person{ID: "pat", Organization: globex, SessionID: "s-globex"}
 	read, write := []*basev0.WorkScopeV1{sc(ledgerKind, "read")}, []*basev0.WorkScopeV1{sc(ledgerKind, "write")}
@@ -44,16 +50,16 @@ func TestAPersonOfTwoOrganizationsActsOnlyAsTheMemberOfTheSessions(t *testing.T)
 	}
 
 	t.Run("administration is the session organization's", func(t *testing.T) {
-		if _, err := h.svc.Installations(h.ctx, atGlobex, globex); err != nil {
+		if _, err := h.svc.Installations(h.ctx, pamAtGlobex, globex); err != nil {
 			t.Fatal(err)
 		}
-		_, err := h.svc.Installations(h.ctx, atAcme, globex)
+		_, err := h.svc.Installations(h.ctx, pamAtAcme, globex)
 		refused(t, err, "requires an administrator")
-		_, err = h.svc.Installations(h.ctx, atAcme, acme)
+		_, err = h.svc.Installations(h.ctx, pamAtAcme, acme)
 		refused(t, err, "requires an administrator")
-		_, err = h.svc.Review(h.ctx, atAcme, globex, "b")
+		_, err = h.svc.Review(h.ctx, pamAtAcme, globex, "b")
 		refused(t, err, "requires an administrator")
-		_, err = h.svc.GrantRole(h.ctx, atAcme, authority.RoleRequest{Organization: globex, InstallationID: h.inst(globex, "a").ID, Role: "viewer", PersonID: "pat"})
+		_, err = h.svc.GrantRole(h.ctx, pamAtAcme, authority.RoleRequest{Organization: globex, InstallationID: h.inst(globex, "a").ID, Role: "viewer", PersonID: "pat"})
 		refused(t, err, "another organization")
 	})
 
