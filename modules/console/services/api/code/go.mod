@@ -8,7 +8,7 @@ require (
 	connectrpc.com/vanguard v0.4.0
 	github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0
 	github.com/codefly-dev/authority/libraries/hop/go v0.0.0
-	github.com/codefly-dev/core v0.19.22-0.20261110034120-aaefdc3fc0de
+	github.com/codefly-dev/core v0.19.22
 	github.com/codefly-dev/sdk-go v0.4.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.33.0
 	github.com/jackc/pgx/v5 v5.11.0
