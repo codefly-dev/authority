@@ -18,7 +18,9 @@ import (
 // a module without a page declares no roles; a solution, or a module page
 // that declares roles, declares installer, and every role stays within what
 // it serves, consumes through its invoke/lookup bindings, or names through
-// one of them (domain.Module.Through); a shared kind is one it serves.
+// one of them (domain.Module.Through); a shared kind is one it serves; and
+// a scope that governs its sources is one of its own, unshared kinds that a
+// role grants (domain.Module.SourceGovernance).
 func ValidateModule(m domain.Module) error {
 	if err := validateModule(m); err != nil {
 		return err
@@ -27,6 +29,9 @@ func ValidateModule(m domain.Module) error {
 		if !slices.ContainsFunc(Served(m), func(sc *basev0.WorkScopeV1) bool { return sc.GetResourceKind() == kind }) {
 			return domain.Refuse("%s declares %s shared, a kind it does not serve", m.Name, kind)
 		}
+	}
+	if err := sourceGovernance(m); err != nil {
+		return err
 	}
 	return noOwners(m)
 }

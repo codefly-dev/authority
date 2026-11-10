@@ -229,6 +229,8 @@ func Ceiled(m domain.Module, ceilings Scopes) (domain.Module, error) {
 // FromCore reads core's module manifest as the authority's module. Core's
 // manifest carries no roles; a solution's or a module page's arrive in the
 // document delivered with it, and a manifest declaring a frontend is a page.
+// The scopes that govern its sources do ride on it (SourceGovernance), held
+// to those roles when the module is applied (decide.ValidateModule).
 // The manifest is the ceiling here: a resource kind declared with no actions
 // serves whatever the roles grant on it, a binding's operations are its
 // scopes, each "<resource kind>:<action>" as core's manifest writes them.
@@ -245,6 +247,7 @@ func FromCore(in *solutionhost.ModuleManifest) domain.Module {
 	if in.Authority.Principal != "" {
 		m.Principal = in.Authority.Principal
 	}
+	m.SourceGovernance = scopesOf(in.Authority.SourceGovernance)
 	for _, kind := range in.Authority.ResourceKinds {
 		m.ResourceKinds = append(m.ResourceKinds, &basev0.WorkScopeV1{ResourceKind: kind, Actions: []string{scope.AnyAction}})
 	}

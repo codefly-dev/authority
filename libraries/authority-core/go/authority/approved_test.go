@@ -89,3 +89,35 @@ func TestAnApprovedDeclarationThatIsNotTheConsentedOfferRefusesIssuance(t *testi
 		t.Fatalf("an uncomposed target answers %v, want ErrNotFound", err)
 	}
 }
+
+// A redelivery that names a scope governing the installation's sources asks
+// something new of the organization: until an administrator approves it, the
+// approved declaration governs no source, and a host reading it admits nobody
+// by the new scope. Approved, it governs.
+func TestAGoverningScopeAddedByARedeliveryWaitsForApproval(t *testing.T) {
+	h := newHarness(t)
+	governed := solution("a", true)
+	governed.Generation = 2
+	governed.SourceGovernance = []*basev0.WorkScopeV1{sc("a.note", "write")}
+	if _, err := h.svc.ApplyModule(h.ctx, governed); err != nil {
+		t.Fatal(err)
+	}
+	inst := h.stored(acme, "a")
+	upgrade, err := h.svc.UpgradeAvailable(h.ctx, inst)
+	if err != nil || !upgrade {
+		t.Fatalf("a governing scope added asks no approval: upgrade %v, %v", upgrade, err)
+	}
+	m, err := h.svc.ApprovedDeclaration(h.ctx, inst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Generation != 1 || len(m.SourceGovernance) != 0 {
+		t.Fatalf("before approval the declaration at generation %d governs by %v", m.Generation, m.SourceGovernance)
+	}
+	if _, err := h.svc.Install(h.ctx, h.admin(acme), acme, "a", "author", "remi", h.approval(acme, "a"), nil); err != nil {
+		t.Fatal(err)
+	}
+	if m, err = h.svc.ApprovedDeclaration(h.ctx, h.stored(acme, "a")); err != nil || m.Generation != 2 || len(m.SourceGovernance) != 1 {
+		t.Fatalf("after approval the declaration at generation %d governs by %v (%v)", m.Generation, m.SourceGovernance, err)
+	}
+}

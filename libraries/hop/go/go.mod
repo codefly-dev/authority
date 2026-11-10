@@ -5,7 +5,7 @@ go 1.27.3
 require (
 	connectrpc.com/connect v1.21.1
 	github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0-20261026232801-7b6569e1f285
-	github.com/codefly-dev/core v0.19.20
+	github.com/codefly-dev/core v0.19.22-0.20261110034120-aaefdc3fc0de
 	github.com/jackc/pgx/v5 v5.11.0
 	golang.org/x/net v0.62.0
 	google.golang.org/grpc v1.85.0

@@ -87,6 +87,13 @@ type Module struct {
 	// EdgeDependencies declares viewer-edge presence, never authority or grants.
 	// Nil and empty are equivalent, including in the review digest.
 	EdgeDependencies []EdgeDependency `json:",omitempty"`
+	// SourceGovernance are the scopes whose holders on an installation govern
+	// the data sources tied to it: the module's own, unshared kinds, each
+	// action one of its roles grants (decide.ValidateModule). Read from core's
+	// signed manifest, so an administrator's approval covers it; empty, the
+	// module governs no source. It grants nothing: a host asks whether the
+	// person is issued the scope there.
+	SourceGovernance []*basev0.WorkScopeV1 `json:",omitempty"`
 	// OwnerAware: the module compares a resource's owner with an
 	// owner-selected scope, so it may receive one.
 	OwnerAware bool

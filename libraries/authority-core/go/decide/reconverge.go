@@ -15,13 +15,15 @@ import (
 // The reviewed surface is what Review and ReviewOffer show an administrator:
 // the kind, each role and installation-owned role with its scopes, each
 // binding with its audience and scopes, each edge dependency, the installation
-// role selector and each method's policy. next widens when it adds a role, a
-// binding, an edge dependency or a method; reaches further with a role or a
-// binding; readdresses a binding; asks standing authority the approved
-// declaration did not (any selector change but to "none"); or lets a method
-// be called with less than the approved one required (more roles then cover
-// it). A role, binding, edge dependency or method dropped, or a scope cut,
-// narrows and is never listed: nothing new is asked, and what was issued
+// role selector, each method's policy and each scope that governs its
+// sources. next widens when it adds a role, a binding, an edge dependency, a
+// method or a governing scope (its holders then manage the installation's
+// sources); reaches further with a role or a binding; readdresses a binding;
+// asks standing authority the approved declaration did not (any selector
+// change but to "none"); or lets a method be called with less than the
+// approved one required (more roles then cover it). A role, binding, edge
+// dependency, method or governing scope dropped, or a scope cut, narrows and
+// is never listed: nothing new is asked, and what was issued
 // under the wider declaration ends by its revision.
 func Widens(approved, next domain.Module) []string {
 	var out []string
@@ -65,6 +67,13 @@ func Widens(approved, next domain.Module) []string {
 			out = append(out, fmt.Sprintf("edge dependency on %s (%s) added", d.Module, d.Presence))
 		case approved.EdgeDependencies[i].Presence == EdgeOptional && d.Presence != EdgeOptional:
 			out = append(out, fmt.Sprintf("edge dependency on %s made required", d.Module))
+		}
+	}
+	for _, governing := range next.SourceGovernance {
+		for _, action := range governing.GetActions() {
+			if !Governs(approved, governing.GetResourceKind(), action) {
+				out = append(out, "source governance by "+governing.GetResourceKind()+":"+action+" added")
+			}
 		}
 	}
 	if next.InstallationRole != approved.InstallationRole && next.InstallationRole != domain.NoInstallationRole {
