@@ -14,19 +14,19 @@ import (
 )
 
 // pageReach is what each role of a module page (a module declaring roles,
-// installed by composition, so held by no consent), or of a solution, reaches
-// through its bindings, the declaration it reaches with, and the composition
-// it was read in.
+// installed by composition, so held by no consent) reaches through its
+// bindings, the declaration it reaches with, and the composition it was
+// read in.
 type pageReach struct {
 	m       domain.Module
 	rows    map[string][]domain.ReachRow
 	modules []domain.Module
 }
 
-// pageReaches is the pageReach of every composed module that declares roles,
-// a solution or a page, by name. Both what a role reaches on the module itself
-// and what it reaches through its bindings are compared; a solution whose
-// installation a consent holds is skipped where the grants are dropped.
+// pageReaches is every composed module page's pageReach, by name. Both what a
+// page's role reaches on the page itself and what it reaches through its
+// bindings are compared; a solution is held by its installations' consents
+// instead (reconverge).
 func pageReaches(tx Tx) (map[string]pageReach, error) {
 	modules, err := tx.Modules()
 	if err != nil {
@@ -34,7 +34,7 @@ func pageReaches(tx Tx) (map[string]pageReach, error) {
 	}
 	out := map[string]pageReach{}
 	for _, m := range modules {
-		if !decide.RoleGated(m) {
+		if m.Kind == domain.KindSolution || !decide.RoleGated(m) {
 			continue
 		}
 		rows, err := bindingReach(m, modules)
@@ -160,10 +160,8 @@ func ownWidened(was, next domain.Module, role string) []string {
 // grant ends), each grant is journaled as role.revoked, and
 // installation.role_reach_widened names what widened, for an administrator
 // to grant again. A widening of the roles held together ends every role's
-// grants. So does what a role reaches on the module itself, and so does the
-// widening of a solution no consent holds (one its host installed): the
-// grants of an installation nothing approved never take a wider meaning from
-// a delivery.
+// grants. So does what a role reaches on the page itself: the grants of an
+// installation nothing approved never take a wider meaning from a delivery.
 func (s *Service) dropWidenedPageGrants(ctx context.Context, tx Tx, applied string, before map[string]pageReach) error {
 	after, err := pageReaches(tx)
 	if err != nil {
@@ -192,12 +190,6 @@ func (s *Service) dropWidenedPageGrants(ctx context.Context, tx Tx, applied stri
 			// or not: no consent caps a module page's reach (approvedReach
 			// bounds solutions alone), so none may skip this.
 			if inst.Target != name || inst.Status != domain.Active {
-				continue
-			}
-			// A consent holds a solution's installation to what it approved
-			// (reconverge, approvedReach); only one no consent holds is
-			// compared here.
-			if after[name].m.Kind == domain.KindSolution && inst.Consent.OperationID != "" {
 				continue
 			}
 			grants, err := tx.RoleGrants(inst.ID)

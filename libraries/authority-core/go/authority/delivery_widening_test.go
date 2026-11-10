@@ -15,7 +15,8 @@ import (
 // A delivery never widens what an existing grant means (RBAC audit B2). A
 // grant is an administrator's approval of what the role meant when it was
 // given; a later delivery that gives the same name a wider meaning ends the
-// grants and says so, three ways it used to widen them silently.
+// grants and says so, two ways it used to widen them silently (a third, a
+// solution installed by trusted host setup, follows its delivery by design).
 
 func journalingService(h *harness) (*authority.Service, *[]domain.Event) {
 	var events []domain.Event
@@ -75,33 +76,6 @@ func TestModulePageRoleWidenedOnItsOwnKindEndsItsGrants(t *testing.T) {
 	}
 	if _, err := svc.IssueForPerson(h.ctx, h.person("maya"), write); err != nil {
 		t.Fatalf("a regranted role is held: %v", err)
-	}
-}
-
-func TestSolutionNoConsentHoldsWidenedRoleEndsItsGrants(t *testing.T) {
-	h := newHarness(t)
-	svc, events := journalingService(h)
-	if _, err := svc.ApplyModule(h.ctx, solution("d", true)); err != nil {
-		t.Fatal(err)
-	}
-	inst, err := svc.InstallAsHost(h.ctx, acme, "d", "author", "alex", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := svc.GrantRoleAsHost(h.ctx, authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: "viewer", PersonID: "maya"}); err != nil {
-		t.Fatal(err)
-	}
-	d2 := solution("d", true)
-	d2.Generation = 2
-	d2.Roles["viewer"] = []*basev0.WorkScopeV1{sc("d.note", "read"), sc(kind, "read", "write", "admin")}
-	if _, err := svc.ApplyModule(h.ctx, d2); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := svc.IssueForPerson(h.ctx, h.person("maya"), authority.IssueRequest{Audience: "d"}); err == nil {
-		t.Fatal("a viewer of a solution no consent holds keeps a role a delivery widened")
-	}
-	if !slices.Contains(kinds(*events), domain.InstallationRoleReachWidened) {
-		t.Fatalf("the widening is not named by an event: %v", kinds(*events))
 	}
 }
 

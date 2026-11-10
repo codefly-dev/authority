@@ -630,6 +630,11 @@ func (s *Service) Install(ctx context.Context, caller Person, org, target, agent
 
 // InstallAsHost is for trusted host setup, never a request handler. It installs
 // a solution without person authorization; an absent person cannot select it.
+// It records no consent, so the installation follows every delivery of its
+// solution (reconverge): a role a delivery widens is held by its grants at
+// once. That is the setup's own doing and no person can reach it: Install
+// refuses a person's request without a consent, which holds the installation
+// to what it approved.
 func (s *Service) InstallAsHost(ctx context.Context, org, target, agentRole, installedBy string, step InstallStep) (domain.Installation, error) {
 	return s.install(ctx, func(Tx) error { return nil }, Person{}, org, target, agentRole, installedBy, nil, step)
 }
