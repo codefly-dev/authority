@@ -29,6 +29,11 @@ func IsAdministrator(p domain.Person) bool {
 // the whole kind, so Issue refuses an ask naming any other id and an empty
 // ask carries those ids. named is what the decision is about: the ask, and
 // the capability a hop or a delegation derives from.
+//
+// At an audience that checks owners, organization roles reach no owner's
+// data: only a kind the audience declares shared is held (AnyKind spans those
+// alone). An owner's data there is reached through a role granted on the
+// installation that owns it (RBAC-4a).
 func OrgScopes(roles []domain.OrgRole, audience domain.Module, named Scopes) Scopes {
 	var held Scopes
 	for _, role := range roles {
@@ -41,6 +46,9 @@ func OrgScopes(roles []domain.OrgRole, audience domain.Module, named Scopes) Sco
 				}
 			}
 			for _, kind := range kinds {
+				if audience.OwnerAware && !slices.Contains(audience.SharedKinds, kind) {
+					continue
+				}
 				ids, all := heldIDs(sc.Resources, kind, named)
 				if !all && len(ids) == 0 {
 					// No row: a row naming no id is the whole kind.
@@ -51,6 +59,32 @@ func OrgScopes(roles []domain.OrgRole, audience domain.Module, named Scopes) Sco
 		}
 	}
 	return scope.Intersect(scope.Normalize(held), audience.ResourceKinds)
+}
+
+// OwnSession names why a person's own session was refused at an audience
+// that checks owners (RBAC-4a): organization roles reach none of its owned
+// kinds there. An ask naming only shared kinds, or a refusal at an audience
+// that checks no owner, is answered as refused.
+func OwnSession(audience domain.Module, asked Scopes, refused error) error {
+	if !audience.OwnerAware || RoleGated(audience) {
+		return refused
+	}
+	ownedKind := func(kind string) bool {
+		return !slices.Contains(audience.SharedKinds, kind) &&
+			slices.ContainsFunc(audience.ResourceKinds, func(sc *basev0.WorkScopeV1) bool { return sc.GetResourceKind() == kind })
+	}
+	owned := false
+	if len(asked) == 0 {
+		// An empty ask names the rule only when nothing was held at all.
+		owned = strings.Contains(refused.Error(), "holds nothing")
+	}
+	for _, sc := range asked {
+		owned = owned || ownedKind(sc.GetResourceKind())
+	}
+	if !owned {
+		return refused
+	}
+	return domain.Refuse("%v: %s checks owners, so an organization role reaches none of its owned data on a person's own session; reach it through a role on the installation that owns it", refused, audience.Name)
 }
 
 // heldIDs is what a role scope's matchers hold of kind: every resource when
@@ -109,7 +143,8 @@ func ResourceGrants(roles []domain.OrgRole, kind, action string) []resources.Gra
 }
 
 // HeldRoles are the roles a person holds on one installation: granted on it
-// to them, or to a team they belong to. Grants on any other installation
+// to them, or to a team they belong to, within their role view on it when
+// the session has one (domain.RoleView). Grants on any other installation
 // count for nothing here, however the caller gathered them.
 func HeldRoles(p domain.Person, inst domain.Installation, grants []domain.RoleGrant) []string {
 	var roles []string
@@ -122,7 +157,12 @@ func HeldRoles(p domain.Person, inst domain.Installation, grants []domain.RoleGr
 		}
 	}
 	slices.Sort(roles)
-	return slices.Compact(roles)
+	roles = slices.Compact(roles)
+	if view, viewing := p.View[inst.ID]; viewing {
+		// A role view narrows: only what is both held and viewed.
+		roles = slices.DeleteFunc(roles, func(r string) bool { return !slices.Contains(view, r) })
+	}
+	return roles
 }
 
 // RoleScopes is what roles grant on a solution's installation: the roles'

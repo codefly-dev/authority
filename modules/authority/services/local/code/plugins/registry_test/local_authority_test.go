@@ -65,7 +65,7 @@ people:
 		"documents": testkit.OrgDirectory(1).Bindings["documents"],
 		"model":     testkit.Documents(1).Bindings["model"],
 	}
-	source.Roles["viewer"] = append(source.Roles["viewer"], testkit.Scope("directory.entry", "read"), testkit.Scope("documents", "read"), testkit.Scope("modelservice.profiles", "read"))
+	source.Roles["viewer"] = append(source.Roles["viewer"], testkit.Scope("directory.entry", "read"), testkit.Scope("documents", "read"), testkit.Scope("modelservice.profiles", "read"), testkit.Scope("modelservice.datasets", "read"))
 	if _, err := k.State.ApplyManifest(source); err != nil {
 		t.Fatal(err)
 	}
@@ -82,6 +82,9 @@ people:
 	}
 	model := testkit.Model(2)
 	model.ResourceKinds = append(model.ResourceKinds, testkit.Scope("documents", "read", "write"))
+	// Shared at the model, so Rémi holds it there on his own session and the
+	// parent-limits case's dropped kind is really held (RBAC-4a).
+	model.SharedKinds = append(model.SharedKinds, "documents")
 	model.Bindings = map[string]state.Binding{
 		"records": testkit.OrgDirectory(1).Bindings["records"],
 		"self":    {ID: "self", Audience: "model", InvokeScopes: model.ResourceKinds},
@@ -119,9 +122,13 @@ people:
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Rémi at the directory, on his own session: its records binding, then
+	// records' model binding, each through modules his organization roles
+	// reach (the directory and records check no owner; the model's profiles
+	// are shared).
 	chain := conformance.Chain{Token: "fixture-remi", Start: "org-directory", Hops: []conformance.Hop{
-		{Credential: k.Credential(t, "org-directory"), Binding: "documents", Audience: "documents", AskKind: "documents", AskAction: "read"},
-		{Credential: k.Credential(t, "documents"), Binding: "model", Audience: "model", AskKind: "modelservice.profiles", AskAction: "read"},
+		{Credential: k.Credential(t, "org-directory"), Binding: "records", Audience: "records", AskKind: "records.records", AskAction: "read"},
+		{Credential: k.Credential(t, "records"), Binding: "model", Audience: "model", AskKind: "modelservice.profiles", AskAction: "read"},
 	}}
 	// A dedicated declared workload with no active installation exercises the
 	// refusal without removing any installation other cases need.
@@ -255,28 +262,30 @@ people:
 			Back: conformance.Hop{Credential: k.Credential(t, "records"), Audience: "model", Binding: "model"}},
 		ChildScopes: &conformance.ChildScopesCase{Chain: chain, FirstActions: []string{"read", "write"}, NextActions: []string{"read", "invoke"},
 			OutsideKind: "directory.entry", OutsideAction: "read", ResourceID: "a", OtherResourceID: "b", DroppedAction: "invoke"},
+		// The assistant's installation acting for itself, through the two
+		// modules that check owners: documents, then the model's datasets.
 		InstallationChain: &conformance.InstallationChainCase{
 			Installation: installedChain.ID, Source: source.Principal, Credential: k.Credential(t, source.Name),
 			Hops: []conformance.Hop{
-				{Credential: k.Credential(t, source.Name), Binding: "directory", Audience: "org-directory", AskKind: "directory.entry", AskAction: "read"},
-				{Credential: k.Credential(t, "org-directory"), Binding: "documents", Audience: "documents", AskKind: "documents", AskAction: "read"},
-				{Credential: k.Credential(t, "documents"), Binding: "model", Audience: "model", AskKind: "modelservice.profiles", AskAction: "read"},
+				{Credential: k.Credential(t, source.Name), Binding: "documents", Audience: "documents", AskKind: "documents", AskAction: "read"},
+				{Credential: k.Credential(t, "documents"), Binding: "model", Audience: "model", AskKind: "modelservice.datasets", AskAction: "read"},
 			},
 		},
 		// Maya reads the directory's and the wiki's collections and every shared
-		// one, and administers none: the authority's answer, not her token's.
-		// The page may write documents for Rémi, and a lookup through it reads.
+		// one at records, and administers none: the authority's answer, not her
+		// token's. The page may write records for Rémi, and a lookup through it
+		// reads.
 		Lookup: &conformance.LookupCase{Token: "fixture-remi", Start: "org-directory", Credential: k.Credential(t, "org-directory"),
-			Binding: "documents", Audience: "documents", Kind: "documents", Invoke: "write", Lookup: "read"},
-		// Rémi lets the page write documents for him; Maya, a viewer, cannot.
+			Binding: "records", Audience: "records", Kind: "records.records", Invoke: "write", Lookup: "read"},
+		// Rémi lets the page write records for him; Maya, a viewer, cannot.
 		Delegation: &conformance.DelegationCase{Token: "fixture-remi", Outsider: "fixture-maya", Module: "org-directory",
-			Credential: k.Credential(t, "org-directory"), Binding: "documents", Audience: "documents", Kind: "documents", Action: "write"},
+			Credential: k.Credential(t, "org-directory"), Binding: "records", Audience: "records", Kind: "records.records", Action: "write"},
 		Resources: &conformance.ResourceCase{
-			Token: "fixture-maya", Audience: "documents", Kind: "documents.collection", Action: "read",
+			Token: "fixture-maya", Audience: "records", Kind: "records.collection", Action: "read",
 			Covered: []string{"derived\x1fdirectory", "derived\x1fwiki", "shared-finance"}, Uncovered: []string{"finance", "shared-Finance"}, Unheld: "admin",
 		},
-		// Rémi at the page; the page asks documents; documents asks the model,
-		// for a read Rémi holds at the model and his first token never carried.
+		// Rémi at the page; the page asks records; records asks the model, for
+		// a read Rémi holds at the model and his first token never carried.
 		Chain: &chain,
 	}
 }

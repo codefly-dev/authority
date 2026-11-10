@@ -96,4 +96,10 @@ type Tx interface {
 	PutDelegation(domain.Delegation) error
 	Client(id string) (domain.Client, error)
 	PutClient(domain.Client) error
+
+	// RoleView answers the role view a session was opened with, ErrNotFound
+	// when it has none. PutRoleView records one; the core writes a session's
+	// view once and never changes it.
+	RoleView(sessionID string) (domain.RoleView, error)
+	PutRoleView(domain.RoleView) error
 }

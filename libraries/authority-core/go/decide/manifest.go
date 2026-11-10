@@ -18,7 +18,9 @@ import (
 // a module without a page declares no roles; a solution, or a module page
 // that declares roles, declares installer, and every role stays within what
 // it serves, consumes through its invoke/lookup bindings, or names through
-// one of them (domain.Module.Through); a shared kind is one it serves.
+// one of them (domain.Module.Through); a shared kind is one it serves; and
+// a scope that governs its sources is one of its own, unshared kinds that a
+// role grants (domain.Module.SourceGovernance).
 func ValidateModule(m domain.Module) error {
 	if err := validateModule(m); err != nil {
 		return err
@@ -27,6 +29,9 @@ func ValidateModule(m domain.Module) error {
 		if !slices.ContainsFunc(Served(m), func(sc *basev0.WorkScopeV1) bool { return sc.GetResourceKind() == kind }) {
 			return domain.Refuse("%s declares %s shared, a kind it does not serve", m.Name, kind)
 		}
+	}
+	if err := sourceGovernance(m); err != nil {
+		return err
 	}
 	return noOwners(m)
 }
@@ -231,12 +236,22 @@ func RoleGated(m domain.Module) bool {
 }
 
 // Narrowed reports whether next narrows what previous granted: a binding
-// removed, readdressed or cut, owner-aware checking withdrawn, any of its
-// roles cut, or a module moved between organization roles and its own. A
-// narrowing invalidates capabilities already issued.
+// removed, readdressed or cut, owner-aware checking withdrawn or adopted, a
+// kind no longer shared at a module that checks owners, any of its roles cut,
+// or a module moved between organization roles and its own. A narrowing
+// invalidates capabilities already issued. Adopting owner checks narrows too:
+// what an organization role or a module's role held there unselected is no
+// longer held (RBAC-4a, ModuleRoleAt).
 func Narrowed(previous, next domain.Module) bool {
-	if previous.OwnerAware && !next.OwnerAware {
+	if previous.OwnerAware != next.OwnerAware {
 		return true
+	}
+	if next.OwnerAware {
+		for _, kind := range previous.SharedKinds {
+			if !slices.Contains(next.SharedKinds, kind) {
+				return true
+			}
+		}
 	}
 	for id, old := range previous.Bindings {
 		b, ok := next.Bindings[id]

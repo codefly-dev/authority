@@ -10,24 +10,24 @@ import (
 
 func TestCurrentInstallationIsConfinedToTheAuthenticatedAudience(t *testing.T) {
 	h := newHarness(t)
-	// rob and omar read store-x alone: each asks for what they hold.
-	parent := h.must(h.root("rob", "store", owned(kind, "", []string{"read"}, "store-x")))
-	inst, err := h.svc.CurrentInstallation(h.ctx, parent.Token, authority.Workload{Module: "store"})
-	if err != nil || inst.ID != authority.StableInstallationID(acme, "store") || inst.Organization != acme || inst.Target != "store" {
+	// rob and omar read the ledger's entry-x alone: each asks for what they hold.
+	parent := h.must(h.root("rob", "ledger", owned(ledgerKind, "", []string{"read"}, "entry-x")))
+	inst, err := h.svc.CurrentInstallation(h.ctx, parent.Token, authority.Workload{Module: "ledger"})
+	if err != nil || inst.ID != authority.StableInstallationID(acme, "ledger") || inst.Organization != acme || inst.Target != "ledger" {
 		t.Fatalf("current installation: %+v %v", inst, err)
 	}
-	for _, actor := range []string{"legacy-store", "a", "missing", ""} {
+	for _, actor := range []string{"legacy-store", "store", "a", "missing", ""} {
 		if _, err := h.svc.CurrentInstallation(h.ctx, parent.Token, authority.Workload{Module: actor}); err == nil {
 			t.Fatalf("foreign workload %q read an installation", actor)
 		}
 	}
-	if _, err := h.svc.CurrentInstallation(h.ctx, "forged", authority.Workload{Module: "store"}); err == nil {
+	if _, err := h.svc.CurrentInstallation(h.ctx, "forged", authority.Workload{Module: "ledger"}); err == nil {
 		t.Fatal("forged parent read an installation")
 	}
-	h.store.PutPerson(domain.Person{ID: "omar", Organization: globex, Roles: []string{"store-reader"}})
-	h.store.PutOrgRole(domain.OrgRole{Organization: globex, Name: "store-reader", Scopes: []domain.RoleScope{{Kind: kind, Actions: []string{"read"}, Resources: []resources.Grant{{ID: "store-x"}}}}})
-	foreign := h.must(h.root("omar", "store", owned(kind, "", []string{"read"}, "store-x")))
-	other, err := h.svc.CurrentInstallation(h.ctx, foreign.Token, authority.Workload{Module: "store"})
+	h.store.PutPerson(domain.Person{ID: "omar", Organization: globex, Roles: []string{"ledger-reader"}})
+	h.store.PutOrgRole(domain.OrgRole{Organization: globex, Name: "ledger-reader", Scopes: []domain.RoleScope{{Kind: ledgerKind, Actions: []string{"read"}, Resources: []resources.Grant{{ID: "entry-x"}}}}})
+	foreign := h.must(h.root("omar", "ledger", owned(ledgerKind, "", []string{"read"}, "entry-x")))
+	other, err := h.svc.CurrentInstallation(h.ctx, foreign.Token, authority.Workload{Module: "ledger"})
 	if err != nil || other.Organization != globex || other.ID == inst.ID {
 		t.Fatalf("tenant isolation: %+v %v", other, err)
 	}

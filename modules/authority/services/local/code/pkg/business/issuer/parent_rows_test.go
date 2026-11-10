@@ -21,11 +21,11 @@ func TestMalformedAskDoesNotGainAuthority(t *testing.T) {
 				t.Fatalf("malformed root gained %s", action)
 			}
 		}
-		root, err := k.Issuer.Issue(person(t, k, "fixture-remi"), &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents"})
+		root, err := k.Issuer.Issue(person(t, k, "fixture-remi"), &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "records"})
 		if err != nil {
 			t.Fatal(err)
 		}
-		child, err := k.Issuer.Issue(t.Context(), &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_ParentToken{ParentToken: root.Token}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, "documents")}, Audience: "model", OperationBindingId: "model", Scopes: []*authorityv1.WorkScopeV1{scope}})
+		child, err := k.Issuer.Issue(t.Context(), &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_ParentToken{ParentToken: root.Token}, Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, "records")}, Audience: "model", OperationBindingId: "model", Scopes: []*authorityv1.WorkScopeV1{scope}})
 		if err == nil {
 			t.Fatalf("malformed child accepted: %v", child)
 		}
@@ -36,7 +36,7 @@ func TestParentLimitsPreserveActionSpecificResources(t *testing.T) {
 	k := testkit.New(t)
 	model := testkit.Model(2)
 	model.Bindings = map[string]state.Binding{
-		"documents": testkit.OrgDirectory(1).Bindings["documents"],
+		"records": testkit.OrgDirectory(1).Bindings["records"],
 	}
 	if _, err := k.State.ApplyManifest(model); err != nil {
 		t.Fatal(err)
@@ -52,11 +52,11 @@ func TestParentLimitsPreserveActionSpecificResources(t *testing.T) {
 		t.Fatal(err)
 	}
 	for range 3 {
-		parent, err = hopFrom(t, k, parent, "model", "documents", "documents")
+		parent, err = hopFrom(t, k, parent, "model", "records", "records")
 		if err != nil {
 			t.Fatal(err)
 		}
-		parent, err = hopFrom(t, k, parent, "documents", "model", "model")
+		parent, err = hopFrom(t, k, parent, "records", "model", "model")
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -4,7 +4,7 @@ go 1.27.3
 
 require (
 	github.com/codefly-dev/authority/libraries/hop/go v0.0.0
-	github.com/codefly-dev/core v0.19.20-0.20261109211818-3e7b38e3d9ad
+	github.com/codefly-dev/core v0.19.22
 	google.golang.org/genproto/googleapis/api v0.0.0-20261026165753-2ffab32bce7e
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/yaml.v3 v3.0.1

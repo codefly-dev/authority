@@ -71,13 +71,13 @@ func TestIssueAndCheckAreServedOverHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	status, person := post("/v1/authority:issue", sess.ID, `{"person":{},"audience":"documents"}`)
+	status, person := post("/v1/authority:issue", sess.ID, `{"person":{},"audience":"records"}`)
 	if status != http.StatusOK || person["token"] == "" {
 		t.Fatalf("person issue answered %d: %v", status, person)
 	}
 	// A refusal keeps its code: a person's issue with no session is refused as
 	// it is over gRPC (the local authority answers it forbidden), never answered.
-	if status, answer := post("/v1/authority:issue", "", `{"person":{},"audience":"documents"}`); status != http.StatusForbidden || answer["token"] != nil {
+	if status, answer := post("/v1/authority:issue", "", `{"person":{},"audience":"records"}`); status != http.StatusForbidden || answer["token"] != nil {
 		t.Fatalf("an issue with no session answered %d: %v", status, answer)
 	}
 	// The key set is still served.

@@ -22,10 +22,10 @@ import (
 // testkit owns the fixture identity/signing; this test adds no second issuer.
 func TestGeneratedCheckReportsAdvisoryWithoutChangingIdentity(t *testing.T) {
 	k := testkit.New(t)
-	manifest := testkit.Documents(2)
+	manifest := testkit.Records(2)
 	manifest.Methods = map[string]state.MethodPolicy{
-		"/documents.v1.Documents/Read":  {Requires: []*basev0.WorkScopeV1{testkit.Scope("documents", "read")}},
-		"/documents.v1.Documents/Write": {Requires: []*basev0.WorkScopeV1{testkit.Scope("documents", "write")}},
+		"/records.v1.Records/Read":  {Requires: []*basev0.WorkScopeV1{testkit.Scope("records.records", "read")}},
+		"/records.v1.Records/Write": {Requires: []*basev0.WorkScopeV1{testkit.Scope("records.records", "write")}},
 	}
 	if _, err := k.State.ApplyManifest(manifest); err != nil {
 		t.Fatal(err)
@@ -49,13 +49,13 @@ func TestGeneratedCheckReportsAdvisoryWithoutChangingIdentity(t *testing.T) {
 	}
 	person := metadata.NewOutgoingContext(context.Background(), metadata.Pairs("authorization", "Bearer "+session.ID))
 	issued, err := client.Issue(person, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents"})
+		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "records"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, method := range []string{"/documents.v1.Documents/Write", "/documents.v1.Documents/Undeclared"} {
+	for _, method := range []string{"/records.v1.Records/Write", "/records.v1.Records/Undeclared"} {
 		t.Run(method, func(t *testing.T) {
-			request := &authorityv1.CheckRequest{Token: issued.GetToken(), Audience: "documents", Method: method}
+			request := &authorityv1.CheckRequest{Token: issued.GetToken(), Audience: "records", Method: method}
 			if _, err := client.Check(context.Background(), request); err == nil {
 				t.Fatal("strict check did not refuse")
 			}
@@ -73,7 +73,7 @@ func TestGeneratedCheckReportsAdvisoryWithoutChangingIdentity(t *testing.T) {
 		})
 	}
 	allowed, err := client.Check(context.Background(), &authorityv1.CheckRequest{
-		Token: issued.GetToken(), Audience: "documents", Method: "/documents.v1.Documents/Read", Advisory: true})
+		Token: issued.GetToken(), Audience: "records", Method: "/records.v1.Records/Read", Advisory: true})
 	if err != nil || strings.TrimSpace(allowed.GetRefusal()) != "" {
 		t.Fatalf("allowed read: %v, %v", allowed, err)
 	}

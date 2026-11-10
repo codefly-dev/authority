@@ -15,8 +15,8 @@ func rsc(kind string, actions ...string) *basev0.WorkScopeV1 {
 
 // approvedModule is the reviewed surface an administrator approved: a
 // solution with two roles, an installation-owned role, a binding with the
-// three scope lists, a required and an optional edge, no standing authority
-// and two method policies.
+// three scope lists, a required and an optional edge, no standing authority,
+// two method policies and the installer's write governing its sources.
 func approvedModule() domain.Module {
 	return domain.Module{Name: "a", Principal: "a", Kind: domain.KindSolution, Generation: 1, InstallationRole: domain.NoInstallationRole,
 		ResourceKinds: []*basev0.WorkScopeV1{rsc("a.note", "read", "write")},
@@ -28,6 +28,7 @@ func approvedModule() domain.Module {
 		Bindings: map[string]domain.Binding{"store": {ID: "store", Audience: "store",
 			InvokeScopes: []*basev0.WorkScopeV1{rsc("store.item", "read", "write")}, HeadlessScopes: []*basev0.WorkScopeV1{rsc("store.item", "read")}, LookupScopes: []*basev0.WorkScopeV1{rsc("store.item", "read")}}},
 		EdgeDependencies: []domain.EdgeDependency{{Module: "robin", Presence: "required"}, {Module: "tracing", Presence: decide.EdgeOptional}},
+		SourceGovernance: []*basev0.WorkScopeV1{rsc("a.note", "write")},
 		Methods: map[string]domain.MethodPolicy{
 			"/a.Notes/Get":  {Requires: []*basev0.WorkScopeV1{rsc("a.note", "read")}},
 			"/a.Notes/Put":  {Requires: []*basev0.WorkScopeV1{rsc("a.note", "write")}},
@@ -74,6 +75,14 @@ func TestWidensNamesEachClauseOfTheReviewedSurface(t *testing.T) {
 			m.EdgeDependencies = append(m.EdgeDependencies, domain.EdgeDependency{Module: "model", Presence: "required"})
 		}, []string{"edge dependency on model (required) added"}},
 		{"edge made required", func(m *domain.Module) { m.EdgeDependencies[1].Presence = "required" }, []string{"edge dependency on tracing made required"}},
+		// A governing scope added hands its holders the installation's sources:
+		// a viewer's read here would make every viewer their manager.
+		{"governing scope added", func(m *domain.Module) {
+			m.SourceGovernance = []*basev0.WorkScopeV1{rsc("a.note", "read", "write")}
+		}, []string{"source governance by a.note:read added"}},
+		{"governing scope moved", func(m *domain.Module) {
+			m.SourceGovernance = []*basev0.WorkScopeV1{rsc("a.note", "read")}
+		}, []string{"source governance by a.note:read added"}},
 		{"selector asked", func(m *domain.Module) { m.InstallationRole = "viewer" }, []string{"installation role viewer asked"}},
 		{"selector left to the installer", func(m *domain.Module) { m.InstallationRole = "" }, []string{"installation role left to the installer"}},
 		{"method added", func(m *domain.Module) {
@@ -100,6 +109,7 @@ func TestWidensNamesEachClauseOfTheReviewedSurface(t *testing.T) {
 		{"edge dropped", func(m *domain.Module) { m.EdgeDependencies = m.EdgeDependencies[1:] }, nil},
 		{"edge made optional", func(m *domain.Module) { m.EdgeDependencies[0].Presence = decide.EdgeOptional }, nil},
 		{"selector to none from a role", func(m *domain.Module) { m.InstallationRole = domain.NoInstallationRole }, nil},
+		{"governing scope dropped", func(m *domain.Module) { m.SourceGovernance = nil }, nil},
 		{"method dropped", func(m *domain.Module) { delete(m.Methods, "/a.Notes/Put") }, nil},
 		{"method requires more", func(m *domain.Module) {
 			m.Methods["/a.Notes/Get"] = domain.MethodPolicy{Requires: []*basev0.WorkScopeV1{rsc("a.note", "read", "write")}}

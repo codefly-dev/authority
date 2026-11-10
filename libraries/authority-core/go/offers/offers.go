@@ -27,6 +27,10 @@ type Review struct {
 	ToolsComposed    bool
 	InstallationRole string
 	EdgeDependencies []domain.EdgeDependency
+	// SourceGovernance are the scopes whose holders on the installation govern
+	// the data sources tied to it (domain.Module.SourceGovernance): what an
+	// administrator approves alongside the roles.
+	SourceGovernance []*Scope
 	// RolesDeclared, Page and Closure are the core's (authority.ReviewedOffer).
 	RolesDeclared, Page    bool
 	Closure, OptionalEdges []string
@@ -81,7 +85,8 @@ func Project(offer authority.ReviewedOffer, bindings map[string]*runnablev0.Prep
 	a := offer.Approval
 	out := &Review{Target: m.Name, ToolsComposed: len(bindings) > 0,
 		InstallationRole: m.InstallationRole, EdgeDependencies: slices.Clone(m.EdgeDependencies),
-		RolesDeclared: offer.RolesDeclared, Page: offer.Page, Closure: slices.Clone(offer.Closure), OptionalEdges: slices.Clone(offer.OptionalEdges)}
+		SourceGovernance: offerScopes(m.SourceGovernance, false, nil),
+		RolesDeclared:    offer.RolesDeclared, Page: offer.Page, Closure: slices.Clone(offer.Closure), OptionalEdges: slices.Clone(offer.OptionalEdges)}
 	// A member's read carries no consent tuple: only an administrator consents.
 	if a.Digest != "" {
 		out.Approval = &domain.ConsentApproval{TargetID: a.TargetID, Generation: a.Generation, ExpectedRevision: a.ExpectedRevision, Digest: a.Digest, ReachDigest: a.ReachDigest}

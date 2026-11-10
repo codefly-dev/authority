@@ -35,6 +35,7 @@ type Store struct {
 	tombstones    map[string]domain.Tombstone
 	clients       map[string]domain.Client
 	approved      map[string]domain.Module // name\x00generation
+	views         map[string]domain.RoleView
 }
 
 // New is an empty store.
@@ -45,6 +46,7 @@ func New() *Store {
 		revisions: map[string]uint64{}, personEpochs: map[string]uint64{}, grantEpochs: map[string]uint64{},
 		ownerAware: map[string]uint64{}, delegations: map[string]domain.Delegation{}, tombstones: map[string]domain.Tombstone{},
 		clients: map[string]domain.Client{}, teams: map[string]map[string]bool{}, approved: map[string]domain.Module{},
+		views: map[string]domain.RoleView{},
 	}
 }
 
@@ -89,6 +91,7 @@ type state struct {
 	tombstones    map[string]domain.Tombstone
 	clients       map[string]domain.Client
 	approved      map[string]domain.Module
+	views         map[string]domain.RoleView
 }
 
 func (s *Store) snapshot() state {
@@ -99,7 +102,7 @@ func (s *Store) snapshot() state {
 	return state{modules: maps.Clone(s.modules), installations: maps.Clone(s.installations), grants: grants,
 		revisions: maps.Clone(s.revisions), personEpochs: maps.Clone(s.personEpochs), grantEpochs: maps.Clone(s.grantEpochs),
 		ownerAware: maps.Clone(s.ownerAware), delegations: maps.Clone(s.delegations), tombstones: maps.Clone(s.tombstones), clients: maps.Clone(s.clients),
-		approved: maps.Clone(s.approved)}
+		approved: maps.Clone(s.approved), views: maps.Clone(s.views)}
 }
 
 func (s *Store) restore(b state) {
@@ -108,6 +111,7 @@ func (s *Store) restore(b state) {
 	s.tombstones = b.tombstones
 	s.clients = b.clients
 	s.approved = b.approved
+	s.views = b.views
 }
 
 // PutOrganization, PutPerson, DeletePerson and PutOrgRole seed and change
@@ -474,6 +478,29 @@ func (t tx) PutClient(c domain.Client) error {
 	return nil
 }
 
+func (t tx) RoleView(session string) (domain.RoleView, error) {
+	v, ok := t.s.views[session]
+	if !ok {
+		return v, missing("role view of session", session)
+	}
+	return cloneView(v), nil
+}
+
+func (t tx) PutRoleView(v domain.RoleView) error {
+	t.mustWrite()
+	t.s.views[v.SessionID] = cloneView(v)
+	return nil
+}
+
+func cloneView(v domain.RoleView) domain.RoleView {
+	roles := make(map[string][]string, len(v.Roles))
+	for inst, r := range v.Roles {
+		roles[inst] = slices.Clone(r)
+	}
+	v.Roles = roles
+	return v
+}
+
 func clonePerson(p domain.Person) domain.Person {
 	p.Roles, p.Teams = slices.Clone(p.Roles), slices.Clone(p.Teams)
 	return p
@@ -493,6 +520,7 @@ func cloneScopes(in []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 {
 func cloneModule(m domain.Module) domain.Module {
 	m.EdgeDependencies = slices.Clone(m.EdgeDependencies)
 	m.ResourceKinds = cloneScopes(m.ResourceKinds)
+	m.SourceGovernance = cloneScopes(m.SourceGovernance)
 	bindings := make(map[string]domain.Binding, len(m.Bindings))
 	for id, b := range m.Bindings {
 		b.InvokeScopes, b.HeadlessScopes, b.LookupScopes = cloneScopes(b.InvokeScopes), cloneScopes(b.HeadlessScopes), cloneScopes(b.LookupScopes)

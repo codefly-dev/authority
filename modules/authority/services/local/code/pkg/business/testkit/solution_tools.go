@@ -29,7 +29,12 @@ func SolutionTools(t *testing.T, k *Kit) {
 	read := []*basev0.WorkScopeV1{Scope("proposals.item", "read")}
 	target := Proposals(1)
 	target.Methods = map[string]state.MethodPolicy{SolutionToolMethod: {Requires: read}}
-	actor := state.Manifest{Name: "robin", Principal: "robin", Kind: "module", Generation: 1, OwnerAware: true,
+	// The module checks owners, so the solution's role reaches it selected to
+	// the solution's principal; its conversations kind is shared here (a
+	// fixture choice, not robin's contract, where a conversation is its
+	// owner's), so both people use the module on their own session through
+	// their organization roles.
+	actor := state.Manifest{Name: "robin", Principal: "robin", Kind: "module", Generation: 1, OwnerAware: true, SharedKinds: []string{"robin.conversations"},
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("robin.conversations", "read")},
 		Bindings:      map[string]state.Binding{SolutionToolBinding: {ID: SolutionToolBinding, Audience: "proposals", InvokeScopes: read}},
 	}

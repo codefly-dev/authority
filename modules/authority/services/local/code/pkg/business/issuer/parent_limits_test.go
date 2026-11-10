@@ -38,8 +38,8 @@ func TestParentLimitsSurviveIntermediateAudiences(t *testing.T) {
 	k := testkit.New(t)
 	model := testkit.Model(2)
 	model.Bindings = map[string]state.Binding{
-		"documents": testkit.OrgDirectory(1).Bindings["documents"],
-		"self":      {ID: "self", Audience: "model", InvokeScopes: testkit.Documents(1).Bindings["model"].InvokeScopes},
+		"records": testkit.OrgDirectory(1).Bindings["records"],
+		"self":    {ID: "self", Audience: "model", InvokeScopes: testkit.Documents(1).Bindings["model"].InvokeScopes},
 	}
 	if _, err := k.State.ApplyManifest(model); err != nil {
 		t.Fatal(err)
@@ -53,14 +53,14 @@ func TestParentLimitsSurviveIntermediateAudiences(t *testing.T) {
 	}
 	parent := root
 	for range 3 {
-		intermediate, err := hopFrom(t, k, parent, "model", "documents", "documents")
+		intermediate, err := hopFrom(t, k, parent, "model", "records", "records")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := k.Issuer.ListResources(t.Context(), intermediate.Token, "documents", "modelservice.profiles", "read"); !errors.Is(err, issuer.ErrRefused) {
+		if _, err := k.Issuer.ListResources(t.Context(), intermediate.Token, "records", "modelservice.profiles", "read"); !errors.Is(err, issuer.ErrRefused) {
 			t.Fatalf("a carried cap authorizes another audience: %v", err)
 		}
-		returned, err := hopFrom(t, k, intermediate, "documents", "model", "model")
+		returned, err := hopFrom(t, k, intermediate, "records", "model", "model")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -72,7 +72,7 @@ func TestParentLimitsSurviveIntermediateAudiences(t *testing.T) {
 			testkit.Scope("modelservice.profiles", "invoke"),
 			{ResourceKind: "modelservice.profiles", Actions: []string{"read"}, ResourceIds: []string{"b"}},
 		} {
-			if _, err := hopFrom(t, k, intermediate, "documents", "model", "model", ask); !errors.Is(err, issuer.ErrRefused) {
+			if _, err := hopFrom(t, k, intermediate, "records", "model", "model", ask); !errors.Is(err, issuer.ErrRefused) {
 				t.Fatalf("widened parent: %v", err)
 			}
 		}
@@ -84,10 +84,12 @@ func TestExplicitlyDroppedKindNeverReturns(t *testing.T) {
 	for _, where := range []string{"root", "child"} {
 		t.Run(where, func(t *testing.T) {
 			k := testkit.New(t)
-			// Two kinds the same owner holds at the target. The named binding
-			// reaches both; an explicit ask deliberately retains only one.
+			// Two kinds the same owner holds at the target, both shared, so
+			// the owner's organization roles reach them (RBAC-4a). The named
+			// binding reaches both; an explicit ask deliberately retains only one.
 			model := testkit.Model(2)
 			model.ResourceKinds = append(model.ResourceKinds, testkit.Scope("documents", "read", "write"))
+			model.SharedKinds = append(model.SharedKinds, "documents")
 			model.Bindings = map[string]state.Binding{"self": {ID: "self", Audience: "model", InvokeScopes: model.ResourceKinds}}
 			if _, err := k.State.ApplyManifest(model); err != nil {
 				t.Fatal(err)
@@ -129,6 +131,7 @@ func TestDisjointTargetScopeStaysDeniedAfterLaterHops(t *testing.T) {
 			k := testkit.New(t)
 			model := testkit.Model(2)
 			model.ResourceKinds = append(model.ResourceKinds, testkit.Scope("documents", "read", "write"))
+			model.SharedKinds = append(model.SharedKinds, "documents")
 			disjoint := &base.WorkScopeV1{ResourceKind: "modelservice.profiles", Actions: []string{"read"}, ResourceIds: []string{"b"}}
 			if reason == "actions" {
 				disjoint.Actions, disjoint.ResourceIds = []string{"invoke"}, nil

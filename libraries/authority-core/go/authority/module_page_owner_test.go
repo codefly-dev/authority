@@ -185,19 +185,20 @@ func TestRBAC1AModulePageAttachesWhatItWroteBeforeItHeldAPrincipal(t *testing.T)
 	exactly(t, viewer, kind, mine, []string{"read"}, "store-x")
 }
 
-// ledger is a module that checks no owner, with a binding to itself: what a
-// module page's role reaches as it is (decide.ModuleRoleAt), for the tests of
-// a page's binding that are not about owners.
+// ledger is a module that checks no owner, with a binding to itself and one
+// to the legacy store: what a module page's role reaches as it is
+// (decide.ModuleRoleAt), and what an organization role reaches on a person's
+// own session, for the tests that are not about owners. The harness delivers
+// it.
 const ledgerKind = "ledger.entry"
 
-func applyLedger(t *testing.T, h *harness) {
-	t.Helper()
-	l := domain.Module{Name: "ledger", Principal: "ledger", Kind: domain.KindModule, Generation: 1,
+func ledger() domain.Module {
+	return domain.Module{Name: "ledger", Principal: "ledger", Kind: domain.KindModule, Generation: 1,
 		ResourceKinds: []*basev0.WorkScopeV1{sc(ledgerKind, "read", "write")},
-		Bindings:      map[string]domain.Binding{"self": {ID: "self", Audience: "ledger", InvokeScopes: []*basev0.WorkScopeV1{sc(ledgerKind, "read", "write")}}}}
-	if _, err := h.svc.ApplyModule(h.ctx, l); err != nil {
-		t.Fatal(err)
-	}
+		Bindings: map[string]domain.Binding{
+			"self":   {ID: "self", Audience: "ledger", InvokeScopes: []*basev0.WorkScopeV1{sc(ledgerKind, "read", "write")}, HeadlessScopes: []*basev0.WorkScopeV1{sc(ledgerKind, "read")}},
+			"legacy": {ID: "legacy", Audience: "legacy-store", InvokeScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}},
+		}}
 }
 
 // ledgerPage is a module page whose viewer reads the ledger and whose
@@ -205,7 +206,6 @@ func applyLedger(t *testing.T, h *harness) {
 // owner-aware store.
 func ledgerPage(t *testing.T, h *harness) {
 	t.Helper()
-	applyLedger(t, h)
 	m := pageModule(1, true)
 	m.Bindings = map[string]domain.Binding{
 		"ledger": {ID: "ledger", Audience: "ledger", InvokeScopes: []*basev0.WorkScopeV1{sc(ledgerKind, "read", "write")}},
@@ -292,4 +292,67 @@ func TestRBAC1ReconcilingGivesARecordedInstallationItsPrincipal(t *testing.T) {
 		t.Fatalf("reconciled %+v, was %+v", now, inst)
 	}
 	exactly(t, h.must(h.page("maya", "pages", "store")), kind, h.principal(acme, "pages"), []string{"read"})
+}
+
+// RBAC-1 (attachment): a module page whose role holds create on an
+// owner-aware store's kind attaches what its person creates there to the
+// page's installation, exactly as a solution's does: the store's first write
+// into a fresh resource is the installation's, and a viewer then reads it as
+// that installation's data. A role without create attaches nothing, and an
+// installation recorded without a principal owns nothing, so nothing attaches
+// through it.
+func TestRBAC1AModulePageAttachesWhatItCreatesToItsInstallation(t *testing.T) {
+	h := newHarness(t)
+	m := pageModule(1, true)
+	m.Bindings = map[string]domain.Binding{
+		"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write", "create")}},
+	}
+	m.Roles[domain.InstallerRole] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(kind, "read", "write", "create")}
+	m.Roles["viewer"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read")}
+	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
+		t.Fatal(err)
+	}
+	h.grant("pages", domain.InstallerRole, "ada")
+	h.grant("pages", "viewer", "maya")
+	mine := h.principal(acme, "pages")
+
+	owner, err := attach(h, h.must(h.page("ada", "pages", "store")).Token, "store-new")
+	if err != nil || owner != h.pagesAt(acme).ID {
+		t.Fatalf("a module page's create attached to %q (%v), want its installation %s", owner, err, h.pagesAt(acme).ID)
+	}
+	if got := h.pagesAt(acme).Owned[kind]; len(got) != 1 || got[0] != "store-new" {
+		t.Fatalf("the installation's attachments are %v", got)
+	}
+	exactly(t, h.must(h.page("maya", "pages", "store", owned(kind, mine, []string{"read"}, "store-new"))), kind, mine, []string{"read"}, "store-new")
+
+	_, err = attach(h, h.must(h.page("maya", "pages", "store")).Token, "store-viewer")
+	refused(t, err, "holds no create")
+
+	// The serving module never owns through itself, even once it declares
+	// roles (and so is role-gated) and its own installation holds a principal.
+	var store domain.Module
+	if err := h.store.Read(h.ctx, func(tx authority.Tx) (err error) { store, err = tx.ModuleNamed("store"); return err }); err != nil {
+		t.Fatal(err)
+	}
+	store.Generation++
+	store.Page, store.InstallationRole = true, domain.NoInstallationRole
+	store.Roles = map[string][]*basev0.WorkScopeV1{domain.InstallerRole: {sc(kind, "read")}, "viewer": {sc(kind, "read")}}
+	if _, err := h.svc.ApplyModule(h.ctx, store); err != nil {
+		t.Fatal(err)
+	}
+	owner, err = attach(h, h.must(h.page("ada", "pages", "store")).Token, "store-second")
+	if err != nil || owner != h.pagesAt(acme).ID {
+		t.Fatalf("with a role-gated serving module, the page's create attached to %q (%v), want %s", owner, err, h.pagesAt(acme).ID)
+	}
+
+	// A capability issued while the installation held its principal attaches
+	// nothing once the installation is recorded without one.
+	issued := h.must(h.page("ada", "pages", "store"))
+	inst := h.pagesAt(acme)
+	inst.PrincipalID = ""
+	if err := h.store.Write(h.ctx, func(tx authority.Tx) error { return tx.PutInstallation(inst) }); err != nil {
+		t.Fatal(err)
+	}
+	_, err = attach(h, issued.Token, "store-orphan")
+	refused(t, err, "issued through no installation")
 }

@@ -174,6 +174,7 @@ func Run(t *testing.T, open Open) {
 				"by principal":    second(tx.InstallationByPrincipal(uuid.NewString())),
 				"empty principal": second(tx.InstallationByPrincipal("")),
 				"delegation":      second(tx.Delegation(uuid.NewString())),
+				"role view":       second(tx.RoleView(uuid.NewString())),
 			} {
 				if !errors.Is(err, domain.ErrNotFound) {
 					t.Errorf("%s: %v", name, err)
@@ -479,6 +480,40 @@ func Run(t *testing.T, open Open) {
 		})
 	})
 
+	t.Run("a role view reads back as written, per session, and rolls back with its transaction", func(t *testing.T) {
+		v := domain.RoleView{SessionID: uuid.NewString(), Parent: uuid.NewString(), Person: f.onlyA, Organization: f.orgA,
+			Roles: map[string][]string{uuid.NewString(): {"editor", "viewer"}, uuid.NewString(): {"viewer"}}}
+		failure := errors.New("the decision refused")
+		if err := store.Write(ctx, func(tx authority.Tx) error { return errors.Join(tx.PutRoleView(v), failure) }); !errors.Is(err, failure) {
+			t.Fatalf("the transaction's own error is returned: %v", err)
+		}
+		read(t, func(tx authority.Tx) error {
+			if _, err := tx.RoleView(v.SessionID); !errors.Is(err, domain.ErrNotFound) {
+				t.Errorf("a view written in a failed transaction survived: %v", err)
+			}
+			return nil
+		})
+		write(t, func(tx authority.Tx) error { return tx.PutRoleView(v) })
+		read(t, func(tx authority.Tx) error {
+			got, err := tx.RoleView(v.SessionID)
+			if err != nil {
+				return err
+			}
+			if got.SessionID != v.SessionID || got.Parent != v.Parent || got.Person != v.Person || got.Organization != v.Organization || len(got.Roles) != len(v.Roles) {
+				t.Errorf("role view %+v, want %+v", got, v)
+			}
+			for inst, roles := range v.Roles {
+				if !slices.Equal(got.Roles[inst], roles) {
+					t.Errorf("view of %s is %v, want %v", inst, got.Roles[inst], roles)
+				}
+			}
+			if _, err := tx.RoleView(uuid.NewString()); !errors.Is(err, domain.ErrNotFound) {
+				t.Errorf("another session has a view: %v", err)
+			}
+			return nil
+		})
+	})
+
 	t.Run("a failed transaction leaves nothing behind", func(t *testing.T) {
 		// A solution: the core writes its installations whatever the host, where
 		// a module's may be the host's own records (Config.HostInstallsModules).
@@ -563,6 +598,10 @@ func (f *fixture) module(kind string) domain.Module {
 		m.Roles = map[string][]*basev0.WorkScopeV1{domain.InstallerRole: read, "viewer": append(slices.Clone(read), onward...)}
 		m.OwnedRoles = map[string][]*basev0.WorkScopeV1{"viewer": {{ResourceKind: "store.item", Actions: []string{"read"}}}}
 		m.Through = map[string]map[string][]*basev0.WorkScopeV1{"viewer": {"store": onward}}
+		// The installer's write on the solution's own, unshared page kind.
+		m.ResourceKinds = append(m.ResourceKinds, &basev0.WorkScopeV1{ResourceKind: "storetest.page", Actions: []string{"read", "write"}})
+		m.Roles[domain.InstallerRole] = append(slices.Clone(read), &basev0.WorkScopeV1{ResourceKind: "storetest.page", Actions: []string{"write"}})
+		m.SourceGovernance = []*basev0.WorkScopeV1{{ResourceKind: "storetest.page", Actions: []string{"write"}}}
 	}
 	m.SharedKinds = []string{"storetest.item"}
 	return m
@@ -601,6 +640,9 @@ func sameModule(t *testing.T, got, want domain.Module) {
 	// and delivery: a store that drops either issues owner-selected scopes a
 	// module cannot check, or reports no reach a delivery left unreached.
 	ok = ok && sameSet(got.SharedKinds, want.SharedKinds) && len(got.Through) == len(want.Through)
+	// The scopes that govern a solution's sources decide who manages them: a
+	// store that drops them leaves an approved declaration that governs none.
+	ok = ok && sameScopes(got.SourceGovernance, want.SourceGovernance)
 	for role, bindings := range want.Through {
 		ok = ok && len(got.Through[role]) == len(bindings)
 		for id, scopes := range bindings {

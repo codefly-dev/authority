@@ -39,7 +39,8 @@ type Issued struct {
 // page declaring roles, those of its roles granted them on its installation,
 // within what it serves; at any other module, their organization roles within
 // what it serves, resource-scoped roles holding the ids their matchers select
-// of named (decide.OrgScopes).
+// of named; at a module that checks owners only the kinds it declares shared
+// (decide.OrgScopes, RBAC-4a).
 func held(tx Tx, p domain.Person, audience domain.Module, named Scopes) (Scopes, error) {
 	if decide.RoleGated(audience) {
 		inst, err := installationOf(tx, p.Organization, audience.Name)
@@ -234,6 +235,7 @@ func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest
 	var audience domain.Module
 	var heldHere, scopes Scopes
 	var inst domain.Installation
+	var viewing string
 	err := s.store.Read(ctx, func(tx Tx) error {
 		var err error
 		if err = s.audienceOf(tx, &r, ""); err != nil {
@@ -242,10 +244,14 @@ func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest
 		if audience, err = tx.Module(r.Audience); err != nil {
 			return notFound(err)
 		}
-		p, err := tx.Member(who.Organization, who.ID)
+		p, err := personAs(tx, who)
+		if c, ok := domain.CodeOf(err); ok && c == domain.Denied {
+			return err
+		}
 		if err != nil || p.Organization != who.Organization {
 			return domain.Refuse("the session's person is no longer a member of %s", who.Organization)
 		}
+		viewing = viewNote(tx, p)
 		inst, err = installationOf(tx, p.Organization, audience.Name)
 		if err != nil || inst.Status != domain.Active {
 			return domain.NotNow("audience %q is not installed in this organization, so there is no installation to seal the capability to", audience.Principal)
@@ -282,12 +288,15 @@ func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest
 			heldHere = scope.Normalize(append(heldHere, through...))
 		}
 		if scopes, err = decide.Issue(r.Scopes, heldHere); err != nil {
+			if r.Binding == "" {
+				return decide.OwnSession(audience, r.Scopes, err)
+			}
 			return err
 		}
 		return decide.OwnerAware(audience, scopes)
 	})
 	if err != nil {
-		return Issued{}, err
+		return Issued{}, underView(viewing, err)
 	}
 	return s.startFenced(ctx, f, workcontext.StartInput{
 		TenantID: who.Organization, OrganizationID: who.Organization,
@@ -359,12 +368,32 @@ func (s *Service) IssueForWorkload(ctx context.Context, w Workload, r IssueReque
 		if through, err = decide.ScopesFor(binding, r.Operation, "headless"); err != nil {
 			return err
 		}
-		if scopes, err = decide.Issue(r.Scopes, through); err != nil {
-			return err
-		}
 		inst, err := installationOf(tx, org, module.Name)
 		if err != nil || inst.Status != domain.Active {
 			return domain.NotNow("%s is not installed at %s", module.Name, org)
+		}
+		// What a module defines or writes at a module that checks owners is
+		// born owned by its installation, the rule its page's roles already
+		// follow (decide.ModuleRoleAt): owner-selected, never the whole kind.
+		asked := r.Scopes
+		if len(through) > 0 {
+			held := len(through)
+			// An ask that names an owner keeps it, so another's data is refused, not rewritten.
+			var unowned, named Scopes
+			for _, sc := range asked {
+				if sc.GetResourceOwnerId() == "" {
+					unowned = append(unowned, sc)
+				} else {
+					named = append(named, sc)
+				}
+			}
+			asked = append(decide.ModuleRoleAt(module, inst, audience, unowned), named...)
+			if through = decide.ModuleRoleAt(module, inst, audience, through); len(through) == 0 {
+				return domain.Refuse("%s has no principal recorded for its installation %s, so its %d headless scopes at %s (which checks owners) would be born unowned; the host must record the installation's composed principal", module.Name, inst.ID, held, audience.Principal)
+			}
+		}
+		if scopes, err = decide.Issue(asked, through); err != nil {
+			return err
 		}
 		instID = inst.ID
 		// What the decision read: the installation's revision moves with
@@ -528,7 +557,7 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 	var through, scopes, authorityScopes Scopes
 	var claims *basev0.WorkContextV1
 	var verified *workcontext.Verified
-	var sealTo string
+	var sealTo, viewing string
 	err := s.store.Read(ctx, func(tx Tx) error {
 		var err error
 		if am, err = tx.ModuleNamed(actor.Module); err != nil {
@@ -583,10 +612,11 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 		bounded := false
 		switch claims.GetOwnerPrincipalKind() {
 		case "human":
-			p, err := tx.Member(tenant, claims.GetOwnerPrincipalId())
+			p, err := personOfClaims(tx, claims)
 			if err != nil {
 				return domain.Refuse("the owner %s is no longer a member", claims.GetOwnerPrincipalId())
 			}
+			viewing = viewNote(tx, p)
 			if heldHere, sourceCeiling, bounded, err = throughSolutions(tx, p, audience, solutionPrincipals(claims, am.Principal), namedBy(r.Scopes, claims)); err != nil {
 				return err
 			}
@@ -682,7 +712,7 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 		return err
 	})
 	if err != nil {
-		return Issued{}, err
+		return Issued{}, underView(viewing, err)
 	}
 	return s.derive(ctx, verified, am, audience, r, scopes, authorityScopes, sealTo, f)
 }

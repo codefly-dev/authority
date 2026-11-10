@@ -56,3 +56,20 @@ func TestInvalidExposedToolFailsProjection(t *testing.T) {
 		t.Fatalf("invalid tool refusal: %v", err)
 	}
 }
+
+// The scopes that govern a solution's sources are part of what an
+// administrator reviews, so the projection shows them.
+func TestProjectionShowsTheGoverningScopes(t *testing.T) {
+	offer := authority.ReviewedOffer{Module: domain.Module{Name: "solution",
+		SourceGovernance: []*basev0.WorkScopeV1{{ResourceKind: "solution.page", Actions: []string{"write"}}}}}
+	got, err := offers.Project(offer, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.SourceGovernance) != 1 || got.SourceGovernance[0].ResourceKind != "solution.page" || got.SourceGovernance[0].Actions[0] != "write" {
+		t.Fatalf("governing scopes projected as %+v", got.SourceGovernance)
+	}
+	if none, _ := offers.Project(authority.ReviewedOffer{Module: domain.Module{Name: "solution"}}, nil); none.SourceGovernance != nil {
+		t.Fatalf("a solution declaring none projects %+v", none.SourceGovernance)
+	}
+}
