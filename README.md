@@ -1278,11 +1278,12 @@ changes: the declaration rides on the manifest the host already verifies.
   no earlier digest moves) and `decide.Widens` lists a governing scope added
   or moved, so a redelivery that changes who governs waits for an
   administrator; `ApprovedDeclaration` answers the approved generation until
-  then. Governance is answered only for an installation someone installed as
-  a solution (an administrator's consent, or a host install naming its
-  installer): a legacy consent (an operation and no kept generation) and an
-  installation made by composition (no installer) approve no governing scope
-  until a review records one.
+  then. Governance is answered only where someone approved it: a consent at
+  a kept generation (an administrator's review, whoever made the
+  installation), or, with no consent, a host's own install of a solution
+  naming its installer. A legacy consent (an operation and no kept
+  generation) and an installation made by composition (no installer) approve
+  no governing scope until a review records one.
 - **What a host does with it:** read `ApprovedDeclaration` for the target
   installation, admit only a scope it names (`decide.Governs`), then ask the
   core whether it issues the person that scope there (`IssueForPerson`), never

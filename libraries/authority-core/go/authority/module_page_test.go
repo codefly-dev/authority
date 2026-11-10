@@ -352,4 +352,15 @@ func TestACompositionInstallationGovernsNoSourceAfterItsTargetBecomesASolution(t
 	if len(m.SourceGovernance) != 0 {
 		t.Fatalf("a composition installation governs by %v, which no administrator approved", m.SourceGovernance)
 	}
+	// An administrator's review of the promoted installation approves it.
+	if _, err := h.svc.Install(h.ctx, h.admin(acme), acme, "pages", "viewer", "remi", h.approval(acme, "pages"), nil); err != nil {
+		t.Fatal(err)
+	}
+	reviewed := h.pagesAt(acme)
+	if reviewed.Consent.OperationID == "" || reviewed.Consent.Generation != 2 {
+		t.Fatalf("the review recorded no consent at generation 2: %+v", reviewed.Consent)
+	}
+	if m, err = h.svc.ApprovedDeclaration(h.ctx, reviewed); err != nil || len(m.SourceGovernance) != 1 {
+		t.Fatalf("after its review the promoted installation governs by %v (%v)", m.SourceGovernance, err)
+	}
 }

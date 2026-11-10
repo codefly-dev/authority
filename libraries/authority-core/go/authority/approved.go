@@ -57,19 +57,19 @@ func approvedModule(tx Tx, inst domain.Installation, m domain.Module) (domain.Mo
 }
 
 // approvedGovernance reports whether inst's declaration may govern its
-// sources: only an installation someone installed as a solution — an
-// administrator's reviewed consent, or a host's own install naming its
-// installer — whose consent, if any, names the generation it approved. A
-// legacy consent (an operation and no kept generation) proves no approved
-// baseline, and an installation made by composition (no installer, no
-// principal of its own) was never approved at all, even after its target's
-// delivery becomes a solution: who manages its sources is never something no
-// administrator has seen. Each upgrades by its review like any other.
+// sources: only where someone approved it. A consent at a kept generation is
+// an administrator's review, whoever made the installation; with no consent,
+// only a host's own install of a solution, naming its installer and holding a
+// principal of its own, approved it. A legacy consent (an operation and no
+// kept generation) proves no approved baseline, and an installation made by
+// composition (no installer) was never approved at all, even after its
+// target's delivery becomes a solution — until an administrator reviews it:
+// who manages its sources is never something no administrator has seen.
 func approvedGovernance(inst domain.Installation) bool {
-	if inst.InstalledBy == "" || inst.PrincipalID == "" {
-		return false
+	if inst.Consent.OperationID != "" {
+		return inst.Consent.Generation != 0
 	}
-	return inst.Consent.OperationID == "" || inst.Consent.Generation != 0
+	return inst.InstalledBy != "" && inst.PrincipalID != ""
 }
 
 // approvedGeneration is approvedModule before governance is held to it.
