@@ -45,8 +45,18 @@ func (s *Service) ApprovedDeclaration(ctx context.Context, inst domain.Installat
 // administrator approved. A digest that differs only because the module's
 // encoding changed fails the same way, closed: the installation reads as an
 // upgrade, and its review records the digest anew.
+//
+// A consent recorded before the approved generation was kept (an operation
+// and no generation) proves no approved baseline, so it answers the composed
+// module without the scopes that govern its sources: who manages the
+// installation's sources is never something an administrator has not seen,
+// and the legacy consent upgrades by its review like any other.
 func approvedModule(tx Tx, inst domain.Installation, m domain.Module) (domain.Module, error) {
 	c := inst.Consent
+	if c.OperationID != "" && c.Generation == 0 && inst.Target == m.Name {
+		m.SourceGovernance = nil
+		return m, nil
+	}
 	if c.OperationID == "" || c.Generation == 0 || c.Generation >= m.Generation || inst.Target != m.Name {
 		return m, nil
 	}

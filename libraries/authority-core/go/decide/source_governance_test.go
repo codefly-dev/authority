@@ -13,7 +13,7 @@ import (
 // its editor role alone grants on its own page kind.
 func governedSolution() domain.Module {
 	return domain.Module{Name: "notes", Principal: "notes", Kind: domain.KindSolution, Generation: 1, OwnerAware: true,
-		ResourceKinds: []*basev0.WorkScopeV1{rsc("notes.page", "read", "write", "publish"), rsc("notes.profile", "read")},
+		ResourceKinds: []*basev0.WorkScopeV1{rsc("notes.page", "delete", "publish", "read", "write"), rsc("notes.profile", "read")},
 		SharedKinds:   []string{"notes.profile"},
 		Roles: map[string][]*basev0.WorkScopeV1{
 			domain.InstallerRole: {rsc("notes.page", "read", "publish")},
@@ -43,6 +43,7 @@ func TestAGoverningScopeIsAnOwnUnsharedKindARoleGrants(t *testing.T) {
 		{"an empty action", `notes.page:""`, rsc("notes.page", "")},
 		{"no action", "notes.page with no action", rsc("notes.page")},
 		{"an action no role grants", "notes.page:delete, which none of its roles grants", rsc("notes.page", "delete")},
+		{"an action its own ceiling does not name", "notes.page:archive, which its own ceiling does not name", rsc("notes.page", "archive")},
 		{"resource ids", "with resource ids or an owner", &basev0.WorkScopeV1{ResourceKind: "notes.page", Actions: []string{"write"}, ResourceIds: []string{"one"}}},
 		{"an owner", "with resource ids or an owner", &basev0.WorkScopeV1{ResourceKind: "notes.page", Actions: []string{"write"}, ResourceOwnerId: "someone"}},
 	} {
@@ -57,6 +58,35 @@ func TestAGoverningScopeIsAnOwnUnsharedKindARoleGrants(t *testing.T) {
 				t.Fatalf("want a denial, got %v", err)
 			}
 		})
+	}
+}
+
+// A module page's installations are composed and never approved, so a
+// governing scope it declared would take effect with no administrator having
+// seen it: only a solution governs sources.
+func TestOnlyASolutionGovernsSources(t *testing.T) {
+	page := governedSolution()
+	page.Kind, page.Page = domain.KindModule, true
+	err := decide.ValidateModule(page)
+	if err == nil || !strings.Contains(err.Error(), "only a solution, whose installations an administrator approves, governs sources") {
+		t.Fatalf("a module page declaring a governing scope: %v", err)
+	}
+	page.SourceGovernance = nil
+	if err := decide.ValidateModule(page); err != nil {
+		t.Fatalf("a module page declaring none: %v", err)
+	}
+}
+
+// A governing scope is held on the installation itself: one a role reaches
+// downstream of a binding is refused, even beside a direct grant of it.
+func TestAGoverningKindReachedThroughABindingIsRefused(t *testing.T) {
+	m := governedSolution()
+	m.Bindings = map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{rsc("store.item", "read")}}}
+	m.Through = map[string]map[string][]*basev0.WorkScopeV1{"viewer": {"store": {rsc("notes.page", "write")}}}
+	m.Roles["viewer"] = append(m.Roles["viewer"], rsc("notes.page", "write"))
+	err := decide.ValidateModule(m)
+	if err == nil || !strings.Contains(err.Error(), "which role viewer reaches through binding store") {
+		t.Fatalf("a governing kind reached through a binding: %v", err)
 	}
 }
 
