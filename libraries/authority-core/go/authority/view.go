@@ -129,6 +129,12 @@ func personFor(tx Tx, org, id, session string) (domain.Person, error) {
 		return domain.Person{}, domain.Refuse("session %s holds another person's role view", session)
 	}
 	p.View = v.Roles
+	// A view narrows everything above the roles it names. The organization roles
+	// are the person's own, not the viewed roles': an administrator who views as a
+	// viewer must hold what a viewer holds, so the administrator's reach (every
+	// kind and action of the organization, installation administration, granting
+	// a role) is cleared here, at the one reader of an acting person.
+	p.Roles = nil
 	return p, nil
 }
 

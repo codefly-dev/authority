@@ -377,3 +377,36 @@ func TestEveryActingPersonIsReadThroughTheirView(t *testing.T) {
 func (h *harness) hopOf(parent authority.Issued, module, binding string) (authority.Issued, error) {
 	return h.svc.IssueChild(h.ctx, parent.Token, authority.Workload{Module: module}, authority.IssueRequest{Binding: binding})
 }
+
+// A role view narrows EVERYTHING above the roles it names: an organization
+// administrator who views as a viewer holds no administrator reach, because a
+// real viewer has none. Before the view cleared the person's organization roles
+// the administrator kept every administration power inside it (installation
+// administration, granting a role to themselves), so a pass through the view
+// proved nothing about what a viewer sees.
+func TestARoleViewHoldsNoOrganizationRole(t *testing.T) {
+	h := newHarness(t)
+	h.grant("a", "viewer", "alex") // alex is an organization administrator who also holds viewer
+
+	// Outside the view the administrator administers.
+	if _, err := h.svc.Installations(h.ctx, h.person("alex"), acme); err != nil {
+		t.Fatalf("setup: the administrator cannot list installations: %v", err)
+	}
+
+	as, err := h.viewing("alex", "a", "viewer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Inside it they are a viewer: no administration of the organization...
+	if _, err := h.svc.Installations(h.ctx, as, acme); err == nil {
+		t.Fatal("an administrator viewing as a viewer still administers the organization's installations")
+	}
+	// ...and no granting themselves a role they did not choose to act as.
+	if _, err := h.svc.GrantRole(h.ctx, as, authority.RoleRequest{Organization: acme, InstallationID: h.inst(acme, "a").ID, Role: "author", PersonID: "alex"}); err == nil {
+		t.Fatal("an administrator viewing as a viewer granted themselves a role")
+	}
+	// The session the view was opened from still administers (the view is not a demotion).
+	if _, err := h.svc.Installations(h.ctx, h.person("alex"), acme); err != nil {
+		t.Fatalf("the session the view was opened from lost its administration: %v", err)
+	}
+}
