@@ -231,6 +231,9 @@ func (s *Service) startFencedUntil(ctx context.Context, f fence, in workcontext.
 // hold at the audience (a solution: their granted roles on its principal's
 // data); sealed to the audience's installation at their organization.
 func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest) (Issued, error) {
+	// The team this session is cast onto, if any: read inside the store read
+	// below, used for attribution after it.
+	var actingCast string
 	var f fence
 	var audience domain.Module
 	var heldHere, scopes Scopes
@@ -245,6 +248,7 @@ func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest
 			return notFound(err)
 		}
 		p, err := personAs(tx, who)
+		actingCast = p.Cast
 		if c, ok := domain.CodeOf(err); ok && c == domain.Denied {
 			return err
 		}
@@ -301,9 +305,21 @@ func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest
 	return s.startFenced(ctx, f, workcontext.StartInput{
 		TenantID: who.Organization, OrganizationID: who.Organization,
 		OwnerPrincipalID: who.ID, OwnerPrincipalKind: "human", TaskID: s.cfg.NewID(), SessionID: who.SessionID,
-		Audience: audience.Principal, AuthorityScopes: scope.Limits{}.Project(heldHere, scopes), AttributionTeamIDs: sortedTeams(who.Teams),
+		Audience: audience.Principal, AuthorityScopes: scope.Limits{}.Project(heldHere, scopes), AttributionTeamIDs: sortedTeams(attributionTeams(actingCast, who.Teams)),
 		InstallationID: inst.ID, TTL: clamp(r.TTL, s.cfg.MaxTTL),
 	})
+}
+
+// attributionTeams is the teams work is attributed to. In a cast it is the
+// cast team ALONE: the work is done as a member of that team and of nothing
+// else, so attributing it to every team the person happens to belong to would
+// record something that did not happen — and would leak, into whatever reads
+// attribution, the memberships the cast exists to set aside.
+func attributionTeams(cast string, teams []string) []string {
+	if cast != "" {
+		return []string{cast}
+	}
+	return teams
 }
 
 // IssueForWorkload: owner = actor = the module; scopes = its binding's

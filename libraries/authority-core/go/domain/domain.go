@@ -42,11 +42,15 @@ type Person struct {
 	// It answers "what does a member of this team actually see", so an
 	// administrator can be that and nothing more rather than proving nothing
 	// by passing as themselves. Set by the authority from the session's
-	// stored cast, never by a host or a caller, and it only narrows: the rule
-	// that admits it (OpenTeamCast) requires the team's scopes to be within
-	// what the person already holds, so a cast is never wider than the person.
-	// The person need not belong to the team: whether they may name it is the
-	// subset rule's answer, not a membership test.
+	// stored cast, never by a host or a caller. The rule that admits it
+	// (OpenTeamCast) is that the person could GRANT the team's roles, which
+	// is not the same as already holding them: an organisation administrator
+	// may grant a role at an owner-aware module whose data their own session
+	// reaches not at all, so a cast can hold what the person's own session
+	// computes as nothing there. That is deliberate — granting is the
+	// authority an administrator actually has — but it means a cast is not
+	// simply "a subset of the person", and this comment says so rather than
+	// implying otherwise. The person need not belong to the team.
 	Cast string
 }
 
