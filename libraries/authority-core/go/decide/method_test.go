@@ -143,3 +143,24 @@ func TestADeliveryNamesNoOwnerAndServesWhatItsMethodsRequire(t *testing.T) {
 		t.Fatalf("served %v", served)
 	}
 }
+
+// A declaration that says both things is refused however its requirement is
+// spelled: one naming no action still contradicts any_checked_caller, and the
+// admission never relies on a delivery having validated it first (a policy
+// also arrives from an approved reach and from a host's own store).
+func TestAContradictoryPolicyIsRefusedEvenWithAnEmptyRequirement(t *testing.T) {
+	for name, requires := range map[string][]*basev0.WorkScopeV1{
+		"a requirement with an action": {{ResourceKind: "doc", Actions: []string{"read"}}},
+		"a requirement with no action": {{ResourceKind: "doc"}},
+	} {
+		err := decide.AdmitPolicy("m", "/s.S/M", domain.MethodPolicy{AnyCheckedCaller: true, Requires: requires}, nil)
+		if err == nil || !strings.Contains(err.Error(), "both that it requires scopes and that it requires none") {
+			t.Errorf("%s beside any_checked_caller: %v, want it refused as contradictory", name, err)
+		}
+	}
+	// A kind is matched as declared, never re-split at a colon.
+	held := []*basev0.WorkScopeV1{{ResourceKind: "a:b", Actions: []string{"read"}}}
+	if err := decide.AdmitPolicy("m", "/s.S/M", domain.MethodPolicy{Requires: held}, held); err != nil {
+		t.Errorf("a kind containing a colon is not matched as declared: %v", err)
+	}
+}

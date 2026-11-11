@@ -4,7 +4,7 @@ go 1.27.3
 
 require (
 	github.com/codefly-dev/authority/libraries/delivery/go v0.0.0-20261026023425-000d44495d93
-	github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261111202333-17d052d9bdef
+	github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261111234045-1076f796c30f
 	github.com/codefly-dev/authority/libraries/resources/go v0.0.0-20261026023425-000d44495d93
 	github.com/codefly-dev/core v0.19.22
 	github.com/google/uuid v1.6.0
@@ -19,7 +19,6 @@ require (
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
-	github.com/codefly-dev/authority/libraries/authority-client/go v0.0.0-20261026232801-7b6569e1f285 // indirect
 	github.com/go-openapi/analysis v1.0.1 // indirect
 	github.com/go-openapi/errors v0.22.9 // indirect
 	github.com/go-openapi/jsonpointer v1.0.2 // indirect

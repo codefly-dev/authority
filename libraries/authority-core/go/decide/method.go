@@ -45,7 +45,10 @@ func AdmitMethod(m domain.Module, method string, held Scopes) error {
 func AdmitPolicy(audience, method string, p domain.MethodPolicy, held Scopes) error {
 	declared := Declared(p)
 	switch {
-	case declared.Validate() != nil:
+	// Decided on the entries as delivered, before they are flattened: a
+	// requirement naming no action is still a requirement declared beside
+	// any_checked_caller, and is refused here whatever validated it earlier.
+	case p.AnyCheckedCaller && len(p.Requires) > 0, declared.Validate() != nil:
 		return domain.Refuse("%s declares for %s both that it requires scopes and that it requires none", audience, method)
 	case !declared.Declares():
 		return domain.Refuse("%s declares no policy for %s", audience, method)
@@ -63,9 +66,7 @@ func AdmitPolicy(audience, method string, p domain.MethodPolicy, held Scopes) er
 func Declared(p domain.MethodPolicy) policy.Method {
 	m := policy.Method{AnyCheckedCaller: p.AnyCheckedCaller}
 	for _, r := range p.Requires {
-		for _, action := range r.GetActions() {
-			m.Requires = append(m.Requires, policy.Of(r.GetResourceKind(), action))
-		}
+		m.Requires = append(m.Requires, policy.Each(r.GetResourceKind(), r.GetActions())...)
 	}
 	return m
 }
