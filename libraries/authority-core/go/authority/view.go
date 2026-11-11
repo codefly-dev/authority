@@ -135,6 +135,11 @@ func personFor(tx Tx, org, id, session string) (domain.Person, error) {
 	// kind and action of the organization, installation administration, granting
 	// a role) is cleared here, at the one reader of an acting person.
 	p.Roles = nil
+	// A cast goes further: the session acts as a member of exactly one team,
+	// so the person's own teams and direct grants stop reaching anything
+	// (decide.HeldRoles). Their membership of the team is not required and
+	// not consulted — OpenTeamCast already decided they may be it.
+	p.Cast = v.Team
 	return p, nil
 }
 

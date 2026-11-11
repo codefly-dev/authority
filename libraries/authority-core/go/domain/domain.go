@@ -65,6 +65,13 @@ type RoleView struct {
 	// Roles are the roles viewed, per installation id. An installation absent
 	// from it is not narrowed.
 	Roles map[string][]string
+	// Team, when set, makes this record a CAST: the session acts as a member
+	// of that team and of nothing else, everywhere, rather than narrowing the
+	// roles held on one installation. A cast is the same record because it is
+	// the same thing — a session that only narrows — with a team as its unit
+	// instead of a role list. Roles may still be set beside it, and then
+	// narrows the cast further on the installations it names.
+	Team string
 }
 
 // OrgRole is a named set of scopes at one organization.
