@@ -20,6 +20,16 @@ const (
 	Unproven = "unproven" // read, and no declaration states what decides it
 )
 
+// The links of a traced call, in the order it travels them (Link.Name).
+const (
+	LinkRole       = "role"        // what the role names, or the module acting alone
+	LinkCeiling    = "ceiling"     // the caller's binding, and its own contract
+	LinkEnvelope   = "envelope"    // what the host's envelope allows of the binding
+	LinkPolicy     = "policy"      // the audience's policy for the method, as delivered
+	LinkPolicyCopy = "policy copy" // another written copy of that policy
+	LinkOwner      = "owner"       // the audience's own check of each resource's owner
+)
+
 // Link is one link of the chain a call travels: the Field of the declaration
 // that decided it, the Value held there, and, unless it is Admitted, the
 // Reason in the words of the decision that refused it.
@@ -93,14 +103,14 @@ func Trace(c Call) []Link {
 	var roleErr, ceilingErr error
 	held := b.HeadlessScopes
 	if c.Role == "" {
-		links = append(links, Link{Name: "role", Verdict: Admitted, Field: "bindings[" + c.Binding + "].headless", Value: "no person: " + acting})
+		links = append(links, Link{Name: LinkRole, Verdict: Admitted, Field: "bindings[" + c.Binding + "].headless", Value: "no person: " + acting})
 	} else {
 		role, ok := c.Caller.Roles[c.Role]
 		if !ok {
 			roleErr = domain.Missing("%s declares no role %q", c.Caller.Name, c.Role)
 		}
 		held = scope.Intersect(role, c.Audience.ResourceKinds)
-		stage("role", "roles["+c.Role+"].scopes", held, roleErr)
+		stage(LinkRole, "roles["+c.Role+"].scopes", held, roleErr)
 	}
 
 	switch {
@@ -115,16 +125,16 @@ func Trace(c Call) []Link {
 	if c.Role != "" {
 		carried = Through(held, b, operation, c.Audience)
 	}
-	stage("ceiling", "bindings["+c.Binding+"]."+operation, carried, ceilingErr)
+	stage(LinkCeiling, "bindings["+c.Binding+"]."+operation, carried, ceilingErr)
 
 	field := "principals[" + c.Caller.Principal + "].operation_audiences[" + c.Binding + "]." + operation + "_scopes"
 	switch {
 	case c.EnvelopeUnread != "":
-		links = append(links, Link{Name: "envelope", Verdict: Unread, Field: field,
+		links = append(links, Link{Name: LinkEnvelope, Verdict: Unread, Field: field,
 			Reason: c.EnvelopeUnread + "; the links below are judged on the binding as declared, before any envelope narrows it"})
 	case c.Envelope == nil:
 		carried = nil
-		stage("envelope", field, nil, domain.Refuse("the envelope allows %s no operation binding %q, so the host registers none and every call through it is refused", c.Caller.Principal, c.Binding))
+		stage(LinkEnvelope, field, nil, domain.Refuse("the envelope allows %s no operation binding %q, so the host registers none and every call through it is refused", c.Caller.Principal, c.Binding))
 	default:
 		granted, err := Granted(b, *c.Envelope)
 		if c.Role != "" {
@@ -136,18 +146,18 @@ func Trace(c Call) []Link {
 			err = domain.Refuse("the envelope withholds what binding %q asks for (%s): the host drops it without a record", c.Binding, strings.Join(withheld, ", "))
 			if decidable && AdmitPolicy(c.Audience.Principal, c.Method, policy, carried) == nil {
 				// Withheld, and not what this method needs: say it, refuse nothing.
-				links = append(links, Link{Name: "envelope", Verdict: Admitted, Field: field, Value: describe(carried), Reason: err.Error()})
+				links = append(links, Link{Name: LinkEnvelope, Verdict: Admitted, Field: field, Value: describe(carried), Reason: err.Error()})
 				break
 			}
 		}
-		stage("envelope", field, carried, err)
+		stage(LinkEnvelope, field, carried, err)
 	}
 
 	received := ModuleRoleAt(c.Caller, c.Installation, c.Audience, carried)
 	if c.Role == "" {
 		received, _ = HeadlessAt(c.Caller, c.Installation, c.Audience, carried)
 	}
-	delivered := Link{Name: "policy", Verdict: Admitted, Field: "methods[" + c.Method + "]", Value: policyText(policy, served)}
+	delivered := Link{Name: LinkPolicy, Verdict: Admitted, Field: "methods[" + c.Method + "]", Value: policyText(policy, served)}
 	if err := AdmitMethod(c.Audience, c.Method, received); err != nil {
 		delivered.Verdict, delivered.Reason = Refused, err.Error()
 	}
@@ -165,7 +175,7 @@ func Copies(applied domain.MethodPolicy, served bool, copies []Statement) []Link
 	want := policyText(applied, served)
 	links := make([]Link, 0, len(copies))
 	for _, s := range copies {
-		link := Link{Name: "policy copy", Verdict: Admitted, Field: s.Where, Value: policyText(s.Policy, s.Declared)}
+		link := Link{Name: LinkPolicyCopy, Verdict: Admitted, Field: s.Where, Value: policyText(s.Policy, s.Declared)}
 		switch {
 		case s.Unread != "":
 			link.Verdict, link.Value, link.Reason = Unread, "", s.Unread
@@ -183,7 +193,7 @@ func Copies(applied domain.MethodPolicy, served bool, copies []Statement) []Link
 // a scope selects. Declarations prove it only so far, and the link says how
 // far.
 func ownerLink(c Call, policy domain.MethodPolicy, decidable bool, received Scopes) Link {
-	link := Link{Name: "owner", Verdict: Admitted, Field: "owner_aware", Value: describe(received)}
+	link := Link{Name: LinkOwner, Verdict: Admitted, Field: "owner_aware", Value: describe(received)}
 	switch {
 	case !c.Audience.OwnerAware:
 		link.Value = c.Audience.Name + " checks no resource owner"
