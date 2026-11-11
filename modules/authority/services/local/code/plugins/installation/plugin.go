@@ -174,7 +174,7 @@ func (p *Plugin) ListHeld(ctx context.Context, req *installationv1.ListHeldReque
 		out.Installations = append(out.Installations, &installationv1.HeldInstallation{Installation: p.wire(ctx, h.Installation), Roles: h.Roles})
 	}
 	for _, c := range composed {
-		out.Composed = append(out.Composed, p.wire(ctx, c))
+		out.Composed = append(out.Composed, wireComposed(c))
 	}
 	return out, nil
 }
@@ -207,6 +207,17 @@ func wireInstallation(i state.Installation, roles []string, upgrade bool) *insta
 	return &installationv1.Installation{Id: i.ID, OrganizationId: i.Organization, Target: i.Target, Status: st, Revision: i.Revision,
 		Role: i.AgentRole, PrincipalId: i.PrincipalID, Namespace: state.Namespace(i), Roles: roles,
 		ApprovedGeneration: i.Consent.Generation, UpgradeAvailable: upgrade}
+}
+
+// wireComposed names a composed installation to ANY member of the
+// organization, so it carries only what naming one requires: which
+// installation, of what, and the source its authored agents belong to. It is
+// deliberately not `wire`: nobody holds a role on a composed installation, so
+// a member reading one has no claim on its principal, the generation its
+// consent sits at, or what its declared reach leaves unreached. Those answer
+// the administrator read (Installations), which is not this one.
+func wireComposed(i state.Installation) *installationv1.Installation {
+	return &installationv1.Installation{Id: i.ID, Target: i.Target, Namespace: state.Namespace(i)}
 }
 
 // New is the registry's constructor: the plugin over what Configure wired.

@@ -89,7 +89,13 @@ func (s *Service) ComposedInstallations(ctx context.Context, caller Person, org 
 			if inst.ID == "" || inst.Organization != org || inst.Status != domain.Active {
 				continue
 			}
-			if m, err := tx.ModuleNamed(inst.Target); err == nil && m.Kind != domain.KindSolution && !decide.RoleGated(m) {
+			m, err := tx.ModuleNamed(inst.Target)
+			if errors.Is(err, domain.ErrNotFound) {
+				continue
+			} else if err != nil {
+				return err
+			}
+			if m.Kind != domain.KindSolution && !decide.RoleGated(m) {
 				out = append(out, inst)
 			}
 		}
