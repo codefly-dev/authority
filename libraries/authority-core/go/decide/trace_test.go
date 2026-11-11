@@ -60,13 +60,13 @@ func TestTraceNamesTheFirstRefusingLinkAndKeepsWalking(t *testing.T) {
 			c := traced(reads)
 			c.Role, c.Binding, c.Envelope = "steward", "rows", allows("invoke", "define", "read")
 			return c
-		}, "role=refused ceiling=refused envelope=refused policy=refused owner=unproven", "role", "requires store.types:read"},
+		}, "role=refused ceiling=refused envelope=refused policy=refused owner=refused", "role", "requires store.types:read"},
 		{"the envelope grants define and no read, alone", func() decide.Call {
 			c := traced(reads)
 			c.Binding, c.Envelope = "types", allows("headless", "define")
 			c.Statements = []decide.Statement{{Where: "permissions_gen.go", Declared: true, Policy: open}}
 			return c
-		}, "role=admitted ceiling=admitted envelope=refused policy=refused policy copy=refused owner=unproven", "envelope", "headless store.types:read"},
+		}, "role=admitted ceiling=admitted envelope=refused policy=refused policy copy=refused owner=refused", "envelope", "headless store.types:read"},
 		{"an envelope withholding what this method does not need refuses nothing", func() decide.Call {
 			c := traced(reads)
 			c.Role, c.Binding, c.Envelope = "reader", "rows", allows("invoke", "read")
@@ -76,7 +76,7 @@ func TestTraceNamesTheFirstRefusingLinkAndKeepsWalking(t *testing.T) {
 			c := traced(reads)
 			c.Role, c.Binding = "reader", "rows"
 			return c
-		}, "role=admitted ceiling=admitted envelope=refused policy=refused owner=unproven", "envelope", "no operation binding"},
+		}, "role=admitted ceiling=admitted envelope=refused policy=refused owner=refused", "envelope", "no operation binding"},
 		{"an envelope that could not be read is never a pass", func() decide.Call {
 			c := traced(reads)
 			c.Role, c.Binding, c.EnvelopeUnread = "reader", "rows", "open module-envelope.yaml: no such file"

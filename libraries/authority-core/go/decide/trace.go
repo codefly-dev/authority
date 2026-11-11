@@ -152,18 +152,30 @@ func Trace(c Call) []Link {
 		delivered.Verdict, delivered.Reason = Refused, err.Error()
 	}
 	links = append(links, delivered)
-	for _, s := range c.Statements {
+	links = append(links, Copies(policy, served, c.Statements)...)
+	return append(links, ownerLink(c, policy, decidable, received))
+}
+
+// Copies holds every other written copy of a method's policy to applied, the
+// one a hop applies (served is false when it lists no such method): a copy
+// saying anything else is refused naming both values, and a copy that could
+// not be read is unread. Two copies of one fact agree or one of them is not
+// what decides the call; nothing here picks which.
+func Copies(applied domain.MethodPolicy, served bool, copies []Statement) []Link {
+	want := policyText(applied, served)
+	links := make([]Link, 0, len(copies))
+	for _, s := range copies {
 		link := Link{Name: "policy copy", Verdict: Admitted, Field: s.Where, Value: policyText(s.Policy, s.Declared)}
 		switch {
 		case s.Unread != "":
 			link.Verdict, link.Value, link.Reason = Unread, "", s.Unread
-		case link.Value != delivered.Value:
+		case link.Value != want:
 			link.Verdict = Refused
-			link.Reason = fmt.Sprintf("it says %s where the delivered policy says %s: one of the two is not what the hop applies", link.Value, delivered.Value)
+			link.Reason = fmt.Sprintf("it says %q and the policy it must equal says %q: one of the two is not what the hop applies", link.Value, want)
 		}
 		links = append(links, link)
 	}
-	return append(links, ownerLink(c, policy, decidable, received))
+	return links
 }
 
 // ownerLink answers the one check a method policy cannot state: an audience
@@ -182,18 +194,26 @@ func ownerLink(c Call, policy domain.MethodPolicy, decidable bool, received Scop
 		link.Reason = fmt.Sprintf("%s checks owners and declares %s open to any checked caller: its handler decides each resource, and no declaration states what it asks of the call", c.Audience.Name, c.Method)
 	default:
 		selected := slices.DeleteFunc(slices.Clone(received), func(sc *basev0.WorkScopeV1) bool { return sc.GetResourceOwnerId() == "" })
-		var unselected []string
+		var absent, unselected []string
 		for _, r := range policy.Requires {
 			for _, action := range r.GetActions() {
-				if !slices.Contains(c.Audience.SharedKinds, r.GetResourceKind()) && !scope.HoldsAction(selected, r.GetResourceKind(), action) {
-					unselected = append(unselected, r.GetResourceKind()+":"+action)
+				permission := r.GetResourceKind() + ":" + action
+				switch {
+				case !scope.HoldsAction(received, r.GetResourceKind(), action):
+					absent = append(absent, permission)
+				case !slices.Contains(c.Audience.SharedKinds, r.GetResourceKind()) && !scope.HoldsAction(selected, r.GetResourceKind(), action):
+					unselected = append(unselected, permission)
 				}
 			}
 		}
-		if len(unselected) > 0 {
+		switch {
+		case len(absent) > 0:
+			link.Verdict = Refused
+			link.Reason = fmt.Sprintf("the call arrives without %s, so %s's handler has no scope to check an owner against", strings.Join(absent, ", "), c.Audience.Name)
+		case len(unselected) > 0:
 			link.Verdict = Unproven
 			link.Reason = fmt.Sprintf("%s checks owners, and the call arrives holding %s selected to no installation's owner: what its handler lets such a scope reach is declared nowhere", c.Audience.Name, strings.Join(unselected, ", "))
-		} else {
+		default:
 			link.Reason = fmt.Sprintf("holds for what installation principal %s owns; a resource another owner holds is refused by %s's handler", c.Installation.PrincipalID, c.Audience.Name)
 		}
 	}
