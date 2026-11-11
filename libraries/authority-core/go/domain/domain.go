@@ -35,6 +35,23 @@ type Person struct {
 	// by the authority from the session's stored view, never by a host or a
 	// caller (authority.personFor), and only ever narrows.
 	View map[string][]string
+	// Cast is the team this session acts as a member of, and as nothing else.
+	// Empty is the person's own session. A cast holds exactly what is granted
+	// to that team: no direct grant of the person's, no other team of theirs,
+	// no organisation role and no platform role (Roles is emptied with it).
+	// It answers "what does a member of this team actually see", so an
+	// administrator can be that and nothing more rather than proving nothing
+	// by passing as themselves. Set by the authority from the session's
+	// stored cast, never by a host or a caller. The rule that admits it
+	// (OpenTeamCast) is that the person could GRANT the team's roles, which
+	// is not the same as already holding them: an organisation administrator
+	// may grant a role at an owner-aware module whose data their own session
+	// reaches not at all, so a cast can hold what the person's own session
+	// computes as nothing there. That is deliberate — granting is the
+	// authority an administrator actually has — but it means a cast is not
+	// simply "a subset of the person", and this comment says so rather than
+	// implying otherwise. The person need not belong to the team.
+	Cast string
 }
 
 // RoleView is a session's fixed role view: the roles a person chose to act
@@ -52,6 +69,15 @@ type RoleView struct {
 	// Roles are the roles viewed, per installation id. An installation absent
 	// from it is not narrowed.
 	Roles map[string][]string
+	// Team, when set, makes this record a CAST: the session acts as a member
+	// of that team and of nothing else, everywhere, rather than narrowing the
+	// roles held on one installation. A cast is the same record because it is
+	// the same thing — a session fixed to act as less than the person's own —
+	// with a team as its unit instead of a role list. (A cast is admitted by
+	// what the person could GRANT, so it is not strictly a subset of what
+	// they hold; see Person.Cast.) Roles may still be set beside it, and then
+	// narrows the cast further on the installations it names.
+	Team string
 }
 
 // OrgRole is a named set of scopes at one organization.
