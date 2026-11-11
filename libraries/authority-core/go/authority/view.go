@@ -69,7 +69,15 @@ func (s *Service) OpenRoleView(ctx context.Context, who Person, r RoleViewReques
 				return domain.Refuse("role %q is not one you act as on %s: %s", role, inst.Target, heldSentence(held))
 			}
 		}
-		view = domain.RoleView{SessionID: r.SessionID, Parent: who.SessionID, Person: p.ID, Organization: p.Organization, Roles: map[string][]string{}}
+		// A view opened FROM a cast stays in that cast. Without carrying the
+		// team the new session's Cast would be empty, and HeldRoles would go
+		// back to the person's own direct grants and every team they belong
+		// to — wider than the session it was opened from, which a view never
+		// is. It never exceeded the PERSON (the organisation role is cleared
+		// either way), but exceeding the CAST is exactly what the feature
+		// exists to prevent: "view as a viewer" would answer from reach a
+		// viewer does not have, and pass.
+		view = domain.RoleView{SessionID: r.SessionID, Parent: who.SessionID, Person: p.ID, Organization: p.Organization, Team: p.Cast, Roles: map[string][]string{}}
 		for id, roles := range p.View {
 			view.Roles[id] = slices.Clone(roles)
 		}
