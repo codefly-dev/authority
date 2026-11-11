@@ -32,6 +32,35 @@ calls it names (core's module contract, `calls`) includes it, so a caller that
 holds it can exercise it through that binding and one that does not is cut to
 what the calls require.
 
+## One evaluator, two points, and the probe
+
+`go/policy` is the declaration as Go and the one evaluator of it.
+`policy.Method.Unmet(holds)` lists what a call lacks; the authority's method
+admission calls it with `policy.OnAnyResource` (the call holds the permission
+on some resource), and a module behind the hop calls the same function with
+its own answer for the resource the call names (its claims, that resource's
+owner). Owner selection is that answer, not a second rule: a module names no
+permission of its own. `policy.Contract` reads the declarations from the
+published contract (`contract.binpb`), the artifact a delivery is read from,
+and `policy.Admit` decides them for a module's test hop, so no test hop keeps
+a copy of the decision or reads a generated table.
+
+The language states conjunctions only. A binding ceiling is derived from the
+calls a consumer names; a call with alternatives has no ceiling that is both
+sufficient (every alternative) and least (one of them), so a method whose
+handler admits "A or B" declares one of them and its handler decides that one.
+
+`go/policy/probe` makes the call. For every procedure of the published
+contract it holds exactly the declared policy and invokes the module's real
+handler: the call must succeed, and without any one required permission it
+must be `PermissionDenied`. A handler rule the declaration does not state, a
+refusal concealed as `NotFound`, a policy declared for a handler that does not
+exist, and a suite that reaches the handler around the hop each fail by
+method name. It takes no exception list. What it cannot see is a rule that is
+not about scopes (who the principal is, stored state, a request field): the
+module's case chooses a principal and a resource that satisfy those, and they
+stay the handler's, named in its refusals.
+
 ## Issuance and verification
 
 After the authority's live `Check` admits the method, the hop writes its identity
