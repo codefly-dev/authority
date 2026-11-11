@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
@@ -22,9 +23,13 @@ type IssueRequest struct {
 	Audience, Binding, Operation, Organization string
 	Scopes                                     Scopes
 	TTL                                        time.Duration
-	// page marks the hop IssueForPage takes for a page's call: its actor is
-	// the page's target, of kind decide.PageActor, the person present. Unset
-	// by every caller outside this package, so no module's hop is ever one.
+	// page marks the two steps IssueForPage takes for a page's call. On the
+	// hop, its actor is the page's target, of kind decide.PageActor, the person
+	// present. On the root that hop descends from, a person holding a role on
+	// the target is issued it even when the role names nothing the target
+	// itself serves, so the hop decides what the role reaches through the
+	// binding. Unset by every caller outside this package, so no module's hop
+	// is ever one and no person is handed such a root.
 	page bool
 }
 
@@ -42,33 +47,45 @@ type Issued struct {
 // of named; at a module that checks owners only the kinds it declares shared
 // (decide.OrgScopes, RBAC-4a).
 func held(tx Tx, p domain.Person, audience domain.Module, named Scopes) (Scopes, error) {
+	_, h, err := heldAs(tx, p, audience, named)
+	return h, err
+}
+
+// heldAs is held, and the roles it came from at an audience whose roles
+// decide (decide.RoleGated): the two are not one answer. A role may name only
+// kinds of the modules its target reaches through its bindings, so a person
+// holds it and yet holds nothing of what the target itself serves; reading
+// that as "holds no role" refuses the role's whole reach and names the wrong
+// reason.
+func heldAs(tx Tx, p domain.Person, audience domain.Module, named Scopes) ([]string, Scopes, error) {
 	if decide.RoleGated(audience) {
 		inst, err := installationOf(tx, p.Organization, audience.Name)
 		if errors.Is(err, domain.ErrNotFound) {
-			return nil, nil
+			return nil, nil, nil
 		}
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		grants, err := tx.RoleGrants(inst.ID)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		approved, err := approvedModule(tx, inst, audience)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		role, err := decide.RoleScopes(approved, inst, decide.HeldRoles(p, inst, grants))
+		names := decide.HeldRoles(p, inst, grants)
+		role, err := decide.RoleScopes(approved, inst, names)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		return scope.Intersect(role, audience.ResourceKinds), nil
+		return names, scope.Intersect(role, audience.ResourceKinds), nil
 	}
 	roles, err := orgRoles(tx, p)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return decide.OrgScopes(roles, audience, named), nil
+	return nil, decide.OrgScopes(roles, audience, named), nil
 }
 
 // solutionCeiling intersects the current roles of each solution the verified
@@ -263,14 +280,28 @@ func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest
 		if f, err = s.src.fenceIn(tx, p.Organization, p.ID, inst.ID); err != nil {
 			return err
 		}
-		if heldHere, err = held(tx, p, audience, r.Scopes); err != nil {
+		var roles []string
+		if roles, heldHere, err = heldAs(tx, p, audience, r.Scopes); err != nil {
 			return err
 		}
 		if audience.Kind == domain.KindSolution && !audience.OwnerAware {
 			return decide.OwnerAware(audience, decide.Scopes{{ResourceKind: audience.Name, ResourceOwnerId: inst.PrincipalID}})
 		}
 		if decide.RoleGated(audience) && len(heldHere) == 0 {
-			return domain.Refuse("%s holds no role on %s", p.ID, audience.Name)
+			if len(roles) == 0 {
+				return domain.Refuse("%s holds no role on %s", p.ID, audience.Name)
+			}
+			// A role held that names nothing audience itself serves: it
+			// reaches only through audience's bindings. The root of a page's
+			// call carries nothing and its hop decides; a binding named here
+			// is decided below; an ask at audience itself is refused for what
+			// it is, never as a role nobody granted.
+			if r.page {
+				return nil
+			}
+			if r.Binding == "" {
+				return domain.Refuse("%s holds %s on %s, which names nothing %s itself serves: it reaches only what %s's bindings carry", p.ID, strings.Join(roles, ", "), audience.Name, audience.Name, audience.Name)
+			}
 		}
 		if r.Binding != "" {
 			binding, declared := audience.Bindings[r.Binding]
