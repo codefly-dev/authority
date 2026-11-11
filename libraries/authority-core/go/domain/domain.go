@@ -35,6 +35,19 @@ type Person struct {
 	// by the authority from the session's stored view, never by a host or a
 	// caller (authority.personFor), and only ever narrows.
 	View map[string][]string
+	// Cast is the team this session acts as a member of, and as nothing else.
+	// Empty is the person's own session. A cast holds exactly what is granted
+	// to that team: no direct grant of the person's, no other team of theirs,
+	// no organisation role and no platform role (Roles is emptied with it).
+	// It answers "what does a member of this team actually see", so an
+	// administrator can be that and nothing more rather than proving nothing
+	// by passing as themselves. Set by the authority from the session's
+	// stored cast, never by a host or a caller, and it only narrows: the rule
+	// that admits it (OpenTeamCast) requires the team's scopes to be within
+	// what the person already holds, so a cast is never wider than the person.
+	// The person need not belong to the team: whether they may name it is the
+	// subset rule's answer, not a membership test.
+	Cast string
 }
 
 // RoleView is a session's fixed role view: the roles a person chose to act
