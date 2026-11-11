@@ -26,8 +26,8 @@ type TeamCastRequest struct {
 // their own reach answers everything; the same journey through a cast proves
 // the grant path, because the cast holds the team's grants and only those.
 //
-// THE ONE RULE: a person may cast onto any team whose grants are within what
-// they already hold. Membership is NOT the rule and is never consulted — that
+// THE ONE RULE: a person may cast onto any team whose roles they could GRANT.
+// That is NOT the same as already holding them. Membership is NOT the rule and is never consulted — that
 // is deliberate, and it is what lets a platform administrator be a team they
 // do not belong to. The three familiar cases fall out of the one rule rather
 // than being tiers in it: an ordinary person holds the grants of their own
@@ -37,8 +37,13 @@ type TeamCastRequest struct {
 // anywhere is. Deciding by role name instead would be a decision by tier,
 // the pattern being removed, and would drift the moment a role's reach moves.
 //
-// A cast is never wider than the person, by construction of that rule, so it
-// only narrows. It composes with a role view, which may narrow it further.
+// A cast is therefore not simply "a subset of the person". An organisation
+// administrator may grant a role at an owner-aware module whose data their own
+// session reaches not at all, so a cast can hold what their own session
+// computes as nothing there. That is deliberate: granting is the authority an
+// administrator actually has, and it is what makes "be this team and see what
+// it sees" answer honestly. It composes with a role view, which narrows it
+// further; the order never widens.
 func (s *Service) OpenTeamCast(ctx context.Context, who Person, r TeamCastRequest) (domain.RoleView, error) {
 	var cast domain.RoleView
 	err := s.store.Write(ctx, func(tx Tx) error {
@@ -68,7 +73,7 @@ func (s *Service) OpenTeamCast(ctx context.Context, who Person, r TeamCastReques
 			return domain.Missing("team %q holds no role on anything installed at organization %q, so there is nothing to act as", r.Team, r.Organization)
 		}
 		if !within {
-			return domain.Refuse("team %q is granted more than you hold, so acting as it would widen you, which a cast never does", r.Team)
+			return domain.Refuse("team %q holds roles you could not grant, so you may not act as it", r.Team)
 		}
 		cast = domain.RoleView{SessionID: r.SessionID, Parent: who.SessionID, Person: p.ID, Organization: p.Organization, Team: r.Team, Roles: map[string][]string{}}
 		for id, roles := range p.View {

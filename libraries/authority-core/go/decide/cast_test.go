@@ -34,7 +34,7 @@ func TestACastHoldsTheTeamsGrantsAndNothingElse(t *testing.T) {
 
 	// A cast onto a team the person does NOT belong to still holds exactly
 	// that team's grants: membership is not what a cast reads. Whether the
-	// person may name it is the subset rule's answer, decided when the cast
+	// person may name it is the grant rule's answer, decided when the cast
 	// is opened, not here.
 	stranger := domain.Person{ID: "p2", Teams: nil, Cast: "wiki-editor"}
 	if got := HeldRoles(stranger, inst, grants); !slices.Equal(got, []string{"editor"}) {

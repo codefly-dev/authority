@@ -72,8 +72,10 @@ type RoleView struct {
 	// Team, when set, makes this record a CAST: the session acts as a member
 	// of that team and of nothing else, everywhere, rather than narrowing the
 	// roles held on one installation. A cast is the same record because it is
-	// the same thing — a session that only narrows — with a team as its unit
-	// instead of a role list. Roles may still be set beside it, and then
+	// the same thing — a session fixed to act as less than the person's own —
+	// with a team as its unit instead of a role list. (A cast is admitted by
+	// what the person could GRANT, so it is not strictly a subset of what
+	// they hold; see Person.Cast.) Roles may still be set beside it, and then
 	// narrows the cast further on the installations it names.
 	Team string
 }

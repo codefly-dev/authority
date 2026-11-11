@@ -88,8 +88,8 @@ func TestAPersonWhoCannotGrantCannotActAsTheTeam(t *testing.T) {
 	if err == nil {
 		t.Fatal("an ordinary person must not be able to act as a team they neither hold nor may grant")
 	}
-	if !strings.Contains(err.Error(), "widen") {
-		t.Errorf("the refusal must say it would widen them, got: %v", err)
+	if !strings.Contains(err.Error(), "could not grant") {
+		t.Errorf("the refusal must say they could not grant those roles, got: %v", err)
 	}
 }
 

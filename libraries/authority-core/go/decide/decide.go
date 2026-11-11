@@ -155,7 +155,7 @@ func HeldRoles(p domain.Person, inst domain.Installation, grants []domain.RoleGr
 		if p.Cast != "" {
 			// Cast onto a team: this session holds what that team is granted
 			// and nothing else — not the person's direct grants, not their
-			// other teams. Membership is not consulted; the subset rule that
+			// other teams. Membership is not consulted; the grant rule that
 			// admitted the cast already decided the person may be this.
 			if g.TeamID == p.Cast {
 				roles = append(roles, g.Role)
