@@ -45,7 +45,7 @@ func (s *Service) IssueForPage(ctx context.Context, who Person, target string, r
 		r.Binding = ""
 		return s.IssueForPerson(ctx, who, r)
 	}
-	root, err := s.IssueForPerson(ctx, who, IssueRequest{Audience: page.Principal, Organization: r.Organization, TTL: r.TTL})
+	root, err := s.IssueForPerson(ctx, who, IssueRequest{Audience: page.Principal, Organization: r.Organization, TTL: r.TTL, page: true})
 	if err != nil {
 		return Issued{}, err
 	}
