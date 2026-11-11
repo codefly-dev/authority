@@ -23,17 +23,25 @@ import (
 // AnyAction is the action a fixture grant holds every action with.
 const AnyAction = "*"
 
-// Permission is one action on one resource kind, "kind:action".
-type Permission string
+// Permission is one action on one resource kind. Kind and action are carried
+// apart, never joined and re-split: a kind is matched as it was declared.
+type Permission struct{ Kind, Action string }
 
 // Of is the permission for action on kind.
-func Of(kind, action string) Permission { return Permission(kind + ":" + action) }
+func Of(kind, action string) Permission { return Permission{Kind: kind, Action: action} }
 
-// Kind is the permission's resource kind; kinds never contain a colon.
-func (p Permission) Kind() string { k, _, _ := strings.Cut(string(p), ":"); return k }
+// String is "kind:action", for a refusal or a finding.
+func (p Permission) String() string { return p.Kind + ":" + p.Action }
 
-// Action is the permission's action.
-func (p Permission) Action() string { _, a, _ := strings.Cut(string(p), ":"); return a }
+// Each is each action on kind as a permission: the one flattening of a
+// requirement, for a declaration read from a proto option or from a delivery.
+func Each(kind string, actions []string) []Permission {
+	out := make([]Permission, 0, len(actions))
+	for _, action := range actions {
+		out = append(out, Of(kind, action))
+	}
+	return out
+}
 
 // Method is one method's declaration: every permission of Requires, or
 // AnyCheckedCaller and nothing. It states conjunctions only, on purpose: a
@@ -55,9 +63,7 @@ func FromProto(p *hopv1.Policy) Method {
 func each(requirements []*hopv1.Requirement) []Permission {
 	var out []Permission
 	for _, r := range requirements {
-		for _, action := range r.GetActions() {
-			out = append(out, Of(r.GetResourceKind(), action))
-		}
+		out = append(out, Each(r.GetResourceKind(), r.GetActions())...)
 	}
 	return out
 }
@@ -81,8 +87,8 @@ func (m Method) Validate() error {
 func (m Method) Unmet(holds func(kind, action string) bool) []string {
 	var unmet []string
 	for _, p := range m.Requires {
-		if !holds(p.Kind(), p.Action()) {
-			unmet = append(unmet, string(p))
+		if !holds(p.Kind, p.Action) && !slices.Contains(unmet, p.String()) {
+			unmet = append(unmet, p.String())
 		}
 	}
 	return unmet
@@ -92,7 +98,7 @@ func (m Method) Unmet(holds func(kind, action string) bool) []string {
 // names the call may carry at most.
 func (m Method) Ceiling() []Permission {
 	all := slices.Concat(m.Requires, m.Carries)
-	slices.Sort(all)
+	slices.SortFunc(all, func(a, b Permission) int { return strings.Compare(a.String(), b.String()) })
 	return slices.Compact(all)
 }
 

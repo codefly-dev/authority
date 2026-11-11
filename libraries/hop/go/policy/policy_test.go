@@ -80,11 +80,11 @@ func TestADerivedCeilingIsWhatTheCallsDeclare(t *testing.T) {
 	define := policy.FromProto(requires("records.types", "define"))
 	open := policy.FromProto(&hopv1.Policy{AnyCheckedCaller: true})
 	read := policy.FromProto(requires("records.types", "read"))
-	if got := slices.Concat(define.Ceiling(), open.Ceiling()); !slices.Equal(got, []policy.Permission{"records.types:define"}) {
+	if got := slices.Concat(define.Ceiling(), open.Ceiling()); !slices.Equal(got, []policy.Permission{policy.Of("records.types", "define")}) {
 		t.Fatalf("with the read declared open the ceiling is %q", got)
 	}
 	ceiling := slices.Concat(define.Ceiling(), read.Ceiling())
-	if !slices.Equal(ceiling, []policy.Permission{"records.types:define", "records.types:read"}) {
+	if !slices.Equal(ceiling, []policy.Permission{policy.Of("records.types", "define"), policy.Of("records.types", "read")}) {
 		t.Fatalf("derived ceiling %q", ceiling)
 	}
 	held := []*basev0.WorkScopeV1{scope("records.types", "a", "define", "read")}
@@ -139,7 +139,7 @@ func TestAContractIsReadAndDecided(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := declared["/p.S/Write"].Requires; !slices.Equal(got, []policy.Permission{"doc:read", "doc:write"}) {
+	if got := declared["/p.S/Write"].Requires; !slices.Equal(got, []policy.Permission{policy.Of("doc", "read"), policy.Of("doc", "write")}) {
 		t.Fatalf("/p.S/Write requires %q", got)
 	}
 	reader := []*basev0.WorkScopeV1{scope("doc", "a", "read")}
