@@ -139,7 +139,7 @@ func reach(target domain.Module, literal, owned Scopes, modules map[string]domai
 		path := append(slices.Clone(from), next.Name)
 		for _, operation := range []string{"invoke", "lookup"} {
 			through, _ := ScopesFor(b, operation, "")
-			carried := limits.Constrain(scope.Intersect(scope.Intersect(held, next.ResourceKinds), through))
+			carried := limits.Constrain(Through(held, b, operation, next))
 			if len(carried) == 0 {
 				continue
 			}
@@ -201,6 +201,15 @@ func reach(target domain.Module, literal, owned Scopes, modules map[string]domai
 		out = append(out, row)
 	}
 	return out
+}
+
+// Through is what a capability holding held carries at next over one
+// operation of binding b, before the chain's limits: held within what next
+// serves, cut to what the binding may do for that operation. An operation
+// the binding does not have carries nothing.
+func Through(held Scopes, b domain.Binding, operation string, next domain.Module) Scopes {
+	through, _ := ScopesFor(b, operation, "")
+	return scope.Intersect(scope.Intersect(held, next.ResourceKinds), through)
 }
 
 // moduleNamed is the module of modules (by principal) named name.
