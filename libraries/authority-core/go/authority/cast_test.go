@@ -23,14 +23,17 @@ func (h *harness) casting(person, team string) (authority.Person, error) {
 // permission and can assume any team membership to test, without their user
 // being in that team. "alex" administers acme and belongs to no team here.
 func TestAnAdministratorCastsOntoATeamTheyDoNotBelongTo(t *testing.T) {
-	t.Skip("the subset rule reads HeldRoles, which answers ROLE GRANTS only, so an " +
-		"organisation administrator's baseline — every kind and action in their " +
-		"organisation — is invisible to it and their cast is refused. This is the " +
-		"open item the design note names as the first thing to prove. The fix is " +
-		"to compare the team's scopes (decide.RoleScopes) against the person's " +
-		"baseline INCLUDING decide.OrgScopes, with scope.Attenuates, rather than " +
-		"asking HeldRoles. Unskip when that lands; the assertions below are the " +
-		"requirement and are correct as written.")
+	t.Skip("MEASURED, not guessed: teamIsWithin's organisation arm computes 0 scopes " +
+		"for this module while the team's roles give 3, so the administrator is " +
+		"refused. Two causes, both real: OrgScopes is called with no named " +
+		"resources (the issue path passes the caller's, which decide the ids a row " +
+		"covers), and OrgScopes deliberately skips a kind an owner-aware module " +
+		"does not share — an organisation role reaches none of its owned data, " +
+		"which is the owner-aware rule working as intended. So a scope comparison " +
+		"alone cannot admit this cast on an owner-aware module; the baseline needs " +
+		"the platform/organisation reach expressed in a way owner-awareness does " +
+		"not erase. That is the open question to settle in the design note before " +
+		"more code. The assertions below are the requirement and are correct.")
 	h := newHarness(t)
 	h.grantTeam("a", "viewer", "team")
 
@@ -71,7 +74,7 @@ func TestACastIsNeverRecast(t *testing.T) {
 
 	cast, err := h.casting("alex", "team")
 	if err != nil {
-		t.Skipf("blocked by the same open item as the administrator case: %v", err)
+		t.Skipf("blocked by the same measured gap as the administrator case: %v", err)
 	}
 	_, err = h.svc.OpenTeamCast(h.ctx, cast, authority.TeamCastRequest{
 		Organization: cast.Organization, Team: "team", SessionID: "another-session"})
