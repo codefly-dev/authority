@@ -7,7 +7,6 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
 )
 
 // TeamCastRequest asks to fix a new session to act as a member of one team,
@@ -61,7 +60,7 @@ func (s *Service) OpenTeamCast(ctx context.Context, who Person, r TeamCastReques
 		} else if !errors.Is(err, domain.ErrNotFound) {
 			return err
 		}
-		within, reaches, err := teamIsWithin(tx, p, r.Organization, r.Team)
+		within, reaches, err := teamIsWithin(tx, who, p, r.Organization, r.Team)
 		if err != nil {
 			return err
 		}
@@ -84,31 +83,34 @@ func (s *Service) OpenTeamCast(ctx context.Context, who Person, r TeamCastReques
 	return cast, err
 }
 
-// teamIsWithin answers whether every role the team is granted, on every
-// installation of the organization, is within what the person already holds —
-// and whether the team is granted anything at all.
+// teamIsWithin answers whether the person may act as this team — and whether
+// the team is granted anything at all.
 //
-// Two ways a person covers a team's roles on an installation:
+// THE RULE: you may act as a team whose roles you could GRANT.
 //
-//  1. They act as those roles there themselves (decide.HeldRoles). This is an
-//     ordinary member covering their own team.
-//  2. The scopes those roles give are within the person's ORGANISATION
-//     baseline (decide.OrgScopes through scope.Attenuates). This is what an
-//     organisation administrator covers: every kind and action of their
-//     organisation, which is not a role grant and so is invisible to
-//     HeldRoles. Without this arm an administrator could not act as a team
-//     they are not in, which is the whole requirement.
+// `decideRoleChange` is the authority's own answer to "may this caller grant
+// this role on this installation", already a predicate in the core, reachable
+// without performing a grant. Asking it is asking the same question the rest
+// of the authority asks, so casting cannot drift from granting: when who may
+// grant a role changes, who may act as it follows.
 //
-// The second arm is a comparison of SCOPES, never of role names. "Platform
-// administrator may cast onto anything" would be a decision by tier: cheaper,
-// but it drifts the moment a role's reach changes and it would let a tier act
-// as a team its holder does not actually cover.
-func teamIsWithin(tx Tx, p domain.Person, org, team string) (within, reaches bool, err error) {
+// The three familiar cases fall out of the one rule rather than being tiers
+// in it: an ordinary member may grant nothing, so they cast only onto teams
+// they belong to (the membership arm below); an organisation administrator
+// may grant anything in their organisation, so any team of it; a platform
+// administrator may grant anywhere, so any team anywhere.
+//
+// WHY NOT A SCOPE COMPARISON. It was built and measured first. On an
+// installation where the team's roles gave 3 scopes, the person's
+// organisation baseline computed 0 — because decide.OrgScopes deliberately
+// skips any kind an owner-aware module does not share. An organisation role
+// reaches none of a module's owned data; that is the owner-aware rule
+// working, not a defect. So no baseline expressed in scopes can cover a
+// team's roles at an owner-aware module, and forcing one would admit a cast
+// that then holds nothing. Granting is the capability an administrator
+// actually has, and owner-awareness does not erase it.
+func teamIsWithin(tx Tx, caller Person, p domain.Person, org, team string) (within, reaches bool, err error) {
 	installs, err := tx.Installations(org)
-	if err != nil {
-		return false, false, err
-	}
-	baseline, err := orgRoles(tx, p)
 	if err != nil {
 		return false, false, err
 	}
@@ -132,7 +134,7 @@ func teamIsWithin(tx Tx, p domain.Person, org, team string) (within, reaches boo
 		}
 		reaches = true
 
-		// (1) covered by what the person acts as there themselves.
+		// Already acts as them here: an ordinary member of the team.
 		held := decide.HeldRoles(p, inst, grants)
 		covered := true
 		for _, role := range teamRoles {
@@ -144,32 +146,17 @@ func teamIsWithin(tx Tx, p domain.Person, org, team string) (within, reaches boo
 			continue
 		}
 
-		// (2) covered by the person's organisation baseline.
-		m, err := tx.ModuleNamed(inst.Target)
-		if errors.Is(err, domain.ErrNotFound) {
-			within = false
-			continue
-		} else if err != nil {
-			return false, false, err
-		}
-		approved, err := approvedModule(tx, inst, m)
-		if err != nil {
-			return false, false, err
-		}
-		teamScopes, err := decide.RoleScopes(approved, inst, teamRoles)
-		if err != nil {
-			return false, false, err
-		}
-		// KNOWN GAP, measured: this yields NO scopes for an owner-aware
-		// module, so an administrator is refused here. Two reasons, both real:
-		// `named` is nil (the issue path passes the caller's named resources,
-		// which decide the ids a row covers), and OrgScopes deliberately skips
-		// a kind an owner-aware module does not share — an organisation role
-		// reaches none of its owned data, which is the owner-aware rule
-		// working, not a bug to patch here.
-		base := decide.OrgScopes(baseline, approved, nil)
-		if !scope.Attenuates(teamScopes, base) {
-			within = false
+		// Otherwise: could they grant them here?
+		for _, role := range teamRoles {
+			c := caller
+			if _, err := decideRoleChange(tx, &c, RoleRequest{
+				Organization: org, InstallationID: inst.ID, Role: role, TeamID: team,
+			}, false, false); err != nil {
+				if errors.Is(err, domain.ErrNotFound) {
+					return false, false, err
+				}
+				within = false
+			}
 		}
 	}
 	return within, reaches, nil

@@ -23,17 +23,6 @@ func (h *harness) casting(person, team string) (authority.Person, error) {
 // permission and can assume any team membership to test, without their user
 // being in that team. "alex" administers acme and belongs to no team here.
 func TestAnAdministratorCastsOntoATeamTheyDoNotBelongTo(t *testing.T) {
-	t.Skip("MEASURED, not guessed: teamIsWithin's organisation arm computes 0 scopes " +
-		"for this module while the team's roles give 3, so the administrator is " +
-		"refused. Two causes, both real: OrgScopes is called with no named " +
-		"resources (the issue path passes the caller's, which decide the ids a row " +
-		"covers), and OrgScopes deliberately skips a kind an owner-aware module " +
-		"does not share — an organisation role reaches none of its owned data, " +
-		"which is the owner-aware rule working as intended. So a scope comparison " +
-		"alone cannot admit this cast on an owner-aware module; the baseline needs " +
-		"the platform/organisation reach expressed in a way owner-awareness does " +
-		"not erase. That is the open question to settle in the design note before " +
-		"more code. The assertions below are the requirement and are correct.")
 	h := newHarness(t)
 	h.grantTeam("a", "viewer", "team")
 
@@ -74,7 +63,7 @@ func TestACastIsNeverRecast(t *testing.T) {
 
 	cast, err := h.casting("alex", "team")
 	if err != nil {
-		t.Skipf("blocked by the same measured gap as the administrator case: %v", err)
+		t.Fatalf("first cast: %v", err)
 	}
 	_, err = h.svc.OpenTeamCast(h.ctx, cast, authority.TeamCastRequest{
 		Organization: cast.Organization, Team: "team", SessionID: "another-session"})
@@ -83,5 +72,23 @@ func TestACastIsNeverRecast(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "already cast") {
 		t.Errorf("the refusal must name the existing cast, got: %v", err)
+	}
+}
+
+// The rule must still REFUSE: a person who may neither act as the team's
+// roles nor grant them cannot act as it. Without this the cast is a
+// privilege escalation — anyone could be any team.
+func TestAPersonWhoCannotGrantCannotActAsTheTeam(t *testing.T) {
+	h := newHarness(t)
+	h.grantTeam("a", "editor", "team")
+
+	// "maya" is an ordinary member of acme: not an administrator, not in the
+	// team, and so may neither act as editor there nor grant it.
+	_, err := h.casting("maya", "team")
+	if err == nil {
+		t.Fatal("an ordinary person must not be able to act as a team they neither hold nor may grant")
+	}
+	if !strings.Contains(err.Error(), "widen") {
+		t.Errorf("the refusal must say it would widen them, got: %v", err)
 	}
 }
