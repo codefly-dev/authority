@@ -85,3 +85,17 @@ func TestARoleReachingOnlyThroughABindingHoldsNothingAtThePageItself(t *testing.
 	h.grantTeam("pages", "viewer", "team")
 	exactly(t, h.must(h.svc.IssueForPerson(h.ctx, h.person("tam"), authority.IssueRequest{Audience: "pages"})), "pages.note", "", []string{"read"})
 }
+
+// An administrator cast onto that team holds what the team holds: the cast
+// reads the team's grants through the same rule, so it was refused the same
+// way, and is issued the same reach now.
+func TestACastOntoATeamHoldsItsRoleReachingOnlyThroughABinding(t *testing.T) {
+	h := pageWithSteward(t)
+	h.grantTeam("pages", "steward", "team")
+	cast, err := h.casting("alex", "team")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := h.must(h.svc.IssueForPage(h.ctx, cast, "pages", authority.IssueRequest{Audience: "store"}))
+	exactly(t, got, kind, h.principal(acme, "pages"), []string{"write"})
+}
