@@ -50,24 +50,30 @@ calls a consumer names; a call with alternatives has no ceiling that is both
 sufficient (every alternative) and least (one of them), so a method whose
 handler admits "A or B" declares one of them and its handler decides that one.
 
-`go/policy/probe` makes the call, itself. Given the module's server, a
-connection to it, the published contract and one case per procedure, it builds
-a Work Context holding exactly what each procedure declares (one scope per
-permission, selected to the fixture's owner, no wildcard), reads back what the
-call really carries and refuses a fixture that holds more, invokes the
-procedure on the connection, and requires the call to succeed and the case's
-`Shows` to find what was asked for in the answer. What is probed is what the
-server registers: a procedure served outside the contract, one with no case,
-one that declares nothing and one whose handler refuses what its declaration
-says is enough each fail by name. It takes no exception list.
+`go/policy/probe` makes the call, itself. Given the server a module ships, a
+connection to it, the endpoint's entry in the contract catalog and its
+published contract, and one case per procedure, it probes every procedure the
+hop routes to the endpoint. For each it first makes one call carrying no Work
+Context, which must be refused: a server that answers it does not read what a
+call holds. It then builds a Work Context holding exactly what the procedure
+declares (one scope per permission, selected to the fixture's owner, no
+wildcard), reads back what the call really carries and refuses a fixture that
+holds more, invokes the procedure, and requires the call to succeed and the
+case's `Shows` to find what was asked for in the answer. A `Shows` that accepts
+the empty answer is itself a finding. A routed procedure with no handler
+registered, with no case, or absent from the contract fails by name, and a
+contract whose digest is not the catalog's is an error. What a server
+registers beside its routed surface (health, reflection) is not probed: no
+caller reaches it through the hop. It takes no exception list.
 
 Its limits, which the package comment states too. It proves the declaration
-sufficient, not necessary: a handler laxer than its declaration passes. It
-catches a refusal rendered as an empty or filtered answer only through the
-case's `Shows`; a `Shows` that accepts an empty answer does not catch it. And
-a rule that is not about scopes (who the principal is, stored state, a request
-field) is satisfied by the principal and resource the case picks: those stay
-the handler's, named in its refusals. HTTP and OpenAPI routes are not probed.
+sufficient, not necessary: a handler laxer than its declaration passes. Beyond
+refusing an empty answer, what an answer must carry is what the case's `Shows`
+asserts. A rule that is not about scopes (who the principal is, stored state,
+a request field) is satisfied by the principal and resource the case picks:
+those stay the handler's, named in its refusals. It does not check that the
+connection reaches the server it was given. HTTP and OpenAPI routes are not
+probed.
 
 ## Issuance and verification
 

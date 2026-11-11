@@ -2,6 +2,8 @@ package probe_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"net"
 	"slices"
 	"strings"
@@ -11,6 +13,7 @@ import (
 	hopv1 "github.com/codefly-dev/authority/libraries/hop/go/gen/authority/hop/v1"
 	"github.com/codefly-dev/authority/libraries/hop/go/hoptest"
 	"github.com/codefly-dev/authority/libraries/hop/go/policy/probe"
+	"github.com/codefly-dev/core/composition"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"github.com/codefly-dev/core/workcontext"
 	"google.golang.org/grpc"
@@ -19,6 +22,7 @@ import (
 	"google.golang.org/grpc/health"
 	healthv1 "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protodesc"
@@ -75,6 +79,19 @@ func agrees(string, func(string) bool) error { return nil }
 // procedures; carry mints the Work Context each call carries.
 func module(t *testing.T, contract []byte, decide rule, carry func(scopes []*basev0.WorkScopeV1) []*basev0.WorkScopeV1) probe.Module {
 	t.Helper()
+	// admitted is the module's verifier: a call that carries no Work Context
+	// never reaches a handler. reads is false for a server that skips it.
+	reads := decide != nil
+	admitted := func(ctx context.Context) error {
+		md, _ := metadata.FromIncomingContext(ctx)
+		if reads && len(md.Get(hop.WorkContextKey)) != 1 {
+			return status.Error(codes.Unauthenticated, "no Work Context")
+		}
+		return nil
+	}
+	if decide == nil {
+		decide = agrees
+	}
 	held := func(ctx context.Context) func(string) bool {
 		md, _ := metadata.FromIncomingContext(ctx)
 		var scopes []*basev0.WorkScopeV1
@@ -92,6 +109,9 @@ func module(t *testing.T, contract []byte, decide rule, carry func(scopes []*bas
 	}
 	server := grpc.NewServer(
 		grpc.UnaryInterceptor(func(ctx context.Context, req any, info *grpc.UnaryServerInfo, next grpc.UnaryHandler) (any, error) {
+			if err := admitted(ctx); err != nil {
+				return nil, err
+			}
 			if err := decide(info.FullMethod, held(ctx)); err != nil {
 				if err == errAbsent {
 					return &healthv1.HealthListResponse{}, nil // a refusal rendered as an empty answer
@@ -101,12 +121,18 @@ func module(t *testing.T, contract []byte, decide rule, carry func(scopes []*bas
 			return next(ctx, req)
 		}),
 		grpc.StreamInterceptor(func(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, next grpc.StreamHandler) error {
+			if err := admitted(stream.Context()); err != nil {
+				return err
+			}
 			if err := decide(info.FullMethod, held(stream.Context())); err != nil {
 				return err
 			}
 			return next(srv, stream)
 		}))
 	healthv1.RegisterHealthServer(server, health.NewServer())
+	// As a shipped server does, it registers reflection beside its surface.
+	// The hop routes none of it, so none of it is probed.
+	reflection.Register(server)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -125,7 +151,10 @@ func module(t *testing.T, contract []byte, decide rule, carry func(scopes []*bas
 		}
 		return nil
 	}
+	sum := sha256.Sum256(contract)
 	return probe.Module{
+		Endpoint: composition.APIContractEndpoint{Digest: "sha256:" + hex.EncodeToString(sum[:]),
+			Services: []composition.APIContractService{{FullName: "grpc.health.v1.Health", Procedures: []string{check, watch, list}}}},
 		Contract: contract, Server: server, Conn: conn, Owner: "installation",
 		Carry: func(ctx context.Context, _ string, scopes []*basev0.WorkScopeV1) (context.Context, error) {
 			return metadata.AppendToOutgoingContext(ctx, hop.WorkContextKey, authority.Issue(t, "module", carry(scopes)...)), nil
@@ -192,10 +221,11 @@ func TestEachDisagreementIsAFinding(t *testing.T) {
 			}
 			return append(scopes, &basev0.WorkScopeV1{ResourceKind: "doc", Actions: []string{"admin"}, ResourceOwnerId: "installation"})
 		}, want: check + ": the call carries doc:admin@installation, doc:read@installation"},
-		"a served procedure with no case":           {decide: agrees, drop: watch, want: watch + ": has no case"},
-		"a served procedure that declares nothing":  {declared: map[string]*hopv1.Policy{check: requires("doc:read"), watch: open, list: {}}, decide: agrees, want: list + ": declares no readable policy"},
-		"a declaration that says two things":        {declared: map[string]*hopv1.Policy{check: {AnyCheckedCaller: true, Requires: requires("doc:read").Requires}, watch: open, list: open}, decide: agrees, want: check + ": declares no readable policy"},
-		"a permission declared twice is asked once": {declared: map[string]*hopv1.Policy{check: requires("doc:read", "doc:read"), watch: open, list: open}, decide: refusing(check, codes.PermissionDenied, "doc:read"), want: ""},
+		"a served procedure with no case":                 {decide: agrees, drop: watch, want: watch + ": has no case"},
+		"a server that does not read what a call carries": {decide: nil, want: "three"},
+		"a served procedure that declares nothing":        {declared: map[string]*hopv1.Policy{check: requires("doc:read"), watch: open, list: {}}, decide: agrees, want: list + ": declares no readable policy"},
+		"a declaration that says two things":              {declared: map[string]*hopv1.Policy{check: {AnyCheckedCaller: true, Requires: requires("doc:read").Requires}, watch: open, list: open}, decide: agrees, want: check + ": declares no readable policy"},
+		"a permission declared twice is asked once":       {declared: map[string]*hopv1.Policy{check: requires("doc:read", "doc:read"), watch: open, list: open}, decide: refusing(check, codes.PermissionDenied, "doc:read"), want: ""},
 	} {
 		declared, carry := c.declared, c.carry
 		if declared == nil {
@@ -210,6 +240,12 @@ func TestEachDisagreementIsAFinding(t *testing.T) {
 		switch {
 		case err != nil:
 			t.Errorf("%s: %v", name, err)
+		case c.want == "three":
+			// The control: every procedure answers a call that carries no
+			// Work Context, so nothing it "decided" on the exact one counts.
+			if len(findings) != 3 || !strings.Contains(findings[0], "a call carrying no Work Context is answered OK") {
+				t.Errorf("%s: findings %q, want one per procedure naming the unread call", name, findings)
+			}
 		case c.want == "" && len(findings) != 0:
 			t.Errorf("%s: findings %q, want none", name, findings)
 		case c.want != "" && (len(findings) != 1 || !strings.HasPrefix(findings[0], c.want)):
@@ -218,21 +254,47 @@ func TestEachDisagreementIsAFinding(t *testing.T) {
 	}
 }
 
-// A policy declared for a procedure the server does not register is not
-// probed, a procedure served outside the contract is a finding, and a server
-// that registers nothing of the contract is an error, not a pass.
-func TestWhatIsProbedIsWhatTheServerRegisters(t *testing.T) {
+// What is probed is what the hop routes to the endpoint: reflection, which the
+// server registers and the hop does not route, is not probed and is no
+// finding; a routed procedure the server does not register, or the contract
+// does not declare, is; and a contract that is not the one the catalog names
+// is an error, not a pass.
+func TestWhatIsProbedIsWhatTheHopRoutes(t *testing.T) {
 	m := module(t, published(t, all), agrees, asGiven)
-	m.Contract = published(t, nil)
-	findings, err := probe.Check(t.Context(), m)
-	if err != nil || len(findings) != 3 {
-		t.Fatalf("an unmarked contract: findings %q (%v), want one per served procedure", findings, err)
+	if findings, err := probe.Check(t.Context(), m); err != nil || len(findings) != 0 {
+		t.Fatalf("a server that also registers reflection: findings %q (%v), want none", findings, err)
 	}
-	other := protodesc.ToFileDescriptorProto(descriptorpb.File_google_protobuf_descriptor_proto)
-	raw, _ := proto.Marshal(&descriptorpb.FileDescriptorSet{File: []*descriptorpb.FileDescriptorProto{other}})
-	m.Contract = raw
-	findings, err = probe.Check(t.Context(), m)
-	if err == nil {
-		t.Fatalf("a contract the server serves nothing of was probed: %q", findings)
+	m.Endpoint.Services[0].Procedures = append(m.Endpoint.Services[0].Procedures, "/grpc.health.v1.Health/Gone", "/grpc.reflection.v1.ServerReflection/Absent")
+	findings, err := probe.Check(t.Context(), m)
+	if err != nil || len(findings) != 2 || !strings.Contains(strings.Join(findings, "\n"), "does not declare it") {
+		t.Fatalf("routed and not published: findings %q (%v)", findings, err)
+	}
+	unregistered := module(t, published(t, all), agrees, asGiven)
+	unregistered.Server = grpc.NewServer()
+	findings, err = probe.Check(t.Context(), unregistered)
+	if err != nil || len(findings) != 3 || !strings.Contains(findings[0], "the server registers no handler for it") {
+		t.Fatalf("routed and not registered: findings %q (%v)", findings, err)
+	}
+	m.Endpoint.Services = nil
+	if _, err := probe.Check(t.Context(), m); err == nil {
+		t.Fatal("an endpoint the hop routes nothing to was probed as though it compared something")
+	}
+	stale := module(t, published(t, all), agrees, asGiven)
+	stale.Contract = published(t, nil)
+	if _, err := probe.Check(t.Context(), stale); err == nil || !strings.Contains(err.Error(), "the catalog names") {
+		t.Fatalf("a contract that is not the catalog's: %v, want it refused by digest", err)
+	}
+}
+
+// A case whose Shows accepts the empty answer cannot tell an answer from a
+// refusal rendered as one, and is a finding before any call is made.
+func TestAShowsThatAcceptsNothingIsAFinding(t *testing.T) {
+	m := module(t, published(t, all), refusing(list, codes.OK, "records.types:read"), asGiven)
+	lazy := m.Cases[list]
+	lazy.Shows = func(protoreflect.Message) error { return nil }
+	m.Cases[list] = lazy
+	findings, err := probe.Check(t.Context(), m)
+	if err != nil || len(findings) != 1 || !strings.HasPrefix(findings[0], list+": its case's Shows accepts an empty answer") {
+		t.Fatalf("findings %q (%v)", findings, err)
 	}
 }

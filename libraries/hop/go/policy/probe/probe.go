@@ -1,10 +1,11 @@
-// Package probe makes the call: for every procedure a module's server
-// registers, it holds exactly what the published contract declares and invokes
-// the handler itself, over the module's own connection. Every other check of a
+// Package probe makes the call: for every procedure the hop routes to a
+// module's endpoint, it holds exactly what the published contract declares and
+// invokes the handler itself, over the module's own connection. Every other check of a
 // method policy compares one statement of it with another; this one compares
-// the statement with what the module does. It takes no exception: a registered
-// procedure with no case, no handler, no declaration, or a handler that
-// refuses what its declaration says is enough, fails by name.
+// the statement with what the module does. It takes no exception: a routed
+// procedure with no case, no handler, no declaration, a handler that refuses
+// what its declaration says is enough, or one that answers a call carrying no
+// Work Context at all, fails by name.
 //
 // What it proves is that the declaration is SUFFICIENT, for the principal,
 // owner and request the case chooses. It does not prove:
@@ -13,8 +14,11 @@
 //     its declaration passes; the hop refuses those calls before it.
 //   - that an answer is complete. A handler that answers OK with less (a
 //     filtered list, an empty page) instead of refusing is caught only by the
-//     case's Shows, which must say what the answer has to carry. A Shows that
-//     accepts an empty answer does not catch a refusal rendered as absence.
+//     case's Shows, which must say what the answer has to carry. The probe
+//     refuses a Shows that accepts the empty answer; beyond that, what Shows
+//     asserts is the case's.
+//   - that Conn reaches Server. A connection that fabricates answers is a
+//     forgery the probe does not look for.
 //   - rules that are not about scopes (who the principal is, stored state, a
 //     request field). The case picks a principal and a resource that satisfy
 //     them; they stay the handler's, named in its refusals.
@@ -22,6 +26,8 @@ package probe
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -32,9 +38,11 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/hop/go"
 	"github.com/codefly-dev/authority/libraries/hop/go/policy"
+	"github.com/codefly-dev/core/composition"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"github.com/codefly-dev/core/workcontext"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -47,13 +55,21 @@ import (
 // Module is a module as its suite runs it: its real handlers registered on
 // Server, reached over Conn.
 type Module struct {
-	// Contract is the published descriptor set (contract.binpb), the artifact
-	// a deployed hop's policy is read from.
+	// Endpoint is the endpoint's entry in the module's contract catalog
+	// (contracts/api/catalog.codefly.json): the procedures the hop routes to
+	// it, and the digest of its contract. Those procedures are what is
+	// probed, each of them, and nothing else: a service the contract merely
+	// imports is not routed, and neither is what a server registers beside
+	// its own surface (health, reflection), which no caller reaches through
+	// the hop.
+	Endpoint composition.APIContractEndpoint
+	// Contract is the published descriptor set the catalog names
+	// (contract.binpb), the artifact a deployed hop's policy is read from. Its
+	// digest is held to the catalog's.
 	Contract []byte
-	// Server is the server the handlers are registered on (*grpc.Server). The
-	// procedures probed are the contract's that it registers, so a service
-	// the contract merely imports is not probed, and one it serves outside
-	// the contract is a finding.
+	// Server is the server the handlers are registered on (*grpc.Server): the
+	// one the module ships. A routed procedure it does not register is a
+	// finding.
 	Server interface {
 		GetServiceInfo() map[string]grpc.ServiceInfo
 	}
@@ -95,9 +111,13 @@ func Run(t *testing.T, m Module) {
 	}
 }
 
-// Check probes every procedure of the contract that the server registers and
-// returns one finding per disagreement, each naming its procedure.
+// Check probes every procedure the hop routes to the endpoint and returns one
+// finding per disagreement, each naming its procedure.
 func Check(ctx context.Context, m Module) ([]string, error) {
+	sum := sha256.Sum256(m.Contract)
+	if got := "sha256:" + hex.EncodeToString(sum[:]); got != m.Endpoint.Digest {
+		return nil, fmt.Errorf("the contract is %s and the catalog names %s; the probe reads the contract a delivery reads", got, m.Endpoint.Digest)
+	}
 	declared, err := policy.Contract(m.Contract)
 	if err != nil {
 		return nil, err
@@ -112,26 +132,35 @@ func Check(ctx context.Context, m Module) ([]string, error) {
 	}
 	var findings []string
 	finding := func(format string, args ...any) { findings = append(findings, fmt.Sprintf(format, args...)) }
-	probed := 0
+	registered := map[string]bool{}
 	for service, info := range m.Server.GetServiceInfo() {
-		for _, registered := range info.Methods {
-			method := "/" + service + "/" + registered.Name
-			d, _ := files.FindDescriptorByName(protoreflect.FullName(service + "." + registered.Name))
-			descriptor, published := d.(protoreflect.MethodDescriptor)
-			if !published {
-				finding("%s is served and the published contract does not declare it", method)
-				continue
-			}
-			probed++
+		for _, method := range info.Methods {
+			registered["/"+service+"/"+method.Name] = true
+		}
+	}
+	var routed []string
+	for _, service := range m.Endpoint.Services {
+		routed = append(routed, service.Procedures...)
+	}
+	if len(routed) == 0 {
+		return nil, errors.New("the catalog routes no procedure to the endpoint, so the probe would compare nothing")
+	}
+	slices.Sort(routed)
+	for _, method := range slices.Compact(routed) {
+		service, name, _ := strings.Cut(strings.TrimPrefix(method, "/"), "/")
+		d, _ := files.FindDescriptorByName(protoreflect.FullName(service + "." + name))
+		descriptor, published := d.(protoreflect.MethodDescriptor)
+		switch {
+		case !published:
+			finding("%s: the hop routes it and the published contract does not declare it", method)
+		case !registered[method]:
+			finding("%s: the hop routes it and the server registers no handler for it", method)
+		default:
 			if reason := m.probe(ctx, method, descriptor, declared[method]); reason != "" {
 				finding("%s: %s", method, reason)
 			}
 		}
 	}
-	if probed == 0 {
-		return nil, errors.New("the server registers no procedure of the contract, so the probe would compare nothing")
-	}
-	slices.Sort(findings)
 	return findings, nil
 }
 
@@ -143,6 +172,19 @@ func (m Module) probe(ctx context.Context, method string, descriptor protoreflec
 	c, ok := m.Cases[method]
 	if !ok || c.Request == nil || c.Shows == nil {
 		return "has no case with a request and what its answer shows; every served procedure is probed"
+	}
+	// The answer has to be able to tell something from nothing: a Shows that
+	// accepts the empty answer accepts a refusal rendered as absence. An
+	// answer type with no field can show nothing, and is held to success.
+	if descriptor.Output().Fields().Len() > 0 && c.Shows(dynamicpb.NewMessage(descriptor.Output())) == nil {
+		return "its case's Shows accepts an empty answer, so it could not tell an answer from a refusal rendered as one"
+	}
+	// The control: the server reads what a call carries. A call with no Work
+	// Context is refused; a server that answers it decides nothing on what
+	// the next call holds, whatever that call carries.
+	bare := dynamicpb.NewMessage(descriptor.Output())
+	if err := m.invoke(ctx, method, descriptor, c.Request, bare); status.Code(err) != codes.Unauthenticated && status.Code(err) != codes.PermissionDenied {
+		return fmt.Sprintf("a call carrying no Work Context is answered %v, want it refused; the server does not read what a call holds", status.Code(err))
 	}
 	scopes := exactly(declared.Requires, m.Owner)
 	if err := policy.Admit(map[string]policy.Method{method: declared}, method, scopes); err != nil {
