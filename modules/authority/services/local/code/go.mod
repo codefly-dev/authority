@@ -12,7 +12,7 @@ require (
 	github.com/codefly-dev/authority/libraries/conformance/go v0.0.0
 	github.com/codefly-dev/authority/libraries/delivery/go v0.0.0
 	github.com/codefly-dev/authority/libraries/fixture-composition/go v0.0.0
-	github.com/codefly-dev/authority/libraries/hop/go v0.0.0
+	github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261111202333-17d052d9bdef
 	github.com/codefly-dev/authority/libraries/resources/go v0.0.0
 	github.com/codefly-dev/core v0.19.22
 	github.com/codefly-dev/sdk-go v0.4.3
