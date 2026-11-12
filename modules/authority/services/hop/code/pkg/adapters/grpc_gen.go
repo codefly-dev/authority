@@ -66,9 +66,15 @@ func (s *GrpcServer) Version(ctx context.Context, req *gen.VersionRequest) (*gen
 }
 
 type Configuration struct {
+	// EndpointGrpcPort is zero when only the Connect listener is declared.
 	EndpointGrpcPort    uint16
 	EndpointHttpPort    *uint16
 	EndpointConnectPort *uint16
+	// Endpoint hosts are filled by main from the resolved native endpoints.
+	// Empty retains wildcard binding for container ingress and custom bootstraps.
+	EndpointGrpcHost    string
+	EndpointHttpHost    string
+	EndpointConnectHost string
 	// GRPCServerOptions installs transport policy such as authentication,
 	// authorization, telemetry, and rate limiting before the listener starts.
 	GRPCServerOptions []grpc.ServerOption
@@ -159,8 +165,36 @@ type Configuration struct {
 	// dialer is still the one that connects, but a connection whose remote
 	// address is not loopback is refused, with that reason, before any of the
 	// call is written to it. The hop's transport credentials are applied after
-	// these options, so an option that sets its own does not take effect.
+	// these options, so an option that sets its own does not take effect. The
+	// one exception is a custom load-balancing policy: one that sets
+	// balancer.NewSubConnOptions.CredsBundle replaces them on its connections,
+	// and takes on the loopback rule itself.
 	GatewayDialOptions []grpc.DialOption
+}
+
+// rpcPort is the listener serving native gRPC, including health and REST hops.
+func (c *Configuration) rpcPort() uint16 {
+	if c.EndpointGrpcPort != 0 {
+		return c.EndpointGrpcPort
+	}
+	if c.EndpointConnectPort != nil {
+		return *c.EndpointConnectPort
+	}
+	return 0
+}
+
+// rpcAddress follows the actual gRPC listener, including Connect-only mode.
+// Wildcard listeners are reached through loopback; gatewayDialOptions still
+// checks the connected peer and refuses any off-host plaintext hop.
+func (c *Configuration) rpcAddress() string {
+	host := c.EndpointGrpcHost
+	if c.EndpointGrpcPort == 0 {
+		host = c.EndpointConnectHost
+	}
+	if host == "" || net.ParseIP(host).IsUnspecified() {
+		host = "127.0.0.1"
+	}
+	return net.JoinHostPort(host, fmt.Sprint(c.rpcPort()))
 }
 
 // defaultMaxMessageBytes is gRPC's own server receive bound, which every face
@@ -225,7 +259,7 @@ func NewGrpServer(c *Configuration) (*GrpcServer, error) {
 
 func (s *GrpcServer) Run(ctx context.Context) error {
 	fmt.Println("Starting gRPC server at", s.configuration.EndpointGrpcPort)
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", s.configuration.EndpointGrpcPort))
+	lis, err := net.Listen("tcp", net.JoinHostPort(s.configuration.EndpointGrpcHost, fmt.Sprint(s.configuration.EndpointGrpcPort)))
 	if err != nil {
 		return fmt.Errorf("failed to listen: %v", err)
 	}
@@ -248,6 +282,13 @@ func (s *GrpcServer) Run(ctx context.Context) error {
 // last one wins, so no option in extra can replace them, and a credentials
 // bundle in extra makes the dial fail rather than take over. They hold the hop
 // to loopback even when extra carries a dialer that ignores the target.
+//
+// One path outside the options replaces them: a load-balancing policy that a
+// service registers and selects through a service config in extra can set
+// balancer.NewSubConnOptions.CredsBundle, which gRPC still honours though it
+// is deprecated, and that bundle's credentials take over the connection. Such
+// a policy takes on the loopback rule itself. Pinning the policy here would
+// silently drop a service config the service chose, so it is stated instead.
 func gatewayDialOptions(extra ...grpc.DialOption) []grpc.DialOption {
 	options := []grpc.DialOption{grpc.WithNoProxy()}
 	options = append(options, extra...)

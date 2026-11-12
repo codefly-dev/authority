@@ -1,6 +1,6 @@
 module github.com/codefly-dev/authority/libraries/hop/go
 
-go 1.27.3
+go 1.27.4
 
 require (
 	connectrpc.com/connect v1.21.1

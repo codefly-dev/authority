@@ -24,8 +24,10 @@ import (
 	"context"
 	"fmt"
 	"os/signal"
+	"strings"
 	"syscall"
 
+	"github.com/codefly-dev/core/resources"
 	"github.com/codefly-dev/core/shared"
 	"github.com/codefly-dev/core/standards"
 
@@ -70,21 +72,19 @@ func main() {
 
 	defer codefly.CatchPanic(ctx)
 
-	// The gRPC port is required, so resolve it with the entrypoint that
-	// RETURNS the error. NetworkInstance() answers nil on a resolution
-	// failure — an absent carrier, an endpoint this service may not reach —
-	// so reading .Port off it panics at startup with nothing to read, and
-	// the service simply never listens.
+	config := &adapters.Configuration{}
 	grpcInstance, err := codefly.For(ctx).API(standards.GRPC).ResolveNetworkInstance()
 	if err != nil {
 		panic(fmt.Errorf("cannot resolve this service's %s address: %w", standards.GRPC, err))
 	}
-	config := &adapters.Configuration{
-		EndpointGrpcPort: grpcInstance.Port,
+	config.EndpointGrpcPort = grpcInstance.Port
+	config.EndpointGrpcHost = listenerHost(grpcInstance.Hostname)
+	connectInstance, err := codefly.For(ctx).API(standards.CONNECT).ResolveNetworkInstance()
+	if err != nil {
+		panic(fmt.Errorf("cannot resolve this service's %s address: %w", standards.CONNECT, err))
 	}
-	if net := codefly.For(ctx).API(standards.CONNECT).NetworkInstance(); net != nil {
-		config.EndpointConnectPort = shared.Pointer(net.Port)
-	}
+	config.EndpointConnectPort = shared.Pointer(connectInstance.Port)
+	config.EndpointConnectHost = listenerHost(connectInstance.Hostname)
 	if configure != nil {
 		clean, err := configure(ctx, config)
 		if err != nil {
@@ -125,4 +125,23 @@ func main() {
 	server.Stop()
 	fmt.Println("got interruption signal")
 
+}
+
+// listenerHost preserves the resolved own endpoint for host-native execution.
+// Containers keep wildcard ingress: their own carrier is localized for self-dial,
+// not a container-interface bind address. Older renders without a nonempty context carrier
+// retain that behavior; an explicitly supplied context follows Core's semantics.
+func listenerHost(hostname string) string {
+	if _, present := codefly.RuntimeValue("RUNTIME_CONTEXT"); !present {
+		return ""
+	}
+	switch resources.RuntimeContextFromEnv().GetKind() {
+	case resources.RuntimeContextNative, resources.RuntimeContextNix:
+		if strings.TrimSpace(hostname) == "" {
+			panic("cannot start native listener: resolved endpoint hostname is empty")
+		}
+		return hostname
+	default:
+		return ""
+	}
 }

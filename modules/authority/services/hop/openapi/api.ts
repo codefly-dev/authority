@@ -11,6 +11,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * Version is the hop's own method. A caller the authority checked may read
+         *     it; the hop serves it without a scope, as the console serves its Version.
+         */
         get: operations["HopService_Version"];
         put?: never;
         post?: never;
