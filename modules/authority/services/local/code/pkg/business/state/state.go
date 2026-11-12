@@ -152,6 +152,9 @@ type Session struct {
 	// RoleView is the roles this session acts as, per installation, when it
 	// was opened as a role view; the authority core holds the record.
 	RoleView map[string][]string
+	// CastTeam is the team this session was cast onto, when it is a cast: it
+	// acts as that team and nothing else; the authority core holds the record.
+	CastTeam string
 }
 
 type fixtureFile struct {
@@ -459,6 +462,32 @@ func (s *State) OpenRoleView(ctx context.Context, parent, installationID string,
 	defer s.mu.Unlock()
 	if _, open := s.sessions[parent]; !open {
 		// The parent ended while the core decided: the view opens no session of its own.
+		return Session{}, fmt.Errorf("%w: an open session is required", ErrUnauthenticated)
+	}
+	s.sessions[id] = sess
+	return sess, nil
+}
+
+// OpenTeamCast opens a session that acts as a member of team and of nothing
+// else. The core decides (a person acts as a team whose roles they could
+// grant) and records it; this host only keeps the session it names, which
+// holds no role of the person's and no other team of theirs.
+func (s *State) OpenTeamCast(ctx context.Context, parent, team string) (Session, error) {
+	caller, err := s.Caller(parent)
+	if err != nil {
+		return Session{}, err
+	}
+	sess, _ := s.Session(parent)
+	id := uuid.NewString()
+	cast, err := s.svc.OpenTeamCast(ctx, caller, authority.TeamCastRequest{Organization: caller.Organization, Team: team, SessionID: id})
+	if err != nil {
+		return Session{}, err
+	}
+	sess.ID, sess.RoleView, sess.CastTeam, sess.Roles, sess.Teams = id, cast.Roles, cast.Team, nil, []string{cast.Team}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, open := s.sessions[parent]; !open {
+		// The parent ended while the core decided: the cast opens no session of its own.
 		return Session{}, fmt.Errorf("%w: an open session is required", ErrUnauthenticated)
 	}
 	s.sessions[id] = sess

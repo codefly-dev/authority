@@ -45,6 +45,9 @@ const (
 	// SessionServiceOpenRoleViewProcedure is the fully-qualified name of the SessionService's
 	// OpenRoleView RPC.
 	SessionServiceOpenRoleViewProcedure = "/host.session.v1.SessionService/OpenRoleView"
+	// SessionServiceOpenTeamCastProcedure is the fully-qualified name of the SessionService's
+	// OpenTeamCast RPC.
+	SessionServiceOpenTeamCastProcedure = "/host.session.v1.SessionService/OpenTeamCast"
 	// SessionServiceListFixturePeopleProcedure is the fully-qualified name of the SessionService's
 	// ListFixturePeople RPC.
 	SessionServiceListFixturePeopleProcedure = "/host.session.v1.SessionService/ListFixturePeople"
@@ -70,6 +73,19 @@ type SessionServiceClient interface {
 	// client's delegated credential hold no session of a person to call from and
 	// are refused.
 	OpenRoleView(context.Context, *connect.Request[v1.OpenRoleViewRequest]) (*connect.Response[v1.Session], error)
+	// OpenTeamCast opens a session that acts as a member of one team and of
+	// nothing else: a cast. It holds that team's grants and none of the caller's
+	// own: no direct grant, no other team, no organisation role, no platform
+	// role, so it answers what a member of the team sees. The caller's bearer is
+	// the session it is opened from. The authority decides, by one rule: a person
+	// may act as a team whose roles they could grant, member of it or not. A team
+	// that holds roles the caller could not grant is refused saying so, and a
+	// team granted nothing is not found, because there is nothing to act as. A
+	// cast is never changed or widened, and a session that is already a cast
+	// opens no other; a role view opened from it stays in it. The session it was
+	// opened from is untouched and is the way back. The callers OpenRoleView
+	// refuses are refused here.
+	OpenTeamCast(context.Context, *connect.Request[v1.OpenTeamCastRequest]) (*connect.Response[v1.Session], error)
 	// ListFixturePeople answers who this authority signs in by fixture token, for
 	// the browser edge's sign-in page: the people are defined once, in the
 	// authority's fixture. A host that signs real people in through its identity
@@ -106,6 +122,12 @@ func NewSessionServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(sessionServiceMethods.ByName("OpenRoleView")),
 			connect.WithClientOptions(opts...),
 		),
+		openTeamCast: connect.NewClient[v1.OpenTeamCastRequest, v1.Session](
+			httpClient,
+			baseURL+SessionServiceOpenTeamCastProcedure,
+			connect.WithSchema(sessionServiceMethods.ByName("OpenTeamCast")),
+			connect.WithClientOptions(opts...),
+		),
 		listFixturePeople: connect.NewClient[v1.ListFixturePeopleRequest, v1.ListFixturePeopleResponse](
 			httpClient,
 			baseURL+SessionServiceListFixturePeopleProcedure,
@@ -120,6 +142,7 @@ type sessionServiceClient struct {
 	signIn            *connect.Client[v1.SignInRequest, v1.Session]
 	current           *connect.Client[v1.CurrentRequest, v1.Session]
 	openRoleView      *connect.Client[v1.OpenRoleViewRequest, v1.Session]
+	openTeamCast      *connect.Client[v1.OpenTeamCastRequest, v1.Session]
 	listFixturePeople *connect.Client[v1.ListFixturePeopleRequest, v1.ListFixturePeopleResponse]
 }
 
@@ -136,6 +159,11 @@ func (c *sessionServiceClient) Current(ctx context.Context, req *connect.Request
 // OpenRoleView calls host.session.v1.SessionService.OpenRoleView.
 func (c *sessionServiceClient) OpenRoleView(ctx context.Context, req *connect.Request[v1.OpenRoleViewRequest]) (*connect.Response[v1.Session], error) {
 	return c.openRoleView.CallUnary(ctx, req)
+}
+
+// OpenTeamCast calls host.session.v1.SessionService.OpenTeamCast.
+func (c *sessionServiceClient) OpenTeamCast(ctx context.Context, req *connect.Request[v1.OpenTeamCastRequest]) (*connect.Response[v1.Session], error) {
+	return c.openTeamCast.CallUnary(ctx, req)
 }
 
 // ListFixturePeople calls host.session.v1.SessionService.ListFixturePeople.
@@ -163,6 +191,19 @@ type SessionServiceHandler interface {
 	// client's delegated credential hold no session of a person to call from and
 	// are refused.
 	OpenRoleView(context.Context, *connect.Request[v1.OpenRoleViewRequest]) (*connect.Response[v1.Session], error)
+	// OpenTeamCast opens a session that acts as a member of one team and of
+	// nothing else: a cast. It holds that team's grants and none of the caller's
+	// own: no direct grant, no other team, no organisation role, no platform
+	// role, so it answers what a member of the team sees. The caller's bearer is
+	// the session it is opened from. The authority decides, by one rule: a person
+	// may act as a team whose roles they could grant, member of it or not. A team
+	// that holds roles the caller could not grant is refused saying so, and a
+	// team granted nothing is not found, because there is nothing to act as. A
+	// cast is never changed or widened, and a session that is already a cast
+	// opens no other; a role view opened from it stays in it. The session it was
+	// opened from is untouched and is the way back. The callers OpenRoleView
+	// refuses are refused here.
+	OpenTeamCast(context.Context, *connect.Request[v1.OpenTeamCastRequest]) (*connect.Response[v1.Session], error)
 	// ListFixturePeople answers who this authority signs in by fixture token, for
 	// the browser edge's sign-in page: the people are defined once, in the
 	// authority's fixture. A host that signs real people in through its identity
@@ -195,6 +236,12 @@ func NewSessionServiceHandler(svc SessionServiceHandler, opts ...connect.Handler
 		connect.WithSchema(sessionServiceMethods.ByName("OpenRoleView")),
 		connect.WithHandlerOptions(opts...),
 	)
+	sessionServiceOpenTeamCastHandler := connect.NewUnaryHandler(
+		SessionServiceOpenTeamCastProcedure,
+		svc.OpenTeamCast,
+		connect.WithSchema(sessionServiceMethods.ByName("OpenTeamCast")),
+		connect.WithHandlerOptions(opts...),
+	)
 	sessionServiceListFixturePeopleHandler := connect.NewUnaryHandler(
 		SessionServiceListFixturePeopleProcedure,
 		svc.ListFixturePeople,
@@ -209,6 +256,8 @@ func NewSessionServiceHandler(svc SessionServiceHandler, opts ...connect.Handler
 			sessionServiceCurrentHandler.ServeHTTP(w, r)
 		case SessionServiceOpenRoleViewProcedure:
 			sessionServiceOpenRoleViewHandler.ServeHTTP(w, r)
+		case SessionServiceOpenTeamCastProcedure:
+			sessionServiceOpenTeamCastHandler.ServeHTTP(w, r)
 		case SessionServiceListFixturePeopleProcedure:
 			sessionServiceListFixturePeopleHandler.ServeHTTP(w, r)
 		default:
@@ -230,6 +279,10 @@ func (UnimplementedSessionServiceHandler) Current(context.Context, *connect.Requ
 
 func (UnimplementedSessionServiceHandler) OpenRoleView(context.Context, *connect.Request[v1.OpenRoleViewRequest]) (*connect.Response[v1.Session], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.session.v1.SessionService.OpenRoleView is not implemented"))
+}
+
+func (UnimplementedSessionServiceHandler) OpenTeamCast(context.Context, *connect.Request[v1.OpenTeamCastRequest]) (*connect.Response[v1.Session], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.session.v1.SessionService.OpenTeamCast is not implemented"))
 }
 
 func (UnimplementedSessionServiceHandler) ListFixturePeople(context.Context, *connect.Request[v1.ListFixturePeopleRequest]) (*connect.Response[v1.ListFixturePeopleResponse], error) {

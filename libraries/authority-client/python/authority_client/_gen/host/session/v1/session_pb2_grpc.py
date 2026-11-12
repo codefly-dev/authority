@@ -50,6 +50,11 @@ class SessionServiceStub(object):
                 request_serializer=host_dot_session_dot_v1_dot_session__pb2.OpenRoleViewRequest.SerializeToString,
                 response_deserializer=host_dot_session_dot_v1_dot_session__pb2.Session.FromString,
                 _registered_method=True)
+        self.OpenTeamCast = channel.unary_unary(
+                '/host.session.v1.SessionService/OpenTeamCast',
+                request_serializer=host_dot_session_dot_v1_dot_session__pb2.OpenTeamCastRequest.SerializeToString,
+                response_deserializer=host_dot_session_dot_v1_dot_session__pb2.Session.FromString,
+                _registered_method=True)
         self.ListFixturePeople = channel.unary_unary(
                 '/host.session.v1.SessionService/ListFixturePeople',
                 request_serializer=host_dot_session_dot_v1_dot_session__pb2.ListFixturePeopleRequest.SerializeToString,
@@ -94,6 +99,24 @@ class SessionServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def OpenTeamCast(self, request, context):
+        """OpenTeamCast opens a session that acts as a member of one team and of
+        nothing else: a cast. It holds that team's grants and none of the caller's
+        own: no direct grant, no other team, no organisation role, no platform
+        role, so it answers what a member of the team sees. The caller's bearer is
+        the session it is opened from. The authority decides, by one rule: a person
+        may act as a team whose roles they could grant, member of it or not. A team
+        that holds roles the caller could not grant is refused saying so, and a
+        team granted nothing is not found, because there is nothing to act as. A
+        cast is never changed or widened, and a session that is already a cast
+        opens no other; a role view opened from it stays in it. The session it was
+        opened from is untouched and is the way back. The callers OpenRoleView
+        refuses are refused here.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def ListFixturePeople(self, request, context):
         """ListFixturePeople answers who this authority signs in by fixture token, for
         the browser edge's sign-in page: the people are defined once, in the
@@ -120,6 +143,11 @@ def add_SessionServiceServicer_to_server(servicer, server):
             'OpenRoleView': grpc.unary_unary_rpc_method_handler(
                     servicer.OpenRoleView,
                     request_deserializer=host_dot_session_dot_v1_dot_session__pb2.OpenRoleViewRequest.FromString,
+                    response_serializer=host_dot_session_dot_v1_dot_session__pb2.Session.SerializeToString,
+            ),
+            'OpenTeamCast': grpc.unary_unary_rpc_method_handler(
+                    servicer.OpenTeamCast,
+                    request_deserializer=host_dot_session_dot_v1_dot_session__pb2.OpenTeamCastRequest.FromString,
                     response_serializer=host_dot_session_dot_v1_dot_session__pb2.Session.SerializeToString,
             ),
             'ListFixturePeople': grpc.unary_unary_rpc_method_handler(
@@ -209,6 +237,33 @@ class SessionService(object):
             target,
             '/host.session.v1.SessionService/OpenRoleView',
             host_dot_session_dot_v1_dot_session__pb2.OpenRoleViewRequest.SerializeToString,
+            host_dot_session_dot_v1_dot_session__pb2.Session.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def OpenTeamCast(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/host.session.v1.SessionService/OpenTeamCast',
+            host_dot_session_dot_v1_dot_session__pb2.OpenTeamCastRequest.SerializeToString,
             host_dot_session_dot_v1_dot_session__pb2.Session.FromString,
             options,
             channel_credentials,

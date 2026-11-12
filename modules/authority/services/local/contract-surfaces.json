@@ -68,6 +68,8 @@
       "procedures": [
         "/host.session.v1.SessionService/SignIn",
         "/host.session.v1.SessionService/Current",
+        "/host.session.v1.SessionService/OpenRoleView",
+        "/host.session.v1.SessionService/OpenTeamCast",
         "/host.session.v1.SessionService/ListFixturePeople"
       ]
     }

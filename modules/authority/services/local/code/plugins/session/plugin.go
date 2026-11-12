@@ -57,7 +57,7 @@ func (p *Plugin) SignIn(_ context.Context, req *sessionv1.SignInRequest) (*sessi
 
 // wire is a session as the interface answers it.
 func wire(sess state.Session, bearer string) *sessionv1.Session {
-	out := &sessionv1.Session{PersonDisplayName: sess.PersonDisplayName, OrganizationDisplayName: sess.OrganizationDisplayName, SessionId: sess.ID, PersonId: sess.Person, OrganizationId: sess.Organization, Roles: sess.Roles, TeamIds: sess.Teams, Bearer: bearer}
+	out := &sessionv1.Session{PersonDisplayName: sess.PersonDisplayName, OrganizationDisplayName: sess.OrganizationDisplayName, SessionId: sess.ID, PersonId: sess.Person, OrganizationId: sess.Organization, Roles: sess.Roles, TeamIds: sess.Teams, Bearer: bearer, CastTeamId: sess.CastTeam}
 	for _, id := range slices.Sorted(maps.Keys(sess.RoleView)) {
 		out.RoleView = append(out.RoleView, &sessionv1.RoleViewEntry{InstallationId: id, Roles: sess.RoleView[id]})
 	}
@@ -72,6 +72,20 @@ func (p *Plugin) OpenRoleView(ctx context.Context, req *sessionv1.OpenRoleViewRe
 		return nil, status.Error(codes.Unauthenticated, "the call carries no session bearer")
 	}
 	sess, err := p.State.OpenRoleView(ctx, bearer, req.GetInstallationId(), req.GetRoles())
+	if err != nil {
+		return nil, authorityplugin.Status(err)
+	}
+	return wire(sess, sess.ID), nil
+}
+
+// OpenTeamCast opens a session that acts as one team and nothing else; the
+// authority decides whether the caller may.
+func (p *Plugin) OpenTeamCast(ctx context.Context, req *sessionv1.OpenTeamCastRequest) (*sessionv1.Session, error) {
+	bearer := authorityplugin.Bearer(ctx)
+	if bearer == "" {
+		return nil, status.Error(codes.Unauthenticated, "the call carries no session bearer")
+	}
+	sess, err := p.State.OpenTeamCast(ctx, bearer, req.GetTeamId())
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}
