@@ -6,7 +6,6 @@ import (
 
 	"github.com/codefly-dev/core/solutionhost"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -15,8 +14,8 @@ import (
 // workload credential as the actor), is issued through the page's target's
 // binding to the audience when the target declares one — the person's role on
 // the target cut to the binding, its one actor the target as the person
-// present on the page (kind "page") — and on the person's own access when the
-// target declares none. Only the module edge names a page: the same Issue
+// present on the page (kind "page") — and refused, by name, when the target
+// declares none (RBAC-3). Only the module edge names a page: the same Issue
 // with no actor, or with any other workload's credential, is refused.
 //
 // A module page's role reaches a module that checks owners only as the page
@@ -123,10 +122,10 @@ func (c *client) pageCalls(t *testing.T, ctx context.Context, f Fixture) {
 			_, err = issue(f.EdgeCredential, pageCallStore, owned(other))
 			refused(t, err, codes.PermissionDenied, "widens")
 		}
+		// A module the target declares no binding to is refused by name,
+		// never issued on the person's own access (RBAC-3).
 		_, err = issue(f.EdgeCredential, f.Elsewhere)
-		if codeOf := status.Code(err); codeOf != codes.PermissionDenied {
-			t.Fatalf("a module the target declares no binding to is on the person's own access, which holds nothing there: %v", err)
-		}
+		refused(t, err, codes.PermissionDenied, "declares no binding to")
 		for _, actor := range []string{"", f.WorkloadCredential} {
 			_, err := issue(actor, pageCallLedger)
 			refused(t, err, codes.PermissionDenied, "module edge")

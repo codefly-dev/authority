@@ -559,7 +559,8 @@ func writeJSON(w http.ResponseWriter, code int, body any) {
 // saas host's own): the edge names the page to the authority's Issue
 // (page_target), which issues through the page's target's binding to the
 // module when the target declares one, the person present on the page, and
-// on the person's own access otherwise. The page is the path's, never a
+// refuses the call otherwise (a page reaches a module only through a binding
+// its target declares). The page is the path's, never a
 // header a browser sent, and is a route alias or nothing; the held context
 // is keyed on it, as the saas gateway keys its own.
 const pageCallPrefix = "/api/solutions/"
