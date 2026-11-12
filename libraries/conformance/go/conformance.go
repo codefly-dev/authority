@@ -1013,6 +1013,7 @@ func run(t *testing.T, c *client, f Fixture) {
 	c.installationLifecycle(t, ctx, f)
 	c.installationSurvivesDelivery(t, ctx, f)
 	c.reachConsent(t, ctx, f)
+	c.reachThroughConsent(t, ctx, f)
 	c.organizationIsolation(t, ctx, f)
 	c.admissionKeys(t, ctx, f)
 }

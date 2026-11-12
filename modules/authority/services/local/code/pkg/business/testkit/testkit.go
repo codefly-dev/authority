@@ -366,7 +366,7 @@ func bareWithClock(t *testing.T, clock func() time.Time) *Kit {
 	// manifests from their own workloads.
 	// robin and assistant are declared for the artifact tests, which compose
 	// them themselves.
-	for _, module := range []string{"model", "runtime", "records", "org-directory", "documents", "wiki", "proposals", "conformance-probe", "conformance-uninstalled", "conformance-solution", "conformance-methods", "robin", "assistant", "evaluation", "principal-a", "principal-b", "principal-c", "principal-store", "principal-legacy-store", "conformance-owner-a", "conformance-owner-b", "conformance-store", "conformance-declared", "conformance-declared-store", "conformance-page-module", "conformance-page-calls", "conformance-page-ledger", "conformance-page-store", "conformance-page-attach", "conformance-headless-roles", "conformance-redelivered", "conformance-reach", "conformance-reach-store"} {
+	for _, module := range []string{"model", "runtime", "records", "org-directory", "documents", "wiki", "proposals", "conformance-probe", "conformance-uninstalled", "conformance-solution", "conformance-methods", "robin", "assistant", "evaluation", "principal-a", "principal-b", "principal-c", "principal-store", "principal-legacy-store", "conformance-owner-a", "conformance-owner-b", "conformance-store", "conformance-declared", "conformance-declared-store", "conformance-page-module", "conformance-page-calls", "conformance-page-ledger", "conformance-page-store", "conformance-page-attach", "conformance-headless-roles", "conformance-redelivered", "conformance-reach", "conformance-reach-store", "conformance-through", "conformance-through-relay", "conformance-through-vault"} {
 		launcher.Declare(Workload(module))
 	}
 	launcher.Declare(HopWorkload())
