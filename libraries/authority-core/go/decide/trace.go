@@ -243,8 +243,20 @@ func First(links []Link) (Link, bool) {
 // Granted is binding asked as an envelope entry allowing allowed leaves it:
 // per operation, only what both name, and a lookup only beside an invoke left
 // standing. An entry for another audience, or one leaving nothing to invoke
-// or to do headless, grants no binding at all. It is the host's narrowing of a
-// delivered binding to its envelope, stated once for every reader.
+// or to do headless, grants no binding at all.
+//
+// STOPGAP, and it is NOT the only statement of this rule. The host's own
+// narrowing is deriveModulePrincipalGrant in the saas accounts service, which
+// a library cannot import. That one ALSO intersects with the units the
+// delivered document grants, omits an audience whose document grants no invoke
+// unit, and derives source delegation. This does none of those.
+//
+// So the two can disagree, and they disagree in the UNSAFE direction: a trace
+// built on this can report a binding "admitted" where the host drops it. Read
+// an admitted envelope link as "not refused by the rule stated here", never as
+// "the host grants it". The fix is for the host to call this function
+// (handbook#441 part 1); until then, a change to deriveModulePrincipalGrant
+// must be mirrored here by hand.
 func Granted(asked, allowed domain.Binding) (domain.Binding, error) {
 	if allowed.Audience != asked.Audience {
 		return domain.Binding{}, domain.Refuse("binding %q asks for audience %q and the envelope allows %q", asked.ID, asked.Audience, allowed.Audience)
