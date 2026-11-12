@@ -69,7 +69,7 @@ func scope(kind string, actions ...string) *authorityv1.WorkScopeV1 {
 // release key, and deliveries admitted from the module's own workload.
 func verifying(t *testing.T) (*Plugin, *testkit.Kit) {
 	t.Helper()
-	k := testkit.New(t)
+	k := testkit.Conformance(t)
 	return &Plugin{State: k.State, Coordinate: "local", Verifier: testkit.ReleaseVerifier(t, "local"), Carrier: k.CarrierAuthority, Keys: testkit.ReleaseKeys()}, k
 }
 

@@ -101,13 +101,30 @@ func (r ResourceMatch) Grant() resources.Grant {
 // once its target is composed: Role is the installation's own (its agent's),
 // Owner installed it and is granted the installer role, and each of Teams is
 // granted Role.
+//
+// A row whose Target is EveryTarget stands for every role-gated target the
+// run composes (a solution, a module page declaring roles), whatever the
+// composition is: each declared role of each such target goes to its
+// conventional `<target>-<role>` team, and each person under Members joins
+// the team of the role named, where the target declares that role. It names
+// no role and no teams, since those are one target's, and installs nothing:
+// a module page is installed by composition, a solution by a row naming it
+// or by an administrator, and each is seated once it is active. Owner is the
+// administrator the row stands for, a member of the organisation.
 type Installation struct {
 	Organization string   `yaml:"organization"`
 	Target       string   `yaml:"target"`
-	Role         string   `yaml:"role"`
+	Role         string   `yaml:"role,omitempty"`
 	Owner        string   `yaml:"owner"`
 	Teams        []string `yaml:"teams,omitempty,flow"`
+	// Members are, by declared role, the people who join the conventional
+	// `<target>-<role>` team holding that role on the installation.
+	Members map[string][]string `yaml:"members,omitempty"`
 }
+
+// EveryTarget is the target of a row standing for every role-gated target
+// the run composes.
+const EveryTarget = "*"
 
 // Module is a module the run stands in for: its name, which is its principal,
 // and the kinds and actions it serves.
@@ -192,8 +209,16 @@ func (d Document) validate() error {
 	}
 	installations := map[string]bool{}
 	for _, i := range d.Installations {
-		if i.Target == "" || i.Role == "" {
+		switch {
+		case i.Target == "" || (i.Target != EveryTarget && i.Role == ""):
 			return errors.New("an installation names no target or no role")
+		case i.Target == EveryTarget && (i.Role != "" || len(i.Teams) > 0):
+			return errors.New("a row standing for every target names only its owner and members: a role and teams are one target's")
+		}
+		for role, people := range i.Members {
+			if role == "" || len(people) == 0 {
+				return fmt.Errorf("the installation of %s at %s: members name a role and the people who take it", i.Target, i.Organization)
+			}
 		}
 		key := i.Organization + "/" + i.Target
 		if installations[key] {

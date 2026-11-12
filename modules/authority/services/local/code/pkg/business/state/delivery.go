@@ -47,6 +47,9 @@ func (s *State) ApplyDelivered(ctx context.Context, coordinate string, carrier *
 		if err := s.finishDelivery(ctx, candidate, record); err != nil {
 			return nil, err
 		}
+		if _, err := s.SeatRoleTeams(ctx); err != nil {
+			return nil, err
+		}
 	}
 	return slices.Clone(record.ids), nil
 }

@@ -47,6 +47,9 @@ type Sessions interface {
 	SignIn(ctx context.Context, in *sessionv1.SignInRequest, opts ...grpc.CallOption) (*sessionv1.Session, error)
 	Current(ctx context.Context, in *sessionv1.CurrentRequest, opts ...grpc.CallOption) (*sessionv1.Session, error)
 	ListFixturePeople(ctx context.Context, in *sessionv1.ListFixturePeopleRequest, opts ...grpc.CallOption) (*sessionv1.ListFixturePeopleResponse, error)
+	// OpenTeamCast opens a session that acts as one team and nothing else
+	// (actas.go); the authority decides whether the caller may.
+	OpenTeamCast(ctx context.Context, in *sessionv1.OpenTeamCastRequest, opts ...grpc.CallOption) (*sessionv1.Session, error)
 }
 
 // Installations is the installation interface's List: an administrator's read
@@ -130,6 +133,9 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	case "/auth/sign-out":
 		e.signOut(w, r)
+		return
+	case "/auth/act-as":
+		e.actAs(w, r)
 		return
 	case "/auth/setup":
 		served, err := e.servesSetup(r.Context())
@@ -351,7 +357,9 @@ func (e *Edge) signOut(w http.ResponseWriter, r *http.Request) {
 	}
 	bearer, _ := bearerOf(r)
 	e.evict(bearer)
-	http.SetCookie(w, &http.Cookie{Name: SessionKey, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode})
+	for _, name := range []string{SessionKey, ParentKey} {
+		http.SetCookie(w, &http.Cookie{Name: name, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode})
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -388,6 +396,8 @@ func (e *Edge) session(w http.ResponseWriter, r *http.Request) {
 		"moduleApiBase": "/",
 		"personId":      sess.GetPersonId(), "organizationId": sess.GetOrganizationId(), "roles": sess.GetRoles(),
 		"personDisplayName": sess.GetPersonDisplayName(), "organizationDisplayName": sess.GetOrganizationDisplayName(),
+		// A cast: the session acts as this team and nothing else (actas.go).
+		"teamIds": nonNil(sess.GetTeamIds()), "castTeamId": sess.GetCastTeamId(),
 		"installations": usable, "refused": refused,
 	})
 }

@@ -80,6 +80,11 @@ func (p *Plugin) Install(ctx context.Context, req *installationv1.InstallRequest
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}
+	// The fixture's standing people take their teams on it at once, as they
+	// do on an installation the fixture performs.
+	if _, err := p.State.SeatRoleTeams(ctx); err != nil {
+		return nil, authorityplugin.Status(err)
+	}
 	return p.wire(ctx, inst), nil
 }
 

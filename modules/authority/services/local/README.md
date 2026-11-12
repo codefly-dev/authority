@@ -214,8 +214,9 @@ roles:          # grants added to roles the fixture defines
       - {kind: ledger.entry, actions: [read, write]}
 installations:  # installations of a solution the run composes, the fixture's own path
   # role: the installation's own (its agent's) role; owner: who installed it,
-  # granted the installer role; teams: each granted role on the installation.
-  - {organization: acme, target: atlas, role: viewer, owner: alex, teams: [finance]}
+  # granted the installer role; teams: each granted role on the installation;
+  # members: by declared role, who joins its `<target>-<role>` team.
+  - {organization: acme, target: atlas, role: viewer, owner: alex, teams: [finance], members: {editor: [carol]}}
 modules:        # a module the run supervises itself, until its own delivery
   - module: oracle
     kinds: [{kind: oracle.answers, actions: [read]}]
@@ -263,6 +264,22 @@ The authority module's own fragment
 schema line alone, so a composition of the authority and nothing else boots
 on the fixture alone.
 
+**The same people on every target.** The fixture carries one row whose
+target is `"*"`: it stands for every role-gated target the run composes (a
+solution, a module page declaring roles), whatever the composition is. Each
+role such a target declares goes to its conventional `<target>-<role>` team,
+created in this host's directory and granted the role on the installation
+through the core (`authority.GrantRoleTeamsAsHost`), and each person under
+`members` joins the team of the role named, where the target declares it:
+Bob the viewer, Carol the editor, Dana the installer. The row installs
+nothing — a module page is installed by composition, a solution by a row
+naming it or by an administrator at the edge's setup page — and seats each
+the moment it is active, after the fixture loads, after every delivery and
+after every install (`pkg/business/state/teams.go`). A composition's row
+naming a target is kept, and that target is seated the same way; its own
+`members` join too. The boot log names each: `seats wiki at acme:
+wiki-editor [carol] wiki-installer [dana] wiki-viewer [bob]`.
+
 **The contract.** The `schema` line versions the document. Its sections, and
 the fixture's organisation, role and person ids it names (`acme`, `globex`,
 `viewer`, `editor`, `admin`, `alex`, …), are a contract with every composing
@@ -280,7 +297,9 @@ changes no role:
   distinct;
 - a kind or action outside the grammar, surrounding whitespace included;
 - a malformed resource matcher;
-- an installation whose organisation or owner the fixture does not define;
+- an installation whose organisation, owner or members the fixture does not
+  define, a row standing for every target that names a role or teams, and a
+  member entry naming no role or nobody;
 - two fragments stating the same grant, installation or stand-in module.
 
 The boot log names each effect, for example `the composition grants
