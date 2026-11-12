@@ -131,7 +131,12 @@ func reachesBefore(tx Tx, applied string) (map[string]string, error) {
 // not because any declaration changed, so the receipt is re-taken at the
 // reach the page has now (holdByComposition) and its holders hold there at
 // once. A fresh run composes its modules in no fixed order, and the page's
-// receipt never freezes the absence of a module that had not landed yet. A
+// receipt never freezes the absence of a module that had not landed yet.
+// It is re-taken only where the receipt stood at what the page reached
+// before this delivery: everything the new reach adds is then the new
+// module's composition. A receipt still behind (an upgrade pending from a
+// redelivery that widened) keeps waiting, and the new module's reach waits
+// with it, so composition growing never approves a widening nobody did. A
 // redelivery of the page, or of a module it reaches, that widens the reach
 // offers the upgrade as a solution's does.
 func (s *Service) reconvergeReach(ctx context.Context, tx Tx, applied string, before map[string]string, grew bool) error {
@@ -153,7 +158,7 @@ func (s *Service) reconvergeReach(ctx context.Context, tx Tx, applied string, be
 			return err
 		}
 		detail := map[string]string{"target": inst.Target, "approved_generation": fmt.Sprint(inst.Consent.Generation), "generation": fmt.Sprint(m.Generation), "delivered": applied}
-		if len(asks) > 0 && grew && inst.Consent.OperationID == domain.ComposedConsent {
+		if was, ok := before[inst.ID]; len(asks) > 0 && grew && inst.Consent.OperationID == domain.ComposedConsent && ok && was == inst.Consent.ReachDigest {
 			if err := s.holdByComposition(ctx, tx, inst, m, applied); err != nil {
 				return err
 			}

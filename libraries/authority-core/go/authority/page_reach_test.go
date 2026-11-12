@@ -304,3 +304,77 @@ func TestAPageInstallationRecordedByItsHostHoldsAModuleComposedLater(t *testing.
 		t.Fatalf("a module landing offered an upgrade: %v %v", up, err)
 	}
 }
+
+// Composition taking the page's receipt again never approves a widening
+// nobody approved: with an upgrade pending because records' redelivery
+// widened, a module composed for the first time that the page reaches
+// leaves the receipt where it was. The upgrade stays offered, the new
+// module's reach waits for it, and the approval holds both.
+func TestAModuleComposedForTheFirstTimeApprovesNoUpgradePending(t *testing.T) {
+	h := newHarness(t)
+	svc, _ := journaled(h)
+	page := pageReachingRecords(1)
+	page.Bindings["tally-rows"] = domain.Binding{ID: "tally-rows", Audience: "tally", InvokeScopes: []*basev0.WorkScopeV1{sc("tally.row", "read")}}
+	page.Roles["viewer"] = append(page.Roles["viewer"], sc("tally.row", "read"))
+	page.Roles[domain.InstallerRole] = append(page.Roles[domain.InstallerRole], sc("tally.row", "read"))
+	if _, err := svc.ApplyModule(h.ctx, page); err != nil {
+		t.Fatal(err)
+	}
+	h.grant("pages", "viewer", "maya")
+	h.grant("pages", domain.InstallerRole, "remi")
+	if _, err := svc.ApplyModule(h.ctx, records(1)); err != nil {
+		t.Fatal(err)
+	}
+	wider := records(2)
+	wider.Methods = map[string]domain.MethodPolicy{"/records.v1.Rows/List": {AnyCheckedCaller: true}}
+	if _, err := svc.ApplyModule(h.ctx, wider); err != nil {
+		t.Fatal(err)
+	}
+	pending := h.pagesAt(acme).Consent
+	tally := domain.Module{Name: "tally", Principal: "tally", Kind: domain.KindModule, Generation: 1, ResourceKinds: []*basev0.WorkScopeV1{sc("tally.row", "read", "write")}}
+	if _, err := svc.ApplyModule(h.ctx, tally); err != nil {
+		t.Fatal(err)
+	}
+	held := h.pagesAt(acme)
+	if held.Consent.ReachDigest != pending.ReachDigest {
+		t.Fatalf("a module composed for the first time moved a receipt with an upgrade pending: %s, was %s", held.Consent.ReachDigest, pending.ReachDigest)
+	}
+	if up, err := svc.UpgradeAvailable(h.ctx, held); err != nil || !up {
+		t.Fatalf("a module composed for the first time approved records' widening: upgrade available %v %v", up, err)
+	}
+	if _, err := h.through("maya", "pages", "tally-rows"); err == nil {
+		t.Fatal("the new module's reach was held ahead of the upgrade it waits with")
+	}
+	if _, err := h.approvePage(svc, "remi"); err != nil {
+		t.Fatal(err)
+	}
+	exactly(t, h.must(h.through("maya", "pages", "tally-rows")), "tally.row", "", []string{"read"})
+}
+
+// A module withdrawn and delivered again is not composition growing for a
+// page whose receipt still holds it: no generation of it stands, but the
+// receipt kept its earlier rows, so a redelivery wider than they were
+// offers the upgrade and holds the viewer.
+func TestAModuleWithdrawnAndDeliveredWiderOffersThePageAnUpgrade(t *testing.T) {
+	h := newHarness(t)
+	svc, _ := journaled(h)
+	if _, err := svc.ApplyModule(h.ctx, pageReachingRecords(1)); err != nil {
+		t.Fatal(err)
+	}
+	h.grant("pages", "viewer", "maya")
+	if _, err := svc.ApplyModule(h.ctx, records(1)); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.WithdrawModule(h.ctx, "records"); err != nil {
+		t.Fatal(err)
+	}
+	wider := records(2)
+	wider.Methods = map[string]domain.MethodPolicy{"/records.v1.Rows/List": {AnyCheckedCaller: true}}
+	if _, err := svc.ApplyModule(h.ctx, wider); err != nil {
+		t.Fatal(err)
+	}
+	if up, err := svc.UpgradeAvailable(h.ctx, h.pagesAt(acme)); err != nil || !up {
+		t.Fatalf("a module delivered wider after its withdrawal was taken without an upgrade: %v %v", up, err)
+	}
+	exactly(t, h.must(h.through("maya", "pages", "records-rows")), recordsKind, "", []string{"read"})
+}
