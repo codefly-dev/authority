@@ -151,6 +151,129 @@ func asStored(m domain.Module) domain.Module {
 	return m
 }
 
+// admission is what the core decides about a delivered module before it
+// writes anything: the module it replaces, if any (exists), whether that
+// module was withdrawn and is delivered again, and whether the delivery is
+// a replay of the held generation, which changes nothing. Every other verdict
+// is a refusal, and it is one verdict: Admit asks it read-only and ApplyModule
+// writes on it, so what one would refuse the other refuses.
+type admission struct {
+	previous                  domain.Module
+	exists, withdrawn, replay bool
+}
+
+// admit decides m against the store as it stands: a tombstone's principal and
+// generation, a held generation delivered again (a replay when the
+// declaration is the same, refused when it is not), an older generation, a
+// principal that is another module's, a person's, a client's or an
+// installation's, and what m's roles name through a binding that the
+// composition this delivery would leave does not reach (decide.Unreached).
+// m is validated (decide.ValidateModule) and serves decide.Served(m).
+func admit(tx Tx, m domain.Module) (admission, error) {
+	var a admission
+	previous, err := tx.ModuleNamed(m.Name)
+	a.exists = err == nil
+	if err != nil && !errors.Is(err, domain.ErrNotFound) {
+		return a, err
+	}
+	a.previous = previous
+	if !a.exists {
+		// A module withdrawn before keeps its principal and its last
+		// generation: a redelivery never renames it or rewinds it. Its
+		// principal stays its own: no other module claims it. A tombstone
+		// is never cleared; a module that must change principal is
+		// delivered under a new name.
+		if tomb, err := tx.TombstoneByPrincipal(m.Principal); err == nil && tomb.Name != m.Name {
+			return a, domain.Refuse("principal %q is withdrawn %s's for life; %s cannot claim it", m.Principal, tomb.Name, m.Name)
+		} else if err != nil && !errors.Is(err, domain.ErrNotFound) {
+			return a, err
+		}
+		tomb, err := tx.Tombstone(m.Name)
+		a.withdrawn = err == nil
+		switch {
+		case err == nil && tomb.Principal != m.Principal:
+			return a, domain.Refuse("%s is principal %q for life; a delivery cannot rename it %q", m.Name, tomb.Principal, m.Principal)
+		case err == nil && tomb.Generation >= m.Generation:
+			return a, domain.NotNow("%s was withdrawn at %d, got %d", m.Name, tomb.Generation, m.Generation)
+		case err != nil && !errors.Is(err, domain.ErrNotFound):
+			return a, err
+		}
+	}
+	if a.exists && !previous.StandIn && previous.Generation == m.Generation {
+		// A host composes one delivery on more than one path at once (its
+		// delivery endpoint's pass and its reconcile loop's), so the
+		// generation a path brings may be the one another just composed.
+		// The same declaration is a replay and changes nothing; another
+		// one at the held generation is refused, naming both.
+		held, err := DeclarationDigest(previous)
+		if err != nil {
+			return a, err
+		}
+		delivered, err := DeclarationDigest(m)
+		if err != nil {
+			return a, err
+		}
+		if held != delivered {
+			return a, domain.NotNow("%s generation %d is held as %s and delivered as %s; a changed declaration is a new generation",
+				m.Name, m.Generation, held, delivered)
+		}
+		a.replay = true
+		return a, nil
+	}
+	if a.exists && !previous.StandIn && previous.Generation > m.Generation {
+		return a, domain.NotNow("%s is at %d, got %d", m.Name, previous.Generation, m.Generation)
+	}
+	if other, err := tx.Module(m.Principal); err == nil && other.Name != m.Name {
+		return a, domain.Refuse("principal %q already belongs to %s", m.Principal, other.Name)
+	}
+	if a.exists && previous.Principal != m.Principal {
+		return a, domain.Refuse("%s is principal %q for life; a delivery cannot rename it %q", m.Name, previous.Principal, m.Principal)
+	}
+	if _, err := tx.Person(m.Principal); err == nil {
+		return a, domain.Refuse("principal %q names a person; a module's principal is its own", m.Principal)
+	}
+	if _, err := tx.Client(m.Principal); err == nil {
+		return a, domain.Refuse("principal %q names an external client; a module's principal is its own", m.Principal)
+	} else if !errors.Is(err, domain.ErrNotFound) {
+		return a, err
+	}
+	if _, err := tx.InstallationByPrincipal(m.Principal); err == nil {
+		return a, domain.Refuse("principal %q names an installation's principal; a module's principal is its own", m.Principal)
+	}
+	// What the delivered module's roles name through a binding is
+	// reachable from it in the composition this delivery leaves
+	// (decide.Unreached). What it leaves of another module's is reported
+	// on that module's installations, never refused (journalReach).
+	composed, err := composition(tx)
+	if err != nil {
+		return a, err
+	}
+	delete(composed, previous.Principal)
+	composed[m.Principal] = m
+	return a, decide.Unreached(m, composed)
+}
+
+// Admit answers, without writing, whether ApplyModule would compose m now:
+// its validation (decide.ValidateModule), the generation and principal rules,
+// a held generation delivered differently, and what its roles name through a
+// binding that the composition would not reach (decide.Unreached). nil is
+// the held generation delivered again (a replay) or a delivery the core
+// would record; every refusal is the one ApplyModule would make, with its
+// code. A host that keeps a record of each delivery beside the core's asks
+// it before recording one, and records the delivery only once ApplyModule
+// has taken it: the answer stands for the composition as it is now, and the
+// apply decides again on its own transaction.
+func (s *Service) Admit(ctx context.Context, m domain.Module) error {
+	if err := decide.ValidateModule(m); err != nil {
+		return err
+	}
+	m.ResourceKinds = decide.Served(m)
+	return s.store.Read(ctx, func(tx Tx) error {
+		_, err := admit(tx, m)
+		return err
+	})
+}
+
 // ApplyModule records a delivered module at a newer generation and holds a
 // module installation at every organization, unless the host installs
 // modules itself (Config.HostInstallsModules). Only a solution is installed
@@ -174,88 +297,11 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 	var ids []string
 	err := s.store.Write(ctx, func(tx Tx) error {
 		ids = nil // a retried transaction starts over
-		previous, err := tx.ModuleNamed(m.Name)
-		exists := err == nil
-		if err != nil && !errors.Is(err, domain.ErrNotFound) {
+		a, err := admit(tx, m)
+		if err != nil || a.replay {
 			return err
 		}
-		withdrawn := false
-		if !exists {
-			// A module withdrawn before keeps its principal and its last
-			// generation: a redelivery never renames it or rewinds it. Its
-			// principal stays its own: no other module claims it. A tombstone
-			// is never cleared; a module that must change principal is
-			// delivered under a new name.
-			if tomb, err := tx.TombstoneByPrincipal(m.Principal); err == nil && tomb.Name != m.Name {
-				return domain.Refuse("principal %q is withdrawn %s's for life; %s cannot claim it", m.Principal, tomb.Name, m.Name)
-			} else if err != nil && !errors.Is(err, domain.ErrNotFound) {
-				return err
-			}
-			tomb, err := tx.Tombstone(m.Name)
-			withdrawn = err == nil
-			switch {
-			case err == nil && tomb.Principal != m.Principal:
-				return domain.Refuse("%s is principal %q for life; a delivery cannot rename it %q", m.Name, tomb.Principal, m.Principal)
-			case err == nil && tomb.Generation >= m.Generation:
-				return domain.NotNow("%s was withdrawn at %d, got %d", m.Name, tomb.Generation, m.Generation)
-			case err != nil && !errors.Is(err, domain.ErrNotFound):
-				return err
-			}
-		}
-		if exists && !previous.StandIn && previous.Generation == m.Generation {
-			// A host composes one delivery on more than one path at once (its
-			// delivery endpoint's pass and its reconcile loop's), so the
-			// generation a path brings may be the one another just composed.
-			// The same declaration is a replay and changes nothing; another
-			// one at the held generation is refused, naming both.
-			held, err := DeclarationDigest(previous)
-			if err != nil {
-				return err
-			}
-			delivered, err := DeclarationDigest(m)
-			if err != nil {
-				return err
-			}
-			if held != delivered {
-				return domain.NotNow("%s generation %d is held as %s and delivered as %s; a changed declaration is a new generation",
-					m.Name, m.Generation, held, delivered)
-			}
-			return nil
-		}
-		if exists && !previous.StandIn && previous.Generation > m.Generation {
-			return domain.NotNow("%s is at %d, got %d", m.Name, previous.Generation, m.Generation)
-		}
-		if other, err := tx.Module(m.Principal); err == nil && other.Name != m.Name {
-			return domain.Refuse("principal %q already belongs to %s", m.Principal, other.Name)
-		}
-		if exists && previous.Principal != m.Principal {
-			return domain.Refuse("%s is principal %q for life; a delivery cannot rename it %q", m.Name, previous.Principal, m.Principal)
-		}
-		if _, err := tx.Person(m.Principal); err == nil {
-			return domain.Refuse("principal %q names a person; a module's principal is its own", m.Principal)
-		}
-		if _, err := tx.Client(m.Principal); err == nil {
-			return domain.Refuse("principal %q names an external client; a module's principal is its own", m.Principal)
-		} else if !errors.Is(err, domain.ErrNotFound) {
-			return err
-		}
-		if _, err := tx.InstallationByPrincipal(m.Principal); err == nil {
-			return domain.Refuse("principal %q names an installation's principal; a module's principal is its own", m.Principal)
-		}
-		m.ResourceKinds = scope.Normalize(m.ResourceKinds)
-		// What the delivered module's roles name through a binding is
-		// reachable from it in the composition this delivery leaves
-		// (decide.Unreached). What it leaves of another module's is reported
-		// on that module's installations, never refused (journalReach).
-		composed, err := composition(tx)
-		if err != nil {
-			return err
-		}
-		delete(composed, previous.Principal)
-		composed[m.Principal] = m
-		if err := decide.Unreached(m, composed); err != nil {
-			return err
-		}
+		previous, exists, withdrawn := a.previous, a.exists, a.withdrawn
 		unreachedBefore, err := unreachedNow(tx)
 		if err != nil {
 			return err
