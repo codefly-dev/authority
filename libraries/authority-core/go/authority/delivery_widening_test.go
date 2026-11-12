@@ -14,9 +14,10 @@ import (
 
 // A delivery never widens what an existing grant means (RBAC audit B2). A
 // grant is an administrator's approval of what the role meant when it was
-// given; a later delivery that gives the same name a wider meaning ends the
-// grants and says so, two ways it used to widen them silently (a third, a
-// solution installed by trusted host setup, follows its delivery by design).
+// given; a later delivery that gives the same name a wider meaning holds the
+// grant at that meaning and offers the upgrade, and a withdrawal ends the
+// grant, two ways it used to widen them silently (a third, a solution
+// installed by trusted host setup, follows its delivery by design).
 
 func journalingService(h *harness) (*authority.Service, *[]domain.Event) {
 	var events []domain.Event
@@ -48,7 +49,11 @@ func kinds(events []domain.Event) []domain.EventKind {
 	return out
 }
 
-func TestModulePageRoleWidenedOnItsOwnKindEndsItsGrants(t *testing.T) {
+// A module page's role widened on the page's own kind holds its holders at
+// what the role meant when it was granted: the grant stays, the wider
+// meaning waits for the upgrade's approval, and the approval is the
+// administrator's review of the delivered offer, never a regrant.
+func TestModulePageRoleWidenedOnItsOwnKindHoldsItsHoldersAtTheApprovedRole(t *testing.T) {
 	h := newHarness(t)
 	svc, events := journalingService(h)
 	if _, err := svc.ApplyModule(h.ctx, pageModule(1, true)); err != nil {
@@ -67,15 +72,17 @@ func TestModulePageRoleWidenedOnItsOwnKindEndsItsGrants(t *testing.T) {
 	if got, err := svc.IssueForPerson(h.ctx, h.person("maya"), write); err == nil {
 		t.Fatalf("a viewer granted read holds write after a delivery widened the role: %s", scopeText(got.Context.GetAuthorityScopes()))
 	}
-	if !slices.Contains(kinds(*events), domain.InstallationRoleReachWidened) {
-		t.Fatalf("the widening is not named by an event: %v", kinds(*events))
+	if _, err := svc.IssueForPerson(h.ctx, h.person("maya"), authority.IssueRequest{Audience: "pages", Scopes: []*basev0.WorkScopeV1{sc("pages.note", "read")}}); err != nil {
+		t.Fatalf("the viewer's grant no longer answers at the approved role: %v", err)
 	}
-	// An administrator grants the widened role again; that is the approval.
-	if _, err := svc.GrantRole(h.ctx, h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: "viewer", PersonID: "maya"}); err != nil {
+	if !slices.Contains(kinds(*events), domain.InstallationUpgradeAvailable) || slices.Contains(kinds(*events), domain.RoleRevoked) {
+		t.Fatalf("the widening is not offered as an upgrade, or revoked a grant: %v", kinds(*events))
+	}
+	if _, err := h.approvePage(svc, "alex"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := svc.IssueForPerson(h.ctx, h.person("maya"), write); err != nil {
-		t.Fatalf("a regranted role is held: %v", err)
+		t.Fatalf("the approved wider role is not held: %v", err)
 	}
 }
 

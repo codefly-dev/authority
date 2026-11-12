@@ -94,7 +94,7 @@ func TestAModulesRedeliveryThatWidensASolutionsReachOffersAnUpgrade(t *testing.T
 	if err := h.callStore(at, storeRead); err != nil {
 		t.Fatalf("the approved reach was cut: %v", err)
 	}
-	refused(t, h.callStore(at, storePurge), "beyond the reach its solution's installation approved")
+	refused(t, h.callStore(at, storePurge), "beyond the reach its installation approved")
 	_, err := h.hop(at, "replica")
 	refused(t, err, "holds nothing at replica")
 	offer, err2 := h.svc.ReviewOffer(h.ctx, h.person("maya"), acme, "a")
@@ -200,7 +200,7 @@ func TestANarrowedCallIsHeldToTheApprovedPolicyOnItsOwnScopes(t *testing.T) {
 	if up, err := h.svc.UpgradeAvailable(h.ctx, h.stored(acme, "a")); err != nil || !up {
 		t.Fatalf("relaxing Purge offers no upgrade: %v %v", up, err)
 	}
-	refused(t, h.callStore(narrowed, storePurge), "beyond the reach its solution's installation approved")
+	refused(t, h.callStore(narrowed, storePurge), "beyond the reach its installation approved")
 	if err := h.callStore(narrowed, storeRead); err != nil {
 		t.Fatalf("the narrowed capability lost the approved Read: %v", err)
 	}

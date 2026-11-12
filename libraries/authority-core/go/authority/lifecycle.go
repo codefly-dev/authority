@@ -288,7 +288,11 @@ func (s *Service) Admit(ctx context.Context, m domain.Module) error {
 // An active installation consented to survives the delivery: its consent
 // re-converges on the new generation when the reviewed offer asks nothing the
 // approved one did not (reconverge), and otherwise stands, offering an
-// upgrade; its role grants are kept either way.
+// upgrade; its role grants are kept either way. A module page's installation
+// is consented to by composition (domain.ComposedConsent, adoptLegacyReach),
+// so a delivery that widens what one of its roles reaches, of the page or of
+// a module it reaches, never revokes a grant and never widens one: holders
+// keep the approved reach until the upgrade is approved.
 func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, error) {
 	if err := decide.ValidateModule(m); err != nil {
 		return nil, err
@@ -308,15 +312,12 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 		}
 		// A consent recorded before reach was kept adopts the reach it has
 		// before this delivery changes the composition, so what the
-		// delivery widens is measured against it.
+		// delivery widens is measured against it; a module page's
+		// installation no consent holds yet takes its receipt the same way.
 		if err := s.adoptLegacyReach(ctx, tx, false); err != nil {
 			return err
 		}
 		before, err := reachesBefore(tx, m.Name)
-		if err != nil {
-			return err
-		}
-		pagesBefore, err := pageReaches(tx)
 		if err != nil {
 			return err
 		}
@@ -348,9 +349,6 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 			}
 		}
 		if err := s.reconvergeReach(ctx, tx, m.Name, before); err != nil {
-			return err
-		}
-		if err := s.dropWidenedPageGrants(ctx, tx, m.Name, pagesBefore); err != nil {
 			return err
 		}
 		if err := s.journalReach(ctx, tx, unreachedBefore); err != nil {
@@ -742,12 +740,17 @@ type InstallStep func(ctx context.Context, inst domain.Installation) error
 // selected unless the caller names that same role, and "none" selects no standing
 // authority when the caller supplies no role. A caller may never supply "none".
 // With no selector, the caller must name a declared role as before.
+// A module page (a module declaring roles) is installed by composition, never
+// here; what Install takes for one is the approval of its pending upgrade,
+// by an administrator or by a holder of the page's installer role on its
+// installation (approver), which records the consent the receipt composition
+// took stood in for.
 func (s *Service) Install(ctx context.Context, caller Person, org, target, agentRole, installedBy string, approval *domain.ConsentApproval, step InstallStep) (domain.Installation, error) {
 	if approval != nil {
 		copy := *approval
 		approval = &copy
 	}
-	return s.install(ctx, func(tx Tx) error { return administrator(tx, caller, org) }, caller, org, target, agentRole, installedBy, approval, step)
+	return s.install(ctx, func(tx Tx) error { return approver(tx, caller, org, target) }, caller, org, target, agentRole, installedBy, approval, step)
 }
 
 // InstallAsHost is for trusted host setup, never a request handler. It installs
@@ -790,8 +793,16 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 		if err != nil && !errors.Is(err, domain.ErrNotFound) {
 			return err
 		}
-		if err != nil || m.Kind != domain.KindSolution {
+		if err != nil {
 			return domain.Missing("%q is not a composed solution; a module is installed by composition", target)
+		}
+		id := s.cfg.InstallationID(org, target)
+		existing, found := tx.Installation(id)
+		if found != nil && !errors.Is(found, domain.ErrNotFound) {
+			return found
+		}
+		if m.Kind != domain.KindSolution && (!decide.RoleGated(m) || approval == nil || found != nil || existing.Status != domain.Active) {
+			return domain.Missing("%q is not a composed solution; a module is installed by composition, and only the upgrade of a page's active installation is approved here", target)
 		}
 		generation = m.Generation
 		selectedRole, err = installationRole(m, agentRole)
@@ -809,11 +820,7 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 		if err != nil || p.Organization != org {
 			return domain.Refuse("owner %q is not a member of %s", installedBy, org)
 		}
-		id := s.cfg.InstallationID(org, target)
-		existing, err := tx.Installation(id)
-		if err != nil && !errors.Is(err, domain.ErrNotFound) {
-			return err
-		}
+		err = found
 		if approval != nil {
 			same, err := checkConsent(m, existing, approval, intent, reach)
 			if err != nil {
@@ -948,7 +955,11 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 func (s *Service) upgrade(ctx context.Context, tx Tx, caller Person, current *domain.Installation, approval *domain.ConsentApproval, intent, selectedRole string, m domain.Module, reach offeredReach, out *domain.Installation) error {
 	current.Revision++
 	current.Consent = receipt(approval, intent, current.Revision, m, reach)
-	current.AgentRole = selectedRole
+	if m.Kind == domain.KindSolution {
+		// A module page's installation holds no standing authority, and
+		// the record is its host's: the role it holds is left as recorded.
+		current.AgentRole = selectedRole
+	}
 	if err := tx.PutInstallation(*current); err != nil {
 		return err
 	}
@@ -986,6 +997,11 @@ func installationRole(m domain.Module, requested string) (string, error) {
 		return "", domain.Refuse("none is an installation_role declaration, not a caller-supplied role")
 	}
 	selected := m.InstallationRole
+	if selected == "" && requested == "" && m.Kind != domain.KindSolution {
+		// A module's installation holds no standing authority unless its
+		// declaration selects a role (composedInstallation).
+		return domain.NoInstallationRole, nil
+	}
 	if selected == "" {
 		selected = requested
 	} else if requested != "" && requested != selected {
@@ -1062,14 +1078,26 @@ func (s *Service) UninstallAsHost(ctx context.Context, organization, installatio
 }
 
 // composedInstallation is a module's installation at org by composition:
-// active, holding no standing authority and no consent, with the principal
-// that owns what the module's page creates in a module that checks owners,
-// as a solution's installation owns what its page creates
-// (decide.ModuleRoleAt). A principal another identity already holds is not
-// taken: the installation then holds none and owns nothing (fails closed).
+// active, holding no standing authority, with the principal that owns what
+// the module's page creates in a module that checks owners, as a solution's
+// installation owns what its page creates (decide.ModuleRoleAt). A principal
+// another identity already holds is not taken: the installation then holds
+// none and owns nothing (fails closed). A module page's holds composition's
+// receipt (composedReceipt): it is held at the reach the page has now, and
+// a delivery widening it offers an upgrade; a module declaring no role holds
+// no consent, and follows its delivery.
 func (s *Service) composedInstallation(tx Tx, org, module string) (domain.Installation, error) {
 	inst := domain.Installation{ID: s.cfg.InstallationID(org, module), Organization: org, Target: module, Status: domain.Active, Revision: 1}
-	_, err := s.withComposedPrincipal(tx, &inst)
+	if _, err := s.withComposedPrincipal(tx, &inst); err != nil {
+		return inst, err
+	}
+	m, err := tx.ModuleNamed(module)
+	if err != nil {
+		return inst, err
+	}
+	if m.Kind != domain.KindSolution && decide.RoleGated(m) {
+		err = composedReceipt(tx, &inst, m)
+	}
 	return inst, err
 }
 

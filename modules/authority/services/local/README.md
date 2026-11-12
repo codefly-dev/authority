@@ -126,12 +126,17 @@ as `installation.reach_unreached`, then `installation.reach_restored`), grants
 nothing there, as each hop narrows, and re-converges by itself once a delivery
 reaches it again, asking the administrator nothing new for a reach its approved
 declaration names. A walk that meets a module not yet composed waits for it.
-No consent holds a module page's installation, so an administrator's grant is
-the only approval its holders have: a delivery, of the page or of a module it
-reaches, that widens what one of its roles reaches through its bindings ends
-that role's grants (`installation.role_reach_widened`, each grant journaled as
-`role.revoked`), and an administrator grants it again knowing what it now
-reaches. A module may declare
+A module page's installation is held at an approved reach exactly as a
+solution's is: composition takes its consent receipt (`ConsentReceipt`
+operation `composition`, journaled as `installation.reach_adopted` held by
+composition) at the reach the page has when it is installed, or when a host
+that installs modules starts. A delivery, of the page or of a module it
+reaches, that widens what one of its roles reaches holds the installation at
+the approved reach and offers an upgrade (`installation.upgrade_available`
+naming what widened); no grant is revoked and none is widened. An
+administrator, or a holder of the page's installer role on its installation,
+approves the upgrade through `Review` and `Install`, as a solution's is
+approved. A module may declare
 kinds `shared` (the authority document's `shared_kinds`, from a scope
 ceiling's `shared: true`): kinds no owner holds, such as a model's profiles. A
 scope of one is issued unselected, even through a solution's binding; every

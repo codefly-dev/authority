@@ -109,5 +109,11 @@ func TestAdmitAnswersWhatApplyModuleWouldRefuse(t *testing.T) {
 	if _, err := h.svc.ApplyModule(h.ctx, ten); err != nil {
 		t.Fatal(err)
 	}
+	// Applied, 10 asks nothing 7 did not: the installation re-converges on
+	// it, as a consented solution's does, with its grants.
+	revision++
 	held(10)
+	if got := h.pagesAt(acme); got.Consent.Generation != 10 {
+		t.Fatalf("the installation did not re-converge on 10: %+v", got)
+	}
 }
