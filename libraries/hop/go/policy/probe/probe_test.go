@@ -4,7 +4,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"net"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -151,11 +154,9 @@ func module(t *testing.T, contract []byte, decide rule, carry func(scopes []*bas
 		}
 		return nil
 	}
-	sum := sha256.Sum256(contract)
 	return probe.Module{
-		Endpoint: composition.APIContractEndpoint{Digest: "sha256:" + hex.EncodeToString(sum[:]),
-			Services: []composition.APIContractService{{FullName: "grpc.health.v1.Health", Procedures: []string{check, watch, list}}}},
-		Contract: contract, Server: server, Conn: conn, Owner: "installation",
+		Dir: packaged(t, contract, check, watch, list), Service: "health", Endpoint: "grpc",
+		Server: server, Conn: conn, Owner: "installation",
 		Carry: func(ctx context.Context, _ string, scopes []*basev0.WorkScopeV1) (context.Context, error) {
 			return metadata.AppendToOutgoingContext(ctx, hop.WorkContextKey, authority.Issue(t, "module", carry(scopes)...)), nil
 		},
@@ -170,6 +171,33 @@ func module(t *testing.T, contract []byte, decide rule, carry func(scopes []*bas
 			}},
 		},
 	}
+}
+
+// packaged writes a module directory as the generator leaves it: the contract,
+// and a catalog routing procedures to the health/grpc endpoint under the
+// contract's digest.
+func packaged(t *testing.T, contract []byte, procedures ...string) string {
+	t.Helper()
+	dir := t.TempDir()
+	sum := sha256.Sum256(contract)
+	catalog := composition.APIContractCatalog{Schema: composition.APIContractCatalogSchema, Package: "codefly/health", Version: "0.1.0",
+		Endpoints: []composition.APIContractEndpoint{{Service: "health", Endpoint: "grpc", API: "grpc", Kind: composition.APIContractKindProtobuf,
+			Package: "grpc.health.v1", Path: "contracts/api/health/grpc/contract.binpb", Digest: "sha256:" + hex.EncodeToString(sum[:]),
+			Services: []composition.APIContractService{{Name: "Health", FullName: "grpc.health.v1.Health", Procedures: procedures}}}}}
+	raw, err := json.Marshal(catalog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for path, data := range map[string][]byte{composition.APIContractCatalogFileName: raw, "contracts/api/health/grpc/contract.binpb": contract} {
+		file := filepath.Join(dir, filepath.FromSlash(path))
+		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(file, data, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return dir
 }
 
 // errAbsent is a handler's decision to answer OK with nothing rather than refuse.
@@ -254,35 +282,55 @@ func TestEachDisagreementIsAFinding(t *testing.T) {
 	}
 }
 
-// What is probed is what the hop routes to the endpoint: reflection, which the
-// server registers and the hop does not route, is not probed and is no
-// finding; a routed procedure the server does not register, or the contract
-// does not declare, is; and a contract that is not the one the catalog names
-// is an error, not a pass.
+// What is probed is what the hop routes to the endpoint, read by the probe
+// from the module's own catalog. Reflection, which the server registers and
+// the contract does not declare, is no finding. The catalog is not a way to
+// leave a procedure out: one the contract declares and the server registers is
+// a finding when the entry does not route it, drifted handler and all. A
+// routed procedure the server does not register, or the contract does not
+// declare, is a finding; a contract that is not the one the catalog names is
+// an error, not a pass.
 func TestWhatIsProbedIsWhatTheHopRoutes(t *testing.T) {
-	m := module(t, published(t, all), agrees, asGiven)
+	contract := published(t, all)
+	m := module(t, contract, agrees, asGiven)
 	if findings, err := probe.Check(t.Context(), m); err != nil || len(findings) != 0 {
 		t.Fatalf("a server that also registers reflection: findings %q (%v), want none", findings, err)
 	}
-	m.Endpoint.Services[0].Procedures = append(m.Endpoint.Services[0].Procedures, "/grpc.health.v1.Health/Gone", "/grpc.reflection.v1.ServerReflection/Absent")
-	findings, err := probe.Check(t.Context(), m)
-	if err != nil || len(findings) != 2 || !strings.Contains(strings.Join(findings, "\n"), "does not declare it") {
+	// A drifted Check handler, and an entry that leaves Check out.
+	drifted := module(t, contract, refusing(check, codes.PermissionDenied, "doc:admin"), asGiven)
+	drifted.Dir = packaged(t, contract, watch, list)
+	findings, err := probe.Check(t.Context(), drifted)
+	if err != nil || len(findings) != 1 || !strings.HasPrefix(findings[0], check+": the contract declares it and the server registers it, and the catalog does not route it") {
+		t.Fatalf("an entry that leaves a served procedure out: findings %q (%v)", findings, err)
+	}
+	drifted.Dir = packaged(t, contract, list)
+	if findings, err = probe.Check(t.Context(), drifted); err != nil || len(findings) != 2 {
+		t.Fatalf("an entry routing one procedure of three: findings %q (%v), want the two left out", findings, err)
+	}
+	m.Dir = packaged(t, contract, check, watch, list, "/grpc.health.v1.Health/Gone")
+	if findings, err = probe.Check(t.Context(), m); err != nil || len(findings) != 1 || !strings.Contains(findings[0], "the published contract does not declare it") {
 		t.Fatalf("routed and not published: findings %q (%v)", findings, err)
 	}
-	unregistered := module(t, published(t, all), agrees, asGiven)
-	unregistered.Server = grpc.NewServer()
-	findings, err = probe.Check(t.Context(), unregistered)
-	if err != nil || len(findings) != 3 || !strings.Contains(findings[0], "the server registers no handler for it") {
+	m.Dir = packaged(t, contract, check, watch, list)
+	m.Server = grpc.NewServer()
+	if findings, err = probe.Check(t.Context(), m); err != nil || len(findings) != 3 || !strings.Contains(findings[0], "the server registers no handler for it") {
 		t.Fatalf("routed and not registered: findings %q (%v)", findings, err)
 	}
-	m.Endpoint.Services = nil
+	m.Dir = packaged(t, contract)
 	if _, err := probe.Check(t.Context(), m); err == nil {
 		t.Fatal("an endpoint the hop routes nothing to was probed as though it compared something")
 	}
-	stale := module(t, published(t, all), agrees, asGiven)
-	stale.Contract = published(t, nil)
-	if _, err := probe.Check(t.Context(), stale); err == nil || !strings.Contains(err.Error(), "the catalog names") {
+	stale := packaged(t, contract, check, watch, list)
+	if err := os.WriteFile(filepath.Join(stale, "contracts", "api", "health", "grpc", "contract.binpb"), published(t, nil), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m.Dir = stale
+	if _, err := probe.Check(t.Context(), m); err == nil || !strings.Contains(err.Error(), "the catalog names") {
 		t.Fatalf("a contract that is not the catalog's: %v, want it refused by digest", err)
+	}
+	m.Endpoint = "connect"
+	if _, err := probe.Check(t.Context(), m); err == nil {
+		t.Fatal("an endpoint the catalog does not record was probed")
 	}
 }
 

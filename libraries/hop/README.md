@@ -51,9 +51,12 @@ sufficient (every alternative) and least (one of them), so a method whose
 handler admits "A or B" declares one of them and its handler decides that one.
 
 `go/policy/probe` makes the call, itself. Given the server a module ships, a
-connection to it, the endpoint's entry in the contract catalog and its
-published contract, and one case per procedure, it probes every procedure the
-hop routes to the endpoint. For each it first makes one call carrying no Work
+connection to it, the module's directory and the name of its endpoint, and one
+case per procedure, it reads the contract catalog and the contract it names
+and probes every procedure the hop routes to the endpoint. The module hands in
+no list of its own, and the catalog is not a way to leave one out: a procedure
+the contract declares and the server registers is a finding when the catalog
+does not route it. For each it first makes one call carrying no Work
 Context, which must be refused: a server that answers it does not read what a
 call holds. It then builds a Work Context holding exactly what the procedure
 declares (one scope per permission, selected to the fixture's owner, no
@@ -71,8 +74,13 @@ sufficient, not necessary: a handler laxer than its declaration passes. Beyond
 refusing an empty answer, what an answer must carry is what the case's `Shows`
 asserts. A rule that is not about scopes (who the principal is, stored state,
 a request field) is satisfied by the principal and resource the case picks:
-those stay the handler's, named in its refusals. It does not check that the
-connection reaches the server it was given. HTTP and OpenAPI routes are not
+those stay the handler's, named in its refusals. The control call shows the
+server refuses a call with no Work Context, not that a handler's decision
+reads the scopes a call carries. It does not look for deliberate forgery: a
+connection that does not reach the server it was given, or a `Shows` that
+refuses the empty answer once and accepts everything after. A procedure whose
+correct answer is the zero value of a type that has fields has no honest
+`Shows`; its case asks for something that answers with more. HTTP and OpenAPI routes are not
 probed.
 
 ## Issuance and verification

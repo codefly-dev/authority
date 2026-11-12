@@ -17,8 +17,16 @@
 //     case's Shows, which must say what the answer has to carry. The probe
 //     refuses a Shows that accepts the empty answer; beyond that, what Shows
 //     asserts is the case's.
-//   - that Conn reaches Server. A connection that fabricates answers is a
-//     forgery the probe does not look for.
+//   - that the handler's decision reads the scopes a call carries. The
+//     control call shows the server refuses a call with no Work Context; a
+//     server that demands one and then treats every permission as held is
+//     found only where its handler refuses the exact holding.
+//   - deliberate forgery: a Conn that does not reach Server, or a Shows that
+//     refuses the empty answer once and accepts everything after.
+//
+// A procedure whose correct answer is the zero value of a type that has
+// fields has no honest Shows; its case must ask for something that answers
+// with more.
 //   - rules that are not about scopes (who the principal is, stored state, a
 //     request field). The case picks a principal and a resource that satisfy
 //     them; they stay the handler's, named in its refusals.
@@ -32,6 +40,8 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -55,18 +65,16 @@ import (
 // Module is a module as its suite runs it: its real handlers registered on
 // Server, reached over Conn.
 type Module struct {
-	// Endpoint is the endpoint's entry in the module's contract catalog
-	// (contracts/api/catalog.codefly.json): the procedures the hop routes to
-	// it, and the digest of its contract. Those procedures are what is
-	// probed, each of them, and nothing else: a service the contract merely
-	// imports is not routed, and neither is what a server registers beside
-	// its own surface (health, reflection), which no caller reaches through
-	// the hop.
-	Endpoint composition.APIContractEndpoint
-	// Contract is the published descriptor set the catalog names
-	// (contract.binpb), the artifact a deployed hop's policy is read from. Its
-	// digest is held to the catalog's.
-	Contract []byte
+	// Dir is the module's directory, which holds its contract catalog
+	// (contracts/api/catalog.codefly.json) as the generator wrote it. Service
+	// and Endpoint name the catalog's entry for the endpoint Server serves.
+	// The probe reads the catalog and the contract it names itself: the
+	// procedures the hop routes to the endpoint, each of them, are what is
+	// probed, and the module hands in no list of its own. A service the
+	// contract merely imports is not routed, and neither is what a server
+	// registers beside its own surface (health, reflection), which the
+	// contract does not declare and no caller reaches through the hop.
+	Dir, Service, Endpoint string
 	// Server is the server the handlers are registered on (*grpc.Server): the
 	// one the module ships. A routed procedure it does not register is a
 	// finding.
@@ -114,16 +122,16 @@ func Run(t *testing.T, m Module) {
 // Check probes every procedure the hop routes to the endpoint and returns one
 // finding per disagreement, each naming its procedure.
 func Check(ctx context.Context, m Module) ([]string, error) {
-	sum := sha256.Sum256(m.Contract)
-	if got := "sha256:" + hex.EncodeToString(sum[:]); got != m.Endpoint.Digest {
-		return nil, fmt.Errorf("the contract is %s and the catalog names %s; the probe reads the contract a delivery reads", got, m.Endpoint.Digest)
+	entry, contract, err := m.published()
+	if err != nil {
+		return nil, err
 	}
-	declared, err := policy.Contract(m.Contract)
+	declared, err := policy.Contract(contract)
 	if err != nil {
 		return nil, err
 	}
 	var set descriptorpb.FileDescriptorSet
-	if err := proto.Unmarshal(m.Contract, &set); err != nil {
+	if err := proto.Unmarshal(contract, &set); err != nil {
 		return nil, err
 	}
 	files, err := protodesc.NewFiles(&set)
@@ -139,7 +147,7 @@ func Check(ctx context.Context, m Module) ([]string, error) {
 		}
 	}
 	var routed []string
-	for _, service := range m.Endpoint.Services {
+	for _, service := range entry.Services {
 		routed = append(routed, service.Procedures...)
 	}
 	if len(routed) == 0 {
@@ -161,7 +169,40 @@ func Check(ctx context.Context, m Module) ([]string, error) {
 			}
 		}
 	}
+	// The entry is not a way to leave a procedure out: one the contract
+	// declares and the server registers is served, routed or not.
+	for method := range registered {
+		if _, declares := declared[method]; declares && !slices.Contains(routed, method) {
+			finding("%s: the contract declares it and the server registers it, and the catalog does not route it; every served procedure is probed", method)
+		}
+	}
+	slices.Sort(findings)
 	return findings, nil
+}
+
+// published reads the endpoint's entry from the module's catalog and the
+// contract it names, held to the digest the entry records: the bytes a
+// delivery is read from.
+func (m Module) published() (composition.APIContractEndpoint, []byte, error) {
+	catalog, err := composition.LoadAPIContractCatalog(m.Dir)
+	if err != nil {
+		return composition.APIContractEndpoint{}, nil, err
+	}
+	for _, entry := range catalog.Endpoints {
+		if entry.Service != m.Service || entry.Endpoint != m.Endpoint {
+			continue
+		}
+		contract, err := os.ReadFile(filepath.Join(m.Dir, filepath.FromSlash(entry.Path)))
+		if err != nil {
+			return entry, nil, err
+		}
+		sum := sha256.Sum256(contract)
+		if got := "sha256:" + hex.EncodeToString(sum[:]); got != entry.Digest {
+			return entry, nil, fmt.Errorf("contract %s is %s and the catalog names %s; run codefly generate contracts", entry.Path, got, entry.Digest)
+		}
+		return entry, contract, nil
+	}
+	return composition.APIContractEndpoint{}, nil, fmt.Errorf("the catalog records no endpoint %s/%s", m.Service, m.Endpoint)
 }
 
 // probe is the one call, or why it disagrees with the declaration.
