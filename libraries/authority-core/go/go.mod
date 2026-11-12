@@ -1,6 +1,6 @@
 module github.com/codefly-dev/authority/libraries/authority-core/go
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/codefly-dev/authority/libraries/delivery/go v0.0.0-20261026023425-000d44495d93

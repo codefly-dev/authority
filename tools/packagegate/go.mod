@@ -1,6 +1,6 @@
 module github.com/codefly-dev/authority/tools/packagegate
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/codefly-dev/authority/libraries/hop/go v0.0.0
