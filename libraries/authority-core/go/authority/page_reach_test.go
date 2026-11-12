@@ -427,3 +427,45 @@ func TestAStandInReplacedByItsDeliveryHoldsThePageAtTheDeliveredModule(t *testin
 	}
 	exactly(t, h.must(h.through("maya", "pages", "records-rows")), recordsKind, "", []string{"read"})
 }
+
+// A session cast onto a team that holds the page's viewer role holds, at the
+// page's binding, the team's reach and nothing of the person's own, in
+// either delivery order: nora holds no role herself and is the team's
+// member; alex administers acme and is not. Each hop to records reads, and a
+// write there, the editor's, is refused naming the binding. Before
+// composition re-took the page's receipt (16995f2), the page-first order
+// refused even the read: "<who> holds nothing at records through binding
+// "records-rows"".
+func TestACastOntoAPageViewerTeamReachesThePagesBindingInEitherOrder(t *testing.T) {
+	for _, pageFirst := range []bool{false, true} {
+		h := newHarness(t)
+		svc, _ := journaled(h)
+		first, then := records(1), pageReachingRecords(1)
+		if pageFirst {
+			first, then = then, first
+		}
+		for _, m := range []domain.Module{first, then} {
+			if _, err := svc.ApplyModule(h.ctx, m); err != nil {
+				t.Fatal(err)
+			}
+		}
+		h.store.PutTeam(acme, "pages-viewer")
+		h.store.PutPerson(domain.Person{ID: "nora", Organization: acme, Teams: []string{"pages-viewer"}})
+		h.grantTeam("pages", "viewer", "pages-viewer")
+		for _, who := range []string{"nora", "alex"} {
+			cast, err := h.casting(who, "pages-viewer")
+			if err != nil {
+				t.Fatalf("page first %v: %s casts onto pages-viewer: %v", pageFirst, who, err)
+			}
+			root := h.must(h.rootAs(cast, "pages"))
+			hop := authority.Workload{Module: "pages"}
+			read, err := svc.IssueChild(h.ctx, root.Token, hop, authority.IssueRequest{Binding: "records-rows"})
+			if err != nil {
+				t.Fatalf("page first %v: %s's cast at records: %v", pageFirst, who, err)
+			}
+			exactly(t, read, recordsKind, "", []string{"read"})
+			_, err = svc.IssueChild(h.ctx, root.Token, hop, authority.IssueRequest{Binding: "records-rows", Scopes: []*basev0.WorkScopeV1{sc(recordsKind, "write")}})
+			refused(t, err, `binding "records-rows"`)
+		}
+	}
+}
