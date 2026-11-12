@@ -539,8 +539,19 @@ repository's modules with the platform's stores and the directory's page:
 cd playground
 codefly config generate hop-signing SEED --service authority/hop
 codefly config generate internal-auth CODEFLY_INTERNAL_TOKEN
-codefly run service console/api authority/hop --local-agents
+codefly run service console/api authority/edge authority/hop org-directory/directory records/records \
+  --env local --local-agents --headless \
+  --exclude-dependency documents/docx --exclude-dependency documents/pdf \
+  --exclude-dependency documents/libreoffice --exclude-dependency documents/xlsx \
+  --exclude-dependency documents/documents --exclude-workspace-configuration document-formats
 ```
+
+The playground composes the directory's module page, a role-gated target
+(installer, editor, viewer, steward), behind the edge and the hop; the edge
+listens where `codefly endpoint authority/edge --type http` says. The document
+store it also composes needs its format converters and a generated cursor key
+this environment does not declare, so the run above leaves it out; routing
+it again is the next step for the playground.
 
 The repository root is the authority module's own workspace and carries no run
 configuration. A module's checkout root provides its configuration groups to
