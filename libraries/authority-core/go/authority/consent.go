@@ -162,7 +162,9 @@ func (s *Service) reviewOffer(ctx context.Context, caller Person, org, target st
 		if code, ok := domain.CodeOf(refused); refused != nil && (!members || !ok || code != domain.Denied) {
 			return refused
 		}
-		inst, err := tx.Installation(s.cfg.InstallationID(org, target))
+		// By target, not by the id the core would give it: a module page's
+		// installation may be its host's own record (HostInstallsModules).
+		inst, err := installationOf(tx, org, target)
 		if errors.Is(err, domain.ErrNotFound) {
 			inst, err = domain.Installation{}, nil
 		}

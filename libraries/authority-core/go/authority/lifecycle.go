@@ -798,6 +798,11 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 		}
 		id := s.cfg.InstallationID(org, target)
 		existing, found := tx.Installation(id)
+		if m.Kind != domain.KindSolution {
+			// A module page's installation may be its host's own record,
+			// under the host's own id: its upgrade lands on that record.
+			existing, found = installationOf(tx, org, target)
+		}
 		if found != nil && !errors.Is(found, domain.ErrNotFound) {
 			return found
 		}
