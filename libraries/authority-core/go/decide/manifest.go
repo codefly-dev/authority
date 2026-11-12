@@ -43,7 +43,9 @@ func ValidateModule(m domain.Module) error {
 // later delivery is never refused for it either, which would tie every
 // module's release to every solution reaching through it: what it leaves
 // unreached is reported (UnreachedOf), grants nothing there (each hop
-// narrows), and re-converges by itself once a delivery reaches it again.
+// narrows), and re-converges by itself once a delivery reaches it again,
+// where it opens no operation the installation's receipt does not hold
+// (ReachWidensWithin); otherwise it offers the upgrade.
 func Unreached(m domain.Module, composed map[string]domain.Module) error {
 	for _, g := range reachGaps(m, composed) {
 		if len(g.missing) == 0 {
@@ -56,7 +58,8 @@ func Unreached(m domain.Module, composed map[string]domain.Module) error {
 
 // UnreachedOf is what m's roles name through a binding that the composition
 // does not reach now, one condition per role and binding, sorted: the
-// readiness of an installation of m, which re-converges by itself.
+// readiness of an installation of m, which re-converges by itself where
+// reaching it again opens no operation the receipt does not hold.
 func UnreachedOf(m domain.Module, composed map[string]domain.Module) []string {
 	var out []string
 	for _, g := range reachGaps(m, composed) {
@@ -249,11 +252,11 @@ func StandardRoles(m domain.Module) map[string]Scopes {
 	out := map[string]Scopes{}
 	for _, kind := range scope.Normalize(m.ResourceKinds) {
 		served := kind.GetActions()
-		any := slices.Contains(served, scope.AnyAction)
+		every := slices.Contains(served, scope.AnyAction)
 		grant := func(role string, actions ...string) {
 			var held []string
 			for _, action := range actions {
-				if any || slices.Contains(served, action) {
+				if every || slices.Contains(served, action) {
 					held = append(held, action)
 				}
 			}

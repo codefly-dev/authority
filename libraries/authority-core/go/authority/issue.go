@@ -308,6 +308,11 @@ func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest
 			if !declared {
 				return domain.Missing("operation binding %q is not one %s declares", r.Binding, audience.Name)
 			}
+			// Within what the host's consent at audience's installation allows
+			// of the binding, as a hop over it and a delegation through it are.
+			if binding, err = ceiled(tx, p.Organization, audience, binding); err != nil {
+				return err
+			}
 			target, err := tx.Module(binding.Audience)
 			if err != nil {
 				return notFound(err)
@@ -317,6 +322,15 @@ func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest
 				return err
 			}
 			through := scope.Intersect(there, binding.InvokeScopes)
+			// What audience reaches through its binding is held to the reach
+			// its installation's consent approved, as its hop is.
+			approved, _, capped, err := s.approvedReach(tx, reachOwner{person: &p, principals: []string{audience.Principal}}, target.Name)
+			if err != nil {
+				return err
+			}
+			if capped {
+				through = scope.Intersect(through, approved)
+			}
 			if len(through) == 0 {
 				return domain.Refuse("%s holds nothing under operation binding %q", p.ID, r.Binding)
 			}

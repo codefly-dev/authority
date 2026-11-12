@@ -78,7 +78,8 @@ func (s *Service) journalReach(ctx context.Context, tx Tx, before map[string]str
 // Unreached is what inst's target names through a binding that the
 // composition does not reach now (decide.UnreachedOf): a readiness condition
 // of the installation, beside an upgrade available, which re-converges by
-// itself once a delivery reaches it again.
+// itself once a delivery reaches it again, where that opens no operation the
+// installation's receipt does not hold (decide.ReachWidensWithin).
 func (s *Service) Unreached(ctx context.Context, inst domain.Installation) ([]string, error) {
 	var out []string
 	err := s.store.Read(ctx, func(tx Tx) error {
