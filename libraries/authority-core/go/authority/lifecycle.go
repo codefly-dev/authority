@@ -290,9 +290,13 @@ func (s *Service) Admit(ctx context.Context, m domain.Module) error {
 // approved one did not (reconverge), and otherwise stands, offering an
 // upgrade; its role grants are kept either way. A module page's installation
 // is consented to by composition (domain.ComposedConsent, adoptLegacyReach),
-// so a delivery that widens what one of its roles reaches, of the page or of
-// a module it reaches, never revokes a grant and never widens one: holders
-// keep the approved reach until the upgrade is approved.
+// so a redelivery that widens what one of its roles reaches, of the page or
+// of a module it reaches, never revokes a grant and never widens one: holders
+// keep the approved reach until the upgrade is approved. A module composed
+// for the first time that the page reaches is composition growing, not a
+// declaration changing: composition takes the page's receipt again at the
+// reach it has now (reconvergeReach), so a page's roles work on a fresh run
+// whichever order its modules land in.
 func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, error) {
 	if err := decide.ValidateModule(m); err != nil {
 		return nil, err
@@ -348,7 +352,7 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 				return err
 			}
 		}
-		if err := s.reconvergeReach(ctx, tx, m.Name, before); err != nil {
+		if err := s.reconvergeReach(ctx, tx, m.Name, before, !exists); err != nil {
 			return err
 		}
 		if err := s.journalReach(ctx, tx, unreachedBefore); err != nil {
@@ -1088,9 +1092,10 @@ func (s *Service) UninstallAsHost(ctx context.Context, organization, installatio
 // installation owns what its page creates (decide.ModuleRoleAt). A principal
 // another identity already holds is not taken: the installation then holds
 // none and owns nothing (fails closed). A module page's holds composition's
-// receipt (composedReceipt): it is held at the reach the page has now, and
-// a delivery widening it offers an upgrade; a module declaring no role holds
-// no consent, and follows its delivery.
+// receipt (composedReceipt): it is held at the reach the page has now, taken
+// again when a module it reaches is composed for the first time
+// (reconvergeReach), and a redelivery widening it offers an upgrade; a
+// module declaring no role holds no consent, and follows its delivery.
 func (s *Service) composedInstallation(tx Tx, org, module string) (domain.Installation, error) {
 	inst := domain.Installation{ID: s.cfg.InstallationID(org, module), Organization: org, Target: module, Status: domain.Active, Revision: 1}
 	if _, err := s.withComposedPrincipal(tx, &inst); err != nil {

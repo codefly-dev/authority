@@ -48,7 +48,11 @@ refused by name on the page. Allowed, the browser becomes the cast session —
 the team's grants and none of the person's own: no direct grant, no other
 team, no organisation role — and keeps the session it came from in a second
 `HttpOnly` cookie, `edge_session_parent`, so **Back to your own session**
-(`action=back`) is a form too, never a second sign-in; sign-out clears both.
+(`action=back`) is a form too, never a second sign-in; sign-out clears both,
+and a sign-in clears the way back, so it belongs to one person's session
+only. "Back" is the browser forgetting the cast, not its revocation: the
+cast session is not ended at the authority (the session interface has no end
+call, for a sign-out either) and expires on its own as any session does.
 A cast is never widened: the authority refuses an act-as from a cast. Like
 sign-in, an act-as is a write from this origin, and `/auth/session` says
 `castTeamId` for a cast session. Nothing here decides who may act as what,

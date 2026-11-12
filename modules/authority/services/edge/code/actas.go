@@ -106,7 +106,11 @@ func (e *Edge) actAs(w http.ResponseWriter, r *http.Request) {
 			refuse(w, http.StatusBadRequest, "this session was opened from no other: sign in instead")
 			return
 		}
-		// The cast's cached authority goes with it; the own session's is as it was.
+		// The cast's cached authority goes with it; the own session's is as it
+		// was. The cast session itself is not ended at the authority (the
+		// session interface has no end call, for a sign-out either): "back"
+		// is the browser forgetting the cast, never its revocation, and the
+		// cast expires on its own as any session does.
 		e.evict(bearer)
 		http.SetCookie(w, sessionCookie(SessionKey, parent.Value))
 		http.SetCookie(w, &http.Cookie{Name: ParentKey, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode})

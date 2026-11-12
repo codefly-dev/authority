@@ -25,7 +25,9 @@ import (
 // listing names; another owner is refused (RBAC-1). The suite delivers both
 // audiences itself, one checking no owner (the ledger) and one checking owners
 // (the store), so every host answers the same whatever its own fixture
-// modules declare.
+// modules declare; the page lands before one of them (the ledger) and after
+// the other, since a fresh run composes its modules in no fixed order and a
+// page's roles hold at a module whichever landed first.
 const (
 	pageCallModule = "conformance-page-calls"
 	pageCallNote   = pageCallModule + ".note"
@@ -41,15 +43,13 @@ func (c *client) pageCalls(t *testing.T, ctx context.Context, f Fixture) {
 		if f.EdgeCredential == "" || f.WorkloadCredential == "" || f.SignManifest == nil || f.SignAuthority == nil || f.DeliveryCredential == nil || f.AdminToken == "" || f.UnentitledToken == "" || f.Elsewhere == "" {
 			t.Fatal("required conformance fixture missing: the module edge's credential (EdgeCredential), a module's (WorkloadCredential), signed delivery, an administrator, a member holding no role (UnentitledToken) and a composed module the page declares no binding to (Elsewhere)")
 		}
-		for _, audience := range []struct {
-			alias, kind string
-			ownerAware  bool
-		}{{pageCallLedger, pageLedgerKind, false}, {pageCallStore, pageStoreKind, true}} {
-			document := map[string]any{"owner_aware": audience.ownerAware, "scope_ceilings": []any{scopeAsk(audience.kind, []string{"read", "write"}, nil)}}
-			if _, err := c.deliver(ctx, f, audience.alias, "module", 1, []string{audience.kind}, document, 0); err != nil {
-				t.Fatalf("deliver %s: %v", audience.alias, err)
+		deliverAudience := func(alias, kind string, ownerAware bool) {
+			document := map[string]any{"owner_aware": ownerAware, "scope_ceilings": []any{scopeAsk(kind, []string{"read", "write"}, nil)}}
+			if _, err := c.deliver(ctx, f, alias, "module", 1, []string{kind}, document, 0); err != nil {
+				t.Fatalf("deliver %s: %v", alias, err)
 			}
 		}
+		deliverAudience(pageCallStore, pageStoreKind, true)
 		page := &solutionhost.Frontend{Title: "Conformance page calls", ExposedModule: "./Page", HostContract: 1, Payload: f.PagePayload}
 		reach := []any{scopeAsk(pageLedgerKind, []string{"read"}, nil), scopeAsk(pageStoreKind, []string{"read"}, nil)}
 		document := map[string]any{"scope_ceilings": []any{scopeAsk(pageCallNote, []string{"read", "write"}, nil)}, "installation_role": "none", "roles": []any{
@@ -61,6 +61,8 @@ func (c *client) pageCalls(t *testing.T, ctx context.Context, f Fixture) {
 		if _, err := c.deliverPage(ctx, f, page, pageCallModule, "module", 1, []string{pageCallNote}, document, 0, ledger, store); err != nil {
 			t.Fatalf("deliver %s with a page, roles and bindings to %s and %s: %v", pageCallModule, pageCallLedger, pageCallStore, err)
 		}
+		// The ledger lands after the page that reaches it.
+		deliverAudience(pageCallLedger, pageLedgerKind, false)
 		admin := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.AdminToken})
 		var id, principal string
 		for _, inst := range listMsgs(c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "List", map[string]any{"organization_id": f.Organization}), "installations") {

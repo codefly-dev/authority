@@ -203,3 +203,104 @@ func TestAPageInstallationRecordedByItsHostIsHeldAtTheReachItHad(t *testing.T) {
 		t.Fatal("a widening revoked a grant")
 	}
 }
+
+// records is a module the harness does not compose, serving recordsKind.
+const recordsKind = "records.row"
+
+func records(generation uint64) domain.Module {
+	return domain.Module{Name: "records", Principal: "records", Kind: domain.KindModule, Generation: generation,
+		ResourceKinds: []*basev0.WorkScopeV1{sc(recordsKind, "read", "write")}}
+}
+
+// pageReachingRecords is the module page with a binding "records-rows" to
+// records carrying read and write, its viewer reading there and its
+// installer reading and writing.
+func pageReachingRecords(generation uint64) domain.Module {
+	m := pageModule(generation, true)
+	m.Bindings = map[string]domain.Binding{"records-rows": {ID: "records-rows", Audience: "records", InvokeScopes: []*basev0.WorkScopeV1{sc(recordsKind, "read", "write")}}}
+	m.Roles[domain.InstallerRole] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(recordsKind, "read", "write")}
+	m.Roles["viewer"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(recordsKind, "read")}
+	return m
+}
+
+// A fresh run composes its modules in no fixed order: a page composed before
+// a module it reaches holds nothing there until that module lands, and then
+// holds what its roles reach, with no upgrade to approve — composition takes
+// the page's receipt again when the composition grows, as it took it first.
+// Only a redelivery that widens a declaration offers an upgrade.
+func TestAPageComposedBeforeAModuleItReachesHoldsItOnceComposed(t *testing.T) {
+	h := newHarness(t)
+	svc, events := journaled(h)
+	if _, err := svc.ApplyModule(h.ctx, pageReachingRecords(1)); err != nil {
+		t.Fatal(err)
+	}
+	h.grant("pages", "viewer", "maya")
+	h.grant("pages", domain.InstallerRole, "remi")
+	if _, err := h.through("maya", "pages", "records-rows"); err == nil || !strings.Contains(err.Error(), "records") {
+		t.Fatalf("a module not composed is reached: %v", err)
+	}
+	if _, err := svc.ApplyModule(h.ctx, records(1)); err != nil {
+		t.Fatal(err)
+	}
+	exactly(t, h.must(h.through("maya", "pages", "records-rows")), recordsKind, "", []string{"read"})
+	exactly(t, h.must(h.through("remi", "pages", "records-rows")), recordsKind, "", []string{"read", "write"})
+	held := h.pagesAt(acme)
+	if up, err := svc.UpgradeAvailable(h.ctx, held); err != nil || up {
+		t.Fatalf("a module landing offered an upgrade: %v %v", up, err)
+	}
+	if e, ok := lastEventOn(*events, domain.InstallationUpgradeAvailable, held.ID); ok {
+		t.Fatalf("a module landing offered an upgrade: %+v", e)
+	}
+	if e, ok := lastEventOn(*events, domain.InstallationReachAdopted, held.ID); !ok || e.Detail["held_by"] != domain.ComposedConsent || e.Detail["delivered"] != "records" {
+		t.Fatalf("composition did not take the receipt again: %+v %v", e, ok)
+	}
+	// The other order holds the same.
+	if _, err := svc.ApplyModule(h.ctx, pageReachingRecords(2)); err != nil {
+		t.Fatal(err)
+	}
+	if got := h.pagesAt(acme); got.Consent.Generation != 2 || got.Consent.ReachDigest != held.Consent.ReachDigest {
+		t.Fatalf("a redelivery reaching the same re-converged to %+v, was %+v", got, held)
+	}
+	// A redelivery of records that widens what the viewer reaches is a
+	// declaration changing: it offers the upgrade and holds the viewer.
+	wider := records(2)
+	wider.Methods = map[string]domain.MethodPolicy{"/records.v1.Rows/List": {AnyCheckedCaller: true}}
+	if _, err := svc.ApplyModule(h.ctx, wider); err != nil {
+		t.Fatal(err)
+	}
+	if up, err := svc.UpgradeAvailable(h.ctx, h.pagesAt(acme)); err != nil || !up {
+		t.Fatalf("a redelivery widening the reach offered no upgrade: %v %v", up, err)
+	}
+	exactly(t, h.must(h.through("maya", "pages", "records-rows")), recordsKind, "", []string{"read"})
+}
+
+// A host that installs modules records the page's installation itself and
+// composition takes its receipt when the host starts (AdoptLegacyReach): a
+// module the page reaches composed after that is held the same way.
+func TestAPageInstallationRecordedByItsHostHoldsAModuleComposedLater(t *testing.T) {
+	h := newHarness(t)
+	cfg := h.cfg
+	cfg.HostInstallsModules = true
+	svc, err := authority.New(h.store, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.ApplyModule(h.ctx, pageReachingRecords(1)); err != nil {
+		t.Fatal(err)
+	}
+	inst := domain.Installation{ID: authority.StableInstallationID(acme, "pages"), Organization: acme, Target: "pages", Status: domain.Active, Revision: 1, PrincipalID: authority.StablePrincipalID(acme, "pages")}
+	if err := h.store.Write(h.ctx, func(tx authority.Tx) error { return tx.PutInstallation(inst) }); err != nil {
+		t.Fatal(err)
+	}
+	h.grant("pages", "viewer", "maya")
+	if err := svc.AdoptLegacyReach(h.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.ApplyModule(h.ctx, records(1)); err != nil {
+		t.Fatal(err)
+	}
+	exactly(t, h.must(h.through("maya", "pages", "records-rows")), recordsKind, "", []string{"read"})
+	if up, err := svc.UpgradeAvailable(h.ctx, h.pagesAt(acme)); err != nil || up {
+		t.Fatalf("a module landing offered an upgrade: %v %v", up, err)
+	}
+}

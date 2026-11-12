@@ -67,10 +67,17 @@ func (s *Service) GrantRoleTeamsAsHost(ctx context.Context, installationID strin
 			return domain.NotNow("installation %s of %s is %s, so its roles go to no team yet", inst.ID, inst.Target, inst.Status)
 		}
 		teams = RoleTeams(m)
+		standing, err := tx.RoleGrants(inst.ID)
+		if err != nil {
+			return err
+		}
 		for _, role := range slices.Sorted(maps.Keys(teams)) {
 			r := RoleRequest{Organization: inst.Organization, InstallationID: inst.ID, Role: role, TeamID: teams[role]}
 			if _, err := decideRoleChange(tx, nil, r, false, false); err != nil {
 				return err
+			}
+			if slices.Contains(standing, r.grant()) {
+				continue // stands already: a pass over a converged installation writes and journals nothing
 			}
 			if err := tx.PutRoleGrant(r.grant()); err != nil {
 				return err

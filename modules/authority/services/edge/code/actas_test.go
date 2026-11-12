@@ -67,6 +67,26 @@ func TestAPersonActsAsATeamAndComesBack(t *testing.T) {
 	}
 }
 
+// A sign-in from a cast is a new person's session, and clears the way back
+// the cast kept: a later "back" cannot restore the earlier person's session
+// with no credential.
+func TestASignInClearsTheWayBackACastKept(t *testing.T) {
+	f := newFixture(t)
+	own := f.signIn(t)
+	res := f.actAs(t, url.Values{"team": {"records-viewer"}, "return": {"/records"}}, own)
+	set := cookiesOf(res)
+	cast := &http.Cookie{Name: SessionKey, Value: set[SessionKey]}
+	parent := &http.Cookie{Name: ParentKey, Value: set[ParentKey]}
+	header := http.Header{"Content-Type": {"application/x-www-form-urlencoded"}, "Origin": {f.edge.URL}, "Cookie": {cast.String() + "; " + parent.String()}}
+	res, _ = f.send(t, http.MethodPost, "/auth/sign-in", header, url.Values{"fixtureToken": {"fixture-remi"}, "return": {"/records"}}.Encode())
+	if set = cookiesOf(res); res.StatusCode != http.StatusSeeOther || set[SessionKey] != "remi-session" || len(res.Cookies()) != 2 || set[ParentKey] != "" {
+		t.Fatalf("a sign-in from a cast answered %d with cookies %v; the way back must be cleared", res.StatusCode, set)
+	}
+	if res = f.actAs(t, url.Values{"action": {"back"}}, own); res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("back after a sign-in answered %d", res.StatusCode)
+	}
+}
+
 // A team the authority refuses is refused by name, on the page the ask came
 // from; an ask from another origin, or with no session, never reaches it.
 func TestAnActAsTheAuthorityRefusesIsShownByName(t *testing.T) {

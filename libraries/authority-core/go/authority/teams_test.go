@@ -30,10 +30,14 @@ func TestEveryDeclaredRoleGoesToItsConventionalTeam(t *testing.T) {
 	for _, team := range want {
 		h.store.PutTeam(acme, team)
 	}
-	for range 2 { // idempotent: a second pass changes nothing
-		if teams, err = h.svc.GrantRoleTeamsAsHost(h.ctx, h.inst(acme, "a").ID); err != nil || !reflect.DeepEqual(teams, want) {
+	svc, events := journaled(h)
+	for range 2 { // idempotent: a second pass changes nothing, and journals nothing
+		if teams, err = svc.GrantRoleTeamsAsHost(h.ctx, h.inst(acme, "a").ID); err != nil || !reflect.DeepEqual(teams, want) {
 			t.Fatalf("teams = %v, %v", teams, err)
 		}
+	}
+	if granted := countEvents(*events, domain.RoleGranted); granted != len(want) {
+		t.Fatalf("two passes journaled %d role.granted, want %d: a grant that stands is not granted again", granted, len(want))
 	}
 	grants, err := h.svc.ListRoleGrants(h.ctx, h.person("alex"), acme, h.inst(acme, "a").ID)
 	if err != nil || len(grants) != 4 {
@@ -98,4 +102,14 @@ func TestACastHoldsTheTeamsReachAndTheOwnSessionKeepsItsOwn(t *testing.T) {
 	if _, err := h.casting("bob", "a-editor"); err == nil || !strings.Contains(err.Error(), "could not grant") {
 		t.Fatalf("bob onto a-editor: want a refusal naming what he could not grant, got %v", err)
 	}
+}
+
+func countEvents(events []domain.Event, kind domain.EventKind) int {
+	n := 0
+	for _, e := range events {
+		if e.Kind == kind {
+			n++
+		}
+	}
+	return n
 }

@@ -334,6 +334,10 @@ func (e *Edge) signIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.SetCookie(w, &http.Cookie{Name: SessionKey, Value: sess.GetBearer(), Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode})
+	// A sign-in is a new person's session: the way back a cast kept (actAs)
+	// goes with the session it belonged to, so a later "back" never restores
+	// an earlier person's session with no credential.
+	http.SetCookie(w, &http.Cookie{Name: ParentKey, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 	if form {
 		http.Redirect(w, r, localPath(back), http.StatusSeeOther)
 		return

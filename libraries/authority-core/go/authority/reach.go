@@ -122,7 +122,19 @@ func reachesBefore(tx Tx, applied string) (map[string]string, error) {
 // reach the delivery did not change (before, as reachesBefore read it) is
 // left as it is and journals nothing: a widening already offered is not
 // offered again by every later delivery.
-func (s *Service) reconvergeReach(ctx context.Context, tx Tx, applied string, before map[string]string) error {
+//
+// A module page's installation is held by composition's own receipt
+// (domain.ComposedConsent), and composition takes it again when the
+// composition grows: a module composed for the first time (grew: no
+// generation of applied stood before this delivery) that the page reaches
+// widens what its roles reach because the binding now reaches a module,
+// not because any declaration changed, so the receipt is re-taken at the
+// reach the page has now (holdByComposition) and its holders hold there at
+// once. A fresh run composes its modules in no fixed order, and the page's
+// receipt never freezes the absence of a module that had not landed yet. A
+// redelivery of the page, or of a module it reaches, that widens the reach
+// offers the upgrade as a solution's does.
+func (s *Service) reconvergeReach(ctx context.Context, tx Tx, applied string, before map[string]string, grew bool) error {
 	list, err := consentedReaches(tx, applied)
 	if err != nil {
 		return err
@@ -141,6 +153,12 @@ func (s *Service) reconvergeReach(ctx context.Context, tx Tx, applied string, be
 			return err
 		}
 		detail := map[string]string{"target": inst.Target, "approved_generation": fmt.Sprint(inst.Consent.Generation), "generation": fmt.Sprint(m.Generation), "delivered": applied}
+		if len(asks) > 0 && grew && inst.Consent.OperationID == domain.ComposedConsent {
+			if err := s.holdByComposition(ctx, tx, inst, m, applied); err != nil {
+				return err
+			}
+			continue
+		}
 		if len(asks) > 0 {
 			detail["widened"] = strings.Join(asks, "; ")
 			if err := s.journal(ctx, tx, domain.Event{Kind: domain.InstallationUpgradeAvailable, Organization: inst.Organization, Subject: inst.ID, Detail: detail}); err != nil {
@@ -441,7 +459,7 @@ func (s *Service) adoptLegacyReach(ctx context.Context, tx Tx, journalSkips bool
 			if m.Kind == domain.KindSolution || !decide.RoleGated(m) {
 				continue
 			}
-			if err := s.holdByComposition(ctx, tx, inst, m); err != nil {
+			if err := s.holdByComposition(ctx, tx, inst, m, ""); err != nil {
 				return err
 			}
 			continue
@@ -475,17 +493,22 @@ func (s *Service) adoptLegacyReach(ctx context.Context, tx Tx, journalSkips bool
 }
 
 // holdByComposition records on inst, a module page's installation no consent
-// holds, the receipt composition takes (composedReceipt), journaled as
-// installation.reach_adopted with "held_by" composition.
-func (s *Service) holdByComposition(ctx context.Context, tx Tx, inst domain.Installation, m domain.Module) error {
+// holds or composition holds, the receipt composition takes
+// (composedReceipt) at m, its approved declaration, journaled as
+// installation.reach_adopted with "held_by" composition and, when a module
+// newly composed grew the reach (reconvergeReach), "delivered" naming it.
+func (s *Service) holdByComposition(ctx context.Context, tx Tx, inst domain.Installation, m domain.Module, delivered string) error {
 	if err := composedReceipt(tx, &inst, m); err != nil {
 		return err
 	}
 	if err := tx.PutInstallation(inst); err != nil {
 		return err
 	}
-	return s.journal(ctx, tx, domain.Event{Kind: domain.InstallationReachAdopted, Organization: inst.Organization, Subject: inst.ID,
-		Detail: map[string]string{"target": inst.Target, "approved_generation": fmt.Sprint(m.Generation), "reach": inst.Consent.ReachDigest, "held_by": domain.ComposedConsent}})
+	detail := map[string]string{"target": inst.Target, "approved_generation": fmt.Sprint(m.Generation), "reach": inst.Consent.ReachDigest, "held_by": domain.ComposedConsent}
+	if delivered != "" {
+		detail["delivered"] = delivered
+	}
+	return s.journal(ctx, tx, domain.Event{Kind: domain.InstallationReachAdopted, Organization: inst.Organization, Subject: inst.ID, Detail: detail})
 }
 
 // composedReceipt gives inst, a module page's installation, the receipt
