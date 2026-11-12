@@ -317,6 +317,15 @@ func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest
 				return err
 			}
 			through := scope.Intersect(there, binding.InvokeScopes)
+			// What audience reaches through its binding is held to the reach
+			// its installation's consent approved, as its hop is.
+			approved, _, capped, err := s.approvedReach(tx, reachOwner{person: &p, principals: []string{audience.Principal}}, target.Name)
+			if err != nil {
+				return err
+			}
+			if capped {
+				through = scope.Intersect(through, approved)
+			}
 			if len(through) == 0 {
 				return domain.Refuse("%s holds nothing under operation binding %q", p.ID, r.Binding)
 			}

@@ -425,12 +425,17 @@ func ReachWidens(approved, next map[string][]domain.ReachRow) []string {
 }
 
 // ReachWidensWithin is ReachWidens for an installation whose approved
-// declaration is declared: a row onward through a binding whose scopes are
-// within what the role names through that binding (domain.Module.Through)
-// asks nothing new, whether it is new or reaches further, since the
-// administrator consented to the declaration naming it. A declared reach a
-// delivery left unreached then re-converges by itself once a later delivery
-// reaches it again (decide.UnreachedOf).
+// declaration is declared: the scopes of a row onward through a binding
+// that are within what the role names through that binding
+// (domain.Module.Through) ask nothing new, whether the row is new or reaches
+// further, since the administrator consented to the declaration naming them.
+// The operations those scopes open are not part of that declaration: such a
+// row still asks every operation the approved row does not list, and every
+// operation of its module added, opened to any checked caller or requiring
+// less; a row the receipt does not hold lists none. A declared reach a
+// delivery left unreached (decide.UnreachedOf) re-converges by itself once a
+// later delivery reaches it again only where it opens no operation the
+// receipt does not hold; otherwise it offers the upgrade.
 func ReachWidensWithin(approved, next map[string][]domain.ReachRow, declared domain.Module) []string {
 	var out []string
 	for _, role := range slices.Sorted(maps.Keys(next)) {
@@ -446,30 +451,34 @@ func ReachWidensWithin(approved, next map[string][]domain.ReachRow, declared dom
 			i := slices.IndexFunc(approved[role], func(a domain.ReachRow) bool {
 				return a.Module == row.Module && a.Via == row.Via && a.Confinement == row.Confinement
 			})
+			var was domain.ReachRow // a row the receipt does not hold lists nothing
+			if i >= 0 {
+				was = approved[role][i]
+			}
 			consented := row.Via == ReachBinding && len(row.Path) > 1 && scope.Attenuates(row.Scopes, declaredThrough(declared, role, row.Path[1]))
 			switch {
-			case consented && (i < 0 || !scope.Attenuates(row.Scopes, approved[role][i].Scopes)):
+			case consented: // its scopes; never the operations they open
 			case i < 0:
 				out = append(out, fmt.Sprintf("%s %s %s (%s)", who, reaches, at, row.Via))
-			case !scope.Attenuates(row.Scopes, approved[role][i].Scopes):
+				continue
+			case !scope.Attenuates(row.Scopes, was.Scopes):
 				out = append(out, fmt.Sprintf("%s %s further at %s", who, reaches, at))
-			default:
-				was := approved[role][i]
-				for _, op := range row.Operations {
-					if !slices.Contains(was.Operations, op) {
-						out = append(out, fmt.Sprintf("%s %s %s at %s", who, reaches, op, at))
-					}
+				continue
+			}
+			for _, op := range row.Operations {
+				if !slices.Contains(was.Operations, op) {
+					out = append(out, fmt.Sprintf("%s %s %s at %s", who, reaches, op, at))
 				}
-				for _, op := range slices.Sorted(maps.Keys(row.Policies)) {
-					p, before := row.Policies[op], was.Policies[op]
-					switch _, ok := was.Policies[op]; {
-					case !ok:
-						out = append(out, fmt.Sprintf("operation %s added at %s", op, row.Module))
-					case p.AnyCheckedCaller && !before.AnyCheckedCaller:
-						out = append(out, fmt.Sprintf("operation %s at %s opened to any checked caller", op, row.Module))
-					case !p.AnyCheckedCaller && !scope.Attenuates(before.Requires, p.Requires):
-						out = append(out, fmt.Sprintf("operation %s at %s requires less", op, row.Module))
-					}
+			}
+			for _, op := range slices.Sorted(maps.Keys(row.Policies)) {
+				p, before := row.Policies[op], was.Policies[op]
+				switch _, ok := was.Policies[op]; {
+				case !ok:
+					out = append(out, fmt.Sprintf("operation %s added at %s", op, row.Module))
+				case p.AnyCheckedCaller && !before.AnyCheckedCaller:
+					out = append(out, fmt.Sprintf("operation %s at %s opened to any checked caller", op, row.Module))
+				case !p.AnyCheckedCaller && !scope.Attenuates(before.Requires, p.Requires):
+					out = append(out, fmt.Sprintf("operation %s at %s requires less", op, row.Module))
 				}
 			}
 		}
