@@ -249,11 +249,11 @@ func StandardRoles(m domain.Module) map[string]Scopes {
 	out := map[string]Scopes{}
 	for _, kind := range scope.Normalize(m.ResourceKinds) {
 		served := kind.GetActions()
-		any := slices.Contains(served, scope.AnyAction)
+		every := slices.Contains(served, scope.AnyAction)
 		grant := func(role string, actions ...string) {
 			var held []string
 			for _, action := range actions {
-				if any || slices.Contains(served, action) {
+				if every || slices.Contains(served, action) {
 					held = append(held, action)
 				}
 			}
