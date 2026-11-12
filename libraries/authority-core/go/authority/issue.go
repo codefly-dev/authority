@@ -308,6 +308,11 @@ func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest
 			if !declared {
 				return domain.Missing("operation binding %q is not one %s declares", r.Binding, audience.Name)
 			}
+			// Within what the host's consent at audience's installation allows
+			// of the binding, as a hop over it and a delegation through it are.
+			if binding, err = ceiled(tx, p.Organization, audience, binding); err != nil {
+				return err
+			}
 			target, err := tx.Module(binding.Audience)
 			if err != nil {
 				return notFound(err)

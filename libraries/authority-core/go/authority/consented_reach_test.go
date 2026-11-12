@@ -204,3 +204,33 @@ func TestAPersonNamingAPagesBindingIsHeldToTheApprovedReach(t *testing.T) {
 	}
 	h.must(ask("read"))
 }
+
+// A person naming a page's binding is issued at the page no more of what the
+// binding reaches than the host's consent at the page's installation allows
+// of that binding (domain.Installation.Bindings), as a hop over it and an
+// issue from a delegation through it are: a binding the consent narrowed
+// carries only what it allows, and one it dropped carries nothing.
+func TestAPersonNamingAPagesBindingIsHeldToTheConsentedBinding(t *testing.T) {
+	h := newHarness(t)
+	page := pageModule(1, true)
+	page.Bindings = map[string]domain.Binding{"vault": {ID: "vault", Audience: "vault", InvokeScopes: []*basev0.WorkScopeV1{sc(vaultKind, "read", "write")}}}
+	page.Roles["viewer"] = append(page.Roles["viewer"], sc(vaultKind, "read", "write"))
+	for _, m := range []domain.Module{vaultAt(1, []string{"read", "write"}, map[string]domain.MethodPolicy{vaultRead: requires("read"), vaultWrite: requires("write")}), page} {
+		if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h.grant("pages", "viewer", "maya")
+	ask := func(actions ...string) (authority.Issued, error) {
+		return h.svc.IssueForPerson(h.ctx, h.person("maya"), authority.IssueRequest{Audience: "pages", Binding: "vault", Scopes: []*basev0.WorkScopeV1{sc(vaultKind, actions...)}})
+	}
+	h.must(ask("write"))
+	h.consented(acme, "pages", map[string]domain.Binding{"vault": {ID: "vault", Audience: "vault", InvokeScopes: []*basev0.WorkScopeV1{sc(vaultKind, "read")}}})
+	if got, err := ask("write"); err == nil {
+		t.Fatalf("a root naming the page's binding carries write the consent narrowed away: %v", got.Context.GetAuthorityScopes())
+	}
+	h.must(ask("read"))
+	h.consented(acme, "pages", map[string]domain.Binding{})
+	_, err := ask("read")
+	refusedByConsent(t, err)
+}
