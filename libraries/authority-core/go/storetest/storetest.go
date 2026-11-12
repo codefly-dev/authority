@@ -481,7 +481,9 @@ func Run(t *testing.T, open Open) {
 	})
 
 	t.Run("a role view reads back as written, per session, and rolls back with its transaction", func(t *testing.T) {
-		v := domain.RoleView{SessionID: uuid.NewString(), Parent: uuid.NewString(), Person: f.onlyA, Organization: f.orgA,
+		// Team makes the record a cast. A store that dropped it would hand a
+		// cast back as a view that narrows nothing: the person's whole reach.
+		v := domain.RoleView{SessionID: uuid.NewString(), Parent: uuid.NewString(), Person: f.onlyA, Organization: f.orgA, Team: uuid.NewString(),
 			Roles: map[string][]string{uuid.NewString(): {"editor", "viewer"}, uuid.NewString(): {"viewer"}}}
 		failure := errors.New("the decision refused")
 		if err := store.Write(ctx, func(tx authority.Tx) error { return errors.Join(tx.PutRoleView(v), failure) }); !errors.Is(err, failure) {
@@ -499,7 +501,7 @@ func Run(t *testing.T, open Open) {
 			if err != nil {
 				return err
 			}
-			if got.SessionID != v.SessionID || got.Parent != v.Parent || got.Person != v.Person || got.Organization != v.Organization || len(got.Roles) != len(v.Roles) {
+			if got.SessionID != v.SessionID || got.Parent != v.Parent || got.Person != v.Person || got.Organization != v.Organization || got.Team != v.Team || len(got.Roles) != len(v.Roles) {
 				t.Errorf("role view %+v, want %+v", got, v)
 			}
 			for inst, roles := range v.Roles {

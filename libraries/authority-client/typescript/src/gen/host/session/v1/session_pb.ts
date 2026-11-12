@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file host/session/v1/session.proto.
  */
 export const file_host_session_v1_session: GenFile = /*@__PURE__*/
-  fileDesc("Ch1ob3N0L3Nlc3Npb24vdjEvc2Vzc2lvbi5wcm90bxIPaG9zdC5zZXNzaW9uLnYxIhoKGExpc3RGaXh0dXJlUGVvcGxlUmVxdWVzdCJLChlMaXN0Rml4dHVyZVBlb3BsZVJlc3BvbnNlEi4KBnBlb3BsZRgBIAMoCzIeLmhvc3Quc2Vzc2lvbi52MS5GaXh0dXJlUGVyc29uIqUBCg1GaXh0dXJlUGVyc29uEhEKCXBlcnNvbl9pZBgBIAEoCRINCgVlbWFpbBgCIAEoCRIXCg9vcmdhbml6YXRpb25faWQYAyABKAkSDQoFcm9sZXMYBCADKAkSEAoIdGVhbV9pZHMYBSADKAkSFQoNZml4dHVyZV90b2tlbhgGIAEoCRIhChlvcmdhbml6YXRpb25fZGlzcGxheV9uYW1lGAcgASgJIj0KE09wZW5Sb2xlVmlld1JlcXVlc3QSFwoPaW5zdGFsbGF0aW9uX2lkGAEgASgJEg0KBXJvbGVzGAIgAygJIjcKDVJvbGVWaWV3RW50cnkSFwoPaW5zdGFsbGF0aW9uX2lkGAEgASgJEg0KBXJvbGVzGAIgAygJIhAKDkN1cnJlbnRSZXF1ZXN0IiYKDVNpZ25JblJlcXVlc3QSFQoNZml4dHVyZV90b2tlbhgBIAEoCSLtAQoHU2Vzc2lvbhISCgpzZXNzaW9uX2lkGAEgASgJEhEKCXBlcnNvbl9pZBgCIAEoCRIXCg9vcmdhbml6YXRpb25faWQYAyABKAkSDQoFcm9sZXMYBCADKAkSEAoIdGVhbV9pZHMYBSADKAkSDgoGYmVhcmVyGAYgASgJEhsKE3BlcnNvbl9kaXNwbGF5X25hbWUYByABKAkSIQoZb3JnYW5pemF0aW9uX2Rpc3BsYXlfbmFtZRgIIAEoCRIxCglyb2xlX3ZpZXcYCSADKAsyHi5ob3N0LnNlc3Npb24udjEuUm9sZVZpZXdFbnRyeTLXAwoOU2Vzc2lvblNlcnZpY2USYgoGU2lnbkluEh4uaG9zdC5zZXNzaW9uLnYxLlNpZ25JblJlcXVlc3QaGC5ob3N0LnNlc3Npb24udjEuU2Vzc2lvbiIegtPkkwIYOgEqIhMvdjEvc2Vzc2lvbjpzaWduLWluElkKB0N1cnJlbnQSHy5ob3N0LnNlc3Npb24udjEuQ3VycmVudFJlcXVlc3QaGC5ob3N0LnNlc3Npb24udjEuU2Vzc2lvbiITgtPkkwINEgsvdjEvc2Vzc2lvbhJ1CgxPcGVuUm9sZVZpZXcSJC5ob3N0LnNlc3Npb24udjEuT3BlblJvbGVWaWV3UmVxdWVzdBoYLmhvc3Quc2Vzc2lvbi52MS5TZXNzaW9uIiWC0+STAh86ASoiGi92MS9zZXNzaW9uOm9wZW4tcm9sZS12aWV3Eo4BChFMaXN0Rml4dHVyZVBlb3BsZRIpLmhvc3Quc2Vzc2lvbi52MS5MaXN0Rml4dHVyZVBlb3BsZVJlcXVlc3QaKi5ob3N0LnNlc3Npb24udjEuTGlzdEZpeHR1cmVQZW9wbGVSZXNwb25zZSIigtPkkwIcEhovdjEvc2Vzc2lvbi9maXh0dXJlLXBlb3BsZUIrWilnYXRld2F5L3BrZy9nZW4vaG9zdC9zZXNzaW9uL3YxO3Nlc3Npb252MWIGcHJvdG8z", [file_google_api_annotations]);
+  fileDesc("Ch1ob3N0L3Nlc3Npb24vdjEvc2Vzc2lvbi5wcm90bxIPaG9zdC5zZXNzaW9uLnYxIhoKGExpc3RGaXh0dXJlUGVvcGxlUmVxdWVzdCJLChlMaXN0Rml4dHVyZVBlb3BsZVJlc3BvbnNlEi4KBnBlb3BsZRgBIAMoCzIeLmhvc3Quc2Vzc2lvbi52MS5GaXh0dXJlUGVyc29uIqUBCg1GaXh0dXJlUGVyc29uEhEKCXBlcnNvbl9pZBgBIAEoCRINCgVlbWFpbBgCIAEoCRIXCg9vcmdhbml6YXRpb25faWQYAyABKAkSDQoFcm9sZXMYBCADKAkSEAoIdGVhbV9pZHMYBSADKAkSFQoNZml4dHVyZV90b2tlbhgGIAEoCRIhChlvcmdhbml6YXRpb25fZGlzcGxheV9uYW1lGAcgASgJIj0KE09wZW5Sb2xlVmlld1JlcXVlc3QSFwoPaW5zdGFsbGF0aW9uX2lkGAEgASgJEg0KBXJvbGVzGAIgAygJIiYKE09wZW5UZWFtQ2FzdFJlcXVlc3QSDwoHdGVhbV9pZBgBIAEoCSI3Cg1Sb2xlVmlld0VudHJ5EhcKD2luc3RhbGxhdGlvbl9pZBgBIAEoCRINCgVyb2xlcxgCIAMoCSIQCg5DdXJyZW50UmVxdWVzdCImCg1TaWduSW5SZXF1ZXN0EhUKDWZpeHR1cmVfdG9rZW4YASABKAkigwIKB1Nlc3Npb24SEgoKc2Vzc2lvbl9pZBgBIAEoCRIRCglwZXJzb25faWQYAiABKAkSFwoPb3JnYW5pemF0aW9uX2lkGAMgASgJEg0KBXJvbGVzGAQgAygJEhAKCHRlYW1faWRzGAUgAygJEg4KBmJlYXJlchgGIAEoCRIbChNwZXJzb25fZGlzcGxheV9uYW1lGAcgASgJEiEKGW9yZ2FuaXphdGlvbl9kaXNwbGF5X25hbWUYCCABKAkSMQoJcm9sZV92aWV3GAkgAygLMh4uaG9zdC5zZXNzaW9uLnYxLlJvbGVWaWV3RW50cnkSFAoMY2FzdF90ZWFtX2lkGAogASgJMs4ECg5TZXNzaW9uU2VydmljZRJiCgZTaWduSW4SHi5ob3N0LnNlc3Npb24udjEuU2lnbkluUmVxdWVzdBoYLmhvc3Quc2Vzc2lvbi52MS5TZXNzaW9uIh6C0+STAhg6ASoiEy92MS9zZXNzaW9uOnNpZ24taW4SWQoHQ3VycmVudBIfLmhvc3Quc2Vzc2lvbi52MS5DdXJyZW50UmVxdWVzdBoYLmhvc3Quc2Vzc2lvbi52MS5TZXNzaW9uIhOC0+STAg0SCy92MS9zZXNzaW9uEnUKDE9wZW5Sb2xlVmlldxIkLmhvc3Quc2Vzc2lvbi52MS5PcGVuUm9sZVZpZXdSZXF1ZXN0GhguaG9zdC5zZXNzaW9uLnYxLlNlc3Npb24iJYLT5JMCHzoBKiIaL3YxL3Nlc3Npb246b3Blbi1yb2xlLXZpZXcSdQoMT3BlblRlYW1DYXN0EiQuaG9zdC5zZXNzaW9uLnYxLk9wZW5UZWFtQ2FzdFJlcXVlc3QaGC5ob3N0LnNlc3Npb24udjEuU2Vzc2lvbiIlgtPkkwIfOgEqIhovdjEvc2Vzc2lvbjpvcGVuLXRlYW0tY2FzdBKOAQoRTGlzdEZpeHR1cmVQZW9wbGUSKS5ob3N0LnNlc3Npb24udjEuTGlzdEZpeHR1cmVQZW9wbGVSZXF1ZXN0GiouaG9zdC5zZXNzaW9uLnYxLkxpc3RGaXh0dXJlUGVvcGxlUmVzcG9uc2UiIoLT5JMCHBIaL3YxL3Nlc3Npb24vZml4dHVyZS1wZW9wbGVCK1opZ2F0ZXdheS9wa2cvZ2VuL2hvc3Qvc2Vzc2lvbi92MTtzZXNzaW9udjFiBnByb3RvMw", [file_google_api_annotations]);
 
 /**
  * ListFixturePeopleRequest asks for every fixture person.
@@ -147,6 +147,27 @@ export const OpenRoleViewRequestSchema: GenMessage<OpenRoleViewRequest> = /*@__P
   messageDesc(file_host_session_v1_session, 3);
 
 /**
+ * OpenTeamCastRequest names the team to act as.
+ *
+ * @generated from message host.session.v1.OpenTeamCastRequest
+ */
+export type OpenTeamCastRequest = Message<"host.session.v1.OpenTeamCastRequest"> & {
+  /**
+   * The team, of the organisation the caller is signed into.
+   *
+   * @generated from field: string team_id = 1;
+   */
+  teamId: string;
+};
+
+/**
+ * Describes the message host.session.v1.OpenTeamCastRequest.
+ * Use `create(OpenTeamCastRequestSchema)` to create a new message.
+ */
+export const OpenTeamCastRequestSchema: GenMessage<OpenTeamCastRequest> = /*@__PURE__*/
+  messageDesc(file_host_session_v1_session, 4);
+
+/**
  * RoleViewEntry is the roles a session acts as on one installation.
  *
  * @generated from message host.session.v1.RoleViewEntry
@@ -172,7 +193,7 @@ export type RoleViewEntry = Message<"host.session.v1.RoleViewEntry"> & {
  * Use `create(RoleViewEntrySchema)` to create a new message.
  */
 export const RoleViewEntrySchema: GenMessage<RoleViewEntry> = /*@__PURE__*/
-  messageDesc(file_host_session_v1_session, 4);
+  messageDesc(file_host_session_v1_session, 5);
 
 /**
  * CurrentRequest asks for the caller's own session; the bearer is the call's.
@@ -187,7 +208,7 @@ export type CurrentRequest = Message<"host.session.v1.CurrentRequest"> & {
  * Use `create(CurrentRequestSchema)` to create a new message.
  */
 export const CurrentRequestSchema: GenMessage<CurrentRequest> = /*@__PURE__*/
-  messageDesc(file_host_session_v1_session, 5);
+  messageDesc(file_host_session_v1_session, 6);
 
 /**
  * SignInRequest presents a fixture token.
@@ -208,7 +229,7 @@ export type SignInRequest = Message<"host.session.v1.SignInRequest"> & {
  * Use `create(SignInRequestSchema)` to create a new message.
  */
 export const SignInRequestSchema: GenMessage<SignInRequest> = /*@__PURE__*/
-  messageDesc(file_host_session_v1_session, 6);
+  messageDesc(file_host_session_v1_session, 7);
 
 /**
  * Session is an open session.
@@ -282,6 +303,15 @@ export type Session = Message<"host.session.v1.Session"> & {
    * @generated from field: repeated host.session.v1.RoleViewEntry role_view = 9;
    */
   roleView: RoleViewEntry[];
+
+  /**
+   * The team this session was cast onto: it acts as a member of that team and
+   * of nothing else, so `roles` is empty and `team_ids` names this team alone.
+   * Empty for a session that is not a cast.
+   *
+   * @generated from field: string cast_team_id = 10;
+   */
+  castTeamId: string;
 };
 
 /**
@@ -289,7 +319,7 @@ export type Session = Message<"host.session.v1.Session"> & {
  * Use `create(SessionSchema)` to create a new message.
  */
 export const SessionSchema: GenMessage<Session> = /*@__PURE__*/
-  messageDesc(file_host_session_v1_session, 7);
+  messageDesc(file_host_session_v1_session, 8);
 
 /**
  * SessionService opens sessions.
@@ -337,6 +367,27 @@ export const SessionService: GenService<{
   openRoleView: {
     methodKind: "unary";
     input: typeof OpenRoleViewRequestSchema;
+    output: typeof SessionSchema;
+  },
+  /**
+   * OpenTeamCast opens a session that acts as a member of one team and of
+   * nothing else: a cast. It holds that team's grants and none of the caller's
+   * own: no direct grant, no other team, no organisation role, no platform
+   * role, so it answers what a member of the team sees. The caller's bearer is
+   * the session it is opened from. The authority decides, by one rule: a person
+   * may act as a team whose roles they could grant, member of it or not. A team
+   * that holds roles the caller could not grant is refused saying so, and a
+   * team granted nothing is not found, because there is nothing to act as. A
+   * cast is never changed or widened, and a session that is already a cast
+   * opens no other; a role view opened from it stays in it. The session it was
+   * opened from is untouched and is the way back. The callers OpenRoleView
+   * refuses are refused here.
+   *
+   * @generated from rpc host.session.v1.SessionService.OpenTeamCast
+   */
+  openTeamCast: {
+    methodKind: "unary";
+    input: typeof OpenTeamCastRequestSchema;
     output: typeof SessionSchema;
   },
   /**

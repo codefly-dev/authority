@@ -35,6 +35,21 @@ service SessionService {
   rpc OpenRoleView(OpenRoleViewRequest) returns (Session) {
     option (google.api.http) = {post: "/v1/session:open-role-view" body: "*"};
   }
+  // OpenTeamCast opens a session that acts as a member of one team and of
+  // nothing else: a cast. It holds that team's grants and none of the caller's
+  // own: no direct grant, no other team, no organisation role, no platform
+  // role, so it answers what a member of the team sees. The caller's bearer is
+  // the session it is opened from. The authority decides, by one rule: a person
+  // may act as a team whose roles they could grant, member of it or not. A team
+  // that holds roles the caller could not grant is refused saying so, and a
+  // team granted nothing is not found, because there is nothing to act as. A
+  // cast is never changed or widened, and a session that is already a cast
+  // opens no other; a role view opened from it stays in it. The session it was
+  // opened from is untouched and is the way back. The callers OpenRoleView
+  // refuses are refused here.
+  rpc OpenTeamCast(OpenTeamCastRequest) returns (Session) {
+    option (google.api.http) = {post: "/v1/session:open-team-cast" body: "*"};
+  }
   // ListFixturePeople answers who this authority signs in by fixture token, for
   // the browser edge's sign-in page: the people are defined once, in the
   // authority's fixture. A host that signs real people in through its identity
@@ -80,6 +95,12 @@ message OpenRoleViewRequest {
   repeated string roles = 2;
 }
 
+// OpenTeamCastRequest names the team to act as.
+message OpenTeamCastRequest {
+  // The team, of the organisation the caller is signed into.
+  string team_id = 1;
+}
+
 // RoleViewEntry is the roles a session acts as on one installation.
 message RoleViewEntry {
   // The installation.
@@ -121,4 +142,8 @@ message Session {
   // these roles there and as every role it holds elsewhere. Empty for a session
   // that is not a role view.
   repeated RoleViewEntry role_view = 9;
+  // The team this session was cast onto: it acts as a member of that team and
+  // of nothing else, so `roles` is empty and `team_ids` names this team alone.
+  // Empty for a session that is not a cast.
+  string cast_team_id = 10;
 }

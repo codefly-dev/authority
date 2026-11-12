@@ -549,6 +549,9 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 	t.Run("a person fixes a session to act as roles they hold: it holds what those roles hold, narrows only, and leaves the session it came from whole", func(t *testing.T) {
 		sp.roleView(t)
 	})
+	t.Run("a person casts a session onto a team whose roles they could grant, member or not: it holds what the team holds and nothing of their own, says so, and is refused by name otherwise", func(t *testing.T) {
+		sp.teamCast(t)
+	})
 	t.Run("a person leaving the organization loses the solution's data at once", func(t *testing.T) {
 		sp.grant(t, A, "viewer", sp.person(t, f.OrgLeaver))
 		before := sp.must(t)(sp.through(t, f.OrgLeaver, A, "store"))

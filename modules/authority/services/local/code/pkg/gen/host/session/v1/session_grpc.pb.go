@@ -28,6 +28,7 @@ const (
 	SessionService_SignIn_FullMethodName            = "/host.session.v1.SessionService/SignIn"
 	SessionService_Current_FullMethodName           = "/host.session.v1.SessionService/Current"
 	SessionService_OpenRoleView_FullMethodName      = "/host.session.v1.SessionService/OpenRoleView"
+	SessionService_OpenTeamCast_FullMethodName      = "/host.session.v1.SessionService/OpenTeamCast"
 	SessionService_ListFixturePeople_FullMethodName = "/host.session.v1.SessionService/ListFixturePeople"
 )
 
@@ -55,6 +56,19 @@ type SessionServiceClient interface {
 	// client's delegated credential hold no session of a person to call from and
 	// are refused.
 	OpenRoleView(ctx context.Context, in *OpenRoleViewRequest, opts ...grpc.CallOption) (*Session, error)
+	// OpenTeamCast opens a session that acts as a member of one team and of
+	// nothing else: a cast. It holds that team's grants and none of the caller's
+	// own: no direct grant, no other team, no organisation role, no platform
+	// role, so it answers what a member of the team sees. The caller's bearer is
+	// the session it is opened from. The authority decides, by one rule: a person
+	// may act as a team whose roles they could grant, member of it or not. A team
+	// that holds roles the caller could not grant is refused saying so, and a
+	// team granted nothing is not found, because there is nothing to act as. A
+	// cast is never changed or widened, and a session that is already a cast
+	// opens no other; a role view opened from it stays in it. The session it was
+	// opened from is untouched and is the way back. The callers OpenRoleView
+	// refuses are refused here.
+	OpenTeamCast(ctx context.Context, in *OpenTeamCastRequest, opts ...grpc.CallOption) (*Session, error)
 	// ListFixturePeople answers who this authority signs in by fixture token, for
 	// the browser edge's sign-in page: the people are defined once, in the
 	// authority's fixture. A host that signs real people in through its identity
@@ -100,6 +114,16 @@ func (c *sessionServiceClient) OpenRoleView(ctx context.Context, in *OpenRoleVie
 	return out, nil
 }
 
+func (c *sessionServiceClient) OpenTeamCast(ctx context.Context, in *OpenTeamCastRequest, opts ...grpc.CallOption) (*Session, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Session)
+	err := c.cc.Invoke(ctx, SessionService_OpenTeamCast_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *sessionServiceClient) ListFixturePeople(ctx context.Context, in *ListFixturePeopleRequest, opts ...grpc.CallOption) (*ListFixturePeopleResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListFixturePeopleResponse)
@@ -134,6 +158,19 @@ type SessionServiceServer interface {
 	// client's delegated credential hold no session of a person to call from and
 	// are refused.
 	OpenRoleView(context.Context, *OpenRoleViewRequest) (*Session, error)
+	// OpenTeamCast opens a session that acts as a member of one team and of
+	// nothing else: a cast. It holds that team's grants and none of the caller's
+	// own: no direct grant, no other team, no organisation role, no platform
+	// role, so it answers what a member of the team sees. The caller's bearer is
+	// the session it is opened from. The authority decides, by one rule: a person
+	// may act as a team whose roles they could grant, member of it or not. A team
+	// that holds roles the caller could not grant is refused saying so, and a
+	// team granted nothing is not found, because there is nothing to act as. A
+	// cast is never changed or widened, and a session that is already a cast
+	// opens no other; a role view opened from it stays in it. The session it was
+	// opened from is untouched and is the way back. The callers OpenRoleView
+	// refuses are refused here.
+	OpenTeamCast(context.Context, *OpenTeamCastRequest) (*Session, error)
 	// ListFixturePeople answers who this authority signs in by fixture token, for
 	// the browser edge's sign-in page: the people are defined once, in the
 	// authority's fixture. A host that signs real people in through its identity
@@ -157,6 +194,9 @@ func (UnimplementedSessionServiceServer) Current(context.Context, *CurrentReques
 }
 func (UnimplementedSessionServiceServer) OpenRoleView(context.Context, *OpenRoleViewRequest) (*Session, error) {
 	return nil, status.Error(codes.Unimplemented, "method OpenRoleView not implemented")
+}
+func (UnimplementedSessionServiceServer) OpenTeamCast(context.Context, *OpenTeamCastRequest) (*Session, error) {
+	return nil, status.Error(codes.Unimplemented, "method OpenTeamCast not implemented")
 }
 func (UnimplementedSessionServiceServer) ListFixturePeople(context.Context, *ListFixturePeopleRequest) (*ListFixturePeopleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListFixturePeople not implemented")
@@ -236,6 +276,24 @@ func _SessionService_OpenRoleView_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SessionService_OpenTeamCast_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OpenTeamCastRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).OpenTeamCast(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_OpenTeamCast_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).OpenTeamCast(ctx, req.(*OpenTeamCastRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _SessionService_ListFixturePeople_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListFixturePeopleRequest)
 	if err := dec(in); err != nil {
@@ -272,6 +330,10 @@ var SessionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "OpenRoleView",
 			Handler:    _SessionService_OpenRoleView_Handler,
+		},
+		{
+			MethodName: "OpenTeamCast",
+			Handler:    _SessionService_OpenTeamCast_Handler,
 		},
 		{
 			MethodName: "ListFixturePeople",
