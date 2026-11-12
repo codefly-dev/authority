@@ -27,8 +27,15 @@ func TestAModuleInstallationExistsPerOrganisationWithoutAClick(t *testing.T) {
 
 func TestAManifestMovesOnlyForward(t *testing.T) {
 	k := testkit.New(t)
-	if _, err := k.State.ApplyManifest(testkit.Documents(1)); !errors.Is(err, state.ErrStale) {
-		t.Fatalf("same generation: %v", err)
+	// The held generation delivered again is a replay; declared otherwise, it
+	// is refused: a changed declaration is a new generation.
+	if _, err := k.State.ApplyManifest(testkit.Documents(1)); err != nil {
+		t.Fatalf("the held generation, delivered again: %v", err)
+	}
+	changed := testkit.Documents(1)
+	changed.OwnerAware = false
+	if _, err := k.State.ApplyManifest(changed); !errors.Is(err, state.ErrStale) {
+		t.Fatalf("same generation, another declaration: %v", err)
 	}
 	if _, err := k.State.ApplyManifest(testkit.Documents(2)); err != nil {
 		t.Fatal(err)
