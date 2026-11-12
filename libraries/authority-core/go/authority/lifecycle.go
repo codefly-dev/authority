@@ -352,7 +352,11 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 				return err
 			}
 		}
-		if err := s.reconvergeReach(ctx, tx, m.Name, before, !exists); err != nil {
+		// Composition grew when the module is composed for the first time or
+		// replaces a fixture's stand-in; a module withdrawn and delivered
+		// again is a redelivery, measured against what was approved.
+		grew := (!exists && !withdrawn) || (exists && previous.StandIn)
+		if err := s.reconvergeReach(ctx, tx, m.Name, before, grew); err != nil {
 			return err
 		}
 		if err := s.journalReach(ctx, tx, unreachedBefore); err != nil {

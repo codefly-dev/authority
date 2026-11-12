@@ -351,10 +351,10 @@ func TestAModuleComposedForTheFirstTimeApprovesNoUpgradePending(t *testing.T) {
 	exactly(t, h.must(h.through("maya", "pages", "tally-rows")), "tally.row", "", []string{"read"})
 }
 
-// A module withdrawn and delivered again is not composition growing for a
-// page whose receipt still holds it: no generation of it stands, but the
-// receipt kept its earlier rows, so a redelivery wider than they were
-// offers the upgrade and holds the viewer.
+// A module withdrawn and delivered again is not composition growing: no
+// generation of it stands, but it was composed and approved before, so a
+// redelivery wider than it was offers the page the upgrade, and its reach
+// waits for the approval, whatever moved the page's receipt in between.
 func TestAModuleWithdrawnAndDeliveredWiderOffersThePageAnUpgrade(t *testing.T) {
 	h := newHarness(t)
 	svc, _ := journaled(h)
@@ -368,6 +368,12 @@ func TestAModuleWithdrawnAndDeliveredWiderOffersThePageAnUpgrade(t *testing.T) {
 	if err := svc.WithdrawModule(h.ctx, "records"); err != nil {
 		t.Fatal(err)
 	}
+	// A page redelivery in between re-converges the receipt to the
+	// narrower reach without records; the withdrawal still makes records'
+	// return a redelivery.
+	if _, err := svc.ApplyModule(h.ctx, pageReachingRecords(2)); err != nil {
+		t.Fatal(err)
+	}
 	wider := records(2)
 	wider.Methods = map[string]domain.MethodPolicy{"/records.v1.Rows/List": {AnyCheckedCaller: true}}
 	if _, err := svc.ApplyModule(h.ctx, wider); err != nil {
@@ -375,6 +381,49 @@ func TestAModuleWithdrawnAndDeliveredWiderOffersThePageAnUpgrade(t *testing.T) {
 	}
 	if up, err := svc.UpgradeAvailable(h.ctx, h.pagesAt(acme)); err != nil || !up {
 		t.Fatalf("a module delivered wider after its withdrawal was taken without an upgrade: %v %v", up, err)
+	}
+	// The receipt re-converged without records, so records waits for the
+	// approval; the installer's approval holds it.
+	if _, err := h.through("maya", "pages", "records-rows"); err == nil {
+		t.Fatal("a module delivered wider after its withdrawal is held ahead of its approval")
+	}
+	h.grant("pages", domain.InstallerRole, "remi")
+	if _, err := h.approvePage(svc, "remi"); err != nil {
+		t.Fatal(err)
+	}
+	exactly(t, h.must(h.through("maya", "pages", "records-rows")), recordsKind, "", []string{"read"})
+}
+
+// A fixture's stand-in replaced by the module's own delivery is composition
+// growing: the stand-in declared kinds and no operation, and the page's
+// receipt is taken again at what the delivered module serves, with no
+// upgrade to approve, as for a module composed for the first time.
+func TestAStandInReplacedByItsDeliveryHoldsThePageAtTheDeliveredModule(t *testing.T) {
+	h := newHarness(t)
+	svc, events := journaled(h)
+	standIn := records(1)
+	standIn.StandIn = true
+	if _, err := svc.ApplyModule(h.ctx, standIn); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.ApplyModule(h.ctx, pageReachingRecords(1)); err != nil {
+		t.Fatal(err)
+	}
+	h.grant("pages", "viewer", "maya")
+	delivered := records(1)
+	delivered.Methods = map[string]domain.MethodPolicy{"/records.v1.Rows/List": {Requires: []*basev0.WorkScopeV1{sc(recordsKind, "read")}}}
+	if _, err := svc.ApplyModule(h.ctx, delivered); err != nil {
+		t.Fatal(err)
+	}
+	held := h.pagesAt(acme)
+	if up, err := svc.UpgradeAvailable(h.ctx, held); err != nil || up {
+		t.Fatalf("a stand-in replaced by its delivery offered an upgrade: %v %v", up, err)
+	}
+	if !strings.Contains(held.Consent.Reach, "/records.v1.Rows/List") {
+		t.Fatalf("the receipt holds no operation of the delivered module: %s", held.Consent.Reach)
+	}
+	if e, ok := lastEventOn(*events, domain.InstallationReachAdopted, held.ID); !ok || e.Detail["delivered"] != "records" {
+		t.Fatalf("composition did not take the receipt again: %+v %v", e, ok)
 	}
 	exactly(t, h.must(h.through("maya", "pages", "records-rows")), recordsKind, "", []string{"read"})
 }

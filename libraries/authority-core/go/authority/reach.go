@@ -126,7 +126,8 @@ func reachesBefore(tx Tx, applied string) (map[string]string, error) {
 // A module page's installation is held by composition's own receipt
 // (domain.ComposedConsent), and composition takes it again when the
 // composition grows: a module composed for the first time (grew: no
-// generation of applied stood before this delivery) that the page reaches
+// generation of applied stood before this delivery and none was withdrawn,
+// or applied replaces a fixture's stand-in) that the page reaches
 // widens what its roles reach because the binding now reaches a module,
 // not because any declaration changed, so the receipt is re-taken at the
 // reach the page has now (holdByComposition) and its holders hold there at
