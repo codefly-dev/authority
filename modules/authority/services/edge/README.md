@@ -34,6 +34,30 @@ Host-wide termination requires a proposed Session.SignOut interface addition,
 its host implementations, and the edge call before browser sign-out can promise
 revocation. This change does not invent a second session revocation mechanism.
 
+## Act as a team
+
+A browser that holds a session sees, above the people, who it is and the
+organisation's teams as the fixture seats them (every `<target>-<role>` team
+of every role-gated target the run composes), each with **Act as this team**:
+a plain form posted to `/auth/act-as` with `team` and `return`. The edge asks
+the authority (`SessionService.OpenTeamCast`, with the browser's own
+session) and decides nothing itself: a person may act as a team whose roles
+they could grant, member of it or not, so an administrator may be any team of
+their organisation and a member their own; a team the authority refuses is
+refused by name on the page. Allowed, the browser becomes the cast session —
+the team's grants and none of the person's own: no direct grant, no other
+team, no organisation role — and keeps the session it came from in a second
+`HttpOnly` cookie, `edge_session_parent`, so **Back to your own session**
+(`action=back`) is a form too, never a second sign-in; sign-out clears both,
+and a sign-in clears the way back, so it belongs to one person's session
+only. "Back" is the browser forgetting the cast, not its revocation: the
+cast session is not ended at the authority (the session interface has no end
+call, for a sign-out either) and expires on its own as any session does.
+A cast is never widened: the authority refuses an act-as from a cast. Like
+sign-in, an act-as is a write from this origin, and `/auth/session` says
+`castTeamId` for a cast session. Nothing here decides who may act as what,
+and no script holds a credential.
+
 ## Composition-owned sign-in choices
 
 A composing workspace can choose which fixture people its sign-in page shows,
@@ -43,7 +67,7 @@ through Codefly, from the composing workspace:
 
 ```sh
 codefly config set edge --plaintext \
-  'SIGN_IN_CHOICES=[{"personId":"dev","description":"Dev — developer: explore the installed tools","startHere":true},{"personId":"maya","description":"Maya — viewer: explore a refusal"}]'
+  'SIGN_IN_CHOICES=[{"personId":"alice","description":"Alice — Acme administrator: act as any team","startHere":true},{"personId":"bob","description":"Bob — viewer of every target: explore a refusal"}]'
 ```
 
 The JSON array's order is the page's order. Each entry names a fixture `personId`

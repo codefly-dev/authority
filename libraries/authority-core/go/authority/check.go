@@ -234,14 +234,14 @@ func effectiveOf(wc *basev0.WorkContextV1) Scopes {
 }
 
 // withinApprovedReach refuses a call to a method of m that the reach a
-// consented solution's installation approved does not list for its caller:
-// a person acting through the solution, for the roles they hold on it, or
-// the installation's own agent, for its agent role (approvedReach). A
-// delivery of m, or of the solution, that admits more than was approved
-// admits nobody more until an administrator approves the upgrade, and the
-// approved policy holds on effective, what the call itself carries, as well
-// as on the approved reach. A person's
-// call through no solution is not looked up further.
+// consented installation approved does not list for its caller: a person
+// acting through the solution or module page, for the roles they hold on
+// it, or the installation's own agent, for its agent role (approvedReach).
+// A delivery of m, or of the target, that admits more than was approved
+// admits nobody more until the upgrade is approved, and the approved policy
+// holds on effective, what the call itself carries, as well as on the
+// approved reach. A person's call through no solution or page is not looked
+// up further.
 func (s *Service) withinApprovedReach(tx Tx, wc *basev0.WorkContextV1, effective Scopes, m domain.Module, method string) (error, error) {
 	owner := reachOwner{}
 	switch wc.GetOwnerPrincipalKind() {
@@ -249,7 +249,7 @@ func (s *Service) withinApprovedReach(tx Tx, wc *basev0.WorkContextV1, effective
 		owner.agent = wc.GetOwnerPrincipalId()
 	case "human":
 		owner.principals = solutionPrincipals(wc, m.Principal)
-		if !anySolution(tx, owner.principals) {
+		if !anyRoleGated(tx, owner.principals) {
 			return nil, nil
 		}
 		p, err := personOfClaims(tx, wc)
@@ -268,15 +268,22 @@ func (s *Service) withinApprovedReach(tx Tx, wc *basev0.WorkContextV1, effective
 	if key, ok := decide.MethodKey(m, method); ok && admits(key, effective) {
 		return nil, nil
 	}
-	return domain.Refuse("%s at %s is beyond the reach its solution's installation approved; an administrator approves the upgrade that reaches it", method, m.Name), nil
+	return domain.Refuse("%s at %s is beyond the reach its installation approved; approving the delivered upgrade reaches it", method, m.Name), nil
 }
 
 // anySolution is whether a solution is among principals.
 func anySolution(tx Tx, principals []string) bool {
-	for _, principal := range principals {
-		if m, err := tx.Module(principal); err == nil && m.Kind == domain.KindSolution {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(principals, func(principal string) bool {
+		m, err := tx.Module(principal)
+		return err == nil && m.Kind == domain.KindSolution
+	})
+}
+
+// anyRoleGated is whether a target whose installation a consent may hold, a
+// solution or a module page declaring roles, is among principals.
+func anyRoleGated(tx Tx, principals []string) bool {
+	return slices.ContainsFunc(principals, func(principal string) bool {
+		m, err := tx.Module(principal)
+		return err == nil && decide.RoleGated(m)
+	})
 }

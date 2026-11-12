@@ -122,7 +122,25 @@ func reachesBefore(tx Tx, applied string) (map[string]string, error) {
 // reach the delivery did not change (before, as reachesBefore read it) is
 // left as it is and journals nothing: a widening already offered is not
 // offered again by every later delivery.
-func (s *Service) reconvergeReach(ctx context.Context, tx Tx, applied string, before map[string]string) error {
+//
+// A module page's installation is held by composition's own receipt
+// (domain.ComposedConsent), and composition takes it again when the
+// composition grows: a module composed for the first time (grew: no
+// generation of applied stood before this delivery and none was withdrawn,
+// or applied replaces a fixture's stand-in) that the page reaches
+// widens what its roles reach because the binding now reaches a module,
+// not because any declaration changed, so the receipt is re-taken at the
+// reach the page has now (holdByComposition) and its holders hold there at
+// once. A fresh run composes its modules in no fixed order, and the page's
+// receipt never freezes the absence of a module that had not landed yet.
+// It is re-taken only where the receipt stood at what the page reached
+// before this delivery: everything the new reach adds is then the new
+// module's composition. A receipt still behind (an upgrade pending from a
+// redelivery that widened) keeps waiting, and the new module's reach waits
+// with it, so composition growing never approves a widening nobody did. A
+// redelivery of the page, or of a module it reaches, that widens the reach
+// offers the upgrade as a solution's does.
+func (s *Service) reconvergeReach(ctx context.Context, tx Tx, applied string, before map[string]string, grew bool) error {
 	list, err := consentedReaches(tx, applied)
 	if err != nil {
 		return err
@@ -141,6 +159,12 @@ func (s *Service) reconvergeReach(ctx context.Context, tx Tx, applied string, be
 			return err
 		}
 		detail := map[string]string{"target": inst.Target, "approved_generation": fmt.Sprint(inst.Consent.Generation), "generation": fmt.Sprint(m.Generation), "delivered": applied}
+		if was, ok := before[inst.ID]; len(asks) > 0 && grew && inst.Consent.OperationID == domain.ComposedConsent && ok && was == inst.Consent.ReachDigest {
+			if err := s.holdByComposition(ctx, tx, inst, m, applied); err != nil {
+				return err
+			}
+			continue
+		}
 		if len(asks) > 0 {
 			detail["widened"] = strings.Join(asks, "; ")
 			if err := s.journal(ctx, tx, domain.Event{Kind: domain.InstallationUpgradeAvailable, Organization: inst.Organization, Subject: inst.ID, Detail: detail}); err != nil {
@@ -298,17 +322,17 @@ type reachOwner struct {
 }
 
 // approvedReach is what owner may hold at module by the reach the consent of
-// each solution installation it acts through approved, for the roles it
-// holds there: a person's roles granted on each consented solution on the
-// path, intersected across them; an agent's own installation role. held is
-// the scopes; admits reports whether an operation of module is admitted by
-// the policy approved for it to the roles' scopes there, held together, and
-// to the scopes the call itself carries. bounded
-// is false when no consented solution bounds it (none on the path, or an
+// each installation it acts through approved, a solution's or a module
+// page's, for the roles it holds there: a person's roles granted on each
+// consented target on the path, intersected across them; an agent's own
+// installation role. held is the scopes; admits reports whether an operation
+// of module is admitted by the policy approved for it to the roles' scopes
+// there, held together, and to the scopes the call itself carries. bounded
+// is false when no consented installation bounds it (none on the path, or an
 // installation installed by its host without consent). A delivery of the
-// solution, or of any module it reaches, that asks more than its consent
+// target, or of any module it reaches, that asks more than its consent
 // approved therefore grants nobody, person or agent, the wider reach until
-// an administrator approves it.
+// the upgrade is approved.
 func (s *Service) approvedReach(tx Tx, owner reachOwner, module string) (held Scopes, admits func(operation string, effective Scopes) bool, bounded bool, err error) {
 	var cells []reachCell
 	admits = func(operation string, effective Scopes) bool {
@@ -375,7 +399,7 @@ func (s *Service) approvedReach(tx Tx, owner reachOwner, module string) (held Sc
 		}
 		seen[principal] = true
 		m, err := tx.Module(principal)
-		if err != nil || m.Kind != domain.KindSolution {
+		if err != nil || !decide.RoleGated(m) {
 			continue
 		}
 		inst, err := installationOf(tx, p.Organization, m.Name)
@@ -400,6 +424,18 @@ func (s *Service) approvedReach(tx Tx, owner reachOwner, module string) (held Sc
 // later widening is measured against it and capped. Each adoption is
 // journaled as installation.reach_adopted; nothing issued ends.
 //
+// A module page's installation no consent holds (composition's, or one its
+// host installed) takes its receipt here the same way, by composition
+// (domain.ComposedConsent): the delivered generation, its offer digest and
+// what its roles reach now, and the generation is kept as its approved one.
+// From then on it is held as a consented solution is: a delivery, of the
+// page or of a module it reaches, that widens what a role reaches offers an
+// upgrade (reconverge, reconvergeReach) that an administrator or the page's
+// installer approves through Install, and until then its grants answer at
+// the reach held, none revoked and none widened. A solution its host
+// installed without consent is left as it is: it follows its delivery by
+// that host's own doing.
+//
 // A consent whose approved declaration cannot be read (a generation the
 // store does not keep, or keeps as something other than what was approved:
 // a host migration may record such an approval) is skipped, never failing
@@ -415,7 +451,7 @@ func (s *Service) adoptLegacyReach(ctx context.Context, tx Tx, journalSkips bool
 		return err
 	}
 	for _, inst := range all {
-		if inst.Status != domain.Active || inst.Consent.OperationID == "" || inst.Consent.ReachDigest != "" {
+		if inst.Status != domain.Active || inst.Consent.ReachDigest != "" {
 			continue
 		}
 		m, err := tx.ModuleNamed(inst.Target)
@@ -424,6 +460,15 @@ func (s *Service) adoptLegacyReach(ctx context.Context, tx Tx, journalSkips bool
 		}
 		if err != nil {
 			return err
+		}
+		if inst.Consent.OperationID == "" {
+			if m.Kind == domain.KindSolution || !decide.RoleGated(m) {
+				continue
+			}
+			if err := s.holdByComposition(ctx, tx, inst, m, ""); err != nil {
+				return err
+			}
+			continue
 		}
 		if m, err = approvedModule(tx, inst, m); err != nil {
 			if !unadoptable(err) {
@@ -451,6 +496,41 @@ func (s *Service) adoptLegacyReach(ctx context.Context, tx Tx, journalSkips bool
 		}
 	}
 	return nil
+}
+
+// holdByComposition records on inst, a module page's installation no consent
+// holds or composition holds, the receipt composition takes
+// (composedReceipt) at m, its approved declaration, journaled as
+// installation.reach_adopted with "held_by" composition and, when a module
+// newly composed grew the reach (reconvergeReach), "delivered" naming it.
+func (s *Service) holdByComposition(ctx context.Context, tx Tx, inst domain.Installation, m domain.Module, delivered string) error {
+	if err := composedReceipt(tx, &inst, m); err != nil {
+		return err
+	}
+	if err := tx.PutInstallation(inst); err != nil {
+		return err
+	}
+	detail := map[string]string{"target": inst.Target, "approved_generation": fmt.Sprint(m.Generation), "reach": inst.Consent.ReachDigest, "held_by": domain.ComposedConsent}
+	if delivered != "" {
+		detail["delivered"] = delivered
+	}
+	return s.journal(ctx, tx, domain.Event{Kind: domain.InstallationReachAdopted, Organization: inst.Organization, Subject: inst.ID, Detail: detail})
+}
+
+// composedReceipt gives inst, a module page's installation, the receipt
+// composition takes: m, as delivered now, is its approved generation (kept
+// for it), and what m's roles reach now is the reach it is held at.
+func composedReceipt(tx Tx, inst *domain.Installation, m domain.Module) error {
+	digest, err := OfferDigest(m)
+	if err != nil {
+		return err
+	}
+	now, err := reachIn(tx, m)
+	if err != nil {
+		return err
+	}
+	inst.Consent = domain.ConsentReceipt{OperationID: domain.ComposedConsent, Revision: inst.Revision, Generation: m.Generation, Digest: digest, ReachDigest: now.digest, Reach: now.text}
+	return tx.PutApprovedModule(m)
 }
 
 // AdoptLegacyReach is adoptLegacyReach in one transaction, for a host that

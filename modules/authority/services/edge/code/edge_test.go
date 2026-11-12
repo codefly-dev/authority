@@ -46,14 +46,29 @@ func (s *standIn) SignIn(_ context.Context, in *sessionv1.SignInRequest, _ ...gr
 }
 
 func (s *standIn) Current(ctx context.Context, _ *sessionv1.CurrentRequest, _ ...grpc.CallOption) (*sessionv1.Session, error) {
+	switch bearerIn(ctx) {
+	case "remi-session":
+		return &sessionv1.Session{SessionId: "s1", PersonId: "remi", OrganizationId: "acme", PersonDisplayName: "Rémi", OrganizationDisplayName: "Acme", Roles: []string{"editor"}, TeamIds: []string{"records-viewer"}}, nil
+	case "remi-as-viewers":
+		return &sessionv1.Session{SessionId: "s2", PersonId: "remi", OrganizationId: "acme", PersonDisplayName: "Rémi", OrganizationDisplayName: "Acme", TeamIds: []string{"records-viewer"}, CastTeamId: "records-viewer"}, nil
+	}
+	return nil, status.Error(codes.Unauthenticated, "no session")
+}
+
+// OpenTeamCast casts Rémi onto records-viewer, his own team; any other team
+// holds roles he could not grant.
+func (s *standIn) OpenTeamCast(ctx context.Context, in *sessionv1.OpenTeamCastRequest, _ ...grpc.CallOption) (*sessionv1.Session, error) {
 	if bearerIn(ctx) != "remi-session" {
 		return nil, status.Error(codes.Unauthenticated, "no session")
 	}
-	return &sessionv1.Session{SessionId: "s1", PersonId: "remi", OrganizationId: "acme", PersonDisplayName: "Rémi", OrganizationDisplayName: "Acme"}, nil
+	if in.GetTeamId() != "records-viewer" {
+		return nil, status.Errorf(codes.PermissionDenied, "team %q holds roles you could not grant, so you may not act as it", in.GetTeamId())
+	}
+	return &sessionv1.Session{SessionId: "s2", PersonId: "remi", OrganizationId: "acme", TeamIds: []string{"records-viewer"}, CastTeamId: "records-viewer", Bearer: "remi-as-viewers"}, nil
 }
 
 func (s *standIn) ListFixturePeople(context.Context, *sessionv1.ListFixturePeopleRequest, ...grpc.CallOption) (*sessionv1.ListFixturePeopleResponse, error) {
-	return &sessionv1.ListFixturePeopleResponse{People: []*sessionv1.FixturePerson{{PersonId: "remi", Email: "remi@acme.test", OrganizationId: "acme", OrganizationDisplayName: "Acme", Roles: []string{"editor"}, FixtureToken: "fixture-remi"}}}, nil
+	return &sessionv1.ListFixturePeopleResponse{People: []*sessionv1.FixturePerson{{PersonId: "remi", Email: "remi@acme.test", OrganizationId: "acme", OrganizationDisplayName: "Acme", Roles: []string{"editor"}, TeamIds: []string{"records-viewer"}, FixtureToken: "fixture-remi"}}}, nil
 }
 
 func (s *standIn) Issue(ctx context.Context, in *authorityv1.IssueRequest, _ ...grpc.CallOption) (*authorityv1.IssueResponse, error) {
@@ -364,8 +379,10 @@ func TestSignInAndSignOutComeFromThisOrigin(t *testing.T) {
 	if res, _ := f.do(t, http.MethodPost, "/auth/sign-out", http.Header{"Cookie": {cookie.String()}, "Origin": {"http://elsewhere.test"}}); res.StatusCode != http.StatusForbidden {
 		t.Fatalf("another site signed the browser out: %d", res.StatusCode)
 	}
+	// Sign-out clears the session and the way back from a cast, if any.
 	res, _ := f.do(t, http.MethodPost, "/auth/sign-out", http.Header{"Cookie": {cookie.String()}, "Origin": {f.edge.URL}})
-	if res.StatusCode != http.StatusNoContent || len(res.Cookies()) != 1 || res.Cookies()[0].MaxAge >= 0 {
+	if cleared := cookiesOf(res); res.StatusCode != http.StatusNoContent || len(res.Cookies()) != 2 || cleared[SessionKey] != "" || cleared[ParentKey] != "" ||
+		res.Cookies()[0].MaxAge >= 0 || res.Cookies()[1].MaxAge >= 0 {
 		t.Fatalf("sign-out answered %d with %v", res.StatusCode, res.Cookies())
 	}
 }

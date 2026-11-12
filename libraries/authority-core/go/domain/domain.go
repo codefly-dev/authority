@@ -349,7 +349,11 @@ type ReachRow struct {
 // the approved one did not advances both (the installation re-converges); one
 // that asks more leaves them, and the installation offers an upgrade until an
 // administrator approves the new offer. Zero Generation is a receipt recorded
-// before this was kept: it stands for the generation delivered then.
+// before this was kept: it stands for the generation delivered then. A
+// module page's installation, which nobody installed by hand, holds one too,
+// taken by composition (ComposedConsent): it is held at the reach its page
+// had then, exactly as a solution's is held at what an administrator
+// approved, and an upgrade approved through Install replaces it.
 type ConsentReceipt struct {
 	OperationID, Intent string
 	Revision            uint64
@@ -363,6 +367,16 @@ type ConsentReceipt struct {
 	// (installation.reach_adopted), and is held to that until adopted.
 	ReachDigest, Reach string
 }
+
+// ComposedConsent is the OperationID of a consent receipt composition took,
+// not an administrator: the installation of a module page (a module
+// declaring roles, installed by composition or by its host) is held at the
+// reach its target had when the receipt was taken, and offers an upgrade,
+// as a consented solution does, until an administrator or a holder of the
+// page's installer role approves the delivered offer through Install. It
+// is no administrator's review: it approves no source governance, and it is
+// never an operation a caller supplies.
+const ComposedConsent = "composition"
 
 // EventKind names one change of authority the core makes.
 type EventKind string
@@ -396,12 +410,6 @@ const (
 	// adopted, once, the reach its approved declaration has as the
 	// composition stands; Detail "reach" names its digest.
 	InstallationReachAdopted EventKind = "installation.reach_adopted"
-	// InstallationRoleReachWidened: a delivery widened what a module page's
-	// role reaches through its bindings; the grants of that role on the
-	// page's installation ended with it (each journaled as role.revoked),
-	// and an administrator grants it again knowing what it now reaches.
-	// Detail "roles" names the roles, "widened" what widened.
-	InstallationRoleReachWidened EventKind = "installation.role_reach_widened"
 	// InstallationUpgraded: an administrator approved a newer offer on an
 	// active installation, which keeps its grants.
 	InstallationUpgraded EventKind = "installation.upgraded"

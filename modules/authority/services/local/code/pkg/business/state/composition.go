@@ -70,7 +70,11 @@ func (s *State) ApplyComposition(ctx context.Context, data []byte) ([]string, er
 	}
 	s.refreshRolesLocked()
 	s.mu.Unlock()
-	return append(lines, more...), nil
+	seated, err := s.SeatRoleTeams(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", CompositionDocument, err)
+	}
+	return append(append(lines, more...), seated...), nil
 }
 
 // composedRoles is the fixture's roles with the document's grants added.
@@ -115,6 +119,10 @@ func (s *State) checkComposedSetup(doc fixturecomposition.Document) ([]string, e
 			return nil, fmt.Errorf("installation of %s: %q is not an organisation the fixture defines", i.Target, i.Organization)
 		case !ok || owner.Organization != i.Organization:
 			return nil, fmt.Errorf("installation of %s: %q is not a person of %s in the fixture", i.Target, i.Owner, i.Organization)
+		}
+		if i.Target == EveryTarget {
+			lines = append(lines, fmt.Sprintf("seats on every role-gated target at %s, for %s: %v", i.Organization, i.Owner, i.Members))
+			continue
 		}
 		lines = append(lines, fmt.Sprintf("installs %s at %s as %s, granting %s the installer role and %v the role %s", i.Target, i.Organization, i.Role, i.Owner, i.Teams, i.Role))
 	}

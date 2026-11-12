@@ -73,8 +73,11 @@ func TestAModuleIsInstalledByCompositionInEveryOrganisation(t *testing.T) {
 			if i < 0 {
 				t.Fatalf("composition did not install %s at %s: %v", target, org, all)
 			}
+			// A page's installation holds composition's receipt once the host
+			// reconciled (AdoptLegacyReach); a module declaring no role holds none.
+			consent := target == "pages"
 			if inst := all[i]; inst.ID != h.inst(org, target).ID || inst.Status != domain.Active || inst.PrincipalID != h.principal(org, target) || inst.AgentRole != "" ||
-				inst.InstalledBy != "" || inst.Consent != (domain.ConsentReceipt{}) {
+				inst.InstalledBy != "" || (inst.Consent.OperationID == domain.ComposedConsent) != consent || (!consent && inst.Consent != (domain.ConsentReceipt{})) {
 				t.Fatalf("%s at %s is not a composition installation: %+v", target, org, inst)
 			}
 		}
@@ -86,11 +89,15 @@ func TestAModuleIsInstalledByCompositionInEveryOrganisation(t *testing.T) {
 	}
 }
 
-// A module is never offered, reviewed or installed by an administrator,
-// roles or not: ListOffers lists the solutions alone; Review, ReviewOffer,
-// Install and InstallAsHost answer NotFound naming composition; a person
-// cannot uninstall its installation.
-func TestAModuleIsNeverOfferedReviewedOrInstalledByAnAdministrator(t *testing.T) {
+// A module is never offered or installed by an administrator, roles or not:
+// ListOffers lists the solutions alone; Install of a module declaring no
+// role, or of a page with no approval of its offer, and InstallAsHost of
+// either answer NotFound naming composition; a person cannot uninstall its
+// installation. A module declaring no role is never reviewed either. A
+// page's active installation is reviewed, for the upgrade it offers: the
+// tuple an administrator or its installer approves through Install, which
+// is a replay of what stands when nothing widened.
+func TestAModuleIsNeverOfferedOrInstalledByAnAdministrator(t *testing.T) {
 	h := newHarness(t)
 	if _, err := h.svc.ApplyModule(h.ctx, pageModule(1, true)); err != nil {
 		t.Fatal(err)
@@ -100,25 +107,38 @@ func TestAModuleIsNeverOfferedReviewedOrInstalledByAnAdministrator(t *testing.T)
 	}
 	for _, target := range []string{"pages", "store"} {
 		_, err := h.svc.ReviewOffer(h.ctx, h.admin(acme), acme, target)
-		code(t, err, domain.NotFound)
-		refused(t, err, "a module is installed by composition")
-		_, err = h.svc.Review(h.ctx, h.admin(acme), acme, target)
-		code(t, err, domain.NotFound)
+		if target == "store" {
+			code(t, err, domain.NotFound)
+			refused(t, err, "a module is installed by composition")
+			_, err = h.svc.Review(h.ctx, h.admin(acme), acme, target)
+			code(t, err, domain.NotFound)
+		} else if err != nil {
+			t.Fatalf("a page's active installation is not reviewed: %v", err)
+		}
 		made := &domain.ConsentApproval{TargetID: target, Generation: 1, Digest: "sha256:made-up", OperationID: uuid.NewString()}
 		_, err = h.svc.Install(h.ctx, h.admin(acme), acme, target, "", "", made, nil)
-		code(t, err, domain.NotFound)
-		refused(t, err, "a module is installed by composition")
+		if target == "store" {
+			code(t, err, domain.NotFound)
+			refused(t, err, "a module is installed by composition")
+		} else {
+			refused(t, err, "INSTALLATION_APPROVAL_DIGEST_CHANGED")
+		}
 		_, err = h.svc.InstallAsHost(h.ctx, acme, target, "", "alex", nil)
 		code(t, err, domain.NotFound)
 		refused(t, h.svc.Uninstall(h.ctx, h.admin(acme), acme, h.inst(acme, target).ID), "installed by composition")
 	}
+	// Nothing widened: the page's offer approved again installs nothing new.
+	_, err := h.svc.Install(h.ctx, h.admin(acme), acme, "pages", "", "", h.approval(acme, "pages"), nil)
+	refused(t, err, "pages is already installed at acme")
 }
 
 // A module that gains or loses roles keeps its installation: its id and
 // status never move. The grants of a role still declared survive, and what
-// they issued stays valid; the grants of a role the delivered generation
-// drops end with it. Without roles, organization roles decide; with roles
-// again, nobody holds one until granted.
+// they issued stays valid; a role added waits for the upgrade's approval
+// before it is granted, as a solution's does; the grants of a role the
+// delivered generation drops end with it. Without roles, organization roles
+// decide; with roles again, nobody holds one until the upgrade is approved
+// and the role granted.
 func TestAModuleThatGainsOrLosesRolesKeepsItsInstallation(t *testing.T) {
 	h := newHarness(t)
 	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "page-reader", Scopes: []domain.RoleScope{{Kind: "pages.note", Actions: []string{"read"}}}})
@@ -156,6 +176,11 @@ func TestAModuleThatGainsOrLosesRolesKeepsItsInstallation(t *testing.T) {
 	if err := h.check(viewer); err != nil {
 		t.Fatalf("a role added ended the viewer's capability: %v", err)
 	}
+	_, err := h.svc.GrantRole(h.ctx, h.admin(acme), authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: "editor", PersonID: "remi"})
+	refused(t, err, `pages declares no role "editor"`)
+	if _, err := h.approvePage(h.svc, "alex"); err != nil {
+		t.Fatal(err)
+	}
 	h.grant("pages", "editor", "remi")
 	exactly(t, h.must(h.root("remi", "pages")), "pages.note", "", []string{"read", "write"})
 
@@ -167,7 +192,7 @@ func TestAModuleThatGainsOrLosesRolesKeepsItsInstallation(t *testing.T) {
 	if grants := h.roleGrants("pages"); len(grants) != 1 || grants[0].Role != "viewer" || grants[0].PersonID != "maya" {
 		t.Fatalf("after editor was dropped the grants are %v, want maya's viewer alone", grants)
 	}
-	_, err := h.root("remi", "pages")
+	_, err = h.root("remi", "pages")
 	refused(t, err, "remi holds no role on pages")
 	exactly(t, h.must(h.root("maya", "pages")), "pages.note", "", []string{"read"})
 
@@ -189,13 +214,21 @@ func TestAModuleThatGainsOrLosesRolesKeepsItsInstallation(t *testing.T) {
 	_, err = h.svc.GrantRole(h.ctx, h.admin(acme), authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: "viewer", PersonID: "maya"})
 	refused(t, err, `pages declares no role "viewer"`)
 
-	// Gaining roles again: nobody holds one until granted.
+	// Gaining roles again: nobody holds one until the upgrade is approved
+	// and the role granted.
 	if _, err := h.svc.ApplyModule(h.ctx, pageModule(6, true)); err != nil {
 		t.Fatal(err)
 	}
 	kept("gaining roles again")
 	_, err = h.root("maya", "pages")
 	refused(t, err, "maya holds no role on pages")
+	_, err = h.svc.GrantRole(h.ctx, h.admin(acme), authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: "viewer", PersonID: "maya"})
+	refused(t, err, `pages declares no role "viewer"`)
+	if _, err := h.approvePage(h.svc, "alex"); err != nil {
+		t.Fatal(err)
+	}
+	h.grant("pages", "viewer", "maya")
+	exactly(t, h.must(h.root("maya", "pages")), "pages.note", "", []string{"read"})
 }
 
 // A module page's roles decide who is listed for it and who may use it,

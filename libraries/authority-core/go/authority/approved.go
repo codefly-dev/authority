@@ -62,10 +62,13 @@ func approvedModule(tx Tx, inst domain.Installation, m domain.Module) (domain.Mo
 // only a host's own install of a solution, naming its installer and holding a
 // principal of its own, approved it. A legacy consent (an operation and no
 // kept generation) proves no approved baseline, and an installation made by
-// composition (no installer) was never approved at all, even after its
-// target's delivery becomes a solution — until an administrator reviews it:
+// composition (no installer, or the receipt composition took) was never
+// approved at all, even after its target's delivery becomes a solution — until an administrator reviews it:
 // who manages its sources is never something no administrator has seen.
 func approvedGovernance(inst domain.Installation) bool {
+	if inst.Consent.OperationID == domain.ComposedConsent {
+		return false // composition's receipt is nobody's review
+	}
 	if inst.Consent.OperationID != "" {
 		return inst.Consent.Generation != 0
 	}

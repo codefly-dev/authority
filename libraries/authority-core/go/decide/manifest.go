@@ -228,6 +228,52 @@ func validateModule(m domain.Module) error {
 	return nil
 }
 
+// ViewerRole and EditorRole are the two standard roles beside the installer
+// (domain.InstallerRole): what a module page or a solution offers one team
+// each of.
+const (
+	ViewerRole = "viewer"
+	EditorRole = "editor"
+)
+
+// StandardRoles derives the three standard roles of a module page that
+// declares none, from what it serves (its resource kinds, at their ceilings):
+// the viewer reads, the editor reads and writes, the installer holds every
+// action served. One rule, here, the same an explicit declaration follows
+// over its own kinds; a declaration wins, since it may name what it reaches
+// through its bindings and may split an administrative action out of the
+// editor, which a derivation never guesses at. A role a module serves nothing
+// for (no kind readable: no viewer) is not derived; a module serving nothing
+// derives none.
+func StandardRoles(m domain.Module) map[string]Scopes {
+	out := map[string]Scopes{}
+	for _, kind := range scope.Normalize(m.ResourceKinds) {
+		served := kind.GetActions()
+		any := slices.Contains(served, scope.AnyAction)
+		grant := func(role string, actions ...string) {
+			var held []string
+			for _, action := range actions {
+				if any || slices.Contains(served, action) {
+					held = append(held, action)
+				}
+			}
+			if len(held) > 0 {
+				out[role] = append(out[role], &basev0.WorkScopeV1{ResourceKind: kind.GetResourceKind(), Actions: held})
+			}
+		}
+		grant(ViewerRole, "read")
+		grant(EditorRole, "read", "write")
+		out[domain.InstallerRole] = append(out[domain.InstallerRole], &basev0.WorkScopeV1{ResourceKind: kind.GetResourceKind(), Actions: slices.Clone(served)})
+	}
+	for role, scopes := range out {
+		out[role] = scope.Normalize(scopes)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 // RoleGated reports whether what a person holds at m is the roles granted on
 // its installation: a solution's, or a module page's that declares roles.
 // Otherwise it is their organization roles within what m serves.

@@ -40,7 +40,7 @@ func TestTheLocalAuthorityPassesTheSuiteEveryImplementationMustPass(t *testing.T
 }
 
 func localConformanceFixture(t *testing.T, clock *conformance.Clock) (grpc.ClientConnInterface, []byte, conformance.Fixture) {
-	k := testkit.NewWithClock(t, clock.Now)
+	k := testkit.ConformanceWithClock(t, clock.Now)
 	testkit.SolutionTools(t, k)
 	// The staleness probe revokes the viewer's own role, so her access to the
 	// wiki must be hers alone: the composition's team grants become the same

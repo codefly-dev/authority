@@ -223,3 +223,30 @@ func TestADocumentStatingOneThingTwiceIsRefused(t *testing.T) {
 		}
 	}
 }
+
+// A row standing for every role-gated target names its owner and the members
+// of each role, and nothing one target's: no role, no teams. Its members
+// read back as written.
+func TestARowStandingForEveryTargetNamesOnlyOwnerAndMembers(t *testing.T) {
+	doc, err := fixturecomposition.Decode([]byte(head + `installations:
+  - organization: acme
+    target: "*"
+    owner: alice
+    members: {viewer: [bob], editor: [carol], installer: [dana]}
+`))
+	if err != nil || len(doc.Installations) != 1 || doc.Installations[0].Target != fixturecomposition.EveryTarget || len(doc.Installations[0].Members["installer"]) != 1 {
+		t.Fatalf("%+v %v", doc.Installations, err)
+	}
+	for name, tc := range map[string]struct{ doc, reason string }{
+		"a role":        {`installations: [{organization: acme, target: "*", role: viewer, owner: alice}]`, "names only its owner and members"},
+		"teams":         {`installations: [{organization: acme, target: "*", owner: alice, teams: [finance]}]`, "names only its owner and members"},
+		"empty members": {`installations: [{organization: acme, target: "*", owner: alice, members: {viewer: []}}]`, "members name a role and the people"},
+		"blank role":    {`installations: [{organization: acme, target: wiki, role: viewer, owner: alice, members: {"": [bob]}}]`, "members name a role and the people"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := fixturecomposition.Decode([]byte(head + tc.doc + "\n")); err == nil || !strings.Contains(err.Error(), tc.reason) {
+				t.Fatalf("got %v, want a refusal naming %q", err, tc.reason)
+			}
+		})
+	}
+}

@@ -47,7 +47,7 @@ func TestTheInstallationsAgentIsHeldToTheApprovedReach(t *testing.T) {
 	if err := h.callStore(at, storeRead); err != nil {
 		t.Fatalf("the agent's approved reach is refused: %v", err)
 	}
-	refused(t, h.callStore(at, storePurge), "beyond the reach its solution's installation approved")
+	refused(t, h.callStore(at, storePurge), "beyond the reach its installation approved")
 	_, err := h.hop(at, "replica")
 	refused(t, err, "holds nothing at replica")
 
@@ -109,7 +109,7 @@ func TestALegacyConsentAdoptsItsReachOnce(t *testing.T) {
 		t.Fatalf("a widening after adoption offers no upgrade: %v %v", up, err)
 	}
 	at = h.must(h.through("maya", "a", "store"))
-	refused(t, h.callStore(at, storePurge), "beyond the reach its solution's installation approved")
+	refused(t, h.callStore(at, storePurge), "beyond the reach its installation approved")
 	_, err := h.hop(at, "replica")
 	refused(t, err, "holds nothing at replica")
 }

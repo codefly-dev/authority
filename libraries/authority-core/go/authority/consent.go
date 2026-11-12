@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
@@ -21,6 +22,56 @@ func administrator(tx Tx, caller Person, org string) error {
 		return domain.Refuse("installation administration requires an administrator or owner of organization %q", org)
 	}
 	return nil
+}
+
+// approver authorizes the administration of target's installation at org:
+// an administrator or owner of org, as for every target; and, for a module
+// page (a module declaring roles, which composition installs), a member
+// holding the page's installer role on its active installation there, since
+// that role already administers the installation's grants (decide.ChangeRole)
+// and nobody installed the page by hand. Anyone else is refused as
+// administrator refuses them, before target is looked up.
+func approver(tx Tx, caller Person, org, target string) error {
+	refused := administrator(tx, caller, org)
+	if code, ok := domain.CodeOf(refused); refused == nil || !ok || code != domain.Denied {
+		return refused
+	}
+	installer, err := installerOf(tx, caller, org, target)
+	if err != nil {
+		return err
+	}
+	if !installer {
+		return refused
+	}
+	return nil
+}
+
+// installerOf is whether caller, a member of org, holds the installer role
+// on the active installation of target there, target being a module page.
+func installerOf(tx Tx, caller Person, org, target string) (bool, error) {
+	m, err := tx.ModuleNamed(target)
+	if errors.Is(err, domain.ErrNotFound) || err == nil && (m.Kind == domain.KindSolution || !decide.RoleGated(m)) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	inst, err := installationOf(tx, org, target)
+	if errors.Is(err, domain.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	p, err := memberAs(tx, caller, org)
+	if errors.Is(err, domain.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	roles, err := rolesHeld(tx, p, org, inst)
+	return slices.Contains(roles, domain.InstallerRole), err
 }
 
 // memberAs is the caller as a member of org, read now. The caller acts in the
@@ -51,8 +102,10 @@ func OfferDigest(m domain.Module) (string, error) {
 // Review reads one consistent offer. It never supplies an operation identity or
 // approves anything; the caller must retain the returned values when consenting.
 // It is an administrator's read of a solution: the consent tuple is what
-// Install takes. A module, roles or not, is installed by composition and
-// answers none.
+// Install takes. A module page's active installation answers it too, to an
+// administrator or to a holder of its installer role (approver): the tuple
+// Install takes to approve its pending upgrade. A module declaring no role
+// is installed by composition and answers none.
 func (s *Service) Review(ctx context.Context, caller Person, org, target string) (domain.ConsentApproval, error) {
 	offer, err := s.reviewOffer(ctx, caller, org, target, false)
 	return offer.Approval, err
@@ -105,11 +158,13 @@ func (s *Service) reviewOffer(ctx context.Context, caller Person, org, target st
 	var offer ReviewedOffer
 	var out domain.ConsentApproval
 	err := s.store.Read(ctx, func(tx Tx) error {
-		refused := administrator(tx, caller, org)
+		refused := approver(tx, caller, org, target)
 		if code, ok := domain.CodeOf(refused); refused != nil && (!members || !ok || code != domain.Denied) {
 			return refused
 		}
-		inst, err := tx.Installation(s.cfg.InstallationID(org, target))
+		// By target, not by the id the core would give it: a module page's
+		// installation may be its host's own record (HostInstallsModules).
+		inst, err := installationOf(tx, org, target)
 		if errors.Is(err, domain.ErrNotFound) {
 			inst, err = domain.Installation{}, nil
 		}
@@ -129,10 +184,12 @@ func (s *Service) reviewOffer(ctx context.Context, caller Person, org, target st
 		if err != nil {
 			return notFound(err)
 		}
-		// Only a solution is reviewed, consented to and installed by an
-		// administrator. A module, roles or not, is composition's: nothing to
-		// review; its roles are granted on its composition installation.
-		if m.Kind != domain.KindSolution {
+		// A solution is reviewed, consented to and installed by an
+		// administrator. A module page is composition's: its active
+		// installation is reviewed for the upgrade it offers, by its
+		// approver, and read by its role holders; a module declaring no
+		// role has nothing to review, and no installation to upgrade.
+		if m.Kind != domain.KindSolution && (!decide.RoleGated(m) || inst.Status != domain.Active) {
 			return domain.Missing("%q is not a composed solution; a module is installed by composition", target)
 		}
 		if refused == nil {

@@ -49,10 +49,14 @@ type fixturePerson struct {
 }
 
 // signInData is the page's data island: html/template writes it as JSON,
-// escaped for a script element.
+// escaped for a script element. Session is who the browser already is, for
+// the act-as card (actas.go), and Refused the authority's refusal of the
+// last act-as, by name; both are absent for a browser with no session.
 type signInData struct {
-	People []fixturePerson `json:"people"`
-	Return string          `json:"return"`
+	People  []fixturePerson `json:"people"`
+	Return  string          `json:"return"`
+	Session *signedIn       `json:"session,omitempty"`
+	Refused string          `json:"refused,omitempty"`
 }
 
 func (e *Edge) signInPage(w http.ResponseWriter, r *http.Request) {
@@ -62,7 +66,11 @@ func (e *Edge) signInPage(w http.ResponseWriter, r *http.Request) {
 		refuse(w, http.StatusBadGateway, "the authority did not list who signs in: "+status.Convert(err).Message())
 		return
 	}
-	data := signInData{People: []fixturePerson{}, Return: localPath(r.URL.Query().Get("return"))}
+	data := signInData{People: []fixturePerson{}, Return: localPath(r.URL.Query().Get("return")), Refused: r.URL.Query().Get("refused")}
+	if data.Session, err = e.current(r); err != nil {
+		refuse(w, http.StatusBadGateway, "the authority did not answer who is signed in: "+status.Convert(err).Message())
+		return
+	}
 	for _, p := range people.GetPeople() {
 		roles := p.GetRoles()
 		if roles == nil {

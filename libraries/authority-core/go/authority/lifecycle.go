@@ -151,6 +151,129 @@ func asStored(m domain.Module) domain.Module {
 	return m
 }
 
+// admission is what the core decides about a delivered module before it
+// writes anything: the module it replaces, if any (exists), whether that
+// module was withdrawn and is delivered again, and whether the delivery is
+// a replay of the held generation, which changes nothing. Every other verdict
+// is a refusal, and it is one verdict: Admit asks it read-only and ApplyModule
+// writes on it, so what one would refuse the other refuses.
+type admission struct {
+	previous                  domain.Module
+	exists, withdrawn, replay bool
+}
+
+// admit decides m against the store as it stands: a tombstone's principal and
+// generation, a held generation delivered again (a replay when the
+// declaration is the same, refused when it is not), an older generation, a
+// principal that is another module's, a person's, a client's or an
+// installation's, and what m's roles name through a binding that the
+// composition this delivery would leave does not reach (decide.Unreached).
+// m is validated (decide.ValidateModule) and serves decide.Served(m).
+func admit(tx Tx, m domain.Module) (admission, error) {
+	var a admission
+	previous, err := tx.ModuleNamed(m.Name)
+	a.exists = err == nil
+	if err != nil && !errors.Is(err, domain.ErrNotFound) {
+		return a, err
+	}
+	a.previous = previous
+	if !a.exists {
+		// A module withdrawn before keeps its principal and its last
+		// generation: a redelivery never renames it or rewinds it. Its
+		// principal stays its own: no other module claims it. A tombstone
+		// is never cleared; a module that must change principal is
+		// delivered under a new name.
+		if tomb, err := tx.TombstoneByPrincipal(m.Principal); err == nil && tomb.Name != m.Name {
+			return a, domain.Refuse("principal %q is withdrawn %s's for life; %s cannot claim it", m.Principal, tomb.Name, m.Name)
+		} else if err != nil && !errors.Is(err, domain.ErrNotFound) {
+			return a, err
+		}
+		tomb, err := tx.Tombstone(m.Name)
+		a.withdrawn = err == nil
+		switch {
+		case err == nil && tomb.Principal != m.Principal:
+			return a, domain.Refuse("%s is principal %q for life; a delivery cannot rename it %q", m.Name, tomb.Principal, m.Principal)
+		case err == nil && tomb.Generation >= m.Generation:
+			return a, domain.NotNow("%s was withdrawn at %d, got %d", m.Name, tomb.Generation, m.Generation)
+		case err != nil && !errors.Is(err, domain.ErrNotFound):
+			return a, err
+		}
+	}
+	if a.exists && !previous.StandIn && previous.Generation == m.Generation {
+		// A host composes one delivery on more than one path at once (its
+		// delivery endpoint's pass and its reconcile loop's), so the
+		// generation a path brings may be the one another just composed.
+		// The same declaration is a replay and changes nothing; another
+		// one at the held generation is refused, naming both.
+		held, err := DeclarationDigest(previous)
+		if err != nil {
+			return a, err
+		}
+		delivered, err := DeclarationDigest(m)
+		if err != nil {
+			return a, err
+		}
+		if held != delivered {
+			return a, domain.NotNow("%s generation %d is held as %s and delivered as %s; a changed declaration is a new generation",
+				m.Name, m.Generation, held, delivered)
+		}
+		a.replay = true
+		return a, nil
+	}
+	if a.exists && !previous.StandIn && previous.Generation > m.Generation {
+		return a, domain.NotNow("%s is at %d, got %d", m.Name, previous.Generation, m.Generation)
+	}
+	if other, err := tx.Module(m.Principal); err == nil && other.Name != m.Name {
+		return a, domain.Refuse("principal %q already belongs to %s", m.Principal, other.Name)
+	}
+	if a.exists && previous.Principal != m.Principal {
+		return a, domain.Refuse("%s is principal %q for life; a delivery cannot rename it %q", m.Name, previous.Principal, m.Principal)
+	}
+	if _, err := tx.Person(m.Principal); err == nil {
+		return a, domain.Refuse("principal %q names a person; a module's principal is its own", m.Principal)
+	}
+	if _, err := tx.Client(m.Principal); err == nil {
+		return a, domain.Refuse("principal %q names an external client; a module's principal is its own", m.Principal)
+	} else if !errors.Is(err, domain.ErrNotFound) {
+		return a, err
+	}
+	if _, err := tx.InstallationByPrincipal(m.Principal); err == nil {
+		return a, domain.Refuse("principal %q names an installation's principal; a module's principal is its own", m.Principal)
+	}
+	// What the delivered module's roles name through a binding is
+	// reachable from it in the composition this delivery leaves
+	// (decide.Unreached). What it leaves of another module's is reported
+	// on that module's installations, never refused (journalReach).
+	composed, err := composition(tx)
+	if err != nil {
+		return a, err
+	}
+	delete(composed, previous.Principal)
+	composed[m.Principal] = m
+	return a, decide.Unreached(m, composed)
+}
+
+// Admit answers, without writing, whether ApplyModule would compose m now:
+// its validation (decide.ValidateModule), the generation and principal rules,
+// a held generation delivered differently, and what its roles name through a
+// binding that the composition would not reach (decide.Unreached). nil is
+// the held generation delivered again (a replay) or a delivery the core
+// would record; every refusal is the one ApplyModule would make, with its
+// code. A host that keeps a record of each delivery beside the core's asks
+// it before recording one, and records the delivery only once ApplyModule
+// has taken it: the answer stands for the composition as it is now, and the
+// apply decides again on its own transaction.
+func (s *Service) Admit(ctx context.Context, m domain.Module) error {
+	if err := decide.ValidateModule(m); err != nil {
+		return err
+	}
+	m.ResourceKinds = decide.Served(m)
+	return s.store.Read(ctx, func(tx Tx) error {
+		_, err := admit(tx, m)
+		return err
+	})
+}
+
 // ApplyModule records a delivered module at a newer generation and holds a
 // module installation at every organization, unless the host installs
 // modules itself (Config.HostInstallsModules). Only a solution is installed
@@ -165,7 +288,15 @@ func asStored(m domain.Module) domain.Module {
 // An active installation consented to survives the delivery: its consent
 // re-converges on the new generation when the reviewed offer asks nothing the
 // approved one did not (reconverge), and otherwise stands, offering an
-// upgrade; its role grants are kept either way.
+// upgrade; its role grants are kept either way. A module page's installation
+// is consented to by composition (domain.ComposedConsent, adoptLegacyReach),
+// so a redelivery that widens what one of its roles reaches, of the page or
+// of a module it reaches, never revokes a grant and never widens one: holders
+// keep the approved reach until the upgrade is approved. A module composed
+// for the first time that the page reaches is composition growing, not a
+// declaration changing: composition takes the page's receipt again at the
+// reach it has now (reconvergeReach), so a page's roles work on a fresh run
+// whichever order its modules land in.
 func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, error) {
 	if err := decide.ValidateModule(m); err != nil {
 		return nil, err
@@ -174,103 +305,23 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 	var ids []string
 	err := s.store.Write(ctx, func(tx Tx) error {
 		ids = nil // a retried transaction starts over
-		previous, err := tx.ModuleNamed(m.Name)
-		exists := err == nil
-		if err != nil && !errors.Is(err, domain.ErrNotFound) {
+		a, err := admit(tx, m)
+		if err != nil || a.replay {
 			return err
 		}
-		withdrawn := false
-		if !exists {
-			// A module withdrawn before keeps its principal and its last
-			// generation: a redelivery never renames it or rewinds it. Its
-			// principal stays its own: no other module claims it. A tombstone
-			// is never cleared; a module that must change principal is
-			// delivered under a new name.
-			if tomb, err := tx.TombstoneByPrincipal(m.Principal); err == nil && tomb.Name != m.Name {
-				return domain.Refuse("principal %q is withdrawn %s's for life; %s cannot claim it", m.Principal, tomb.Name, m.Name)
-			} else if err != nil && !errors.Is(err, domain.ErrNotFound) {
-				return err
-			}
-			tomb, err := tx.Tombstone(m.Name)
-			withdrawn = err == nil
-			switch {
-			case err == nil && tomb.Principal != m.Principal:
-				return domain.Refuse("%s is principal %q for life; a delivery cannot rename it %q", m.Name, tomb.Principal, m.Principal)
-			case err == nil && tomb.Generation >= m.Generation:
-				return domain.NotNow("%s was withdrawn at %d, got %d", m.Name, tomb.Generation, m.Generation)
-			case err != nil && !errors.Is(err, domain.ErrNotFound):
-				return err
-			}
-		}
-		if exists && !previous.StandIn && previous.Generation == m.Generation {
-			// A host composes one delivery on more than one path at once (its
-			// delivery endpoint's pass and its reconcile loop's), so the
-			// generation a path brings may be the one another just composed.
-			// The same declaration is a replay and changes nothing; another
-			// one at the held generation is refused, naming both.
-			held, err := DeclarationDigest(previous)
-			if err != nil {
-				return err
-			}
-			delivered, err := DeclarationDigest(m)
-			if err != nil {
-				return err
-			}
-			if held != delivered {
-				return domain.NotNow("%s generation %d is held as %s and delivered as %s; a changed declaration is a new generation",
-					m.Name, m.Generation, held, delivered)
-			}
-			return nil
-		}
-		if exists && !previous.StandIn && previous.Generation > m.Generation {
-			return domain.NotNow("%s is at %d, got %d", m.Name, previous.Generation, m.Generation)
-		}
-		if other, err := tx.Module(m.Principal); err == nil && other.Name != m.Name {
-			return domain.Refuse("principal %q already belongs to %s", m.Principal, other.Name)
-		}
-		if exists && previous.Principal != m.Principal {
-			return domain.Refuse("%s is principal %q for life; a delivery cannot rename it %q", m.Name, previous.Principal, m.Principal)
-		}
-		if _, err := tx.Person(m.Principal); err == nil {
-			return domain.Refuse("principal %q names a person; a module's principal is its own", m.Principal)
-		}
-		if _, err := tx.Client(m.Principal); err == nil {
-			return domain.Refuse("principal %q names an external client; a module's principal is its own", m.Principal)
-		} else if !errors.Is(err, domain.ErrNotFound) {
-			return err
-		}
-		if _, err := tx.InstallationByPrincipal(m.Principal); err == nil {
-			return domain.Refuse("principal %q names an installation's principal; a module's principal is its own", m.Principal)
-		}
-		m.ResourceKinds = scope.Normalize(m.ResourceKinds)
-		// What the delivered module's roles name through a binding is
-		// reachable from it in the composition this delivery leaves
-		// (decide.Unreached). What it leaves of another module's is reported
-		// on that module's installations, never refused (journalReach).
-		composed, err := composition(tx)
-		if err != nil {
-			return err
-		}
-		delete(composed, previous.Principal)
-		composed[m.Principal] = m
-		if err := decide.Unreached(m, composed); err != nil {
-			return err
-		}
+		previous, exists, withdrawn := a.previous, a.exists, a.withdrawn
 		unreachedBefore, err := unreachedNow(tx)
 		if err != nil {
 			return err
 		}
 		// A consent recorded before reach was kept adopts the reach it has
 		// before this delivery changes the composition, so what the
-		// delivery widens is measured against it.
+		// delivery widens is measured against it; a module page's
+		// installation no consent holds yet takes its receipt the same way.
 		if err := s.adoptLegacyReach(ctx, tx, false); err != nil {
 			return err
 		}
 		before, err := reachesBefore(tx, m.Name)
-		if err != nil {
-			return err
-		}
-		pagesBefore, err := pageReaches(tx)
 		if err != nil {
 			return err
 		}
@@ -301,10 +352,11 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 				return err
 			}
 		}
-		if err := s.reconvergeReach(ctx, tx, m.Name, before); err != nil {
-			return err
-		}
-		if err := s.dropWidenedPageGrants(ctx, tx, m.Name, pagesBefore); err != nil {
+		// Composition grew when the module is composed for the first time or
+		// replaces a fixture's stand-in; a module withdrawn and delivered
+		// again is a redelivery, measured against what was approved.
+		grew := (!exists && !withdrawn) || (exists && previous.StandIn)
+		if err := s.reconvergeReach(ctx, tx, m.Name, before, grew); err != nil {
 			return err
 		}
 		if err := s.journalReach(ctx, tx, unreachedBefore); err != nil {
@@ -696,12 +748,17 @@ type InstallStep func(ctx context.Context, inst domain.Installation) error
 // selected unless the caller names that same role, and "none" selects no standing
 // authority when the caller supplies no role. A caller may never supply "none".
 // With no selector, the caller must name a declared role as before.
+// A module page (a module declaring roles) is installed by composition, never
+// here; what Install takes for one is the approval of its pending upgrade,
+// by an administrator or by a holder of the page's installer role on its
+// installation (approver), which records the consent the receipt composition
+// took stood in for.
 func (s *Service) Install(ctx context.Context, caller Person, org, target, agentRole, installedBy string, approval *domain.ConsentApproval, step InstallStep) (domain.Installation, error) {
 	if approval != nil {
 		copy := *approval
 		approval = &copy
 	}
-	return s.install(ctx, func(tx Tx) error { return administrator(tx, caller, org) }, caller, org, target, agentRole, installedBy, approval, step)
+	return s.install(ctx, func(tx Tx) error { return approver(tx, caller, org, target) }, caller, org, target, agentRole, installedBy, approval, step)
 }
 
 // InstallAsHost is for trusted host setup, never a request handler. It installs
@@ -744,8 +801,21 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 		if err != nil && !errors.Is(err, domain.ErrNotFound) {
 			return err
 		}
-		if err != nil || m.Kind != domain.KindSolution {
+		if err != nil {
 			return domain.Missing("%q is not a composed solution; a module is installed by composition", target)
+		}
+		id := s.cfg.InstallationID(org, target)
+		existing, found := tx.Installation(id)
+		if m.Kind != domain.KindSolution {
+			// A module page's installation may be its host's own record,
+			// under the host's own id: its upgrade lands on that record.
+			existing, found = installationOf(tx, org, target)
+		}
+		if found != nil && !errors.Is(found, domain.ErrNotFound) {
+			return found
+		}
+		if m.Kind != domain.KindSolution && (!decide.RoleGated(m) || approval == nil || found != nil || existing.Status != domain.Active) {
+			return domain.Missing("%q is not a composed solution; a module is installed by composition, and only the upgrade of a page's active installation is approved here", target)
 		}
 		generation = m.Generation
 		selectedRole, err = installationRole(m, agentRole)
@@ -763,11 +833,7 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 		if err != nil || p.Organization != org {
 			return domain.Refuse("owner %q is not a member of %s", installedBy, org)
 		}
-		id := s.cfg.InstallationID(org, target)
-		existing, err := tx.Installation(id)
-		if err != nil && !errors.Is(err, domain.ErrNotFound) {
-			return err
-		}
+		err = found
 		if approval != nil {
 			same, err := checkConsent(m, existing, approval, intent, reach)
 			if err != nil {
@@ -902,7 +968,11 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 func (s *Service) upgrade(ctx context.Context, tx Tx, caller Person, current *domain.Installation, approval *domain.ConsentApproval, intent, selectedRole string, m domain.Module, reach offeredReach, out *domain.Installation) error {
 	current.Revision++
 	current.Consent = receipt(approval, intent, current.Revision, m, reach)
-	current.AgentRole = selectedRole
+	if m.Kind == domain.KindSolution {
+		// A module page's installation holds no standing authority, and
+		// the record is its host's: the role it holds is left as recorded.
+		current.AgentRole = selectedRole
+	}
 	if err := tx.PutInstallation(*current); err != nil {
 		return err
 	}
@@ -940,6 +1010,11 @@ func installationRole(m domain.Module, requested string) (string, error) {
 		return "", domain.Refuse("none is an installation_role declaration, not a caller-supplied role")
 	}
 	selected := m.InstallationRole
+	if selected == "" && requested == "" && m.Kind != domain.KindSolution {
+		// A module's installation holds no standing authority unless its
+		// declaration selects a role (composedInstallation).
+		return domain.NoInstallationRole, nil
+	}
 	if selected == "" {
 		selected = requested
 	} else if requested != "" && requested != selected {
@@ -1016,14 +1091,27 @@ func (s *Service) UninstallAsHost(ctx context.Context, organization, installatio
 }
 
 // composedInstallation is a module's installation at org by composition:
-// active, holding no standing authority and no consent, with the principal
-// that owns what the module's page creates in a module that checks owners,
-// as a solution's installation owns what its page creates
-// (decide.ModuleRoleAt). A principal another identity already holds is not
-// taken: the installation then holds none and owns nothing (fails closed).
+// active, holding no standing authority, with the principal that owns what
+// the module's page creates in a module that checks owners, as a solution's
+// installation owns what its page creates (decide.ModuleRoleAt). A principal
+// another identity already holds is not taken: the installation then holds
+// none and owns nothing (fails closed). A module page's holds composition's
+// receipt (composedReceipt): it is held at the reach the page has now, taken
+// again when a module it reaches is composed for the first time
+// (reconvergeReach), and a redelivery widening it offers an upgrade; a
+// module declaring no role holds no consent, and follows its delivery.
 func (s *Service) composedInstallation(tx Tx, org, module string) (domain.Installation, error) {
 	inst := domain.Installation{ID: s.cfg.InstallationID(org, module), Organization: org, Target: module, Status: domain.Active, Revision: 1}
-	_, err := s.withComposedPrincipal(tx, &inst)
+	if _, err := s.withComposedPrincipal(tx, &inst); err != nil {
+		return inst, err
+	}
+	m, err := tx.ModuleNamed(module)
+	if err != nil {
+		return inst, err
+	}
+	if m.Kind != domain.KindSolution && decide.RoleGated(m) {
+		err = composedReceipt(tx, &inst, m)
+	}
 	return inst, err
 }
 

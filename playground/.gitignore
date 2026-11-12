@@ -1,2 +1,5 @@
 codefly.local.resolved.yaml
 codefly.local.yaml
+
+# The CLI's workspace-local run artifacts (selection artifacts): the run's, never committed.
+.codefly/

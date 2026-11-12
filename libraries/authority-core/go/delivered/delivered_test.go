@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/delivered"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
@@ -194,4 +195,72 @@ func TestARoleNamesWhatItReachesThroughABinding(t *testing.T) {
 	doc.Roles[1].Through = map[string]delivered.Scopes{"agent": nil}
 	_, err = delivered.Module(solutionManifest(), doc)
 	code(t, err, domain.Invalid)
+}
+
+// A page the host bundles (solutionhost.Frontend.Bundled) is a page exactly
+// as a remote it loads is: the roles delivered with it are admitted. This is
+// the manifest shape of a module whose page is a package the host builds
+// into its own frontend, which before this read as headless and was refused
+// its roles with "declares roles and no page".
+func TestAPageTheHostBundlesIsAPage(t *testing.T) {
+	bundled := &solutionhost.ModuleManifest{Alias: "models", Kind: solutionhost.KindModule, Generation: 1,
+		Authority: &solutionhost.Authority{Principal: "models", ResourceKinds: []string{"models.profiles"}, InstallationRole: "none"},
+		Frontend:  &solutionhost.Frontend{Title: "Installed models", Order: 60, Bundled: &solutionhost.FrontendBundled{Package: "@acme/models-ui", Export: "modelsPlugin"}}}
+	if m := delivered.FromCore(bundled); !m.Page {
+		t.Fatal("a bundled page is not a page")
+	}
+	doc := &delivered.Document{Module: "models", Generation: 1, InstallationRole: "none",
+		ScopeCeilings: []*basev0.WorkScopeV1{ws("models.profiles", "invoke", "read")},
+		Roles: []delivered.Role{{Name: "installer", Scopes: []*basev0.WorkScopeV1{ws("models.profiles", "invoke", "read")}},
+			{Name: "editor", Scopes: []*basev0.WorkScopeV1{ws("models.profiles", "invoke", "read")}},
+			{Name: "viewer", Scopes: []*basev0.WorkScopeV1{ws("models.profiles", "read")}}}}
+	m, err := delivered.Module(bundled, doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := decide.ValidateModule(m); err != nil || len(m.Roles) != 3 {
+		t.Fatalf("a bundled page's three roles: %v, %v", err, m.Roles)
+	}
+	headless := *bundled
+	headless.Frontend = nil
+	m, err = delivered.Module(&headless, doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	code(t, decide.ValidateModule(m), domain.Denied)
+}
+
+// A module page delivered with no roles composes with the standard three
+// derived from what it serves (decide.StandardRoles); a declaration wins; a
+// solution and a module without a page derive none.
+func TestAModulePageWithoutRolesGetsTheStandardOnes(t *testing.T) {
+	page := &solutionhost.ModuleManifest{Alias: "notes", Kind: solutionhost.KindModule, Generation: 1,
+		Authority: &solutionhost.Authority{Principal: "notes", ResourceKinds: []string{"notes.entry"}, InstallationRole: "none"},
+		Frontend:  &solutionhost.Frontend{Title: "Notes", ExposedModule: "./Page", HostContract: 1}}
+	doc := &delivered.Document{Module: "notes", Generation: 1, InstallationRole: "none", ScopeCeilings: []*basev0.WorkScopeV1{ws("notes.entry", "read", "write")}}
+	m, err := delivered.Module(page, doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !scope.Same(m.Roles[decide.ViewerRole], []*basev0.WorkScopeV1{ws("notes.entry", "read")}) ||
+		!scope.Same(m.Roles[decide.EditorRole], []*basev0.WorkScopeV1{ws("notes.entry", "read", "write")}) ||
+		!scope.Same(m.Roles[domain.InstallerRole], []*basev0.WorkScopeV1{ws("notes.entry", "read", "write")}) {
+		t.Fatalf("derived %v", m.Roles)
+	}
+	if err := decide.ValidateModule(m); err != nil || !decide.RoleGated(m) {
+		t.Fatalf("the derived roles: %v, gated %v", err, decide.RoleGated(m))
+	}
+	declared := *doc
+	declared.Roles = []delivered.Role{{Name: "installer", Scopes: []*basev0.WorkScopeV1{ws("notes.entry", "read")}}}
+	if m, err = delivered.Module(page, &declared); err != nil || len(m.Roles) != 1 {
+		t.Fatalf("a declaration wins: %v %v", m.Roles, err)
+	}
+	headless := *page
+	headless.Frontend = nil
+	if m, err = delivered.Module(&headless, doc); err != nil || m.Roles != nil {
+		t.Fatalf("a module without a page derives roles: %v %v", m.Roles, err)
+	}
+	if m, err = delivered.Module(solutionManifest(), nil); err != nil || m.Roles != nil {
+		t.Fatalf("a solution derives roles: %v %v", m.Roles, err)
+	}
 }

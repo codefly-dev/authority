@@ -17,7 +17,8 @@ import (
 // for it and who may use it: what a person holds at it is the roles granted
 // them, or a team of theirs, on its composition installation, never the
 // organization's roles. A module without a page declares none, and a module
-// page declaring none keeps the organization's. The holder is
+// page declaring none is gated by the standard three the core derives from
+// what it serves (decide.StandardRoles). The holder is
 // UnentitledToken (no role, no team); ViewerToken is another member, of at
 // least one team, whose organization roles read ReadKind: the module serves
 // ReadKind too, so they would hold it there were organization roles to
@@ -92,20 +93,39 @@ func (c *client) modulePageRoles(t *testing.T, ctx context.Context, f Fixture) {
 		if id == "" {
 			t.Fatalf("%s was not installed by composition", pageModule)
 		}
-		t.Run("a module is never offered, reviewed or installed by an administrator", func(t *testing.T) {
+		// A module is never offered, and never installed by hand: a module
+		// without roles is not reviewed either, while a module page's active
+		// installation is reviewed by an administrator, for the upgrade it
+		// offers, exactly as a solution's is (held at its approved reach);
+		// an approval of an offer the page never made is refused by that
+		// offer, never by composition.
+		t.Run("a module is never offered or installed by an administrator; a page's installation is reviewed for its upgrade", func(t *testing.T) {
 			for _, target := range []string{pageModule, f.Audience} {
+				page := target == pageModule
 				if f.ReviewOfferNotServed == "" {
 					if offered(t, target) {
 						t.Fatalf("%s, a module, is offered", target)
 					}
 					_, err := c.call(adminCtx, "host.installation.v1.OfferService", "ReviewOffer", map[string]any{"organization_id": f.Organization, "target": target})
-					refused(t, err, codes.NotFound, "installed by composition")
+					if page && err != nil {
+						t.Fatalf("a module page's active installation is not reviewed: %v", err)
+					} else if !page {
+						refused(t, err, codes.NotFound, "installed by composition")
+					}
 				}
 				_, err := c.call(adminCtx, "host.installation.v1.InstallationService", "Review", map[string]any{"organization_id": f.Organization, "target": target})
-				refused(t, err, codes.NotFound, "installed by composition")
+				if page && err != nil {
+					t.Fatalf("a module page's active installation answers no consent tuple: %v", err)
+				} else if !page {
+					refused(t, err, codes.NotFound, "installed by composition")
+				}
 				_, err = c.call(adminCtx, "host.installation.v1.InstallationService", "Install", map[string]any{"organization_id": f.Organization, "target": target, "owner_person_id": str(admin, "person_id"),
 					"approval": map[string]any{"target_id": target, "generation": uint64(1), "digest": "sha256:made-up", "operation_id": "00000000-0000-4000-8000-000000000000"}})
-				refused(t, err, codes.NotFound, "installed by composition")
+				if page {
+					refused(t, err, codes.FailedPrecondition, "INSTALLATION_APPROVAL_")
+				} else {
+					refused(t, err, codes.NotFound, "installed by composition")
+				}
 			}
 		})
 		grant := func(method, name string, subject map[string]any) error {
@@ -242,8 +262,24 @@ func (c *client) modulePageRoles(t *testing.T, ctx context.Context, f Fixture) {
 			if held != nil {
 				c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(held, "token"), "audience": pageModule})
 			}
+			// The installation is held at the reach the administrator's
+			// grants were given under, as a solution's is: the added role
+			// waits for the upgrade's approval, through Review and Install
+			// on the same installation, which keeps every grant.
+			refused(t, role("GrantRole", "editor"), codes.NotFound, `declares no role "editor"`)
+			if !bool_(installed(t, admin), "upgrade_available") {
+				t.Fatalf("a role added offers no upgrade on the module page's installation")
+			}
+			upgraded := c.must(t, adminCtx, "host.installation.v1.InstallationService", "Install", map[string]any{"organization_id": f.Organization, "target": pageModule,
+				"owner_person_id": str(admin, "person_id"), "approval": c.reviewInstallation(t, adminCtx, f.Organization, pageModule)})
+			if str(upgraded, "id") != id || bool_(installed(t, admin), "upgrade_available") {
+				t.Fatalf("the approved upgrade did not land on the module page's installation %s: %v", id, upgraded)
+			}
+			if got := listed(t, holder); !slices.Equal(got, []string{"viewer"}) {
+				t.Fatalf("the approved upgrade left the holder listed holding %v, want [viewer]", got)
+			}
 			if err := role("GrantRole", "editor"); err != nil {
-				t.Fatalf("the added role is not grantable: %v", err)
+				t.Fatalf("the added role is not grantable once approved: %v", err)
 			}
 			if err := role("RevokeRole", "editor"); err != nil {
 				t.Fatal(err)
@@ -253,32 +289,34 @@ func (c *client) modulePageRoles(t *testing.T, ctx context.Context, f Fixture) {
 			_, err := c.deliver(ctx, f, headlessModule, "module", 1, []string{headlessNote}, roles(headlessNote), 0)
 			refused(t, err, codes.PermissionDenied, "no page")
 		})
-		t.Run("a module that gains or loses roles keeps its installation: every role dropped, the organization's roles decide", func(t *testing.T) {
+		t.Run("a module page that drops its declared roles keeps its installation, gated by the standard roles derived from what it serves", func(t *testing.T) {
 			// Still no standing authority: a module declares none, roles or not.
+			// With its declaration gone the page is not on the organization's
+			// roles: the core derives installer, editor and viewer from its
+			// served kinds (decide.StandardRoles), so the holder's viewer
+			// outlives the declaration that first named it.
 			if _, err := c.deliverPage(ctx, f, page, pageModule, "module", 3, served, map[string]any{"scope_ceilings": []any{scopeAsk(pageModuleNote, []string{"read", "write"}, nil)}, "installation_role": "none"}, 0); err != nil {
 				t.Fatalf("redeliver %s without roles: %v", pageModule, err)
 			}
 			if got := str(installed(t, admin), "id"); got != id {
 				t.Fatalf("dropping its roles moved the module page's installation from %s to %s", id, got)
 			}
-			if held != nil {
-				_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(held, "token"), "audience": pageModule})
-				refused(t, err, codes.PermissionDenied, "")
+			if got := listed(t, holder); !slices.Equal(got, []string{"viewer"}) {
+				t.Fatalf("the derived viewer left the holder listed holding %v, want [viewer]", got)
 			}
-			if got := listed(t, holder); got != nil {
-				t.Fatalf("the dropped roles left the holder listed holding %v", got)
+			if _, err := issue(holder); err != nil {
+				t.Fatalf("the holder of the derived viewer is issued nothing: %v", err)
 			}
-			_, err := issue(holder)
-			refused(t, err, codes.PermissionDenied, "holds nothing")
-			refused(t, role("GrantRole", "viewer"), codes.NotFound, `declares no role "viewer"`)
-			out, err := issue(viewer, readKind)
-			if err != nil {
-				t.Fatalf("organization roles do not decide again: %v", err)
+			for _, name := range []string{"viewer", "editor", "installer"} {
+				if err := role("GrantRole", name); err != nil {
+					t.Fatalf("the derived role %q is not grantable: %v", name, err)
+				}
+				if err := role("RevokeRole", name); err != nil {
+					t.Fatal(err)
+				}
 			}
-			exactScopeOwnedBy(t, msg(out, "context"), f.ReadKind, []string{"read"}, nil, "")
-			if f.ReviewOfferNotServed == "" && offered(t, pageModule) {
-				t.Fatalf("%s is offered once it declares no roles", pageModule)
-			}
+			_, err := issue(viewer, readKind)
+			refused(t, err, codes.PermissionDenied, "")
 		})
 	})
 }

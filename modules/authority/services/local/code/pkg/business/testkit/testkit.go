@@ -23,6 +23,7 @@ import (
 	"github.com/codefly-dev/core/solutionhost"
 	"github.com/codefly-dev/core/workloadidentity"
 	"github.com/codefly-dev/core/workloadidentity/native"
+	"gopkg.in/yaml.v3"
 
 	conformance "github.com/codefly-dev/authority/libraries/conformance/go"
 
@@ -385,16 +386,50 @@ func bareWithClock(t *testing.T, clock func() time.Time) *Kit {
 // kit's composition document, which grants their kinds and installs the wiki.
 func New(t *testing.T) *Kit {
 	t.Helper()
-	return compose(t, Bare(t))
+	return compose(t, Bare(t), whole)
 }
 
 // NewWithClock composes an isolated host using the caller's issuance/check clock.
 func NewWithClock(t *testing.T, clock func() time.Time) *Kit {
 	t.Helper()
-	return compose(t, bareWithClock(t, clock))
+	return compose(t, bareWithClock(t, clock), whole)
 }
 
-func compose(t *testing.T, k *Kit) *Kit {
+// Conformance is New with the fixture's people, roles and teams alone: what
+// the fixture seats on every role-gated target (its `installations` rows) is
+// left out. The conformance suite and the carrier lifecycle tests hold the
+// installation interface to the exact grants of targets they install
+// themselves, so the host's own standing people would be a second actor in
+// every assertion; the saas host's harness seeds its own people the same way
+// (host-interface-conformance.yaml), without the row standing for every target.
+func Conformance(t *testing.T) *Kit {
+	t.Helper()
+	return compose(t, Bare(t), withoutStanding)
+}
+
+// ConformanceWithClock is Conformance with the caller's clock.
+func ConformanceWithClock(t *testing.T, clock func() time.Time) *Kit {
+	t.Helper()
+	return compose(t, bareWithClock(t, clock), withoutStanding)
+}
+
+func whole(data []byte) []byte { return data }
+
+// withoutStanding is the fixture with its installations rows removed.
+func withoutStanding(data []byte) []byte {
+	var doc map[string]any
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		panic(err)
+	}
+	delete(doc, "installations")
+	out, err := yaml.Marshal(doc)
+	if err != nil {
+		panic(err)
+	}
+	return out
+}
+
+func compose(t *testing.T, k *Kit, fixture func([]byte) []byte) *Kit {
 	t.Helper()
 	for _, m := range []state.Manifest{Model(1), Runtime(1), Records(1), OrgDirectory(1), Documents(1), Wiki(1), Evaluation(1)} {
 		if _, err := k.State.ApplyManifest(m); err != nil {
@@ -408,7 +443,7 @@ func compose(t *testing.T, k *Kit) *Kit {
 		path  string
 		apply func([]byte) error
 	}{
-		{FixturePath(), func(data []byte) error { return k.State.LoadFixture(context.Background(), data) }},
+		{FixturePath(), func(data []byte) error { return k.State.LoadFixture(context.Background(), fixture(data)) }},
 		{CompositionPath(), func(data []byte) error { _, err := k.State.ApplyComposition(context.Background(), data); return err }},
 	} {
 		data, err := os.ReadFile(load.path)

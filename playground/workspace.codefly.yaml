@@ -20,18 +20,19 @@ modules:
       source: obin-ai/module-document-store
       module: modules/documents
       version: "0.1.13"
+    # Records at the commit the directory's page requires (rows born owned by
+    # the directory's installation).
     - name: records
       source: obin-ai/module-record-store
       module: modules/record-store
-      version: "0.5.0"
-    # The directory's module page, the first page run against the authority.
-    # Accepted playground-only repair for PR #25: 0.0.0 did not resolve during
-    # the load smoke check. Retain that check's immutable pin independently of
-    # the authority migration; the playground maintainer owns future updates.
+      version: d4b121092fb8f876dec884e5911c60cbce423409
+    # The directory's module page, the first page run against the authority:
+    # a role-gated target (installer, editor, viewer, steward), so this run
+    # seats the fixture's teams on it and proves "act as this team" here.
     - name: org-directory
       source: obin-ai/module-directory
       module: modules/org-directory
-      version: c6b5cb39350a2d9fd6b17c56e34864811409fae8
+      version: 231bdc5529c4d3e23e2d91c6d497e918637419f0
 environments:
     - name: local
       description: The local authority on a laptop, the authority of its own run
@@ -45,3 +46,16 @@ environments:
           audience: https://authority.local.test
           trust_domain: authority.local
           delivery: authority/local/grpc
+      # The directory's admission store: its credentials are generated on first
+      # start, as the directory's own playground declares them, never written.
+      service-secrets:
+          generate:
+              - scope: service
+                configuration: postgres
+                services: [org-directory/store]
+                keys: [POSTGRES_USER]
+                format: identifier
+              - scope: service
+                configuration: postgres
+                services: [org-directory/store]
+                keys: [POSTGRES_PASSWORD, POSTGRES_READ_ONLY_PASSWORD, POSTGRES_READ_WRITE_PASSWORD]

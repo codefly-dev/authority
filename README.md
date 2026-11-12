@@ -539,8 +539,19 @@ repository's modules with the platform's stores and the directory's page:
 cd playground
 codefly config generate hop-signing SEED --service authority/hop
 codefly config generate internal-auth CODEFLY_INTERNAL_TOKEN
-codefly run service console/api authority/hop --local-agents
+codefly run service console/api authority/edge authority/hop org-directory/directory records/records \
+  --env local --local-agents --headless \
+  --exclude-dependency documents/docx --exclude-dependency documents/pdf \
+  --exclude-dependency documents/libreoffice --exclude-dependency documents/xlsx \
+  --exclude-dependency documents/documents --exclude-workspace-configuration document-formats
 ```
+
+The playground composes the directory's module page, a role-gated target
+(installer, editor, viewer, steward), behind the edge and the hop; the edge
+listens where `codefly endpoint authority/edge --type http` says. The document
+store it also composes needs its format converters and a generated cursor key
+this environment does not declare, so the run above leaves it out; routing
+it again is the next step for the playground.
 
 The repository root is the authority module's own workspace and carries no run
 configuration. A module's checkout root provides its configuration groups to
@@ -566,6 +577,34 @@ codefly-dev/cli#1128:
 
 Every refusal through the hop is also in the hop's log, naming the module, the
 method and the reason.
+
+**Who signs in, and acting as a team (2026-11-12).** The fixture
+(`modules/authority/services/local/code/fixtures/local.yaml`) is the one the
+product's host seeds too: Sarah Chen `admin@acme.com` (the platform admin;
+here Acme's administrator), Alice Johnson `alice@acme.com` (Acme's
+administrator), and three members, Bob Williams `bob@acme.com`, Carol Davis
+`carol@acme.com` and Dana Lee `dana@example.com`, signed in by the tokens
+`dev-admin`, `dev-alice`, `dev-bob`, `dev-carol`, `dev-dana`. Every role-gated
+target the run composes (a solution, a module page declaring roles) gets one
+team per role it declares, `<target>-<role>`, holding that role on the
+installation, and Bob, Carol and Dana are seated in the team of their role
+(viewer, editor, installer) the moment the target is active; a fixture row
+standing for every target says so once (`target: "*"`, [what a composition
+adds to the fixture](modules/authority/services/local/README.md#what-a-composition-adds-to-the-fixture)).
+The host-independent part is the core's: `authority.ConventionalTeamName`,
+`RoleTeamsOf` and `GrantRoleTeamsAsHost`, which both hosts call; the local
+authority's directory and seating is `pkg/business/state/teams.go`. Signed in
+as Alice at the edge's sign-in page, **Act as this team** on `<target>-viewer`
+opens a session that is that team and nothing else (the session interface's
+`OpenTeamCast`: a person may act as a team whose roles they could grant,
+member of it or not — the core decides, and a refusal is shown by name); the
+hop then answers with the viewer's reach alone, and **Back to your own
+session** restores hers. Signed in as Bob, the hop answers with
+`<target>-viewer`'s reach and nothing else. The authority interface's own
+people (`maya`, `remi`, `alex`, `dev`, `zoe`, `omar`, `no-roles`) are
+retained as aliases: the conformance matrix, the generated developer role
+every playground starts on, the refusal cases and the other organisation
+are written against them, and the product's fixture keeps them too.
 
 ### The hop side is a conformance target too (2026-11-03)
 
@@ -746,10 +785,17 @@ has no organization label. Configured `SIGN_IN_CHOICES` retain their order. The 
 an `HttpOnly`, `SameSite=Lax` cookie, so the page holds no token. Signing in
 and signing out are writes: each must come from this origin, a return to
 another site lands on the root, and a non-browser caller signs in with a JSON
-`fixtureToken`.
+`fixtureToken`. A browser that holds a session sees, above the people, who it
+is and the organisation's teams, each with **Act as this team**: a form posted
+to `/auth/act-as`, which asks the authority (`OpenTeamCast`) and, allowed,
+makes the browser the cast session while keeping the one it came from in a
+second cookie (`edge_session_parent`), so **Back to your own session** is a
+form too and never a second sign-in; refused, the page says why
+([the edge](modules/authority/services/edge/README.md#act-as-a-team)).
 
 `/auth/session` answers who is signed in (`personId`, `organizationId`,
-`personDisplayName`, `organizationDisplayName`, `roles`), the `installations` the person may use, each `{id, target}`, which a
+`personDisplayName`, `organizationDisplayName`, `roles`, `teamIds`, and
+`castTeamId` when the session is a cast), the `installations` the person may use, each `{id, target}`, which a
 frontend binds its calls to (a robin conversation names its installation), and
 `refused`, the reason for each other target. Both come from `Issue`, once per
 module the edge routes, as a call to that module would: a target is usable when

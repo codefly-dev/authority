@@ -207,7 +207,12 @@ type State struct {
 	// pendingInstalls are fixture installations whose target was not composed
 	// when the fixture loaded; each is performed when its target applies.
 	pendingInstalls []FixtureInstallation
-	installStep     InstallStep
+	// every are the fixture rows standing for every role-gated target, named
+	// the rows naming one (org/target), and members what those seat (teams.go).
+	every       []FixtureInstallation
+	named       map[string]bool
+	members     map[string]map[string][]string
+	installStep InstallStep
 	// Approvals are the artifacts people have consented to: in memory until a
 	// run that composes the store swaps in its Postgres (work.go approvalsFor).
 	Approvals Approvals
@@ -338,6 +343,15 @@ func (s *State) LoadFixture(ctx context.Context, data []byte) error {
 		return err
 	}
 	for _, i := range f.Installations {
+		s.mu.Lock()
+		err := s.keepStandingLocked(i)
+		s.mu.Unlock()
+		if err != nil {
+			return err
+		}
+		if i.Target == EveryTarget {
+			continue // installs and seats through SeatRoleTeams, below
+		}
 		if _, composed := s.Module(i.Target); !composed {
 			s.mu.Lock()
 			s.pendingInstalls = append(s.pendingInstalls, i)
@@ -360,7 +374,8 @@ func (s *State) LoadFixture(ctx context.Context, data []byte) error {
 			return fmt.Errorf("fixture module %s: %w", m.Name, err)
 		}
 	}
-	return nil
+	_, err := s.SeatRoleTeams(ctx)
+	return err
 }
 
 func compileScopes(r Role) error {
@@ -592,6 +607,9 @@ func (s *State) ApplyManifest(m Manifest) ([]string, error) {
 		if err := s.performInstall(context.Background(), i, nil); err != nil {
 			return nil, err
 		}
+	}
+	if _, err := s.SeatRoleTeams(context.Background()); err != nil {
+		return nil, err
 	}
 	return ids, nil
 }
