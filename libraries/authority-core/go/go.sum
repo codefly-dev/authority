@@ -30,8 +30,8 @@ github.com/clipperhouse/uax29/v2 v2.7.0 h1:+gs4oBZ2gPfVrKPthwbMzWZDaAFPGYK72F0NJ
 github.com/clipperhouse/uax29/v2 v2.7.0/go.mod h1:EFJ2TJMRUaplDxHKj1qAEhCtQPW2tJSwu5BF98AuoVM=
 github.com/codefly-dev/authority/libraries/delivery/go v0.0.0-20261026023425-000d44495d93 h1:PnhgA9wkib67bJnc5hkhkc80J2ch5uYiq+9/NiD/XFU=
 github.com/codefly-dev/authority/libraries/delivery/go v0.0.0-20261026023425-000d44495d93/go.mod h1:XsOFnO2MQdr37vM3ULa0Uwi8ZWptyVx7hRSUyIdaZ1Q=
-github.com/codefly-dev/authority/libraries/hop/go v0.0.0-20261026193714-49101ae11a7f h1:oobjjGqbBaFjYLPYculFD74BOdN5+UZ6eyYl6mOsT7I=
-github.com/codefly-dev/authority/libraries/hop/go v0.0.0-20261026193714-49101ae11a7f/go.mod h1:NqCbvIWbkbCzSpUUYQjP8Jv+LpFnDRbVhPdAj67DHhE=
+github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261111234045-1076f796c30f h1:1Q1Q9YdYNCSMHdImapN4LCLTaQyOVpeJIPLLn7xaFug=
+github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261111234045-1076f796c30f/go.mod h1:r/D4MAPuo1OgUv4qSdwm5W/ra4Yt8b8IhyhqbGxK6ks=
 github.com/codefly-dev/authority/libraries/resources/go v0.0.0-20261026023425-000d44495d93 h1:4EygH7/J0E6aM7hUPdbQGfit1rsLUNCtWJ8kMh2b9PE=
 github.com/codefly-dev/authority/libraries/resources/go v0.0.0-20261026023425-000d44495d93/go.mod h1:1rmjrVyr0h7zOuwOHS9i+BoeS9dr3XNvtupLZFwY6As=
 github.com/codefly-dev/core v0.19.22 h1:JqLfnfpw+hojy49KUfj+RIg7mU+j5Bj9OdAHlrl5gyI=
