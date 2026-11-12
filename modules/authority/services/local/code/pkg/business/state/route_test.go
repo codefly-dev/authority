@@ -73,8 +73,11 @@ func TestADeliveryReplacesTheFixturesStandIn(t *testing.T) {
 	if _, err := k.State.ApplyManifest(delivered); err != nil {
 		t.Fatalf("the module's own delivery did not replace the stand-in: %v", err)
 	}
-	if _, err := k.State.ApplyManifest(delivered); !errors.Is(err, state.ErrStale) {
-		t.Fatalf("a delivered module took a manifest of the same generation: %v", err)
+	if _, err := k.State.ApplyManifest(delivered); err != nil {
+		t.Fatalf("the delivered generation, delivered again: %v", err)
+	}
+	if _, err := k.State.ApplyManifest(standIn); !errors.Is(err, state.ErrStale) {
+		t.Fatalf("a delivered module took a stand-in of the same generation: %v", err)
 	}
 }
 

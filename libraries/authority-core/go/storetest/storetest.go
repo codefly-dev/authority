@@ -225,6 +225,35 @@ func Run(t *testing.T, open Open) {
 		})
 	})
 
+	// A delivery composed again at the generation the store holds is a replay
+	// only if the module reads back as the declaration it was written as
+	// (authority.DeclarationDigest); a store that reads it back as another
+	// refuses every replay as a changed declaration.
+	t.Run("a module reads back as the declaration it was written as", func(t *testing.T) {
+		for _, kind := range []string{domain.KindModule, domain.KindSolution} {
+			m := f.module(kind)
+			m.Name, m.Principal = f.name("declared-"+kind), f.name("declared-"+kind+"-principal")
+			m.ResourceKinds = scope.Normalize(m.ResourceKinds)
+			m.EdgeDependencies = []domain.EdgeDependency{{Module: f.name("edge"), Presence: decide.EdgeOptional}}
+			m.InstallationRole = domain.NoInstallationRole
+			written, err := authority.DeclarationDigest(m)
+			if err != nil {
+				t.Fatal(err)
+			}
+			write(t, func(tx authority.Tx) error { return tx.PutModule(m) })
+			read(t, func(tx authority.Tx) error {
+				got, err := tx.ModuleNamed(m.Name)
+				if err != nil {
+					return err
+				}
+				if digest, err := authority.DeclarationDigest(got); err != nil || digest != written {
+					t.Errorf("%s reads back as %s, written as %s (%v)", kind, digest, written, err)
+				}
+				return nil
+			})
+		}
+	})
+
 	t.Run("a tombstone reads back by name and by principal", func(t *testing.T) {
 		tomb := domain.Tombstone{Name: f.name("withdrawn"), Principal: f.name("withdrawn-principal"), Generation: 7}
 		write(t, func(tx authority.Tx) error { return tx.PutTombstone(tomb) })

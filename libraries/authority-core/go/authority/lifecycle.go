@@ -11,6 +11,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
+	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
 // composition is every composed module by principal.
@@ -95,6 +96,61 @@ func (s *Service) Unreached(ctx context.Context, inst domain.Installation) ([]st
 	return out, err
 }
 
+// DeclarationDigest is the digest of m's declaration as a store keeps it:
+// every scope set normalized, an empty set and an absent one alike, each
+// binding named by its key, shared kinds as a set. Roles and Methods keep
+// absent apart from empty, as a store keeps whether a module declared any.
+// Two deliveries of one module at one generation are the same delivery when
+// their digests are equal (ApplyModule).
+func DeclarationDigest(m domain.Module) (string, error) { return OfferDigest(asStored(m)) }
+
+// asStored is m as DeclarationDigest reads it.
+func asStored(m domain.Module) domain.Module {
+	m.ResourceKinds, m.SourceGovernance = scope.Normalize(m.ResourceKinds), scope.Normalize(m.SourceGovernance)
+	var bindings map[string]domain.Binding
+	for id, b := range m.Bindings {
+		if bindings == nil {
+			bindings = map[string]domain.Binding{}
+		}
+		bindings[id] = domain.Binding{ID: id, Audience: b.Audience,
+			InvokeScopes: scope.Normalize(b.InvokeScopes), HeadlessScopes: scope.Normalize(b.HeadlessScopes), LookupScopes: scope.Normalize(b.LookupScopes)}
+	}
+	m.Bindings = bindings
+	roles := func(in map[string][]*basev0.WorkScopeV1, keepEmpty bool) map[string][]*basev0.WorkScopeV1 {
+		if len(in) == 0 && !(keepEmpty && in != nil) {
+			return nil
+		}
+		out := make(map[string][]*basev0.WorkScopeV1, len(in))
+		for name, s := range in {
+			out[name] = scope.Normalize(s)
+		}
+		return out
+	}
+	m.Roles, m.OwnedRoles = roles(m.Roles, true), roles(m.OwnedRoles, false)
+	var through map[string]map[string][]*basev0.WorkScopeV1
+	for role, byBinding := range m.Through {
+		if kept := roles(byBinding, false); kept != nil {
+			if through == nil {
+				through = map[string]map[string][]*basev0.WorkScopeV1{}
+			}
+			through[role] = kept
+		}
+	}
+	m.Through = through
+	if m.Methods != nil {
+		methods := make(map[string]domain.MethodPolicy, len(m.Methods))
+		for name, p := range m.Methods {
+			methods[name] = domain.MethodPolicy{Requires: scope.Normalize(p.Requires), AnyCheckedCaller: p.AnyCheckedCaller}
+		}
+		m.Methods = methods
+	}
+	m.SharedKinds = slices.Sorted(slices.Values(m.SharedKinds))
+	if len(m.EdgeDependencies) == 0 {
+		m.EdgeDependencies = nil
+	}
+	return m
+}
+
 // ApplyModule records a delivered module at a newer generation and holds a
 // module installation at every organization, unless the host installs
 // modules itself (Config.HostInstallsModules). Only a solution is installed
@@ -146,7 +202,27 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 				return err
 			}
 		}
-		if exists && !previous.StandIn && previous.Generation >= m.Generation {
+		if exists && !previous.StandIn && previous.Generation == m.Generation {
+			// A host composes one delivery on more than one path at once (its
+			// delivery endpoint's pass and its reconcile loop's), so the
+			// generation a path brings may be the one another just composed.
+			// The same declaration is a replay and changes nothing; another
+			// one at the held generation is refused, naming both.
+			held, err := DeclarationDigest(previous)
+			if err != nil {
+				return err
+			}
+			delivered, err := DeclarationDigest(m)
+			if err != nil {
+				return err
+			}
+			if held != delivered {
+				return domain.NotNow("%s generation %d is held as %s and delivered as %s; a changed declaration is a new generation",
+					m.Name, m.Generation, held, delivered)
+			}
+			return nil
+		}
+		if exists && !previous.StandIn && previous.Generation > m.Generation {
 			return domain.NotNow("%s is at %d, got %d", m.Name, previous.Generation, m.Generation)
 		}
 		if other, err := tx.Module(m.Principal); err == nil && other.Name != m.Name {
