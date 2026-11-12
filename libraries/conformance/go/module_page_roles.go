@@ -17,7 +17,8 @@ import (
 // for it and who may use it: what a person holds at it is the roles granted
 // them, or a team of theirs, on its composition installation, never the
 // organization's roles. A module without a page declares none, and a module
-// page declaring none keeps the organization's. The holder is
+// page declaring none is gated by the standard three the core derives from
+// what it serves (decide.StandardRoles). The holder is
 // UnentitledToken (no role, no team); ViewerToken is another member, of at
 // least one team, whose organization roles read ReadKind: the module serves
 // ReadKind too, so they would hold it there were organization roles to
@@ -288,32 +289,34 @@ func (c *client) modulePageRoles(t *testing.T, ctx context.Context, f Fixture) {
 			_, err := c.deliver(ctx, f, headlessModule, "module", 1, []string{headlessNote}, roles(headlessNote), 0)
 			refused(t, err, codes.PermissionDenied, "no page")
 		})
-		t.Run("a module that gains or loses roles keeps its installation: every role dropped, the organization's roles decide", func(t *testing.T) {
+		t.Run("a module page that drops its declared roles keeps its installation, gated by the standard roles derived from what it serves", func(t *testing.T) {
 			// Still no standing authority: a module declares none, roles or not.
+			// With its declaration gone the page is not on the organization's
+			// roles: the core derives installer, editor and viewer from its
+			// served kinds (decide.StandardRoles), so the holder's viewer
+			// outlives the declaration that first named it.
 			if _, err := c.deliverPage(ctx, f, page, pageModule, "module", 3, served, map[string]any{"scope_ceilings": []any{scopeAsk(pageModuleNote, []string{"read", "write"}, nil)}, "installation_role": "none"}, 0); err != nil {
 				t.Fatalf("redeliver %s without roles: %v", pageModule, err)
 			}
 			if got := str(installed(t, admin), "id"); got != id {
 				t.Fatalf("dropping its roles moved the module page's installation from %s to %s", id, got)
 			}
-			if held != nil {
-				_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(held, "token"), "audience": pageModule})
-				refused(t, err, codes.PermissionDenied, "")
+			if got := listed(t, holder); !slices.Equal(got, []string{"viewer"}) {
+				t.Fatalf("the derived viewer left the holder listed holding %v, want [viewer]", got)
 			}
-			if got := listed(t, holder); got != nil {
-				t.Fatalf("the dropped roles left the holder listed holding %v", got)
+			if _, err := issue(holder); err != nil {
+				t.Fatalf("the holder of the derived viewer is issued nothing: %v", err)
 			}
-			_, err := issue(holder)
-			refused(t, err, codes.PermissionDenied, "holds nothing")
-			refused(t, role("GrantRole", "viewer"), codes.NotFound, `declares no role "viewer"`)
-			out, err := issue(viewer, readKind)
-			if err != nil {
-				t.Fatalf("organization roles do not decide again: %v", err)
+			for _, name := range []string{"viewer", "editor", "installer"} {
+				if err := role("GrantRole", name); err != nil {
+					t.Fatalf("the derived role %q is not grantable: %v", name, err)
+				}
+				if err := role("RevokeRole", name); err != nil {
+					t.Fatal(err)
+				}
 			}
-			exactScopeOwnedBy(t, msg(out, "context"), f.ReadKind, []string{"read"}, nil, "")
-			if f.ReviewOfferNotServed == "" && offered(t, pageModule) {
-				t.Fatalf("%s is offered once it declares no roles", pageModule)
-			}
+			_, err := issue(viewer, readKind)
+			refused(t, err, codes.PermissionDenied, "")
 		})
 	})
 }

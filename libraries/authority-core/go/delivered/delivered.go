@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
 	delivery "github.com/codefly-dev/authority/libraries/delivery/go"
@@ -86,7 +87,8 @@ func Pair(doc Document, carrierDocument []byte, manifest *solutionhost.ModuleMan
 }
 
 // Module is what a verified delivery composes: core's manifest (FromCore),
-// narrowed and completed by the document paired with it, when one was. A
+// narrowed and completed by the document paired with it, when one was, and a
+// module page's standard roles derived when the document declares none. A
 // withdrawal carries no live declaration.
 func Module(manifest *solutionhost.ModuleManifest, doc *Document) (domain.Module, error) {
 	m := FromCore(manifest)
@@ -113,6 +115,14 @@ func Module(manifest *solutionhost.ModuleManifest, doc *Document) (domain.Module
 	}
 	if m.Roles, m.OwnedRoles, m.Through, err = roles(doc.Roles); err != nil {
 		return m, err
+	}
+	// A module page declaring no roles gets the standard three, derived from
+	// what it serves (decide.StandardRoles): every page is gated by its own
+	// roles, declared or derived, and only a module without a page is on the
+	// organization's. Derived here, where the document is read, so every host
+	// composes the same roles from the same delivery.
+	if m.Kind != domain.KindSolution && m.Page && len(m.Roles) == 0 {
+		m.Roles = decide.StandardRoles(m)
 	}
 	m.OwnerAware = doc.OwnerAware
 	m.InstallationRole = doc.InstallationRole
@@ -228,7 +238,9 @@ func Ceiled(m domain.Module, ceilings Scopes) (domain.Module, error) {
 
 // FromCore reads core's module manifest as the authority's module. Core's
 // manifest carries no roles; a solution's or a module page's arrive in the
-// document delivered with it, and a manifest declaring a frontend is a page.
+// document delivered with it, and a manifest declaring a frontend is a page,
+// whichever way the host mounts it: a remote it loads or a package it bundles
+// (solutionhost.Frontend.Bundled).
 // The scopes that govern its sources do ride on it (SourceGovernance), held
 // to those roles when the module is applied (decide.ValidateModule).
 // The manifest is the ceiling here: a resource kind declared with no actions

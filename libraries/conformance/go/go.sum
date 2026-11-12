@@ -34,6 +34,8 @@ github.com/codefly-dev/authority/libraries/resources/go v0.0.0-20261023203940-e7
 github.com/codefly-dev/authority/libraries/resources/go v0.0.0-20261023203940-e720ad2851c7/go.mod h1:1rmjrVyr0h7zOuwOHS9i+BoeS9dr3XNvtupLZFwY6As=
 github.com/codefly-dev/core v0.19.22 h1:JqLfnfpw+hojy49KUfj+RIg7mU+j5Bj9OdAHlrl5gyI=
 github.com/codefly-dev/core v0.19.22/go.mod h1:Q7PHKw8SFb1wNxlTy2EgG11cI9Zmq55TYY1fdsQUhpE=
+github.com/codefly-dev/core v0.19.25-0.20261112220307-1f2605c67dee h1:UooARUnnl4H8P67uENbbyQKpXRpWrC60Vtk2Ir8FeAU=
+github.com/codefly-dev/core v0.19.25-0.20261112220307-1f2605c67dee/go.mod h1:0of30d+Hbc67ITrk28wSg83QcrycDAKIWoKBEwCksx4=
 github.com/codefly-dev/gortk v0.2.0 h1:7bOlS5valYz2zil+fZctQNcPCYBcPj86abcw9N8h1hQ=
 github.com/codefly-dev/gortk v0.2.0/go.mod h1:dDWUMFgAP063OCGhTEpV7FFUj9+zTcxxO/nV80VKEwg=
 github.com/containerd/errdefs v1.0.0 h1:tg5yIfIlQIrxYtu9ajqY42W3lpS19XqdxRQeEwYG8PI=
