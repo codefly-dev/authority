@@ -17,6 +17,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	hopv1 "github.com/codefly-dev/authority/libraries/hop/go/gen/authority/hop/v1"
+	"github.com/codefly-dev/authority/libraries/hop/go/policy"
 )
 
 // policyExtension is the OpenAPI operation extension a route declares its
@@ -138,8 +139,11 @@ func protoPolicies(data []byte, procedures map[string]bool) (map[string]bool, er
 				if !procedures[procedure] {
 					continue
 				}
-				policy, _ := proto.GetExtension(method.GetOptions(), hopv1.E_Policy).(*hopv1.Policy)
-				declares := policy.GetAnyCheckedCaller() || len(policy.GetRequires()) > 0
+				declared, _ := proto.GetExtension(method.GetOptions(), hopv1.E_Policy).(*hopv1.Policy)
+				// The evaluator's own answer to "does it declare", so this
+				// gate and the hop cannot differ on a requirement naming no
+				// action.
+				declares := policy.FromProto(declared).Declares()
 				methods[procedure] = declares
 				for _, route := range httpRoutes(method.GetOptions()) {
 					methods[route] = declares

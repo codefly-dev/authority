@@ -11,13 +11,14 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/codefly-dev/authority/libraries/hop/go/policy"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"google.golang.org/protobuf/proto"
 )
 
 // AnyAction on a served kind serves whatever actions a role grants on it; on
 // a role's scope it grants every action the audience serves on that kind.
-const AnyAction = "*"
+const AnyAction = policy.AnyAction
 
 // AnyKind on a role's scope grants its actions on every kind the audience serves.
 const AnyKind = "*"
@@ -266,9 +267,7 @@ func Owned(scopes []*basev0.WorkScopeV1, owner string) ([]*basev0.WorkScopeV1, e
 // HoldsAction reports whether held carries action on any resource of kind,
 // whatever its ids or owner: a vocabulary check, never resource admission.
 func HoldsAction(held []*basev0.WorkScopeV1, kind, action string) bool {
-	return slices.ContainsFunc(held, func(h *basev0.WorkScopeV1) bool {
-		return h.GetResourceKind() == kind && (slices.Contains(h.GetActions(), action) || slices.Contains(h.GetActions(), AnyAction))
-	})
+	return policy.OnAnyResource(held)(kind, action)
 }
 
 // HasOwner reports whether any scope selects a resource owner.

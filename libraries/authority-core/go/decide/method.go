@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
+	"github.com/codefly-dev/authority/libraries/hop/go/policy"
 	"github.com/codefly-dev/authority/libraries/hop/go/routing"
 )
 
@@ -43,27 +43,32 @@ func AdmitMethod(m domain.Module, method string, held Scopes) error {
 // AdmitPolicy is AdmitMethod once the policy is found: p, what audience
 // declares for method, applied to held.
 func AdmitPolicy(audience, method string, p domain.MethodPolicy, held Scopes) error {
+	declared := Declared(p)
 	switch {
-	case p.AnyCheckedCaller && len(p.Requires) > 0:
+	// Decided on the entries as delivered, before they are flattened: a
+	// requirement naming no action is still a requirement declared beside
+	// any_checked_caller, and is refused here whatever validated it earlier.
+	case p.AnyCheckedCaller && len(p.Requires) > 0, declared.Validate() != nil:
 		return domain.Refuse("%s declares for %s both that it requires scopes and that it requires none", audience, method)
-	case p.AnyCheckedCaller:
-		return nil
-	case len(p.Requires) == 0:
+	case !declared.Declares():
 		return domain.Refuse("%s declares no policy for %s", audience, method)
 	}
-	var missing []string
-	for _, r := range p.Requires {
-		for _, action := range r.GetActions() {
-			if !scope.HoldsAction(held, r.GetResourceKind(), action) {
-				missing = append(missing, r.GetResourceKind()+":"+action)
-			}
-		}
-	}
-	if len(missing) > 0 {
+	if unmet := declared.Unmet(policy.OnAnyResource(held)); len(unmet) > 0 {
 		return domain.Refuse("%s requires %s for %s, which the call does not hold (it holds %s)",
-			audience, strings.Join(missing, ", "), method, describe(held))
+			audience, strings.Join(unmet, ", "), method, describe(held))
 	}
 	return nil
+}
+
+// Declared is p as the one evaluator reads it: the hop decides it here on any
+// resource, and a module decides the same declaration on the resource a call
+// names (policy.Method.Unmet).
+func Declared(p domain.MethodPolicy) policy.Method {
+	m := policy.Method{AnyCheckedCaller: p.AnyCheckedCaller}
+	for _, r := range p.Requires {
+		m.Requires = append(m.Requires, policy.Each(r.GetResourceKind(), r.GetActions())...)
+	}
+	return m
 }
 
 // routeOf is the route a module declares that an HTTP request "<VERB> <path>"

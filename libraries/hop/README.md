@@ -32,6 +32,57 @@ calls it names (core's module contract, `calls`) includes it, so a caller that
 holds it can exercise it through that binding and one that does not is cut to
 what the calls require.
 
+## One evaluator, two points, and the probe
+
+`go/policy` is the declaration as Go and the one evaluator of it.
+`policy.Method.Unmet(holds)` lists what a call lacks; the authority's method
+admission calls it with `policy.OnAnyResource` (the call holds the permission
+on some resource), and a module behind the hop calls the same function with
+its own answer for the resource the call names (its claims, that resource's
+owner). Owner selection is that answer, not a second rule: a module names no
+permission of its own. `policy.Contract` reads the declarations from the
+published contract (`contract.binpb`), the artifact a delivery is read from,
+and `policy.Admit` decides them for a module's test hop, so no test hop keeps
+a copy of the decision or reads a generated table.
+
+The language states conjunctions only. A binding ceiling is derived from the
+calls a consumer names; a call with alternatives has no ceiling that is both
+sufficient (every alternative) and least (one of them), so a method whose
+handler admits "A or B" declares one of them and its handler decides that one.
+
+`go/policy/probe` makes the call, itself. Given the server a module ships, a
+connection to it, the module's directory and the name of its endpoint, and one
+case per procedure, it reads the contract catalog and the contract it names
+and probes every procedure the hop routes to the endpoint. The module hands in
+no list of its own, and the catalog is not a way to leave one out: a procedure
+the contract declares and the server registers is a finding when the catalog
+does not route it. For each it first makes one call carrying no Work
+Context, which must be refused: a server that answers it does not read what a
+call holds. It then builds a Work Context holding exactly what the procedure
+declares (one scope per permission, selected to the fixture's owner, no
+wildcard), reads back what the call really carries and refuses a fixture that
+holds more, invokes the procedure, and requires the call to succeed and the
+case's `Shows` to find what was asked for in the answer. A `Shows` that accepts
+the empty answer is itself a finding. A routed procedure with no handler
+registered, with no case, or absent from the contract fails by name, and a
+contract whose digest is not the catalog's is an error. What a server
+registers beside its routed surface (health, reflection) is not probed: no
+caller reaches it through the hop. It takes no exception list.
+
+Its limits, which the package comment states too. It proves the declaration
+sufficient, not necessary: a handler laxer than its declaration passes. Beyond
+refusing an empty answer, what an answer must carry is what the case's `Shows`
+asserts. A rule that is not about scopes (who the principal is, stored state,
+a request field) is satisfied by the principal and resource the case picks:
+those stay the handler's, named in its refusals. The control call shows the
+server refuses a call with no Work Context, not that a handler's decision
+reads the scopes a call carries. It does not look for deliberate forgery: a
+connection that does not reach the server it was given, or a `Shows` that
+refuses the empty answer once and accepts everything after. A procedure whose
+correct answer is the zero value of a type that has fields has no honest
+`Shows`; its case asks for something that answers with more. HTTP and OpenAPI routes are not
+probed.
+
 ## Issuance and verification
 
 After the authority's live `Check` admits the method, the hop writes its identity
