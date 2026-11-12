@@ -1035,15 +1035,49 @@ func (s *Service) withComposedPrincipal(tx Tx, inst *domain.Installation) (bool,
 	if inst.PrincipalID != "" {
 		return false, nil
 	}
-	principal := s.cfg.PrincipalID(inst.Organization, inst.Target)
-	if err := principalFree(tx, principal, inst.ID, inst.Target, inst.Organization); err != nil {
-		if _, refused := domain.CodeOf(err); refused {
-			return false, nil
-		}
+	principal, err := s.composedPrincipal(tx, inst.Organization, inst.Target, inst.ID)
+	if err != nil || principal == "" {
 		return false, err
 	}
 	inst.PrincipalID = principal
 	return true, nil
+}
+
+// ComposedPrincipal is the principal the composition installation
+// installationID of module at org holds: the one the core gives every
+// composition installation it makes (Config.PrincipalID of the organization
+// and the module), or "" when another identity already holds it, when the
+// installation holds none and owns nothing (fails closed). It is the one rule
+// the core applies to its own composition installations.
+//
+// A host running Config.HostInstallsModules makes its modules' composition
+// installations itself, so the core never gives them a principal. Such a host
+// asks this for each composition record of a role-gated module (a module page)
+// and persists the answer on the record, which its store then answers as
+// Installation.PrincipalID: a module page's roles reach a module that checks
+// owners as the data that principal owns (decide.ModuleRoleAt), and a record
+// without one reaches nothing there. A host that gives an existing record its
+// principal raises the record's revision in the same write, so a capability
+// sealed to it before ends at its next check.
+func (s *Service) ComposedPrincipal(ctx context.Context, org, module, installationID string) (string, error) {
+	var principal string
+	err := s.store.Read(ctx, func(tx Tx) (err error) {
+		principal, err = s.composedPrincipal(tx, org, module, installationID)
+		return err
+	})
+	return principal, err
+}
+
+// composedPrincipal is ComposedPrincipal within tx.
+func (s *Service) composedPrincipal(tx Tx, org, module, installationID string) (string, error) {
+	principal := s.cfg.PrincipalID(org, module)
+	if err := principalFree(tx, principal, installationID, module, org); err != nil {
+		if _, refused := domain.CodeOf(err); refused {
+			return "", nil
+		}
+		return "", err
+	}
+	return principal, nil
 }
 
 // principalFree refuses an installation principal another identity holds: a
