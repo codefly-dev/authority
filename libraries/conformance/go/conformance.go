@@ -1186,6 +1186,8 @@ func str(m protoreflect.Message, name string) string {
 	return v.String()
 }
 func u64(m protoreflect.Message, name string) uint64 { return field(m, name).Uint() }
+
+func bool_(m protoreflect.Message, name string) bool { return field(m, name).Bool() }
 func i64(m protoreflect.Message, name string) int64  { return field(m, name).Int() }
 func msg(m protoreflect.Message, name string) protoreflect.Message {
 	return field(m, name).Message()

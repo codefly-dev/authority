@@ -92,20 +92,39 @@ func (c *client) modulePageRoles(t *testing.T, ctx context.Context, f Fixture) {
 		if id == "" {
 			t.Fatalf("%s was not installed by composition", pageModule)
 		}
-		t.Run("a module is never offered, reviewed or installed by an administrator", func(t *testing.T) {
+		// A module is never offered, and never installed by hand: a module
+		// without roles is not reviewed either, while a module page's active
+		// installation is reviewed by an administrator, for the upgrade it
+		// offers, exactly as a solution's is (held at its approved reach);
+		// an approval of an offer the page never made is refused by that
+		// offer, never by composition.
+		t.Run("a module is never offered or installed by an administrator; a page's installation is reviewed for its upgrade", func(t *testing.T) {
 			for _, target := range []string{pageModule, f.Audience} {
+				page := target == pageModule
 				if f.ReviewOfferNotServed == "" {
 					if offered(t, target) {
 						t.Fatalf("%s, a module, is offered", target)
 					}
 					_, err := c.call(adminCtx, "host.installation.v1.OfferService", "ReviewOffer", map[string]any{"organization_id": f.Organization, "target": target})
-					refused(t, err, codes.NotFound, "installed by composition")
+					if page && err != nil {
+						t.Fatalf("a module page's active installation is not reviewed: %v", err)
+					} else if !page {
+						refused(t, err, codes.NotFound, "installed by composition")
+					}
 				}
 				_, err := c.call(adminCtx, "host.installation.v1.InstallationService", "Review", map[string]any{"organization_id": f.Organization, "target": target})
-				refused(t, err, codes.NotFound, "installed by composition")
+				if page && err != nil {
+					t.Fatalf("a module page's active installation answers no consent tuple: %v", err)
+				} else if !page {
+					refused(t, err, codes.NotFound, "installed by composition")
+				}
 				_, err = c.call(adminCtx, "host.installation.v1.InstallationService", "Install", map[string]any{"organization_id": f.Organization, "target": target, "owner_person_id": str(admin, "person_id"),
 					"approval": map[string]any{"target_id": target, "generation": uint64(1), "digest": "sha256:made-up", "operation_id": "00000000-0000-4000-8000-000000000000"}})
-				refused(t, err, codes.NotFound, "installed by composition")
+				if page {
+					refused(t, err, codes.FailedPrecondition, "INSTALLATION_APPROVAL_")
+				} else {
+					refused(t, err, codes.NotFound, "installed by composition")
+				}
 			}
 		})
 		grant := func(method, name string, subject map[string]any) error {
@@ -242,8 +261,24 @@ func (c *client) modulePageRoles(t *testing.T, ctx context.Context, f Fixture) {
 			if held != nil {
 				c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(held, "token"), "audience": pageModule})
 			}
+			// The installation is held at the reach the administrator's
+			// grants were given under, as a solution's is: the added role
+			// waits for the upgrade's approval, through Review and Install
+			// on the same installation, which keeps every grant.
+			refused(t, role("GrantRole", "editor"), codes.NotFound, `declares no role "editor"`)
+			if !bool_(installed(t, admin), "upgrade_available") {
+				t.Fatalf("a role added offers no upgrade on the module page's installation")
+			}
+			upgraded := c.must(t, adminCtx, "host.installation.v1.InstallationService", "Install", map[string]any{"organization_id": f.Organization, "target": pageModule,
+				"owner_person_id": str(admin, "person_id"), "approval": c.reviewInstallation(t, adminCtx, f.Organization, pageModule)})
+			if str(upgraded, "id") != id || bool_(installed(t, admin), "upgrade_available") {
+				t.Fatalf("the approved upgrade did not land on the module page's installation %s: %v", id, upgraded)
+			}
+			if got := listed(t, holder); !slices.Equal(got, []string{"viewer"}) {
+				t.Fatalf("the approved upgrade left the holder listed holding %v, want [viewer]", got)
+			}
 			if err := role("GrantRole", "editor"); err != nil {
-				t.Fatalf("the added role is not grantable: %v", err)
+				t.Fatalf("the added role is not grantable once approved: %v", err)
 			}
 			if err := role("RevokeRole", "editor"); err != nil {
 				t.Fatal(err)
