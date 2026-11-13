@@ -30,6 +30,7 @@ func TestAModulesHeadlessDefineAtAnOwnerAwareModuleIsBornOwnedAndItsPageReadsItB
 	m.Bindings["legacy-define"] = domain.Binding{ID: "legacy-define", Audience: "legacy-store", HeadlessScopes: []*basev0.WorkScopeV1{sc(legacyKind, "write")}}
 	m.Bindings["read-kind"] = domain.Binding{ID: "read-kind", Audience: "store", HeadlessScopes: []*basev0.WorkScopeV1{sc(kind, "read")}}
 	m.Bindings["read-and-define"] = domain.Binding{ID: "read-and-define", Audience: "store", HeadlessScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write")}}
+	m.Bindings["read-then-define"] = domain.Binding{ID: "read-then-define", Audience: "store", HeadlessScopes: []*basev0.WorkScopeV1{sc(kind, "read"), sc(kind, "write")}}
 	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
 		t.Fatal(err)
 	}
@@ -44,18 +45,21 @@ func TestAModulesHeadlessDefineAtAnOwnerAwareModuleIsBornOwnedAndItsPageReadsItB
 		read := h.must(h.page("maya", "pages", "store"))
 		exactly(t, read, kind, mine, []string{"read"})
 	})
-	// A read stays kind-wide, for a module reading across owners at a module
-	// that honours a scope naming no owner; and it is ALSO selected to the
-	// module's own installation, for a module that honours only owner-selected
-	// scopes (the record store, RBAC-4a: an ownerless scope reaches nothing
-	// there). Without the selected row a module reads back nothing it defined:
-	// the directory's GetRecordType of its own types was refused on blue,
-	// "the call holds no records.types scope with read selected to that owner".
-	t.Run("a kind-wide read creates nothing and stays kind-wide, and also reaches the module's own installation's data", func(t *testing.T) {
-		rows(t, h.must(define("read-kind", acme)), map[string]string{"": "read", mine: "read"})
+	t.Run("a kind-wide read creates nothing and stays kind-wide: a module reading across owners is not narrowed to its own data", func(t *testing.T) {
+		exactly(t, h.must(define("read-kind", acme)), kind, "", []string{"read"})
 	})
+	// A module reads back what it defines: on a kind it creates, its read
+	// stays as declared and is ALSO selected to its own installation, for a
+	// module that honours only owner-selected scopes (the record store,
+	// RBAC-4a: a scope naming no owner reaches nothing there). Without the
+	// selected row the directory's GetRecordType of its own types was refused
+	// on blue, "the call holds no records.types scope with read selected to
+	// that owner", and every directory call that defines its types first.
 	t.Run("a scope that reads and creates is split: the read as declared and on its own data, the creating action owned", func(t *testing.T) {
 		rows(t, h.must(define("read-and-define", acme)), map[string]string{"": "read", mine: "read,write"})
+	})
+	t.Run("a read and a create of one kind declared apart are read back the same way", func(t *testing.T) {
+		rows(t, h.must(define("read-then-define", acme)), map[string]string{"": "read", mine: "read,write"})
 	})
 	t.Run("a define owned by someone else is refused", func(t *testing.T) {
 		_, err := define("define", acme, owned(kind, h.principal(acme, "a"), []string{"write"}))
@@ -73,7 +77,6 @@ func TestAModulesHeadlessDefineAtAnOwnerAwareModuleIsBornOwnedAndItsPageReadsItB
 		}
 		_, err := define("define", acme)
 		refused(t, err, "would be born unowned")
-		// No principal owns nothing: the read stays kind-wide alone.
 		exactly(t, h.must(define("read-kind", acme)), kind, "", []string{"read"})
 		exactly(t, h.must(define("legacy-define", acme)), legacyKind, "", []string{"write"})
 	})
