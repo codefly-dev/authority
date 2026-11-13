@@ -136,7 +136,17 @@ func (s *Service) ListResources(ctx context.Context, token, audience, kind, acti
 			if err != nil && !errors.Is(err, domain.ErrNotFound) {
 				return err
 			}
-			ceiling, bounded, cerr := solutionCeiling(tx, p, solutionPrincipals(wc, wc.GetAudience()), at)
+			// A capability that came through a page or a module is bounded
+			// by what it came through, as issuance bounded it (the issuing
+			// hop's principals and the chain's); the audience's own roles,
+			// selected to its own installation, bound only a person's own
+			// session. Intersecting both answered a page reaching a store
+			// with roles of its own no resources at all.
+			principals := solutionPrincipals(wc, wc.GetAudience())
+			if len(principals) > 1 {
+				principals = principals[1:]
+			}
+			ceiling, bounded, cerr := solutionCeiling(tx, p, principals, at)
 			if cerr != nil {
 				return cerr
 			}

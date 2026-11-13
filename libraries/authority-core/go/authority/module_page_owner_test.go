@@ -406,3 +406,58 @@ func TestAStorePagesOwnRoleReachesItsOwnInstallationsData(t *testing.T) {
 	_, err = h.svc.IssueForPerson(h.ctx, h.person("alex"), authority.IssueRequest{Audience: "store"})
 	refused(t, err, "holds no role on store")
 }
+
+// A module page reaching a store that is itself role-gated (it declares a
+// page and roles of its own): what the page's role reaches there is the page
+// installation's data, and the store's own roles, selected to the store's own
+// installation, say nothing about it. The resources answer for the page's
+// call is the page installation's, whether or not the person also holds a
+// role on the store, and so is the reach it is held to: the page
+// installation's approved reach, never the store's own installation's.
+// Intersecting the two selected nothing, so the store could neither attach
+// nor read what the page created, and a person with no role on the store was
+// refused as beyond its installation's approved reach.
+func TestAPageReachesARoleGatedStoreAsItsInstallationsData(t *testing.T) {
+	h := newHarness(t)
+	var store domain.Module
+	if err := h.store.Read(h.ctx, func(tx authority.Tx) (err error) { store, err = tx.ModuleNamed("store"); return err }); err != nil {
+		t.Fatal(err)
+	}
+	store.Generation++
+	store.Page, store.InstallationRole = true, domain.NoInstallationRole
+	store.Roles = map[string][]*basev0.WorkScopeV1{domain.InstallerRole: {sc(kind, "read", "write", "create")}, "viewer": {sc(kind, "read")}}
+	store.Methods = map[string]domain.MethodPolicy{storeRead: {Requires: []*basev0.WorkScopeV1{sc(kind, "read")}}}
+	if _, err := h.svc.ApplyModule(h.ctx, store); err != nil {
+		t.Fatal(err)
+	}
+	m := pageModule(1, true)
+	m.Bindings = map[string]domain.Binding{
+		"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write", "create")}},
+	}
+	m.Roles[domain.InstallerRole] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(kind, "read", "write", "create")}
+	m.Roles["viewer"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read")}
+	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
+		t.Fatal(err)
+	}
+	h.grant("pages", domain.InstallerRole, "ada")
+	h.grant("store", domain.InstallerRole, "ada")
+	h.grant("pages", "viewer", "maya")
+	mine := h.principal(acme, "pages")
+
+	for who, action := range map[string]string{"ada": "write", "maya": "read"} {
+		got := h.must(h.page(who, "pages", "store"))
+		// maya holds no role on the store: what the page's role reaches is
+		// held at the page installation's approved reach, never the store's.
+		if _, _, refusal, err := h.svc.CheckMethod(h.ctx, got.Token, "store", storeRead, false); err != nil || refusal != nil {
+			t.Fatalf("%s's call through the page is refused at the store: %v %v", who, refusal, err)
+		}
+		grants, err := h.svc.ListResources(h.ctx, got.Token, "store", kind, action)
+		if err != nil || len(grants) != 1 || !grants[0].All || grants[0].Owner != mine {
+			t.Fatalf("%s's %s through the page answers %+v (%v), want every resource owned by %s alone", who, action, grants, err, mine)
+		}
+	}
+	owner, err := attach(h, h.must(h.page("ada", "pages", "store")).Token, "store-new")
+	if err != nil || owner != h.pagesAt(acme).ID {
+		t.Fatalf("the page's create attached to %q (%v), want its installation %s", owner, err, h.pagesAt(acme).ID)
+	}
+}
