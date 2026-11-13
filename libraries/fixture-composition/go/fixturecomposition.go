@@ -210,8 +210,16 @@ func (d Document) validate() error {
 	installations := map[string]bool{}
 	for _, i := range d.Installations {
 		switch {
-		case i.Target == "" || (i.Target != EveryTarget && i.Role == ""):
-			return errors.New("an installation names no target or no role")
+		case i.Target == "":
+			return errors.New("an installation names no target")
+		case i.Target != EveryTarget && i.Role == "" && len(i.Teams) > 0:
+			// A row's teams take its role. A row naming none installs with the
+			// role the target declares (installation_role), and the authority
+			// refuses a role that overrides that declaration, so a target
+			// declaring `installation_role: none` is installed by a row with no
+			// role and no teams; an undeclared target still needs one, which
+			// the authority asks for by name.
+			return errors.New("an installation grants teams and names no role for them")
 		case i.Target == EveryTarget && (i.Role != "" || len(i.Teams) > 0):
 			return errors.New("a row standing for every target names only its owner and members: a role and teams are one target's")
 		}

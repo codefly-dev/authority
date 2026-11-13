@@ -143,7 +143,8 @@ func TestMergeNamesTheFragmentThatDoesNotRead(t *testing.T) {
 		"wildcard action": {head + `roles: [{organization: acme, name: viewer, scopes: [{kind: ledger.entry, actions: ["*"]}]}]`, "wildcard action"},
 		"padded action":   {head + `roles: [{organization: acme, name: editor, scopes: [{kind: ledger.entry, actions: [" read"]}]}]`, "is not an action"},
 		"bad resource":    {head + `roles: [{organization: acme, name: editor, scopes: [{kind: ledger.entry, actions: [read], resources: [{}]}]}]`, "acme/editor scope ledger.entry"},
-		"no target":       {head + `installations: [{organization: acme, role: viewer, owner: alex}]`, "no target or no role"},
+		"no target":       {head + `installations: [{organization: acme, role: viewer, owner: alex}]`, "names no target"},
+		"teams no role":   {head + `installations: [{organization: acme, target: atlas, owner: alex, teams: [finance]}]`, "grants teams and names no role"},
 		"bad stand-in":    {head + `modules: [{module: Oracle, kinds: [{kind: oracle.answers, actions: [read]}]}]`, "names no valid module"},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -152,6 +153,21 @@ func TestMergeNamesTheFragmentThatDoesNotRead(t *testing.T) {
 				t.Fatalf("got %v, want a refusal of module ledger naming %q", err, tc.reason)
 			}
 		})
+	}
+}
+
+// A row installing a target that declares its own agent role
+// (installation_role, `none` included) names no role: the authority refuses a
+// role overriding the declaration. It grants no team either, since a row's
+// teams take its role.
+func TestARowWithNoRoleInstallsWithTheTargetsDeclaration(t *testing.T) {
+	doc := "schema: codefly.dev/authority/fixture-composition/v1\ninstallations: [{organization: acme, target: wiki, owner: alex}]\n"
+	merged, err := fixturecomposition.Merge([]fixturecomposition.Source{{Name: "module wiki", Data: []byte(doc)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(merged.Installations) != 1 || merged.Installations[0].Role != "" || merged.Installations[0].Target != "wiki" {
+		t.Fatalf("installations: %+v", merged.Installations)
 	}
 }
 

@@ -156,7 +156,7 @@ func TestCompositionRefusesByName(t *testing.T) {
 		"padded action":     {head + `roles: [{organization: acme, name: editor, scopes: [{kind: ledger.entry, actions: [" read"]}]}]`, "is not an action"},
 		"bad resource":      {head + `roles: [{organization: acme, name: editor, scopes: [{kind: ledger.entry, actions: [read], resources: [{}]}]}]`, "acme/editor scope ledger.entry"},
 		"stranger owner":    {head + `installations: [{organization: acme, target: atlas, role: viewer, owner: zoe}]`, "not a person of acme"},
-		"no target":         {head + `installations: [{organization: acme, role: viewer, owner: alex}]`, "no target or no role"},
+		"no target":         {head + `installations: [{organization: acme, role: viewer, owner: alex}]`, "names no target"},
 		"wildcard stand-in": {head + `modules: [{module: oracle, kinds: [{kind: oracle.answers, actions: ["*"]}]}]`, "wildcard action"},
 	} {
 		t.Run(name, func(t *testing.T) {

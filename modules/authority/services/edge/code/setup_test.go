@@ -28,6 +28,9 @@ type setupHost struct {
 	// OfferService: Unimplemented for a host that does not.
 	offers error
 	probes int
+	// installationRole is the reviewed solution's signed machine-role
+	// selector: empty is undeclared, "none" no standing authority.
+	installationRole string
 }
 
 func (h *setupHost) record(ctx context.Context, call any) error {
@@ -58,7 +61,7 @@ func (h *setupHost) ListOffers(ctx context.Context, in *installationv1.ListOffer
 }
 
 func (h *setupHost) ReviewOffer(ctx context.Context, in *installationv1.ReviewRequest, _ ...grpc.CallOption) (*installationv1.ReviewedOffer, error) {
-	return &installationv1.ReviewedOffer{Target: in.GetTarget(), ToolsComposed: true,
+	return &installationv1.ReviewedOffer{Target: in.GetTarget(), ToolsComposed: true, InstallationRole: h.installationRole,
 		Approval: &installationv1.ConsentApproval{TargetId: "proposals", Generation: 3, Digest: "sha256:reviewed"},
 		Roles: []*installationv1.OfferRole{{Name: "viewer", Capabilities: []*installationv1.OfferCapability{{Module: "proposals", Operation: "/tools.Solution/Read",
 			Tools: []*installationv1.OfferTool{{Name: "read_item", Binding: "PROPOSALS__READ"}}}}}}}, nil
@@ -158,6 +161,27 @@ func TestSetupChangesAreThePersonsAndComeFromThisOrigin(t *testing.T) {
 	}
 	if r := host.calls[2].(*installationv1.RevokeRoleRequest); r.GetPersonId() != "maya" || r.GetTeamId() != "" {
 		t.Fatalf("revoke sent %v", r)
+	}
+}
+
+// A solution that declares its agent's role (installation_role) is installed
+// with no role from the page: the review carries the declaration, so the page
+// offers no choice the authority would refuse ("role \"viewer\" cannot
+// override wiki's installation_role declaration"), and the install sends none.
+func TestASolutionDeclaringItsAgentRoleIsInstalledWithoutOne(t *testing.T) {
+	f, host := newSetup(t)
+	host.installationRole = "none"
+	cookie := f.signIn(t)
+	if _, body := f.do(t, http.MethodGet, "/auth/setup?target=proposals", http.Header{"Cookie": {cookie.String()}}); !strings.Contains(body, `"installationRole":"none"`) {
+		t.Fatalf("the reviewed offer must carry the declared selector for the page to read: %s", body)
+	}
+	install := url.Values{"action": {"install"}, "target": {"proposals"}, "consent": {"on"}, "targetId": {"proposals"}, "generation": {"3"}, "expectedRevision": {"0"},
+		"digest": {"sha256:reviewed"}, "operationId": {"0c0e1b4a-6a51-4b8e-9a43-1f4ad3d1e0aa"}}
+	if res, _ := f.post(t, cookie, f.edge.URL, install); res.StatusCode != http.StatusSeeOther {
+		t.Fatalf("install answered %d", res.StatusCode)
+	}
+	if got := host.calls[0].(*installationv1.InstallRequest); got.GetRole() != "" {
+		t.Fatalf("an install of a solution declaring its agent role sent role %q", got.GetRole())
 	}
 }
 

@@ -356,3 +356,53 @@ func TestRBAC1AModulePageAttachesWhatItCreatesToItsInstallation(t *testing.T) {
 	_, err = attach(h, issued.Token, "store-orphan")
 	refused(t, err, "issued through no installation")
 }
+
+// A store that checks owners and declares a page of its own: a person's role
+// on the STORE's installation reaches the store as that installation's data,
+// selected to its principal exactly as another page's role is, never the
+// whole kind across every owner (which the store, checking owners, honours as
+// nothing). What the store's own page creates is attached to the store's own
+// installation, because the capability holds the create selected to it; a
+// capability another page's role brought is still attached to that page's
+// installation, never the store's, and an organization role still reaches
+// none of it (RBAC-4a).
+func TestAStorePagesOwnRoleReachesItsOwnInstallationsData(t *testing.T) {
+	h := newHarness(t)
+	var store domain.Module
+	if err := h.store.Read(h.ctx, func(tx authority.Tx) (err error) { store, err = tx.ModuleNamed("store"); return err }); err != nil {
+		t.Fatal(err)
+	}
+	store.Generation++
+	store.Page, store.InstallationRole = true, domain.NoInstallationRole
+	store.Roles = map[string][]*basev0.WorkScopeV1{
+		domain.InstallerRole: {sc(kind, "read", "write", "create")},
+		"viewer":             {sc(kind, "read")},
+	}
+	if _, err := h.svc.ApplyModule(h.ctx, store); err != nil {
+		t.Fatal(err)
+	}
+	h.grant("store", domain.InstallerRole, "ada")
+	h.grant("store", "viewer", "maya")
+	own := h.principal(acme, "store")
+
+	viewer := h.must(h.svc.IssueForPerson(h.ctx, h.person("maya"), authority.IssueRequest{Audience: "store"}))
+	for _, s := range viewer.Context.GetAuthorityScopes() {
+		if s.GetResourceKind() == kind && s.GetResourceOwnerId() != own {
+			t.Fatalf("the store's viewer holds %s for owner %q, want the store installation %s alone: %v", kind, s.GetResourceOwnerId(), own, viewer.Context.GetAuthorityScopes())
+		}
+	}
+	grants, err := h.svc.ListResources(h.ctx, viewer.Token, "store", kind, "read")
+	if err != nil || len(grants) != 1 || !grants[0].All || grants[0].Owner != own {
+		t.Fatalf("resources %+v (%v), want every resource owned by %s alone", grants, err, own)
+	}
+
+	installer := h.must(h.svc.IssueForPerson(h.ctx, h.person("ada"), authority.IssueRequest{Audience: "store"}))
+	owner, err := attach(h, installer.Token, "store-own")
+	if err != nil || owner != h.inst(acme, "store").ID {
+		t.Fatalf("the store page's create attached to %q (%v), want the store's installation %s", owner, err, h.inst(acme, "store").ID)
+	}
+	_, err = attach(h, viewer.Token, "store-viewer")
+	refused(t, err, "holds no create")
+	_, err = h.svc.IssueForPerson(h.ctx, h.person("alex"), authority.IssueRequest{Audience: "store"})
+	refused(t, err, "holds no role on store")
+}

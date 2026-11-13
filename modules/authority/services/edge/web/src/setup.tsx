@@ -31,6 +31,11 @@ type Review = {
 	ceiling: { binding: string; module: string; scopes: Scope[] }[];
 	installation?: Installation;
 	toolsComposed: boolean;
+	// The solution's signed machine-role selector: empty is undeclared (the
+	// installing administrator chooses), "none" is no standing authority,
+	// otherwise the named role. A declared selector is not the page's to
+	// override: the authority refuses any other role.
+	installationRole?: string;
 };
 export interface SetupData {
 	organizationId: string;
@@ -161,20 +166,28 @@ function Install({ data, review }: { data: SetupData; review: Review }) {
 			description={`Generation ${review.approval.generation}. Your consent applies to this exact reviewed version; if it changes before you install, the authority refuses and you review again.`}
 		>
 			<Change fields={retry ? Object.fromEntries(Object.entries(retry).filter(([k]) => k !== "role" && k !== "consent")) : fields}>
-				<Field label="Agent role" description="The role the solution's own agent holds on what this installation owns. Choose the least it needs.">
-					{(control) => (
-						<select {...control} name="role" required defaultValue={retry?.role ?? ""}>
-							<option value="" disabled>
-								Choose a role…
-							</option>
-							{review.roles.map((r) => (
-								<option key={r.name} value={r.name}>
-									{r.name}
+				{review.installationRole ? (
+					<p style={{ margin: 0 }}>
+						{review.installationRole === "none"
+							? `${review.target}'s own agent holds no standing role: the solution declares it (installation_role: none).`
+							: `${review.target}'s own agent holds ${review.installationRole}, as the solution declares (installation_role).`}
+					</p>
+				) : (
+					<Field label="Agent role" description="The role the solution's own agent holds on what this installation owns. Choose the least it needs.">
+						{(control) => (
+							<select {...control} name="role" required defaultValue={retry?.role ?? ""}>
+								<option value="" disabled>
+									Choose a role…
 								</option>
-							))}
-						</select>
-					)}
-				</Field>
+								{review.roles.map((r) => (
+									<option key={r.name} value={r.name}>
+										{r.name}
+									</option>
+								))}
+							</select>
+						)}
+					</Field>
+				)}
 				<label style={{ display: "flex", gap: 8, alignItems: "center" }}>
 					<input type="checkbox" name="consent" required defaultChecked={retry?.consent === "on"} />I consent to this version, its roles and
 					its permission ceiling.

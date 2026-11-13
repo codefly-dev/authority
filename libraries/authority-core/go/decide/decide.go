@@ -206,16 +206,19 @@ func RoleScopes(solution domain.Module, inst domain.Installation, roles []string
 	return scope.Normalize(append(literal, attached...)), nil
 }
 
-// ModuleRoleAt is a role-gated module's role scopes as audience, another
-// module, receives them. An audience that checks owners receives them
-// owner-selected to the module's installation's principal, exactly as a
-// solution's roles are (RoleScopes): its own data, never the whole kind across
-// every owner. A kind audience declares shared stays unselected. An
-// installation recorded without a principal owns nothing there, so its roles
-// carry nothing of the audience's owned kinds. An audience that checks no
-// owner, or the module itself, receives the roles as they are.
+// ModuleRoleAt is a role-gated module's role scopes as audience receives
+// them: another module, or the module itself. An audience that checks owners
+// receives them owner-selected to the module's installation's principal,
+// exactly as a solution's roles are (RoleScopes): its own data, never the
+// whole kind across every owner. That holds at the module itself too: a store
+// that checks owners and declares a page is reached through its roles as its
+// installation's data, which is what its page creates there (AttachResource
+// counts that installation), never every owner's. A kind audience declares
+// shared stays unselected. An installation recorded without a principal owns
+// nothing there, so its roles carry nothing of the audience's owned kinds. An
+// audience that checks no owner receives the roles as they are.
 func ModuleRoleAt(m domain.Module, inst domain.Installation, audience domain.Module, role Scopes) Scopes {
-	if m.Kind == domain.KindSolution || !audience.OwnerAware || audience.Principal == m.Principal {
+	if m.Kind == domain.KindSolution || !audience.OwnerAware {
 		return role
 	}
 	out := make(Scopes, 0, len(role))

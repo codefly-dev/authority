@@ -213,8 +213,11 @@ roles:          # grants added to roles the fixture defines
     scopes:
       - {kind: ledger.entry, actions: [read, write]}
 installations:  # installations of a solution the run composes, the fixture's own path
-  # role: the installation's own (its agent's) role; owner: who installed it,
-  # granted the installer role; teams: each granted role on the installation;
+  # role: the installation's own (its agent's) role, omitted for a target that
+  # declares it (installation_role, `none` included: the authority refuses a
+  # role overriding the declaration); owner: who installed it, granted the
+  # installer role; teams: each granted role on the installation (so a row
+  # granting teams names it);
   # members: by declared role, who joins its `<target>-<role>` team.
   - {organization: acme, target: atlas, role: viewer, owner: alex, teams: [finance], members: {editor: [carol]}}
 modules:        # a module the run supervises itself, until its own delivery
