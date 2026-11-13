@@ -16,7 +16,117 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file host/session/v1/session.proto.
  */
 export const file_host_session_v1_session: GenFile = /*@__PURE__*/
-  fileDesc("Ch1ob3N0L3Nlc3Npb24vdjEvc2Vzc2lvbi5wcm90bxIPaG9zdC5zZXNzaW9uLnYxIhoKGExpc3RGaXh0dXJlUGVvcGxlUmVxdWVzdCJLChlMaXN0Rml4dHVyZVBlb3BsZVJlc3BvbnNlEi4KBnBlb3BsZRgBIAMoCzIeLmhvc3Quc2Vzc2lvbi52MS5GaXh0dXJlUGVyc29uIqUBCg1GaXh0dXJlUGVyc29uEhEKCXBlcnNvbl9pZBgBIAEoCRINCgVlbWFpbBgCIAEoCRIXCg9vcmdhbml6YXRpb25faWQYAyABKAkSDQoFcm9sZXMYBCADKAkSEAoIdGVhbV9pZHMYBSADKAkSFQoNZml4dHVyZV90b2tlbhgGIAEoCRIhChlvcmdhbml6YXRpb25fZGlzcGxheV9uYW1lGAcgASgJIj0KE09wZW5Sb2xlVmlld1JlcXVlc3QSFwoPaW5zdGFsbGF0aW9uX2lkGAEgASgJEg0KBXJvbGVzGAIgAygJIiYKE09wZW5UZWFtQ2FzdFJlcXVlc3QSDwoHdGVhbV9pZBgBIAEoCSI3Cg1Sb2xlVmlld0VudHJ5EhcKD2luc3RhbGxhdGlvbl9pZBgBIAEoCRINCgVyb2xlcxgCIAMoCSIQCg5DdXJyZW50UmVxdWVzdCImCg1TaWduSW5SZXF1ZXN0EhUKDWZpeHR1cmVfdG9rZW4YASABKAkigwIKB1Nlc3Npb24SEgoKc2Vzc2lvbl9pZBgBIAEoCRIRCglwZXJzb25faWQYAiABKAkSFwoPb3JnYW5pemF0aW9uX2lkGAMgASgJEg0KBXJvbGVzGAQgAygJEhAKCHRlYW1faWRzGAUgAygJEg4KBmJlYXJlchgGIAEoCRIbChNwZXJzb25fZGlzcGxheV9uYW1lGAcgASgJEiEKGW9yZ2FuaXphdGlvbl9kaXNwbGF5X25hbWUYCCABKAkSMQoJcm9sZV92aWV3GAkgAygLMh4uaG9zdC5zZXNzaW9uLnYxLlJvbGVWaWV3RW50cnkSFAoMY2FzdF90ZWFtX2lkGAogASgJMs4ECg5TZXNzaW9uU2VydmljZRJiCgZTaWduSW4SHi5ob3N0LnNlc3Npb24udjEuU2lnbkluUmVxdWVzdBoYLmhvc3Quc2Vzc2lvbi52MS5TZXNzaW9uIh6C0+STAhg6ASoiEy92MS9zZXNzaW9uOnNpZ24taW4SWQoHQ3VycmVudBIfLmhvc3Quc2Vzc2lvbi52MS5DdXJyZW50UmVxdWVzdBoYLmhvc3Quc2Vzc2lvbi52MS5TZXNzaW9uIhOC0+STAg0SCy92MS9zZXNzaW9uEnUKDE9wZW5Sb2xlVmlldxIkLmhvc3Quc2Vzc2lvbi52MS5PcGVuUm9sZVZpZXdSZXF1ZXN0GhguaG9zdC5zZXNzaW9uLnYxLlNlc3Npb24iJYLT5JMCHzoBKiIaL3YxL3Nlc3Npb246b3Blbi1yb2xlLXZpZXcSdQoMT3BlblRlYW1DYXN0EiQuaG9zdC5zZXNzaW9uLnYxLk9wZW5UZWFtQ2FzdFJlcXVlc3QaGC5ob3N0LnNlc3Npb24udjEuU2Vzc2lvbiIlgtPkkwIfOgEqIhovdjEvc2Vzc2lvbjpvcGVuLXRlYW0tY2FzdBKOAQoRTGlzdEZpeHR1cmVQZW9wbGUSKS5ob3N0LnNlc3Npb24udjEuTGlzdEZpeHR1cmVQZW9wbGVSZXF1ZXN0GiouaG9zdC5zZXNzaW9uLnYxLkxpc3RGaXh0dXJlUGVvcGxlUmVzcG9uc2UiIoLT5JMCHBIaL3YxL3Nlc3Npb24vZml4dHVyZS1wZW9wbGVCK1opZ2F0ZXdheS9wa2cvZ2VuL2hvc3Qvc2Vzc2lvbi92MTtzZXNzaW9udjFiBnByb3RvMw", [file_google_api_annotations]);
+  fileDesc("Ch1ob3N0L3Nlc3Npb24vdjEvc2Vzc2lvbi5wcm90bxIPaG9zdC5zZXNzaW9uLnYxIhoKGExpc3RDYXN0YWJsZVRlYW1zUmVxdWVzdCJJChlMaXN0Q2FzdGFibGVUZWFtc1Jlc3BvbnNlEiwKBXRlYW1zGAEgAygLMh0uaG9zdC5zZXNzaW9uLnYxLkNhc3RhYmxlVGVhbSJiCgxDYXN0YWJsZVRlYW0SDwoHdGVhbV9pZBgBIAEoCRIUCgxkaXNwbGF5X25hbWUYAiABKAkSKwoFaG9sZHMYAyADKAsyHC5ob3N0LnNlc3Npb24udjEuVGVhbUhvbGRpbmciRAoLVGVhbUhvbGRpbmcSFwoPaW5zdGFsbGF0aW9uX2lkGAEgASgJEg4KBnRhcmdldBgCIAEoCRIMCgRyb2xlGAMgASgJIhoKGExpc3RGaXh0dXJlUGVvcGxlUmVxdWVzdCJLChlMaXN0Rml4dHVyZVBlb3BsZVJlc3BvbnNlEi4KBnBlb3BsZRgBIAMoCzIeLmhvc3Quc2Vzc2lvbi52MS5GaXh0dXJlUGVyc29uIqUBCg1GaXh0dXJlUGVyc29uEhEKCXBlcnNvbl9pZBgBIAEoCRINCgVlbWFpbBgCIAEoCRIXCg9vcmdhbml6YXRpb25faWQYAyABKAkSDQoFcm9sZXMYBCADKAkSEAoIdGVhbV9pZHMYBSADKAkSFQoNZml4dHVyZV90b2tlbhgGIAEoCRIhChlvcmdhbml6YXRpb25fZGlzcGxheV9uYW1lGAcgASgJIj0KE09wZW5Sb2xlVmlld1JlcXVlc3QSFwoPaW5zdGFsbGF0aW9uX2lkGAEgASgJEg0KBXJvbGVzGAIgAygJIiYKE09wZW5UZWFtQ2FzdFJlcXVlc3QSDwoHdGVhbV9pZBgBIAEoCSI3Cg1Sb2xlVmlld0VudHJ5EhcKD2luc3RhbGxhdGlvbl9pZBgBIAEoCRINCgVyb2xlcxgCIAMoCSIQCg5DdXJyZW50UmVxdWVzdCImCg1TaWduSW5SZXF1ZXN0EhUKDWZpeHR1cmVfdG9rZW4YASABKAkigwIKB1Nlc3Npb24SEgoKc2Vzc2lvbl9pZBgBIAEoCRIRCglwZXJzb25faWQYAiABKAkSFwoPb3JnYW5pemF0aW9uX2lkGAMgASgJEg0KBXJvbGVzGAQgAygJEhAKCHRlYW1faWRzGAUgAygJEg4KBmJlYXJlchgGIAEoCRIbChNwZXJzb25fZGlzcGxheV9uYW1lGAcgASgJEiEKGW9yZ2FuaXphdGlvbl9kaXNwbGF5X25hbWUYCCABKAkSMQoJcm9sZV92aWV3GAkgAygLMh4uaG9zdC5zZXNzaW9uLnYxLlJvbGVWaWV3RW50cnkSFAoMY2FzdF90ZWFtX2lkGAogASgJMt8FCg5TZXNzaW9uU2VydmljZRJiCgZTaWduSW4SHi5ob3N0LnNlc3Npb24udjEuU2lnbkluUmVxdWVzdBoYLmhvc3Quc2Vzc2lvbi52MS5TZXNzaW9uIh6C0+STAhg6ASoiEy92MS9zZXNzaW9uOnNpZ24taW4SWQoHQ3VycmVudBIfLmhvc3Quc2Vzc2lvbi52MS5DdXJyZW50UmVxdWVzdBoYLmhvc3Quc2Vzc2lvbi52MS5TZXNzaW9uIhOC0+STAg0SCy92MS9zZXNzaW9uEnUKDE9wZW5Sb2xlVmlldxIkLmhvc3Quc2Vzc2lvbi52MS5PcGVuUm9sZVZpZXdSZXF1ZXN0GhguaG9zdC5zZXNzaW9uLnYxLlNlc3Npb24iJYLT5JMCHzoBKiIaL3YxL3Nlc3Npb246b3Blbi1yb2xlLXZpZXcSdQoMT3BlblRlYW1DYXN0EiQuaG9zdC5zZXNzaW9uLnYxLk9wZW5UZWFtQ2FzdFJlcXVlc3QaGC5ob3N0LnNlc3Npb24udjEuU2Vzc2lvbiIlgtPkkwIfOgEqIhovdjEvc2Vzc2lvbjpvcGVuLXRlYW0tY2FzdBKOAQoRTGlzdENhc3RhYmxlVGVhbXMSKS5ob3N0LnNlc3Npb24udjEuTGlzdENhc3RhYmxlVGVhbXNSZXF1ZXN0GiouaG9zdC5zZXNzaW9uLnYxLkxpc3RDYXN0YWJsZVRlYW1zUmVzcG9uc2UiIoLT5JMCHBIaL3YxL3Nlc3Npb24vY2FzdGFibGUtdGVhbXMSjgEKEUxpc3RGaXh0dXJlUGVvcGxlEikuaG9zdC5zZXNzaW9uLnYxLkxpc3RGaXh0dXJlUGVvcGxlUmVxdWVzdBoqLmhvc3Quc2Vzc2lvbi52MS5MaXN0Rml4dHVyZVBlb3BsZVJlc3BvbnNlIiKC0+STAhwSGi92MS9zZXNzaW9uL2ZpeHR1cmUtcGVvcGxlQitaKWdhdGV3YXkvcGtnL2dlbi9ob3N0L3Nlc3Npb24vdjE7c2Vzc2lvbnYxYgZwcm90bzM", [file_google_api_annotations]);
+
+/**
+ * ListCastableTeamsRequest asks for the teams the caller may act as, at the
+ * organisation the caller's session is signed into.
+ *
+ * @generated from message host.session.v1.ListCastableTeamsRequest
+ */
+export type ListCastableTeamsRequest = Message<"host.session.v1.ListCastableTeamsRequest"> & {
+};
+
+/**
+ * Describes the message host.session.v1.ListCastableTeamsRequest.
+ * Use `create(ListCastableTeamsRequestSchema)` to create a new message.
+ */
+export const ListCastableTeamsRequestSchema: GenMessage<ListCastableTeamsRequest> = /*@__PURE__*/
+  messageDesc(file_host_session_v1_session, 0);
+
+/**
+ * ListCastableTeamsResponse is every team the caller may act as, by team id.
+ *
+ * @generated from message host.session.v1.ListCastableTeamsResponse
+ */
+export type ListCastableTeamsResponse = Message<"host.session.v1.ListCastableTeamsResponse"> & {
+  /**
+   * The teams.
+   *
+   * @generated from field: repeated host.session.v1.CastableTeam teams = 1;
+   */
+  teams: CastableTeam[];
+};
+
+/**
+ * Describes the message host.session.v1.ListCastableTeamsResponse.
+ * Use `create(ListCastableTeamsResponseSchema)` to create a new message.
+ */
+export const ListCastableTeamsResponseSchema: GenMessage<ListCastableTeamsResponse> = /*@__PURE__*/
+  messageDesc(file_host_session_v1_session, 1);
+
+/**
+ * CastableTeam is one team a caller may act as, and what a cast onto it holds.
+ *
+ * @generated from message host.session.v1.CastableTeam
+ */
+export type CastableTeam = Message<"host.session.v1.CastableTeam"> & {
+  /**
+   * The team.
+   *
+   * @generated from field: string team_id = 1;
+   */
+  teamId: string;
+
+  /**
+   * The team's name, as the host spells it, for a page that offers the
+   * choice; the id above is the identity. A host that names teams by their
+   * id answers the id.
+   *
+   * @generated from field: string display_name = 2;
+   */
+  displayName: string;
+
+  /**
+   * Each role granted to the team on an active installation, by installation
+   * then role.
+   *
+   * @generated from field: repeated host.session.v1.TeamHolding holds = 3;
+   */
+  holds: TeamHolding[];
+};
+
+/**
+ * Describes the message host.session.v1.CastableTeam.
+ * Use `create(CastableTeamSchema)` to create a new message.
+ */
+export const CastableTeamSchema: GenMessage<CastableTeam> = /*@__PURE__*/
+  messageDesc(file_host_session_v1_session, 2);
+
+/**
+ * TeamHolding is one role a team holds on one installation.
+ *
+ * @generated from message host.session.v1.TeamHolding
+ */
+export type TeamHolding = Message<"host.session.v1.TeamHolding"> & {
+  /**
+   * The installation.
+   *
+   * @generated from field: string installation_id = 1;
+   */
+  installationId: string;
+
+  /**
+   * What it installs, as the installation names it.
+   *
+   * @generated from field: string target = 2;
+   */
+  target: string;
+
+  /**
+   * The role.
+   *
+   * @generated from field: string role = 3;
+   */
+  role: string;
+};
+
+/**
+ * Describes the message host.session.v1.TeamHolding.
+ * Use `create(TeamHoldingSchema)` to create a new message.
+ */
+export const TeamHoldingSchema: GenMessage<TeamHolding> = /*@__PURE__*/
+  messageDesc(file_host_session_v1_session, 3);
 
 /**
  * ListFixturePeopleRequest asks for every fixture person.
@@ -31,7 +141,7 @@ export type ListFixturePeopleRequest = Message<"host.session.v1.ListFixturePeopl
  * Use `create(ListFixturePeopleRequestSchema)` to create a new message.
  */
 export const ListFixturePeopleRequestSchema: GenMessage<ListFixturePeopleRequest> = /*@__PURE__*/
-  messageDesc(file_host_session_v1_session, 0);
+  messageDesc(file_host_session_v1_session, 4);
 
 /**
  * ListFixturePeopleResponse is every fixture person, in the fixture's order.
@@ -52,7 +162,7 @@ export type ListFixturePeopleResponse = Message<"host.session.v1.ListFixturePeop
  * Use `create(ListFixturePeopleResponseSchema)` to create a new message.
  */
 export const ListFixturePeopleResponseSchema: GenMessage<ListFixturePeopleResponse> = /*@__PURE__*/
-  messageDesc(file_host_session_v1_session, 1);
+  messageDesc(file_host_session_v1_session, 5);
 
 /**
  * FixturePerson is one person a fixture run signs in.
@@ -116,7 +226,7 @@ export type FixturePerson = Message<"host.session.v1.FixturePerson"> & {
  * Use `create(FixturePersonSchema)` to create a new message.
  */
 export const FixturePersonSchema: GenMessage<FixturePerson> = /*@__PURE__*/
-  messageDesc(file_host_session_v1_session, 2);
+  messageDesc(file_host_session_v1_session, 6);
 
 /**
  * OpenRoleViewRequest names the installation and the roles to act as on it.
@@ -144,7 +254,7 @@ export type OpenRoleViewRequest = Message<"host.session.v1.OpenRoleViewRequest">
  * Use `create(OpenRoleViewRequestSchema)` to create a new message.
  */
 export const OpenRoleViewRequestSchema: GenMessage<OpenRoleViewRequest> = /*@__PURE__*/
-  messageDesc(file_host_session_v1_session, 3);
+  messageDesc(file_host_session_v1_session, 7);
 
 /**
  * OpenTeamCastRequest names the team to act as.
@@ -165,7 +275,7 @@ export type OpenTeamCastRequest = Message<"host.session.v1.OpenTeamCastRequest">
  * Use `create(OpenTeamCastRequestSchema)` to create a new message.
  */
 export const OpenTeamCastRequestSchema: GenMessage<OpenTeamCastRequest> = /*@__PURE__*/
-  messageDesc(file_host_session_v1_session, 4);
+  messageDesc(file_host_session_v1_session, 8);
 
 /**
  * RoleViewEntry is the roles a session acts as on one installation.
@@ -193,7 +303,7 @@ export type RoleViewEntry = Message<"host.session.v1.RoleViewEntry"> & {
  * Use `create(RoleViewEntrySchema)` to create a new message.
  */
 export const RoleViewEntrySchema: GenMessage<RoleViewEntry> = /*@__PURE__*/
-  messageDesc(file_host_session_v1_session, 5);
+  messageDesc(file_host_session_v1_session, 9);
 
 /**
  * CurrentRequest asks for the caller's own session; the bearer is the call's.
@@ -208,7 +318,7 @@ export type CurrentRequest = Message<"host.session.v1.CurrentRequest"> & {
  * Use `create(CurrentRequestSchema)` to create a new message.
  */
 export const CurrentRequestSchema: GenMessage<CurrentRequest> = /*@__PURE__*/
-  messageDesc(file_host_session_v1_session, 6);
+  messageDesc(file_host_session_v1_session, 10);
 
 /**
  * SignInRequest presents a fixture token.
@@ -229,7 +339,7 @@ export type SignInRequest = Message<"host.session.v1.SignInRequest"> & {
  * Use `create(SignInRequestSchema)` to create a new message.
  */
 export const SignInRequestSchema: GenMessage<SignInRequest> = /*@__PURE__*/
-  messageDesc(file_host_session_v1_session, 7);
+  messageDesc(file_host_session_v1_session, 11);
 
 /**
  * Session is an open session.
@@ -319,7 +429,7 @@ export type Session = Message<"host.session.v1.Session"> & {
  * Use `create(SessionSchema)` to create a new message.
  */
 export const SessionSchema: GenMessage<Session> = /*@__PURE__*/
-  messageDesc(file_host_session_v1_session, 8);
+  messageDesc(file_host_session_v1_session, 12);
 
 /**
  * SessionService opens sessions.
@@ -389,6 +499,23 @@ export const SessionService: GenService<{
     methodKind: "unary";
     input: typeof OpenTeamCastRequestSchema;
     output: typeof SessionSchema;
+  },
+  /**
+   * ListCastableTeams answers the teams of the organisation the caller is
+   * signed into that the caller may act as now, each with what it holds, so a
+   * page offers the choice OpenTeamCast decides: listed by OpenTeamCast's one
+   * rule (a team whose roles the caller could grant, member of it or not), and
+   * a team it would refuse is not listed, a team granted nothing included. A
+   * cast answers the one team it acts as. Listing opens nothing: each
+   * OpenTeamCast is decided again when it is asked. The callers OpenTeamCast
+   * refuses are refused here.
+   *
+   * @generated from rpc host.session.v1.SessionService.ListCastableTeams
+   */
+  listCastableTeams: {
+    methodKind: "unary";
+    input: typeof ListCastableTeamsRequestSchema;
+    output: typeof ListCastableTeamsResponseSchema;
   },
   /**
    * ListFixturePeople answers who this authority signs in by fixture token, for

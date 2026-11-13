@@ -55,6 +55,11 @@ class SessionServiceStub(object):
                 request_serializer=host_dot_session_dot_v1_dot_session__pb2.OpenTeamCastRequest.SerializeToString,
                 response_deserializer=host_dot_session_dot_v1_dot_session__pb2.Session.FromString,
                 _registered_method=True)
+        self.ListCastableTeams = channel.unary_unary(
+                '/host.session.v1.SessionService/ListCastableTeams',
+                request_serializer=host_dot_session_dot_v1_dot_session__pb2.ListCastableTeamsRequest.SerializeToString,
+                response_deserializer=host_dot_session_dot_v1_dot_session__pb2.ListCastableTeamsResponse.FromString,
+                _registered_method=True)
         self.ListFixturePeople = channel.unary_unary(
                 '/host.session.v1.SessionService/ListFixturePeople',
                 request_serializer=host_dot_session_dot_v1_dot_session__pb2.ListFixturePeopleRequest.SerializeToString,
@@ -117,6 +122,20 @@ class SessionServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ListCastableTeams(self, request, context):
+        """ListCastableTeams answers the teams of the organisation the caller is
+        signed into that the caller may act as now, each with what it holds, so a
+        page offers the choice OpenTeamCast decides: listed by OpenTeamCast's one
+        rule (a team whose roles the caller could grant, member of it or not), and
+        a team it would refuse is not listed, a team granted nothing included. A
+        cast answers the one team it acts as. Listing opens nothing: each
+        OpenTeamCast is decided again when it is asked. The callers OpenTeamCast
+        refuses are refused here.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def ListFixturePeople(self, request, context):
         """ListFixturePeople answers who this authority signs in by fixture token, for
         the browser edge's sign-in page: the people are defined once, in the
@@ -149,6 +168,11 @@ def add_SessionServiceServicer_to_server(servicer, server):
                     servicer.OpenTeamCast,
                     request_deserializer=host_dot_session_dot_v1_dot_session__pb2.OpenTeamCastRequest.FromString,
                     response_serializer=host_dot_session_dot_v1_dot_session__pb2.Session.SerializeToString,
+            ),
+            'ListCastableTeams': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListCastableTeams,
+                    request_deserializer=host_dot_session_dot_v1_dot_session__pb2.ListCastableTeamsRequest.FromString,
+                    response_serializer=host_dot_session_dot_v1_dot_session__pb2.ListCastableTeamsResponse.SerializeToString,
             ),
             'ListFixturePeople': grpc.unary_unary_rpc_method_handler(
                     servicer.ListFixturePeople,
@@ -265,6 +289,33 @@ class SessionService(object):
             '/host.session.v1.SessionService/OpenTeamCast',
             host_dot_session_dot_v1_dot_session__pb2.OpenTeamCastRequest.SerializeToString,
             host_dot_session_dot_v1_dot_session__pb2.Session.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListCastableTeams(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/host.session.v1.SessionService/ListCastableTeams',
+            host_dot_session_dot_v1_dot_session__pb2.ListCastableTeamsRequest.SerializeToString,
+            host_dot_session_dot_v1_dot_session__pb2.ListCastableTeamsResponse.FromString,
             options,
             channel_credentials,
             insecure,

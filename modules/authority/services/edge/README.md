@@ -58,6 +58,27 @@ sign-in, an act-as is a write from this origin, and `/auth/session` says
 `castTeamId` for a cast session. Nothing here decides who may act as what,
 and no script holds a credential.
 
+## The session face: casting from a page
+
+A page casts through the host's own session interface, on this origin, at the
+paths the proto names, so the saas UI kit's team casting (`@codefly-dev/saas-ui/casting`)
+asks this edge exactly what it asks a hosted authority:
+
+| Path | What the authority answers |
+|---|---|
+| `/host.session.v1.SessionService/Current` | the browser's session: who, which organisation, and `castTeamId` for a cast |
+| `/host.session.v1.SessionService/ListCastableTeams` | the teams the person may act as now, each with what it holds, by `OpenTeamCast`'s own rule; a cast lists its own team |
+| `/host.session.v1.SessionService/OpenTeamCast` | a cast onto the team, or its refusal with code and reason |
+
+They are admitted as the installation face's are: a session, this origin in
+`Origin` when the session is the cookie, Connect only. `OpenTeamCast` changes
+who the browser is exactly as the act-as form does: allowed, the cast becomes
+the session cookie and the own session the `edge_session_parent` cookie, and
+the answer's `bearer` is empty, because no script holds a credential. The way
+back is the form's `action=back` on `/auth/act-as` (a POST from this origin):
+the interface has no call for it. `SignIn`, `OpenRoleView` and
+`ListFixturePeople` are served to no page.
+
 ## Composition-owned sign-in choices
 
 A composing workspace can choose which fixture people its sign-in page shows,

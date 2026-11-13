@@ -67,6 +67,15 @@ func (s *standIn) OpenTeamCast(ctx context.Context, in *sessionv1.OpenTeamCastRe
 	return &sessionv1.Session{SessionId: "s2", PersonId: "remi", OrganizationId: "acme", TeamIds: []string{"records-viewer"}, CastTeamId: "records-viewer", Bearer: "remi-as-viewers"}, nil
 }
 
+// ListCastableTeams lists records-viewer to Rémi, holding viewer on records.
+func (s *standIn) ListCastableTeams(ctx context.Context, _ *sessionv1.ListCastableTeamsRequest, _ ...grpc.CallOption) (*sessionv1.ListCastableTeamsResponse, error) {
+	if bearer := bearerIn(ctx); bearer != "remi-session" && bearer != "remi-as-viewers" {
+		return nil, status.Error(codes.Unauthenticated, "no session")
+	}
+	return &sessionv1.ListCastableTeamsResponse{Teams: []*sessionv1.CastableTeam{{TeamId: "records-viewer", DisplayName: "records-viewer",
+		Holds: []*sessionv1.TeamHolding{{InstallationId: recordsInstallation, Target: "records", Role: "viewer"}}}}}, nil
+}
+
 func (s *standIn) ListFixturePeople(context.Context, *sessionv1.ListFixturePeopleRequest, ...grpc.CallOption) (*sessionv1.ListFixturePeopleResponse, error) {
 	return &sessionv1.ListFixturePeopleResponse{People: []*sessionv1.FixturePerson{{PersonId: "remi", Email: "remi@acme.test", OrganizationId: "acme", OrganizationDisplayName: "Acme", Roles: []string{"editor"}, TeamIds: []string{"records-viewer"}, FixtureToken: "fixture-remi"}}}, nil
 }

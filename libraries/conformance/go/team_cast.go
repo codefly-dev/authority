@@ -22,10 +22,15 @@ import (
 //     cast is never recast; another organization's member is refused;
 //   - the session says which team it acts as, and names no other team and no
 //     organization role; the session it was opened from is untouched.
+//   - ListCastableTeams offers exactly that choice: the team, holding its
+//     role, to the administrator and to the member; the cast lists its own
+//     team alone; neither the person who could not grant nor the team granted
+//     nothing is listed.
 func (sp *principalSuite) teamCast(t *testing.T) {
 	t.Helper()
-	if !sp.c.hasElement("host.session.v1.SessionService", "OpenTeamCast") || !sp.c.hasElement("host.session.v1.Session", "cast_team_id") {
-		t.Fatal("the published contract lacks host.session.v1.SessionService.OpenTeamCast or Session.cast_team_id: a person's session cast onto a team")
+	if !sp.c.hasElement("host.session.v1.SessionService", "OpenTeamCast") || !sp.c.hasElement("host.session.v1.Session", "cast_team_id") ||
+		!sp.c.hasElement("host.session.v1.SessionService", "ListCastableTeams") {
+		t.Fatal("the published contract lacks host.session.v1.SessionService.OpenTeamCast, ListCastableTeams or Session.cast_team_id: a person's session cast onto a team")
 	}
 	f := sp.f
 	A := f.A
@@ -44,6 +49,7 @@ func (sp *principalSuite) teamCast(t *testing.T) {
 		return name, nil
 	}
 
+	instA := str(sp.ensure(t, f.Organization, A), "id")
 	for who, from := range map[string]string{"an administrator who is not in the team": f.Admin, "a member of the team": f.TeamMember} {
 		t.Run(who, func(t *testing.T) {
 			as, err := cast(t, from, f.Team)
@@ -60,6 +66,13 @@ func (sp *principalSuite) teamCast(t *testing.T) {
 			_, err = cast(t, as, f.Team)
 			refused(t, err, codes.PermissionDenied, "already cast")
 
+			if got := sp.castable(t, as); len(got) != 1 || !slices.Contains(got[f.Team], instA+" viewer") {
+				t.Fatalf("a cast lists %v; want the one team it acts as, %s, holding viewer on %s", got, f.Team, instA)
+			}
+			if got := sp.castable(t, from); !slices.Contains(got[f.Team], instA+" viewer") {
+				t.Fatalf("%s lists %v; want %s, holding viewer on %s: a team OpenTeamCast opens for them", who, got, f.Team, instA)
+			}
+
 			current := sp.must(t)(sp.c.call(sp.as(t, as), "host.session.v1.SessionService", "Current", nil))
 			if str(current, "cast_team_id") != f.Team || !slices.Equal(listStrings(current, "team_ids"), []string{f.Team}) || len(listStrings(current, "roles")) != 0 {
 				t.Fatalf("Current says the cast acts as team %q, of teams %v, with roles %v; want team %s alone and no role",
@@ -75,6 +88,15 @@ func (sp *principalSuite) teamCast(t *testing.T) {
 	sp.grant(t, A, "author", sp.person(t, f.Member))
 	sp.revoke(t, A, "author", sp.person(t, f.Member))
 
+	// ListCastableTeams lists by OpenTeamCast's rule: what it refuses is not
+	// offered, so a person who could not grant the team's roles, and a team
+	// granted nothing, are absent from the list.
+	if got := sp.castable(t, f.Member); got[f.Team] != nil {
+		t.Fatalf("a person who could not grant the team's roles lists it: %v", got)
+	}
+	if got := sp.castable(t, f.Admin); got[f.EmptyTeam] != nil {
+		t.Fatalf("a team granted nothing is listed: %v", got)
+	}
 	_, err := cast(t, f.Member, f.Team)
 	refused(t, err, codes.PermissionDenied, "could not grant")
 	_, err = cast(t, f.Admin, f.EmptyTeam)
@@ -84,4 +106,22 @@ func (sp *principalSuite) teamCast(t *testing.T) {
 	if _, err = cast(t, f.OtherMember, f.Team); err == nil {
 		t.Fatal("a member of another organization was cast onto this organization's team")
 	}
+}
+
+// castable is what ListCastableTeams answers the session from: each team's
+// holdings as "<installation> <role>", by team id. Every team carries a name.
+func (sp *principalSuite) castable(t *testing.T, from string) map[string][]string {
+	t.Helper()
+	out := map[string][]string{}
+	for _, team := range listMsgs(sp.must(t)(sp.c.call(sp.as(t, from), "host.session.v1.SessionService", "ListCastableTeams", nil)), "teams") {
+		if str(team, "display_name") == "" {
+			t.Fatalf("team %q is listed with no name", str(team, "team_id"))
+		}
+		holds := []string{}
+		for _, h := range listMsgs(team, "holds") {
+			holds = append(holds, str(h, "installation_id")+" "+str(h, "role"))
+		}
+		out[str(team, "team_id")] = holds
+	}
+	return out
 }

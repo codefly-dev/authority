@@ -48,6 +48,9 @@ const (
 	// SessionServiceOpenTeamCastProcedure is the fully-qualified name of the SessionService's
 	// OpenTeamCast RPC.
 	SessionServiceOpenTeamCastProcedure = "/host.session.v1.SessionService/OpenTeamCast"
+	// SessionServiceListCastableTeamsProcedure is the fully-qualified name of the SessionService's
+	// ListCastableTeams RPC.
+	SessionServiceListCastableTeamsProcedure = "/host.session.v1.SessionService/ListCastableTeams"
 	// SessionServiceListFixturePeopleProcedure is the fully-qualified name of the SessionService's
 	// ListFixturePeople RPC.
 	SessionServiceListFixturePeopleProcedure = "/host.session.v1.SessionService/ListFixturePeople"
@@ -86,6 +89,15 @@ type SessionServiceClient interface {
 	// opened from is untouched and is the way back. The callers OpenRoleView
 	// refuses are refused here.
 	OpenTeamCast(context.Context, *connect.Request[v1.OpenTeamCastRequest]) (*connect.Response[v1.Session], error)
+	// ListCastableTeams answers the teams of the organisation the caller is
+	// signed into that the caller may act as now, each with what it holds, so a
+	// page offers the choice OpenTeamCast decides: listed by OpenTeamCast's one
+	// rule (a team whose roles the caller could grant, member of it or not), and
+	// a team it would refuse is not listed, a team granted nothing included. A
+	// cast answers the one team it acts as. Listing opens nothing: each
+	// OpenTeamCast is decided again when it is asked. The callers OpenTeamCast
+	// refuses are refused here.
+	ListCastableTeams(context.Context, *connect.Request[v1.ListCastableTeamsRequest]) (*connect.Response[v1.ListCastableTeamsResponse], error)
 	// ListFixturePeople answers who this authority signs in by fixture token, for
 	// the browser edge's sign-in page: the people are defined once, in the
 	// authority's fixture. A host that signs real people in through its identity
@@ -128,6 +140,12 @@ func NewSessionServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(sessionServiceMethods.ByName("OpenTeamCast")),
 			connect.WithClientOptions(opts...),
 		),
+		listCastableTeams: connect.NewClient[v1.ListCastableTeamsRequest, v1.ListCastableTeamsResponse](
+			httpClient,
+			baseURL+SessionServiceListCastableTeamsProcedure,
+			connect.WithSchema(sessionServiceMethods.ByName("ListCastableTeams")),
+			connect.WithClientOptions(opts...),
+		),
 		listFixturePeople: connect.NewClient[v1.ListFixturePeopleRequest, v1.ListFixturePeopleResponse](
 			httpClient,
 			baseURL+SessionServiceListFixturePeopleProcedure,
@@ -143,6 +161,7 @@ type sessionServiceClient struct {
 	current           *connect.Client[v1.CurrentRequest, v1.Session]
 	openRoleView      *connect.Client[v1.OpenRoleViewRequest, v1.Session]
 	openTeamCast      *connect.Client[v1.OpenTeamCastRequest, v1.Session]
+	listCastableTeams *connect.Client[v1.ListCastableTeamsRequest, v1.ListCastableTeamsResponse]
 	listFixturePeople *connect.Client[v1.ListFixturePeopleRequest, v1.ListFixturePeopleResponse]
 }
 
@@ -164,6 +183,11 @@ func (c *sessionServiceClient) OpenRoleView(ctx context.Context, req *connect.Re
 // OpenTeamCast calls host.session.v1.SessionService.OpenTeamCast.
 func (c *sessionServiceClient) OpenTeamCast(ctx context.Context, req *connect.Request[v1.OpenTeamCastRequest]) (*connect.Response[v1.Session], error) {
 	return c.openTeamCast.CallUnary(ctx, req)
+}
+
+// ListCastableTeams calls host.session.v1.SessionService.ListCastableTeams.
+func (c *sessionServiceClient) ListCastableTeams(ctx context.Context, req *connect.Request[v1.ListCastableTeamsRequest]) (*connect.Response[v1.ListCastableTeamsResponse], error) {
+	return c.listCastableTeams.CallUnary(ctx, req)
 }
 
 // ListFixturePeople calls host.session.v1.SessionService.ListFixturePeople.
@@ -204,6 +228,15 @@ type SessionServiceHandler interface {
 	// opened from is untouched and is the way back. The callers OpenRoleView
 	// refuses are refused here.
 	OpenTeamCast(context.Context, *connect.Request[v1.OpenTeamCastRequest]) (*connect.Response[v1.Session], error)
+	// ListCastableTeams answers the teams of the organisation the caller is
+	// signed into that the caller may act as now, each with what it holds, so a
+	// page offers the choice OpenTeamCast decides: listed by OpenTeamCast's one
+	// rule (a team whose roles the caller could grant, member of it or not), and
+	// a team it would refuse is not listed, a team granted nothing included. A
+	// cast answers the one team it acts as. Listing opens nothing: each
+	// OpenTeamCast is decided again when it is asked. The callers OpenTeamCast
+	// refuses are refused here.
+	ListCastableTeams(context.Context, *connect.Request[v1.ListCastableTeamsRequest]) (*connect.Response[v1.ListCastableTeamsResponse], error)
 	// ListFixturePeople answers who this authority signs in by fixture token, for
 	// the browser edge's sign-in page: the people are defined once, in the
 	// authority's fixture. A host that signs real people in through its identity
@@ -242,6 +275,12 @@ func NewSessionServiceHandler(svc SessionServiceHandler, opts ...connect.Handler
 		connect.WithSchema(sessionServiceMethods.ByName("OpenTeamCast")),
 		connect.WithHandlerOptions(opts...),
 	)
+	sessionServiceListCastableTeamsHandler := connect.NewUnaryHandler(
+		SessionServiceListCastableTeamsProcedure,
+		svc.ListCastableTeams,
+		connect.WithSchema(sessionServiceMethods.ByName("ListCastableTeams")),
+		connect.WithHandlerOptions(opts...),
+	)
 	sessionServiceListFixturePeopleHandler := connect.NewUnaryHandler(
 		SessionServiceListFixturePeopleProcedure,
 		svc.ListFixturePeople,
@@ -258,6 +297,8 @@ func NewSessionServiceHandler(svc SessionServiceHandler, opts ...connect.Handler
 			sessionServiceOpenRoleViewHandler.ServeHTTP(w, r)
 		case SessionServiceOpenTeamCastProcedure:
 			sessionServiceOpenTeamCastHandler.ServeHTTP(w, r)
+		case SessionServiceListCastableTeamsProcedure:
+			sessionServiceListCastableTeamsHandler.ServeHTTP(w, r)
 		case SessionServiceListFixturePeopleProcedure:
 			sessionServiceListFixturePeopleHandler.ServeHTTP(w, r)
 		default:
@@ -283,6 +324,10 @@ func (UnimplementedSessionServiceHandler) OpenRoleView(context.Context, *connect
 
 func (UnimplementedSessionServiceHandler) OpenTeamCast(context.Context, *connect.Request[v1.OpenTeamCastRequest]) (*connect.Response[v1.Session], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.session.v1.SessionService.OpenTeamCast is not implemented"))
+}
+
+func (UnimplementedSessionServiceHandler) ListCastableTeams(context.Context, *connect.Request[v1.ListCastableTeamsRequest]) (*connect.Response[v1.ListCastableTeamsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.session.v1.SessionService.ListCastableTeams is not implemented"))
 }
 
 func (UnimplementedSessionServiceHandler) ListFixturePeople(context.Context, *connect.Request[v1.ListFixturePeopleRequest]) (*connect.Response[v1.ListFixturePeopleResponse], error) {

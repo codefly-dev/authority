@@ -29,6 +29,7 @@ const (
 	SessionService_Current_FullMethodName           = "/host.session.v1.SessionService/Current"
 	SessionService_OpenRoleView_FullMethodName      = "/host.session.v1.SessionService/OpenRoleView"
 	SessionService_OpenTeamCast_FullMethodName      = "/host.session.v1.SessionService/OpenTeamCast"
+	SessionService_ListCastableTeams_FullMethodName = "/host.session.v1.SessionService/ListCastableTeams"
 	SessionService_ListFixturePeople_FullMethodName = "/host.session.v1.SessionService/ListFixturePeople"
 )
 
@@ -69,6 +70,15 @@ type SessionServiceClient interface {
 	// opened from is untouched and is the way back. The callers OpenRoleView
 	// refuses are refused here.
 	OpenTeamCast(ctx context.Context, in *OpenTeamCastRequest, opts ...grpc.CallOption) (*Session, error)
+	// ListCastableTeams answers the teams of the organisation the caller is
+	// signed into that the caller may act as now, each with what it holds, so a
+	// page offers the choice OpenTeamCast decides: listed by OpenTeamCast's one
+	// rule (a team whose roles the caller could grant, member of it or not), and
+	// a team it would refuse is not listed, a team granted nothing included. A
+	// cast answers the one team it acts as. Listing opens nothing: each
+	// OpenTeamCast is decided again when it is asked. The callers OpenTeamCast
+	// refuses are refused here.
+	ListCastableTeams(ctx context.Context, in *ListCastableTeamsRequest, opts ...grpc.CallOption) (*ListCastableTeamsResponse, error)
 	// ListFixturePeople answers who this authority signs in by fixture token, for
 	// the browser edge's sign-in page: the people are defined once, in the
 	// authority's fixture. A host that signs real people in through its identity
@@ -124,6 +134,16 @@ func (c *sessionServiceClient) OpenTeamCast(ctx context.Context, in *OpenTeamCas
 	return out, nil
 }
 
+func (c *sessionServiceClient) ListCastableTeams(ctx context.Context, in *ListCastableTeamsRequest, opts ...grpc.CallOption) (*ListCastableTeamsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListCastableTeamsResponse)
+	err := c.cc.Invoke(ctx, SessionService_ListCastableTeams_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *sessionServiceClient) ListFixturePeople(ctx context.Context, in *ListFixturePeopleRequest, opts ...grpc.CallOption) (*ListFixturePeopleResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListFixturePeopleResponse)
@@ -171,6 +191,15 @@ type SessionServiceServer interface {
 	// opened from is untouched and is the way back. The callers OpenRoleView
 	// refuses are refused here.
 	OpenTeamCast(context.Context, *OpenTeamCastRequest) (*Session, error)
+	// ListCastableTeams answers the teams of the organisation the caller is
+	// signed into that the caller may act as now, each with what it holds, so a
+	// page offers the choice OpenTeamCast decides: listed by OpenTeamCast's one
+	// rule (a team whose roles the caller could grant, member of it or not), and
+	// a team it would refuse is not listed, a team granted nothing included. A
+	// cast answers the one team it acts as. Listing opens nothing: each
+	// OpenTeamCast is decided again when it is asked. The callers OpenTeamCast
+	// refuses are refused here.
+	ListCastableTeams(context.Context, *ListCastableTeamsRequest) (*ListCastableTeamsResponse, error)
 	// ListFixturePeople answers who this authority signs in by fixture token, for
 	// the browser edge's sign-in page: the people are defined once, in the
 	// authority's fixture. A host that signs real people in through its identity
@@ -197,6 +226,9 @@ func (UnimplementedSessionServiceServer) OpenRoleView(context.Context, *OpenRole
 }
 func (UnimplementedSessionServiceServer) OpenTeamCast(context.Context, *OpenTeamCastRequest) (*Session, error) {
 	return nil, status.Error(codes.Unimplemented, "method OpenTeamCast not implemented")
+}
+func (UnimplementedSessionServiceServer) ListCastableTeams(context.Context, *ListCastableTeamsRequest) (*ListCastableTeamsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListCastableTeams not implemented")
 }
 func (UnimplementedSessionServiceServer) ListFixturePeople(context.Context, *ListFixturePeopleRequest) (*ListFixturePeopleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListFixturePeople not implemented")
@@ -294,6 +326,24 @@ func _SessionService_OpenTeamCast_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SessionService_ListCastableTeams_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListCastableTeamsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).ListCastableTeams(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_ListCastableTeams_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).ListCastableTeams(ctx, req.(*ListCastableTeamsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _SessionService_ListFixturePeople_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListFixturePeopleRequest)
 	if err := dec(in); err != nil {
@@ -334,6 +384,10 @@ var SessionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "OpenTeamCast",
 			Handler:    _SessionService_OpenTeamCast_Handler,
+		},
+		{
+			MethodName: "ListCastableTeams",
+			Handler:    _SessionService_ListCastableTeams_Handler,
 		},
 		{
 			MethodName: "ListFixturePeople",

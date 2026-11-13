@@ -92,6 +92,29 @@ func (p *Plugin) OpenTeamCast(ctx context.Context, req *sessionv1.OpenTeamCastRe
 	return wire(sess, sess.ID), nil
 }
 
+// ListCastableTeams answers the teams the caller may act as, each with what
+// it holds; the core lists them by OpenTeamCast's own rule. A fixture team is
+// named by its id.
+func (p *Plugin) ListCastableTeams(ctx context.Context, _ *sessionv1.ListCastableTeamsRequest) (*sessionv1.ListCastableTeamsResponse, error) {
+	bearer := authorityplugin.Bearer(ctx)
+	if bearer == "" {
+		return nil, status.Error(codes.Unauthenticated, "the call carries no session bearer")
+	}
+	teams, err := p.State.CastableTeams(ctx, bearer)
+	if err != nil {
+		return nil, authorityplugin.Status(err)
+	}
+	out := &sessionv1.ListCastableTeamsResponse{}
+	for _, team := range teams {
+		listed := &sessionv1.CastableTeam{TeamId: team.Team, DisplayName: team.Team}
+		for _, h := range team.Holds {
+			listed.Holds = append(listed.Holds, &sessionv1.TeamHolding{InstallationId: h.InstallationID, Target: h.Target, Role: h.Role})
+		}
+		out.Teams = append(out.Teams, listed)
+	}
+	return out, nil
+}
+
 // Current answers the session the call's bearer belongs to. The bearer is not
 // handed back: the caller already holds it.
 func (p *Plugin) Current(ctx context.Context, _ *sessionv1.CurrentRequest) (*sessionv1.Session, error) {

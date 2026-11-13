@@ -50,6 +50,17 @@ service SessionService {
   rpc OpenTeamCast(OpenTeamCastRequest) returns (Session) {
     option (google.api.http) = {post: "/v1/session:open-team-cast" body: "*"};
   }
+  // ListCastableTeams answers the teams of the organisation the caller is
+  // signed into that the caller may act as now, each with what it holds, so a
+  // page offers the choice OpenTeamCast decides: listed by OpenTeamCast's one
+  // rule (a team whose roles the caller could grant, member of it or not), and
+  // a team it would refuse is not listed, a team granted nothing included. A
+  // cast answers the one team it acts as. Listing opens nothing: each
+  // OpenTeamCast is decided again when it is asked. The callers OpenTeamCast
+  // refuses are refused here.
+  rpc ListCastableTeams(ListCastableTeamsRequest) returns (ListCastableTeamsResponse) {
+    option (google.api.http) = {get: "/v1/session/castable-teams"};
+  }
   // ListFixturePeople answers who this authority signs in by fixture token, for
   // the browser edge's sign-in page: the people are defined once, in the
   // authority's fixture. A host that signs real people in through its identity
@@ -57,6 +68,39 @@ service SessionService {
   rpc ListFixturePeople(ListFixturePeopleRequest) returns (ListFixturePeopleResponse) {
     option (google.api.http) = {get: "/v1/session/fixture-people"};
   }
+}
+
+// ListCastableTeamsRequest asks for the teams the caller may act as, at the
+// organisation the caller's session is signed into.
+message ListCastableTeamsRequest {}
+
+// ListCastableTeamsResponse is every team the caller may act as, by team id.
+message ListCastableTeamsResponse {
+  // The teams.
+  repeated CastableTeam teams = 1;
+}
+
+// CastableTeam is one team a caller may act as, and what a cast onto it holds.
+message CastableTeam {
+  // The team.
+  string team_id = 1;
+  // The team's name, as the host spells it, for a page that offers the
+  // choice; the id above is the identity. A host that names teams by their
+  // id answers the id.
+  string display_name = 2;
+  // Each role granted to the team on an active installation, by installation
+  // then role.
+  repeated TeamHolding holds = 3;
+}
+
+// TeamHolding is one role a team holds on one installation.
+message TeamHolding {
+  // The installation.
+  string installation_id = 1;
+  // What it installs, as the installation names it.
+  string target = 2;
+  // The role.
+  string role = 3;
 }
 
 // ListFixturePeopleRequest asks for every fixture person.
