@@ -5,7 +5,10 @@ package registry_test
 import (
 	"context"
 	"crypto"
+	"fmt"
 	core "github.com/codefly-dev/authority/libraries/authority-core/go/authority"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/delivered"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	delivery "github.com/codefly-dev/authority/libraries/delivery/go"
 	"github.com/codefly-dev/core/solutionhost"
@@ -21,6 +24,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
+	"google.golang.org/protobuf/proto"
 
 	"gateway/pkg/business/testkit"
 	"gateway/pkg/framework"
@@ -32,6 +36,7 @@ import (
 	conformance "github.com/codefly-dev/authority/libraries/conformance/go"
 
 	"gateway/pkg/business/state"
+	compositionv1 "gateway/pkg/gen/host/composition/v1"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
@@ -98,9 +103,9 @@ people:
 		t.Fatal(err)
 	}
 	signer, verifier := testkit.NewRelease(t, "local")
+	composed := &composition.Plugin{State: k.State, Coordinate: "local", Verifier: verifier, Carrier: k.CarrierAuthority, Keys: map[string]crypto.PublicKey{signer.KeyID(): signer.Public()}}
 	plugins := []framework.Plugin{
-		&authority.Plugin{Issuer: k.Issuer},
-		&composition.Plugin{State: k.State, Coordinate: "local", Verifier: verifier, Carrier: k.CarrierAuthority, Keys: map[string]crypto.PublicKey{signer.KeyID(): signer.Public()}},
+		&authority.Plugin{Issuer: k.Issuer}, composed,
 		&installation.Plugin{State: k.State}, &session.Plugin{State: k.State},
 	}
 	server := grpc.NewServer()
@@ -241,6 +246,13 @@ people:
 				return k.State.LoadFixture(ctx, fixture)
 			},
 		},
+		// The composition plugin reads the deliveries the host holds again,
+		// as it reads them now; a stranded module is the same delivery
+		// as a host that read no through composed it.
+		Reread: &conformance.RereadCase{
+			Strand: func(_ context.Context, module string) error { return strandWithoutThrough(k.State, module) },
+			Reread: composed.Reread,
+		},
 		UnentitledToken: "fixture-no-roles",
 		Organization:    "acme", ViewerToken: "fixture-maya", AdminToken: "fixture-alex",
 		// Maya reads records; the directory page hops on her context through its
@@ -305,4 +317,31 @@ func directGrants(t *testing.T, k *testkit.Kit, id, role string, members map[str
 			}
 		}
 	}
+}
+
+// strandWithoutThrough holds module as a host that did not read roles'
+// through declarations composed the delivery it holds: each role without
+// what it names through a binding, and no source recorded.
+func strandWithoutThrough(st *state.State, module string) error {
+	for _, held := range st.HeldDeliveries() {
+		manifest, err := held.Carrier.Manifest()
+		if err != nil || manifest.Alias != module || held.Authority == nil {
+			continue
+		}
+		var wire compositionv1.AuthorityManifestV1
+		if err := proto.Unmarshal(held.Authority.Document, &wire); err != nil {
+			return err
+		}
+		doc := composition.DocumentOf(&wire)
+		for i := range doc.Roles {
+			doc.Roles[i].Through = nil
+		}
+		m, err := delivered.Module(manifest, doc)
+		if err != nil {
+			return err
+		}
+		m.ResourceKinds = decide.Served(m)
+		return st.HoldComposed(m)
+	}
+	return fmt.Errorf("the host holds no delivery of %s with an authority document", module)
 }

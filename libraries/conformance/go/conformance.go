@@ -80,6 +80,11 @@ type Fixture struct {
 	// every other line of that case still runs. Empty: the host serves it.
 	ReviewOfferNotServed string
 
+	// Reread stands the host in for one that read less of a delivery than it
+	// reads now, and reads its held deliveries again. Omission fails
+	// conformance.
+	Reread *RereadCase
+
 	// SolutionTools exercises a module binding to a solution with distinct person entitlements.
 	SolutionTools *SolutionToolsCase
 
@@ -1014,6 +1019,7 @@ func run(t *testing.T, c *client, f Fixture) {
 	c.installationSurvivesDelivery(t, ctx, f)
 	c.reachConsent(t, ctx, f)
 	c.reachThroughConsent(t, ctx, f)
+	c.installationReread(t, ctx, f)
 	c.organizationIsolation(t, ctx, f)
 	c.admissionKeys(t, ctx, f)
 }

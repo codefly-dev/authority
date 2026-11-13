@@ -549,7 +549,8 @@ func unadoptable(err error) bool {
 
 // UpgradeAvailable reports whether inst offers an upgrade an administrator
 // approves through Install: its consent stands behind the delivered
-// generation (decide.UpgradeAvailable), or what its approved declaration's
+// generation (decide.UpgradeAvailable), or approved it as read before a
+// re-read (approvedReading), or what its approved declaration's
 // roles reach in the composition now asks more than its consent approved.
 func (s *Service) UpgradeAvailable(ctx context.Context, inst domain.Installation) (bool, error) {
 	var out bool
@@ -571,6 +572,9 @@ func (s *Service) UpgradeAvailable(ctx context.Context, inst domain.Installation
 func upgradeAvailable(tx Tx, inst domain.Installation, m domain.Module) (bool, error) {
 	if decide.UpgradeAvailable(inst, m) {
 		return true, nil
+	}
+	if _, reread, err := approvedReading(tx, inst, m); err != nil || reread {
+		return reread, err
 	}
 	if inst.Status != domain.Active || inst.Consent.OperationID == "" || inst.Target != m.Name {
 		return false, nil

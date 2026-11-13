@@ -8,6 +8,9 @@ package delivered
 
 import (
 	"crypto"
+	"crypto/sha256"
+	"encoding/binary"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -84,6 +87,25 @@ func Pair(doc Document, carrierDocument []byte, manifest *solutionhost.ModuleMan
 		return domain.Refuse("the authority's document names another manifest than the one delivered with it")
 	}
 	return sameInstallationDeclaration(manifest.Authority, &doc)
+}
+
+// Source is the digest of a delivery's signed documents, as a host verified
+// them: core's manifest (the carrier's document) and the authority's document
+// paired with it, nil when none was. Two readings of one generation come from
+// the same delivery exactly when their sources are equal: a host that reads
+// a field it did not read before reads the same Source differently
+// (domain.Module.Source, authority.Service.RereadModule).
+func Source(carrierDocument, authorityDocument []byte) string {
+	h := sha256.New()
+	for _, doc := range [][]byte{carrierDocument, authorityDocument} {
+		var size [8]byte // 0 for an absent document, its length plus one otherwise
+		if doc != nil {
+			binary.BigEndian.PutUint64(size[:], uint64(len(doc))+1)
+		}
+		h.Write(size[:])
+		h.Write(doc)
+	}
+	return fmt.Sprintf("sha256:%x", h.Sum(nil))
 }
 
 // Module is what a verified delivery composes: core's manifest (FromCore),

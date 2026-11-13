@@ -153,6 +153,12 @@ type Module struct {
 	// Methods are what each method the module serves requires of a call, from
 	// its delivered authority document; nil when it declared none.
 	Methods map[string]MethodPolicy
+	// Source is the digest of the signed documents the declaration was read
+	// from (delivered.Source): where it came from, not what it declares, so
+	// no declaration or offer digest covers it. A generation the core holds
+	// is read again from the same Source only (Service.RereadModule). Empty:
+	// composed before the core kept it, or a fixture's.
+	Source string `json:"-"`
 }
 
 // NoInstallationRole is declaration-only. It is retained on an installation
@@ -284,11 +290,6 @@ var ErrAlreadyInstalled = errors.New("already installed")
 
 // ErrNotFound is what a store answers for a missing record.
 var ErrNotFound = errors.New("not found")
-
-// ErrApprovedDeclarationKept is what a store answers for a declaration
-// written at a (module, generation) it already keeps a different one for: an
-// approved declaration is what a consent approved, and is never replaced.
-var ErrApprovedDeclarationKept = errors.New("a different declaration is kept for this approved generation")
 
 // Refuse builds a Denied refusal.
 func Refuse(format string, args ...any) error { return refusal(Denied, format, args...) }

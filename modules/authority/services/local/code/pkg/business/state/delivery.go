@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"maps"
 	"slices"
+
+	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 
 	"github.com/codefly-dev/core/solutionhost"
 )
@@ -14,7 +17,7 @@ import (
 // callback failure must neither forget an admitted generation nor report success.
 type appliedDelivery struct {
 	carrier    *solutionhost.Delivered
-	sidecar    []byte
+	sidecar    *SignedDocument
 	ids        []string
 	pending    []*pendingInstallation
 	completion chan struct{}
@@ -29,10 +32,73 @@ type pendingInstallation struct {
 	done     bool
 }
 
+// SignedDocument is the authority's document delivered beside a carrier, as
+// signed: Document is never nil when one was delivered.
+type SignedDocument struct {
+	Document, Envelope []byte
+}
+
+// HeldDelivery is one delivery the host holds: its verified carrier and the
+// authority's document delivered with it, nil when none was.
+type HeldDelivery struct {
+	Carrier   *solutionhost.Delivered
+	Authority *SignedDocument
+}
+
+// HeldDeliveries are the deliveries the host holds, withdrawals left out.
+func (s *State) HeldDeliveries() []HeldDelivery {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []HeldDelivery
+	for _, binding := range slices.Sorted(maps.Keys(s.deliveries)) {
+		record := s.deliveries[binding]
+		if manifest, err := record.carrier.Manifest(); err == nil && !manifest.Removed {
+			out = append(out, HeldDelivery{Carrier: record.carrier, Authority: record.sidecar})
+		}
+	}
+	return out
+}
+
+// Reread composes m, a held delivery read again, in the core
+// (authority.Service.RereadModule), reporting whether the held declaration
+// changed.
+func (s *State) Reread(ctx context.Context, m Manifest) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	reread, err := s.svc.RereadModule(ctx, m)
+	if err != nil {
+		return false, classify(err)
+	}
+	if reread {
+		s.refreshRolesLocked()
+	}
+	return reread, nil
+}
+
+// HoldComposed is trusted host fixture setup, never a request path: it holds
+// m as the core's composed declaration of its module, as an earlier host
+// composed it, without the core deciding anything, so a fixture stands a
+// host in for one that read a delivery differently. The module must be
+// composed already, at m's generation.
+func (s *State) HoldComposed(m Manifest) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.write(func(tx authority.Tx) error {
+		held, err := tx.ModuleNamed(m.Name)
+		if err != nil {
+			return err
+		}
+		if held.Generation != m.Generation || held.Principal != m.Principal {
+			return fmt.Errorf("%w: %s is held at generation %d, not %d", ErrStale, m.Name, held.Generation, m.Generation)
+		}
+		return tx.PutModule(m)
+	})
+}
+
 // ApplyDelivered atomically admits and projects a verified carrier. Coordinate
 // belongs to the host's configuration, never to the candidate. The plugin has
 // verified the sidecar and derived m from these two documents before calling.
-func (s *State) ApplyDelivered(ctx context.Context, coordinate string, carrier *solutionhost.Delivered, sidecar []byte, m Manifest) ([]string, error) {
+func (s *State) ApplyDelivered(ctx context.Context, coordinate string, carrier *solutionhost.Delivered, sidecar *SignedDocument, m Manifest) ([]string, error) {
 	candidate, err := carrier.Manifest()
 	if err != nil {
 		return nil, err
@@ -54,7 +120,7 @@ func (s *State) ApplyDelivered(ctx context.Context, coordinate string, carrier *
 	return slices.Clone(record.ids), nil
 }
 
-func (s *State) admitDeliveryLocked(coordinate string, carrier *solutionhost.Delivered, sidecar []byte, candidate *solutionhost.ModuleManifest, m Manifest) (*appliedDelivery, error) {
+func (s *State) admitDeliveryLocked(coordinate string, carrier *solutionhost.Delivered, sidecar *SignedDocument, candidate *solutionhost.ModuleManifest, m Manifest) (*appliedDelivery, error) {
 	var previous *solutionhost.ModuleManifest
 	held := s.deliveries[candidate.Binding]
 	if held != nil {
@@ -82,12 +148,15 @@ func (s *State) admitDeliveryLocked(coordinate string, carrier *solutionhost.Del
 		return nil, fmt.Errorf("%w: %w", ErrForbidden, err)
 	}
 	if decision == solutionhost.DecisionReplay {
-		if (held.sidecar == nil) != (sidecar == nil) || !bytes.Equal(held.sidecar, sidecar) {
+		if (held.sidecar == nil) != (sidecar == nil) || (sidecar != nil && !bytes.Equal(held.sidecar.Document, sidecar.Document)) {
 			return nil, fmt.Errorf("%w: binding %s rewrote its authority document at generation %d", ErrStale, candidate.Binding, candidate.Generation)
 		}
 		return held, nil
 	}
-	record := &appliedDelivery{carrier: carrier, sidecar: bytes.Clone(sidecar), completion: make(chan struct{}, 1)}
+	record := &appliedDelivery{carrier: carrier, completion: make(chan struct{}, 1)}
+	if sidecar != nil {
+		record.sidecar = &SignedDocument{Document: bytes.Clone(sidecar.Document), Envelope: bytes.Clone(sidecar.Envelope)}
+	}
 	if held != nil {
 		record.completion = held.completion
 	}

@@ -78,10 +78,21 @@ func approvedGovernance(inst domain.Installation) bool {
 // approvedGeneration is approvedModule before governance is held to it.
 func approvedGeneration(tx Tx, inst domain.Installation, m domain.Module) (domain.Module, error) {
 	c := inst.Consent
-	if c.OperationID == "" || c.Generation == 0 || c.Generation >= m.Generation || inst.Target != m.Name {
+	if c.OperationID == "" || c.Generation == 0 || c.Generation > m.Generation || inst.Target != m.Name {
 		return m, nil
 	}
-	approved, err := tx.ApprovedModule(m.Name, c.Generation)
+	if c.Generation == m.Generation {
+		approved, reread, err := approvedReading(tx, inst, m)
+		if err != nil || !reread {
+			return m, err
+		}
+		return approved, nil
+	}
+	approved, err := tx.ApprovedModule(m.Name, c.Generation, c.Digest)
+	if errors.Is(err, domain.ErrNotFound) && c.Digest != "" {
+		// Kept under another digest only: whatever wrote it, not this offer.
+		approved, err = tx.ApprovedModule(m.Name, c.Generation, "")
+	}
 	if errors.Is(err, domain.ErrNotFound) {
 		return m, domain.NotNow("the generation %d of %s that installation %s approved is not kept; review and approve the delivered offer", c.Generation, m.Name, inst.ID)
 	}
@@ -98,6 +109,33 @@ func approvedGeneration(tx Tx, inst domain.Installation, m domain.Module) (domai
 		}
 	}
 	return approved, nil
+}
+
+// approvedReading is, when m's generation was read again since inst's consent
+// approved it (Service.RereadModule) as a declaration the store keeps by the
+// digest the consent recorded, that approved reading: the consent stands at
+// m's generation and still holds what it approved, not the re-read. reread
+// is false when the consent approved m as it is, and when the store keeps no
+// declaration by the recorded digest: an offer digest the module's encoding
+// changed since is no re-read, and a consent is held to its reach either way
+// (approvedReach).
+func approvedReading(tx Tx, inst domain.Installation, m domain.Module) (domain.Module, bool, error) {
+	c := inst.Consent
+	if c.OperationID == "" || c.Generation != m.Generation || c.Digest == "" || inst.Target != m.Name {
+		return m, false, nil
+	}
+	if now, err := OfferDigest(m); err != nil || now == c.Digest {
+		return m, false, err
+	}
+	approved, err := tx.ApprovedModule(m.Name, c.Generation, c.Digest)
+	if errors.Is(err, domain.ErrNotFound) {
+		return m, false, nil
+	}
+	if err != nil {
+		return m, false, err
+	}
+	digest, err := OfferDigest(approved)
+	return approved, err == nil && digest == c.Digest, err
 }
 
 // dropUndeclaredGrants deletes every grant on inst of a role next does not
