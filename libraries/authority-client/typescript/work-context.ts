@@ -1,4 +1,4 @@
-import { admissionKeys, checkCall, Expired, Replayed, signedBy, SKEW, type ReplayStore } from "./hop-call.js";
+import { admissionKeys, checkCall, Expired, proof, Replayed, signedBy, SKEW, type ReplayStore } from "./hop-call.js";
 export { Expired, Replayed, LIFETIME, SKEW, PURPOSE } from "./hop-call.js";
 export type { ReplayStore } from "./hop-call.js";
 /** Work Context identity readers and method-bound, single-use hop admission.
@@ -291,8 +291,12 @@ export interface KeySource {
 
 /** The Go verifier's key policy: re-read on an unknown key at most every 10 s and
  * when older than 5 min, on a read of its own bounded by 5 s; keys that cannot be
- * re-read are trusted no longer than 15 min. */
+ * re-read are trusted no longer than 15 min. A stamp signed by no admission key
+ * held starts one read too, at most once per SIGNER_RETRY for every such stamp
+ * together (a stamp names no key id): a restarted hop signs with its fresh key at
+ * once, and is admitted after one read instead of after KEY_MAX_AGE. */
 const KEY_RETRY_MS = 10_000, KEY_MAX_AGE_MS = 300_000, KEY_STALE_MS = 900_000, KEY_TIMEOUT_MS = 5_000;
+const SIGNER_RETRY_MS = 10_000;
 
 /** What keysError reports, for the module's logs, while the authority's keys
  * read but publish no hop admission key: every call is refused as
@@ -315,6 +319,8 @@ export class Verifier {
   private admission: string[] = [];
   private fetched = 0;
   private tried = Number.NEGATIVE_INFINITY;
+  /** When a stamp under an admission key not held last started a read. */
+  private signer = Number.NEGATIVE_INFINITY;
   private inflight?: Promise<void>;
   /** The last key-read failure, for the module's own logs; never sent to a caller. */
   keysError?: unknown;
@@ -403,12 +409,19 @@ export class Verifier {
   }
 
   /** The published hop admission key the admission is signed by. It is judged
-   * on the keys held: neither a stamp signed by no published key nor keys past
-   * KEY_MAX_AGE start a read here, so a caller without an admission can neither
-   * drive the authority's keys nor delay a genuine call's read. Only when no
-   * trusted keys are held at all (never read, or past KEY_STALE), or the last
-   * read published no admission key (the hop had not registered yet), does it
-   * start one, at most every KEY_RETRY as readiness does, and wait for it. */
+   * on the keys held: keys past KEY_MAX_AGE start no read here, so a caller
+   * without an admission can neither drive the authority's keys nor delay a
+   * genuine call's read. When no trusted keys are held at all (never read, or
+   * past KEY_STALE), or the last read published no admission key (the hop had
+   * not registered yet), it starts one, at most every KEY_RETRY as readiness
+   * does, and waits for it. A well-formed stamp signed by none of the keys held
+   * may be a hop's that registered since the last read (a restarted gateway
+   * signs with its fresh key at once, and KEY_MAX_AGE is five minutes away): it
+   * starts one read, at most once per SIGNER_RETRY for every such stamp
+   * together, waits for it, and is judged again; still unknown, it is refused as
+   * stamp_proof. A flood of stamps under unknown keys therefore costs one read
+   * per SIGNER_RETRY, and a caller inside that window is refused on the keys
+   * held without waiting. */
   private async admissionKey(pairs: readonly (readonly [string, string])[]): Promise<string> {
     const now = this.now();
     const trusted = () => this.trust !== undefined && this.now() - this.fetched <= KEY_STALE_MS;
@@ -421,8 +434,15 @@ export class Verifier {
     }
     if (this.admission.length === 0) throw new Unauthenticated(Reason.KeysUnavailable);
     const key = signedBy(pairs, this.admission);
-    if (!key) throw new Unauthenticated(Reason.StampProof);
-    return key;
+    if (key) return key;
+    const at = this.now();
+    if (proof(pairs) === undefined || this.inflight || at - this.signer < SIGNER_RETRY_MS) throw new Unauthenticated(Reason.StampProof);
+    this.signer = at;
+    await this.refresh();
+    if (!trusted()) throw new Unauthenticated(Reason.KeysUnavailable);
+    const reread = signedBy(pairs, this.admission);
+    if (!reread) throw new Unauthenticated(Reason.StampProof);
+    return reread;
   }
 
   /** Consume the admission's nonce, retained to its expiry plus the clock

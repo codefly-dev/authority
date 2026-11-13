@@ -20,7 +20,7 @@ from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from .call import SKEW, Expired, Replayed, ReplayStore, ReservationStore, admission_keys, check, signed_by
+from .call import SKEW, Expired, Replayed, ReplayStore, ReservationStore, _proof, admission_keys, check, signed_by
 from authority_client._gen.host.authority.v1.authority_pb2 import KeysRequest
 from authority_client._gen.host.authority.v1.work_context_pb2 import WorkContextV1
 from authority_client.work_context import Claims, Trust, Unauthenticated, Reason, authenticate_token, bound_token, collect
@@ -43,8 +43,12 @@ ADVISORY_KEY = STAMP_PREFIX + "advisory"
 
 # The Go verifier's key policy: re-read on an unknown key at most every 10 s,
 # and when older than 5 min, on a read of its own bounded by 5 s; unreadable
-# keys are trusted no longer than 15 min.
+# keys are trusted no longer than 15 min. A stamp signed by no admission key
+# held starts one read too, at most once per SIGNER_RETRY for every such stamp
+# together (a stamp names no key id): a restarted hop signs with its fresh key
+# at once, and is admitted after one read instead of after KEY_MAX_AGE.
 KEY_RETRY, KEY_MAX_AGE, KEY_STALE, KEY_TIMEOUT = 10.0, 300.0, 900.0, 5.0
+SIGNER_RETRY = 10.0
 
 
 @dataclass(frozen=True)
@@ -142,6 +146,7 @@ class Verifier:
         self._admission: tuple[str, ...] = ()  # the published hop admission keys, hex
         self._fetched = 0.0
         self._tried = float("-inf")
+        self._signer = float("-inf")  # when a stamp under an unheld admission key last started a read
         self._inflight: futures.Future[None] | None = None  # done when the running read ends
         self.keys_error: Exception | None = None  # the last read's failure, for logs; never sent to a caller
         with self._lock:
@@ -218,7 +223,11 @@ class Verifier:
         wait = self._admission_read()
         if wait is not None:
             futures.wait((wait,), self._timeout)
-        pairs, token, call = self._bound(pairs, method, arrival)
+        key, wait = self._signer_key(pairs, reread=True)
+        if wait is not None:
+            futures.wait((wait,), self._timeout)
+            key, _ = self._signer_key(pairs, reread=False)
+        pairs, token, call = self._bound(pairs, key, method, arrival)
         managed = _managed(self._replay, "reserve", "finish")
         until = call.expires + SKEW
         try:
@@ -255,7 +264,14 @@ class Verifier:
                 await asyncio.wait_for(asyncio.wrap_future(wait), self._timeout)
             except asyncio.TimeoutError:
                 pass  # judged below on the keys held: missing or stale ones are refused with the reason
-        pairs, token, call = self._bound(pairs, method, arrival)
+        key, wait = self._signer_key(pairs, reread=True)
+        if wait is not None:
+            try:
+                await asyncio.wait_for(asyncio.wrap_future(wait), self._timeout)
+            except asyncio.TimeoutError:
+                pass  # judged below on the keys held: a key still unheld is refused as stamp_proof
+            key, _ = self._signer_key(pairs, reread=False)
+        pairs, token, call = self._bound(pairs, key, method, arrival)
         managed = _managed(self._replay, "reserve_async", "finish_async")
         until = call.expires + SKEW
         try:
@@ -314,9 +330,10 @@ class Verifier:
 
     def _admission_read(self) -> futures.Future[None] | None:
         """The read an admission must wait for, if any. An admission is judged on
-        the keys held: neither a stamp signed by no published key nor keys past
-        ``KEY_MAX_AGE`` start a read here, so a caller without an admission can
-        neither drive the authority's keys nor delay a genuine call's read. Only
+        the keys held: keys past ``KEY_MAX_AGE`` start no read here, and a stamp
+        signed by no key held starts at most one per ``SIGNER_RETRY``
+        (``_signer_key``), so a caller without an admission can neither drive the
+        authority's keys nor delay a genuine call's read. Only
         when no trusted keys are held at all (never read, or past ``KEY_STALE``),
         or the last read published no admission key (the hop had not registered
         yet), does it start one, at most every ``KEY_RETRY`` as readiness does."""
@@ -327,20 +344,39 @@ class Verifier:
                 self._refresh()
             return None if trusted else self._inflight
 
-    def _bound(self, pairs, method, arrival):
-        """The admission judged at the instant the call arrived, by the published
-        hop admission key it is signed by."""
+    def _signer_key(self, pairs, *, reread: bool) -> tuple[str, futures.Future[None] | None]:
+        """The published hop admission key the admission is signed by, judged on
+        the keys held. A stamp signed by none of them may be a hop's that
+        registered since the last read (a restarted gateway signs with its fresh
+        key at once, and ``KEY_MAX_AGE`` is five minutes away): with ``reread``,
+        it starts one read, at most once per ``SIGNER_RETRY`` for every such
+        stamp together, and returns it for the caller to wait for and judge the
+        stamp again. Otherwise, or inside that window, or while a read runs, it
+        is refused as stamp_proof, so a flood of stamps under unknown keys costs
+        the authority one read per ``SIGNER_RETRY``, as Go's does."""
         with self._lock:
             if self._trust is None or self._now() - self._fetched > KEY_STALE:
                 if isinstance(self.keys_error, Unauthenticated) and self.keys_error.reason == Reason.INVALIDKEY:
                     raise Unauthenticated(Reason.INVALIDKEY)
                 raise Unauthenticated(Reason.KEYSUNAVAILABLE)
             published = self._admission
-        if not published:
-            raise Unauthenticated(Reason.KEYSUNAVAILABLE)
-        key = signed_by(pairs, published)
-        if not key:
-            raise Unauthenticated(Reason.STAMPPROOF)
+            if not published:
+                raise Unauthenticated(Reason.KEYSUNAVAILABLE)
+            key = signed_by(pairs, published)
+            if key:
+                return key, None
+            # Only one well-formed proof can start the read: nothing without the
+            # proof reaches the key read.
+            now = self._now()
+            proven = _proof(collect(pairs)) is not None
+            if not reread or not proven or self._inflight is not None or now - self._signer < SIGNER_RETRY:
+                raise Unauthenticated(Reason.STAMPPROOF)
+            self._signer = now
+            return "", self._refresh()
+
+    def _bound(self, pairs, key, method, arrival):
+        """The admission judged at the instant the call arrived, by the published
+        hop admission key it is signed by."""
         call = check(pairs, key, method, self._audience, arrival)
         return pairs, bound_token(pairs), call
 
