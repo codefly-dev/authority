@@ -211,3 +211,43 @@ func TestANarrowedCallIsHeldToTheApprovedPolicyOnItsOwnScopes(t *testing.T) {
 		t.Fatalf("the approved relaxation is refused: %v", err)
 	}
 }
+
+// A call that reaches a module through a solution is held to the reach the
+// solution's installation approved, and to nothing the module's own page
+// installation decides: the module declaring a page with roles (as a model
+// gateway declares its installed-models page) does not make a person who
+// holds no role on that page lose what they reach at the module through the
+// solution. The store becomes a role-gated page; maya, a's author, holds no
+// role on it, and still reads through a, as the store's own viewer does.
+func TestACallThroughASolutionIsNotHeldToTheReachOfTheModulesOwnPage(t *testing.T) {
+	h := reachHarness(t)
+	at := h.must(h.through("maya", "a", "store"))
+	if err := h.callStore(at, storeRead); err != nil {
+		t.Fatal(err)
+	}
+	paged := storeAt(3, "admin", true)
+	paged.Page, paged.InstallationRole = true, domain.NoInstallationRole
+	paged.Roles = map[string][]*basev0.WorkScopeV1{
+		domain.InstallerRole: {sc(kind, "admin", "read", "write")},
+		"viewer":             {sc(kind, "read")},
+	}
+	if _, err := h.svc.ApplyModule(h.ctx, paged); err != nil {
+		t.Fatal(err)
+	}
+	// The store's page installation is held at composition's own receipt, as
+	// a host that installs modules takes it when it starts.
+	if err := h.svc.AdoptLegacyReach(h.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if page := h.stored(acme, "store"); page.Consent.OperationID != domain.ComposedConsent {
+		t.Fatalf("the store's page installation is held by %q, not composition", page.Consent.OperationID)
+	}
+	if up, err := h.svc.UpgradeAvailable(h.ctx, h.stored(acme, "a")); err != nil || up {
+		t.Fatalf("the store's own page widened a's reach: %v %v", up, err)
+	}
+	at = h.must(h.through("maya", "a", "store"))
+	if err := h.callStore(at, storeRead); err != nil {
+		t.Fatalf("a's author lost the approved Read once the store declared its own page's roles: %v", err)
+	}
+	refused(t, h.callStore(at, storePurge), "requires "+kind+":admin")
+}
