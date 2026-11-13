@@ -65,8 +65,11 @@ func (s *Service) AttachResource(ctx context.Context, r AttachmentRequest) (stri
 		// a solution's, and a module page's declaring roles, whose roles reach
 		// this store owner-selected to its principal (decide.ModuleRoleAt),
 		// the same installations AuthorizeTransfer counts. The serving module
-		// never owns through itself, and a module installation without a
-		// principal owns nothing.
+		// owns through itself only where its own page's roles brought the
+		// capability: it holds the create selected to the serving module's
+		// own installation, which only a role on that installation is issued
+		// (a solution's or another page's call carries its own principal). A
+		// module installation without a principal owns nothing.
 		for _, principal := range solutionPrincipals(wc, actor.Principal) {
 			m, err := tx.Module(principal)
 			if err != nil {
@@ -80,7 +83,7 @@ func (s *Service) AttachResource(ctx context.Context, r AttachmentRequest) (stri
 				candidates = append(candidates, inst.ID)
 				continue
 			}
-			if principal == actor.Principal || !decide.RoleGated(m) {
+			if !decide.RoleGated(m) {
 				continue
 			}
 			inst, err := installationOf(tx, wc.GetTenantId(), m.Name)
@@ -89,6 +92,9 @@ func (s *Service) AttachResource(ctx context.Context, r AttachmentRequest) (stri
 			}
 			if err != nil {
 				return err
+			}
+			if principal == actor.Principal && !ownCreate(verified.EffectiveScopes(), r.Kind, inst.PrincipalID) {
+				continue
 			}
 			if inst.PrincipalID != "" {
 				candidates = append(candidates, inst.ID)
@@ -192,6 +198,19 @@ func mayAttach(scopes Scopes, kind, installationPrincipal string) bool {
 		whole, every := len(sc.GetResourceIds()) == 0, slices.Contains(sc.GetActions(), scope.AnyAction)
 		return whole && (sc.GetResourceOwnerId() == "" || sc.GetResourceOwnerId() == installationPrincipal) && (every || slices.Contains(sc.GetActions(), "create"))
 	})
+}
+
+// ownCreate is whether scopes hold the create on the whole of kind selected
+// to principal itself, never through an unselected scope: what a role on the
+// serving module's own installation carries (decide.ModuleRoleAt), and nothing
+// another installation's capability does.
+func ownCreate(scopes Scopes, kind, principal string) bool {
+	if principal == "" {
+		return false
+	}
+	return mayAttach(slices.DeleteFunc(slices.Clone(scopes), func(sc *basev0.WorkScopeV1) bool {
+		return sc.GetResourceOwnerId() != principal
+	}), kind, principal)
 }
 
 // attachmentFresh fences verification against changes before the write snapshot.

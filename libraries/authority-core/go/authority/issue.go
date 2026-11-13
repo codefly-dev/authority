@@ -79,6 +79,9 @@ func heldAs(tx Tx, p domain.Person, audience domain.Module, named Scopes) ([]str
 		if err != nil {
 			return nil, nil, err
 		}
+		// A module page's roles at the module itself, as at any module that
+		// checks owners: its installation's data (decide.ModuleRoleAt).
+		role = decide.ModuleRoleAt(audience, inst, audience, role)
 		return names, scope.Intersect(role, audience.ResourceKinds), nil
 	}
 	roles, err := orgRoles(tx, p)

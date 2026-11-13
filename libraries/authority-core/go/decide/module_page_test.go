@@ -96,6 +96,7 @@ func TestRBAC1ModuleRoleAtSelectsTheInstallationAsOwner(t *testing.T) {
 	blind := domain.Module{Name: "blind", Principal: "blind", Kind: domain.KindModule}
 	selfAware := page
 	selfAware.OwnerAware = true
+	selfAware.SharedKinds = []string{"store.shared"}
 	role := []*basev0.WorkScopeV1{read("store.item"), read("store.shared")}
 	inst := domain.Installation{ID: "i", PrincipalID: "p-1"}
 	for _, c := range []struct {
@@ -107,7 +108,10 @@ func TestRBAC1ModuleRoleAtSelectsTheInstallationAsOwner(t *testing.T) {
 		{"owner-aware audience: selected to the installation, shared unselected", page, store, inst, map[string]string{"store.item": "p-1", "store.shared": ""}},
 		{"no principal: nothing owned, shared kept", page, store, domain.Installation{ID: "i"}, map[string]string{"store.shared": ""}},
 		{"an audience checking no owner: unchanged", page, blind, inst, map[string]string{"store.item": "", "store.shared": ""}},
-		{"the module itself: unchanged", page, selfAware, inst, map[string]string{"store.item": "", "store.shared": ""}},
+		// A store that checks owners and declares a page is reached through
+		// its own roles as its installation's data, never every owner's.
+		{"the module itself, checking owners: selected to its own installation", selfAware, selfAware, inst, map[string]string{"store.item": "p-1", "store.shared": ""}},
+		{"the module itself, checking no owner: unchanged", page, page, inst, map[string]string{"store.item": "", "store.shared": ""}},
 		{"a solution's: already selected by RoleScopes, unchanged here", solution, store, inst, map[string]string{"store.item": "", "store.shared": ""}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
