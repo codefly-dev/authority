@@ -583,6 +583,16 @@ func (s *Service) reconverge(ctx context.Context, tx Tx, previous, next domain.M
 					return err
 				}
 			} else {
+				// Held at what it approved: previous, exactly (same generation
+				// and offer digest), so keep it readable by that digest. A
+				// re-read replaces previous at its own generation, and a
+				// consent whose approved reading the host does not keep yet
+				// would otherwise be answered by the re-read (approvedReading).
+				if !previous.StandIn && inst.Consent.Generation == previous.Generation && inst.Consent.Digest == approvedDigest {
+					if err := tx.PutApprovedModule(previous); err != nil {
+						return err
+					}
+				}
 				detail["widened"] = strings.Join(asks, "; ")
 				if err := s.journal(ctx, tx, domain.Event{Kind: domain.InstallationUpgradeAvailable, Organization: inst.Organization, Subject: inst.ID, Detail: detail}); err != nil {
 					return err

@@ -201,4 +201,7 @@ nothing: anything else under it is refused), names it to the authority's
 the procedure and the Work Context alone. The authority issues through the
 page's target's binding to the module when it declares one, the person
 present on the page, and on the person's own access when it declares none.
-A shell hands a page this path as its `moduleApiBase`.
+A shell hands a page this path as its `moduleApiBase`, read from
+`/auth/session`: each installation listed there carries the page route this
+edge serves for its target (`moduleApiBase`, e.g.
+`/api/solutions/org-directory/proxy/_browser`), so no shell spells the route.
