@@ -21,7 +21,7 @@ export function admissionKeys(response: KeysResponse): string[] {
 
 /** The one admission the headers carry, as its signed payload and signature,
  * each in canonical encoding; undefined for anything else. */
-function proof(pairs: readonly (readonly [string, string])[]): { payload: Buffer; signature: Buffer } | undefined {
+export function proof(pairs: readonly (readonly [string, string])[]): { payload: Buffer; signature: Buffer } | undefined {
   const values = pairs.filter(([k]) => k === "x-codefly-hop-proof");
   if (values.length !== 1 || values[0][1].length > 8192) return undefined;
   const parts = values[0][1].split(".");

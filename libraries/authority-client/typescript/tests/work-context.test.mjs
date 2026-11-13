@@ -458,7 +458,7 @@ test('a verifier takes the hop key from the authority keys alone', async () => {
 });
 
 // A stamp signed by a key the authority does not publish is refused by name,
-// and causes no read of the authority's keys.
+// after one read of the authority's keys that may have published it since.
 test('a stamp signed by an unpublished key is refused by name', async () => {
  const keys = source(() => Promise.resolve(publishing('the-hop')));
  const v = new Verifier(keys, fixture.audience, replay(), () => fixture.now * 1000);
@@ -466,7 +466,53 @@ test('a stamp signed by an unpublished key is refused by name', async () => {
  const reads = keys.reads;
  await assert.rejects(v.verify(fresh(fixture.now * 1000, METHOD, fixture.audience, fixture.headers, 'an-unpublished-hop'), METHOD), e => e.code === Reason.StampProof);
  await settle();
- assert.equal(keys.reads, reads);
+ assert.equal(keys.reads, reads + 1);
+});
+
+// The saas gateway registers a fresh admission key every time it starts and
+// signs with it at once. A module that read the keys before the restart holds
+// only the old key; the first stamp under the new one re-reads the published
+// keys and is admitted, without waiting out KEY_MAX_AGE (Go's
+// TestARestartedHopsFreshKeyIsAdmittedWithoutWaitingKeyMaxAge).
+test('a restarted hop fresh key is admitted without waiting KEY_MAX_AGE', async () => {
+ let now = fixture.now * 1000, answer = publishing('gateway-before-restart');
+ const keys = source(() => Promise.resolve(answer));
+ const v = new Verifier(keys, fixture.audience, replay(), () => now);
+ await settle();
+ answer = publishing('gateway-after-restart'); // the old key is withdrawn
+ now += 1_000; // far inside KEY_MAX_AGE and KEY_RETRY
+ const reads = keys.reads;
+ const id = await v.verify(fresh(now, METHOD, fixture.audience, fixture.headers, 'gateway-after-restart'), METHOD);
+ assert.equal(id.owner, fixture.identity.owner);
+ assert.equal(keys.reads, reads + 1);
+ await v.verify(fresh(now, METHOD, fixture.audience, fixture.headers, 'gateway-after-restart'), METHOD);
+ await settle();
+ assert.equal(keys.reads, reads + 1, 'a held key read the keys again');
+});
+
+// A flood of stamps under keys nobody publishes costs the authority one read per
+// SIGNER_RETRY, whatever their number, each is refused as stamp_proof, and the
+// genuine hop is never held up by it.
+test('a flood of unknown signers costs one read per SIGNER_RETRY', async () => {
+ const start = fixture.now * 1000;
+ let now = start;
+ const keys = source(() => Promise.resolve(publishing('the-hop')));
+ const v = new Verifier(keys, fixture.audience, replay(), () => now);
+ await settle();
+ const flood = async n => {
+  const before = keys.reads;
+  await Promise.all(Array.from({length: n}, (_, i) =>
+   assert.rejects(v.verify(fresh(now, METHOD, fixture.audience, fixture.headers, `forged-${i}`), METHOD), e => e.code === Reason.StampProof)));
+  await settle();
+  return keys.reads - before;
+ };
+ assert.equal(await flood(50), 1);
+ now = start + 9_000;
+ assert.equal(await flood(20), 0);
+ now = start + 10_000;
+ assert.equal(await flood(20), 1);
+ const id = await v.verify(fresh(now, METHOD, fixture.audience, fixture.headers, 'the-hop'), METHOD);
+ assert.equal(id.owner, fixture.identity.owner);
 });
 
 // While a hop's key rotates both are published and admitted; once the retiring

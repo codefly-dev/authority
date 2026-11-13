@@ -33,7 +33,9 @@ construction, outside the run named exactly `local`, a store whose `shared` is
 not true (`replay_store_not_shared`). It checks the stamp first and reserves its
 single-use nonce, then reads the published keys through `Keys`
 on a thread of its own with a 5 s timeout, one read at a time; it re-reads them
-on an unknown key (at most every 10 s) and when older than 5 minutes; keys that
+on an unknown key (at most every 10 s), once on a stamp signed by no admission
+key held (at most every 10 s for all such stamps together, so a restarted hop's
+fresh key is admitted on its first call), and when older than 5 minutes; keys that
 cannot be re-read are trusted for 15 minutes at most, and a call on keys older than
 that waits for the re-read as a call on an unknown key does. It never fails to
 construct on an authority that is not serving yet, and refuses calls with a

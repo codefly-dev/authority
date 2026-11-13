@@ -734,7 +734,7 @@ def test_a_verifier_takes_the_hops_key_from_the_authoritys_keys_alone():
 
 
 # A stamp signed by a key the authority does not publish is refused by name,
-# and causes no read of the authority's keys.
+# after one read of the authority's keys that may have published it since.
 def test_a_stamp_signed_by_an_unpublished_key_is_refused_by_name():
     source = Keys(publishing(b"the-hop"))
     v = Verifier(source, audience=FIXTURE["audience"], replay=Replay(), now=lambda: FIXTURE["now"])
@@ -744,7 +744,58 @@ def test_a_stamp_signed_by_an_unpublished_key_is_refused_by_name():
         v.verify(fresh(FIXTURE["now"], hop=b"an-unpublished-hop"), METHOD)
     assert refused.value.code == "stamp_proof"
     settle(v)
-    assert source.reads == reads
+    assert source.reads == reads + 1
+
+
+# The saas gateway registers a fresh admission key every time it starts and
+# signs with it at once. A module that read the keys before the restart holds
+# only the old key; the first stamp under the new one re-reads the published
+# keys and is admitted, without waiting out KEY_MAX_AGE (Go's
+# TestARestartedHopsFreshKeyIsAdmittedWithoutWaitingKeyMaxAge).
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_a_restarted_hops_fresh_key_is_admitted_without_waiting_key_max_age(asynchronous):
+    import asyncio
+    clock = [FIXTURE["now"]]
+    source = Keys(publishing(b"gateway-before-restart"))
+    v = Verifier(source, audience=FIXTURE["audience"], replay=Replay(), now=lambda: clock[0])
+    settle(v)
+    verify = (lambda h: asyncio.run(v.verify_async(h, METHOD))) if asynchronous else (lambda h: v.verify(h, METHOD))
+    source.response = publishing(b"gateway-after-restart")  # the old key is withdrawn
+    clock[0] += 1  # far inside KEY_MAX_AGE and KEY_RETRY
+    reads = source.reads
+    assert verify(fresh(clock[0], hop=b"gateway-after-restart")).owner == FIXTURE["identity"]["owner"]
+    assert source.reads == reads + 1
+    verify(fresh(clock[0], hop=b"gateway-after-restart"))
+    settle(v)
+    assert source.reads == reads + 1, "a held key read the keys again"
+
+
+# A flood of stamps under keys nobody publishes costs the authority one read
+# per SIGNER_RETRY, whatever their number, each is refused as stamp_proof, and
+# the genuine hop is never held up by it.
+def test_a_flood_of_unknown_signers_costs_one_read_per_signer_retry():
+    from codefly_hop import SIGNER_RETRY
+    start = FIXTURE["now"]
+    clock = [start]
+    source = Keys(publishing(b"the-hop"))
+    v = Verifier(source, audience=FIXTURE["audience"], replay=Replay(), now=lambda: clock[0])
+    settle(v)
+
+    def flood(n):
+        before = source.reads
+        for i in range(n):
+            with pytest.raises(Unauthenticated) as refused:
+                v.verify(fresh(clock[0], hop=b"forged-%d" % i), METHOD)
+            assert refused.value.code == "stamp_proof"
+        settle(v)
+        return source.reads - before
+
+    assert flood(50) == 1
+    clock[0] = start + SIGNER_RETRY - 1
+    assert flood(20) == 0
+    clock[0] = start + SIGNER_RETRY
+    assert flood(20) == 1
+    assert v.verify(fresh(clock[0], hop=b"the-hop"), METHOD).owner == FIXTURE["identity"]["owner"]
 
 
 # While a hop's key rotates both are published and admitted; once the retiring
