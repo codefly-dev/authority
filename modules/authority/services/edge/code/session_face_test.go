@@ -35,6 +35,9 @@ func TestAPageCastsThroughTheSessionInterface(t *testing.T) {
 	if err != nil || own.GetPersonId() != "remi" || own.GetCastTeamId() != "" {
 		t.Fatalf("Current answered %v, %v", own, err)
 	}
+	if own.GetBearer() != "" || own.GetSessionId() != "" {
+		t.Fatalf("Current answered a page bearer %q, session id %q: a host may key its sessions by the bearer, so a script holds neither", own.GetBearer(), own.GetSessionId())
+	}
 	teams, err := browser[sessionv1.ListCastableTeamsRequest, sessionv1.ListCastableTeamsResponse](t, f.edge, f.edge.URL, "remi-session", sessionv1.SessionService_ListCastableTeams_FullMethodName, &sessionv1.ListCastableTeamsRequest{})
 	if err != nil || len(teams.GetTeams()) != 1 || teams.GetTeams()[0].GetHolds()[0].GetRole() != "viewer" {
 		t.Fatalf("ListCastableTeams answered %v, %v", teams, err)
@@ -44,14 +47,14 @@ func TestAPageCastsThroughTheSessionInterface(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenTeamCast: %v", err)
 	}
-	if res.Msg.GetBearer() != "" || res.Msg.GetCastTeamId() != "records-viewer" {
-		t.Fatalf("the answer carries bearer %q, cast %q: a script holds no credential", res.Msg.GetBearer(), res.Msg.GetCastTeamId())
+	if res.Msg.GetBearer() != "" || res.Msg.GetSessionId() != "" || res.Msg.GetCastTeamId() != "records-viewer" {
+		t.Fatalf("the answer carries bearer %q, session id %q, cast %q: a script holds no credential", res.Msg.GetBearer(), res.Msg.GetSessionId(), res.Msg.GetCastTeamId())
 	}
 	if set[SessionKey] != "remi-as-viewers" || set[ParentKey] != "remi-session" {
 		t.Fatalf("the cast set cookies %v; want the cast as the session and the own session as the way back", set)
 	}
 	cast, err := browser[sessionv1.CurrentRequest, sessionv1.Session](t, f.edge, f.edge.URL, "remi-as-viewers", sessionv1.SessionService_Current_FullMethodName, &sessionv1.CurrentRequest{})
-	if err != nil || cast.GetCastTeamId() != "records-viewer" {
+	if err != nil || cast.GetCastTeamId() != "records-viewer" || cast.GetSessionId() != "" {
 		t.Fatalf("Current as the cast answered %v, %v", cast, err)
 	}
 	back := f.actAs(t, url.Values{"action": {"back"}, "return": {"/"}}, &http.Cookie{Name: SessionKey, Value: set[SessionKey]}, &http.Cookie{Name: ParentKey, Value: set[ParentKey]})

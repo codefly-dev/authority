@@ -7,6 +7,7 @@ import (
 
 	"connectrpc.com/connect"
 	sessionv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/session/v1"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/status"
 )
 
@@ -25,13 +26,18 @@ import (
 // HttpOnly cookies, and the answer carries no bearer, because no script holds
 // a credential. The way back stays the form's (`action=back`): the interface
 // has no call for it.
+//
+// No answer to a browser holding a cookie carries the session id either: a
+// host may key its sessions by the bearer (the local authority's session id
+// is its bearer), so the id is a credential the face cannot tell apart from
+// one, and no page needs it.
 
 // sessionFromCookie says the admitted session is the browser's cookie.
 type sessionFromCookie struct{}
 
 func (e *Edge) sessionProcedures() []faceProcedure {
 	return []faceProcedure{
-		{sessionv1.SessionService_Current_FullMethodName, forward(sessionv1.SessionService_Current_FullMethodName, e.Sessions.Current)},
+		{sessionv1.SessionService_Current_FullMethodName, forward(sessionv1.SessionService_Current_FullMethodName, e.currentForPage)},
 		{sessionv1.SessionService_ListCastableTeams_FullMethodName, forward(sessionv1.SessionService_ListCastableTeams_FullMethodName, e.Sessions.ListCastableTeams)},
 		{sessionv1.SessionService_OpenTeamCast_FullMethodName, connect.NewUnaryHandler(sessionv1.SessionService_OpenTeamCast_FullMethodName, e.openTeamCast,
 			connect.WithRequireConnectProtocolHeader(), connect.WithReadMaxBytes(hostMessageBytes))},
@@ -56,9 +62,19 @@ func (e *Edge) openTeamCast(ctx context.Context, req *connect.Request[sessionv1.
 	if cookie, _ := ctx.Value(sessionFromCookie{}).(bool); cookie {
 		res.Header().Add("Set-Cookie", sessionCookie(SessionKey, cast.GetBearer()).String())
 		res.Header().Add("Set-Cookie", sessionCookie(ParentKey, bearer).String())
-		cast.Bearer = ""
+		cast.Bearer, cast.SessionId = "", ""
 	}
 	return res, nil
+}
+
+// currentForPage is the host's Current, answered to a browser holding a cookie with
+// no credential in it: neither the bearer nor the session id.
+func (e *Edge) currentForPage(ctx context.Context, in *sessionv1.CurrentRequest, opts ...grpc.CallOption) (*sessionv1.Session, error) {
+	sess, err := e.Sessions.Current(ctx, in, opts...)
+	if cookie, _ := ctx.Value(sessionFromCookie{}).(bool); err == nil && cookie {
+		sess.Bearer, sess.SessionId = "", ""
+	}
+	return sess, err
 }
 
 // isSessionPath is whether path names a procedure of the session interface:
