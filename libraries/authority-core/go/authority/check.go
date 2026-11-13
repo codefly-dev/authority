@@ -258,7 +258,7 @@ func (s *Service) withinApprovedReach(tx Tx, wc *basev0.WorkContextV1, effective
 	case "agent":
 		owner.agent = wc.GetOwnerPrincipalId()
 	case "human":
-		owner.principals = reachedThrough(wc, m.Principal)
+		owner.principals = reachedThrough(tx, wc, m.Principal)
 		if !anyRoleGated(tx, owner.principals) {
 			return nil, nil
 		}
@@ -282,17 +282,18 @@ func (s *Service) withinApprovedReach(tx Tx, wc *basev0.WorkContextV1, effective
 }
 
 // reachedThrough is the targets a person's call at module came through, whose
-// installations' consent bounds it: the solutions and pages on its actor
-// chain, the hops it took to reach module. A call with no chain is the
-// person's own root at module, a page's, so module is the one target: their
-// role on it is what they hold there. A call that came through a solution or a
-// page is not held to the reach of module's own page installation as well:
-// the roles there are for module's page, and a person holding none of them
-// reaches module through the solution exactly as its consent approved.
-func reachedThrough(wc *basev0.WorkContextV1, module string) []string {
+// installations' consent bounds it, read as what the person holds there is
+// (throughSolutions): a call whose actor chain names a solution or a module
+// page declaring roles holds those targets' roles at module, so it is bounded
+// by their installations' consent alone, never by module's own page as well,
+// whose roles the person need not hold. A call naming no such target (the
+// person's own root at module, their client's call there, or a hop from a
+// module declaring no roles) holds module's own roles when it is a page, so
+// module's installation's consent bounds it.
+func reachedThrough(tx Tx, wc *basev0.WorkContextV1, module string) []string {
 	principals := solutionPrincipals(wc, module)
-	if len(wc.GetActorChain()) > 0 {
-		return principals[1:]
+	if through := principals[1:]; anyRoleGated(tx, through) {
+		return through
 	}
 	return principals
 }
