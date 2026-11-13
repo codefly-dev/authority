@@ -36,7 +36,7 @@ func postgresStore(t *testing.T) (*replaypg.Store, *pgxpool.Pool) {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	if _, err := pool.Exec(context.Background(), replaypg.Migration); err != nil {
+	if _, err := pool.Exec(context.Background(), migrateSerialized+replaypg.Migration); err != nil {
 		t.Fatal(err)
 	}
 	store, err := replaypg.New(pool)
@@ -287,3 +287,13 @@ func TestACallCancelledBeforeItsBodyReleasesItsHold(t *testing.T) {
 		t.Fatalf("the handler ran %d times", got)
 	}
 }
+
+// migrateSerialized prefixes Migration when a test applies it: this package's
+// tests and its sibling's share one Postgres and start together, and
+// CREATE ... IF NOT EXISTS is not safe against a concurrent CREATE of the same
+// name (the loser fails on Postgres's own catalog, "pg_type_typname_nsp_index",
+// SQLSTATE 23505 — main's CI was red on it). A transaction-scoped advisory lock,
+// held for the one implicit transaction a multi-statement Exec runs in, makes
+// them take turns. A module applies Migration once, through its own migration,
+// so the published table is unchanged.
+const migrateSerialized = "SELECT pg_advisory_xact_lock(hashtext('hop_admissions'));\n"

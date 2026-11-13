@@ -1,6 +1,9 @@
 package authority_test
 
 import (
+	"maps"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
@@ -27,6 +30,7 @@ func TestAModulesHeadlessDefineAtAnOwnerAwareModuleIsBornOwnedAndItsPageReadsItB
 	m.Bindings["legacy-define"] = domain.Binding{ID: "legacy-define", Audience: "legacy-store", HeadlessScopes: []*basev0.WorkScopeV1{sc(legacyKind, "write")}}
 	m.Bindings["read-kind"] = domain.Binding{ID: "read-kind", Audience: "store", HeadlessScopes: []*basev0.WorkScopeV1{sc(kind, "read")}}
 	m.Bindings["read-and-define"] = domain.Binding{ID: "read-and-define", Audience: "store", HeadlessScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write")}}
+	m.Bindings["read-then-define"] = domain.Binding{ID: "read-then-define", Audience: "store", HeadlessScopes: []*basev0.WorkScopeV1{sc(kind, "read"), sc(kind, "write")}}
 	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
 		t.Fatal(err)
 	}
@@ -44,16 +48,18 @@ func TestAModulesHeadlessDefineAtAnOwnerAwareModuleIsBornOwnedAndItsPageReadsItB
 	t.Run("a kind-wide read creates nothing and stays kind-wide: a module reading across owners is not narrowed to its own data", func(t *testing.T) {
 		exactly(t, h.must(define("read-kind", acme)), kind, "", []string{"read"})
 	})
-	t.Run("a scope that reads and creates is split: the read as declared, the creating action owned", func(t *testing.T) {
-		got := effective(h.must(define("read-and-define", acme)))
-		var read, write bool
-		for _, s := range got {
-			read = read || s.GetResourceKind() == kind && s.GetResourceOwnerId() == "" && len(s.GetActions()) == 1 && s.GetActions()[0] == "read"
-			write = write || s.GetResourceKind() == kind && s.GetResourceOwnerId() == mine && len(s.GetActions()) == 1 && s.GetActions()[0] == "write"
-		}
-		if !read || !write || len(got) != 2 {
-			t.Fatalf("effective %v, want read kind-wide and write owned by %s", got, mine)
-		}
+	// A module reads back what it defines: on a kind it creates, its read
+	// stays as declared and is ALSO selected to its own installation, for a
+	// module that honours only owner-selected scopes (the record store,
+	// RBAC-4a: a scope naming no owner reaches nothing there). Without the
+	// selected row the directory's GetRecordType of its own types was refused
+	// on blue, "the call holds no records.types scope with read selected to
+	// that owner", and every directory call that defines its types first.
+	t.Run("a scope that reads and creates is split: the read as declared and on its own data, the creating action owned", func(t *testing.T) {
+		rows(t, h.must(define("read-and-define", acme)), map[string]string{"": "read", mine: "read,write"})
+	})
+	t.Run("a read and a create of one kind declared apart are read back the same way", func(t *testing.T) {
+		rows(t, h.must(define("read-then-define", acme)), map[string]string{"": "read", mine: "read,write"})
 	})
 	t.Run("a define owned by someone else is refused", func(t *testing.T) {
 		_, err := define("define", acme, owned(kind, h.principal(acme, "a"), []string{"write"}))
@@ -74,4 +80,25 @@ func TestAModulesHeadlessDefineAtAnOwnerAwareModuleIsBornOwnedAndItsPageReadsItB
 		exactly(t, h.must(define("read-kind", acme)), kind, "", []string{"read"})
 		exactly(t, h.must(define("legacy-define", acme)), legacyKind, "", []string{"write"})
 	})
+}
+
+// rows requires the effective scopes of kind to be exactly one row per owner
+// in want, each holding the comma-joined actions given.
+func rows(t *testing.T, i authority.Issued, want map[string]string) {
+	t.Helper()
+	got := map[string]string{}
+	for _, s := range effective(i) {
+		if s.GetResourceKind() != kind || len(s.GetActions()) == 0 {
+			t.Fatalf("effective %v, want only %s rows %v", effective(i), kind, want)
+		}
+		if _, dup := got[s.GetResourceOwnerId()]; dup {
+			t.Fatalf("effective %v, want one row per owner %v", effective(i), want)
+		}
+		actions := slices.Clone(s.GetActions())
+		slices.Sort(actions)
+		got[s.GetResourceOwnerId()] = strings.Join(actions, ",")
+	}
+	if !maps.Equal(got, want) {
+		t.Fatalf("effective %v, want rows by owner %v", effective(i), want)
+	}
 }
