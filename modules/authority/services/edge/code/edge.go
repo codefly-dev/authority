@@ -445,7 +445,7 @@ func (e *Edge) usable(ctx context.Context, bearer string) ([]installation, map[s
 			refused[r.name] = "the authority sealed the person's Work Context at " + r.name + " to no installation"
 			continue
 		}
-		usable = append(usable, installation{ID: r.wc.installation, Target: r.name})
+		usable = append(usable, installation{ID: r.wc.installation, Target: r.name, ModuleAPIBase: pageRoute(r.name)})
 	}
 	sort.Slice(usable, func(i, j int) bool { return usable[i].Target < usable[j].Target })
 	return usable, refused
@@ -480,6 +480,19 @@ type installation struct {
 	ID        string `json:"id"`
 	Target    string `json:"target"`
 	Namespace string `json:"namespace,omitempty"`
+	// ModuleAPIBase is the page route this edge serves for the target's page,
+	// /api/solutions/<target>/proxy/_browser (pageCall): what a shell hands the
+	// page as its moduleApiBase, read here rather than spelled by every shell.
+	ModuleAPIBase string `json:"moduleApiBase,omitempty"`
+}
+
+// pageRoute is the base a page of target reaches its modules at, or empty for
+// a target no page route can name.
+func pageRoute(target string) string {
+	if !pageAlias.MatchString(target) {
+		return ""
+	}
+	return pageCallPrefix + target + "/proxy/_browser"
 }
 
 // bearerOf is the session the request presents: its cookie, or a bearer a

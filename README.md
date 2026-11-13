@@ -811,7 +811,10 @@ issues, named by organisation and target so it is the same on every start: a
 module's stored rows keep naming it.
 
 An authenticated `/auth/session` response also supplies `moduleApiBase: "/"`:
-the explicit origin-relative base of this edge's public module procedures.
+the explicit origin-relative base of this edge's public module procedures. Each
+installation it lists also carries its own `moduleApiBase`, the page route this
+edge serves a page of that target at (`/api/solutions/<target>/proxy/_browser`),
+which a playground shell hands its module page instead of spelling the route.
 Standalone pages pass this optional host field to their solution binding's
 `moduleApiBase` for generated module clients, retaining their cookie fetch.
 An older host may omit it; consumers preserve absence and report an unavailable

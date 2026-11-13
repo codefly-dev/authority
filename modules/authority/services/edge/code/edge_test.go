@@ -246,13 +246,15 @@ func TestAPersonSignsInAtTheEdge(t *testing.T) {
 		t.Fatalf("session answered %d: %s", res.StatusCode, body)
 	}
 	// What the person may use, which the frontend binds its calls to: records,
-	// with the installation the authority sealed his context to; secrets, which
+	// with the installation the authority sealed his context to and the page
+	// route this edge serves a records page at; secrets, which
 	// is installed but where he holds nothing, refused with the authority's reason.
 	installed, _ := who["installations"].([]any)
 	if len(installed) != 1 {
 		t.Fatalf("installations = %v", who["installations"])
 	}
-	if records, _ := installed[0].(map[string]any); records["target"] != "records" || records["id"] != recordsInstallation || records["namespace"] != "acme.records" {
+	if records, _ := installed[0].(map[string]any); records["target"] != "records" || records["id"] != recordsInstallation || records["namespace"] != "acme.records" ||
+		records["moduleApiBase"] != "/api/solutions/records/proxy/_browser" {
 		t.Fatalf("installation = %v", records)
 	}
 	if refused, _ := who["refused"].(map[string]any); len(refused) != 1 || !strings.Contains(refused["secrets"].(string), "holds nothing at secrets") {
