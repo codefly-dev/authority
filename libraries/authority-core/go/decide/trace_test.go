@@ -87,9 +87,15 @@ func TestTraceNamesTheFirstRefusingLinkAndKeepsWalking(t *testing.T) {
 			c.Binding, c.Envelope = "types", allows("headless", "define")
 			return c
 		}, "role=admitted ceiling=admitted envelope=admitted policy=admitted owner=unproven", "owner", "no declaration states what it asks"},
+		{"a module's headless read of its own types arrives selected to its installation too, and is proven", func() decide.Call {
+			c := traced(reads)
+			c.Binding, c.Envelope = "types", allows("headless", "define", "read")
+			return c
+		}, "role=admitted ceiling=admitted envelope=admitted policy=admitted owner=admitted", "", ""},
 		{"a read that arrives selected to no owner is not proven", func() decide.Call {
 			c := traced(reads)
 			c.Binding, c.Envelope = "types", allows("headless", "define", "read")
+			c.Installation.PrincipalID = ""
 			return c
 		}, "role=admitted ceiling=admitted envelope=admitted policy=admitted owner=unproven", "owner", "selected to no installation's owner"},
 		{"a role beyond its ceiling is refused whole", func() decide.Call {

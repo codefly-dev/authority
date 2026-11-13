@@ -238,11 +238,17 @@ var CreatingActions = []string{"define", "write", "create"}
 
 // HeadlessAt is what a module's headless scopes carry at audience: the actions
 // that create data are owner-selected to the module's installation exactly as
-// ModuleRoleAt selects a role, so what the module defines is born owned by it;
-// every other action (a read, a listing, a redaction) stays as declared, because
-// a module reading a kind across owners creates nothing and selecting that read
-// to its own installation would show it nothing. withheld counts the creating
-// scopes dropped for want of an installation principal.
+// ModuleRoleAt selects a role, so what the module defines is born owned by it.
+// Every other action (a read, a listing, a redaction) is carried twice: as
+// declared, because a module reading a kind across owners creates nothing and
+// selecting that read to its own installation alone would show it nothing; and
+// selected to its own installation, because a module that honours only
+// owner-selected scopes reaches nothing through one naming no owner (the record
+// store, RBAC-4a), so a module reading back what it defined there needs the
+// read on its own data. The selected row widens nothing: the declared row
+// already covers every owner's. withheld counts the creating scopes dropped
+// for want of an installation principal; a non-creating action without one is
+// carried as declared alone.
 func HeadlessAt(m domain.Module, inst domain.Installation, audience domain.Module, scopes Scopes) (out Scopes, withheld int) {
 	if m.Kind == domain.KindSolution || !audience.OwnerAware || audience.Principal == m.Principal {
 		return scopes, 0
@@ -256,20 +262,19 @@ func HeadlessAt(m domain.Module, inst domain.Installation, audience domain.Modul
 				rest = append(rest, a)
 			}
 		}
-		if len(creating) == 0 {
-			out = append(out, sc)
-			continue
-		}
 		if len(rest) > 0 {
-			c := proto.CloneOf(sc)
-			c.Actions = rest
-			out = append(out, c)
+			r := proto.CloneOf(sc)
+			r.Actions = rest
+			out = append(out, r)
+			out = append(out, ModuleRoleAt(m, inst, audience, Scopes{r})...)
 		}
-		c := proto.CloneOf(sc)
-		c.Actions = creating
-		owned := ModuleRoleAt(m, inst, audience, Scopes{c})
-		withheld += 1 - len(owned)
-		out = append(out, owned...)
+		if len(creating) > 0 {
+			c := proto.CloneOf(sc)
+			c.Actions = creating
+			owned := ModuleRoleAt(m, inst, audience, Scopes{c})
+			withheld += 1 - len(owned)
+			out = append(out, owned...)
+		}
 	}
 	return scope.Normalize(out), withheld
 }

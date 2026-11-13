@@ -1,6 +1,9 @@
 package authority_test
 
 import (
+	"maps"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
@@ -41,19 +44,18 @@ func TestAModulesHeadlessDefineAtAnOwnerAwareModuleIsBornOwnedAndItsPageReadsItB
 		read := h.must(h.page("maya", "pages", "store"))
 		exactly(t, read, kind, mine, []string{"read"})
 	})
-	t.Run("a kind-wide read creates nothing and stays kind-wide: a module reading across owners is not narrowed to its own data", func(t *testing.T) {
-		exactly(t, h.must(define("read-kind", acme)), kind, "", []string{"read"})
+	// A read stays kind-wide, for a module reading across owners at a module
+	// that honours a scope naming no owner; and it is ALSO selected to the
+	// module's own installation, for a module that honours only owner-selected
+	// scopes (the record store, RBAC-4a: an ownerless scope reaches nothing
+	// there). Without the selected row a module reads back nothing it defined:
+	// the directory's GetRecordType of its own types was refused on blue,
+	// "the call holds no records.types scope with read selected to that owner".
+	t.Run("a kind-wide read creates nothing and stays kind-wide, and also reaches the module's own installation's data", func(t *testing.T) {
+		rows(t, h.must(define("read-kind", acme)), map[string]string{"": "read", mine: "read"})
 	})
-	t.Run("a scope that reads and creates is split: the read as declared, the creating action owned", func(t *testing.T) {
-		got := effective(h.must(define("read-and-define", acme)))
-		var read, write bool
-		for _, s := range got {
-			read = read || s.GetResourceKind() == kind && s.GetResourceOwnerId() == "" && len(s.GetActions()) == 1 && s.GetActions()[0] == "read"
-			write = write || s.GetResourceKind() == kind && s.GetResourceOwnerId() == mine && len(s.GetActions()) == 1 && s.GetActions()[0] == "write"
-		}
-		if !read || !write || len(got) != 2 {
-			t.Fatalf("effective %v, want read kind-wide and write owned by %s", got, mine)
-		}
+	t.Run("a scope that reads and creates is split: the read as declared and on its own data, the creating action owned", func(t *testing.T) {
+		rows(t, h.must(define("read-and-define", acme)), map[string]string{"": "read", mine: "read,write"})
 	})
 	t.Run("a define owned by someone else is refused", func(t *testing.T) {
 		_, err := define("define", acme, owned(kind, h.principal(acme, "a"), []string{"write"}))
@@ -71,7 +73,29 @@ func TestAModulesHeadlessDefineAtAnOwnerAwareModuleIsBornOwnedAndItsPageReadsItB
 		}
 		_, err := define("define", acme)
 		refused(t, err, "would be born unowned")
+		// No principal owns nothing: the read stays kind-wide alone.
 		exactly(t, h.must(define("read-kind", acme)), kind, "", []string{"read"})
 		exactly(t, h.must(define("legacy-define", acme)), legacyKind, "", []string{"write"})
 	})
+}
+
+// rows requires the effective scopes of kind to be exactly one row per owner
+// in want, each holding the comma-joined actions given.
+func rows(t *testing.T, i authority.Issued, want map[string]string) {
+	t.Helper()
+	got := map[string]string{}
+	for _, s := range effective(i) {
+		if s.GetResourceKind() != kind || len(s.GetActions()) == 0 {
+			t.Fatalf("effective %v, want only %s rows %v", effective(i), kind, want)
+		}
+		if _, dup := got[s.GetResourceOwnerId()]; dup {
+			t.Fatalf("effective %v, want one row per owner %v", effective(i), want)
+		}
+		actions := slices.Clone(s.GetActions())
+		slices.Sort(actions)
+		got[s.GetResourceOwnerId()] = strings.Join(actions, ",")
+	}
+	if !maps.Equal(got, want) {
+		t.Fatalf("effective %v, want rows by owner %v", effective(i), want)
+	}
 }
