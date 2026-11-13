@@ -1,12 +1,15 @@
 package authority_test
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/memstore"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
@@ -205,5 +208,84 @@ func TestAModulePageReadAgainWiderHoldsItsHoldersAtItsReceipt(t *testing.T) {
 	}
 	if !slices.Contains(kinds(*events), domain.InstallationUpgradeAvailable) || slices.Contains(kinds(*events), domain.RoleRevoked) {
 		t.Fatalf("the widening is not offered as an upgrade, or revoked a grant: %v", kinds(*events))
+	}
+}
+
+// unkeptApproved is a host store that keeps no approved declaration of
+// module until written after the store is wrapped: a consent recorded before
+// the host kept them, whose declaration it rebuilds later from the documents
+// it received (a host may hold such a consent; it must not hold its holders
+// to whatever the core composes now once that changes).
+type unkeptApproved struct {
+	*memstore.Store
+	module string
+	kept   map[string]bool
+}
+
+type unkeptApprovedTx struct {
+	authority.Tx
+	s *unkeptApproved
+}
+
+func (t unkeptApprovedTx) ApprovedModule(name string, generation uint64, digest string) (domain.Module, error) {
+	if name == t.s.module && !t.s.kept[digest] {
+		return domain.Module{}, fmt.Errorf("%s@%d %s: %w", name, generation, digest, domain.ErrNotFound)
+	}
+	return t.Tx.ApprovedModule(name, generation, digest)
+}
+
+func (t unkeptApprovedTx) PutApprovedModule(m domain.Module) error {
+	if m.Name == t.s.module {
+		digest, err := authority.OfferDigest(m)
+		if err != nil {
+			return err
+		}
+		t.s.kept[digest] = true
+	}
+	return t.Tx.PutApprovedModule(m)
+}
+
+func (s *unkeptApproved) Read(ctx context.Context, fn func(authority.Tx) error) error {
+	return s.Store.Read(ctx, func(tx authority.Tx) error { return fn(unkeptApprovedTx{tx, s}) })
+}
+
+func (s *unkeptApproved) Write(ctx context.Context, fn func(authority.Tx) error) error {
+	return s.Store.Write(ctx, func(tx authority.Tx) error { return fn(unkeptApprovedTx{tx, s}) })
+}
+
+// A consent at the held generation whose approved declaration the host does
+// not keep yet reads the module as composed, which until a re-read is what it
+// approved. A re-read that widens a role must not reach its holders through
+// that: the core keeps the reading the consent approved when it holds the
+// consent there.
+func TestARereadWidensNothingForAConsentWhoseApprovedReadingIsNotKeptYet(t *testing.T) {
+	h := newHarness(t)
+	h.grant("a", "editor", "maya")
+	store := &unkeptApproved{Store: h.store, module: "a", kept: map[string]bool{}}
+	svc, err := authority.New(store, h.cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writes := func() error {
+		_, err := svc.IssueForPerson(h.ctx, h.person("maya"), authority.IssueRequest{Audience: "a", Scopes: []*basev0.WorkScopeV1{owned("a.note", h.principal(acme, "a"), []string{"write"})}})
+		return err
+	}
+	if writes() == nil {
+		t.Fatal("the editor writes a.note before any re-read")
+	}
+	wider := solution("a", true)
+	wider.Roles["editor"] = []*basev0.WorkScopeV1{sc("a.note", "read", "write"), sc(kind, "read")}
+	wider.Source = deliveryOfA
+	if reread, err := svc.RereadModule(h.ctx, wider); err != nil || !reread {
+		t.Fatalf("the held generation read again wider: reread %t, %v", reread, err)
+	}
+	if writes() == nil {
+		t.Fatal("the re-read widened the editor without an approval: the reading its consent approved was not kept")
+	}
+	if _, err := svc.IssueForPerson(h.ctx, h.person("maya"), authority.IssueRequest{Audience: "a", Scopes: []*basev0.WorkScopeV1{owned("a.note", h.principal(acme, "a"), []string{"read"})}}); err != nil {
+		t.Fatalf("the editor lost what was approved: %v", err)
+	}
+	if up, err := svc.UpgradeAvailable(h.ctx, h.stored(acme, "a")); err != nil || !up {
+		t.Fatalf("the re-read offers no upgrade: %t, %v", up, err)
 	}
 }
