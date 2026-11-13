@@ -70,6 +70,7 @@
         "/host.session.v1.SessionService/Current",
         "/host.session.v1.SessionService/OpenRoleView",
         "/host.session.v1.SessionService/OpenTeamCast",
+        "/host.session.v1.SessionService/ListCastableTeams",
         "/host.session.v1.SessionService/ListFixturePeople"
       ]
     }

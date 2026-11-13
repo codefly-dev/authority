@@ -52,18 +52,21 @@ type Tx interface {
 	Tombstone(name string) (domain.Tombstone, error)
 	TombstoneByPrincipal(principal string) (domain.Tombstone, error)
 	PutTombstone(domain.Tombstone) error
-	// ApprovedModule answers the declaration of module name at generation, as
-	// it stood when an installation's consent approved it; PutApprovedModule
-	// keeps one, keyed by name and generation: rewriting the same declaration
-	// is accepted, a different one at a kept (name, generation) is refused
-	// with domain.ErrApprovedDeclarationKept and changes nothing. The core writes
+	// ApprovedModule answers the declaration of module name at generation
+	// whose offer digest (OfferDigest, of the declaration as the store answers
+	// it) is digest, as it stood when an installation's consent approved it;
+	// digest "" answers one kept at that generation. PutApprovedModule keeps
+	// one, keyed by name, generation and offer digest, and never replaces
+	// one: rewriting the same declaration is accepted, and a generation read
+	// again (Service.RereadModule) keeps every reading a consent approved,
+	// each under its own digest. The core writes
 	// it whenever a consent is taken or advances (Install, an upgrade, a
 	// re-convergence), and reads it to decide what the holders of an
 	// installation whose consent is behind the delivered generation hold:
 	// the approved roles, never the delivered ones. A host's store must keep
 	// every generation an active installation's consent names; it may drop
 	// one no consent names any more.
-	ApprovedModule(name string, generation uint64) (domain.Module, error)
+	ApprovedModule(name string, generation uint64, digest string) (domain.Module, error)
 	PutApprovedModule(domain.Module) error
 
 	Installation(id string) (domain.Installation, error)

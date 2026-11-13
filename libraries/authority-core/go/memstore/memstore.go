@@ -9,6 +9,7 @@ import (
 	"maps"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
@@ -34,7 +35,7 @@ type Store struct {
 	delegations   map[string]domain.Delegation
 	tombstones    map[string]domain.Tombstone
 	clients       map[string]domain.Client
-	approved      map[string]domain.Module // name\x00generation
+	approved      map[string]domain.Module // name\x00generation\x00offer digest
 	views         map[string]domain.RoleView
 }
 
@@ -308,40 +309,37 @@ func (t tx) PutTombstone(tomb domain.Tombstone) error {
 	return nil
 }
 
-func approvedKey(name string, generation uint64) string {
-	return fmt.Sprintf("%s\x00%d", name, generation)
+func approvedKey(name string, generation uint64, digest string) string {
+	return fmt.Sprintf("%s\x00%d\x00%s", name, generation, digest)
 }
 
-func (t tx) ApprovedModule(name string, generation uint64) (domain.Module, error) {
-	m, ok := t.s.approved[approvedKey(name, generation)]
+func (t tx) ApprovedModule(name string, generation uint64, digest string) (domain.Module, error) {
+	if digest == "" {
+		prefix := approvedKey(name, generation, "")
+		for _, key := range slices.Sorted(maps.Keys(t.s.approved)) {
+			if strings.HasPrefix(key, prefix) {
+				return cloneModule(t.s.approved[key]), nil
+			}
+		}
+		return domain.Module{}, missing("approved generation", prefix)
+	}
+	m, ok := t.s.approved[approvedKey(name, generation, digest)]
 	if !ok {
-		return m, missing("approved generation", approvedKey(name, generation))
+		return m, missing("approved generation", approvedKey(name, generation, digest))
 	}
 	return cloneModule(m), nil
 }
 
 func (t tx) PutApprovedModule(m domain.Module) error {
 	t.mustWrite()
-	key := approvedKey(m.Name, m.Generation)
-	if kept, ok := t.s.approved[key]; ok {
-		same, err := sameOffer(kept, m)
-		if err != nil || same {
-			return err
-		}
-		return fmt.Errorf("%s generation %d: %w", m.Name, m.Generation, domain.ErrApprovedDeclarationKept)
-	}
-	t.s.approved[key] = cloneModule(m)
-	return nil
-}
-
-// sameOffer: a and b are the same declaration, as a consent sees it.
-func sameOffer(a, b domain.Module) (bool, error) {
-	da, err := authority.OfferDigest(cloneModule(a))
+	digest, err := authority.OfferDigest(cloneModule(m))
 	if err != nil {
-		return false, err
+		return err
 	}
-	db, err := authority.OfferDigest(cloneModule(b))
-	return da == db, err
+	if key := approvedKey(m.Name, m.Generation, digest); t.s.approved[key].Name == "" {
+		t.s.approved[key] = cloneModule(m)
+	}
+	return nil
 }
 
 func (t tx) Installation(id string) (domain.Installation, error) {

@@ -50,6 +50,9 @@ type Sessions interface {
 	// OpenTeamCast opens a session that acts as one team and nothing else
 	// (actas.go); the authority decides whether the caller may.
 	OpenTeamCast(ctx context.Context, in *sessionv1.OpenTeamCastRequest, opts ...grpc.CallOption) (*sessionv1.Session, error)
+	// ListCastableTeams is the teams the caller may act as, with what each
+	// holds (session_face.go); the authority lists them by its own rule.
+	ListCastableTeams(ctx context.Context, in *sessionv1.ListCastableTeamsRequest, opts ...grpc.CallOption) (*sessionv1.ListCastableTeamsResponse, error)
 }
 
 // Installations is the installation interface's List: an administrator's read

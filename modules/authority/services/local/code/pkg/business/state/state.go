@@ -509,6 +509,16 @@ func (s *State) OpenTeamCast(ctx context.Context, parent, team string) (Session,
 	return sess, nil
 }
 
+// CastableTeams is the teams the session may act as now, with what each
+// holds: the core lists them by OpenTeamCast's own rule.
+func (s *State) CastableTeams(ctx context.Context, session string) ([]authority.CastableTeam, error) {
+	caller, err := s.Caller(session)
+	if err != nil {
+		return nil, err
+	}
+	return s.svc.CastableTeams(ctx, caller, caller.Organization)
+}
+
 // FixturePeople is every fixture person, in the fixture's order.
 func (s *State) FixturePeople() []Person {
 	s.mu.RLock()

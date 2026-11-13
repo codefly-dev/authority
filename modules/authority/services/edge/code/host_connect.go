@@ -71,12 +71,15 @@ func (e *Edge) hostConnectFace() http.Handler {
 		if e.Delegations != nil {
 			procedures = append(procedures, e.delegationProcedures()...)
 		}
+		if e.Sessions != nil {
+			procedures = append(procedures, e.sessionProcedures()...)
+		}
 		for _, p := range procedures {
 			mux.Handle(p.procedure, p.handler)
 		}
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			_ = connectRefusal.Write(w, r, connect.NewError(connect.CodeUnimplemented,
-				errors.New("this origin serves "+r.URL.Path+" to no browser: it serves InstallationService List, ListHeld, ListRoleGrants, GrantRole, RevokeRole and Review, OfferService ListOffers and ReviewOffer, and AuthorityService Delegate and GetDelegation")))
+				errors.New("this origin serves "+r.URL.Path+" to no browser: it serves InstallationService List, ListHeld, ListRoleGrants, GrantRole, RevokeRole and Review, OfferService ListOffers and ReviewOffer, AuthorityService Delegate and GetDelegation, and SessionService Current, ListCastableTeams and OpenTeamCast")))
 		})
 		e.face = mux
 	})
@@ -124,7 +127,7 @@ func (e *Edge) installationProcedures() []faceProcedure {
 // before the origin check). No CORS header is ever set.
 func (e *Edge) toHost(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if (e.Installer == nil || e.Offers == nil) && e.Delegations == nil {
+	if (e.Installer == nil || e.Offers == nil) && e.Delegations == nil && (e.Sessions == nil || !isSessionPath(r.URL.Path)) {
 		refuseCall(w, r, http.StatusNotFound, "this edge composes no host installation or delegation interface")
 		return
 	}
@@ -143,7 +146,8 @@ func (e *Edge) toHost(w http.ResponseWriter, r *http.Request) {
 	}
 	r.Header.Del("Cookie")
 	r.Header.Del("Authorization")
-	e.hostConnectFace().ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), sessionBearer{}, bearer)))
+	ctx := context.WithValue(context.WithValue(r.Context(), sessionBearer{}, bearer), sessionFromCookie{}, fromCookie)
+	e.hostConnectFace().ServeHTTP(w, r.WithContext(ctx))
 }
 
 // notConnectUnary is why r is not a Connect unary call, or empty when it is.
@@ -177,5 +181,5 @@ func forward[Req, Res any](procedure string, call func(context.Context, *Req, ..
 
 // isHostPath is whether path names a procedure of the host face.
 func isHostPath(path string) bool {
-	return strings.HasPrefix(path, hostPackage) || slices.Contains(delegationPaths, path)
+	return strings.HasPrefix(path, hostPackage) || slices.Contains(delegationPaths, path) || isSessionPath(path)
 }

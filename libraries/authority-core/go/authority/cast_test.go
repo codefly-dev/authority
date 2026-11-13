@@ -1,6 +1,7 @@
 package authority_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -131,5 +132,60 @@ func TestARoleViewOpenedFromACastStaysInTheCast(t *testing.T) {
 	issued, err := h.rootAs(viewed, "b")
 	if err == nil && holds(issued, "b.note", "write") {
 		t.Fatal("a view opened from a cast escaped it: the person's own grants at b came back")
+	}
+}
+
+// The list a page offers is the choice OpenTeamCast decides, by the same
+// rule: an administrator lists every team granted something, with what it
+// holds; a person who could not grant a team's roles does not list it; a team
+// granted nothing is not listed; a cast lists the one team it acts as.
+func TestCastableTeamsListsWhatOpenTeamCastWouldOpen(t *testing.T) {
+	h := newHarness(t)
+	h.grantTeam("a", "viewer", "team")
+	h.grantTeam("b", "editor", "team")
+	h.store.PutTeam(acme, "other")
+	h.grantTeam("a", "editor", "other")
+	names := func(teams []authority.CastableTeam) (out []string) {
+		for _, team := range teams {
+			out = append(out, team.Team)
+		}
+		return out
+	}
+
+	alex := h.person("alex")
+	listed, err := h.svc.CastableTeams(h.ctx, alex, alex.Organization)
+	if err != nil {
+		t.Fatalf("an administrator lists the teams: %v", err)
+	}
+	if got := strings.Join(names(listed), ","); got != "other,team" {
+		t.Fatalf("an administrator lists %q; want every team granted something, sorted: other,team", got)
+	}
+	var held []string
+	for _, h := range listed[1].Holds {
+		held = append(held, h.Target+":"+h.Role)
+	}
+	if slices.Sort(held); strings.Join(held, ",") != "a:viewer,b:editor" {
+		t.Fatalf("team holds %v; want viewer on a and editor on b", held)
+	}
+	for _, team := range listed {
+		if _, err := h.svc.OpenTeamCast(h.ctx, alex, authority.TeamCastRequest{Organization: acme, Team: team.Team, SessionID: "listed-" + team.Team}); err != nil {
+			t.Fatalf("listed team %q is refused by OpenTeamCast: %v", team.Team, err)
+		}
+	}
+
+	maya := h.person("maya")
+	if listed, err := h.svc.CastableTeams(h.ctx, maya, maya.Organization); err != nil || len(listed) != 0 {
+		t.Fatalf("a person who could grant nothing lists %v (%v); want none", names(listed), err)
+	}
+
+	cast, err := h.casting("alex", "team")
+	if err != nil {
+		t.Fatalf("cast: %v", err)
+	}
+	if listed, err := h.svc.CastableTeams(h.ctx, cast, cast.Organization); err != nil || strings.Join(names(listed), ",") != "team" {
+		t.Fatalf("a cast lists %v (%v); want the one team it acts as", names(listed), err)
+	}
+	if _, err := h.svc.CastableTeams(h.ctx, alex, "another-org"); err == nil {
+		t.Fatal("a member of acme listed another organization's teams")
 	}
 }

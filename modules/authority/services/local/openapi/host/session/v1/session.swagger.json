@@ -40,6 +40,29 @@
         ]
       }
     },
+    "/v1/session/castable-teams": {
+      "get": {
+        "summary": "ListCastableTeams answers the teams of the organisation the caller is\nsigned into that the caller may act as now, each with what it holds, so a\npage offers the choice OpenTeamCast decides: listed by OpenTeamCast's one\nrule (a team whose roles the caller could grant, member of it or not), and\na team it would refuse is not listed, a team granted nothing included. A\ncast answers the one team it acts as. Listing opens nothing: each\nOpenTeamCast is decided again when it is asked. The callers OpenTeamCast\nrefuses are refused here.",
+        "operationId": "SessionService_ListCastableTeams",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListCastableTeamsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "SessionService"
+        ]
+      }
+    },
     "/v1/session/fixture-people": {
       "get": {
         "summary": "ListFixturePeople answers who this authority signs in by fixture token, for\nthe browser edge's sign-in page: the people are defined once, in the\nauthority's fixture. A host that signs real people in through its identity\nprovider has no fixture people and answers none.",
@@ -195,6 +218,28 @@
         }
       }
     },
+    "v1CastableTeam": {
+      "type": "object",
+      "properties": {
+        "teamId": {
+          "type": "string",
+          "description": "The team."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The team's name, as the host spells it, for a page that offers the\nchoice; the id above is the identity. A host that names teams by their\nid answers the id."
+        },
+        "holds": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1TeamHolding"
+          },
+          "description": "Each role granted to the team on an active installation, by installation\nthen role."
+        }
+      },
+      "description": "CastableTeam is one team a caller may act as, and what a cast onto it holds."
+    },
     "v1FixturePerson": {
       "type": "object",
       "properties": {
@@ -234,6 +279,20 @@
         }
       },
       "description": "FixturePerson is one person a fixture run signs in."
+    },
+    "v1ListCastableTeamsResponse": {
+      "type": "object",
+      "properties": {
+        "teams": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1CastableTeam"
+          },
+          "description": "The teams."
+        }
+      },
+      "description": "ListCastableTeamsResponse is every team the caller may act as, by team id."
     },
     "v1ListFixturePeopleResponse": {
       "type": "object",
@@ -358,6 +417,24 @@
         }
       },
       "description": "SignInRequest presents a fixture token."
+    },
+    "v1TeamHolding": {
+      "type": "object",
+      "properties": {
+        "installationId": {
+          "type": "string",
+          "description": "The installation."
+        },
+        "target": {
+          "type": "string",
+          "description": "What it installs, as the installation names it."
+        },
+        "role": {
+          "type": "string",
+          "description": "The role."
+        }
+      },
+      "description": "TeamHolding is one role a team holds on one installation."
     }
   }
 }

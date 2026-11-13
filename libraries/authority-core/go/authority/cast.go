@@ -1,9 +1,12 @@
 package authority
 
 import (
+	"cmp"
 	"context"
 	"errors"
+	"maps"
 	"slices"
+	"strings"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
@@ -165,4 +168,83 @@ func teamIsWithin(tx Tx, caller Person, p domain.Person, org, team string) (with
 		}
 	}
 	return within, reaches, nil
+}
+
+// TeamHolding is one role a team holds on one active installation.
+type TeamHolding struct {
+	InstallationID, Target, Role string
+}
+
+// CastableTeam is a team a person may act as now, and what a cast onto it
+// holds.
+type CastableTeam struct {
+	Team  string
+	Holds []TeamHolding
+}
+
+// CastableTeams answers the teams of org that who may act as now, sorted by
+// team, each with its holdings sorted by installation then role: the choice
+// OpenTeamCast decides, listed by the same rule (teamIsWithin), so a team it
+// would refuse is not listed — a team whose roles who could not grant, and a
+// team granted nothing. A cast acts as one team and opens no other, so it
+// answers that team alone. Nothing is opened: each OpenTeamCast decides again.
+func (s *Service) CastableTeams(ctx context.Context, who Person, org string) ([]CastableTeam, error) {
+	var out []CastableTeam
+	err := s.store.Read(ctx, func(tx Tx) error {
+		p, err := personAs(tx, who)
+		if err != nil || p.Organization != org {
+			return domain.Refuse("the teams to act as at %q are read by a member of it, signed in there", org)
+		}
+		holds, err := teamHoldings(tx, org)
+		if err != nil {
+			return err
+		}
+		for _, team := range slices.Sorted(maps.Keys(holds)) {
+			if p.Cast != "" && team != p.Cast {
+				continue
+			}
+			if p.Cast == "" {
+				within, reaches, err := teamIsWithin(tx, who, p, org, team)
+				if err != nil {
+					return err
+				}
+				if !within || !reaches {
+					continue
+				}
+			}
+			out = append(out, CastableTeam{Team: team, Holds: holds[team]})
+		}
+		return nil
+	})
+	return out, err
+}
+
+// teamHoldings is every role granted to a team on an active installation of
+// org, by team, each team's sorted by installation then role.
+func teamHoldings(tx Tx, org string) (map[string][]TeamHolding, error) {
+	installs, err := tx.Installations(org)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string][]TeamHolding{}
+	for _, inst := range installs {
+		if inst.Status != domain.Active {
+			continue
+		}
+		grants, err := tx.RoleGrants(inst.ID)
+		if err != nil {
+			return nil, err
+		}
+		for _, g := range grants {
+			if g.TeamID != "" {
+				out[g.TeamID] = append(out[g.TeamID], TeamHolding{InstallationID: inst.ID, Target: inst.Target, Role: g.Role})
+			}
+		}
+	}
+	for _, holds := range out {
+		slices.SortFunc(holds, func(a, b TeamHolding) int {
+			return cmp.Or(strings.Compare(a.InstallationID, b.InstallationID), strings.Compare(a.Role, b.Role))
+		})
+	}
+	return out, nil
 }

@@ -63,22 +63,17 @@ func (p *Plugin) ApplyManifest(ctx context.Context, req *compositionv1.ApplyMani
 	if err != nil {
 		return nil, err
 	}
-	var sidecar []byte
-	manifest, err := carrier.Manifest()
-	if err != nil {
+	if _, err := carrier.Manifest(); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "manifest: %v", err)
 	}
-	var doc *delivered.Document
-	if req.GetAuthority() != nil {
-		if doc, err = p.document(req.GetAuthority(), req.GetCarrier(), manifest, carrier.Signer().KeyID); err != nil {
-			return nil, authorityplugin.Status(err)
-		}
-		sidecar = req.GetAuthority().GetDocument()
-		if sidecar == nil {
-			sidecar = []byte{}
+	var sidecar *state.SignedDocument
+	if signed := req.GetAuthority(); signed != nil {
+		sidecar = &state.SignedDocument{Document: signed.GetDocument(), Envelope: signed.GetEnvelope()}
+		if sidecar.Document == nil {
+			sidecar.Document = []byte{}
 		}
 	}
-	m, err := delivered.Module(manifest, doc)
+	m, err := p.read(carrier, sidecar)
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}
@@ -90,6 +85,45 @@ func (p *Plugin) ApplyManifest(ctx context.Context, req *compositionv1.ApplyMani
 		log.Printf("permissions: %s", line)
 	}
 	return &compositionv1.ApplyManifestResponse{Principal: m.Principal, Generation: m.Generation, InstallationIds: ids}, nil
+}
+
+// read is the module a verified carrier composes with the authority's
+// document delivered beside it, if any (document), named by the source it was
+// read from (delivered.Source).
+func (p *Plugin) read(carrier *solutionhost.Delivered, sidecar *state.SignedDocument) (state.Manifest, error) {
+	manifest, err := carrier.Manifest()
+	if err != nil {
+		return state.Manifest{}, domain.Malformed("manifest: %v", err)
+	}
+	var doc *delivered.Document
+	var document []byte
+	if sidecar != nil {
+		if doc, err = p.document(sidecar, carrier.Payload(), manifest, carrier.Signer().KeyID); err != nil {
+			return state.Manifest{}, err
+		}
+		document = sidecar.Document
+	}
+	m, err := delivered.Module(manifest, doc)
+	m.Source = delivered.Source(carrier.Payload(), document)
+	return m, err
+}
+
+// Reread reads every delivery the host holds again, as this host reads one
+// now, its authority document verified again with the pinned keys: the
+// generation each holds, re-read in the core (authority.Service.RereadModule).
+// This host keeps nothing across a start, so nothing it reads at start was
+// read by an older reader; a host that keeps its deliveries runs this then.
+func (p *Plugin) Reread(ctx context.Context) error {
+	for _, held := range p.State.HeldDeliveries() {
+		m, err := p.read(held.Carrier, held.Authority)
+		if err != nil {
+			return err
+		}
+		if _, err := p.State.Reread(ctx, m); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // verified reads the manifest from the carrier's verified document and admits
@@ -120,16 +154,16 @@ func (p *Plugin) verified(ctx context.Context, carrier *compositionv1.SignedMani
 // generation, naming the carrier's digest (delivered.VerifyDocument and
 // delivered.Pair). Anything else is refused, so a delivery cannot pair one
 // release's manifest with another's method policy.
-func (p *Plugin) document(signed, carrier *compositionv1.SignedManifestV1, core *solutionhost.ModuleManifest, signer string) (*delivered.Document, error) {
-	if err := delivered.VerifyDocument(signed.GetDocument(), signed.GetEnvelope(), p.Keys, signer); err != nil {
+func (p *Plugin) document(signed *state.SignedDocument, carrier []byte, core *solutionhost.ModuleManifest, signer string) (*delivered.Document, error) {
+	if err := delivered.VerifyDocument(signed.Document, signed.Envelope, p.Keys, signer); err != nil {
 		return nil, err
 	}
 	var wire compositionv1.AuthorityManifestV1
-	if err := proto.Unmarshal(signed.GetDocument(), &wire); err != nil {
+	if err := proto.Unmarshal(signed.Document, &wire); err != nil {
 		return nil, domain.Malformed("the authority's document does not read: %v", err)
 	}
 	doc := DocumentOf(&wire)
-	if err := delivered.Pair(*doc, carrier.GetDocument(), core); err != nil {
+	if err := delivered.Pair(*doc, carrier, core); err != nil {
 		return nil, err
 	}
 	return doc, nil

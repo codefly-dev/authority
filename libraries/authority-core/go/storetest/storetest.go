@@ -289,41 +289,66 @@ func Run(t *testing.T, open Open) {
 			return tx.PutApprovedModule(second) // idempotent
 		})
 		read(t, func(tx authority.Tx) error {
-			got, err := tx.ApprovedModule(first.Name, 1)
+			got, err := tx.ApprovedModule(first.Name, 1, "")
 			if err != nil {
 				return err
 			}
 			sameModule(t, got, first)
-			if got, err = tx.ApprovedModule(first.Name, 2); err != nil {
+			if got, err = tx.ApprovedModule(first.Name, 2, ""); err != nil {
 				return err
 			}
 			sameModule(t, got, second)
-			if _, err := tx.ApprovedModule(first.Name, 3); !errors.Is(err, domain.ErrNotFound) {
+			if _, err := tx.ApprovedModule(first.Name, 3, ""); !errors.Is(err, domain.ErrNotFound) {
 				t.Errorf("a generation never approved reads %v, want ErrNotFound", err)
 			}
-			if _, err := tx.ApprovedModule(f.name("never"), 1); !errors.Is(err, domain.ErrNotFound) {
+			if _, err := tx.ApprovedModule(f.name("never"), 1, ""); !errors.Is(err, domain.ErrNotFound) {
 				t.Errorf("a module never approved reads %v, want ErrNotFound", err)
 			}
 			return nil
 		})
 	})
 
-	t.Run("an approved declaration is never replaced by a different one", func(t *testing.T) {
+	t.Run("an approved declaration is kept by its digest and never replaced", func(t *testing.T) {
 		kept := f.module(domain.KindSolution)
 		kept.Name, kept.Principal = f.name("kept"), f.name("kept-principal")
-		other := kept
-		other.Roles = map[string][]*basev0.WorkScopeV1{domain.InstallerRole: kept.Roles[domain.InstallerRole]}
-		write(t, func(tx authority.Tx) error { return tx.PutApprovedModule(kept) })
-		if err := store.Write(ctx, func(tx authority.Tx) error { return tx.PutApprovedModule(other) }); !errors.Is(err, domain.ErrApprovedDeclarationKept) {
-			t.Errorf("a different declaration at a kept generation was answered %v, want ErrApprovedDeclarationKept", err)
+		reread := kept // the same generation read again (Service.RereadModule)
+		reread.Roles = map[string][]*basev0.WorkScopeV1{domain.InstallerRole: kept.Roles[domain.InstallerRole]}
+		// Each one's offer digest is of the declaration as this store answers it.
+		digest := func(m domain.Module) string {
+			t.Helper()
+			var out string
+			write(t, func(tx authority.Tx) error { return tx.PutModule(m) })
+			read(t, func(tx authority.Tx) error {
+				stored, err := tx.ModuleNamed(m.Name)
+				if err == nil {
+					out, err = authority.OfferDigest(stored)
+				}
+				return err
+			})
+			return out
 		}
-		write(t, func(tx authority.Tx) error { return tx.PutApprovedModule(kept) }) // identical: accepted
+		keptDigest, rereadDigest := digest(kept), digest(reread)
+		write(t, func(tx authority.Tx) error {
+			for _, m := range []domain.Module{kept, reread, kept} { // the same one again: accepted
+				if err := tx.PutApprovedModule(m); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
 		read(t, func(tx authority.Tx) error {
-			got, err := tx.ApprovedModule(kept.Name, kept.Generation)
+			got, err := tx.ApprovedModule(kept.Name, kept.Generation, keptDigest)
 			if err != nil {
 				return err
 			}
 			sameModule(t, got, kept)
+			if got, err = tx.ApprovedModule(kept.Name, kept.Generation, rereadDigest); err != nil {
+				return err
+			}
+			sameModule(t, got, reread)
+			if _, err := tx.ApprovedModule(kept.Name, kept.Generation, "sha256:never-approved"); !errors.Is(err, domain.ErrNotFound) {
+				t.Errorf("a digest never approved reads %v, want ErrNotFound", err)
+			}
 			return nil
 		})
 	})
@@ -635,6 +660,7 @@ func (f *fixture) module(kind string) domain.Module {
 		m.SourceGovernance = []*basev0.WorkScopeV1{{ResourceKind: "storetest.page", Actions: []string{"write"}}}
 	}
 	m.SharedKinds = []string{"storetest.item"}
+	m.Source = "sha256:storetest-delivery"
 	return m
 }
 
@@ -674,6 +700,9 @@ func sameModule(t *testing.T, got, want domain.Module) {
 	// The scopes that govern a solution's sources decide who manages them: a
 	// store that drops them leaves an approved declaration that governs none.
 	ok = ok && sameScopes(got.SourceGovernance, want.SourceGovernance)
+	// The delivery a declaration was read from decides whether reading it
+	// again is a re-read or another delivery (Service.RereadModule).
+	ok = ok && got.Source == want.Source
 	for role, bindings := range want.Through {
 		ok = ok && len(got.Through[role]) == len(bindings)
 		for id, scopes := range bindings {

@@ -158,9 +158,13 @@ func asStored(m domain.Module) domain.Module {
 // a replay of the held generation, which changes nothing. Every other verdict
 // is a refusal, and it is one verdict: Admit asks it read-only and ApplyModule
 // writes on it, so what one would refuse the other refuses.
+//
+// A re-read (reread) is the held generation read again from the delivery it
+// was composed from: a replay when it reads the same, otherwise a redelivery
+// that keeps its generation (Service.RereadModule).
 type admission struct {
-	previous                  domain.Module
-	exists, withdrawn, replay bool
+	previous                          domain.Module
+	exists, withdrawn, replay, reread bool
 }
 
 // admit decides m against the store as it stands: a tombstone's principal and
@@ -170,7 +174,7 @@ type admission struct {
 // installation's, and what m's roles name through a binding that the
 // composition this delivery would leave does not reach (decide.Unreached).
 // m is validated (decide.ValidateModule) and serves decide.Served(m).
-func admit(tx Tx, m domain.Module) (admission, error) {
+func admit(tx Tx, m domain.Module, reread bool) (admission, error) {
 	var a admission
 	previous, err := tx.ModuleNamed(m.Name)
 	a.exists = err == nil
@@ -200,12 +204,20 @@ func admit(tx Tx, m domain.Module) (admission, error) {
 			return a, err
 		}
 	}
-	if a.exists && !previous.StandIn && previous.Generation == m.Generation {
+	holds := a.exists && !previous.StandIn && previous.Generation == m.Generation
+	if reread && (!holds || m.Source == "") {
+		return a, domain.NotNow("%s is not held at generation %d from a named source; only the generation the core holds is read again, from its own delivery", m.Name, m.Generation)
+	}
+	if holds {
 		// A host composes one delivery on more than one path at once (its
 		// delivery endpoint's pass and its reconcile loop's), so the
 		// generation a path brings may be the one another just composed.
-		// The same declaration is a replay and changes nothing; another
-		// one at the held generation is refused, naming both.
+		// The same declaration is a replay and changes nothing. Another one
+		// at the held generation is a re-read where it is read from the
+		// documents the held one was (the same Source), or, held from no
+		// recorded source, where the host re-reads the delivery it keeps
+		// for that generation (RereadModule); anything else is refused,
+		// naming both.
 		held, err := DeclarationDigest(previous)
 		if err != nil {
 			return a, err
@@ -214,12 +226,19 @@ func admit(tx Tx, m domain.Module) (admission, error) {
 		if err != nil {
 			return a, err
 		}
-		if held != delivered {
+		switch {
+		case held == delivered:
+			a.replay = true
+			return a, nil
+		case previous.Source != "" && m.Source != "" && previous.Source != m.Source:
+			return a, domain.NotNow("%s generation %d is held from delivery %s and delivered from %s; another delivery is a new generation",
+				m.Name, m.Generation, previous.Source, m.Source)
+		case m.Source != "" && (previous.Source == m.Source || reread):
+			a.reread = true
+		default:
 			return a, domain.NotNow("%s generation %d is held as %s and delivered as %s; a changed declaration is a new generation",
 				m.Name, m.Generation, held, delivered)
 		}
-		a.replay = true
-		return a, nil
 	}
 	if a.exists && !previous.StandIn && previous.Generation > m.Generation {
 		return a, domain.NotNow("%s is at %d, got %d", m.Name, previous.Generation, m.Generation)
@@ -270,7 +289,7 @@ func (s *Service) Admit(ctx context.Context, m domain.Module) error {
 	}
 	m.ResourceKinds = decide.Served(m)
 	return s.store.Read(ctx, func(tx Tx) error {
-		_, err := admit(tx, m)
+		_, err := admit(tx, m, false)
 		return err
 	})
 }
@@ -299,17 +318,60 @@ func (s *Service) Admit(ctx context.Context, m domain.Module) error {
 // reach it has now (reconvergeReach), so a page's roles work on a fresh run
 // whichever order its modules land in.
 func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, error) {
+	ids, _, err := s.applyModule(ctx, m, false)
+	return ids, err
+}
+
+// RereadModule composes m, the generation the core holds read again by its
+// host from the delivery it keeps for it: the same signed documents, which
+// the host verified again, named by m.Source (delivered.Source). A host that
+// learned to read a declaration field reads the same delivery as a different
+// declaration, and a changed declaration is otherwise only ever a new
+// generation, so without this every module it composed before is stranded
+// until its next release, and an approval taken meanwhile reviews the copy
+// that misses the field. reread reports whether the held declaration changed.
+//
+// It is refused unless the core holds m's generation, and unless the held
+// generation was read from m.Source; a generation held from no recorded
+// source (composed before the core kept one) takes m.Source here, which the
+// host vouches for, and every later reading of it must come from that source.
+// A different delivery at the held generation is refused as ApplyModule
+// refuses it. The same declaration is a replay, which only records the source.
+//
+// A changed declaration is a redelivery that keeps its generation: an
+// installation consented to is held at what it approved and its reach,
+// re-converging only where the re-read asks nothing new and otherwise
+// offering the upgrade (reconverge, reconvergeReach; a module page's receipt
+// is never re-taken, as composition did not grow); a narrowing applies at
+// once and ends what was issued under the wider reading. Nothing widens
+// without an approval, and nothing approved is revoked.
+func (s *Service) RereadModule(ctx context.Context, m domain.Module) (reread bool, err error) {
+	_, reread, err = s.applyModule(ctx, m, true)
+	return reread, err
+}
+
+func (s *Service) applyModule(ctx context.Context, m domain.Module, reread bool) ([]string, bool, error) {
 	if err := decide.ValidateModule(m); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	m.ResourceKinds = decide.Served(m)
 	var ids []string
+	var changed bool
 	err := s.store.Write(ctx, func(tx Tx) error {
-		ids = nil // a retried transaction starts over
-		a, err := admit(tx, m)
-		if err != nil || a.replay {
+		ids, changed = nil, false // a retried transaction starts over
+		a, err := admit(tx, m, reread)
+		if err != nil {
 			return err
 		}
+		if a.replay {
+			if a.previous.Source != "" || m.Source == "" || !reread {
+				return nil
+			}
+			held := a.previous
+			held.Source = m.Source
+			return tx.PutModule(held)
+		}
+		changed = a.reread
 		previous, exists, withdrawn := a.previous, a.exists, a.withdrawn
 		unreachedBefore, err := unreachedNow(tx)
 		if err != nil {
@@ -363,7 +425,11 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 		if err := s.journalReach(ctx, tx, unreachedBefore); err != nil {
 			return err
 		}
-		if err := s.journal(ctx, tx, domain.Event{Kind: domain.ModuleApplied, Subject: m.Name, Detail: map[string]string{"principal": m.Principal, "kind": m.Kind, "generation": fmt.Sprint(m.Generation)}}); err != nil {
+		applied := domain.Event{Kind: domain.ModuleApplied, Subject: m.Name, Detail: map[string]string{"principal": m.Principal, "kind": m.Kind, "generation": fmt.Sprint(m.Generation)}}
+		if a.reread {
+			applied.Detail["reread_from"] = m.Source
+		}
+		if err := s.journal(ctx, tx, applied); err != nil {
 			return err
 		}
 		if m.Kind == domain.KindSolution || s.cfg.HostInstallsModules {
@@ -411,7 +477,7 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 		slices.Sort(ids)
 		return nil
 	})
-	return ids, err
+	return ids, changed, err
 }
 
 // dropGrantsAfterWithdrawal ends, on every active installation of m, the
