@@ -2,6 +2,7 @@ package authority_test
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
@@ -209,5 +210,144 @@ func TestANarrowedCallIsHeldToTheApprovedPolicyOnItsOwnScopes(t *testing.T) {
 	narrowed = h.must(h.through("maya", "a", "store", readOnly))
 	if err := h.callStore(narrowed, storePurge); err != nil {
 		t.Fatalf("the approved relaxation is refused: %v", err)
+	}
+}
+
+// A call that reaches a module through a solution is held to the reach the
+// solution's installation approved, and to nothing the module's own page
+// installation decides: the module declaring a page with roles (as a model
+// gateway declares its installed-models page) does not make a person who
+// holds no role on that page lose what they reach at the module through the
+// solution. The store becomes a role-gated page; maya, a's author, holds no
+// role on it, and still reads through a, as the store's own viewer does.
+func TestACallThroughASolutionIsNotHeldToTheReachOfTheModulesOwnPage(t *testing.T) {
+	h := reachHarness(t)
+	at := h.must(h.through("maya", "a", "store"))
+	if err := h.callStore(at, storeRead); err != nil {
+		t.Fatal(err)
+	}
+	paged := storeAt(3, "admin", true)
+	paged.Page, paged.InstallationRole = true, domain.NoInstallationRole
+	paged.Roles = map[string][]*basev0.WorkScopeV1{
+		domain.InstallerRole: {sc(kind, "admin", "read", "write")},
+		"viewer":             {sc(kind, "read")},
+	}
+	if _, err := h.svc.ApplyModule(h.ctx, paged); err != nil {
+		t.Fatal(err)
+	}
+	// The store's page installation is held at composition's own receipt, as
+	// a host that installs modules takes it when it starts.
+	if err := h.svc.AdoptLegacyReach(h.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if page := h.stored(acme, "store"); page.Consent.OperationID != domain.ComposedConsent {
+		t.Fatalf("the store's page installation is held by %q, not composition", page.Consent.OperationID)
+	}
+	if up, err := h.svc.UpgradeAvailable(h.ctx, h.stored(acme, "a")); err != nil || up {
+		t.Fatalf("the store's own page widened a's reach: %v %v", up, err)
+	}
+	at = h.must(h.through("maya", "a", "store"))
+	if err := h.callStore(at, storeRead); err != nil {
+		t.Fatalf("a's author lost the approved Read once the store declared its own page's roles: %v", err)
+	}
+	refused(t, h.callStore(at, storePurge), "requires "+kind+":admin")
+}
+
+// A person's call at a solution is held to the reach its installation
+// approved whether they make it themselves or a client they delegated to
+// makes it for them: the client's hop on the chain is no target whose
+// installation's consent could bound the call in the solution's place. a
+// relaxing its own Erase to what its viewer holds offers an upgrade; until an
+// administrator approves it, maya's Erase at a is refused on her own session
+// and through her client alike, and Read is admitted to both.
+func TestAClientsCallAtASolutionIsHeldToItsApprovedReach(t *testing.T) {
+	const aRead, aErase = "/a.v1.A/Read", "/a.v1.A/Erase"
+	at := func(generation uint64, erase string) domain.Module {
+		m := solution("a", true)
+		m.Generation = generation
+		m.Methods = map[string]domain.MethodPolicy{
+			aRead:  {Requires: []*basev0.WorkScopeV1{sc("a.note", "read")}},
+			aErase: {Requires: []*basev0.WorkScopeV1{sc("a.note", erase)}},
+		}
+		return m
+	}
+	h, c, d := clientGrant(t)
+	if _, err := h.svc.ApplyModule(h.ctx, at(2, "write")); err != nil {
+		t.Fatal(err)
+	}
+	h.install(acme, "a") // the administrator approves a's methods
+	if _, err := h.svc.ApplyModule(h.ctx, at(3, "read")); err != nil {
+		t.Fatal(err)
+	}
+	if up, err := h.svc.UpgradeAvailable(h.ctx, h.stored(acme, "a")); err != nil || !up {
+		t.Fatalf("a relaxing Erase to its viewer offers no upgrade: %v %v", up, err)
+	}
+	callA := func(i authority.Issued, method string) error {
+		_, _, _, err := h.svc.CheckMethod(h.ctx, i.Token, "a", method, false)
+		return err
+	}
+	own := h.must(h.root("maya", "a"))
+	client := h.must(h.svc.IssueForClientDelegation(h.ctx, d.ID, c.ID, d.Resource, authority.IssueRequest{}))
+	for name, i := range map[string]authority.Issued{"her own session": own, "her client": client} {
+		if err := callA(i, aRead); err != nil {
+			t.Fatalf("%s is refused the approved Read: %v", name, err)
+		}
+		if err := callA(i, aErase); err == nil || !strings.Contains(err.Error(), "beyond the reach its installation approved") {
+			t.Fatalf("%s reaches Erase before the upgrade is approved: %v", name, err)
+		}
+	}
+}
+
+// A person's call at a module page that came through no solution and no page
+// declaring roles is held to the page's approved reach, as their own call at
+// it is: what they hold there is the page's roles (held), so the consent
+// that bounds those roles bounds the call, whichever plain module it hopped
+// from. The store becomes a role-gated page held at composition's receipt,
+// maya its viewer; a relay that declares no roles hops her to it. The store
+// relaxing Purge to read widens what its viewer reaches; until approved,
+// Purge is refused at the store on her own session and through the relay.
+func TestACallThroughAPlainModuleIsHeldToThePagesApprovedReach(t *testing.T) {
+	h := newHarness(t)
+	paged := func(generation uint64, purge string) domain.Module {
+		m := storeAt(generation, purge, true)
+		m.Page, m.InstallationRole = true, domain.NoInstallationRole
+		m.Roles = map[string][]*basev0.WorkScopeV1{
+			domain.InstallerRole: {sc(kind, "admin", "read", "write")},
+			"viewer":             {sc(kind, "read")},
+		}
+		return m
+	}
+	relay := domain.Module{Name: "relay", Principal: "relay", Kind: domain.KindModule, Generation: 1,
+		ResourceKinds: []*basev0.WorkScopeV1{sc(ledgerKind, "read")},
+		Bindings: map[string]domain.Binding{
+			"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "admin", "read", "write")}},
+		}}
+	for _, m := range []domain.Module{paged(2, "admin"), relay} {
+		if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := h.svc.AdoptLegacyReach(h.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if page := h.stored(acme, "store"); page.Consent.OperationID != domain.ComposedConsent {
+		t.Fatalf("the store's page installation is held by %q, not composition", page.Consent.OperationID)
+	}
+	h.grant("store", "viewer", "rob")
+	if _, err := h.svc.ApplyModule(h.ctx, paged(3, "read")); err != nil {
+		t.Fatal(err)
+	}
+	if up, err := h.svc.UpgradeAvailable(h.ctx, h.stored(acme, "store")); err != nil || !up {
+		t.Fatalf("the page relaxing Purge to its viewer offers no upgrade: %v %v", up, err)
+	}
+	own := h.must(h.root("rob", "store"))
+	relayed := h.must(h.through("rob", "relay", "store"))
+	for name, i := range map[string]authority.Issued{"his own session": own, "the relay": relayed} {
+		if err := h.callStore(i, storeRead); err != nil {
+			t.Fatalf("%s is refused the approved Read: %v", name, err)
+		}
+		if err := h.callStore(i, storePurge); err == nil || !strings.Contains(err.Error(), "beyond the reach its installation approved") {
+			t.Fatalf("%s reaches Purge before the page's upgrade is approved: %v", name, err)
+		}
 	}
 }

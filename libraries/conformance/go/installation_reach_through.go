@@ -153,5 +153,48 @@ func (c *client) reachThroughConsent(t *testing.T, ctx context.Context, f Fixtur
 				t.Fatalf("the approved operation is refused: %v", err)
 			}
 		})
+		// A module that declares a page with roles of its own (a model
+		// gateway's installed-models page) is installed by composition and held
+		// at composition's receipt. A call that reaches it through a solution
+		// is held to the solution's approved reach alone: a holder of the
+		// solution's role, who holds no role on the module's own page, reaches
+		// it through the solution. Refusing it ("beyond the reach its
+		// installation approved") refused every person, and every
+		// administrator acting as a team, not also seated on the module's page.
+		t.Run("a module declaring its own page's roles does not cut what a solution's holder reaches through it", func(t *testing.T) {
+			paged, pagedItem, pagedSolution := throughVault+"-paged", throughVault+"-paged.item", throughSolution+"-paged"
+			pagedGet := "/conformance.through.PagedVault/Get"
+			own := &solutionhost.Frontend{Title: "Conformance paged vault", ExposedModule: "./Page", HostContract: 1, Payload: f.PagePayload}
+			document := map[string]any{"owner_aware": true, "installation_role": "none", "scope_ceilings": []any{scopeAsk(pagedItem, []string{"read"}, nil)},
+				"methods": []any{map[string]any{"method": pagedGet, "requires": []any{scopeAsk(pagedItem, []string{"read"}, nil)}}},
+				"roles":   []any{map[string]any{"name": "installer", "scopes": []any{scopeAsk(pagedItem, []string{"read"}, nil)}}}}
+			if _, err := c.deliverPage(ctx, f, own, paged, "module", 1, []string{pagedItem}, document, 0); err != nil {
+				t.Fatalf("deliver %s with a page and roles: %v", paged, err)
+			}
+			toPaged := solutionhost.AuthorityBinding{ID: "paged", Audience: paged, Operations: map[string][]string{"invoke": {pagedItem + ":read"}}}
+			pagedPage := pagedSolution + ".page"
+			role := map[string]any{"name": "installer", "scopes": []any{scopeAsk(pagedPage, []string{"read"}, nil)},
+				"through": []any{map[string]any{"binding": "paged", "scopes": []any{scopeAsk(pagedItem, []string{"read"}, nil)}}}}
+			editor := map[string]any{"name": "editor", "scopes": role["scopes"], "through": role["through"]}
+			if _, err := c.deliver(ctx, f, pagedSolution, "solution", 1, []string{pagedPage}, map[string]any{"owner_aware": true,
+				"scope_ceilings": []any{scopeAsk(pagedPage, []string{"read"}, nil)}, "roles": []any{role, editor}}, 0, toPaged); err != nil {
+				t.Fatalf("deliver %s: %v", pagedSolution, err)
+			}
+			installed := str(c.must(t, adminCtx, "host.installation.v1.InstallationService", "Install", map[string]any{"organization_id": f.Organization, "target": pagedSolution,
+				"role": "installer", "owner_person_id": str(admin, "person_id"), "approval": c.reviewInstallation(t, adminCtx, f.Organization, pagedSolution)}), "id")
+			c.must(t, adminCtx, "host.installation.v1.InstallationService", "GrantRole", map[string]any{"organization_id": f.Organization, "installation_id": installed, "role": "editor", "person_id": str(holder, "person_id")})
+			root, err := c.call(as(ctx, holder), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": pagedSolution, "operation_binding_id": "paged"})
+			if err != nil {
+				t.Fatalf("the holder's root at %s: %v", pagedSolution, err)
+			}
+			atPaged, err := c.call(ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"parent_token": str(root, "token"),
+				"actor": map[string]any{"credential": f.DeliveryCredential(pagedSolution)}, "operation_binding_id": "paged", "audience": paged})
+			if err != nil {
+				t.Fatalf("the solution's hop to %s: %v", paged, err)
+			}
+			if _, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(atPaged, "token"), "audience": paged, "method": pagedGet}); err != nil {
+				t.Fatalf("the holder, who holds no role on %s's own page, is refused what the solution's consent approved: %v", paged, err)
+			}
+		})
 	})
 }

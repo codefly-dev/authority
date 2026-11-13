@@ -136,7 +136,17 @@ func (s *Service) ListResources(ctx context.Context, token, audience, kind, acti
 			if err != nil && !errors.Is(err, domain.ErrNotFound) {
 				return err
 			}
-			ceiling, bounded, cerr := solutionCeiling(tx, p, solutionPrincipals(wc, wc.GetAudience()), at)
+			// A capability that came through a page or a module is bounded
+			// by what it came through, as issuance bounded it (the issuing
+			// hop's principals and the chain's); the audience's own roles,
+			// selected to its own installation, bound only a person's own
+			// session. Intersecting both answered a page reaching a store
+			// with roles of its own no resources at all.
+			principals := solutionPrincipals(wc, wc.GetAudience())
+			if len(principals) > 1 {
+				principals = principals[1:]
+			}
+			ceiling, bounded, cerr := solutionCeiling(tx, p, principals, at)
 			if cerr != nil {
 				return cerr
 			}
@@ -248,7 +258,7 @@ func (s *Service) withinApprovedReach(tx Tx, wc *basev0.WorkContextV1, effective
 	case "agent":
 		owner.agent = wc.GetOwnerPrincipalId()
 	case "human":
-		owner.principals = solutionPrincipals(wc, m.Principal)
+		owner.principals = reachedThrough(tx, wc, m.Principal)
 		if !anyRoleGated(tx, owner.principals) {
 			return nil, nil
 		}
@@ -269,6 +279,23 @@ func (s *Service) withinApprovedReach(tx Tx, wc *basev0.WorkContextV1, effective
 		return nil, nil
 	}
 	return domain.Refuse("%s at %s is beyond the reach its installation approved; approving the delivered upgrade reaches it", method, m.Name), nil
+}
+
+// reachedThrough is the targets a person's call at module came through, whose
+// installations' consent bounds it, read as what the person holds there is
+// (throughSolutions): a call whose actor chain names a solution or a module
+// page declaring roles holds those targets' roles at module, so it is bounded
+// by their installations' consent alone, never by module's own page as well,
+// whose roles the person need not hold. A call naming no such target (the
+// person's own root at module, their client's call there, or a hop from a
+// module declaring no roles) holds module's own roles when it is a page, so
+// module's installation's consent bounds it.
+func reachedThrough(tx Tx, wc *basev0.WorkContextV1, module string) []string {
+	principals := solutionPrincipals(wc, module)
+	if through := principals[1:]; anyRoleGated(tx, through) {
+		return through
+	}
+	return principals
 }
 
 // anySolution is whether a solution is among principals.
