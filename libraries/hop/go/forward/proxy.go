@@ -9,6 +9,7 @@ import (
 	"errors"
 	callstamp "github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
 	"io"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -89,7 +90,7 @@ func (p *Proxy) handle(_ any, in grpc.ServerStream) error {
 	}
 	up, err := upstream.NewStream(ctx, &grpc.StreamDesc{ServerStreams: true, ClientStreams: true}, method)
 	if err != nil {
-		return err
+		return p.unanswered(in.Context(), method, err)
 	}
 	sent, received := make(chan error, 1), make(chan error, 1)
 	go func() { sent <- forward(in, up) }()
@@ -106,6 +107,28 @@ func (p *Proxy) handle(_ any, in grpc.ServerStream) error {
 			return err
 		}
 	}
+}
+
+// unanswered refuses a call whose stream to the module could not be opened. A
+// caller whose request ended is answered with the code its context ended
+// with. Otherwise the module did not answer, Unavailable; the transport error,
+// which can name the module's internal address, goes to the hop's log, never
+// to the caller.
+//
+// Once the stream is open, every failure passes through as gRPC reports it:
+// gRPC does not tell a transport failure from the module's own status there,
+// and rewording one would reword the other.
+func (p *Proxy) unanswered(ctx context.Context, method string, err error) error {
+	if ended := ctx.Err(); ended != nil {
+		return status.Errorf(status.FromContextError(ended).Code(), "the caller's request ended before the module answered: %v", ended)
+	}
+	failed := status.Errorf(codes.Unavailable, "the module did not answer: %v", err)
+	if p.Refused != nil {
+		p.Refused(method, failed)
+	} else {
+		slog.Warn("hop: the module did not answer", "method", method, "error", err)
+	}
+	return status.Error(codes.Unavailable, "the module did not answer")
 }
 
 func requirePublication(ready func() bool) error {

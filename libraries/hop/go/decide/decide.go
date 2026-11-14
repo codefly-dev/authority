@@ -91,17 +91,18 @@ func (d Decider) decide(ctx context.Context, method string, md metadata.MD) (Dec
 	checked, err := d.Authority.Check(ctx, &authorityv1.CheckRequest{Token: tokens[0], Audience: module, Method: policy})
 	if err != nil {
 		refusal := status.Convert(err)
+		// The caller's request ending is one cause of a Canceled or
+		// DeadlineExceeded Check; a mesh or waypoint reset, the authority
+		// shutting down or a slow authority also surface so while the caller
+		// is still live. Only the first is the caller's doing, answered with
+		// the code its own context ended with.
+		if ended := ctx.Err(); ended != nil && (refusal.Code() == codes.Canceled || refusal.Code() == codes.DeadlineExceeded) {
+			return Decision{}, status.Errorf(status.FromContextError(ended).Code(), "the caller's request ended before the authority checked the call to %s: %s", module, refusal.Message())
+		}
 		if refusal.Code() == codes.Unavailable || refusal.Code() == codes.DeadlineExceeded {
 			return Decision{}, status.Errorf(codes.Unavailable, "the hop could not reach the authority to check the call to %s: %s", module, refusal.Message())
 		}
 		if refusal.Code() == codes.Canceled {
-			// The caller's request ending is one cause; a mesh or waypoint
-			// reset, or the authority shutting down, also surfaces as
-			// Canceled while the caller is still live. Only the first is the
-			// caller's doing.
-			if ctx.Err() != nil {
-				return Decision{}, status.Errorf(codes.Canceled, "the caller's request ended before the authority checked the call to %s: %s", module, refusal.Message())
-			}
 			return Decision{}, status.Errorf(codes.Unavailable, "the authority's check of the call to %s was cancelled before it answered: %s", module, refusal.Message())
 		}
 		return Decision{}, status.Errorf(refusal.Code(), "the authority refused the call to %s: %s", module, refusal.Message())
