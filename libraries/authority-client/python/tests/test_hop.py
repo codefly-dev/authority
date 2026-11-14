@@ -13,7 +13,7 @@ from authority_client._gen.host.authority.v1.authority_pb2 import KeysResponse
 from authority_client._gen.host.authority.v1.work_context_pb2 import WorkContextV1
 from codefly_hop.call import SKEW
 from codefly_hop import (
-    ACTORS_KEY, CONTEXT_KEY, KEY_RETRY, KEY_STALE, SCOPES_KEY, TENANT_KEY, WORK_CONTEXT_KEY, Identity, Unauthenticated,
+    ACTORS_KEY, CONTEXT_KEY, KEY_MAX_AGE, KEY_RETRY, KEY_STALE, SCOPES_KEY, TENANT_KEY, WORK_CONTEXT_KEY, Identity, Unauthenticated,
     Verifier, Replayed, Expired, identity_of,
 )
 
@@ -753,8 +753,9 @@ def test_a_stamp_signed_by_an_unpublished_key_is_refused_by_name():
 # keys and is admitted, without waiting out KEY_MAX_AGE (Go's
 # TestARestartedHopsFreshKeyIsAdmittedWithoutWaitingKeyMaxAge).
 @pytest.mark.parametrize("asynchronous", [False, True])
-def test_a_restarted_hops_fresh_key_is_admitted_without_waiting_key_max_age(asynchronous):
+def test_a_restarted_hops_fresh_key_is_admitted_without_waiting_key_max_age(asynchronous, caplog):
     import asyncio
+    caplog.set_level("INFO", logger="codefly_hop")
     clock = [FIXTURE["now"]]
     source = Keys(publishing(b"gateway-before-restart"))
     v = Verifier(source, audience=FIXTURE["audience"], replay=Replay(), now=lambda: clock[0])
@@ -763,11 +764,79 @@ def test_a_restarted_hops_fresh_key_is_admitted_without_waiting_key_max_age(asyn
     source.response = publishing(b"gateway-after-restart")  # the old key is withdrawn
     clock[0] += 1  # far inside KEY_MAX_AGE and KEY_RETRY
     reads = source.reads
-    assert verify(fresh(clock[0], hop=b"gateway-after-restart")).owner == FIXTURE["identity"]["owner"]
+    headers = fresh(clock[0], hop=b"gateway-after-restart")
+    assert verify(headers).owner == FIXTURE["identity"]["owner"]
     assert source.reads == reads + 1
+    # The re-read is logged as Go logs it, naming the audience and never a header.
+    logged = [record.getMessage() for record in caplog.records if record.name == "codefly_hop"]
+    assert len(logged) == 1 and "re-reading the authority's published keys once" in logged[0]
+    assert "audience=" + FIXTURE["audience"] in logged[0]
+    assert headers["x-codefly-hop-proof"] not in logged[0] and headers[WORK_CONTEXT_KEY] not in logged[0]
     verify(fresh(clock[0], hop=b"gateway-after-restart"))
     settle(v)
     assert source.reads == reads + 1, "a held key read the keys again"
+
+
+# Review of #104: a restarted hop's first stamp can arrive while a read already
+# runs — readiness, or keys past KEY_MAX_AGE. It waits for that read instead of
+# being refused, and is admitted on what the read published. Waiting starts no
+# read and spends no SIGNER_RETRY: when the running read predates the
+# registration, the next stamp under the fresh key starts its own (Go's
+# TestAStampUnderAnUnheldKeyWaitsForTheReadAlreadyRunning).
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_a_stamp_under_an_unheld_key_waits_for_the_read_already_running(asynchronous, caplog):
+    import asyncio
+    caplog.set_level("INFO", logger="codefly_hop")
+    clock = [FIXTURE["now"]]
+    source = Keys(publishing(b"gateway-before-restart"))
+    v = Verifier(source, audience=FIXTURE["audience"], replay=Replay(), now=lambda: clock[0])
+    settle(v)
+    reads = source.reads
+
+    def running(response):
+        """A read readiness starts, as a scheduled refresh does, held open until
+        the returned event is set; it then answers response."""
+        source.response, source.hold = response, threading.Event()
+        clock[0] += KEY_MAX_AGE + 1
+        v.ready()
+        return source.hold
+
+    async def call(hop):
+        headers = fresh(clock[0], hop=hop)
+        if asynchronous:
+            return await v.verify_async(headers, METHOD)
+        return await asyncio.to_thread(v.verify, headers, METHOD)
+
+    async def scenario():
+        # The running read publishes the fresh key: the stamp waits, and is admitted.
+        release = running(publishing(b"gateway-after-restart"))
+        pending = asyncio.ensure_future(call(b"gateway-after-restart"))
+        await asyncio.sleep(0.1)
+        assert not pending.done(), "a stamp under an unheld key was judged before the running read ended"
+        release.set()
+        assert (await pending).owner == FIXTURE["identity"]["owner"]
+        settle(v)
+        assert source.reads == reads + 1, "waiting for the running read started another"
+        # The running read predates the next restart: the stamp waits and is
+        # refused, and the next stamp under that key, inside SIGNER_RETRY,
+        # still starts its own read and is admitted.
+        release = running(publishing(b"gateway-after-restart"))
+        pending = asyncio.ensure_future(call(b"gateway-restarted-again"))
+        await asyncio.sleep(0.1)
+        assert not pending.done(), "a stamp under an unheld key was judged before the running read ended"
+        release.set()
+        with pytest.raises(Unauthenticated) as refused:
+            await pending
+        assert refused.value.code == "stamp_proof"
+        settle(v)
+        source.hold, source.response = None, publishing(b"gateway-restarted-again")
+        assert (await call(b"gateway-restarted-again")).owner == FIXTURE["identity"]["owner"]
+
+    asyncio.run(scenario())
+    assert source.reads == reads + 3
+    # Only the stamp that started a read logged it; the waiters logged nothing.
+    logged = [record.getMessage() for record in caplog.records if record.name == "codefly_hop"]
+    assert len(logged) == 1 and "re-reading the authority's published keys once" in logged[0]
 
 
 # A flood of stamps under keys nobody publishes costs the authority one read

@@ -474,7 +474,8 @@ test('a stamp signed by an unpublished key is refused by name', async () => {
 // only the old key; the first stamp under the new one re-reads the published
 // keys and is admitted, without waiting out KEY_MAX_AGE (Go's
 // TestARestartedHopsFreshKeyIsAdmittedWithoutWaitingKeyMaxAge).
-test('a restarted hop fresh key is admitted without waiting KEY_MAX_AGE', async () => {
+test('a restarted hop fresh key is admitted without waiting KEY_MAX_AGE', async t => {
+ const logged = t.mock.method(console, 'info', () => {});
  let now = fixture.now * 1000, answer = publishing('gateway-before-restart');
  const keys = source(() => Promise.resolve(answer));
  const v = new Verifier(keys, fixture.audience, replay(), () => now);
@@ -482,12 +483,73 @@ test('a restarted hop fresh key is admitted without waiting KEY_MAX_AGE', async 
  answer = publishing('gateway-after-restart'); // the old key is withdrawn
  now += 1_000; // far inside KEY_MAX_AGE and KEY_RETRY
  const reads = keys.reads;
- const id = await v.verify(fresh(now, METHOD, fixture.audience, fixture.headers, 'gateway-after-restart'), METHOD);
+ const headers = fresh(now, METHOD, fixture.audience, fixture.headers, 'gateway-after-restart');
+ const id = await v.verify(headers, METHOD);
  assert.equal(id.owner, fixture.identity.owner);
  assert.equal(keys.reads, reads + 1);
+ // The re-read is logged as Go logs it, naming the audience and never a header.
+ assert.equal(logged.mock.callCount(), 1);
+ const line = JSON.stringify(logged.mock.calls[0].arguments);
+ assert.match(line, /re-reading the authority's published keys once/);
+ assert.equal(logged.mock.calls[0].arguments[1].audience, fixture.audience);
+ assert.ok(!line.includes(headers['x-codefly-hop-proof']) && !line.includes(headers['x-codefly-work-context']));
  await v.verify(fresh(now, METHOD, fixture.audience, fixture.headers, 'gateway-after-restart'), METHOD);
  await settle();
  assert.equal(keys.reads, reads + 1, 'a held key read the keys again');
+});
+
+// Review of #104: a restarted hop's first stamp can arrive while a read already
+// runs (readiness, or keys past KEY_MAX_AGE). It waits for that read instead of
+// being refused, and is admitted on what the read published. Waiting starts no
+// read and spends no SIGNER_RETRY: when the running read predates the
+// registration, the next stamp under the fresh key starts its own (Go's
+// TestAStampUnderAnUnheldKeyWaitsForTheReadAlreadyRunning).
+test('a stamp under an unheld key waits for the read already running', async t => {
+ const logged = t.mock.method(console, 'info', () => {});
+ let now = fixture.now * 1000, answer = () => Promise.resolve(publishing('gateway-before-restart'));
+ const keys = source(() => answer());
+ const v = new Verifier(keys, fixture.audience, replay(), () => now);
+ await settle();
+ const reads = keys.reads;
+ // A read readiness starts, as a scheduled refresh does, held open until the
+ // returned release; it then answers response.
+ const running = response => {
+  let release;
+  answer = () => new Promise(resolve => { release = () => resolve(response); });
+  now += 301_000;
+  v.ready();
+  answer = () => Promise.resolve(response);
+  return () => release();
+ };
+ const call = hop => v.verify(fresh(now, METHOD, fixture.audience, fixture.headers, hop), METHOD);
+ const pending = async promise => {
+  let judged = false;
+  promise.then(() => { judged = true; }, () => { judged = true; });
+  await new Promise(resolve => setTimeout(resolve, 50));
+  assert.ok(!judged, 'a stamp under an unheld key was judged before the running read ended');
+ };
+ // The running read publishes the fresh key: the stamp waits, and is admitted.
+ let release = running(publishing('gateway-after-restart'));
+ let stamped = call('gateway-after-restart');
+ await pending(stamped);
+ release();
+ assert.equal((await stamped).owner, fixture.identity.owner);
+ await settle();
+ assert.equal(keys.reads, reads + 1, 'waiting for the running read started another');
+ // The running read predates the next restart: the stamp waits and is refused,
+ // and the next stamp under that key, inside SIGNER_RETRY, still starts its own
+ // read and is admitted.
+ release = running(publishing('gateway-after-restart'));
+ stamped = call('gateway-restarted-again');
+ await pending(stamped);
+ release();
+ await assert.rejects(stamped, e => e.code === Reason.StampProof);
+ await settle();
+ answer = () => Promise.resolve(publishing('gateway-restarted-again'));
+ assert.equal((await call('gateway-restarted-again')).owner, fixture.identity.owner);
+ assert.equal(keys.reads, reads + 3);
+ // Only the stamp that started a read logged it; the waiters logged nothing.
+ assert.equal(logged.mock.callCount(), 1);
 });
 
 // A flood of stamps under keys nobody publishes costs the authority one read per

@@ -232,12 +232,13 @@ type KeySource interface {
 // read keeps the last keys until they are keyStale old; then every call is
 // refused, as the hop refuses a call it cannot check.
 //
-// A stamp signed by no admission key held starts one read too, at most once per
-// signerRetry for every such stamp together (a stamp names no key id, so the
-// bound cannot be per key): a hop that registered a fresh key since the last
-// read — a restarted gateway signs with its new key at once — is admitted after
-// one read instead of after keyMaxAge, and a flood of stamps under unknown keys
-// costs the authority one read per signerRetry, never one per call.
+// A stamp signed by no admission key held waits for the read running, or
+// starts one, at most once per signerRetry for every such stamp together (a
+// stamp names no key id, so the bound cannot be per key): a hop that registered
+// a fresh key since the last read — a restarted gateway signs with its new key
+// at once — is admitted after one read instead of after keyMaxAge, and a flood
+// of stamps under unknown keys costs the authority one read per signerRetry,
+// never one per call.
 const (
 	keyRetry    = 10 * time.Second
 	signerRetry = 10 * time.Second
@@ -505,11 +506,14 @@ func (v *Verifier) trustFor(ctx context.Context, keyID string) (workcontext.Trus
 // it starts a read, at most once per keyRetry as readiness does, and waits for
 // it. A stamp signed by none of the keys held may be a hop's that registered
 // since the last read (a restarted gateway signs with its fresh key at once,
-// and keyMaxAge is five minutes away): it starts one read, at most once per
-// signerRetry for every such stamp together, waits for it, and is judged again
-// on what it published; still unknown, it is refused as stamp_proof. A flood
-// of stamps under unknown keys therefore costs one read per signerRetry, and a
-// caller inside that window is refused on the keys held without waiting.
+// and keyMaxAge is five minutes away): it waits for the read already running
+// (readiness, keys past keyMaxAge, another stamp's), which starts none, or else
+// starts one, at most once per signerRetry for every such stamp together, and
+// is judged again on what the read published; still unknown, it is refused as
+// stamp_proof. A flood of stamps under unknown keys therefore costs one read
+// per signerRetry, and a caller inside that window with no read running is
+// refused on the keys held without waiting. Only the stamp that started a read
+// logs it and its verdict, so a flood adds no log lines.
 func (v *Verifier) admissionKey(ctx context.Context, md metadata.MD) (string, error) {
 	v.mu.Lock()
 	// Holding no published admission key is holding no key to judge by: the
@@ -538,14 +542,21 @@ func (v *Verifier) admissionKey(ctx context.Context, md metadata.MD) (string, er
 	if key != "" {
 		return key, nil
 	}
-	now := v.now()
-	if len(md.Get(ProofKey)) != 1 || v.inflight != nil || now.Sub(v.signer) < signerRetry {
+	if len(md.Get(ProofKey)) != 1 {
 		return "", fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.StampProof)
 	}
-	v.signer = now
-	slog.Info("hop: a stamp is signed by no admission key held; re-reading the authority's published keys once",
-		"audience", v.audience, "held_admission_keys", len(v.admission), "next_reread_after", signerRetry)
-	wait = v.refresh()
+	wait = v.inflight
+	started := wait == nil
+	if started {
+		now := v.now()
+		if now.Sub(v.signer) < signerRetry {
+			return "", fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.StampProof)
+		}
+		v.signer = now
+		slog.Info("hop: a stamp is signed by no admission key held; re-reading the authority's published keys once",
+			"audience", v.audience, "held_admission_keys", len(v.admission), "next_reread_after", signerRetry)
+		wait = v.refresh()
+	}
 	v.mu.Unlock()
 	awaited := v.await(ctx, wait)
 	v.mu.Lock()
@@ -556,6 +567,9 @@ func (v *Verifier) admissionKey(ctx context.Context, md metadata.MD) (string, er
 		return "", err
 	}
 	if key = stamp.SignedBy(md, v.admission); key == "" {
+		if !started {
+			return "", fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.StampProof)
+		}
 		slog.Info("hop: after re-reading the published keys the stamp is still signed by no admission key; refused as stamp_proof",
 			"audience", v.audience, "held_admission_keys", len(v.admission))
 		return "", fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.StampProof)

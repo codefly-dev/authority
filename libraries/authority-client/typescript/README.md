@@ -17,7 +17,8 @@ id.tenant; id.scopes; id.claims.allows(resourceKind, action, exactResourceID);
 It is the Go library's `hop.Verifier`: the signed method, audience, token digest and admission window first, then
 the keys read through `Keys` (re-read on an unknown key at most every 10 s, once
 on a stamp signed by no admission key held at most every 10 s for all such stamps
-together, and when older than 5 minutes, on a read of its own bounded by 5 s; stale after 15
+together, such a stamp waiting instead for a read already running, each re-read
+it starts logged with `console.info`, and when older than 5 minutes, on a read of its own bounded by 5 s; stale after 15
 minutes, when a call waits for the re-read as it does on an unknown key), then
 `authenticateToken`, the one identity reader (a caller holding headers extracts
 the bound token with `boundToken` first): Core's decode path (size, the

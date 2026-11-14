@@ -292,9 +292,10 @@ export interface KeySource {
 /** The Go verifier's key policy: re-read on an unknown key at most every 10 s and
  * when older than 5 min, on a read of its own bounded by 5 s; keys that cannot be
  * re-read are trusted no longer than 15 min. A stamp signed by no admission key
- * held starts one read too, at most once per SIGNER_RETRY for every such stamp
- * together (a stamp names no key id): a restarted hop signs with its fresh key at
- * once, and is admitted after one read instead of after KEY_MAX_AGE. */
+ * held waits for the read running, or starts one, at most once per SIGNER_RETRY
+ * for every such stamp together (a stamp names no key id): a restarted hop signs
+ * with its fresh key at once, and is admitted after one read instead of after
+ * KEY_MAX_AGE. */
 const KEY_RETRY_MS = 10_000, KEY_MAX_AGE_MS = 300_000, KEY_STALE_MS = 900_000, KEY_TIMEOUT_MS = 5_000;
 const SIGNER_RETRY_MS = 10_000;
 
@@ -417,11 +418,14 @@ export class Verifier {
    * does, and waits for it. A well-formed stamp signed by none of the keys held
    * may be a hop's that registered since the last read (a restarted gateway
    * signs with its fresh key at once, and KEY_MAX_AGE is five minutes away): it
-   * starts one read, at most once per SIGNER_RETRY for every such stamp
-   * together, waits for it, and is judged again; still unknown, it is refused as
-   * stamp_proof. A flood of stamps under unknown keys therefore costs one read
-   * per SIGNER_RETRY, and a caller inside that window is refused on the keys
-   * held without waiting. */
+   * waits for the read already running (readiness, keys past KEY_MAX_AGE,
+   * another stamp's), which starts none, or else starts one, at most once per
+   * SIGNER_RETRY for every such stamp together, and is judged again on what the
+   * read published; still unknown, it is refused as stamp_proof. A flood of
+   * stamps under unknown keys therefore costs one read per SIGNER_RETRY, and a
+   * caller inside that window with no read running is refused on the keys held
+   * without waiting. Only the stamp that started a read logs it and its
+   * verdict, so a flood adds no log lines; no header, key or token is logged. */
   private async admissionKey(pairs: readonly (readonly [string, string])[]): Promise<string> {
     const now = this.now();
     const trusted = () => this.trust !== undefined && this.now() - this.fetched <= KEY_STALE_MS;
@@ -435,13 +439,27 @@ export class Verifier {
     if (this.admission.length === 0) throw new Unauthenticated(Reason.KeysUnavailable);
     const key = signedBy(pairs, this.admission);
     if (key) return key;
-    const at = this.now();
-    if (proof(pairs) === undefined || this.inflight || at - this.signer < SIGNER_RETRY_MS) throw new Unauthenticated(Reason.StampProof);
-    this.signer = at;
-    await this.refresh();
+    if (proof(pairs) === undefined) throw new Unauthenticated(Reason.StampProof);
+    let read = this.inflight;
+    const started = read === undefined;
+    if (started) {
+      const at = this.now();
+      if (at - this.signer < SIGNER_RETRY_MS) throw new Unauthenticated(Reason.StampProof);
+      this.signer = at;
+      console.info("hop: a stamp is signed by no admission key held; re-reading the authority's published keys once",
+        {audience: this.audience, heldAdmissionKeys: this.admission.length, nextRereadAfterMs: SIGNER_RETRY_MS});
+      read = this.refresh();
+    }
+    await read;
     if (!trusted()) throw new Unauthenticated(Reason.KeysUnavailable);
     const reread = signedBy(pairs, this.admission);
-    if (!reread) throw new Unauthenticated(Reason.StampProof);
+    if (!reread) {
+      if (started) {
+        console.info("hop: after re-reading the published keys the stamp is still signed by no admission key; refused as stamp_proof",
+          {audience: this.audience, heldAdmissionKeys: this.admission.length});
+      }
+      throw new Unauthenticated(Reason.StampProof);
+    }
     return reread;
   }
 
