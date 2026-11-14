@@ -459,14 +459,26 @@ test('a verifier takes the hop key from the authority keys alone', async () => {
 
 // A stamp signed by a key the authority does not publish is refused by name,
 // after one read of the authority's keys that may have published it since.
-test('a stamp signed by an unpublished key is refused by name', async () => {
+test('a stamp signed by an unpublished key is refused by name', async t => {
+ const logged = t.mock.method(console, 'info', () => {});
  const keys = source(() => Promise.resolve(publishing('the-hop')));
  const v = new Verifier(keys, fixture.audience, replay(), () => fixture.now * 1000);
  await settle();
  const reads = keys.reads;
- await assert.rejects(v.verify(fresh(fixture.now * 1000, METHOD, fixture.audience, fixture.headers, 'an-unpublished-hop'), METHOD), e => e.code === Reason.StampProof);
+ const headers = fresh(fixture.now * 1000, METHOD, fixture.audience, fixture.headers, 'an-unpublished-hop');
+ await assert.rejects(v.verify(headers, METHOD), e => e.code === Reason.StampProof);
  await settle();
  assert.equal(keys.reads, reads + 1);
+ // The stamp that started the read logs it and its verdict, naming the
+ // audience and nothing the call carried.
+ assert.equal(logged.mock.callCount(), 2);
+ assert.match(logged.mock.calls[0].arguments[0], /re-reading the authority's published keys once/);
+ assert.match(logged.mock.calls[1].arguments[0], /still signed by no admission key; refused as stamp_proof/);
+ for (const call of logged.mock.calls) {
+  assert.equal(call.arguments[1].audience, fixture.audience);
+  const line = JSON.stringify(call.arguments);
+  assert.ok(!line.includes(headers['x-codefly-hop-proof']) && !line.includes(headers['x-codefly-work-context']));
+ }
 });
 
 // The saas gateway registers a fresh admission key every time it starts and
@@ -550,6 +562,54 @@ test('a stamp under an unheld key waits for the read already running', async t =
  assert.equal(keys.reads, reads + 3);
  // Only the stamp that started a read logged it; the waiters logged nothing.
  assert.equal(logged.mock.callCount(), 1);
+});
+
+// Review of #105: while one read runs, any number of stamps under an unheld key
+// wait for it together. Waiting starts no read; every waiter is judged on what
+// that read published; a read that hangs holds them no longer than its own
+// timeout; and a malformed proof never waits (Go's
+// TestManyStampsWaitForOneRunningReadAndAreHeldNoLongerThanItsTimeout).
+test('many stamps wait for one running read and are held no longer than its timeout', async t => {
+ t.mock.method(console, 'info', () => {});
+ let now = fixture.now * 1000, answer = () => Promise.resolve(publishing('gateway-before-restart'));
+ const keys = source(() => answer());
+ const v = new Verifier(keys, fixture.audience, replay(), () => now, 300);
+ await settle();
+ const waiters = 200;
+ const outcome = promise => promise.then(id => id.owner, e => e.code);
+ // A read readiness starts, held open until the returned release (or its own
+ // timeout); a malformed proof is refused at once meanwhile.
+ const running = async (hop, response) => {
+  let release;
+  answer = () => new Promise(resolve => { release = () => resolve(response); });
+  now += 301_000;
+  const before = keys.reads;
+  v.ready();
+  answer = () => Promise.resolve(response);
+  const started = performance.now();
+  await assert.rejects(v.verify({...fresh(now, METHOD, fixture.audience, fixture.headers, hop), 'x-codefly-hop-proof': 'not-an-admission'}, METHOD), e => e.code === Reason.StampProof);
+  assert.ok(performance.now() - started < 100, 'a malformed proof waited for the running read');
+  return {release: () => release(), before};
+ };
+ // The running read publishes the fresh key: all wait, all are admitted.
+ let read = await running('gateway-after-restart', publishing('gateway-after-restart'));
+ let judged = 0;
+ let calls = Array.from({length: waiters}, () => outcome(v.verify(fresh(now, METHOD, fixture.audience, fixture.headers, 'gateway-after-restart'), METHOD)).finally(() => { judged++; }));
+ await new Promise(resolve => setTimeout(resolve, 50));
+ assert.equal(judged, 0, 'a stamp was judged before the running read ended');
+ read.release();
+ assert.deepEqual(await Promise.all(calls), Array(waiters).fill(fixture.identity.owner));
+ await settle();
+ assert.equal(keys.reads, read.before + 1, 'waiters started a read');
+ // The running read hangs: every waiter is refused on the keys held once its
+ // timeout passes, and still no read is added.
+ read = await running('gateway-restarted-again', publishing('gateway-restarted-again'));
+ const started = performance.now();
+ calls = Array.from({length: waiters}, () => outcome(v.verify(fresh(now, METHOD, fixture.audience, fixture.headers, 'gateway-restarted-again'), METHOD)));
+ assert.deepEqual(await Promise.all(calls), Array(waiters).fill(Reason.StampProof));
+ assert.ok(performance.now() - started < 300 + 1_000, 'waiters on a hung read were held past its timeout');
+ await settle();
+ assert.equal(keys.reads, read.before + 1, 'waiters on a hung read started a read');
 });
 
 // A flood of stamps under keys nobody publishes costs the authority one read per

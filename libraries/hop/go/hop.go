@@ -232,9 +232,9 @@ type KeySource interface {
 // read keeps the last keys until they are keyStale old; then every call is
 // refused, as the hop refuses a call it cannot check.
 //
-// A stamp signed by no admission key held waits for the read running, or
-// starts one, at most once per signerRetry for every such stamp together (a
-// stamp names no key id, so the bound cannot be per key): a hop that registered
+// A well-formed stamp signed by no admission key held waits for the read
+// running, or starts one, at most once per signerRetry for every such stamp
+// together (a stamp names no key id, so the bound cannot be per key): a hop that registered
 // a fresh key since the last read — a restarted gateway signs with its new key
 // at once — is admitted after one read instead of after keyMaxAge, and a flood
 // of stamps under unknown keys costs the authority one read per signerRetry,
@@ -504,7 +504,7 @@ func (v *Verifier) trustFor(ctx context.Context, keyID string) (workcontext.Trus
 // all (never read, or past keyStale, as on an idle replica's first call), or
 // the last read published no admission key (the hop had not registered yet),
 // it starts a read, at most once per keyRetry as readiness does, and waits for
-// it. A stamp signed by none of the keys held may be a hop's that registered
+// it. A well-formed stamp signed by none of the keys held may be a hop's that registered
 // since the last read (a restarted gateway signs with its fresh key at once,
 // and keyMaxAge is five minutes away): it waits for the read already running
 // (readiness, keys past keyMaxAge, another stamp's), which starts none, or else
@@ -512,8 +512,10 @@ func (v *Verifier) trustFor(ctx context.Context, keyID string) (workcontext.Trus
 // is judged again on what the read published; still unknown, it is refused as
 // stamp_proof. A flood of stamps under unknown keys therefore costs one read
 // per signerRetry, and a caller inside that window with no read running is
-// refused on the keys held without waiting. Only the stamp that started a read
-// logs it and its verdict, so a flood adds no log lines.
+// refused on the keys held without waiting. A waiting call is held, still
+// unauthenticated, until the read ends: at most keyTimeout, sooner if its
+// caller gives up. Only the stamp that started a read logs it and its verdict,
+// so a flood adds no log lines.
 func (v *Verifier) admissionKey(ctx context.Context, md metadata.MD) (string, error) {
 	v.mu.Lock()
 	// Holding no published admission key is holding no key to judge by: the
@@ -542,7 +544,9 @@ func (v *Verifier) admissionKey(ctx context.Context, md metadata.MD) (string, er
 	if key != "" {
 		return key, nil
 	}
-	if len(md.Get(ProofKey)) != 1 {
+	// Only a well-formed admission waits for or starts a read: nothing that is
+	// not even an admission reaches the key read.
+	if !stamp.WellFormed(md) {
 		return "", fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.StampProof)
 	}
 	wait = v.inflight

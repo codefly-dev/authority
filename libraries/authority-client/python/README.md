@@ -54,6 +54,12 @@ the same reason, reading the same identity. The target, its cases and the gaps
 it states are in [`libraries/conformance/hop/go`](../../conformance/hop/go/README.md);
 Python's stated one is that `codefly_hop.replaypg` is async only.
 
+A stamp waiting for a running read is still unauthenticated: it is held until
+that read ends, at most the 5 s timeout. The sync `verify` and `admit` hold the
+server's worker thread for that time, one per waiting call, so a server with a
+small thread pool should use `verify_async` / `admit_async`, which wait on the
+event loop and hold no thread.
+
 `codefly_hop` and `authority_client` are one distribution so that one pinned
 commit installs both, and no dependency is ever resolved by name from a public
 index.
