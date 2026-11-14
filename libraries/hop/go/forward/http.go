@@ -108,6 +108,12 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			// A caller that ended its request is not a module that did not
+			// answer: the module may be healthy.
+			if ended := r.Context().Err(); ended != nil {
+				refuse(w, r, status.Errorf(status.FromContextError(ended).Code(), "the caller's request ended before the module answered: %v", ended))
+				return
+			}
 			refuse(w, r, status.Errorf(codes.Unavailable, "the module did not answer: %v", err))
 		},
 	}).ServeHTTP(w, r)
@@ -120,8 +126,17 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // be taken for Connect, and a reader of {"error"} would lose the reason.
 var connectRefusal = connect.NewErrorWriter(connect.WithRequireConnectProtocolHeader())
 
+// statusClientClosedRequest is the HTTP status of a request whose caller went
+// away before it was answered; nothing else in HTTP means that.
+const statusClientClosedRequest = 499
+
 // refuse answers a refusal in HTTP's words, its reason the decision's own;
 // a Connect caller gets Connect's error, so its client keeps the reason.
+//
+// A denial (Unauthenticated, PermissionDenied) is 401 or 403. A decision that
+// reached no verdict is answered as the failure it was, never as a denial or
+// a server fault: the caller's request ended (Canceled, 499), or its deadline
+// passed or the authority did not answer (DeadlineExceeded, Unavailable, 503).
 func refuse(w http.ResponseWriter, r *http.Request, err error) {
 	s := status.Convert(err)
 	if connectRefusal.IsSupported(r) {
@@ -138,6 +153,8 @@ func refuse(w http.ResponseWriter, r *http.Request, err error) {
 		code = http.StatusBadRequest
 	case codes.NotFound:
 		code = http.StatusNotFound
+	case codes.Canceled:
+		code = statusClientClosedRequest
 	case codes.Unavailable, codes.DeadlineExceeded:
 		code = http.StatusServiceUnavailable
 	}

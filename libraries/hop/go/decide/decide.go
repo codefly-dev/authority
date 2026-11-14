@@ -94,6 +94,9 @@ func (d Decider) decide(ctx context.Context, method string, md metadata.MD) (Dec
 		if refusal.Code() == codes.Unavailable || refusal.Code() == codes.DeadlineExceeded {
 			return Decision{}, status.Errorf(codes.Unavailable, "the hop could not reach the authority to check the call to %s: %s", module, refusal.Message())
 		}
+		if refusal.Code() == codes.Canceled {
+			return Decision{}, status.Errorf(codes.Canceled, "the caller's request ended before the authority checked the call to %s: %s", module, refusal.Message())
+		}
 		return Decision{}, status.Errorf(refusal.Code(), "the authority refused the call to %s: %s", module, refusal.Message())
 	}
 	if checked.GetRefusal() != "" {
