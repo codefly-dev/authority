@@ -307,11 +307,20 @@ registration rather than after the five-minute key age.
 
 Every published admission key is trusted, so a rotation overlaps: the authority
 publishes the new key beside the retiring one, then the hop signs with the new
-one, then the retiring key is withdrawn. A stamp signed by no published key is
-refused as `stamp_proof` and starts no key read, so a caller without an
-admission cannot drive the authority's keys; a verifier learns a new key on the
-next read an admitted call or readiness starts, within the five-minute key age.
-Publish the new key at least that long before the hop signs with it: start a
+one, then the retiring key is withdrawn. A well-formed stamp signed by no
+admission key the verifier holds waits for the key read already running, if
+one is, and otherwise starts one, at most once per `signerRetry` (10 s) for
+every such stamp together; judged again on what that read published, a key
+still unpublished is refused as `stamp_proof`. A caller without an admission
+therefore cannot drive the authority's keys past one read per `signerRetry`,
+and a hop that signs with a freshly registered key, as a restarted gateway
+does, is admitted on its first call. A waiting call is still unauthenticated
+and is held at most until the read's own timeout (5 s); a Python module serving
+with the sync verifier holds a worker thread per waiting call, so the async
+one suits a small thread pool. Each verifier logs the re-reads it starts, never
+a header, key or token. Publish a rotated key at least the
+five-minute key age before the hop signs with it, so that no stamp waits on a
+read: start a
 hop with the new seed (it registers its key at boot) that long before calls are
 routed to it, while a hop with the retiring seed keeps renewing the retiring
 key; the retiring key lapses `AdmissionLease` after the last hop signing with

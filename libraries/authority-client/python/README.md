@@ -35,7 +35,9 @@ single-use nonce, then reads the published keys through `Keys`
 on a thread of its own with a 5 s timeout, one read at a time; it re-reads them
 on an unknown key (at most every 10 s), once on a stamp signed by no admission
 key held (at most every 10 s for all such stamps together, so a restarted hop's
-fresh key is admitted on its first call), and when older than 5 minutes; keys that
+fresh key is admitted on its first call; such a stamp arriving while a read
+already runs waits for that read instead, starting none, and the verifier logs
+each re-read it starts), and when older than 5 minutes; keys that
 cannot be re-read are trusted for 15 minutes at most, and a call on keys older than
 that waits for the re-read as a call on an unknown key does. It never fails to
 construct on an authority that is not serving yet, and refuses calls with a
@@ -51,6 +53,12 @@ vectors (`../testdata/stamps.json`, `tests/test_stamps.py`) through `verify` and
 the same reason, reading the same identity. The target, its cases and the gaps
 it states are in [`libraries/conformance/hop/go`](../../conformance/hop/go/README.md);
 Python's stated one is that `codefly_hop.replaypg` is async only.
+
+A stamp waiting for a running read is still unauthenticated: it is held until
+that read ends, at most the 5 s timeout. The sync `verify` and `admit` hold the
+server's worker thread for that time, one per waiting call, so a server with a
+small thread pool should use `verify_async` / `admit_async`, which wait on the
+event loop and hold no thread.
 
 `codefly_hop` and `authority_client` are one distribution so that one pinned
 commit installs both, and no dependency is ever resolved by name from a public

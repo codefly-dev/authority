@@ -1,11 +1,14 @@
 package hop
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,6 +39,10 @@ func TestAVerifierTakesTheHopsKeyFromTheAuthoritysKeysAlone(t *testing.T) {
 // stamp inside signerRetry is refused on the keys held, reading nothing: a
 // caller cannot make the verifier read more than once per signerRetry.
 func TestAStampSignedByAnUnpublishedKeyIsRefusedByName(t *testing.T) {
+	var logged bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logged, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
 	authority := newSigner("published")
 	source := &keys{response: &authorityv1.KeysResponse{Issuer: authority.issuer, Keys: []*authorityv1.PublicKey{authority.published()}}}
 	v, _ := NewVerifier(context.Background(), source, "documents", core.NewMemoryReplayStore())
@@ -53,6 +60,18 @@ func TestAStampSignedByAnUnpublishedKeyIsRefusedByName(t *testing.T) {
 	}
 	if source.count()-reads != 1 {
 		t.Fatalf("two stamps under an unpublished key inside signerRetry caused %d key reads, want 1", source.count()-reads)
+	}
+	// The stamp that started the read logs it and its verdict, naming the
+	// audience and nothing the call carried; the second stamp logs nothing.
+	lines := strings.Split(strings.TrimSpace(logged.String()), "\n")
+	if len(lines) != 2 || !strings.Contains(lines[0], "re-reading the authority's published keys once") ||
+		!strings.Contains(lines[1], "still signed by no admission key; refused as stamp_proof") {
+		t.Fatalf("want the re-read and its verdict logged once each, got:\n%s", logged.String())
+	}
+	for _, line := range lines {
+		if !strings.Contains(line, "audience=documents") || strings.Contains(line, ProofKey) {
+			t.Fatalf("a key-read log line names the wrong thing: %s", line)
+		}
 	}
 }
 
@@ -86,6 +105,180 @@ func TestARestartedHopsFreshKeyIsAdmittedWithoutWaitingKeyMaxAge(t *testing.T) {
 	}
 	if source.count()-reads != 1 {
 		t.Fatalf("a held key read the keys again: %d reads", source.count()-reads)
+	}
+}
+
+// Review of #104: a restarted hop's first stamp can arrive while a read is
+// already running — readiness, or keys past keyMaxAge. It waits for that read
+// instead of being refused, and is admitted on what the read published.
+// Waiting starts no read and spends no signerRetry: when the running read was
+// readiness's or keyMaxAge's and predates the registration, the next stamp
+// under the fresh key starts its own. (A read a stamp started has spent
+// signerRetry, so a fresh key's stamps after it wait that window out.)
+func TestAStampUnderAnUnheldKeyWaitsForTheReadAlreadyRunning(t *testing.T) {
+	authority := newSigner("published")
+	publishing := func(labels ...string) *authorityv1.KeysResponse {
+		response := &authorityv1.KeysResponse{Issuer: authority.issuer, Keys: []*authorityv1.PublicKey{authority.published()}}
+		for _, label := range labels {
+			response.AdmissionKeys = append(response.AdmissionKeys, publishedHop(label))
+		}
+		return response
+	}
+	source := &keys{response: publishing("gateway-before-restart")}
+	v, _ := NewVerifier(context.Background(), source, "documents", core.NewMemoryReplayStore())
+	settled(v)
+	clock := time.Now()
+	v.now = func() time.Time { return clock }
+	v.fetched, v.tried = clock, clock
+	reads := source.count()
+	// running starts a read through readiness, as a scheduled refresh does, and
+	// holds it open until release; the read then answers response.
+	running := func(response *authorityv1.KeysResponse) (release func()) {
+		hold := make(chan struct{})
+		source.set(response, nil, hold)
+		clock = clock.Add(keyMaxAge + time.Second)
+		v.Ready()
+		return func() { close(hold) }
+	}
+	call := func(hop string) <-chan error {
+		done := make(chan error, 1)
+		go func() {
+			_, err := v.Verify(context.Background(), forwarded(t, authority.issue(t, clock, "documents"), hop, ""), "/test.Service/Read")
+			done <- err
+		}()
+		return done
+	}
+	waits := func(done <-chan error) {
+		select {
+		case err := <-done:
+			t.Fatalf("a stamp under an unheld key was judged before the running read ended: %v", err)
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+
+	// The running read publishes the fresh key: the stamp waits, and is admitted.
+	release := running(publishing("gateway-after-restart"))
+	done := call("gateway-after-restart")
+	waits(done)
+	release()
+	if err := <-done; err != nil {
+		t.Fatalf("a restarted hop's stamp during a running read: %v", err)
+	}
+	settled(v)
+	if source.count()-reads != 1 {
+		t.Fatalf("waiting for the running read took %d key reads, want 1", source.count()-reads)
+	}
+
+	// The running read predates the next restart: the stamp waits and is
+	// refused, and the next stamp under that key, inside signerRetry, still
+	// starts its own read and is admitted.
+	release = running(publishing("gateway-after-restart"))
+	done = call("gateway-restarted-again")
+	waits(done)
+	release()
+	var reason refusal.Reason
+	if err := <-done; !errors.As(err, &reason) || reason != refusal.StampProof {
+		t.Fatalf("a stamp the running read did not publish: want %s, got %v", refusal.StampProof, err)
+	}
+	settled(v)
+	source.set(publishing("gateway-restarted-again"), nil, nil)
+	if err := <-call("gateway-restarted-again"); err != nil {
+		t.Fatalf("waiting spent signerRetry: the next stamp under the fresh key was refused: %v", err)
+	}
+	if source.count()-reads != 3 {
+		t.Fatalf("two running reads and one started by a stamp took %d key reads, want 3", source.count()-reads)
+	}
+}
+
+// Review of #105: while one read runs, any number of stamps under an unheld
+// key wait for it together. Waiting starts no read; every waiter is judged on
+// what that read published; and a read that hangs holds them no longer than
+// its own timeout. A malformed proof never waits.
+func TestManyStampsWaitForOneRunningReadAndAreHeldNoLongerThanItsTimeout(t *testing.T) {
+	authority := newSigner("published")
+	publishing := func(labels ...string) *authorityv1.KeysResponse {
+		response := &authorityv1.KeysResponse{Issuer: authority.issuer, Keys: []*authorityv1.PublicKey{authority.published()}}
+		for _, label := range labels {
+			response.AdmissionKeys = append(response.AdmissionKeys, publishedHop(label))
+		}
+		return response
+	}
+	source := &keys{response: publishing("gateway-before-restart")}
+	v, _ := NewVerifier(context.Background(), source, "documents", core.NewMemoryReplayStore())
+	settled(v)
+	clock := time.Now()
+	v.now = func() time.Time { return clock }
+	v.fetched, v.tried = clock, clock
+	const waiters = 200
+
+	// waitAll starts a read through readiness that answers response once hold
+	// is closed, checks that a malformed proof is refused at once meanwhile,
+	// and sends waiters stamps signed as hop, a key not held; it returns their outcomes
+	// as they land, and the key reads the round started.
+	waitAll := func(hop string, response *authorityv1.KeysResponse, hold chan struct{}, timeout time.Duration) (<-chan error, int) {
+		settled(v)
+		v.timeout = timeout
+		source.set(response, nil, hold)
+		clock = clock.Add(keyMaxAge + time.Second)
+		before := source.count()
+		v.Ready()
+		token := authority.issue(t, clock, "documents")
+		garbage := forwarded(t, token, hop, "")
+		garbage.Set(ProofKey, "not-an-admission")
+		start := time.Now()
+		var reason refusal.Reason
+		if _, err := v.Verify(context.Background(), garbage, "/test.Service/Read"); !errors.As(err, &reason) || reason != refusal.StampProof {
+			t.Fatalf("a malformed proof during a running read: want %s, got %v", refusal.StampProof, err)
+		}
+		if waited := time.Since(start); waited > 100*time.Millisecond {
+			t.Fatalf("a malformed proof waited %s for the running read", waited)
+		}
+		results := make(chan error, waiters)
+		for range waiters {
+			md := forwarded(t, token, hop, "")
+			go func() {
+				_, err := v.Verify(context.Background(), md, "/test.Service/Read")
+				results <- err
+			}()
+		}
+		return results, before
+	}
+
+	// The running read publishes the fresh key: every stamp waits for it, and
+	// every one is admitted on that one read.
+	hold := make(chan struct{})
+	results, before := waitAll("gateway-after-restart", publishing("gateway-after-restart"), hold, 10*time.Second)
+	time.Sleep(100 * time.Millisecond)
+	if n := len(results); n != 0 {
+		t.Fatalf("%d of %d stamps were judged before the running read ended", n, waiters)
+	}
+	close(hold)
+	for i := range waiters {
+		if err := <-results; err != nil {
+			t.Fatalf("waiter %d: %v", i, err)
+		}
+	}
+	settled(v)
+	if reads := source.count() - before; reads != 1 {
+		t.Fatalf("%d waiters drove %d key reads, want the one running", waiters, reads)
+	}
+
+	// The running read hangs: every stamp is held no longer than the read's
+	// own timeout, then refused on the keys held, and still no read is added.
+	results, before = waitAll("gateway-restarted-again", publishing("gateway-restarted-again"), make(chan struct{}), 300*time.Millisecond)
+	start := time.Now()
+	var reason refusal.Reason
+	for i := range waiters {
+		if err := <-results; !errors.As(err, &reason) || reason != refusal.StampProof {
+			t.Fatalf("waiter %d on a hung read: want %s, got %v", i, refusal.StampProof, err)
+		}
+	}
+	if held := time.Since(start); held > v.timeout+time.Second {
+		t.Fatalf("waiters on a hung read were held %s, past the read's %s timeout", held, v.timeout)
+	}
+	settled(v)
+	if reads := source.count() - before; reads != 1 {
+		t.Fatalf("%d waiters on a hung read drove %d key reads, want the one running", waiters, reads)
 	}
 }
 

@@ -13,7 +13,7 @@ from authority_client._gen.host.authority.v1.authority_pb2 import KeysResponse
 from authority_client._gen.host.authority.v1.work_context_pb2 import WorkContextV1
 from codefly_hop.call import SKEW
 from codefly_hop import (
-    ACTORS_KEY, CONTEXT_KEY, KEY_RETRY, KEY_STALE, SCOPES_KEY, TENANT_KEY, WORK_CONTEXT_KEY, Identity, Unauthenticated,
+    ACTORS_KEY, CONTEXT_KEY, KEY_MAX_AGE, KEY_RETRY, KEY_STALE, SCOPES_KEY, TENANT_KEY, WORK_CONTEXT_KEY, Identity, Unauthenticated,
     Verifier, Replayed, Expired, identity_of,
 )
 
@@ -735,16 +735,27 @@ def test_a_verifier_takes_the_hops_key_from_the_authoritys_keys_alone():
 
 # A stamp signed by a key the authority does not publish is refused by name,
 # after one read of the authority's keys that may have published it since.
-def test_a_stamp_signed_by_an_unpublished_key_is_refused_by_name():
+def test_a_stamp_signed_by_an_unpublished_key_is_refused_by_name(caplog):
+    caplog.set_level("INFO", logger="codefly_hop")
     source = Keys(publishing(b"the-hop"))
     v = Verifier(source, audience=FIXTURE["audience"], replay=Replay(), now=lambda: FIXTURE["now"])
     settle(v)
     reads = source.reads
+    headers = fresh(FIXTURE["now"], hop=b"an-unpublished-hop")
     with pytest.raises(Unauthenticated) as refused:
-        v.verify(fresh(FIXTURE["now"], hop=b"an-unpublished-hop"), METHOD)
+        v.verify(headers, METHOD)
     assert refused.value.code == "stamp_proof"
     settle(v)
     assert source.reads == reads + 1
+    # The stamp that started the read logs it and its verdict, naming the
+    # audience and nothing the call carried.
+    logged = [record.getMessage() for record in caplog.records if record.name == "codefly_hop"]
+    assert len(logged) == 2
+    assert "re-reading the authority's published keys once" in logged[0]
+    assert "still signed by no admission key; refused as stamp_proof" in logged[1]
+    for line in logged:
+        assert "audience=" + FIXTURE["audience"] in line
+        assert headers["x-codefly-hop-proof"] not in line and headers[WORK_CONTEXT_KEY] not in line
 
 
 # The saas gateway registers a fresh admission key every time it starts and
@@ -753,8 +764,9 @@ def test_a_stamp_signed_by_an_unpublished_key_is_refused_by_name():
 # keys and is admitted, without waiting out KEY_MAX_AGE (Go's
 # TestARestartedHopsFreshKeyIsAdmittedWithoutWaitingKeyMaxAge).
 @pytest.mark.parametrize("asynchronous", [False, True])
-def test_a_restarted_hops_fresh_key_is_admitted_without_waiting_key_max_age(asynchronous):
+def test_a_restarted_hops_fresh_key_is_admitted_without_waiting_key_max_age(asynchronous, caplog):
     import asyncio
+    caplog.set_level("INFO", logger="codefly_hop")
     clock = [FIXTURE["now"]]
     source = Keys(publishing(b"gateway-before-restart"))
     v = Verifier(source, audience=FIXTURE["audience"], replay=Replay(), now=lambda: clock[0])
@@ -763,11 +775,156 @@ def test_a_restarted_hops_fresh_key_is_admitted_without_waiting_key_max_age(asyn
     source.response = publishing(b"gateway-after-restart")  # the old key is withdrawn
     clock[0] += 1  # far inside KEY_MAX_AGE and KEY_RETRY
     reads = source.reads
-    assert verify(fresh(clock[0], hop=b"gateway-after-restart")).owner == FIXTURE["identity"]["owner"]
+    headers = fresh(clock[0], hop=b"gateway-after-restart")
+    assert verify(headers).owner == FIXTURE["identity"]["owner"]
     assert source.reads == reads + 1
+    # The re-read is logged as Go logs it, naming the audience and never a header.
+    logged = [record.getMessage() for record in caplog.records if record.name == "codefly_hop"]
+    assert len(logged) == 1 and "re-reading the authority's published keys once" in logged[0]
+    assert "audience=" + FIXTURE["audience"] in logged[0]
+    assert headers["x-codefly-hop-proof"] not in logged[0] and headers[WORK_CONTEXT_KEY] not in logged[0]
     verify(fresh(clock[0], hop=b"gateway-after-restart"))
     settle(v)
     assert source.reads == reads + 1, "a held key read the keys again"
+
+
+# Review of #104: a restarted hop's first stamp can arrive while a read already
+# runs — readiness, or keys past KEY_MAX_AGE. It waits for that read instead of
+# being refused, and is admitted on what the read published. Waiting starts no
+# read and spends no SIGNER_RETRY: when the running read predates the
+# registration, the next stamp under the fresh key starts its own (Go's
+# TestAStampUnderAnUnheldKeyWaitsForTheReadAlreadyRunning).
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_a_stamp_under_an_unheld_key_waits_for_the_read_already_running(asynchronous, caplog):
+    import asyncio
+    caplog.set_level("INFO", logger="codefly_hop")
+    clock = [FIXTURE["now"]]
+    source = Keys(publishing(b"gateway-before-restart"))
+    v = Verifier(source, audience=FIXTURE["audience"], replay=Replay(), now=lambda: clock[0])
+    settle(v)
+    reads = source.reads
+
+    def running(response):
+        """A read readiness starts, as a scheduled refresh does, held open until
+        the returned event is set; it then answers response."""
+        source.response, source.hold = response, threading.Event()
+        clock[0] += KEY_MAX_AGE + 1
+        v.ready()
+        return source.hold
+
+    async def call(hop):
+        headers = fresh(clock[0], hop=hop)
+        if asynchronous:
+            return await v.verify_async(headers, METHOD)
+        return await asyncio.to_thread(v.verify, headers, METHOD)
+
+    async def scenario():
+        # The running read publishes the fresh key: the stamp waits, and is admitted.
+        release = running(publishing(b"gateway-after-restart"))
+        pending = asyncio.ensure_future(call(b"gateway-after-restart"))
+        await asyncio.sleep(0.1)
+        assert not pending.done(), "a stamp under an unheld key was judged before the running read ended"
+        release.set()
+        assert (await pending).owner == FIXTURE["identity"]["owner"]
+        settle(v)
+        assert source.reads == reads + 1, "waiting for the running read started another"
+        # The running read predates the next restart: the stamp waits and is
+        # refused, and the next stamp under that key, inside SIGNER_RETRY,
+        # still starts its own read and is admitted.
+        release = running(publishing(b"gateway-after-restart"))
+        pending = asyncio.ensure_future(call(b"gateway-restarted-again"))
+        await asyncio.sleep(0.1)
+        assert not pending.done(), "a stamp under an unheld key was judged before the running read ended"
+        release.set()
+        with pytest.raises(Unauthenticated) as refused:
+            await pending
+        assert refused.value.code == "stamp_proof"
+        settle(v)
+        source.hold, source.response = None, publishing(b"gateway-restarted-again")
+        assert (await call(b"gateway-restarted-again")).owner == FIXTURE["identity"]["owner"]
+
+    asyncio.run(scenario())
+    assert source.reads == reads + 3
+    # Only the stamp that started a read logged it; the waiters logged nothing.
+    logged = [record.getMessage() for record in caplog.records if record.name == "codefly_hop"]
+    assert len(logged) == 1 and "re-reading the authority's published keys once" in logged[0]
+
+
+# Review of #105: while one read runs, any number of stamps under an unheld key
+# wait for it together, from threads (sync verify) and from one event loop
+# (verify_async). Waiting starts no read; every waiter is judged on what that
+# read published; a read that hangs holds them no longer than the verifier's
+# timeout; and a malformed proof never waits (Go's
+# TestManyStampsWaitForOneRunningReadAndAreHeldNoLongerThanItsTimeout).
+def test_many_stamps_wait_for_one_running_read_and_are_held_no_longer_than_its_timeout():
+    import asyncio
+    import time as wall
+    from concurrent.futures import ThreadPoolExecutor
+    clock = [FIXTURE["now"]]
+    source = Keys(publishing(b"gateway-before-restart"))
+    v = Verifier(source, audience=FIXTURE["audience"], replay=Replay(), now=lambda: clock[0])
+    settle(v)
+    threads, tasks = 32, 200
+
+    def running(hop, response, timeout):
+        """Start a read through readiness, held open until the returned event is
+        set (or the read's own timeout), answering response; check that a
+        malformed proof is refused at once meanwhile."""
+        settle(v)
+        v._timeout = timeout
+        source.response, source.hold = response, threading.Event()
+        clock[0] += KEY_MAX_AGE + 1
+        before = source.reads
+        v.ready()
+        garbage = fresh(clock[0], hop=hop)
+        garbage["x-codefly-hop-proof"] = "not-an-admission"
+        started = wall.monotonic()
+        with pytest.raises(Unauthenticated) as refused:
+            v.verify(garbage, METHOD)
+        assert refused.value.code == "stamp_proof" and wall.monotonic() - started < 0.1
+        return source.hold, before
+
+    def outcome(call):
+        try:
+            return call().owner
+        except Unauthenticated as refused:
+            return refused.code
+
+    async def everyone(hop, release=None):
+        loop = asyncio.get_running_loop()
+        with ThreadPoolExecutor(threads) as pool:
+            calls = [loop.run_in_executor(pool, outcome, lambda: v.verify(fresh(clock[0], hop=hop), METHOD)) for _ in range(threads)]
+            calls += [asyncio.ensure_future(_outcome_async(v.verify_async(fresh(clock[0], hop=hop), METHOD))) for _ in range(tasks)]
+            if release is not None:
+                await asyncio.sleep(0.1)
+                assert not any(call.done() for call in calls), "a stamp was judged before the running read ended"
+                release.set()
+            started = wall.monotonic()
+            results = await asyncio.gather(*calls)
+            return results, wall.monotonic() - started
+
+    # The running read publishes the fresh key: all wait, all are admitted.
+    release, before = running(b"gateway-after-restart", publishing(b"gateway-after-restart"), 5.0)
+    results, _ = asyncio.run(everyone(b"gateway-after-restart", release))
+    assert results == [FIXTURE["identity"]["owner"]] * (threads + tasks)
+    settle(v)
+    assert source.reads == before + 1, "waiters started a read"
+
+    # The running read hangs: every waiter is refused on the keys held once the
+    # timeout passes, and still no read is added.
+    _, before = running(b"gateway-restarted-again", publishing(b"gateway-restarted-again"), 0.3)
+    results, held = asyncio.run(everyone(b"gateway-restarted-again"))
+    assert results == ["stamp_proof"] * (threads + tasks)
+    assert held < 0.3 + 1.0, f"waiters on a hung read were held {held:.2f}s"
+    settle(v)
+    assert source.reads == before + 1, "waiters on a hung read started a read"
+
+
+async def _outcome_async(call):
+    try:
+        return (await call).owner
+    except Unauthenticated as refused:
+        return refused.code
 
 
 # A flood of stamps under keys nobody publishes costs the authority one read

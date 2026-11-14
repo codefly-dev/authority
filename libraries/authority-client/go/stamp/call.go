@@ -194,6 +194,16 @@ func proof(md metadata.MD) (payload, signature []byte, ok bool) {
 	return payload, signature, true
 }
 
+// WellFormed reports whether md carries exactly one admission in canonical
+// encoding, a signed payload and a signature, without judging either against
+// any key. A verifier asks it before a stamp may wait for, or start, a read of
+// the published keys: nothing that is not even an admission reaches the key
+// read.
+func WellFormed(md metadata.MD) bool {
+	_, _, ok := proof(md)
+	return ok
+}
+
 // SignedBy is which of the published admission keys (hex) the admission md
 // carries is signed by, or "" when it is signed by none of them. It
 // authenticates only the signature: Check, given the key it names, judges the
