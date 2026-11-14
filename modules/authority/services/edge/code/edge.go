@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	hop "github.com/codefly-dev/authority/libraries/hop/go"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -547,8 +548,11 @@ func proxy(target *url.URL, token, effect string, w http.ResponseWriter, r *http
 				pr.Out.Header.Set(receipts.EffectIDHeaderName, effect)
 			}
 		},
-		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, err error) {
-			refuse(w, http.StatusBadGateway, "the module did not answer: "+err.Error())
+		// The transport error can name the module's internal address: the
+		// edge's log is told it, the caller is told what happened.
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			log.Printf("edge: the module did not answer %s %s: %v", r.Method, r.URL.Path, err)
+			refuse(w, http.StatusBadGateway, "the module did not answer")
 		},
 	}).ServeHTTP(w, r)
 }

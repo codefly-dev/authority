@@ -9,6 +9,7 @@ import (
 	"errors"
 	callstamp "github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
 	"io"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -89,7 +90,7 @@ func (p *Proxy) handle(_ any, in grpc.ServerStream) error {
 	}
 	up, err := upstream.NewStream(ctx, &grpc.StreamDesc{ServerStreams: true, ClientStreams: true}, method)
 	if err != nil {
-		return err
+		return p.unanswered(in.Context(), method, err)
 	}
 	sent, received := make(chan error, 1), make(chan error, 1)
 	go func() { sent <- forward(in, up) }()
@@ -103,9 +104,37 @@ func (p *Proxy) handle(_ any, in grpc.ServerStream) error {
 			sent = nil // the caller is done sending; the reply is still coming
 		case err := <-received:
 			in.SetTrailer(up.Trailer())
+			var unanswered moduleUnanswered
+			if errors.As(err, &unanswered) {
+				return p.unanswered(in.Context(), method, unanswered.err)
+			}
 			return err
 		}
 	}
+}
+
+// moduleUnanswered is a call the module never answered: the stream failed
+// before any header came back, so the error is the transport's, not a status
+// the module wrote.
+type moduleUnanswered struct{ err error }
+
+func (u moduleUnanswered) Error() string { return u.err.Error() }
+
+// unanswered refuses a call the module never answered. A caller whose request
+// ended is answered with the code its context ended with. Otherwise the module
+// did not answer, Unavailable; the transport error, which can name the
+// module's internal address, goes to the hop's log, never to the caller.
+func (p *Proxy) unanswered(ctx context.Context, method string, err error) error {
+	if ended := ctx.Err(); ended != nil {
+		return status.Errorf(status.FromContextError(ended).Code(), "the caller's request ended before the module answered: %v", ended)
+	}
+	failed := status.Errorf(codes.Unavailable, "the module did not answer: %v", err)
+	if p.Refused != nil {
+		p.Refused(method, failed)
+	} else {
+		slog.Warn("hop: the module did not answer", "method", method, "error", err)
+	}
+	return status.Error(codes.Unavailable, "the module did not answer")
 }
 
 func requirePublication(ready func() bool) error {
@@ -115,13 +144,21 @@ func requirePublication(ready func() bool) error {
 	return nil
 }
 
-// back relays the module's header, messages and status to the caller.
+// back relays the module's header, messages and status to the caller. The
+// module's own status passes through unchanged; a stream that failed before
+// the module sent any header is moduleUnanswered.
 func back(up grpc.ClientStream, in grpc.ServerStream) error {
 	for first := true; ; first = false {
 		f := &Frame{}
 		if err := up.RecvMsg(f); err != nil {
 			if errors.Is(err, io.EOF) {
 				return nil
+			}
+			// A module that answered with a status alone (trailers only)
+			// has no header and no header error; only a stream the module
+			// never answered reports one.
+			if _, headerErr := up.Header(); headerErr != nil {
+				return moduleUnanswered{err}
 			}
 			return err
 		}
