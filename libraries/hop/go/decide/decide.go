@@ -95,7 +95,14 @@ func (d Decider) decide(ctx context.Context, method string, md metadata.MD) (Dec
 			return Decision{}, status.Errorf(codes.Unavailable, "the hop could not reach the authority to check the call to %s: %s", module, refusal.Message())
 		}
 		if refusal.Code() == codes.Canceled {
-			return Decision{}, status.Errorf(codes.Canceled, "the caller's request ended before the authority checked the call to %s: %s", module, refusal.Message())
+			// The caller's request ending is one cause; a mesh or waypoint
+			// reset, or the authority shutting down, also surfaces as
+			// Canceled while the caller is still live. Only the first is the
+			// caller's doing.
+			if ctx.Err() != nil {
+				return Decision{}, status.Errorf(codes.Canceled, "the caller's request ended before the authority checked the call to %s: %s", module, refusal.Message())
+			}
+			return Decision{}, status.Errorf(codes.Unavailable, "the authority's check of the call to %s was cancelled before it answered: %s", module, refusal.Message())
 		}
 		return Decision{}, status.Errorf(refusal.Code(), "the authority refused the call to %s: %s", module, refusal.Message())
 	}

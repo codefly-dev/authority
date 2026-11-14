@@ -3,6 +3,7 @@ package forward
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -114,7 +115,15 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				refuse(w, r, status.Errorf(status.FromContextError(ended).Code(), "the caller's request ended before the module answered: %v", ended))
 				return
 			}
-			refuse(w, r, status.Errorf(codes.Unavailable, "the module did not answer: %v", err))
+			// The transport error can name the module's internal address:
+			// the hop's log is told it, the caller is told what happened.
+			failed := status.Errorf(codes.Unavailable, "the module did not answer: %v", err)
+			if h.Refused != nil {
+				h.Refused(method, failed)
+			} else {
+				slog.Warn("hop: the module did not answer", "method", method, "module", module, "error", err)
+			}
+			refuse(w, r, status.Error(codes.Unavailable, "the module did not answer"))
 		},
 	}).ServeHTTP(w, r)
 }

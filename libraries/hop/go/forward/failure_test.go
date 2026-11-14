@@ -86,3 +86,54 @@ func TestAConnectCallerWhoseDecisionFailedKeepsItsCode(t *testing.T) {
 		t.Fatalf("answered %d %s", rec.Code, rec.Body.String())
 	}
 }
+
+// A module that drops the connection, or is not listening, while the caller
+// is still live did not answer: 503 Unavailable, never the 499 of a caller
+// that went away. The caller is told that and nothing more; the transport
+// error, which can name the module's internal address, goes to the hop's log.
+func TestAModuleThatDropsTheConnectionIsUnavailable(t *testing.T) {
+	dropping := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, _, err := w.(http.Hijacker).Hijack()
+		if err == nil {
+			_ = conn.Close()
+		}
+	}))
+	defer dropping.Close()
+	gone := httptest.NewServer(http.NotFoundHandler())
+	gone.Close()
+	for module, address := range map[string]string{"dropped": dropping.URL, "not listening": gone.URL} {
+		target, _ := url.Parse(address)
+		for name, connect := range map[string]bool{"rest": false, "connect": true} {
+			t.Run(module+"/"+name, func(t *testing.T) {
+				var logged error
+				h := &HTTP{Signer: hoptest.Signer("dropped"), Ready: published(t, hoptest.Signer("dropped")), Upstreams: map[string]*url.URL{target.String(): target},
+					Decide: func(context.Context, string, metadata.MD) (decide.Decision, error) {
+						return decide.Decision{Route: &routing.RouteEndpoint{Address: target.String()}, Module: "model",
+							Identity: hop.Identity{Expires: time.Now().Add(time.Minute).Unix(), Owner: "jane", OwnerKind: "human", Tenant: "acme"}}, nil
+					},
+					Refused: func(_ string, err error) { logged = err },
+				}
+				req := httptest.NewRequest(http.MethodPost, "/v1/model/invoke", strings.NewReader("{}"))
+				req.Header.Set(hop.WorkContextKey, "wc-model")
+				if connect {
+					req.Header.Set("Content-Type", "application/json")
+					req.Header.Set("Connect-Protocol-Version", "1")
+				}
+				rec := httptest.NewRecorder()
+				h.ServeHTTP(rec, req)
+				if rec.Code != http.StatusServiceUnavailable {
+					t.Fatalf("answered %d %s, want 503", rec.Code, rec.Body.String())
+				}
+				if connect && !strings.Contains(rec.Body.String(), `"code":"unavailable"`) {
+					t.Fatalf("a Connect caller answered %s", rec.Body.String())
+				}
+				if !strings.Contains(rec.Body.String(), "the module did not answer") || strings.Contains(rec.Body.String(), target.Host) || strings.Contains(rec.Body.String(), "EOF") {
+					t.Fatalf("the caller was told %s", rec.Body.String())
+				}
+				if logged == nil || !strings.Contains(logged.Error(), "the module did not answer: ") {
+					t.Fatalf("the hop's log was told %v", logged)
+				}
+			})
+		}
+	}
+}
