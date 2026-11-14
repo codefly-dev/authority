@@ -111,6 +111,35 @@ func TestSignedByNamesThePublishedKeyAProofIsSignedBy(t *testing.T) {
 	}
 }
 
+// WellFormed answers whether the headers carry one admission in canonical
+// encoding, under any key at all: a verifier asks it before a stamp may wait
+// for or start a key read, so garbage never reaches the authority's keys.
+func TestWellFormedIsOneCanonicalAdmissionUnderAnyKey(t *testing.T) {
+	unpublished, _ := NewSigner(strings.Repeat("03", 32))
+	now := time.Unix(1700000000, 0)
+	proof, err := unpublished.Sign("synthetic-context", "/pkg.Service/Read", "module", now, now.Add(time.Minute).Unix())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !WellFormed(metadata.Pairs("x-codefly-hop-proof", proof)) {
+		t.Fatal("a genuine admission under an unpublished key is not well formed")
+	}
+	payload, signature, _ := strings.Cut(proof, ".")
+	for name, md := range map[string]metadata.MD{
+		"no proof":       {},
+		"two proofs":     metadata.Pairs("x-codefly-hop-proof", proof, "x-codefly-hop-proof", proof),
+		"one part":       metadata.Pairs("x-codefly-hop-proof", payload),
+		"three parts":    metadata.Pairs("x-codefly-hop-proof", proof+".x"),
+		"padding":        metadata.Pairs("x-codefly-hop-proof", payload+"=."+signature),
+		"not base64url":  metadata.Pairs("x-codefly-hop-proof", "not a.proof!"),
+		"over the bound": metadata.Pairs("x-codefly-hop-proof", strings.Repeat("a", 8193)+"."+signature),
+	} {
+		if WellFormed(md) {
+			t.Fatalf("%s is well formed", name)
+		}
+	}
+}
+
 // The authority publishes a seed's public half as one stable entry: the same
 // seed always yields the same key id beside its public key, and the authority
 // a hop registers the key with derives that id from the key alone (KeyID).
