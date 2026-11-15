@@ -1,0 +1,35 @@
+# A page whose installation agent holds the user role, a required edge, a role
+# scope on a consumed kind with no through, and owner_aware omitted.
+schema: codefly/module-contract/v1
+principal: board
+installation_role: user
+namespaces: []
+queues: []
+edge_dependencies:
+    - module: annotations
+      presence: required
+scope_ceilings:
+    - resource_kind: board.card
+      actions: [read, write]
+roles:
+    - name: admin
+      scopes:
+          - resource_kind: board.card
+            actions: [read, write]
+          - resource_kind: store.item
+            actions: [read, write]
+    - name: user
+      scopes:
+          - resource_kind: board.card
+            actions: [read]
+          - resource_kind: store.item
+            actions: [read]
+bindings:
+    - id: store
+      operations: [invoke]
+      audience: {from: board/store-audience}
+      scope_ceiling:
+          invoke:
+              - resource_kind: store.item
+                actions: [read, write]
+destinations: []

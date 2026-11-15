@@ -1,0 +1,70 @@
+# A solution with every part a declaration carries: its own kinds (one
+# shared), two roles naming scopes through a binding and on what the
+# installation owns, an invoke binding and a headless one, the scopes that
+# govern its sources, and its installation declaration with an edge whose
+# presence depends on the class.
+schema: codefly/module-contract/v1
+principal: notebook
+owner_aware: true
+installation_role: none
+namespaces: [notebook]
+queues: [notebook-events]
+edge_dependencies:
+    - module: tracing
+      presence: optional
+    - module: annotations
+      presence_by_class: {development: optional, staging: required, production: required}
+scope_ceilings:
+    - resource_kind: notebook.page
+      actions: [read, write]
+    - resource_kind: notebook.catalogue
+      actions: [read]
+      shared: true
+roles:
+    - name: admin
+      scopes:
+          - resource_kind: notebook.page
+            actions: [read, write]
+          - resource_kind: store.item
+            actions: [read, write]
+          - resource_kind: model.profiles
+            actions: [invoke, read]
+            through: store
+          - resource_kind: archive.entry
+            actions: [read]
+            through: store
+      installation_owned_scopes:
+          - resource_kind: store.collection
+            actions: [read]
+    - name: user
+      scopes:
+          - resource_kind: notebook.page
+            actions: [read]
+          - resource_kind: store.item
+            actions: [read]
+          - resource_kind: model.profiles
+            actions: [invoke]
+            through: store
+source_governance:
+    scopes:
+        - resource_kind: notebook.page
+          actions: [write]
+bindings:
+    - id: store
+      operations: [invoke]
+      audience: {from: notebook-audiences/store-audience}
+      binding_key: {from: notebook/STORE_BINDING}
+      scope_ceiling:
+          invoke:
+              - resource_kind: store.item
+                actions: [read, write]
+              - resource_kind: store.collection
+                actions: [read]
+    - id: publisher
+      operations: [headless]
+      audience: {from: notebook-audiences/registry-audience}
+      scope_ceiling:
+          headless:
+              - resource_kind: registry.definitions
+                actions: [publish]
+destinations: []

@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/declare"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
 	delivery "github.com/codefly-dev/authority/libraries/delivery/go"
@@ -315,12 +316,12 @@ func scopesOf(entries []string) Scopes {
 	return scope.Normalize(out)
 }
 
-// Declared is the module a host composes from core's one rendering of a
-// module contract (solutionhost.DeclareModule) and the method policies its
+// Declared is the module a host composes from the one rendering of a
+// module contract (declare.Module) and the method policies its
 // package declares: manifest carries the declaration's authority block, and
 // the authority's document is the declaration's own half with methods, the
 // same two documents a delivery pairs, read by Module.
-func Declared(manifest *solutionhost.ModuleManifest, d *solutionhost.Declaration, methods []Method) (domain.Module, error) {
+func Declared(manifest *solutionhost.ModuleManifest, d *declare.Declaration, methods []Method) (domain.Module, error) {
 	authority := d.Authority
 	manifest.Authority = &authority
 	doc := &Document{Module: manifest.Alias, Generation: manifest.Generation, Methods: methods, OwnerAware: d.Document.OwnerAware,
@@ -341,7 +342,7 @@ func Declared(manifest *solutionhost.ModuleManifest, d *solutionhost.Declaration
 	return Module(manifest, doc)
 }
 
-func declaredScopes(in []solutionhost.DeclaredScope) Scopes {
+func declaredScopes(in []declare.DeclaredScope) Scopes {
 	var out Scopes
 	for _, sc := range in {
 		out = append(out, &basev0.WorkScopeV1{ResourceKind: sc.ResourceKind, Actions: slices.Clone(sc.Actions)})

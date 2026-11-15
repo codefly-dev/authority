@@ -5,6 +5,7 @@ import (
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
 	compositionv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/composition/v1"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/declare"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/delivered"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	modulecontract "github.com/codefly-dev/core/contracts/module"
@@ -20,21 +21,21 @@ import (
 // declaration is one rendering exercising every field the document carries:
 // own scopes, installation-owned scopes, a through per binding first named,
 // shared kinds, owner-aware, an installation role and an edge.
-func declaration() *solutionhost.Declaration {
-	scope := func(kind string, actions ...string) solutionhost.DeclaredScope {
-		return solutionhost.DeclaredScope{ResourceKind: kind, Actions: actions}
+func declaration() *declare.Declaration {
+	scope := func(kind string, actions ...string) declare.DeclaredScope {
+		return declare.DeclaredScope{ResourceKind: kind, Actions: actions}
 	}
-	return &solutionhost.Declaration{
+	return &declare.Declaration{
 		Authority: solutionhost.Authority{Principal: "notebook", InstallationRole: "none", ResourceKinds: []string{"notebook.page", "notebook.catalogue"},
 			EdgeDependencies: []modulecontract.EdgeDependency{{Module: "tracing", Presence: "optional"}},
-			Bindings: []solutionhost.AuthorityBinding{{ID: "store", Audience: "store", Operations: map[string][]string{"invoke": {"store.item:read", "store.item:write"}}}}},
-		Document: solutionhost.AuthorityDocument{
-			ScopeCeilings: []solutionhost.DeclaredScope{scope("notebook.page", "read", "write"), scope("notebook.catalogue", "read")},
-			Roles: []solutionhost.DeclaredRole{
-				{Name: "admin", Scopes: []solutionhost.DeclaredScope{scope("notebook.page", "read", "write"), scope("store.item", "read", "write")},
-					InstallationOwnedScopes: []solutionhost.DeclaredScope{scope("store.item", "read")},
-					Through:                 []solutionhost.RoleThrough{{Binding: "store", Scopes: []solutionhost.DeclaredScope{scope("model.profiles", "invoke")}}}},
-				{Name: "user", Scopes: []solutionhost.DeclaredScope{scope("notebook.page", "read"), scope("store.item", "read")}},
+			Bindings:         []solutionhost.AuthorityBinding{{ID: "store", Audience: "store", Operations: map[string][]string{"invoke": {"store.item:read", "store.item:write"}}}}},
+		Document: declare.AuthorityDocument{
+			ScopeCeilings: []declare.DeclaredScope{scope("notebook.page", "read", "write"), scope("notebook.catalogue", "read")},
+			Roles: []declare.DeclaredRole{
+				{Name: "admin", Scopes: []declare.DeclaredScope{scope("notebook.page", "read", "write"), scope("store.item", "read", "write")},
+					InstallationOwnedScopes: []declare.DeclaredScope{scope("store.item", "read")},
+					Through:                 []declare.RoleThrough{{Binding: "store", Scopes: []declare.DeclaredScope{scope("model.profiles", "invoke")}}}},
+				{Name: "user", Scopes: []declare.DeclaredScope{scope("notebook.page", "read"), scope("store.item", "read")}},
 			},
 			OwnerAware: true, SharedKinds: []string{"notebook.catalogue"}, InstallationRole: "none",
 			EdgeDependencies: []modulecontract.EdgeDependency{{Module: "tracing", Presence: "optional"}},
@@ -51,9 +52,9 @@ func manifest() *solutionhost.ModuleManifest {
 // delivery marshals it as AuthorityManifestV1 (AuthoritySources.Declaration),
 // and the host decodes those bytes into the authority's Document
 // (delivered_authority.go deliveredModule), which Module reads.
-func fromWire(t *testing.T, d *solutionhost.Declaration, methods []*compositionv1.MethodPolicyV1) domain.Module {
+func fromWire(t *testing.T, d *declare.Declaration, methods []*compositionv1.MethodPolicyV1) domain.Module {
 	t.Helper()
-	wire := func(in []solutionhost.DeclaredScope) []*authorityv1.WorkScopeV1 {
+	wire := func(in []declare.DeclaredScope) []*authorityv1.WorkScopeV1 {
 		var out []*authorityv1.WorkScopeV1
 		for _, sc := range in {
 			out = append(out, &authorityv1.WorkScopeV1{ResourceKind: sc.ResourceKind, Actions: sc.Actions})

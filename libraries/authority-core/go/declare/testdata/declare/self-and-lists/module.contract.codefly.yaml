@@ -1,0 +1,40 @@
+# Bindings addressed to the module itself ({self: true}), an optional self
+# binding with a binding key, a binding over a list of audiences with a kind
+# per audience (delivered once per audience), and a resource_kind slot.
+schema: codefly/module-contract/v1
+principal: assistant
+namespaces: []
+queues: []
+scope_ceilings:
+    - resource_kind: assistant.tasks
+      actions: [cancel, execute, read, start]
+bindings:
+    - id: occurrences
+      operations: [invoke]
+      audience: {self: true}
+      scope_ceiling:
+          invoke:
+              - resource_kind: assistant.tasks
+                actions: [cancel, execute, start]
+    - id: occurrence-reads
+      optional: true
+      operations: [invoke]
+      audience: {self: true}
+      binding_key: {from: assistant/occurrence-reads-binding}
+      scope_ceiling:
+          invoke:
+              - resource_kind: assistant.tasks
+                actions: [read]
+    - id: owner-review
+      operations: [invoke]
+      audiences: {from: assistant/owner-audiences}
+      resource_kinds: {from: assistant/owner-resource-kinds}
+      scope_ceiling:
+          invoke: [read]
+    - id: evidence
+      operations: [invoke]
+      audience: {from: assistant/evidence-audience}
+      resource_kind: {from: assistant/evidence-resource-kind}
+      scope_ceiling:
+          invoke: [read]
+destinations: []

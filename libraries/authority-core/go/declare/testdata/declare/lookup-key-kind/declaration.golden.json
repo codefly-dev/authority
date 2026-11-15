@@ -1,0 +1,73 @@
+{
+  "authority": {
+    "principal": "assistant",
+    "edge_dependencies": [
+      {
+        "module": "tracing",
+        "presence": "required"
+      }
+    ],
+    "bindings": [
+      {
+        "id": "model",
+        "audience": "model",
+        "operations": {
+          "invoke": [
+            "model.profiles:invoke",
+            "model.profiles:read"
+          ],
+          "lookup": [
+            "model.profiles:read"
+          ]
+        }
+      },
+      {
+        "id": "publisher",
+        "audience": "registry",
+        "operations": {
+          "headless": [
+            "registry.definitions:publish"
+          ]
+        }
+      }
+    ],
+    "queues": [
+      "assistant-runs",
+      "assistant-events"
+    ],
+    "namespaces": [
+      "assistant",
+      "assistant-audit"
+    ],
+    "resource_kinds": [
+      "assistant.tasks",
+      "assistant.catalogue"
+    ]
+  },
+  "document": {
+    "scope_ceilings": [
+      {
+        "resource_kind": "assistant.tasks",
+        "actions": [
+          "read",
+          "run"
+        ]
+      },
+      {
+        "resource_kind": "assistant.catalogue",
+        "actions": [
+          "read"
+        ]
+      }
+    ],
+    "shared_kinds": [
+      "assistant.catalogue"
+    ],
+    "edge_dependencies": [
+      {
+        "module": "tracing",
+        "presence": "required"
+      }
+    ]
+  }
+}

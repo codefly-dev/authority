@@ -5,8 +5,8 @@
 // call a person makes, whether a holder of its admin role, a holder of its user
 // role and a member holding no role on it are let through, and, when refused,
 // by which decision. Assert composes the product exactly as a host would from
-// what its repository declares — core's one render of its module contract
-// (solutionhost.DeclareModule: the render's refusals, the composition's
+// what its repository declares — the one render of its module contract
+// (declare.Module: the render's refusals, the composition's
 // configurations read by core, the class and callee options) and its method
 // table, read by the authority's own reader (delivered.Declared) — into the
 // authority's Service on an in-memory store, installs it with an
@@ -56,6 +56,7 @@ import (
 	"time"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/declare"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/delivered"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/memstore"
@@ -220,8 +221,8 @@ func Problems(plan Plan) []string {
 	return out
 }
 
-// Module is the product as a host composes it: core's one render of its
-// contract (solutionhost.DeclareModule) against the composition's
+// Module is the product as a host composes it: the one render of its
+// contract (declare.Module) against the composition's
 // configurations as core reads them, with its method table, read by the
 // authority's reader of a delivery (delivered.Declared).
 func Module(p Product) (domain.Module, error) {
@@ -229,7 +230,7 @@ func Module(p Product) (domain.Module, error) {
 	if err != nil {
 		return domain.Module{}, err
 	}
-	declaration, _, err := solutionhost.DeclareModule(p.Dir, p.Name, nil, solutionhost.Resolver(infos, p.Class, p.Callees))
+	declaration, _, err := declare.Module(p.Dir, p.Name, nil, solutionhost.Resolver(infos, p.Class, p.Callees))
 	if err != nil {
 		return domain.Module{}, err
 	}

@@ -1,0 +1,30 @@
+{
+  "authority": {
+    "principal": "ledger",
+    "bindings": [
+      {
+        "id": "store",
+        "audience": "store",
+        "operations": {
+          "invoke": [
+            "store.item:read"
+          ]
+        }
+      }
+    ],
+    "resource_kinds": [
+      "ledger.entry"
+    ]
+  },
+  "document": {
+    "scope_ceilings": [
+      {
+        "resource_kind": "ledger.entry",
+        "actions": [
+          "read",
+          "write"
+        ]
+      }
+    ]
+  }
+}

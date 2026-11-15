@@ -1,0 +1,18 @@
+# A module with no page: its own kinds and one binding, no roles, no
+# installation declaration.
+schema: codefly/module-contract/v1
+principal: ledger
+namespaces: []
+queues: []
+scope_ceilings:
+    - resource_kind: ledger.entry
+      actions: [read, write]
+bindings:
+    - id: store
+      operations: [invoke]
+      audience: {from: ledger/store-audience}
+      scope_ceiling:
+          invoke:
+              - resource_kind: store.item
+                actions: [read]
+destinations: []
