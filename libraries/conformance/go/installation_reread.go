@@ -53,7 +53,7 @@ func (c *client) installationReread(t *testing.T, ctx context.Context, f Fixture
 				return map[string]any{"name": name, "scopes": []any{scopeAsk(page, []string{"read"}, nil)},
 					"through": []any{map[string]any{"binding": "vault", "scopes": []any{scopeAsk(rereadItem, through, nil)}}}}
 			}
-			solution := map[string]any{"owner_aware": true, "scope_ceilings": []any{scopeAsk(page, []string{"read"}, nil)}, "roles": []any{role("installer"), role("editor")}}
+			solution := map[string]any{"owner_aware": true, "scope_ceilings": []any{scopeAsk(page, []string{"read"}, nil)}, "roles": []any{role("admin"), role("user")}}
 			_, err := c.deliver(ctx, f, rereadSolution, "solution", 1, []string{page}, solution, 0, toVault)
 			return err
 		}
@@ -71,10 +71,10 @@ func (c *client) installationReread(t *testing.T, ctx context.Context, f Fixture
 		install := func(t *testing.T) string {
 			t.Helper()
 			return str(c.must(t, adminCtx, "host.installation.v1.InstallationService", "Install", map[string]any{"organization_id": f.Organization, "target": rereadSolution,
-				"role": "installer", "owner_person_id": str(admin, "person_id"), "approval": c.reviewInstallation(t, adminCtx, f.Organization, rereadSolution)}), "id")
+				"role": "admin", "owner_person_id": str(admin, "person_id"), "approval": c.reviewInstallation(t, adminCtx, f.Organization, rereadSolution)}), "id")
 		}
 		id := install(t)
-		c.must(t, adminCtx, "host.installation.v1.InstallationService", "GrantRole", map[string]any{"organization_id": f.Organization, "installation_id": id, "role": "editor", "person_id": str(holder, "person_id")})
+		c.must(t, adminCtx, "host.installation.v1.InstallationService", "GrantRole", map[string]any{"organization_id": f.Organization, "installation_id": id, "role": "user", "person_id": str(holder, "person_id")})
 		stands := func(t *testing.T, upgrade bool) {
 			t.Helper()
 			for _, inst := range listMsgs(c.must(t, adminCtx, "host.installation.v1.InstallationService", "List", map[string]any{"organization_id": f.Organization}), "installations") {
@@ -89,7 +89,7 @@ func (c *client) installationReread(t *testing.T, ctx context.Context, f Fixture
 			}
 			t.Fatalf("%s is not listed", id)
 		}
-		// call is the editor, through the solution's binding to the vault,
+		// call is the user, through the solution's binding to the vault,
 		// calling method there.
 		call := func(method string) error {
 			root, err := c.call(as(ctx, holder), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": rereadSolution, "operation_binding_id": "vault"})
@@ -106,7 +106,7 @@ func (c *client) installationReread(t *testing.T, ctx context.Context, f Fixture
 		}
 		stands(t, false)
 		if call(rereadGet) == nil {
-			t.Fatal("the editor reaches the vault through a role composed without its through")
+			t.Fatal("the user reaches the vault through a role composed without its through")
 		}
 
 		t.Run("the re-read holds the approved reach and offers the upgrade", func(t *testing.T) {
@@ -115,7 +115,7 @@ func (c *client) installationReread(t *testing.T, ctx context.Context, f Fixture
 			}
 			stands(t, true)
 			if call(rereadGet) == nil {
-				t.Fatal("the re-read widened the editor's reach without an approval")
+				t.Fatal("the re-read widened the user's reach without an approval")
 			}
 			if err := f.Reread.Reread(ctx); err != nil {
 				t.Fatalf("a second re-read: %v", err)
@@ -131,7 +131,7 @@ func (c *client) installationReread(t *testing.T, ctx context.Context, f Fixture
 				t.Fatalf("the approved re-read does not reach the vault: %v", err)
 			}
 			if call(rereadPut) == nil {
-				t.Fatal("the editor writes the vault, which no reading declares")
+				t.Fatal("the user writes the vault, which no reading declares")
 			}
 		})
 		t.Run("a different document at the held generation is still refused", func(t *testing.T) {
@@ -139,7 +139,7 @@ func (c *client) installationReread(t *testing.T, ctx context.Context, f Fixture
 				t.Fatal("a different authority document at the held generation was applied")
 			}
 			if call(rereadPut) == nil {
-				t.Fatal("the refused document widened the editor")
+				t.Fatal("the refused document widened the user")
 			}
 			stands(t, false)
 		})

@@ -201,7 +201,7 @@ type Expectation struct {
 }
 
 // applyManifest composes one module at one generation as a signed carrier.
-// A solution declares its installer and viewer roles in the paired authority
+// A solution declares its admin and user roles in the paired authority
 // document, since core's manifest carries no roles.
 func (c *client) applyManifest(ctx context.Context, f Fixture, alias, kind string, generation uint64, kinds []string) (protoreflect.Message, error) {
 	var roles, ceilings []any
@@ -211,7 +211,7 @@ func (c *client) applyManifest(ctx context.Context, f Fixture, alias, kind strin
 			all = append(all, map[string]any{"resource_kind": k, "actions": []any{"read", "write"}})
 			reads = append(reads, map[string]any{"resource_kind": k, "actions": []any{"read"}})
 		}
-		roles = []any{map[string]any{"name": "installer", "scopes": all}, map[string]any{"name": "viewer", "scopes": reads}}
+		roles = []any{map[string]any{"name": "admin", "scopes": all}, map[string]any{"name": "user", "scopes": reads}}
 		ceilings = all
 	}
 	if roles == nil {
@@ -501,10 +501,10 @@ func run(t *testing.T, c *client, f Fixture) {
 			return map[string]any{"organization_id": f.Organization, "installation_id": f.InstalledSolution, "role": name, "person_id": str(viewer, "person_id")}
 		}
 		if len(direct) == 0 {
-			c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "GrantRole", role("viewer"))
+			c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "GrantRole", role("user"))
 		}
 		revokedToken := str(c.must(t, as(ctx, viewer), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.InstalledAudience}), "token")
-		for _, name := range append(slices.Clone(direct), "viewer") {
+		for _, name := range append(slices.Clone(direct), "user") {
 			c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "RevokeRole", role(name))
 		}
 		_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": revokedToken, "audience": f.InstalledAudience})

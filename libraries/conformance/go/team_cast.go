@@ -35,8 +35,8 @@ func (sp *principalSuite) teamCast(t *testing.T) {
 	f := sp.f
 	A := f.A
 	u := sp.principal(t, f.Organization, A)
-	sp.grant(t, A, "viewer", map[string]any{"team_id": f.Team})
-	defer sp.revoke(t, A, "viewer", map[string]any{"team_id": f.Team})
+	sp.grant(t, A, "reader", map[string]any{"team_id": f.Team})
+	defer sp.revoke(t, A, "reader", map[string]any{"team_id": f.Team})
 
 	cast := func(t *testing.T, from, team string) (string, error) {
 		t.Helper()
@@ -62,15 +62,15 @@ func (sp *principalSuite) teamCast(t *testing.T) {
 			refused(t, err, codes.PermissionDenied, "widens")
 			_, err = sp.c.call(sp.as(t, as), "host.installation.v1.InstallationService", "GrantRole", map[string]any{
 				"organization_id": f.Organization, "installation_id": str(sp.ensure(t, f.Organization, A), "id"), "role": "author", "team_id": f.Team})
-			refused(t, err, codes.PermissionDenied, "belongs to another organization") // what a viewer is answered
+			refused(t, err, codes.PermissionDenied, "belongs to another organization") // what a reader is answered
 			_, err = cast(t, as, f.Team)
 			refused(t, err, codes.PermissionDenied, "already cast")
 
-			if got := sp.castable(t, as); len(got) != 1 || !slices.Contains(got[f.Team], instA+" viewer") {
-				t.Fatalf("a cast lists %v; want the one team it acts as, %s, holding viewer on %s", got, f.Team, instA)
+			if got := sp.castable(t, as); len(got) != 1 || !slices.Contains(got[f.Team], instA+" reader") {
+				t.Fatalf("a cast lists %v; want the one team it acts as, %s, holding reader on %s", got, f.Team, instA)
 			}
-			if got := sp.castable(t, from); !slices.Contains(got[f.Team], instA+" viewer") {
-				t.Fatalf("%s lists %v; want %s, holding viewer on %s: a team OpenTeamCast opens for them", who, got, f.Team, instA)
+			if got := sp.castable(t, from); !slices.Contains(got[f.Team], instA+" reader") {
+				t.Fatalf("%s lists %v; want %s, holding reader on %s: a team OpenTeamCast opens for them", who, got, f.Team, instA)
 			}
 
 			current := sp.must(t)(sp.c.call(sp.as(t, as), "host.session.v1.SessionService", "Current", nil))

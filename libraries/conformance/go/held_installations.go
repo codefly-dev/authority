@@ -74,37 +74,37 @@ func (sp *principalSuite) heldInstallations(t *testing.T) {
 	is(t, "a member holding nothing", held(t, f.Member, f.Organization))
 	is(t, "an administrator holding no role", held(t, f.Admin, f.Organization))
 
-	sp.grant(t, A, "viewer", sp.person(t, f.Member))
-	sp.grant(t, A, "editor", sp.person(t, f.Member))
+	sp.grant(t, A, "reader", sp.person(t, f.Member))
+	sp.grant(t, A, "user", sp.person(t, f.Member))
 	sp.grant(t, B, "author", map[string]any{"team_id": f.Team})
-	is(t, "the member granted two roles on A", held(t, f.Member, f.Organization), "A:[editor viewer]")
+	is(t, "the member granted two roles on A", held(t, f.Member, f.Organization), "A:[reader user]")
 	is(t, "a member of the team granted author on B", held(t, f.TeamMember, f.Organization), "B:[author]")
 	is(t, "the administrator, granting", held(t, f.Admin, f.Organization))
 
-	sp.roleAs(t, f.OtherAdmin, "GrantRole", f.OtherOrganization, A, "viewer", sp.person(t, f.OtherMember))
-	is(t, "a member of the other organization", held(t, f.OtherMember, f.OtherOrganization), "A:[viewer]")
-	is(t, "the member, beside another organization's grant", held(t, f.Member, f.Organization), "A:[editor viewer]")
+	sp.roleAs(t, f.OtherAdmin, "GrantRole", f.OtherOrganization, A, "reader", sp.person(t, f.OtherMember))
+	is(t, "a member of the other organization", held(t, f.OtherMember, f.OtherOrganization), "A:[reader]")
+	is(t, "the member, beside another organization's grant", held(t, f.Member, f.Organization), "A:[reader user]")
 	for _, token := range []string{f.OtherMember, f.OtherAdmin} {
 		_, err := sp.c.call(sp.as(t, token), "host.installation.v1.InstallationService", "ListHeld", map[string]any{"organization_id": f.Organization})
 		refused(t, err, codes.PermissionDenied, fmt.Sprintf("%q", f.Organization))
 	}
-	sp.roleAs(t, f.OtherAdmin, "RevokeRole", f.OtherOrganization, A, "viewer", sp.person(t, f.OtherMember))
+	sp.roleAs(t, f.OtherAdmin, "RevokeRole", f.OtherOrganization, A, "reader", sp.person(t, f.OtherMember))
 
-	sp.revoke(t, A, "editor", sp.person(t, f.Member))
-	is(t, "the member, editor revoked", held(t, f.Member, f.Organization), "A:[viewer]")
-	sp.revoke(t, A, "viewer", sp.person(t, f.Member))
+	sp.revoke(t, A, "user", sp.person(t, f.Member))
+	is(t, "the member, user revoked", held(t, f.Member, f.Organization), "A:[reader]")
+	sp.revoke(t, A, "reader", sp.person(t, f.Member))
 	is(t, "the member, every role revoked", held(t, f.Member, f.Organization))
 	sp.revoke(t, B, "author", map[string]any{"team_id": f.Team})
 	is(t, "a member of the team, its role revoked", held(t, f.TeamMember, f.Organization))
 
 	// The leaver lists the team's installation until they leave it. Run after
 	// the team case, they have already left, and list it no more.
-	sp.grant(t, B, "viewer", map[string]any{"team_id": f.Team})
-	if slices.Contains(held(t, f.TeamLeaver, f.Organization), "B:[viewer]") {
+	sp.grant(t, B, "reader", map[string]any{"team_id": f.Team})
+	if slices.Contains(held(t, f.TeamLeaver, f.Organization), "B:[reader]") {
 		if err := f.RemoveFromTeam(sp.ctx, sp.personID(t, f.TeamLeaver), f.Team); err != nil {
 			t.Fatal(err)
 		}
 	}
 	is(t, "a person who left the team", held(t, f.TeamLeaver, f.Organization))
-	sp.revoke(t, B, "viewer", map[string]any{"team_id": f.Team})
+	sp.revoke(t, B, "reader", map[string]any{"team_id": f.Team})
 }

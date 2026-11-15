@@ -99,7 +99,7 @@ func (r ResourceMatch) Grant() resources.Grant {
 
 // Installation is one installation performed through the real install path
 // once its target is composed: Role is the installation's own (its agent's),
-// Owner installed it and is granted the installer role, and each of Teams is
+// Owner installed it and is granted the admin role, and each of Teams is
 // granted Role.
 //
 // A row whose Target is EveryTarget stands for every role-gated target the

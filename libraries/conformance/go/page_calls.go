@@ -53,8 +53,8 @@ func (c *client) pageCalls(t *testing.T, ctx context.Context, f Fixture) {
 		page := &solutionhost.Frontend{Title: "Conformance page calls", ExposedModule: "./Page", HostContract: 1, Payload: f.PagePayload}
 		reach := []any{scopeAsk(pageLedgerKind, []string{"read"}, nil), scopeAsk(pageStoreKind, []string{"read"}, nil)}
 		document := map[string]any{"scope_ceilings": []any{scopeAsk(pageCallNote, []string{"read", "write"}, nil)}, "installation_role": "none", "roles": []any{
-			map[string]any{"name": "installer", "scopes": append([]any{scopeAsk(pageCallNote, []string{"read", "write"}, nil)}, reach...)},
-			map[string]any{"name": "viewer", "scopes": append([]any{scopeAsk(pageCallNote, []string{"read"}, nil)}, reach...)},
+			map[string]any{"name": "admin", "scopes": append([]any{scopeAsk(pageCallNote, []string{"read", "write"}, nil)}, reach...)},
+			map[string]any{"name": "user", "scopes": append([]any{scopeAsk(pageCallNote, []string{"read"}, nil)}, reach...)},
 		}}
 		ledger := solutionhost.AuthorityBinding{ID: "ledger", Audience: pageCallLedger, Operations: map[string][]string{"invoke": {pageLedgerKind + ":read", pageLedgerKind + ":write"}}}
 		store := solutionhost.AuthorityBinding{ID: "store", Audience: pageCallStore, Operations: map[string][]string{"invoke": {pageStoreKind + ":read"}}}
@@ -78,7 +78,7 @@ func (c *client) pageCalls(t *testing.T, ctx context.Context, f Fixture) {
 		}
 		holder := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.UnentitledToken})
 		c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "GrantRole", map[string]any{
-			"organization_id": f.Organization, "installation_id": id, "role": "viewer", "person_id": str(holder, "person_id")})
+			"organization_id": f.Organization, "installation_id": id, "role": "user", "person_id": str(holder, "person_id")})
 		issue := func(actor, audience string, scopes ...any) (protoreflect.Message, error) {
 			fields := map[string]any{"person": map[string]any{}, "audience": audience, "page_target": pageCallModule}
 			if actor != "" {
@@ -91,7 +91,7 @@ func (c *client) pageCalls(t *testing.T, ctx context.Context, f Fixture) {
 		}
 		out, err := issue(f.EdgeCredential, pageCallLedger)
 		if err != nil {
-			t.Fatalf("the viewer's page call at %s: %v", pageCallLedger, err)
+			t.Fatalf("the user's page call at %s: %v", pageCallLedger, err)
 		}
 		chain := listMsgs(msg(out, "context"), "actor_chain")
 		if len(chain) != 1 || str(chain[0], "principal_id") != pageCallModule || str(chain[0], "principal_kind") != pageActorKind {
@@ -99,13 +99,13 @@ func (c *client) pageCalls(t *testing.T, ctx context.Context, f Fixture) {
 		}
 		granted := listMsgs(chain[0], "granted_scopes")
 		if len(granted) != 1 || str(granted[0], "resource_kind") != pageLedgerKind || len(listStrings(granted[0], "actions")) != 1 || listStrings(granted[0], "actions")[0] != "read" {
-			t.Fatalf("the viewer's role cut to the binding: %v", granted)
+			t.Fatalf("the user's role cut to the binding: %v", granted)
 		}
 		_, err = issue(f.EdgeCredential, pageCallLedger, scopeAsk(pageLedgerKind, []string{"write"}, nil))
 		refused(t, err, codes.PermissionDenied, "widens")
 		at, err := issue(f.EdgeCredential, pageCallStore)
 		if err != nil {
-			t.Fatalf("the viewer's page call at %s: %v", pageCallStore, err)
+			t.Fatalf("the user's page call at %s: %v", pageCallStore, err)
 		}
 		chain = listMsgs(msg(at, "context"), "actor_chain")
 		if len(chain) != 1 {
@@ -113,7 +113,7 @@ func (c *client) pageCalls(t *testing.T, ctx context.Context, f Fixture) {
 		}
 		granted = listMsgs(chain[0], "granted_scopes")
 		if len(granted) != 1 || str(granted[0], "resource_kind") != pageStoreKind || str(granted[0], "resource_owner_id") != principal {
-			t.Fatalf("at a module that checks owners the viewer's role is the page installation's data (owner %s): %v", principal, granted)
+			t.Fatalf("at a module that checks owners the user's role is the page installation's data (owner %s): %v", principal, granted)
 		}
 		owned := func(owner string) any {
 			return map[string]any{"resource_kind": pageStoreKind, "actions": []any{"read"}, "resource_owner_id": owner}

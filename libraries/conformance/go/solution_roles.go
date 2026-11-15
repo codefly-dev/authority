@@ -9,8 +9,8 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-// SolutionRoleCase is an installed solution whose viewer has no independent
-// organization grant for ConsumedAction. Its signed viewer role grants that
+// SolutionRoleCase is an installed solution whose user has no independent
+// organization grant for ConsumedAction. Its signed user role grants that
 // action through Binding. OwnActions is the full delivered served ceiling;
 // ForbiddenAction is outside both the role and binding. The host seeds the
 // installation and team entitlement, not a duplicate permission resolver.
@@ -24,7 +24,7 @@ type SolutionRoleCase struct {
 func (c *client) solutionRoleCases(t *testing.T, ctx context.Context, f Fixture) {
 	names := []string{
 		"a delivered solution role grants authority at its own audience",
-		"a solution viewer reaches a consumed module without an organization grant",
+		"a solution user reaches a consumed module without an organization grant",
 		"a solution binding root carries its delivered role grants",
 		"a person with no solution role is refused with a reason",
 		"a solution role cannot exceed the delivered binding ceiling",
@@ -34,14 +34,14 @@ func (c *client) solutionRoleCases(t *testing.T, ctx context.Context, f Fixture)
 	for _, name := range names {
 		c.run(t, f, name, func(t *testing.T, c *client, f Fixture) {
 			if f.SolutionRoles == nil || f.SignManifest == nil || f.SignAuthority == nil {
-				t.Fatal("required conformance fixture missing: signed solution roles and installed viewer entitlement")
+				t.Fatal("required conformance fixture missing: signed solution roles and installed user entitlement")
 			}
 			r := *f.SolutionRoles
 			if r.Solution == "" || r.Credential == "" || r.Token == "" || r.Outsider == "" || r.ConsumedAction == "" || len(r.OwnActions) == 0 {
 				t.Fatal("required conformance fixture incomplete: solution roles")
 			}
 			own := scopeAsk(r.OwnKind, r.OwnActions, nil)
-			viewer := scopeAsk(r.OwnKind, []string{"read"}, nil)
+			reads := scopeAsk(r.OwnKind, []string{"read"}, nil)
 			consumed := scopeAsk(r.ConsumedKind, []string{r.ConsumedAction}, nil)
 			// Under the solution-principal contract every scope a person holds
 			// through the solution is owned by its principal (RunSolutionPrincipalTarget).
@@ -55,12 +55,12 @@ func (c *client) solutionRoleCases(t *testing.T, ctx context.Context, f Fixture)
 			doc := map[string]any{
 				"scope_ceilings": []any{own},
 				"roles": []any{
-					map[string]any{"name": "installer", "scopes": []any{own, consumed}},
-					map[string]any{"name": "editor", "scopes": []any{scopeAsk(r.OwnKind, []string{"read", "write"}, nil)}},
-					map[string]any{"name": "viewer", "scopes": []any{viewer, consumed}},
+					map[string]any{"name": "admin", "scopes": []any{own, consumed}},
+					map[string]any{"name": "author", "scopes": []any{scopeAsk(r.OwnKind, []string{"read", "write"}, nil)}},
+					map[string]any{"name": "user", "scopes": []any{reads, consumed}},
 				},
 				"methods": []any{
-					map[string]any{"method": "GET /items/{id}", "requires": []any{viewer}},
+					map[string]any{"method": "GET /items/{id}", "requires": []any{reads}},
 					map[string]any{"method": "POST /items/{id}", "requires": []any{scopeAsk(r.OwnKind, []string{"write"}, nil)}},
 					map[string]any{"method": "GET /open/{path=**}", "any_checked_caller": true},
 				},
@@ -111,11 +111,11 @@ func (c *client) solutionRoleCases(t *testing.T, ctx context.Context, f Fixture)
 				_, err := person(r.Solution, r.Binding, []any{ownedBy(scopeAsk(r.ConsumedKind, []string{r.ForbiddenAction}, nil), owner)})
 				refused(t, err, codes.PermissionDenied, "beyond")
 				// A correctly signed role cannot manufacture an undeclared permission.
-				doc["roles"] = []any{map[string]any{"name": "installer", "scopes": []any{own}}, map[string]any{"name": "viewer", "scopes": []any{scopeAsk(r.ConsumedKind, []string{r.ForbiddenAction}, nil)}}}
+				doc["roles"] = []any{map[string]any{"name": "admin", "scopes": []any{own}}, map[string]any{"name": "user", "scopes": []any{scopeAsk(r.ConsumedKind, []string{r.ForbiddenAction}, nil)}}}
 				_, err = c.deliver(ctx, f, r.Solution, "solution", r.Generation+1, []string{r.OwnKind}, doc, 0, bindings...)
 				refused(t, err, codes.PermissionDenied, "role")
 			case names[6]:
-				doc["roles"] = []any{map[string]any{"name": "installer", "scopes": []any{own}}, map[string]any{"name": "viewer", "scopes": []any{scopeAsk(r.OwnKind, []string{"conformance-unheld"}, nil)}}}
+				doc["roles"] = []any{map[string]any{"name": "admin", "scopes": []any{own}}, map[string]any{"name": "user", "scopes": []any{scopeAsk(r.OwnKind, []string{"conformance-unheld"}, nil)}}}
 				_, err := c.deliver(ctx, f, r.Solution, "solution", r.Generation+1, []string{r.OwnKind}, doc, 0, bindings...)
 				refused(t, err, codes.PermissionDenied, "role")
 			case names[5]:

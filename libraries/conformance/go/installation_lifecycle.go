@@ -74,7 +74,7 @@ func (c *client) installationLifecycle(t *testing.T, ctx context.Context, f Fixt
 		resultCh := make(chan result, 1)
 		installCtx, cancel := context.WithTimeout(adminCtx, 10*time.Second)
 		defer cancel()
-		request := map[string]any{"organization_id": f.Organization, "target": l.Target, "role": "viewer", "owner_person_id": str(admin, "person_id"), "approval": c.reviewInstallation(t, adminCtx, f.Organization, l.Target)}
+		request := map[string]any{"organization_id": f.Organization, "target": l.Target, "role": "user", "owner_person_id": str(admin, "person_id"), "approval": c.reviewInstallation(t, adminCtx, f.Organization, l.Target)}
 		t.Run("administrator loss after review refuses apply", func(t *testing.T) {
 			if err := l.SetAdministrator(ctx, false); err != nil {
 				t.Fatal(err)
@@ -139,7 +139,7 @@ func (c *client) installationLifecycle(t *testing.T, ctx context.Context, f Fixt
 			return c.call(ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"installation": map[string]any{"installation_id": id}, "actor": map[string]any{"credential": l.Credential}, "audience": l.Target})
 		}
 		// Exposure is a team's role grant.
-		grant := map[string]any{"organization_id": f.Organization, "installation_id": id, "team_id": l.Team, "role": "viewer"}
+		grant := map[string]any{"organization_id": f.Organization, "installation_id": id, "team_id": l.Team, "role": "user"}
 		const expose = "GrantRole"
 		t.Run("pending installation cannot issue or be exposed", func(t *testing.T) {
 			if enumName(pending, "status") != "STATUS_PENDING" {
@@ -184,7 +184,7 @@ func (c *client) installationLifecycle(t *testing.T, ctx context.Context, f Fixt
 		t.Run("acknowledged installation is exposed to its team", func(t *testing.T) {
 			c.must(t, adminCtx, "host.installation.v1.InstallationService", expose, grant)
 			listed := c.must(t, adminCtx, "host.installation.v1.InstallationService", "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": id})
-			if grants := listMsgs(listed, "grants"); len(grants) != 1 || str(grants[0], "team_id") != l.Team || str(grants[0], "role") != "viewer" {
+			if grants := listMsgs(listed, "grants"); len(grants) != 1 || str(grants[0], "team_id") != l.Team || str(grants[0], "role") != "user" {
 				t.Fatalf("acknowledged installation was not granted to its team exactly once: %v", grants)
 			}
 			// Role grants do not change the installation consent revision.

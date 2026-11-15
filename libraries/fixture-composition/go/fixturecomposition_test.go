@@ -248,16 +248,16 @@ func TestARowStandingForEveryTargetNamesOnlyOwnerAndMembers(t *testing.T) {
   - organization: acme
     target: "*"
     owner: alice
-    members: {viewer: [bob], editor: [carol], installer: [dana]}
+    members: {user: [carol], admin: [dana]}
 `))
-	if err != nil || len(doc.Installations) != 1 || doc.Installations[0].Target != fixturecomposition.EveryTarget || len(doc.Installations[0].Members["installer"]) != 1 {
+	if err != nil || len(doc.Installations) != 1 || doc.Installations[0].Target != fixturecomposition.EveryTarget || len(doc.Installations[0].Members["admin"]) != 1 {
 		t.Fatalf("%+v %v", doc.Installations, err)
 	}
 	for name, tc := range map[string]struct{ doc, reason string }{
-		"a role":        {`installations: [{organization: acme, target: "*", role: viewer, owner: alice}]`, "names only its owner and members"},
+		"a role":        {`installations: [{organization: acme, target: "*", role: user, owner: alice}]`, "names only its owner and members"},
 		"teams":         {`installations: [{organization: acme, target: "*", owner: alice, teams: [finance]}]`, "names only its owner and members"},
-		"empty members": {`installations: [{organization: acme, target: "*", owner: alice, members: {viewer: []}}]`, "members name a role and the people"},
-		"blank role":    {`installations: [{organization: acme, target: wiki, role: viewer, owner: alice, members: {"": [bob]}}]`, "members name a role and the people"},
+		"empty members": {`installations: [{organization: acme, target: "*", owner: alice, members: {user: []}}]`, "members name a role and the people"},
+		"blank role":    {`installations: [{organization: acme, target: wiki, role: user, owner: alice, members: {"": [bob]}}]`, "members name a role and the people"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := fixturecomposition.Decode([]byte(head + tc.doc + "\n")); err == nil || !strings.Contains(err.Error(), tc.reason) {

@@ -46,8 +46,8 @@ func (c *client) reachConsent(t *testing.T, ctx context.Context, f Fixture) {
 		page := reachSolution + ".page"
 		items := []any{scopeAsk(reachItem, []string{"read", "write"}, nil)}
 		solution := map[string]any{"owner_aware": true, "scope_ceilings": []any{scopeAsk(page, []string{"read"}, nil)}, "roles": []any{
-			map[string]any{"name": "installer", "scopes": append([]any{scopeAsk(page, []string{"read"}, nil)}, items...)},
-			map[string]any{"name": "editor", "scopes": append([]any{scopeAsk(page, []string{"read"}, nil)}, items...)},
+			map[string]any{"name": "admin", "scopes": append([]any{scopeAsk(page, []string{"read"}, nil)}, items...)},
+			map[string]any{"name": "user", "scopes": append([]any{scopeAsk(page, []string{"read"}, nil)}, items...)},
 		}}
 		binding := solutionhost.AuthorityBinding{ID: "store", Audience: reachStore, Operations: map[string][]string{"invoke": {reachItem + ":read", reachItem + ":write"}}}
 		if _, err := c.deliver(ctx, f, reachSolution, "solution", 1, []string{page}, solution, 0, binding); err != nil {
@@ -63,10 +63,10 @@ func (c *client) reachConsent(t *testing.T, ctx context.Context, f Fixture) {
 		install := func(t *testing.T) protoreflect.Message {
 			t.Helper()
 			return c.must(t, adminCtx, "host.installation.v1.InstallationService", "Install", map[string]any{"organization_id": f.Organization, "target": reachSolution,
-				"role": "installer", "owner_person_id": str(admin, "person_id"), "approval": c.reviewInstallation(t, adminCtx, f.Organization, reachSolution)})
+				"role": "admin", "owner_person_id": str(admin, "person_id"), "approval": c.reviewInstallation(t, adminCtx, f.Organization, reachSolution)})
 		}
 		id := str(install(t), "id")
-		c.must(t, adminCtx, "host.installation.v1.InstallationService", "GrantRole", map[string]any{"organization_id": f.Organization, "installation_id": id, "role": "editor", "person_id": str(holder, "person_id")})
+		c.must(t, adminCtx, "host.installation.v1.InstallationService", "GrantRole", map[string]any{"organization_id": f.Organization, "installation_id": id, "role": "user", "person_id": str(holder, "person_id")})
 		upgrade := func(t *testing.T) bool {
 			t.Helper()
 			for _, inst := range listMsgs(c.must(t, adminCtx, "host.installation.v1.InstallationService", "List", map[string]any{"organization_id": f.Organization}), "installations") {
@@ -77,12 +77,12 @@ func (c *client) reachConsent(t *testing.T, ctx context.Context, f Fixture) {
 			t.Fatalf("%s is not listed", id)
 			return false
 		}
-		// reached is the operations the editor's reach lists at the store, as sess reviews it.
+		// reached is the operations the user's reach lists at the store, as sess reviews it.
 		reached := func(t *testing.T, sess protoreflect.Message) []string {
 			t.Helper()
 			out := c.must(t, as(ctx, sess), "host.installation.v1.OfferService", "ReviewOffer", map[string]any{"organization_id": f.Organization, "target": reachSolution})
 			for _, r := range listMsgs(out, "roles") {
-				if str(r, "name") != "editor" {
+				if str(r, "name") != "user" {
 					continue
 				}
 				for _, row := range listMsgs(r, "reach") {
@@ -109,7 +109,7 @@ func (c *client) reachConsent(t *testing.T, ctx context.Context, f Fixture) {
 			_, err = c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(hop, "token"), "audience": reachStore, "method": method})
 			return err
 		}
-		// agentCall is the installation's own agent (installer) calling method
+		// agentCall is the installation's own agent (admin) calling method
 		// at the store through the solution's binding.
 		agentCall := func(method string) error {
 			at, err := c.call(ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"installation": map[string]any{"installation_id": id},
@@ -122,7 +122,7 @@ func (c *client) reachConsent(t *testing.T, ctx context.Context, f Fixture) {
 		}
 		if f.ReviewOfferNotServed == "" {
 			if got := reached(t, admin); !slices.Equal(got, []string{reachGet}) {
-				t.Fatalf("the editor reaches %v at the store, want [%s]", got, reachGet)
+				t.Fatalf("the user reaches %v at the store, want [%s]", got, reachGet)
 			}
 		}
 		if upgrade(t) {
@@ -138,7 +138,7 @@ func (c *client) reachConsent(t *testing.T, ctx context.Context, f Fixture) {
 				t.Fatalf("redeliver %s relaxing Purge: %v", reachStore, err)
 			}
 			if !upgrade(t) {
-				t.Fatal("the store relaxing a method the editor reaches offers the solution's installation no upgrade")
+				t.Fatal("the store relaxing a method the user reaches offers the solution's installation no upgrade")
 			}
 			if f.ReviewOfferNotServed == "" {
 				if got := reached(t, holder); !slices.Equal(got, []string{reachGet}) {
@@ -157,7 +157,7 @@ func (c *client) reachConsent(t *testing.T, ctx context.Context, f Fixture) {
 			}
 			refused(t, agentCall(reachPurge), codes.PermissionDenied, "approved")
 			_, err := c.call(adminCtx, "host.installation.v1.InstallationService", "Install", map[string]any{"organization_id": f.Organization, "target": reachSolution,
-				"role": "installer", "owner_person_id": str(admin, "person_id"), "approval": approval})
+				"role": "admin", "owner_person_id": str(admin, "person_id"), "approval": approval})
 			refused(t, err, codes.FailedPrecondition, "INSTALLATION_APPROVAL_")
 		})
 		t.Run("a fresh review and Install approve the wider reach on the same installation", func(t *testing.T) {

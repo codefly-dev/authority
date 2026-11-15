@@ -57,26 +57,26 @@ var (
 	declaredBindingCeiling = []string{"read", "write"}
 )
 
-// declaredRoles is the first delivery: an installer, a role reaching the store
-// through the binding (editor, viewer), an attached-only role (curator) and a
+// declaredRoles is the first delivery: an admin, a role reaching the store
+// through the binding (user, reader), an attached-only role (curator) and a
 // role no operation is covered by, hence no capability and no tool (observer).
 func declaredRoles() declaration {
 	return declaration{generation: 1, roles: []declaredRole{
-		{name: "installer", scopes: map[string][]string{declaredPage: {"publish", "read", "write"}, declaredItem: {"read", "write"}}},
-		{name: "editor", scopes: map[string][]string{declaredPage: {"read", "write"}, declaredItem: {"read", "write"}}},
-		{name: "viewer", scopes: map[string][]string{declaredPage: {"read"}, declaredItem: {"read"}}},
+		{name: "admin", scopes: map[string][]string{declaredPage: {"publish", "read", "write"}, declaredItem: {"read", "write"}}},
+		{name: "user", scopes: map[string][]string{declaredPage: {"read", "write"}, declaredItem: {"read", "write"}}},
+		{name: "reader", scopes: map[string][]string{declaredPage: {"read"}, declaredItem: {"read"}}},
 		{name: "curator", scopes: map[string][]string{declaredPage: {"read"}}, attached: map[string][]string{declaredItem: {"read", "write"}}},
 		{name: "observer", scopes: map[string][]string{declaredPage: {"list"}}},
 	}}
 }
 
-// redeclaredRoles is the redelivery: editor loses write everywhere, curator's
-// attached scope loses write, observer is withdrawn; installer and viewer stay.
+// redeclaredRoles is the redelivery: user loses write everywhere, curator's
+// attached scope loses write, observer is withdrawn; admin and reader stay.
 func redeclaredRoles() declaration {
 	return declaration{generation: 2, roles: []declaredRole{
-		{name: "installer", scopes: map[string][]string{declaredPage: {"publish", "read", "write"}, declaredItem: {"read", "write"}}},
-		{name: "editor", scopes: map[string][]string{declaredPage: {"read"}, declaredItem: {"read"}}},
-		{name: "viewer", scopes: map[string][]string{declaredPage: {"read"}, declaredItem: {"read"}}},
+		{name: "admin", scopes: map[string][]string{declaredPage: {"publish", "read", "write"}, declaredItem: {"read", "write"}}},
+		{name: "user", scopes: map[string][]string{declaredPage: {"read"}, declaredItem: {"read"}}},
+		{name: "reader", scopes: map[string][]string{declaredPage: {"read"}, declaredItem: {"read"}}},
 		{name: "curator", scopes: map[string][]string{declaredPage: {"read"}}, attached: map[string][]string{declaredItem: {"read"}}},
 	}}
 }
@@ -91,8 +91,18 @@ func redeclaredRoles() declaration {
 // (GET /status admits any checked caller); through the store binding, what a
 // hop can carry and the store's operations it is admitted to.
 const declaredOfferV1 = `target conformance-declared generation 1
-installation STATUS_ACTIVE roles [curator editor installer observer viewer]
+installation STATUS_ACTIVE roles [admin curator observer reader user]
 ceiling store -> conformance-declared-store: conformance-declared-store.item [read write]
+role admin
+  scope conformance-declared-store.item [read write]
+  scope conformance-declared.page [publish read write]
+  capability conformance-declared GET /pages/{id} requires conformance-declared.page [read] tools []
+  capability conformance-declared POST /pages/{id}/publish requires conformance-declared.page [publish] tools []
+  capability conformance-declared PUT /pages/{id} requires conformance-declared.page [write] tools []
+  capability conformance-declared-store /conformance.declared.Store/Get requires conformance-declared-store.item [read] tools []
+  capability conformance-declared-store /conformance.declared.Store/Put requires conformance-declared-store.item [write] tools []
+  reach binding conformance-declared > conformance-declared-store: conformance-declared-store.item [read write] operations [/conformance.declared.Store/Get /conformance.declared.Store/Ping /conformance.declared.Store/Put]
+  reach role conformance-declared (installation): conformance-declared.page [publish read write] operations [GET /pages/{id} GET /status POST /pages/{id}/publish PUT /pages/{id}]
 role curator
   scope conformance-declared-store.item [read write] attached-only ids []
   scope conformance-declared.page [read]
@@ -101,7 +111,17 @@ role curator
   capability conformance-declared-store /conformance.declared.Store/Put requires conformance-declared-store.item [write] tools []
   reach binding conformance-declared > conformance-declared-store: conformance-declared-store.item [read write] operations [/conformance.declared.Store/Get /conformance.declared.Store/Ping /conformance.declared.Store/Put]
   reach role conformance-declared (installation): conformance-declared.page [read] operations [GET /pages/{id} GET /status]
-role editor
+role observer
+  scope conformance-declared.page [list]
+  reach role conformance-declared (installation): conformance-declared.page [list] operations [GET /status]
+role reader
+  scope conformance-declared-store.item [read]
+  scope conformance-declared.page [read]
+  capability conformance-declared GET /pages/{id} requires conformance-declared.page [read] tools []
+  capability conformance-declared-store /conformance.declared.Store/Get requires conformance-declared-store.item [read] tools []
+  reach binding conformance-declared > conformance-declared-store: conformance-declared-store.item [read] operations [/conformance.declared.Store/Get /conformance.declared.Store/Ping]
+  reach role conformance-declared (installation): conformance-declared.page [read] operations [GET /pages/{id} GET /status]
+role user
   scope conformance-declared-store.item [read write]
   scope conformance-declared.page [read write]
   capability conformance-declared GET /pages/{id} requires conformance-declared.page [read] tools []
@@ -110,7 +130,12 @@ role editor
   capability conformance-declared-store /conformance.declared.Store/Put requires conformance-declared-store.item [write] tools []
   reach binding conformance-declared > conformance-declared-store: conformance-declared-store.item [read write] operations [/conformance.declared.Store/Get /conformance.declared.Store/Ping /conformance.declared.Store/Put]
   reach role conformance-declared (installation): conformance-declared.page [read write] operations [GET /pages/{id} GET /status PUT /pages/{id}]
-role installer
+`
+
+const declaredOfferV2 = `target conformance-declared generation 2
+installation STATUS_ACTIVE roles [admin curator reader user]
+ceiling store -> conformance-declared-store: conformance-declared-store.item [read write]
+role admin
   scope conformance-declared-store.item [read write]
   scope conformance-declared.page [publish read write]
   capability conformance-declared GET /pages/{id} requires conformance-declared.page [read] tools []
@@ -120,21 +145,6 @@ role installer
   capability conformance-declared-store /conformance.declared.Store/Put requires conformance-declared-store.item [write] tools []
   reach binding conformance-declared > conformance-declared-store: conformance-declared-store.item [read write] operations [/conformance.declared.Store/Get /conformance.declared.Store/Ping /conformance.declared.Store/Put]
   reach role conformance-declared (installation): conformance-declared.page [publish read write] operations [GET /pages/{id} GET /status POST /pages/{id}/publish PUT /pages/{id}]
-role observer
-  scope conformance-declared.page [list]
-  reach role conformance-declared (installation): conformance-declared.page [list] operations [GET /status]
-role viewer
-  scope conformance-declared-store.item [read]
-  scope conformance-declared.page [read]
-  capability conformance-declared GET /pages/{id} requires conformance-declared.page [read] tools []
-  capability conformance-declared-store /conformance.declared.Store/Get requires conformance-declared-store.item [read] tools []
-  reach binding conformance-declared > conformance-declared-store: conformance-declared-store.item [read] operations [/conformance.declared.Store/Get /conformance.declared.Store/Ping]
-  reach role conformance-declared (installation): conformance-declared.page [read] operations [GET /pages/{id} GET /status]
-`
-
-const declaredOfferV2 = `target conformance-declared generation 2
-installation STATUS_ACTIVE roles [curator editor installer viewer]
-ceiling store -> conformance-declared-store: conformance-declared-store.item [read write]
 role curator
   scope conformance-declared-store.item [read] attached-only ids []
   scope conformance-declared.page [read]
@@ -142,24 +152,14 @@ role curator
   capability conformance-declared-store /conformance.declared.Store/Get requires conformance-declared-store.item [read] tools []
   reach binding conformance-declared > conformance-declared-store: conformance-declared-store.item [read] operations [/conformance.declared.Store/Get /conformance.declared.Store/Ping]
   reach role conformance-declared (installation): conformance-declared.page [read] operations [GET /pages/{id} GET /status]
-role editor
+role reader
   scope conformance-declared-store.item [read]
   scope conformance-declared.page [read]
   capability conformance-declared GET /pages/{id} requires conformance-declared.page [read] tools []
   capability conformance-declared-store /conformance.declared.Store/Get requires conformance-declared-store.item [read] tools []
   reach binding conformance-declared > conformance-declared-store: conformance-declared-store.item [read] operations [/conformance.declared.Store/Get /conformance.declared.Store/Ping]
   reach role conformance-declared (installation): conformance-declared.page [read] operations [GET /pages/{id} GET /status]
-role installer
-  scope conformance-declared-store.item [read write]
-  scope conformance-declared.page [publish read write]
-  capability conformance-declared GET /pages/{id} requires conformance-declared.page [read] tools []
-  capability conformance-declared POST /pages/{id}/publish requires conformance-declared.page [publish] tools []
-  capability conformance-declared PUT /pages/{id} requires conformance-declared.page [write] tools []
-  capability conformance-declared-store /conformance.declared.Store/Get requires conformance-declared-store.item [read] tools []
-  capability conformance-declared-store /conformance.declared.Store/Put requires conformance-declared-store.item [write] tools []
-  reach binding conformance-declared > conformance-declared-store: conformance-declared-store.item [read write] operations [/conformance.declared.Store/Get /conformance.declared.Store/Ping /conformance.declared.Store/Put]
-  reach role conformance-declared (installation): conformance-declared.page [publish read write] operations [GET /pages/{id} GET /status POST /pages/{id}/publish PUT /pages/{id}]
-role viewer
+role user
   scope conformance-declared-store.item [read]
   scope conformance-declared.page [read]
   capability conformance-declared GET /pages/{id} requires conformance-declared.page [read] tools []
@@ -255,7 +255,7 @@ func (c *client) solutionDeclaration(t *testing.T, ctx context.Context, f Fixtur
 		admin := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.AdminToken})
 		adminCtx := as(ctx, admin)
 		inst := c.must(t, adminCtx, "host.installation.v1.InstallationService", "Install", map[string]any{
-			"organization_id": f.Organization, "target": declaredSolution, "role": "viewer", "owner_person_id": str(admin, "person_id"),
+			"organization_id": f.Organization, "target": declaredSolution, "role": "reader", "owner_person_id": str(admin, "person_id"),
 			"approval": c.reviewInstallation(t, adminCtx, f.Organization, declaredSolution)})
 		if enumName(inst, "status") != "STATUS_ACTIVE" {
 			t.Fatalf("%s is %s; the host's install step must converge for the suite's solutions", declaredSolution, enumName(inst, "status"))
@@ -300,9 +300,9 @@ func (c *client) solutionDeclaration(t *testing.T, ctx context.Context, f Fixtur
 			}
 		})
 		t.Run("a redelivery changes the answers to exactly the new declaration", func(t *testing.T) {
-			// The holder holds editor across the redelivery, with a live
+			// The holder holds user across the redelivery, with a live
 			// capability at the solution and through its binding.
-			if err := role(t, "GrantRole", "editor"); err != nil {
+			if err := role(t, "GrantRole", "user"); err != nil {
 				t.Fatal(err)
 			}
 			own, err := issue("", nil)
@@ -337,12 +337,12 @@ func (c *client) solutionDeclaration(t *testing.T, ctx context.Context, f Fixtur
 			t.Run("the held role issues exactly its redeclared scopes", func(t *testing.T) {
 				c.grantedExactly(t, issue, second.roles[1], principal)
 			})
-			if err := role(t, "RevokeRole", "editor"); err != nil {
+			if err := role(t, "RevokeRole", "user"); err != nil {
 				t.Fatal(err)
 			}
 			t.Run("each redeclared role grants exactly its scopes within the ceiling", func(t *testing.T) {
 				for _, r := range second.roles {
-					if r.name == "editor" {
+					if r.name == "user" {
 						continue
 					}
 					t.Run(r.name, func(t *testing.T) {
