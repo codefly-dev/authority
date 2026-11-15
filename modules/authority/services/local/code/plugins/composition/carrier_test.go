@@ -95,7 +95,7 @@ func TestASolutionDeliveredAsACarrierInstallsWithItsRoles(t *testing.T) {
 	page := scope("wiki.page", "read", "write", "publish")
 	roles := []*compositionv1.RoleV1{
 		{Name: state.AdminRole, Scopes: []*authorityv1.WorkScopeV1{page}},
-		{Name: state.UserRole, Scopes: []*authorityv1.WorkScopeV1{scope("wiki.page", "read", "write")}},
+		{Name: state.UserRole, Scopes: []*authorityv1.WorkScopeV1{scope("wiki.page", "read")}},
 	}
 	out, err := p.ApplyManifest(context.Background(), carrier(t, k, "wiki", solutionhost.KindSolution, 2, []string{"wiki.page"},
 		&compositionv1.AuthorityManifestV1{ScopeCeilings: []*authorityv1.WorkScopeV1{page}, Roles: roles}))
@@ -104,9 +104,9 @@ func TestASolutionDeliveredAsACarrierInstallsWithItsRoles(t *testing.T) {
 	}
 	for person, want := range map[string]string{
 		"alex": "wiki.page:publish,read,write", // the owner holds the admin role
-		"maya": "wiki.page:read,write",         // finance holds Acme's user role
-		"remi": "wiki.page:read,write",         // engineering too, since the fixture grants both
-		"omar": "wiki.page:read,write",         // ops holds Globex's user role
+		"maya": "wiki.page:read",               // finance holds Acme's user role, which reads
+		"remi": "wiki.page:read",               // engineering too, since the fixture grants both
+		"omar": "wiki.page:read",               // ops holds Globex's user role
 	} {
 		if got := held(t, k, person, "wiki"); got != want {
 			t.Errorf("%s holds %q at the wiki, want %q", person, got, want)

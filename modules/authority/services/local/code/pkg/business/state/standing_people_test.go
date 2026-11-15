@@ -89,8 +89,9 @@ func TestEveryRoleGatedTargetSeatsTheAdminAndUserTeams(t *testing.T) {
 // Signed in as Alice, "act as this team" opens a session that holds the
 // team's role on the wiki and nothing of her own; the session she came from
 // is untouched. Bob holds no role on the page: he is refused it, and refused
-// the users' team by name. Carol, the user, writes and does not publish;
-// Dana, the admin, publishes and administers the installation's grants.
+// the users' team by name. Carol, the user, reads and does not write; Dana,
+// the admin, writes, publishes and administers the installation's grants,
+// which Carol may not.
 func TestAliceCastsOntoATeamAndBobIsRefusedThePage(t *testing.T) {
 	k := testkit.New(t)
 	ctx := context.Background()
@@ -110,8 +111,8 @@ func TestAliceCastsOntoATeamAndBobIsRefusedThePage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !holds(issued, "wiki.page", "write") || holds(issued, "wiki.page", "publish") {
-		t.Fatalf("the cast holds %v, want a user's read and write alone", issued.Context.GetAuthorityScopes())
+	if !holds(issued, "wiki.page", "read") || holds(issued, "wiki.page", "write") {
+		t.Fatalf("the cast holds %v, want a user's read alone", issued.Context.GetAuthorityScopes())
 	}
 	// Back: her own session is what it was, an administrator who grants.
 	own, err := k.State.Session(alice.ID)
@@ -129,18 +130,19 @@ func TestAliceCastsOntoATeamAndBobIsRefusedThePage(t *testing.T) {
 		t.Fatalf("bob onto wiki-user: want a refusal naming what he could not grant, got %v", err)
 	}
 	carol, _ := k.State.SignIn("dev-carol")
-	if issued, err := k.State.Service().IssueForPerson(ctx, must(k.State.Caller(carol.ID)), authority.IssueRequest{Audience: "wiki"}); err != nil || !holds(issued, "wiki.page", "write") || holds(issued, "wiki.page", "publish") {
+	if issued, err := k.State.Service().IssueForPerson(ctx, must(k.State.Caller(carol.ID)), authority.IssueRequest{Audience: "wiki"}); err != nil || !holds(issued, "wiki.page", "read") || holds(issued, "wiki.page", "write") {
 		t.Fatalf("carol, the user: %v %v", err, issued.Context.GetAuthorityScopes())
 	}
 	dana, _ := k.State.SignIn("dev-dana")
-	if issued, err := k.State.Service().IssueForPerson(ctx, must(k.State.Caller(dana.ID)), authority.IssueRequest{Audience: "wiki"}); err != nil || !holds(issued, "wiki.page", "publish") {
+	if issued, err := k.State.Service().IssueForPerson(ctx, must(k.State.Caller(dana.ID)), authority.IssueRequest{Audience: "wiki"}); err != nil || !holds(issued, "wiki.page", "write") || !holds(issued, "wiki.page", "publish") {
 		t.Fatalf("dana, the admin: %v %v", err, issued.Context.GetAuthorityScopes())
 	}
 	if _, err := k.State.Service().GrantRole(ctx, must(k.State.Caller(dana.ID)), authority.RoleRequest{Organization: "acme", InstallationID: wiki, Role: state.UserRole, PersonID: "bob"}); err != nil {
 		t.Fatalf("dana, the admin, administers the wiki's grants: %v", err)
 	}
-	if _, err := k.State.Service().GrantRole(ctx, must(k.State.Caller(carol.ID)), authority.RoleRequest{Organization: "acme", InstallationID: wiki, Role: state.AdminRole, PersonID: "carol"}); err == nil {
-		t.Fatal("carol, a user, granted herself the admin role")
+	_, err = k.State.Service().GrantRole(ctx, must(k.State.Caller(carol.ID)), authority.RoleRequest{Organization: "acme", InstallationID: wiki, Role: state.AdminRole, PersonID: "carol"})
+	if code, ok := domain.CodeOf(err); !ok || code != domain.Denied || !strings.Contains(err.Error(), "belongs to another organization") {
+		t.Fatalf("carol, a user, granting herself admin: want Denied, answered as a foreign installation, got %v", err)
 	}
 }
 
