@@ -361,11 +361,22 @@ unable to build.
 A solution declares its roles in its canonical `module.contract.codefly.yaml`,
 each within what the solution serves or explicitly consumes through its invoke
 and lookup bindings. Headless-only permissions cannot supply a role grant.
-One role is `installer`: whoever installs the solution holds it on
-that installation, which is the install-and-configure surface. A module declares
+A solution, and a module page declaring roles, declares two person roles:
+`admin` and `user`. The authority requires `admin` and gives it meaning:
+whoever installs the solution holds it on that installation, which is the
+install-and-configure surface, and its holder administers the installation's
+role grants and approves a module page's pending update. `user` reads and
+writes the target's own content; like any role, it holds only the scopes it
+declares (the authority does not itself refuse a further role). A page that declares no roles is given both,
+derived from what it serves (`decide.StandardRoles`): `user` reads and writes
+its kinds, `admin` holds every action it serves. For one release a delivery
+that still names the old `installer` is accepted as declaring `admin`, and a
+holder of `installer` administers as an `admin` holder does: a stopgap while
+modules are re-rendered before their host, deleted in the next release;
+`editor` and `viewer` stand for nothing. A module without a page declares
 no roles; a person's access to a module is the organisation's roles intersected
 with what the module serves. A person's access to a solution is the role its
-installation grants her, the installer role as its owner or the installation's
+installation grants her, the admin role as its owner or the installation's
 role through a granted team, and nothing from the organisation's roles. Another
 organisation's installation grants nothing. The values of real roles belong to
 each solution's manifest and arrive through the carrier: core's manifest carries
@@ -386,8 +397,8 @@ that intersection.
 
 For person-owned work through a solution, the person's effective installation
 roles are the permission source, including explicitly declared consumed grants.
-No additional organisation grant is required. Installer-only owners hold only the
-installer role; members of granted teams hold the selected role; a person in both
+No additional organisation grant is required. Owners who are nothing else hold
+only the admin role; members of granted teams hold the selected role; a person in both
 positions holds their union. A binding is a ceiling, never an independent grant.
 The authority applies this source to person issuance naming a solution binding,
 children, delegation admission and use, and resource reads. Every solution in the
@@ -406,7 +417,7 @@ revocation. SaaS parity and composed browser qualification remain separate work.
 Installation-owned calls to another solution still need the target-consent contract
 tracked by the pending tool-matrix row 11; this person rule does not supply it.
 
-Delivering a narrower or removed selected role, or narrowing the installer's
+Delivering a narrower or removed selected role, or narrowing the admin
 role, advances active installation seals and the affected organisations'
 authorization revisions. Existing roots and descendants are then refused by
 Core's ordinary live verification. Role expansion alone leaves existing narrow
@@ -431,7 +442,7 @@ qualify the separate accounts implementation.
 Installation administration (`List`, `Install`) requires an open session whose
 current person is an administrator or owner of the requested organization; role
 grants (`GrantRole`, `RevokeRole`, `ListRoleGrants`) also admit the holder of the
-installer role on that installation. Anonymous and invalid sessions are
+admin role on that installation. Anonymous and invalid sessions are
 `Unauthenticated`; anyone else receives `PermissionDenied`, and a caller of
 another organization is answered as if the installation did not exist. Every
 decision is the generic authority core's (`libraries/authority-core/go`); the
@@ -546,8 +557,8 @@ codefly run service console/api authority/edge authority/hop org-directory/direc
   --exclude-dependency documents/documents --exclude-workspace-configuration document-formats
 ```
 
-The playground composes the directory's module page, a role-gated target
-(installer, editor, viewer, steward), behind the edge and the hop; the edge
+The playground composes the directory's module page, a role-gated target,
+behind the edge and the hop; the edge
 listens where `codefly endpoint authority/edge --type http` says. The document
 store it also composes needs its format converters and a generated cursor key
 this environment does not declare, so the run above leaves it out; routing
@@ -587,20 +598,23 @@ administrator), and three members, Bob Williams `bob@acme.com`, Carol Davis
 `dev-admin`, `dev-alice`, `dev-bob`, `dev-carol`, `dev-dana`. Every role-gated
 target the run composes (a solution, a module page declaring roles) gets one
 team per role it declares, `<target>-<role>`, holding that role on the
-installation, and Bob, Carol and Dana are seated in the team of their role
-(viewer, editor, installer) the moment the target is active; a fixture row
+installation: `<target>-admin` and `<target>-user`. Dana is seated in the
+admin team and Carol in the user team the moment the target is active, and
+Bob in neither: he holds no role on any page, so every page refuses him; a fixture row
 standing for every target says so once (`target: "*"`, [what a composition
 adds to the fixture](modules/authority/services/local/README.md#what-a-composition-adds-to-the-fixture)).
 The host-independent part is the core's: `authority.ConventionalTeamName`,
 `RoleTeamsOf` and `GrantRoleTeamsAsHost`, which both hosts call; the local
 authority's directory and seating is `pkg/business/state/teams.go`. Signed in
-as Alice at the edge's sign-in page, **Act as this team** on `<target>-viewer`
+as Alice at the edge's sign-in page, **Act as this team** on `<target>-user`
 opens a session that is that team and nothing else (the session interface's
 `OpenTeamCast`: a person may act as a team whose roles they could grant,
 member of it or not — the core decides, and a refusal is shown by name); the
-hop then answers with the viewer's reach alone, and **Back to your own
-session** restores hers. Signed in as Bob, the hop answers with
-`<target>-viewer`'s reach and nothing else. The authority interface's own
+hop then answers with the user's reach alone, and **Back to your own
+session** restores hers. Signed in as Carol, the hop answers with
+`<target>-user`'s reach and nothing else; signed in as Dana, with
+`<target>-admin`'s; signed in as Bob, with a refusal naming that he holds no
+role there. The authority interface's own
 people (`maya`, `remi`, `alex`, `dev`, `zoe`, `omar`, `no-roles`) are
 retained as aliases: the conformance matrix, the generated developer role
 every playground starts on, the refusal cases and the other organisation
@@ -1466,7 +1480,7 @@ conflicting caller role refuses. Canonical `Installation.AgentRole` retains
 `none` as a no-standing-authority marker, not a role or grant row. The installation
 still has its stable principal and can use pending-only setup delivery. Ordinary
 installation issuance refuses, and neither installer nor any person/team receives
-an automatic grant. Existing installer-role and nonempty-role rules are unchanged.
+an automatic grant. Existing admin-role and nonempty-role rules are unchanged.
 
 Hosts persist the original request separately from the effective machine role:
 retry the original empty role request, never the stored `none` marker. Consent

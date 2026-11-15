@@ -19,8 +19,9 @@ Request-facing installation methods require a person value and current stored
 authority. Trusted fixture setup and teardown use the separate `InstallAsHost`
 and `UninstallAsHost` methods; a missing or unauthenticated person never selects
 host power. Module installations remain composition-owned after withdrawal.
-Role calls answer as foreign when the caller is neither administrator nor
-installer, including for an installation in their own organization.
+Role calls answer as foreign when the caller is neither administrator nor a
+holder of the installation's admin role, including for an installation in their
+own organization.
 
 Child issuance preserves the verified parent's workspace/project identifiers
 and each prior actor's agent/organization identifiers while deriving the new
@@ -115,7 +116,7 @@ refused. The shared conformance suite holds both hosts to it.
 A solution's or module page's role may name what it serves and what its own
 bindings consume, and, declared through one of its bindings (`RoleV1.through`,
 from a role scope's `through:` in the module contract), what the modules that
-binding reaches consume onward: a wiki viewer's role names the model's profiles
+binding reaches consume onward: a wiki user's role names the model's profiles
 and the document store's read through its binding to the agent. Delivery holds
 each reachable from its binding in the composition (`decide.Unreached`), at the
 declaring module's own delivery, which is refused naming a kind its binding
@@ -134,7 +135,7 @@ that installs modules starts. A delivery, of the page or of a module it
 reaches, that widens what one of its roles reaches holds the installation at
 the approved reach and offers an upgrade (`installation.upgrade_available`
 naming what widened); no grant is revoked and none is widened. An
-administrator, or a holder of the page's installer role on its installation,
+administrator, or a holder of the page's admin role on its installation,
 approves the upgrade through `Review` and `Install`, as a solution's is
 approved. A module may declare
 kinds `shared` (the authority document's `shared_kinds`, from a scope
@@ -216,10 +217,10 @@ installations:  # installations of a solution the run composes, the fixture's ow
   # role: the installation's own (its agent's) role, omitted for a target that
   # declares it (installation_role, `none` included: the authority refuses a
   # role overriding the declaration); owner: who installed it, granted the
-  # installer role; teams: each granted role on the installation (so a row
+  # admin role; teams: each granted role on the installation (so a row
   # granting teams names it);
   # members: by declared role, who joins its `<target>-<role>` team.
-  - {organization: acme, target: atlas, role: viewer, owner: alex, teams: [finance], members: {editor: [carol]}}
+  - {organization: acme, target: atlas, role: user, owner: alex, teams: [finance], members: {user: [carol]}}
 modules:        # a module the run supervises itself, until its own delivery
   - module: oracle
     kinds: [{kind: oracle.answers, actions: [read]}]
@@ -274,14 +275,15 @@ role such a target declares goes to its conventional `<target>-<role>` team,
 created in this host's directory and granted the role on the installation
 through the core (`authority.GrantRoleTeamsAsHost`), and each person under
 `members` joins the team of the role named, where the target declares it:
-Bob the viewer, Carol the editor, Dana the installer. The row installs
+Carol the user, Dana the admin; Bob joins none, and is the person every page
+refuses. The row installs
 nothing — a module page is installed by composition, a solution by a row
 naming it or by an administrator at the edge's setup page — and seats each
 the moment it is active, after the fixture loads, after every delivery and
 after every install (`pkg/business/state/teams.go`). A composition's row
 naming a target is kept, and that target is seated the same way; its own
 `members` join too. The boot log names each: `seats wiki at acme:
-wiki-editor [carol] wiki-installer [dana] wiki-viewer [bob]`.
+wiki-admin [dana] wiki-user [carol]`.
 
 **The contract.** The `schema` line versions the document. Its sections, and
 the fixture's organisation, role and person ids it names (`acme`, `globex`,
