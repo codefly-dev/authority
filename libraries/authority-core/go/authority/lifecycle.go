@@ -489,7 +489,7 @@ func (s *Service) dropGrantsAfterWithdrawal(ctx context.Context, tx Tx, m domain
 	}
 	for _, inst := range all {
 		if inst.Target == m.Name && inst.Status == domain.Active {
-			if err := s.dropUndeclaredGrants(ctx, tx, inst, m, "delivery:"+m.Name); err != nil {
+			if err := s.dropUndeclaredGrants(ctx, tx, inst, domain.Module{}, m, "delivery:"+m.Name); err != nil {
 				return err
 			}
 		}
@@ -545,7 +545,7 @@ func (s *Service) reconverge(ctx context.Context, tx Tx, previous, next domain.M
 		}
 		moved := narrowed
 		if inst.Consent.OperationID == "" {
-			if err := s.dropUndeclaredGrants(ctx, tx, inst, next, "delivery:"+next.Name); err != nil {
+			if err := s.dropUndeclaredGrants(ctx, tx, inst, previous, next, "delivery:"+next.Name); err != nil {
 				return err
 			}
 		} else {
@@ -576,7 +576,7 @@ func (s *Service) reconverge(ctx context.Context, tx Tx, previous, next domain.M
 				if err := tx.PutApprovedModule(next); err != nil {
 					return err
 				}
-				if err := s.dropUndeclaredGrants(ctx, tx, inst, next, "delivery:"+next.Name); err != nil {
+				if err := s.dropUndeclaredGrants(ctx, tx, inst, previous, next, "delivery:"+next.Name); err != nil {
 					return err
 				}
 				if err := s.journal(ctx, tx, domain.Event{Kind: domain.InstallationReconverged, Organization: inst.Organization, Subject: inst.ID, Detail: detail}); err != nil {
@@ -791,7 +791,7 @@ func (s *Service) endGrantsOfWithdrawn(ctx context.Context, tx Tx, inst domain.I
 	if err != nil || len(grants) == 0 {
 		return err
 	}
-	if err := s.dropUndeclaredGrants(ctx, tx, inst, domain.Module{Name: inst.Target}, "withdrawn:"+inst.Target); err != nil {
+	if err := s.dropUndeclaredGrants(ctx, tx, inst, domain.Module{}, domain.Module{Name: inst.Target}, "withdrawn:"+inst.Target); err != nil {
 		return err
 	}
 	inst.Revision++
@@ -1043,6 +1043,7 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 // longer declares end, and the organization's authorization revision moves so
 // what the earlier consent issued ends. The upgrader is the journal's actor.
 func (s *Service) upgrade(ctx context.Context, tx Tx, caller Person, current *domain.Installation, approval *domain.ConsentApproval, intent, selectedRole string, m domain.Module, reach offeredReach, out *domain.Installation) error {
+	held := heldUnder(tx, *current, m.Name)
 	current.Revision++
 	current.Consent = receipt(approval, intent, current.Revision, m, reach)
 	if m.Kind == domain.KindSolution {
@@ -1059,7 +1060,7 @@ func (s *Service) upgrade(ctx context.Context, tx Tx, caller Person, current *do
 	if err := tx.BumpAuthorizationRevision(current.Organization); err != nil {
 		return err
 	}
-	if err := s.dropUndeclaredGrants(ctx, tx, *current, m, caller.ID); err != nil {
+	if err := s.dropUndeclaredGrants(ctx, tx, *current, held, m, caller.ID); err != nil {
 		return err
 	}
 	*out = *current

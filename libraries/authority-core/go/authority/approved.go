@@ -147,12 +147,14 @@ func approvedReading(tx Tx, inst domain.Installation, m domain.Module) (domain.M
 //
 // STOPGAP (one release, domain.LegacyInstallerRole): when next declares
 // exactly admin and user, a grant of an old person role (installer, editor,
-// viewer) moves to its successor (domain.CrossoverRole), so a target
-// re-rendered with the two roles keeps its holders. The move is journaled as
-// a grant and a revocation by actor, each with Detail domain.CrossoverFrom
-// naming the old role; a subject who holds the successor already, or gains it
-// from another old grant here, is granted (and journaled) once.
-func (s *Service) dropUndeclaredGrants(ctx context.Context, tx Tx, inst domain.Installation, next domain.Module, actor string) error {
+// viewer, steward) moves to the narrowest new role covering what the role
+// declared in approved, the declaration the grant was held under
+// (domain.CrossoverRole), so a target re-rendered with the two roles keeps
+// its holders and none loses what they held. The move is journaled as a grant
+// and a revocation by actor, each with Detail domain.CrossoverFrom naming the
+// old role; a subject who holds the new role already, or gains it from
+// another old grant here, is granted (and journaled) once.
+func (s *Service) dropUndeclaredGrants(ctx context.Context, tx Tx, inst domain.Installation, approved, next domain.Module, actor string) error {
 	grants, err := tx.RoleGrants(inst.ID)
 	if err != nil {
 		return err
@@ -165,7 +167,7 @@ func (s *Service) dropUndeclaredGrants(ctx context.Context, tx Tx, inst domain.I
 		if _, declared := next.Roles[g.Role]; declared {
 			continue
 		}
-		role, crossover := domain.CrossoverRole(g.Role, next.Roles)
+		role, crossover := domain.CrossoverRole(g.Role, approved.Roles, next.Roles)
 		if crossover {
 			moved := g
 			moved.Role = role
@@ -195,4 +197,23 @@ func (s *Service) dropUndeclaredGrants(ctx context.Context, tx Tx, inst domain.I
 		}
 	}
 	return nil
+}
+
+// heldUnder is the declaration inst's grants were held under: the one its
+// consent approved, or nothing when there is none or the store does not keep
+// it. STOPGAP (one release, domain.LegacyInstallerRole): only the crossover
+// reads it.
+func heldUnder(tx Tx, inst domain.Installation, target string) domain.Module {
+	c := inst.Consent
+	if c.OperationID == "" || c.Generation == 0 {
+		return domain.Module{}
+	}
+	approved, err := tx.ApprovedModule(target, c.Generation, c.Digest)
+	if errors.Is(err, domain.ErrNotFound) && c.Digest != "" {
+		approved, err = tx.ApprovedModule(target, c.Generation, "")
+	}
+	if err != nil {
+		return domain.Module{}
+	}
+	return approved
 }

@@ -1,6 +1,7 @@
 package authority_test
 
 import (
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -147,15 +148,17 @@ func TestApprovingTheTwoRoleDeliveryMovesTheOldGrants(t *testing.T) {
 
 // The unconsented path: an installation no consent holds (a solution its
 // host installed without one) follows each delivery, so its grants move on
-// the delivery itself, journaled by the delivery: the installer's holder
-// holds admin, the editor's and the viewer's user.
+// the delivery itself, journaled by the delivery. This is the Wiki's shape:
+// the new user only reads. The installer's holder holds admin; the editor
+// and the steward wrote what user does not cover, so they hold admin and
+// keep writing; the viewer, whose read user covers, holds user.
 func TestADeliveryMovesTheOldGrantsOfAnUnconsentedInstallation(t *testing.T) {
 	h := newHarness(t)
 	svc, events := journaled(h)
 	rw, r := []*basev0.WorkScopeV1{sc("legacy.note", "read", "write")}, []*basev0.WorkScopeV1{sc("legacy.note", "read")}
 	m := solution("legacy", true)
 	m.InstallationRole = domain.NoInstallationRole
-	m.Roles = map[string][]*basev0.WorkScopeV1{domain.LegacyInstallerRole: rw, "editor": rw, "viewer": r}
+	m.Roles = map[string][]*basev0.WorkScopeV1{domain.LegacyInstallerRole: rw, "editor": rw, "viewer": r, "steward": rw}
 	if _, err := svc.ApplyModule(h.ctx, m); err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +173,7 @@ func TestADeliveryMovesTheOldGrantsOfAnUnconsentedInstallation(t *testing.T) {
 		_, err := svc.GrantRole(h.ctx, h.person(caller), authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: role, PersonID: person})
 		return err
 	}
-	for role, person := range map[string]string{domain.LegacyInstallerRole: "remi", "editor": "ines", "viewer": "maya"} {
+	for role, person := range map[string]string{domain.LegacyInstallerRole: "remi", "editor": "ines", "viewer": "maya", "steward": "tam"} {
 		if err := grant("alex", role, person); err != nil {
 			t.Fatal(err)
 		}
@@ -191,11 +194,17 @@ func TestADeliveryMovesTheOldGrantsOfAnUnconsentedInstallation(t *testing.T) {
 		got = append(got, g.Role+" "+g.PersonID)
 	}
 	slices.Sort(got)
-	if !slices.Equal(got, []string{"admin remi", "user ines", "user maya"}) {
-		t.Fatalf("the delivery left grants %v, want admin remi, user ines and user maya", got)
+	if !slices.Equal(got, []string{"admin ines", "admin remi", "admin tam", "user maya"}) {
+		t.Fatalf("the delivery left grants %v, want admin for remi, ines and tam, user for maya", got)
 	}
-	if e, ok := lastEvent(*events, domain.RoleGranted); !ok || e.Actor != "delivery:legacy" || e.Detail[domain.CrossoverFrom] == "" {
-		t.Fatalf("the move was not journaled by the delivery: %+v %v", e, ok)
+	moved := map[string]string{}
+	for _, e := range *events {
+		if e.Kind == domain.RoleGranted && e.Actor == "delivery:legacy" {
+			moved[e.Detail["person"]] = e.Detail[domain.CrossoverFrom] + ">" + e.Detail["role"]
+		}
+	}
+	if want := map[string]string{"remi": "installer>admin", "ines": "editor>admin", "maya": "viewer>user", "tam": "steward>admin"}; !maps.Equal(moved, want) {
+		t.Fatalf("the moves journaled by the delivery are %v, want %v", moved, want)
 	}
 	if err := grant("remi", domain.UserRole, "dev"); err != nil {
 		t.Fatalf("remi, now admin, administers the grants: %v", err)
@@ -206,7 +215,8 @@ func TestADeliveryMovesTheOldGrantsOfAnUnconsentedInstallation(t *testing.T) {
 // A page whose roles were derived: the names derived before the rename
 // (installer, editor, viewer) become the two derived now
 // (decide.StandardRoles) through the same move, at the approval of the
-// update the new derivation offers.
+// update the new derivation offers. The derived user reads and writes, so it
+// covers the old editor's write and the viewer's read: both hold user.
 func TestApprovingADerivedPagesNewRolesMovesTheOldGrants(t *testing.T) {
 	h := newHarness(t)
 	rw, r := []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}, []*basev0.WorkScopeV1{sc("pages.note", "read")}
@@ -267,7 +277,8 @@ func TestTheCrossoverGrantsEachSubjectOnce(t *testing.T) {
 	h.grant("pages", "viewer", "maya")
 	h.grant("pages", domain.UserRole, "maya")
 	h.grant("pages", domain.LegacyInstallerRole, "remi")
-	if _, err := svc.ApplyModule(h.ctx, twoRolePage(2, "read")); err != nil {
+	// The new user reads and writes, so it covers the editor and the viewer.
+	if _, err := svc.ApplyModule(h.ctx, twoRolePage(2, "read", "write")); err != nil {
 		t.Fatal(err)
 	}
 	*events = nil

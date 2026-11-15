@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
+	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
 // The admin role is "admin". For one release its legacy name "installer" is
@@ -43,45 +44,64 @@ func TestTheLegacyInstallerIsTheAdminRoleForOneRelease(t *testing.T) {
 	}
 }
 
-// The grant crossover of the same stopgap: a grant of an old person role the
-// next declaration no longer declares moves to its successor, when that is
-// declared: installer to admin, editor and viewer to user. A role still
-// declared, or one with no declared successor, does not move, and nothing
-// else ever does.
-func TestTheOldRolesCrossOverToTheTwoForOneRelease(t *testing.T) {
-	two := map[string]bool{"admin": true, "user": true}
+// The grant crossover of the same stopgap: a grant of an old person role
+// moves, when the next declaration is exactly admin and user, to the
+// narrowest new role whose scopes cover what the old role declared:
+// installer always to admin; a viewer, an editor or a steward to user when
+// user covers it, otherwise to admin, so nobody loses access. Nothing else ever moves.
+func TestTheOldRolesCrossOverToTheNarrowestCoveringRoleForOneRelease(t *testing.T) {
+	ws := func(actions ...string) []*basev0.WorkScopeV1 {
+		return []*basev0.WorkScopeV1{{ResourceKind: "wiki.page", Actions: actions}}
+	}
+	old := map[string][]*basev0.WorkScopeV1{"installer": ws("read", "write", "publish"), "editor": ws("read", "write"), "viewer": ws("read"),
+		"steward": {{ResourceKind: "records.types", Actions: []string{"define", "read"}}}}
+	directory := map[string][]*basev0.WorkScopeV1{
+		"admin": {{ResourceKind: "records.types", Actions: []string{"define", "read"}}, {ResourceKind: "wiki.page", Actions: []string{"read", "write"}}},
+		"user":  {{ResourceKind: "records.types", Actions: []string{"read"}}, {ResourceKind: "wiki.page", Actions: []string{"read", "write"}}}}
+	readingUser := map[string][]*basev0.WorkScopeV1{"admin": ws("read", "write", "publish"), "user": ws("read")}
+	writingUser := map[string][]*basev0.WorkScopeV1{"admin": ws("read", "write", "publish"), "user": ws("read", "write")}
 	for _, c := range []struct {
-		role     string
-		declared map[string]bool
-		want     string
-		ok       bool
+		name, role string
+		next       map[string][]*basev0.WorkScopeV1
+		want       string
+		ok         bool
 	}{
-		{"installer", two, "admin", true},
-		{"editor", two, "user", true},
-		{"viewer", two, "user", true},
-		{"viewer", map[string]bool{"admin": true}, "", false},
-		{"viewer", map[string]bool{"admin": true, "user": true, "viewer": true}, "", false},
-		{"installer", map[string]bool{"installer": true, "user": true}, "", false},
-		{"author", two, "", false},
-		{"editor", map[string]bool{"admin": true, "user": true, "auditor": true}, "", false},
-		{"user", two, "", false},
+		{"a viewer, where user reads", "viewer", readingUser, "user", true},
+		{"an editor whose writes user covers", "editor", writingUser, "user", true},
+		{"an editor whose writes only admin covers", "editor", readingUser, "admin", true},
+		{"the installer", "installer", readingUser, "admin", true},
+		{"a steward, whose define user does not cover", "steward", directory, "admin", true},
+		{"a viewer, on the directory", "viewer", directory, "user", true},
+		{"the installer, where user writes", "installer", writingUser, "admin", true},
+		{"a third role kept beside the two", "editor", map[string][]*basev0.WorkScopeV1{"admin": ws("read"), "user": ws("read"), "auditor": ws("read")}, "", false},
+		{"no user declared", "viewer", map[string][]*basev0.WorkScopeV1{"admin": ws("read")}, "", false},
+		{"a role that is no old name", "author", readingUser, "", false},
+		{"user itself", "user", readingUser, "", false},
 	} {
-		if got, ok := domain.CrossoverRole(c.role, c.declared); got != c.want || ok != c.ok {
-			t.Errorf("CrossoverRole(%q, %v) = %q %v, want %q %v", c.role, c.declared, got, ok, c.want, c.ok)
+		if got, ok := domain.CrossoverRole(c.role, old, c.next); got != c.want || ok != c.ok {
+			t.Errorf("%s: CrossoverRole(%q) = %q %v, want %q %v", c.name, c.role, got, ok, c.want, c.ok)
 		}
+	}
+	// What an editor held is unknown when the approved declaration does not
+	// name it: nothing proves a covering role, so it does not move.
+	if got, ok := domain.CrossoverRole("editor", nil, writingUser); ok {
+		t.Errorf("an editor with no approved scopes moved to %q", got)
 	}
 }
 
 // The crossover is named among what an update asks, one line per old role
 // the approved declaration names, only for the two-role declaration.
 func TestTheCrossoverIsNamedForReview(t *testing.T) {
-	old := map[string]bool{"installer": true, "viewer": true, "author": true}
-	got := domain.Crossovers(old, map[string]bool{"admin": true, "user": true})
-	want := []string{"holders of role installer move to admin", "holders of role viewer move to user"}
+	ws := func(actions ...string) []*basev0.WorkScopeV1 {
+		return []*basev0.WorkScopeV1{{ResourceKind: "wiki.page", Actions: actions}}
+	}
+	old := map[string][]*basev0.WorkScopeV1{"installer": ws("read", "write"), "editor": ws("read", "write"), "viewer": ws("read"), "author": ws("read")}
+	got := domain.Crossovers(old, map[string][]*basev0.WorkScopeV1{"admin": ws("read", "write"), "user": ws("read")})
+	want := []string{"holders of role editor move to admin", "holders of role installer move to admin", "holders of role viewer move to user"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("Crossovers = %v, want %v", got, want)
 	}
-	if got := domain.Crossovers(old, map[string]bool{"admin": true, "user": true, "author": true}); got != nil {
+	if got := domain.Crossovers(old, map[string][]*basev0.WorkScopeV1{"admin": ws("read"), "user": ws("read"), "author": ws("read")}); got != nil {
 		t.Fatalf("a declaration beside a third role names a crossover: %v", got)
 	}
 }
