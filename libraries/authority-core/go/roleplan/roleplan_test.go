@@ -91,6 +91,7 @@ func rows() []roleplan.Row {
 		{Name: "the page writes the store", Binding: "store", Asks: []string{"store.item:write"}, Admin: A, User: B, None: N},
 		{Name: "the page reads the archive through the store", Binding: "store", Asks: []string{"store.item:read"}, Onward: []string{"archive.item:read"},
 			Admin: A, User: roleplan.RefusedOnward, None: N},
+		{Name: "a capability at the notebook itself", Admin: A, User: A, None: N},
 		{Name: "administer the installation", Administer: true, Admin: A, User: roleplan.RefusedAdminister, None: roleplan.RefusedAdminister},
 	}
 }

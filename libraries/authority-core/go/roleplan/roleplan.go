@@ -103,6 +103,10 @@ const (
 	// RefusedNoRole: the authority issues the subject nothing at the product,
 	// which it holds no role on.
 	RefusedNoRole
+	// RefusedAtProduct: the subject holds a role on the product, and the
+	// authority issues it nothing at the product itself: the role names
+	// nothing the product serves, and reaches only what its bindings carry.
+	RefusedAtProduct
 	// RefusedByPolicy: the product's method policy refuses what the subject
 	// holds there (CheckMethod).
 	RefusedByPolicy
@@ -117,7 +121,7 @@ const (
 )
 
 func (v Verdict) String() string {
-	return [...]string{"no verdict", "allowed", "refused: no role", "refused by the method policy", "refused at the binding",
+	return [...]string{"no verdict", "allowed", "refused: no role", "refused at the product", "refused by the method policy", "refused at the binding",
 		"refused onward", "refused administration"}[v]
 }
 
@@ -126,7 +130,8 @@ type Row struct {
 	// Name is the call in a person's words: "upload a document".
 	Name string
 	// Method is a method the product serves; empty for a call its page makes
-	// at Binding's audience on the host's module edge.
+	// at Binding's audience on the host's module edge, or, with no Binding
+	// either, for a capability at the product itself asking nothing.
 	Method string
 	// Binding is the product's binding the call continues through (Method's
 	// relay) or the page calls through; empty for none.
@@ -254,7 +259,7 @@ func Coverage(m domain.Module, rows []Row) []string {
 		if _, ok := m.Bindings[row.Binding]; row.Binding != "" && !ok {
 			out = append(out, fmt.Sprintf("%q names binding %q, which %s does not declare", row.Name, row.Binding, m.Name))
 		}
-		if row.Administer != (row.Method == "" && row.Binding == "") || (row.Administer && len(row.Asks) > 0) {
+		if row.Administer && (row.Method != "" || row.Binding != "" || len(row.Asks) > 0) {
 			out = append(out, fmt.Sprintf("%q is either an administering call or a call at a method or a binding", row.Name))
 		}
 		if row.Binding == "" && len(row.Onward) > 0 {
@@ -452,7 +457,7 @@ func (h *harness) decide(row Row, subject string) (Verdict, error) {
 	if err != nil {
 		return 0, fmt.Errorf("roleplan: %w", err)
 	}
-	if row.Method == "" {
+	if row.Method == "" && row.Binding != "" {
 		b := h.product.Bindings[row.Binding]
 		issued, err := h.svc.IssueForPage(h.ctx, who, h.product.Name, authority.IssueRequest{Audience: b.Audience, Binding: row.Binding, Scopes: asks})
 		if err != nil {
@@ -470,7 +475,10 @@ func (h *harness) decide(row Row, subject string) (Verdict, error) {
 		if h.holdsNoRole(who) {
 			return RefusedNoRole, err
 		}
-		return RefusedByPolicy, err
+		return RefusedAtProduct, err
+	}
+	if row.Method == "" {
+		return Allowed, nil
 	}
 	if _, _, _, err := h.svc.CheckMethod(h.ctx, root.Token, h.product.Principal, row.Method, false); err != nil {
 		return RefusedByPolicy, err
