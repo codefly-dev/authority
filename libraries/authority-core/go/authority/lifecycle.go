@@ -550,10 +550,11 @@ func (s *Service) reconverge(ctx context.Context, tx Tx, previous, next domain.M
 			}
 		} else {
 			asks := widened
+			behind := inst.Consent.Generation != previous.Generation || inst.Consent.Digest != approvedDigest
 			switch {
 			case inst.Consent.Generation == 0:
 				asks = []string{"approved generation unknown: review and approve the delivered offer"}
-			case inst.Consent.Generation != previous.Generation || inst.Consent.Digest != approvedDigest:
+			case behind:
 				asks = []string{fmt.Sprintf("approved generation %d is behind the delivered %d", inst.Consent.Generation, previous.Generation)}
 			default:
 				further, err := reachWidens(inst, reach, previous)
@@ -561,6 +562,20 @@ func (s *Service) reconverge(ctx context.Context, tx Tx, previous, next domain.M
 					return err
 				}
 				asks = append(slices.Clone(asks), further...)
+			}
+			if inst.Consent.Generation == 0 || behind {
+				// STOPGAP (one release, domain.LegacyInstallerRole): the
+				// declaration comparison above names no crossover here, so
+				// name each move the approval will make, read as it reads it.
+				held, err := heldUnder(tx, inst, next.Name)
+				if err != nil {
+					return err
+				}
+				moves, err := crossoverAsks(tx, inst, held, next)
+				if err != nil {
+					return err
+				}
+				asks = append(slices.Clone(asks), moves...)
 			}
 			detail := map[string]string{"target": inst.Target, "approved_generation": fmt.Sprint(inst.Consent.Generation), "generation": fmt.Sprint(next.Generation)}
 			if len(asks) == 0 {
@@ -1043,7 +1058,10 @@ func (s *Service) install(ctx context.Context, authorize func(Tx) error, caller 
 // longer declares end, and the organization's authorization revision moves so
 // what the earlier consent issued ends. The upgrader is the journal's actor.
 func (s *Service) upgrade(ctx context.Context, tx Tx, caller Person, current *domain.Installation, approval *domain.ConsentApproval, intent, selectedRole string, m domain.Module, reach offeredReach, out *domain.Installation) error {
-	held := heldUnder(tx, *current, m.Name)
+	held, err := heldUnder(tx, *current, m.Name)
+	if err != nil {
+		return err
+	}
 	current.Revision++
 	current.Consent = receipt(approval, intent, current.Revision, m, reach)
 	if m.Kind == domain.KindSolution {

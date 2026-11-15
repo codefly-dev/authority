@@ -3,6 +3,7 @@ package authority
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 )
@@ -203,21 +204,74 @@ func (s *Service) dropUndeclaredGrants(ctx context.Context, tx Tx, inst domain.I
 }
 
 // heldUnder is the declaration inst's grants were held under: the one its
-// consent approved, or nothing when there is none or the store does not keep
-// it, in which case the crossover moves an editor, viewer or steward to user
-// (domain.BasisUnknownDeclaration). STOPGAP (one release,
-// domain.LegacyInstallerRole): only the crossover reads it.
-func heldUnder(tx Tx, inst domain.Installation, target string) domain.Module {
+// consent approved, read and checked as approvedGeneration reads it. It is
+// absent (the zero Module, no error) only when there is none to read: no
+// consent, a legacy consent recording no generation, a generation the store
+// does not keep, or a kept row that is not the offer the consent approved
+// (its digest differs). Then the crossover moves an editor, viewer or
+// steward to user (domain.BasisUnknownDeclaration); an approval is never
+// blocked by it, since approving the delivered offer is how such an
+// installation recovers. Any other store error is returned, so the approval
+// or delivery fails rather than moving grants on a guess. STOPGAP (one
+// release, domain.LegacyInstallerRole): only the crossover reads it.
+func heldUnder(tx Tx, inst domain.Installation, target string) (domain.Module, error) {
 	c := inst.Consent
 	if c.OperationID == "" || c.Generation == 0 {
-		return domain.Module{}
+		return domain.Module{}, nil
 	}
 	approved, err := tx.ApprovedModule(target, c.Generation, c.Digest)
 	if errors.Is(err, domain.ErrNotFound) && c.Digest != "" {
+		// Kept under another digest only: whatever wrote it, checked below.
 		approved, err = tx.ApprovedModule(target, c.Generation, "")
 	}
-	if err != nil {
-		return domain.Module{}
+	if errors.Is(err, domain.ErrNotFound) {
+		return domain.Module{}, nil
 	}
-	return approved
+	if err != nil {
+		return domain.Module{}, err
+	}
+	if c.Digest != "" {
+		digest, err := OfferDigest(approved)
+		if err != nil {
+			return domain.Module{}, err
+		}
+		if digest != c.Digest {
+			return domain.Module{}, nil
+		}
+	}
+	return approved, nil
+}
+
+// crossoverAsks lists, in a review's words, the moves the crossover makes of
+// inst's grants when next replaces held, the declaration they were held
+// under: one line per old role a grant on inst holds, naming its destination
+// and, when held is unknown, that coverage could not be compared. It names
+// what an update asks where the declaration comparison cannot (a consent
+// behind the delivered generation, or of unknown generation). STOPGAP (one
+// release, domain.LegacyInstallerRole).
+func crossoverAsks(tx Tx, inst domain.Installation, held, next domain.Module) ([]string, error) {
+	grants, err := tx.RoleGrants(inst.ID)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, g := range grants {
+		if seen[g.Role] {
+			continue
+		}
+		seen[g.Role] = true
+		if _, declared := next.Roles[g.Role]; declared {
+			continue
+		}
+		if role, basis, ok := domain.CrossoverRole(g.Role, held.Roles, next.Roles); ok {
+			line := "holders of role " + g.Role + " move to " + role
+			if basis == domain.BasisUnknownDeclaration {
+				line += " (the declaration they were held under is not kept)"
+			}
+			out = append(out, line)
+		}
+	}
+	slices.Sort(out)
+	return out, nil
 }

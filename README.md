@@ -389,16 +389,20 @@ becomes `admin` and keeps defining. A holder may gain: a former viewer holds
 whatever `user` declares, which may be more than the viewer held. That
 widening is the owner's decision (2026-11-15) for this one release. An
 editor, viewer or steward of an installation whose approved declaration the
-store does not keep (a legacy consent recording no generation) cannot be
+store does not have (a legacy consent recording no generation, a generation
+it no longer keeps, or a kept row that is not the approved offer) cannot be
 compared, so it moves to `user`: day-to-day access kept, grant management
-handed to nobody on a guess. The pending update names the move among what it asks
-(`holders of role viewer move to user`, in `installation.upgrade_available`'s
-`widened`), each moved grant and revocation is journaled with
+handed to nobody on a guess; a store that cannot answer fails the approval
+or delivery instead, so no grant moves on a guess. The pending update names
+each move among what it asks (`holders of role editor move to admin`, in
+`installation.upgrade_available`'s `widened`), read as the approval will read
+it, also when the consent is behind the delivered generation. Each moved
+grant and revocation is journaled with
 `crossover_from` naming the old role and `crossover_basis` saying why it
 landed where it did (`installer`, `declared_coverage`, or
 `unknown_declaration` when coverage could not be compared), so an audit tells
-it from a deliberate grant, and a subject is granted the new role once. A declaration keeping a
-third role beside `admin` and `user` is not the rename: a role it drops ends
+it from a deliberate grant, and a subject is granted the new role once. A
+declaration keeping a third role beside `admin` and `user` is not the rename: a role it drops ends
 its grants as usual. Both are a stopgap while modules are re-rendered before
 their host, deleted in the next release; `editor`, `viewer` and `steward`
 are aliases of nothing. A module without a page declares
