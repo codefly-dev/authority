@@ -275,6 +275,13 @@ func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest
 		if err != nil || p.Organization != who.Organization {
 			return domain.Refuse("the session's person is no longer a member of %s", who.Organization)
 		}
+		// A person is issued work in the organization their session was
+		// opened at and nowhere else. An ask naming another one is refused
+		// for what it is, never answered with a capability in the session's
+		// organization the caller did not ask for.
+		if r.Organization != "" && r.Organization != who.Organization {
+			return domain.Refuse("the session is opened at organization %s; a person is issued nothing at %s, which they did not sign in at", who.Organization, r.Organization)
+		}
 		viewing = viewNote(tx, p)
 		inst, err = installationOf(tx, p.Organization, audience.Name)
 		if err != nil || inst.Status != domain.Active {
