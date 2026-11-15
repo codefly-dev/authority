@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -194,6 +195,11 @@ func TestAStampUnderAnUnheldKeyWaitsForTheReadAlreadyRunning(t *testing.T) {
 // key wait for it together. Waiting starts no read; every waiter is judged on
 // what that read published; and a read that hangs holds them no longer than
 // its own timeout. A malformed proof never waits.
+//
+// The read cannot end, by its answer or by its deadline, until every stamp is
+// waiting on it: 200 stamps reach the wait one at a time, and a stamp that
+// arrived after the read had ended would rightly start a read of its own, which
+// is a different case (TestAFloodOfUnknownSignersCostsOneReadPerSignerRetry).
 func TestManyStampsWaitForOneRunningReadAndAreHeldNoLongerThanItsTimeout(t *testing.T) {
 	authority := newSigner("published")
 	publishing := func(labels ...string) *authorityv1.KeysResponse {
@@ -213,12 +219,17 @@ func TestManyStampsWaitForOneRunningReadAndAreHeldNoLongerThanItsTimeout(t *test
 
 	// waitAll starts a read through readiness that answers response once hold
 	// is closed, checks that a malformed proof is refused at once meanwhile,
-	// and sends waiters stamps signed as hop, a key not held; it returns their outcomes
-	// as they land, and the key reads the round started.
-	waitAll := func(hop string, response *authorityv1.KeysResponse, hold chan struct{}, timeout time.Duration) (<-chan error, int) {
+	// and sends waiters stamps signed as hop, a key not held. It returns once
+	// every stamp is waiting on that read, and only then lets the read end;
+	// a stamp judged before then fails the test. It returns the stamps'
+	// outcomes as they land, when they were all waiting, and the key reads
+	// before the round.
+	waitAll := func(hop string, response *authorityv1.KeysResponse, hold chan struct{}, timeout time.Duration) (<-chan error, time.Time, int) {
 		settled(v)
 		v.timeout = timeout
+		begin := make(chan struct{})
 		source.set(response, nil, hold)
+		source.gate(begin)
 		clock = clock.Add(keyMaxAge + time.Second)
 		before := source.count()
 		v.Ready()
@@ -234,24 +245,30 @@ func TestManyStampsWaitForOneRunningReadAndAreHeldNoLongerThanItsTimeout(t *test
 			t.Fatalf("a malformed proof waited %s for the running read", waited)
 		}
 		results := make(chan error, waiters)
+		arrived := make(chan struct{}, waiters)
 		for range waiters {
 			md := forwarded(t, token, hop, "")
+			caller := &waiting{Context: context.Background(), arrived: arrived}
 			go func() {
-				_, err := v.Verify(context.Background(), md, "/test.Service/Read")
+				_, err := v.Verify(caller, md, "/test.Service/Read")
 				results <- err
 			}()
 		}
-		return results, before
+		for i := range waiters {
+			select {
+			case <-arrived:
+			case err := <-results:
+				t.Fatalf("%d of %d stamps were waiting when one was judged before the running read ended: %v", i, waiters, err)
+			}
+		}
+		close(begin)
+		return results, time.Now(), before
 	}
 
 	// The running read publishes the fresh key: every stamp waits for it, and
 	// every one is admitted on that one read.
 	hold := make(chan struct{})
-	results, before := waitAll("gateway-after-restart", publishing("gateway-after-restart"), hold, 10*time.Second)
-	time.Sleep(100 * time.Millisecond)
-	if n := len(results); n != 0 {
-		t.Fatalf("%d of %d stamps were judged before the running read ended", n, waiters)
-	}
+	results, _, before := waitAll("gateway-after-restart", publishing("gateway-after-restart"), hold, 10*time.Second)
 	close(hold)
 	for i := range waiters {
 		if err := <-results; err != nil {
@@ -265,21 +282,37 @@ func TestManyStampsWaitForOneRunningReadAndAreHeldNoLongerThanItsTimeout(t *test
 
 	// The running read hangs: every stamp is held no longer than the read's
 	// own timeout, then refused on the keys held, and still no read is added.
-	results, before = waitAll("gateway-restarted-again", publishing("gateway-restarted-again"), make(chan struct{}), 300*time.Millisecond)
-	start := time.Now()
+	// The read began before the stamps were all waiting, so its deadline is
+	// at most its timeout after that.
+	results, waitingSince, before := waitAll("gateway-restarted-again", publishing("gateway-restarted-again"), make(chan struct{}), 300*time.Millisecond)
 	var reason refusal.Reason
 	for i := range waiters {
 		if err := <-results; !errors.As(err, &reason) || reason != refusal.StampProof {
 			t.Fatalf("waiter %d on a hung read: want %s, got %v", i, refusal.StampProof, err)
 		}
 	}
-	if held := time.Since(start); held > v.timeout+time.Second {
+	if held := time.Since(waitingSince); held > v.timeout+time.Second {
 		t.Fatalf("waiters on a hung read were held %s, past the read's %s timeout", held, v.timeout)
 	}
 	settled(v)
 	if reads := source.count() - before; reads != 1 {
 		t.Fatalf("%d waiters on a hung read drove %d key reads, want the one running", waiters, reads)
 	}
+}
+
+// waiting is a caller's context that reports, once, when the verifier first
+// consults its Done. A stamp under an unheld key, with the keys trusted,
+// consults it first when it waits for the running read, so each report is a
+// stamp waiting on that read.
+type waiting struct {
+	context.Context
+	once    sync.Once
+	arrived chan<- struct{}
+}
+
+func (w *waiting) Done() <-chan struct{} {
+	w.once.Do(func() { w.arrived <- struct{}{} })
+	return w.Context.Done()
 }
 
 // A flood of stamps under keys nobody publishes costs the authority one read
