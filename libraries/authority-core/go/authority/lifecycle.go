@@ -563,10 +563,11 @@ func (s *Service) reconverge(ctx context.Context, tx Tx, previous, next domain.M
 				}
 				asks = append(slices.Clone(asks), further...)
 			}
-			if inst.Consent.Generation == 0 || behind {
+			if behind {
 				// STOPGAP (one release, domain.LegacyInstallerRole): the
 				// declaration comparison above names no crossover here, so
-				// name each move the approval will make.
+				// name each move the approval will make. A consent of unknown
+				// generation is behind too (no delivered generation is 0).
 				moves, err := crossoverAsks(tx, inst, next)
 				if err != nil {
 					return err

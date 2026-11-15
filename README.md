@@ -393,7 +393,10 @@ it asks (`holders of role editor move to user`, in
 behind the delivered generation. Each moved grant and revocation is journaled
 with `crossover_from` naming the old role and `crossover_basis` naming the
 rule (`installer` or `legacy_to_user`), so an audit tells it from a deliberate
-grant, and a subject is granted the new role once. A
+grant, and a subject is granted the new role once. A host that ran the
+coverage rule of #110 before this one may already hold journal rows whose
+`crossover_basis` is `declared_coverage` or `unknown_declaration`; audit
+readers accept those too, as crossover moves made under that rule. A
 declaration keeping a third role beside `admin` and `user` is not the rename: a role it drops ends
 its grants as usual. Both are a stopgap while modules are re-rendered before
 their host, deleted in the next release; `editor`, `viewer` and `steward`

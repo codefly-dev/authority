@@ -1,6 +1,8 @@
 package authority_test
 
 import (
+	"context"
+	"errors"
 	"maps"
 	"slices"
 	"strings"
@@ -424,5 +426,98 @@ func TestAReviewBehindTheDeliveredGenerationNamesEveryMove(t *testing.T) {
 	want := map[string]string{"remi": "installer>admin " + domain.BasisInstaller, "maya": "viewer>user " + domain.BasisLegacyToUser}
 	if got := crossovers(*events); !maps.Equal(got, want) {
 		t.Fatalf("the approval moved %v, want %v", got, want)
+	}
+}
+
+// A consent of unknown generation (a legacy consent recording none): the
+// review cannot compare declarations, so the pending update names each move
+// the approval will make.
+func TestAReviewOfAnUnknownGenerationNamesEveryMove(t *testing.T) {
+	h := newHarness(t)
+	svc, events := journaled(h)
+	rw, r := []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}, []*basev0.WorkScopeV1{sc("pages.note", "read")}
+	if _, err := svc.ApplyModule(h.ctx, legacyPage(1, rw, rw, r)); err != nil {
+		t.Fatal(err)
+	}
+	h.grant("pages", domain.LegacyInstallerRole, "remi")
+	h.grant("pages", "editor", "ines")
+	if err := h.store.Write(h.ctx, func(tx authority.Tx) error {
+		i, err := tx.Installation(h.inst(acme, "pages").ID)
+		if err != nil {
+			return err
+		}
+		i.Consent.Generation, i.Consent.Digest = 0, ""
+		return tx.PutInstallation(i)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.ApplyModule(h.ctx, twoRolePage(2, "read")); err != nil {
+		t.Fatal(err)
+	}
+	e, ok := lastEventOn(*events, domain.InstallationUpgradeAvailable, h.pagesAt(acme).ID)
+	for _, line := range []string{"approved generation unknown", "holders of role editor move to user", "holders of role installer move to admin"} {
+		if !ok || !strings.Contains(e.Detail["widened"], line) {
+			t.Fatalf("the pending update of an unknown generation does not name %q: %+v %v", line, e, ok)
+		}
+	}
+}
+
+// grantsFailStore fails every read of an installation's role grants while
+// fail is set, as a store that cannot answer would.
+type grantsFailStore struct {
+	authority.Store
+	fail *bool
+}
+
+type grantsFailTx struct {
+	authority.Tx
+	fail *bool
+}
+
+func (g grantsFailTx) RoleGrants(installationID string) ([]domain.RoleGrant, error) {
+	if *g.fail {
+		return nil, errors.New("the store cannot answer")
+	}
+	return g.Tx.RoleGrants(installationID)
+}
+
+func (g grantsFailStore) Read(ctx context.Context, fn func(authority.Tx) error) error {
+	return g.Store.Read(ctx, func(tx authority.Tx) error { return fn(grantsFailTx{tx, g.fail}) })
+}
+
+func (g grantsFailStore) Write(ctx context.Context, fn func(authority.Tx) error) error {
+	return g.Store.Write(ctx, func(tx authority.Tx) error { return fn(grantsFailTx{tx, g.fail}) })
+}
+
+// A store that cannot answer an installation's grants while the review of a
+// consent behind the delivered generation names the moves fails the
+// delivery: the review never omits a move it could not read, and the grants
+// stand.
+func TestAStoreErrorNamingTheMovesFailsTheDelivery(t *testing.T) {
+	h := newHarness(t)
+	fail := false
+	svc, err := authority.New(grantsFailStore{h.store, &fail}, h.cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rw, r := []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}, []*basev0.WorkScopeV1{sc("pages.note", "read")}
+	if _, err := svc.ApplyModule(h.ctx, legacyPage(1, rw, nil, r)); err != nil {
+		t.Fatal(err)
+	}
+	h.grant("pages", domain.LegacyInstallerRole, "remi")
+	h.grant("pages", "viewer", "maya")
+	if _, err := svc.ApplyModule(h.ctx, legacyPage(2, rw, nil, rw)); err != nil {
+		t.Fatal(err)
+	}
+	fail = true
+	if _, err := svc.ApplyModule(h.ctx, twoRolePage(3, "read")); err == nil || !strings.Contains(err.Error(), "cannot answer") {
+		t.Fatalf("the delivery with a store that cannot answer: want its error, got %v", err)
+	}
+	fail = false
+	if got := grantsOf(h); !slices.Equal(got, []string{"installer remi", "viewer maya"}) {
+		t.Fatalf("a failed delivery moved grants: %v", got)
+	}
+	if held := h.pagesAt(acme); held.Consent.Generation != 1 {
+		t.Fatalf("a failed delivery moved the consent: %+v", held.Consent)
 	}
 }
