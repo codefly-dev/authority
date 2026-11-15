@@ -3,6 +3,7 @@ import json
 import hashlib
 import secrets
 import threading
+import time
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from pathlib import Path
 
@@ -44,14 +45,22 @@ def fresh(now, *, method=METHOD, audience=FIXTURE["audience"], headers=None, iss
 
 
 class Keys:
-    """The authority interface's Keys, as the generated stub answers it."""
+    """The authority interface's Keys, as the generated stub answers it. With
+    hold set, a read waits for it (or for its own timeout); with begin set, a
+    read that has started waits for begin before it looks at hold or its
+    deadline, so it cannot end before then, and its deadline still runs from
+    when it started."""
 
     def __init__(self, response=None, error=None):
-        self.response, self.error, self.reads, self.hold = response, error, 0, None
+        self.response, self.error, self.reads, self.hold, self.begin = response, error, 0, None, None
 
     def Keys(self, _request, timeout=None):
         assert timeout is not None, "a key read always carries a timeout"
+        begin, started = self.begin, time.monotonic()
         self.reads += 1
+        if begin is not None:
+            begin.wait()
+            timeout = max(0.0, started + timeout - time.monotonic())
         if self.hold is not None and not self.hold.wait(timeout):
             raise TimeoutError("deadline exceeded")
         if self.error:
@@ -856,6 +865,11 @@ def test_a_stamp_under_an_unheld_key_waits_for_the_read_already_running(asynchro
 # read published; a read that hangs holds them no longer than the verifier's
 # timeout; and a malformed proof never waits (Go's
 # TestManyStampsWaitForOneRunningReadAndAreHeldNoLongerThanItsTimeout).
+#
+# The read cannot end, by its answer or by its deadline, until every stamp has
+# been handed it to wait for: a stamp that arrived after the read had ended
+# would rightly start a read of its own, which is a different case
+# (test_a_flood_of_unknown_signers_costs_one_read_per_signer_retry).
 def test_many_stamps_wait_for_one_running_read_and_are_held_no_longer_than_its_timeout():
     import asyncio
     import time as wall
@@ -865,23 +879,39 @@ def test_many_stamps_wait_for_one_running_read_and_are_held_no_longer_than_its_t
     v = Verifier(source, audience=FIXTURE["audience"], replay=Replay(), now=lambda: clock[0])
     settle(v)
     threads, tasks = 32, 200
+    # Each stamp the verifier hands a read to wait for, with that read and
+    # whether the stamp started it; on_handed[0] runs after each.
+    handed, on_handed = [], [lambda: None]
+    signer_key = v._signer_key
+
+    def handing(pairs, *, reread, started=False):
+        key, wait, began = signer_key(pairs, reread=reread, started=started)
+        if reread and wait is not None:
+            handed.append((wait, began))
+            on_handed[0]()
+        return key, wait, began
+    v._signer_key = handing
 
     def running(hop, response, timeout):
         """Start a read through readiness, held open until the returned event is
-        set (or the read's own timeout), answering response; check that a
-        malformed proof is refused at once meanwhile."""
+        set (or the read's own timeout), answering response, and unable to end
+        before source.begin is set; return once its deadline runs, as a
+        waiter's does from when it starts waiting; check that a malformed proof
+        is refused meanwhile without being handed the read to wait for."""
         settle(v)
+        handed.clear()
         v._timeout = timeout
-        source.response, source.hold = response, threading.Event()
+        source.response, source.hold, source.begin = response, threading.Event(), threading.Event()
         clock[0] += KEY_MAX_AGE + 1
         before = source.reads
         v.ready()
+        while source.reads == before:  # the read has reached the source: its deadline runs
+            wall.sleep(0.001)
         garbage = fresh(clock[0], hop=hop)
         garbage["x-codefly-hop-proof"] = "not-an-admission"
-        started = wall.monotonic()
         with pytest.raises(Unauthenticated) as refused:
             v.verify(garbage, METHOD)
-        assert refused.value.code == "stamp_proof" and wall.monotonic() - started < 0.1
+        assert refused.value.code == "stamp_proof" and not handed, "a malformed proof waited for the running read"
         return source.hold, before
 
     def outcome(call):
@@ -891,17 +921,43 @@ def test_many_stamps_wait_for_one_running_read_and_are_held_no_longer_than_its_t
             return refused.code
 
     async def everyone(hop, release=None):
+        """Send every stamp; once each has been handed the running read to wait
+        for, and only then, let the read end. With release, the read answers
+        once it is set and no stamp may be judged before then; without, the read
+        hangs, and a stamp may give up on its own wait (the verifier's timeout)
+        before the last one is handed the read. Returns the outcomes and how
+        long the stamps were held after they were all waiting."""
         loop = asyncio.get_running_loop()
-        with ThreadPoolExecutor(threads) as pool:
-            calls = [loop.run_in_executor(pool, outcome, lambda: v.verify(fresh(clock[0], hop=hop), METHOD)) for _ in range(threads)]
-            calls += [asyncio.ensure_future(_outcome_async(v.verify_async(fresh(clock[0], hop=hop), METHOD))) for _ in range(tasks)]
-            if release is not None:
-                await asyncio.sleep(0.1)
-                assert not any(call.done() for call in calls), "a stamp was judged before the running read ended"
-                release.set()
-            started = wall.monotonic()
-            results = await asyncio.gather(*calls)
-            return results, wall.monotonic() - started
+        read, total = v._inflight, threads + tasks
+        assert read is not None, "no read is running"
+        waiting = asyncio.Event()
+
+        def counted():
+            if len(handed) >= total:
+                loop.call_soon_threadsafe(waiting.set)
+        on_handed[0] = counted
+        try:
+            with ThreadPoolExecutor(threads) as pool:
+                calls = [loop.run_in_executor(pool, outcome, lambda: v.verify(fresh(clock[0], hop=hop), METHOD)) for _ in range(threads)]
+                calls += [asyncio.ensure_future(_outcome_async(v.verify_async(fresh(clock[0], hop=hop), METHOD))) for _ in range(tasks)]
+                all_waiting = asyncio.ensure_future(waiting.wait())
+                pending = {all_waiting, *calls}
+                while not all_waiting.done() and pending != {all_waiting}:
+                    done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+                    judged = [call.result() for call in calls if call in done]
+                    assert release is None or not judged, \
+                        f"{len(handed)} of {total} stamps were waiting when one was judged before the running read ended: {judged[0]}"
+                assert all_waiting.done(), f"only {len(handed)} of {total} stamps were handed the running read to wait for"
+                source.begin.set()
+                if release is not None:
+                    release.set()
+                started = wall.monotonic()
+                results = await asyncio.gather(*calls)
+                held = wall.monotonic() - started
+        finally:
+            on_handed[0] = lambda: None
+        assert all(wait is read and not began for wait, began in handed), "a stamp started a read instead of waiting for the running one"
+        return results, held
 
     # The running read publishes the fresh key: all wait, all are admitted.
     release, before = running(b"gateway-after-restart", publishing(b"gateway-after-restart"), 5.0)
@@ -911,7 +967,8 @@ def test_many_stamps_wait_for_one_running_read_and_are_held_no_longer_than_its_t
     assert source.reads == before + 1, "waiters started a read"
 
     # The running read hangs: every waiter is refused on the keys held once the
-    # timeout passes, and still no read is added.
+    # timeout passes, and still no read is added. The read began before the
+    # stamps were all waiting, so its deadline is at most its timeout after.
     _, before = running(b"gateway-restarted-again", publishing(b"gateway-restarted-again"), 0.3)
     results, held = asyncio.run(everyone(b"gateway-restarted-again"))
     assert results == ["stamp_proof"] * (threads + tasks)

@@ -75,7 +75,9 @@ func forwarded(t *testing.T, token, proof, advisory string) metadata.MD {
 }
 
 // keys is a switchable Keys answer that counts the reads; with hold set, a
-// read waits for it to be closed (or for its own context to end). A response
+// read waits for it to be closed (or for its own context to end); with begin
+// set, a read that has started waits for it to be closed before it looks at
+// hold or its own context, so it cannot end before then. A response
 // that publishes no hop admission key publishes the test hop's
 // (testSigner("proof")), as an authority publishes its hop's key.
 type keys struct {
@@ -84,6 +86,7 @@ type keys struct {
 	err      error
 	reads    int
 	hold     chan struct{}
+	begin    chan struct{}
 	// literalResponse preserves an empty admission slice for absence tests.
 	// The default still publishes the test hop's key, as existing tests expect.
 	literalResponse bool
@@ -92,9 +95,12 @@ type keys struct {
 func (k *keys) Keys(ctx context.Context, _ *authorityv1.KeysRequest, _ ...grpc.CallOption) (*authorityv1.KeysResponse, error) {
 	k.mu.Lock()
 	k.reads++
-	hold, response, err := k.hold, k.response, k.err
+	hold, begin, response, err := k.hold, k.begin, k.response, k.err
 	literal := k.literalResponse
 	k.mu.Unlock()
+	if begin != nil {
+		<-begin
+	}
 	if hold != nil {
 		select {
 		case <-hold:
@@ -113,6 +119,13 @@ func (k *keys) set(response *authorityv1.KeysResponse, err error, hold chan stru
 	k.mu.Lock()
 	defer k.mu.Unlock()
 	k.response, k.err, k.hold = response, err, hold
+}
+
+// gate makes every read from now on wait for begin before it can end.
+func (k *keys) gate(begin chan struct{}) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	k.begin = begin
 }
 
 func (k *keys) count() int {
