@@ -3,9 +3,6 @@ package domain
 import (
 	"maps"
 	"slices"
-
-	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
 // The two person roles of a module page or a solution. Admin is the one the
@@ -35,20 +32,15 @@ const (
 //     admin-powered roles;
 //   - the crossover: when a declaration of exactly admin and user replaces
 //     one whose grants hold the old names, those grants move instead of
-//     ending (CrossoverRole, applied where undeclared grants are dropped;
-//     Crossovers, listed among what an update asks), so nobody loses access.
-//     Each grant moves to the narrowest new role that covers what the old
-//     role declared, so its holder lands on a role holding at least that,
-//     unless the target's own admin declares less than the old role did (its
-//     choice, which the update's review names). When what the old role
-//     declared is unknown (the store does not keep the declaration the grant
-//     was held under, as for a legacy consent recording no generation), an
-//     editor, viewer or steward moves to user: day-to-day access kept, grant
-//     management handed to nobody. A holder may gain: a viewer moved to user
-//     holds whatever user declares, the owner's decision for this one release
-//     (2026-11-15). Each move is journaled with Detail CrossoverFrom and
-//     CrossoverBasis, so an audit tells it from a deliberate grant and sees
-//     whether coverage was proven.
+//     ending, by a fixed rule (CrossoverRole, applied where undeclared grants
+//     are dropped; Crossovers, listed among what an update asks): installer
+//     to admin, every other old role (editor, viewer, steward) to user. This
+//     is the owner's least-privilege decision (2026-11-15): a page's user
+//     holds only what the page's screens call, so a former editor or steward
+//     may hold less than before, and an admin promotes whoever needs more;
+//     nobody is promoted to admin by the rename. Each move is journaled with
+//     Detail CrossoverFrom and CrossoverBasis, so an audit tells it from a
+//     deliberate grant.
 //
 // TODO(next release): delete LegacyInstallerRole, CrossoverRole, Crossovers,
 // CrossoverFrom, CrossoverBasis and its values, and the alias in IsAdminRole
@@ -60,66 +52,38 @@ const LegacyInstallerRole = "installer"
 // from (CrossoverRole). STOPGAP: see LegacyInstallerRole.
 const CrossoverFrom = "crossover_from"
 
-// CrossoverBasis is the journal Detail key saying why a grant moved where it
-// did, one of the basis values below. STOPGAP: see LegacyInstallerRole.
+// CrossoverBasis is the journal Detail key saying which rule moved a grant,
+// one of the basis values below. STOPGAP: see LegacyInstallerRole.
 const CrossoverBasis = "crossover_basis"
 
 // The basis of a move (CrossoverRole). STOPGAP: see LegacyInstallerRole.
 const (
-	// BasisInstaller: installer always moves to admin.
+	// BasisInstaller: installer moves to admin.
 	BasisInstaller = "installer"
-	// BasisCoverage: the new role's declared scopes cover what the old role
-	// declared in the declaration the grant was held under.
-	BasisCoverage = "declared_coverage"
-	// BasisUnknownDeclaration: what the old role declared is unknown, so it
-	// moves to user.
-	BasisUnknownDeclaration = "unknown_declaration"
+	// BasisLegacyToUser: editor, viewer and steward move to user.
+	BasisLegacyToUser = "legacy_to_user"
 )
 
 // CrossoverRole is the role a grant of old moves to, and the basis of the
-// move, when next, the next declaration's roles, replaces approved, the
-// declaration the grant was held under, and next is exactly admin and user
-// (the page-role rename):
-//
-//   - installer always moves to admin, whose powers its holder already has
-//     through the alias (BasisInstaller);
-//   - editor, viewer and steward (the old directory's role defining record
-//     types) move to the narrowest new role whose declared scopes cover what
-//     old declared in approved: user when user's scopes cover them
-//     (scope.Attenuates), otherwise admin (BasisCoverage). An editor who
-//     wrote what the new user only reads keeps writing, and a steward who
-//     defined what user cannot keeps defining, as admin. Admin holds every
-//     action the target serves when its roles are derived; a declaration of
-//     admin narrower than an old role is the target's own choice, which its
-//     review shows (Crossovers);
-//   - when approved does not declare old (the store does not keep the
-//     declaration the grant was held under), editor, viewer and steward move
-//     to user (BasisUnknownDeclaration): day-to-day access is kept, and
-//     nobody is handed grant management on a guess.
-//
-// False for any other role name, and for next not exactly admin and user: a
-// target that keeps a custom role beside them and drops one named like an old
-// role ends its grants as any dropped role's. STOPGAP: see
-// LegacyInstallerRole.
-func CrossoverRole(old string, approved, next map[string][]*basev0.WorkScopeV1) (role, basis string, ok bool) {
+// move, when next, the next declaration's roles, is exactly admin and user
+// (the page-role rename): installer to admin, whose powers its holder
+// already has through the alias; editor, viewer and steward (the old
+// directory's role defining record types) to user, whatever they held
+// (least privilege: an admin promotes whoever needs more). False for any
+// other role name, and for next not exactly admin and user: a target that
+// keeps a custom role beside them and drops one named like an old role ends
+// its grants as any dropped role's. STOPGAP: see LegacyInstallerRole.
+func CrossoverRole[V any](old string, next map[string]V) (role, basis string, ok bool) {
 	_, admin := next[AdminRole]
-	user, hasUser := next[UserRole]
-	if len(next) != 2 || !admin || !hasUser {
+	_, user := next[UserRole]
+	if len(next) != 2 || !admin || !user {
 		return "", "", false
 	}
 	switch old {
 	case LegacyInstallerRole:
 		return AdminRole, BasisInstaller, true
 	case "editor", "viewer", "steward":
-		held, known := approved[old]
-		switch {
-		case !known:
-			return UserRole, BasisUnknownDeclaration, true
-		case scope.Attenuates(held, user):
-			return UserRole, BasisCoverage, true
-		default:
-			return AdminRole, BasisCoverage, true
-		}
+		return UserRole, BasisLegacyToUser, true
 	}
 	return "", "", false
 }
@@ -127,10 +91,10 @@ func CrossoverRole(old string, approved, next map[string][]*basev0.WorkScopeV1) 
 // Crossovers lists, in a review's words, the old roles approved declares
 // whose holders move when next replaces it (CrossoverRole): what an update
 // asks beyond its declaration. STOPGAP: see LegacyInstallerRole.
-func Crossovers(approved, next map[string][]*basev0.WorkScopeV1) []string {
+func Crossovers[V any](approved, next map[string]V) []string {
 	var out []string
 	for _, old := range slices.Sorted(maps.Keys(approved)) {
-		if role, _, ok := CrossoverRole(old, approved, next); ok {
+		if role, _, ok := CrossoverRole(old, next); ok {
 			out = append(out, "holders of role "+old+" move to "+role)
 		}
 	}
