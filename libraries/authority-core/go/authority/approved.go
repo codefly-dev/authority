@@ -149,10 +149,11 @@ func approvedReading(tx Tx, inst domain.Installation, m domain.Module) (domain.M
 // exactly admin and user, a grant of an old person role (installer, editor,
 // viewer, steward) moves to the narrowest new role covering what the role
 // declared in approved, the declaration the grant was held under
-// (domain.CrossoverRole), so a target re-rendered with the two roles keeps
-// its holders and none loses what they held. The move is journaled as a grant
-// and a revocation by actor, each with Detail domain.CrossoverFrom naming the
-// old role; a subject who holds the new role already, or gains it from
+// (domain.CrossoverRole; to user when that declaration is unknown), so a
+// target re-rendered with the two roles keeps its holders and none loses
+// access. The move is journaled as a grant and a revocation by actor, each
+// with Detail domain.CrossoverFrom naming the old role and
+// domain.CrossoverBasis saying why it landed where it did; a subject who holds the new role already, or gains it from
 // another old grant here, is granted (and journaled) once.
 func (s *Service) dropUndeclaredGrants(ctx context.Context, tx Tx, inst domain.Installation, approved, next domain.Module, actor string) error {
 	grants, err := tx.RoleGrants(inst.ID)
@@ -167,7 +168,7 @@ func (s *Service) dropUndeclaredGrants(ctx context.Context, tx Tx, inst domain.I
 		if _, declared := next.Roles[g.Role]; declared {
 			continue
 		}
-		role, crossover := domain.CrossoverRole(g.Role, approved.Roles, next.Roles)
+		role, basis, crossover := domain.CrossoverRole(g.Role, approved.Roles, next.Roles)
 		if crossover {
 			moved := g
 			moved.Role = role
@@ -179,6 +180,7 @@ func (s *Service) dropUndeclaredGrants(ctx context.Context, tx Tx, inst domain.I
 				r := RoleRequest{Organization: inst.Organization, InstallationID: inst.ID, Role: role, PersonID: g.PersonID, TeamID: g.TeamID}
 				e := r.event(domain.RoleGranted, actor)
 				e.Detail[domain.CrossoverFrom] = g.Role
+				e.Detail[domain.CrossoverBasis] = basis
 				if err := s.journal(ctx, tx, e); err != nil {
 					return err
 				}
@@ -191,6 +193,7 @@ func (s *Service) dropUndeclaredGrants(ctx context.Context, tx Tx, inst domain.I
 		e := r.event(domain.RoleRevoked, actor)
 		if crossover {
 			e.Detail[domain.CrossoverFrom] = g.Role
+			e.Detail[domain.CrossoverBasis] = basis
 		}
 		if err := s.journal(ctx, tx, e); err != nil {
 			return err
@@ -201,8 +204,9 @@ func (s *Service) dropUndeclaredGrants(ctx context.Context, tx Tx, inst domain.I
 
 // heldUnder is the declaration inst's grants were held under: the one its
 // consent approved, or nothing when there is none or the store does not keep
-// it. STOPGAP (one release, domain.LegacyInstallerRole): only the crossover
-// reads it.
+// it, in which case the crossover moves an editor, viewer or steward to user
+// (domain.BasisUnknownDeclaration). STOPGAP (one release,
+// domain.LegacyInstallerRole): only the crossover reads it.
 func heldUnder(tx Tx, inst domain.Installation, target string) domain.Module {
 	c := inst.Consent
 	if c.OperationID == "" || c.Generation == 0 {

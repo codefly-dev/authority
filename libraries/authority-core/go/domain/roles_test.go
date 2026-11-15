@@ -48,7 +48,8 @@ func TestTheLegacyInstallerIsTheAdminRoleForOneRelease(t *testing.T) {
 // moves, when the next declaration is exactly admin and user, to the
 // narrowest new role whose scopes cover what the old role declared:
 // installer always to admin; a viewer, an editor or a steward to user when
-// user covers it, otherwise to admin, so nobody loses access. Nothing else ever moves.
+// user covers it, otherwise to admin, and to user when what it declared is
+// unknown, so nobody loses access. Nothing else ever moves.
 func TestTheOldRolesCrossOverToTheNarrowestCoveringRoleForOneRelease(t *testing.T) {
 	ws := func(actions ...string) []*basev0.WorkScopeV1 {
 		return []*basev0.WorkScopeV1{{ResourceKind: "wiki.page", Actions: actions}}
@@ -61,31 +62,30 @@ func TestTheOldRolesCrossOverToTheNarrowestCoveringRoleForOneRelease(t *testing.
 	readingUser := map[string][]*basev0.WorkScopeV1{"admin": ws("read", "write", "publish"), "user": ws("read")}
 	writingUser := map[string][]*basev0.WorkScopeV1{"admin": ws("read", "write", "publish"), "user": ws("read", "write")}
 	for _, c := range []struct {
-		name, role string
-		next       map[string][]*basev0.WorkScopeV1
-		want       string
-		ok         bool
+		name, role  string
+		approved    map[string][]*basev0.WorkScopeV1
+		next        map[string][]*basev0.WorkScopeV1
+		want, basis string
+		ok          bool
 	}{
-		{"a viewer, where user reads", "viewer", readingUser, "user", true},
-		{"an editor whose writes user covers", "editor", writingUser, "user", true},
-		{"an editor whose writes only admin covers", "editor", readingUser, "admin", true},
-		{"the installer", "installer", readingUser, "admin", true},
-		{"a steward, whose define user does not cover", "steward", directory, "admin", true},
-		{"a viewer, on the directory", "viewer", directory, "user", true},
-		{"the installer, where user writes", "installer", writingUser, "admin", true},
-		{"a third role kept beside the two", "editor", map[string][]*basev0.WorkScopeV1{"admin": ws("read"), "user": ws("read"), "auditor": ws("read")}, "", false},
-		{"no user declared", "viewer", map[string][]*basev0.WorkScopeV1{"admin": ws("read")}, "", false},
-		{"a role that is no old name", "author", readingUser, "", false},
-		{"user itself", "user", readingUser, "", false},
+		{"a viewer, where user reads", "viewer", old, readingUser, "user", domain.BasisCoverage, true},
+		{"an editor whose writes user covers", "editor", old, writingUser, "user", domain.BasisCoverage, true},
+		{"an editor whose writes only admin covers", "editor", old, readingUser, "admin", domain.BasisCoverage, true},
+		{"the installer", "installer", old, readingUser, "admin", domain.BasisInstaller, true},
+		{"a steward, whose define user does not cover", "steward", old, directory, "admin", domain.BasisCoverage, true},
+		{"a viewer, on the directory", "viewer", old, directory, "user", domain.BasisCoverage, true},
+		{"the installer, where user writes", "installer", old, writingUser, "admin", domain.BasisInstaller, true},
+		{"an editor under an unknown declaration", "editor", nil, readingUser, "user", domain.BasisUnknownDeclaration, true},
+		{"a steward under an unknown declaration", "steward", nil, directory, "user", domain.BasisUnknownDeclaration, true},
+		{"the installer under an unknown declaration", "installer", nil, readingUser, "admin", domain.BasisInstaller, true},
+		{"a third role kept beside the two", "editor", old, map[string][]*basev0.WorkScopeV1{"admin": ws("read"), "user": ws("read"), "auditor": ws("read")}, "", "", false},
+		{"no user declared", "viewer", old, map[string][]*basev0.WorkScopeV1{"admin": ws("read")}, "", "", false},
+		{"a role that is no old name", "author", old, readingUser, "", "", false},
+		{"user itself", "user", old, readingUser, "", "", false},
 	} {
-		if got, ok := domain.CrossoverRole(c.role, old, c.next); got != c.want || ok != c.ok {
-			t.Errorf("%s: CrossoverRole(%q) = %q %v, want %q %v", c.name, c.role, got, ok, c.want, c.ok)
+		if got, basis, ok := domain.CrossoverRole(c.role, c.approved, c.next); got != c.want || basis != c.basis || ok != c.ok {
+			t.Errorf("%s: CrossoverRole(%q) = %q %q %v, want %q %q %v", c.name, c.role, got, basis, ok, c.want, c.basis, c.ok)
 		}
-	}
-	// What an editor held is unknown when the approved declaration does not
-	// name it: nothing proves a covering role, so it does not move.
-	if got, ok := domain.CrossoverRole("editor", nil, writingUser); ok {
-		t.Errorf("an editor with no approved scopes moved to %q", got)
 	}
 }
 

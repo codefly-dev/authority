@@ -324,3 +324,59 @@ func TestACustomEditorDroppedBesideAThirdRoleEndsItsGrants(t *testing.T) {
 		t.Fatalf("grants %v, want the editor's ended and not moved", got)
 	}
 }
+
+// When the declaration a grant was held under is unknown (a legacy consent
+// recording no generation, whose approved declaration the store does not
+// keep), what an editor, viewer or steward held cannot be compared: each
+// moves to user, keeping day-to-day access and handing nobody grant
+// management, and the move is journaled as unknown coverage. The installer
+// still moves to admin.
+func TestAnUnknownDeclarationMovesEditorsViewersAndStewardsToUser(t *testing.T) {
+	h := newHarness(t)
+	svc, events := journaled(h)
+	rw, r := []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}, []*basev0.WorkScopeV1{sc("pages.note", "read")}
+	m := legacyPage(1, rw, rw, r)
+	m.Roles["steward"] = rw
+	if _, err := svc.ApplyModule(h.ctx, m); err != nil {
+		t.Fatal(err)
+	}
+	for role, person := range map[string]string{domain.LegacyInstallerRole: "remi", "editor": "ines", "viewer": "maya", "steward": "tam"} {
+		h.grant("pages", role, person)
+	}
+	if err := h.store.Write(h.ctx, func(tx authority.Tx) error {
+		i, err := tx.Installation(h.inst(acme, "pages").ID)
+		if err != nil {
+			return err
+		}
+		i.Consent.Generation, i.Consent.Digest = 0, ""
+		return tx.PutInstallation(i)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.ApplyModule(h.ctx, twoRolePage(2, "read")); err != nil {
+		t.Fatal(err)
+	}
+	*events = nil
+	if _, err := h.approvePage(svc, "remi"); err != nil {
+		t.Fatalf("the installer holder's approval: %v", err)
+	}
+	if got := grantsOf(h); !slices.Equal(got, []string{"admin remi", "user ines", "user maya", "user tam"}) {
+		t.Fatalf("the approval left grants %v, want admin remi and user for ines, maya and tam", got)
+	}
+	basis := map[string]string{}
+	for _, e := range *events {
+		if e.Kind == domain.RoleGranted {
+			basis[e.Detail["person"]] = e.Detail[domain.CrossoverFrom] + ">" + e.Detail["role"] + " " + e.Detail[domain.CrossoverBasis]
+		}
+	}
+	want := map[string]string{
+		"remi": "installer>admin " + domain.BasisInstaller,
+		"ines": "editor>user " + domain.BasisUnknownDeclaration,
+		"maya": "viewer>user " + domain.BasisUnknownDeclaration,
+		"tam":  "steward>user " + domain.BasisUnknownDeclaration,
+	}
+	if !maps.Equal(basis, want) {
+		t.Fatalf("the moves journaled %v, want %v", basis, want)
+	}
+	code(t, h.grantAs("ines", domain.UserRole, "dev"), domain.Denied)
+}
