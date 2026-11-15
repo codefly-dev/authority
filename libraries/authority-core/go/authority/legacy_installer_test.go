@@ -531,3 +531,81 @@ func TestAStoreErrorReadingTheHeldDeclarationFailsTheApproval(t *testing.T) {
 		t.Fatalf("a failed approval moved grants: %v", got)
 	}
 }
+
+// doctoredStore answers generation 1 of pages, while doctored is set, as a
+// store that no longer keeps the approved offer under its digest but keeps
+// another reading of that generation under another digest.
+type doctoredStore struct {
+	authority.Store
+	doctored *domain.Module
+}
+
+type doctoredTx struct {
+	authority.Tx
+	doctored *domain.Module
+}
+
+func (d doctoredTx) ApprovedModule(name string, generation uint64, digest string) (domain.Module, error) {
+	if d.doctored != nil && d.doctored.Name != "" && name == d.doctored.Name && generation == d.doctored.Generation {
+		if digest != "" {
+			return domain.Module{}, domain.ErrNotFound
+		}
+		return *d.doctored, nil
+	}
+	return d.Tx.ApprovedModule(name, generation, digest)
+}
+
+func (d doctoredStore) Read(ctx context.Context, fn func(authority.Tx) error) error {
+	return d.Store.Read(ctx, func(tx authority.Tx) error { return fn(doctoredTx{tx, d.doctored}) })
+}
+
+func (d doctoredStore) Write(ctx context.Context, fn func(authority.Tx) error) error {
+	return d.Store.Write(ctx, func(tx authority.Tx) error { return fn(doctoredTx{tx, d.doctored}) })
+}
+
+// A row kept for the held generation under another digest, whose offer
+// digest is not the consent's, is no reading anyone approved: coverage is
+// never computed from it. The approved generation 1 had an editor who read;
+// the other reading has the editor writing, which only admin would cover.
+// The editor moves to user as unknown_declaration, never to admin.
+func TestARowKeptUnderAnotherDigestIsNeverTheCoverageBasis(t *testing.T) {
+	h := newHarness(t)
+	var doctored domain.Module
+	var events []domain.Event
+	cfg := h.cfg
+	cfg.Journal = func(_ context.Context, _ authority.Tx, e domain.Event) error { events = append(events, e); return nil }
+	svc, err := authority.New(doctoredStore{h.store, &doctored}, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rw, r := []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}, []*basev0.WorkScopeV1{sc("pages.note", "read")}
+	if _, err := svc.ApplyModule(h.ctx, legacyPage(1, rw, r, r)); err != nil {
+		t.Fatal(err)
+	}
+	h.grant("pages", domain.LegacyInstallerRole, "remi")
+	h.grant("pages", "editor", "ines")
+	if _, err := svc.ApplyModule(h.ctx, twoRolePage(2, "read")); err != nil {
+		t.Fatal(err)
+	}
+	a, err := svc.Review(h.ctx, h.person("remi"), acme, "pages")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.OperationID = uuid.NewString()
+	doctored = legacyPage(1, rw, rw, r)
+	events = nil
+	if _, err := svc.Install(h.ctx, h.person("remi"), acme, "pages", "", "", &a, nil); err != nil {
+		t.Fatalf("the approval: %v", err)
+	}
+	doctored = domain.Module{}
+	got := map[string]string{}
+	for _, g := range h.roleGrants("pages") {
+		got[g.PersonID] = g.Role
+	}
+	if got["ines"] != domain.UserRole || got["remi"] != domain.AdminRole || len(got) != 2 {
+		t.Fatalf("the approval left grants %v, want ines on user (never admin) and remi on admin", got)
+	}
+	if moved := crossovers(events); moved["ines"] != "editor>user "+domain.BasisUnknownDeclaration {
+		t.Fatalf("the editor's move was journaled as %q, want editor>user %s", moved["ines"], domain.BasisUnknownDeclaration)
+	}
+}
