@@ -67,9 +67,14 @@ func (sp *principalSuite) roleView(t *testing.T) {
 	wc := msg(sp.must(t)(sp.through(t, f.Member, A, "store")), "context")
 	exactOwnedScope(t, wc, f.Kind, []string{"create", "read", "write"}, u) // the session it was opened from is untouched
 
-	// Only a role the caller acts as; a viewing session opens only narrower.
-	_, err = open(t, f.Member, "owner")
-	refused(t, err, codes.PermissionDenied, `"owner"`)
+	// Only a role the caller acts as: a person holding only user is refused
+	// the admin view, a role A declares and they do not hold. A viewing
+	// session opens only narrower.
+	userOnly := sp.person(t, f.UserHolder)
+	sp.grant(t, A, "user", userOnly)
+	_, err = open(t, f.UserHolder, "admin")
+	refused(t, err, codes.PermissionDenied, `"admin"`)
+	sp.revoke(t, A, "user", userOnly)
 	_, err = open(t, asUser, "admin")
 	refused(t, err, codes.PermissionDenied, `"admin"`)
 	_, err = open(t, f.Member)
