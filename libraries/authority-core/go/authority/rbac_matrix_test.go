@@ -13,7 +13,7 @@ import (
 
 // The issuance matrix (RBAC audit, layer 1): who is issued what, at which
 // target, over whose data. Each row is one cell: a principal kind (a person
-// as administrator, member, viewer or holding nothing; a page hop; a
+// as administrator, member, reader or holding nothing; a page hop; a
 // solution installation acting for itself; a module's binding; headless; a
 // delegated or child hop; another tenant), a target (a solution, a module
 // page, a module) and a resource (the installation's own data, another
@@ -54,15 +54,15 @@ func TestRBACIssuanceMatrix(t *testing.T) {
 		// --- a person at a solution ---------------------------------------
 		{id: "M01", principal: "person: admin, no grant", target: "solution", resource: "own installation",
 			issue: func(h *harness) (authority.Issued, error) { return h.root("alex", "a") }, refuse: "alex holds no role on a"},
-		{id: "M02", principal: "person: viewer", target: "solution", resource: "own installation",
+		{id: "M02", principal: "person: reader", target: "solution", resource: "own installation",
 			issue: func(h *harness) (authority.Issued, error) {
 				return h.root("maya", "a", owned(note("a"), h.principal(acme, "a"), []string{"read"}))
 			}, allow: &row{note("a"), ownerOf(acme, "a"), []string{"read"}, nil}},
-		{id: "M02b", principal: "person: viewer, unselected ask", target: "solution", resource: "every owner",
+		{id: "M02b", principal: "person: reader, unselected ask", target: "solution", resource: "every owner",
 			issue: func(h *harness) (authority.Issued, error) { return h.root("maya", "a", sc(note("a"), "read")) }, refuse: "widens what the owner holds"},
-		{id: "M03", principal: "person: viewer, wider than role", target: "solution", resource: "own installation",
+		{id: "M03", principal: "person: reader, wider than role", target: "solution", resource: "own installation",
 			issue: func(h *harness) (authority.Issued, error) { return h.root("maya", "a", sc(note("a"), "write")) }, refuse: "asked beyond what the owner holds"},
-		{id: "M04", principal: "person: viewer", target: "solution", resource: "another installation's data",
+		{id: "M04", principal: "person: reader", target: "solution", resource: "another installation's data",
 			issue: func(h *harness) (authority.Issued, error) {
 				return h.root("maya", "a", owned(note("a"), h.principal(acme, "b"), []string{"read"}))
 			}, refuse: "widens what the owner holds"},
@@ -77,9 +77,9 @@ func TestRBACIssuanceMatrix(t *testing.T) {
 			issue: func(h *harness) (authority.Issued, error) {
 				return h.svc.IssueForPerson(h.ctx, authority.Person{ID: "zoe", Organization: acme, SessionID: "s"}, authority.IssueRequest{Audience: "a"})
 			}, refuse: "no longer a member of acme"},
-		{id: "M08", principal: "person: viewer at an uninstalled solution", target: "solution", resource: "own installation",
+		{id: "M08", principal: "person: reader at an uninstalled solution", target: "solution", resource: "own installation",
 			issue: func(h *harness) (authority.Issued, error) { return h.root("maya", "b") }, refuse: "maya holds no role on b"},
-		{id: "M09", principal: "person: viewer", target: "solution not owner-aware", resource: "own installation",
+		{id: "M09", principal: "person: reader", target: "solution not owner-aware", resource: "own installation",
 			issue: func(h *harness) (authority.Issued, error) { return h.root("maya", "c") }, refuse: "does not declare owner-aware checking"},
 
 		// --- a person through a solution to a module ----------------------
@@ -142,18 +142,18 @@ func TestRBACIssuanceMatrix(t *testing.T) {
 		{id: "M20", principal: "page hop: solution page", target: "module", resource: "own installation",
 			issue: func(h *harness) (authority.Issued, error) { return h.page("maya", "a", "store") },
 			allow: &row{kind, ownerOf(acme, "a"), []string{"read"}, nil}},
-		{id: "M21", principal: "page hop: module page viewer", target: "module (owner-aware)", resource: "own installation",
+		{id: "M21", principal: "page hop: module page reader", target: "module (owner-aware)", resource: "own installation",
 			issue: func(h *harness) (authority.Issued, error) { return h.page("maya", "pages", "store") },
 			allow: &row{kind, ownerOf(acme, "pages"), []string{"read"}, nil}},
-		{id: "M22", principal: "page hop: module page viewer", target: "module (owner-aware)", resource: "a solution installation's data",
+		{id: "M22", principal: "page hop: module page reader", target: "module (owner-aware)", resource: "a solution installation's data",
 			issue: func(h *harness) (authority.Issued, error) {
 				return h.page("maya", "pages", "store", owned(kind, h.principal(acme, "a"), []string{"read"}))
 			}, refuse: "widens what its owner holds"},
-		{id: "M23", principal: "page hop: module page viewer", target: "module (owner-aware)", resource: "another tenant's page installation",
+		{id: "M23", principal: "page hop: module page reader", target: "module (owner-aware)", resource: "another tenant's page installation",
 			issue: func(h *harness) (authority.Issued, error) {
 				return h.page("maya", "pages", "store", owned(kind, h.principal(globex, "pages"), []string{"read"}))
 			}, refuse: "widens what its owner holds"},
-		{id: "M24", principal: "page hop: module page viewer", target: "module (shared kind)", resource: "shared kind",
+		{id: "M24", principal: "page hop: module page reader", target: "module (shared kind)", resource: "shared kind",
 			issue: func(h *harness) (authority.Issued, error) {
 				return h.page("maya", "pages", "profiles", sc("profiles.profile", "read"))
 			}, allow: &row{"profiles.profile", noOwner, []string{"read"}, nil}},
@@ -265,7 +265,7 @@ func TestRBACIssuanceMatrix(t *testing.T) {
 				if err != nil {
 					return authority.Issued{}, err
 				}
-				h.revoke("a", "viewer", "maya", "")
+				h.revoke("a", "reader", "maya", "")
 				return h.svc.IssueForDelegation(h.ctx, d.ID, authority.Workload{Module: "a"}, authority.IssueRequest{Binding: "store"})
 			}, refuse: "grants nothing maya still holds"},
 	}
@@ -316,8 +316,8 @@ func matrixHarness(t *testing.T) *harness {
 	// kind and every action (postgres_authority_core.go OrgRole).
 	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "everything", Scopes: []domain.RoleScope{{Kind: "*", Actions: []string{"*"}}}})
 	h.store.PutPerson(domain.Person{ID: "boss", Organization: acme, Roles: []string{"everything"}})
-	h.grant("a", "viewer", "maya")
-	h.grant("a", "editor", "remi")
-	h.grantTeam("a", "viewer", "team")
+	h.grant("a", "reader", "maya")
+	h.grant("a", "user", "remi")
+	h.grantTeam("a", "reader", "team")
 	return h
 }

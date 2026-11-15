@@ -32,15 +32,15 @@ func TestEveryChangeIsJournaledInItsOwnTransaction(t *testing.T) {
 	}
 	alex := h.person("alex")
 	inst := h.inst(acme, "a").ID
-	viewer := authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "viewer", PersonID: "maya"}
+	reader := authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "reader", PersonID: "maya"}
 	steps := []struct {
 		name string
 		do   func() error
 		want domain.Event
 	}{
-		{"a role granted", func() error { _, err := svc.GrantRole(h.ctx, alex, viewer); return err },
+		{"a role granted", func() error { _, err := svc.GrantRole(h.ctx, alex, reader); return err },
 			domain.Event{Kind: domain.RoleGranted, Organization: acme, Actor: "alex", Subject: inst}},
-		{"a role revoked", func() error { _, err := svc.RevokeRole(h.ctx, alex, viewer); return err },
+		{"a role revoked", func() error { _, err := svc.RevokeRole(h.ctx, alex, reader); return err },
 			domain.Event{Kind: domain.RoleRevoked, Organization: acme, Actor: "alex", Subject: inst}},
 		{"a delegation granted", func() error {
 			_, err := svc.Delegate(h.ctx, h.person("rob"), "ledger", []*basev0.WorkScopeV1{owned(ledgerKind, "", []string{"read"}, "entry-x")}, "a purpose", 0)
@@ -82,7 +82,7 @@ func TestEveryChangeIsJournaledInItsOwnTransaction(t *testing.T) {
 	t.Run("a journal that refuses aborts the change", func(t *testing.T) {
 		refuse = true
 		defer func() { refuse = false }()
-		_, err := svc.GrantRole(h.ctx, alex, authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "viewer", PersonID: "remi"})
+		_, err := svc.GrantRole(h.ctx, alex, authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "reader", PersonID: "remi"})
 		if err == nil {
 			t.Fatal("the grant committed without its journal entry")
 		}

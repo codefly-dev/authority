@@ -19,7 +19,7 @@ func TestInstallationDeclarationPairingRefusesEitherCarrierMismatch(t *testing.T
 		name, field string
 		change      func(*solutionhost.ModuleManifest, **delivered.Document)
 	}{
-		{"selector", "installation_role", func(m *solutionhost.ModuleManifest, d **delivered.Document) { (*d).InstallationRole = "editor" }},
+		{"selector", "installation_role", func(m *solutionhost.ModuleManifest, d **delivered.Document) { (*d).InstallationRole = "user" }},
 		{"sidecar selector absent", "installation_role", func(m *solutionhost.ModuleManifest, d **delivered.Document) { (*d).InstallationRole = "" }},
 		{"core selector absent", "installation_role", func(m *solutionhost.ModuleManifest, d **delivered.Document) { m.Authority.InstallationRole = "" }},
 		{"sidecar absent", "installation_role", func(m *solutionhost.ModuleManifest, d **delivered.Document) { *d = nil }},

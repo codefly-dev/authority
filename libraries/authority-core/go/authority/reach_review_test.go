@@ -189,8 +189,8 @@ func TestAModuleDeliveredAgainAfterAWithdrawalHoldsNoGrants(t *testing.T) {
 	}
 	alex := authority.Person{ID: "alex", Organization: acme, SessionID: "s"}
 	for _, g := range []authority.RoleRequest{
-		{Organization: acme, InstallationID: "host-pages", Role: "viewer", PersonID: "maya"},
-		{Organization: acme, InstallationID: "host-pages", Role: domain.InstallerRole, PersonID: "alex"},
+		{Organization: acme, InstallationID: "host-pages", Role: "reader", PersonID: "maya"},
+		{Organization: acme, InstallationID: "host-pages", Role: domain.AdminRole, PersonID: "alex"},
 	} {
 		if _, err := h.svc.GrantRole(h.ctx, alex, g); err != nil {
 			t.Fatal(err)
@@ -200,7 +200,7 @@ func TestAModuleDeliveredAgainAfterAWithdrawalHoldsNoGrants(t *testing.T) {
 		t.Fatal(err)
 	}
 	again := pageModule(2, true)
-	delete(again.Roles, "viewer")
+	delete(again.Roles, "reader")
 	if _, err := h.svc.ApplyModule(h.ctx, again); err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +268,7 @@ func soundComposition(r *rand.Rand) []domain.Module {
 				}
 				return slices.Clone(m.ResourceKinds)
 			}
-			m.Kind, m.Roles = domain.KindSolution, map[string][]*basev0.WorkScopeV1{domain.InstallerRole: slices.Clone(m.ResourceKinds), "r": role(), "s": role()}
+			m.Kind, m.Roles = domain.KindSolution, map[string][]*basev0.WorkScopeV1{domain.AdminRole: slices.Clone(m.ResourceKinds), "r": role(), "s": role()}
 		}
 		out = append(out, m)
 	}
@@ -494,7 +494,7 @@ func TestEachFaceOfAnOperationIsHeldToItsOwnApprovedPolicy(t *testing.T) {
 // of an unrelated module and a host's start both succeed.
 func TestALegacyConsentWhoseApprovedGenerationIsNotKeptNeverRefusesADelivery(t *testing.T) {
 	h := newHarness(t)
-	h.grant("a", "viewer", "maya")
+	h.grant("a", "reader", "maya")
 	widened := solution("a", true).Roles
 	widened["extra"] = []*basev0.WorkScopeV1{sc("a.note", "read")}
 	for _, generation := range []uint64{2, 3} {

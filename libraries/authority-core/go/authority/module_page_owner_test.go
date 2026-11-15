@@ -25,12 +25,12 @@ func pageReachingTheStore(t *testing.T, h *harness) {
 		"profiles": {ID: "profiles", Audience: "profiles", InvokeScopes: []*basev0.WorkScopeV1{sc("profiles.profile", "read"), sc("profiles.secret", "read")}},
 	}
 	reach := []*basev0.WorkScopeV1{sc(kind, "read"), sc(legacyKind, "read"), sc("profiles.profile", "read"), sc("profiles.secret", "read")}
-	m.Roles[domain.InstallerRole] = append([]*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(kind, "read", "write")}, reach[1:]...)
-	m.Roles["viewer"] = append([]*basev0.WorkScopeV1{sc("pages.note", "read")}, reach...)
+	m.Roles[domain.AdminRole] = append([]*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(kind, "read", "write")}, reach[1:]...)
+	m.Roles["reader"] = append([]*basev0.WorkScopeV1{sc("pages.note", "read")}, reach...)
 	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
 		t.Fatal(err)
 	}
-	h.grant("pages", "viewer", "maya")
+	h.grant("pages", "reader", "maya")
 }
 
 // RBAC-1: a module page's role reaches a module that checks owners only as
@@ -39,7 +39,7 @@ func pageReachingTheStore(t *testing.T, h *harness) {
 // and the module) is the owner selected, whichever path issues it (the page's
 // call, the page module's own hop, the resources answer). A solution's data in
 // the store, or another organization's page installation's, is out of a
-// module page viewer's reach; what checks no owner (the legacy store) and a
+// module page reader's reach; what checks no owner (the legacy store) and a
 // kind its audience declares shared are unselected as before. An installation
 // a host records without a principal owns nothing, so its roles carry nothing
 // of an owner-aware module's kinds.
@@ -154,14 +154,14 @@ func TestRBAC1AnInstallationWithoutAPrincipalIsGivenOneAndItsOldCapabilitiesEnd(
 // AuthorizeTransfer a solution's installation uses: a person present on the
 // page, holding write there through their role and admin on the resource
 // through their own organization grants. Afterwards the row is the
-// installation's: its decision names the principal, and a viewer's capability
+// installation's: its decision names the principal, and a reader's capability
 // selects exactly that owner, so the row is visible again. Nobody else's
-// principal is a target, and a viewer (no write) cannot attach.
+// principal is a target, and a reader (no write) cannot attach.
 func TestRBAC1AModulePageAttachesWhatItWroteBeforeItHeldAPrincipal(t *testing.T) {
 	h := newHarness(t)
 	pageReachingTheStore(t, h)
 	mine := h.principal(acme, "pages")
-	h.grant("pages", domain.InstallerRole, "ada") // ada administers store-x through her organization role
+	h.grant("pages", domain.AdminRole, "ada") // ada administers store-x through her organization role
 	transfer := func(person, to string) (authority.TransferDecision, error) {
 		at := h.must(h.page(person, "pages", "store"))
 		return h.svc.AuthorizeTransfer(h.ctx, authority.TransferRequest{Token: at.Token, Store: authority.Workload{Module: "store"},
@@ -170,9 +170,9 @@ func TestRBAC1AModulePageAttachesWhatItWroteBeforeItHeldAPrincipal(t *testing.T)
 	if _, err := transfer("ada", h.principal(acme, "a")); err == nil {
 		t.Fatal("a module page's capability attached a resource to a solution's principal")
 	}
-	h.grant("pages", "viewer", "rob")
+	h.grant("pages", "reader", "rob")
 	if _, err := transfer("rob", mine); err == nil {
-		t.Fatal("a viewer without write on the page's data attached a resource")
+		t.Fatal("a reader without write on the page's data attached a resource")
 	}
 	d, err := transfer("ada", mine)
 	if err != nil || d.PrincipalID != mine {
@@ -181,8 +181,8 @@ func TestRBAC1AModulePageAttachesWhatItWroteBeforeItHeldAPrincipal(t *testing.T)
 	if got := h.pagesAt(acme).Owned[kind]; len(got) != 1 || got[0] != "store-x" {
 		t.Fatalf("the installation's attachments are %v", got)
 	}
-	viewer := h.must(h.page("maya", "pages", "store", owned(kind, mine, []string{"read"}, "store-x")))
-	exactly(t, viewer, kind, mine, []string{"read"}, "store-x")
+	reader := h.must(h.page("maya", "pages", "store", owned(kind, mine, []string{"read"}, "store-x")))
+	exactly(t, reader, kind, mine, []string{"read"}, "store-x")
 }
 
 // ledger is a module that checks no owner, with a binding to itself and one
@@ -201,8 +201,8 @@ func ledger() domain.Module {
 		}}
 }
 
-// ledgerPage is a module page whose viewer reads the ledger and whose
-// installer writes it, through its binding "ledger", beside a binding to the
+// ledgerPage is a module page whose reader reads the ledger and whose
+// admin writes it, through its binding "ledger", beside a binding to the
 // owner-aware store.
 func ledgerPage(t *testing.T, h *harness) {
 	t.Helper()
@@ -211,8 +211,8 @@ func ledgerPage(t *testing.T, h *harness) {
 		"ledger": {ID: "ledger", Audience: "ledger", InvokeScopes: []*basev0.WorkScopeV1{sc(ledgerKind, "read", "write")}},
 		"store":  {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write")}},
 	}
-	m.Roles[domain.InstallerRole] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(ledgerKind, "read", "write"), sc(kind, "read", "write")}
-	m.Roles["viewer"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(ledgerKind, "read"), sc(kind, "read")}
+	m.Roles[domain.AdminRole] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(ledgerKind, "read", "write"), sc(kind, "read", "write")}
+	m.Roles["reader"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(ledgerKind, "read"), sc(kind, "read")}
 	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
 		t.Fatal(err)
 	}
@@ -261,7 +261,7 @@ func TestRBAC1AWithdrawnModuleDeliveredAgainIsActiveWithItsPrincipal(t *testing.
 	}
 	m := pageModule(2, true)
 	m.Bindings = map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read")}}}
-	m.Roles["viewer"] = append(m.Roles["viewer"], sc(kind, "read"))
+	m.Roles["reader"] = append(m.Roles["reader"], sc(kind, "read"))
 	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
 		t.Fatal(err)
 	}
@@ -297,7 +297,7 @@ func TestRBAC1ReconcilingGivesARecordedInstallationItsPrincipal(t *testing.T) {
 // RBAC-1 (attachment): a module page whose role holds create on an
 // owner-aware store's kind attaches what its person creates there to the
 // page's installation, exactly as a solution's does: the store's first write
-// into a fresh resource is the installation's, and a viewer then reads it as
+// into a fresh resource is the installation's, and a reader then reads it as
 // that installation's data. A role without create attaches nothing, and an
 // installation recorded without a principal owns nothing, so nothing attaches
 // through it.
@@ -307,13 +307,13 @@ func TestRBAC1AModulePageAttachesWhatItCreatesToItsInstallation(t *testing.T) {
 	m.Bindings = map[string]domain.Binding{
 		"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write", "create")}},
 	}
-	m.Roles[domain.InstallerRole] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(kind, "read", "write", "create")}
-	m.Roles["viewer"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read")}
+	m.Roles[domain.AdminRole] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(kind, "read", "write", "create")}
+	m.Roles["reader"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read")}
 	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
 		t.Fatal(err)
 	}
-	h.grant("pages", domain.InstallerRole, "ada")
-	h.grant("pages", "viewer", "maya")
+	h.grant("pages", domain.AdminRole, "ada")
+	h.grant("pages", "reader", "maya")
 	mine := h.principal(acme, "pages")
 
 	owner, err := attach(h, h.must(h.page("ada", "pages", "store")).Token, "store-new")
@@ -325,7 +325,7 @@ func TestRBAC1AModulePageAttachesWhatItCreatesToItsInstallation(t *testing.T) {
 	}
 	exactly(t, h.must(h.page("maya", "pages", "store", owned(kind, mine, []string{"read"}, "store-new"))), kind, mine, []string{"read"}, "store-new")
 
-	_, err = attach(h, h.must(h.page("maya", "pages", "store")).Token, "store-viewer")
+	_, err = attach(h, h.must(h.page("maya", "pages", "store")).Token, "store-reader")
 	refused(t, err, "holds no create")
 
 	// The serving module never owns through itself, even once it declares
@@ -336,7 +336,7 @@ func TestRBAC1AModulePageAttachesWhatItCreatesToItsInstallation(t *testing.T) {
 	}
 	store.Generation++
 	store.Page, store.InstallationRole = true, domain.NoInstallationRole
-	store.Roles = map[string][]*basev0.WorkScopeV1{domain.InstallerRole: {sc(kind, "read")}, "viewer": {sc(kind, "read")}}
+	store.Roles = map[string][]*basev0.WorkScopeV1{domain.AdminRole: {sc(kind, "read")}, "reader": {sc(kind, "read")}}
 	if _, err := h.svc.ApplyModule(h.ctx, store); err != nil {
 		t.Fatal(err)
 	}
@@ -375,33 +375,33 @@ func TestAStorePagesOwnRoleReachesItsOwnInstallationsData(t *testing.T) {
 	store.Generation++
 	store.Page, store.InstallationRole = true, domain.NoInstallationRole
 	store.Roles = map[string][]*basev0.WorkScopeV1{
-		domain.InstallerRole: {sc(kind, "read", "write", "create")},
-		"viewer":             {sc(kind, "read")},
+		domain.AdminRole: {sc(kind, "read", "write", "create")},
+		"reader":         {sc(kind, "read")},
 	}
 	if _, err := h.svc.ApplyModule(h.ctx, store); err != nil {
 		t.Fatal(err)
 	}
-	h.grant("store", domain.InstallerRole, "ada")
-	h.grant("store", "viewer", "maya")
+	h.grant("store", domain.AdminRole, "ada")
+	h.grant("store", "reader", "maya")
 	own := h.principal(acme, "store")
 
-	viewer := h.must(h.svc.IssueForPerson(h.ctx, h.person("maya"), authority.IssueRequest{Audience: "store"}))
-	for _, s := range viewer.Context.GetAuthorityScopes() {
+	reader := h.must(h.svc.IssueForPerson(h.ctx, h.person("maya"), authority.IssueRequest{Audience: "store"}))
+	for _, s := range reader.Context.GetAuthorityScopes() {
 		if s.GetResourceKind() == kind && s.GetResourceOwnerId() != own {
-			t.Fatalf("the store's viewer holds %s for owner %q, want the store installation %s alone: %v", kind, s.GetResourceOwnerId(), own, viewer.Context.GetAuthorityScopes())
+			t.Fatalf("the store's reader holds %s for owner %q, want the store installation %s alone: %v", kind, s.GetResourceOwnerId(), own, reader.Context.GetAuthorityScopes())
 		}
 	}
-	grants, err := h.svc.ListResources(h.ctx, viewer.Token, "store", kind, "read")
+	grants, err := h.svc.ListResources(h.ctx, reader.Token, "store", kind, "read")
 	if err != nil || len(grants) != 1 || !grants[0].All || grants[0].Owner != own {
 		t.Fatalf("resources %+v (%v), want every resource owned by %s alone", grants, err, own)
 	}
 
-	installer := h.must(h.svc.IssueForPerson(h.ctx, h.person("ada"), authority.IssueRequest{Audience: "store"}))
-	owner, err := attach(h, installer.Token, "store-own")
+	pageAdmin := h.must(h.svc.IssueForPerson(h.ctx, h.person("ada"), authority.IssueRequest{Audience: "store"}))
+	owner, err := attach(h, pageAdmin.Token, "store-own")
 	if err != nil || owner != h.inst(acme, "store").ID {
 		t.Fatalf("the store page's create attached to %q (%v), want the store's installation %s", owner, err, h.inst(acme, "store").ID)
 	}
-	_, err = attach(h, viewer.Token, "store-viewer")
+	_, err = attach(h, reader.Token, "store-reader")
 	refused(t, err, "holds no create")
 	_, err = h.svc.IssueForPerson(h.ctx, h.person("alex"), authority.IssueRequest{Audience: "store"})
 	refused(t, err, "holds no role on store")
@@ -425,7 +425,7 @@ func TestAPageReachesARoleGatedStoreAsItsInstallationsData(t *testing.T) {
 	}
 	store.Generation++
 	store.Page, store.InstallationRole = true, domain.NoInstallationRole
-	store.Roles = map[string][]*basev0.WorkScopeV1{domain.InstallerRole: {sc(kind, "read", "write", "create")}, "viewer": {sc(kind, "read")}}
+	store.Roles = map[string][]*basev0.WorkScopeV1{domain.AdminRole: {sc(kind, "read", "write", "create")}, "reader": {sc(kind, "read")}}
 	store.Methods = map[string]domain.MethodPolicy{storeRead: {Requires: []*basev0.WorkScopeV1{sc(kind, "read")}}}
 	if _, err := h.svc.ApplyModule(h.ctx, store); err != nil {
 		t.Fatal(err)
@@ -434,14 +434,14 @@ func TestAPageReachesARoleGatedStoreAsItsInstallationsData(t *testing.T) {
 	m.Bindings = map[string]domain.Binding{
 		"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write", "create")}},
 	}
-	m.Roles[domain.InstallerRole] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(kind, "read", "write", "create")}
-	m.Roles["viewer"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read")}
+	m.Roles[domain.AdminRole] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(kind, "read", "write", "create")}
+	m.Roles["reader"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read")}
 	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
 		t.Fatal(err)
 	}
-	h.grant("pages", domain.InstallerRole, "ada")
-	h.grant("store", domain.InstallerRole, "ada")
-	h.grant("pages", "viewer", "maya")
+	h.grant("pages", domain.AdminRole, "ada")
+	h.grant("store", domain.AdminRole, "ada")
+	h.grant("pages", "reader", "maya")
 	mine := h.principal(acme, "pages")
 
 	for who, action := range map[string]string{"ada": "write", "maya": "read"} {

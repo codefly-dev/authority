@@ -22,12 +22,12 @@ import (
 const deliveryOfA = "sha256:the-signed-documents-of-a-at-1"
 
 // readWithThrough is solution a at generation 1 as a host reading roles'
-// through declarations reads it: the editor also writes the store's kind
+// through declarations reads it: the user also writes the store's kind
 // through the store binding, which a host that did not read through never saw.
 func readWithThrough(source string) domain.Module {
 	m := solution("a", true)
-	m.Roles["editor"] = append(m.Roles["editor"], sc(kind, "write"))
-	m.Through = map[string]map[string][]*basev0.WorkScopeV1{"editor": {"store": {sc(kind, "write")}}}
+	m.Roles["user"] = append(m.Roles["user"], sc(kind, "write"))
+	m.Through = map[string]map[string][]*basev0.WorkScopeV1{"user": {"store": {sc(kind, "write")}}}
 	m.Source = source
 	return m
 }
@@ -35,15 +35,15 @@ func readWithThrough(source string) domain.Module {
 func TestARereadOfTheHeldGenerationWidensNothingUntilTheUpgradeIsApproved(t *testing.T) {
 	h := newHarness(t)
 	svc, events := journalingService(h)
-	h.grant("a", "editor", "maya")
-	// writes is whether the editor's hop through the store binding writes the
+	h.grant("a", "user", "maya")
+	// writes is whether the user's hop through the store binding writes the
 	// store's kind, owned by a's principal at acme.
 	writes := func() error {
 		_, err := h.through("maya", "a", "store", owned(kind, h.principal(acme, "a"), []string{"write"}))
 		return err
 	}
 	if writes() == nil {
-		t.Fatal("the editor writes the store before any re-read")
+		t.Fatal("the user writes the store before any re-read")
 	}
 	approvedBefore := h.stored(acme, "a").Consent
 
@@ -63,19 +63,19 @@ func TestARereadOfTheHeldGenerationWidensNothingUntilTheUpgradeIsApproved(t *tes
 		t.Fatalf("the re-read moved the consent: %+v, was %+v", inst.Consent, approvedBefore)
 	}
 	if writes() == nil {
-		t.Fatal("the re-read widened the editor without an approval")
+		t.Fatal("the re-read widened the user without an approval")
 	}
 	if _, err := h.through("maya", "a", "store", owned(kind, h.principal(acme, "a"), []string{"read"})); err != nil {
-		t.Fatalf("the editor lost what was approved: %v", err)
+		t.Fatalf("the user lost what was approved: %v", err)
 	}
 	if up, err := svc.UpgradeAvailable(h.ctx, inst); err != nil || !up {
 		t.Fatalf("the re-read offers no upgrade: %t, %v", up, err)
 	}
 	approved, err := svc.ApprovedDeclaration(h.ctx, inst)
-	if err != nil || slices.ContainsFunc(approved.Roles["editor"], func(s *basev0.WorkScopeV1) bool {
+	if err != nil || slices.ContainsFunc(approved.Roles["user"], func(s *basev0.WorkScopeV1) bool {
 		return slices.Contains(s.GetActions(), "write") && s.GetResourceKind() == kind
 	}) {
-		t.Fatalf("the approved declaration is the re-read, not what was approved: %v, %v", approved.Roles["editor"], err)
+		t.Fatalf("the approved declaration is the re-read, not what was approved: %v, %v", approved.Roles["user"], err)
 	}
 	if !slices.Contains(kinds(*events), domain.InstallationUpgradeAvailable) || slices.Contains(kinds(*events), domain.RoleRevoked) {
 		t.Fatalf("the re-read is not offered as an upgrade, or revoked a grant: %v", kinds(*events))
@@ -120,7 +120,7 @@ func TestARereadFromAnotherDeliveryOrOfAGenerationNotHeldIsRefused(t *testing.T)
 	// From then on, the generation is held from that delivery: another one,
 	// read as another declaration, is a new generation on either path.
 	other := readWithThrough("sha256:another-delivery-at-1")
-	other.Roles["viewer"] = other.Roles["viewer"][:1]
+	other.Roles["reader"] = other.Roles["reader"][:1]
 	for name, apply := range map[string]func(domain.Module) error{
 		"re-read":  func(m domain.Module) error { _, err := h.svc.RereadModule(h.ctx, m); return err },
 		"delivery": func(m domain.Module) error { _, err := h.svc.ApplyModule(h.ctx, m); return err },
@@ -138,7 +138,7 @@ func TestARereadFromAnotherDeliveryOrOfAGenerationNotHeldIsRefused(t *testing.T)
 
 func TestARereadReadingTheSameRecordsItsSourceAndANarrowingAppliesAtOnce(t *testing.T) {
 	h := newHarness(t)
-	h.grant("a", "viewer", "maya")
+	h.grant("a", "reader", "maya")
 	same := solution("a", true)
 	same.Source = deliveryOfA
 	if reread, err := h.svc.RereadModule(h.ctx, same); err != nil || reread {
@@ -151,7 +151,7 @@ func TestARereadReadingTheSameRecordsItsSourceAndANarrowingAppliesAtOnce(t *test
 	revision := h.stored(acme, "a").Revision
 
 	narrower := solution("a", true)
-	narrower.Roles["viewer"] = narrower.Roles["viewer"][:2] // the legacy kind was never the viewer's
+	narrower.Roles["reader"] = narrower.Roles["reader"][:2] // the legacy kind was never the reader's
 	narrower.Source = deliveryOfA
 	if reread, err := h.svc.RereadModule(h.ctx, narrower); err != nil || !reread {
 		t.Fatalf("a narrowing re-read: reread %t, %v", reread, err)
@@ -167,10 +167,10 @@ func TestARereadReadingTheSameRecordsItsSourceAndANarrowingAppliesAtOnce(t *test
 		t.Fatal("what was issued under the wider reading still checks")
 	}
 	if _, err := h.root("maya", "a", sc(legacyKind, "read")); err == nil {
-		t.Fatal("the viewer still holds what the narrowing re-read dropped")
+		t.Fatal("the reader still holds what the narrowing re-read dropped")
 	}
 	if _, err := h.root("maya", "a"); err != nil {
-		t.Fatalf("the viewer's grant ended with the narrowing: %v", err)
+		t.Fatalf("the reader's grant ended with the narrowing: %v", err)
 	}
 	_ = errors.New
 	_ = authority.OfferDigest
@@ -187,21 +187,21 @@ func TestAModulePageReadAgainWiderHoldsItsHoldersAtItsReceipt(t *testing.T) {
 		t.Fatal(err)
 	}
 	inst := h.pagesAt(acme)
-	if _, err := svc.GrantRole(h.ctx, h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: "viewer", PersonID: "maya"}); err != nil {
+	if _, err := svc.GrantRole(h.ctx, h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: "reader", PersonID: "maya"}); err != nil {
 		t.Fatal(err)
 	}
 	wider := pageModule(1, true)
-	wider.Roles["viewer"] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}
+	wider.Roles["reader"] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}
 	wider.Source = "sha256:the-signed-documents-of-pages-at-1"
 	if reread, err := svc.RereadModule(h.ctx, wider); err != nil || !reread {
 		t.Fatalf("the page read again: reread %t, %v", reread, err)
 	}
 	write := authority.IssueRequest{Audience: "pages", Scopes: []*basev0.WorkScopeV1{sc("pages.note", "write")}}
 	if _, err := svc.IssueForPerson(h.ctx, h.person("maya"), write); err == nil {
-		t.Fatal("a viewer granted read holds write after the page was read again wider")
+		t.Fatal("a reader granted read holds write after the page was read again wider")
 	}
 	if _, err := svc.IssueForPerson(h.ctx, h.person("maya"), authority.IssueRequest{Audience: "pages", Scopes: []*basev0.WorkScopeV1{sc("pages.note", "read")}}); err != nil {
-		t.Fatalf("the viewer's grant no longer answers at its receipt: %v", err)
+		t.Fatalf("the reader's grant no longer answers at its receipt: %v", err)
 	}
 	if up, err := svc.UpgradeAvailable(h.ctx, h.pagesAt(acme)); err != nil || !up {
 		t.Fatalf("the page offers no upgrade: %t, %v", up, err)
@@ -260,7 +260,7 @@ func (s *unkeptApproved) Write(ctx context.Context, fn func(authority.Tx) error)
 // consent there.
 func TestARereadWidensNothingForAConsentWhoseApprovedReadingIsNotKeptYet(t *testing.T) {
 	h := newHarness(t)
-	h.grant("a", "editor", "maya")
+	h.grant("a", "user", "maya")
 	store := &unkeptApproved{Store: h.store, module: "a", kept: map[string]bool{}}
 	svc, err := authority.New(store, h.cfg)
 	if err != nil {
@@ -271,19 +271,19 @@ func TestARereadWidensNothingForAConsentWhoseApprovedReadingIsNotKeptYet(t *test
 		return err
 	}
 	if writes() == nil {
-		t.Fatal("the editor writes a.note before any re-read")
+		t.Fatal("the user writes a.note before any re-read")
 	}
 	wider := solution("a", true)
-	wider.Roles["editor"] = []*basev0.WorkScopeV1{sc("a.note", "read", "write"), sc(kind, "read")}
+	wider.Roles["user"] = []*basev0.WorkScopeV1{sc("a.note", "read", "write"), sc(kind, "read")}
 	wider.Source = deliveryOfA
 	if reread, err := svc.RereadModule(h.ctx, wider); err != nil || !reread {
 		t.Fatalf("the held generation read again wider: reread %t, %v", reread, err)
 	}
 	if writes() == nil {
-		t.Fatal("the re-read widened the editor without an approval: the reading its consent approved was not kept")
+		t.Fatal("the re-read widened the user without an approval: the reading its consent approved was not kept")
 	}
 	if _, err := svc.IssueForPerson(h.ctx, h.person("maya"), authority.IssueRequest{Audience: "a", Scopes: []*basev0.WorkScopeV1{owned("a.note", h.principal(acme, "a"), []string{"read"})}}); err != nil {
-		t.Fatalf("the editor lost what was approved: %v", err)
+		t.Fatalf("the user lost what was approved: %v", err)
 	}
 	if up, err := svc.UpgradeAvailable(h.ctx, h.stored(acme, "a")); err != nil || !up {
 		t.Fatalf("the re-read offers no upgrade: %t, %v", up, err)

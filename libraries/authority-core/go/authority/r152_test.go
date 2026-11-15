@@ -26,7 +26,7 @@ func TestWithdrawnModuleCannotBeUninstalledByAPerson(t *testing.T) {
 func TestRolelessMemberGetsForeignAnswerFromEveryRoleCall(t *testing.T) {
 	h := newHarness(t)
 	for _, id := range []string{h.inst(acme, "a").ID, authority.StableInstallationID(acme, "absent")} {
-		r := authority.RoleRequest{Organization: acme, InstallationID: id, Role: "viewer", PersonID: "maya"}
+		r := authority.RoleRequest{Organization: acme, InstallationID: id, Role: "reader", PersonID: "maya"}
 		_, grant := h.svc.GrantRole(h.ctx, h.person("remi"), r)
 		_, revoke := h.svc.RevokeRole(h.ctx, h.person("remi"), r)
 		_, list := h.svc.ListRoleGrants(h.ctx, h.person("remi"), acme, id)

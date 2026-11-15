@@ -374,16 +374,17 @@ type RoleChange struct {
 
 // ChangeRole decides a role change, in order: the organization the request
 // names must be the installation's, before the caller's authority is read;
-// then the caller must administer that organization or hold the installer
-// role on that installation. A revoke then needs only exactly one subject; a
-// grant needs the installation active, the role declared, exactly one subject
-// named, and that subject of the organization.
+// then the caller must administer that organization or hold the admin role
+// on that installation (domain.HoldsAdmin, which for one release also counts
+// the legacy "installer"). A revoke then needs only exactly one subject; a
+// grant needs the installation active, the role declared, exactly one
+// subject named, and that subject of the organization.
 func ChangeRole(r RoleChange) error {
 	inst := r.Installation
 	if r.RequestOrganization != inst.Organization {
 		return ForeignInstallation(r.RequestedID, r.RequestOrganization)
 	}
-	if r.Caller.Organization != inst.Organization || (!IsAdministrator(r.Caller) && !slices.Contains(r.CallerRoles, domain.InstallerRole)) {
+	if r.Caller.Organization != inst.Organization || (!IsAdministrator(r.Caller) && !domain.HoldsAdmin(r.CallerRoles)) {
 		return ForeignInstallation(r.RequestedID, r.RequestOrganization)
 	}
 	if r.Revoke {

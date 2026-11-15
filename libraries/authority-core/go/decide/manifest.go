@@ -16,7 +16,7 @@ import (
 // ValidateModule holds a delivered module to its contract: a principal, a
 // generation, bindings whose lookup and headless scopes stay within invoke;
 // a module without a page declares no roles; a solution, or a module page
-// that declares roles, declares installer, and every role stays within what
+// that declares roles, declares admin, and every role stays within what
 // it serves, consumes through its invoke/lookup bindings, or names through
 // one of them (domain.Module.Through); a shared kind is one it serves; and
 // a scope that governs its sources is one of its own, unshared kinds that a
@@ -174,9 +174,12 @@ func validateModule(m domain.Module) error {
 			return domain.Refuse("module %q declares roles and no page; a module's access is the organization's roles unless it declares a page", m.Name)
 		}
 	}
-	if _, ok := m.Roles[domain.InstallerRole]; !ok {
-		return &domain.Refusal{Code: domain.Denied, Cause: domain.ErrNoInstallerRole,
-			Reason: fmt.Sprintf("%s declares %d role(s) and none is %q: a solution, or a module page declaring roles, declares an installer role", m.Name, len(m.Roles), domain.InstallerRole)}
+	// STOPGAP (one release): DeclaredAdminRole also accepts the legacy
+	// "installer" (domain.LegacyInstallerRole), so a delivery not yet
+	// re-rendered is not refused while hosts cross the rename.
+	if _, ok := domain.DeclaredAdminRole(m.Roles); !ok {
+		return &domain.Refusal{Code: domain.Denied, Cause: domain.ErrNoAdminRole,
+			Reason: fmt.Sprintf("%s declares %d role(s) and none is %q: a solution, or a module page declaring roles, declares an admin role", m.Name, len(m.Roles), domain.AdminRole)}
 	}
 	// A role reaches through its target's bindings, a solution's and a
 	// module page's alike (a person's capability through either carries the
@@ -231,23 +234,15 @@ func validateModule(m domain.Module) error {
 	return nil
 }
 
-// ViewerRole and EditorRole are the two standard roles beside the installer
-// (domain.InstallerRole): what a module page or a solution offers one team
-// each of.
-const (
-	ViewerRole = "viewer"
-	EditorRole = "editor"
-)
-
-// StandardRoles derives the three standard roles of a module page that
-// declares none, from what it serves (its resource kinds, at their ceilings):
-// the viewer reads, the editor reads and writes, the installer holds every
-// action served. One rule, here, the same an explicit declaration follows
-// over its own kinds; a declaration wins, since it may name what it reaches
-// through its bindings and may split an administrative action out of the
-// editor, which a derivation never guesses at. A role a module serves nothing
-// for (no kind readable: no viewer) is not derived; a module serving nothing
-// derives none.
+// StandardRoles derives the two roles of a module page that declares none,
+// from what it serves (its resource kinds, at their ceilings): the user
+// (domain.UserRole) reads and writes, the admin (domain.AdminRole) holds
+// every action served, and administers the installation as the admin role
+// does. One rule, here, the same an explicit declaration follows over its
+// own kinds; a declaration wins, since it may name what it reaches through
+// its bindings and may split an administrative action out of the user, which
+// a derivation never guesses at. A kind serving neither read nor write gives
+// the user nothing of it; a module serving nothing derives none.
 func StandardRoles(m domain.Module) map[string]Scopes {
 	out := map[string]Scopes{}
 	for _, kind := range scope.Normalize(m.ResourceKinds) {
@@ -264,9 +259,8 @@ func StandardRoles(m domain.Module) map[string]Scopes {
 				out[role] = append(out[role], &basev0.WorkScopeV1{ResourceKind: kind.GetResourceKind(), Actions: held})
 			}
 		}
-		grant(ViewerRole, "read")
-		grant(EditorRole, "read", "write")
-		out[domain.InstallerRole] = append(out[domain.InstallerRole], &basev0.WorkScopeV1{ResourceKind: kind.GetResourceKind(), Actions: slices.Clone(served)})
+		grant(domain.UserRole, "read", "write")
+		out[domain.AdminRole] = append(out[domain.AdminRole], &basev0.WorkScopeV1{ResourceKind: kind.GetResourceKind(), Actions: slices.Clone(served)})
 	}
 	for role, scopes := range out {
 		out[role] = scope.Normalize(scopes)

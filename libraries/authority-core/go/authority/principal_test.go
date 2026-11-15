@@ -33,9 +33,9 @@ func TestNobodyHoldsARoleUntilGranted(t *testing.T) {
 	}
 }
 
-func TestAViewerReadsOnlyThePrincipalsData(t *testing.T) {
+func TestAReaderReadsOnlyThePrincipalsData(t *testing.T) {
 	h := newHarness(t)
-	h.grant("a", "viewer", "maya")
+	h.grant("a", "reader", "maya")
 	u, v := h.principal(acme, "a"), h.principal(acme, "b")
 	exactly(t, h.must(h.root("maya", "a")), "a.note", u, read)
 	exactly(t, h.must(h.through("maya", "a", "store")), kind, u, read)
@@ -81,8 +81,8 @@ func TestTheAgentIsThePrincipalConfinedToItsData(t *testing.T) {
 
 func TestASolutionCapabilityIsConfined(t *testing.T) {
 	h := newHarness(t)
-	h.grant("a", "viewer", "rob")
-	h.grant("a", "viewer", "ada")
+	h.grant("a", "reader", "rob")
+	h.grant("a", "reader", "ada")
 	exactly(t, h.must(h.through("rob", "a", "store")), kind, h.principal(acme, "a"), read)
 	_, err := h.through("rob", "a", "store", &basev0.WorkScopeV1{ResourceKind: kind, Actions: read, ResourceIds: []string{"store-x"}})
 	refused(t, err, "confined")
@@ -92,8 +92,8 @@ func TestASolutionCapabilityIsConfined(t *testing.T) {
 
 func TestOwnerSelectedScopesGoOnlyToOwnerAwareAudiences(t *testing.T) {
 	h := newHarness(t)
-	h.grant("a", "viewer", "maya")
-	h.grant("c", "viewer", "maya")
+	h.grant("a", "reader", "maya")
+	h.grant("c", "reader", "maya")
 	_, err := h.through("maya", "a", "legacy")
 	refused(t, err, "owner-aware")
 	_, err = h.agent("a", "legacy")
@@ -106,7 +106,7 @@ func TestOwnerSelectedScopesGoOnlyToOwnerAwareAudiences(t *testing.T) {
 
 func TestWithdrawingOwnerAwareRefusesEarlierCapabilitiesForGood(t *testing.T) {
 	h := newHarness(t)
-	h.grant("a", "viewer", "maya")
+	h.grant("a", "reader", "maya")
 	before := h.must(h.through("maya", "a", "store"))
 	store := func(gen uint64, aware bool) {
 		if _, err := h.svc.ApplyModule(h.ctx, domain.Module{Name: "store", Principal: "store", Kind: domain.KindModule, Generation: gen, OwnerAware: aware,
@@ -128,7 +128,7 @@ func TestWithdrawingOwnerAwareRefusesEarlierCapabilitiesForGood(t *testing.T) {
 func TestARoleWritesByItsScopesNotItsName(t *testing.T) {
 	h := newHarness(t)
 	h.grant("a", "author", "remi")
-	h.grant("a", "editor", "dev")
+	h.grant("a", "user", "dev")
 	u := h.principal(acme, "a")
 	exactly(t, h.must(h.through("remi", "a", "store", owned(kind, u, write))), kind, u, write)
 	_, err := h.through("dev", "a", "store", owned(kind, u, write))
@@ -141,7 +141,7 @@ func TestARoleWritesByItsScopesNotItsName(t *testing.T) {
 
 func TestAChildNeverWidens(t *testing.T) {
 	h := newHarness(t)
-	h.grant("a", "viewer", "maya")
+	h.grant("a", "reader", "maya")
 	h.grant("a", "author", "remi")
 	u, v := h.principal(acme, "a"), h.principal(acme, "b")
 	narrowed := h.must(h.through("maya", "a", "store", owned(kind, u, read)))
@@ -165,13 +165,13 @@ func TestAChildNeverWidens(t *testing.T) {
 
 func TestOtherInstallationsAndOrganizationsNeverReach(t *testing.T) {
 	h := newHarness(t)
-	h.grant("b", "viewer", "dev")
+	h.grant("b", "reader", "dev")
 	_, err := h.root("dev", "a")
 	refused(t, err, "holds no role")
 	exactly(t, h.must(h.through("dev", "b", "store")), kind, h.principal(acme, "b"), read)
 	_, err = h.through("dev", "b", "store", owned(kind, h.principal(acme, "a"), read))
 	refused(t, err, "widens")
-	if _, err := h.svc.GrantRole(h.ctx, h.person("zoe"), authority.RoleRequest{Organization: globex, InstallationID: h.inst(globex, "a").ID, Role: "viewer", PersonID: "omar"}); err != nil {
+	if _, err := h.svc.GrantRole(h.ctx, h.person("zoe"), authority.RoleRequest{Organization: globex, InstallationID: h.inst(globex, "a").ID, Role: "reader", PersonID: "omar"}); err != nil {
 		t.Fatal(err)
 	}
 	exactly(t, h.must(h.through("omar", "a", "store")), kind, h.principal(globex, "a"), read)
@@ -179,16 +179,16 @@ func TestOtherInstallationsAndOrganizationsNeverReach(t *testing.T) {
 
 func TestWhoMayGrantAndEveryMalformedGrant(t *testing.T) {
 	h := newHarness(t)
-	h.grant("a", "viewer", "maya")
-	h.grant("a", "installer", "ines")
-	h.grant("a", "viewer", "maya")
+	h.grant("a", "reader", "maya")
+	h.grant("a", "admin", "ines")
+	h.grant("a", "reader", "maya")
 	grants, err := h.svc.ListRoleGrants(h.ctx, h.person("alex"), acme, h.inst(acme, "a").ID)
 	if err != nil || slices.IndexFunc(grants, func(g domain.RoleGrant) bool { return g.PersonID == "maya" }) < 0 || len(grants) != 2 {
 		t.Fatalf("grants %v %v: a repeated grant is one row", grants, err)
 	}
 	ines := h.person("ines")
-	if _, err := h.svc.GrantRole(h.ctx, ines, authority.RoleRequest{Organization: acme, InstallationID: h.inst(acme, "a").ID, Role: "viewer", PersonID: "dev"}); err != nil {
-		t.Fatalf("the installer grants: %v", err)
+	if _, err := h.svc.GrantRole(h.ctx, ines, authority.RoleRequest{Organization: acme, InstallationID: h.inst(acme, "a").ID, Role: "reader", PersonID: "dev"}); err != nil {
+		t.Fatalf("the admin grants: %v", err)
 	}
 	instA, instB, elsewhere := h.inst(acme, "a").ID, h.inst(acme, "b").ID, h.inst(globex, "a").ID
 	for name, c := range map[string]struct {
@@ -197,16 +197,16 @@ func TestWhoMayGrantAndEveryMalformedGrant(t *testing.T) {
 		code   domain.Code
 		reason string
 	}{
-		"a viewer granting itself":             {h.person("maya"), authority.RoleRequest{Organization: acme, InstallationID: instA, Role: domain.InstallerRole, PersonID: "maya"}, domain.Denied, "belongs to another organization"},
-		"another organization's administrator": {h.person("zoe"), authority.RoleRequest{Organization: acme, InstallationID: instA, Role: "viewer", PersonID: "dev"}, domain.Denied, "belongs to another organization"},
-		"A's installer on B":                   {ines, authority.RoleRequest{Organization: acme, InstallationID: instB, Role: "author", PersonID: "ines"}, domain.Denied, "belongs to another organization"},
-		"another organization named":           {h.person("alex"), authority.RoleRequest{Organization: globex, InstallationID: instA, Role: "viewer", PersonID: "dev"}, domain.Denied, "organization"},
-		"another organization's installation":  {h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: elsewhere, Role: "viewer", PersonID: "dev"}, domain.Denied, "organization"},
+		"a reader granting itself":             {h.person("maya"), authority.RoleRequest{Organization: acme, InstallationID: instA, Role: domain.AdminRole, PersonID: "maya"}, domain.Denied, "belongs to another organization"},
+		"another organization's administrator": {h.person("zoe"), authority.RoleRequest{Organization: acme, InstallationID: instA, Role: "reader", PersonID: "dev"}, domain.Denied, "belongs to another organization"},
+		"A's admin on B":                       {ines, authority.RoleRequest{Organization: acme, InstallationID: instB, Role: "author", PersonID: "ines"}, domain.Denied, "belongs to another organization"},
+		"another organization named":           {h.person("alex"), authority.RoleRequest{Organization: globex, InstallationID: instA, Role: "reader", PersonID: "dev"}, domain.Denied, "organization"},
+		"another organization's installation":  {h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: elsewhere, Role: "reader", PersonID: "dev"}, domain.Denied, "organization"},
 		"an undeclared role":                   {h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: instA, Role: "owner", PersonID: "dev"}, domain.NotFound, "declares no role"},
-		"both subjects":                        {h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: instA, Role: "viewer", PersonID: "dev", TeamID: "team"}, domain.Invalid, "exactly one"},
-		"no subject":                           {h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: instA, Role: "viewer"}, domain.Invalid, "exactly one"},
-		"a person of another organization":     {h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: instA, Role: "viewer", PersonID: "omar"}, domain.Denied, "not a member"},
-		"a team of another organization":       {h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: instA, Role: "viewer", TeamID: "ops"}, domain.Denied, "not a team of"},
+		"both subjects":                        {h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: instA, Role: "reader", PersonID: "dev", TeamID: "team"}, domain.Invalid, "exactly one"},
+		"no subject":                           {h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: instA, Role: "reader"}, domain.Invalid, "exactly one"},
+		"a person of another organization":     {h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: instA, Role: "reader", PersonID: "omar"}, domain.Denied, "not a member"},
+		"a team of another organization":       {h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: instA, Role: "reader", TeamID: "ops"}, domain.Denied, "not a team of"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := h.svc.GrantRole(h.ctx, c.caller, c.req)

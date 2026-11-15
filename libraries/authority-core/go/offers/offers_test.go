@@ -13,7 +13,7 @@ import (
 func TestProjectionPreservesMemberReadAndAttachedResources(t *testing.T) {
 	scope := &basev0.WorkScopeV1{ResourceKind: "records.item", Actions: []string{"read"}}
 	offer := authority.ReviewedOffer{
-		Module:       domain.Module{Name: "solution", Roles: map[string][]*basev0.WorkScopeV1{"viewer": nil}, OwnedRoles: map[string][]*basev0.WorkScopeV1{"viewer": {scope}}},
+		Module:       domain.Module{Name: "solution", Roles: map[string][]*basev0.WorkScopeV1{"user": nil}, OwnedRoles: map[string][]*basev0.WorkScopeV1{"user": {scope}}},
 		Installation: domain.Installation{ID: "installation", Owned: map[string][]string{"records.item": {"record-a"}}},
 		Modules: []domain.Module{{Name: "records", Methods: map[string]domain.MethodPolicy{
 			"/records.Items/Read":  {Requires: []*basev0.WorkScopeV1{scope}},
@@ -28,7 +28,7 @@ func TestProjectionPreservesMemberReadAndAttachedResources(t *testing.T) {
 		t.Fatalf("member projection: %+v", got)
 	}
 	role := got.Roles[0]
-	if role.Name != "viewer" || len(role.Scopes) != 1 || !role.Scopes[0].AttachedOnly || len(role.Scopes[0].ResourceIDs) != 1 || role.Scopes[0].ResourceIDs[0] != "record-a" {
+	if role.Name != "user" || len(role.Scopes) != 1 || !role.Scopes[0].AttachedOnly || len(role.Scopes[0].ResourceIDs) != 1 || role.Scopes[0].ResourceIDs[0] != "record-a" {
 		t.Fatalf("attached scope: %+v", role)
 	}
 	if len(role.Capabilities) != 1 || role.Capabilities[0].Operation != "/records.Items/Read" {
@@ -42,7 +42,7 @@ func TestProjectionPreservesMemberReadAndAttachedResources(t *testing.T) {
 
 func TestInvalidExposedToolFailsProjection(t *testing.T) {
 	sc := &basev0.WorkScopeV1{ResourceKind: "records.item", Actions: []string{"read"}}
-	offer := authority.ReviewedOffer{Module: domain.Module{Name: "solution", Roles: map[string][]*basev0.WorkScopeV1{"viewer": {sc}}}, Modules: []domain.Module{{Name: "records", Methods: map[string]domain.MethodPolicy{"/records.Items/Read": {Requires: []*basev0.WorkScopeV1{sc}}}}}}
+	offer := authority.ReviewedOffer{Module: domain.Module{Name: "solution", Roles: map[string][]*basev0.WorkScopeV1{"user": {sc}}}, Modules: []domain.Module{{Name: "records", Methods: map[string]domain.MethodPolicy{"/records.Items/Read": {Requires: []*basev0.WorkScopeV1{sc}}}}}}
 	// It names an exposed operation but lacks the prepared contract and digest;
 	// a host must show the refusal, never silently omit the broken tool.
 	bindings := map[string]*runnablev0.PreparedBinding{"BROKEN": {

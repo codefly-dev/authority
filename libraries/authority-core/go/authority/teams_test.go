@@ -11,10 +11,10 @@ import (
 
 // THE FIXTURE (owner, 2026-11-12): every role-gated target gets one team per
 // role it declares, `<target>-<role>`, and the same people seated in them
-// everywhere. Solution "a" declares installer, author, editor and viewer.
+// everywhere. Solution "a" declares admin, author, user and reader.
 func TestEveryDeclaredRoleGoesToItsConventionalTeam(t *testing.T) {
 	h := newHarness(t)
-	want := map[string]string{"installer": "a-installer", "author": "a-author", "editor": "a-editor", "viewer": "a-viewer"}
+	want := map[string]string{"admin": "a-admin", "author": "a-author", "user": "a-user", "reader": "a-reader"}
 	teams, err := h.svc.RoleTeamsOf(h.ctx, h.inst(acme, "a").ID)
 	if err != nil || !reflect.DeepEqual(teams, want) {
 		t.Fatalf("teams = %v, %v; want %v", teams, err, want)
@@ -59,15 +59,15 @@ func TestEveryDeclaredRoleGoesToItsConventionalTeam(t *testing.T) {
 // what "act as this team" promises, and what "back" restores.
 func TestACastHoldsTheTeamsReachAndTheOwnSessionKeepsItsOwn(t *testing.T) {
 	h := newHarness(t)
-	for _, team := range []string{"a-installer", "a-author", "a-editor", "a-viewer"} {
+	for _, team := range []string{"a-admin", "a-author", "a-user", "a-reader"} {
 		h.store.PutTeam(acme, team)
 	}
 	if _, err := h.svc.GrantRoleTeamsAsHost(h.ctx, h.inst(acme, "a").ID); err != nil {
 		t.Fatal(err)
 	}
-	// bob is a member seated in a-viewer alone; carol in a-editor alone.
-	h.store.PutPerson(domain.Person{ID: "bob", Organization: acme, Teams: []string{"a-viewer"}})
-	h.store.PutPerson(domain.Person{ID: "carol", Organization: acme, Teams: []string{"a-editor"}})
+	// bob is a member seated in a-reader alone; carol in a-user alone.
+	h.store.PutPerson(domain.Person{ID: "bob", Organization: acme, Teams: []string{"a-reader"}})
+	h.store.PutPerson(domain.Person{ID: "carol", Organization: acme, Teams: []string{"a-user"}})
 
 	// alex administers acme and is granted author on a directly: his own
 	// session writes a's notes (an organization role alone reaches no
@@ -77,30 +77,30 @@ func TestACastHoldsTheTeamsReachAndTheOwnSessionKeepsItsOwn(t *testing.T) {
 	if !holds(own, "a.note", "write") {
 		t.Fatal("the administrator's own session does not write: the fixture does not test what it claims")
 	}
-	// Cast onto a-viewer, he reads and does not write: the cast holds the
+	// Cast onto a-reader, he reads and does not write: the cast holds the
 	// team's role and not his own direct grant.
-	cast, err := h.casting("alex", "a-viewer")
+	cast, err := h.casting("alex", "a-reader")
 	if err != nil {
 		t.Fatalf("an administrator casts onto any team of their organization: %v", err)
 	}
 	viewing := h.must(h.rootAs(cast, "a"))
 	if !holds(viewing, "a.note", "read") || holds(viewing, "a.note", "write") {
-		t.Fatalf("the cast holds %v, want a viewer's read alone", effective(viewing))
+		t.Fatalf("the cast holds %v, want a reader's read alone", effective(viewing))
 	}
 	// Un-cast: the session she came from is untouched and still writes.
 	if again := h.must(h.root("alex", "a")); !holds(again, "a.note", "write") {
 		t.Fatal("the own session lost its reach while a cast was open")
 	}
-	// Bob holds a-viewer's reach on his own session, may cast onto his own
-	// team, and is refused the editor team by name: he could not grant it.
+	// Bob holds a-reader's reach on his own session, may cast onto his own
+	// team, and is refused the user team by name: he could not grant it.
 	if bob := h.must(h.root("bob", "a")); !holds(bob, "a.note", "read") || holds(bob, "a.note", "write") {
-		t.Fatalf("bob holds %v, want a viewer's read alone", effective(bob))
+		t.Fatalf("bob holds %v, want a reader's read alone", effective(bob))
 	}
-	if _, err := h.casting("bob", "a-viewer"); err != nil {
+	if _, err := h.casting("bob", "a-reader"); err != nil {
 		t.Fatalf("a member casts onto their own team: %v", err)
 	}
-	if _, err := h.casting("bob", "a-editor"); err == nil || !strings.Contains(err.Error(), "could not grant") {
-		t.Fatalf("bob onto a-editor: want a refusal naming what he could not grant, got %v", err)
+	if _, err := h.casting("bob", "a-user"); err == nil || !strings.Contains(err.Error(), "could not grant") {
+		t.Fatalf("bob onto a-user: want a refusal naming what he could not grant, got %v", err)
 	}
 }
 

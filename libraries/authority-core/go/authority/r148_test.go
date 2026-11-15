@@ -115,7 +115,7 @@ func (o outage) Read(ctx context.Context, fn func(authority.Tx) error) error {
 // refusal.
 func TestAnIssueReportsAStoreOutage(t *testing.T) {
 	h := newHarness(t)
-	h.grant("a", "viewer", "maya")
+	h.grant("a", "reader", "maya")
 	svc, err := authority.New(outage{h.store}, h.cfg)
 	if err != nil {
 		t.Fatal(err)

@@ -64,10 +64,10 @@ func solution(name string, ownerAware bool) domain.Module {
 			"legacy": {ID: "legacy", Audience: "legacy-store", InvokeScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}},
 		},
 		Roles: map[string][]*basev0.WorkScopeV1{
-			domain.InstallerRole: {sc(own, "read", "write"), sc(kind, "admin", "create", "read", "write")},
-			"author":             {sc(own, "read", "write"), sc(kind, "create", "read", "write")},
-			"editor":             {sc(own, "read"), sc(kind, "read")},
-			"viewer":             {sc(own, "read"), sc(kind, "read"), sc(legacyKind, "read")},
+			domain.AdminRole: {sc(own, "read", "write"), sc(kind, "admin", "create", "read", "write")},
+			"author":         {sc(own, "read", "write"), sc(kind, "create", "read", "write")},
+			"user":           {sc(own, "read"), sc(kind, "read")},
+			"reader":         {sc(own, "read"), sc(kind, "read"), sc(legacyKind, "read")},
 		}}
 }
 

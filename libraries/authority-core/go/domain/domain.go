@@ -12,11 +12,10 @@ import (
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
-// Module kinds and the one reserved role.
+// Module kinds.
 const (
-	KindModule    = "module"
-	KindSolution  = "solution"
-	InstallerRole = "installer"
+	KindModule   = "module"
+	KindSolution = "solution"
 )
 
 // Organization is a tenant.
@@ -280,9 +279,9 @@ func (r *Refusal) Error() string { return r.Reason }
 // Unwrap is the refusal's sentinel, if any.
 func (r *Refusal) Unwrap() error { return r.Cause }
 
-// ErrNoInstallerRole names a solution, or a module page declaring roles, that
-// declares no installer role.
-var ErrNoInstallerRole = errors.New("a solution declares an installer role")
+// ErrNoAdminRole names a solution, or a module page declaring roles, that
+// declares no admin role.
+var ErrNoAdminRole = errors.New("a solution declares an admin role")
 
 // ErrAlreadyInstalled names an install of a target its organization holds
 // active already.
@@ -374,7 +373,7 @@ type ConsentReceipt struct {
 // declaring roles, installed by composition or by its host) is held at the
 // reach its target had when the receipt was taken, and offers an upgrade,
 // as a consented solution does, until an administrator or a holder of the
-// page's installer role approves the delivered offer through Install. It
+// page's admin role approves the delivered offer through Install. It
 // is no administrator's review: it approves no source governance, and it is
 // never an operation a caller supplies.
 const ComposedConsent = "composition"

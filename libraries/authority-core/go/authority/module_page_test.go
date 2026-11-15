@@ -19,8 +19,8 @@ func pageModule(generation uint64, roles bool) domain.Module {
 		InstallationRole: domain.NoInstallationRole, ResourceKinds: []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}}
 	if roles {
 		m.Roles = map[string][]*basev0.WorkScopeV1{
-			domain.InstallerRole: {sc("pages.note", "read", "write")},
-			"viewer":             {sc("pages.note", "read")},
+			domain.AdminRole: {sc("pages.note", "read", "write")},
+			"reader":         {sc("pages.note", "read")},
 		}
 	}
 	return m
@@ -95,7 +95,7 @@ func TestAModuleIsInstalledByCompositionInEveryOrganisation(t *testing.T) {
 // either answer NotFound naming composition; a person cannot uninstall its
 // installation. A module declaring no role is never reviewed either. A
 // page's active installation is reviewed, for the upgrade it offers: the
-// tuple an administrator or its installer approves through Install, which
+// tuple an administrator or its admin approves through Install, which
 // is a replay of what stands when nothing widened.
 func TestAModuleIsNeverOfferedOrInstalledByAnAdministrator(t *testing.T) {
 	h := newHarness(t)
@@ -153,35 +153,35 @@ func TestAModuleThatGainsOrLosesRolesKeepsItsInstallation(t *testing.T) {
 			t.Fatalf("%s moved the installation: %+v, was %+v", when, now, inst)
 		}
 	}
-	reader := h.must(h.root("ines", "pages"))
+	orgReader := h.must(h.root("ines", "pages"))
 
 	// Gaining roles: the installation stays; organization roles stop deciding.
 	if _, err := h.svc.ApplyModule(h.ctx, pageModule(2, true)); err != nil {
 		t.Fatal(err)
 	}
 	kept("gaining roles")
-	if err := h.check(reader); err == nil {
+	if err := h.check(orgReader); err == nil {
 		t.Fatal("an organization role's capability outlived the module declaring its own roles")
 	}
-	h.grant("pages", "viewer", "maya")
-	viewer := h.must(h.root("maya", "pages"))
+	h.grant("pages", "reader", "maya")
+	reader := h.must(h.root("maya", "pages"))
 
 	// A role added: the grants and what they issued survive.
 	added := pageModule(3, true)
-	added.Roles["editor"] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}
+	added.Roles["user"] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}
 	if _, err := h.svc.ApplyModule(h.ctx, added); err != nil {
 		t.Fatal(err)
 	}
 	kept("a role added")
-	if err := h.check(viewer); err != nil {
-		t.Fatalf("a role added ended the viewer's capability: %v", err)
+	if err := h.check(reader); err != nil {
+		t.Fatalf("a role added ended the reader's capability: %v", err)
 	}
-	_, err := h.svc.GrantRole(h.ctx, h.admin(acme), authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: "editor", PersonID: "remi"})
-	refused(t, err, `pages declares no role "editor"`)
+	_, err := h.svc.GrantRole(h.ctx, h.admin(acme), authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: "user", PersonID: "remi"})
+	refused(t, err, `pages declares no role "user"`)
 	if _, err := h.approvePage(h.svc, "alex"); err != nil {
 		t.Fatal(err)
 	}
-	h.grant("pages", "editor", "remi")
+	h.grant("pages", "user", "remi")
 	exactly(t, h.must(h.root("remi", "pages")), "pages.note", "", []string{"read", "write"})
 
 	// A role dropped: its grants end; a role still declared keeps its own.
@@ -189,8 +189,8 @@ func TestAModuleThatGainsOrLosesRolesKeepsItsInstallation(t *testing.T) {
 		t.Fatal(err)
 	}
 	kept("a role dropped")
-	if grants := h.roleGrants("pages"); len(grants) != 1 || grants[0].Role != "viewer" || grants[0].PersonID != "maya" {
-		t.Fatalf("after editor was dropped the grants are %v, want maya's viewer alone", grants)
+	if grants := h.roleGrants("pages"); len(grants) != 1 || grants[0].Role != "reader" || grants[0].PersonID != "maya" {
+		t.Fatalf("after user was dropped the grants are %v, want maya's reader alone", grants)
 	}
 	_, err = h.root("remi", "pages")
 	refused(t, err, "remi holds no role on pages")
@@ -202,7 +202,7 @@ func TestAModuleThatGainsOrLosesRolesKeepsItsInstallation(t *testing.T) {
 		t.Fatal(err)
 	}
 	kept("losing its roles")
-	if err := h.check(viewer); err == nil {
+	if err := h.check(reader); err == nil {
 		t.Fatal("a role's capability outlived the module withdrawing its roles")
 	}
 	if grants := h.roleGrants("pages"); len(grants) != 0 {
@@ -211,8 +211,8 @@ func TestAModuleThatGainsOrLosesRolesKeepsItsInstallation(t *testing.T) {
 	exactly(t, h.must(h.root("ines", "pages")), "pages.note", "", []string{"read"})
 	_, err = h.root("maya", "pages")
 	refused(t, err, "holds nothing")
-	_, err = h.svc.GrantRole(h.ctx, h.admin(acme), authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: "viewer", PersonID: "maya"})
-	refused(t, err, `pages declares no role "viewer"`)
+	_, err = h.svc.GrantRole(h.ctx, h.admin(acme), authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: "reader", PersonID: "maya"})
+	refused(t, err, `pages declares no role "reader"`)
 
 	// Gaining roles again: nobody holds one until the upgrade is approved
 	// and the role granted.
@@ -222,12 +222,12 @@ func TestAModuleThatGainsOrLosesRolesKeepsItsInstallation(t *testing.T) {
 	kept("gaining roles again")
 	_, err = h.root("maya", "pages")
 	refused(t, err, "maya holds no role on pages")
-	_, err = h.svc.GrantRole(h.ctx, h.admin(acme), authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: "viewer", PersonID: "maya"})
-	refused(t, err, `pages declares no role "viewer"`)
+	_, err = h.svc.GrantRole(h.ctx, h.admin(acme), authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: "reader", PersonID: "maya"})
+	refused(t, err, `pages declares no role "reader"`)
 	if _, err := h.approvePage(h.svc, "alex"); err != nil {
 		t.Fatal(err)
 	}
-	h.grant("pages", "viewer", "maya")
+	h.grant("pages", "reader", "maya")
 	exactly(t, h.must(h.root("maya", "pages")), "pages.note", "", []string{"read"})
 }
 
@@ -253,45 +253,45 @@ func TestAModulePagesRolesDecideWhoIsListedAndWhoMayUseIt(t *testing.T) {
 	}
 	heldIs(t, "tam", h.heldBy(h.person("tam"), acme))
 
-	h.grantTeam("pages", "viewer", "team")
-	heldIs(t, "tam", h.heldBy(h.person("tam"), acme), "pages:[viewer]")
+	h.grantTeam("pages", "reader", "team")
+	heldIs(t, "tam", h.heldBy(h.person("tam"), acme), "pages:[reader]")
 	exactly(t, h.must(h.root("tam", "pages")), "pages.note", "", []string{"read"})
-	h.revoke("pages", "viewer", "", "team")
+	h.revoke("pages", "reader", "", "team")
 	heldIs(t, "tam", h.heldBy(h.person("tam"), acme))
 
-	h.grant("pages", "viewer", "maya")
-	viewer := h.must(h.root("maya", "pages"))
-	exactly(t, viewer, "pages.note", "", []string{"read"})
-	if err := h.check(viewer); err != nil {
+	h.grant("pages", "reader", "maya")
+	reader := h.must(h.root("maya", "pages"))
+	exactly(t, reader, "pages.note", "", []string{"read"})
+	if err := h.check(reader); err != nil {
 		t.Fatal(err)
 	}
-	listed, err := h.svc.ListResources(h.ctx, viewer.Token, "pages", "pages.note", "read")
+	listed, err := h.svc.ListResources(h.ctx, reader.Token, "pages", "pages.note", "read")
 	if err != nil || len(listed) != 1 || !listed[0].All || listed[0].Owner != "" {
-		t.Fatalf("the viewer lists %v, %v", listed, err)
+		t.Fatalf("the reader lists %v, %v", listed, err)
 	}
 	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "one-note", Scopes: []domain.RoleScope{{Kind: "pages.note", Actions: []string{"read"}, Resources: []resources.Grant{{ID: "x"}}}}})
 	h.store.PutPerson(domain.Person{ID: "maya", Organization: acme, Roles: []string{"one-note"}})
-	if listed, err = h.svc.ListResources(h.ctx, viewer.Token, "pages", "pages.note", "read"); err != nil || len(listed) != 1 || !listed[0].All {
-		t.Fatalf("an organization role narrowed the viewer's listing: %v, %v", listed, err)
+	if listed, err = h.svc.ListResources(h.ctx, reader.Token, "pages", "pages.note", "read"); err != nil || len(listed) != 1 || !listed[0].All {
+		t.Fatalf("an organization role narrowed the reader's listing: %v, %v", listed, err)
 	}
 	h.store.PutPerson(domain.Person{ID: "maya", Organization: acme})
 	_, err = h.root("maya", "pages", sc("pages.note", "write"))
 	refused(t, err, "beyond")
-	heldIs(t, "maya", h.heldBy(h.person("maya"), acme), "pages:[viewer]")
+	heldIs(t, "maya", h.heldBy(h.person("maya"), acme), "pages:[reader]")
 	for _, other := range []string{"remi", "ines"} {
 		_, err := h.root(other, "pages")
 		refused(t, err, other+" holds no role on pages")
 	}
 	_, err = h.root("omar", "pages")
 	refused(t, err, "omar holds no role on pages")
-	_, err = h.svc.GrantRole(h.ctx, h.admin(acme), authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: "editor", PersonID: "remi"})
-	refused(t, err, `pages declares no role "editor"`)
+	_, err = h.svc.GrantRole(h.ctx, h.admin(acme), authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: "user", PersonID: "remi"})
+	refused(t, err, `pages declares no role "user"`)
 
-	h.revoke("pages", "viewer", "maya", "")
+	h.revoke("pages", "reader", "maya", "")
 	_, err = h.root("maya", "pages")
 	refused(t, err, "maya holds no role on pages")
-	if _, err := h.svc.ListResources(h.ctx, viewer.Token, "pages", "pages.note", "read"); err == nil {
-		t.Fatal("a revoked viewer still lists the page's notes")
+	if _, err := h.svc.ListResources(h.ctx, reader.Token, "pages", "pages.note", "read"); err == nil {
+		t.Fatal("a revoked reader still lists the page's notes")
 	}
 }
 
@@ -313,9 +313,9 @@ func TestNobodyHoldsARoleWithoutAGrant(t *testing.T) {
 	_, err := h.root("zoe", "a")
 	refused(t, err, "zoe holds no role on a")
 	heldIs(t, "alex", h.heldBy(h.admin(acme), acme))
-	h.grant("pages", "viewer", "alex")
+	h.grant("pages", "reader", "alex")
 	exactly(t, h.must(h.root("alex", "pages")), "pages.note", "", []string{"read"})
-	heldIs(t, "alex", h.heldBy(h.admin(acme), acme), "pages:[viewer]")
+	heldIs(t, "alex", h.heldBy(h.admin(acme), acme), "pages:[reader]")
 }
 
 // A module page holds no standing machine authority, whatever its delivery
@@ -325,7 +325,7 @@ func TestNobodyHoldsARoleWithoutAGrant(t *testing.T) {
 func TestAModulePageHoldsNoStandingAuthority(t *testing.T) {
 	h := newHarness(t)
 	selecting := pageModule(1, true)
-	selecting.InstallationRole = "viewer"
+	selecting.InstallationRole = "reader"
 	if _, err := h.svc.ApplyModule(h.ctx, selecting); err != nil {
 		t.Fatal(err)
 	}
@@ -386,7 +386,7 @@ func TestACompositionInstallationGovernsNoSourceAfterItsTargetBecomesASolution(t
 		t.Fatalf("a composition installation governs by %v, which no administrator approved", m.SourceGovernance)
 	}
 	// An administrator's review of the promoted installation approves it.
-	if _, err := h.svc.Install(h.ctx, h.admin(acme), acme, "pages", "viewer", "remi", h.approval(acme, "pages"), nil); err != nil {
+	if _, err := h.svc.Install(h.ctx, h.admin(acme), acme, "pages", "reader", "remi", h.approval(acme, "pages"), nil); err != nil {
 		t.Fatal(err)
 	}
 	reviewed := h.pagesAt(acme)

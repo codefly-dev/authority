@@ -89,15 +89,15 @@ func TestADocumentCompletesTheModule(t *testing.T) {
 	doc := &delivered.Document{Module: "pages", Generation: 2, OwnerAware: true,
 		ScopeCeilings: []*basev0.WorkScopeV1{ws("pages.page", "read", "write")},
 		Methods:       []delivered.Method{{Method: "GET /p/{id}", Requires: []*basev0.WorkScopeV1{ws("pages.page", "read")}}, {Method: "/x/Ping", AnyCheckedCaller: true}},
-		Roles: []delivered.Role{{Name: "installer", Scopes: []*basev0.WorkScopeV1{ws("pages.page", "write", "read")}},
-			{Name: "viewer", Scopes: []*basev0.WorkScopeV1{ws("pages.page", "read")}, InstallationOwned: []*basev0.WorkScopeV1{ws("store.item", "read")}}},
+		Roles: []delivered.Role{{Name: "admin", Scopes: []*basev0.WorkScopeV1{ws("pages.page", "write", "read")}},
+			{Name: "reader", Scopes: []*basev0.WorkScopeV1{ws("pages.page", "read")}, InstallationOwned: []*basev0.WorkScopeV1{ws("store.item", "read")}}},
 	}
 	m, err := delivered.Module(solutionManifest(), doc)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !m.OwnerAware || len(m.Methods) != 2 || !m.Methods["/x/Ping"].AnyCheckedCaller || len(m.Roles) != 2 ||
-		!slices.Equal(m.Roles["installer"][0].GetActions(), []string{"read", "write"}) || len(m.OwnedRoles["viewer"]) != 1 || len(m.OwnedRoles["installer"]) != 0 {
+		!slices.Equal(m.Roles["admin"][0].GetActions(), []string{"read", "write"}) || len(m.OwnedRoles["reader"]) != 1 || len(m.OwnedRoles["admin"]) != 0 {
 		t.Fatalf("module %+v", m)
 	}
 	if !scope.Same(m.ResourceKinds, scope.Normalize([]*basev0.WorkScopeV1{ws("pages.page", "read", "write")})) {
@@ -123,7 +123,7 @@ func TestADocumentIsRefusedByName(t *testing.T) {
 		{"an unnamed method", solutionManifest(), delivered.Document{Methods: []delivered.Method{{}}}, domain.Invalid, "twice or unnamed"},
 		{"a role twice", solutionManifest(), delivered.Document{Roles: []delivered.Role{{Name: "r"}, {Name: "r"}}}, domain.Invalid, "twice or unnamed"},
 		{"a ceiling naming an owner", solutionManifest(), delivered.Document{ScopeCeilings: []*basev0.WorkScopeV1{{ResourceKind: "pages.page", Actions: []string{"read"}, ResourceOwnerId: "u"}}}, domain.Denied, "never selects an owner"},
-		{"a withdrawal declaring roles", removed, delivered.Document{Roles: []delivered.Role{{Name: "installer"}}}, domain.Invalid, "withdrawal"},
+		{"a withdrawal declaring roles", removed, delivered.Document{Roles: []delivered.Role{{Name: "admin"}}}, domain.Invalid, "withdrawal"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := delivered.Module(tc.manifest, &tc.doc)
@@ -180,8 +180,8 @@ func TestADocumentIsPairedWithItsCarrier(t *testing.T) {
 func TestARoleNamesWhatItReachesThroughABinding(t *testing.T) {
 	doc := &delivered.Document{Module: "pages", Generation: 2, OwnerAware: true,
 		ScopeCeilings: []*basev0.WorkScopeV1{ws("pages.page", "read")},
-		Roles: []delivered.Role{{Name: "installer", Scopes: []*basev0.WorkScopeV1{ws("pages.page", "read")}},
-			{Name: "viewer", Scopes: []*basev0.WorkScopeV1{ws("pages.page", "read")},
+		Roles: []delivered.Role{{Name: "admin", Scopes: []*basev0.WorkScopeV1{ws("pages.page", "read")}},
+			{Name: "reader", Scopes: []*basev0.WorkScopeV1{ws("pages.page", "read")},
 				Through: map[string]delivered.Scopes{"agent": {ws("model.profiles", "invoke"), ws("docs.doc", "read")}}}},
 	}
 	m, err := delivered.Module(solutionManifest(), doc)
@@ -189,7 +189,7 @@ func TestARoleNamesWhatItReachesThroughABinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := scope.Normalize([]*basev0.WorkScopeV1{ws("pages.page", "read"), ws("model.profiles", "invoke"), ws("docs.doc", "read")})
-	if !scope.Same(m.Roles["viewer"], want) || len(m.Through) != 1 || len(m.Through["viewer"]["agent"]) != 2 {
+	if !scope.Same(m.Roles["reader"], want) || len(m.Through) != 1 || len(m.Through["reader"]["agent"]) != 2 {
 		t.Fatalf("roles %v through %v", m.Roles, m.Through)
 	}
 	doc.Roles[1].Through = map[string]delivered.Scopes{"agent": nil}
@@ -211,9 +211,9 @@ func TestAPageTheHostBundlesIsAPage(t *testing.T) {
 	}
 	doc := &delivered.Document{Module: "models", Generation: 1, InstallationRole: "none",
 		ScopeCeilings: []*basev0.WorkScopeV1{ws("models.profiles", "invoke", "read")},
-		Roles: []delivered.Role{{Name: "installer", Scopes: []*basev0.WorkScopeV1{ws("models.profiles", "invoke", "read")}},
-			{Name: "editor", Scopes: []*basev0.WorkScopeV1{ws("models.profiles", "invoke", "read")}},
-			{Name: "viewer", Scopes: []*basev0.WorkScopeV1{ws("models.profiles", "read")}}}}
+		Roles: []delivered.Role{{Name: "admin", Scopes: []*basev0.WorkScopeV1{ws("models.profiles", "invoke", "read")}},
+			{Name: "user", Scopes: []*basev0.WorkScopeV1{ws("models.profiles", "invoke", "read")}},
+			{Name: "reader", Scopes: []*basev0.WorkScopeV1{ws("models.profiles", "read")}}}}
 	m, err := delivered.Module(bundled, doc)
 	if err != nil {
 		t.Fatal(err)
@@ -230,7 +230,7 @@ func TestAPageTheHostBundlesIsAPage(t *testing.T) {
 	code(t, decide.ValidateModule(m), domain.Denied)
 }
 
-// A module page delivered with no roles composes with the standard three
+// A module page delivered with no roles composes with the standard two
 // derived from what it serves (decide.StandardRoles); a declaration wins; a
 // solution and a module without a page derive none.
 func TestAModulePageWithoutRolesGetsTheStandardOnes(t *testing.T) {
@@ -242,16 +242,16 @@ func TestAModulePageWithoutRolesGetsTheStandardOnes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !scope.Same(m.Roles[decide.ViewerRole], []*basev0.WorkScopeV1{ws("notes.entry", "read")}) ||
-		!scope.Same(m.Roles[decide.EditorRole], []*basev0.WorkScopeV1{ws("notes.entry", "read", "write")}) ||
-		!scope.Same(m.Roles[domain.InstallerRole], []*basev0.WorkScopeV1{ws("notes.entry", "read", "write")}) {
+	if len(m.Roles) != 2 ||
+		!scope.Same(m.Roles[domain.UserRole], []*basev0.WorkScopeV1{ws("notes.entry", "read", "write")}) ||
+		!scope.Same(m.Roles[domain.AdminRole], []*basev0.WorkScopeV1{ws("notes.entry", "read", "write")}) {
 		t.Fatalf("derived %v", m.Roles)
 	}
 	if err := decide.ValidateModule(m); err != nil || !decide.RoleGated(m) {
 		t.Fatalf("the derived roles: %v, gated %v", err, decide.RoleGated(m))
 	}
 	declared := *doc
-	declared.Roles = []delivered.Role{{Name: "installer", Scopes: []*basev0.WorkScopeV1{ws("notes.entry", "read")}}}
+	declared.Roles = []delivered.Role{{Name: "admin", Scopes: []*basev0.WorkScopeV1{ws("notes.entry", "read")}}}
 	if m, err = delivered.Module(page, &declared); err != nil || len(m.Roles) != 1 {
 		t.Fatalf("a declaration wins: %v %v", m.Roles, err)
 	}

@@ -33,9 +33,9 @@ func TestAnOutsiderCannotTellInstalledFromAbsent(t *testing.T) {
 	for _, id := range []string{present, absent} {
 		_, err := h.svc.ListRoleGrants(h.ctx, zoe, acme, id)
 		answer(err, id)
-		_, err = h.svc.GrantRole(h.ctx, zoe, authority.RoleRequest{Organization: acme, InstallationID: id, Role: "viewer", PersonID: "dev"})
+		_, err = h.svc.GrantRole(h.ctx, zoe, authority.RoleRequest{Organization: acme, InstallationID: id, Role: "reader", PersonID: "dev"})
 		answer(err, id)
-		_, err = h.svc.RevokeRole(h.ctx, zoe, authority.RoleRequest{Organization: acme, InstallationID: id, Role: "viewer", PersonID: "dev"})
+		_, err = h.svc.RevokeRole(h.ctx, zoe, authority.RoleRequest{Organization: acme, InstallationID: id, Role: "reader", PersonID: "dev"})
 		answer(err, id)
 	}
 }
@@ -196,7 +196,7 @@ func TestAFailedInstallStepCanBeRetried(t *testing.T) {
 	if _, err := h.svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, approval, down); err == nil {
 		t.Fatal("a failing step installed")
 	}
-	_, err := h.svc.Install(h.ctx, admin, globex, "b", "viewer", admin.ID, approval, nil)
+	_, err := h.svc.Install(h.ctx, admin, globex, "b", "reader", admin.ID, approval, nil)
 	refused(t, err, "INSTALLATION_APPROVAL_OPERATION_CONFLICT")
 	inst, err := h.svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, approval, nil)
 	if err != nil || inst.Status != domain.Active {

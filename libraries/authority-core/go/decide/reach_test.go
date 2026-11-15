@@ -35,17 +35,17 @@ func rowAt(rows []domain.ReachRow, via, confinement string, path ...string) *dom
 	return nil
 }
 
-// app is a solution whose editor writes its own notes and reaches docs
+// app is a solution whose user writes its own notes and reaches docs
 // through its binding; docs reaches model through its own.
 func reachComposition() (domain.Module, map[string]domain.Module) {
 	app := domain.Module{Name: "app", Principal: "app", Kind: domain.KindSolution,
 		ResourceKinds: []*basev0.WorkScopeV1{rs("app.note", "read", "write")},
 		Roles: map[string][]*basev0.WorkScopeV1{
-			domain.InstallerRole: {rs("app.note", "read", "write")},
-			"editor":             {rs("app.note", "read", "write"), rs("docs.doc", "read", "write"), rs("model.profile", "read")},
-			"viewer":             {rs("app.note", "read")},
+			domain.AdminRole: {rs("app.note", "read", "write")},
+			"user":           {rs("app.note", "read", "write"), rs("docs.doc", "read", "write"), rs("model.profile", "read")},
+			"reader":         {rs("app.note", "read")},
 		},
-		OwnedRoles:       map[string][]*basev0.WorkScopeV1{"editor": {rs("app.note", "write")}},
+		OwnedRoles:       map[string][]*basev0.WorkScopeV1{"user": {rs("app.note", "write")}},
 		Bindings:         map[string]domain.Binding{"docs": {ID: "docs", Audience: "docs", InvokeScopes: []*basev0.WorkScopeV1{rs("docs.doc", "read", "write")}}},
 		EdgeDependencies: []domain.EdgeDependency{{Module: "directory", Presence: "required"}},
 		Methods:          map[string]domain.MethodPolicy{"/app.v1.App/Edit": {Requires: []*basev0.WorkScopeV1{rs("app.note", "write")}}}}
@@ -74,23 +74,23 @@ func reachComposition() (domain.Module, map[string]domain.Module) {
 // it through a binding is not reached on the target.
 func TestReachOnTheTargetIsTheRolesOwnScopes(t *testing.T) {
 	app, modules := reachComposition()
-	rows, err := decide.Reach(app, "editor", modules)
+	rows, err := decide.Reach(app, "user", modules)
 	if err != nil {
 		t.Fatal(err)
 	}
 	own := rowAt(rows, decide.ReachRole, decide.ConfinedToInstallation, "app")
 	if own == nil || !sameScopes(own.Scopes, []*basev0.WorkScopeV1{rs("app.note", "read", "write")}) || !slices.Equal(own.Operations, []string{"/app.v1.App/Edit"}) {
-		t.Fatalf("the editor's own row is %+v", own)
+		t.Fatalf("the user's own row is %+v", own)
 	}
 	if attached := rowAt(rows, decide.ReachRole, decide.ConfinedToAttached, "app"); attached == nil || !sameScopes(attached.Scopes, []*basev0.WorkScopeV1{rs("app.note", "write")}) {
-		t.Fatalf("the editor's attached row is %+v", attached)
+		t.Fatalf("the user's attached row is %+v", attached)
 	}
 	page := domain.Module{Name: "pages", Principal: "pages", Kind: domain.KindModule, Page: true,
 		ResourceKinds: []*basev0.WorkScopeV1{rs("pages.note", "read", "write")},
-		Roles:         map[string][]*basev0.WorkScopeV1{domain.InstallerRole: {rs("pages.note", "read", "write")}, "viewer": {rs("pages.note", "read")}}}
-	rows, err = decide.Reach(page, "viewer", byPrincipal(page))
+		Roles:         map[string][]*basev0.WorkScopeV1{domain.AdminRole: {rs("pages.note", "read", "write")}, "reader": {rs("pages.note", "read")}}}
+	rows, err = decide.Reach(page, "reader", byPrincipal(page))
 	if err != nil || len(rows) != 1 || rows[0].Via != decide.ReachRole || rows[0].Confinement != "" || !sameScopes(rows[0].Scopes, []*basev0.WorkScopeV1{rs("pages.note", "read")}) {
-		t.Fatalf("a module page's viewer reaches %+v (%v)", rows, err)
+		t.Fatalf("a module page's reader reaches %+v (%v)", rows, err)
 	}
 	if _, err := decide.Reach(app, "nobody", modules); err == nil {
 		t.Fatal("an undeclared role has a reach")
@@ -104,7 +104,7 @@ func TestReachOnTheTargetIsTheRolesOwnScopes(t *testing.T) {
 // no binding or edge reaches is absent.
 func TestReachThroughBindingsAndEdges(t *testing.T) {
 	app, modules := reachComposition()
-	rows, err := decide.Reach(app, "editor", modules)
+	rows, err := decide.Reach(app, "user", modules)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,9 +116,9 @@ func TestReachThroughBindingsAndEdges(t *testing.T) {
 	if model := rowAt(rows, decide.ReachBinding, "", "app", "docs", "model"); model == nil || !sameScopes(model.Scopes, []*basev0.WorkScopeV1{rs("model.profile", "read")}) {
 		t.Fatalf("through docs, model is reached as %+v", model)
 	}
-	viewer, err := decide.Reach(app, "viewer", modules)
-	if err != nil || rowAt(viewer, decide.ReachBinding, "", "app", "docs") != nil || rowAt(viewer, decide.ReachBinding, "", "app", "docs", "model") != nil {
-		t.Fatalf("the viewer, whose role names nothing docs serves, reaches %+v (%v)", viewer, err)
+	reader, err := decide.Reach(app, "reader", modules)
+	if err != nil || rowAt(reader, decide.ReachBinding, "", "app", "docs") != nil || rowAt(reader, decide.ReachBinding, "", "app", "docs", "model") != nil {
+		t.Fatalf("the reader, whose role names nothing docs serves, reaches %+v (%v)", reader, err)
 	}
 	for _, r := range rows {
 		if r.Module == "unreached" {
@@ -135,8 +135,8 @@ func TestAModulePageRoleReachesThroughItsBinding(t *testing.T) {
 	page := domain.Module{Name: "people", Principal: "people", Kind: domain.KindModule, Generation: 1, Page: true, InstallationRole: domain.NoInstallationRole,
 		ResourceKinds: []*basev0.WorkScopeV1{rs("people.entry", "read", "write")},
 		Roles: map[string][]*basev0.WorkScopeV1{
-			domain.InstallerRole: {rs("people.entry", "read", "write"), rs("docs.doc", "read", "write")},
-			"viewer":             {rs("people.entry", "read"), rs("docs.doc", "read")},
+			domain.AdminRole: {rs("people.entry", "read", "write"), rs("docs.doc", "read", "write")},
+			"reader":         {rs("people.entry", "read"), rs("docs.doc", "read")},
 		},
 		Bindings:         map[string]domain.Binding{"rows": {ID: "rows", Audience: "docs", InvokeScopes: []*basev0.WorkScopeV1{rs("docs.doc", "read", "write")}}},
 		EdgeDependencies: []domain.EdgeDependency{{Module: "model", Presence: "optional"}},
@@ -144,12 +144,12 @@ func TestAModulePageRoleReachesThroughItsBinding(t *testing.T) {
 	if err := decide.ValidateModule(page); err != nil {
 		t.Fatalf("a page role naming what its binding consumes is a valid declaration: %v", err)
 	}
-	rows, err := decide.Reach(page, "viewer", modules)
+	rows, err := decide.Reach(page, "reader", modules)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if on := rowAt(rows, decide.ReachRole, "", "people"); on == nil || !sameScopes(on.Scopes, []*basev0.WorkScopeV1{rs("people.entry", "read")}) {
-		t.Fatalf("on the page, the viewer reaches %+v", on)
+		t.Fatalf("on the page, the reader reaches %+v", on)
 	}
 	docs := rowAt(rows, decide.ReachBinding, "", "people", "docs")
 	if docs == nil || !sameScopes(docs.Scopes, []*basev0.WorkScopeV1{rs("docs.doc", "read")}) ||
@@ -165,7 +165,7 @@ func TestAModulePageRoleReachesThroughItsBinding(t *testing.T) {
 // at the edge's module decide, so the row says so and lists nothing.
 func TestReachOnThePersonsSessionCarriesNoScopes(t *testing.T) {
 	app, modules := reachComposition()
-	for _, role := range []string{"editor", "viewer"} {
+	for _, role := range []string{"user", "reader"} {
 		rows, err := decide.Reach(app, role, modules)
 		if err != nil {
 			t.Fatal(err)
@@ -190,7 +190,7 @@ func TestOneOperationOnTwoFacesIsOneCapability(t *testing.T) {
 		"docs-connect": {ID: "docs-connect", Audience: "docs", InvokeScopes: []*basev0.WorkScopeV1{rs("docs.doc", "read")}},
 		"docs-grpc":    {ID: "docs-grpc", Audience: "docs", InvokeScopes: []*basev0.WorkScopeV1{rs("docs.doc", "read")}},
 	}
-	rows, err := decide.Reach(app, "editor", modules)
+	rows, err := decide.Reach(app, "user", modules)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +222,7 @@ func TestOneOperationOnTwoFacesIsOneCapability(t *testing.T) {
 // kinds, as issuance would carry them.
 func TestReachTerminatesOnACycle(t *testing.T) {
 	app, modules := reachComposition()
-	app.Roles["editor"] = append(app.Roles["editor"], rs("docs.note", "read"), rs("docs.draft", "read"))
+	app.Roles["user"] = append(app.Roles["user"], rs("docs.note", "read"), rs("docs.draft", "read"))
 	docs, model := modules["docs"], modules["model"]
 	docs.ResourceKinds = append(docs.ResourceKinds, rs("docs.note", "read"), rs("docs.draft", "read"))
 	docs.Bindings = maps.Clone(docs.Bindings)
@@ -232,7 +232,7 @@ func TestReachTerminatesOnACycle(t *testing.T) {
 		"app":  {ID: "app", Audience: "app", InvokeScopes: []*basev0.WorkScopeV1{rs("app.note", "read")}},
 	}
 	modules["docs"], modules["model"] = docs, model
-	rows, err := decide.Reach(app, "editor", modules)
+	rows, err := decide.Reach(app, "user", modules)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -377,7 +377,7 @@ func TestReachEncodesCanonically(t *testing.T) {
 	docs.Methods["/docs.v1.Docs/Purge"] = domain.MethodPolicy{Requires: []*basev0.WorkScopeV1{rs("docs.doc", "write")}}
 	modules["docs"] = docs
 	wider, _ := decide.ReachOf(app, slices.Collect(maps.Values(modules)))
-	if _, d, _ := decide.EncodeReach(wider); d == digest || fmt.Sprint(decide.ReachWidens(all, wider)) != "[the roles together reach /docs.v1.Docs/Purge at app > docs operation /docs.v1.Docs/Purge at docs requires less role editor reaches /docs.v1.Docs/Purge at app > docs operation /docs.v1.Docs/Purge at docs requires less]" {
+	if _, d, _ := decide.EncodeReach(wider); d == digest || fmt.Sprint(decide.ReachWidens(all, wider)) != "[the roles together reach /docs.v1.Docs/Purge at app > docs operation /docs.v1.Docs/Purge at docs requires less role user reaches /docs.v1.Docs/Purge at app > docs operation /docs.v1.Docs/Purge at docs requires less]" {
 		t.Fatalf("a relaxed method policy is not a widening: %v", decide.ReachWidens(all, wider))
 	}
 }
