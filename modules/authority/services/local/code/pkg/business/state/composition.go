@@ -124,7 +124,7 @@ func (s *State) checkComposedSetup(doc fixturecomposition.Document) ([]string, e
 			lines = append(lines, fmt.Sprintf("seats on every role-gated target at %s, for %s: %v", i.Organization, i.Owner, i.Members))
 			continue
 		}
-		lines = append(lines, fmt.Sprintf("installs %s at %s as %s, granting %s the installer role and %v the role %s", i.Target, i.Organization, i.Role, i.Owner, i.Teams, i.Role))
+		lines = append(lines, fmt.Sprintf("installs %s at %s as %s, granting %s the admin role and %v the role %s", i.Target, i.Organization, i.Role, i.Owner, i.Teams, i.Role))
 	}
 	for _, m := range doc.Modules {
 		lines = append(lines, fmt.Sprintf("stands in for module %s until its delivery", m.Module))

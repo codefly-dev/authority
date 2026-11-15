@@ -42,18 +42,17 @@ func TestTheFixtureNamesTheFivePeopleTheProductSeeds(t *testing.T) {
 
 // Every role-gated target the run composes has one team per role it
 // declares, `<target>-<role>`, holding that role on the installation, with
-// Bob, Carol and Dana seated in the team of their role: the wiki the test
-// kit's composition installs by a row of its own, and a module page applied
-// later, which is seated the moment it is composed.
-func TestEveryRoleGatedTargetSeatsTheThreeTeams(t *testing.T) {
+// Dana seated in the admin team and Carol in the user team, and Bob in
+// neither: the wiki the test kit's composition installs by a row of its own,
+// and a module page applied later, which is seated the moment it is composed.
+func TestEveryRoleGatedTargetSeatsTheAdminAndUserTeams(t *testing.T) {
 	k := testkit.New(t)
 	ctx := context.Background()
 	page := testkit.OrgDirectory(2)
 	page.Page = true
 	page.Roles = map[string][]*basev0.WorkScopeV1{
-		state.InstallerRole: {testkit.Scope("directory.entry", "read", "write")},
-		"editor":            {testkit.Scope("directory.entry", "read", "write")},
-		"viewer":            {testkit.Scope("directory.entry", "read")},
+		state.AdminRole: {testkit.Scope("directory.entry", "read", "write")},
+		state.UserRole:  {testkit.Scope("directory.entry", "read", "write")},
 	}
 	if _, err := k.State.ApplyManifest(page); err != nil {
 		t.Fatal(err)
@@ -64,7 +63,7 @@ func TestEveryRoleGatedTargetSeatsTheThreeTeams(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for role, member := range map[string]string{"viewer": "bob", "editor": "carol", "installer": "dana"} {
+		for role, member := range map[string]string{state.UserRole: "carol", state.AdminRole: "dana"} {
 			team := authority.ConventionalTeamName(target, role)
 			if !slices.ContainsFunc(grants, func(g domain.RoleGrant) bool { return g.TeamID == team && g.Role == role }) {
 				t.Fatalf("%s: team %s does not hold %s; grants %+v", target, team, role, grants)
@@ -73,11 +72,14 @@ func TestEveryRoleGatedTargetSeatsTheThreeTeams(t *testing.T) {
 				t.Fatalf("%s is not seated in %s: %v", member, team, p.Teams)
 			}
 		}
+		if p := person(k, "bob"); slices.ContainsFunc(p.Teams, func(team string) bool { return strings.HasPrefix(team, target+"-") }) {
+			t.Fatalf("bob, who holds no role on a page, is seated on %s: %v", target, p.Teams)
+		}
 	}
 	// A roleless module seats nobody, and a person of another organisation
 	// is seated nowhere.
-	if p := person(k, "bob"); slices.ContainsFunc(p.Teams, func(team string) bool { return strings.HasPrefix(team, "documents-") }) {
-		t.Fatalf("bob is seated on a module that declares no roles: %v", p.Teams)
+	if p := person(k, "carol"); slices.ContainsFunc(p.Teams, func(team string) bool { return strings.HasPrefix(team, "documents-") }) {
+		t.Fatalf("carol is seated on a module that declares no roles: %v", p.Teams)
 	}
 	if p := person(k, "omar"); len(p.Teams) != 1 {
 		t.Fatalf("omar's teams = %v", p.Teams)
@@ -86,9 +88,10 @@ func TestEveryRoleGatedTargetSeatsTheThreeTeams(t *testing.T) {
 
 // Signed in as Alice, "act as this team" opens a session that holds the
 // team's role on the wiki and nothing of her own; the session she came from
-// is untouched. Bob may act as his own team and is refused the editors' by
-// name; Carol, the editor, writes.
-func TestAliceCastsOntoATeamAndBobIsRefusedTheEditors(t *testing.T) {
+// is untouched. Bob holds no role on the page: he is refused it, and refused
+// the users' team by name. Carol, the user, writes and does not publish;
+// Dana, the admin, publishes and administers the installation's grants.
+func TestAliceCastsOntoATeamAndBobIsRefusedThePage(t *testing.T) {
 	k := testkit.New(t)
 	ctx := context.Background()
 	wiki := state.InstallationID("acme", "wiki")
@@ -96,38 +99,48 @@ func TestAliceCastsOntoATeamAndBobIsRefusedTheEditors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cast, err := k.State.OpenTeamCast(ctx, alice.ID, "wiki-viewer")
+	cast, err := k.State.OpenTeamCast(ctx, alice.ID, "wiki-user")
 	if err != nil {
-		t.Fatalf("alice onto wiki-viewer: %v", err)
+		t.Fatalf("alice onto wiki-user: %v", err)
 	}
-	if cast.CastTeam != "wiki-viewer" || len(cast.Roles) != 0 || !reflect.DeepEqual(cast.Teams, []string{"wiki-viewer"}) {
+	if cast.CastTeam != "wiki-user" || len(cast.Roles) != 0 || !reflect.DeepEqual(cast.Teams, []string{"wiki-user"}) {
 		t.Fatalf("the cast session = %+v", cast)
 	}
 	issued, err := k.State.Service().IssueForPerson(ctx, must(k.State.Caller(cast.ID)), authority.IssueRequest{Audience: "wiki"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !holds(issued, "wiki.page", "read") || holds(issued, "wiki.page", "write") {
-		t.Fatalf("the cast holds %v, want a viewer's read alone", issued.Context.GetAuthorityScopes())
+	if !holds(issued, "wiki.page", "write") || holds(issued, "wiki.page", "publish") {
+		t.Fatalf("the cast holds %v, want a user's read and write alone", issued.Context.GetAuthorityScopes())
 	}
 	// Back: her own session is what it was, an administrator who grants.
 	own, err := k.State.Session(alice.ID)
 	if err != nil || own.CastTeam != "" || !reflect.DeepEqual(own.Roles, []string{"admin"}) {
 		t.Fatalf("alice's own session = %+v, %v", own, err)
 	}
-	if _, err := k.State.Service().GrantRole(ctx, must(k.State.Caller(alice.ID)), authority.RoleRequest{Organization: "acme", InstallationID: wiki, Role: "viewer", TeamID: "finance"}); err != nil {
+	if _, err := k.State.Service().GrantRole(ctx, must(k.State.Caller(alice.ID)), authority.RoleRequest{Organization: "acme", InstallationID: wiki, Role: state.UserRole, TeamID: "finance"}); err != nil {
 		t.Fatalf("alice grants from her own session: %v", err)
 	}
 	bob, _ := k.State.SignIn("dev-bob")
-	if _, err := k.State.OpenTeamCast(ctx, bob.ID, "wiki-viewer"); err != nil {
-		t.Fatalf("bob onto his own team: %v", err)
+	if _, err := k.State.Service().IssueForPerson(ctx, must(k.State.Caller(bob.ID)), authority.IssueRequest{Audience: "wiki"}); err == nil {
+		t.Fatal("bob, who holds no role on the wiki, was issued its authority")
 	}
-	if _, err := k.State.OpenTeamCast(ctx, bob.ID, "wiki-editor"); err == nil || !strings.Contains(err.Error(), "could not grant") {
-		t.Fatalf("bob onto wiki-editor: want a refusal naming what he could not grant, got %v", err)
+	if _, err := k.State.OpenTeamCast(ctx, bob.ID, "wiki-user"); err == nil || !strings.Contains(err.Error(), "could not grant") {
+		t.Fatalf("bob onto wiki-user: want a refusal naming what he could not grant, got %v", err)
 	}
 	carol, _ := k.State.SignIn("dev-carol")
 	if issued, err := k.State.Service().IssueForPerson(ctx, must(k.State.Caller(carol.ID)), authority.IssueRequest{Audience: "wiki"}); err != nil || !holds(issued, "wiki.page", "write") || holds(issued, "wiki.page", "publish") {
-		t.Fatalf("carol, the editor: %v %v", err, issued.Context.GetAuthorityScopes())
+		t.Fatalf("carol, the user: %v %v", err, issued.Context.GetAuthorityScopes())
+	}
+	dana, _ := k.State.SignIn("dev-dana")
+	if issued, err := k.State.Service().IssueForPerson(ctx, must(k.State.Caller(dana.ID)), authority.IssueRequest{Audience: "wiki"}); err != nil || !holds(issued, "wiki.page", "publish") {
+		t.Fatalf("dana, the admin: %v %v", err, issued.Context.GetAuthorityScopes())
+	}
+	if _, err := k.State.Service().GrantRole(ctx, must(k.State.Caller(dana.ID)), authority.RoleRequest{Organization: "acme", InstallationID: wiki, Role: state.UserRole, PersonID: "bob"}); err != nil {
+		t.Fatalf("dana, the admin, administers the wiki's grants: %v", err)
+	}
+	if _, err := k.State.Service().GrantRole(ctx, must(k.State.Caller(carol.ID)), authority.RoleRequest{Organization: "acme", InstallationID: wiki, Role: state.AdminRole, PersonID: "carol"}); err == nil {
+		t.Fatal("carol, a user, granted herself the admin role")
 	}
 }
 

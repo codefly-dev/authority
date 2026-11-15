@@ -48,36 +48,36 @@ func (s *standIn) SignIn(_ context.Context, in *sessionv1.SignInRequest, _ ...gr
 func (s *standIn) Current(ctx context.Context, _ *sessionv1.CurrentRequest, _ ...grpc.CallOption) (*sessionv1.Session, error) {
 	switch bearerIn(ctx) {
 	case "remi-session":
-		return &sessionv1.Session{SessionId: "s1", PersonId: "remi", OrganizationId: "acme", PersonDisplayName: "Rémi", OrganizationDisplayName: "Acme", Roles: []string{"editor"}, TeamIds: []string{"records-viewer"}}, nil
-	case "remi-as-viewers":
-		return &sessionv1.Session{SessionId: "s2", PersonId: "remi", OrganizationId: "acme", PersonDisplayName: "Rémi", OrganizationDisplayName: "Acme", TeamIds: []string{"records-viewer"}, CastTeamId: "records-viewer"}, nil
+		return &sessionv1.Session{SessionId: "s1", PersonId: "remi", OrganizationId: "acme", PersonDisplayName: "Rémi", OrganizationDisplayName: "Acme", Roles: []string{"editor"}, TeamIds: []string{"records-user"}}, nil
+	case "remi-as-users":
+		return &sessionv1.Session{SessionId: "s2", PersonId: "remi", OrganizationId: "acme", PersonDisplayName: "Rémi", OrganizationDisplayName: "Acme", TeamIds: []string{"records-user"}, CastTeamId: "records-user"}, nil
 	}
 	return nil, status.Error(codes.Unauthenticated, "no session")
 }
 
-// OpenTeamCast casts Rémi onto records-viewer, his own team; any other team
+// OpenTeamCast casts Rémi onto records-user, his own team; any other team
 // holds roles he could not grant.
 func (s *standIn) OpenTeamCast(ctx context.Context, in *sessionv1.OpenTeamCastRequest, _ ...grpc.CallOption) (*sessionv1.Session, error) {
 	if bearerIn(ctx) != "remi-session" {
 		return nil, status.Error(codes.Unauthenticated, "no session")
 	}
-	if in.GetTeamId() != "records-viewer" {
+	if in.GetTeamId() != "records-user" {
 		return nil, status.Errorf(codes.PermissionDenied, "team %q holds roles you could not grant, so you may not act as it", in.GetTeamId())
 	}
-	return &sessionv1.Session{SessionId: "s2", PersonId: "remi", OrganizationId: "acme", TeamIds: []string{"records-viewer"}, CastTeamId: "records-viewer", Bearer: "remi-as-viewers"}, nil
+	return &sessionv1.Session{SessionId: "s2", PersonId: "remi", OrganizationId: "acme", TeamIds: []string{"records-user"}, CastTeamId: "records-user", Bearer: "remi-as-users"}, nil
 }
 
-// ListCastableTeams lists records-viewer to Rémi, holding viewer on records.
+// ListCastableTeams lists records-user to Rémi, holding user on records.
 func (s *standIn) ListCastableTeams(ctx context.Context, _ *sessionv1.ListCastableTeamsRequest, _ ...grpc.CallOption) (*sessionv1.ListCastableTeamsResponse, error) {
-	if bearer := bearerIn(ctx); bearer != "remi-session" && bearer != "remi-as-viewers" {
+	if bearer := bearerIn(ctx); bearer != "remi-session" && bearer != "remi-as-users" {
 		return nil, status.Error(codes.Unauthenticated, "no session")
 	}
-	return &sessionv1.ListCastableTeamsResponse{Teams: []*sessionv1.CastableTeam{{TeamId: "records-viewer", DisplayName: "records-viewer",
-		Holds: []*sessionv1.TeamHolding{{InstallationId: recordsInstallation, Target: "records", Role: "viewer"}}}}}, nil
+	return &sessionv1.ListCastableTeamsResponse{Teams: []*sessionv1.CastableTeam{{TeamId: "records-user", DisplayName: "records-user",
+		Holds: []*sessionv1.TeamHolding{{InstallationId: recordsInstallation, Target: "records", Role: "user"}}}}}, nil
 }
 
 func (s *standIn) ListFixturePeople(context.Context, *sessionv1.ListFixturePeopleRequest, ...grpc.CallOption) (*sessionv1.ListFixturePeopleResponse, error) {
-	return &sessionv1.ListFixturePeopleResponse{People: []*sessionv1.FixturePerson{{PersonId: "remi", Email: "remi@acme.test", OrganizationId: "acme", OrganizationDisplayName: "Acme", Roles: []string{"editor"}, TeamIds: []string{"records-viewer"}, FixtureToken: "fixture-remi"}}}, nil
+	return &sessionv1.ListFixturePeopleResponse{People: []*sessionv1.FixturePerson{{PersonId: "remi", Email: "remi@acme.test", OrganizationId: "acme", OrganizationDisplayName: "Acme", Roles: []string{"editor"}, TeamIds: []string{"records-user"}, FixtureToken: "fixture-remi"}}}, nil
 }
 
 func (s *standIn) Issue(ctx context.Context, in *authorityv1.IssueRequest, _ ...grpc.CallOption) (*authorityv1.IssueResponse, error) {

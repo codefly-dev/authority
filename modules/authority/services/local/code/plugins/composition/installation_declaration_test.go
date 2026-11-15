@@ -17,7 +17,7 @@ import (
 // Uses generated messages, both real signatures and actual ApplyManifest
 // persistence. CLI producer construction is qualified by the CLI owner.
 func TestSignedInstallationDeclarationsReachStoredModule(t *testing.T) {
-	for _, selector := range []string{"", "none", "editor"} {
+	for _, selector := range []string{"", "none", "user"} {
 		t.Run(selector, func(t *testing.T) {
 			p, k := verifying(t)
 			req := carrier(t, k, "wiki", solutionhost.KindSolution, 2, []string{"wiki.page"}, installationDocument(selector), installationManifest(selector))
@@ -34,7 +34,7 @@ func TestSignedInstallationDeclarationsReachStoredModule(t *testing.T) {
 
 func installationDocument(selector string) *compositionv1.AuthorityManifestV1 {
 	page := scope("wiki.page", "read", "write")
-	return &compositionv1.AuthorityManifestV1{InstallationRole: selector, EdgeDependencies: []*compositionv1.EdgeDependencyV1{{Module: "z-principal", Presence: "required"}, {Module: "a-principal", Presence: "optional"}}, ScopeCeilings: []*authorityv1.WorkScopeV1{page}, Roles: []*compositionv1.RoleV1{{Name: state.InstallerRole, Scopes: []*authorityv1.WorkScopeV1{page}}, {Name: "editor", Scopes: []*authorityv1.WorkScopeV1{page}}}}
+	return &compositionv1.AuthorityManifestV1{InstallationRole: selector, EdgeDependencies: []*compositionv1.EdgeDependencyV1{{Module: "z-principal", Presence: "required"}, {Module: "a-principal", Presence: "optional"}}, ScopeCeilings: []*authorityv1.WorkScopeV1{page}, Roles: []*compositionv1.RoleV1{{Name: state.AdminRole, Scopes: []*authorityv1.WorkScopeV1{page}}, {Name: state.UserRole, Scopes: []*authorityv1.WorkScopeV1{page}}}}
 }
 
 func installationManifest(selector string) func(*solutionhost.ModuleManifest) {
@@ -49,7 +49,7 @@ func TestSignedInstallationDeclarationDisagreementRefusesBeforeStore(t *testing.
 		name, field string
 		change      func(**compositionv1.AuthorityManifestV1)
 	}{
-		{"selector", "installation_role", func(d **compositionv1.AuthorityManifestV1) { (*d).InstallationRole = "editor" }},
+		{"selector", "installation_role", func(d **compositionv1.AuthorityManifestV1) { (*d).InstallationRole = "user" }},
 		{"selector omitted", "installation_role", func(d **compositionv1.AuthorityManifestV1) { (*d).InstallationRole = "" }},
 		{"sidecar absent", "installation_role", func(d **compositionv1.AuthorityManifestV1) { *d = nil }},
 		{"edge identity", "edge_dependencies", func(d **compositionv1.AuthorityManifestV1) { (*d).EdgeDependencies[0].Module = "route-alias" }},

@@ -174,9 +174,8 @@ func Wiki(generation uint64) state.Manifest {
 	return state.Manifest{Name: "wiki", Principal: "wiki", Kind: "solution", Generation: generation, OwnerAware: true,
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("wiki.page", "read", "write", "publish")},
 		Roles: map[string][]*basev0.WorkScopeV1{
-			state.InstallerRole: {Scope("wiki.page", "read", "write", "publish")},
-			"editor":            {Scope("wiki.page", "read", "write")},
-			"viewer":            {Scope("wiki.page", "read")},
+			state.AdminRole: {Scope("wiki.page", "read", "write", "publish")},
+			state.UserRole:  {Scope("wiki.page", "read", "write")},
 		}}
 }
 
@@ -272,8 +271,8 @@ func Proposals(generation uint64) state.Manifest {
 	return state.Manifest{Name: "proposals", Principal: "proposals", Kind: "solution", Generation: generation, OwnerAware: true,
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("proposals.item", "read", "write")},
 		Roles: map[string][]*basev0.WorkScopeV1{
-			state.InstallerRole: {Scope("proposals.item", "read", "write")},
-			"viewer":            {Scope("proposals.item", "read")},
+			state.AdminRole: {Scope("proposals.item", "read", "write")},
+			state.UserRole:  {Scope("proposals.item", "read")},
 		}}
 }
 
@@ -309,11 +308,12 @@ func Matrix() []conformance.Expectation {
 		allow("fixture-dev", "evaluation", "evaluation.labels", "approve"), allow("fixture-dev", "evaluation", "evaluation.runs", "write"),
 		// A module no role names: nothing.
 		deny("fixture-maya", "model", "modelservice.profiles", "read"),
-		// The wiki: the installation's roles, not the organisation's. Rémi, an
-		// editor of documents, is a viewer at the wiki like Maya.
+		// The wiki: the installation's roles, not the organisation's. Maya, a
+		// viewer of documents, is a user at the wiki like Rémi: both read and
+		// write there, and only its admin publishes.
 		allow("fixture-alex", "wiki", "wiki.page", "publish"), allow("fixture-maya", "wiki", "wiki.page", "read"),
-		deny("fixture-maya", "wiki", "wiki.page", "write"), allow("fixture-remi", "wiki", "wiki.page", "read"),
-		deny("fixture-remi", "wiki", "wiki.page", "write"),
+		allow("fixture-maya", "wiki", "wiki.page", "write"), deny("fixture-maya", "wiki", "wiki.page", "publish"),
+		allow("fixture-remi", "wiki", "wiki.page", "write"), deny("fixture-remi", "wiki", "wiki.page", "publish"),
 		// Globex: its own installation of the wiki, and a documents role of its
 		// own, which reaches nothing there on Zoe's own session either.
 		allow("fixture-zoe", "wiki", "wiki.page", "publish"), allow("fixture-omar", "wiki", "wiki.page", "write"),

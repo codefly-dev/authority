@@ -39,22 +39,22 @@ func TestAPageCastsThroughTheSessionInterface(t *testing.T) {
 		t.Fatalf("Current answered a page bearer %q, session id %q: a host may key its sessions by the bearer, so a script holds neither", own.GetBearer(), own.GetSessionId())
 	}
 	teams, err := browser[sessionv1.ListCastableTeamsRequest, sessionv1.ListCastableTeamsResponse](t, f.edge, f.edge.URL, "remi-session", sessionv1.SessionService_ListCastableTeams_FullMethodName, &sessionv1.ListCastableTeamsRequest{})
-	if err != nil || len(teams.GetTeams()) != 1 || teams.GetTeams()[0].GetHolds()[0].GetRole() != "viewer" {
+	if err != nil || len(teams.GetTeams()) != 1 || teams.GetTeams()[0].GetHolds()[0].GetRole() != "user" {
 		t.Fatalf("ListCastableTeams answered %v, %v", teams, err)
 	}
 
-	res, set, err := castOver(t, f, f.edge.URL, "records-viewer")
+	res, set, err := castOver(t, f, f.edge.URL, "records-user")
 	if err != nil {
 		t.Fatalf("OpenTeamCast: %v", err)
 	}
-	if res.Msg.GetBearer() != "" || res.Msg.GetSessionId() != "" || res.Msg.GetCastTeamId() != "records-viewer" {
+	if res.Msg.GetBearer() != "" || res.Msg.GetSessionId() != "" || res.Msg.GetCastTeamId() != "records-user" {
 		t.Fatalf("the answer carries bearer %q, session id %q, cast %q: a script holds no credential", res.Msg.GetBearer(), res.Msg.GetSessionId(), res.Msg.GetCastTeamId())
 	}
-	if set[SessionKey] != "remi-as-viewers" || set[ParentKey] != "remi-session" {
+	if set[SessionKey] != "remi-as-users" || set[ParentKey] != "remi-session" {
 		t.Fatalf("the cast set cookies %v; want the cast as the session and the own session as the way back", set)
 	}
-	cast, err := browser[sessionv1.CurrentRequest, sessionv1.Session](t, f.edge, f.edge.URL, "remi-as-viewers", sessionv1.SessionService_Current_FullMethodName, &sessionv1.CurrentRequest{})
-	if err != nil || cast.GetCastTeamId() != "records-viewer" || cast.GetSessionId() != "" {
+	cast, err := browser[sessionv1.CurrentRequest, sessionv1.Session](t, f.edge, f.edge.URL, "remi-as-users", sessionv1.SessionService_Current_FullMethodName, &sessionv1.CurrentRequest{})
+	if err != nil || cast.GetCastTeamId() != "records-user" || cast.GetSessionId() != "" {
 		t.Fatalf("Current as the cast answered %v, %v", cast, err)
 	}
 	back := f.actAs(t, url.Values{"action": {"back"}, "return": {"/"}}, &http.Cookie{Name: SessionKey, Value: set[SessionKey]}, &http.Cookie{Name: ParentKey, Value: set[ParentKey]})
@@ -71,7 +71,7 @@ func TestACastTheAuthorityRefusesOrAnotherOriginAsksChangesNothing(t *testing.T)
 	f := newFixture(t)
 	_, _, err := castOver(t, f, f.edge.URL, "secrets-admin")
 	refusedWith(t, err, connect.CodePermissionDenied, "could not grant")
-	_, _, err = castOver(t, f, "http://elsewhere.test", "records-viewer")
+	_, _, err = castOver(t, f, "http://elsewhere.test", "records-user")
 	refusedWith(t, err, connect.CodePermissionDenied, "must come from this origin")
 	for _, procedure := range []string{sessionv1.SessionService_SignIn_FullMethodName, sessionv1.SessionService_OpenRoleView_FullMethodName, sessionv1.SessionService_ListFixturePeople_FullMethodName} {
 		_, err = browser[sessionv1.SignInRequest, sessionv1.Session](t, f.edge, f.edge.URL, "remi-session", procedure, &sessionv1.SignInRequest{})

@@ -19,7 +19,7 @@ import (
 
 // installationHost is the host behind the face, answering as the shared core
 // answers, in its words: Alex administers Acme, Maya is an Acme member holding
-// the proposals installation's viewer role, Zoë administers Globex. It records
+// the proposals installation's user role, Zoë administers Globex. It records
 // every call it is sent with the session that sent it. The decisions
 // themselves are the core's, proven there (authority-core
 // TestAMemberHoldingARoleReviewsTheOfferWithoutItsConsent); this proves the
@@ -104,7 +104,7 @@ func (h *installationHost) ReviewOffer(ctx context.Context, in *installationv1.R
 	}
 	offer := &installationv1.ReviewedOffer{Target: in.GetTarget(), ToolsComposed: true,
 		Installation: &installationv1.Installation{Id: proposalsInstallation, OrganizationId: "acme", Target: "proposals", Status: installationv1.Installation_STATUS_ACTIVE},
-		Roles: []*installationv1.OfferRole{{Name: "viewer",
+		Roles: []*installationv1.OfferRole{{Name: "user",
 			Scopes: []*installationv1.OfferScope{{ResourceKind: "proposals.item", Actions: []string{"read"}}},
 			Capabilities: []*installationv1.OfferCapability{{Module: "proposals", Operation: "/tools.Solution/Read",
 				Requires: []*installationv1.OfferScope{{ResourceKind: "proposals.item", Actions: []string{"read"}}},
@@ -164,7 +164,7 @@ func (h *installationHost) ListHeld(ctx context.Context, in *installationv1.List
 	}
 	out := &installationv1.ListHeldResponse{}
 	if p.holds {
-		out.Installations = []*installationv1.HeldInstallation{{Roles: []string{"viewer"},
+		out.Installations = []*installationv1.HeldInstallation{{Roles: []string{"user"},
 			Installation: &installationv1.Installation{Id: proposalsInstallation, OrganizationId: "acme", Target: "proposals", Status: installationv1.Installation_STATUS_ACTIVE}}}
 	}
 	return out, nil
@@ -234,7 +234,7 @@ func TestAnAdministratorSetsUpASolutionThroughTheHostFace(t *testing.T) {
 		t.Fatal(err)
 	}
 	role := review.GetRoles()[0]
-	if role.GetName() != "viewer" || role.GetCapabilities()[0].GetOperation() != "/tools.Solution/Read" || role.GetCapabilities()[0].GetTools()[0].GetName() != "read_item" ||
+	if role.GetName() != "user" || role.GetCapabilities()[0].GetOperation() != "/tools.Solution/Read" || role.GetCapabilities()[0].GetTools()[0].GetName() != "read_item" ||
 		review.GetCeiling()[0].GetModule() != "documents" || review.GetApproval().GetDigest() != "sha256:reviewed" {
 		t.Fatalf("the review lost its roles, operations, tools, ceiling or consent: %v", review)
 	}
@@ -242,16 +242,16 @@ func TestAnAdministratorSetsUpASolutionThroughTheHostFace(t *testing.T) {
 	if err != nil || approval.GetDigest() != "sha256:reviewed" {
 		t.Fatalf("Review: %v %v", approval, err)
 	}
-	grant := &installationv1.GrantRoleRequest{OrganizationId: "acme", InstallationId: proposalsInstallation, Role: "viewer", TeamId: "finance"}
+	grant := &installationv1.GrantRoleRequest{OrganizationId: "acme", InstallationId: proposalsInstallation, Role: "user", TeamId: "finance"}
 	if _, err := browser[installationv1.GrantRoleRequest, installationv1.Installation](t, srv, srv.URL, "alex-session", installationv1.InstallationService_GrantRole_FullMethodName, grant); err != nil {
 		t.Fatal(err)
 	}
 	grants, err := browser[installationv1.ListRoleGrantsRequest, installationv1.ListRoleGrantsResponse](t, srv, srv.URL, "alex-session", installationv1.InstallationService_ListRoleGrants_FullMethodName,
 		&installationv1.ListRoleGrantsRequest{OrganizationId: "acme", InstallationId: proposalsInstallation})
-	if err != nil || len(grants.GetGrants()) != 1 || grants.GetGrants()[0].GetTeamId() != "finance" || grants.GetGrants()[0].GetRole() != "viewer" {
+	if err != nil || len(grants.GetGrants()) != 1 || grants.GetGrants()[0].GetTeamId() != "finance" || grants.GetGrants()[0].GetRole() != "user" {
 		t.Fatalf("the grant was not sent as asked: %v %v", grants, err)
 	}
-	revoke := &installationv1.RevokeRoleRequest{OrganizationId: "acme", InstallationId: proposalsInstallation, Role: "viewer", TeamId: "finance"}
+	revoke := &installationv1.RevokeRoleRequest{OrganizationId: "acme", InstallationId: proposalsInstallation, Role: "user", TeamId: "finance"}
 	if _, err := browser[installationv1.RevokeRoleRequest, installationv1.Installation](t, srv, srv.URL, "alex-session", installationv1.InstallationService_RevokeRole_FullMethodName, revoke); err != nil {
 		t.Fatal(err)
 	}
@@ -280,7 +280,7 @@ func TestAMemberReadsTheRolesButIsRefusedAGrantWithItsReason(t *testing.T) {
 		t.Fatalf("the member's read: %v %v", review, err)
 	}
 	_, err = browser[installationv1.GrantRoleRequest, installationv1.Installation](t, srv, srv.URL, "maya-session", installationv1.InstallationService_GrantRole_FullMethodName,
-		&installationv1.GrantRoleRequest{OrganizationId: "acme", InstallationId: proposalsInstallation, Role: "viewer", PersonId: "maya"})
+		&installationv1.GrantRoleRequest{OrganizationId: "acme", InstallationId: proposalsInstallation, Role: "user", PersonId: "maya"})
 	refusedWith(t, err, connect.CodePermissionDenied, fmt.Sprintf("installation %s belongs to another organization than \"acme\"", proposalsInstallation))
 	_, err = browser[installationv1.ListRequest, installationv1.ListResponse](t, srv, srv.URL, "maya-session", installationv1.InstallationService_List_FullMethodName, &installationv1.ListRequest{OrganizationId: "acme"})
 	refusedWith(t, err, connect.CodePermissionDenied, `installation administration requires an administrator or owner of organization "acme"`)
@@ -292,7 +292,7 @@ func TestAMemberReadsTheRolesButIsRefusedAGrantWithItsReason(t *testing.T) {
 func TestAMemberListsTheInstallationsTheyHoldThroughTheHostFace(t *testing.T) {
 	srv, host := newHostFace(t)
 	held, err := browser[installationv1.ListHeldRequest, installationv1.ListHeldResponse](t, srv, srv.URL, "maya-session", installationv1.InstallationService_ListHeld_FullMethodName, &installationv1.ListHeldRequest{OrganizationId: "acme"})
-	if err != nil || len(held.GetInstallations()) != 1 || held.GetInstallations()[0].GetInstallation().GetId() != proposalsInstallation || strings.Join(held.GetInstallations()[0].GetRoles(), ",") != "viewer" {
+	if err != nil || len(held.GetInstallations()) != 1 || held.GetInstallations()[0].GetInstallation().GetId() != proposalsInstallation || strings.Join(held.GetInstallations()[0].GetRoles(), ",") != "user" {
 		t.Fatalf("maya's held installations: %v %v", held, err)
 	}
 	held, err = browser[installationv1.ListHeldRequest, installationv1.ListHeldResponse](t, srv, srv.URL, "zoe-session", installationv1.InstallationService_ListHeld_FullMethodName, &installationv1.ListHeldRequest{OrganizationId: "globex"})
@@ -318,7 +318,7 @@ func TestAPersonOfAnotherOrganizationIsRefused(t *testing.T) {
 	_, err := browser[installationv1.ReviewRequest, installationv1.ReviewedOffer](t, srv, srv.URL, "zoe-session", installationv1.OfferService_ReviewOffer_FullMethodName, &installationv1.ReviewRequest{OrganizationId: "acme", Target: "proposals"})
 	refusedWith(t, err, connect.CodePermissionDenied, `requires an administrator or owner of organization "acme"`)
 	_, err = browser[installationv1.RevokeRoleRequest, installationv1.Installation](t, srv, srv.URL, "zoe-session", installationv1.InstallationService_RevokeRole_FullMethodName,
-		&installationv1.RevokeRoleRequest{OrganizationId: "acme", InstallationId: proposalsInstallation, Role: "viewer", PersonId: "maya"})
+		&installationv1.RevokeRoleRequest{OrganizationId: "acme", InstallationId: proposalsInstallation, Role: "user", PersonId: "maya"})
 	refusedWith(t, err, connect.CodePermissionDenied, "belongs to another organization")
 	_, err = browser[installationv1.ListRequest, installationv1.ListResponse](t, srv, srv.URL, "", installationv1.InstallationService_List_FullMethodName, &installationv1.ListRequest{OrganizationId: "acme"})
 	refusedWith(t, err, connect.CodeUnauthenticated, "no session: sign in at /auth/sign-in")
@@ -329,7 +329,7 @@ func TestAPersonOfAnotherOrganizationIsRefused(t *testing.T) {
 // and Current are not served to a browser at all.
 func TestACrossOriginOrNonConnectCallNeverReachesTheHost(t *testing.T) {
 	srv, host := newHostFace(t)
-	grant := &installationv1.GrantRoleRequest{OrganizationId: "acme", InstallationId: proposalsInstallation, Role: "viewer", PersonId: "maya"}
+	grant := &installationv1.GrantRoleRequest{OrganizationId: "acme", InstallationId: proposalsInstallation, Role: "user", PersonId: "maya"}
 	for _, origin := range []string{"http://elsewhere.test", "null", ""} {
 		_, err := browser[installationv1.GrantRoleRequest, installationv1.Installation](t, srv, origin, "alex-session", installationv1.InstallationService_GrantRole_FullMethodName, grant)
 		refusedWith(t, err, connect.CodePermissionDenied, "must come from this origin")

@@ -61,7 +61,7 @@ func TestReviewUnauthenticatedSketchReachesHost(t *testing.T) {
 	for _, protocol := range []string{"connect", "grpc"} {
 		t.Run(protocol, func(t *testing.T) {
 			k := testkit.New(t)
-			if err := k.State.LoadFixture(t.Context(), []byte("installations:\n  - {organization: acme, target: proposals, role: viewer, owner: alex}\n")); err != nil {
+			if err := k.State.LoadFixture(t.Context(), []byte("installations:\n  - {organization: acme, target: proposals, role: user, owner: alex}\n")); err != nil {
 				t.Fatal(err)
 			}
 			var steps, carriers atomic.Int32
@@ -210,7 +210,7 @@ func TestReviewRoleResponsesForeignAbsent(t *testing.T) {
 			}
 			calls := map[string]func(string) error{
 				"grant": func(id string) error {
-					r := connect.NewRequest(&installationv1.GrantRoleRequest{OrganizationId: "acme", InstallationId: id, PersonId: "maya", Role: "viewer"})
+					r := connect.NewRequest(&installationv1.GrantRoleRequest{OrganizationId: "acme", InstallationId: id, PersonId: "maya", Role: "user"})
 					if bearer != "" {
 						r.Header().Set("Authorization", "Bearer "+bearer)
 					}
@@ -218,7 +218,7 @@ func TestReviewRoleResponsesForeignAbsent(t *testing.T) {
 					return e
 				},
 				"revoke": func(id string) error {
-					r := connect.NewRequest(&installationv1.RevokeRoleRequest{OrganizationId: "acme", InstallationId: id, PersonId: "maya", Role: "viewer"})
+					r := connect.NewRequest(&installationv1.RevokeRoleRequest{OrganizationId: "acme", InstallationId: id, PersonId: "maya", Role: "user"})
 					if bearer != "" {
 						r.Header().Set("Authorization", "Bearer "+bearer)
 					}
@@ -260,15 +260,15 @@ func TestReviewArtifactCannotEscapeScopeOwner(t *testing.T) {
 				k := testkit.New(t)
 				m := testkit.Proposals(1)
 				m.ResourceKinds = append(m.ResourceKinds, testkit.Scope("proposals.item", "activate", "run"))
-				m.Roles["viewer"] = []*basev0.WorkScopeV1{testkit.Scope("proposals.item", "read", "activate", "run")}
+				m.Roles["user"] = []*basev0.WorkScopeV1{testkit.Scope("proposals.item", "read", "activate", "run")}
 				if _, err := k.State.ApplyManifest(m); err != nil {
 					t.Fatal(err)
 				}
-				own, err := k.State.InstallAsHost(t.Context(), "acme", m.Name, "viewer", "alex")
+				own, err := k.State.InstallAsHost(t.Context(), "acme", m.Name, "user", "alex")
 				if err != nil {
 					t.Fatal(err)
 				}
-				if err := k.State.GrantRole(domain.RoleGrant{InstallationID: own.ID, Role: "viewer", PersonID: "maya"}); err != nil {
+				if err := k.State.GrantRole(domain.RoleGrant{InstallationID: own.ID, Role: "user", PersonID: "maya"}); err != nil {
 					t.Fatal(err)
 				}
 				other, ok := k.State.Installation(state.InstallationID("acme", "wiki"))
@@ -458,7 +458,7 @@ func TestReviewRevokeFenceThroughWrapper(t *testing.T) {
 			k.Issuer = issuer.New(st, testkit.Audience, "review", key.Public().(ed25519.PublicKey))
 			wiki := testkit.Wiki(1)
 			wiki.Bindings = map[string]state.Binding{"documents": {ID: "documents", Audience: "documents", InvokeScopes: []*basev0.WorkScopeV1{testkit.Scope("documents", "read")}}}
-			wiki.Roles["viewer"] = append(wiki.Roles["viewer"], testkit.Scope("documents", "read"))
+			wiki.Roles["user"] = append(wiki.Roles["user"], testkit.Scope("documents", "read"))
 			for _, m := range []state.Manifest{testkit.Model(1), testkit.Documents(1), wiki} {
 				if _, err := st.ApplyManifest(m); err != nil {
 					t.Fatal(err)
@@ -471,11 +471,11 @@ func TestReviewRevokeFenceThroughWrapper(t *testing.T) {
 			if err := st.LoadFixture(t.Context(), data); err != nil {
 				t.Fatal(err)
 			}
-			inst, err := st.InstallAsHost(t.Context(), "acme", "wiki", "viewer", "alex")
+			inst, err := st.InstallAsHost(t.Context(), "acme", "wiki", "user", "alex")
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := st.GrantRole(domain.RoleGrant{InstallationID: inst.ID, Role: "viewer", PersonID: "maya"}); err != nil {
+			if err := st.GrantRole(domain.RoleGrant{InstallationID: inst.ID, Role: "user", PersonID: "maya"}); err != nil {
 				t.Fatal(err)
 			}
 			server := grpc.NewServer()
@@ -530,7 +530,7 @@ func TestReviewRevokeFenceThroughWrapper(t *testing.T) {
 			case <-time.After(10 * time.Second):
 				t.Fatal("issuance did not reach signer")
 			}
-			rr := connect.NewRequest(&installationv1.RevokeRoleRequest{OrganizationId: "acme", InstallationId: inst.ID, Role: "viewer", PersonId: "maya"})
+			rr := connect.NewRequest(&installationv1.RevokeRoleRequest{OrganizationId: "acme", InstallationId: inst.ID, Role: "user", PersonId: "maya"})
 			rr.Header().Set("Authorization", "Bearer "+alex.ID)
 			_, revokeErr := ic.RevokeRole(t.Context(), rr)
 			close(signer.release)
@@ -538,7 +538,7 @@ func TestReviewRevokeFenceThroughWrapper(t *testing.T) {
 				t.Fatal(revokeErr)
 			}
 			got := <-done
-			gr := connect.NewRequest(&installationv1.GrantRoleRequest{OrganizationId: "acme", InstallationId: inst.ID, Role: "viewer", PersonId: "maya"})
+			gr := connect.NewRequest(&installationv1.GrantRoleRequest{OrganizationId: "acme", InstallationId: inst.ID, Role: "user", PersonId: "maya"})
 			gr.Header().Set("Authorization", "Bearer "+alex.ID)
 			if _, e := ic.GrantRole(t.Context(), gr); e != nil {
 				t.Fatal(e)

@@ -9,7 +9,7 @@ import (
 )
 
 func TestReviewedOfferWireCarriesExactInstallationDeclaration(t *testing.T) {
-	for _, selector := range []string{"", "none", "editor"} {
+	for _, selector := range []string{"", "none", "user"} {
 		m := domain.Module{Name: "solution", InstallationRole: selector, EdgeDependencies: []domain.EdgeDependency{{Module: "z-principal", Presence: "required"}, {Module: "a-principal", Presence: "optional"}}}
 		wire, err := (&Plugin{}).review(authority.ReviewedOffer{Module: m}, nil)
 		if err != nil {

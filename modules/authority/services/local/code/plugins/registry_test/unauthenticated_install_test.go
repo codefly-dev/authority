@@ -34,7 +34,7 @@ func TestUnauthenticatedRequestCannotReachHostInstallation(t *testing.T) {
 	t.Cleanup(web.Close)
 	t.Cleanup(server.Stop)
 	client := installationv1connect.NewInstallationServiceClient(web.Client(), web.URL)
-	req := &installationv1.InstallRequest{OrganizationId: "acme", Target: "proposals", Role: "viewer", OwnerPersonId: "alex"}
+	req := &installationv1.InstallRequest{OrganizationId: "acme", Target: "proposals", Role: "user", OwnerPersonId: "alex"}
 	for _, bearer := range []string{"", "not-a-session"} {
 		request := connect.NewRequest(req)
 		if bearer != "" {
@@ -77,7 +77,7 @@ func TestUnauthenticatedRequestCannotReachHostInstallation(t *testing.T) {
 	if err != nil || retry.Msg.GetId() != first.Msg.GetId() {
 		t.Fatalf("unchanged retry: %v", err)
 	}
-	req.Role = "installer"
+	req.Role = "admin"
 	if _, err := install(); connect.CodeOf(err) != connect.CodeFailedPrecondition {
 		t.Fatalf("changed request: %v", err)
 	}

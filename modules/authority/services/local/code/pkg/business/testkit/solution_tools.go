@@ -43,11 +43,11 @@ func SolutionTools(t *testing.T, k *Kit) {
 			t.Fatal(err)
 		}
 	}
-	inst, err := k.State.InstallAsHost(context.Background(), "acme", "proposals", "viewer", "alex")
+	inst, err := k.State.InstallAsHost(context.Background(), "acme", "proposals", "user", "alex")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := k.State.GrantRole(domain.RoleGrant{InstallationID: inst.ID, Role: "viewer", TeamID: "finance"}); err != nil {
+	if err := k.State.GrantRole(domain.RoleGrant{InstallationID: inst.ID, Role: "user", TeamID: "finance"}); err != nil {
 		t.Fatal(err)
 	}
 }

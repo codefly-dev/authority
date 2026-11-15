@@ -38,23 +38,23 @@ func TestAPersonActsAsATeamAndComesBack(t *testing.T) {
 	own := f.signIn(t)
 	res, body := f.do(t, http.MethodGet, "/auth/sign-in?return=/records", http.Header{"Cookie": {own.String()}})
 	data := pageData(t, res, body)
-	if data.Session == nil || data.Session.PersonDisplayName != "Rémi" || data.Session.CastTeamID != "" || data.Session.Back || strings.Join(data.Session.Teams, ",") != "records-viewer" {
+	if data.Session == nil || data.Session.PersonDisplayName != "Rémi" || data.Session.CastTeamID != "" || data.Session.Back || strings.Join(data.Session.Teams, ",") != "records-user" {
 		t.Fatalf("the page carries %+v", data.Session)
 	}
-	// Act as records-viewer: the browser becomes the cast, and keeps the way back.
-	res = f.actAs(t, url.Values{"team": {"records-viewer"}, "return": {"/records"}}, own)
+	// Act as records-user: the browser becomes the cast, and keeps the way back.
+	res = f.actAs(t, url.Values{"team": {"records-user"}, "return": {"/records"}}, own)
 	set := cookiesOf(res)
-	if res.StatusCode != http.StatusSeeOther || res.Header.Get("Location") != "/records" || set[SessionKey] != "remi-as-viewers" || set[ParentKey] != "remi-session" {
+	if res.StatusCode != http.StatusSeeOther || res.Header.Get("Location") != "/records" || set[SessionKey] != "remi-as-users" || set[ParentKey] != "remi-session" {
 		t.Fatalf("act-as answered %d %s with cookies %v", res.StatusCode, res.Header.Get("Location"), set)
 	}
 	cast := &http.Cookie{Name: SessionKey, Value: set[SessionKey]}
 	parent := &http.Cookie{Name: ParentKey, Value: set[ParentKey]}
 	res, body = f.do(t, http.MethodGet, "/auth/session", http.Header{"Cookie": {cast.String() + "; " + parent.String()}})
-	if res.StatusCode != http.StatusOK || !strings.Contains(body, `"castTeamId":"records-viewer"`) {
+	if res.StatusCode != http.StatusOK || !strings.Contains(body, `"castTeamId":"records-user"`) {
 		t.Fatalf("the session answered %d: %s", res.StatusCode, body)
 	}
 	res, body = f.do(t, http.MethodGet, "/auth/sign-in", http.Header{"Cookie": {cast.String() + "; " + parent.String()}})
-	if data = pageData(t, res, body); data.Session == nil || data.Session.CastTeamID != "records-viewer" || !data.Session.Back {
+	if data = pageData(t, res, body); data.Session == nil || data.Session.CastTeamID != "records-user" || !data.Session.Back {
 		t.Fatalf("the page carries %+v", data.Session)
 	}
 	// Back: the own session again, the cast forgotten.
@@ -73,7 +73,7 @@ func TestAPersonActsAsATeamAndComesBack(t *testing.T) {
 func TestASignInClearsTheWayBackACastKept(t *testing.T) {
 	f := newFixture(t)
 	own := f.signIn(t)
-	res := f.actAs(t, url.Values{"team": {"records-viewer"}, "return": {"/records"}}, own)
+	res := f.actAs(t, url.Values{"team": {"records-user"}, "return": {"/records"}}, own)
 	set := cookiesOf(res)
 	cast := &http.Cookie{Name: SessionKey, Value: set[SessionKey]}
 	parent := &http.Cookie{Name: ParentKey, Value: set[ParentKey]}
@@ -92,7 +92,7 @@ func TestASignInClearsTheWayBackACastKept(t *testing.T) {
 func TestAnActAsTheAuthorityRefusesIsShownByName(t *testing.T) {
 	f := newFixture(t)
 	own := f.signIn(t)
-	res := f.actAs(t, url.Values{"team": {"records-editor"}, "return": {"/records"}}, own)
+	res := f.actAs(t, url.Values{"team": {"records-admin"}, "return": {"/records"}}, own)
 	back, err := url.Parse(res.Header.Get("Location"))
 	if err != nil || res.StatusCode != http.StatusSeeOther || back.Path != "/auth/sign-in" || !strings.Contains(back.Query().Get("refused"), "could not grant") || back.Query().Get("return") != "/records" {
 		t.Fatalf("a refused act-as answered %d %s", res.StatusCode, res.Header.Get("Location"))
@@ -104,11 +104,11 @@ func TestAnActAsTheAuthorityRefusesIsShownByName(t *testing.T) {
 	if data := pageData(t, res, body); !strings.Contains(data.Refused, "could not grant") {
 		t.Fatalf("the page carries %+v", data)
 	}
-	res, _ = f.send(t, http.MethodPost, "/auth/act-as", http.Header{"Content-Type": {"application/x-www-form-urlencoded"}, "Origin": {"https://elsewhere.test"}, "Cookie": {own.String()}}, "team=records-viewer")
+	res, _ = f.send(t, http.MethodPost, "/auth/act-as", http.Header{"Content-Type": {"application/x-www-form-urlencoded"}, "Origin": {"https://elsewhere.test"}, "Cookie": {own.String()}}, "team=records-user")
 	if res.StatusCode != http.StatusForbidden {
 		t.Fatalf("an act-as from another origin answered %d", res.StatusCode)
 	}
-	if res = f.actAs(t, url.Values{"team": {"records-viewer"}}); res.StatusCode != http.StatusUnauthorized {
+	if res = f.actAs(t, url.Values{"team": {"records-user"}}); res.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("an act-as with no session answered %d", res.StatusCode)
 	}
 }

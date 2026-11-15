@@ -244,7 +244,7 @@ func pendingSolution(t *testing.T, p *Plugin, k *testkit.Kit) *compositionv1.App
 	if err := k.State.LoadFixture(context.Background(), []byte(`installations:
   - organization: acme
     target: conformance-solution
-    role: viewer
+    role: user
     owner: alex
     teams: [finance]
 `)); err != nil {
@@ -252,7 +252,7 @@ func pendingSolution(t *testing.T, p *Plugin, k *testkit.Kit) *compositionv1.App
 	}
 	read := scope("conformance.page", "read")
 	return carrier(t, k, "conformance-solution", solutionhost.KindSolution, 1, []string{"conformance.page"}, &compositionv1.AuthorityManifestV1{ScopeCeilings: []*authorityv1.WorkScopeV1{read}, Roles: []*compositionv1.RoleV1{
-		{Name: state.InstallerRole, Scopes: []*authorityv1.WorkScopeV1{read}}, {Name: "viewer", Scopes: []*authorityv1.WorkScopeV1{read}},
+		{Name: state.AdminRole, Scopes: []*authorityv1.WorkScopeV1{read}}, {Name: "user", Scopes: []*authorityv1.WorkScopeV1{read}},
 	}})
 }
 
@@ -427,7 +427,7 @@ func TestSignedCarrierReplayCannotAttachToAnExplicitReinstallation(t *testing.T)
 		t.Fatal(err)
 	}
 	k.State.OnInstall(nil)
-	fresh, err := k.State.InstallAsHost(ctx, "acme", "conformance-solution", "viewer", "alex")
+	fresh, err := k.State.InstallAsHost(ctx, "acme", "conformance-solution", "user", "alex")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -470,7 +470,7 @@ func TestSignedCarrierPartialCompletionDoesNotRepeatEarlierGrants(t *testing.T) 
 	if err := k.State.LoadFixture(ctx, []byte(`installations:
   - organization: globex
     target: conformance-solution
-    role: viewer
+    role: user
     owner: zoe
     teams: [ops]
 `)); err != nil {
@@ -523,7 +523,7 @@ func TestSignedCarrierReplacementWaitsForAndFencesEarlierCompletion(t *testing.T
 	<-entered
 	read := scope("conformance.page", "read")
 	next := carrier(t, k, "conformance-solution", solutionhost.KindSolution, 2, []string{"conformance.page"}, &compositionv1.AuthorityManifestV1{ScopeCeilings: []*authorityv1.WorkScopeV1{read}, Roles: []*compositionv1.RoleV1{
-		{Name: state.InstallerRole, Scopes: []*authorityv1.WorkScopeV1{read}}, {Name: "viewer", Scopes: []*authorityv1.WorkScopeV1{read}},
+		{Name: state.AdminRole, Scopes: []*authorityv1.WorkScopeV1{read}}, {Name: "user", Scopes: []*authorityv1.WorkScopeV1{read}},
 	}})
 	cancelled, cancel := context.WithCancel(ctx)
 	defer cancel()
