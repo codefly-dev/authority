@@ -85,7 +85,7 @@ people:
 		C:     conformance.SolutionUnderTest{Solution: "principal-c", Credential: k.Credential(t, "principal-c")},
 		Store: "principal-store", StoreCredential: k.Credential(t, "principal-store"), Kind: "principal.collection",
 		LegacyStore: "principal-legacy-store", LegacyStoreCredential: k.Credential(t, "principal-legacy-store"), LegacyKind: "principal.legacy",
-		Admin: "fixture-alex", ReaderHolder: "fixture-maya", Author: "fixture-remi", Member: "fixture-dev", AdminHolder: "fixture-principal-admin",
+		Admin: "fixture-alex", UserHolder: "fixture-maya", Author: "fixture-remi", Member: "fixture-dev", AdminHolder: "fixture-principal-admin",
 		Team: "principal-team", EmptyTeam: "principal-empty-team", TeamMember: "fixture-principal-team-member", TeamLeaver: "fixture-principal-team-leaver", OrgLeaver: "fixture-principal-org-leaver",
 		Administrator: "fixture-store-administrator", Reader: "fixture-store-reader", NoteReader: "fixture-principal-note-reader",
 		OtherAdmin: "fixture-zoe", OtherMember: "fixture-omar", OtherTeam: "ops",

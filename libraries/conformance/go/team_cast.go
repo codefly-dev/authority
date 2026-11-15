@@ -35,8 +35,8 @@ func (sp *principalSuite) teamCast(t *testing.T) {
 	f := sp.f
 	A := f.A
 	u := sp.principal(t, f.Organization, A)
-	sp.grant(t, A, "reader", map[string]any{"team_id": f.Team})
-	defer sp.revoke(t, A, "reader", map[string]any{"team_id": f.Team})
+	sp.grant(t, A, "user", map[string]any{"team_id": f.Team})
+	defer sp.revoke(t, A, "user", map[string]any{"team_id": f.Team})
 
 	cast := func(t *testing.T, from, team string) (string, error) {
 		t.Helper()
@@ -61,16 +61,16 @@ func (sp *principalSuite) teamCast(t *testing.T) {
 			_, err = sp.through(t, as, A, "store", sp.owned(f.Kind, []string{"write"}, u))
 			refused(t, err, codes.PermissionDenied, "widens")
 			_, err = sp.c.call(sp.as(t, as), "host.installation.v1.InstallationService", "GrantRole", map[string]any{
-				"organization_id": f.Organization, "installation_id": str(sp.ensure(t, f.Organization, A), "id"), "role": "author", "team_id": f.Team})
-			refused(t, err, codes.PermissionDenied, "belongs to another organization") // what a reader is answered
+				"organization_id": f.Organization, "installation_id": str(sp.ensure(t, f.Organization, A), "id"), "role": "admin", "team_id": f.Team})
+			refused(t, err, codes.PermissionDenied, "belongs to another organization") // what a user is answered
 			_, err = cast(t, as, f.Team)
 			refused(t, err, codes.PermissionDenied, "already cast")
 
-			if got := sp.castable(t, as); len(got) != 1 || !slices.Contains(got[f.Team], instA+" reader") {
-				t.Fatalf("a cast lists %v; want the one team it acts as, %s, holding reader on %s", got, f.Team, instA)
+			if got := sp.castable(t, as); len(got) != 1 || !slices.Contains(got[f.Team], instA+" user") {
+				t.Fatalf("a cast lists %v; want the one team it acts as, %s, holding user on %s", got, f.Team, instA)
 			}
-			if got := sp.castable(t, from); !slices.Contains(got[f.Team], instA+" reader") {
-				t.Fatalf("%s lists %v; want %s, holding reader on %s: a team OpenTeamCast opens for them", who, got, f.Team, instA)
+			if got := sp.castable(t, from); !slices.Contains(got[f.Team], instA+" user") {
+				t.Fatalf("%s lists %v; want %s, holding user on %s: a team OpenTeamCast opens for them", who, got, f.Team, instA)
 			}
 
 			current := sp.must(t)(sp.c.call(sp.as(t, as), "host.session.v1.SessionService", "Current", nil))
@@ -85,8 +85,8 @@ func (sp *principalSuite) teamCast(t *testing.T) {
 	if own := sp.must(t)(sp.c.call(sp.as(t, f.Admin), "host.session.v1.SessionService", "Current", nil)); str(own, "cast_team_id") != "" {
 		t.Fatalf("the session a cast was opened from says it is cast onto %q", str(own, "cast_team_id"))
 	}
-	sp.grant(t, A, "author", sp.person(t, f.Member))
-	sp.revoke(t, A, "author", sp.person(t, f.Member))
+	sp.grant(t, A, "admin", sp.person(t, f.Member))
+	sp.revoke(t, A, "admin", sp.person(t, f.Member))
 
 	// ListCastableTeams lists by OpenTeamCast's rule: what it refuses is not
 	// offered, so a person who could not grant the team's roles, and a team

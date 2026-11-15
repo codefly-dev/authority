@@ -61,7 +61,7 @@ func (c *client) installationSurvivesDelivery(t *testing.T, ctx context.Context,
 		install := func(t *testing.T) (protoreflect.Message, error) {
 			t.Helper()
 			return c.call(adminCtx, "host.installation.v1.InstallationService", "Install", map[string]any{"organization_id": f.Organization, "target": redeliveredSolution,
-				"role": "reader", "owner_person_id": str(admin, "person_id"), "approval": c.reviewInstallation(t, adminCtx, f.Organization, redeliveredSolution)})
+				"role": "user", "owner_person_id": str(admin, "person_id"), "approval": c.reviewInstallation(t, adminCtx, f.Organization, redeliveredSolution)})
 		}
 		grants := func(t *testing.T, id string) int {
 			t.Helper()
@@ -82,8 +82,8 @@ func (c *client) installationSurvivesDelivery(t *testing.T, ctx context.Context,
 			}
 		}
 
-		reader := map[string]any{"name": "reader", "scopes": []any{scopeAsk(redeliveredPage, []string{"read"}, nil), scopeAsk(redeliveredDraft, []string{"read"}, nil)}}
-		deliver(1, reader)
+		user := map[string]any{"name": "user", "scopes": []any{scopeAsk(redeliveredPage, []string{"read"}, nil), scopeAsk(redeliveredDraft, []string{"read"}, nil)}}
+		deliver(1, user)
 		installed, err := install(t)
 		if err != nil {
 			t.Fatal(err)
@@ -101,13 +101,9 @@ func (c *client) installationSurvivesDelivery(t *testing.T, ctx context.Context,
 			slices.Sort(out)
 			return out
 		}
-		grantEditor := func() error {
-			_, err := c.call(adminCtx, "host.installation.v1.InstallationService", "GrantRole", map[string]any{"organization_id": f.Organization, "installation_id": id, "role": "user", "person_id": str(holder, "person_id")})
-			return err
-		}
-		c.must(t, adminCtx, "host.installation.v1.InstallationService", "GrantRole", map[string]any{"organization_id": f.Organization, "installation_id": id, "role": "reader", "person_id": str(holder, "person_id")})
+		c.must(t, adminCtx, "host.installation.v1.InstallationService", "GrantRole", map[string]any{"organization_id": f.Organization, "installation_id": id, "role": "user", "person_id": str(holder, "person_id")})
 		if grants(t, id) != 1 {
-			t.Fatal("the reader grant was not recorded")
+			t.Fatal("the user grant was not recorded")
 		}
 		held, err := issue()
 		if err != nil {
@@ -115,7 +111,7 @@ func (c *client) installationSurvivesDelivery(t *testing.T, ctx context.Context,
 		}
 
 		t.Run("a redelivery asking nothing new re-converges it and keeps its grants", func(t *testing.T) {
-			narrower := map[string]any{"name": "reader", "scopes": []any{scopeAsk(redeliveredPage, []string{"read"}, nil)}}
+			narrower := map[string]any{"name": "user", "scopes": []any{scopeAsk(redeliveredPage, []string{"read"}, nil)}}
 			deliver(2, narrower)
 			inst := listed(t)
 			stands(t, inst, 2, false)
@@ -136,8 +132,7 @@ func (c *client) installationSurvivesDelivery(t *testing.T, ctx context.Context,
 			}
 		})
 		t.Run("a redelivery asking more leaves it on its consent and offers an upgrade; holders hold the approved roles", func(t *testing.T) {
-			user := map[string]any{"name": "user", "scopes": []any{scopeAsk(redeliveredPage, []string{"read", "write"}, nil)}}
-			deliver(3, reader, user) // the reader reads both kinds again, and a user appears
+			deliver(3, user) // the user reads both kinds again
 			inst := listed(t)
 			stands(t, inst, 2, true)
 			if grants(t, id) != 1 {
@@ -146,8 +141,8 @@ func (c *client) installationSurvivesDelivery(t *testing.T, ctx context.Context,
 			if err := check(held); err != nil {
 				t.Fatalf("a widening ended what the standing consent issued: %v", err)
 			}
-			// The approved reader reads the page alone; the delivered one is
-			// not what the holder holds, and the delivered role is not grantable.
+			// The approved user reads the page alone; the delivered one is not
+			// what the holder holds.
 			out, err := issue()
 			if err != nil {
 				t.Fatal(err)
@@ -155,7 +150,6 @@ func (c *client) installationSurvivesDelivery(t *testing.T, ctx context.Context,
 			if got := kinds(out); !slices.Equal(got, []string{redeliveredPage}) {
 				t.Fatalf("the holder reaches %v under the approved generation 2, want the page alone", got)
 			}
-			refused(t, grantEditor(), codes.NotFound, `declares no role "user"`)
 		})
 		t.Run("a fresh review and Install upgrade it in place, grants kept", func(t *testing.T) {
 			upgraded, err := install(t)
@@ -178,12 +172,6 @@ func (c *client) installationSurvivesDelivery(t *testing.T, ctx context.Context,
 			if got := kinds(out); !slices.Equal(got, []string{redeliveredDraft, redeliveredPage}) {
 				t.Fatalf("the holder reaches %v under generation 3, want both kinds", got)
 			}
-			if err := grantEditor(); err != nil {
-				t.Fatalf("the delivered role is not grantable once upgraded: %v", err)
-			}
-			if grants(t, id) != 2 {
-				t.Fatal("the user grant was not recorded")
-			}
 			held = out
 			_, err = install(t)
 			refused(t, err, codes.PermissionDenied, "already installed")
@@ -192,11 +180,10 @@ func (c *client) installationSurvivesDelivery(t *testing.T, ctx context.Context,
 			if f.Audience == "" || f.ReadKind == "" {
 				t.Fatal("required conformance fixture missing: Audience and ReadKind, a composed module and a kind it serves")
 			}
-			user := map[string]any{"name": "user", "scopes": []any{scopeAsk(redeliveredPage, []string{"read", "write"}, nil)}}
 			// Generation 4 binds the composed module for a read: a binding
 			// added asks more.
 			bindings = []solutionhost.AuthorityBinding{{ID: "store", Audience: f.Audience, Operations: map[string][]string{"invoke": {f.ReadKind + ":read"}}}}
-			deliver(4, reader, user)
+			deliver(4, user)
 			stands(t, listed(t), 3, true)
 			upgraded, err := install(t)
 			if err != nil {
@@ -211,9 +198,9 @@ func (c *client) installationSurvivesDelivery(t *testing.T, ctx context.Context,
 			// Generation 5 lets the binding write: a binding reaching further
 			// asks more; nothing else moved.
 			bindings = []solutionhost.AuthorityBinding{{ID: "store", Audience: f.Audience, Operations: map[string][]string{"invoke": {f.ReadKind + ":read", f.ReadKind + ":write"}}}}
-			deliver(5, reader, user)
+			deliver(5, user)
 			stands(t, listed(t), 4, true)
-			if grants(t, id) != 2 {
+			if grants(t, id) != 1 {
 				t.Fatal("the widening changed the grants")
 			}
 			if err := check(held); err != nil {
@@ -225,7 +212,7 @@ func (c *client) installationSurvivesDelivery(t *testing.T, ctx context.Context,
 			stands(t, upgraded, 5, false)
 			// Generation 6 cuts the binding back: nothing new is asked.
 			bindings = []solutionhost.AuthorityBinding{{ID: "store", Audience: f.Audience, Operations: map[string][]string{"invoke": {f.ReadKind + ":read"}}}}
-			deliver(6, reader, user)
+			deliver(6, user)
 			stands(t, listed(t), 6, false)
 		})
 	})

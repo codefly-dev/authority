@@ -37,13 +37,15 @@ func (c *client) modulePageRoles(t *testing.T, ctx context.Context, f Fixture) {
 			t.Fatal("required conformance fixture missing: signed delivery, an administrator here and in another organization, a viewer reading ReadKind, a member holding no role (UnentitledToken) and a composed module without roles (Audience)")
 		}
 		page := &solutionhost.Frontend{Title: pageModuleTitle, ExposedModule: "./Page", HostContract: 1, Payload: f.PagePayload}
-		roles := func(note string, extra ...string) map[string]any {
+		// roles declares exactly the two roles: admin reads and writes, user
+		// holds userActions (read alone unless named).
+		roles := func(note string, userActions ...string) map[string]any {
+			if len(userActions) == 0 {
+				userActions = []string{"read"}
+			}
 			declared := []any{
 				map[string]any{"name": "admin", "scopes": []any{scopeAsk(note, []string{"read", "write"}, nil)}},
-				map[string]any{"name": "user", "scopes": []any{scopeAsk(note, []string{"read"}, nil)}},
-			}
-			for _, name := range extra {
-				declared = append(declared, map[string]any{"name": name, "scopes": []any{scopeAsk(note, []string{"read", "write"}, nil)}})
+				map[string]any{"name": "user", "scopes": []any{scopeAsk(note, userActions, nil)}},
 			}
 			return map[string]any{"scope_ceilings": []any{scopeAsk(note, []string{"read", "write"}, nil)}, "installation_role": "none", "roles": declared}
 		}
@@ -247,28 +249,32 @@ func (c *client) modulePageRoles(t *testing.T, ctx context.Context, f Fixture) {
 			}
 		})
 		t.Run("a role the module does not declare is refused", func(t *testing.T) {
-			refused(t, role("GrantRole", "reader"), codes.NotFound, `declares no role "reader"`)
+			refused(t, role("GrantRole", "owner"), codes.NotFound, `declares no role "owner"`)
 		})
-		t.Run("a module that gains or loses roles keeps its installation: a role added keeps its grants", func(t *testing.T) {
-			if _, err := c.deliverPage(ctx, f, page, pageModule, "module", 2, served, roles(pageModuleNote, "reader"), 0); err != nil {
-				t.Fatalf("redeliver %s adding a role: %v", pageModule, err)
+		t.Run("a module whose role widens keeps its installation and its grants; the wider role waits for approval", func(t *testing.T) {
+			if _, err := c.deliverPage(ctx, f, page, pageModule, "module", 2, served, roles(pageModuleNote, "read", "write"), 0); err != nil {
+				t.Fatalf("redeliver %s widening the user role: %v", pageModule, err)
 			}
 			if got := str(installed(t, admin), "id"); got != id {
-				t.Fatalf("a role added moved the module page's installation from %s to %s", id, got)
+				t.Fatalf("a role widened moved the module page's installation from %s to %s", id, got)
 			}
 			if got := listed(t, holder); !slices.Equal(got, []string{"user"}) {
-				t.Fatalf("a role added left the holder listed holding %v, want [user]", got)
+				t.Fatalf("a role widened left the holder listed holding %v, want [user]", got)
 			}
 			if held != nil {
 				c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(held, "token"), "audience": pageModule})
 			}
 			// The installation is held at the reach the administrator's
-			// grants were given under, as a solution's is: the added role
+			// grants were given under, as a solution's is: the wider role
 			// waits for the upgrade's approval, through Review and Install
 			// on the same installation, which keeps every grant.
-			refused(t, role("GrantRole", "reader"), codes.NotFound, `declares no role "reader"`)
+			if out, err := issue(holder); err != nil {
+				t.Fatal(err)
+			} else {
+				exactScopeOwnedBy(t, msg(out, "context"), pageModuleNote, []string{"read"}, nil, "")
+			}
 			if !bool_(installed(t, admin), "upgrade_available") {
-				t.Fatalf("a role added offers no upgrade on the module page's installation")
+				t.Fatalf("a role widened offers no upgrade on the module page's installation")
 			}
 			upgraded := c.must(t, adminCtx, "host.installation.v1.InstallationService", "Install", map[string]any{"organization_id": f.Organization, "target": pageModule,
 				"owner_person_id": str(admin, "person_id"), "approval": c.reviewInstallation(t, adminCtx, f.Organization, pageModule)})
@@ -278,12 +284,11 @@ func (c *client) modulePageRoles(t *testing.T, ctx context.Context, f Fixture) {
 			if got := listed(t, holder); !slices.Equal(got, []string{"user"}) {
 				t.Fatalf("the approved upgrade left the holder listed holding %v, want [user]", got)
 			}
-			if err := role("GrantRole", "reader"); err != nil {
-				t.Fatalf("the added role is not grantable once approved: %v", err)
-			}
-			if err := role("RevokeRole", "reader"); err != nil {
+			out, err := issue(holder)
+			if err != nil {
 				t.Fatal(err)
 			}
+			exactScopeOwnedBy(t, msg(out, "context"), pageModuleNote, []string{"read", "write"}, nil, "")
 		})
 		t.Run("a module declaring roles and no page is refused", func(t *testing.T) {
 			_, err := c.deliver(ctx, f, headlessModule, "module", 1, []string{headlessNote}, roles(headlessNote), 0)

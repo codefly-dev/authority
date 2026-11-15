@@ -56,7 +56,6 @@ func (c *client) solutionRoleCases(t *testing.T, ctx context.Context, f Fixture)
 				"scope_ceilings": []any{own},
 				"roles": []any{
 					map[string]any{"name": "admin", "scopes": []any{own, consumed}},
-					map[string]any{"name": "author", "scopes": []any{scopeAsk(r.OwnKind, []string{"read", "write"}, nil)}},
 					map[string]any{"name": "user", "scopes": []any{reads, consumed}},
 				},
 				"methods": []any{

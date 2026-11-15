@@ -14,7 +14,7 @@ import (
 // view only narrows:
 //   - a role the caller does not act as, on that installation, is refused naming
 //     it; a viewing session opens only narrower ones;
-//   - the capability a view session is issued holds exactly a reader's scopes, at
+//   - the capability a view session is issued holds exactly a user's scopes, at
 //     the solution and at the store through its binding, and an ask beyond them is
 //     refused "widens" however the ask is made;
 //   - the session it was opened from is untouched: it still holds every role;
@@ -29,10 +29,10 @@ func (sp *principalSuite) roleView(t *testing.T) {
 	a := str(sp.ensure(t, f.Organization, A), "id")
 	u := sp.principal(t, f.Organization, A)
 	member := sp.person(t, f.Member)
-	sp.grant(t, A, "author", member)
-	sp.grant(t, A, "reader", member)
-	defer sp.revoke(t, A, "author", member)
-	defer sp.revoke(t, A, "reader", member)
+	sp.grant(t, A, "admin", member)
+	sp.grant(t, A, "user", member)
+	defer sp.revoke(t, A, "admin", member)
+	defer sp.revoke(t, A, "user", member)
 
 	open := func(t *testing.T, from string, roles ...string) (string, error) {
 		t.Helper()
@@ -54,53 +54,53 @@ func (sp *principalSuite) roleView(t *testing.T) {
 		exactOwnedScope(t, msg(sp.must(t)(sp.through(t, token, A, "store")), "context"), f.Kind, []string{"read"}, u)
 	}
 
-	sp.must(t)(sp.through(t, f.Member, A, "store")) // author, before any view
-	reader, err := open(t, f.Member, "reader")
+	sp.must(t)(sp.through(t, f.Member, A, "store")) // admin, before any view
+	asUser, err := open(t, f.Member, "user")
 	if err != nil {
 		t.Fatal(err)
 	}
-	reads(t, reader)
+	reads(t, asUser)
 	for name, ask := range map[string]any{"a write at the store": sp.owned(f.Kind, []string{"write"}, u), "a create at the store": sp.owned(f.Kind, []string{"create"}, u)} {
-		_, err := sp.through(t, reader, A, "store", ask)
+		_, err := sp.through(t, asUser, A, "store", ask)
 		t.Run(name, func(t *testing.T) { refused(t, err, codes.PermissionDenied, "widens") })
 	}
 	wc := msg(sp.must(t)(sp.through(t, f.Member, A, "store")), "context")
 	exactOwnedScope(t, wc, f.Kind, []string{"create", "read", "write"}, u) // the session it was opened from is untouched
 
 	// Only a role the caller acts as; a viewing session opens only narrower.
-	_, err = open(t, f.Member, "user")
-	refused(t, err, codes.PermissionDenied, `"user"`)
-	_, err = open(t, reader, "author")
-	refused(t, err, codes.PermissionDenied, `"author"`)
+	_, err = open(t, f.Member, "owner")
+	refused(t, err, codes.PermissionDenied, `"owner"`)
+	_, err = open(t, asUser, "admin")
+	refused(t, err, codes.PermissionDenied, `"admin"`)
 	_, err = open(t, f.Member)
 	if err == nil {
 		t.Fatal("a role view naming no role was opened")
 	}
-	_, err = sp.c.call(sp.as(t, f.OtherMember), "host.session.v1.SessionService", "OpenRoleView", map[string]any{"installation_id": a, "roles": []any{"reader"}})
+	_, err = sp.c.call(sp.as(t, f.OtherMember), "host.session.v1.SessionService", "OpenRoleView", map[string]any{"installation_id": a, "roles": []any{"user"}})
 	if err == nil {
 		t.Fatal("a member of another organization opened a role view on this organization's installation")
 	}
-	both, err := open(t, f.Member, "author", "reader")
+	both, err := open(t, f.Member, "admin", "user")
 	if err != nil {
 		t.Fatal(err)
 	}
 	exactOwnedScope(t, msg(sp.must(t)(sp.through(t, both, A, "store")), "context"), f.Kind, []string{"create", "read", "write"}, u)
-	narrower, err := open(t, both, "reader")
+	narrower, err := open(t, both, "user")
 	if err != nil {
 		t.Fatal(err)
 	}
 	reads(t, narrower)
 
 	// The navigation and the session say what is viewed.
-	held := sp.must(t)(sp.c.call(sp.as(t, reader), "host.installation.v1.InstallationService", "ListHeld", map[string]any{"organization_id": f.Organization}))
+	held := sp.must(t)(sp.c.call(sp.as(t, asUser), "host.installation.v1.InstallationService", "ListHeld", map[string]any{"organization_id": f.Organization}))
 	for _, h := range listMsgs(held, "installations") {
-		if str(msg(h, "installation"), "id") == a && !slices.Equal(listStrings(h, "roles"), []string{"reader"}) {
-			t.Fatalf("the viewing session lists roles %v on A, want [reader]", listStrings(h, "roles"))
+		if str(msg(h, "installation"), "id") == a && !slices.Equal(listStrings(h, "roles"), []string{"user"}) {
+			t.Fatalf("the viewing session lists roles %v on A, want [user]", listStrings(h, "roles"))
 		}
 	}
-	current := sp.must(t)(sp.c.call(sp.as(t, reader), "host.session.v1.SessionService", "Current", nil))
+	current := sp.must(t)(sp.c.call(sp.as(t, asUser), "host.session.v1.SessionService", "Current", nil))
 	views := listMsgs(current, "role_view")
-	if len(views) != 1 || str(views[0], "installation_id") != a || !slices.Equal(listStrings(views[0], "roles"), []string{"reader"}) {
-		t.Fatalf("Current says the session views %v, want reader on %s", views, a)
+	if len(views) != 1 || str(views[0], "installation_id") != a || !slices.Equal(listStrings(views[0], "roles"), []string{"user"}) {
+		t.Fatalf("Current says the session views %v, want user on %s", views, a)
 	}
 }
