@@ -2,6 +2,7 @@ package decide_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
@@ -30,6 +31,15 @@ func TestTheLegacyInstallerStandsForTheAdminRoleForOneRelease(t *testing.T) {
 	}
 	if err := decide.ValidateModule(page("editor", "viewer")); !errors.Is(err, domain.ErrNoAdminRole) {
 		t.Errorf("a page declaring editor and viewer alone: want ErrNoAdminRole, got %v", err)
+	}
+	// Both names would be two admin-powered roles: refused.
+	if err := decide.ValidateModule(page("admin", "installer", "user")); err == nil || !strings.Contains(err.Error(), `declares both "admin" and "installer"`) {
+		t.Errorf("a page declaring admin and installer: want a refusal naming both, got %v", err)
+	}
+	solution := page("admin", "installer")
+	solution.Kind, solution.Page = domain.KindSolution, false
+	if err := decide.ValidateModule(solution); err == nil {
+		t.Error("a solution declaring admin and installer validated")
 	}
 
 	inst := domain.Installation{ID: "inst-1", Organization: "acme", Target: "pages", Status: domain.Active}

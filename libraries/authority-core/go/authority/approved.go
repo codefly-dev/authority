@@ -144,6 +144,12 @@ func approvedReading(tx Tx, inst domain.Installation, m domain.Module) (domain.M
 // generation declared the name again, and its holders would hold whatever
 // that generation meant by it, with no administrator having granted that.
 // Each deletion is journaled as a revocation by actor.
+//
+// STOPGAP (one release, domain.LegacyInstallerRole): a grant of an old person
+// role (installer, editor, viewer) next no longer declares moves to its
+// successor (domain.CrossoverRole: admin, user) when next declares that, the
+// move journaled as a grant and a revocation by actor, so a target
+// re-rendered with the two roles keeps its holders.
 func (s *Service) dropUndeclaredGrants(ctx context.Context, tx Tx, inst domain.Installation, next domain.Module, actor string) error {
 	grants, err := tx.RoleGrants(inst.ID)
 	if err != nil {
@@ -152,6 +158,17 @@ func (s *Service) dropUndeclaredGrants(ctx context.Context, tx Tx, inst domain.I
 	for _, g := range grants {
 		if _, declared := next.Roles[g.Role]; declared {
 			continue
+		}
+		if role, ok := domain.CrossoverRole(g.Role, next.Roles); ok {
+			moved := g
+			moved.Role = role
+			if err := tx.PutRoleGrant(moved); err != nil {
+				return err
+			}
+			r := RoleRequest{Organization: inst.Organization, InstallationID: inst.ID, Role: role, PersonID: g.PersonID, TeamID: g.TeamID}
+			if err := s.journal(ctx, tx, r.event(domain.RoleGranted, actor)); err != nil {
+				return err
+			}
 		}
 		if err := tx.DeleteRoleGrant(g); err != nil {
 			return err

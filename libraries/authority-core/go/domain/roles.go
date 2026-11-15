@@ -15,17 +15,51 @@ const (
 
 // LegacyInstallerRole is the admin role's name before it was renamed.
 //
-// STOPGAP, one release only: a host is published after the modules on a
-// deployment, so a delivery stored before the rename, or an incoming one not
-// yet re-rendered, still names "installer". Until every delivery has crossed,
-// a declaration of "installer" satisfies the admin requirement and a holder
-// of it administers as an admin holder does. No other old role name (editor,
-// viewer) is an alias of anything.
+// STOPGAP, one release only. Everything below that names it, and
+// CrossoverRole, is the stopgap, deleted together:
 //
-// TODO(next release): delete LegacyInstallerRole and the alias in
-// IsAdminRole and DeclaredAdminRole; roles_test.go pins the alias so that
-// removal is deliberate.
+//   - the alias: a host is published after the modules on a deployment, so a
+//     delivery stored before the rename, or an incoming one not yet
+//     re-rendered, still names "installer". Until every delivery has crossed,
+//     a declaration of "installer" satisfies the admin requirement and a
+//     holder of it administers as an admin holder does (IsAdminRole,
+//     HoldsAdmin, DeclaredAdminRole). No other old role name (editor, viewer)
+//     is an alias of anything, and a declaration naming both "installer" and
+//     "admin" is refused (decide.ValidateModule), so no target holds two
+//     admin-powered roles;
+//   - the crossover: when a declaration naming admin and user replaces one
+//     whose grants hold the old names, those grants move to the new names
+//     instead of ending (CrossoverRole, applied where undeclared grants are
+//     dropped), so nobody loses access.
+//
+// TODO(next release): delete LegacyInstallerRole, legacyRoles, CrossoverRole
+// and the alias in IsAdminRole and DeclaredAdminRole; roles_test.go and the
+// legacy_installer tests pin both, so removal is deliberate.
 const LegacyInstallerRole = "installer"
+
+// legacyRoles maps each old person role to the one that succeeds it: the
+// installer's grants become admin's, the editor's and the viewer's user's.
+// STOPGAP: see LegacyInstallerRole.
+var legacyRoles = map[string]string{LegacyInstallerRole: AdminRole, "editor": UserRole, "viewer": UserRole}
+
+// CrossoverRole is the role a grant of role moves to when declared, the next
+// declaration's roles, no longer declares role: its successor (legacyRoles),
+// when declared declares that. False for any other role, for a role declared
+// still, and when the successor is not declared. STOPGAP: see
+// LegacyInstallerRole.
+func CrossoverRole[V any](role string, declared map[string]V) (string, bool) {
+	if _, still := declared[role]; still {
+		return "", false
+	}
+	next, ok := legacyRoles[role]
+	if !ok {
+		return "", false
+	}
+	if _, ok := declared[next]; !ok {
+		return "", false
+	}
+	return next, true
+}
 
 // IsAdminRole reports whether role is the admin role, or, for one release,
 // its legacy name (LegacyInstallerRole).

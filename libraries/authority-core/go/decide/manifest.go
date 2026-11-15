@@ -181,6 +181,13 @@ func validateModule(m domain.Module) error {
 		return &domain.Refusal{Code: domain.Denied, Cause: domain.ErrNoAdminRole,
 			Reason: fmt.Sprintf("%s declares %d role(s) and none is %q: a solution, or a module page declaring roles, declares an admin role", m.Name, len(m.Roles), domain.AdminRole)}
 	}
+	// STOPGAP (one release): naming both would give the target two
+	// admin-powered roles, so a holder of a narrowly scoped "installer"
+	// could grant themselves admin.
+	_, admin := m.Roles[domain.AdminRole]
+	if _, legacy := m.Roles[domain.LegacyInstallerRole]; admin && legacy {
+		return domain.Refuse("%s declares both %q and %q: %q is the admin role's old name, and a target declares one admin role", m.Name, domain.AdminRole, domain.LegacyInstallerRole, domain.LegacyInstallerRole)
+	}
 	// A role reaches through its target's bindings, a solution's and a
 	// module page's alike (a person's capability through either carries the
 	// role at each module it invokes, cut to the binding at each hop), so a

@@ -41,3 +41,31 @@ func TestTheLegacyInstallerIsTheAdminRoleForOneRelease(t *testing.T) {
 		}
 	}
 }
+
+// The grant crossover of the same stopgap: a grant of an old person role the
+// next declaration no longer declares moves to its successor, when that is
+// declared: installer to admin, editor and viewer to user. A role still
+// declared, or one with no declared successor, does not move, and nothing
+// else ever does.
+func TestTheOldRolesCrossOverToTheTwoForOneRelease(t *testing.T) {
+	two := map[string]bool{"admin": true, "user": true}
+	for _, c := range []struct {
+		role     string
+		declared map[string]bool
+		want     string
+		ok       bool
+	}{
+		{"installer", two, "admin", true},
+		{"editor", two, "user", true},
+		{"viewer", two, "user", true},
+		{"viewer", map[string]bool{"admin": true}, "", false},
+		{"viewer", map[string]bool{"admin": true, "user": true, "viewer": true}, "", false},
+		{"installer", map[string]bool{"installer": true, "user": true}, "", false},
+		{"author", two, "", false},
+		{"user", two, "", false},
+	} {
+		if got, ok := domain.CrossoverRole(c.role, c.declared); got != c.want || ok != c.ok {
+			t.Errorf("CrossoverRole(%q, %v) = %q %v, want %q %v", c.role, c.declared, got, ok, c.want, c.ok)
+		}
+	}
+}

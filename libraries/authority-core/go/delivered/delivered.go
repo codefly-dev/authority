@@ -138,7 +138,7 @@ func Module(manifest *solutionhost.ModuleManifest, doc *Document) (domain.Module
 	if m.Roles, m.OwnedRoles, m.Through, err = roles(doc.Roles); err != nil {
 		return m, err
 	}
-	// A module page declaring no roles gets the standard three, derived from
+	// A module page declaring no roles gets the standard two, derived from
 	// what it serves (decide.StandardRoles): every page is gated by its own
 	// roles, declared or derived, and only a module without a page is on the
 	// organization's. Derived here, where the document is read, so every host
