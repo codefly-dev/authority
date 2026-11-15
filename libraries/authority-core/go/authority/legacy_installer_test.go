@@ -2,6 +2,7 @@ package authority_test
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
@@ -100,6 +101,11 @@ func TestApprovingTheTwoRoleDeliveryMovesTheOldGrants(t *testing.T) {
 	if up, err := svc.UpgradeAvailable(h.ctx, h.pagesAt(acme)); err != nil || !up {
 		t.Fatalf("the two-role delivery offers no upgrade: %v %v", up, err)
 	}
+	// What the pending update asks names the move, for the approver.
+	if e, ok := lastEventOn(*events, domain.InstallationUpgradeAvailable, h.pagesAt(acme).ID); !ok ||
+		!strings.Contains(e.Detail["widened"], "holders of role installer move to admin") || !strings.Contains(e.Detail["widened"], "holders of role viewer move to user") {
+		t.Fatalf("installation.upgrade_available does not name the crossover: %+v %v", e, ok)
+	}
 	if got := grantsOf(h); !slices.Equal(got, []string{"installer remi", "viewer maya"}) {
 		t.Fatalf("a held installation's grants moved before the approval: %v", got)
 	}
@@ -119,14 +125,16 @@ func TestApprovingTheTwoRoleDeliveryMovesTheOldGrants(t *testing.T) {
 			continue
 		}
 		switch {
-		case e.Kind == domain.RoleGranted && (e.Detail["role"] == "admin" && e.Detail["person"] == "remi" || e.Detail["role"] == "user" && e.Detail["person"] == "maya"):
+		case e.Kind == domain.RoleGranted && (e.Detail["role"] == "admin" && e.Detail["person"] == "remi" && e.Detail[domain.CrossoverFrom] == "installer" ||
+			e.Detail["role"] == "user" && e.Detail["person"] == "maya" && e.Detail[domain.CrossoverFrom] == "viewer"):
 			granted++
-		case e.Kind == domain.RoleRevoked && (e.Detail["role"] == "installer" && e.Detail["person"] == "remi" || e.Detail["role"] == "viewer" && e.Detail["person"] == "maya"):
+		case e.Kind == domain.RoleRevoked && e.Detail[domain.CrossoverFrom] == e.Detail["role"] &&
+			(e.Detail["role"] == "installer" && e.Detail["person"] == "remi" || e.Detail["role"] == "viewer" && e.Detail["person"] == "maya"):
 			revoked++
 		}
 	}
 	if granted != 2 || revoked != 2 {
-		t.Fatalf("the move was journaled as %d grants and %d revocations by the approver, want 2 and 2: %+v", granted, revoked, *events)
+		t.Fatalf("the move was journaled as %d grants and %d revocations by the approver marked as the crossover, want 2 and 2: %+v", granted, revoked, *events)
 	}
 	if err := h.grantAs("remi", domain.UserRole, "dev"); err != nil {
 		t.Fatalf("remi, now admin, administers the page's grants: %v", err)
@@ -186,7 +194,7 @@ func TestADeliveryMovesTheOldGrantsOfAnUnconsentedInstallation(t *testing.T) {
 	if !slices.Equal(got, []string{"admin remi", "user ines", "user maya"}) {
 		t.Fatalf("the delivery left grants %v, want admin remi, user ines and user maya", got)
 	}
-	if e, ok := lastEvent(*events, domain.RoleGranted); !ok || e.Actor != "delivery:legacy" {
+	if e, ok := lastEvent(*events, domain.RoleGranted); !ok || e.Actor != "delivery:legacy" || e.Detail[domain.CrossoverFrom] == "" {
 		t.Fatalf("the move was not journaled by the delivery: %+v %v", e, ok)
 	}
 	if err := grant("remi", domain.UserRole, "dev"); err != nil {
@@ -240,5 +248,68 @@ func TestAUserNeitherApprovesNorAdministersAPage(t *testing.T) {
 	code(t, h.grantAs("maya", domain.UserRole, "dev"), domain.Denied)
 	if up, err := h.approvePage(h.svc, "remi"); err != nil || up.Consent.Generation != 2 {
 		t.Fatalf("the admin's approval: %+v %v", up.Consent, err)
+	}
+}
+
+// A subject holding two old roles that move to the same one, or holding the
+// successor already, is granted it once: one grant event, or none.
+func TestTheCrossoverGrantsEachSubjectOnce(t *testing.T) {
+	h := newHarness(t)
+	svc, events := journaled(h)
+	rw, r := []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}, []*basev0.WorkScopeV1{sc("pages.note", "read")}
+	before := legacyPage(1, rw, rw, r)
+	before.Roles[domain.UserRole] = r
+	if _, err := svc.ApplyModule(h.ctx, before); err != nil {
+		t.Fatal(err)
+	}
+	h.grant("pages", "editor", "ines")
+	h.grant("pages", "viewer", "ines")
+	h.grant("pages", "viewer", "maya")
+	h.grant("pages", domain.UserRole, "maya")
+	h.grant("pages", domain.LegacyInstallerRole, "remi")
+	if _, err := svc.ApplyModule(h.ctx, twoRolePage(2, "read")); err != nil {
+		t.Fatal(err)
+	}
+	*events = nil
+	if _, err := h.approvePage(svc, "remi"); err != nil {
+		t.Fatal(err)
+	}
+	if got := grantsOf(h); !slices.Equal(got, []string{"admin remi", "user ines", "user maya"}) {
+		t.Fatalf("the approval left grants %v", got)
+	}
+	granted := map[string]int{}
+	for _, e := range *events {
+		if e.Kind == domain.RoleGranted {
+			granted[e.Detail["person"]+" "+e.Detail["role"]]++
+		}
+	}
+	if granted["ines user"] != 1 || granted["maya user"] != 0 || granted["remi admin"] != 1 || len(granted) != 2 {
+		t.Fatalf("grant events %v, want one each for ines and remi and none for maya, who held user", granted)
+	}
+}
+
+// Outside the page-role rename the crossover does not run: a target keeping a
+// custom role beside admin and user, which drops a role it named editor, ends
+// that role's grants as it ends any dropped role's.
+func TestACustomEditorDroppedBesideAThirdRoleEndsItsGrants(t *testing.T) {
+	h := newHarness(t)
+	rw := []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}
+	m := twoRolePage(1, "read")
+	m.Roles["editor"] = rw
+	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
+		t.Fatal(err)
+	}
+	h.grant("pages", "editor", "ines")
+	h.grant("pages", domain.AdminRole, "remi")
+	next := twoRolePage(2, "read")
+	next.Roles["auditor"] = []*basev0.WorkScopeV1{sc("pages.note", "read")}
+	if _, err := h.svc.ApplyModule(h.ctx, next); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.approvePage(h.svc, "remi"); err != nil {
+		t.Fatal(err)
+	}
+	if got := grantsOf(h); !slices.Equal(got, []string{"admin remi"}) {
+		t.Fatalf("grants %v, want the editor's ended and not moved", got)
 	}
 }

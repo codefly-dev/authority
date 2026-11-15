@@ -1,6 +1,7 @@
 package domain_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
@@ -62,10 +63,25 @@ func TestTheOldRolesCrossOverToTheTwoForOneRelease(t *testing.T) {
 		{"viewer", map[string]bool{"admin": true, "user": true, "viewer": true}, "", false},
 		{"installer", map[string]bool{"installer": true, "user": true}, "", false},
 		{"author", two, "", false},
+		{"editor", map[string]bool{"admin": true, "user": true, "auditor": true}, "", false},
 		{"user", two, "", false},
 	} {
 		if got, ok := domain.CrossoverRole(c.role, c.declared); got != c.want || ok != c.ok {
 			t.Errorf("CrossoverRole(%q, %v) = %q %v, want %q %v", c.role, c.declared, got, ok, c.want, c.ok)
 		}
+	}
+}
+
+// The crossover is named among what an update asks, one line per old role
+// the approved declaration names, only for the two-role declaration.
+func TestTheCrossoverIsNamedForReview(t *testing.T) {
+	old := map[string]bool{"installer": true, "viewer": true, "author": true}
+	got := domain.Crossovers(old, map[string]bool{"admin": true, "user": true})
+	want := []string{"holders of role installer move to admin", "holders of role viewer move to user"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("Crossovers = %v, want %v", got, want)
+	}
+	if got := domain.Crossovers(old, map[string]bool{"admin": true, "user": true, "author": true}); got != nil {
+		t.Fatalf("a declaration beside a third role names a crossover: %v", got)
 	}
 }

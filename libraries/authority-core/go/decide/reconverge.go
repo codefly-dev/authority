@@ -24,7 +24,9 @@ import (
 // approved one required (more roles then cover it). A role, binding, edge
 // dependency, method or governing scope dropped, or a scope cut, narrows and
 // is never listed: nothing new is asked, and what was issued
-// under the wider declaration ends by its revision.
+// under the wider declaration ends by its revision. For one release, an
+// update that moves the holders of an old role to admin or user lists that
+// move (domain.Crossovers).
 func Widens(approved, next domain.Module) []string {
 	var out []string
 	if approved.Kind != next.Kind {
@@ -39,6 +41,10 @@ func Widens(approved, next domain.Module) []string {
 			out = append(out, "role "+name+" reaches further")
 		}
 	}
+	// STOPGAP (one release, domain.LegacyInstallerRole): the holders of an
+	// old role the update moves to admin or user are asked about too, so
+	// the review names that a viewer's holders become users.
+	out = append(out, domain.Crossovers(approved.Roles, next.Roles)...)
 	for _, name := range slices.Sorted(maps.Keys(next.OwnedRoles)) {
 		was, ok := approved.OwnedRoles[name]
 		switch {
