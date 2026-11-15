@@ -378,20 +378,34 @@ that still names the old `installer` is accepted as declaring `admin`, and a
 holder of `installer` administers as an `admin` holder does; a declaration
 naming both `installer` and `admin` is refused. When a declaration of
 exactly `admin` and `user` replaces one whose grants hold the old names, those
-grants move instead of ending: `installer` to `admin`, `editor` and `viewer`
-to `user`, at the approval of the update for a consented installation and on
-the delivery itself for one no consent holds, so nobody loses access. The move
-is by name: a former viewer holds whatever `user` declares, which may be more
-than the viewer held. That widening is the owner's decision (2026-11-15) for
-this one release. The pending update names the move among what it asks
-(`holders of role viewer move to user`, in `installation.upgrade_available`'s
-`widened`), each moved grant and revocation is journaled with
-`crossover_from` naming the old role, so an audit tells it from a deliberate
-grant, and a subject is granted the new role once. A declaration keeping a
-third role beside `admin` and `user` is not the rename: a role it drops ends
+grants move instead of ending, at the approval of the update for a consented
+installation and on the delivery itself for one no consent holds. Each grant
+moves to the narrowest new role that covers what the old role declared:
+`installer` always to `admin`; `editor`, `viewer` and `steward` to `user` when
+`user`'s scopes cover the old role's, otherwise to `admin`. So nobody loses
+access: an editor who wrote what the new `user` only reads (the Wiki's shape)
+becomes `admin` and keeps writing, and a steward who defined record types
+becomes `admin` and keeps defining. A holder may gain: a former viewer holds
+whatever `user` declares, which may be more than the viewer held. That
+widening is the owner's decision (2026-11-15) for this one release. An
+editor, viewer or steward of an installation whose approved declaration the
+store does not have (a legacy consent recording no generation, a generation
+it no longer keeps, or a kept row that is not the approved offer) cannot be
+compared, so it moves to `user`: day-to-day access kept, grant management
+handed to nobody on a guess; a store that cannot answer fails the approval
+or delivery instead, so no grant moves on a guess. The pending update names
+each move among what it asks (`holders of role editor move to admin`, in
+`installation.upgrade_available`'s `widened`), read as the approval will read
+it, also when the consent is behind the delivered generation. Each moved
+grant and revocation is journaled with
+`crossover_from` naming the old role and `crossover_basis` saying why it
+landed where it did (`installer`, `declared_coverage`, or
+`unknown_declaration` when coverage could not be compared), so an audit tells
+it from a deliberate grant, and a subject is granted the new role once. A
+declaration keeping a third role beside `admin` and `user` is not the rename: a role it drops ends
 its grants as usual. Both are a stopgap while modules are re-rendered before
-their host, deleted in the next release; `editor` and `viewer` are aliases of
-nothing. A module without a page declares
+their host, deleted in the next release; `editor`, `viewer` and `steward`
+are aliases of nothing. A module without a page declares
 no roles; a person's access to a module is the organisation's roles intersected
 with what the module serves. A person's access to a solution is the role its
 installation grants her, the admin role as its owner or the installation's

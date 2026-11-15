@@ -1,6 +1,9 @@
 package authority_test
 
 import (
+	"context"
+	"errors"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -9,6 +12,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	"github.com/google/uuid"
 )
 
 // The tests in this file pin the one-release STOPGAP of domain.LegacyInstallerRole
@@ -147,15 +151,17 @@ func TestApprovingTheTwoRoleDeliveryMovesTheOldGrants(t *testing.T) {
 
 // The unconsented path: an installation no consent holds (a solution its
 // host installed without one) follows each delivery, so its grants move on
-// the delivery itself, journaled by the delivery: the installer's holder
-// holds admin, the editor's and the viewer's user.
+// the delivery itself, journaled by the delivery. This is the Wiki's shape:
+// the new user only reads. The installer's holder holds admin; the editor
+// and the steward wrote what user does not cover, so they hold admin and
+// keep writing; the viewer, whose read user covers, holds user.
 func TestADeliveryMovesTheOldGrantsOfAnUnconsentedInstallation(t *testing.T) {
 	h := newHarness(t)
 	svc, events := journaled(h)
 	rw, r := []*basev0.WorkScopeV1{sc("legacy.note", "read", "write")}, []*basev0.WorkScopeV1{sc("legacy.note", "read")}
 	m := solution("legacy", true)
 	m.InstallationRole = domain.NoInstallationRole
-	m.Roles = map[string][]*basev0.WorkScopeV1{domain.LegacyInstallerRole: rw, "editor": rw, "viewer": r}
+	m.Roles = map[string][]*basev0.WorkScopeV1{domain.LegacyInstallerRole: rw, "editor": rw, "viewer": r, "steward": rw}
 	if _, err := svc.ApplyModule(h.ctx, m); err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +176,7 @@ func TestADeliveryMovesTheOldGrantsOfAnUnconsentedInstallation(t *testing.T) {
 		_, err := svc.GrantRole(h.ctx, h.person(caller), authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: role, PersonID: person})
 		return err
 	}
-	for role, person := range map[string]string{domain.LegacyInstallerRole: "remi", "editor": "ines", "viewer": "maya"} {
+	for role, person := range map[string]string{domain.LegacyInstallerRole: "remi", "editor": "ines", "viewer": "maya", "steward": "tam"} {
 		if err := grant("alex", role, person); err != nil {
 			t.Fatal(err)
 		}
@@ -191,11 +197,17 @@ func TestADeliveryMovesTheOldGrantsOfAnUnconsentedInstallation(t *testing.T) {
 		got = append(got, g.Role+" "+g.PersonID)
 	}
 	slices.Sort(got)
-	if !slices.Equal(got, []string{"admin remi", "user ines", "user maya"}) {
-		t.Fatalf("the delivery left grants %v, want admin remi, user ines and user maya", got)
+	if !slices.Equal(got, []string{"admin ines", "admin remi", "admin tam", "user maya"}) {
+		t.Fatalf("the delivery left grants %v, want admin for remi, ines and tam, user for maya", got)
 	}
-	if e, ok := lastEvent(*events, domain.RoleGranted); !ok || e.Actor != "delivery:legacy" || e.Detail[domain.CrossoverFrom] == "" {
-		t.Fatalf("the move was not journaled by the delivery: %+v %v", e, ok)
+	moved := map[string]string{}
+	for _, e := range *events {
+		if e.Kind == domain.RoleGranted && e.Actor == "delivery:legacy" {
+			moved[e.Detail["person"]] = e.Detail[domain.CrossoverFrom] + ">" + e.Detail["role"]
+		}
+	}
+	if want := map[string]string{"remi": "installer>admin", "ines": "editor>admin", "maya": "viewer>user", "tam": "steward>admin"}; !maps.Equal(moved, want) {
+		t.Fatalf("the moves journaled by the delivery are %v, want %v", moved, want)
 	}
 	if err := grant("remi", domain.UserRole, "dev"); err != nil {
 		t.Fatalf("remi, now admin, administers the grants: %v", err)
@@ -206,7 +218,8 @@ func TestADeliveryMovesTheOldGrantsOfAnUnconsentedInstallation(t *testing.T) {
 // A page whose roles were derived: the names derived before the rename
 // (installer, editor, viewer) become the two derived now
 // (decide.StandardRoles) through the same move, at the approval of the
-// update the new derivation offers.
+// update the new derivation offers. The derived user reads and writes, so it
+// covers the old editor's write and the viewer's read: both hold user.
 func TestApprovingADerivedPagesNewRolesMovesTheOldGrants(t *testing.T) {
 	h := newHarness(t)
 	rw, r := []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}, []*basev0.WorkScopeV1{sc("pages.note", "read")}
@@ -267,7 +280,8 @@ func TestTheCrossoverGrantsEachSubjectOnce(t *testing.T) {
 	h.grant("pages", "viewer", "maya")
 	h.grant("pages", domain.UserRole, "maya")
 	h.grant("pages", domain.LegacyInstallerRole, "remi")
-	if _, err := svc.ApplyModule(h.ctx, twoRolePage(2, "read")); err != nil {
+	// The new user reads and writes, so it covers the editor and the viewer.
+	if _, err := svc.ApplyModule(h.ctx, twoRolePage(2, "read", "write")); err != nil {
 		t.Fatal(err)
 	}
 	*events = nil
@@ -311,5 +325,287 @@ func TestACustomEditorDroppedBesideAThirdRoleEndsItsGrants(t *testing.T) {
 	}
 	if got := grantsOf(h); !slices.Equal(got, []string{"admin remi"}) {
 		t.Fatalf("grants %v, want the editor's ended and not moved", got)
+	}
+}
+
+// When the declaration a grant was held under is unknown (a legacy consent
+// recording no generation, whose approved declaration the store does not
+// keep), what an editor, viewer or steward held cannot be compared: each
+// moves to user, keeping day-to-day access and handing nobody grant
+// management, and the move is journaled as unknown coverage. The installer
+// still moves to admin.
+func TestAnUnknownDeclarationMovesEditorsViewersAndStewardsToUser(t *testing.T) {
+	h := newHarness(t)
+	svc, events := journaled(h)
+	rw, r := []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}, []*basev0.WorkScopeV1{sc("pages.note", "read")}
+	m := legacyPage(1, rw, rw, r)
+	m.Roles["steward"] = rw
+	if _, err := svc.ApplyModule(h.ctx, m); err != nil {
+		t.Fatal(err)
+	}
+	for role, person := range map[string]string{domain.LegacyInstallerRole: "remi", "editor": "ines", "viewer": "maya", "steward": "tam"} {
+		h.grant("pages", role, person)
+	}
+	if err := h.store.Write(h.ctx, func(tx authority.Tx) error {
+		i, err := tx.Installation(h.inst(acme, "pages").ID)
+		if err != nil {
+			return err
+		}
+		i.Consent.Generation, i.Consent.Digest = 0, ""
+		return tx.PutInstallation(i)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.ApplyModule(h.ctx, twoRolePage(2, "read")); err != nil {
+		t.Fatal(err)
+	}
+	*events = nil
+	if _, err := h.approvePage(svc, "remi"); err != nil {
+		t.Fatalf("the installer holder's approval: %v", err)
+	}
+	if got := grantsOf(h); !slices.Equal(got, []string{"admin remi", "user ines", "user maya", "user tam"}) {
+		t.Fatalf("the approval left grants %v, want admin remi and user for ines, maya and tam", got)
+	}
+	basis := map[string]string{}
+	for _, e := range *events {
+		if e.Kind == domain.RoleGranted {
+			basis[e.Detail["person"]] = e.Detail[domain.CrossoverFrom] + ">" + e.Detail["role"] + " " + e.Detail[domain.CrossoverBasis]
+		}
+	}
+	want := map[string]string{
+		"remi": "installer>admin " + domain.BasisInstaller,
+		"ines": "editor>user " + domain.BasisUnknownDeclaration,
+		"maya": "viewer>user " + domain.BasisUnknownDeclaration,
+		"tam":  "steward>user " + domain.BasisUnknownDeclaration,
+	}
+	if !maps.Equal(basis, want) {
+		t.Fatalf("the moves journaled %v, want %v", basis, want)
+	}
+	code(t, h.grantAs("ines", domain.UserRole, "dev"), domain.Denied)
+}
+
+// crossovers is, for each person granted a role in events, its
+// "old>new basis".
+func crossovers(events []domain.Event) map[string]string {
+	out := map[string]string{}
+	for _, e := range events {
+		if e.Kind == domain.RoleGranted && e.Detail[domain.CrossoverFrom] != "" {
+			out[e.Detail["person"]] = e.Detail[domain.CrossoverFrom] + ">" + e.Detail["role"] + " " + e.Detail[domain.CrossoverBasis]
+		}
+	}
+	return out
+}
+
+// The Wiki's shape, on the approval path: the old editor wrote, the new user
+// only reads. The pending update names that the editor's holders move to
+// admin, and the approval moves them there on the declaration they were held
+// under (declared_coverage), so they keep writing.
+func TestApprovingTheWikiShapeMovesTheEditorToAdminOnItsDeclaration(t *testing.T) {
+	h := newHarness(t)
+	svc, events := journaled(h)
+	rw, r := []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}, []*basev0.WorkScopeV1{sc("pages.note", "read")}
+	if _, err := svc.ApplyModule(h.ctx, legacyPage(1, rw, rw, r)); err != nil {
+		t.Fatal(err)
+	}
+	h.grant("pages", domain.LegacyInstallerRole, "remi")
+	h.grant("pages", "editor", "ines")
+	h.grant("pages", "viewer", "maya")
+	if _, err := svc.ApplyModule(h.ctx, twoRolePage(2, "read")); err != nil {
+		t.Fatal(err)
+	}
+	if e, ok := lastEventOn(*events, domain.InstallationUpgradeAvailable, h.pagesAt(acme).ID); !ok || !strings.Contains(e.Detail["widened"], "holders of role editor move to admin") {
+		t.Fatalf("the pending update does not name the editor's move to admin: %+v %v", e, ok)
+	}
+	*events = nil
+	if _, err := h.approvePage(svc, "remi"); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"remi": "installer>admin " + domain.BasisInstaller,
+		"ines": "editor>admin " + domain.BasisCoverage,
+		"maya": "viewer>user " + domain.BasisCoverage,
+	}
+	if got := crossovers(*events); !maps.Equal(got, want) {
+		t.Fatalf("the approval moved %v, want %v", got, want)
+	}
+	if !holds(h.must(h.root("ines", "pages")), "pages.note", "write") {
+		t.Fatal("ines, the editor, lost write")
+	}
+}
+
+// A consent behind the delivered generation: generation 1 is approved, a
+// generation 2 widening the viewer to write is left pending, and generation 3
+// is the two roles with a user that reads. The pending update names each move
+// the approval makes, and the approval reads coverage from the generation the
+// grants were held under (1, where the viewer read), not from the pending 2:
+// the viewer moves to user.
+func TestApprovingBehindTheDeliveredGenerationReadsTheHeldGeneration(t *testing.T) {
+	h := newHarness(t)
+	svc, events := journaled(h)
+	rw, r := []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}, []*basev0.WorkScopeV1{sc("pages.note", "read")}
+	if _, err := svc.ApplyModule(h.ctx, legacyPage(1, rw, nil, r)); err != nil {
+		t.Fatal(err)
+	}
+	h.grant("pages", domain.LegacyInstallerRole, "remi")
+	h.grant("pages", "viewer", "maya")
+	if _, err := svc.ApplyModule(h.ctx, legacyPage(2, rw, nil, rw)); err != nil {
+		t.Fatal(err)
+	}
+	if held := h.pagesAt(acme); held.Consent.Generation != 1 {
+		t.Fatalf("setup: the widening to generation 2 was taken: %+v", held.Consent)
+	}
+	if _, err := svc.ApplyModule(h.ctx, twoRolePage(3, "read")); err != nil {
+		t.Fatal(err)
+	}
+	e, ok := lastEventOn(*events, domain.InstallationUpgradeAvailable, h.pagesAt(acme).ID)
+	if !ok || !strings.Contains(e.Detail["widened"], "behind") || !strings.Contains(e.Detail["widened"], "holders of role viewer move to user") ||
+		!strings.Contains(e.Detail["widened"], "holders of role installer move to admin") {
+		t.Fatalf("the pending update behind the delivered generation does not name the moves: %+v %v", e, ok)
+	}
+	*events = nil
+	if _, err := h.approvePage(svc, "remi"); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{"remi": "installer>admin " + domain.BasisInstaller, "maya": "viewer>user " + domain.BasisCoverage}
+	if got := crossovers(*events); !maps.Equal(got, want) {
+		t.Fatalf("the approval moved %v, want %v", got, want)
+	}
+}
+
+// unansweringStore fails every read of a kept approved declaration while fail is
+// set, as a store that cannot answer would.
+type unansweringStore struct {
+	authority.Store
+	fail *bool
+}
+
+type unansweringTx struct {
+	authority.Tx
+	fail *bool
+}
+
+func (f unansweringTx) ApprovedModule(name string, generation uint64, digest string) (domain.Module, error) {
+	if *f.fail {
+		return domain.Module{}, errors.New("the store cannot answer")
+	}
+	return f.Tx.ApprovedModule(name, generation, digest)
+}
+
+func (f unansweringStore) Read(ctx context.Context, fn func(authority.Tx) error) error {
+	return f.Store.Read(ctx, func(tx authority.Tx) error { return fn(unansweringTx{tx, f.fail}) })
+}
+
+func (f unansweringStore) Write(ctx context.Context, fn func(authority.Tx) error) error {
+	return f.Store.Write(ctx, func(tx authority.Tx) error { return fn(unansweringTx{tx, f.fail}) })
+}
+
+// A store that cannot answer what the grants were held under fails the
+// approval: no grant moves on a guess, and the old grants stand.
+func TestAStoreErrorReadingTheHeldDeclarationFailsTheApproval(t *testing.T) {
+	h := newHarness(t)
+	fail := false
+	svc, err := authority.New(unansweringStore{h.store, &fail}, h.cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rw, r := []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}, []*basev0.WorkScopeV1{sc("pages.note", "read")}
+	if _, err := svc.ApplyModule(h.ctx, legacyPage(1, rw, rw, r)); err != nil {
+		t.Fatal(err)
+	}
+	h.grant("pages", domain.LegacyInstallerRole, "remi")
+	h.grant("pages", "editor", "ines")
+	if _, err := svc.ApplyModule(h.ctx, twoRolePage(2, "read")); err != nil {
+		t.Fatal(err)
+	}
+	a, err := svc.Review(h.ctx, h.person("remi"), acme, "pages")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.OperationID = uuid.NewString()
+	fail = true
+	if _, err := svc.Install(h.ctx, h.person("remi"), acme, "pages", "", "", &a, nil); err == nil || !strings.Contains(err.Error(), "cannot answer") {
+		t.Fatalf("the approval with a store that cannot answer: want its error, got %v", err)
+	}
+	fail = false
+	if got := grantsOf(h); !slices.Equal(got, []string{"editor ines", "installer remi"}) {
+		t.Fatalf("a failed approval moved grants: %v", got)
+	}
+}
+
+// doctoredStore answers generation 1 of pages, while doctored is set, as a
+// store that no longer keeps the approved offer under its digest but keeps
+// another reading of that generation under another digest.
+type doctoredStore struct {
+	authority.Store
+	doctored *domain.Module
+}
+
+type doctoredTx struct {
+	authority.Tx
+	doctored *domain.Module
+}
+
+func (d doctoredTx) ApprovedModule(name string, generation uint64, digest string) (domain.Module, error) {
+	if d.doctored != nil && d.doctored.Name != "" && name == d.doctored.Name && generation == d.doctored.Generation {
+		if digest != "" {
+			return domain.Module{}, domain.ErrNotFound
+		}
+		return *d.doctored, nil
+	}
+	return d.Tx.ApprovedModule(name, generation, digest)
+}
+
+func (d doctoredStore) Read(ctx context.Context, fn func(authority.Tx) error) error {
+	return d.Store.Read(ctx, func(tx authority.Tx) error { return fn(doctoredTx{tx, d.doctored}) })
+}
+
+func (d doctoredStore) Write(ctx context.Context, fn func(authority.Tx) error) error {
+	return d.Store.Write(ctx, func(tx authority.Tx) error { return fn(doctoredTx{tx, d.doctored}) })
+}
+
+// A row kept for the held generation under another digest, whose offer
+// digest is not the consent's, is no reading anyone approved: coverage is
+// never computed from it. The approved generation 1 had an editor who read;
+// the other reading has the editor writing, which only admin would cover.
+// The editor moves to user as unknown_declaration, never to admin.
+func TestARowKeptUnderAnotherDigestIsNeverTheCoverageBasis(t *testing.T) {
+	h := newHarness(t)
+	var doctored domain.Module
+	var events []domain.Event
+	cfg := h.cfg
+	cfg.Journal = func(_ context.Context, _ authority.Tx, e domain.Event) error { events = append(events, e); return nil }
+	svc, err := authority.New(doctoredStore{h.store, &doctored}, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rw, r := []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}, []*basev0.WorkScopeV1{sc("pages.note", "read")}
+	if _, err := svc.ApplyModule(h.ctx, legacyPage(1, rw, r, r)); err != nil {
+		t.Fatal(err)
+	}
+	h.grant("pages", domain.LegacyInstallerRole, "remi")
+	h.grant("pages", "editor", "ines")
+	if _, err := svc.ApplyModule(h.ctx, twoRolePage(2, "read")); err != nil {
+		t.Fatal(err)
+	}
+	a, err := svc.Review(h.ctx, h.person("remi"), acme, "pages")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.OperationID = uuid.NewString()
+	doctored = legacyPage(1, rw, rw, r)
+	events = nil
+	if _, err := svc.Install(h.ctx, h.person("remi"), acme, "pages", "", "", &a, nil); err != nil {
+		t.Fatalf("the approval: %v", err)
+	}
+	doctored = domain.Module{}
+	got := map[string]string{}
+	for _, g := range h.roleGrants("pages") {
+		got[g.PersonID] = g.Role
+	}
+	if got["ines"] != domain.UserRole || got["remi"] != domain.AdminRole || len(got) != 2 {
+		t.Fatalf("the approval left grants %v, want ines on user (never admin) and remi on admin", got)
+	}
+	if moved := crossovers(events); moved["ines"] != "editor>user "+domain.BasisUnknownDeclaration {
+		t.Fatalf("the editor's move was journaled as %q, want editor>user %s", moved["ines"], domain.BasisUnknownDeclaration)
 	}
 }
