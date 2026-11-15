@@ -73,7 +73,7 @@ type InstallationServiceClient interface {
 	// target declares (a solution's, or a module page's on its composition
 	// installation): the access. Idempotent; it leaves existing capabilities
 	// valid. An administrator of the installation's organization, or a holder
-	// of the installer role on that installation, grants.
+	// of the admin role on that installation, grants.
 	GrantRole(ctx context.Context, in *GrantRoleRequest, opts ...grpc.CallOption) (*Installation, error)
 	// RevokeRole ends one grant; every capability its subject holds from it is
 	// refused at once. Idempotent; the same callers as GrantRole.
@@ -218,7 +218,7 @@ type InstallationServiceServer interface {
 	// target declares (a solution's, or a module page's on its composition
 	// installation): the access. Idempotent; it leaves existing capabilities
 	// valid. An administrator of the installation's organization, or a holder
-	// of the installer role on that installation, grants.
+	// of the admin role on that installation, grants.
 	GrantRole(context.Context, *GrantRoleRequest) (*Installation, error)
 	// RevokeRole ends one grant; every capability its subject holds from it is
 	// refused at once. Idempotent; the same callers as GrantRole.

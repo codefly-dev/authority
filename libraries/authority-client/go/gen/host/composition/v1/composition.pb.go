@@ -133,7 +133,7 @@ type AuthorityManifestV1 struct {
 	// The roles a solution declares a person may hold on an installation of it,
 	// as ModuleManifestV1.roles declares them through the sketch: each within
 	// the solution's own scope ceilings or explicit invoke/lookup binding scopes,
-	// one of them installer. Headless-only scopes cannot supply a role grant.
+	// one of them admin. Headless-only scopes cannot supply a role grant.
 	// Core's manifest carries no roles, so they travel here until it does. A
 	// module declares none; a module's delivery listing any is refused.
 	Roles []*RoleV1 `protobuf:"bytes,6,rep,name=roles,proto3" json:"roles,omitempty"`
@@ -527,7 +527,7 @@ type ModuleManifestV1 struct {
 	Page *PageV1 `protobuf:"bytes,7,opt,name=page,proto3" json:"page,omitempty"`
 	// The roles a solution declares a person may hold on an installation of it,
 	// each within what the solution serves or explicitly consumes through
-	// invoke/lookup bindings; one is named installer, held only by whom it is granted to.
+	// invoke/lookup bindings; one is named admin, held only by whom it is granted to.
 	// Headless-only scopes cannot supply a role grant. A module declares none.
 	Roles         []*RoleV1 `protobuf:"bytes,8,rep,name=roles,proto3" json:"roles,omitempty"`
 	unknownFields protoimpl.UnknownFields
