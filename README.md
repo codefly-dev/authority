@@ -376,13 +376,22 @@ derived from what it serves (`decide.StandardRoles`): `user` reads and writes
 its kinds, `admin` holds every action it serves. For one release a delivery
 that still names the old `installer` is accepted as declaring `admin`, and a
 holder of `installer` administers as an `admin` holder does; a declaration
-naming both `installer` and `admin` is refused. When a declaration naming
-`admin` and `user` replaces one whose grants hold the old names, those grants
-move instead of ending: `installer` to `admin`, `editor` and `viewer` to
-`user`, at the approval of the update for a consented installation and on the
-delivery itself for one no consent holds, so nobody loses access. Both are a
-stopgap while modules are re-rendered before their host, deleted in the next
-release; `editor` and `viewer` are aliases of nothing. A module without a page declares
+naming both `installer` and `admin` is refused. When a declaration of
+exactly `admin` and `user` replaces one whose grants hold the old names, those
+grants move instead of ending: `installer` to `admin`, `editor` and `viewer`
+to `user`, at the approval of the update for a consented installation and on
+the delivery itself for one no consent holds, so nobody loses access. The move
+is by name: a former viewer holds whatever `user` declares, which may be more
+than the viewer held. That widening is the owner's decision (2026-11-15) for
+this one release. The pending update names the move among what it asks
+(`holders of role viewer move to user`, in `installation.upgrade_available`'s
+`widened`), each moved grant and revocation is journaled with
+`crossover_from` naming the old role, so an audit tells it from a deliberate
+grant, and a subject is granted the new role once. A declaration keeping a
+third role beside `admin` and `user` is not the rename: a role it drops ends
+its grants as usual. Both are a stopgap while modules are re-rendered before
+their host, deleted in the next release; `editor` and `viewer` are aliases of
+nothing. A module without a page declares
 no roles; a person's access to a module is the organisation's roles intersected
 with what the module serves. A person's access to a solution is the role its
 installation grants her, the admin role as its owner or the installation's
