@@ -38,6 +38,8 @@ github.com/codefly-dev/core v0.19.27 h1:X3EKtcSG4xvZ3H/vwyVD3TRmLvl0gvXijcmd8e4M
 github.com/codefly-dev/core v0.19.27/go.mod h1:0of30d+Hbc67ITrk28wSg83QcrycDAKIWoKBEwCksx4=
 github.com/codefly-dev/core v0.19.30 h1:b/lmNrjNYoBIHYnllzWA+uYvPggTHKq8UtN0c4c1S9M=
 github.com/codefly-dev/core v0.19.30/go.mod h1:7dK2eAENS9sSXaIl3NTHSw4gD+SeykQ3Fkf6Je2VYHA=
+github.com/codefly-dev/core v0.19.31-0.20261115140307-959320272fcf h1:G4eNolCG/6Z9kP6MbftFdptO1XjETWHpnjFpBVES0eE=
+github.com/codefly-dev/core v0.19.31-0.20261115140307-959320272fcf/go.mod h1:7dK2eAENS9sSXaIl3NTHSw4gD+SeykQ3Fkf6Je2VYHA=
 github.com/codefly-dev/gortk v0.2.0 h1:7bOlS5valYz2zil+fZctQNcPCYBcPj86abcw9N8h1hQ=
 github.com/codefly-dev/gortk v0.2.0/go.mod h1:dDWUMFgAP063OCGhTEpV7FFUj9+zTcxxO/nV80VKEwg=
 github.com/containerd/errdefs v1.0.0 h1:tg5yIfIlQIrxYtu9ajqY42W3lpS19XqdxRQeEwYG8PI=

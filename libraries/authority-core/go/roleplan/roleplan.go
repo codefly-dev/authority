@@ -3,28 +3,38 @@
 //
 // A product (a solution, or a module with a page) states its plan: for each
 // call a person makes, whether a holder of its admin role, a holder of its user
-// role and a member holding no role on it are let through. Assert composes the
-// product exactly as a host would from what its repository declares — its
-// module contract read by core (modulecontract) and its generated method table,
-// delivered through the authority's one reader (delivered.Module) — into the
-// authority's own Service on an in-memory store, installs it with an
+// role and a member holding no role on it are let through, and, when refused,
+// by which decision. Assert composes the product exactly as a host would from
+// what its repository declares — core's one render of its module contract
+// (solutionhost.DeclareModule: the render's refusals, the composition's
+// configurations read by core, the class and callee options) and its method
+// table, read by the authority's own reader (delivered.Declared) — into the
+// authority's Service on an in-memory store, installs it with an
 // administrator's consent, grants the two roles, and asks the Service each
 // call: IssueForPerson then CheckMethod for a method the product serves,
 // IssueChild through a binding for what that method relays, IssueForPage for a
-// call its page makes on the host's module edge, GrantRole for administering
-// the installation. Nothing here decides; every verdict is the Service's.
+// call its page makes on the host's module edge, the audience's hop for what a
+// role names through a binding, GrantRole for administering the installation.
+// Nothing here decides; every verdict is the Service's, and so is the stage
+// that refuses.
 //
 // Assert also fails a plan that does not cover what the product declares: a
 // method in its table with no row, a row naming a method it does not serve, a
-// permission a binding carries that no row asks for, and, for least privilege,
-// a permission a role grants that no row it is let through uses.
+// permission a binding carries for a person that no row asks for (a headless
+// binding is no person's, so it is not planned), and, for least privilege, a
+// permission a role grants that no row its holder is allowed uses through the
+// way it is granted: an own kind by a method's policy, a consumed kind by an
+// ask through a binding that carries it, a scope named through a binding by a
+// row going onward through that binding.
 //
 // What it cannot see: a module the product's bindings reach is a stand-in
 // serving the kinds the binding carries (and, for what a role names through
-// the binding, binding onward to a stand-in per namespace), so that module's
-// own method policy, its real onward bindings and its resource checks are its
-// own plan's to prove; an installation's later consent changes and a host's
-// envelope are not composed.
+// the binding, binding onward to a stand-in per namespace that checks owners
+// and declares no kind shared, where the real one may issue a shared kind
+// unselected), so that module's own method policy, its real onward bindings
+// and its resource checks are its own plan's to prove; the prepared bindings a
+// runnable host's composition adds, an installation's later consent changes
+// and a host's envelope are not composed.
 package roleplan
 
 import (
@@ -42,6 +52,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/memstore"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
+	"github.com/codefly-dev/core/configurations"
 	modulecontract "github.com/codefly-dev/core/contracts/module"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"github.com/codefly-dev/core/solutionhost"
@@ -59,25 +70,56 @@ type Policy struct {
 
 // Product is a solution or a module page as its repository declares it.
 type Product struct {
-	// Contract is its module.contract.codefly.yaml.
-	Contract []byte
-	// Values are the composition's values the contract's slots resolve from.
-	Values modulecontract.Values
+	// Dir is its root, where its module.contract.codefly.yaml is.
+	Dir string
+	// Name is its module name, the principal every credential of it is
+	// issued to: the render refuses a contract naming another.
+	Name string
+	// Configurations is a directory of the composition's Codefly workspace
+	// configurations (a playground's configurations/<environment>), read by
+	// core, that the contract's slots resolve against.
+	Configurations string
+	// Class is the environment class delivered to, for an edge whose presence
+	// differs by class.
+	Class string
+	// Callees answers a callee's method declarations for a binding that
+	// names calls; nil when none does.
+	Callees modulecontract.Callees
 	// Kind is domain.KindSolution or domain.KindModule (a module with a page).
 	Kind string
 	// Methods is every method or route "<VERB> <template>" it serves, from its
-	// generated table.
+	// published table.
 	Methods map[string]Policy
 }
 
-// Verdict is what a plan expects of one subject on one call.
+// Verdict is what a plan expects of one subject on one call: let through, or
+// refused by one decision. The zero Verdict is no expectation, which Assert
+// refuses.
 type Verdict int
 
-// The two verdicts. The zero Verdict is no expectation, which Assert refuses.
 const (
-	Refused Verdict = iota + 1
-	Allowed
+	// Allowed: every decision the call takes lets it through.
+	Allowed Verdict = iota + 1
+	// RefusedNoRole: the authority issues the subject nothing at the product,
+	// which it holds no role on.
+	RefusedNoRole
+	// RefusedByPolicy: the product's method policy refuses what the subject
+	// holds there (CheckMethod).
+	RefusedByPolicy
+	// RefusedAtBinding: the capability through the binding is refused, what
+	// the subject's role carries there being less than the call asks.
+	RefusedAtBinding
+	// RefusedOnward: the audience's hop onward refuses what the role names
+	// through the binding.
+	RefusedOnward
+	// RefusedAdminister: the installation's administration is refused.
+	RefusedAdminister
 )
+
+func (v Verdict) String() string {
+	return [...]string{"no verdict", "allowed", "refused: no role", "refused by the method policy", "refused at the binding",
+		"refused onward", "refused administration"}[v]
+}
 
 // Row is one call a person makes, and what the plan expects of each subject.
 type Row struct {
@@ -148,93 +190,59 @@ func Problems(plan Plan) []string {
 				out = append(out, fmt.Sprintf("%q: the plan states no verdict for %s", row.Name, s.id))
 				continue
 			}
-			err := h.decide(row, s.id)
+			got, err := h.decide(row, s.id)
 			switch {
-			case want[i] == Allowed && err != nil:
-				out = append(out, fmt.Sprintf("%q: %s is refused, the plan allows it: %v", row.Name, s.id, err))
-			case want[i] == Refused && err == nil:
-				out = append(out, fmt.Sprintf("%q: %s is allowed, the plan refuses it", row.Name, s.id))
 			case err != nil && strings.TrimSpace(err.Error()) == "":
-				out = append(out, fmt.Sprintf("%q: %s is refused with no reason", row.Name, s.id))
+				out = append(out, fmt.Sprintf("%q: %s is %s with no reason", row.Name, s.id, got))
+			case got != want[i] && err != nil:
+				out = append(out, fmt.Sprintf("%q: %s is %s, the plan says %s: %v", row.Name, s.id, got, want[i], err))
+			case got != want[i]:
+				out = append(out, fmt.Sprintf("%q: %s is %s, the plan says %s", row.Name, s.id, got, want[i]))
 			}
 		}
 	}
 	return out
 }
 
-// Module is the product as a host composes it: core reads its contract and
-// resolves it against Values; the manifest and the authority's document carry
-// it as the render does; delivered.Module reads them.
-//
-// STOPGAP: the step from the resolved contract to the manifest's authority
-// block and the authority's document is the CLI's render (cli pkg/gitops:
-// moduleAuthority, Roles, SharedKinds, AuthoritySources.Declaration), which a
-// library cannot import, so it is restated here field for field. A change to
-// what the render carries must be mirrored until the render is a library
-// function both call.
+// Module is the product as a host composes it: core's one render of its
+// contract (solutionhost.DeclareModule) against the composition's
+// configurations as core reads them, with its method table, read by the
+// authority's reader of a delivery (delivered.Declared).
 func Module(p Product) (domain.Module, error) {
-	contract, err := modulecontract.Parse(p.Contract)
+	infos, err := configurations.LoadConfigurationInformationsFromFiles(context.Background(), p.Configurations)
 	if err != nil {
 		return domain.Module{}, err
 	}
-	resolved, err := contract.Resolve(p.Values)
+	declaration, _, err := solutionhost.DeclareModule(p.Dir, p.Name, nil, solutionhost.Resolver(infos, p.Class, p.Callees))
 	if err != nil {
 		return domain.Module{}, err
 	}
-	auth := &solutionhost.Authority{Principal: resolved.Principal, InstallationRole: resolved.InstallationRole,
-		EdgeDependencies: resolved.EdgeDependencies, SourceGovernance: resolved.SourceGovernance}
-	doc := &delivered.Document{Module: resolved.Principal, Generation: 1, OwnerAware: resolved.OwnerAware,
-		InstallationRole: resolved.InstallationRole}
-	for _, e := range resolved.EdgeDependencies {
-		doc.EdgeDependencies = append(doc.EdgeDependencies, domain.EdgeDependency{Module: e.Module, Presence: e.Presence})
+	if declaration == nil {
+		return domain.Module{}, fmt.Errorf("%s publishes no module contract", p.Dir)
 	}
-	for _, c := range resolved.ScopeCeilings {
-		auth.ResourceKinds = append(auth.ResourceKinds, c.ResourceKind)
-		doc.ScopeCeilings = append(doc.ScopeCeilings, &basev0.WorkScopeV1{ResourceKind: c.ResourceKind, Actions: c.Actions})
-		if c.Shared {
-			doc.SharedKinds = append(doc.SharedKinds, c.ResourceKind)
-		}
-	}
-	for _, b := range resolved.Bindings {
-		operations := map[string][]string{}
-		for _, op := range b.Operations {
-			operations[op] = b.Scopes[op]
-		}
-		auth.Bindings = append(auth.Bindings, solutionhost.AuthorityBinding{ID: b.ID, Audience: b.Audience, Operations: operations})
-	}
-	for _, role := range contract.Roles {
-		r := delivered.Role{Name: role.Name, InstallationOwned: ceilingScopes(role.InstallationOwnedScopes)}
-		for _, sc := range role.Scopes {
-			if sc.Through == "" {
-				r.Scopes = append(r.Scopes, ceilingScopes([]modulecontract.CeilingScope{sc})...)
-				continue
-			}
-			if r.Through == nil {
-				r.Through = map[string]delivered.Scopes{}
-			}
-			r.Through[sc.Through] = append(r.Through[sc.Through], ceilingScopes([]modulecontract.CeilingScope{sc})...)
-		}
-		doc.Roles = append(doc.Roles, r)
-	}
+	var methods []delivered.Method
 	for _, name := range slices.Sorted(maps.Keys(p.Methods)) {
-		policy := p.Methods[name]
-		doc.Methods = append(doc.Methods, delivered.Method{Method: name, Requires: Scopes(policy.Requires), AnyCheckedCaller: policy.AnyCheckedCaller})
+		methods = append(methods, delivered.Method{Method: name, Requires: Scopes(p.Methods[name].Requires), AnyCheckedCaller: p.Methods[name].AnyCheckedCaller})
 	}
-	manifest := &solutionhost.ModuleManifest{Alias: resolved.Principal, Kind: solutionhost.Kind(p.Kind), Generation: 1, Authority: auth}
+	manifest := &solutionhost.ModuleManifest{Alias: p.Name, Kind: solutionhost.Kind(p.Kind), Generation: 1}
 	if p.Kind == domain.KindModule {
 		manifest.Frontend = &solutionhost.Frontend{}
 	}
-	return delivered.Module(manifest, doc)
+	return delivered.Declared(manifest, declaration, methods)
 }
 
 // Coverage is what plan rows leave of m's declaration unplanned: a method with
 // no row (or two), a row naming none m serves or no binding m declares, a
-// permission a binding carries for a person that no row asks for, and a
-// permission a role grants that no row its holder is allowed uses.
+// permission a binding carries for a person that no row asks for (headless
+// scopes are no person's and are not planned), and a permission a role grants
+// that no row its holder is allowed uses through the way it is granted.
 func Coverage(m domain.Module, rows []Row) []string {
 	var out []string
 	planned := map[string]int{}
 	asked := map[string]bool{}
+	// used is, per role, each way a permission was used: "" for a method's
+	// policy at m, "ask <binding>" for an ask through a binding, "onward
+	// <binding>" for a row going onward through one.
 	used := map[string]map[string]bool{domain.AdminRole: {}, domain.UserRole: {}}
 	for _, row := range rows {
 		if row.Method != "" {
@@ -252,12 +260,6 @@ func Coverage(m domain.Module, rows []Row) []string {
 		if row.Binding == "" && len(row.Onward) > 0 {
 			out = append(out, fmt.Sprintf("%q carries permissions onward through no binding", row.Name))
 		}
-		uses := append(slices.Clone(row.Asks), row.Onward...)
-		for _, r := range m.Methods[row.Method].Requires {
-			for _, a := range r.GetActions() {
-				uses = append(uses, r.GetResourceKind()+":"+a)
-			}
-		}
 		for _, p := range row.Asks {
 			asked[row.Binding+" "+p] = true
 		}
@@ -265,8 +267,14 @@ func Coverage(m domain.Module, rows []Row) []string {
 			if verdict != Allowed {
 				continue
 			}
-			for _, p := range uses {
-				used[role][p] = true
+			for _, p := range permissions(m.Methods[row.Method].Requires) {
+				used[role][" "+p] = true
+			}
+			for _, p := range row.Asks {
+				used[role]["ask "+row.Binding+" "+p] = true
+			}
+			for _, p := range row.Onward {
+				used[role]["onward "+row.Binding+" "+p] = true
 			}
 		}
 	}
@@ -285,12 +293,34 @@ func Coverage(m domain.Module, rows []Row) []string {
 	}
 	for _, role := range slices.Sorted(maps.Keys(used)) {
 		for _, p := range permissions(append(slices.Clone(m.Roles[role]), m.OwnedRoles[role]...)) {
-			if !used[role][p] {
-				out = append(out, fmt.Sprintf("role %s grants %s, which no row its holder is allowed uses: least privilege grants nothing unused", role, p))
+			if !slices.ContainsFunc(grantedWays(m, role, p), func(way string) bool { return used[role][way+" "+p] }) {
+				out = append(out, fmt.Sprintf("role %s grants %s, which no row its holder is allowed uses the way it is granted: least privilege grants nothing unused", role, p))
 			}
 		}
 	}
 	return out
+}
+
+// grantedWays are the ways role holds permission p on m: through m's own
+// method policies for a kind m serves, by an ask through each binding whose
+// ceiling carries it for a person, and onward through each binding role names
+// it through.
+func grantedWays(m domain.Module, role, p string) []string {
+	kind, action, _ := strings.Cut(p, ":")
+	var ways []string
+	if scope.HoldsAction(m.ResourceKinds, kind, action) {
+		ways = append(ways, "")
+	}
+	for _, id := range slices.Sorted(maps.Keys(m.Bindings)) {
+		b := m.Bindings[id]
+		if scope.HoldsAction(append(slices.Clone(b.InvokeScopes), b.LookupScopes...), kind, action) {
+			ways = append(ways, "ask "+id)
+		}
+		if scope.HoldsAction(m.Through[role][id], kind, action) {
+			ways = append(ways, "onward "+id)
+		}
+	}
+	return ways
 }
 
 // harness is the authority composed with the product installed at one
@@ -401,52 +431,74 @@ func namespace(kind string) string { ns, _, _ := strings.Cut(kind, "."); return 
 
 func onwardBinding(ns string) string { return "onward-" + ns }
 
-// decide asks the authority row's call as subject.
-func (h *harness) decide(row Row, subject string) error {
+// decide asks the authority row's call as subject, and answers the stage
+// that refused it (Allowed when none did) with the refusal.
+func (h *harness) decide(row Row, subject string) (Verdict, error) {
 	who := person(subject)
 	if row.Administer {
 		_, err := h.svc.GrantRole(h.ctx, who, authority.RoleRequest{Organization: organization, InstallationID: h.inst.ID, Role: domain.UserRole, PersonID: newcomer})
-		if err == nil {
-			_, err = h.svc.RevokeRole(h.ctx, person(installer), authority.RoleRequest{Organization: organization, InstallationID: h.inst.ID, Role: domain.UserRole, PersonID: newcomer})
-			if err != nil {
-				return fmt.Errorf("roleplan: revoking the grant an administering call made: %w", err)
-			}
+		if err != nil {
+			return RefusedAdminister, err
 		}
-		return err
+		if _, err := h.svc.RevokeRole(h.ctx, person(installer), authority.RoleRequest{Organization: organization, InstallationID: h.inst.ID, Role: domain.UserRole, PersonID: newcomer}); err != nil {
+			return 0, fmt.Errorf("roleplan: revoking the grant an administering call made: %w", err)
+		}
+		return Allowed, nil
 	}
 	// What a call asks through a binding is the installation's data at a
 	// module that checks owners, selected to its principal as the runtime and
 	// the module edge name it on the child.
 	asks, err := scope.Owned(Scopes(row.Asks), h.inst.PrincipalID)
 	if err != nil {
-		return fmt.Errorf("roleplan: %w", err)
+		return 0, fmt.Errorf("roleplan: %w", err)
 	}
 	if row.Method == "" {
 		b := h.product.Bindings[row.Binding]
 		issued, err := h.svc.IssueForPage(h.ctx, who, h.product.Name, authority.IssueRequest{Audience: b.Audience, Binding: row.Binding, Scopes: asks})
-		return h.carries(issued, err, row)
+		if err != nil {
+			// The page's root is the subject's roles on the product: holding
+			// none, nothing is issued; holding one, the binding refused.
+			if h.holdsNoRole(who) {
+				return RefusedNoRole, err
+			}
+			return RefusedAtBinding, err
+		}
+		return h.carries(issued, row)
 	}
 	root, err := h.svc.IssueForPerson(h.ctx, who, authority.IssueRequest{Audience: h.product.Principal})
 	if err != nil {
-		return err
+		if h.holdsNoRole(who) {
+			return RefusedNoRole, err
+		}
+		return RefusedByPolicy, err
 	}
 	if _, _, _, err := h.svc.CheckMethod(h.ctx, root.Token, h.product.Principal, row.Method, false); err != nil {
-		return err
+		return RefusedByPolicy, err
 	}
 	if row.Binding == "" {
-		return nil
+		return Allowed, nil
 	}
 	issued, err := h.svc.IssueChild(h.ctx, root.Token, authority.Workload{Module: h.product.Name}, authority.IssueRequest{Binding: row.Binding, Scopes: asks})
-	return h.carries(issued, err, row)
+	if err != nil {
+		return RefusedAtBinding, err
+	}
+	return h.carries(issued, row)
+}
+
+// holdsNoRole answers, as the authority reads it now, whether who holds no
+// role on the product's installation.
+func (h *harness) holdsNoRole(who authority.Person) bool {
+	held, err := h.svc.HeldInstallations(h.ctx, who, organization)
+	if err != nil {
+		return false
+	}
+	return !slices.ContainsFunc(held, func(i authority.HeldInstallation) bool { return i.Installation.ID == h.inst.ID && len(i.Roles) > 0 })
 }
 
 // carries holds what row carries onward to the authority: from the capability
 // issued through row.Binding, its audience's hop onward to each namespace
 // row.Onward names, asking those permissions for the installation's data.
-func (h *harness) carries(issued authority.Issued, err error, row Row) error {
-	if err != nil || len(row.Onward) == 0 {
-		return err
-	}
+func (h *harness) carries(issued authority.Issued, row Row) (Verdict, error) {
 	byNamespace := map[string][]string{}
 	for _, p := range row.Onward {
 		kind, _, _ := strings.Cut(p, ":")
@@ -455,14 +507,14 @@ func (h *harness) carries(issued authority.Issued, err error, row Row) error {
 	for _, ns := range slices.Sorted(maps.Keys(byNamespace)) {
 		asks, err := scope.Owned(Scopes(byNamespace[ns]), h.inst.PrincipalID)
 		if err != nil {
-			return fmt.Errorf("roleplan: %w", err)
+			return 0, fmt.Errorf("roleplan: %w", err)
 		}
 		hop := authority.Workload{Module: h.product.Bindings[row.Binding].Audience}
 		if _, err := h.svc.IssueChild(h.ctx, issued.Token, hop, authority.IssueRequest{Binding: onwardBinding(ns), Scopes: asks}); err != nil {
-			return fmt.Errorf("carrying %s onward through binding %q: %w", strings.Join(byNamespace[ns], ", "), row.Binding, err)
+			return RefusedOnward, fmt.Errorf("carrying %s onward through binding %q: %w", strings.Join(byNamespace[ns], ", "), row.Binding, err)
 		}
 	}
-	return nil
+	return Allowed, nil
 }
 
 // Scopes reads permissions "<kind>:<action>" as scopes, one per kind.
@@ -485,14 +537,6 @@ func permissions(scopes []*basev0.WorkScopeV1) []string {
 	}
 	slices.Sort(out)
 	return slices.Compact(out)
-}
-
-func ceilingScopes(in []modulecontract.CeilingScope) []*basev0.WorkScopeV1 {
-	var out []*basev0.WorkScopeV1
-	for _, sc := range in {
-		out = append(out, &basev0.WorkScopeV1{ResourceKind: sc.ResourceKind, Actions: slices.Clone(sc.Actions)})
-	}
-	return out
 }
 
 func person(id string) authority.Person {

@@ -314,3 +314,37 @@ func scopesOf(entries []string) Scopes {
 	}
 	return scope.Normalize(out)
 }
+
+// Declared is the module a host composes from core's one rendering of a
+// module contract (solutionhost.DeclareModule) and the method policies its
+// package declares: manifest carries the declaration's authority block, and
+// the authority's document is the declaration's own half with methods, the
+// same two documents a delivery pairs, read by Module.
+func Declared(manifest *solutionhost.ModuleManifest, d *solutionhost.Declaration, methods []Method) (domain.Module, error) {
+	authority := d.Authority
+	manifest.Authority = &authority
+	doc := &Document{Module: manifest.Alias, Generation: manifest.Generation, Methods: methods, OwnerAware: d.Document.OwnerAware,
+		InstallationRole: d.Document.InstallationRole, SharedKinds: slices.Clone(d.Document.SharedKinds), ScopeCeilings: declaredScopes(d.Document.ScopeCeilings)}
+	for _, edge := range d.Document.EdgeDependencies {
+		doc.EdgeDependencies = append(doc.EdgeDependencies, domain.EdgeDependency{Module: edge.Module, Presence: edge.Presence})
+	}
+	for _, role := range d.Document.Roles {
+		r := Role{Name: role.Name, Scopes: declaredScopes(role.Scopes), InstallationOwned: declaredScopes(role.InstallationOwnedScopes)}
+		for _, through := range role.Through {
+			if r.Through == nil {
+				r.Through = map[string]Scopes{}
+			}
+			r.Through[through.Binding] = append(r.Through[through.Binding], declaredScopes(through.Scopes)...)
+		}
+		doc.Roles = append(doc.Roles, r)
+	}
+	return Module(manifest, doc)
+}
+
+func declaredScopes(in []solutionhost.DeclaredScope) Scopes {
+	var out Scopes
+	for _, sc := range in {
+		out = append(out, &basev0.WorkScopeV1{ResourceKind: sc.ResourceKind, Actions: slices.Clone(sc.Actions)})
+	}
+	return out
+}
