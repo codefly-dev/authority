@@ -7,7 +7,7 @@ require (
 	github.com/codefly-dev/authority/libraries/delivery/go v0.0.0-20261026023425-000d44495d93
 	github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261111234045-1076f796c30f
 	github.com/codefly-dev/authority/libraries/resources/go v0.0.0-20261026023425-000d44495d93
-	github.com/codefly-dev/core v0.19.32-0.20261115151155-b6ed1a1e5736
+	github.com/codefly-dev/core v0.19.32
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/stretchr/testify v1.12.1
