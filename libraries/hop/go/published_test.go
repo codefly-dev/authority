@@ -236,13 +236,21 @@ func TestManyStampsWaitForOneRunningReadAndAreHeldNoLongerThanItsTimeout(t *test
 		token := authority.issue(t, clock, "documents")
 		garbage := forwarded(t, token, hop, "")
 		garbage.Set(ProofKey, "not-an-admission")
-		start := time.Now()
+		// The read cannot end before begin is closed, so a malformed proof
+		// that waited for it would never return; the guard only stops a hang.
+		refused := make(chan error, 1)
+		go func() {
+			_, err := v.Verify(context.Background(), garbage, "/test.Service/Read")
+			refused <- err
+		}()
 		var reason refusal.Reason
-		if _, err := v.Verify(context.Background(), garbage, "/test.Service/Read"); !errors.As(err, &reason) || reason != refusal.StampProof {
-			t.Fatalf("a malformed proof during a running read: want %s, got %v", refusal.StampProof, err)
-		}
-		if waited := time.Since(start); waited > 100*time.Millisecond {
-			t.Fatalf("a malformed proof waited %s for the running read", waited)
+		select {
+		case err := <-refused:
+			if !errors.As(err, &reason) || reason != refusal.StampProof {
+				t.Fatalf("a malformed proof during a running read: want %s, got %v", refusal.StampProof, err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("a malformed proof waited for the running read")
 		}
 		results := make(chan error, waiters)
 		arrived := make(chan struct{}, waiters)

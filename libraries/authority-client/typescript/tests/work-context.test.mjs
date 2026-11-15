@@ -569,6 +569,11 @@ test('a stamp under an unheld key waits for the read already running', async t =
 // that read published; a read that hangs holds them no longer than its own
 // timeout; and a malformed proof never waits (Go's
 // TestManyStampsWaitForOneRunningReadAndAreHeldNoLongerThanItsTimeout).
+//
+// The read cannot end before every stamp waits on it: each verify reaches the
+// running read synchronously, and the test yields only to microtasks until it
+// releases the read, so no timer (the read's own deadline included) runs in
+// between, however long signing the stamps takes.
 test('many stamps wait for one running read and are held no longer than its timeout', async t => {
  t.mock.method(console, 'info', () => {});
  let now = fixture.now * 1000, answer = () => Promise.resolve(publishing('gateway-before-restart'));
@@ -577,6 +582,9 @@ test('many stamps wait for one running read and are held no longer than its time
  await settle();
  const waiters = 200;
  const outcome = promise => promise.then(id => id.owner, e => e.code);
+ // Microtasks only: a stamp judged without waiting for the read is judged by
+ // the end, and no timer has run.
+ const drain = async () => { for (let i = 0; i < 100; i++) await null; };
  // A read readiness starts, held open until the returned release (or its own
  // timeout); a malformed proof is refused at once meanwhile.
  const running = async (hop, response) => {
@@ -586,28 +594,31 @@ test('many stamps wait for one running read and are held no longer than its time
   const before = keys.reads;
   v.ready();
   answer = () => Promise.resolve(response);
-  const started = performance.now();
-  await assert.rejects(v.verify({...fresh(now, METHOD, fixture.audience, fixture.headers, hop), 'x-codefly-hop-proof': 'not-an-admission'}, METHOD), e => e.code === Reason.StampProof);
-  assert.ok(performance.now() - started < 100, 'a malformed proof waited for the running read');
+  // Judged within microtasks, while the read cannot have ended: it never waited.
+  let refused;
+  v.verify({...fresh(now, METHOD, fixture.audience, fixture.headers, hop), 'x-codefly-hop-proof': 'not-an-admission'}, METHOD).catch(e => { refused = e.code; });
+  await drain();
+  assert.equal(refused, Reason.StampProof, 'a malformed proof waited for the running read');
   return {release: () => release(), before};
  };
  // The running read publishes the fresh key: all wait, all are admitted.
  let read = await running('gateway-after-restart', publishing('gateway-after-restart'));
  let judged = 0;
  let calls = Array.from({length: waiters}, () => outcome(v.verify(fresh(now, METHOD, fixture.audience, fixture.headers, 'gateway-after-restart'), METHOD)).finally(() => { judged++; }));
- await new Promise(resolve => setTimeout(resolve, 50));
+ await drain();
  assert.equal(judged, 0, 'a stamp was judged before the running read ended');
  read.release();
  assert.deepEqual(await Promise.all(calls), Array(waiters).fill(fixture.identity.owner));
  await settle();
  assert.equal(keys.reads, read.before + 1, 'waiters started a read');
  // The running read hangs: every waiter is refused on the keys held once its
- // timeout passes, and still no read is added.
+ // timeout passes, and still no read is added. The read began before the
+ // stamps were all waiting, so its deadline is at most its timeout after.
  read = await running('gateway-restarted-again', publishing('gateway-restarted-again'));
- const started = performance.now();
  calls = Array.from({length: waiters}, () => outcome(v.verify(fresh(now, METHOD, fixture.audience, fixture.headers, 'gateway-restarted-again'), METHOD)));
+ const waiting = performance.now();
  assert.deepEqual(await Promise.all(calls), Array(waiters).fill(Reason.StampProof));
- assert.ok(performance.now() - started < 300 + 1_000, 'waiters on a hung read were held past its timeout');
+ assert.ok(performance.now() - waiting < 300 + 1_000, 'waiters on a hung read were held past its timeout');
  await settle();
  assert.equal(keys.reads, read.before + 1, 'waiters on a hung read started a read');
 });
