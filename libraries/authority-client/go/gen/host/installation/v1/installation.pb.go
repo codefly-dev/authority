@@ -1270,7 +1270,7 @@ type ReviewedOffer struct {
 	// What Install takes, with a fresh operation_id; read with the rest.
 	Approval *ConsentApproval `protobuf:"bytes,1,opt,name=approval,proto3" json:"approval,omitempty"`
 	Target   string           `protobuf:"bytes,2,opt,name=target,proto3" json:"target,omitempty"`
-	// Each role the solution declares, the installer role included. Every role
+	// Each role the solution declares, the admin role included. Every role
 	// scope is confined to this installation: to what it owns, or to the
 	// resources attached to it.
 	Roles []*OfferRole `protobuf:"bytes,3,rep,name=roles,proto3" json:"roles,omitempty"`

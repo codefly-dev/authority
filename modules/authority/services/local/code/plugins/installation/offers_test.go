@@ -131,11 +131,11 @@ func TestReviewOfferShowsEachRolesOperationsAndTools(t *testing.T) {
 	for _, r := range review.GetRoles() {
 		roles[r.GetName()] = r
 	}
-	viewer := tools(roles["viewer"])
-	if len(viewer) != 2 || viewer["read_item"] != readItems+":PROPOSALS__API_CONNECT_READ:false" || viewer["Read"] != readItems+":PROPOSALS__API_CONNECT_READ_AGAIN:true" {
-		t.Fatalf("viewer reaches Read with explicit and default Core tool metadata, never Write: %v", viewer)
+	user := tools(roles["user"])
+	if len(user) != 2 || user["read_item"] != readItems+":PROPOSALS__API_CONNECT_READ:false" || user["Read"] != readItems+":PROPOSALS__API_CONNECT_READ_AGAIN:true" {
+		t.Fatalf("user reaches Read with explicit and default Core tool metadata, never Write: %v", user)
 	}
-	installer := tools(roles[state.InstallerRole])
+	installer := tools(roles[state.AdminRole])
 	if installer["write_item"] != writeItems+":PROPOSALS__API_CONNECT_WRITE:true" {
 		t.Fatalf("installer reaches Write as a write tool: %v", installer)
 	}
@@ -147,7 +147,7 @@ func TestReviewOfferShowsEachRolesOperationsAndTools(t *testing.T) {
 	if _, err := k.State.ApplyManifest(func() state.Manifest { m := solution; m.Generation = 2; return m }()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.Install(admin, &installationv1.InstallRequest{OrganizationId: "acme", Target: "proposals", Role: "viewer", OwnerPersonId: "alex", Approval: tuple}); status.Code(err) != codes.FailedPrecondition {
+	if _, err := p.Install(admin, &installationv1.InstallRequest{OrganizationId: "acme", Target: "proposals", Role: "user", OwnerPersonId: "alex", Approval: tuple}); status.Code(err) != codes.FailedPrecondition {
 		t.Fatalf("a reviewed generation that changed must be reviewed again: %v", err)
 	}
 }
@@ -155,16 +155,16 @@ func TestReviewOfferShowsEachRolesOperationsAndTools(t *testing.T) {
 func TestOffersAreAnAdministratorsRead(t *testing.T) {
 	k := testkit.New(t)
 	offers := &Offers{plugin: &Plugin{State: k.State}}
-	viewer := signedIn(t, k, "fixture-maya")
-	if _, err := offers.ListOffers(viewer, &installationv1.ListOffersRequest{OrganizationId: "acme"}); status.Code(err) != codes.PermissionDenied {
-		t.Fatalf("a viewer lists no offers: %v", err)
+	user := signedIn(t, k, "fixture-maya")
+	if _, err := offers.ListOffers(user, &installationv1.ListOffersRequest{OrganizationId: "acme"}); status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("a user lists no offers: %v", err)
 	}
-	// Maya holds the wiki's viewer role (through finance): she reads what it
+	// Maya holds the wiki's user role (through finance): she reads what it
 	// grants, without the consent tuple. A member holding nothing there is
 	// refused by name.
-	member, err := offers.ReviewOffer(viewer, &installationv1.ReviewRequest{OrganizationId: "acme", Target: "wiki"})
+	member, err := offers.ReviewOffer(user, &installationv1.ReviewRequest{OrganizationId: "acme", Target: "wiki"})
 	if err != nil || member.GetApproval() != nil || member.GetInstallation() == nil || len(member.GetRoles()) == 0 {
-		t.Fatalf("a viewer of the wiki reads its roles, never its consent: %v %v", member, err)
+		t.Fatalf("a user of the wiki reads its roles, never its consent: %v %v", member, err)
 	}
 	nobody := signedIn(t, k, "fixture-no-roles")
 	if _, err := offers.ReviewOffer(nobody, &installationv1.ReviewRequest{OrganizationId: "acme", Target: "wiki"}); status.Code(err) != codes.PermissionDenied ||
@@ -246,7 +246,7 @@ func TestReviewedInstallationRolesStayInTheReviewedSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	redelivered := testkit.Wiki(2)
-	delete(redelivered.Roles, "viewer")
+	delete(redelivered.Roles, "user")
 	if _, err := k.State.ApplyManifest(redelivered); err != nil {
 		t.Fatal(err)
 	}
@@ -254,7 +254,7 @@ func TestReviewedInstallationRolesStayInTheReviewedSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !contains(got.GetInstallation().GetRoles(), "viewer") {
+	if !contains(got.GetInstallation().GetRoles(), "user") {
 		t.Fatalf("installation role names came from a later delivery: %v", got.GetInstallation())
 	}
 }

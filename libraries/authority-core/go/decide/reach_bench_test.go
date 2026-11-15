@@ -53,7 +53,7 @@ func denseComposition(seed int64, modules, kinds int) (domain.Module, []domain.M
 			}
 		}
 		if i == 0 {
-			m.Kind, m.Roles = domain.KindSolution, map[string][]*basev0.WorkScopeV1{"editor": some(), "viewer": some()}
+			m.Kind, m.Roles = domain.KindSolution, map[string][]*basev0.WorkScopeV1{"user": some(), "reader": some()}
 		}
 		out = append(out, m)
 	}

@@ -274,7 +274,7 @@ func TestAPendingInstallationIsIssuedNothing(t *testing.T) {
 	if _, err := k.State.ApplyManifest(testkit.Proposals(1)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := k.State.InstallAsHost(ctx, "acme", "proposals", "viewer", "alex"); err == nil {
+	if _, err := k.State.InstallAsHost(ctx, "acme", "proposals", "user", "alex"); err == nil {
 		t.Fatal("the install step failed; Install must say so")
 	}
 	_, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{

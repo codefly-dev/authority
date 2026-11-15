@@ -31,7 +31,7 @@ import (
 // is permanent: only fresh capabilities work afterwards. An uninstall clears
 // the installation's role grants, so a reinstall needs re-grants. An
 // administrator of the installation's organization, or a holder of the
-// installer role on that installation, grants, revokes and lists; nobody
+// admin role on that installation, grants, revokes and lists; nobody
 // else, and a request naming an installation of another organization is
 // refused naming the organization.
 //
@@ -63,7 +63,7 @@ import (
 // and LegacyStore, installs A, B and C, and makes every grant itself. The host
 // supplies, at Organization unless stated:
 //   - Admin: an organization administrator (whatever its own grants on Kind).
-//   - Viewer, Editor, Member, Installer, TeamMember, TeamLeaver, OrgLeaver:
+//   - UserHolder, Author, Member, AdminHolder, TeamMember, TeamLeaver, OrgLeaver:
 //     members with no role on A, B or C but what the suite grants; TeamMember
 //     and TeamLeaver belong to Team.
 //   - EmptyTeam: a team of Organization in the host's team directory that
@@ -84,7 +84,7 @@ type SolutionPrincipalCase struct {
 	Store, StoreCredential, Kind                   string
 	LegacyStore, LegacyStoreCredential, LegacyKind string
 	Generation                                     uint64
-	Admin, Viewer, Editor, Member, Installer       string
+	Admin, UserHolder, Author, Member, AdminHolder string
 	Team, TeamMember, TeamLeaver, OrgLeaver        string
 	EmptyTeam                                      string
 	Administrator, Reader, NoteReader              string
@@ -168,7 +168,7 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 	}
 	if f.Uninstall == nil || f.RemoveFromTeam == nil || f.RemoveFromOrganization == nil || f.SignManifest == nil || f.SignAuthority == nil ||
 		f.DeliveryCredential == nil || f.Existing == "" || f.OtherOrganization == "" || f.LegacyStore == "" || f.Team == "" || f.EmptyTeam == "" || f.OtherTeam == "" || f.C.Solution == "" ||
-		slices.Contains([]string{f.Admin, f.Viewer, f.Editor, f.Member, f.Installer, f.TeamMember, f.TeamLeaver, f.OrgLeaver, f.Administrator, f.Reader, f.NoteReader, f.OtherAdmin, f.OtherMember}, "") {
+		slices.Contains([]string{f.Admin, f.UserHolder, f.Author, f.Member, f.AdminHolder, f.TeamMember, f.TeamLeaver, f.OrgLeaver, f.Administrator, f.Reader, f.NoteReader, f.OtherAdmin, f.OtherMember}, "") {
 		t.Fatal("required conformance fixture missing: solution principal case")
 	}
 	ctx := context.Background()
@@ -185,7 +185,7 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 			"another organization's principal": sp.owned(f.Kind, []string{"read"}, sp.principal(t, f.OtherOrganization, A)),
 			"the whole kind":                   scopeAsk(f.Kind, []string{"read"}, nil),
 			"a resource by id alone":           scopeAsk(f.Kind, []string{"read"}, []string{f.Existing}),
-			"a person as owner":                sp.owned(f.Kind, []string{"read"}, sp.personID(t, f.Viewer)),
+			"a person as owner":                sp.owned(f.Kind, []string{"read"}, sp.personID(t, f.UserHolder)),
 			"the installation id as owner":     sp.owned(f.Kind, []string{"read"}, str(sp.ensure(t, f.Organization, A), "id")),
 			"the organization as owner":        sp.owned(f.Kind, []string{"read"}, f.Organization),
 		}
@@ -197,7 +197,7 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 			if id := str(inst, "principal_id"); !principalUUID.MatchString(id) || id == str(inst, "id") {
 				t.Fatalf("principal_id %q is not a principal UUID of its own", id)
 			}
-			if got := slices.Sorted(slices.Values(listStrings(inst, "roles"))); !slices.Equal(got, []string{"author", "editor", "installer", "viewer"}) {
+			if got := slices.Sorted(slices.Values(listStrings(inst, "roles"))); !slices.Equal(got, []string{"admin", "user"}) {
 				t.Fatalf("the installation's roles are %v, want the solution's declared roles", got)
 			}
 		}
@@ -238,18 +238,18 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		_, err := sp.root(t, f.Member, A)
 		refused(t, err, codes.PermissionDenied, "holds no role")
 	})
-	t.Run("a viewer reads exactly what the principal owns, and nothing a person, an installation or another principal owns", func(t *testing.T) {
-		sp.grant(t, A, "viewer", sp.person(t, f.Viewer))
-		root := sp.must(t)(sp.root(t, f.Viewer, A))
+	t.Run("a user reads exactly what the principal owns, and nothing a person, an installation or another principal owns", func(t *testing.T) {
+		sp.grant(t, A, "user", sp.person(t, f.UserHolder))
+		root := sp.must(t)(sp.root(t, f.UserHolder, A))
 		exactOwnedScope(t, msg(root, "context"), A.Solution+".note", []string{"read"}, U(t))
-		out := sp.must(t)(sp.through(t, f.Viewer, A, "store"))
+		out := sp.must(t)(sp.through(t, f.UserHolder, A, "store"))
 		exactOwnedScope(t, msg(out, "context"), f.Kind, []string{"read"}, U(t))
 		sp.listed(t, out, f.Kind, "read", map[string]string{"*": U(t)})
-		narrowed := sp.must(t)(sp.through(t, f.Viewer, A, "store", sp.owned(f.Kind, []string{"read"}, U(t), "u-doc")))
+		narrowed := sp.must(t)(sp.through(t, f.UserHolder, A, "store", sp.owned(f.Kind, []string{"read"}, U(t), "u-doc")))
 		exactOwnedScopeIDs(t, msg(narrowed, "context"), f.Kind, []string{"read"}, U(t), []string{"u-doc"})
 		sp.listed(t, narrowed, f.Kind, "read", map[string]string{"u-doc": U(t)})
 		for name, ask := range widening(t) {
-			_, err := sp.through(t, f.Viewer, A, "store", ask)
+			_, err := sp.through(t, f.UserHolder, A, "store", ask)
 			t.Run(name, func(t *testing.T) { refused(t, err, codes.PermissionDenied, "widens") })
 		}
 	})
@@ -257,8 +257,8 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		// The method gate is coarse (kind and action); the checked context
 		// names the owner, which the module compares with the resource's owner
 		// (the library targets pin AllowsOwned refusing another owner).
-		sp.grant(t, A, "viewer", sp.person(t, f.Viewer))
-		out := sp.must(t)(sp.through(t, f.Viewer, A, "store"))
+		sp.grant(t, A, "user", sp.person(t, f.UserHolder))
+		out := sp.must(t)(sp.through(t, f.UserHolder, A, "store"))
 		checked := c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(out, "token"), "audience": f.Store, "method": storeReadMethod})
 		exactOwnedScope(t, msg(checked, "context"), f.Kind, []string{"read"}, U(t))
 		_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(out, "token"), "audience": f.Store, "method": storeWriteMethod})
@@ -266,7 +266,7 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 	})
 	t.Run("a capability through the solution is confined to the principal's data; the person's own grants never flow in", func(t *testing.T) {
 		for _, token := range []string{f.Reader, f.Administrator} {
-			sp.grant(t, A, "viewer", sp.person(t, token))
+			sp.grant(t, A, "user", sp.person(t, token))
 			out := sp.must(t)(sp.through(t, token, A, "store"))
 			exactOwnedScope(t, msg(out, "context"), f.Kind, []string{"read"}, U(t))
 		}
@@ -275,66 +275,66 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		_, err = sp.through(t, f.Administrator, A, "store", scopeAsk(f.Kind, []string{"admin"}, []string{f.Existing}))
 		refused(t, err, codes.PermissionDenied, "confined")
 		// At the solution's own kind too: an organization grant on it stays out.
-		sp.grant(t, A, "viewer", sp.person(t, f.NoteReader))
+		sp.grant(t, A, "user", sp.person(t, f.NoteReader))
 		exactOwnedScope(t, msg(sp.must(t)(sp.root(t, f.NoteReader, A)), "context"), A.Solution+".note", []string{"read"}, U(t))
 	})
 	t.Run("every audience receiving owner-selected scopes declares owner-aware checking, solutions included", func(t *testing.T) {
-		sp.grant(t, A, "viewer", sp.person(t, f.Viewer))
-		_, err := sp.through(t, f.Viewer, A, "legacy")
+		sp.grant(t, A, "user", sp.person(t, f.UserHolder))
+		_, err := sp.through(t, f.UserHolder, A, "legacy")
 		refused(t, err, codes.PermissionDenied, "owner-aware")
 		_, err = sp.agent(t, A, "legacy")
 		refused(t, err, codes.PermissionDenied, "owner-aware")
-		sp.grant(t, C, "viewer", sp.person(t, f.Viewer))
-		_, err = sp.root(t, f.Viewer, C)
+		sp.grant(t, C, "user", sp.person(t, f.UserHolder))
+		_, err = sp.root(t, f.UserHolder, C)
 		refused(t, err, codes.PermissionDenied, "owner-aware")
 		// A module's hop counts as much as a solution's: the store carrying
 		// owner-selected scopes on to the legacy store is refused.
-		atStore := sp.must(t)(sp.through(t, f.Viewer, A, "store"))
+		atStore := sp.must(t)(sp.through(t, f.UserHolder, A, "store"))
 		_, err = sp.hopTo(t, atStore, "legacy", f.LegacyStore)
 		refused(t, err, codes.PermissionDenied, "owner-aware")
 	})
 	t.Run("withdrawing owner-aware checking refuses the owner-selected capabilities issued before", func(t *testing.T) {
-		sp.grant(t, A, "viewer", sp.person(t, f.Viewer))
-		before := sp.must(t)(sp.through(t, f.Viewer, A, "store"))
+		sp.grant(t, A, "user", sp.person(t, f.UserHolder))
+		before := sp.must(t)(sp.through(t, f.UserHolder, A, "store"))
 		sp.deliverStore(t, false)
 		refused(t, sp.check(before), codes.PermissionDenied, "owner-aware")
 		// Re-declaring it revives nothing: only fresh capabilities work.
 		sp.deliverStore(t, true)
 		refused(t, sp.check(before), codes.PermissionDenied, "owner-aware")
-		sp.must(t)(sp.through(t, f.Viewer, A, "store"))
+		sp.must(t)(sp.through(t, f.UserHolder, A, "store"))
 	})
 	t.Run("a resource created through the solution is owned by its principal, the person its author", func(t *testing.T) {
-		sp.grant(t, A, "author", sp.person(t, f.Editor))
-		out := sp.must(t)(sp.through(t, f.Editor, A, "store", sp.owned(f.Kind, []string{"create"}, U(t))))
+		sp.grant(t, A, "admin", sp.person(t, f.Author))
+		out := sp.must(t)(sp.through(t, f.Author, A, "store", sp.owned(f.Kind, []string{"create"}, U(t))))
 		wc := msg(out, "context")
 		exactOwnedScope(t, wc, f.Kind, []string{"create"}, U(t))
-		if str(wc, "owner_principal_id") != sp.personID(t, f.Editor) || str(wc, "owner_principal_kind") != "human" {
+		if str(wc, "owner_principal_id") != sp.personID(t, f.Author) || str(wc, "owner_principal_kind") != "human" {
 			t.Fatalf("the author is %s (%s), want the person", str(wc, "owner_principal_id"), str(wc, "owner_principal_kind"))
 		}
 		byAgent := sp.must(t)(sp.agent(t, A, "store", sp.owned(f.Kind, []string{"create"}, U(t))))
 		exactOwnedScope(t, msg(byAgent, "context"), f.Kind, []string{"create"}, U(t))
 	})
-	t.Run("a role writes when its scopes hold write, whatever it is called; a viewer cannot", func(t *testing.T) {
-		sp.grant(t, A, "author", sp.person(t, f.Editor))
-		sp.grant(t, A, "editor", sp.person(t, f.Member))
-		out := sp.must(t)(sp.through(t, f.Editor, A, "store", sp.owned(f.Kind, []string{"write"}, U(t))))
+	t.Run("a role writes when its scopes hold write; a user who only reads cannot", func(t *testing.T) {
+		sp.grant(t, A, "admin", sp.person(t, f.Author))
+		sp.grant(t, A, "user", sp.person(t, f.Member))
+		out := sp.must(t)(sp.through(t, f.Author, A, "store", sp.owned(f.Kind, []string{"write"}, U(t))))
 		exactOwnedScope(t, msg(out, "context"), f.Kind, []string{"write"}, U(t))
-		// "editor" here declares read only: a name grants nothing.
+		// "user" here declares read only: a role holds only its scopes.
 		_, err := sp.through(t, f.Member, A, "store", sp.owned(f.Kind, []string{"write"}, U(t)))
 		refused(t, err, codes.PermissionDenied, "widens")
-		sp.revoke(t, A, "editor", sp.person(t, f.Member))
+		sp.revoke(t, A, "user", sp.person(t, f.Member))
 	})
-	t.Run("an administrator of the organization or the installation's installer grants, revokes and lists; anyone else, and every malformed grant, is refused by name", func(t *testing.T) {
-		sp.grant(t, A, "viewer", sp.person(t, f.Viewer))
-		sp.grant(t, A, "installer", sp.person(t, f.Installer))
+	t.Run("an administrator of the organization or the installation's admin grants, revokes and lists; anyone else, and every malformed grant, is refused by name", func(t *testing.T) {
+		sp.grant(t, A, "user", sp.person(t, f.UserHolder))
+		sp.grant(t, A, "admin", sp.person(t, f.AdminHolder))
 		// Grants are idempotent: twice is one row.
-		sp.grant(t, A, "viewer", sp.person(t, f.Viewer))
-		if n := countOf(sp.roleGrants(t, f.Admin, f.Organization, A), "viewer person "+sp.personID(t, f.Viewer)); n != 1 {
+		sp.grant(t, A, "user", sp.person(t, f.UserHolder))
+		if n := countOf(sp.roleGrants(t, f.Admin, f.Organization, A), "user person "+sp.personID(t, f.UserHolder)); n != 1 {
 			t.Fatalf("a repeated grant is listed %d times", n)
 		}
-		sp.roleAs(t, f.Installer, "GrantRole", f.Organization, A, "viewer", sp.person(t, f.Member))
-		sp.roleAs(t, f.Installer, "RevokeRole", f.Organization, A, "viewer", sp.person(t, f.Member))
-		sp.roleGrants(t, f.Installer, f.Organization, A)
+		sp.roleAs(t, f.AdminHolder, "GrantRole", f.Organization, A, "user", sp.person(t, f.Member))
+		sp.roleAs(t, f.AdminHolder, "RevokeRole", f.Organization, A, "user", sp.person(t, f.Member))
+		sp.roleGrants(t, f.AdminHolder, f.Organization, A)
 		instA, instB := str(sp.ensure(t, f.Organization, A), "id"), str(sp.ensure(t, f.Organization, B), "id")
 		instElsewhere := str(sp.ensure(t, f.OtherOrganization, A), "id")
 		grant := func(installation, role string, subject map[string]any) map[string]any {
@@ -351,27 +351,27 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 			code           codes.Code
 			reason         string
 		}{
-			"a viewer granting itself installer": {f.Viewer, "GrantRole", grant(instA, "installer", sp.person(t, f.Viewer)), codes.PermissionDenied, "belongs to another organization"},
-			"a viewer revoking the installer":    {f.Viewer, "RevokeRole", grant(instA, "installer", sp.person(t, f.Installer)), codes.PermissionDenied, "belongs to another organization"},
-			"a viewer listing grants":            {f.Viewer, "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": instA}, codes.PermissionDenied, "belongs to another organization"},
+			"a user granting itself admin": {f.UserHolder, "GrantRole", grant(instA, "admin", sp.person(t, f.UserHolder)), codes.PermissionDenied, "belongs to another organization"},
+			"a user revoking the admin":    {f.UserHolder, "RevokeRole", grant(instA, "admin", sp.person(t, f.AdminHolder)), codes.PermissionDenied, "belongs to another organization"},
+			"a user listing grants":        {f.UserHolder, "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": instA}, codes.PermissionDenied, "belongs to another organization"},
 			// A caller of another organization learns nothing of this one: the
 			// installation answers as an absent one would (r143 M-a).
-			"another organization's administrator granting":        {f.OtherAdmin, "GrantRole", grant(instA, "viewer", member), codes.PermissionDenied, "belongs to another organization"},
-			"another organization's administrator revoking":        {f.OtherAdmin, "RevokeRole", grant(instA, "viewer", sp.person(t, f.Viewer)), codes.PermissionDenied, "belongs to another organization"},
-			"another organization's administrator listing":         {f.OtherAdmin, "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": instA}, codes.PermissionDenied, "belongs to another organization"},
-			"A's installer granting on B":                          {f.Installer, "GrantRole", grant(instB, "author", sp.person(t, f.Installer)), codes.PermissionDenied, "belongs to another organization"},
-			"A's installer revoking on B":                          {f.Installer, "RevokeRole", grant(instB, "viewer", member), codes.PermissionDenied, "belongs to another organization"},
-			"another organization's id":                            {f.Admin, "GrantRole", map[string]any{"organization_id": f.OtherOrganization, "installation_id": instA, "role": "viewer", "person_id": sp.personID(t, f.Member)}, codes.PermissionDenied, "organization"},
-			"granting on another organization's installation":      {f.Admin, "GrantRole", grant(instElsewhere, "viewer", member), codes.PermissionDenied, "organization"},
-			"revoking on another organization's installation":      {f.Admin, "RevokeRole", grant(instElsewhere, "viewer", sp.person(t, f.OtherMember)), codes.PermissionDenied, "organization"},
-			"listing another organization's installation":          {f.Admin, "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": instElsewhere}, codes.PermissionDenied, "organization"},
-			"the installer on another organization's installation": {f.Installer, "GrantRole", grant(instElsewhere, "viewer", member), codes.PermissionDenied, "organization"},
-			"an undeclared role":                                   {f.Admin, "GrantRole", grant(instA, "owner", member), codes.NotFound, "declares no role"},
-			"both a person and a team":                             {f.Admin, "GrantRole", grant(instA, "viewer", map[string]any{"person_id": sp.personID(t, f.Member), "team_id": f.Team}), codes.InvalidArgument, "exactly one"},
-			"neither a person nor a team":                          {f.Admin, "GrantRole", grant(instA, "viewer", nil), codes.InvalidArgument, "exactly one"},
-			"a person of another organization":                     {f.Admin, "GrantRole", grant(instA, "viewer", sp.person(t, f.OtherMember)), codes.PermissionDenied, "not a member"},
-			"a team of another organization":                       {f.Admin, "GrantRole", grant(instA, "viewer", map[string]any{"team_id": f.OtherTeam}), codes.PermissionDenied, "not a team of"},
-			"a team the host does not hold":                        {f.Admin, "GrantRole", grant(instA, "viewer", map[string]any{"team_id": uuid.NewString()}), codes.PermissionDenied, "not a team of"},
+			"another organization's administrator granting":    {f.OtherAdmin, "GrantRole", grant(instA, "user", member), codes.PermissionDenied, "belongs to another organization"},
+			"another organization's administrator revoking":    {f.OtherAdmin, "RevokeRole", grant(instA, "user", sp.person(t, f.UserHolder)), codes.PermissionDenied, "belongs to another organization"},
+			"another organization's administrator listing":     {f.OtherAdmin, "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": instA}, codes.PermissionDenied, "belongs to another organization"},
+			"A's admin granting on B":                          {f.AdminHolder, "GrantRole", grant(instB, "admin", sp.person(t, f.AdminHolder)), codes.PermissionDenied, "belongs to another organization"},
+			"A's admin revoking on B":                          {f.AdminHolder, "RevokeRole", grant(instB, "user", member), codes.PermissionDenied, "belongs to another organization"},
+			"another organization's id":                        {f.Admin, "GrantRole", map[string]any{"organization_id": f.OtherOrganization, "installation_id": instA, "role": "user", "person_id": sp.personID(t, f.Member)}, codes.PermissionDenied, "organization"},
+			"granting on another organization's installation":  {f.Admin, "GrantRole", grant(instElsewhere, "user", member), codes.PermissionDenied, "organization"},
+			"revoking on another organization's installation":  {f.Admin, "RevokeRole", grant(instElsewhere, "user", sp.person(t, f.OtherMember)), codes.PermissionDenied, "organization"},
+			"listing another organization's installation":      {f.Admin, "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": instElsewhere}, codes.PermissionDenied, "organization"},
+			"the admin on another organization's installation": {f.AdminHolder, "GrantRole", grant(instElsewhere, "user", member), codes.PermissionDenied, "organization"},
+			"an undeclared role":                               {f.Admin, "GrantRole", grant(instA, "owner", member), codes.NotFound, "declares no role"},
+			"both a person and a team":                         {f.Admin, "GrantRole", grant(instA, "user", map[string]any{"person_id": sp.personID(t, f.Member), "team_id": f.Team}), codes.InvalidArgument, "exactly one"},
+			"neither a person nor a team":                      {f.Admin, "GrantRole", grant(instA, "user", nil), codes.InvalidArgument, "exactly one"},
+			"a person of another organization":                 {f.Admin, "GrantRole", grant(instA, "user", sp.person(t, f.OtherMember)), codes.PermissionDenied, "not a member"},
+			"a team of another organization":                   {f.Admin, "GrantRole", grant(instA, "user", map[string]any{"team_id": f.OtherTeam}), codes.PermissionDenied, "not a team of"},
+			"a team the host does not hold":                    {f.Admin, "GrantRole", grant(instA, "user", map[string]any{"team_id": uuid.NewString()}), codes.PermissionDenied, "not a team of"},
 		} {
 			t.Run(name, func(t *testing.T) {
 				_, err := c.call(sp.as(t, r.caller), "host.installation.v1.InstallationService", r.method, r.fields)
@@ -380,7 +380,7 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		}
 	})
 	t.Run("another installation's and another organization's members never reach the principal's data", func(t *testing.T) {
-		sp.grant(t, B, "viewer", sp.person(t, f.Member))
+		sp.grant(t, B, "user", sp.person(t, f.Member))
 		_, err := sp.root(t, f.Member, A)
 		refused(t, err, codes.PermissionDenied, "holds no role")
 		out := sp.must(t)(sp.through(t, f.Member, B, "store"))
@@ -388,19 +388,19 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		_, err = sp.through(t, f.Member, B, "store", sp.owned(f.Kind, []string{"read"}, U(t)))
 		refused(t, err, codes.PermissionDenied, "widens")
 		other := sp.principal(t, f.OtherOrganization, A)
-		sp.roleAs(t, f.OtherAdmin, "GrantRole", f.OtherOrganization, A, "viewer", sp.person(t, f.OtherMember))
+		sp.roleAs(t, f.OtherAdmin, "GrantRole", f.OtherOrganization, A, "user", sp.person(t, f.OtherMember))
 		elsewhere := sp.must(t)(sp.through(t, f.OtherMember, A, "store"))
 		exactOwnedScope(t, msg(elsewhere, "context"), f.Kind, []string{"read"}, other)
 		_, err = sp.through(t, f.OtherMember, A, "store", sp.owned(f.Kind, []string{"read"}, U(t)))
 		refused(t, err, codes.PermissionDenied, "widens")
 	})
 	t.Run("a child never widens the owner, the actions or the ids it narrowed to", func(t *testing.T) {
-		sp.grant(t, A, "viewer", sp.person(t, f.Viewer))
-		sp.grant(t, A, "author", sp.person(t, f.Editor))
-		narrowed := sp.must(t)(sp.through(t, f.Viewer, A, "store", sp.owned(f.Kind, []string{"read"}, U(t))))
+		sp.grant(t, A, "user", sp.person(t, f.UserHolder))
+		sp.grant(t, A, "admin", sp.person(t, f.Author))
+		narrowed := sp.must(t)(sp.through(t, f.UserHolder, A, "store", sp.owned(f.Kind, []string{"read"}, U(t))))
 		exactOwnedScope(t, msg(sp.must(t)(sp.hop(t, narrowed)), "context"), f.Kind, []string{"read"}, U(t))
-		readOnly := sp.must(t)(sp.through(t, f.Editor, A, "store", sp.owned(f.Kind, []string{"read"}, U(t))))
-		oneDoc := sp.must(t)(sp.through(t, f.Viewer, A, "store", sp.owned(f.Kind, []string{"read"}, U(t), "u-doc")))
+		readOnly := sp.must(t)(sp.through(t, f.Author, A, "store", sp.owned(f.Kind, []string{"read"}, U(t))))
+		oneDoc := sp.must(t)(sp.through(t, f.UserHolder, A, "store", sp.owned(f.Kind, []string{"read"}, U(t), "u-doc")))
 		exactOwnedScopeIDs(t, msg(sp.must(t)(sp.hop(t, oneDoc)), "context"), f.Kind, []string{"read"}, U(t), []string{"u-doc"})
 		for name, attempt := range map[string]struct {
 			parent protoreflect.Message
@@ -416,16 +416,16 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		}
 	})
 	t.Run("an existing resource joins the principal only by a transfer from the organization or its person, administered on that resource through the person's own grants, by a holder of write on the principal's data", func(t *testing.T) {
-		sp.revoke(t, A, "author", sp.person(t, f.Administrator))
-		sp.grant(t, A, "editor", sp.person(t, f.Administrator))
-		asEditorInName := sp.must(t)(sp.through(t, f.Administrator, A, "store"))
-		_, err := sp.transfer(t, asEditorInName, f.StoreCredential, f.Existing, f.Organization, U(t))
+		sp.revoke(t, A, "admin", sp.person(t, f.Administrator))
+		sp.grant(t, A, "user", sp.person(t, f.Administrator))
+		asUserInName := sp.must(t)(sp.through(t, f.Administrator, A, "store"))
+		_, err := sp.transfer(t, asUserInName, f.StoreCredential, f.Existing, f.Organization, U(t))
 		refused(t, err, codes.PermissionDenied, "write on")
 		// Read live: the same capability is allowed once the person's roles
 		// hold write, whatever they are called.
-		sp.grant(t, A, "author", sp.person(t, f.Administrator))
+		sp.grant(t, A, "admin", sp.person(t, f.Administrator))
 		for from, owner := range map[string]string{"the organization": f.Organization, "a person of it": sp.personID(t, f.Administrator)} {
-			out, err := sp.transfer(t, asEditorInName, f.StoreCredential, f.Existing, owner, U(t))
+			out, err := sp.transfer(t, asUserInName, f.StoreCredential, f.Existing, owner, U(t))
 			t.Run("from "+from, func(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
@@ -435,11 +435,11 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 				}
 			})
 		}
-		administers := asEditorInName
-		sp.grant(t, A, "author", sp.person(t, f.Reader))
-		sp.grant(t, A, "installer", sp.person(t, f.Installer))
+		administers := asUserInName
+		sp.grant(t, A, "admin", sp.person(t, f.Reader))
+		sp.grant(t, A, "admin", sp.person(t, f.AdminHolder))
 		reads := sp.must(t)(sp.through(t, f.Reader, A, "store"))
-		installs := sp.must(t)(sp.through(t, f.Installer, A, "store"))
+		installs := sp.must(t)(sp.through(t, f.AdminHolder, A, "store"))
 		byAgent := sp.must(t)(sp.agent(t, A, "store"))
 		atRoot := sp.must(t)(sp.root(t, f.Administrator, A))
 		for name, r := range map[string]struct {
@@ -456,7 +456,7 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 			"of a resource the person does not administer":   {administers, f.StoreCredential, f.Existing + "-unadministered", f.Organization, U(t), codes.PermissionDenied, "own organization grants"},
 			"to a principal the capability is not through":   {administers, f.StoreCredential, f.Existing, f.Organization, V(t), codes.PermissionDenied, "issued through"},
 			"by a reader of the resource":                    {reads, f.StoreCredential, f.Existing, f.Organization, U(t), codes.PermissionDenied, "own organization grants"},
-			"by the installer role alone":                    {installs, f.StoreCredential, f.Existing, f.Organization, U(t), codes.PermissionDenied, "own organization grants"},
+			"by the admin role alone":                        {installs, f.StoreCredential, f.Existing, f.Organization, U(t), codes.PermissionDenied, "own organization grants"},
 			"by the installation's agent":                    {byAgent, f.StoreCredential, f.Existing, f.Organization, U(t), codes.PermissionDenied, "a person's act"},
 			"asked by a module that does not serve the kind": {administers, f.A.Credential, f.Existing, f.Organization, U(t), codes.PermissionDenied, "does not serve"},
 			"with a capability addressed elsewhere":          {atRoot, f.StoreCredential, f.Existing, f.Organization, U(t), codes.Unauthenticated, "audience"},
@@ -468,60 +468,60 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		}
 	})
 	t.Run("revoking a person's role stops their access at once, theirs alone; their old capabilities stay dead after a re-grant", func(t *testing.T) {
-		sp.grant(t, A, "viewer", sp.person(t, f.Viewer))
-		sp.grant(t, A, "author", sp.person(t, f.Editor))
-		before := sp.must(t)(sp.through(t, f.Viewer, A, "store"))
-		unrelated := sp.must(t)(sp.through(t, f.Editor, A, "store"))
+		sp.grant(t, A, "user", sp.person(t, f.UserHolder))
+		sp.grant(t, A, "admin", sp.person(t, f.Author))
+		before := sp.must(t)(sp.through(t, f.UserHolder, A, "store"))
+		unrelated := sp.must(t)(sp.through(t, f.Author, A, "store"))
 		// A new grant, to the holder or to anyone else, leaves both valid.
-		sp.grant(t, A, "author", sp.person(t, f.Viewer))
-		sp.grant(t, A, "viewer", sp.person(t, f.Member))
+		sp.grant(t, A, "admin", sp.person(t, f.UserHolder))
+		sp.grant(t, A, "user", sp.person(t, f.Member))
 		for _, capability := range []protoreflect.Message{before, unrelated} {
 			if err := sp.check(capability); err != nil {
 				t.Fatalf("a new grant invalidated an existing capability: %v", err)
 			}
 		}
-		sp.revoke(t, A, "author", sp.person(t, f.Viewer))
-		sp.revoke(t, A, "viewer", sp.person(t, f.Member))
+		sp.revoke(t, A, "admin", sp.person(t, f.UserHolder))
+		sp.revoke(t, A, "user", sp.person(t, f.Member))
 		// Reissued, so the last-grant revoke below must kill a live capability.
-		before = sp.must(t)(sp.through(t, f.Viewer, A, "store"))
-		if !slices.Contains(sp.roleGrants(t, f.Admin, f.Organization, A), "viewer person "+sp.personID(t, f.Viewer)) {
+		before = sp.must(t)(sp.through(t, f.UserHolder, A, "store"))
+		if !slices.Contains(sp.roleGrants(t, f.Admin, f.Organization, A), "user person "+sp.personID(t, f.UserHolder)) {
 			t.Fatalf("ListRoleGrants does not show the grant: %v", sp.roleGrants(t, f.Admin, f.Organization, A))
 		}
-		sp.revoke(t, A, "viewer", sp.person(t, f.Viewer))
+		sp.revoke(t, A, "user", sp.person(t, f.UserHolder))
 		refused(t, sp.check(before), codes.PermissionDenied, "revoked")
 		_, err := sp.hop(t, before)
 		refused(t, err, codes.PermissionDenied, "revoked")
-		_, err = sp.root(t, f.Viewer, A)
+		_, err = sp.root(t, f.UserHolder, A)
 		refused(t, err, codes.PermissionDenied, "holds no role")
 		if err := sp.check(unrelated); err != nil {
 			t.Fatalf("revoking one person's role invalidated another's capability: %v", err)
 		}
-		if slices.Contains(sp.roleGrants(t, f.Admin, f.Organization, A), "viewer person "+sp.personID(t, f.Viewer)) {
+		if slices.Contains(sp.roleGrants(t, f.Admin, f.Organization, A), "user person "+sp.personID(t, f.UserHolder)) {
 			t.Fatal("ListRoleGrants still shows a revoked grant")
 		}
-		sp.grant(t, A, "viewer", sp.person(t, f.Viewer))
-		exactOwnedScope(t, msg(sp.must(t)(sp.through(t, f.Viewer, A, "store")), "context"), f.Kind, []string{"read"}, U(t))
+		sp.grant(t, A, "user", sp.person(t, f.UserHolder))
+		exactOwnedScope(t, msg(sp.must(t)(sp.through(t, f.UserHolder, A, "store")), "context"), f.Kind, []string{"read"}, U(t))
 		refused(t, sp.check(before), codes.PermissionDenied, "revoked")
 	})
 	t.Run("a team's role is its members' access; revoking it or leaving the team stops them at once; a direct grant survives the team's revoke", func(t *testing.T) {
 		team := map[string]any{"team_id": f.Team}
-		sp.grant(t, A, "viewer", team)
-		if !slices.Contains(sp.roleGrants(t, f.Admin, f.Organization, A), "viewer team "+f.Team) {
+		sp.grant(t, A, "user", team)
+		if !slices.Contains(sp.roleGrants(t, f.Admin, f.Organization, A), "user team "+f.Team) {
 			t.Fatalf("ListRoleGrants does not show the team grant: %v", sp.roleGrants(t, f.Admin, f.Organization, A))
 		}
 		before := sp.must(t)(sp.through(t, f.TeamMember, A, "store"))
 		exactOwnedScope(t, msg(before, "context"), f.Kind, []string{"read"}, U(t))
-		sp.revoke(t, A, "viewer", team)
+		sp.revoke(t, A, "user", team)
 		refused(t, sp.check(before), codes.PermissionDenied, "revoked")
 		_, err := sp.root(t, f.TeamMember, A)
 		refused(t, err, codes.PermissionDenied, "holds no role")
 		// A direct grant and a team grant: revoking the team leaves the direct one.
-		sp.grant(t, A, "viewer", sp.person(t, f.TeamMember))
-		sp.grant(t, A, "viewer", team)
-		sp.revoke(t, A, "viewer", team)
+		sp.grant(t, A, "user", sp.person(t, f.TeamMember))
+		sp.grant(t, A, "user", team)
+		sp.revoke(t, A, "user", team)
 		sp.must(t)(sp.through(t, f.TeamMember, A, "store"))
-		sp.revoke(t, A, "viewer", sp.person(t, f.TeamMember))
-		sp.grant(t, A, "viewer", team)
+		sp.revoke(t, A, "user", sp.person(t, f.TeamMember))
+		sp.grant(t, A, "user", team)
 		sp.must(t)(sp.through(t, f.TeamMember, A, "store"))
 		refused(t, sp.check(before), codes.PermissionDenied, "revoked")
 		leaving := sp.must(t)(sp.through(t, f.TeamLeaver, A, "store"))
@@ -534,12 +534,12 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 	})
 	t.Run("a team nobody belongs to yet is granted a role, listed and revoked", func(t *testing.T) {
 		empty := map[string]any{"team_id": f.EmptyTeam}
-		sp.grant(t, A, "viewer", empty)
-		if !slices.Contains(sp.roleGrants(t, f.Admin, f.Organization, A), "viewer team "+f.EmptyTeam) {
+		sp.grant(t, A, "user", empty)
+		if !slices.Contains(sp.roleGrants(t, f.Admin, f.Organization, A), "user team "+f.EmptyTeam) {
 			t.Fatalf("ListRoleGrants does not show the empty team's grant: %v", sp.roleGrants(t, f.Admin, f.Organization, A))
 		}
-		sp.revoke(t, A, "viewer", empty)
-		if slices.Contains(sp.roleGrants(t, f.Admin, f.Organization, A), "viewer team "+f.EmptyTeam) {
+		sp.revoke(t, A, "user", empty)
+		if slices.Contains(sp.roleGrants(t, f.Admin, f.Organization, A), "user team "+f.EmptyTeam) {
 			t.Fatal("ListRoleGrants still shows the empty team's revoked grant")
 		}
 	})
@@ -553,7 +553,7 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		sp.teamCast(t)
 	})
 	t.Run("a person leaving the organization loses the solution's data at once", func(t *testing.T) {
-		sp.grant(t, A, "viewer", sp.person(t, f.OrgLeaver))
+		sp.grant(t, A, "user", sp.person(t, f.OrgLeaver))
 		before := sp.must(t)(sp.through(t, f.OrgLeaver, A, "store"))
 		if err := f.RemoveFromOrganization(ctx, sp.personID(t, f.OrgLeaver)); err != nil {
 			t.Fatal(err)
@@ -561,10 +561,10 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		refused(t, sp.check(before), codes.PermissionDenied, "revoked")
 	})
 	t.Run("uninstalling disables the principal at once and its data stays owned; old capabilities stay dead after reinstall and re-grant", func(t *testing.T) {
-		sp.grant(t, A, "viewer", sp.person(t, f.Viewer))
-		sp.grant(t, A, "author", sp.person(t, f.Administrator))
-		before := sp.must(t)(sp.through(t, f.Viewer, A, "store"))
-		parent := sp.must(t)(sp.root(t, f.Viewer, A))
+		sp.grant(t, A, "user", sp.person(t, f.UserHolder))
+		sp.grant(t, A, "admin", sp.person(t, f.Administrator))
+		before := sp.must(t)(sp.through(t, f.UserHolder, A, "store"))
+		parent := sp.must(t)(sp.root(t, f.UserHolder, A))
 		administers := sp.must(t)(sp.through(t, f.Administrator, A, "store"))
 		byAgent := sp.must(t)(sp.agent(t, A, "store"))
 		u, inst := U(t), str(sp.ensure(t, f.Organization, A), "id")
@@ -577,19 +577,19 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 			refused(t, err, codes.PermissionDenied, "revoked")
 			_, err = sp.agent(t, A, "store")
 			refused(t, err, codes.FailedPrecondition, "not installed")
-			_, err = sp.root(t, f.Viewer, A)
+			_, err = sp.root(t, f.UserHolder, A)
 			refused(t, err, codes.FailedPrecondition, "not installed")
 			_, err = c.call(sp.as(t, f.Admin), "host.installation.v1.InstallationService", "GrantRole", map[string]any{
-				"organization_id": f.Organization, "installation_id": inst, "role": "viewer", "person_id": sp.personID(t, f.Viewer)})
+				"organization_id": f.Organization, "installation_id": inst, "role": "user", "person_id": sp.personID(t, f.UserHolder)})
 			refused(t, err, codes.FailedPrecondition, "not installed")
 		})
 		if U(t) != u {
 			t.Fatalf("reinstalled as %s, want %s", U(t), u)
 		}
-		_, err := sp.root(t, f.Viewer, A)
+		_, err := sp.root(t, f.UserHolder, A)
 		refused(t, err, codes.PermissionDenied, "holds no role")
-		sp.grant(t, A, "viewer", sp.person(t, f.Viewer))
-		exactOwnedScope(t, msg(sp.must(t)(sp.through(t, f.Viewer, A, "store")), "context"), f.Kind, []string{"read"}, u)
+		sp.grant(t, A, "user", sp.person(t, f.UserHolder))
+		exactOwnedScope(t, msg(sp.must(t)(sp.through(t, f.UserHolder, A, "store")), "context"), f.Kind, []string{"read"}, u)
 		refused(t, sp.check(before), codes.PermissionDenied, "revoked")
 		refused(t, sp.check(byAgent), codes.PermissionDenied, "revoked")
 		_, err = sp.child(t, parent, A, "store")
@@ -614,17 +614,15 @@ func (sp *principalSuite) deliverAll(t *testing.T) {
 		map[string]any{"scope_ceilings": []any{scopeAsk(f.LegacyKind, []string{"read"}, nil)}}, 0); err != nil {
 		t.Fatalf("deliver %s: %v", f.LegacyStore, err)
 	}
-	every := []string{"admin", "create", "read", "write"}
 	for _, s := range []SolutionUnderTest{f.A, f.B, f.C} {
 		own := s.Solution + ".note"
 		doc := map[string]any{
 			"scope_ceilings": []any{scopeAsk(own, []string{"read", "write"}, nil)},
-			// Role names carry no rank: "editor" declares read only, "author" writes.
+			// Exactly the two roles: admin writes, user only reads. What a role
+			// may do is its scopes: neither holds the store's "admin" action.
 			"roles": []any{
-				map[string]any{"name": "installer", "scopes": []any{scopeAsk(own, []string{"read", "write"}, nil), scopeAsk(f.Kind, every, nil)}},
-				map[string]any{"name": "author", "scopes": []any{scopeAsk(own, []string{"read", "write"}, nil), scopeAsk(f.Kind, []string{"create", "read", "write"}, nil)}},
-				map[string]any{"name": "editor", "scopes": []any{scopeAsk(own, []string{"read"}, nil), scopeAsk(f.Kind, []string{"read"}, nil)}},
-				map[string]any{"name": "viewer", "scopes": []any{scopeAsk(own, []string{"read"}, nil), scopeAsk(f.Kind, []string{"read"}, nil), scopeAsk(f.LegacyKind, []string{"read"}, nil)}},
+				map[string]any{"name": "admin", "scopes": []any{scopeAsk(own, []string{"read", "write"}, nil), scopeAsk(f.Kind, []string{"create", "read", "write"}, nil)}},
+				map[string]any{"name": "user", "scopes": []any{scopeAsk(own, []string{"read"}, nil), scopeAsk(f.Kind, []string{"read"}, nil), scopeAsk(f.LegacyKind, []string{"read"}, nil)}},
 			},
 		}
 		if s != f.C {
@@ -716,7 +714,7 @@ func (sp *principalSuite) admin(org string) string {
 	return sp.f.Admin
 }
 
-// ensure installs s at org once, with the agent's role author.
+// ensure installs s at org once, with the agent's role admin.
 func (sp *principalSuite) ensure(t *testing.T, org string, s SolutionUnderTest) protoreflect.Message {
 	t.Helper()
 	if inst, ok := sp.installed[org+"/"+s.Solution]; ok {
@@ -724,7 +722,7 @@ func (sp *principalSuite) ensure(t *testing.T, org string, s SolutionUnderTest) 
 	}
 	admin := sp.admin(org)
 	out := sp.c.must(t, sp.as(t, admin), "host.installation.v1.InstallationService", "Install", map[string]any{
-		"organization_id": org, "target": s.Solution, "role": "author", "owner_person_id": sp.personID(t, admin), "approval": sp.c.reviewInstallation(t, sp.as(t, admin), org, s.Solution)})
+		"organization_id": org, "target": s.Solution, "role": "admin", "owner_person_id": sp.personID(t, admin), "approval": sp.c.reviewInstallation(t, sp.as(t, admin), org, s.Solution)})
 	if enumName(out, "status") != "STATUS_ACTIVE" {
 		t.Fatalf("%s at %s is %s; the host's install step must converge for the suite's solutions", s.Solution, org, enumName(out, "status"))
 	}

@@ -34,7 +34,7 @@ func TestAttachmentNeedsTheKindsOneServingModule(t *testing.T) {
 }
 
 // ownKindSolution installs a solution serving its own kind: its installer
-// creates items, its viewer reads the items and administers collections at
+// creates items, its user reads the items and administers collections at
 // documents, and reads the collections its installation owns.
 func ownKindSolution(t *testing.T, k *testkit.Kit) string {
 	t.Helper()
@@ -43,24 +43,24 @@ func ownKindSolution(t *testing.T, k *testkit.Kit) string {
 		Bindings: map[string]state.Binding{"documents": {ID: "documents", Audience: "documents",
 			InvokeScopes: []*basev0.WorkScopeV1{testkit.Scope("documents.collection", "read", "admin")}}},
 		Roles: map[string][]*basev0.WorkScopeV1{
-			state.InstallerRole: {testkit.Scope("proposals.item", "create")},
-			"viewer":            {testkit.Scope("documents.collection", "admin")},
+			state.AdminRole: {testkit.Scope("proposals.item", "create")},
+			"user":          {testkit.Scope("documents.collection", "admin")},
 		},
 		OwnedRoles: map[string][]*basev0.WorkScopeV1{
-			state.InstallerRole: {testkit.Scope("proposals.item", "read")},
-			"viewer":            {testkit.Scope("proposals.item", "read"), testkit.Scope("documents.collection", "read")},
+			state.AdminRole: {testkit.Scope("proposals.item", "read")},
+			"user":          {testkit.Scope("proposals.item", "read"), testkit.Scope("documents.collection", "read")},
 		}}
 	if _, err := k.State.ApplyManifest(m); err != nil {
 		t.Fatal(err)
 	}
-	inst, err := k.State.InstallAsHost(context.Background(), "acme", "proposals", "viewer", "alex")
+	inst, err := k.State.InstallAsHost(context.Background(), "acme", "proposals", "user", "alex")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := k.State.GrantRole(domain.RoleGrant{InstallationID: inst.ID, Role: "viewer", TeamID: "finance"}); err != nil {
+	if err := k.State.GrantRole(domain.RoleGrant{InstallationID: inst.ID, Role: "user", TeamID: "finance"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := k.State.GrantRole(domain.RoleGrant{InstallationID: inst.ID, Role: state.InstallerRole, PersonID: "alex"}); err != nil {
+	if err := k.State.GrantRole(domain.RoleGrant{InstallationID: inst.ID, Role: state.AdminRole, PersonID: "alex"}); err != nil {
 		t.Fatal(err)
 	}
 	return inst.ID
@@ -94,12 +94,12 @@ func TestASolutionAttachesItsOwnKindThroughAPersonsCapability(t *testing.T) {
 		t.Fatal(err)
 	}
 	inst, _ := k.State.Installation(id)
-	held, err := decide.RoleScopes(m, inst, []string{"viewer"})
+	held, err := decide.RoleScopes(m, inst, []string{"user"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if ids := ownedRead(held, "proposals.item"); !slices.Equal(ids, []string{"p1"}) {
-		t.Fatalf("the viewer reads %v, want [p1]", ids)
+		t.Fatalf("the user reads %v, want [p1]", ids)
 	}
 }
 

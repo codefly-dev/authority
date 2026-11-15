@@ -27,7 +27,7 @@ modules:
       module: modules/record-store
       version: d4b121092fb8f876dec884e5911c60cbce423409
     # The directory's module page, the first page run against the authority:
-    # a role-gated target (installer, editor, viewer, steward), so this run
+    # a role-gated target (a page declaring its own roles), so this run
     # seats the fixture's teams on it and proves "act as this team" here.
     - name: org-directory
       source: obin-ai/module-directory

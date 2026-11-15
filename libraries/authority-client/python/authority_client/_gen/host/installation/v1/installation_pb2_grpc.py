@@ -134,7 +134,7 @@ class InstallationServiceServicer(object):
         target declares (a solution's, or a module page's on its composition
         installation): the access. Idempotent; it leaves existing capabilities
         valid. An administrator of the installation's organization, or a holder
-        of the installer role on that installation, grants.
+        of the admin role on that installation, grants.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')

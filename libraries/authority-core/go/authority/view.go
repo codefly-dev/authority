@@ -75,8 +75,8 @@ func (s *Service) OpenRoleView(ctx context.Context, who Person, r RoleViewReques
 		// to — wider than the session it was opened from, which a view never
 		// is. It never exceeded the PERSON (the organisation role is cleared
 		// either way), but exceeding the CAST is exactly what the feature
-		// exists to prevent: "view as a viewer" would answer from reach a
-		// viewer does not have, and pass.
+		// exists to prevent: "view as a user" would answer from reach a
+		// user does not have, and pass.
 		view = domain.RoleView{SessionID: r.SessionID, Parent: who.SessionID, Person: p.ID, Organization: p.Organization, Team: p.Cast, Roles: map[string][]string{}}
 		for id, roles := range p.View {
 			view.Roles[id] = slices.Clone(roles)
@@ -139,7 +139,7 @@ func personFor(tx Tx, org, id, session string) (domain.Person, error) {
 	p.View = v.Roles
 	// A view narrows everything above the roles it names. The organization roles
 	// are the person's own, not the viewed roles': an administrator who views as a
-	// viewer must hold what a viewer holds, so the administrator's reach (every
+	// user must hold what a user holds, so the administrator's reach (every
 	// kind and action of the organization, installation administration, granting
 	// a role) is cleared here, at the one reader of an acting person.
 	p.Roles = nil
@@ -179,7 +179,7 @@ func rootSession(wc *basev0.WorkContextV1) string {
 func memberRecord(tx Tx, org, id string) (domain.Person, error) { return tx.Member(org, id) }
 
 // viewNote says what a refusal under p's role view is the view's doing:
-// "viewing as viewer on wiki"; empty without a view.
+// "viewing as user on wiki"; empty without a view.
 func viewNote(tx Tx, p domain.Person) string {
 	var parts []string
 	for _, id := range slices.Sorted(maps.Keys(p.View)) {
@@ -193,8 +193,8 @@ func viewNote(tx Tx, p domain.Person) string {
 }
 
 // underView names the role view in a refusal it caused or shaped: a person
-// who sees a viewer's refusal learns it is the viewer they chose to be, and
-// how to leave (the session the view was opened from). Any other error, and
+// refused under a view learns it is the role they chose to be, and how to
+// leave (the session the view was opened from). Any other error, and
 // every refusal without a view, passes unchanged.
 func underView(note string, err error) error {
 	var r *domain.Refusal

@@ -45,7 +45,7 @@ func TestInstallationConsentBindsReviewedStateAndOperation(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(first, retry) || steps != 1 {
 		t.Fatalf("unchanged retry: %+v, steps=%d, err=%v", retry, steps, err)
 	}
-	_, err = install(a, "viewer")
+	_, err = install(a, "reader")
 	refused(t, err, "INSTALLATION_APPROVAL_OPERATION_CONFLICT")
 	_, err = h.svc.Install(h.ctx, admin, globex, "b", "author", "", a, step)
 	refused(t, err, "INSTALLATION_APPROVAL_OPERATION_CONFLICT")

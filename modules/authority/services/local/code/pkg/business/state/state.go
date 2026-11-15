@@ -77,14 +77,15 @@ type (
 	InstallStep  = authority.InstallStep
 )
 
-// The installation states, the reserved role and the wildcards.
+// The installation states, the two page roles and the wildcards.
 const (
-	Pending       = domain.Pending
-	Active        = domain.Active
-	Revoked       = domain.Revoked
-	InstallerRole = domain.InstallerRole
-	AnyAction     = scope.AnyAction
-	AnyKind       = scope.AnyKind
+	Pending   = domain.Pending
+	Active    = domain.Active
+	Revoked   = domain.Revoked
+	AdminRole = domain.AdminRole
+	UserRole  = domain.UserRole
+	AnyAction = scope.AnyAction
+	AnyKind   = scope.AnyKind
 )
 
 // The core's scope algebra, for this host's own checks.
@@ -182,7 +183,7 @@ type FixtureModule = fixturecomposition.Module
 
 // FixtureInstallation is one installation the fixture performs through the
 // real install path, once its target is composed: Role is the installation's
-// own (its agent's), Owner installed it and is granted the installer role,
+// own (its agent's), Owner installed it and is granted the admin role,
 // and each of Teams is granted Role.
 type FixtureInstallation = fixturecomposition.Installation
 
@@ -398,7 +399,7 @@ func (s *State) ensureModuleInstallations() error {
 }
 
 // performInstall installs what the fixture names through the core, then
-// records its grants: the installer role to its owner, its role to its teams.
+// records its grants: the admin role to its owner, its role to its teams.
 // A delivery's intent remembers the revision its first attempt took: a replay
 // resumes that attempt, and refuses when the installation was revoked or
 // reinstalled since, so a replay never undoes an administrator's act.
@@ -425,11 +426,19 @@ func (s *State) performInstall(ctx context.Context, i FixtureInstallation, inten
 			return fmt.Errorf("fixture installation of %s at %s: %w", i.Target, i.Organization, classify(err))
 		}
 	}
-	grants := []domain.RoleGrant{{InstallationID: id, Role: InstallerRole, PersonID: i.Owner}}
-	for _, team := range i.Teams {
-		grants = append(grants, domain.RoleGrant{InstallationID: id, Role: i.Role, TeamID: team})
-	}
 	return s.write(func(tx authority.Tx) error {
+		// STOPGAP (one release): a target delivered before the rename
+		// declares its admin role as "installer" (domain.DeclaredAdminRole).
+		admin := AdminRole
+		if m, err := tx.ModuleNamed(i.Target); err == nil {
+			if declared, ok := domain.DeclaredAdminRole(m.Roles); ok {
+				admin = declared
+			}
+		}
+		grants := []domain.RoleGrant{{InstallationID: id, Role: admin, PersonID: i.Owner}}
+		for _, team := range i.Teams {
+			grants = append(grants, domain.RoleGrant{InstallationID: id, Role: i.Role, TeamID: team})
+		}
 		for _, g := range grants {
 			if err := tx.PutRoleGrant(g); err != nil {
 				return err

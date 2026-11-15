@@ -23,7 +23,7 @@ func TestInstallationToolRequiresTargetSolutionConsent(t *testing.T) {
 		"assistant": {ID: "assistant", Audience: "robin", InvokeScopes: []*basev0.WorkScopeV1{testkit.Scope("robin.conversations", "read")}},
 		"tools":     {ID: "tools", Audience: "proposals", InvokeScopes: []*basev0.WorkScopeV1{testkit.Scope("proposals.item", "read")}},
 	}
-	a.Roles["viewer"] = append(a.Roles["viewer"], testkit.Scope("robin.conversations", "read"), testkit.Scope("proposals.item", "read"))
+	a.Roles["user"] = append(a.Roles["user"], testkit.Scope("robin.conversations", "read"), testkit.Scope("proposals.item", "read"))
 	if _, err := k.State.ApplyManifest(a); err != nil {
 		t.Fatal(err)
 	}

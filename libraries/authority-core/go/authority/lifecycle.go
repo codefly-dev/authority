@@ -827,7 +827,7 @@ type InstallStep func(ctx context.Context, inst domain.Installation) error
 // With no selector, the caller must name a declared role as before.
 // A module page (a module declaring roles) is installed by composition, never
 // here; what Install takes for one is the approval of its pending upgrade,
-// by an administrator or by a holder of the page's installer role on its
+// by an administrator or by a holder of the page's admin role on its
 // installation (approver), which records the consent the receipt composition
 // took stood in for.
 func (s *Service) Install(ctx context.Context, caller Person, org, target, agentRole, installedBy string, approval *domain.ConsentApproval, step InstallStep) (domain.Installation, error) {

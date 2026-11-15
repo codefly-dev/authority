@@ -431,7 +431,7 @@ func (s *Service) approvedReach(tx Tx, owner reachOwner, module string) (held Sc
 // From then on it is held as a consented solution is: a delivery, of the
 // page or of a module it reaches, that widens what a role reaches offers an
 // upgrade (reconverge, reconvergeReach) that an administrator or the page's
-// installer approves through Install, and until then its grants answer at
+// admin approves through Install, and until then its grants answer at
 // the reach held, none revoked and none widened. A solution its host
 // installed without consent is left as it is: it follows its delivery by
 // that host's own doing.

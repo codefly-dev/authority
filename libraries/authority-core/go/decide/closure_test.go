@@ -20,7 +20,7 @@ func closureBinding(audience string) domain.Binding {
 // edge names, a principal, to the module's name.
 func closureModules() []domain.Module {
 	return []domain.Module{
-		{Name: "page", Principal: "page-p", Kind: domain.KindModule, Page: true, Roles: map[string][]*basev0.WorkScopeV1{domain.InstallerRole: closureRead},
+		{Name: "page", Principal: "page-p", Kind: domain.KindModule, Page: true, Roles: map[string][]*basev0.WorkScopeV1{domain.AdminRole: closureRead},
 			Bindings:         map[string]domain.Binding{"records": closureBinding("records-p")},
 			EdgeDependencies: []domain.EdgeDependency{{Module: "agent-p", Presence: "required"}, {Module: "tracing-p", Presence: decide.EdgeOptional}}},
 		{Name: "records", Principal: "records-p", Kind: domain.KindModule, Bindings: map[string]domain.Binding{"store": closureBinding("store-p"), "self": closureBinding("records-p")}},
@@ -31,7 +31,7 @@ func closureModules() []domain.Module {
 		{Name: "tracing", Principal: "tracing-p", Kind: domain.KindModule, Bindings: map[string]domain.Binding{"model": closureBinding("model-p")}},
 		{Name: "notes", Principal: "notes-p", Kind: domain.KindModule},
 		{Name: "relay", Principal: "relay-p", Kind: domain.KindModule, Bindings: map[string]domain.Binding{"app": closureBinding("app-p"), "model": closureBinding("model-p")}},
-		{Name: "app", Principal: "app-p", Kind: domain.KindSolution, Roles: map[string][]*basev0.WorkScopeV1{domain.InstallerRole: closureRead},
+		{Name: "app", Principal: "app-p", Kind: domain.KindSolution, Roles: map[string][]*basev0.WorkScopeV1{domain.AdminRole: closureRead},
 			Bindings: map[string]domain.Binding{"records": closureBinding("records-p"), "page": closureBinding("page-p")}},
 	}
 }

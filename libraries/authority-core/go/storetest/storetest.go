@@ -278,7 +278,7 @@ func Run(t *testing.T, open Open) {
 		first.Name, first.Principal = f.name("approved"), f.name("approved-principal")
 		second := first
 		second.Generation = 2
-		second.Roles = map[string][]*basev0.WorkScopeV1{domain.InstallerRole: first.Roles[domain.InstallerRole]}
+		second.Roles = map[string][]*basev0.WorkScopeV1{domain.AdminRole: first.Roles[domain.AdminRole]}
 		write(t, func(tx authority.Tx) error {
 			if err := tx.PutApprovedModule(first); err != nil {
 				return err
@@ -312,7 +312,7 @@ func Run(t *testing.T, open Open) {
 		kept := f.module(domain.KindSolution)
 		kept.Name, kept.Principal = f.name("kept"), f.name("kept-principal")
 		reread := kept // the same generation read again (Service.RereadModule)
-		reread.Roles = map[string][]*basev0.WorkScopeV1{domain.InstallerRole: kept.Roles[domain.InstallerRole]}
+		reread.Roles = map[string][]*basev0.WorkScopeV1{domain.AdminRole: kept.Roles[domain.AdminRole]}
 		// Each one's offer digest is of the declaration as this store answers it.
 		digest := func(m domain.Module) string {
 			t.Helper()
@@ -355,9 +355,9 @@ func Run(t *testing.T, open Open) {
 
 	t.Run("an installation reads back as written", func(t *testing.T) {
 		inst := domain.Installation{ID: uuid.NewString(), Organization: f.orgA, Target: f.name("target"), Status: domain.Pending, Revision: 3,
-			AgentRole: "viewer", PrincipalID: uuid.NewString(), InstalledBy: f.onlyA,
+			AgentRole: "reader", PrincipalID: uuid.NewString(), InstalledBy: f.onlyA,
 			Consent: domain.ConsentReceipt{OperationID: uuid.NewString(), Intent: "intent", Revision: 3, Generation: 2, Digest: "sha256:reviewed",
-				ReachDigest: "sha256:reach", Reach: `{"viewer":[{"path":["a","store"],"module":"store","via":"binding"}]}`},
+				ReachDigest: "sha256:reach", Reach: `{"reader":[{"path":["a","store"],"module":"store","via":"binding"}]}`},
 			Owned: map[string][]string{"store.item": {"a", "b"}}}
 		module := domain.Installation{ID: uuid.NewString(), Organization: f.orgB, Target: f.name("module"), Status: domain.Active, Revision: 1}
 		write(t, func(tx authority.Tx) error {
@@ -410,9 +410,9 @@ func Run(t *testing.T, open Open) {
 
 	t.Run("role grants are idempotent and kept per installation", func(t *testing.T) {
 		a, b := uuid.NewString(), uuid.NewString()
-		person := domain.RoleGrant{InstallationID: a, Role: "viewer", PersonID: f.onlyA}
-		team := domain.RoleGrant{InstallationID: a, Role: "viewer", TeamID: f.team}
-		other := domain.RoleGrant{InstallationID: b, Role: "editor", PersonID: f.onlyA}
+		person := domain.RoleGrant{InstallationID: a, Role: "reader", PersonID: f.onlyA}
+		team := domain.RoleGrant{InstallationID: a, Role: "reader", TeamID: f.team}
+		other := domain.RoleGrant{InstallationID: b, Role: "user", PersonID: f.onlyA}
 		write(t, func(tx authority.Tx) error {
 			for _, g := range []domain.RoleGrant{person, person, team, other} {
 				if err := tx.PutRoleGrant(g); err != nil {
@@ -538,7 +538,7 @@ func Run(t *testing.T, open Open) {
 		// Team makes the record a cast. A store that dropped it would hand a
 		// cast back as a view that narrows nothing: the person's whole reach.
 		v := domain.RoleView{SessionID: uuid.NewString(), Parent: uuid.NewString(), Person: f.onlyA, Organization: f.orgA, Team: uuid.NewString(),
-			Roles: map[string][]string{uuid.NewString(): {"editor", "viewer"}, uuid.NewString(): {"viewer"}}}
+			Roles: map[string][]string{uuid.NewString(): {"user", "reader"}, uuid.NewString(): {"reader"}}}
 		failure := errors.New("the decision refused")
 		if err := store.Write(ctx, func(tx authority.Tx) error { return errors.Join(tx.PutRoleView(v), failure) }); !errors.Is(err, failure) {
 			t.Fatalf("the transaction's own error is returned: %v", err)
@@ -586,7 +586,7 @@ func Run(t *testing.T, open Open) {
 			if err := tx.PutInstallation(inst); err != nil {
 				return err
 			}
-			if err := tx.PutRoleGrant(domain.RoleGrant{InstallationID: inst.ID, Role: "viewer", PersonID: f.onlyA}); err != nil {
+			if err := tx.PutRoleGrant(domain.RoleGrant{InstallationID: inst.ID, Role: "reader", PersonID: f.onlyA}); err != nil {
 				return err
 			}
 			if err := tx.BumpAuthorizationRevision(f.orgA); err != nil {
@@ -651,12 +651,12 @@ func (f *fixture) module(kind string) domain.Module {
 		Methods:       map[string]domain.MethodPolicy{"/s.S/Read": {Requires: read}, "GET /open": {AnyCheckedCaller: true}}}
 	if kind == domain.KindSolution {
 		onward := []*basev0.WorkScopeV1{{ResourceKind: "storetest.onward", Actions: []string{"read"}}}
-		m.Roles = map[string][]*basev0.WorkScopeV1{domain.InstallerRole: read, "viewer": append(slices.Clone(read), onward...)}
-		m.OwnedRoles = map[string][]*basev0.WorkScopeV1{"viewer": {{ResourceKind: "store.item", Actions: []string{"read"}}}}
-		m.Through = map[string]map[string][]*basev0.WorkScopeV1{"viewer": {"store": onward}}
-		// The installer's write on the solution's own, unshared page kind.
+		m.Roles = map[string][]*basev0.WorkScopeV1{domain.AdminRole: read, "reader": append(slices.Clone(read), onward...)}
+		m.OwnedRoles = map[string][]*basev0.WorkScopeV1{"reader": {{ResourceKind: "store.item", Actions: []string{"read"}}}}
+		m.Through = map[string]map[string][]*basev0.WorkScopeV1{"reader": {"store": onward}}
+		// The admin's write on the solution's own, unshared page kind.
 		m.ResourceKinds = append(m.ResourceKinds, &basev0.WorkScopeV1{ResourceKind: "storetest.page", Actions: []string{"read", "write"}})
-		m.Roles[domain.InstallerRole] = append(slices.Clone(read), &basev0.WorkScopeV1{ResourceKind: "storetest.page", Actions: []string{"write"}})
+		m.Roles[domain.AdminRole] = append(slices.Clone(read), &basev0.WorkScopeV1{ResourceKind: "storetest.page", Actions: []string{"write"}})
 		m.SourceGovernance = []*basev0.WorkScopeV1{{ResourceKind: "storetest.page", Actions: []string{"write"}}}
 	}
 	m.SharedKinds = []string{"storetest.item"}

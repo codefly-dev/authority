@@ -13,7 +13,7 @@ import (
 func TestInstallationDeclarationCarriageIsOpaqueAndIsolated(t *testing.T) {
 	// Whitespace is intentionally not Core-valid: this adapter must not become
 	// another parser or silently repair bytes already covered by a signature.
-	for _, selector := range []string{"", "none", "editor", " editor "} {
+	for _, selector := range []string{"", "none", "user", " user "} {
 		doc := &delivered.Document{InstallationRole: selector, EdgeDependencies: []domain.EdgeDependency{{Module: " module-id ", Presence: "required"}, {Module: "second", Presence: "optional"}}}
 		manifest := solutionManifest()
 		manifest.Authority.InstallationRole = selector

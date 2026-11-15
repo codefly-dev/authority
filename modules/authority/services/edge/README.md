@@ -88,7 +88,7 @@ through Codefly, from the composing workspace:
 
 ```sh
 codefly config set edge --plaintext \
-  'SIGN_IN_CHOICES=[{"personId":"alice","description":"Alice — Acme administrator: act as any team","startHere":true},{"personId":"bob","description":"Bob — viewer of every target: explore a refusal"}]'
+  'SIGN_IN_CHOICES=[{"personId":"alice","description":"Alice — Acme administrator: act as any team","startHere":true},{"personId":"bob","description":"Bob — no role on any target: explore a refusal"}]'
 ```
 
 The JSON array's order is the page's order. Each entry names a fixture `personId`
@@ -148,7 +148,7 @@ signed-in person, over Connect, on this origin, at the paths the proto names:
 | `/host.installation.v1.InstallationService/List` | an administrator of the organization |
 | `/host.installation.v1.InstallationService/ListHeld` | any member, for themselves: the installations they hold a role on (none is an empty list), and `composed`: the organization's installations of the modules that declare no roles, which a page names by when it consumes one through its binding |
 | `/host.installation.v1.InstallationService/Review` | an administrator (the consent tuple) |
-| `/host.installation.v1.InstallationService/ListRoleGrants` | an administrator, or the installation's installer-role holder |
+| `/host.installation.v1.InstallationService/ListRoleGrants` | an administrator, or the installation's admin-role holder |
 | `/host.installation.v1.InstallationService/GrantRole` | the same |
 | `/host.installation.v1.InstallationService/RevokeRole` | the same |
 | `/host.installation.v1.OfferService/ListOffers` | an administrator |

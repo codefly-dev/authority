@@ -41,7 +41,7 @@ service InstallationService {
   // target declares (a solution's, or a module page's on its composition
   // installation): the access. Idempotent; it leaves existing capabilities
   // valid. An administrator of the installation's organization, or a holder
-  // of the installer role on that installation, grants.
+  // of the admin role on that installation, grants.
   rpc GrantRole(GrantRoleRequest) returns (Installation);
   // RevokeRole ends one grant; every capability its subject holds from it is
   // refused at once. Idempotent; the same callers as GrantRole.
@@ -307,7 +307,7 @@ message ReviewedOffer {
   // What Install takes, with a fresh operation_id; read with the rest.
   ConsentApproval approval = 1;
   string target = 2;
-  // Each role the solution declares, the installer role included. Every role
+  // Each role the solution declares, the admin role included. Every role
   // scope is confined to this installation: to what it owns, or to the
   // resources attached to it.
   repeated OfferRole roles = 3;

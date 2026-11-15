@@ -11,9 +11,9 @@ import (
 // revoke ends their access for good if they return.
 func TestAGrantWhosePersonLeftIsStillRevoked(t *testing.T) {
 	h := newHarness(t)
-	h.grant("a", "viewer", "maya")
+	h.grant("a", "reader", "maya")
 	h.store.DeletePerson("maya")
-	h.revoke("a", "viewer", "maya", "")
+	h.revoke("a", "reader", "maya", "")
 	h.store.PutPerson(domain.Person{ID: "maya", Organization: acme})
 	_, err := h.root("maya", "a")
 	refused(t, err, "holds no role")
@@ -24,8 +24,8 @@ func TestAGrantWhosePersonLeftIsStillRevoked(t *testing.T) {
 func TestAForeignAndAnAbsentInstallationAnswerAlike(t *testing.T) {
 	h := newHarness(t)
 	foreign := h.inst(globex, "a").ID
-	_, errForeign := h.svc.GrantRole(h.ctx, h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: foreign, Role: "viewer", PersonID: "maya"})
-	_, errAbsent := h.svc.GrantRole(h.ctx, h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: foreign[:len(foreign)-1] + "0", Role: "viewer", PersonID: "maya"})
+	_, errForeign := h.svc.GrantRole(h.ctx, h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: foreign, Role: "reader", PersonID: "maya"})
+	_, errAbsent := h.svc.GrantRole(h.ctx, h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: foreign[:len(foreign)-1] + "0", Role: "reader", PersonID: "maya"})
 	code(t, errForeign, domain.Denied)
 	code(t, errAbsent, domain.Denied)
 	strip := func(err error, id string) string { return err.Error()[len("installation "+id):] }
@@ -40,25 +40,25 @@ func TestAForeignAndAnAbsentInstallationAnswerAlike(t *testing.T) {
 func TestARevokeOutlivesUninstallAndARetiredRole(t *testing.T) {
 	h := newHarness(t)
 	id := h.inst(acme, "a").ID
-	h.grant("a", "viewer", "maya")
+	h.grant("a", "reader", "maya")
 	if err := h.svc.UninstallAsHost(h.ctx, acme, id); err != nil {
 		t.Fatal(err)
 	}
-	h.revoke("a", "viewer", "maya", "")
+	h.revoke("a", "reader", "maya", "")
 	if again := h.install(acme, "a"); again.ID != id {
 		t.Fatalf("the reinstall is %s, not %s", again.ID, id)
 	}
 	_, err := h.root("maya", "a")
 	refused(t, err, "holds no role")
 
-	h.grant("a", "viewer", "maya")
+	h.grant("a", "reader", "maya")
 	retired := solution("a", true)
 	retired.Generation = 2
-	delete(retired.Roles, "viewer")
+	delete(retired.Roles, "reader")
 	if _, err := h.svc.ApplyModule(h.ctx, retired); err != nil {
 		t.Fatal(err)
 	}
-	h.revoke("a", "viewer", "maya", "")
+	h.revoke("a", "reader", "maya", "")
 	back := solution("a", true)
 	back.Generation = 3
 	if _, err := h.svc.ApplyModule(h.ctx, back); err != nil {

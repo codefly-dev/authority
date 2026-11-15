@@ -32,17 +32,17 @@ var solution = domain.Module{Name: "a", Principal: "a", Kind: domain.KindSolutio
 	ResourceKinds: []*basev0.WorkScopeV1{sc("a.note", "read", "write")},
 	Bindings:      map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc("doc", "read", "write")}}},
 	Roles: map[string][]*basev0.WorkScopeV1{
-		domain.InstallerRole: {sc("a.note", "read", "write"), sc("doc", "read", "write")},
-		"viewer":             {sc("a.note", "read"), sc("doc", "read")},
+		domain.AdminRole: {sc("a.note", "read", "write"), sc("doc", "read", "write")},
+		"user":           {sc("a.note", "read"), sc("doc", "read")},
 	}}
 
 func TestRolesAreGrantsOnThePrincipalsData(t *testing.T) {
 	inst := domain.Installation{ID: "i", Organization: "acme", Target: "a", Status: domain.Active, PrincipalID: "u"}
 	maya := domain.Person{ID: "maya", Organization: "acme", Teams: []string{"finance"}}
-	grants := []domain.RoleGrant{{InstallationID: "i", Role: "viewer", TeamID: "finance"}, {InstallationID: "i", Role: domain.InstallerRole, PersonID: "alex"},
-		{InstallationID: "elsewhere", Role: domain.InstallerRole, PersonID: "maya"}}
+	grants := []domain.RoleGrant{{InstallationID: "i", Role: "user", TeamID: "finance"}, {InstallationID: "i", Role: domain.AdminRole, PersonID: "alex"},
+		{InstallationID: "elsewhere", Role: domain.AdminRole, PersonID: "maya"}}
 	roles := decide.HeldRoles(maya, inst, grants)
-	if len(roles) != 1 || roles[0] != "viewer" {
+	if len(roles) != 1 || roles[0] != "user" {
 		t.Fatalf("held %v: a team grant is its members' role, a person's grant theirs alone, another installation's grant nothing here", roles)
 	}
 	scopes, err := decide.RoleScopes(solution, inst, roles)
@@ -62,7 +62,7 @@ func TestRolesAreGrantsOnThePrincipalsData(t *testing.T) {
 // An installation with no principal (a zero value, a row from before the
 // principal existed) grants nothing: an empty owner selects every owner.
 func TestAnInstallationWithoutAPrincipalGrantsNothing(t *testing.T) {
-	got, err := decide.RoleScopes(solution, domain.Installation{ID: "i"}, []string{"viewer"})
+	got, err := decide.RoleScopes(solution, domain.Installation{ID: "i"}, []string{"user"})
 	refused(t, err, domain.Denied, "no principal")
 	if got != nil {
 		t.Fatalf("an installation with no principal granted %v", got)
@@ -114,15 +114,15 @@ func TestWhoMayChangeARoleInOrder(t *testing.T) {
 	member := domain.Person{ID: "dev", Organization: "acme"}
 	omar := domain.Person{ID: "omar", Organization: "globex"}
 	base := func() decide.RoleChange {
-		return decide.RoleChange{RequestOrganization: "acme", RequestedID: inst.ID, Installation: inst, Solution: solution, Caller: admin, Role: "viewer", PersonID: "dev", Subject: &member}
+		return decide.RoleChange{RequestOrganization: "acme", RequestedID: inst.ID, Installation: inst, Solution: solution, Caller: admin, Role: "user", PersonID: "dev", Subject: &member}
 	}
 	if err := decide.ChangeRole(base()); err != nil {
 		t.Fatal(err)
 	}
-	installer := base()
-	installer.Caller, installer.CallerRoles = member, []string{domain.InstallerRole}
-	if err := decide.ChangeRole(installer); err != nil {
-		t.Fatalf("the installer grants: %v", err)
+	holder := base()
+	holder.Caller, holder.CallerRoles = member, []string{domain.AdminRole}
+	if err := decide.ChangeRole(holder); err != nil {
+		t.Fatalf("the admin role's holder grants: %v", err)
 	}
 	for name, c := range map[string]struct {
 		mutate func(*decide.RoleChange)
@@ -229,14 +229,14 @@ func TestOrganizationGrantsAndModules(t *testing.T) {
 		t.Fatal(err)
 	}
 	bad := solution
-	bad.Roles = map[string][]*basev0.WorkScopeV1{domain.InstallerRole: {owned("doc", "u", []string{"read"})}}
+	bad.Roles = map[string][]*basev0.WorkScopeV1{domain.AdminRole: {owned("doc", "u", []string{"read"})}}
 	refused(t, decide.ValidateModule(bad), domain.Denied, "selects an owner")
 	module := domain.Module{Name: "m", Principal: "m", Kind: domain.KindModule, Generation: 1, Roles: solution.Roles}
 	refused(t, decide.ValidateModule(module), domain.Denied, "declares roles")
-	noInstaller := solution
-	noInstaller.Roles = map[string][]*basev0.WorkScopeV1{"viewer": solution.Roles["viewer"]}
-	if err := decide.ValidateModule(noInstaller); !errors.Is(err, domain.ErrNoInstallerRole) {
-		t.Fatalf("a solution with no installer role: %v", err)
+	noAdmin := solution
+	noAdmin.Roles = map[string][]*basev0.WorkScopeV1{"user": solution.Roles["user"]}
+	if err := decide.ValidateModule(noAdmin); !errors.Is(err, domain.ErrNoAdminRole) {
+		t.Fatalf("a solution with no admin role: %v", err)
 	}
 	for name, methods := range map[string]map[string]domain.MethodPolicy{
 		"a method naming resource ids": {"/doc.Store/Read": {Requires: []*basev0.WorkScopeV1{{ResourceKind: "doc", Actions: []string{"read"}, ResourceIds: []string{"x"}}}}},

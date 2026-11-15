@@ -12,20 +12,20 @@ import (
 
 // InstallationResourcesCase proves a role scope a solution declares
 // installation-owned. The host seeds two active installations, A and B, of two
-// solutions at Organization: Owner installed both, and Viewer is entitled to A
-// alone, through A's viewer role. The suite delivers both solutions and Store,
+// solutions at Organization: Owner installed both, and User is entitled to A
+// alone, through A's user role. The suite delivers both solutions and Store,
 // the module serving Kind, so their declarations are exactly the suite's. Each
 // solution serves its own kind, "<solution>.note": a kind has one serving module.
 type InstallationResourcesCase struct {
-	Owner, Viewer string // fixture tokens
-	A, B          OwnedInstallation
+	Owner, User string // fixture tokens
+	A, B        OwnedInstallation
 	// Store is the module serving Kind; StoreCredential is its workload.
 	Store, StoreCredential, Kind string
 	// Generation the suite delivers Store, A and B at.
 	Generation uint64
 	// ResourceA and ResourceA2 are created through A, ResourceB through B.
 	// ResourceX and ResourceY exist and no installation owns them: Owner, as
-	// A's installer, has a personal organization grant to administer X only.
+	// A's admin, has a personal organization grant to administer X only.
 	ResourceA, ResourceA2, ResourceB, ResourceX, ResourceY string
 }
 
@@ -36,7 +36,7 @@ type OwnedInstallation struct {
 
 func (c *client) installationResources(t *testing.T, ctx context.Context, fixture Fixture) {
 	f := fixture.InstallationResources
-	if f == nil || fixture.SignManifest == nil || fixture.SignAuthority == nil || f.Owner == "" || f.Viewer == "" || f.A.Installation == "" || f.B.Installation == "" ||
+	if f == nil || fixture.SignManifest == nil || fixture.SignAuthority == nil || f.Owner == "" || f.User == "" || f.A.Installation == "" || f.B.Installation == "" ||
 		f.StoreCredential == "" || f.Generation == 0 || len(slices.Compact(slices.Sorted(slices.Values([]string{f.ResourceA, f.ResourceA2, f.ResourceB, f.ResourceX, f.ResourceY, ""})))) != 6 {
 		t.Fatal("required conformance fixture missing: signed delivery, two owned installations and five distinct resources")
 	}
@@ -49,15 +49,15 @@ func (c *client) installationResources(t *testing.T, ctx context.Context, fixtur
 		solutionhost.AuthorityBinding{ID: self, Audience: f.Store, Operations: map[string][]string{"invoke": both, "headless": both}}); err != nil {
 		t.Fatalf("deliver %s: %v", f.Store, err)
 	}
-	// Each installer acts only as its installation's resource-owner principal; a viewer reads only what its own installation owns.
+	// Each admin acts only as its installation's resource-owner principal; a user reads only what its own installation owns.
 	for _, s := range []OwnedInstallation{f.A, f.B} {
 		own := scopeAsk(s.Solution+".note", []string{"read"}, nil)
 		doc := map[string]any{
 			"owner_aware":    true,
 			"scope_ceilings": []any{own},
 			"roles": []any{
-				map[string]any{"name": "installer", "scopes": []any{own, create, read, admin, write}},
-				map[string]any{"name": "viewer", "scopes": []any{own}, "installation_owned_scopes": []any{read}},
+				map[string]any{"name": "admin", "scopes": []any{own, create, read, admin, write}},
+				map[string]any{"name": "user", "scopes": []any{own}, "installation_owned_scopes": []any{read}},
 			},
 		}
 		if _, err := c.deliver(ctx, fixture, s.Solution, "solution", f.Generation, []string{s.Solution + ".note"}, doc, 0,
@@ -68,7 +68,7 @@ func (c *client) installationResources(t *testing.T, ctx context.Context, fixtur
 	signIn := func(token string) context.Context {
 		return as(ctx, c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": token}))
 	}
-	owner, viewer := signIn(f.Owner), signIn(f.Viewer)
+	owner, user := signIn(f.Owner), signIn(f.User)
 	issue := func(fields map[string]any) (protoreflect.Message, error) {
 		return c.call(ctx, "host.authority.v1.AuthorityService", "Issue", fields)
 	}
@@ -76,8 +76,8 @@ func (c *client) installationResources(t *testing.T, ctx context.Context, fixtur
 	through := func(t *testing.T, person context.Context, s OwnedInstallation, scopes ...any) (protoreflect.Message, error) {
 		t.Helper()
 		root := c.must(t, person, "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": s.Solution})
-		// Ordinary installer scopes retain main's resource-owner selection.
-		// Exact installation-owned viewer scopes are already bounded by their ids.
+		// Ordinary admin scopes retain main's resource-owner selection.
+		// Exact installation-owned user scopes are already bounded by their ids.
 		if person == owner {
 			principal := ""
 			rows := field(msg(root, "context"), "authority_scopes").List()
@@ -125,9 +125,9 @@ func (c *client) installationResources(t *testing.T, ctx context.Context, fixtur
 		}
 	})
 	t.Run("an existing resource is never pulled into another installation, by name", func(t *testing.T) {
-		// A read-only capability attaches nothing: A's viewer cannot pull B's
+		// A read-only capability attaches nothing: A's user cannot pull B's
 		// collection into A, nor a read through B pull A's into B.
-		viewed, err := through(t, viewer, f.A)
+		viewed, err := through(t, user, f.A)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -170,8 +170,8 @@ func (c *client) installationResources(t *testing.T, ctx context.Context, fixtur
 		_, err = attach(str(headless, "token"), f.StoreCredential, f.ResourceB)
 		refused(t, err, codes.PermissionDenied, "no installation")
 	})
-	t.Run("a viewer of an installation reads exactly what it owns", func(t *testing.T) {
-		out, err := through(t, viewer, f.A)
+	t.Run("a user of an installation reads exactly what it owns", func(t *testing.T) {
+		out, err := through(t, user, f.A)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -189,16 +189,16 @@ func (c *client) installationResources(t *testing.T, ctx context.Context, fixtur
 			t.Fatalf("listed %v, want exactly %s's resources", ids, f.A.Installation)
 		}
 	})
-	t.Run("the same viewer is refused another installation's resource, by name", func(t *testing.T) {
-		_, err := through(t, viewer, f.A, scopeAsk(f.Kind, []string{"read"}, []string{f.ResourceB}))
+	t.Run("the same user is refused another installation's resource, by name", func(t *testing.T) {
+		_, err := through(t, user, f.A, scopeAsk(f.Kind, []string{"read"}, []string{f.ResourceB}))
 		refused(t, err, codes.PermissionDenied, "widens")
-		_, err = through(t, viewer, f.A, read)
+		_, err = through(t, user, f.A, read)
 		refused(t, err, codes.PermissionDenied, "widens")
-		_, err = c.call(viewer, "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.B.Solution})
+		_, err = c.call(user, "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.B.Solution})
 		refused(t, err, codes.PermissionDenied, "holds no role")
 	})
 	t.Run("a child context never widens an installation-owned grant it narrowed", func(t *testing.T) {
-		narrowed, err := through(t, viewer, f.A, scopeAsk(f.Kind, []string{"read"}, []string{f.ResourceA}))
+		narrowed, err := through(t, user, f.A, scopeAsk(f.Kind, []string{"read"}, []string{f.ResourceA}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -240,7 +240,7 @@ func (c *client) installationResources(t *testing.T, ctx context.Context, fixtur
 		if got := str(out, "principal_id"); got != principal {
 			t.Fatalf("transfer owner %s, want %s", got, principal)
 		}
-		viewed, err := through(t, viewer, f.A)
+		viewed, err := through(t, user, f.A)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -260,7 +260,7 @@ func (c *client) installationResources(t *testing.T, ctx context.Context, fixtur
 		if got := str(out, "installation_id"); got != f.A.Installation {
 			t.Fatalf("%s detached from %q, want %s", f.ResourceA2, got, f.A.Installation)
 		}
-		viewed, err := through(t, viewer, f.A)
+		viewed, err := through(t, user, f.A)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -286,8 +286,8 @@ func (c *client) installationResources(t *testing.T, ctx context.Context, fixtur
 		}
 		const page, note = "conformance-page-attach", "conformance-page-attach.note"
 		document := map[string]any{"scope_ceilings": []any{scopeAsk(note, []string{"read", "write"}, nil)}, "installation_role": "none", "roles": []any{
-			map[string]any{"name": "installer", "scopes": []any{scopeAsk(note, []string{"read", "write"}, nil), scopeAsk(f.Kind, []string{"create", "read"}, nil)}},
-			map[string]any{"name": "viewer", "scopes": []any{scopeAsk(note, []string{"read"}, nil), read}},
+			map[string]any{"name": "admin", "scopes": []any{scopeAsk(note, []string{"read", "write"}, nil), scopeAsk(f.Kind, []string{"create", "read"}, nil)}},
+			map[string]any{"name": "user", "scopes": []any{scopeAsk(note, []string{"read"}, nil), read}},
 		}}
 		frontend := &solutionhost.Frontend{Title: "Conformance page attach", ExposedModule: "./Page", HostContract: 1, Payload: fixture.PagePayload}
 		if _, err := c.deliverPage(ctx, fixture, frontend, page, "module", 1, []string{note}, document, 0,
@@ -319,10 +319,10 @@ func (c *client) installationResources(t *testing.T, ctx context.Context, fixtur
 				"organization_id": fixture.Organization, "installation_id": id, "role": role, "person_id": str(person, "person_id")})
 		}
 		grant := func(name string) { role("GrantRole", name); t.Cleanup(func() { role("RevokeRole", name) }) }
-		grant("viewer")
-		_, err := attach(str(pageCall(t), "token"), f.StoreCredential, "conformance-page-viewer")
+		grant("user")
+		_, err := attach(str(pageCall(t), "token"), f.StoreCredential, "conformance-page-user")
 		refused(t, err, codes.PermissionDenied, "holds no create")
-		grant("installer")
+		grant("admin")
 		out, err := attach(str(pageCall(t), "token"), f.StoreCredential, "conformance-page-created")
 		if err != nil {
 			t.Fatalf("the page's create at %s attaches: %v", f.Store, err)

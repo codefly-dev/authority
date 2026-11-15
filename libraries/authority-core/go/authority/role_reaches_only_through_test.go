@@ -10,7 +10,7 @@ import (
 // pageWithSteward is the module page reaching the store, with a role that
 // names nothing the page itself serves: steward writes at the store, through
 // the page's binding, and holds none of pages.note. It is the shape of a role
-// whose whole reach is another module's kind (a type editor's "define" at a
+// whose whole reach is another module's kind (a type user's "define" at a
 // record store, on a page whose own kind is its entries).
 func pageWithSteward(t *testing.T) *harness {
 	t.Helper()
@@ -82,7 +82,7 @@ func TestARoleReachingOnlyThroughABindingHoldsNothingAtThePageItself(t *testing.
 	}
 	// Holding a role that does name the page's kind beside it, the person is
 	// issued that role's part at the page, as ever.
-	h.grantTeam("pages", "viewer", "team")
+	h.grantTeam("pages", "reader", "team")
 	exactly(t, h.must(h.svc.IssueForPerson(h.ctx, h.person("tam"), authority.IssueRequest{Audience: "pages"})), "pages.note", "", []string{"read"})
 }
 

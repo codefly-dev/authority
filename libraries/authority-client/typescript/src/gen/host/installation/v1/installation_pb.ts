@@ -718,7 +718,7 @@ export type ReviewedOffer = Message<"host.installation.v1.ReviewedOffer"> & {
   target: string;
 
   /**
-   * Each role the solution declares, the installer role included. Every role
+   * Each role the solution declares, the admin role included. Every role
    * scope is confined to this installation: to what it owns, or to the
    * resources attached to it.
    *
@@ -1234,7 +1234,7 @@ export const InstallationService: GenService<{
    * target declares (a solution's, or a module page's on its composition
    * installation): the access. Idempotent; it leaves existing capabilities
    * valid. An administrator of the installation's organization, or a holder
-   * of the installer role on that installation, grants.
+   * of the admin role on that installation, grants.
    *
    * @generated from rpc host.installation.v1.InstallationService.GrantRole
    */

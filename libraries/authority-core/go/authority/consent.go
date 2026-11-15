@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
@@ -27,7 +26,7 @@ func administrator(tx Tx, caller Person, org string) error {
 // approver authorizes the administration of target's installation at org:
 // an administrator or owner of org, as for every target; and, for a module
 // page (a module declaring roles, which composition installs), a member
-// holding the page's installer role on its active installation there, since
+// holding the page's admin role on its active installation there, since
 // that role already administers the installation's grants (decide.ChangeRole)
 // and nobody installed the page by hand. Anyone else is refused as
 // administrator refuses them, before target is looked up.
@@ -36,19 +35,20 @@ func approver(tx Tx, caller Person, org, target string) error {
 	if code, ok := domain.CodeOf(refused); refused == nil || !ok || code != domain.Denied {
 		return refused
 	}
-	installer, err := installerOf(tx, caller, org, target)
+	admin, err := adminOf(tx, caller, org, target)
 	if err != nil {
 		return err
 	}
-	if !installer {
+	if !admin {
 		return refused
 	}
 	return nil
 }
 
-// installerOf is whether caller, a member of org, holds the installer role
-// on the active installation of target there, target being a module page.
-func installerOf(tx Tx, caller Person, org, target string) (bool, error) {
+// adminOf is whether caller, a member of org, holds the admin role
+// (domain.HoldsAdmin) on the active installation of target there, target
+// being a module page.
+func adminOf(tx Tx, caller Person, org, target string) (bool, error) {
 	m, err := tx.ModuleNamed(target)
 	if errors.Is(err, domain.ErrNotFound) || err == nil && (m.Kind == domain.KindSolution || !decide.RoleGated(m)) {
 		return false, nil
@@ -71,7 +71,7 @@ func installerOf(tx Tx, caller Person, org, target string) (bool, error) {
 		return false, err
 	}
 	roles, err := rolesHeld(tx, p, org, inst)
-	return slices.Contains(roles, domain.InstallerRole), err
+	return domain.HoldsAdmin(roles), err
 }
 
 // memberAs is the caller as a member of org, read now. The caller acts in the
@@ -103,7 +103,7 @@ func OfferDigest(m domain.Module) (string, error) {
 // approves anything; the caller must retain the returned values when consenting.
 // It is an administrator's read of a solution: the consent tuple is what
 // Install takes. A module page's active installation answers it too, to an
-// administrator or to a holder of its installer role (approver): the tuple
+// administrator or to a holder of its admin role (approver): the tuple
 // Install takes to approve its pending upgrade. A module declaring no role
 // is installed by composition and answers none.
 func (s *Service) Review(ctx context.Context, caller Person, org, target string) (domain.ConsentApproval, error) {

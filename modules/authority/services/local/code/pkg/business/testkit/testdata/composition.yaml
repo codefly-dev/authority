@@ -86,15 +86,15 @@ roles:
       - {kind: documents, actions: [read, write]}
       - {kind: documents.collection, actions: [read]}
 installations:
-  # Acme's wiki reaches finance and engineering as viewers; its owner installs.
+  # Acme's wiki reaches finance and engineering as users; its owner installs.
   - organization: acme
     target: wiki
-    role: viewer
+    role: user
     owner: alex
     teams: [finance, engineering]
   - organization: globex
     target: wiki
-    role: editor
+    role: user
     owner: zoe
     teams: [ops]
 

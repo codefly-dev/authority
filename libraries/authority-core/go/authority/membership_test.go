@@ -59,12 +59,12 @@ func TestAPersonOfTwoOrganizationsActsOnlyAsTheMemberOfTheSessions(t *testing.T)
 		refused(t, err, "requires an administrator")
 		_, err = h.svc.Review(h.ctx, pamAtAcme, globex, "b")
 		refused(t, err, "requires an administrator")
-		_, err = h.svc.GrantRole(h.ctx, pamAtAcme, authority.RoleRequest{Organization: globex, InstallationID: h.inst(globex, "a").ID, Role: "viewer", PersonID: "pat"})
+		_, err = h.svc.GrantRole(h.ctx, pamAtAcme, authority.RoleRequest{Organization: globex, InstallationID: h.inst(globex, "a").ID, Role: "reader", PersonID: "pat"})
 		refused(t, err, "another organization")
 	})
 
 	t.Run("a role granted at one organization's installation counts there alone", func(t *testing.T) {
-		h.grant("a", "viewer", "pat")
+		h.grant("a", "reader", "pat")
 		if _, err := h.svc.IssueForPerson(h.ctx, atAcme, authority.IssueRequest{Audience: "a"}); err != nil {
 			t.Fatal(err)
 		}
@@ -73,7 +73,7 @@ func TestAPersonOfTwoOrganizationsActsOnlyAsTheMemberOfTheSessions(t *testing.T)
 	})
 
 	t.Run("a person is granted a role only as a member of the installation's organization", func(t *testing.T) {
-		_, err := h.svc.GrantRole(h.ctx, h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: h.inst(acme, "a").ID, Role: "viewer", PersonID: "omar"})
+		_, err := h.svc.GrantRole(h.ctx, h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: h.inst(acme, "a").ID, Role: "reader", PersonID: "omar"})
 		refused(t, err, "is not a member of")
 	})
 

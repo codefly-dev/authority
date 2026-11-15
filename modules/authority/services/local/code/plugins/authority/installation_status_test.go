@@ -37,7 +37,7 @@ func TestPersonIssueDistinguishesInstallationAndEntitlement(t *testing.T) {
 				k.State.OnInstall(func(context.Context, state.Installation) error { return errors.New("install not acknowledged") })
 			}
 			if tc.state != "absent" {
-				inst, err := k.State.InstallAsHost(t.Context(), "acme", m.Name, "viewer", "alex")
+				inst, err := k.State.InstallAsHost(t.Context(), "acme", m.Name, "user", "alex")
 				if tc.state != "pending" && err != nil {
 					t.Fatal(err)
 				}
@@ -52,7 +52,7 @@ func TestPersonIssueDistinguishesInstallationAndEntitlement(t *testing.T) {
 				// Installing grants nobody a role, the installer included:
 				// alex is granted one, maya is not.
 				if tc.state == "active" && tc.person == "alex" {
-					if err := k.State.GrantRole(domain.RoleGrant{InstallationID: inst.ID, Role: "viewer", PersonID: "alex"}); err != nil {
+					if err := k.State.GrantRole(domain.RoleGrant{InstallationID: inst.ID, Role: "user", PersonID: "alex"}); err != nil {
 						t.Fatal(err)
 					}
 				}

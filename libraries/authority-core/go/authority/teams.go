@@ -11,10 +11,10 @@ import (
 )
 
 // ConventionalTeamName is the team a role-gated target's role goes to by
-// convention, `<target>-<role>`: the three teams of a target declaring
-// installer, editor and viewer are `<target>-installer`, `<target>-editor`
-// and `<target>-viewer`. Every host seats the same fixture onto these, so a
-// journey through "act as this team" names one team wherever it runs.
+// convention, `<target>-<role>`: the two teams of a target declaring admin
+// and user are `<target>-admin` and `<target>-user`. Every host seats the
+// same fixture onto these, so a journey through "act as this team" names one
+// team wherever it runs.
 func ConventionalTeamName(target, role string) string { return target + "-" + role }
 
 // RoleTeams is, per role a role-gated target declares, the conventional

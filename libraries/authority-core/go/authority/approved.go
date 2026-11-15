@@ -144,20 +144,53 @@ func approvedReading(tx Tx, inst domain.Installation, m domain.Module) (domain.M
 // generation declared the name again, and its holders would hold whatever
 // that generation meant by it, with no administrator having granted that.
 // Each deletion is journaled as a revocation by actor.
+//
+// STOPGAP (one release, domain.LegacyInstallerRole): when next declares
+// exactly admin and user, a grant of an old person role (installer, editor,
+// viewer) moves to its successor (domain.CrossoverRole), so a target
+// re-rendered with the two roles keeps its holders. The move is journaled as
+// a grant and a revocation by actor, each with Detail domain.CrossoverFrom
+// naming the old role; a subject who holds the successor already, or gains it
+// from another old grant here, is granted (and journaled) once.
 func (s *Service) dropUndeclaredGrants(ctx context.Context, tx Tx, inst domain.Installation, next domain.Module, actor string) error {
 	grants, err := tx.RoleGrants(inst.ID)
 	if err != nil {
 		return err
 	}
+	held := map[domain.RoleGrant]bool{}
+	for _, g := range grants {
+		held[g] = true
+	}
 	for _, g := range grants {
 		if _, declared := next.Roles[g.Role]; declared {
 			continue
+		}
+		role, crossover := domain.CrossoverRole(g.Role, next.Roles)
+		if crossover {
+			moved := g
+			moved.Role = role
+			if !held[moved] {
+				if err := tx.PutRoleGrant(moved); err != nil {
+					return err
+				}
+				held[moved] = true
+				r := RoleRequest{Organization: inst.Organization, InstallationID: inst.ID, Role: role, PersonID: g.PersonID, TeamID: g.TeamID}
+				e := r.event(domain.RoleGranted, actor)
+				e.Detail[domain.CrossoverFrom] = g.Role
+				if err := s.journal(ctx, tx, e); err != nil {
+					return err
+				}
+			}
 		}
 		if err := tx.DeleteRoleGrant(g); err != nil {
 			return err
 		}
 		r := RoleRequest{Organization: inst.Organization, InstallationID: inst.ID, Role: g.Role, PersonID: g.PersonID, TeamID: g.TeamID}
-		if err := s.journal(ctx, tx, r.event(domain.RoleRevoked, actor)); err != nil {
+		e := r.event(domain.RoleRevoked, actor)
+		if crossover {
+			e.Detail[domain.CrossoverFrom] = g.Role
+		}
+		if err := s.journal(ctx, tx, e); err != nil {
 			return err
 		}
 	}

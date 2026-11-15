@@ -24,12 +24,12 @@ people:
 	}
 	inst := state.InstallationID("acme", "wiki")
 	for _, team := range []string{"reviewers", "seated", "finance"} {
-		if _, err := k.State.Service().GrantRoleAsHost(context.Background(), authority.RoleRequest{Organization: "acme", InstallationID: inst, Role: "viewer", TeamID: team}); err != nil {
+		if _, err := k.State.Service().GrantRoleAsHost(context.Background(), authority.RoleRequest{Organization: "acme", InstallationID: inst, Role: "user", TeamID: team}); err != nil {
 			t.Fatalf("team %s: %v", team, err)
 		}
 	}
 	for _, team := range []string{"ops", "nobody"} {
-		_, err := k.State.Service().GrantRoleAsHost(context.Background(), authority.RoleRequest{Organization: "acme", InstallationID: inst, Role: "viewer", TeamID: team})
+		_, err := k.State.Service().GrantRoleAsHost(context.Background(), authority.RoleRequest{Organization: "acme", InstallationID: inst, Role: "user", TeamID: team})
 		if err == nil || !strings.Contains(err.Error(), "not a team of") {
 			t.Fatalf("team %s: want a refusal naming not a team of, got %v", team, err)
 		}

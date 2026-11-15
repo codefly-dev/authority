@@ -69,24 +69,24 @@ func TestTheHostGrantsARoleAsTheAdministratorWould(t *testing.T) {
 		r    authority.RoleRequest
 		code domain.Code
 	}{
-		{"another organization's installation", authority.RoleRequest{Organization: globex, InstallationID: inst, Role: "viewer", PersonID: "omar"}, domain.Denied},
+		{"another organization's installation", authority.RoleRequest{Organization: globex, InstallationID: inst, Role: "reader", PersonID: "omar"}, domain.Denied},
 		{"an undeclared role", authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "owner", PersonID: "maya"}, domain.NotFound},
-		{"no subject", authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "viewer"}, domain.Invalid},
-		{"a person of another organization", authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "viewer", PersonID: "omar"}, domain.Denied},
-		{"a team of another organization", authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "viewer", TeamID: "ops"}, domain.Denied},
+		{"no subject", authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "reader"}, domain.Invalid},
+		{"a person of another organization", authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "reader", PersonID: "omar"}, domain.Denied},
+		{"a team of another organization", authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "reader", TeamID: "ops"}, domain.Denied},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := h.svc.GrantRoleAsHost(h.ctx, tc.r)
 			code(t, err, tc.code)
 		})
 	}
-	if _, err := h.svc.GrantRoleAsHost(h.ctx, authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "viewer", PersonID: "maya"}); err != nil {
+	if _, err := h.svc.GrantRoleAsHost(h.ctx, authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "reader", PersonID: "maya"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := h.root("maya", "a"); err != nil {
 		t.Fatalf("the granted role is held: %v", err)
 	}
-	if _, err := h.svc.GrantRoleAsHost(h.ctx, authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "viewer", TeamID: "team"}); err != nil {
+	if _, err := h.svc.GrantRoleAsHost(h.ctx, authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "reader", TeamID: "team"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := h.root("tam", "a"); err != nil {

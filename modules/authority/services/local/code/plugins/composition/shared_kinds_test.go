@@ -25,7 +25,7 @@ func TestTheDocumentCarriesTheModulesSharedKinds(t *testing.T) {
 // binding.
 func TestTheDocumentCarriesWhatARoleNamesThroughABinding(t *testing.T) {
 	read := &authorityv1.WorkScopeV1{ResourceKind: "documents", Actions: []string{"read"}}
-	doc := DocumentOf(&compositionv1.AuthorityManifestV1{Module: "wiki", Roles: []*compositionv1.RoleV1{{Name: "viewer",
+	doc := DocumentOf(&compositionv1.AuthorityManifestV1{Module: "wiki", Roles: []*compositionv1.RoleV1{{Name: "user",
 		Through: []*compositionv1.RoleThroughV1{{Binding: "robin", Scopes: []*authorityv1.WorkScopeV1{read}}}}}})
 	if len(doc.Roles) != 1 || len(doc.Roles[0].Through["robin"]) != 1 || doc.Roles[0].Through["robin"][0].GetResourceKind() != "documents" {
 		t.Fatalf("roles %+v", doc.Roles)

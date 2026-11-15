@@ -38,7 +38,7 @@ func TestInstallationAdministrationUsesCurrentCallerAndOrganization(t *testing.T
 					return err
 				},
 				"grant": func() error {
-					_, err := p.GrantRole(ctx, &installationv1.GrantRoleRequest{OrganizationId: tc.org, InstallationId: state.InstallationID("acme", "wiki"), Role: "viewer", PersonId: "maya"})
+					_, err := p.GrantRole(ctx, &installationv1.GrantRoleRequest{OrganizationId: tc.org, InstallationId: state.InstallationID("acme", "wiki"), Role: "user", PersonId: "maya"})
 					return err
 				},
 			} {

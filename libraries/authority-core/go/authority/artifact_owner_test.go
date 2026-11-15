@@ -28,16 +28,16 @@ func TestAnOwnersArtifactIsInItsOwnersNamespace(t *testing.T) {
 		ResourceKinds:    []*basev0.WorkScopeV1{sc("builder.note", "read", "write")},
 		Bindings:         map[string]domain.Binding{"agent": {ID: "agent", Audience: "agent", InvokeScopes: []*basev0.WorkScopeV1{sc("agent.intents", "read", "activate", "run")}}},
 		Roles: map[string][]*basev0.WorkScopeV1{
-			domain.InstallerRole: {sc("builder.note", "read", "write"), sc("agent.intents", "read", "activate", "run")},
-			"editor":             {sc("builder.note", "read"), sc("agent.intents", "read", "activate", "run")},
-			"viewer":             {sc("builder.note", "read"), sc("agent.intents", "read", "run")},
+			domain.AdminRole: {sc("builder.note", "read", "write"), sc("agent.intents", "read", "activate", "run")},
+			"user":           {sc("builder.note", "read"), sc("agent.intents", "read", "activate", "run")},
+			"reader":         {sc("builder.note", "read"), sc("agent.intents", "read", "run")},
 		}}
 	if _, err := h.svc.ApplyModule(h.ctx, builder); err != nil {
 		t.Fatal(err)
 	}
 	h.installAs(acme, "builder", "")
-	h.grant("builder", "editor", "maya")
-	h.grant("builder", "viewer", "remi")
+	h.grant("builder", "user", "maya")
+	h.grant("builder", "reader", "remi")
 	all, err := h.svc.Installations(h.ctx, h.admin(acme), acme)
 	if err != nil {
 		t.Fatal(err)
@@ -62,7 +62,7 @@ func TestAnOwnersArtifactIsInItsOwnersNamespace(t *testing.T) {
 		t.Fatalf("through the solution the policy is owned by its installation, got %q", got)
 	}
 	if err := decideAs(page, decide.ArtifactActivate, owned); err != nil {
-		t.Fatalf("the editor present on the builder's page consents to the builder's artifact: %v", err)
+		t.Fatalf("the user present on the builder's page consents to the builder's artifact: %v", err)
 	}
 	if err := decideAs(page, decide.ArtifactRun, owned); err != nil {
 		t.Fatalf("and runs it: %v", err)
@@ -72,12 +72,12 @@ func TestAnOwnersArtifactIsInItsOwnersNamespace(t *testing.T) {
 	backend := h.must(h.through("maya", "builder", "agent"))
 	refused(t, decideAs(backend, decide.ArtifactActivate, owned), "person present")
 	if err := decideAs(backend, decide.ArtifactRun, owned); err != nil {
-		t.Fatalf("the builder's backend runs its artifact for the editor: %v", err)
+		t.Fatalf("the builder's backend runs its artifact for the user: %v", err)
 	}
-	viewer := h.must(h.page("remi", "builder", "agent"))
-	refused(t, decideAs(viewer, decide.ArtifactActivate, owned), "agent.intents:activate")
-	if err := decideAs(viewer, decide.ArtifactRun, owned); err != nil {
-		t.Fatalf("the viewer runs the builder's artifact: %v", err)
+	reader := h.must(h.page("remi", "builder", "agent"))
+	refused(t, decideAs(reader, decide.ArtifactActivate, owned), "agent.intents:activate")
+	if err := decideAs(reader, decide.ArtifactRun, owned); err != nil {
+		t.Fatalf("the reader runs the builder's artifact: %v", err)
 	}
 }
 
@@ -96,12 +96,12 @@ func TestTheParentAuthorsInItsOwnersNamespace(t *testing.T) {
 	builder := domain.Module{Name: "builder", Principal: "builder", Kind: domain.KindSolution, Generation: 1, OwnerAware: true, Page: true,
 		InstallationRole: domain.NoInstallationRole, ResourceKinds: []*basev0.WorkScopeV1{sc("builder.note", "read")},
 		Bindings: map[string]domain.Binding{"agent": {ID: "agent", Audience: "agent", InvokeScopes: []*basev0.WorkScopeV1{sc("agent.intents", "read", "run")}}},
-		Roles:    map[string][]*basev0.WorkScopeV1{domain.InstallerRole: {sc("builder.note", "read")}, "viewer": {sc("builder.note", "read"), sc("agent.intents", "read", "run")}}}
+		Roles:    map[string][]*basev0.WorkScopeV1{domain.AdminRole: {sc("builder.note", "read")}, "reader": {sc("builder.note", "read"), sc("agent.intents", "read", "run")}}}
 	if _, err := h.svc.ApplyModule(h.ctx, builder); err != nil {
 		t.Fatal(err)
 	}
 	h.installAs(acme, "builder", "")
-	h.grant("builder", "viewer", "remi")
+	h.grant("builder", "reader", "remi")
 	owned := h.must(h.page("remi", "builder", "agent"))
 	inst, namespace, err := h.svc.CurrentAuthoring(h.ctx, owned.Token, authority.Workload{Module: "agent"})
 	if err != nil || namespace != acme+".builder" || inst.Target != "agent" {

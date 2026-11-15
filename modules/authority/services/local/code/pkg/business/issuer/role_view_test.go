@@ -13,14 +13,14 @@ import (
 )
 
 // One person, several roles, one session per view: the fixture's owner of the
-// wiki holds installer and viewer there (his teams are granted viewer), so
-// there is something to select. Acting as viewer, Alex holds exactly what Rémi,
-// a real viewer through his team, holds at the wiki, and not the publish his own
-// session holds. The wiki rows of the matrix for a viewer are Rémi's; the
+// wiki holds admin and user there (his teams are granted user), so there is
+// something to select. Acting as user, Alex holds exactly what Rémi, a real
+// user through his team, holds at the wiki, and not the publish his own
+// session holds. The wiki rows of the matrix for a user are Rémi's; the
 // organization-role rows keep Maya, because a role view narrows installation
 // roles and organization roles are not selectable until they are read through
 // the core too (RBAC-4b).
-func TestAlexActingAsViewerHoldsWhatARealViewerHoldsAtTheWiki(t *testing.T) {
+func TestAlexActingAsUserHoldsWhatARealUserHoldsAtTheWiki(t *testing.T) {
 	k := testkit.New(t)
 	wikiScopes := func(ctx context.Context) []string {
 		t.Helper()
@@ -43,20 +43,20 @@ func TestAlexActingAsViewerHoldsWhatARealViewerHoldsAtTheWiki(t *testing.T) {
 	if !slices.ContainsFunc(own, func(s string) bool { return strings.Contains(s, "publish") }) {
 		t.Fatalf("setup: Alex publishes at the wiki on his own session: %v", own)
 	}
-	viewing, err := k.State.OpenRoleView(context.Background(), alex.ID, state.InstallationID("acme", "wiki"), []string{"viewer"})
+	viewing, err := k.State.OpenRoleView(context.Background(), alex.ID, state.InstallationID("acme", "wiki"), []string{"user"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	as := wikiScopes(issuer.WithSession(context.Background(), viewing.ID))
 	remi := wikiScopes(person(t, k, "fixture-remi"))
 	if !slices.Equal(as, remi) {
-		t.Fatalf("Alex as viewer holds %v, Rémi, a viewer, holds %v", as, remi)
+		t.Fatalf("Alex as user holds %v, Rémi, a user, holds %v", as, remi)
 	}
 	// His own session is untouched, and a role he does not hold is not one he can view as.
 	if !slices.Equal(wikiScopes(issuer.WithSession(context.Background(), alex.ID)), own) {
 		t.Fatal("opening a view changed the session it came from")
 	}
-	if _, err := k.State.OpenRoleView(context.Background(), alex.ID, state.InstallationID("acme", "wiki"), []string{"editor"}); err == nil {
+	if _, err := k.State.OpenRoleView(context.Background(), alex.ID, state.InstallationID("acme", "wiki"), []string{"reader"}); err == nil {
 		t.Fatal("Alex viewed as a role he does not hold")
 	}
 }

@@ -21,7 +21,7 @@ func traced(policy domain.MethodPolicy) decide.Call {
 			"rows":  {ID: "rows", Audience: "shelf", InvokeScopes: types("define", "read")},
 			"types": {ID: "types", Audience: "shelf", HeadlessScopes: types("define", "read")},
 		},
-		Roles: map[string]decide.Scopes{"installer": types("read"), "steward": types("define"), "reader": types("read")}}
+		Roles: map[string]decide.Scopes{"admin": types("read"), "steward": types("define"), "reader": types("read")}}
 	return decide.Call{Caller: catalog, Audience: shelf, Method: getType, Installation: domain.Installation{ID: "i", PrincipalID: "p-1"}}
 }
 

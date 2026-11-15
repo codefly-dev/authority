@@ -35,14 +35,14 @@ func (c *client) organizationIsolation(t *testing.T, ctx context.Context, f Fixt
 			reason       string
 		}{
 			{"review at another organization", "Review", map[string]any{"organization_id": foreign, "target": f.InstalledAudience}, "organization"},
-			{"install at another organization", "Install", map[string]any{"organization_id": foreign, "target": f.InstalledAudience, "role": "viewer"}, "organization"},
+			{"install at another organization", "Install", map[string]any{"organization_id": foreign, "target": f.InstalledAudience, "role": "user"}, "organization"},
 			{"list another organization", "List", map[string]any{"organization_id": foreign}, "organization"},
 			{"grants at another organization", "ListRoleGrants", map[string]any{"organization_id": foreign, "installation_id": f.InstalledSolution}, "organization"},
-			{"grant at another organization", "GrantRole", map[string]any{"organization_id": foreign, "installation_id": f.InstalledSolution, "role": "viewer", "person_id": person}, "organization"},
-			{"revoke at another organization", "RevokeRole", map[string]any{"organization_id": foreign, "installation_id": f.InstalledSolution, "role": "viewer", "person_id": person}, "organization"},
+			{"grant at another organization", "GrantRole", map[string]any{"organization_id": foreign, "installation_id": f.InstalledSolution, "role": "user", "person_id": person}, "organization"},
+			{"revoke at another organization", "RevokeRole", map[string]any{"organization_id": foreign, "installation_id": f.InstalledSolution, "role": "user", "person_id": person}, "organization"},
 			{"grants of an absent installation", "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": absent}, "another organization"},
-			{"grant on an absent installation", "GrantRole", map[string]any{"organization_id": f.Organization, "installation_id": absent, "role": "viewer", "person_id": person}, "another organization"},
-			{"revoke on an absent installation", "RevokeRole", map[string]any{"organization_id": f.Organization, "installation_id": absent, "role": "viewer", "person_id": person}, "another organization"},
+			{"grant on an absent installation", "GrantRole", map[string]any{"organization_id": f.Organization, "installation_id": absent, "role": "user", "person_id": person}, "another organization"},
+			{"revoke on an absent installation", "RevokeRole", map[string]any{"organization_id": f.Organization, "installation_id": absent, "role": "user", "person_id": person}, "another organization"},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				_, err := c.call(admin, "host.installation.v1.InstallationService", tc.method, tc.fields)

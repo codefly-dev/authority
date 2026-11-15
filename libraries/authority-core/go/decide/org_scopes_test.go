@@ -200,7 +200,7 @@ func TestOwnSessionNamesTheRuleOnlyForOwnedData(t *testing.T) {
 		t.Fatal("an owned ask or an empty ask holding nothing is not named")
 	}
 	gated := aware
-	gated.Roles = map[string][]*basev0.WorkScopeV1{"viewer": {sc("collection", "read")}}
+	gated.Roles = map[string][]*basev0.WorkScopeV1{"user": {sc("collection", "read")}}
 	for name, err := range map[string]error{
 		"a shared kind":         decide.OwnSession(aware, []*basev0.WorkScopeV1{sc("note", "read")}, beyond),
 		"an unserved kind":      decide.OwnSession(aware, []*basev0.WorkScopeV1{sc("elsewhere", "read")}, beyond),

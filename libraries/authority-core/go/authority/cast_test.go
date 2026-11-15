@@ -25,21 +25,21 @@ func (h *harness) casting(person, team string) (authority.Person, error) {
 // being in that team. "alex" administers acme and belongs to no team here.
 func TestAnAdministratorCastsOntoATeamTheyDoNotBelongTo(t *testing.T) {
 	h := newHarness(t)
-	h.grantTeam("a", "viewer", "team")
+	h.grantTeam("a", "reader", "team")
 
 	cast, err := h.casting("alex", "team")
 	if err != nil {
 		t.Fatalf("an administrator must be able to act as a team they are not in: %v", err)
 	}
 
-	// And in that cast they hold what the team holds — the viewer role — not
+	// And in that cast they hold what the team holds — the reader role — not
 	// their own administrator reach.
 	issued, err := h.rootAs(cast, "a")
 	if err != nil {
 		t.Fatalf("issue in a cast: %v", err)
 	}
 	if holds(issued, "a.thing", "write") {
-		t.Error("a cast onto a viewer team still writes: the administrator's reach was not dropped")
+		t.Error("a cast onto a reader team still writes: the administrator's reach was not dropped")
 	}
 }
 
@@ -60,7 +60,7 @@ func TestACastOntoATeamThatHoldsNothingIsRefusedByName(t *testing.T) {
 // A cast is never changed or widened: a session already cast cannot cast again.
 func TestACastIsNeverRecast(t *testing.T) {
 	h := newHarness(t)
-	h.grantTeam("a", "viewer", "team")
+	h.grantTeam("a", "reader", "team")
 
 	cast, err := h.casting("alex", "team")
 	if err != nil {
@@ -81,10 +81,10 @@ func TestACastIsNeverRecast(t *testing.T) {
 // privilege escalation — anyone could be any team.
 func TestAPersonWhoCannotGrantCannotActAsTheTeam(t *testing.T) {
 	h := newHarness(t)
-	h.grantTeam("a", "editor", "team")
+	h.grantTeam("a", "user", "team")
 
 	// "maya" is an ordinary member of acme: not an administrator, not in the
-	// team, and so may neither act as editor there nor grant it.
+	// team, and so may neither act as user there nor grant it.
 	_, err := h.casting("maya", "team")
 	if err == nil {
 		t.Fatal("an ordinary person must not be able to act as a team they neither hold nor may grant")
@@ -101,10 +101,10 @@ func TestAPersonWhoCannotGrantCannotActAsTheTeam(t *testing.T) {
 //
 // It never exceeded the PERSON — the organisation role is cleared either way —
 // but it exceeded the CAST, which is the whole point of casting: "view as a
-// viewer" would then answer from reach a viewer does not have, and pass.
+// reader" would then answer from reach a reader does not have, and pass.
 func TestARoleViewOpenedFromACastStaysInTheCast(t *testing.T) {
 	h := newHarness(t)
-	h.grantTeam("a", "viewer", "team")
+	h.grantTeam("a", "reader", "team")
 	// tam belongs to `team`, and separately holds author on both a and b.
 	h.grant("a", "author", "tam")
 	h.grant("b", "author", "tam")
@@ -123,7 +123,7 @@ func TestARoleViewOpenedFromACastStaysInTheCast(t *testing.T) {
 	viewed.SessionID = "tam-cast-then-view"
 	if _, err := h.svc.OpenRoleView(h.ctx, cast, authority.RoleViewRequest{
 		Organization: cast.Organization, InstallationID: h.inst(acme, "a").ID,
-		SessionID: viewed.SessionID, Roles: []string{"viewer"},
+		SessionID: viewed.SessionID, Roles: []string{"reader"},
 	}); err != nil {
 		t.Fatalf("open a view from a cast: %v", err)
 	}
@@ -141,10 +141,10 @@ func TestARoleViewOpenedFromACastStaysInTheCast(t *testing.T) {
 // granted nothing is not listed; a cast lists the one team it acts as.
 func TestCastableTeamsListsWhatOpenTeamCastWouldOpen(t *testing.T) {
 	h := newHarness(t)
-	h.grantTeam("a", "viewer", "team")
-	h.grantTeam("b", "editor", "team")
+	h.grantTeam("a", "reader", "team")
+	h.grantTeam("b", "user", "team")
 	h.store.PutTeam(acme, "other")
-	h.grantTeam("a", "editor", "other")
+	h.grantTeam("a", "user", "other")
 	names := func(teams []authority.CastableTeam) (out []string) {
 		for _, team := range teams {
 			out = append(out, team.Team)
@@ -164,8 +164,8 @@ func TestCastableTeamsListsWhatOpenTeamCastWouldOpen(t *testing.T) {
 	for _, h := range listed[1].Holds {
 		held = append(held, h.Target+":"+h.Role)
 	}
-	if slices.Sort(held); strings.Join(held, ",") != "a:viewer,b:editor" {
-		t.Fatalf("team holds %v; want viewer on a and editor on b", held)
+	if slices.Sort(held); strings.Join(held, ",") != "a:reader,b:user" {
+		t.Fatalf("team holds %v; want reader on a and user on b", held)
 	}
 	for _, team := range listed {
 		if _, err := h.svc.OpenTeamCast(h.ctx, alex, authority.TeamCastRequest{Organization: acme, Team: team.Team, SessionID: "listed-" + team.Team}); err != nil {

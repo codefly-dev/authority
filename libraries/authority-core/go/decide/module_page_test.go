@@ -15,8 +15,8 @@ func modulePage() domain.Module {
 	return domain.Module{Name: "pages", Principal: "pages", Kind: domain.KindModule, Generation: 1, Page: true,
 		ResourceKinds: []*basev0.WorkScopeV1{sc("pages.note", "read", "write")},
 		Roles: map[string][]*basev0.WorkScopeV1{
-			domain.InstallerRole: {sc("pages.note", "read", "write")},
-			"viewer":             {sc("pages.note", "read")},
+			domain.AdminRole: {sc("pages.note", "read", "write")},
+			"user":           {sc("pages.note", "read")},
 		}}
 }
 
@@ -25,21 +25,21 @@ func modulePage() domain.Module {
 // declaring none keeps the organization's roles.
 func TestAModulePageDeclaresRolesLikeASolution(t *testing.T) {
 	if err := decide.ValidateModule(modulePage()); err != nil {
-		t.Fatalf("a module page declaring installer and viewer: %v", err)
+		t.Fatalf("a module page declaring admin and user: %v", err)
 	}
 	headless := modulePage()
 	headless.Page = false
 	refused(t, decide.ValidateModule(headless), domain.Denied, "declares roles and no page")
-	noInstaller := modulePage()
-	delete(noInstaller.Roles, domain.InstallerRole)
-	if err := decide.ValidateModule(noInstaller); !errors.Is(err, domain.ErrNoInstallerRole) {
-		t.Fatalf("a module page with no installer role: %v", err)
+	noAdmin := modulePage()
+	delete(noAdmin.Roles, domain.AdminRole)
+	if err := decide.ValidateModule(noAdmin); !errors.Is(err, domain.ErrNoAdminRole) {
+		t.Fatalf("a module page with no admin role: %v", err)
 	}
 	beyond := modulePage()
-	beyond.Roles["viewer"] = []*basev0.WorkScopeV1{sc("pages.note", "delete")}
+	beyond.Roles["user"] = []*basev0.WorkScopeV1{sc("pages.note", "delete")}
 	refused(t, decide.ValidateModule(beyond), domain.Denied, "grants beyond")
 	owner := modulePage()
-	owner.OwnedRoles = map[string][]*basev0.WorkScopeV1{"viewer": {sc("pages.note", "read")}}
+	owner.OwnedRoles = map[string][]*basev0.WorkScopeV1{"user": {sc("pages.note", "read")}}
 	refused(t, decide.ValidateModule(owner), domain.Denied, "only a solution")
 	bare := modulePage()
 	bare.Roles = nil
@@ -54,9 +54,9 @@ func TestAModulePageDeclaresRolesLikeASolution(t *testing.T) {
 // A module page's installation has no principal: its roles select no owner.
 func TestAModulePageRoleSelectsNoOwner(t *testing.T) {
 	inst := domain.Installation{ID: "acme-pages", Organization: "acme"}
-	got, err := decide.RoleScopes(modulePage(), inst, []string{"viewer"})
+	got, err := decide.RoleScopes(modulePage(), inst, []string{"user"})
 	if err != nil || !scope.Same(got, []*basev0.WorkScopeV1{sc("pages.note", "read")}) {
-		t.Fatalf("viewer holds %v, %v", got, err)
+		t.Fatalf("user holds %v, %v", got, err)
 	}
 	if got, err := decide.RoleScopes(modulePage(), inst, []string{"undeclared"}); err != nil || len(got) != 0 {
 		t.Fatalf("an undeclared role holds %v, %v", got, err)
@@ -68,7 +68,7 @@ func TestAModulePageRoleSelectsNoOwner(t *testing.T) {
 func TestAModulePageRoleChangeIsANarrowing(t *testing.T) {
 	page, bare, cut := modulePage(), modulePage(), modulePage()
 	bare.Roles = nil
-	cut.Roles = map[string][]*basev0.WorkScopeV1{domain.InstallerRole: page.Roles[domain.InstallerRole], "viewer": nil}
+	cut.Roles = map[string][]*basev0.WorkScopeV1{domain.AdminRole: page.Roles[domain.AdminRole], "user": nil}
 	for name, c := range map[string]struct {
 		previous, next domain.Module
 		want           bool
@@ -90,7 +90,7 @@ func TestRBAC1ModuleRoleAtSelectsTheInstallationAsOwner(t *testing.T) {
 	read := func(kind string) *basev0.WorkScopeV1 {
 		return &basev0.WorkScopeV1{ResourceKind: kind, Actions: []string{"read"}}
 	}
-	page := domain.Module{Name: "page", Principal: "page", Kind: domain.KindModule, Roles: map[string][]*basev0.WorkScopeV1{"viewer": {read("store.item")}}}
+	page := domain.Module{Name: "page", Principal: "page", Kind: domain.KindModule, Roles: map[string][]*basev0.WorkScopeV1{"user": {read("store.item")}}}
 	solution := domain.Module{Name: "sol", Principal: "sol", Kind: domain.KindSolution}
 	store := domain.Module{Name: "store", Principal: "store", Kind: domain.KindModule, OwnerAware: true, SharedKinds: []string{"store.shared"}}
 	blind := domain.Module{Name: "blind", Principal: "blind", Kind: domain.KindModule}

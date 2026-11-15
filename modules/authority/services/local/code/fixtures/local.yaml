@@ -14,16 +14,17 @@
 #
 #   admin@acme.com   Sarah Chen    the platform admin; here, Acme's administrator
 #   alice@acme.com   Alice Johnson the organisation admin of Acme
-#   bob@acme.com     Bob Williams  a member: the viewer of every target
-#   carol@acme.com   Carol Davis   a member: the editor of every target
-#   dana@example.com Dana Lee      a member: the installer of every target
+#   bob@acme.com     Bob Williams  a member holding no role on any target: refused
+#   carol@acme.com   Carol Davis   a member: the user of every target
+#   dana@example.com Dana Lee      a member: the admin of every target
 #
 # Every role-gated target the run composes (a solution, a module page declaring
-# roles) gets one team per role it declares, `<target>-<role>`, and Bob, Carol
-# and Dana join the team of their role (`installations`, below). Signed in as
-# Sarah or Alice, "Act as this team" at the edge's sign-in page opens a session
-# that is that team and nothing else; signed in as Bob, Carol or Dana, the hop
-# answers with that one team's reach.
+# roles) gets one team per role it declares, `<target>-<role>`: `<target>-admin`
+# and `<target>-user`. Carol and Dana join the team of their role
+# (`installations`, below); Bob joins none, so every page refuses him. Signed
+# in as Sarah or Alice, "Act as this team" at the edge's sign-in page opens a
+# session that is that team and nothing else; signed in as Carol or Dana, the
+# hop answers with that one team's reach, and signed in as Bob, with a refusal.
 organizations:
   - id: acme
     name: Acme
@@ -163,6 +164,5 @@ installations:
     target: "*"
     owner: alice
     members:
-      viewer: [bob]
-      editor: [carol]
-      installer: [dana]
+      user: [carol]
+      admin: [dana]

@@ -50,7 +50,7 @@ func localConformanceFixture(t *testing.T, clock *conformance.Clock) (grpc.Clien
 	// The staleness probe revokes the viewer's own role, so her access to the
 	// wiki must be hers alone: the composition's team grants become the same
 	// role granted to each member directly.
-	directGrants(t, k, state.InstallationID("acme", "wiki"), "viewer", map[string][]string{"finance": {"maya", "alex"}, "engineering": {"remi", "alex", "dev"}})
+	directGrants(t, k, state.InstallationID("acme", "wiki"), "user", map[string][]string{"finance": {"maya", "alex"}, "engineering": {"remi", "alex", "dev"}})
 	if err := k.State.LoadFixture(context.Background(), []byte(`roles:
   - organization: acme
     name: owner
@@ -70,11 +70,11 @@ people:
 		"documents": testkit.OrgDirectory(1).Bindings["documents"],
 		"model":     testkit.Documents(1).Bindings["model"],
 	}
-	source.Roles["viewer"] = append(source.Roles["viewer"], testkit.Scope("directory.entry", "read"), testkit.Scope("documents", "read"), testkit.Scope("modelservice.profiles", "read"), testkit.Scope("modelservice.datasets", "read"))
+	source.Roles["user"] = append(source.Roles["user"], testkit.Scope("directory.entry", "read"), testkit.Scope("documents", "read"), testkit.Scope("modelservice.profiles", "read"), testkit.Scope("modelservice.datasets", "read"))
 	if _, err := k.State.ApplyManifest(source); err != nil {
 		t.Fatal(err)
 	}
-	installedChain, err := k.State.InstallAsHost(context.Background(), "acme", source.Name, "viewer", "alex")
+	installedChain, err := k.State.InstallAsHost(context.Background(), "acme", source.Name, "user", "alex")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,25 +166,25 @@ people:
 		t.Fatal(err)
 	}
 	// Two installed solutions for installation-owned role scopes: Alex installed
-	// both, and Maya's finance team holds A's viewer role and nothing of B's.
+	// both, and Maya's finance team holds A's user role and nothing of B's.
 	owned := map[string]string{}
 	for _, solution := range []string{"conformance-owner-a", "conformance-owner-b"} {
 		note := testkit.Scope(solution+".note", "read")
 		m := state.Manifest{Name: solution, Principal: solution, Kind: "solution", OwnerAware: true, Generation: 1, ResourceKinds: []*basev0.WorkScopeV1{note},
-			Roles: map[string][]*basev0.WorkScopeV1{state.InstallerRole: {note}, "viewer": {note}}}
+			Roles: map[string][]*basev0.WorkScopeV1{state.AdminRole: {note}, "user": {note}}}
 		if _, err := k.State.ApplyManifest(m); err != nil {
 			t.Fatal(err)
 		}
-		inst, err := k.State.InstallAsHost(context.Background(), "acme", solution, "viewer", "alex")
+		inst, err := k.State.InstallAsHost(context.Background(), "acme", solution, "user", "alex")
 		if err != nil {
 			t.Fatal(err)
 		}
 		owned[solution] = inst.ID
-		if err := k.State.GrantRole(domain.RoleGrant{InstallationID: inst.ID, Role: state.InstallerRole, PersonID: "alex"}); err != nil {
+		if err := k.State.GrantRole(domain.RoleGrant{InstallationID: inst.ID, Role: state.AdminRole, PersonID: "alex"}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := k.State.GrantRole(domain.RoleGrant{InstallationID: owned["conformance-owner-a"], Role: "viewer", TeamID: "finance"}); err != nil {
+	if err := k.State.GrantRole(domain.RoleGrant{InstallationID: owned["conformance-owner-a"], Role: "user", TeamID: "finance"}); err != nil {
 		t.Fatal(err)
 	}
 	var adminPerson state.Person
@@ -195,7 +195,7 @@ people:
 	}
 	return conn, descriptors, conformance.Fixture{
 		InstallationResources: &conformance.InstallationResourcesCase{
-			Owner: "fixture-alex", Viewer: "fixture-maya", Generation: 2,
+			Owner: "fixture-alex", User: "fixture-maya", Generation: 2,
 			A:     conformance.OwnedInstallation{Solution: "conformance-owner-a", Credential: k.Credential(t, "conformance-owner-a"), Installation: owned["conformance-owner-a"]},
 			B:     conformance.OwnedInstallation{Solution: "conformance-owner-b", Credential: k.Credential(t, "conformance-owner-b"), Installation: owned["conformance-owner-b"]},
 			Store: "conformance-store", StoreCredential: k.Credential(t, "conformance-store"), Kind: "conformance.collection",

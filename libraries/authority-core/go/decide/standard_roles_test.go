@@ -9,20 +9,19 @@ import (
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
-// A module page declaring no roles derives the standard three from what it
-// serves: the viewer reads, the editor reads and writes, the installer holds
-// every action served — the rule an explicit declaration follows over its
-// own kinds. A kind nobody can read derives no viewer there; a module
-// serving nothing derives none; and the derived set passes the validator a
-// declared set passes.
+// A module page declaring no roles derives the standard two from what it
+// serves: the user reads and writes, the admin holds every action served —
+// the rule an explicit declaration follows over its own kinds. A kind serving
+// neither read nor write gives the user nothing there; a module serving
+// nothing derives none; and the derived set passes the validator a declared
+// set passes.
 func TestTheStandardRolesAreDerivedFromWhatAPageServes(t *testing.T) {
 	m := domain.Module{Name: "models", Principal: "models", Kind: domain.KindModule, Generation: 1, Page: true,
 		ResourceKinds: []*basev0.WorkScopeV1{sc("models.profiles", "invoke", "read"), sc("models.notes", "read", "write", "admin"), sc("models.jobs", "execute")}}
 	got := decide.StandardRoles(m)
 	want := map[string][]*basev0.WorkScopeV1{
-		decide.ViewerRole:    {sc("models.notes", "read"), sc("models.profiles", "read")},
-		decide.EditorRole:    {sc("models.notes", "read", "write"), sc("models.profiles", "read")},
-		domain.InstallerRole: {sc("models.jobs", "execute"), sc("models.notes", "admin", "read", "write"), sc("models.profiles", "invoke", "read")},
+		domain.UserRole:  {sc("models.notes", "read", "write"), sc("models.profiles", "read")},
+		domain.AdminRole: {sc("models.jobs", "execute"), sc("models.notes", "admin", "read", "write"), sc("models.profiles", "invoke", "read")},
 	}
 	if len(got) != len(want) {
 		t.Fatalf("derived %v, want %v", got, want)
@@ -42,14 +41,14 @@ func TestTheStandardRolesAreDerivedFromWhatAPageServes(t *testing.T) {
 
 	// A kind served at any action reads, writes and holds everything.
 	any := decide.StandardRoles(domain.Module{ResourceKinds: []*basev0.WorkScopeV1{sc("x.item", scope.AnyAction)}})
-	if !scope.Same(any[decide.ViewerRole], []*basev0.WorkScopeV1{sc("x.item", "read")}) ||
-		!scope.Same(any[decide.EditorRole], []*basev0.WorkScopeV1{sc("x.item", "read", "write")}) ||
-		!scope.Same(any[domain.InstallerRole], []*basev0.WorkScopeV1{sc("x.item", scope.AnyAction)}) {
+	if len(any) != 2 ||
+		!scope.Same(any[domain.UserRole], []*basev0.WorkScopeV1{sc("x.item", "read", "write")}) ||
+		!scope.Same(any[domain.AdminRole], []*basev0.WorkScopeV1{sc("x.item", scope.AnyAction)}) {
 		t.Fatalf("any action derived %v", any)
 	}
-	// Nothing readable: no viewer, no editor, an installer of what is served.
+	// Nothing readable or writable: no user, an admin of what is served.
 	only := decide.StandardRoles(domain.Module{ResourceKinds: []*basev0.WorkScopeV1{sc("x.task", "execute")}})
-	if _, ok := only[decide.ViewerRole]; ok || len(only) != 1 || len(only[domain.InstallerRole]) != 1 {
+	if _, ok := only[domain.UserRole]; ok || len(only) != 1 || len(only[domain.AdminRole]) != 1 {
 		t.Fatalf("unreadable kinds derived %v", only)
 	}
 	if decide.StandardRoles(domain.Module{}) != nil {

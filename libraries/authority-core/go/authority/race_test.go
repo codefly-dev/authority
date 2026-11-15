@@ -54,7 +54,7 @@ func (h *harness) raced(change func()) *authority.Service {
 // its mint never yields a capability: the mint is refused, in each path that
 // decides from current grants.
 func TestARevokeRacingAnIssueYieldsNoCapability(t *testing.T) {
-	revoke := func(h *harness) func() { return func() { h.revoke("a", "viewer", "maya", "") } }
+	revoke := func(h *harness) func() { return func() { h.revoke("a", "reader", "maya", "") } }
 	leave := func(h *harness) func() {
 		return func() {
 			h.store.PutPerson(domain.Person{ID: "maya", Organization: acme})
@@ -67,10 +67,10 @@ func TestARevokeRacingAnIssueYieldsNoCapability(t *testing.T) {
 		grant  func(h *harness)
 		change func(h *harness) func()
 	}{
-		"a revoked role": {func(h *harness) { h.grant("a", "viewer", "maya") }, revoke},
+		"a revoked role": {func(h *harness) { h.grant("a", "reader", "maya") }, revoke},
 		"a team left": {func(h *harness) {
 			h.store.PutPerson(domain.Person{ID: "maya", Organization: acme, Teams: []string{"team"}})
-			h.grantTeam("a", "viewer", "team")
+			h.grantTeam("a", "reader", "team")
 		}, leave},
 	} {
 		t.Run(name+" racing a person's issue", func(t *testing.T) {
@@ -129,7 +129,7 @@ func TestAnUninstalledAgentsHopStaysDeadAfterReinstall(t *testing.T) {
 		t.Fatal("the uninstalled agent's hop checks")
 	}
 	admin := h.admin(acme)
-	if _, err := h.svc.Install(h.ctx, admin, acme, "a", "viewer", admin.ID, h.approval(acme, "a"), nil); err != nil {
+	if _, err := h.svc.Install(h.ctx, admin, acme, "a", "reader", admin.ID, h.approval(acme, "a"), nil); err != nil {
 		t.Fatal(err)
 	}
 	if h.check(deeper) == nil {
@@ -141,7 +141,7 @@ func TestAnUninstalledAgentsHopStaysDeadAfterReinstall(t *testing.T) {
 // installation, ends with the uninstall.
 func TestAnUninstallEndsEveryHopThroughTheSolution(t *testing.T) {
 	h := newHarness(t)
-	h.grant("a", "viewer", "maya")
+	h.grant("a", "reader", "maya")
 	deeper := h.must(h.hop(h.must(h.through("maya", "a", "store")), "self"))
 	if err := h.check(deeper); err != nil {
 		t.Fatal(err)
@@ -173,7 +173,7 @@ func TestAnInstallationIssueAnswersForeignAsAbsent(t *testing.T) {
 // owner and a binding is refused as unverified, never answered from the store.
 func TestCheckVerifiesBeforeItReads(t *testing.T) {
 	h := newHarness(t)
-	h.grant("a", "viewer", "maya")
+	h.grant("a", "reader", "maya")
 	out := h.must(h.through("maya", "a", "store"))
 	forged := out.Token[:len(out.Token)-4] + "AAAA"
 	_, _, err := h.svc.Check(h.ctx, forged, "store")

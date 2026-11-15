@@ -89,14 +89,13 @@ func held(t *testing.T, k *testkit.Kit, person, audience string) string {
 // A solution delivered as a carrier arrives with its roles in the authority's
 // document: the wiki at its next generation replaces the sketch the kit composed
 // it through, and the fixture's installations grant exactly those roles — the
-// installer to its owner, the installation's role through the granted teams.
+// admin role to its owner, the installation's role through the granted teams.
 func TestASolutionDeliveredAsACarrierInstallsWithItsRoles(t *testing.T) {
 	p, k := verifying(t)
 	page := scope("wiki.page", "read", "write", "publish")
 	roles := []*compositionv1.RoleV1{
-		{Name: state.InstallerRole, Scopes: []*authorityv1.WorkScopeV1{page}},
-		{Name: "editor", Scopes: []*authorityv1.WorkScopeV1{scope("wiki.page", "read", "write")}},
-		{Name: "viewer", Scopes: []*authorityv1.WorkScopeV1{scope("wiki.page", "read")}},
+		{Name: state.AdminRole, Scopes: []*authorityv1.WorkScopeV1{page}},
+		{Name: state.UserRole, Scopes: []*authorityv1.WorkScopeV1{scope("wiki.page", "read")}},
 	}
 	out, err := p.ApplyManifest(context.Background(), carrier(t, k, "wiki", solutionhost.KindSolution, 2, []string{"wiki.page"},
 		&compositionv1.AuthorityManifestV1{ScopeCeilings: []*authorityv1.WorkScopeV1{page}, Roles: roles}))
@@ -104,10 +103,10 @@ func TestASolutionDeliveredAsACarrierInstallsWithItsRoles(t *testing.T) {
 		t.Fatalf("apply: %v %v", out, err)
 	}
 	for person, want := range map[string]string{
-		"alex": "wiki.page:publish,read,write", // the owner holds the installer role
-		"maya": "wiki.page:read",               // finance holds Acme's viewer role
+		"alex": "wiki.page:publish,read,write", // the owner holds the admin role
+		"maya": "wiki.page:read",               // finance holds Acme's user role, which reads
 		"remi": "wiki.page:read",               // engineering too, since the fixture grants both
-		"omar": "wiki.page:read,write",         // ops holds Globex's editor role
+		"omar": "wiki.page:read",               // ops holds Globex's user role
 	} {
 		if got := held(t, k, person, "wiki"); got != want {
 			t.Errorf("%s holds %q at the wiki, want %q", person, got, want)
@@ -116,14 +115,14 @@ func TestASolutionDeliveredAsACarrierInstallsWithItsRoles(t *testing.T) {
 }
 
 // The role contract holds at the carrier as at the sketch: a solution with no
-// installer, or no roles at all, a role beyond the solution's own kinds, a
+// admin, or no roles at all, a role beyond the solution's own kinds, a
 // module declaring roles, and a document naming a role twice are each refused by
 // name, and nothing of the refused composes.
 func TestRolesInTheDocumentAreHeldToTheRoleContract(t *testing.T) {
 	p, k := verifying(t)
 	all := []*authorityv1.WorkScopeV1{scope("conformance.page", "read", "write")}
-	installer := func(scopes ...*authorityv1.WorkScopeV1) *compositionv1.RoleV1 {
-		return &compositionv1.RoleV1{Name: state.InstallerRole, Scopes: scopes}
+	admin := func(scopes ...*authorityv1.WorkScopeV1) *compositionv1.RoleV1 {
+		return &compositionv1.RoleV1{Name: state.AdminRole, Scopes: scopes}
 	}
 	for name, c := range map[string]struct {
 		alias  string
@@ -132,18 +131,18 @@ func TestRolesInTheDocumentAreHeldToTheRoleContract(t *testing.T) {
 		code   codes.Code
 		reason string
 	}{
-		"no installer": {"conformance-solution", solutionhost.KindSolution,
-			&compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{{Name: "viewer", Scopes: all}}}, codes.PermissionDenied, `none is "installer"`},
+		"no admin": {"conformance-solution", solutionhost.KindSolution,
+			&compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{{Name: "user", Scopes: all}}}, codes.PermissionDenied, `none is "admin"`},
 		"no roles at all": {"conformance-solution", solutionhost.KindSolution,
 			&compositionv1.AuthorityManifestV1{ScopeCeilings: all}, codes.PermissionDenied, "declares 0 role(s)"},
 		"a role beyond the kind's actions": {"conformance-solution", solutionhost.KindSolution,
-			&compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{installer(scope("conformance.page", "read", "write", "delete"))}}, codes.PermissionDenied, "grants beyond what conformance-solution serves"},
+			&compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{admin(scope("conformance.page", "read", "write", "delete"))}}, codes.PermissionDenied, "grants beyond what conformance-solution serves"},
 		"a role on a kind the solution does not serve": {"conformance-solution", solutionhost.KindSolution,
-			&compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{installer(all[0], scope("documents", "read"))}}, codes.PermissionDenied, "grants beyond what conformance-solution serves"},
+			&compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{admin(all[0], scope("documents", "read"))}}, codes.PermissionDenied, "grants beyond what conformance-solution serves"},
 		"a module declaring roles": {"conformance-probe", solutionhost.KindModule,
-			&compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{installer(all...)}}, codes.PermissionDenied, "a module's access is the organization's roles"},
+			&compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{admin(all...)}}, codes.PermissionDenied, "a module's access is the organization's roles"},
 		"a role named twice": {"conformance-solution", solutionhost.KindSolution,
-			&compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{installer(all...), installer(all...)}}, codes.InvalidArgument, "twice or unnamed"},
+			&compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{admin(all...), admin(all...)}}, codes.InvalidArgument, "twice or unnamed"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := p.ApplyManifest(context.Background(), carrier(t, k, c.alias, c.kind, 1, []string{"conformance.page"}, c.doc))
@@ -155,20 +154,20 @@ func TestRolesInTheDocumentAreHeldToTheRoleContract(t *testing.T) {
 	if _, err := k.PersonScopes(t, "alex", "conformance-solution"); !errors.Is(err, state.ErrUnknown) {
 		t.Fatalf("a refused solution composed: %v", err)
 	}
-	// The same solution with the contract met composes, and its installer and
-	// viewer are what the installer and viewer hold.
-	doc := &compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{installer(all...), {Name: "viewer", Scopes: []*authorityv1.WorkScopeV1{scope("conformance.page", "read")}}}}
+	// The same solution with the contract met composes, and its admin and
+	// user are what the admin and user hold.
+	doc := &compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{admin(all...), {Name: "user", Scopes: []*authorityv1.WorkScopeV1{scope("conformance.page", "read")}}}}
 	if _, err := p.ApplyManifest(context.Background(), carrier(t, k, "conformance-solution", solutionhost.KindSolution, 1, []string{"conformance.page"}, doc)); err != nil {
 		t.Fatal(err)
 	}
-	inst, err := k.State.InstallAsHost(context.Background(), "acme", "conformance-solution", "viewer", "alex")
+	inst, err := k.State.InstallAsHost(context.Background(), "acme", "conformance-solution", "user", "alex")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := k.State.GrantRole(domain.RoleGrant{InstallationID: inst.ID, Role: state.InstallerRole, PersonID: "alex"}); err != nil {
+	if err := k.State.GrantRole(domain.RoleGrant{InstallationID: inst.ID, Role: state.AdminRole, PersonID: "alex"}); err != nil {
 		t.Fatal(err)
 	}
 	if got := held(t, k, "alex", "conformance-solution"); got != "conformance.page:read,write" {
-		t.Fatalf("the installer holds %q", got)
+		t.Fatalf("the admin holds %q", got)
 	}
 }

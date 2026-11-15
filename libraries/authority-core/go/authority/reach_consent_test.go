@@ -139,13 +139,13 @@ func TestAModulesRedeliveryThatWidensASolutionsReachOffersAnUpgrade(t *testing.T
 }
 
 // A module's redelivery that narrows a solution's reach re-converges: the
-// store requiring write to Read narrows what a's viewer reaches there (read
+// store requiring write to Read narrows what a's reader reaches there (read
 // alone); a's consent advances to the narrower reach with no click, its
 // revision moves (what was issued under the wider reach ends), no upgrade
 // is offered, and the grants are kept.
 func TestAModulesRedeliveryThatNarrowsASolutionsReachReconverges(t *testing.T) {
 	h := reachHarness(t)
-	h.grant("a", "viewer", "remi")
+	h.grant("a", "reader", "remi")
 	before := h.stored(acme, "a")
 	issued := h.must(h.root("remi", "a"))
 	stricter := storeAt(3, "admin", true)
@@ -158,8 +158,8 @@ func TestAModulesRedeliveryThatNarrowsASolutionsReachReconverges(t *testing.T) {
 		t.Fatalf("a's consent did not re-converge on the narrower reach: %+v, was %+v", inst, before)
 	}
 	reach, err := decide.DecodeReach(inst.Consent.Reach)
-	if err != nil || slices.ContainsFunc(reach["viewer"], func(r domain.ReachRow) bool { return r.Module == "store" && slices.Contains(r.Operations, storeRead) }) {
-		t.Fatalf("the approved reach still lists what the viewer no longer reaches: %+v (%v)", reach["viewer"], err)
+	if err != nil || slices.ContainsFunc(reach["reader"], func(r domain.ReachRow) bool { return r.Module == "store" && slices.Contains(r.Operations, storeRead) }) {
+		t.Fatalf("the approved reach still lists what the reader no longer reaches: %+v (%v)", reach["reader"], err)
 	}
 	if up, err := h.svc.UpgradeAvailable(h.ctx, inst); err != nil || up {
 		t.Fatalf("a narrowing offers an upgrade: %v %v", up, err)
@@ -219,7 +219,7 @@ func TestANarrowedCallIsHeldToTheApprovedPolicyOnItsOwnScopes(t *testing.T) {
 // gateway declares its installed-models page) does not make a person who
 // holds no role on that page lose what they reach at the module through the
 // solution. The store becomes a role-gated page; maya, a's author, holds no
-// role on it, and still reads through a, as the store's own viewer does.
+// role on it, and still reads through a, as the store's own reader does.
 func TestACallThroughASolutionIsNotHeldToTheReachOfTheModulesOwnPage(t *testing.T) {
 	h := reachHarness(t)
 	at := h.must(h.through("maya", "a", "store"))
@@ -229,8 +229,8 @@ func TestACallThroughASolutionIsNotHeldToTheReachOfTheModulesOwnPage(t *testing.
 	paged := storeAt(3, "admin", true)
 	paged.Page, paged.InstallationRole = true, domain.NoInstallationRole
 	paged.Roles = map[string][]*basev0.WorkScopeV1{
-		domain.InstallerRole: {sc(kind, "admin", "read", "write")},
-		"viewer":             {sc(kind, "read")},
+		domain.AdminRole: {sc(kind, "admin", "read", "write")},
+		"reader":         {sc(kind, "read")},
 	}
 	if _, err := h.svc.ApplyModule(h.ctx, paged); err != nil {
 		t.Fatal(err)
@@ -257,7 +257,7 @@ func TestACallThroughASolutionIsNotHeldToTheReachOfTheModulesOwnPage(t *testing.
 // approved whether they make it themselves or a client they delegated to
 // makes it for them: the client's hop on the chain is no target whose
 // installation's consent could bound the call in the solution's place. a
-// relaxing its own Erase to what its viewer holds offers an upgrade; until an
+// relaxing its own Erase to what its reader holds offers an upgrade; until an
 // administrator approves it, maya's Erase at a is refused on her own session
 // and through her client alike, and Read is admitted to both.
 func TestAClientsCallAtASolutionIsHeldToItsApprovedReach(t *testing.T) {
@@ -280,7 +280,7 @@ func TestAClientsCallAtASolutionIsHeldToItsApprovedReach(t *testing.T) {
 		t.Fatal(err)
 	}
 	if up, err := h.svc.UpgradeAvailable(h.ctx, h.stored(acme, "a")); err != nil || !up {
-		t.Fatalf("a relaxing Erase to its viewer offers no upgrade: %v %v", up, err)
+		t.Fatalf("a relaxing Erase to its reader offers no upgrade: %v %v", up, err)
 	}
 	callA := func(i authority.Issued, method string) error {
 		_, _, _, err := h.svc.CheckMethod(h.ctx, i.Token, "a", method, false)
@@ -303,8 +303,8 @@ func TestAClientsCallAtASolutionIsHeldToItsApprovedReach(t *testing.T) {
 // it is: what they hold there is the page's roles (held), so the consent
 // that bounds those roles bounds the call, whichever plain module it hopped
 // from. The store becomes a role-gated page held at composition's receipt,
-// maya its viewer; a relay that declares no roles hops her to it. The store
-// relaxing Purge to read widens what its viewer reaches; until approved,
+// maya its reader; a relay that declares no roles hops her to it. The store
+// relaxing Purge to read widens what its reader reaches; until approved,
 // Purge is refused at the store on her own session and through the relay.
 func TestACallThroughAPlainModuleIsHeldToThePagesApprovedReach(t *testing.T) {
 	h := newHarness(t)
@@ -312,8 +312,8 @@ func TestACallThroughAPlainModuleIsHeldToThePagesApprovedReach(t *testing.T) {
 		m := storeAt(generation, purge, true)
 		m.Page, m.InstallationRole = true, domain.NoInstallationRole
 		m.Roles = map[string][]*basev0.WorkScopeV1{
-			domain.InstallerRole: {sc(kind, "admin", "read", "write")},
-			"viewer":             {sc(kind, "read")},
+			domain.AdminRole: {sc(kind, "admin", "read", "write")},
+			"reader":         {sc(kind, "read")},
 		}
 		return m
 	}
@@ -333,12 +333,12 @@ func TestACallThroughAPlainModuleIsHeldToThePagesApprovedReach(t *testing.T) {
 	if page := h.stored(acme, "store"); page.Consent.OperationID != domain.ComposedConsent {
 		t.Fatalf("the store's page installation is held by %q, not composition", page.Consent.OperationID)
 	}
-	h.grant("store", "viewer", "rob")
+	h.grant("store", "reader", "rob")
 	if _, err := h.svc.ApplyModule(h.ctx, paged(3, "read")); err != nil {
 		t.Fatal(err)
 	}
 	if up, err := h.svc.UpgradeAvailable(h.ctx, h.stored(acme, "store")); err != nil || !up {
-		t.Fatalf("the page relaxing Purge to its viewer offers no upgrade: %v %v", up, err)
+		t.Fatalf("the page relaxing Purge to its reader offers no upgrade: %v %v", up, err)
 	}
 	own := h.must(h.root("rob", "store"))
 	relayed := h.must(h.through("rob", "relay", "store"))

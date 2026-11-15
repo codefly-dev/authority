@@ -52,7 +52,7 @@ func (c *client) reachThroughConsent(t *testing.T, ctx context.Context, f Fixtur
 			return map[string]any{"name": name, "scopes": []any{scopeAsk(page, []string{"read"}, nil), scopeAsk(throughTurn, []string{"run"}, nil)},
 				"through": []any{map[string]any{"binding": "relay", "scopes": []any{scopeAsk(throughItem, []string{"read", "write"}, nil)}}}}
 		}
-		solution := map[string]any{"owner_aware": true, "scope_ceilings": []any{scopeAsk(page, []string{"read"}, nil)}, "roles": []any{role("installer"), role("editor")}}
+		solution := map[string]any{"owner_aware": true, "scope_ceilings": []any{scopeAsk(page, []string{"read"}, nil)}, "roles": []any{role("admin"), role("user")}}
 		toRelay := solutionhost.AuthorityBinding{ID: "relay", Audience: throughRelay, Operations: map[string][]string{"invoke": {throughTurn + ":run"}}}
 		if _, err := c.deliver(ctx, f, throughSolution, "solution", 1, []string{page}, solution, 0, toRelay); err != nil {
 			t.Fatalf("deliver %s: %v", throughSolution, err)
@@ -63,10 +63,10 @@ func (c *client) reachThroughConsent(t *testing.T, ctx context.Context, f Fixtur
 		install := func(t *testing.T) string {
 			t.Helper()
 			return str(c.must(t, adminCtx, "host.installation.v1.InstallationService", "Install", map[string]any{"organization_id": f.Organization, "target": throughSolution,
-				"role": "installer", "owner_person_id": str(admin, "person_id"), "approval": c.reviewInstallation(t, adminCtx, f.Organization, throughSolution)}), "id")
+				"role": "admin", "owner_person_id": str(admin, "person_id"), "approval": c.reviewInstallation(t, adminCtx, f.Organization, throughSolution)}), "id")
 		}
 		id := install(t)
-		c.must(t, adminCtx, "host.installation.v1.InstallationService", "GrantRole", map[string]any{"organization_id": f.Organization, "installation_id": id, "role": "editor", "person_id": str(holder, "person_id")})
+		c.must(t, adminCtx, "host.installation.v1.InstallationService", "GrantRole", map[string]any{"organization_id": f.Organization, "installation_id": id, "role": "user", "person_id": str(holder, "person_id")})
 		upgrade := func(t *testing.T) bool {
 			t.Helper()
 			for _, inst := range listMsgs(c.must(t, adminCtx, "host.installation.v1.InstallationService", "List", map[string]any{"organization_id": f.Organization}), "installations") {
@@ -77,12 +77,12 @@ func (c *client) reachThroughConsent(t *testing.T, ctx context.Context, f Fixtur
 			t.Fatalf("%s is not listed", id)
 			return false
 		}
-		// reached is the operations the editor's reach lists at the vault, as sess reviews it.
+		// reached is the operations the user's reach lists at the vault, as sess reviews it.
 		reached := func(t *testing.T, sess protoreflect.Message) []string {
 			t.Helper()
 			out := c.must(t, as(ctx, sess), "host.installation.v1.OfferService", "ReviewOffer", map[string]any{"organization_id": f.Organization, "target": throughSolution})
 			for _, r := range listMsgs(out, "roles") {
-				if str(r, "name") != "editor" {
+				if str(r, "name") != "user" {
 					continue
 				}
 				for _, row := range listMsgs(r, "reach") {
@@ -127,7 +127,7 @@ func (c *client) reachThroughConsent(t *testing.T, ctx context.Context, f Fixtur
 				t.Fatalf("redeliver %s serving write: %v", throughVault, err)
 			}
 			if !upgrade(t) {
-				t.Fatal("the vault opening Put within what the editor names through the relay offers the solution's installation no upgrade")
+				t.Fatal("the vault opening Put within what the user names through the relay offers the solution's installation no upgrade")
 			}
 			if f.ReviewOfferNotServed == "" {
 				if got := reached(t, holder); !slices.Equal(got, []string{throughGet}) {
@@ -167,22 +167,22 @@ func (c *client) reachThroughConsent(t *testing.T, ctx context.Context, f Fixtur
 			own := &solutionhost.Frontend{Title: "Conformance paged vault", ExposedModule: "./Page", HostContract: 1, Payload: f.PagePayload}
 			document := map[string]any{"owner_aware": true, "installation_role": "none", "scope_ceilings": []any{scopeAsk(pagedItem, []string{"read"}, nil)},
 				"methods": []any{map[string]any{"method": pagedGet, "requires": []any{scopeAsk(pagedItem, []string{"read"}, nil)}}},
-				"roles":   []any{map[string]any{"name": "installer", "scopes": []any{scopeAsk(pagedItem, []string{"read"}, nil)}}}}
+				"roles":   []any{map[string]any{"name": "admin", "scopes": []any{scopeAsk(pagedItem, []string{"read"}, nil)}}}}
 			if _, err := c.deliverPage(ctx, f, own, paged, "module", 1, []string{pagedItem}, document, 0); err != nil {
 				t.Fatalf("deliver %s with a page and roles: %v", paged, err)
 			}
 			toPaged := solutionhost.AuthorityBinding{ID: "paged", Audience: paged, Operations: map[string][]string{"invoke": {pagedItem + ":read"}}}
 			pagedPage := pagedSolution + ".page"
-			role := map[string]any{"name": "installer", "scopes": []any{scopeAsk(pagedPage, []string{"read"}, nil)},
+			role := map[string]any{"name": "admin", "scopes": []any{scopeAsk(pagedPage, []string{"read"}, nil)},
 				"through": []any{map[string]any{"binding": "paged", "scopes": []any{scopeAsk(pagedItem, []string{"read"}, nil)}}}}
-			editor := map[string]any{"name": "editor", "scopes": role["scopes"], "through": role["through"]}
+			user := map[string]any{"name": "user", "scopes": role["scopes"], "through": role["through"]}
 			if _, err := c.deliver(ctx, f, pagedSolution, "solution", 1, []string{pagedPage}, map[string]any{"owner_aware": true,
-				"scope_ceilings": []any{scopeAsk(pagedPage, []string{"read"}, nil)}, "roles": []any{role, editor}}, 0, toPaged); err != nil {
+				"scope_ceilings": []any{scopeAsk(pagedPage, []string{"read"}, nil)}, "roles": []any{role, user}}, 0, toPaged); err != nil {
 				t.Fatalf("deliver %s: %v", pagedSolution, err)
 			}
 			installed := str(c.must(t, adminCtx, "host.installation.v1.InstallationService", "Install", map[string]any{"organization_id": f.Organization, "target": pagedSolution,
-				"role": "installer", "owner_person_id": str(admin, "person_id"), "approval": c.reviewInstallation(t, adminCtx, f.Organization, pagedSolution)}), "id")
-			c.must(t, adminCtx, "host.installation.v1.InstallationService", "GrantRole", map[string]any{"organization_id": f.Organization, "installation_id": installed, "role": "editor", "person_id": str(holder, "person_id")})
+				"role": "admin", "owner_person_id": str(admin, "person_id"), "approval": c.reviewInstallation(t, adminCtx, f.Organization, pagedSolution)}), "id")
+			c.must(t, adminCtx, "host.installation.v1.InstallationService", "GrantRole", map[string]any{"organization_id": f.Organization, "installation_id": installed, "role": "user", "person_id": str(holder, "person_id")})
 			root, err := c.call(as(ctx, holder), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": pagedSolution, "operation_binding_id": "paged"})
 			if err != nil {
 				t.Fatalf("the holder's root at %s: %v", pagedSolution, err)

@@ -9,16 +9,16 @@ import (
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
-// governedSolution is a solution whose editors govern its sources: the write
-// its editor role alone grants on its own page kind.
+// governedSolution is a solution whose users govern its sources: the write
+// its user role alone grants on its own page kind.
 func governedSolution() domain.Module {
 	return domain.Module{Name: "notes", Principal: "notes", Kind: domain.KindSolution, Generation: 1, OwnerAware: true,
 		ResourceKinds: []*basev0.WorkScopeV1{rsc("notes.page", "delete", "publish", "read", "write"), rsc("notes.profile", "read")},
 		SharedKinds:   []string{"notes.profile"},
 		Roles: map[string][]*basev0.WorkScopeV1{
-			domain.InstallerRole: {rsc("notes.page", "read", "publish")},
-			"editor":             {rsc("notes.page", "read", "write"), rsc("notes.profile", "read")},
-			"viewer":             {rsc("notes.page", "read")},
+			domain.AdminRole: {rsc("notes.page", "read", "publish")},
+			"user":           {rsc("notes.page", "read", "write"), rsc("notes.profile", "read")},
+			"reader":         {rsc("notes.page", "read")},
 		},
 		SourceGovernance: []*basev0.WorkScopeV1{rsc("notes.page", "write")},
 	}
@@ -28,7 +28,7 @@ func governedSolution() domain.Module {
 // is applied, whatever the contract reader upstream already refused.
 func TestAGoverningScopeIsAnOwnUnsharedKindARoleGrants(t *testing.T) {
 	if err := decide.ValidateModule(governedSolution()); err != nil {
-		t.Fatalf("the editors' write is refused: %v", err)
+		t.Fatalf("the users' write is refused: %v", err)
 	}
 	if err := decide.ValidateModule(func() domain.Module { m := governedSolution(); m.SourceGovernance = nil; return m }()); err != nil {
 		t.Fatalf("a solution declaring no governance is refused: %v", err)
@@ -82,10 +82,10 @@ func TestOnlyASolutionGovernsSources(t *testing.T) {
 func TestAGoverningKindReachedThroughABindingIsRefused(t *testing.T) {
 	m := governedSolution()
 	m.Bindings = map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{rsc("store.item", "read")}}}
-	m.Through = map[string]map[string][]*basev0.WorkScopeV1{"viewer": {"store": {rsc("notes.page", "write")}}}
-	m.Roles["viewer"] = append(m.Roles["viewer"], rsc("notes.page", "write"))
+	m.Through = map[string]map[string][]*basev0.WorkScopeV1{"reader": {"store": {rsc("notes.page", "write")}}}
+	m.Roles["reader"] = append(m.Roles["reader"], rsc("notes.page", "write"))
 	err := decide.ValidateModule(m)
-	if err == nil || !strings.Contains(err.Error(), "which role viewer reaches through binding store") {
+	if err == nil || !strings.Contains(err.Error(), "which role reader reaches through binding store") {
 		t.Fatalf("a governing kind reached through a binding: %v", err)
 	}
 }
@@ -109,7 +109,7 @@ func TestAGoverningActionCeiledToSomeIdsIsRefused(t *testing.T) {
 		{ResourceKind: "notes.page", Actions: []string{"write"}, ResourceIds: []string{"one"}},
 		rsc("notes.page", "read", "publish"), rsc("notes.profile", "read"),
 	}
-	// A binding underwrites the editors' whole-kind write, so the roles stay
+	// A binding underwrites the users' whole-kind write, so the roles stay
 	// valid and only the governing scope is at issue.
 	m.Bindings = map[string]domain.Binding{"pages": {ID: "pages", Audience: "pages", InvokeScopes: []*basev0.WorkScopeV1{rsc("notes.page", "write")}}}
 	err := decide.ValidateModule(m)

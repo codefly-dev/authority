@@ -63,7 +63,7 @@ func (h *setupHost) ListOffers(ctx context.Context, in *installationv1.ListOffer
 func (h *setupHost) ReviewOffer(ctx context.Context, in *installationv1.ReviewRequest, _ ...grpc.CallOption) (*installationv1.ReviewedOffer, error) {
 	return &installationv1.ReviewedOffer{Target: in.GetTarget(), ToolsComposed: true, InstallationRole: h.installationRole,
 		Approval: &installationv1.ConsentApproval{TargetId: "proposals", Generation: 3, Digest: "sha256:reviewed"},
-		Roles: []*installationv1.OfferRole{{Name: "viewer", Capabilities: []*installationv1.OfferCapability{{Module: "proposals", Operation: "/tools.Solution/Read",
+		Roles: []*installationv1.OfferRole{{Name: "user", Capabilities: []*installationv1.OfferCapability{{Module: "proposals", Operation: "/tools.Solution/Read",
 			Tools: []*installationv1.OfferTool{{Name: "read_item", Binding: "PROPOSALS__READ"}}}}}}}, nil
 }
 
@@ -133,7 +133,7 @@ func TestTheSetupPageShowsTheReviewedOffer(t *testing.T) {
 func TestSetupChangesAreThePersonsAndComeFromThisOrigin(t *testing.T) {
 	f, host := newSetup(t)
 	cookie := f.signIn(t)
-	install := url.Values{"action": {"install"}, "target": {"proposals"}, "role": {"viewer"}, "targetId": {"proposals"}, "generation": {"3"}, "expectedRevision": {"0"},
+	install := url.Values{"action": {"install"}, "target": {"proposals"}, "role": {"user"}, "targetId": {"proposals"}, "generation": {"3"}, "expectedRevision": {"0"},
 		"digest": {"sha256:reviewed"}, "operationId": {"5d3c0b0e-8f5e-4c3f-9d55-6c1f1a0b7e21"}}
 	if res, _ := f.post(t, cookie, "http://elsewhere.test", install); res.StatusCode != http.StatusForbidden {
 		t.Fatalf("another site's install answered %d", res.StatusCode)
@@ -154,9 +154,9 @@ func TestSetupChangesAreThePersonsAndComeFromThisOrigin(t *testing.T) {
 		got.GetApproval().GetOperationId() != install.Get("operationId") || host.bearers[0] != "remi-session" {
 		t.Fatalf("install sent %v as %s", got, host.bearers[0])
 	}
-	f.post(t, cookie, f.edge.URL, url.Values{"action": {"grant"}, "target": {"proposals"}, "installationId": {"i1"}, "role": {"viewer"}, "subject": {"team:finance"}})
-	f.post(t, cookie, f.edge.URL, url.Values{"action": {"revoke"}, "target": {"proposals"}, "installationId": {"i1"}, "role": {"viewer"}, "subject": {"person:maya"}})
-	if g := host.calls[1].(*installationv1.GrantRoleRequest); g.GetTeamId() != "finance" || g.GetPersonId() != "" || g.GetRole() != "viewer" {
+	f.post(t, cookie, f.edge.URL, url.Values{"action": {"grant"}, "target": {"proposals"}, "installationId": {"i1"}, "role": {"user"}, "subject": {"team:finance"}})
+	f.post(t, cookie, f.edge.URL, url.Values{"action": {"revoke"}, "target": {"proposals"}, "installationId": {"i1"}, "role": {"user"}, "subject": {"person:maya"}})
+	if g := host.calls[1].(*installationv1.GrantRoleRequest); g.GetTeamId() != "finance" || g.GetPersonId() != "" || g.GetRole() != "user" {
 		t.Fatalf("grant sent %v", g)
 	}
 	if r := host.calls[2].(*installationv1.RevokeRoleRequest); r.GetPersonId() != "maya" || r.GetTeamId() != "" {
@@ -166,7 +166,7 @@ func TestSetupChangesAreThePersonsAndComeFromThisOrigin(t *testing.T) {
 
 // A solution that declares its agent's role (installation_role) is installed
 // with no role from the page: the review carries the declaration, so the page
-// offers no choice the authority would refuse ("role \"viewer\" cannot
+// offers no choice the authority would refuse ("role \"user\" cannot
 // override wiki's installation_role declaration"), and the install sends none.
 func TestASolutionDeclaringItsAgentRoleIsInstalledWithoutOne(t *testing.T) {
 	f, host := newSetup(t)
@@ -191,7 +191,7 @@ func TestSetupShowsRefusalsAndKeepsAnUncertainInstall(t *testing.T) {
 	f, host := newSetup(t)
 	cookie := f.signIn(t)
 	host.refuse = status.Error(codes.Unavailable, "the authority is restarting")
-	form := url.Values{"action": {"install"}, "target": {"proposals"}, "role": {"viewer"}, "consent": {"on"}, "operationId": {"5d3c0b0e-8f5e-4c3f-9d55-6c1f1a0b7e21"}}
+	form := url.Values{"action": {"install"}, "target": {"proposals"}, "role": {"user"}, "consent": {"on"}, "operationId": {"5d3c0b0e-8f5e-4c3f-9d55-6c1f1a0b7e21"}}
 	_, body := f.post(t, cookie, f.edge.URL, form)
 	if !strings.Contains(body, "Retry the same install") || !strings.Contains(body, `"operationId":"5d3c0b0e-8f5e-4c3f-9d55-6c1f1a0b7e21"`) {
 		t.Fatalf("an uncertain install must keep its request: %s", body)
@@ -224,7 +224,7 @@ func TestTheSetupPageIsMountedOnlyWhereTheHostServesOffers(t *testing.T) {
 		t.Fatalf("an unreachable host answered %d: %s", res.StatusCode, body)
 	}
 	host.offers = status.Error(codes.Unimplemented, "unknown service host.installation.v1.OfferService")
-	install := url.Values{"action": {"install"}, "target": {"proposals"}, "role": {"viewer"}, "consent": {"on"}, "operationId": {"5d3c0b0e-8f5e-4c3f-9d55-6c1f1a0b7e21"}}
+	install := url.Values{"action": {"install"}, "target": {"proposals"}, "role": {"user"}, "consent": {"on"}, "operationId": {"5d3c0b0e-8f5e-4c3f-9d55-6c1f1a0b7e21"}}
 	if res, body := f.post(t, cookie, f.edge.URL, install); res.StatusCode != http.StatusNotFound || !strings.Contains(body, "serves no setup page") {
 		t.Fatalf("a host without OfferService was sent a setup change: %d %s", res.StatusCode, body)
 	}

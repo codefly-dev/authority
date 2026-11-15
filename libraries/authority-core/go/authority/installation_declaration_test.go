@@ -32,9 +32,9 @@ func TestInstallationDeclarationSelection(t *testing.T) {
 		{"legacy", "", "author", "author", false},
 		{"legacy missing", "", "", "", true},
 		{"legacy caller none", "", "none", "", true},
-		{"named default", "editor", "", "editor", false},
-		{"named same", "editor", "editor", "editor", false},
-		{"named override", "editor", "author", "", true},
+		{"named default", "user", "", "user", false},
+		{"named same", "user", "user", "user", false},
+		{"named override", "user", "author", "", true},
 		{"named missing", "missing", "", "", true},
 		{"declared none", "none", "", "none", false},
 		{"none caller none", "none", "none", "", true},
@@ -111,16 +111,16 @@ func TestNoStandingAuthorityStillHasFencedSetup(t *testing.T) {
 }
 
 func TestInstallationDeclarationDoesNotRelaxRoles(t *testing.T) {
-	for _, fault := range []string{"empty role", "missing installer"} {
+	for _, fault := range []string{"empty role", "missing admin"} {
 		t.Run(fault, func(t *testing.T) {
 			h := newHarness(t)
 			m := solution("b", true)
 			m.Generation++
 			m.InstallationRole = "none"
 			if fault == "empty role" {
-				m.Roles["editor"] = nil
+				m.Roles["user"] = nil
 			} else {
-				delete(m.Roles, domain.InstallerRole)
+				delete(m.Roles, domain.AdminRole)
 			}
 			if _, err := h.svc.ApplyModule(h.ctx, m); err == nil {
 				t.Fatal("role rule relaxed")
@@ -189,7 +189,7 @@ func TestInstallationDeclarationLegacyDigestBytes(t *testing.T) {
 
 func TestNamedInstallationDeclarationRetryPreservesOriginalRequest(t *testing.T) {
 	h := newHarness(t)
-	declaration(t, h, "editor")
+	declaration(t, h, "user")
 	admin := h.admin(globex)
 	approval := h.approval(globex, "b")
 	step := func(context.Context, domain.Installation) error { return awaitingStep }
@@ -199,10 +199,10 @@ func TestNamedInstallationDeclarationRetryPreservesOriginalRequest(t *testing.T)
 	}
 	// Equal effective authority does not make two different requests the same
 	// reviewed operation. Retain the original empty request on retries.
-	_, err = h.svc.Install(h.ctx, admin, globex, "b", "editor", admin.ID, approval, step)
+	_, err = h.svc.Install(h.ctx, admin, globex, "b", "user", admin.ID, approval, step)
 	refused(t, err, "INSTALLATION_APPROVAL_OPERATION_CONFLICT")
 	again, err := h.svc.Install(h.ctx, admin, globex, "b", "", admin.ID, approval, step)
-	if !errors.Is(err, awaitingStep) || again.Consent != first.Consent || again.AgentRole != "editor" {
+	if !errors.Is(err, awaitingStep) || again.Consent != first.Consent || again.AgentRole != "user" {
 		t.Fatalf("retry: %+v %v", again, err)
 	}
 }
