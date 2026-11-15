@@ -213,3 +213,12 @@ func TestTheRendersRefusalsHold(t *testing.T) {
 	p.Name = "journal"
 	problems(t, roleplan.Plan{Product: p, Rows: rows()}, `module journal publishes a contract whose principal is "notebook"`)
 }
+
+// A refusal that is not a denial is no stage of the plan: a page call through
+// a binding the product does not declare is NotFound, and the plan is told so
+// rather than reading it as a binding refusing a role.
+func TestARefusalThatIsNoDenialIsNoStage(t *testing.T) {
+	r := append(rows(), roleplan.Row{Name: "a binding nobody declared", Binding: "nowhere", Asks: []string{"store.item:read"},
+		Admin: roleplan.RefusedAtBinding, User: roleplan.RefusedAtBinding, None: roleplan.RefusedNoRole})
+	problems(t, roleplan.Plan{Product: product(t, contract), Rows: r}, `"a binding nobody declared": admin-holder is not decided on a role`)
+}

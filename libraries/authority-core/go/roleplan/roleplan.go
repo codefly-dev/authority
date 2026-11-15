@@ -27,6 +27,10 @@
 // ask through a binding that carries it, a scope named through a binding by a
 // row going onward through that binding.
 //
+// A refused stage is the call that refused, kept only when the refusal is the
+// authority's denial (domain.Denied); any other class of error is reported as
+// no role decision at all, whatever the plan expects.
+//
 // What it cannot see: a module the product's bindings reach is a stand-in
 // serving the kinds the binding carries (and, for what a role names through
 // the binding, binding onward to a stand-in per namespace that checks owners
@@ -34,7 +38,11 @@
 // unselected), so that module's own method policy, its real onward bindings
 // and its resource checks are its own plan's to prove; the prepared bindings a
 // runnable host's composition adds, an installation's later consent changes
-// and a host's envelope are not composed.
+// and a host's envelope are not composed. The composition's values are read
+// from one directory (Product.Configurations), where the render's workspace
+// read also folds in the configurations composed modules offer and the
+// environment's layering: a slot filled by a module's offer resolves
+// differently here.
 package roleplan
 
 import (
@@ -196,7 +204,10 @@ func Problems(plan Plan) []string {
 				continue
 			}
 			got, err := h.decide(row, s.id)
+			got, err = denied(got, err)
 			switch {
+			case got == 0:
+				out = append(out, fmt.Sprintf("%q: %s is not decided on a role: %v", row.Name, s.id, err))
 			case err != nil && strings.TrimSpace(err.Error()) == "":
 				out = append(out, fmt.Sprintf("%q: %s is %s with no reason", row.Name, s.id, got))
 			case got != want[i] && err != nil:
@@ -491,6 +502,21 @@ func (h *harness) decide(row Row, subject string) (Verdict, error) {
 		return RefusedAtBinding, err
 	}
 	return h.carries(issued, row)
+}
+
+// denied keeps a refusal's stage only when the error is the authority's
+// denial (domain.Denied): a refusal of another class — a binding or a module
+// the composition does not hold (NotFound), a malformed ask (Invalid), an
+// installation not active (Precondition), or no decision at all — says
+// nothing about the subject's role, so it is no stage of the plan.
+func denied(stage Verdict, err error) (Verdict, error) {
+	if err == nil || stage == 0 {
+		return stage, err
+	}
+	if code, ok := domain.CodeOf(err); !ok || code != domain.Denied {
+		return 0, err
+	}
+	return stage, err
 }
 
 // holdsNoRole answers, as the authority reads it now, whether who holds no
