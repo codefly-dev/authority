@@ -367,13 +367,22 @@ whoever installs the solution holds it on that installation, which is the
 install-and-configure surface, and its holder administers the installation's
 role grants and approves a module page's pending update. `user` reads and
 writes the target's own content; like any role, it holds only the scopes it
-declares (the authority does not itself refuse a further role). A page that declares no roles is given both,
+declares. Core's module contract rule enforces the two roles statically when
+a contract is rendered; the authority does not refuse a further role at run
+time, because that would refuse the deliveries still in flight while hosts
+cross the rename. Run-time enforcement belongs to the release that deletes
+the `installer` alias below. A page that declares no roles is given both,
 derived from what it serves (`decide.StandardRoles`): `user` reads and writes
 its kinds, `admin` holds every action it serves. For one release a delivery
 that still names the old `installer` is accepted as declaring `admin`, and a
-holder of `installer` administers as an `admin` holder does: a stopgap while
-modules are re-rendered before their host, deleted in the next release;
-`editor` and `viewer` stand for nothing. A module without a page declares
+holder of `installer` administers as an `admin` holder does; a declaration
+naming both `installer` and `admin` is refused. When a declaration naming
+`admin` and `user` replaces one whose grants hold the old names, those grants
+move instead of ending: `installer` to `admin`, `editor` and `viewer` to
+`user`, at the approval of the update for a consented installation and on the
+delivery itself for one no consent holds, so nobody loses access. Both are a
+stopgap while modules are re-rendered before their host, deleted in the next
+release; `editor` and `viewer` are aliases of nothing. A module without a page declares
 no roles; a person's access to a module is the organisation's roles intersected
 with what the module serves. A person's access to a solution is the role its
 installation grants her, the admin role as its owner or the installation's
