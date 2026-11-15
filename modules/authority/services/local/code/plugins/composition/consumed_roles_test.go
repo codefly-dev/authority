@@ -20,7 +20,7 @@ func consumedRoleDocument(consumed ...*authorityv1.WorkScopeV1) *compositionv1.A
 		ScopeCeilings: []*authorityv1.WorkScopeV1{own},
 		Roles: []*compositionv1.RoleV1{
 			{Name: state.AdminRole, Scopes: []*authorityv1.WorkScopeV1{own}},
-			{Name: "operator", Scopes: append([]*authorityv1.WorkScopeV1{own}, consumed...)},
+			{Name: "user", Scopes: append([]*authorityv1.WorkScopeV1{own}, consumed...)},
 		},
 	}
 }

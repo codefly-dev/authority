@@ -7,14 +7,14 @@ require (
 	buf.build/go/protovalidate v1.4.0
 	connectrpc.com/connect v1.21.1
 	connectrpc.com/vanguard v0.4.0
-	github.com/codefly-dev/authority/libraries/authority-client/go v0.2.1-0.20261114124942-66a55f61159d
+	github.com/codefly-dev/authority/libraries/authority-client/go v0.2.1-0.20261115131434-3574603a5f27
 	github.com/codefly-dev/authority/libraries/authority-core/go v0.0.0
 	github.com/codefly-dev/authority/libraries/conformance/go v0.0.0
 	github.com/codefly-dev/authority/libraries/delivery/go v0.0.0
 	github.com/codefly-dev/authority/libraries/fixture-composition/go v0.0.0
 	github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261111234045-1076f796c30f
 	github.com/codefly-dev/authority/libraries/resources/go v0.0.0
-	github.com/codefly-dev/core v0.19.27
+	github.com/codefly-dev/core v0.19.32-0.20261115151155-b6ed1a1e5736
 	github.com/codefly-dev/sdk-go v0.4.3
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.33.0

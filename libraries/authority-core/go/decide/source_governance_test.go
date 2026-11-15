@@ -18,7 +18,6 @@ func governedSolution() domain.Module {
 		Roles: map[string][]*basev0.WorkScopeV1{
 			domain.AdminRole: {rsc("notes.page", "read", "publish")},
 			"user":           {rsc("notes.page", "read", "write"), rsc("notes.profile", "read")},
-			"reader":         {rsc("notes.page", "read")},
 		},
 		SourceGovernance: []*basev0.WorkScopeV1{rsc("notes.page", "write")},
 	}
@@ -78,14 +77,15 @@ func TestOnlyASolutionGovernsSources(t *testing.T) {
 }
 
 // A governing scope is held on the installation itself: one a role reaches
-// downstream of a binding is refused, even beside a direct grant of it.
+// downstream of a binding is refused, even beside a direct grant of it. A
+// governing kind is one the solution serves, so the role's reach through the
+// binding is refused first, as any own kind reached through one is.
 func TestAGoverningKindReachedThroughABindingIsRefused(t *testing.T) {
 	m := governedSolution()
 	m.Bindings = map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{rsc("store.item", "read")}}}
-	m.Through = map[string]map[string][]*basev0.WorkScopeV1{"reader": {"store": {rsc("notes.page", "write")}}}
-	m.Roles["reader"] = append(m.Roles["reader"], rsc("notes.page", "write"))
+	m.Through = map[string]map[string][]*basev0.WorkScopeV1{"user": {"store": {rsc("notes.page", "write")}}}
 	err := decide.ValidateModule(m)
-	if err == nil || !strings.Contains(err.Error(), "which role reader reaches through binding store") {
+	if err == nil || !strings.Contains(err.Error(), `names notes.page through binding "store", a kind notes serves itself`) {
 		t.Fatalf("a governing kind reached through a binding: %v", err)
 	}
 }
