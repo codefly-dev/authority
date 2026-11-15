@@ -101,7 +101,13 @@ func (c *client) installationSurvivesDelivery(t *testing.T, ctx context.Context,
 			slices.Sort(out)
 			return out
 		}
-		c.must(t, adminCtx, "host.installation.v1.InstallationService", "GrantRole", map[string]any{"organization_id": f.Organization, "installation_id": id, "role": "user", "person_id": str(holder, "person_id")})
+		grantUser := func() error {
+			_, err := c.call(adminCtx, "host.installation.v1.InstallationService", "GrantRole", map[string]any{"organization_id": f.Organization, "installation_id": id, "role": "user", "person_id": str(holder, "person_id")})
+			return err
+		}
+		if err := grantUser(); err != nil {
+			t.Fatal(err)
+		}
 		if grants(t, id) != 1 {
 			t.Fatal("the user grant was not recorded")
 		}
@@ -176,30 +182,59 @@ func (c *client) installationSurvivesDelivery(t *testing.T, ctx context.Context,
 			_, err = install(t)
 			refused(t, err, codes.PermissionDenied, "already installed")
 		})
-		t.Run("a redelivery widening a binding offers an upgrade", func(t *testing.T) {
-			if f.Audience == "" || f.ReadKind == "" {
-				t.Fatal("required conformance fixture missing: Audience and ReadKind, a composed module and a kind it serves")
+		t.Run("a redelivery adding a role offers an upgrade, and the added role is granted to nobody until it is approved", func(t *testing.T) {
+			// Generation 4 declares admin alone: dropping user narrows, so the
+			// installation re-converges and the user grant ends with it.
+			deliver(4)
+			stands(t, listed(t), 4, false)
+			if grants(t, id) != 0 {
+				t.Fatal("the grant of a dropped role outlived it")
 			}
-			// Generation 4 binds the composed module for a read: a binding
-			// added asks more.
-			bindings = []solutionhost.AuthorityBinding{{ID: "store", Audience: f.Audience, Operations: map[string][]string{"invoke": {f.ReadKind + ":read"}}}}
-			deliver(4, user)
-			stands(t, listed(t), 3, true)
+			// Generation 5 adds user back: a role added asks more, so the
+			// installation stands on its consent, where user is granted to
+			// nobody, until a fresh review and Install upgrade it.
+			deliver(5, user)
+			stands(t, listed(t), 4, true)
+			refused(t, grantUser(), codes.NotFound, `declares no role "user"`)
 			upgraded, err := install(t)
 			if err != nil {
 				t.Fatal(err)
 			}
-			stands(t, upgraded, 4, false)
-			// The upgrade ended what was issued before it; the holder is
-			// issued again under generation 4.
+			stands(t, upgraded, 5, false)
+			if err := grantUser(); err != nil {
+				t.Fatalf("the added role is not grantable once upgraded: %v", err)
+			}
+			if grants(t, id) != 1 {
+				t.Fatal("the user grant was not recorded")
+			}
 			if held, err = issue(); err != nil {
 				t.Fatal(err)
 			}
-			// Generation 5 lets the binding write: a binding reaching further
+		})
+		t.Run("a redelivery widening a binding offers an upgrade", func(t *testing.T) {
+			if f.Audience == "" || f.ReadKind == "" {
+				t.Fatal("required conformance fixture missing: Audience and ReadKind, a composed module and a kind it serves")
+			}
+			// Generation 6 binds the composed module for a read: a binding
+			// added asks more.
+			bindings = []solutionhost.AuthorityBinding{{ID: "store", Audience: f.Audience, Operations: map[string][]string{"invoke": {f.ReadKind + ":read"}}}}
+			deliver(6, user)
+			stands(t, listed(t), 5, true)
+			upgraded, err := install(t)
+			if err != nil {
+				t.Fatal(err)
+			}
+			stands(t, upgraded, 6, false)
+			// The upgrade ended what was issued before it; the holder is
+			// issued again under generation 6.
+			if held, err = issue(); err != nil {
+				t.Fatal(err)
+			}
+			// Generation 7 lets the binding write: a binding reaching further
 			// asks more; nothing else moved.
 			bindings = []solutionhost.AuthorityBinding{{ID: "store", Audience: f.Audience, Operations: map[string][]string{"invoke": {f.ReadKind + ":read", f.ReadKind + ":write"}}}}
-			deliver(5, user)
-			stands(t, listed(t), 4, true)
+			deliver(7, user)
+			stands(t, listed(t), 6, true)
 			if grants(t, id) != 1 {
 				t.Fatal("the widening changed the grants")
 			}
@@ -209,11 +244,11 @@ func (c *client) installationSurvivesDelivery(t *testing.T, ctx context.Context,
 			if upgraded, err = install(t); err != nil {
 				t.Fatal(err)
 			}
-			stands(t, upgraded, 5, false)
-			// Generation 6 cuts the binding back: nothing new is asked.
+			stands(t, upgraded, 7, false)
+			// Generation 8 cuts the binding back: nothing new is asked.
 			bindings = []solutionhost.AuthorityBinding{{ID: "store", Audience: f.Audience, Operations: map[string][]string{"invoke": {f.ReadKind + ":read"}}}}
-			deliver(6, user)
-			stands(t, listed(t), 6, false)
+			deliver(8, user)
+			stands(t, listed(t), 8, false)
 		})
 	})
 }
