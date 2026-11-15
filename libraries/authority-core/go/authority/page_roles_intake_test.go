@@ -25,8 +25,7 @@ func withRoles(generation uint64, source string, roles map[string][]*basev0.Work
 // delivery of admin and user moves the old roles' holders (the crossover).
 func TestOnlyANewGenerationIsHeldToThePageRoles(t *testing.T) {
 	h := newHarness(t)
-	cfg := h.cfg
-	cfg.AnyRoleNames = false
+	cfg := authority.Config{Issuer: h.cfg.Issuer, KeyID: h.cfg.KeyID, Signer: h.cfg.Signer, Keys: h.cfg.Keys, Replay: h.cfg.Replay, Clock: h.cfg.Clock, NewID: h.cfg.NewID}
 	host, err := authority.New(h.store, cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -48,6 +47,14 @@ func TestOnlyANewGenerationIsHeldToThePageRoles(t *testing.T) {
 	}
 	if err := host.Admit(h.ctx, legacy); err != nil {
 		t.Fatalf("admitting the held legacy generation again: %v", err)
+	}
+	// A re-read composes the held generation as taken, but introduces no
+	// role name the held generation does not declare.
+	widened := withRoles(1, "held-1", map[string][]*basev0.WorkScopeV1{
+		domain.LegacyInstallerRole: {own}, "editor": {own, consumed}, "viewer": {sc("rolled.note", "read")}, "owner": {own},
+	})
+	if _, err := host.RereadModule(h.ctx, widened); err == nil || !strings.Contains(err.Error(), `read again declares role "owner", which the held generation does not`) {
+		t.Fatalf("a re-read introducing a role name: %v", err)
 	}
 
 	for name, c := range map[string]struct {

@@ -82,10 +82,10 @@ func newHarness(t *testing.T) *harness {
 	replay := workcontext.NewMemoryReplayStore()
 	replay.Now = func() time.Time { return h.now }
 	h.cfg = authority.Config{Issuer: "https://authority.test", KeyID: "k1", Signer: private, Keys: keys{public}, Replay: replay,
-		Clock: func() time.Time { return h.now }, NewID: func() string { n++; return fmt.Sprintf("id-%d", n) },
-		// The fixture solution declares four roles (admin, author, user,
-		// reader): the core's model, wider than what a host now admits.
-		AnyRoleNames: true}
+		Clock: func() time.Time { return h.now }, NewID: func() string { n++; return fmt.Sprintf("id-%d", n) }}
+	// The fixture solution declares four roles (admin, author, user, reader):
+	// the core's model, wider than what a host now admits.
+	authority.AllowAnyRoleNamesForTest(&h.cfg)
 	h.svc, err = authority.New(h.store, h.cfg)
 	if err != nil {
 		t.Fatal(err)

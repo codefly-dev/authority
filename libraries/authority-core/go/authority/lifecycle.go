@@ -308,7 +308,17 @@ func (s *Service) Admit(ctx context.Context, m domain.Module) error {
 // reads the held generations again (a host's boot reconciliation, its
 // approved-declaration backfill) on data no delivery can now change.
 func (s *Service) pageRoles(m domain.Module, a admission, reread bool) error {
-	if reread || a.replay || s.cfg.AnyRoleNames {
+	if a.replay || s.cfg.anyRoleNames {
+		return nil
+	}
+	if reread {
+		// A re-read composes the held generation as taken, old names
+		// included, but introduces no role name it did not hold.
+		for _, name := range slices.Sorted(maps.Keys(m.Roles)) {
+			if _, held := a.previous.Roles[name]; !held && name != domain.AdminRole && name != domain.UserRole {
+				return domain.Refuse("%s generation %d read again declares role %q, which the held generation does not: a re-read introduces no role name", m.Name, m.Generation, name)
+			}
+		}
 		return nil
 	}
 	return decide.PageRoles(m)
