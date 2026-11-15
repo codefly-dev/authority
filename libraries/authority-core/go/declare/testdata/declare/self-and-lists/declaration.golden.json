@@ -1,0 +1,70 @@
+{
+  "authority": {
+    "principal": "assistant",
+    "bindings": [
+      {
+        "id": "occurrences",
+        "audience": "assistant",
+        "operations": {
+          "invoke": [
+            "assistant.tasks:cancel",
+            "assistant.tasks:execute",
+            "assistant.tasks:start"
+          ]
+        }
+      },
+      {
+        "id": "occurrence-reads",
+        "audience": "assistant",
+        "operations": {
+          "invoke": [
+            "assistant.tasks:read"
+          ]
+        }
+      },
+      {
+        "id": "owner-review:documents",
+        "audience": "documents",
+        "operations": {
+          "invoke": [
+            "documents:read"
+          ]
+        }
+      },
+      {
+        "id": "owner-review:robin",
+        "audience": "robin",
+        "operations": {
+          "invoke": [
+            "robin.intents:read"
+          ]
+        }
+      },
+      {
+        "id": "evidence",
+        "audience": "documents",
+        "operations": {
+          "invoke": [
+            "documents:read"
+          ]
+        }
+      }
+    ],
+    "resource_kinds": [
+      "assistant.tasks"
+    ]
+  },
+  "document": {
+    "scope_ceilings": [
+      {
+        "resource_kind": "assistant.tasks",
+        "actions": [
+          "cancel",
+          "execute",
+          "read",
+          "start"
+        ]
+      }
+    ]
+  }
+}

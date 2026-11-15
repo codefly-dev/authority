@@ -1,0 +1,69 @@
+{
+  "authority": {
+    "principal": "notebook",
+    "installation_role": "none",
+    "bindings": [
+      {
+        "id": "store",
+        "audience": "store",
+        "operations": {
+          "invoke": [
+            "store.item:read"
+          ]
+        }
+      }
+    ],
+    "resource_kinds": [
+      "notebook.page"
+    ]
+  },
+  "document": {
+    "scope_ceilings": [
+      {
+        "resource_kind": "notebook.page",
+        "actions": [
+          "read"
+        ]
+      }
+    ],
+    "roles": [
+      {
+        "name": "admin",
+        "scopes": [
+          {
+            "resource_kind": "notebook.page",
+            "actions": [
+              "read"
+            ]
+          }
+        ],
+        "through": [
+          {
+            "binding": "store",
+            "scopes": [
+              {
+                "resource_kind": "store.item",
+                "actions": [
+                  "read"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "user",
+        "scopes": [
+          {
+            "resource_kind": "notebook.page",
+            "actions": [
+              "read"
+            ]
+          }
+        ]
+      }
+    ],
+    "owner_aware": true,
+    "installation_role": "none"
+  }
+}

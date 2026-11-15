@@ -167,7 +167,8 @@ func (c *client) reachThroughConsent(t *testing.T, ctx context.Context, f Fixtur
 			own := &solutionhost.Frontend{Title: "Conformance paged vault", ExposedModule: "./Page", HostContract: 1, Payload: f.PagePayload}
 			document := map[string]any{"owner_aware": true, "installation_role": "none", "scope_ceilings": []any{scopeAsk(pagedItem, []string{"read"}, nil)},
 				"methods": []any{map[string]any{"method": pagedGet, "requires": []any{scopeAsk(pagedItem, []string{"read"}, nil)}}},
-				"roles":   []any{map[string]any{"name": "admin", "scopes": []any{scopeAsk(pagedItem, []string{"read"}, nil)}}}}
+				"roles": []any{map[string]any{"name": "admin", "scopes": []any{scopeAsk(pagedItem, []string{"read"}, nil)}},
+					map[string]any{"name": "user", "scopes": []any{scopeAsk(pagedItem, []string{"read"}, nil)}}}}
 			if _, err := c.deliverPage(ctx, f, own, paged, "module", 1, []string{pagedItem}, document, 0); err != nil {
 				t.Fatalf("deliver %s with a page and roles: %v", paged, err)
 			}

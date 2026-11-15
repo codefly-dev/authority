@@ -36,13 +36,8 @@ func sourceGovernance(m domain.Module) error {
 		if slices.Contains(m.SharedKinds, kind) {
 			return domain.Refuse("%s governs its sources by %s, which it declares shared: no installation owns it", m.Name, kind)
 		}
-		for role, bindings := range m.Through {
-			for binding, scopes := range bindings {
-				if slices.ContainsFunc(scopes, func(sc *basev0.WorkScopeV1) bool { return sc.GetResourceKind() == kind }) {
-					return domain.Refuse("%s governs its sources by %s, which role %s reaches through binding %s: a governing scope is held on the installation itself", m.Name, kind, role, binding)
-				}
-			}
-		}
+		// A governing kind is one the module serves, which no role reaches
+		// through a binding: validateModule refuses that first.
 		if len(governing.GetActions()) == 0 {
 			return domain.Refuse("%s governs its sources by %s with no action", m.Name, kind)
 		}

@@ -1,0 +1,83 @@
+{
+  "authority": {
+    "principal": "board",
+    "installation_role": "user",
+    "edge_dependencies": [
+      {
+        "module": "annotations",
+        "presence": "required"
+      }
+    ],
+    "bindings": [
+      {
+        "id": "store",
+        "audience": "store",
+        "operations": {
+          "invoke": [
+            "store.item:read",
+            "store.item:write"
+          ]
+        }
+      }
+    ],
+    "resource_kinds": [
+      "board.card"
+    ]
+  },
+  "document": {
+    "scope_ceilings": [
+      {
+        "resource_kind": "board.card",
+        "actions": [
+          "read",
+          "write"
+        ]
+      }
+    ],
+    "roles": [
+      {
+        "name": "admin",
+        "scopes": [
+          {
+            "resource_kind": "board.card",
+            "actions": [
+              "read",
+              "write"
+            ]
+          },
+          {
+            "resource_kind": "store.item",
+            "actions": [
+              "read",
+              "write"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "user",
+        "scopes": [
+          {
+            "resource_kind": "board.card",
+            "actions": [
+              "read"
+            ]
+          },
+          {
+            "resource_kind": "store.item",
+            "actions": [
+              "read"
+            ]
+          }
+        ]
+      }
+    ],
+    "installation_role": "user",
+    "edge_dependencies": [
+      {
+        "module": "annotations",
+        "presence": "required"
+      }
+    ]
+  }
+}

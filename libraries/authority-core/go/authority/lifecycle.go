@@ -274,7 +274,8 @@ func admit(tx Tx, m domain.Module, reread bool) (admission, error) {
 }
 
 // Admit answers, without writing, whether ApplyModule would compose m now:
-// its validation (decide.ValidateModule), the generation and principal rules,
+// its validation (decide.ValidateModule), the roles a new generation may
+// declare (decide.PageRoles), the generation and principal rules,
 // a held generation delivered differently, and what its roles name through a
 // binding that the composition would not reach (decide.Unreached). nil is
 // the held generation delivered again (a replay) or a delivery the core
@@ -289,9 +290,38 @@ func (s *Service) Admit(ctx context.Context, m domain.Module) error {
 	}
 	m.ResourceKinds = decide.Served(m)
 	return s.store.Read(ctx, func(tx Tx) error {
-		_, err := admit(tx, m, false)
-		return err
+		a, err := admit(tx, m, false)
+		if err != nil {
+			return err
+		}
+		return s.pageRoles(m, a, false)
 	})
+}
+
+// pageRoles holds a NEW generation to the two roles a person holds on a
+// solution or a module page (decide.PageRoles): what is admitted, applied or
+// pre-checked as a delivery. A generation the core already holds is never
+// refused for it: a replay of it, or a re-read of its delivery
+// (RereadModule), composes it as it was taken, and a held generation naming
+// an old role moves to admin and user by the crossover at its next delivery
+// (domain.CrossoverRole). Refusing it there would strand every pass that
+// reads the held generations again (a host's boot reconciliation, its
+// approved-declaration backfill) on data no delivery can now change.
+func (s *Service) pageRoles(m domain.Module, a admission, reread bool) error {
+	if a.replay || s.cfg.anyRoleNames {
+		return nil
+	}
+	if reread {
+		// A re-read composes the held generation as taken, old names
+		// included, but introduces no role name it did not hold.
+		for _, name := range slices.Sorted(maps.Keys(m.Roles)) {
+			if _, held := a.previous.Roles[name]; !held && name != domain.AdminRole && name != domain.UserRole {
+				return domain.Refuse("%s generation %d read again declares role %q, which the held generation does not: a re-read introduces no role name", m.Name, m.Generation, name)
+			}
+		}
+		return nil
+	}
+	return decide.PageRoles(m)
 }
 
 // ApplyModule records a delivered module at a newer generation and holds a
@@ -361,6 +391,9 @@ func (s *Service) applyModule(ctx context.Context, m domain.Module, reread bool)
 		ids, changed = nil, false // a retried transaction starts over
 		a, err := admit(tx, m, reread)
 		if err != nil {
+			return err
+		}
+		if err := s.pageRoles(m, a, reread); err != nil {
 			return err
 		}
 		if a.replay {

@@ -1,0 +1,35 @@
+# An invoke binding with a lookup, its binding key and resource kind slots, a
+# headless binding at a later revision, several namespaces and queues, and a
+# shared ceiling, delivered to a production class.
+schema: codefly/module-contract/v1
+principal: assistant
+namespaces: [assistant, assistant-audit]
+queues: [assistant-runs, assistant-events]
+edge_dependencies:
+    - module: tracing
+      presence_by_class: {development: optional, staging: required, production: required}
+scope_ceilings:
+    - resource_kind: assistant.tasks
+      actions: [read, run]
+    - resource_kind: assistant.catalogue
+      actions: [read]
+      shared: true
+bindings:
+    - id: model
+      operations: [invoke, lookup]
+      lookup: {method: header}
+      audience: {from: assistant/model-audience}
+      resource_kind: {from: assistant/model-resource-kind}
+      binding_key: {from: assistant/model-binding}
+      scope_ceiling:
+          invoke: [invoke, read]
+          lookup: [read]
+    - id: publisher
+      revision: 2
+      operations: [headless]
+      audience: {from: assistant/registry-audience}
+      scope_ceiling:
+          headless:
+              - resource_kind: registry.definitions
+                actions: [publish]
+destinations: []

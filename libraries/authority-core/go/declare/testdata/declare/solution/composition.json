@@ -1,0 +1,1 @@
+{"class": "staging", "values": {"notebook-audiences": {"store-audience": "store", "registry-audience": "registry"}, "notebook": {"STORE_BINDING": "store"}}}

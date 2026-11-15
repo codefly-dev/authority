@@ -2,6 +2,7 @@ package installation
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -245,8 +246,10 @@ func TestReviewedInstallationRolesStayInTheReviewedSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A delivery declares exactly admin and user, so the later one widens
+	// user rather than dropping it.
 	redelivered := testkit.Wiki(2)
-	delete(redelivered.Roles, "user")
+	redelivered.Roles[state.UserRole] = []*basev0.WorkScopeV1{testkit.Scope("wiki.page", "read", "write")}
 	if _, err := k.State.ApplyManifest(redelivered); err != nil {
 		t.Fatal(err)
 	}
@@ -256,5 +259,23 @@ func TestReviewedInstallationRolesStayInTheReviewedSnapshot(t *testing.T) {
 	}
 	if !contains(got.GetInstallation().GetRoles(), "user") {
 		t.Fatalf("installation role names came from a later delivery: %v", got.GetInstallation())
+	}
+	seen := false
+	for _, role := range got.GetRoles() {
+		if role.GetName() != state.UserRole {
+			continue
+		}
+		for _, sc := range role.GetScopes() {
+			if sc.GetResourceKind() != "wiki.page" {
+				continue
+			}
+			seen = true
+			if !slices.Equal(sc.GetActions(), []string{"read"}) {
+				t.Fatalf("the user role reads as the later delivery, not as reviewed: %v", sc)
+			}
+		}
+	}
+	if !seen {
+		t.Fatalf("the reviewed user role carries no wiki.page scope: %v", got.GetRoles())
 	}
 }

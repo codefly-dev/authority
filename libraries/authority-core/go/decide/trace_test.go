@@ -21,7 +21,7 @@ func traced(policy domain.MethodPolicy) decide.Call {
 			"rows":  {ID: "rows", Audience: "shelf", InvokeScopes: types("define", "read")},
 			"types": {ID: "types", Audience: "shelf", HeadlessScopes: types("define", "read")},
 		},
-		Roles: map[string]decide.Scopes{"admin": types("read"), "steward": types("define"), "reader": types("read")}}
+		Roles: map[string]decide.Scopes{"admin": types("define"), "user": types("read")}}
 	return decide.Call{Caller: catalog, Audience: shelf, Method: getType, Installation: domain.Installation{ID: "i", PrincipalID: "p-1"}}
 }
 
@@ -53,12 +53,12 @@ func TestTraceNamesTheFirstRefusingLinkAndKeepsWalking(t *testing.T) {
 	}{
 		{"every link holds", func() decide.Call {
 			c := traced(reads)
-			c.Role, c.Binding, c.Envelope = "reader", "rows", allows("invoke", "define", "read")
+			c.Role, c.Binding, c.Envelope = "user", "rows", allows("invoke", "define", "read")
 			return c
 		}, "role=admitted ceiling=admitted envelope=admitted policy=admitted owner=admitted", "", ""},
 		{"the role names less than the method requires", func() decide.Call {
 			c := traced(reads)
-			c.Role, c.Binding, c.Envelope = "steward", "rows", allows("invoke", "define", "read")
+			c.Role, c.Binding, c.Envelope = "admin", "rows", allows("invoke", "define", "read")
 			return c
 		}, "role=refused ceiling=refused envelope=refused policy=refused owner=refused", "role", "requires store.types:read"},
 		{"the envelope grants define and no read, alone", func() decide.Call {
@@ -69,17 +69,17 @@ func TestTraceNamesTheFirstRefusingLinkAndKeepsWalking(t *testing.T) {
 		}, "role=admitted ceiling=admitted envelope=refused policy=refused policy copy=refused owner=refused", "envelope", "headless store.types:read"},
 		{"an envelope withholding what this method does not need refuses nothing", func() decide.Call {
 			c := traced(reads)
-			c.Role, c.Binding, c.Envelope = "reader", "rows", allows("invoke", "read")
+			c.Role, c.Binding, c.Envelope = "user", "rows", allows("invoke", "read")
 			return c
 		}, "role=admitted ceiling=admitted envelope=admitted policy=admitted owner=admitted", "", ""},
 		{"an envelope naming no such binding", func() decide.Call {
 			c := traced(reads)
-			c.Role, c.Binding = "reader", "rows"
+			c.Role, c.Binding = "user", "rows"
 			return c
 		}, "role=admitted ceiling=admitted envelope=refused policy=refused owner=refused", "envelope", "no operation binding"},
 		{"an envelope that could not be read is never a pass", func() decide.Call {
 			c := traced(reads)
-			c.Role, c.Binding, c.EnvelopeUnread = "reader", "rows", "open module-envelope.yaml: no such file"
+			c.Role, c.Binding, c.EnvelopeUnread = "user", "rows", "open module-envelope.yaml: no such file"
 			return c
 		}, "role=admitted ceiling=admitted envelope=unread policy=admitted owner=admitted", "envelope", "no such file"},
 		{"declared open where owners are checked proves nothing", func() decide.Call {
@@ -100,13 +100,13 @@ func TestTraceNamesTheFirstRefusingLinkAndKeepsWalking(t *testing.T) {
 		}, "role=admitted ceiling=admitted envelope=admitted policy=admitted owner=unproven", "owner", "selected to no installation's owner"},
 		{"a role beyond its ceiling is refused whole", func() decide.Call {
 			c := traced(reads)
-			c.Caller.Roles["reader"] = decide.Scopes{ws("store.types", nil, "read"), ws("store.rows", nil, "read")}
-			c.Role, c.Binding, c.Envelope = "reader", "rows", allows("invoke", "define", "read")
+			c.Caller.Roles["user"] = decide.Scopes{ws("store.types", nil, "read"), ws("store.rows", nil, "read")}
+			c.Role, c.Binding, c.Envelope = "user", "rows", allows("invoke", "define", "read")
 			return c
 		}, "role=admitted ceiling=refused envelope=admitted policy=admitted owner=admitted", "ceiling", "grants beyond what catalog serves"},
 		{"a method the audience does not declare", func() decide.Call {
 			c := traced(reads)
-			c.Role, c.Binding, c.Method, c.Envelope = "reader", "rows", "/store.v1.Store/Other", allows("invoke", "read")
+			c.Role, c.Binding, c.Method, c.Envelope = "user", "rows", "/store.v1.Store/Other", allows("invoke", "read")
 			return c
 		}, "role=unproven ceiling=unproven envelope=refused policy=refused owner=unproven", "role", "declares no usable policy"},
 	} {
@@ -127,7 +127,7 @@ func TestTraceNamesTheFirstRefusingLinkAndKeepsWalking(t *testing.T) {
 // name, and one that could not be read is unread: neither reads as agreement.
 func TestTraceHoldsEveryCopyOfThePolicyToTheDeliveredOne(t *testing.T) {
 	c := traced(domain.MethodPolicy{Requires: decide.Scopes{ws("store.types", nil, "read")}})
-	c.Role, c.Binding = "reader", "rows"
+	c.Role, c.Binding = "user", "rows"
 	c.Envelope = &domain.Binding{Audience: "shelf", InvokeScopes: decide.Scopes{ws("store.types", nil, "read")}}
 	c.Statements = []decide.Statement{
 		{Where: "same", Declared: true, Policy: domain.MethodPolicy{Requires: decide.Scopes{ws("store.types", nil, "read")}}},

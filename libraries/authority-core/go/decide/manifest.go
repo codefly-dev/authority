@@ -36,6 +36,30 @@ func ValidateModule(m domain.Module) error {
 	return noOwners(m)
 }
 
+// PageRoles holds what a NEW generation declares to the two roles a person
+// holds on a solution or a module page: a target declaring roles declares
+// exactly admin (or, for the stopgap, its legacy name,
+// domain.LegacyInstallerRole) and user. Which roles exist is decided here,
+// never by the contract's reader (core reads roles as declared). The Service
+// applies it to every generation it admits, applies or pre-checks
+// (authority.Service.Admit, ApplyModule), never to one it already holds, read
+// again (RereadModule): the core's own model is wider by design, carrying the
+// old names a crossover moves (domain.CrossoverRole) at the next delivery.
+func PageRoles(m domain.Module) error {
+	if len(m.Roles) == 0 || (m.Kind != domain.KindSolution && !m.Page) {
+		return nil // none declared, or roles on a module without a page, which ValidateModule refuses as such
+	}
+	for _, name := range slices.Sorted(maps.Keys(m.Roles)) {
+		if name != domain.UserRole && !domain.IsAdminRole(name) {
+			return domain.Refuse("%s declares role %q, which is neither %q nor %q: a solution, or a module page declaring roles, declares exactly those two", m.Name, name, domain.AdminRole, domain.UserRole)
+		}
+	}
+	if _, ok := m.Roles[domain.UserRole]; !ok {
+		return domain.Refuse("%s declares %d role(s) and none is %q: a solution, or a module page declaring roles, declares %q beside %q, what a person does with it day to day (a module page declaring none derives %q only from a kind it serves read or write on, so one serving neither declares its roles)", m.Name, len(m.Roles), domain.UserRole, domain.UserRole, domain.AdminRole, domain.UserRole)
+	}
+	return nil
+}
+
 // Unreached refuses, by name, a scope a role of m names through one of its
 // bindings that the composition (modules by principal) does not reach from
 // that binding (ReachedThrough). A walk that meets a module not composed yet
@@ -206,6 +230,17 @@ func validateModule(m domain.Module) error {
 			}
 			if len(b.InvokeScopes) == 0 && len(b.LookupScopes) == 0 {
 				return domain.Refuse("role %q of %s names scopes through binding %q, which carries nothing for a person (no invoke or lookup scopes)", name, m.Name, id)
+			}
+			// A binding addressed to the target itself has no downstream,
+			// and the target serves its own kinds here: either is granted
+			// directly, within what it serves, never reached through.
+			if b.Audience == m.Principal {
+				return domain.Refuse("role %q of %s names scopes through binding %q, which is addressed to %s itself; a scope on it is granted directly", name, m.Name, id, m.Name)
+			}
+			for _, sc := range m.Through[name][id] {
+				if slices.ContainsFunc(Served(m), func(own *basev0.WorkScopeV1) bool { return own.GetResourceKind() == sc.GetResourceKind() }) {
+					return domain.Refuse("role %q of %s names %s through binding %q, a kind %s serves itself; it is granted directly", name, m.Name, sc.GetResourceKind(), id, m.Name)
+				}
 			}
 		}
 	}

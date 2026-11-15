@@ -1,0 +1,162 @@
+{
+  "authority": {
+    "principal": "notebook",
+    "installation_role": "none",
+    "edge_dependencies": [
+      {
+        "module": "tracing",
+        "presence": "optional"
+      },
+      {
+        "module": "annotations",
+        "presence": "required"
+      }
+    ],
+    "source_governance": [
+      "notebook.page:write"
+    ],
+    "bindings": [
+      {
+        "id": "store",
+        "audience": "store",
+        "operations": {
+          "invoke": [
+            "store.collection:read",
+            "store.item:read",
+            "store.item:write"
+          ]
+        }
+      },
+      {
+        "id": "publisher",
+        "audience": "registry",
+        "operations": {
+          "headless": [
+            "registry.definitions:publish"
+          ]
+        }
+      }
+    ],
+    "queues": [
+      "notebook-events"
+    ],
+    "namespaces": [
+      "notebook"
+    ],
+    "resource_kinds": [
+      "notebook.page",
+      "notebook.catalogue"
+    ]
+  },
+  "document": {
+    "scope_ceilings": [
+      {
+        "resource_kind": "notebook.page",
+        "actions": [
+          "read",
+          "write"
+        ]
+      },
+      {
+        "resource_kind": "notebook.catalogue",
+        "actions": [
+          "read"
+        ]
+      }
+    ],
+    "roles": [
+      {
+        "name": "admin",
+        "scopes": [
+          {
+            "resource_kind": "notebook.page",
+            "actions": [
+              "read",
+              "write"
+            ]
+          },
+          {
+            "resource_kind": "store.item",
+            "actions": [
+              "read",
+              "write"
+            ]
+          }
+        ],
+        "installation_owned_scopes": [
+          {
+            "resource_kind": "store.collection",
+            "actions": [
+              "read"
+            ]
+          }
+        ],
+        "through": [
+          {
+            "binding": "store",
+            "scopes": [
+              {
+                "resource_kind": "model.profiles",
+                "actions": [
+                  "invoke",
+                  "read"
+                ]
+              },
+              {
+                "resource_kind": "archive.entry",
+                "actions": [
+                  "read"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "user",
+        "scopes": [
+          {
+            "resource_kind": "notebook.page",
+            "actions": [
+              "read"
+            ]
+          },
+          {
+            "resource_kind": "store.item",
+            "actions": [
+              "read"
+            ]
+          }
+        ],
+        "through": [
+          {
+            "binding": "store",
+            "scopes": [
+              {
+                "resource_kind": "model.profiles",
+                "actions": [
+                  "invoke"
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "owner_aware": true,
+    "shared_kinds": [
+      "notebook.catalogue"
+    ],
+    "installation_role": "none",
+    "edge_dependencies": [
+      {
+        "module": "tracing",
+        "presence": "optional"
+      },
+      {
+        "module": "annotations",
+        "presence": "required"
+      }
+    ]
+  }
+}

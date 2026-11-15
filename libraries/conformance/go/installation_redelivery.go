@@ -182,33 +182,45 @@ func (c *client) installationSurvivesDelivery(t *testing.T, ctx context.Context,
 			_, err = install(t)
 			refused(t, err, codes.PermissionDenied, "already installed")
 		})
-		t.Run("a redelivery adding a role offers an upgrade, and the added role is granted to nobody until it is approved", func(t *testing.T) {
-			// Generation 4 declares admin alone: dropping user narrows, so the
-			// installation re-converges and the user grant ends with it.
-			deliver(4)
+		t.Run("a redelivery narrowing a role re-converges, and widening it again is held until it is approved", func(t *testing.T) {
+			// A delivery declares exactly admin and user, so a role is never
+			// added or dropped: what moves is what a role grants. Generation 4
+			// narrows user to the page alone, so the installation re-converges
+			// and the grant holds the narrower role.
+			narrowed := map[string]any{"name": "user", "scopes": []any{scopeAsk(redeliveredPage, []string{"read"}, nil)}}
+			deliver(4, narrowed)
 			stands(t, listed(t), 4, false)
-			if grants(t, id) != 0 {
-				t.Fatal("the grant of a dropped role outlived it")
+			if grants(t, id) != 1 {
+				t.Fatal("narrowing a role ended its grant")
 			}
-			// Generation 5 adds user back: a role added asks more, so the
-			// installation stands on its consent, where user is granted to
-			// nobody, until a fresh review and Install upgrade it.
+			out, err := issue()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := kinds(out); !slices.Equal(got, []string{redeliveredPage}) {
+				t.Fatalf("the holder reaches %v under the narrowed role, want the page alone", got)
+			}
+			// Generation 5 widens user back: a role reaching further asks
+			// more, so the installation stands on its consent, where the
+			// holder reaches the page alone, until a fresh review and Install.
 			deliver(5, user)
 			stands(t, listed(t), 4, true)
-			refused(t, grantUser(), codes.NotFound, `declares no role "user"`)
+			if out, err = issue(); err != nil {
+				t.Fatal(err)
+			}
+			if got := kinds(out); !slices.Equal(got, []string{redeliveredPage}) {
+				t.Fatalf("the holder reaches %v before the widening is approved, want the page alone", got)
+			}
 			upgraded, err := install(t)
 			if err != nil {
 				t.Fatal(err)
 			}
 			stands(t, upgraded, 5, false)
-			if err := grantUser(); err != nil {
-				t.Fatalf("the added role is not grantable once upgraded: %v", err)
-			}
-			if grants(t, id) != 1 {
-				t.Fatal("the user grant was not recorded")
-			}
 			if held, err = issue(); err != nil {
 				t.Fatal(err)
+			}
+			if got := kinds(held); !slices.Equal(got, []string{redeliveredDraft, redeliveredPage}) {
+				t.Fatalf("the holder reaches %v once the widening is approved, want both kinds", got)
 			}
 		})
 		t.Run("a redelivery widening a binding offers an upgrade", func(t *testing.T) {

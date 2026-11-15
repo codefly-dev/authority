@@ -1,0 +1,44 @@
+# A role naming scopes through an optional binding the composition fills
+# none of the slots of: the binding is left out, and so is what the role
+# names through it.
+schema: codefly/module-contract/v1
+principal: notebook
+owner_aware: true
+installation_role: none
+namespaces: []
+queues: []
+scope_ceilings:
+    - resource_kind: notebook.page
+      actions: [read]
+roles:
+    - name: admin
+      scopes:
+          - resource_kind: notebook.page
+            actions: [read]
+          - resource_kind: store.item
+            actions: [read]
+            through: store
+          - resource_kind: archive.entry
+            actions: [read]
+            through: archive
+    - name: user
+      scopes:
+          - resource_kind: notebook.page
+            actions: [read]
+bindings:
+    - id: store
+      operations: [invoke]
+      audience: {from: notebook-audiences/store-audience}
+      scope_ceiling:
+          invoke:
+              - resource_kind: store.item
+                actions: [read]
+    - id: archive
+      optional: true
+      operations: [invoke]
+      audience: {from: notebook-audiences/archive-audience}
+      scope_ceiling:
+          invoke:
+              - resource_kind: archive.entry
+                actions: [read]
+destinations: []

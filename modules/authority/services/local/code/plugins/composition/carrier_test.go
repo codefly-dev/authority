@@ -124,6 +124,7 @@ func TestRolesInTheDocumentAreHeldToTheRoleContract(t *testing.T) {
 	admin := func(scopes ...*authorityv1.WorkScopeV1) *compositionv1.RoleV1 {
 		return &compositionv1.RoleV1{Name: state.AdminRole, Scopes: scopes}
 	}
+	user := &compositionv1.RoleV1{Name: "user", Scopes: all}
 	for name, c := range map[string]struct {
 		alias  string
 		kind   solutionhost.Kind
@@ -136,11 +137,15 @@ func TestRolesInTheDocumentAreHeldToTheRoleContract(t *testing.T) {
 		"no roles at all": {"conformance-solution", solutionhost.KindSolution,
 			&compositionv1.AuthorityManifestV1{ScopeCeilings: all}, codes.PermissionDenied, "declares 0 role(s)"},
 		"a role beyond the kind's actions": {"conformance-solution", solutionhost.KindSolution,
-			&compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{admin(scope("conformance.page", "read", "write", "delete"))}}, codes.PermissionDenied, "grants beyond what conformance-solution serves"},
+			&compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{admin(scope("conformance.page", "read", "write", "delete")), user}}, codes.PermissionDenied, "grants beyond what conformance-solution serves"},
 		"a role on a kind the solution does not serve": {"conformance-solution", solutionhost.KindSolution,
-			&compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{admin(all[0], scope("documents", "read"))}}, codes.PermissionDenied, "grants beyond what conformance-solution serves"},
+			&compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{admin(all[0], scope("documents", "read")), user}}, codes.PermissionDenied, "grants beyond what conformance-solution serves"},
 		"a module declaring roles": {"conformance-probe", solutionhost.KindModule,
 			&compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{admin(all...)}}, codes.PermissionDenied, "a module's access is the organization's roles"},
+		"a role neither admin nor user": {"conformance-solution", solutionhost.KindSolution,
+			&compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{admin(all...), user, {Name: "viewer", Scopes: all}}}, codes.PermissionDenied, `declares role "viewer", which is neither "admin" nor "user"`},
+		"no user": {"conformance-solution", solutionhost.KindSolution,
+			&compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{admin(all...)}}, codes.PermissionDenied, `none is "user"`},
 		"a role named twice": {"conformance-solution", solutionhost.KindSolution,
 			&compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{admin(all...), admin(all...)}}, codes.InvalidArgument, "twice or unnamed"},
 	} {
