@@ -147,9 +147,6 @@ func Module(manifest *solutionhost.ModuleManifest, doc *Document) (domain.Module
 	if m.Kind != domain.KindSolution && m.Page && len(m.Roles) == 0 {
 		m.Roles = decide.StandardRoles(m)
 	}
-	if err := decide.PageRoles(m); err != nil {
-		return m, err
-	}
 	m.OwnerAware = doc.OwnerAware
 	m.InstallationRole = doc.InstallationRole
 	m.EdgeDependencies = slices.Clone(doc.EdgeDependencies)

@@ -76,6 +76,12 @@ type Config struct {
 	// a redelivery narrows the module, which the store applies to the host's
 	// record. false: every composed module is installed at every organization.
 	HostInstallsModules bool
+	// AnyRoleNames composes a NEW generation declaring roles other than
+	// exactly admin and user (decide.PageRoles), which every host refuses by
+	// leaving it false. It exists for this package's own fixtures, which model
+	// the core's wider role model (the old names a crossover moves) through
+	// hand-built modules; no host sets it.
+	AnyRoleNames bool
 }
 
 var (

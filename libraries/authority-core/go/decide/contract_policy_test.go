@@ -102,3 +102,15 @@ func hostRefusal(m domain.Module) error {
 	}
 	return decide.ValidateModule(m)
 }
+
+// A module page declaring no roles whose kinds serve neither read nor write
+// derives admin alone (StandardRoles), so it is refused saying so, not as if
+// it had declared one role.
+func TestAPageDerivingNoUserIsToldToDeclareItsRoles(t *testing.T) {
+	m := domain.Module{Name: "dials", Principal: "dials", Kind: domain.KindModule, Generation: 1, Page: true,
+		ResourceKinds: []*basev0.WorkScopeV1{rsc("dials.dial", "invoke")}}
+	m.Roles = decide.StandardRoles(m)
+	if err := decide.PageRoles(m); err == nil || !strings.Contains(err.Error(), `derives "user" only from a kind it serves read or write on`) {
+		t.Fatalf("a page deriving no user: %v", err)
+	}
+}

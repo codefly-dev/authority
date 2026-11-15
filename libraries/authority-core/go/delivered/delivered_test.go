@@ -264,17 +264,3 @@ func TestAModulePageWithoutRolesGetsTheStandardOnes(t *testing.T) {
 		t.Fatalf("a solution derives roles: %v %v", m.Roles, err)
 	}
 }
-
-// Which roles a delivery may declare is held where it is read, so every host
-// and every product's role plan refuses the same declaration (decide.PageRoles).
-func TestADeliveryDeclaringAThirdRoleIsRefusedWhereItIsRead(t *testing.T) {
-	doc := &delivered.Document{Module: "pages", Generation: 2,
-		ScopeCeilings: []*basev0.WorkScopeV1{ws("pages.page", "read")},
-		Roles: []delivered.Role{{Name: "admin", Scopes: []*basev0.WorkScopeV1{ws("pages.page", "read")}},
-			{Name: "user", Scopes: []*basev0.WorkScopeV1{ws("pages.page", "read")}},
-			{Name: "editor", Scopes: []*basev0.WorkScopeV1{ws("pages.page", "read")}}},
-	}
-	if _, err := delivered.Module(solutionManifest(), doc); err == nil || !strings.Contains(err.Error(), `declares role "editor", which is neither "admin" nor "user"`) {
-		t.Fatalf("a third role: %v", err)
-	}
-}

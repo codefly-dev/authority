@@ -36,14 +36,15 @@ func ValidateModule(m domain.Module) error {
 	return noOwners(m)
 }
 
-// PageRoles holds what a delivery declares to the two roles a person holds on
-// a solution or a module page: a target declaring roles declares exactly admin
-// (or, for the stopgap, its legacy name, domain.LegacyInstallerRole) and user.
-// Which roles exist is decided here, never by the contract's reader (core
-// reads roles as declared), and applied where a delivery is read
-// (delivered.Module), so every host and every product's role plan holds a
-// declaration to it. The core's own model is wider by design: it carries the
-// old names a crossover moves (domain.CrossoverRole).
+// PageRoles holds what a NEW generation declares to the two roles a person
+// holds on a solution or a module page: a target declaring roles declares
+// exactly admin (or, for the stopgap, its legacy name,
+// domain.LegacyInstallerRole) and user. Which roles exist is decided here,
+// never by the contract's reader (core reads roles as declared). The Service
+// applies it to every generation it admits, applies or pre-checks
+// (authority.Service.Admit, ApplyModule), never to one it already holds, read
+// again (RereadModule): the core's own model is wider by design, carrying the
+// old names a crossover moves (domain.CrossoverRole) at the next delivery.
 func PageRoles(m domain.Module) error {
 	if len(m.Roles) == 0 || (m.Kind != domain.KindSolution && !m.Page) {
 		return nil // none declared, or roles on a module without a page, which ValidateModule refuses as such
@@ -54,7 +55,7 @@ func PageRoles(m domain.Module) error {
 		}
 	}
 	if _, ok := m.Roles[domain.UserRole]; !ok {
-		return domain.Refuse("%s declares %d role(s) and none is %q: a solution, or a module page declaring roles, declares %q beside %q, what a person does with it day to day", m.Name, len(m.Roles), domain.UserRole, domain.UserRole, domain.AdminRole)
+		return domain.Refuse("%s declares %d role(s) and none is %q: a solution, or a module page declaring roles, declares %q beside %q, what a person does with it day to day (a module page declaring none derives %q only from a kind it serves read or write on, so one serving neither declares its roles)", m.Name, len(m.Roles), domain.UserRole, domain.UserRole, domain.AdminRole, domain.UserRole)
 	}
 	return nil
 }

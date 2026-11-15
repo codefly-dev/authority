@@ -350,5 +350,22 @@ func (c *client) modulePageRoles(t *testing.T, ctx context.Context, f Fixture) {
 			_, err := issue(viewer, readKind)
 			refused(t, err, codes.PermissionDenied, "")
 		})
+		t.Run("a new generation declaring admin alone, or a third role, is refused", func(t *testing.T) {
+			// A page declares exactly admin and user (decide.PageRoles): no
+			// delivery adds a role beside them or drops user. Last, because a
+			// refused generation changes nothing the steps above hold.
+			note := []any{scopeAsk(pageModuleNote, []string{"read", "write"}, nil)}
+			declaring := func(names ...string) map[string]any {
+				var declared []any
+				for _, name := range names {
+					declared = append(declared, map[string]any{"name": name, "scopes": note})
+				}
+				return map[string]any{"scope_ceilings": note, "installation_role": "none", "roles": declared}
+			}
+			_, err := c.deliverPage(ctx, f, page, pageModule, "module", 6, served, declaring("admin"), 0)
+			refused(t, err, codes.PermissionDenied, `none is "user"`)
+			_, err = c.deliverPage(ctx, f, page, pageModule, "module", 6, served, declaring("admin", "user", "viewer"), 0)
+			refused(t, err, codes.PermissionDenied, `declares role "viewer", which is neither "admin" nor "user"`)
+		})
 	})
 }
