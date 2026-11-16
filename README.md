@@ -378,9 +378,17 @@ that still names the old `installer` is accepted as declaring `admin`, and a
 holder of `installer` administers as an `admin` holder does; a declaration
 naming both `installer` and `admin` is refused. When a declaration of
 exactly `admin` and `user` replaces one whose grants hold the old names, those
-grants move instead of ending, at the approval of the update for a consented
-installation and on the delivery itself for one no consent holds, by a
-fixed rule: `installer` to `admin`, and `editor`, `viewer` and `steward` to
+grants move instead of ending, at the approval of the update for an
+installation an administrator consented to, and on the delivery itself for
+one no consent holds or one held only by the receipt composition took (a
+module page's), when the update asks nothing beyond the rename: nobody
+reviewed that receipt, so no administrator owes the approval. Beyond the
+rename (each new role measured against what the old roles crossing to it
+held together, declaration and reach) a composition-held page waits for
+its admin's approval like any consented installation. A host holding the
+renamed generation already, its grants left on the old names by a delivery
+before the crossover, moves them at its next delivery or start, when it
+replays that generation. The rule is fixed: `installer` to `admin`, and `editor`, `viewer` and `steward` to
 `user`, whatever they held. This is the owner's least-privilege decision
 (2026-11-15): a page's `user` holds only what the page's screens call, mostly
 reading, so a former editor or steward may hold less than before (on the

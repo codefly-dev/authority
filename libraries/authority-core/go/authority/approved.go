@@ -3,8 +3,10 @@ package authority
 import (
 	"context"
 	"errors"
+	"maps"
 	"slices"
 
+	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 )
 
@@ -227,4 +229,112 @@ func crossoverAsks(tx Tx, inst domain.Installation, next domain.Module) ([]strin
 	}
 	slices.Sort(out)
 	return out, nil
+}
+
+// crossesOnly reports whether next asks of inst, an installation held by the
+// receipt composition took (domain.ComposedConsent), nothing but the
+// page-role rename: a grant on inst holds an old role next crosses over
+// (crossoverAsks), and next asks nothing beyond the declaration inst's
+// receipt approved read with each old role under the name it crosses to
+// (crossedOver), neither of the declaration (decide.Widens) nor of the reach
+// (reachWidens); a receipt recording no reach proves nothing and is held.
+// Composition's receipt is nobody's review
+// (approvedGovernance), so no administrator owes an approval of the rename:
+// the receipt advances with the delivery and the grants cross over then, as
+// an unconsented installation's do (reconverge). Anything more next asks
+// holds the installation at its receipt, offering the upgrade, whose
+// approval crosses the grants over. STOPGAP (one release,
+// domain.LegacyInstallerRole).
+func crossesOnly(tx Tx, inst domain.Installation, next domain.Module, now offeredReach) (bool, error) {
+	if inst.Consent.OperationID != domain.ComposedConsent {
+		return false, nil
+	}
+	if moves, err := crossoverAsks(tx, inst, next); err != nil || len(moves) == 0 {
+		return false, err
+	}
+	approved, err := approvedModule(tx, inst, next)
+	if err != nil {
+		if unadoptable(err) {
+			return false, nil // held, and refused by name, until an approval
+		}
+		return false, err
+	}
+	crossed := crossedOver(approved, next)
+	if len(decide.Widens(crossed, next)) > 0 {
+		return false, nil
+	}
+	if inst.Consent.ReachDigest == "" {
+		return false, nil // no recorded reach to measure against: held, never assumed unchanged
+	}
+	reach, err := decide.DecodeReach(inst.Consent.Reach)
+	if err != nil {
+		return false, err
+	}
+	reach = crossedNames(reach, next, mergeReachRows)
+	return len(decide.ReachWidensWithin(reach, now.rows, crossed)) == 0, nil
+}
+
+// crossedOver is m with each old role named as the role it crosses to when
+// next replaces it (domain.CrossoverRole), the old roles crossing to one role
+// together holding what each held. STOPGAP (one release,
+// domain.LegacyInstallerRole).
+func crossedOver(m, next domain.Module) domain.Module {
+	m.Roles = crossedNames(m.Roles, next, func(a, b decide.Scopes) decide.Scopes { return slices.Concat(a, b) })
+	m.Through = crossedNames(m.Through, next, func(a, b map[string]decide.Scopes) map[string]decide.Scopes {
+		out := map[string]decide.Scopes{}
+		maps.Copy(out, a)
+		for binding, scopes := range b {
+			out[binding] = slices.Concat(out[binding], scopes)
+		}
+		return out
+	})
+	return m
+}
+
+// crossedNames is in keyed by role, each old role's entry under the role it
+// crosses to when next replaces it (domain.CrossoverRole), merged with what
+// that role holds already. STOPGAP (one release, domain.LegacyInstallerRole).
+func crossedNames[V any](in map[string]V, next domain.Module, merge func(a, b V) V) map[string]V {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]V, len(in))
+	for name, v := range in {
+		if role, _, ok := domain.CrossoverRole(name, next.Roles); ok {
+			name = role
+		}
+		if held, ok := out[name]; ok {
+			v = merge(held, v)
+		}
+		out[name] = v
+	}
+	return out
+}
+
+// mergeReachRows is the reach of two roles held together: one row per
+// module, way and confinement, holding the scopes and the operations of
+// both. A row's policies are its module's, the same in both. STOPGAP (one
+// release, domain.LegacyInstallerRole).
+func mergeReachRows(a, b []domain.ReachRow) []domain.ReachRow {
+	out := slices.Clone(a)
+	for _, r := range b {
+		i := slices.IndexFunc(out, func(o domain.ReachRow) bool {
+			return o.Module == r.Module && o.Via == r.Via && o.Confinement == r.Confinement
+		})
+		if i < 0 {
+			out = append(out, r)
+			continue
+		}
+		o := out[i]
+		o.Scopes = slices.Concat(o.Scopes, r.Scopes)
+		o.Operations = slices.Compact(slices.Sorted(slices.Values(slices.Concat(o.Operations, r.Operations))))
+		policies := maps.Clone(r.Policies)
+		if policies == nil {
+			policies = map[string]domain.MethodPolicy{}
+		}
+		maps.Copy(policies, o.Policies)
+		o.Policies = policies
+		out[i] = o
+	}
+	return out
 }

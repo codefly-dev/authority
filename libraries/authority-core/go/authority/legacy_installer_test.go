@@ -49,6 +49,27 @@ func grantsOf(h *harness) []string {
 	return out
 }
 
+// reviewed makes the page's consent at acme an administrator's, as an
+// approved upgrade leaves it, instead of the receipt composition took: the
+// approval path, on which the page-role rename waits for an administrator
+// (composition's receipt advances on it alone, composed_crossover_test.go).
+func reviewed(h *harness) {
+	h.t.Helper()
+	if err := h.store.Write(h.ctx, func(tx authority.Tx) error {
+		i, err := tx.Installation(h.inst(acme, "pages").ID)
+		if err != nil {
+			return err
+		}
+		if i.Consent.OperationID != domain.ComposedConsent {
+			return errors.New("the page is not held by composition's receipt")
+		}
+		i.Consent.OperationID = "approved-by-alex"
+		return tx.PutInstallation(i)
+	}); err != nil {
+		h.t.Fatal(err)
+	}
+}
+
 func (h *harness) grantAs(caller, role, person string) error {
 	_, err := h.svc.GrantRole(h.ctx, h.person(caller), authority.RoleRequest{Organization: acme, InstallationID: h.inst(acme, "pages").ID, Role: role, PersonID: person})
 	return err
@@ -83,8 +104,8 @@ func TestALegacyInstallerHolderAdministersAndApprovesAPage(t *testing.T) {
 	code(t, h.grantAs("maya", "editor", "dev"), domain.Denied)
 }
 
-// The reviewer's probe, on the consented path: a page held at {installer,
-// viewer} is redelivered as {admin, user}. Until an administrator approves,
+// The reviewer's probe, on the consented path: a page an administrator
+// approved at {installer, viewer} is redelivered as {admin, user}. Until an administrator approves,
 // the approved declaration answers and the old grants stand; the approval
 // moves Rémi's installer grant to admin and Maya's viewer grant to user,
 // journaled as a grant and a revocation by the approver. Rémi then
@@ -97,6 +118,7 @@ func TestApprovingTheTwoRoleDeliveryMovesTheOldGrants(t *testing.T) {
 	}
 	h.grant("pages", domain.LegacyInstallerRole, "remi")
 	h.grant("pages", "viewer", "maya")
+	reviewed(h)
 
 	if _, err := svc.ApplyModule(h.ctx, twoRolePage(2, "read")); err != nil {
 		t.Fatal(err)
@@ -218,9 +240,11 @@ func TestADeliveryMovesTheOldGrantsOfAnUnconsentedInstallation(t *testing.T) {
 
 // A page whose roles were derived: the names derived before the rename
 // (installer, editor, viewer) become the two derived now
-// (decide.StandardRoles) through the same move, at the approval of the
-// update the new derivation offers: the editor and the viewer hold user.
-func TestApprovingADerivedPagesNewRolesMovesTheOldGrants(t *testing.T) {
+// (decide.StandardRoles) through the same move. The derived user holds what
+// the editor did, so the new derivation asks nothing the old roles together
+// did not, and composition's receipt advances on it: the delivery moves the
+// grants, and the editor and the viewer hold user.
+func TestADerivedPagesNewRolesMoveTheOldGrantsWithTheDelivery(t *testing.T) {
 	h := newHarness(t)
 	rw, r := []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}, []*basev0.WorkScopeV1{sc("pages.note", "read")}
 	if _, err := h.svc.ApplyModule(h.ctx, legacyPage(1, rw, rw, r)); err != nil {
@@ -234,11 +258,8 @@ func TestApprovingADerivedPagesNewRolesMovesTheOldGrants(t *testing.T) {
 	if _, err := h.svc.ApplyModule(h.ctx, derived); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.approvePage(h.svc, "remi"); err != nil {
-		t.Fatalf("the installer holder's approval: %v", err)
-	}
 	if got := grantsOf(h); !slices.Equal(got, []string{"admin remi", "user ines", "user maya"}) {
-		t.Fatalf("the approval left grants %v, want admin remi, user ines and user maya", got)
+		t.Fatalf("the delivery left grants %v, want admin remi, user ines and user maya", got)
 	}
 	if !holds(h.must(h.root("maya", "pages")), "pages.note", "write") {
 		t.Fatal("maya, now user, does not hold the derived user's write")
@@ -280,16 +301,14 @@ func TestTheCrossoverGrantsEachSubjectOnce(t *testing.T) {
 	h.grant("pages", "viewer", "maya")
 	h.grant("pages", domain.UserRole, "maya")
 	h.grant("pages", domain.LegacyInstallerRole, "remi")
-	// The new user reads and writes, so it covers the editor and the viewer.
+	// The new user reads and writes, so it covers the editor and the viewer:
+	// the delivery moves the grants of a page composition holds.
+	*events = nil
 	if _, err := svc.ApplyModule(h.ctx, twoRolePage(2, "read", "write")); err != nil {
 		t.Fatal(err)
 	}
-	*events = nil
-	if _, err := h.approvePage(svc, "remi"); err != nil {
-		t.Fatal(err)
-	}
 	if got := grantsOf(h); !slices.Equal(got, []string{"admin remi", "user ines", "user maya"}) {
-		t.Fatalf("the approval left grants %v", got)
+		t.Fatalf("the delivery left grants %v", got)
 	}
 	granted := map[string]int{}
 	for _, e := range *events {
@@ -358,6 +377,7 @@ func TestApprovingTheWikiShapeMovesTheEditorAndTheStewardToUser(t *testing.T) {
 	h.grant("pages", "editor", "ines")
 	h.grant("pages", "viewer", "maya")
 	h.grant("pages", "steward", "tam")
+	reviewed(h)
 	if _, err := svc.ApplyModule(h.ctx, twoRolePage(2, "read")); err != nil {
 		t.Fatal(err)
 	}
@@ -405,6 +425,7 @@ func TestAReviewBehindTheDeliveredGenerationNamesEveryMove(t *testing.T) {
 	}
 	h.grant("pages", domain.LegacyInstallerRole, "remi")
 	h.grant("pages", "viewer", "maya")
+	reviewed(h)
 	if _, err := svc.ApplyModule(h.ctx, legacyPage(2, rw, nil, rw)); err != nil {
 		t.Fatal(err)
 	}
@@ -446,7 +467,7 @@ func TestAReviewOfAnUnknownGenerationNamesEveryMove(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		i.Consent.Generation, i.Consent.Digest = 0, ""
+		i.Consent.OperationID, i.Consent.Generation, i.Consent.Digest = "approved-by-alex", 0, ""
 		return tx.PutInstallation(i)
 	}); err != nil {
 		t.Fatal(err)

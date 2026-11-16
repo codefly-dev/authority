@@ -34,7 +34,11 @@ const (
 //     one whose grants hold the old names, those grants move instead of
 //     ending, by a fixed rule (CrossoverRole, applied where undeclared grants
 //     are dropped; Crossovers, listed among what an update asks): installer
-//     to admin, every other old role (editor, viewer, steward) to user. This
+//     to admin, every other old role (editor, viewer, steward) to user. They
+//     move at the approval of an administrator's consent, and with the
+//     delivery, or the host's next replay of a generation it holds already,
+//     for an installation no consent holds or one composition's receipt
+//     holds when the update asks nothing beyond the rename. This
 //     is the owner's least-privilege decision (2026-11-15): a page's user
 //     holds only what the page's screens call, so a former editor or steward
 //     may hold less than before, and an admin promotes whoever needs more;
@@ -43,8 +47,9 @@ const (
 //     deliberate grant.
 //
 // TODO(next release): delete LegacyInstallerRole, CrossoverRole, Crossovers,
-// CrossoverFrom, CrossoverBasis and its values, and the alias in IsAdminRole
-// and DeclaredAdminRole; roles_test.go and the legacy_installer tests pin
+// CrossoverFrom, CrossoverBasis and its values, Renamed, the alias in IsAdminRole
+// and DeclaredAdminRole, and the core's crossesOnly and its replay pass
+// (reconverge's strandedOnly); roles_test.go and the legacy_installer tests pin
 // both, so removal is deliberate.
 const LegacyInstallerRole = "installer"
 
@@ -74,9 +79,7 @@ const (
 // keeps a custom role beside them and drops one named like an old role ends
 // its grants as any dropped role's. STOPGAP: see LegacyInstallerRole.
 func CrossoverRole[V any](old string, next map[string]V) (role, basis string, ok bool) {
-	_, admin := next[AdminRole]
-	_, user := next[UserRole]
-	if len(next) != 2 || !admin || !user {
+	if !Renamed(next) {
 		return "", "", false
 	}
 	switch old {
@@ -86,6 +89,15 @@ func CrossoverRole[V any](old string, next map[string]V) (role, basis string, ok
 		return UserRole, BasisLegacyToUser, true
 	}
 	return "", "", false
+}
+
+// Renamed reports whether roles are exactly admin and user: the
+// declaration the page-role rename crosses old grants over to
+// (CrossoverRole). STOPGAP: see LegacyInstallerRole.
+func Renamed[V any](roles map[string]V) bool {
+	_, admin := roles[AdminRole]
+	_, user := roles[UserRole]
+	return len(roles) == 2 && admin && user
 }
 
 // Crossovers lists, in a review's words, the old roles approved declares
