@@ -396,7 +396,7 @@ func (e *Edge) session(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	usable, refused := e.usable(r.Context(), bearer)
+	usable, refused := e.usable(r.Context(), bearer, sess.GetOrganizationId())
 	e.namespaces(r.Context(), bearer, sess.GetOrganizationId(), usable)
 	writeJSON(w, http.StatusOK, map[string]any{
 		// This edge mounts its public module procedures at the root. Publish
@@ -425,7 +425,15 @@ func (e *Edge) evict(bearer string) {
 
 // usable asks each target independently. Every failure retains its named reason
 // without hiding the session or waiting serially for each target's timeout.
-func (e *Edge) usable(ctx context.Context, bearer string) ([]installation, map[string]string) {
+//
+// A page whose roles reach only through its bindings (a solution serving
+// nothing of its own) is issued nothing at itself: the authority hands nobody
+// an empty capability, and decides each of the page's calls through the
+// binding (IssueForPage). Whether such a page is the person's to open is the
+// host's answer to which installations they hold a role on (ListHeld), so a
+// target the person holds a role on is usable with that installation, its
+// refusal at the target itself dropped.
+func (e *Edge) usable(ctx context.Context, bearer, organization string) ([]installation, map[string]string) {
 	type result struct {
 		name string
 		wc   held
@@ -448,8 +456,36 @@ func (e *Edge) usable(ctx context.Context, bearer string) ([]installation, map[s
 		}
 		usable = append(usable, installation{ID: r.wc.installation, Target: r.name, ModuleAPIBase: pageRoute(r.name)})
 	}
+	for _, page := range e.heldPages(ctx, bearer, organization) {
+		if _, wasRefused := refused[page.Target]; wasRefused {
+			delete(refused, page.Target)
+			usable = append(usable, page)
+		}
+	}
 	sort.Slice(usable, func(i, j int) bool { return usable[i].Target < usable[j].Target })
 	return usable, refused
+}
+
+// heldPages are the active installations the person holds a role on, as the
+// host answers (ListHeld); none when the edge composes no installation
+// interface or the host does not answer.
+func (e *Edge) heldPages(ctx context.Context, bearer, organization string) []installation {
+	if e.Installer == nil || organization == "" {
+		return nil
+	}
+	held, err := e.Installer.ListHeld(metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+bearer), &installationv1.ListHeldRequest{OrganizationId: organization})
+	if err != nil {
+		return nil
+	}
+	var out []installation
+	for _, h := range held.GetInstallations() {
+		i := h.GetInstallation()
+		if len(h.GetRoles()) == 0 || i.GetStatus() != installationv1.Installation_STATUS_ACTIVE {
+			continue
+		}
+		out = append(out, installation{ID: i.GetId(), Target: i.GetTarget(), ModuleAPIBase: pageRoute(i.GetTarget())})
+	}
+	return out
 }
 
 // namespaces names the namespace of each usable installation from List, the

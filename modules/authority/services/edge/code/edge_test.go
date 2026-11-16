@@ -528,7 +528,7 @@ func TestSessionIssuesConcurrently(t *testing.T) {
 	s := &blockedIssuer{standIn: &standIn{}, started: make(chan string, 2), release: make(chan struct{})}
 	e := &Edge{Authority: s, Modules: map[string]Module{"a": {}, "b": {}}}
 	done := make(chan struct{})
-	go func() { e.usable(context.Background(), "remi-session"); close(done) }()
+	go func() { e.usable(context.Background(), "remi-session", "acme"); close(done) }()
 	defer func() { close(s.release); <-done }()
 	for range 2 {
 		select {
@@ -634,5 +634,52 @@ func TestAPagesModuleCallNamesThePageToTheAuthority(t *testing.T) {
 	}
 	if res, _ := f.do(t, http.MethodGet, "/api/solutions/org-directory/proxy/_browser/records.v1.RecordsService/Query", http.Header{"Cookie": {cookie.String()}}); res.StatusCode != http.StatusNotFound {
 		t.Fatalf("a GET answered %d", res.StatusCode)
+	}
+}
+
+// holdings is the host's installation interface answering ListHeld with what
+// the person holds; every other procedure is setupHost's.
+type holdings struct {
+	*setupHost
+	held []*installationv1.HeldInstallation
+}
+
+func (h holdings) ListHeld(context.Context, *installationv1.ListHeldRequest, ...grpc.CallOption) (*installationv1.ListHeldResponse, error) {
+	return &installationv1.ListHeldResponse{Installations: h.held}, nil
+}
+
+// A page whose roles reach only through its bindings is issued nothing at
+// itself, so its own target refuses the person. That the person holds a role
+// on its installation is the host's answer (ListHeld): the page is theirs to
+// open, at that installation, and the refusal at the target itself is no
+// reason not to. An installation they hold no role on, or one not active,
+// stays refused with the authority's reason.
+func TestAPageHeldThroughItsBindingsIsUsable(t *testing.T) {
+	f := newFixture(t)
+	cookie := f.signIn(t)
+	held := func(id, target string, roles []string, status installationv1.Installation_Status) *installationv1.HeldInstallation {
+		return &installationv1.HeldInstallation{Roles: roles, Installation: &installationv1.Installation{Id: id, OrganizationId: "acme", Target: target, Status: status}}
+	}
+	modules := map[string]Module{
+		"records": {Name: "records", REST: mustURL(t, f.rest.URL)},
+		"secrets": {Name: "secrets", REST: mustURL(t, f.secrets.URL)},
+		"wiki":    {Name: "wiki", REST: mustURL(t, f.secrets.URL)},
+	}
+	host := holdings{&setupHost{standIn: f.authority}, []*installationv1.HeldInstallation{
+		held("secrets-1", "secrets", []string{"admin"}, installationv1.Installation_STATUS_ACTIVE),
+		held("wiki-1", "wiki", nil, installationv1.Installation_STATUS_ACTIVE),
+	}}
+	res, who := sessionOf(t, &Edge{Sessions: f.authority, Authority: f.authority, Installer: host, Modules: modules}, cookie)
+	installed, _ := who["installations"].([]any)
+	refused, _ := who["refused"].(map[string]any)
+	if res.Code != http.StatusOK || len(installed) != 2 || len(refused) != 1 || refused["wiki"] == nil {
+		t.Fatalf("session answered %d: %s", res.Code, res.Body)
+	}
+	if secrets, _ := installed[1].(map[string]any); secrets["target"] != "secrets" || secrets["id"] != "secrets-1" || secrets["moduleApiBase"] != "/api/solutions/secrets/proxy/_browser" {
+		t.Fatalf("held page = %v", secrets)
+	}
+	host.held[0] = held("secrets-1", "secrets", []string{"admin"}, installationv1.Installation_STATUS_UNSPECIFIED)
+	if _, who := sessionOf(t, &Edge{Sessions: f.authority, Authority: f.authority, Installer: host, Modules: modules}, cookie); who["refused"].(map[string]any)["secrets"] == nil {
+		t.Fatalf("an inactive installation was offered: %v", who)
 	}
 }
