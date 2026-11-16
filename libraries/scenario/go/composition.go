@@ -133,10 +133,8 @@ func Start(ctx context.Context, options Options) (*Composition, error) {
 	if timeout == 0 {
 		timeout = 10 * time.Minute
 	}
-	// Named ports: a hop names its upstreams and an upstream names the hop, a
-	// cycle no ephemeral port can be told into.
 	opts := []sdk.OptionFunc{sdk.WithDirectory(anchor), sdk.WithNamingScope(scope), sdk.WithTimeout(timeout),
-		sdk.WithCommandScopedEnvironment(), sdk.WithNamedPorts(),
+		sdk.WithCommandScopedEnvironment(),
 		sdk.WithExcludedDependencies(options.Without...), sdk.WithExcludedWorkspaceConfigurations(options.WithoutConfigurations...)}
 	for _, v := range options.Set {
 		opts = append(opts, sdk.WithWorkspaceConfiguration(v.Name, v.Key, v.Value))
@@ -321,3 +319,38 @@ func (c *Composition) install(ctx context.Context, administrator, target string)
 // Origin is the edge's origin, for a scenario that drives something other
 // than a call (a browser, a tool) against the same composition.
 func (c *Composition) Origin() string { return c.origin }
+
+// Install installs target for the organisation administrator administers,
+// with the consent the authority reviews: a scenario's own installation, in an
+// organisation no other scenario touches, so what it reads is what it wrote.
+func (c *Composition) Install(t testing.TB, administrator, target string) {
+	t.Helper()
+	if err := c.install(context.Background(), administrator, target); err != nil {
+		t.Fatalf("install %s as %s: %v", target, administrator, err)
+	}
+}
+
+// Grant grants role on target's installation to person, as administrator.
+func (c *Composition) Grant(t testing.TB, administrator, target, role, person string) {
+	t.Helper()
+	ctx, admin, err := c.administer(context.Background(), administrator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	installations := installationv1.NewInstallationServiceClient(c.conn)
+	listed, err := installations.List(ctx, &installationv1.ListRequest{OrganizationId: admin.GetOrganizationId()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, installation := range listed.GetInstallations() {
+		if installation.GetTarget() != target {
+			continue
+		}
+		if _, err := installations.GrantRole(ctx, &installationv1.GrantRoleRequest{OrganizationId: admin.GetOrganizationId(),
+			InstallationId: installation.GetId(), Role: role, PersonId: person}); err != nil {
+			t.Fatalf("grant %s on %s to %s as %s: %v", role, target, person, administrator, err)
+		}
+		return
+	}
+	t.Fatalf("%s is not installed for %s", target, admin.GetOrganizationId())
+}
