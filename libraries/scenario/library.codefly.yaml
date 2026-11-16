@@ -1,0 +1,11 @@
+# Declared like the conformance library. The permission scenario harness: a
+# composition started by Codefly from `go test`, behind the local authority on
+# its fixture, called as named fixture people.
+kind: library
+name: scenario
+version: 0.0.0
+languages:
+    - name: go
+      path: go/
+      exports:
+        - github.com/codefly-dev/authority/libraries/scenario/go
