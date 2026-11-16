@@ -138,7 +138,10 @@ func declaredRoles(contract *modulecontract.Contract, resolved *modulecontract.R
 		delivered := resolved.Roles[index].Through
 		declared := DeclaredRole{Name: role.Name, InstallationOwnedScopes: declaredScopes(role.InstallationOwnedScopes)}
 		var own []modulecontract.CeilingScope
-		for _, scope := range role.Scopes {
+		// The role as resolved: its own scopes with every bundle it includes
+		// granted beside them (core's ResolvedRole.Scopes), never the
+		// contract's, which names an include by name only.
+		for _, scope := range resolved.Roles[index].Scopes {
 			if scope.Through == "" {
 				own = append(own, scope)
 				continue
