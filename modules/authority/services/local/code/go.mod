@@ -14,7 +14,8 @@ require (
 	github.com/codefly-dev/authority/libraries/fixture-composition/go v0.0.0
 	github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261111234045-1076f796c30f
 	github.com/codefly-dev/authority/libraries/resources/go v0.0.0
-	github.com/codefly-dev/core v0.19.32
+	github.com/codefly-dev/authority/libraries/solutionhost/go v0.0.0-20261116201553-33a9c067e6ce
+	github.com/codefly-dev/core v0.19.34-0.20261116201543-b919b702e8cf
 	github.com/codefly-dev/sdk-go v0.4.3
 	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.33.0
@@ -36,7 +37,6 @@ require (
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/codefly-dev/authority/libraries/solutionhost/go v0.0.0-00010101000000-000000000000
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/analysis v1.0.1 // indirect
