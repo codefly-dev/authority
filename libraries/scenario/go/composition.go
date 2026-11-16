@@ -74,7 +74,16 @@ type Options struct {
 	// the first scenario, each with the consent the authority reviews for it.
 	// A target already installed is left as it is.
 	Install []string
-	// Administrator installs: a fixture person who administers their
+	// Seated are the targets the fixture's people keep their roles on. The
+	// fixture seats its people on every role-gated target a run composes; a
+	// person who holds a product's role in a real organisation holds nothing
+	// on the pages of the modules behind it, and a blanket seat there hides a
+	// refusal the product's own role should have met. When Seated names any
+	// target, the administrator withdraws every role granted on every other
+	// installation before the first scenario. Empty leaves the fixture as it
+	// is.
+	Seated []string
+	// Administrator installs and withdraws: a fixture person who administers their
 	// organisation. Empty is "alice".
 	Administrator string
 }
@@ -201,6 +210,56 @@ func (c *Composition) connect(ctx context.Context, options Options) error {
 			return fmt.Errorf("install %s as %s: %w", target, administrator, err)
 		}
 	}
+	if len(options.Seated) > 0 {
+		if err := c.seatOnly(ctx, administrator, options.Seated); err != nil {
+			return fmt.Errorf("seat the fixture's people on %v alone, as %s: %w", options.Seated, administrator, err)
+		}
+	}
+	return nil
+}
+
+// administer is ctx carrying the administrator's own session at the host,
+// and their organisation.
+func (c *Composition) administer(ctx context.Context, administrator string) (context.Context, *sessionv1.FixturePerson, error) {
+	person, ok := c.people[administrator]
+	if !ok {
+		return nil, nil, fmt.Errorf("%s is not a fixture person", administrator)
+	}
+	session, err := sessionv1.NewSessionServiceClient(c.conn).SignIn(ctx, &sessionv1.SignInRequest{FixtureToken: person.GetFixtureToken()})
+	if err != nil {
+		return nil, nil, err
+	}
+	return metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+session.GetBearer()), person, nil
+}
+
+// seatOnly withdraws every role granted on every installation of the
+// administrator's organisation whose target is not one of seated.
+func (c *Composition) seatOnly(ctx context.Context, administrator string, seated []string) error {
+	ctx, person, err := c.administer(ctx, administrator)
+	if err != nil {
+		return err
+	}
+	org := person.GetOrganizationId()
+	installations := installationv1.NewInstallationServiceClient(c.conn)
+	listed, err := installations.List(ctx, &installationv1.ListRequest{OrganizationId: org})
+	if err != nil {
+		return err
+	}
+	for _, installation := range listed.GetInstallations() {
+		if slices.Contains(seated, installation.GetTarget()) {
+			continue
+		}
+		grants, err := installations.ListRoleGrants(ctx, &installationv1.ListRoleGrantsRequest{OrganizationId: org, InstallationId: installation.GetId()})
+		if err != nil {
+			return fmt.Errorf("the roles granted on %s: %w", installation.GetTarget(), err)
+		}
+		for _, grant := range grants.GetGrants() {
+			if _, err := installations.RevokeRole(ctx, &installationv1.RevokeRoleRequest{OrganizationId: org, InstallationId: installation.GetId(),
+				Role: grant.GetRole(), PersonId: grant.GetPersonId(), TeamId: grant.GetTeamId()}); err != nil {
+				return fmt.Errorf("withdraw %s on %s from %s%s: %w", grant.GetRole(), installation.GetTarget(), grant.GetPersonId(), grant.GetTeamId(), err)
+			}
+		}
+	}
 	return nil
 }
 
@@ -230,15 +289,10 @@ func key(name string) string { return strings.ToUpper(strings.ReplaceAll(name, "
 // install installs target for the administrator's organisation with the
 // consent the authority reviews, unless it is installed already.
 func (c *Composition) install(ctx context.Context, administrator, target string) error {
-	person, ok := c.people[administrator]
-	if !ok {
-		return fmt.Errorf("%s is not a fixture person", administrator)
-	}
-	session, err := sessionv1.NewSessionServiceClient(c.conn).SignIn(ctx, &sessionv1.SignInRequest{FixtureToken: person.GetFixtureToken()})
+	ctx, person, err := c.administer(ctx, administrator)
 	if err != nil {
 		return err
 	}
-	ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+session.GetBearer())
 	org := person.GetOrganizationId()
 	review, err := installationv1.NewOfferServiceClient(c.conn).ReviewOffer(ctx, &installationv1.ReviewRequest{OrganizationId: org, Target: target})
 	if err != nil {

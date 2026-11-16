@@ -103,3 +103,30 @@ func (e Expect) problem(got Outcome) string {
 	}
 	return ""
 }
+
+// Session is the person's session as the edge answers it to their browser:
+// who they are and the pages they may use.
+var Session = Call{Procedure: "GET /auth/session"}
+
+// Uses holds a Session answer to listing target among the pages the person
+// may use; UsesNothing holds it to listing none.
+func Uses(target string) func(Outcome) error {
+	return func(got Outcome) error {
+		installations, _ := got.Value("installations").([]any)
+		for i := range installations {
+			if got.Text(fmt.Sprintf("installations.%d.target", i)) == target {
+				return nil
+			}
+		}
+		refused, _ := got.Value("refused").(map[string]any)
+		return fmt.Errorf("the session lists %s among no page the person may use (refused: %v)", target, refused)
+	}
+}
+
+// UsesNothing: the session lists no page.
+func UsesNothing(got Outcome) error {
+	if installations, _ := got.Value("installations").([]any); len(installations) > 0 {
+		return fmt.Errorf("the session lists pages for a person who holds no role: %s", got.Body)
+	}
+	return nil
+}
