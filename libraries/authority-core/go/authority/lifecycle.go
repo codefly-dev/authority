@@ -366,7 +366,10 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 // source (composed before the core kept one) takes m.Source here, which the
 // host vouches for, and every later reading of it must come from that source.
 // A different delivery at the held generation is refused as ApplyModule
-// refuses it. The same declaration is a replay, which only records the source.
+// refuses it. The same declaration is a replay, which only records the source
+// and, for one release (domain.LegacyInstallerRole), moves the old-name
+// grants a delivery before the crossover left on an installation that would
+// advance on the rename without an approval (reconverge, strandedOnly).
 //
 // A changed declaration is a redelivery that keeps its generation: an
 // installation consented to is held at what it approved and its reach,
@@ -397,12 +400,16 @@ func (s *Service) applyModule(ctx context.Context, m domain.Module, reread bool)
 			return err
 		}
 		if a.replay {
-			if a.previous.Source != "" || m.Source == "" || !reread {
-				return nil
+			if a.previous.Source == "" && m.Source != "" && reread {
+				a.previous.Source = m.Source
+				if err := tx.PutModule(a.previous); err != nil {
+					return err
+				}
 			}
-			held := a.previous
-			held.Source = m.Source
-			return tx.PutModule(held)
+			// STOPGAP (one release, domain.LegacyInstallerRole): a host
+			// holding the renamed generation already crosses over the old
+			// grants its delivery left (reconverge, strandedOnly).
+			return s.reconverge(ctx, tx, a.previous, a.previous, true)
 		}
 		changed = a.reread
 		previous, exists, withdrawn := a.previous, a.exists, a.withdrawn
@@ -436,7 +443,7 @@ func (s *Service) applyModule(ctx context.Context, m domain.Module, reread bool)
 			if err != nil {
 				return err
 			}
-			if err := s.reconverge(ctx, tx, previous, stored); err != nil {
+			if err := s.reconverge(ctx, tx, previous, stored, false); err != nil {
 				return err
 			}
 		}
@@ -552,7 +559,16 @@ func (s *Service) dropGrantsAfterWithdrawal(ctx context.Context, tx Tx, m domain
 // one) follows the delivered declaration: it advances with every delivery,
 // so the grants of a role next no longer declares end now. No other grant is
 // touched here.
-func (s *Service) reconverge(ctx context.Context, tx Tx, previous, next domain.Module) error {
+//
+// STOPGAP (one release, domain.LegacyInstallerRole): an installation held by
+// composition's receipt advances on the page-role rename when next asks
+// nothing else of it (crossesOnly), and its grants cross over. strandedOnly
+// is the held generation delivered again (a replay): only an installation
+// whose grants hold an old role next crosses over, and which would advance
+// without an approval, moves; it is how a host that holds the renamed
+// generation already, its grants left on the old names by a delivery before
+// the crossover, converges at its next delivery or start.
+func (s *Service) reconverge(ctx context.Context, tx Tx, previous, next domain.Module, strandedOnly bool) error {
 	all, err := tx.Installations("")
 	if err != nil {
 		return err
@@ -576,7 +592,23 @@ func (s *Service) reconverge(ctx context.Context, tx Tx, previous, next domain.M
 		if inst.Target != previous.Name || inst.Status != domain.Active {
 			continue
 		}
-		moved := narrowed
+		crossing, err := crossesOnly(tx, inst, next, reach)
+		if err != nil {
+			return err
+		}
+		if strandedOnly && !crossing {
+			if inst.Consent.OperationID != "" {
+				continue
+			}
+			moves, err := crossoverAsks(tx, inst, next)
+			if err != nil {
+				return err
+			}
+			if len(moves) == 0 {
+				continue
+			}
+		}
+		moved := narrowed || strandedOnly
 		if inst.Consent.OperationID == "" {
 			if err := s.dropUndeclaredGrants(ctx, tx, inst, next, "delivery:"+next.Name); err != nil {
 				return err
@@ -585,6 +617,8 @@ func (s *Service) reconverge(ctx context.Context, tx Tx, previous, next domain.M
 			asks := widened
 			behind := inst.Consent.Generation != previous.Generation || inst.Consent.Digest != approvedDigest
 			switch {
+			case crossing:
+				asks = nil
 			case inst.Consent.Generation == 0:
 				asks = []string{"approved generation unknown: review and approve the delivered offer"}
 			case behind:
@@ -596,7 +630,7 @@ func (s *Service) reconverge(ctx context.Context, tx Tx, previous, next domain.M
 				}
 				asks = append(slices.Clone(asks), further...)
 			}
-			if behind {
+			if behind && !crossing {
 				// STOPGAP (one release, domain.LegacyInstallerRole): the
 				// declaration comparison above names no crossover here, so
 				// name each move the approval will make. A consent of unknown
