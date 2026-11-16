@@ -408,7 +408,11 @@ func (s *Service) applyModule(ctx context.Context, m domain.Module, reread bool)
 			}
 			// STOPGAP (one release, domain.LegacyInstallerRole): a host
 			// holding the renamed generation already crosses over the old
-			// grants its delivery left (reconverge, strandedOnly).
+			// grants its delivery left (reconverge, strandedOnly). Any other
+			// declaration has nothing to cross over to.
+			if !domain.Renamed(a.previous.Roles) {
+				return nil
+			}
 			return s.reconverge(ctx, tx, a.previous, a.previous, true)
 		}
 		changed = a.reread

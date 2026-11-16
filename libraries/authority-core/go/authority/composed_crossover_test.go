@@ -141,10 +141,10 @@ func TestARenameAskingMoreHoldsAComposedPage(t *testing.T) {
 // replay of the held generation (the boot's re-read of the delivery it
 // keeps) moves them, journaled with the crossover's Detail, whether
 // composition's receipt stands behind the rename, at it, or was never taken;
-// a later replay changes nothing.
+// a later replay changes nothing. A receipt recording no reach is held.
 func TestAHostHoldingTheRenamedGenerationMovesStrandedGrantsAtItsNextReplay(t *testing.T) {
 	const source = "sha256:the-signed-documents-of-pages-at-2"
-	for _, receipt := range []string{"behind", "at the rename", "none"} {
+	for _, receipt := range []string{"behind", "at the rename", "none", "behind, reach unrecorded"} {
 		t.Run(receipt, func(t *testing.T) {
 			hi := newHostInstalled(t)
 			var events []domain.Event
@@ -193,7 +193,7 @@ func TestAHostHoldingTheRenamedGenerationMovesStrandedGrantsAtItsNextReplay(t *t
 				}
 			}
 			switch receipt {
-			case "behind":
+			case "behind", "behind, reach unrecorded":
 				hold()
 				compose()
 			case "at the rename":
@@ -212,6 +212,19 @@ func TestAHostHoldingTheRenamedGenerationMovesStrandedGrantsAtItsNextReplay(t *t
 			if c := record().Consent; (receipt == "none") != (c.OperationID == "") {
 				t.Fatalf("setup: receipt %s, consent %+v", receipt, c)
 			}
+			if receipt == "behind, reach unrecorded" {
+				// A receipt recording no reach proves nothing about it: held.
+				if err := hi.store.Write(hi.ctx, func(tx authority.Tx) error {
+					inst, err := tx.Installation("record-pages")
+					if err != nil {
+						return err
+					}
+					inst.Consent.Reach, inst.Consent.ReachDigest = "", ""
+					return tx.PutInstallation(inst)
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
 
 			events = nil
 			if reread, err := svc.RereadModule(hi.ctx, renamed); err != nil || reread {
@@ -228,6 +241,12 @@ func TestAHostHoldingTheRenamedGenerationMovesStrandedGrantsAtItsNextReplay(t *t
 				t.Fatal(err)
 			}
 			slices.Sort(got)
+			if receipt == "behind, reach unrecorded" {
+				if !slices.Equal(got, []string{"editor ines", "installer remi", "steward tam", "viewer maya"}) || len(events) != 0 {
+					t.Fatalf("a receipt recording no reach moved grants %v: %+v", got, events)
+				}
+				return
+			}
 			if !slices.Equal(got, []string{"admin remi", "user ines", "user maya", "user tam"}) {
 				t.Fatalf("the replay left grants %v", got)
 			}

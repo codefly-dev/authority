@@ -237,7 +237,8 @@ func crossoverAsks(tx Tx, inst domain.Installation, next domain.Module) ([]strin
 // (crossoverAsks), and next asks nothing beyond the declaration inst's
 // receipt approved read with each old role under the name it crosses to
 // (crossedOver), neither of the declaration (decide.Widens) nor of the reach
-// (reachWidens). Composition's receipt is nobody's review
+// (reachWidens); a receipt recording no reach proves nothing and is held.
+// Composition's receipt is nobody's review
 // (approvedGovernance), so no administrator owes an approval of the rename:
 // the receipt advances with the delivery and the grants cross over then, as
 // an unconsented installation's do (reconverge). Anything more next asks
@@ -263,7 +264,7 @@ func crossesOnly(tx Tx, inst domain.Installation, next domain.Module, now offere
 		return false, nil
 	}
 	if inst.Consent.ReachDigest == "" {
-		return true, nil
+		return false, nil // no recorded reach to measure against: held, never assumed unchanged
 	}
 	reach, err := decide.DecodeReach(inst.Consent.Reach)
 	if err != nil {
