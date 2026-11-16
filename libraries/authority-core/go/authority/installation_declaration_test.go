@@ -35,7 +35,6 @@ func TestInstallationDeclarationSelection(t *testing.T) {
 		{"named default", "user", "", "user", false},
 		{"named same", "user", "user", "user", false},
 		{"named override", "user", "author", "", true},
-		{"named missing", "missing", "", "", true},
 		{"declared none", "none", "", "none", false},
 		{"none caller none", "none", "none", "", true},
 		{"none override", "none", "author", "", true},
@@ -56,6 +55,18 @@ func TestInstallationDeclarationSelection(t *testing.T) {
 				t.Fatalf("selection: %+v %v", inst, err)
 			}
 		})
+	}
+}
+
+// A declaration naming a role it does not declare never reaches an install:
+// the manifest itself is refused when it is applied.
+func TestAnInstallationRoleNamingNoDeclaredRoleIsRefusedOnApply(t *testing.T) {
+	h := newHarness(t)
+	m := solution("b", true)
+	m.Generation++
+	m.InstallationRole = "missing"
+	if _, err := h.svc.ApplyModule(h.ctx, m); err == nil || !strings.Contains(err.Error(), "not one of its roles") {
+		t.Fatalf("applied a declaration naming no declared role: %v", err)
 	}
 }
 

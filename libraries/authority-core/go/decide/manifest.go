@@ -187,6 +187,9 @@ func validateModule(m domain.Module) error {
 			return domain.Refuse("binding %s: headless scopes exceed invoke scopes", id)
 		}
 	}
+	if err := validateInstallationRole(m); err != nil {
+		return err
+	}
 	if m.Kind != domain.KindSolution {
 		if len(m.OwnedRoles) > 0 {
 			return domain.Refuse("module %q declares installation-owned roles; only a solution declares them", m.Name)
@@ -443,4 +446,26 @@ func Unselect(audience domain.Module, scopes Scopes) Scopes {
 		out = append(out, sc)
 	}
 	return scope.Normalize(out)
+}
+
+// validateInstallationRole holds the installation_role declaration to the roles
+// the module declares: empty (undeclared), the "none" marker, or one declared
+// role spelled exactly. No role may be named "none", which is the marker's.
+// These are role rules, so the authority decides them; the contract schema
+// only carries the string.
+func validateInstallationRole(m domain.Module) error {
+	if _, reserved := m.Roles[domain.NoInstallationRole]; reserved {
+		return domain.Refuse("%s declares a role named %s, which is reserved for the installation_role declaration of no standing grant", m.Name, domain.NoInstallationRole)
+	}
+	selected := m.InstallationRole
+	if strings.TrimSpace(selected) != selected {
+		return domain.Refuse("%s declares installation_role %q with surrounding whitespace; declare the exact role name or none", m.Name, selected)
+	}
+	if selected == "" || selected == domain.NoInstallationRole {
+		return nil
+	}
+	if _, declared := m.Roles[selected]; !declared {
+		return domain.Refuse("%s declares installation_role %q, which is not one of its roles %v (or declare none)", m.Name, selected, slices.Sorted(maps.Keys(m.Roles)))
+	}
+	return nil
 }
