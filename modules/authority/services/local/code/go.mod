@@ -36,6 +36,7 @@ require (
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/codefly-dev/authority/libraries/solutionhost/go v0.0.0-00010101000000-000000000000
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/analysis v1.0.1 // indirect
@@ -96,3 +97,5 @@ replace github.com/codefly-dev/authority/libraries/hop/go => ../../../../../libr
 replace github.com/codefly-dev/authority/libraries/authority-core/go => ../../../../../libraries/authority-core/go
 
 replace github.com/codefly-dev/authority/libraries/fixture-composition/go => ../../../../../libraries/fixture-composition/go
+
+replace github.com/codefly-dev/authority/libraries/solutionhost/go => ../../../../../libraries/solutionhost/go

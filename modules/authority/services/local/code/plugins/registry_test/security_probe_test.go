@@ -35,8 +35,8 @@ import (
 	"connectrpc.com/vanguard/vanguardgrpc"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	delivery "github.com/codefly-dev/authority/libraries/delivery/go"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
-	"github.com/codefly-dev/core/solutionhost"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 )

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/codefly-dev/core/workloadidentity"
-	"github.com/codefly-dev/core/workloadidentity/native"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go/workloadidentity"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go/workloadidentity/native"
 
 	"gateway/pkg/business/issuer"
 	"gateway/pkg/business/state"

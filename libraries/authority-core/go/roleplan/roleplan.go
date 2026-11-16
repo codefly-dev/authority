@@ -61,10 +61,10 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/memstore"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 	"github.com/codefly-dev/core/configurations"
 	modulecontract "github.com/codefly-dev/core/contracts/module"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
-	"github.com/codefly-dev/core/solutionhost"
 	"github.com/codefly-dev/core/workcontext"
 	"github.com/google/uuid"
 )

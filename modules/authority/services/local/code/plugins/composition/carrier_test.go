@@ -13,7 +13,7 @@ import (
 	compositionv1 "gateway/pkg/gen/host/composition/v1"
 
 	delivery "github.com/codefly-dev/authority/libraries/delivery/go"
-	"github.com/codefly-dev/core/solutionhost"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"

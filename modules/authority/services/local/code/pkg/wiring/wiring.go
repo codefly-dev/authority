@@ -7,7 +7,7 @@ import (
 	"context"
 	"crypto"
 
-	"github.com/codefly-dev/core/solutionhost"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 
 	"gateway/pkg/business/issuer"
 	"gateway/pkg/business/state"

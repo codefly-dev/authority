@@ -14,7 +14,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	resources "github.com/codefly-dev/authority/libraries/resources/go"
-	"github.com/codefly-dev/core/solutionhost"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 	"github.com/codefly-dev/core/workcontext"
 	"strings"
 	"testing"

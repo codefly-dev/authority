@@ -8,9 +8,9 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/declare"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/delivered"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 	modulecontract "github.com/codefly-dev/core/contracts/module"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
-	"github.com/codefly-dev/core/solutionhost"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 

@@ -19,10 +19,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/codefly-dev/authority/libraries/solutionhost/go"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go/workloadidentity"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go/workloadidentity/native"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
-	"github.com/codefly-dev/core/solutionhost"
-	"github.com/codefly-dev/core/workloadidentity"
-	"github.com/codefly-dev/core/workloadidentity/native"
 	"gopkg.in/yaml.v3"
 
 	conformance "github.com/codefly-dev/authority/libraries/conformance/go"

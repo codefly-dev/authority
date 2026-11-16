@@ -13,7 +13,7 @@ import (
 
 	"gateway/pkg/business/testkit"
 	compositionv1 "gateway/pkg/gen/host/composition/v1"
-	"github.com/codefly-dev/core/solutionhost"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 	"google.golang.org/protobuf/proto"
 )
 

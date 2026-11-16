@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/codefly-dev/core/solutionhost"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 )
 
 // A host that learns to read a declaration field reads the delivery it holds

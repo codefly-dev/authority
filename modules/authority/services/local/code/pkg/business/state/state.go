@@ -21,9 +21,9 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
 	fixturecomposition "github.com/codefly-dev/authority/libraries/fixture-composition/go"
 	resources "github.com/codefly-dev/authority/libraries/resources/go"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go/workloadidentity"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go/workloadidentity/native"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
-	"github.com/codefly-dev/core/workloadidentity"
-	"github.com/codefly-dev/core/workloadidentity/native"
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 )

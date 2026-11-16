@@ -9,7 +9,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 
-	"github.com/codefly-dev/core/solutionhost"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 )
 
 // appliedDelivery retains Core's verified bytes, the paired policy identity and
