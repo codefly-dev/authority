@@ -32,7 +32,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -42,6 +41,7 @@ import (
 
 	installationv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/installation/v1"
 	sessionv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/session/v1"
+	"github.com/codefly-dev/authority/libraries/authority-client/go/host"
 	"github.com/codefly-dev/core/sdk"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
@@ -65,11 +65,6 @@ type Options struct {
 	Without, WithoutConfigurations []string
 	// Set are workspace configuration values of this run alone.
 	Set []Value
-	// Generate are Codefly commands run in the composition's workspace before
-	// the start, each given the run's naming scope (--naming-scope): what the
-	// composition generates per scope, as its own run line does
-	// ({"generate", "runnable-bindings", "--env", "local"}).
-	Generate [][]string
 	// Install are solutions the organisation's administrator installs before
 	// the first scenario, each with the consent the authority reviews for it.
 	// A target already installed is left as it is.
@@ -139,22 +134,12 @@ func Start(ctx context.Context, options Options) (*Composition, error) {
 	for _, v := range options.Set {
 		opts = append(opts, sdk.WithWorkspaceConfiguration(v.Name, v.Key, v.Value))
 	}
-	for _, command := range options.Generate {
-		opts = append(opts, sdk.WithPrepare(func(ctx context.Context, dir, scope string) error {
-			generate := exec.CommandContext(ctx, codefly(), append(slices.Clone(command), "--naming-scope", scope)...)
-			generate.Dir = dir
-			if out, err := generate.CombinedOutput(); err != nil {
-				return fmt.Errorf("codefly %s: %w: %s", strings.Join(command, " "), err, out)
-			}
-			return nil
-		}))
-	}
 	began := time.Now()
 	deps, err := sdk.WithDependencies(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
-	c := &Composition{deps: deps, anchor: anchor, client: &http.Client{Timeout: 2 * time.Minute}, signed: map[string]*Person{}, started: time.Since(began)}
+	c := &Composition{deps: deps, anchor: anchor, client: &http.Client{Timeout: 2 * time.Minute, Transport: host.HTTPTransport()}, signed: map[string]*Person{}, started: time.Since(began)}
 	if err := c.connect(ctx, options); err != nil {
 		c.Close()
 		return nil, err
@@ -183,12 +168,12 @@ func (c *Composition) connect(ctx context.Context, options Options) error {
 	if err != nil {
 		return err
 	}
-	host, err := c.address("authority", "local", "grpc")
+	address, err := c.address("authority", "local", "grpc")
 	if err != nil {
 		return err
 	}
 	c.origin = "http://" + edge
-	if c.conn, err = grpc.NewClient(host, grpc.WithTransportCredentials(insecure.NewCredentials())); err != nil {
+	if c.conn, err = grpc.NewClient(address, host.DialOptions(insecure.NewCredentials())...); err != nil {
 		return err
 	}
 	listed, err := sessionv1.NewSessionServiceClient(c.conn).ListFixturePeople(ctx, &sessionv1.ListFixturePeopleRequest{})
@@ -271,15 +256,6 @@ func (c *Composition) address(module, service, endpoint string) (string, error) 
 		}
 	}
 	return "", fmt.Errorf("the run delivered no address of %s/%s/%s: the anchor must depend on it", module, service, endpoint)
-}
-
-// codefly is the binary the dependency stack itself runs: CODEFLY_BINARY, or
-// the one on PATH.
-func codefly() string {
-	if binary := strings.TrimSpace(os.Getenv("CODEFLY_BINARY")); binary != "" {
-		return binary
-	}
-	return "codefly"
 }
 
 func key(name string) string { return strings.ToUpper(strings.ReplaceAll(name, "-", "_")) }

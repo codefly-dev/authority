@@ -4,9 +4,9 @@ go 1.27.4
 
 require (
 	github.com/codefly-dev/authority/libraries/authority-client/go v0.2.1-0.20261115131434-3574603a5f27
-	github.com/codefly-dev/authority/libraries/authority-core/go v0.1.1-0.20261115171111-fecafe1e3c12
+	github.com/codefly-dev/authority/libraries/authority-core/go v0.1.2-0.20261116213949-c3c9eeb7036d
 	github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261112103810-7ff1b8aaa5f9
-	github.com/codefly-dev/core v0.19.32
+	github.com/codefly-dev/core v0.19.34-0.20261116201543-b919b702e8cf
 	github.com/google/uuid v1.6.0
 	google.golang.org/grpc v1.85.0
 )
@@ -26,6 +26,8 @@ require (
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/codefly-dev/authority/libraries/delivery/go v0.0.0-20261026023425-000d44495d93 // indirect
 	github.com/codefly-dev/authority/libraries/resources/go v0.0.0-20261026023425-000d44495d93 // indirect
+	github.com/codefly-dev/authority/libraries/solutionhost/go v0.0.0-20261116213949-c3c9eeb7036d // indirect
+	github.com/codefly-dev/sdk-go v0.4.0 // indirect
 	github.com/fatih/color v1.19.0 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
