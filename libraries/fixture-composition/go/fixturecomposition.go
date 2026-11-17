@@ -140,11 +140,15 @@ func Decode(data []byte) (Document, error) {
 		return doc, errors.New("the document is not a mapping")
 	}
 	mapping := node.Content[0]
+	// The retired schema first, whatever order the keys arrive in: its
+	// refusal names the version to move to.
 	for i := 0; i+1 < len(mapping.Content); i += 2 {
-		switch key, value := mapping.Content[i].Value, mapping.Content[i+1]; {
-		case key == "schema" && value.Value == RetiredSchema:
+		if mapping.Content[i].Value == "schema" && mapping.Content[i+1].Value == RetiredSchema {
 			return doc, fmt.Errorf("schema %s is retired; this authority reads %s, which has no roles section: %s, then state the schema as %s", RetiredSchema, Schema, noRoles, Schema)
-		case key == "roles":
+		}
+	}
+	for i := 0; i+1 < len(mapping.Content); i += 2 {
+		if mapping.Content[i].Value == "roles" {
 			return doc, fmt.Errorf("roles: a composition grants no organisation role a module's kinds: %s", noRoles)
 		}
 	}

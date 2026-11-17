@@ -26,6 +26,7 @@ func TestTheDocumentGrantsNoOrganisationRoleAModulesKinds(t *testing.T) {
 		"a null roles section":      {head + "roles: null\n", "roles: a composition grants no organisation role a module's kinds"},
 		"the schema that had one":   {"schema: codefly.dev/authority/fixture-composition/v1\n" + grant, "fixture-composition/v1 is retired"},
 		"that schema, granting nil": {"schema: codefly.dev/authority/fixture-composition/v1\n", "fixture-composition/v1 is retired"},
+		"that schema, stated last":  {grant + "schema: codefly.dev/authority/fixture-composition/v1\n", "fixture-composition/v1 is retired"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := fixturecomposition.Decode([]byte(tc.doc))
