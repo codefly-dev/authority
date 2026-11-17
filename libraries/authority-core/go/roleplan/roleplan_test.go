@@ -332,16 +332,23 @@ func TestAGrantNoAllowedRowRequiresOrCarriesIsStillReported(t *testing.T) {
 // holder of nothing carried is let through exactly as before, and holding what
 // a method carries admits no one to what the method requires.
 func TestWhatAMethodCarriesChangesNoVerdict(t *testing.T) {
-	// Every method carries a permission no role holds; the plan's verdicts are
-	// the ones it had.
-	p := product(t, contract)
+	// Every method carries a permission the notebook serves and no role
+	// holds; the plan's verdicts are the ones it had.
+	p := product(t, carrying(t))
 	for method, declared := range p.Methods {
 		if !declared.AnyCheckedCaller {
-			declared.Carries = []string{"notebook.note:erase"}
+			declared.Carries = []string{readContent}
 			p.Methods[method] = declared
 		}
 	}
 	roleplan.Assert(t, roleplan.Plan{Product: p, Rows: rows()})
+
+	// One the notebook does not serve is no declaration to plan against: no
+	// capability at the notebook holds it, and its delivery is refused by
+	// name (delivered.CarriesServed), so the plan is too.
+	p = product(t, contract)
+	p.Methods["GET /v1/notebook/notes"] = roleplan.Policy{Requires: []string{"notebook.note:read"}, Carries: []string{"notebook.note:erase"}}
+	problems(t, roleplan.Plan{Product: p, Rows: rows()}, "GET /v1/notebook/notes carries notebook.note:erase, which notebook does not serve")
 
 	// The user holds what the write carries and not what it requires: still
 	// refused by the method policy, for the permission it requires.

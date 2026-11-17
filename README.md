@@ -740,6 +740,20 @@ The marks reach the authority in the delivery, and the authority decides:
    route inventory; the selected destination and declared policy method travel
    together into the single Check decision.
 
+A method may also list what a call carries beyond what it requires
+(`Policy.carries`, `MethodPolicyV1.carries`): an effect the module performs on
+some calls alone. No decision reads it, and the hop hands the module what the
+call holds of it. Delivery holds it to what the module serves (2026-11-17,
+`delivered.CarriesServed`): a method carrying an action the module's scope
+ceilings do not list, or a kind it does not serve, is refused by name, as is
+one carrying resource ids, an owner, no action, or anything beside
+`any_checked_caller`. A capability at a module holds nothing beyond the
+module's ceilings, so such a permission reached no handler whatever a role
+granted, and nothing refused the call: the handler read that nothing was
+carried. The local authority dropped the field on the way in until this date.
+A module keeps no record of what its methods carry; the hop reads it from the
+published contract.
+
 A method requirement names a whole resource kind. Delivery rejects a method
 requirement containing resource IDs instead of silently dropping its restriction.
 A capability restricted to

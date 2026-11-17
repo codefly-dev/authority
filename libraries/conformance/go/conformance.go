@@ -796,6 +796,28 @@ func run(t *testing.T, c *client, f Fixture) {
 			})
 		}
 
+		// A method carrying what the module's ceilings do not list is refused
+		// by name: no capability at the module holds it, so no call would
+		// ever carry it and nothing would say so. The module keeps the policy
+		// it had, and the generation is not consumed.
+		t.Run("a method carrying an action the module does not serve is refused at delivery, by name", func(t *testing.T) {
+			if !c.hasElement("host.composition.v1.MethodPolicyV1", "carries") {
+				t.Fatal("the published contract lacks host.composition.v1.MethodPolicyV1.carries: what a method carries is never delivered, so nothing holds it to what the module serves")
+			}
+			carrying := func(kind, action string) error {
+				_, err := c.deliver(ctx, f, module, "module", 2, []string{f.ReadKind}, map[string]any{
+					"scope_ceilings": []any{scopeAsk(f.ReadKind, []string{"read", "write"}, nil)},
+					"methods": []any{map[string]any{"method": "/conformance.Service/Read", "requires": read,
+						"carries": []any{scopeAsk(kind, []string{action}, nil)}}}}, 0)
+				return err
+			}
+			refused(t, carrying(f.ReadKind, "purge"), codes.PermissionDenied, "/conformance.Service/Read carries "+f.ReadKind+":purge")
+			refused(t, carrying("conformance.unserved", "read"), codes.PermissionDenied, "/conformance.Service/Read carries conformance.unserved:read")
+			if err := check("/conformance.Service/Read"); err != nil {
+				t.Fatalf("a refused delivery changed the module's policy: %v", err)
+			}
+		})
+
 		// A document that does not match the manifest it travels with is refused,
 		// and the module keeps the policy it had.
 		if _, err := c.deliverWithMethods(ctx, f, module, 2, []string{f.ReadKind}, []any{map[string]any{"method": "/conformance.Service/Write", "any_checked_caller": true}}, 1); status.Code(err) != codes.PermissionDenied {

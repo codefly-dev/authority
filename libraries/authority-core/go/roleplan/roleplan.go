@@ -79,9 +79,10 @@ type Policy struct {
 	Requires []string
 	// Carries is what a call may exercise beyond what the method requires
 	// (authority.hop.v1.Policy.carries): content within metadata. The hop
-	// requires none of it, so it changes no verdict and is not delivered to
-	// the authority here; a role's grant of it is used by a row its holder is
-	// allowed (Coverage).
+	// requires none of it, so it changes no verdict; a role's grant of it is
+	// used by a row its holder is allowed (Coverage). It is delivered, and a
+	// product carrying what it does not serve is refused as its delivery is
+	// (delivered.CarriesServed).
 	Carries          []string
 	AnyCheckedCaller bool
 }
@@ -248,7 +249,7 @@ func Module(p Product) (domain.Module, error) {
 	}
 	var methods []delivered.Method
 	for _, name := range slices.Sorted(maps.Keys(p.Methods)) {
-		methods = append(methods, delivered.Method{Method: name, Requires: Scopes(p.Methods[name].Requires), AnyCheckedCaller: p.Methods[name].AnyCheckedCaller})
+		methods = append(methods, delivered.Method{Method: name, Requires: Scopes(p.Methods[name].Requires), AnyCheckedCaller: p.Methods[name].AnyCheckedCaller, Carries: Scopes(p.Methods[name].Carries)})
 	}
 	manifest := &solutionhost.ModuleManifest{Alias: p.Name, Kind: solutionhost.Kind(p.Kind), Generation: 1}
 	if p.Kind == domain.KindModule {
@@ -263,7 +264,8 @@ func Module(p Product) (domain.Module, error) {
 // scopes are no person's and are not planned), and a permission a role grants
 // that no row its holder is allowed uses through the way it is granted. A row
 // at a method uses what the method requires and what it carries (declared,
-// the product's published table: a delivery states no carries, so m does not).
+// the product's published table: a composed module keeps no carries, so m
+// does not).
 func Coverage(m domain.Module, declared map[string]Policy, rows []Row) []string {
 	var out []string
 	planned := map[string]int{}
