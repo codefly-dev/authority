@@ -27,6 +27,34 @@ async with verifier.admit_async(request.headers, full_procedure) as identity: ..
 identity.tenant, identity.has(kind, action), identity.claims.allows(kind, action, resource_id)
 ```
 
+### Narrowing without naming a permission
+
+The hop stamps what admitted the call (`x-codefly-hop-admitted`); the verifier
+holds that stamp to the authenticated Work Context (any difference, or a repeat,
+is refused as `stamp_identity`) and reads it over the declarations the module
+hands it. It is the Go library's `hop.Admitted`, held to it reading for reading
+by `testdata/stamps.json`:
+
+```python
+from codefly_hop import Method, Permission, Verifier, admitted
+
+declared = {"/records.v1.Records/Content": Method(
+    requires=(Permission("records.records", "read"),), carries=(Permission("records.records", "read_content"),))}
+verifier = Verifier(stub, audience=module, replay=store, declarations=declared)  # an HTTP route is keyed "GET /v1/records/{id}"
+
+read = admitted(identity)               # selects nothing when the hop stamped none (identity.admitted is None)
+owners = read.required().owners()       # owners on which the call holds all the method requires
+content = read.carried()                # how far what the method carries reaches; empty() if not held
+content.allows(row.owner, row.id)       # one stored resource
+```
+
+`required().whole()` is a grant that selects no owner; a module whose resources
+have owners reads `required().owner_selected()` to drop it. `named()` lists
+named resources and `each()` every declared permission with its own selection.
+A test builds one with `admission_of(declared, method, grants)`. This verifier
+reads no protobuf descriptor: a method missing from `declarations` reads as
+undeclared and selects nothing.
+
 The verifier requires the [signed admission protocol](../../hop/README.md),
 including an atomic durable replay store shared across replicas, and refuses at
 construction, outside the run named exactly `local`, a store whose `shared` is

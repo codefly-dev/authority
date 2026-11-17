@@ -21,12 +21,18 @@ from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+from .admitted import (
+    ADMITTED_KEY, ANY_ACTION, Admission, Grant, Held, Method, Named, Permission, Selection,
+    admission_of, admitted, declaration, encode_grants, grants_held, grants_of,
+)
 from .call import SKEW, Expired, Replayed, ReplayStore, ReservationStore, _proof, admission_keys, check, signed_by
 from authority_client._gen.host.authority.v1.authority_pb2 import KeysRequest
 from authority_client._gen.host.authority.v1.work_context_pb2 import WorkContextV1
 from authority_client.work_context import Claims, Trust, Unauthenticated, Reason, authenticate_token, bound_token, collect
 
-__all__ = ["Identity", "Verifier", "Unauthenticated", "Reason", "identity_of", "ReplayStore", "ReservationStore", "Replayed", "Expired", "NoAdmissionKeys"]
+__all__ = ["Identity", "Verifier", "Unauthenticated", "Reason", "identity_of", "ReplayStore", "ReservationStore", "Replayed", "Expired", "NoAdmissionKeys",
+           "ADMITTED_KEY", "ANY_ACTION", "Admission", "Grant", "Held", "Method", "Named", "Permission", "Selection",
+           "admission_of", "admitted", "encode_grants", "grants_of"]
 
 WORK_CONTEXT_KEY = "x-codefly-work-context"
 STAMP_PREFIX = "x-codefly-hop-"
@@ -76,6 +82,13 @@ class Identity:
     # The refusal the hop allowed in warning mode; diagnostic, grants nothing.
     advisory: str = ""
     claims: Claims | None = field(default=None, compare=False, repr=False)
+    # What the call holds once every actor narrowed it, each grant with its
+    # selection: what the hop stamps as ADMITTED_KEY.
+    grants: tuple[Grant, ...] = ()
+    # What admitted this call on its method, set by the Verifier for a call the
+    # hop stamped an admission on; None when it stamped none. A handler reads
+    # ``admitted(identity)`` instead of naming a permission.
+    admitted: Admission | None = field(default=None, compare=False, repr=False)
 
     def has(self, kind: str, action: str) -> bool:
         """Whether the call may do action on the whole of kind."""
@@ -100,6 +113,7 @@ def identity_of(context) -> Identity:
         binding=context.operation_binding.binding_id,
         task=context.task_id,
         expires=int(context.expires_at_unix),
+        grants=grants_held(context),
     )
 
 
@@ -132,10 +146,16 @@ class Verifier:
     startup; it never fails on an authority that is not serving yet, and refuses
     calls, with the reason, until the keys are read. Without ``replay`` it
     authenticates bare tokens only and admits no call.
+
+    ``declarations`` is what each method the module serves declares, keyed
+    "/package.Service/Method" or, for an HTTP route, "<VERB> <template>": the
+    table ``identity.admitted`` is read over. Without it every method reads as
+    undeclared and selects nothing.
     """
 
     def __init__(self, keys, *, audience: str, replay: ReplayStore | None = None,
-                 now: Callable[[], float] | None = None, timeout: float = KEY_TIMEOUT) -> None:
+                 now: Callable[[], float] | None = None, timeout: float = KEY_TIMEOUT,
+                 declarations: Mapping[str, Method] | None = None) -> None:
         admitting = replay is not None
         if keys is None or not audience:
             raise Unauthenticated(Reason.CONFIGURATION)
@@ -146,6 +166,7 @@ class Verifier:
             raise Unauthenticated(Reason.STORENOTSHARED)
         self._source, self._audience, self._timeout = keys, audience, timeout
         self._replay = replay
+        self._declared = dict(declarations or {})
         self._now = now or time.time
         self._lock = threading.Lock()
         self._trust: Trust | None = None
@@ -256,7 +277,7 @@ class Verifier:
             wait = self._start(_key_id(token))
             if wait is not None:
                 futures.wait((wait,), self._timeout)
-            return self._finish(pairs, token), finish
+            return self._finish(pairs, token, method), finish
         except BaseException:
             finish()
             raise
@@ -303,7 +324,7 @@ class Verifier:
                     await asyncio.wait_for(asyncio.wrap_future(wait), self._timeout)
                 except asyncio.TimeoutError:
                     pass  # judged below on the keys held: stale ones are refused with the reason
-            return self._finish(pairs, token), finish
+            return self._finish(pairs, token, method), finish
         except BaseException:
             await finish()
             raise
@@ -425,7 +446,7 @@ class Verifier:
         identity = identity_of(claims.context)
         return Identity(**{**identity.__dict__, "context": token, "claims": claims})
 
-    def _finish(self, pairs: list[tuple[str, str]], token: str) -> Identity:
+    def _finish(self, pairs: list[tuple[str, str]], token: str, method: str) -> Identity:
         identity = self._token_identity(token)
         values = collect(pairs)
         stamped = {
@@ -438,9 +459,18 @@ class Verifier:
             got = values.get(key, [])
             if len(got) > 1 or (got[0] if got else "") != want:
                 raise Unauthenticated(Reason.STAMPIDENTITY)
+        # What the call holds is the token's too. A hop older than this key
+        # stamps none, and the module is then handed no admission; one that is
+        # stamped must be exactly what the authenticated claims hold.
+        admission = None
+        stamped = values.get(ADMITTED_KEY, [])
+        if stamped:
+            if len(stamped) != 1 or stamped[0] != encode_grants(identity.grants):
+                raise Unauthenticated(Reason.STAMPIDENTITY)
+            admission = admission_of(declaration(self._declared, method), method, identity.grants)
         # An admission carrying an advisory refusal is refused by ``check``, so
         # an admitted call never has one: diagnostic identity is never authority.
-        return Identity(**{**identity.__dict__, "context": token, "advisory": "", "claims": identity.claims})
+        return Identity(**{**identity.__dict__, "context": token, "advisory": "", "claims": identity.claims, "admitted": admission})
 
     def _refresh(self) -> futures.Future[None]:
         """Start the one read, on its own thread and timeout; the lock is held. The

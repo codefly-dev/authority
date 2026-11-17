@@ -14,6 +14,34 @@ await verifier.admit(requestHeaders, fullProcedure, async id => handle(id));  //
 id.tenant; id.scopes; id.claims.allows(resourceKind, action, exactResourceID);
 ```
 
+### Narrowing without naming a permission
+
+The hop stamps what admitted the call (`x-codefly-hop-admitted`); the verifier
+holds that stamp to the authenticated Work Context (any difference, or a repeat,
+is refused as `stamp_identity`) and reads it over the declarations the module
+hands it. It is the Go library's `hop.Admitted`, held to it reading for reading
+by `testdata/stamps.json`:
+
+```ts
+import { Verifier, admitted } from '@codefly-dev/authority-client/work-context';
+
+const declared = { '/records.v1.Records/Content': {
+  requires: [{ kind: 'records.records', action: 'read' }], carries: [{ kind: 'records.records', action: 'read_content' }] } };
+const verifier = new Verifier(client, audience, store, undefined, undefined, declared);  // an HTTP route is keyed "GET /v1/records/{id}"
+
+const read = admitted(id);                // selects nothing when the hop stamped none (id.admitted is undefined)
+const owners = read.required().owners();  // owners on which the call holds all the method requires
+const content = read.carried();           // how far what the method carries reaches; empty() if not held
+content.allows(row.owner, row.id);        // one stored resource
+```
+
+`required().whole()` is a grant that selects no owner; a module whose resources
+have owners reads `required().ownerSelected()` to drop it. `named()` lists named
+resources and `each()` every declared permission with its own selection. A test
+builds one with `admissionOf(declared, method, grants)`. This verifier reads no
+protobuf descriptor: a method missing from the table reads as undeclared and
+selects nothing.
+
 It is the Go library's `hop.Verifier`: the signed method, audience, token digest and admission window first, then
 the keys read through `Keys` (re-read on an unknown key at most every 10 s, once
 on a stamp signed by no admission key held at most every 10 s for all such stamps

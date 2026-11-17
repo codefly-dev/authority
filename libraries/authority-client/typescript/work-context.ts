@@ -1,6 +1,9 @@
 import { admissionKeys, checkCall, Expired, proof, Replayed, signedBy, SKEW, type ReplayStore } from "./hop-call.js";
 export { Expired, Replayed, LIFETIME, SKEW, PURPOSE } from "./hop-call.js";
 export type { ReplayStore } from "./hop-call.js";
+import { ADMITTED_KEY, admissionOf, declaration, encodeGrants, grantsHeld, type Admission, type Grant, type Method } from "./admitted.js";
+export { ADMITTED_KEY, ANY_ACTION, Admission, Selection, admissionOf, admitted, declaration, encodeGrants, grantsHeld, grantsOf } from "./admitted.js";
+export type { Grant, Held, Method, Named, Permission } from "./admitted.js";
 /** Work Context identity readers and method-bound, single-use hop admission.
  * Verifier consumes signed call nonces in a required durable shared ReplayStore.
  * authenticateToken alone authenticates identity, not admission. */
@@ -257,6 +260,13 @@ export interface Identity {
   /** The refusal the hop allowed in warning mode; diagnostic, grants nothing. */
   readonly advisory: string;
   readonly claims: Claims;
+  /** What the call holds once every actor narrowed it, each grant with its
+   * selection: what the hop stamps as ADMITTED_KEY. */
+  readonly grants: readonly Grant[];
+  /** What admitted this call on its method, set by the Verifier for a call the
+   * hop stamped an admission on; undefined when it stamped none. A handler
+   * reads admitted(identity) instead of naming a permission. */
+  readonly admitted?: Admission;
 }
 
 function flatten(scopes: readonly WorkScopeV1[]): string[] {
@@ -271,7 +281,7 @@ function flatten(scopes: readonly WorkScopeV1[]): string[] {
 /** The Go library's IdentityOf: the owner's authority narrowed by every actor's
  * grant (an actor granted nothing narrows to nothing); resource-limited scopes
  * are left out rather than widened. */
-export function identityOf(context: WorkContextV1): Omit<Identity, "context" | "advisory" | "claims"> {
+export function identityOf(context: WorkContextV1): Omit<Identity, "context" | "advisory" | "claims" | "admitted"> {
   let scopes = flatten(context.authorityScopes);
   for (const actor of context.actorChain) {
     const held = flatten(actor.grantedScopes);
@@ -281,6 +291,7 @@ export function identityOf(context: WorkContextV1): Omit<Identity, "context" | "
     owner: context.ownerPrincipalId, ownerKind: context.ownerPrincipalKind ?? "", tenant: context.tenantId,
     actors: context.actorChain.map(actor => actor.principalId), scopes,
     binding: context.operationBinding?.bindingId ?? "", task: context.taskId, expires: Number(context.expiresAtUnix),
+    grants: grantsHeld(context),
   };
 }
 
@@ -313,7 +324,12 @@ export class NoAdmissionKeys extends Error {
  * keys, are read through its Keys, never typed in. Without a replay store it
  * authenticates bare tokens only and admits no call. Construction never fails
  * on an authority that is not serving yet: calls are refused, with the reason,
- * until its keys are read. */
+ * until its keys are read.
+ *
+ * declarations is what each method the module serves declares, keyed
+ * "/package.Service/Method" or, for an HTTP route, "<VERB> <template>": the
+ * table identity.admitted is read over. Without it every method reads as
+ * undeclared and selects nothing. */
 export class Verifier {
   private trust?: Trust;
   /** The published hop admission keys, hex, read with trust. */
@@ -328,7 +344,8 @@ export class Verifier {
 
   constructor(private readonly source: KeySource, private readonly audience: string,
               private readonly replay?: ReplayStore,
-              private readonly now: () => number = Date.now, private readonly timeoutMs: number = KEY_TIMEOUT_MS) {
+              private readonly now: () => number = Date.now, private readonly timeoutMs: number = KEY_TIMEOUT_MS,
+              private readonly declarations?: Readonly<Record<string, Method>>) {
     if (!source || !audience) throw new Unauthenticated(Reason.Configuration);
     // A process-local store answers only for its own process: a captured
     // admission would replay once per replica, and a restart would forget every
@@ -400,9 +417,18 @@ export class Verifier {
           throw new Unauthenticated(Reason.StampIdentity);
         }
       }
+      // What the call holds is the token's too. A hop older than this key
+      // stamps none, and the module is then handed no admission; one that is
+      // stamped must be exactly what the authenticated claims hold.
+      const held = pairs.filter(([name]) => name === ADMITTED_KEY).map(([, value]) => value);
+      let admission: Admission | undefined;
+      if (held.length > 0) {
+        if (held.length !== 1 || held[0] !== encodeGrants(id.grants)) throw new Unauthenticated(Reason.StampIdentity);
+        admission = admissionOf(declaration(this.declarations, method), method, id.grants);
+      }
       // An admission carrying an advisory refusal is refused by checkCall, so an
       // admitted call never has one: diagnostic identity is never authority.
-      return { identity: Object.freeze({ ...id, advisory: "" }), finish };
+      return { identity: Object.freeze({ ...id, advisory: "", admitted: admission }), finish };
     } catch (error) {
       await finish();
       throw error;
