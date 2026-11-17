@@ -7,9 +7,13 @@ import (
 	"testing"
 )
 
-// SolutionToolsCase is a module binding to an installed solution. Token is
-// entitled to Action, Outsider is not, even though both can use the module.
-// Method is a delivered solution method requiring that action.
+// SolutionToolsCase is a module binding to an installed solution. Token holds
+// a role on the solution that grants Action; Outsider holds none there. A
+// person naming the module's binding is issued what their role on the
+// solution holds through it, for the module's hop there, and nothing of the
+// module's own: so Token reaches the solution through the module and
+// Outsider is refused, at the binding and at every hop. Method is a delivered
+// solution method requiring that action.
 type SolutionToolsCase struct {
 	Token, Outsider, Module, Credential, Binding, Audience, Kind, Action, Method string
 }
@@ -27,7 +31,15 @@ func (c *client) solutionTools(t *testing.T, ctx context.Context, fixture Fixtur
 			if status.Code(err) != codes.PermissionDenied {
 				t.Fatalf("unentitled person binding: %v", err)
 			}
-			root = c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.Module})
+			// With no role on the solution the binding carries nothing. A
+			// module declaring no roles then gives them no capability at all
+			// to hop with; where the module is a page they hold a role on,
+			// that capability still reaches nothing of the solution.
+			root, err = c.call(as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.Module})
+			if err != nil {
+				refused(t, err, codes.PermissionDenied, "")
+				continue
+			}
 		} else {
 			if err != nil {
 				t.Fatal(err)

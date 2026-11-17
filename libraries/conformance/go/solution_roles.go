@@ -81,8 +81,11 @@ func (c *client) solutionRoleCases(t *testing.T, ctx context.Context, f Fixture)
 				exactScopeOwnedBy(t, msg(out, "context"), r.OwnKind, []string{"read"}, nil, owner)
 				c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(out, "token"), "audience": r.Solution})
 			case names[1]:
+				// On the person's own session the consumed module holds
+				// nothing for them, whatever it is: reached only through the
+				// solution's binding.
 				_, err := person(r.Audience, "", []any{asked})
-				refused(t, err, codes.PermissionDenied, "beyond")
+				refused(t, err, codes.PermissionDenied, "")
 				root, err := person(r.Solution, "", nil)
 				if err != nil {
 					t.Fatal(err)

@@ -61,6 +61,6 @@ func (c *client) admissionStatus(t *testing.T, ctx context.Context, f Fixture) {
 		}
 		person := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.UnentitledToken})
 		_, err := c.call(as(ctx, person), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": f.Audience})
-		refused(t, err, codes.PermissionDenied, "the owner holds nothing at this audience")
+		refused(t, err, codes.PermissionDenied, "holds no role on")
 	})
 }
