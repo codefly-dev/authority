@@ -1,6 +1,8 @@
 package scenario
 
 import (
+	"fmt"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -235,5 +237,50 @@ func TestWhatAPlanDoesNotStateIsNotDerived(t *testing.T) {
 	plan, published = planned(t, bad...)
 	if _, err := PlanRows(plan, cast, published); err == nil {
 		t.Error("a row stating no verdict derives rows")
+	}
+}
+
+// What a published method carries (authority.hop.v1.Policy.carries) is nothing
+// its hop requires: the calls a plan derives, and what each seat is expected
+// on each, are the same with it as without. A seat is not refused for lacking
+// what a method carries, nor let through for holding it.
+func TestWhatAPublishedMethodCarriesChangesNoDerivedVerdict(t *testing.T) {
+	plan, published := planned(t, notebookRows()...)
+	carrying := Published{"store": maps.Clone(published["store"])}
+	for procedure, declared := range carrying["store"] {
+		if !declared.AnyCheckedCaller {
+			// The read carries the write the user does not hold; every method
+			// carries a purge no row asks.
+			declared.Carries = []policy.Permission{{Kind: "store.item", Action: "write"}, {Kind: "store.item", Action: "purge"}}
+			carrying["store"][procedure] = declared
+		}
+	}
+	want, err := PlanRows(plan, cast, published)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := PlanRows(plan, cast, carrying)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != len(want) || len(want) == 0 {
+		t.Fatalf("the plan derives %d rows with what its methods carry and %d without", len(got), len(want))
+	}
+	said := func(e Expect) string {
+		return fmt.Sprintf("%v %q %q %q %q", e.verdict, e.stage, e.among, e.unmet, e.not)
+	}
+	for i, row := range want {
+		if got[i].Name != row.Name || got[i].Call != row.Call {
+			t.Fatalf("row %d is %q (%+v) with what its methods carry, %q (%+v) without", i, got[i].Name, got[i].Call, row.Name, row.Call)
+		}
+		for person, expect := range row.Want {
+			if said(got[i].Want[person]) != said(expect) {
+				t.Errorf("%s as %s: expected %s with what the method carries, %s without", row.Name, person, said(got[i].Want[person]), said(expect))
+			}
+		}
+	}
+	read := derived(t, plan, carrying, "store store.v1.Store/Read").Want["carol"]
+	if read.verdict != Admit.verdict {
+		t.Errorf("the user, who holds the read and not the write it carries, is expected %s", said(read))
 	}
 }
