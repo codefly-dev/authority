@@ -222,3 +222,50 @@ func TestARefusalThatIsNoDenialIsNoStage(t *testing.T) {
 		Admin: roleplan.RefusedAtBinding, User: roleplan.RefusedAtBinding, None: roleplan.RefusedNoRole})
 	problems(t, roleplan.Plan{Product: product(t, contract), Rows: r}, `"a binding nobody declared": admin-holder is not decided on a role`)
 }
+
+// page is the notebook delivered as a module with a page: the same contract,
+// roles and method table, installed by composition rather than by an
+// administrator's consent.
+func page(t *testing.T, c string) roleplan.Product {
+	t.Helper()
+	p := product(t, c)
+	p.Kind = domain.KindModule
+	return p
+}
+
+// A module with a page proves its plan as a solution does: the authority
+// installed it by composition when it was delivered, and the plan is held on
+// that installation, where admin is allowed, user is refused by the decision
+// the plan names, and a member holding no role is issued nothing.
+func TestAModulePagesPlanHolds(t *testing.T) {
+	roleplan.Assert(t, roleplan.Plan{Product: page(t, contract), Rows: rows()})
+}
+
+// What a module page's plan is held to is what a solution's is: a grant no
+// allowed row uses, a method no row covers, a verdict the authority does not
+// give and a refusal that moved are each a problem.
+func TestAModulePagesPlanIsHeldAsASolutionsIs(t *testing.T) {
+	widened := strings.Replace(contract, `          - resource_kind: notebook.note
+            actions: [read]`, `          - resource_kind: notebook.note
+            actions: [read, write]`, 1)
+	r := slices.DeleteFunc(rows(), func(r roleplan.Row) bool { return r.Name == "the page writes the store" })
+	r[1].User, r[3].User = roleplan.RefusedByPolicy, roleplan.RefusedByPolicy
+	problems(t, roleplan.Plan{Product: page(t, widened), Rows: r},
+		"role user grants notebook.note:write, which no row its holder is allowed uses the way it is granted",
+		`"write a note": user-holder is allowed, the plan says refused by the method policy`)
+
+	p := page(t, contract)
+	p.Methods["DELETE /v1/notebook/notes"] = roleplan.Policy{Requires: []string{"notebook.note:write"}}
+	problems(t, roleplan.Plan{Product: p, Rows: rows()}, "notebook serves DELETE /v1/notebook/notes, which 0 rows of the plan name")
+
+	r = rows()
+	r[1].User, r[0].None = roleplan.Allowed, roleplan.RefusedByPolicy
+	problems(t, roleplan.Plan{Product: page(t, contract), Rows: r},
+		`"write a note": user-holder is refused by the method policy, the plan says allowed: notebook requires notebook.note:write`,
+		`"read notes": no-role is refused: no role, the plan says refused by the method policy`)
+
+	p = page(t, contract)
+	p.Methods["POST /v1/notebook/store/put"] = roleplan.Policy{Requires: []string{"notebook.note:read"}}
+	problems(t, roleplan.Plan{Product: p, Rows: rows()},
+		`"put into the store": user-holder is refused at the binding, the plan says refused by the method policy`)
+}

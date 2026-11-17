@@ -10,7 +10,9 @@
 // configurations read by core, the class and callee options) and its method
 // table, read by the authority's own reader (delivered.Declared) — into the
 // authority's Service on an in-memory store, installs it with an
-// administrator's consent, grants the two roles, and asks the Service each
+// administrator's consent (a module with a page is installed by composition
+// at its delivery, and is held on that installation), grants the two roles,
+// and asks the Service each
 // call: IssueForPerson then CheckMethod for a method the product serves,
 // IssueChild through a binding for what that method relays, IssueForPage for a
 // call its page makes on the host's module edge, the audience's hop for what a
@@ -382,15 +384,8 @@ func compose(m domain.Module) (*harness, error) {
 		}
 	}
 	admin := person(installer)
-	approval, err := svc.Review(h.ctx, admin, organization, m.Name)
-	if err != nil {
-		return nil, fmt.Errorf("review %s: %w", m.Name, err)
-	}
-	approval.OperationID = uuid.NewString()
-	// The installation's own agent holds what the product's installation_role
-	// selects; the plan is about people, and selects nothing for it.
-	if h.inst, err = svc.Install(h.ctx, admin, organization, m.Name, "", installer, &approval, nil); err != nil {
-		return nil, fmt.Errorf("install %s: %w", m.Name, err)
+	if h.inst, err = h.install(admin); err != nil {
+		return nil, err
 	}
 	for _, s := range subjects {
 		if s.role == "" {
@@ -401,6 +396,39 @@ func compose(m domain.Module) (*harness, error) {
 		}
 	}
 	return h, nil
+}
+
+// install answers the product's installation at the organization. A solution
+// is installed by the administrator's consent to its reviewed offer. A module
+// with a page is never installed by anyone: the authority installed it by
+// composition when it was delivered (ApplyModule), at the reach its stand-ins
+// then completed, so the plan is held on that installation, the one its
+// people are granted roles on, and asking to install it again is refused.
+func (h *harness) install(admin authority.Person) (domain.Installation, error) {
+	m := h.product
+	if m.Kind != domain.KindSolution {
+		all, err := h.svc.Installations(h.ctx, admin, organization)
+		if err != nil {
+			return domain.Installation{}, fmt.Errorf("the installations of %s: %w", organization, err)
+		}
+		i := slices.IndexFunc(all, func(inst domain.Installation) bool { return inst.Target == m.Name })
+		if i < 0 || all[i].Status != domain.Active {
+			return domain.Installation{}, fmt.Errorf("%s is not installed at %s by composition", m.Name, organization)
+		}
+		return all[i], nil
+	}
+	approval, err := h.svc.Review(h.ctx, admin, organization, m.Name)
+	if err != nil {
+		return domain.Installation{}, fmt.Errorf("review %s: %w", m.Name, err)
+	}
+	approval.OperationID = uuid.NewString()
+	// The installation's own agent holds what the product's installation_role
+	// selects; the plan is about people, and selects nothing for it.
+	inst, err := h.svc.Install(h.ctx, admin, organization, m.Name, "", installer, &approval, nil)
+	if err != nil {
+		return domain.Installation{}, fmt.Errorf("install %s: %w", m.Name, err)
+	}
+	return inst, nil
 }
 
 // standIns are the modules m's bindings reach, each serving what the bindings
