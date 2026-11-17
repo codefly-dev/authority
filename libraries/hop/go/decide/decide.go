@@ -8,6 +8,7 @@ import (
 	"context"
 	"github.com/codefly-dev/authority/libraries/hop/go/routing"
 	"strings"
+	"time"
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
 	"github.com/codefly-dev/authority/libraries/hop/go"
@@ -44,7 +45,17 @@ type Decider struct {
 	// AudienceOf reads the module a token is addressed to; nil decodes it with
 	// core, unverified, which is all the hop needs before the authority checks.
 	AudienceOf func(token string) (string, error)
+	// Timeout is how long the hop waits for the authority's Check, whatever
+	// deadline the caller set or did not set; zero is CheckTimeout. A check
+	// that has not answered by then fails the call closed: Unavailable,
+	// nothing forwarded, nothing kept for the next call.
+	Timeout time.Duration
 }
+
+// CheckTimeout is the hop's own deadline on one Check. Without it a caller
+// that set no deadline waited on a stalled authority for as long as the
+// connection to it lived, holding a hop stream and a module slot open.
+const CheckTimeout = 5 * time.Second
 
 func coreAudience(token string) (string, error) {
 	decoded, err := workcontext.Decode(token)
@@ -88,7 +99,20 @@ func (d Decider) decide(ctx context.Context, method string, md metadata.MD) (Dec
 		return Decision{}, status.Error(codes.NotFound, routeErr.Error())
 	}
 	route := &selected
-	checked, err := d.Authority.Check(ctx, &authorityv1.CheckRequest{Token: tokens[0], Audience: module, Method: policy})
+	timeout := d.Timeout
+	if timeout <= 0 {
+		timeout = CheckTimeout
+	}
+	// The caller's context still ends the check; the hop's deadline ends it
+	// when the caller's would not.
+	checking, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	checked, err := d.Authority.Check(checking, &authorityv1.CheckRequest{Token: tokens[0], Audience: module, Method: policy})
+	if err == nil && checking.Err() != nil {
+		// An answer that arrived after the deadline is not one the hop waited
+		// for: the call is not admitted on it.
+		err = status.FromContextError(checking.Err()).Err()
+	}
 	if err != nil {
 		refusal := status.Convert(err)
 		// The caller's request ending is one cause of a Canceled or
