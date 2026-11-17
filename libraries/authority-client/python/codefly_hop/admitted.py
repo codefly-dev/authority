@@ -14,6 +14,12 @@ owners the caller may see) or ``.carried()`` (how far the narrower of two
 declared scopes reaches, content against metadata), and writes no kind and no
 action. Admission was decided by the hop; nothing here decides it again.
 
+A module whose resources have owners, where a grant that selects no owner must
+reach none of them, reads ``required_owner_selected()`` and
+``carried_owner_selected()`` instead: each permission is cut to the grants that
+select an owner before the permissions are combined, so a grant that selects
+none lends nothing to one that does.
+
 ``testdata/stamps.json`` holds every reading here to Go's.
 """
 
@@ -155,12 +161,19 @@ class Named:
 
 class Selection:
     """How far a call reaches for what its method declares: the union of its
-    terms. ``Selection()`` reaches nothing."""
+    terms. ``Selection()`` reaches nothing.
 
-    __slots__ = ("_terms",)
+    A term is lent when the call holds the declaration there only with the
+    help of a grant that selects no owner: the term of two permissions held
+    together, one on an owner and the other on the whole kind, names the owner
+    and is lent. ``owner_selected`` drops it. Terms a caller builds are not."""
 
-    def __init__(self, terms: Iterable[Named] = ()) -> None:
+    __slots__ = ("_terms", "_lent")
+
+    def __init__(self, terms: Iterable[Named] = (), _lent: Iterable[bool] = ()) -> None:
         self._terms = tuple(terms)
+        lent = tuple(_lent)
+        self._lent = lent if len(lent) == len(self._terms) else (False,) * len(self._terms)
 
     def __repr__(self) -> str:
         return f"Selection({list(self._terms)!r})"
@@ -186,10 +199,14 @@ class Selection:
         return [t for t in self._terms if t.resources]
 
     def owner_selected(self) -> "Selection":
-        """The selection without the terms that name no owner: what a module
-        reads when a grant that selects no owner must reach none of its owned
-        resources."""
-        return Selection(t for t in self._terms if t.owner != "")
+        """The selection as the grants that select an owner hold it: what a
+        module reads when a grant that selects no owner must reach none of its
+        owned resources. Such a grant is dropped, and so is what it lent: where
+        a method declares several permissions, the selection reaches an owner's
+        resources only where every one of them is held by a grant that selects
+        that owner. It is each permission cut to its owner-selected grants and
+        then combined, never the combination cut afterwards."""
+        return Selection(t for t, lent in zip(self._terms, self._lent) if t.owner != "" and not lent)
 
     def allows(self, owner: str, id: str) -> bool:
         """Whether the selection reaches the resource ``id`` that ``owner``
@@ -201,10 +218,13 @@ class Selection:
 
 
 def _both(a: Selection, b: Selection) -> Selection:
-    """The selection both a and b reach."""
+    """The selection both a and b reach: term by term, the owner both name (a
+    term naming none covers every owner) and the resources both name. A term
+    one side holds on an owner and the other on none is lent."""
     out: list[Named] = []
-    for x in a._terms:
-        for y in b._terms:
+    lent: list[bool] = []
+    for x, x_lent in zip(a._terms, a._lent):
+        for y, y_lent in zip(b._terms, b._lent):
             if x.owner != "" and y.owner != "" and x.owner != y.owner:
                 continue
             owner = x.owner or y.owner
@@ -216,10 +236,14 @@ def _both(a: Selection, b: Selection) -> Selection:
                 resources = tuple(i for i in x.resources if i in y.resources)
                 if not resources:
                     continue
-            term = Named(owner, resources)
-            if term not in out:
+            term, borrowed = Named(owner, resources), x_lent or y_lent or x.owner == "" or y.owner == ""
+            # The same term reached twice is lent only if it is lent both ways.
+            if term in out:
+                lent[out.index(term)] = lent[out.index(term)] and borrowed
+            else:
                 out.append(term)
-    return Selection(out)
+                lent.append(borrowed)
+    return Selection(out, lent)
 
 
 @dataclass(frozen=True)
@@ -255,11 +279,35 @@ class Admission:
                 f"any_checked_caller={self.any_checked_caller}, stamped={self.stamped}, held={list(self._held)!r})")
 
     def required(self) -> Selection:
-        """How far the call holds everything the method requires: the owners
-        and resources on which it holds every required permission. A method
-        that requires nothing selects nothing. When a method requires
-        permissions of different kinds on named resources, read ``each``."""
+        """How far the call holds everything the method requires: the
+        intersection, across the required permissions, of where each is held,
+        owner by owner and, for named resources, id by id. It is the whole kind
+        only when every required permission is held on the whole kind, and
+        nothing when one of them is held nowhere. A grant that selects no owner
+        holds its permission on every owner, so a permission held on the whole
+        kind and another held on one owner read as that owner here; a module
+        where such a grant must reach no owned resource reads
+        ``required_owner_selected``. A method that requires nothing selects
+        nothing. When a method requires permissions of different kinds on
+        named resources, read ``each``."""
         return self._all(False)
+
+    def required_owner_selected(self) -> Selection:
+        """``required`` for a module whose resources have owners: the owners,
+        and the resources named within an owner, on which every permission the
+        method requires is held by a grant that selects that owner. Each
+        required permission is cut to its owner-selected grants before they
+        are combined, so a write held on no owner beside a read held on one
+        installation reaches nothing. It is ``required().owner_selected()``,
+        under the name a handler should write."""
+        return self.required().owner_selected()
+
+    def carried_owner_selected(self) -> Selection:
+        """``carried`` for a module whose resources have owners: where every
+        permission the method carries and every permission it requires is held
+        by a grant that selects that owner. It is
+        ``carried().owner_selected()``."""
+        return self.carried().owner_selected()
 
     def carried(self) -> Selection:
         """How far the call holds everything the method carries, within what

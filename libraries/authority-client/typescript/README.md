@@ -35,8 +35,11 @@ const content = read.carried();           // how far what the method carries rea
 content.allows(row.owner, row.id);        // one stored resource
 ```
 
-`required().whole()` is a grant that selects no owner; a module whose resources
-have owners reads `required().ownerSelected()` to drop it. `named()` lists named
+`required()` is the intersection, across the permissions the method requires, of
+where the call holds each. `required().whole()` is a grant that selects no
+owner; a module whose resources have owners reads `requiredOwnerSelected()` (and
+`carriedOwnerSelected()`), where a grant that selects no owner is dropped and
+lends nothing to one that does. `named()` lists named
 resources and `each()` every declared permission with its own selection. A test
 builds one with `admissionOf(declared, method, grants)`. This verifier reads no
 protobuf descriptor: a method missing from the table reads as undeclared and

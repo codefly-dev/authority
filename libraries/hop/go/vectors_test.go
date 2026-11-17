@@ -626,6 +626,7 @@ func admissionCases(admitted func(string, func(*stampCase)) stampCase, refused f
 	}
 	reads := policy.Method{Requires: []policy.Permission{policy.Of(kind, "read")}}
 	content := policy.Method{Requires: []policy.Permission{policy.Of(kind, "read")}, Carries: []policy.Permission{policy.Of(kind, "read_content")}}
+	readsAndWrites := policy.Method{Requires: []policy.Permission{policy.Of(kind, "read"), policy.Of(kind, "write")}}
 	// Two owners' metadata, one owner's content, and grants no declaration here names.
 	twoOwners := holding([]*basev0.WorkScopeV1{
 		scope(kind, "installation-b", nil, "read"),
@@ -686,6 +687,42 @@ func admissionCases(admitted func(string, func(*stampCase)) stampCase, refused f
 			}), on(method, policy.Method{
 				Requires: []policy.Permission{policy.Of("documents.types", "read"), policy.Of(kind, "read"), policy.Of(kind, "read")},
 				Carries:  []policy.Permission{policy.Of(kind, "write"), policy.Of(kind, "read"), policy.Of("documents.types", "define")}}))),
+		// A method that requires two permissions: where each is held, held
+		// together, and what a grant that selects no owner lends (nothing, once
+		// the reading is cut to owner-selected grants).
+		admitted("what admitted the call: two required permissions held on different owners reach nothing",
+			declaring(holding([]*basev0.WorkScopeV1{scope(kind, "installation-a", nil, "read"), scope(kind, "installation-b", nil, "write")}), on(method, readsAndWrites))),
+		admitted("what admitted the call: one required permission on the whole kind lends an owner nothing owner-selected",
+			declaring(holding([]*basev0.WorkScopeV1{scope(kind, "installation-a", nil, "read"), scope(kind, "", nil, "write")}), on(method, readsAndWrites))),
+		admitted("what admitted the call: a required permission held on the whole kind and on the owner is owner-selected there",
+			declaring(holding([]*basev0.WorkScopeV1{
+				scope(kind, "installation-a", nil, "read"), scope(kind, "installation-b", nil, "read"),
+				scope(kind, "", nil, "write"), scope(kind, "installation-a", nil, "write"),
+			}), on(method, readsAndWrites))),
+		admitted("what admitted the call: both required permissions on the whole kind are the whole kind, and nothing owner-selected",
+			declaring(holding([]*basev0.WorkScopeV1{scope(kind, "", nil, "read", "write")}), on(method, readsAndWrites))),
+		admitted("what admitted the call: one required permission on an owner, the other on resources named within it",
+			declaring(holding([]*basev0.WorkScopeV1{
+				scope(kind, "installation-a", nil, "read"), scope(kind, "installation-a", []string{"c-1", "c-2"}, "write"), scope(kind, "installation-b", []string{"c-3"}, "write"),
+			}), on(method, readsAndWrites))),
+		admitted("what admitted the call: resources named with no owner lend an owner nothing owner-selected",
+			declaring(holding([]*basev0.WorkScopeV1{
+				scope(kind, "installation-a", nil, "read"), scope(kind, "", []string{"c-1"}, "write"), scope(kind, "installation-a", []string{"c-2"}, "write"),
+			}), on(method, readsAndWrites))),
+		admitted("what admitted the call: one of two required permissions held on nothing reaches nothing",
+			declaring(holding([]*basev0.WorkScopeV1{scope(kind, "", nil, "write"), scope(kind, "installation-a", nil, "write"), scope("documents.types", "installation-a", nil, "read")}), on(method, readsAndWrites))),
+		admitted("what admitted the call: two kinds required, one on the whole kind and one on an owner",
+			declaring(holding([]*basev0.WorkScopeV1{
+				scope(kind, "installation-a", nil, "read"), scope(kind, "installation-b", nil, "read"),
+				scope("documents.types", "", nil, "read"), scope("documents.types", "installation-b", nil, "read"), scope("documents.types", "installation-c", nil, "read"),
+			}), on(method, policy.Method{Requires: []policy.Permission{policy.Of(kind, "read"), policy.Of("documents.types", "read")}}))),
+		admitted("what admitted the call: required on the whole kind lends what is carried on an owner nothing owner-selected",
+			declaring(holding([]*basev0.WorkScopeV1{scope(kind, "", nil, "read"), scope(kind, "installation-a", nil, "read_content")}), on(method, content))),
+		admitted("what admitted the call: carried on the whole kind lends what is required on an owner nothing owner-selected",
+			declaring(holding([]*basev0.WorkScopeV1{
+				scope(kind, "installation-a", nil, "read"), scope(kind, "installation-b", nil, "read"),
+				scope(kind, "", nil, "read_content"), scope(kind, "installation-b", nil, "read_content"),
+			}), on(method, content))),
 		admitted("what admitted the call: a method that requires nothing selects nothing", declaring(twoOwners, on(method, policy.Method{AnyCheckedCaller: true}))),
 		admitted("what admitted the call: a declaration that says two things selects nothing",
 			declaring(twoOwners, on(method, policy.Method{AnyCheckedCaller: true, Requires: reads.Requires}))),

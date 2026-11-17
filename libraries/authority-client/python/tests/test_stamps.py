@@ -54,6 +54,9 @@ def reading(admission, grants):
             out["owner_selected"] = read(selection.owner_selected(), True)
         return out
 
+    # The owner-selected readings a handler writes are the vectors' own.
+    assert read(admission.required_owner_selected(), True) == read(admission.required().owner_selected(), True)
+    assert read(admission.carried_owner_selected(), True) == read(admission.carried().owner_selected(), True)
     return {
         "method": admission.method, "declared": admission.declared, "any_checked_caller": admission.any_checked_caller,
         "grants": [[g.kind, g.action, g.owner, list(g.resources)] for g in grants],
@@ -131,6 +134,28 @@ def test_a_module_reads_its_own_narrowing_in_a_test_without_a_verifier():
     assert carried.allows("installation-a", "r-1") and not carried.allows("installation-a", "r-3") and not carried.allows("installation-b", "r-1")
     assert not carried.allows("installation-a", ""), "named resources never cover every resource of their owner"
     assert str(Permission("records.records", "read")) == "records.records:read"
+
+
+def test_a_grant_that_selects_no_owner_lends_an_owner_selected_reading_nothing():
+    """Go's TestRequiredIsWhereEveryRequiredPermissionIsHeld: a method that
+    requires two permissions reaches an owner, owner-selected, only where both
+    are held by a grant that selects that owner."""
+    writes = Method(requires=(Permission("records.records", "read"), Permission("records.records", "write")))
+    read = lambda owner, *ids: Grant("records.records", "read", owner, ids)
+    write = lambda owner, *ids: Grant("records.records", "write", owner, ids)
+    lent = admission_of(writes, "/records.v1.Records/Write", [read("installation-a"), write("")])
+    assert lent.required().owners() == ["installation-a"] and not lent.required().whole()
+    assert lent.required_owner_selected().empty() and lent.required().owner_selected().empty()
+    assert not lent.required_owner_selected().allows("installation-a", "r-1")
+    held = admission_of(writes, "/records.v1.Records/Write", [read("installation-a"), write(""), write("installation-a")])
+    assert held.required_owner_selected().owners() == ["installation-a"]
+    named = admission_of(writes, "/records.v1.Records/Write", [read("installation-a"), write("", "r-1"), write("installation-a", "r-2")])
+    assert [(n.owner, n.resources) for n in named.required_owner_selected().named()] == [("installation-a", ("r-2",))]
+    apart = admission_of(writes, "/records.v1.Records/Write", [read("installation-a"), write("installation-b")])
+    assert apart.required().empty() and apart.required_owner_selected().empty()
+    content = Method(requires=(Permission("records.records", "read"),), carries=(Permission("records.records", "read_content"),))
+    carried = admission_of(content, "/records.v1.Records/Content", [read(""), Grant("records.records", "read_content", "installation-a")])
+    assert carried.carried().owners() == ["installation-a"] and carried.carried_owner_selected().empty()
 
 
 @pytest.mark.parametrize("value", ["", "W10=", "bm90IGpzb24", "WzFd", "W1siayIsImEiLCIiXV0", "W1siayIsImEiLCIiLFsxXV1d", "W1siayIsImEiLDEsW11dXQ", "e30"])

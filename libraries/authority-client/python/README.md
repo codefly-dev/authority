@@ -48,8 +48,11 @@ content = read.carried()                # how far what the method carries reache
 content.allows(row.owner, row.id)       # one stored resource
 ```
 
-`required().whole()` is a grant that selects no owner; a module whose resources
-have owners reads `required().owner_selected()` to drop it. `named()` lists
+`required()` is the intersection, across the permissions the method requires, of
+where the call holds each. `required().whole()` is a grant that selects no
+owner; a module whose resources have owners reads `required_owner_selected()`
+(and `carried_owner_selected()`), where a grant that selects no owner is dropped
+and lends nothing to one that does. `named()` lists
 named resources and `each()` every declared permission with its own selection.
 A test builds one with `admission_of(declared, method, grants)`. This verifier
 reads no protobuf descriptor: a method missing from `declarations` reads as

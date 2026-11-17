@@ -43,6 +43,9 @@ const reading = (admission, grants) => {
     allows: owners.flatMap(owner => ids.map(id => ({ owner, id, allowed: selection.allows(owner, id) }))),
     ...(nested ? {} : { owner_selected: read(selection.ownerSelected(), true) }),
   });
+  // The owner-selected readings a handler writes are the vectors' own.
+  assert.deepEqual(read(admission.requiredOwnerSelected(), true), read(admission.required().ownerSelected(), true));
+  assert.deepEqual(read(admission.carriedOwnerSelected(), true), read(admission.carried().ownerSelected(), true));
   return {
     method: admission.method, declared: admission.declared, any_checked_caller: admission.anyCheckedCaller,
     grants: grants.map(g => [g.kind, g.action, g.owner, [...g.resources]]),
@@ -90,6 +93,29 @@ for (const vector of vectors) {
     assert.deepEqual(grantsOf(stamped), id.grants.map(g => ({ ...g, resources: [...g.resources] })));
   });
 }
+
+// Go's TestRequiredIsWhereEveryRequiredPermissionIsHeld: a method that requires
+// two permissions reaches an owner, owner-selected, only where both are held by
+// a grant that selects that owner.
+test('a grant that selects no owner lends an owner-selected reading nothing', () => {
+  const writes = { requires: [{ kind: 'records.records', action: 'read' }, { kind: 'records.records', action: 'write' }] };
+  const grant = (action, owner, resources = []) => ({ kind: 'records.records', action, owner, resources });
+  const lent = admissionOf(writes, '/records.v1.Records/Write', [grant('read', 'installation-a'), grant('write', '')]);
+  assert.deepEqual(lent.required().owners(), ['installation-a']);
+  assert.ok(!lent.required().whole() && lent.requiredOwnerSelected().empty() && lent.required().ownerSelected().empty());
+  assert.ok(!lent.requiredOwnerSelected().allows('installation-a', 'r-1'));
+  const held = admissionOf(writes, '/records.v1.Records/Write', [grant('read', 'installation-a'), grant('write', ''), grant('write', 'installation-a')]);
+  assert.deepEqual(held.requiredOwnerSelected().owners(), ['installation-a']);
+  const named = admissionOf(writes, '/records.v1.Records/Write',
+    [grant('read', 'installation-a'), grant('write', '', ['r-1']), grant('write', 'installation-a', ['r-2'])]);
+  assert.deepEqual(named.requiredOwnerSelected().named(), [{ owner: 'installation-a', resources: ['r-2'] }]);
+  const apart = admissionOf(writes, '/records.v1.Records/Write', [grant('read', 'installation-a'), grant('write', 'installation-b')]);
+  assert.ok(apart.required().empty() && apart.requiredOwnerSelected().empty());
+  const content = { requires: [{ kind: 'records.records', action: 'read' }], carries: [{ kind: 'records.records', action: 'read_content' }] };
+  const carried = admissionOf(content, '/records.v1.Records/Content', [grant('read', ''), grant('read_content', 'installation-a')]);
+  assert.deepEqual(carried.carried().owners(), ['installation-a']);
+  assert.ok(carried.carriedOwnerSelected().empty());
+});
 
 // Go's AdmissionOf: a test of a module's own narrowing builds an admission from
 // a declaration and grants, given in any order and repeated.

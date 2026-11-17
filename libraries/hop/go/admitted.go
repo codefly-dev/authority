@@ -17,6 +17,12 @@ package hop
 // owners the caller may see) or .Carried() (how far the narrower of two
 // declared scopes reaches, content against metadata), and writes no kind and
 // no action. Admission was decided by the hop; nothing here decides it again.
+//
+// A module whose resources have owners, where a grant that selects no owner
+// must reach none of them, reads RequiredOwnerSelected() and
+// CarriedOwnerSelected() instead: each permission is cut to the grants that
+// select an owner before the permissions are combined, so a grant that selects
+// none lends nothing to one that does.
 
 import (
 	"context"
@@ -153,7 +159,16 @@ type Named struct {
 
 // Selection is how far a call reaches for what its method declares: the union
 // of its terms. The zero Selection reaches nothing.
-type Selection struct{ terms []Named }
+type Selection struct{ terms []term }
+
+// term is one Named of a Selection. lent is true when the call holds the
+// declaration there only with the help of a grant that selects no owner: the
+// term of two permissions held together, one on an owner and the other on the
+// whole kind, names the owner and is lent. OwnerSelected drops it.
+type term struct {
+	Named
+	lent bool
+}
 
 // Empty reports that the selection reaches nothing.
 func (s Selection) Empty() bool { return len(s.terms) == 0 }
@@ -162,7 +177,7 @@ func (s Selection) Empty() bool { return len(s.terms) == 0 }
 // owner selected. A module whose resources have owners decides for itself
 // whether an unselected grant reaches them; OwnerSelected drops it.
 func (s Selection) Whole() bool {
-	return slices.ContainsFunc(s.terms, func(t Named) bool { return t.Owner == "" && len(t.Resources) == 0 })
+	return slices.ContainsFunc(s.terms, func(t term) bool { return t.Owner == "" && len(t.Resources) == 0 })
 }
 
 // Owners are the owners whose every resource the call reaches, sorted: what a
@@ -190,13 +205,17 @@ func (s Selection) Named() []Named {
 	return out
 }
 
-// OwnerSelected is the selection without the terms that name no owner: what a
-// module reads when a grant that selects no owner must reach none of its
-// owned resources.
+// OwnerSelected is the selection as the grants that select an owner hold it:
+// what a module reads when a grant that selects no owner must reach none of
+// its owned resources. Such a grant is dropped, and so is what it lent: where
+// a method declares several permissions, the selection reaches an owner's
+// resources only where every one of them is held by a grant that selects that
+// owner. It is each permission cut to its owner-selected grants and then
+// combined, never the combination cut afterwards.
 func (s Selection) OwnerSelected() Selection {
 	var out Selection
 	for _, t := range s.terms {
-		if t.Owner != "" {
+		if t.Owner != "" && !t.lent {
 			out.terms = append(out.terms, t)
 		}
 	}
@@ -208,7 +227,7 @@ func (s Selection) OwnerSelected() Selection {
 // resource of that owner, which named resources never cover; a term naming an
 // owner covers only that owner.
 func (s Selection) Allows(owner, id string) bool {
-	return slices.ContainsFunc(s.terms, func(t Named) bool {
+	return slices.ContainsFunc(s.terms, func(t term) bool {
 		if t.Owner != "" && t.Owner != owner {
 			return false
 		}
@@ -216,7 +235,9 @@ func (s Selection) Allows(owner, id string) bool {
 	})
 }
 
-// both is the selection both a and b reach.
+// both is the selection both a and b reach: term by term, the owner both name
+// (a term naming none covers every owner) and the resources both name. A term
+// one side holds on an owner and the other on none is lent.
 func both(a, b Selection) Selection {
 	var out Selection
 	for _, x := range a.terms {
@@ -224,7 +245,7 @@ func both(a, b Selection) Selection {
 			if x.Owner != "" && y.Owner != "" && x.Owner != y.Owner {
 				continue
 			}
-			t := Named{Owner: x.Owner}
+			t := term{Named: Named{Owner: x.Owner}, lent: x.lent || y.lent || x.Owner == "" || y.Owner == ""}
 			if t.Owner == "" {
 				t.Owner = y.Owner
 			}
@@ -243,7 +264,10 @@ func both(a, b Selection) Selection {
 					continue
 				}
 			}
-			if !slices.ContainsFunc(out.terms, func(have Named) bool { return have.Owner == t.Owner && slices.Equal(have.Resources, t.Resources) }) {
+			// The same term reached twice is lent only if it is lent both ways.
+			if i := slices.IndexFunc(out.terms, func(have term) bool { return have.Owner == t.Owner && slices.Equal(have.Resources, t.Resources) }); i >= 0 {
+				out.terms[i].lent = out.terms[i].lent && t.lent
+			} else {
 				out.terms = append(out.terms, t)
 			}
 		}
@@ -274,10 +298,30 @@ type Admission struct {
 }
 
 // Required is how far the call holds everything the method requires: the
-// owners and resources on which it holds every required permission. A method
-// that requires nothing selects nothing. When a method requires permissions of
-// different kinds on named resources, read Each.
+// intersection, across the required permissions, of where each is held, owner
+// by owner and, for named resources, id by id. It is the whole kind only when
+// every required permission is held on the whole kind, and nothing when one of
+// them is held nowhere. A grant that selects no owner holds its permission on
+// every owner, so a permission held on the whole kind and another held on one
+// owner read as that owner here; a module where such a grant must reach no
+// owned resource reads RequiredOwnerSelected. A method that requires nothing
+// selects nothing. When a method requires permissions of different kinds on
+// named resources, read Each.
 func (a *Admission) Required() Selection { return a.all(false) }
+
+// RequiredOwnerSelected is Required for a module whose resources have owners:
+// the owners, and the resources named within an owner, on which every
+// permission the method requires is held by a grant that selects that owner.
+// Each required permission is cut to its owner-selected grants before they are
+// combined, so a write held on no owner beside a read held on one
+// installation reaches nothing. It is Required().OwnerSelected(), under the
+// name a handler should write.
+func (a *Admission) RequiredOwnerSelected() Selection { return a.Required().OwnerSelected() }
+
+// CarriedOwnerSelected is Carried for a module whose resources have owners:
+// where every permission the method carries and every permission it requires
+// is held by a grant that selects that owner. It is Carried().OwnerSelected().
+func (a *Admission) CarriedOwnerSelected() Selection { return a.Carried().OwnerSelected() }
 
 // Carried is how far the call holds everything the method carries, within
 // what it requires: the narrower of two declared scopes, such as content
@@ -346,7 +390,7 @@ func AdmissionOf(declared policy.Method, method string, grants []Grant) *Admissi
 			h := Held{Permission: p, Carried: n == 1}
 			for _, g := range canonical(grants) {
 				if g.Kind == p.Kind && (g.Action == p.Action || g.Action == policy.AnyAction) {
-					h.Selection.terms = append(h.Selection.terms, Named{Owner: g.Owner, Resources: g.Resources})
+					h.Selection.terms = append(h.Selection.terms, term{Named: Named{Owner: g.Owner, Resources: g.Resources}})
 				}
 			}
 			a.held = append(a.held, h)

@@ -14,6 +14,12 @@
  * declared scopes reaches, content against metadata), and writes no kind and no
  * action. Admission was decided by the hop; nothing here decides it again.
  *
+ * A module whose resources have owners, where a grant that selects no owner
+ * must reach none of them, reads requiredOwnerSelected() and
+ * carriedOwnerSelected() instead: each permission is cut to the grants that
+ * select an owner before the permissions are combined, so a grant that selects
+ * none lends nothing to one that does.
+ *
  * testdata/stamps.json holds every reading here to Go's. */
 import type { WorkContextV1 } from "./src/gen/host/authority/v1/work_context_pb.js";
 
@@ -134,12 +140,19 @@ export function grantsOf(value: string): Grant[] {
 }
 
 /** How far a call reaches for what its method declares: the union of its
- * terms. A Selection of no terms reaches nothing. */
+ * terms. A Selection of no terms reaches nothing.
+ *
+ * A term is lent when the call holds the declaration there only with the help
+ * of a grant that selects no owner: the term of two permissions held together,
+ * one on an owner and the other on the whole kind, names the owner and is
+ * lent. ownerSelected drops it. Terms a caller builds are not. */
 export class Selection {
   readonly #terms: readonly Named[];
+  readonly #lent: readonly boolean[];
 
-  constructor(terms: readonly Named[] = []) {
+  constructor(terms: readonly Named[] = [], lent: readonly boolean[] = []) {
     this.#terms = terms.map(t => Object.freeze({ owner: t.owner, resources: Object.freeze([...t.resources]) }));
+    this.#lent = this.#terms.map((_, i) => lent.length === terms.length && lent[i] === true);
   }
 
   /** Whether the selection reaches nothing. */
@@ -162,9 +175,14 @@ export class Selection {
     return this.#terms.filter(t => t.resources.length > 0).map(t => ({ owner: t.owner, resources: [...t.resources] }));
   }
 
-  /** The selection without the terms that name no owner: what a module reads
-   * when a grant that selects no owner must reach none of its owned resources. */
-  ownerSelected(): Selection { return new Selection(this.#terms.filter(t => t.owner !== "")); }
+  /** The selection as the grants that select an owner hold it: what a module
+   * reads when a grant that selects no owner must reach none of its owned
+   * resources. Such a grant is dropped, and so is what it lent: where a method
+   * declares several permissions, the selection reaches an owner's resources
+   * only where every one of them is held by a grant that selects that owner. It
+   * is each permission cut to its owner-selected grants and then combined,
+   * never the combination cut afterwards. */
+  ownerSelected(): Selection { return new Selection(this.#terms.filter((t, i) => t.owner !== "" && !this.#lent[i])); }
 
   /** Whether the selection reaches the resource id that owner holds, as the
    * module's own record names them. An empty id asks for every resource of that
@@ -175,11 +193,13 @@ export class Selection {
       (t.resources.length === 0 || (id !== "" && t.resources.includes(id))));
   }
 
-  /** The selection both this and other reach. */
+  /** The selection both this and other reach: term by term, the owner both
+   * name (a term naming none covers every owner) and the resources both name. A
+   * term one side holds on an owner and the other on none is lent. */
   both(other: Selection): Selection {
-    const out: Named[] = [];
-    for (const x of this.#terms) {
-      for (const y of other.#terms) {
+    const out: Named[] = [], lent: boolean[] = [];
+    for (const [i, x] of this.#terms.entries()) {
+      for (const [j, y] of other.#terms.entries()) {
         if (x.owner !== "" && y.owner !== "" && x.owner !== y.owner) continue;
         const owner = x.owner !== "" ? x.owner : y.owner;
         let resources: readonly string[];
@@ -191,10 +211,17 @@ export class Selection {
         }
         const same = (have: Named): boolean => have.owner === owner && have.resources.length === resources.length &&
           have.resources.every((id, i) => id === resources[i]);
-        if (!out.some(same)) out.push({ owner, resources });
+        const borrowed = this.#lent[i] || other.#lent[j] || x.owner === "" || y.owner === "";
+        // The same term reached twice is lent only if it is lent both ways.
+        const at = out.findIndex(same);
+        if (at >= 0) lent[at] = lent[at] && borrowed;
+        else {
+          out.push({ owner, resources });
+          lent.push(borrowed);
+        }
       }
     }
-    return new Selection(out);
+    return new Selection(out, lent);
   }
 }
 
@@ -224,11 +251,31 @@ export class Admission {
     Object.freeze(this);
   }
 
-  /** How far the call holds everything the method requires: the owners and
-   * resources on which it holds every required permission. A method that
-   * requires nothing selects nothing. When a method requires permissions of
-   * different kinds on named resources, read each. */
+  /** How far the call holds everything the method requires: the intersection,
+   * across the required permissions, of where each is held, owner by owner and,
+   * for named resources, id by id. It is the whole kind only when every
+   * required permission is held on the whole kind, and nothing when one of them
+   * is held nowhere. A grant that selects no owner holds its permission on
+   * every owner, so a permission held on the whole kind and another held on one
+   * owner read as that owner here; a module where such a grant must reach no
+   * owned resource reads requiredOwnerSelected. A method that requires nothing
+   * selects nothing. When a method requires permissions of different kinds on
+   * named resources, read each. */
   required(): Selection { return this.#all(false); }
+
+  /** required for a module whose resources have owners: the owners, and the
+   * resources named within an owner, on which every permission the method
+   * requires is held by a grant that selects that owner. Each required
+   * permission is cut to its owner-selected grants before they are combined, so
+   * a write held on no owner beside a read held on one installation reaches
+   * nothing. It is required().ownerSelected(), under the name a handler should
+   * write. */
+  requiredOwnerSelected(): Selection { return this.required().ownerSelected(); }
+
+  /** carried for a module whose resources have owners: where every permission
+   * the method carries and every permission it requires is held by a grant that
+   * selects that owner. It is carried().ownerSelected(). */
+  carriedOwnerSelected(): Selection { return this.carried().ownerSelected(); }
 
   /** How far the call holds everything the method carries, within what it
    * requires: the narrower of two declared scopes, such as content within

@@ -95,8 +95,13 @@ content := admitted.Carried()            // how far what the method carries reac
 content.Allows(row.Owner, row.ID)        // one stored resource
 ```
 
-`Required().Whole()` is a grant that selects no owner; a module whose resources
-have owners reads `Required().OwnerSelected()` to drop it. `Named()` lists named
+`Required()` is the intersection, across the permissions the method requires,
+of where the call holds each. `Required().Whole()` is a grant that selects no
+owner, which holds its permission on every owner. A module whose resources have
+owners reads `RequiredOwnerSelected()` (and `CarriedOwnerSelected()`) instead:
+each permission is cut to the grants that select an owner before they are
+combined, so a write held on no owner beside a read held on one installation
+reaches nothing. `Named()` lists named
 resources. The declaration is read from the protobuf descriptors linked into the
 binary (`authority.hop.v1.policy` on each rpc). A module serving HTTP routes
 passes `hop.Declarations(map[string]policy.Method{"GET /v1/things/{id}": ...})`
