@@ -10,8 +10,8 @@ import (
 // teamCast is SessionService.OpenTeamCast: a person fixes a session to act as
 // a member of one team and of nothing else, so that what a member of the team
 // sees can be checked by someone whose own reach answers everything. The rule
-// is the authority's and is one rule: a person acts as a team whose roles they
-// could grant, member of it or not.
+// is the authority's and is one rule: a person acts as a team only if they are
+// a member of it or could grant every role it holds.
 //   - an administrator who is not in the team casts onto it, and the cast holds
 //     exactly what the team's role holds, at the solution and at the store
 //     through its binding; an ask beyond it is refused "widens", and the cast

@@ -122,9 +122,9 @@ func (s *Service) GrantRoleAsHost(ctx context.Context, r RoleRequest) (domain.In
 // installation are refused at once (their grant epoch on it moves): a
 // person's, or, of a team, every member's and every person's who may act as
 // the team (teamIsWithin), since a cast holds what the team holds and its
-// person is by design not a member. The store lists no cast by team, so
-// every person who could hold one is moved, cast or not: an administrator
-// who could grant the team's roles, a person holding them directly. Their own
+// person need not be a member. The store lists no cast by team, so
+// every person who could hold one is moved, cast or not: a member, and an
+// administrator who could grant the team's roles. Their own
 // capabilities through that installation are issued again; nobody else's are
 // touched.
 func (s *Service) RevokeRole(ctx context.Context, caller Person, r RoleRequest) (domain.Installation, error) {

@@ -152,9 +152,9 @@ func personUnder(tx Tx, org, id, session string, casts []string) (domain.Person,
 	p.Roles = nil
 	// A cast goes further: the session acts as a member of exactly one team,
 	// so the person's own teams and direct grants stop reaching anything
-	// (decide.HeldRoles). Their membership of the team is not required and
-	// not consulted. What is consulted is the rule the cast was opened by, and
-	// it is asked again here, at every read of whoever acts: a cast is a rule
+	// (decide.HeldRoles). What is consulted is the rule the cast was opened
+	// by (a member of the team, or could grant every role it holds), and it
+	// is asked again here, at every read of whoever acts: a cast is a rule
 	// that holds now, never a decision OpenTeamCast took once.
 	if v.Team != "" {
 		if err := castHolds(tx, p, v, casts); err != nil {

@@ -94,6 +94,52 @@ func TestAPersonWhoCannotGrantCannotActAsTheTeam(t *testing.T) {
 	}
 }
 
+// Holding the same role names is not membership. maya holds user on a by a
+// direct grant, is not in the team and can grant nothing; the team holds user
+// on a too. Acting as it would attribute her work to a team she is not in and
+// could not have seated, so she is refused, and the team is not listed to her.
+func TestAPersonHoldingTheTeamsRolesDirectlyButNotAMemberCannotActAsIt(t *testing.T) {
+	h := newHarness(t)
+	h.grantTeam("a", "user", "team")
+	h.grant("a", "user", "maya")
+
+	_, err := h.casting("maya", "team")
+	if err == nil {
+		t.Fatal("a person who is not a member and could grant nothing acted as the team, by holding the same role name")
+	}
+	if !strings.Contains(err.Error(), "could not grant") {
+		t.Errorf("the refusal must say they could not grant those roles, got: %v", err)
+	}
+	maya := h.person("maya")
+	if listed, err := h.svc.CastableTeams(h.ctx, maya, maya.Organization); err != nil || len(listed) != 0 {
+		t.Fatalf("a non-member who could grant nothing lists %v (%v); want none", listed, err)
+	}
+}
+
+// The positive twin: a member acts as their own team, though they could grant
+// nothing, and the work is attributed to that team alone.
+func TestAMemberActsAsTheirOwnTeam(t *testing.T) {
+	h := newHarness(t)
+	h.grantTeam("a", "user", "team")
+
+	cast, err := h.casting("tam", "team")
+	if err != nil {
+		t.Fatalf("a member must be able to act as their own team: %v", err)
+	}
+	issued, err := h.rootAs(cast, "a")
+	if err != nil {
+		t.Fatalf("issue in a member's cast: %v", err)
+	}
+	if got := issued.Context.GetAttributionTeamIds(); len(got) != 1 || got[0] != "team" {
+		t.Fatalf("attributed to %v; want the cast team alone", got)
+	}
+	tam := h.person("tam")
+	listed, err := h.svc.CastableTeams(h.ctx, tam, tam.Organization)
+	if err != nil || len(listed) != 1 || listed[0].Team != "team" {
+		t.Fatalf("a member lists %v (%v); want their own team", listed, err)
+	}
+}
+
 // A role view opened FROM a cast stays inside that cast. This is the escape an
 // independent review found and reproduced: the view record carried the viewed
 // roles but not the team, so the new session's Cast was empty and HeldRoles

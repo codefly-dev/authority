@@ -643,8 +643,9 @@ The host-independent part is the core's: `authority.ConventionalTeamName`,
 authority's directory and seating is `pkg/business/state/teams.go`. Signed in
 as Alice at the edge's sign-in page, **Act as this team** on `<target>-user`
 opens a session that is that team and nothing else (the session interface's
-`OpenTeamCast`: a person may act as a team whose roles they could grant,
-member of it or not — the core decides, and a refusal is shown by name); the
+`OpenTeamCast`: a person may act as a team only if they are a member of it
+or could grant every role it holds — the core decides, and a refusal is shown
+by name); the
 hop then answers with the user's reach alone, and **Back to your own
 session** restores hers. Signed in as Carol, the hop answers with
 `<target>-user`'s reach and nothing else; signed in as Dana, with
