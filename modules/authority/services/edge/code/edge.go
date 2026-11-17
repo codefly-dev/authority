@@ -373,8 +373,22 @@ func (e *Edge) signOut(w http.ResponseWriter, r *http.Request) {
 
 // localPath is where a sign-in returns the browser: a path on this origin,
 // never another site; anything else returns to the root.
+//
+// It is judged as a browser reads it, not as it is spelled: a browser strips
+// tab, line feed and carriage return from a URL before it parses it and reads
+// a backslash as a slash, so "/<TAB>/elsewhere.test" is "//elsewhere.test" to
+// it, another site. A return therefore carries no control character, space or
+// backslash anywhere, parses as a URL with no scheme, no host and no user, and
+// its path starts with one slash and has no empty segment.
 func localPath(back string) string {
-	if !strings.HasPrefix(back, "/") || strings.HasPrefix(back, "//") || strings.HasPrefix(back, "/\\") {
+	for i := 0; i < len(back); i++ {
+		if c := back[i]; c <= ' ' || c == 0x7f || c == '\\' {
+			return "/"
+		}
+	}
+	u, err := url.Parse(back)
+	if err != nil || u.Scheme != "" || u.Opaque != "" || u.Host != "" || u.User != nil ||
+		!strings.HasPrefix(u.Path, "/") || strings.Contains(u.Path, "//") {
 		return "/"
 	}
 	return back

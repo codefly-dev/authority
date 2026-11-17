@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"testing"
@@ -69,5 +70,55 @@ func TestTheSignInIslandEscapesItsData(t *testing.T) {
 	var data signInData
 	if m == nil || json.Unmarshal([]byte(m[1]), &data) != nil || len(data.People) != 1 || data.People[0].Email != "</script><script>alert(1)</script>" || data.People[0].Description != "</script><script>alert(2)</script>" {
 		t.Fatalf("the island did not round-trip its data:\n%s", out.String())
+	}
+}
+
+// A return is a path on this origin and nothing a browser reads as another
+// site. A browser strips tab, line feed and carriage return from a URL before
+// it parses it and reads a backslash as a slash, so "/<TAB>/elsewhere.test" is
+// "//elsewhere.test" to it: each of these returns to the root, from the page,
+// the sign-in and the act-as alike, and a path of this origin is kept.
+func TestAReturnABrowserReadsAsAnotherSiteGoesToTheRoot(t *testing.T) {
+	elsewhere := []string{
+		"/\t/elsewhere.test", "/\n/elsewhere.test", "/\r/elsewhere.test", "/\r\n/elsewhere.test",
+		"\t//elsewhere.test", "/\t\\elsewhere.test", "/\\elsewhere.test", "/\\/elsewhere.test", "\\\\elsewhere.test",
+		"/records\\..\\..\\elsewhere.test", "/records\t", "/records\x00", "/records\x7f", "/\x0b/elsewhere.test",
+		"//elsewhere.test", "///elsewhere.test", "/.//elsewhere.test", "/records/..//elsewhere.test", "/records//elsewhere.test",
+		"https://elsewhere.test/", "https:/elsewhere.test", "javascript:alert(1)", "//", "", " /records", "records", "/%zz",
+	}
+	kept := []string{"/", "/records", "/records?x=1", "/records?tab=schemas#top", "/records/a%20b", "/records?next=https://elsewhere.test//a", "/auth/setup?target=proposals"}
+	for _, back := range elsewhere {
+		if got := localPath(back); got != "/" {
+			t.Errorf("localPath(%q) = %q", back, got)
+		}
+	}
+	for _, back := range kept {
+		if got := localPath(back); got != back {
+			t.Errorf("localPath(%q) = %q", back, got)
+		}
+	}
+
+	f := newFixture(t)
+	cookie := f.signIn(t)
+	for _, back := range elsewhere {
+		res, body := f.do(t, http.MethodGet, "/auth/sign-in?"+url.Values{"return": {back}}.Encode(), nil)
+		if data := pageData(t, res, body); data.Return != "/" {
+			t.Errorf("the page carries the return %q as %q", back, data.Return)
+		}
+		if res, _ := f.signInAs(t, "fixture-remi", back, f.edge.URL); res.StatusCode != http.StatusSeeOther || res.Header.Get("Location") != "/" {
+			t.Errorf("a sign-in returning to %q answered %d to %q", back, res.StatusCode, res.Header.Get("Location"))
+		}
+		if res := f.actAs(t, url.Values{"team": {"records-user"}, "return": {back}}, cookie); res.StatusCode != http.StatusSeeOther || res.Header.Get("Location") != "/" {
+			t.Errorf("an act-as returning to %q answered %d to %q", back, res.StatusCode, res.Header.Get("Location"))
+		}
+		res = f.actAs(t, url.Values{"action": {"back"}, "return": {back}}, &http.Cookie{Name: SessionKey, Value: "remi-as-users"}, &http.Cookie{Name: ParentKey, Value: "remi-session"})
+		if res.StatusCode != http.StatusSeeOther || res.Header.Get("Location") != "/" {
+			t.Errorf("coming back from a cast to %q answered %d to %q", back, res.StatusCode, res.Header.Get("Location"))
+		}
+		// A refused act-as returns to the sign-in page, which carries the return on.
+		res = f.actAs(t, url.Values{"team": {"finance"}, "return": {back}}, cookie)
+		if to, err := url.Parse(res.Header.Get("Location")); err != nil || to.Path != "/auth/sign-in" || to.Query().Get("return") != "/" {
+			t.Errorf("a refused act-as returning to %q went to %q", back, res.Header.Get("Location"))
+		}
 	}
 }
