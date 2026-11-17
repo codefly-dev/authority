@@ -50,6 +50,9 @@ const WorkContextKey = "x-codefly-work-context"
 type Sessions interface {
 	SignIn(ctx context.Context, in *sessionv1.SignInRequest, opts ...grpc.CallOption) (*sessionv1.Session, error)
 	Current(ctx context.Context, in *sessionv1.CurrentRequest, opts ...grpc.CallOption) (*sessionv1.Session, error)
+	// End ends the bearer's session and every role view and cast opened from
+	// it, at the host: a sign-out, and the way back from a cast (session.go).
+	End(ctx context.Context, in *sessionv1.EndRequest, opts ...grpc.CallOption) (*sessionv1.EndResponse, error)
 	ListFixturePeople(ctx context.Context, in *sessionv1.ListFixturePeopleRequest, opts ...grpc.CallOption) (*sessionv1.ListFixturePeopleResponse, error)
 	// OpenTeamCast opens a session that acts as one team and nothing else
 	// (actas.go); the authority decides whether the caller may.
@@ -121,6 +124,10 @@ type held struct {
 	// installation is the installation the authority sealed the context to.
 	installation string
 	renew        time.Time
+	// epoch is the session's grant epoch, as Current stated it, when this
+	// context was asked for: once Current states another, what the session
+	// holds has changed and the context is dropped (workContext).
+	epoch string
 	// cached: this copy was handed out of what the edge held, not issued for
 	// the call asking; never set on what is held.
 	cached bool
@@ -228,8 +235,22 @@ func (e *Edge) toModule(w http.ResponseWriter, r *http.Request, module Module, t
 		refuseCall(w, r, http.StatusForbidden, "a write must come from this origin")
 		return
 	}
+	// Who the bearer is, read now and never from what the edge holds: a
+	// session ended or expired at the host reaches no module though a Work
+	// Context issued for it has not lapsed, and its grant epoch says whether
+	// what it holds is still what a held context was issued for.
+	sess, err := e.currentSession(r.Context(), bearer)
+	if err != nil {
+		if status.Code(err) == codes.Unauthenticated {
+			e.evict(bearer)
+			refuseCall(w, r, http.StatusUnauthorized, "no open session: sign in at /auth/sign-in ("+status.Convert(err).Message()+")")
+		} else {
+			refuseCall(w, r, http.StatusServiceUnavailable, "the authority could not answer Current: "+status.Convert(err).Message())
+		}
+		return
+	}
 	issue := func() (held, bool) {
-		wc, err := e.workContext(r.Context(), bearer, module.Name, pageOf(r))
+		wc, err := e.workContext(r.Context(), bearer, module.Name, pageOf(r), sess.GetGrantEpoch())
 		if err != nil {
 			code := http.StatusForbidden
 			if status.Code(err) == codes.Unauthenticated {
@@ -340,8 +361,12 @@ func (e *Edge) rolesChanged() {
 
 // workContext is the person's Work Context at module, issued by the authority
 // for everything the person holds there and held until shortly before it
-// lapses. The hop narrows each call to what its method requires.
-func (e *Edge) workContext(ctx context.Context, bearer, module, page string) (held, error) {
+// lapses, or until what the session holds changes: epoch is the session's
+// grant epoch as Current states it now, and a context held from another epoch
+// is dropped, so a grant or a revoke made anywhere applies from this call. A
+// host that states no epoch (empty) leaves a held context until it lapses or
+// a module refuses it. The hop narrows each call to what its method requires.
+func (e *Edge) workContext(ctx context.Context, bearer, module, page, epoch string) (held, error) {
 	key := heldKey(bearer, module, page)
 	e.mu.Lock()
 	for key, h := range e.held {
@@ -350,7 +375,9 @@ func (e *Edge) workContext(ctx context.Context, bearer, module, page string) (he
 		}
 	}
 	generation := e.cacheGeneration
-	if h, ok := e.held[key]; ok && e.now().Before(h.renew) {
+	if h, ok := e.held[key]; ok && h.epoch != epoch {
+		delete(e.held, key)
+	} else if ok && e.now().Before(h.renew) {
 		e.mu.Unlock()
 		h.cached = true
 		return h, nil
@@ -385,7 +412,7 @@ func (e *Edge) workContext(ctx context.Context, bearer, module, page string) (he
 	if lead > 30*time.Second {
 		lead = 30 * time.Second
 	}
-	h := held{bearer: sha256.Sum256([]byte(bearer)), token: issued.GetToken(), installation: issued.GetContext().GetSeal().GetInstallationId(), renew: expires.Add(-lead)}
+	h := held{bearer: sha256.Sum256([]byte(bearer)), token: issued.GetToken(), installation: issued.GetContext().GetSeal().GetInstallationId(), renew: expires.Add(-lead), epoch: epoch}
 	e.mu.Lock()
 	if e.held == nil {
 		e.held = map[[32]byte]held{}
@@ -440,11 +467,18 @@ func (e *Edge) signIn(w http.ResponseWriter, r *http.Request) {
 		refuse(w, http.StatusUnauthorized, "the authority refused the sign-in: "+status.Convert(err).Message())
 		return
 	}
-	http.SetCookie(w, &http.Cookie{Name: SessionKey, Value: sess.GetBearer(), Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode})
+	cookie, err := e.sessionCookie(SessionKey, sess.GetBearer(), sess)
+	if err != nil {
+		// Not a session this edge keeps: it is ended rather than left open.
+		_ = e.end(r.Context(), sess.GetBearer())
+		refuse(w, http.StatusBadGateway, "the sign-in opened no session the edge keeps: "+err.Error())
+		return
+	}
+	http.SetCookie(w, cookie)
 	// A sign-in is a new person's session: the way back a cast kept (actAs)
 	// goes with the session it belonged to, so a later "back" never restores
 	// an earlier person's session with no credential.
-	http.SetCookie(w, &http.Cookie{Name: ParentKey, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode})
+	http.SetCookie(w, clearedCookie(ParentKey))
 	if form {
 		http.Redirect(w, r, localPath(back), http.StatusSeeOther)
 		return
@@ -452,11 +486,16 @@ func (e *Edge) signIn(w http.ResponseWriter, r *http.Request) {
 	// A caller that is not a browser (a CLI applying an agent bundle) presents
 	// the bearer itself on each call, so the JSON answer hands it back as the
 	// session interface does; the cookie above carries the same value.
-	writeJSON(w, http.StatusOK, map[string]string{"personId": sess.GetPersonId(), "organizationId": sess.GetOrganizationId(), "bearer": sess.GetBearer()})
+	writeJSON(w, http.StatusOK, map[string]any{"personId": sess.GetPersonId(), "organizationId": sess.GetOrganizationId(), "bearer": sess.GetBearer(), "expiresAtUnix": sess.GetExpiresAtUnix()})
 }
 
-// signOut ends the browser's session here; it is a write, so it must come
-// from this origin.
+// signOut ends the browser's session, here and at the host (End): the cookie
+// is cleared, what the edge held for it is dropped, and a copy of its bearer
+// is unauthenticated from then on. From a cast it ends the session the cast
+// was opened from too, the one the way back kept: signing out leaves no
+// session of the person's this browser held. It is a write, so it must come
+// from this origin. When the host did not end a session the browser is signed
+// out here all the same, and is told so.
 func (e *Edge) signOut(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		refuse(w, http.StatusMethodNotAllowed, "sign out with POST")
@@ -467,9 +506,26 @@ func (e *Edge) signOut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	bearer, _ := bearerOf(r)
-	e.evict(bearer)
+	bearers := []string{bearer}
+	if parent, err := r.Cookie(ParentKey); err == nil {
+		bearers = append(bearers, parent.Value)
+	}
+	var failed error
+	for _, b := range bearers {
+		if b == "" {
+			continue
+		}
+		e.evict(b)
+		if err := e.end(r.Context(), b); err != nil {
+			failed = err
+		}
+	}
 	for _, name := range []string{SessionKey, ParentKey} {
-		http.SetCookie(w, &http.Cookie{Name: name, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode})
+		http.SetCookie(w, clearedCookie(name))
+	}
+	if failed != nil {
+		refuse(w, http.StatusServiceUnavailable, "this browser is signed out, and the host did not end the session, which lasts until it expires: "+status.Convert(failed).Message())
+		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -503,7 +559,7 @@ func (e *Edge) session(w http.ResponseWriter, r *http.Request) {
 		refuse(w, http.StatusUnauthorized, "no session: sign in at /auth/sign-in")
 		return
 	}
-	sess, err := e.Sessions.Current(metadata.AppendToOutgoingContext(r.Context(), "authorization", "Bearer "+bearer), &sessionv1.CurrentRequest{})
+	sess, err := e.currentSession(r.Context(), bearer)
 	if err != nil {
 		if status.Code(err) == codes.Unauthenticated {
 			e.evict(bearer)
@@ -513,7 +569,15 @@ func (e *Edge) session(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	usable, refused := e.usable(r.Context(), bearer, sess.GetOrganizationId())
+	usable, refused, err := e.usable(r.Context(), bearer, sess.GetOrganizationId(), sess.GetGrantEpoch())
+	if err != nil {
+		// What the person may open is not known, and an answer without it
+		// would read as their holding nothing: a page with no backend of its
+		// own is listed by the host's answer alone.
+		log.Printf("edge: the host did not answer which installations a person of %q holds a role on (ListHeld), so their session is not answered: %v", sess.GetOrganizationId(), err)
+		refuse(w, http.StatusServiceUnavailable, "the host did not answer which installations this person holds a role on, so what they may open is not known: "+status.Convert(err).Message())
+		return
+	}
 	e.namespaces(r.Context(), bearer, sess.GetOrganizationId(), usable)
 	writeJSON(w, http.StatusOK, map[string]any{
 		// This edge mounts its public module procedures at the root. Publish
@@ -524,6 +588,8 @@ func (e *Edge) session(w http.ResponseWriter, r *http.Request) {
 		// A cast: the session acts as this team and nothing else (actas.go).
 		"teamIds": nonNil(sess.GetTeamIds()), "castTeamId": sess.GetCastTeamId(),
 		"installations": usable, "refused": refused,
+		// When the session ends on its own, as the host states it.
+		"expiresAtUnix": sess.GetExpiresAtUnix(),
 	})
 }
 
@@ -559,11 +625,10 @@ func (e *Edge) evict(bearer string) {
 // Only the authority's refusal to issue at a target is what a holding
 // answers: a target the authority did not answer at stays refused though the
 // host lists a role on it. And a host that did not answer what the person
-// holds has not said they hold nothing: the edge's log is told the cause, and
-// each target a holding could have made theirs says so beside its refusal. A
-// page with no backend of its own has no entry to say it under, so it is
-// absent from that answer with nothing in the answer naming why.
-func (e *Edge) usable(ctx context.Context, bearer, organization string) ([]installation, map[string]string) {
+// holds has not said they hold nothing: a page with no backend of its own has
+// no entry to say that under, so nothing is answered and the error is the
+// host's (session answers 503).
+func (e *Edge) usable(ctx context.Context, bearer, organization, epoch string) ([]installation, map[string]string, error) {
 	type result struct {
 		name string
 		wc   held
@@ -571,7 +636,7 @@ func (e *Edge) usable(ctx context.Context, bearer, organization string) ([]insta
 	}
 	results := make(chan result, len(e.Modules))
 	for name := range e.Modules {
-		go func() { wc, err := e.workContext(ctx, bearer, name, ""); results <- result{name, wc, err} }()
+		go func() { wc, err := e.workContext(ctx, bearer, name, "", epoch); results <- result{name, wc, err} }()
 	}
 	usable, refused := []installation{}, map[string]string{}
 	// heldAnswers are the refused targets a holding makes the person's to open.
@@ -598,10 +663,7 @@ func (e *Edge) usable(ctx context.Context, bearer, organization string) ([]insta
 	}
 	pages, err := e.heldPages(ctx, bearer, organization)
 	if err != nil {
-		log.Printf("edge: the host did not answer which installations a person of %q holds a role on (ListHeld), so the session may list fewer than they hold: %v", organization, err)
-		for name := range heldAnswers {
-			refused[name] += "; and the host did not answer which installations this person holds a role on, so whether its page is theirs to open is not known: " + status.Convert(err).Message()
-		}
+		return nil, nil, err
 	}
 	for _, page := range pages {
 		if _, was := refused[page.Target]; listed[page.Target] || was && !heldAnswers[page.Target] {
@@ -612,7 +674,7 @@ func (e *Edge) usable(ctx context.Context, bearer, organization string) ([]insta
 		usable = append(usable, page)
 	}
 	sort.Slice(usable, func(i, j int) bool { return usable[i].Target < usable[j].Target })
-	return usable, refused
+	return usable, refused, nil
 }
 
 // heldPages are the active installations the person holds a role on, as the

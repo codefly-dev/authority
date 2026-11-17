@@ -15,6 +15,11 @@ committed build. After changing `web/`, rebuild it and commit the output:
 
 Session discovery asks routed modules concurrently. A failed module is listed in
 `refused` with its authority reason; other modules and the session still answer.
+A host that does not answer which installations the person holds a role on
+(`ListHeld`) has not said they hold none, and a page with no backend of its own
+is listed by that answer alone: `/auth/session` then answers 503 with the host's
+reason rather than a list that silently lacks it. A host that serves no
+`ListHeld` has nothing to answer and the session answers.
 Cached Work Contexts are removed on expiry and sign-out, which also fences
 in-flight cache writes. Authority endpoints use the shared host client's transport rule: verified TLS,
 or an in-cluster Service address under `internal-transport/mesh-protected=true`;
@@ -28,11 +33,32 @@ A Current outage returns 503 with the authority's reason and preserves cached
 contexts. Only Unauthenticated evicts the session's cached contexts and returns
 401. Other Current failures also remain service failures, not evidence of sign-out.
 
-Known interface gap: `host.session.v1` has no SignOut RPC. Browser sign-out clears
-the local cookie and edge cache; it does not revoke a copied bearer at the host.
-Host-wide termination requires a proposed Session.SignOut interface addition,
-its host implementations, and the edge call before browser sign-out can promise
-revocation. This change does not invent a second session revocation mechanism.
+## The session ends, expires and states its grant epoch (session 0.6.0)
+
+The edge depends on `codefly.dev/session` 0.6.0 and holds the host to it:
+
+- **Sign-out ends the session at the host.** `POST /auth/sign-out` calls
+  `SessionService.End` with the browser's bearer, and with the session a cast
+  was opened from when the browser holds one, so a copy of either bearer is
+  unauthenticated from then on. The cookies are cleared whatever the host
+  answers; when it did not end a session the answer is 503 and says the
+  session lasts until it expires. A session the host already ended is a
+  plain 204.
+- **Every module call reads the session now.** Before a call is sent on, the
+  edge asks `Current`: a session ended or expired at the host is 401 though
+  the edge holds a Work Context for it that has not lapsed, and a host that
+  does not answer is 503.
+- **Cookies last no longer than the session.** The session cookie expires at
+  the session's `expires_at_unix`; a cast's cookie and the way back kept
+  beside it expire with the cast, which ends no later than the session it was
+  opened from. A session that states no expiry is none the edge keeps: the
+  sign-in or act-as is refused (502) and the session ended.
+- **A grant made anywhere applies from the next call.** A held Work Context
+  remembers the session's `grant_epoch` as `Current` stated it when the
+  context was asked for, and is dropped when `Current` states another: a role
+  granted or revoked through another edge, or by the host itself, no longer
+  waits for the held context to lapse or for a module to refuse it. A host
+  that states no epoch (empty) keeps the earlier behaviour.
 
 ## Act as a team
 
@@ -48,11 +74,13 @@ refused by name on the page. Allowed, the browser becomes the cast session —
 the team's grants and none of the person's own: no direct grant, no other
 team, no organisation role — and keeps the session it came from in a second
 `HttpOnly` cookie, `edge_session_parent`, so **Back to your own session**
-(`action=back`) is a form too, never a second sign-in; sign-out clears both,
-and a sign-in clears the way back, so it belongs to one person's session
-only. "Back" is the browser forgetting the cast, not its revocation: the
-cast session is not ended at the authority (the session interface has no end
-call, for a sign-out either) and expires on its own as any session does.
+(`action=back`) is a form too, never a second sign-in; sign-out ends and
+clears both, and a sign-in clears the way back, so it belongs to one person's
+session only. "Back" ends the cast at the host (`SessionService.End`), so a
+copy of the cast's bearer is unauthenticated from then on, and restores the
+session it was opened from, which is untouched; a cast the host did not end
+is not left (503), and a way back to a session that has itself ended is a
+sign-in.
 A cast is never widened: the authority refuses an act-as from a cast. Like
 sign-in, an act-as is a write from this origin, and `/auth/session` says
 `castTeamId` for a cast session. Nothing here decides who may act as what,
@@ -75,9 +103,10 @@ They are admitted as the installation face's are: a session, this origin in
 who the browser is exactly as the act-as form does: allowed, the cast becomes
 the session cookie and the own session the `edge_session_parent` cookie, and
 the answer's `bearer` is empty, because no script holds a credential. The way
-back is the form's `action=back` on `/auth/act-as` (a POST from this origin):
-the interface has no call for it. `SignIn`, `OpenRoleView` and
-`ListFixturePeople` are served to no page.
+back is the form's `action=back` on `/auth/act-as` (a POST from this origin),
+which ends the cast at the host. `SignIn`, `End`, `OpenRoleView` and
+`ListFixturePeople` are served to no page: ending the browser's session is
+the edge's own act, at sign-out and on the way back.
 
 ## Composition-owned sign-in choices
 

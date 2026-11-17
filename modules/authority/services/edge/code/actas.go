@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"slices"
+	"time"
 
 	sessionv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/session/v1"
 	"google.golang.org/grpc/codes"
@@ -19,8 +21,9 @@ import (
 // member of it or not), and a refusal is shown by name. The cast is a new
 // session that is the team and nothing else; the edge keeps the session it
 // was opened from in a second cookie, so "Back to your own session" is a
-// form too, and never a second sign-in. Nothing here decides who may act as
-// what, and no script holds a credential.
+// form too, and never a second sign-in: it ends the cast at the host (End)
+// and restores that session. Nothing here decides who may act as what, and no
+// script holds a credential.
 
 // ParentKey is the cookie the session a cast was opened from travels in.
 const ParentKey = "edge_session_parent"
@@ -51,7 +54,7 @@ func (e *Edge) current(r *http.Request) (*signedIn, error) {
 		return nil, nil
 	}
 	ctx := withBearer(r.Context(), bearer)
-	sess, err := e.Sessions.Current(ctx, &sessionv1.CurrentRequest{})
+	sess, err := e.currentSession(r.Context(), bearer)
 	if err != nil {
 		if status.Code(err) == codes.Unauthenticated {
 			e.evict(bearer)
@@ -106,14 +109,36 @@ func (e *Edge) actAs(w http.ResponseWriter, r *http.Request) {
 			refuse(w, http.StatusBadRequest, "this session was opened from no other: sign in instead")
 			return
 		}
-		// The cast's cached authority goes with it; the own session's is as it
-		// was. The cast session itself is not ended at the authority (the
-		// session interface has no end call, for a sign-out either): "back"
-		// is the browser forgetting the cast, never its revocation, and the
-		// cast expires on its own as any session does.
+		// Leaving the cast ends it at the host (End), so a copy of its bearer
+		// is unauthenticated from then on; what the edge held for it goes with
+		// it. A cast the host did not end is not left: the browser keeps it,
+		// and asks again. The session it was opened from is untouched.
+		if err := e.end(r.Context(), bearer); err != nil {
+			refuse(w, http.StatusServiceUnavailable, "the host did not end the cast, so the browser still holds it: "+status.Convert(err).Message())
+			return
+		}
 		e.evict(bearer)
-		http.SetCookie(w, sessionCookie(SessionKey, parent.Value))
-		http.SetCookie(w, &http.Cookie{Name: ParentKey, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode})
+		// The way back is that session as the host answers it now: its cookie
+		// lasts as long as it does, and one that has ended is a sign-in.
+		own, err := e.currentSession(r.Context(), parent.Value)
+		if status.Code(err) == codes.Unauthenticated {
+			for _, name := range []string{SessionKey, ParentKey} {
+				http.SetCookie(w, clearedCookie(name))
+			}
+			http.Redirect(w, r, "/auth/sign-in?"+url.Values{"return": {back}}.Encode(), http.StatusSeeOther)
+			return
+		}
+		if err != nil {
+			refuse(w, http.StatusServiceUnavailable, "the cast is ended, and the authority could not answer Current for the session it was opened from: "+status.Convert(err).Message())
+			return
+		}
+		cookie, err := e.sessionCookie(SessionKey, parent.Value, own)
+		if err != nil {
+			refuse(w, http.StatusBadGateway, "the cast is ended, and the session it was opened from is none the edge keeps: "+err.Error())
+			return
+		}
+		http.SetCookie(w, cookie)
+		http.SetCookie(w, clearedCookie(ParentKey))
 		http.Redirect(w, r, back, http.StatusSeeOther)
 		return
 	}
@@ -128,13 +153,65 @@ func (e *Edge) actAs(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/auth/sign-in?"+url.Values{"return": {back}, "refused": {status.Convert(err).Message()}}.Encode(), http.StatusSeeOther)
 		return
 	}
-	http.SetCookie(w, sessionCookie(SessionKey, cast.GetBearer()))
-	http.SetCookie(w, sessionCookie(ParentKey, bearer))
+	cookies, err := e.castCookies(cast, bearer)
+	if err != nil {
+		_ = e.end(r.Context(), cast.GetBearer())
+		refuse(w, http.StatusBadGateway, "the act-as opened no session the edge keeps: "+err.Error())
+		return
+	}
+	for _, cookie := range cookies {
+		http.SetCookie(w, cookie)
+	}
 	http.Redirect(w, r, back, http.StatusSeeOther)
 }
 
-func sessionCookie(name, value string) *http.Cookie {
-	return &http.Cookie{Name: name, Value: value, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode}
+// sessionCookie is the cookie value travels in, the bearer of sess or the way
+// back kept beside it: it lasts no longer than sess does (expires_at_unix),
+// so a browser drops it when the host would refuse it anyway. A session that
+// states no expiry, or one already past, is none the edge keeps: the session
+// interface gives every session one.
+func (e *Edge) sessionCookie(name, value string, sess *sessionv1.Session) (*http.Cookie, error) {
+	expires := time.Unix(sess.GetExpiresAtUnix(), 0)
+	if sess.GetExpiresAtUnix() <= 0 || !e.now().Before(expires) {
+		return nil, errors.New("the host stated no expiry still to come for the session, and codefly.dev/session gives every session one")
+	}
+	return &http.Cookie{Name: name, Value: value, Path: "/", Expires: expires, HttpOnly: true, SameSite: http.SameSiteLaxMode}, nil
+}
+
+// castCookies are the two cookies a cast makes the browser's: the cast as the
+// session, and own, the session it was opened from, as the way back. Both
+// last as long as the cast, which ends no later than the session it was
+// opened from, so neither outlives the session it carries.
+func (e *Edge) castCookies(cast *sessionv1.Session, own string) ([]*http.Cookie, error) {
+	session, err := e.sessionCookie(SessionKey, cast.GetBearer(), cast)
+	if err != nil {
+		return nil, err
+	}
+	parent, _ := e.sessionCookie(ParentKey, own, cast)
+	return []*http.Cookie{session, parent}, nil
+}
+
+// clearedCookie tells the browser to drop a cookie.
+func clearedCookie(name string) *http.Cookie {
+	return &http.Cookie{Name: name, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode}
+}
+
+// currentSession is the host's Current for bearer: the session as it is now.
+func (e *Edge) currentSession(ctx context.Context, bearer string) (*sessionv1.Session, error) {
+	ctx, cancel := context.WithTimeout(withBearer(ctx, bearer), hostCallTimeout)
+	defer cancel()
+	return e.Sessions.Current(ctx, &sessionv1.CurrentRequest{})
+}
+
+// end ends bearer's session at the host, and every role view and cast opened
+// from it. A bearer that names no open session has nothing left to end.
+func (e *Edge) end(ctx context.Context, bearer string) error {
+	ctx, cancel := context.WithTimeout(withBearer(ctx, bearer), hostCallTimeout)
+	defer cancel()
+	if _, err := e.Sessions.End(ctx, &sessionv1.EndRequest{}); err != nil && status.Code(err) != codes.Unauthenticated {
+		return err
+	}
+	return nil
 }
 
 func withBearer(ctx context.Context, bearer string) context.Context {

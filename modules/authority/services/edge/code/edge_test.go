@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -30,6 +31,58 @@ type standIn struct {
 	mu     sync.Mutex
 	issued []string
 	pages  []string
+	// ended are the bearers End was called with, in order; a session it ended
+	// is unauthenticated from then on. endErr, when set, is End's answer.
+	ended  []string
+	endErr error
+	// epoch is the grant epoch Current states for every session; a host that
+	// states none answers the empty one.
+	epoch string
+	// noExpiry is a host that states no expiry for the sessions it opens.
+	noExpiry bool
+}
+
+// sessionExpiry is when Rémi's session ends on its own, and castExpiry when a
+// cast opened from it does: no later than the session.
+var (
+	sessionExpiry = time.Now().Add(8 * time.Hour).Truncate(time.Second)
+	castExpiry    = sessionExpiry.Add(-time.Hour)
+)
+
+func (s *standIn) expiry(at time.Time) int64 {
+	if s.noExpiry {
+		return 0
+	}
+	return at.Unix()
+}
+
+// End ends the session the bearer names, as the host does.
+func (s *standIn) End(ctx context.Context, _ *sessionv1.EndRequest, _ ...grpc.CallOption) (*sessionv1.EndResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.endErr != nil {
+		return nil, s.endErr
+	}
+	bearer := bearerIn(ctx)
+	if (bearer != "remi-session" && bearer != "remi-as-users") || slices.Contains(s.ended, bearer) {
+		return nil, status.Error(codes.Unauthenticated, "no session")
+	}
+	s.ended = append(s.ended, bearer)
+	return &sessionv1.EndResponse{}, nil
+}
+
+// state is what the host states now: the bearers it ended and its grant epoch.
+func (s *standIn) state() ([]string, string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.ended), s.epoch
+}
+
+// moved is a change to what Rémi holds made somewhere this edge does not see.
+func (s *standIn) moved(epoch string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.epoch = epoch
 }
 
 func bearerIn(ctx context.Context) string {
@@ -44,15 +97,19 @@ func (s *standIn) SignIn(_ context.Context, in *sessionv1.SignInRequest, _ ...gr
 	if in.GetFixtureToken() != "fixture-remi" {
 		return nil, status.Error(codes.NotFound, "no such fixture person")
 	}
-	return &sessionv1.Session{SessionId: "s1", PersonId: "remi", OrganizationId: "acme", PersonDisplayName: "Rémi", OrganizationDisplayName: "Acme", Bearer: "remi-session"}, nil
+	return &sessionv1.Session{SessionId: "s1", PersonId: "remi", OrganizationId: "acme", PersonDisplayName: "Rémi", OrganizationDisplayName: "Acme", Bearer: "remi-session", ExpiresAtUnix: s.expiry(sessionExpiry)}, nil
 }
 
 func (s *standIn) Current(ctx context.Context, _ *sessionv1.CurrentRequest, _ ...grpc.CallOption) (*sessionv1.Session, error) {
+	ended, epoch := s.state()
+	if slices.Contains(ended, bearerIn(ctx)) {
+		return nil, status.Error(codes.Unauthenticated, "no session")
+	}
 	switch bearerIn(ctx) {
 	case "remi-session":
-		return &sessionv1.Session{SessionId: "s1", PersonId: "remi", OrganizationId: "acme", PersonDisplayName: "Rémi", OrganizationDisplayName: "Acme", Roles: []string{"editor"}, TeamIds: []string{"records-user"}}, nil
+		return &sessionv1.Session{SessionId: "s1", PersonId: "remi", OrganizationId: "acme", PersonDisplayName: "Rémi", OrganizationDisplayName: "Acme", Roles: []string{"editor"}, TeamIds: []string{"records-user"}, ExpiresAtUnix: s.expiry(sessionExpiry), GrantEpoch: epoch}, nil
 	case "remi-as-users":
-		return &sessionv1.Session{SessionId: "s2", PersonId: "remi", OrganizationId: "acme", PersonDisplayName: "Rémi", OrganizationDisplayName: "Acme", TeamIds: []string{"records-user"}, CastTeamId: "records-user"}, nil
+		return &sessionv1.Session{SessionId: "s2", PersonId: "remi", OrganizationId: "acme", PersonDisplayName: "Rémi", OrganizationDisplayName: "Acme", TeamIds: []string{"records-user"}, CastTeamId: "records-user", ExpiresAtUnix: s.expiry(castExpiry), GrantEpoch: epoch}, nil
 	}
 	return nil, status.Error(codes.Unauthenticated, "no session")
 }
@@ -66,7 +123,7 @@ func (s *standIn) OpenTeamCast(ctx context.Context, in *sessionv1.OpenTeamCastRe
 	if in.GetTeamId() != "records-user" {
 		return nil, status.Errorf(codes.PermissionDenied, "team %q holds roles you could not grant, so you may not act as it", in.GetTeamId())
 	}
-	return &sessionv1.Session{SessionId: "s2", PersonId: "remi", OrganizationId: "acme", TeamIds: []string{"records-user"}, CastTeamId: "records-user", Bearer: "remi-as-users"}, nil
+	return &sessionv1.Session{SessionId: "s2", PersonId: "remi", OrganizationId: "acme", TeamIds: []string{"records-user"}, CastTeamId: "records-user", Bearer: "remi-as-users", ExpiresAtUnix: s.expiry(castExpiry)}, nil
 }
 
 // ListCastableTeams lists records-user to Rémi, holding user on records.
@@ -487,8 +544,8 @@ func TestAJSONSignInHandsTheBearerBack(t *testing.T) {
 func TestCacheEvictsOnExpiryAndSignOut(t *testing.T) {
 	f := newFixture(t)
 	now := time.Now()
-	e := &Edge{Authority: f.authority, Now: func() time.Time { return now }}
-	if _, err := e.workContext(context.Background(), "remi-session", "records", ""); err != nil {
+	e := &Edge{Sessions: f.authority, Authority: f.authority, Now: func() time.Time { return now }}
+	if _, err := e.workContext(context.Background(), "remi-session", "records", "", ""); err != nil {
 		t.Fatal(err)
 	}
 	if len(e.held) != 1 {
@@ -496,14 +553,14 @@ func TestCacheEvictsOnExpiryAndSignOut(t *testing.T) {
 	}
 	now = now.Add(time.Hour)
 	// Even a refused refresh must remove old contexts.
-	if _, err := e.workContext(context.Background(), "remi-session", "down", ""); err == nil {
+	if _, err := e.workContext(context.Background(), "remi-session", "down", "", ""); err == nil {
 		t.Fatal("expected refused target")
 	}
 	if len(e.held) != 0 {
 		t.Fatal("expired context retained")
 	}
 	now = time.Now()
-	if _, err := e.workContext(context.Background(), "remi-session", "records", ""); err != nil {
+	if _, err := e.workContext(context.Background(), "remi-session", "records", "", ""); err != nil {
 		t.Fatal(err)
 	}
 	req := httptest.NewRequest(http.MethodPost, "http://edge.test/auth/sign-out", nil)
@@ -530,7 +587,7 @@ func TestSessionIssuesConcurrently(t *testing.T) {
 	s := &blockedIssuer{standIn: &standIn{}, started: make(chan string, 2), release: make(chan struct{})}
 	e := &Edge{Authority: s, Modules: map[string]Module{"a": {}, "b": {}}}
 	done := make(chan struct{})
-	go func() { e.usable(context.Background(), "remi-session", "acme"); close(done) }()
+	go func() { _, _, _ = e.usable(context.Background(), "remi-session", "acme", ""); close(done) }()
 	defer func() { close(s.release); <-done }()
 	for range 2 {
 		select {
@@ -544,7 +601,10 @@ func TestSignOutFencesAnInflightCacheWrite(t *testing.T) {
 	s := &blockedIssuer{standIn: &standIn{}, started: make(chan string, 1), release: make(chan struct{})}
 	e := &Edge{Authority: s}
 	done := make(chan struct{})
-	go func() { defer close(done); _, _ = e.workContext(context.Background(), "remi-session", "records", "") }()
+	go func() {
+		defer close(done)
+		_, _ = e.workContext(context.Background(), "remi-session", "records", "", "")
+	}()
 	<-s.started
 	e.evict("remi-session")
 	close(s.release)
@@ -567,7 +627,7 @@ func TestSessionOutagePreservesCacheAndReportsTheActualReason(t *testing.T) {
 		t.Run(code.String(), func(t *testing.T) {
 			s := &standIn{}
 			e := &Edge{Authority: s, Sessions: failingCurrent{s, status.Error(code, "Current failed: test reason")}}
-			if _, err := e.workContext(context.Background(), "remi-session", "records", ""); err != nil {
+			if _, err := e.workContext(context.Background(), "remi-session", "records", "", ""); err != nil {
 				t.Fatal(err)
 			}
 			r := httptest.NewRequest(http.MethodGet, "/auth/session", nil)
@@ -762,11 +822,13 @@ func logged(t *testing.T) *bytes.Buffer {
 }
 
 // A host that did not answer which installations the person holds a role on
-// has not said they hold none. What the authority issued stays usable; a
-// target it refused, which the host's answer could have made the person's to
-// open, says the host did not answer beside the authority's reason; and the
+// has not said they hold none, and a page with no backend of its own has no
+// other entry in the session's answer: an answer would be missing it with
+// nothing saying so. The session is therefore not answered at all (503, with
+// the host's reason), which no shell can read as "holds nothing", and the
 // edge's log is told the cause. A host that serves no ListHeld at all has
-// nothing to answer: the refusal stands as the authority gave it.
+// nothing to answer: the session answers, and a refusal stands as the
+// authority gave it.
 func TestAHostThatDoesNotAnswerWhatIsHeldIsNotHoldingNothing(t *testing.T) {
 	f := newFixture(t)
 	cookie := f.signIn(t)
@@ -774,28 +836,28 @@ func TestAHostThatDoesNotAnswerWhatIsHeldIsNotHoldingNothing(t *testing.T) {
 		"records": {Name: "records", REST: mustURL(t, f.rest.URL)},
 		"secrets": {Name: "secrets", REST: mustURL(t, f.secrets.URL)},
 	}
-	session := func(err error) (map[string]any, string) {
+	session := func(err error) (*httptest.ResponseRecorder, map[string]any, string) {
 		t.Helper()
 		out := logged(t)
 		res, who := sessionOf(t, &Edge{Sessions: f.authority, Authority: f.authority, Installer: unheld{&setupHost{standIn: f.authority}, err}, Modules: modules}, cookie)
-		installed, _ := who["installations"].([]any)
-		if res.Code != http.StatusOK || len(installed) != 1 || installed[0].(map[string]any)["target"] != "records" {
-			t.Fatalf("with ListHeld answering %v the session answered %d: %s", err, res.Code, res.Body)
-		}
-		refused, _ := who["refused"].(map[string]any)
-		return refused, out.String()
+		return res, who, out.String()
 	}
 	for _, code := range []codes.Code{codes.Unavailable, codes.DeadlineExceeded, codes.Internal} {
-		refused, log := session(status.Error(code, "ListHeld failed: test reason"))
-		reason, _ := refused["secrets"].(string)
-		if len(refused) != 1 || !strings.Contains(reason, "holds nothing at secrets") || !strings.Contains(reason, "ListHeld failed: test reason") {
-			t.Errorf("%s: refused = %v", code, refused)
+		res, who, log := session(status.Error(code, "ListHeld failed: test reason"))
+		reason, _ := who["error"].(string)
+		if res.Code != http.StatusServiceUnavailable || who["installations"] != nil || who["refused"] != nil || !strings.Contains(reason, "holds a role on") || !strings.Contains(reason, "ListHeld failed: test reason") {
+			t.Errorf("%s: the session answered %d: %s", code, res.Code, res.Body)
 		}
 		if !strings.Contains(log, "ListHeld") || !strings.Contains(log, "ListHeld failed: test reason") || !strings.Contains(log, code.String()) || strings.Contains(log, "remi-session") {
 			t.Errorf("%s: the edge's log was told %q", code, log)
 		}
 	}
-	refused, log := session(status.Error(codes.Unimplemented, "unknown method ListHeld"))
+	res, who, log := session(status.Error(codes.Unimplemented, "unknown method ListHeld"))
+	installed, _ := who["installations"].([]any)
+	refused, _ := who["refused"].(map[string]any)
+	if res.Code != http.StatusOK || len(installed) != 1 || installed[0].(map[string]any)["target"] != "records" {
+		t.Fatalf("a host serving no ListHeld: the session answered %d: %s", res.Code, res.Body)
+	}
 	if reason, _ := refused["secrets"].(string); len(refused) != 1 || !strings.HasSuffix(reason, "holds nothing at secrets") || log != "" {
 		t.Errorf("a host serving no ListHeld: refused = %v, logged %q", refused, log)
 	}

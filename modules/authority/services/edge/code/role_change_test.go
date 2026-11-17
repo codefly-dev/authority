@@ -251,18 +251,18 @@ func TestARoleChangedThroughThisEdgeAppliesFromTheNextCall(t *testing.T) {
 func TestCallsRefusedTogetherDoNotDropTheFreshWorkContext(t *testing.T) {
 	c := newChangingRoles(t)
 	e := &Edge{Authority: c, Now: time.Now}
-	stale, err := e.workContext(context.Background(), "remi-session", "records", "")
+	stale, err := e.workContext(context.Background(), "remi-session", "records", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	c.change()
 	e.forget("remi-session", "records", "", stale.token)
-	fresh, err := e.workContext(context.Background(), "remi-session", "records", "")
+	fresh, err := e.workContext(context.Background(), "remi-session", "records", "", "")
 	if err != nil || fresh.token == stale.token || fresh.cached {
 		t.Fatalf("after a refusal the edge holds %+v (%v)", fresh, err)
 	}
 	e.forget("remi-session", "records", "", stale.token)
-	if again, err := e.workContext(context.Background(), "remi-session", "records", ""); err != nil || again.token != fresh.token || !again.cached {
+	if again, err := e.workContext(context.Background(), "remi-session", "records", "", ""); err != nil || again.token != fresh.token || !again.cached {
 		t.Fatalf("a second refusal of the old context dropped the fresh one: %+v (%v)", again, err)
 	}
 }
