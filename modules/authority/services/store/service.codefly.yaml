@@ -11,7 +11,7 @@ description: |
 agent:
     kind: codefly:service
     name: postgres
-    version: 0.0.144
+    version: 0.0.150
     publisher: codefly.dev
 endpoints:
     - name: tcp
