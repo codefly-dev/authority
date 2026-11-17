@@ -3,12 +3,12 @@ module github.com/codefly-dev/authority/libraries/authority-core/go
 go 1.27.4
 
 require (
-	github.com/codefly-dev/authority/libraries/authority-client/go v0.2.1-0.20261115131434-3574603a5f27
-	github.com/codefly-dev/authority/libraries/delivery/go v0.0.0-20261026023425-000d44495d93
-	github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261111234045-1076f796c30f
-	github.com/codefly-dev/authority/libraries/resources/go v0.0.0-20261026023425-000d44495d93
-	github.com/codefly-dev/authority/libraries/solutionhost/go v0.0.0-20261116201553-33a9c067e6ce
-	github.com/codefly-dev/core v0.19.34-0.20261116201543-b919b702e8cf
+	github.com/codefly-dev/authority/libraries/authority-client/go v0.2.1-0.20261117225105-2833202cea6d
+	github.com/codefly-dev/authority/libraries/delivery/go v0.0.0-20261117225105-2833202cea6d
+	github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261117225105-2833202cea6d
+	github.com/codefly-dev/authority/libraries/resources/go v0.0.0-20261117225105-2833202cea6d
+	github.com/codefly-dev/authority/libraries/solutionhost/go v0.0.0-20261117225105-2833202cea6d
+	github.com/codefly-dev/core v0.19.34-0.20261117211945-b67415c6891b
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/stretchr/testify v1.12.1

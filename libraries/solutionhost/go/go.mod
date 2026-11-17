@@ -4,7 +4,7 @@ go 1.27.4
 
 require (
 	github.com/Masterminds/semver/v3 v3.5.0
-	github.com/codefly-dev/core v0.19.34-0.20261116201543-b919b702e8cf
+	github.com/codefly-dev/core v0.19.34-0.20261117211945-b67415c6891b
 	github.com/stretchr/testify v1.12.1
 	gopkg.in/yaml.v3 v3.0.1
 )

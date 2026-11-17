@@ -3,12 +3,13 @@ module github.com/codefly-dev/authority/libraries/scenario/go
 go 1.27.4
 
 require (
-	github.com/codefly-dev/authority/libraries/authority-client/go v0.2.1-0.20261115131434-3574603a5f27
-	github.com/codefly-dev/authority/libraries/authority-core/go v0.1.2-0.20261116213949-c3c9eeb7036d
-	github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261112103810-7ff1b8aaa5f9
-	github.com/codefly-dev/core v0.19.34-0.20261116201543-b919b702e8cf
+	github.com/codefly-dev/authority/libraries/authority-client/go v0.2.1-0.20261117225105-2833202cea6d
+	github.com/codefly-dev/authority/libraries/authority-core/go v0.1.2-0.20261117225105-2833202cea6d
+	github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261117225105-2833202cea6d
+	github.com/codefly-dev/core v0.19.34-0.20261117211945-b67415c6891b
 	github.com/google/uuid v1.6.0
 	google.golang.org/grpc v1.85.0
+	google.golang.org/protobuf v1.36.12
 )
 
 require (
@@ -24,9 +25,9 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cheggaaa/pb/v3 v3.2.1 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
-	github.com/codefly-dev/authority/libraries/delivery/go v0.0.0-20261026023425-000d44495d93 // indirect
-	github.com/codefly-dev/authority/libraries/resources/go v0.0.0-20261026023425-000d44495d93 // indirect
-	github.com/codefly-dev/authority/libraries/solutionhost/go v0.0.0-20261116213949-c3c9eeb7036d // indirect
+	github.com/codefly-dev/authority/libraries/delivery/go v0.0.0-20261117225105-2833202cea6d // indirect
+	github.com/codefly-dev/authority/libraries/resources/go v0.0.0-20261117225105-2833202cea6d // indirect
+	github.com/codefly-dev/authority/libraries/solutionhost/go v0.0.0-20261117225105-2833202cea6d // indirect
 	github.com/codefly-dev/sdk-go v0.4.0 // indirect
 	github.com/fatih/color v1.19.0 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
@@ -82,6 +83,5 @@ require (
 	golang.org/x/text v0.43.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20261026165753-2ffab32bce7e // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20261026165753-2ffab32bce7e // indirect
-	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
