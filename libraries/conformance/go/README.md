@@ -46,6 +46,15 @@ and clock. Merely wrapping its current setup in the factory is unsafe. The
 separate `RunArtifacts` and `RunSolutionPrincipalTarget` entry points and
 Accounts-only tests retain their existing execution order.
 
+A host driven through `Run` is one host for every case, so a case owns the
+names it delivers: a module another case delivered is an installation approved
+at that case's generation, and a later generation of it is an upgrade the host
+holds back until an administrator approves it. A case that redelivers a name
+approves the upgrade itself (`Review`, then `Install`), as the redelivery
+cases do. The local runner drives both modes:
+`TestTheLocalAuthorityPassesTheSuiteOnOneSharedHost` runs every case in order
+against one host, beside the isolated `RunParallel` run.
+
 Measure the local shared run with `go test -json -count=1 -run
 '^TestTheLocalAuthorityPassesTheSuiteEveryImplementationMustPass$'
 ./plugins/registry_test` from `modules/authority/services/local/code`. Use the
@@ -88,7 +97,7 @@ the rename. Run-time enforcement belongs to the release that deletes the
 | An installation survives delivery | `installationSurvivesDelivery` (no host fixture beyond `AdminToken` and `UnentitledToken`; the delivery workload `conformance-redelivered`): the suite delivers a solution, installs it as `AdminToken` and grants its `user` to `UnentitledToken`; a redelivery narrowing `user` re-converges the installation (active, `approved_generation` advanced, revision moved, the grant kept, the earlier capability refused, a fresh `Install` refused as already installed); a redelivery widening `user` leaves it on its consent (`approved_generation` unchanged, `upgrade_available` true, the grant and the earlier capability kept, the holder issued exactly the approved `user`'s scopes); a fresh `Review` and `Install` upgrade it in place (same id, active, `approved_generation` current, the grant kept, the earlier capability refused, the holder issued the delivered `user`'s scopes); a redelivery narrowing `user` to the page alone re-converges with the grant kept, and widening it back leaves the installation on its consent, the holder issued the narrower `user` until a fresh `Review` and `Install` upgrade it; a binding added, then widened (invoke read to read and write on `ReadKind` at `Audience`), each offers an upgrade the same way, and a binding cut back re-converges. |
 | Absent installation versus no entitlement | `FailedPrecondition` with the absent-installation reason versus `PermissionDenied` with the holds-nothing reason |
 | Inventory access | Admin and owner allowed; ordinary member, anonymous and foreign-organization reads refused |
-| Resource discovery and whole-kind policy admission | `Resources`, plus resource-limited method admission without widening resource authority |
+| Resource discovery and whole-kind policy admission | `Resources`, plus resource-limited method admission without widening resource authority; the delivery workload `conformance-resource-method`, the case's own module |
 | Delivered method policies and advisory | Signed methods cover required scopes, any checked caller, unmarked and missing methods; local-only `LocalAdvisory` returns the same checked context/revision and the exact refusal, and still rejects an invalid capability. |
 | Solution route policy | Signed GET/POST routes distinguish `requires` from `any_checked_caller`, including template paths and an unknown route. |
 | Delivery and installation lifecycle | Manifest/role ceilings, forward generation, mismatched signed documents, blocked acknowledgement, then team exposure |
