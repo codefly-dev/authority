@@ -195,7 +195,7 @@ func (e *Edge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if e.Frontend == nil {
-		refuse(w, http.StatusNotFound, "no module serves "+r.URL.Path)
+		refuseCall(w, r, http.StatusNotFound, "no module serves "+r.URL.Path)
 		return
 	}
 	proxy(e.Frontend, "", "", w, r)
@@ -837,13 +837,21 @@ func send(target *url.URL, token, effect string, w http.ResponseWriter, r *http.
 // form caller included, keeps {"error": reason}.
 var connectRefusal = connect.NewErrorWriter(connect.WithRequireConnectProtocolHeader())
 
-// refuseCall refuses a routed call; a Connect caller is answered in Connect's
-// words, so its client keeps the authority's reason.
+// refuseCall refuses a call; a Connect caller is answered in Connect's words,
+// so its client keeps the reason and reads the right kind of answer. Only a
+// decision about the person is a denial: a call nothing here serves (404) is
+// unimplemented, never permission denied, and a host that did not answer
+// (503) is unavailable.
 func refuseCall(w http.ResponseWriter, r *http.Request, code int, reason string) {
 	if connectRefusal.IsSupported(r) {
 		c := connect.CodePermissionDenied
-		if code == http.StatusUnauthorized {
+		switch code {
+		case http.StatusUnauthorized:
 			c = connect.CodeUnauthenticated
+		case http.StatusNotFound:
+			c = connect.CodeUnimplemented
+		case http.StatusServiceUnavailable:
+			c = connect.CodeUnavailable
 		}
 		_ = connectRefusal.Write(w, r, connect.NewError(c, errors.New(reason)))
 		return

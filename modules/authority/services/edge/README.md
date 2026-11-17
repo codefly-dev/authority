@@ -60,6 +60,28 @@ The edge depends on `codefly.dev/session` 0.6.0 and holds the host to it:
   waits for the held context to lapse or for a module to refuse it. A host
   that states no epoch (empty) keeps the earlier behaviour.
 
+## A call no module serves
+
+A procedure the edge routes to no module is nobody's to refuse: no person was
+judged. A Connect caller is answered `unimplemented` (it used to read
+`permission_denied`, a decision about the person that was never made), and
+any other caller the plain 404, both saying `no module serves <procedure>`.
+The same holds for a path that is no page's module call and for a host
+procedure this edge does not compose. `unauthenticated` and
+`permission_denied` are kept for what they mean: no open session, and the
+authority's refusal of the person.
+
+Known gap (decision 8, 17 November): which procedures a module's Connect face
+serves is still what the composition writes in `<MODULE>_RPC`. It must be
+derived from the catalog the module publishes
+(`contracts/api/catalog.codefly.json`), as the hop's routes and a delivery to
+the authority are. The edge process is handed no catalog today: the SDK
+answers a service run from its producer's checkout from its carriers alone,
+and the one generated carrier of the catalogs, `hop-routes`, is the hop's by
+the CLI's rule (declaring it is what makes a service the hop). Until a carrier
+generated from the same catalogs reaches the edge, a service missing from
+`<MODULE>_RPC` is answered `unimplemented` though its module publishes it.
+
 ## Act as a team
 
 A browser that holds a session sees, above the people, who it is and the
