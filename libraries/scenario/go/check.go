@@ -11,7 +11,44 @@ import (
 type Expect struct {
 	verdict Verdict
 	reason  string
-	holds   []func(Outcome) error
+	// A refusal derived from a plan (PlanRows) is held to the decision the
+	// plan names, stage in words: the refusal says one of among, or names one
+	// of unmet as a permission the call requires and does not hold, and says
+	// none of not, which are an earlier decision's words.
+	among, unmet, not []string
+	stage             string
+	holds             []func(Outcome) error
+}
+
+// staged: the expectation is a refusal by one named decision.
+func (e Expect) staged() bool { return len(e.among)+len(e.unmet)+len(e.not) > 0 }
+
+// refusedBy answers whether reason is the refusal of the decision a staged
+// expectation names.
+func (e Expect) refusedBy(reason string) bool {
+	if slices.ContainsFunc(e.not, func(words string) bool { return strings.Contains(reason, words) }) {
+		return false
+	}
+	if len(e.among)+len(e.unmet) == 0 {
+		return true
+	}
+	return slices.ContainsFunc(e.among, func(words string) bool { return strings.Contains(reason, words) }) || unmetNamed(reason, e.unmet)
+}
+
+// unmetNamed answers whether a method policy's refusal ("<module> requires
+// <permissions> for <method>, which the call does not hold (it holds …)")
+// names one of permissions as unmet. What the call holds is not what it lacks.
+func unmetNamed(reason string, permissions []string) bool {
+	_, after, ok := strings.Cut(reason, "requires ")
+	if !ok {
+		return false
+	}
+	lacks, _, ok := strings.Cut(after, "which the call does not hold")
+	if !ok {
+		return false
+	}
+	named := strings.FieldsFunc(lacks, func(r rune) bool { return r == ',' || r == ' ' })
+	return slices.ContainsFunc(permissions, func(p string) bool { return slices.Contains(named, p) })
 }
 
 var (
@@ -87,14 +124,17 @@ func (e Expect) problem(got Outcome) string {
 		return "the call failed before any verdict: " + said
 	case got.Verdict == Denied && strings.TrimSpace(got.Reason) == "":
 		return "denied with no reason"
-	case got.Verdict == Unserved && (e.verdict != Denied || e.reason != ""):
+	case got.Verdict == Unserved && (e.verdict != Denied || e.reason != "" || e.staged()):
 		// A call nobody is served is refused to everyone, which satisfies a
-		// refusal expected for no stated reason, and nothing else.
+		// refusal expected for no stated reason, and nothing else: never a
+		// refusal a plan attributes to a decision.
 		return "the composition serves no such call: " + said
 	case got.Verdict == Unserved:
 		return ""
 	case e.verdict == Denied && got.Verdict != Denied:
 		return "expected a refusal, got " + said
+	case e.verdict == Denied && e.staged() && !e.refusedBy(got.Reason):
+		return fmt.Sprintf("refused, but not %s: %s", e.stage, got.Reason)
 	case e.verdict == Denied && !strings.Contains(got.Reason, e.reason):
 		return fmt.Sprintf("refused, but not for %q: %s", e.reason, got.Reason)
 	case e.verdict == Allowed && got.Verdict != Allowed:

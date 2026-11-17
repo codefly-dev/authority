@@ -86,12 +86,53 @@ func (p Published) PublishedIn(audience, dir string) error {
 //
 // For a row its page makes through a binding, every procedure the binding's
 // audience publishes whose requirement the row's asks cover is called from
-// the page, with an empty request, as each seat. A seat is expected to be let
-// through (Admit: the method may refuse the empty request for its own
-// reasons) when some row through that binding allows it asks that cover the
-// procedure's requirement, and refused, with a reason, otherwise. For a row
-// naming a route the product serves with no path parameter, the route is
-// called the same way.
+// the page, with an empty request, as each seat. For a row naming a route the
+// product serves with no path parameter, the route is called the same way,
+// on the person's own session.
+//
+// A seat the plan allows is expected to be let through (Admit: the method may
+// refuse the empty request for its own reasons, and a call that failed is not
+// let through). A seat the plan refuses is expected to be refused by the
+// decision the plan names, read from the refusal's own words, so that a
+// refusal for another cause (the audience not installed, the authority
+// unreachable, a seat the fixture did not give, a call nobody is served)
+// fails the row:
+//
+//   - refused: no role: the authority says the person "holds no role on
+//     <product>". That is the page's root, so it is the same on every call
+//     from the page, whatever the method declares.
+//   - refused at the product: it says the role "names nothing <product>
+//     itself serves".
+//   - refused by the method policy (a route): the policy's refusal names, as
+//     required and not held, a permission the product's method table requires
+//     for the route.
+//   - refused at the binding (a page's call): the audience's policy names, as
+//     required and not held, a permission of the procedure that no row the
+//     plan allows the seat through that binding asks; or, for a seat the plan
+//     allows nothing through the binding, the authority says the person
+//     "holds nothing at <audience> through binding <binding>".
+//   - refused at the binding or onward (a route): the product's handler
+//     relays that refusal in words of its own, which the plan does not state;
+//     it is held to being a refusal, and not the edge's ("the authority
+//     refused this person at"), which the plan says issued.
+//
+// A page row refused onward is refused past the audience: the first hop,
+// which is what is called here, is let through.
+//
+// A procedure the audience declares open to any checked caller
+// (any_checked_caller) requires nothing more than a Work Context at the
+// audience, and is called as each seat too. From a page, that Work Context is
+// issued from the person's roles on the page's product, through the binding:
+// a seat the plan allows something through the binding is a checked caller
+// and is let through; the member with no role is issued nothing, and is
+// refused for holding no role on the product before the method's declaration
+// is read; a seat whose role carries nothing through the binding is refused
+// for holding nothing through it. So "nothing more is required" is held to
+// mean nothing more than the role, never nothing at all.
+//
+// A procedure whose requirement no single row's asks cover is not called: the
+// plan says nothing of it. A verdict no such call is refused by (the product's
+// method policy on a page's call, administration) is an error, not a guess.
 //
 // This holds the plan's first hop to the real audience: its real method
 // policy, whether it checks owners, which kinds it shares, and that the
@@ -103,40 +144,80 @@ func PlanRows(plan roleplan.Plan, seats Seats, published Published) ([]Row, erro
 	if err != nil {
 		return nil, fmt.Errorf("scenario: the product does not compose: %w", err)
 	}
-	expect := func(allowed bool) Expect {
-		if allowed {
-			return Admit
+	name := plan.Product.Name
+	people := [3]string{seats.Admin, seats.User, seats.None}
+	refusal := func(stage string, among, unmet []string) Expect {
+		return Expect{verdict: Denied, stage: stage, among: among, unmet: unmet}
+	}
+	noRole := refusal("for holding no role on "+name, []string{"holds no role on " + name}, nil)
+	// route is what the plan's verdict on a route the product serves expects.
+	route := func(row roleplan.Row, verdict roleplan.Verdict) (Expect, error) {
+		switch verdict {
+		case roleplan.Allowed:
+			return Admit, nil
+		case roleplan.RefusedNoRole:
+			return noRole, nil
+		case roleplan.RefusedAtProduct:
+			return refusal("at "+name+" itself, of which the role names nothing", []string{"names nothing " + name + " itself serves"}, nil), nil
+		case roleplan.RefusedByPolicy:
+			requires := plan.Product.Methods[row.Method].Requires
+			if len(requires) == 0 {
+				return Expect{}, fmt.Errorf("the plan says the method policy refuses it, and %s requires nothing for %s", name, row.Method)
+			}
+			return refusal(fmt.Sprintf("by %s's policy for %s, for one of %v", name, row.Method, requires), nil, requires), nil
+		case roleplan.RefusedAtBinding, roleplan.RefusedOnward:
+			return Expect{verdict: Denied, stage: fmt.Sprintf("past %s's own policy (%s)", name, verdict),
+				not: []string{"the authority refused this person at", "holds no role on " + name}}, nil
 		}
-		return Deny("")
+		return Expect{}, fmt.Errorf("the plan states %q, which no call to a route is refused by", verdict)
 	}
 	var rows []Row
-	// allows is, per binding, the asks each seat is allowed through it.
-	type seatAsks [3][][]string
-	allows, covered := map[string]*seatAsks{}, map[string][][]string{}
+	// through is what the plan says of a binding: the asks its page rows
+	// cover, those each seat is allowed, and the seats holding no role.
+	type through struct {
+		covered [][]string
+		allowed [3][][]string
+		noRole  [3]bool
+	}
+	bindings := map[string]*through{}
 	for _, row := range plan.Rows {
 		verdicts := [3]roleplan.Verdict{row.Admin, row.User, row.None}
 		switch {
 		case row.Method == "" && row.Binding != "":
-			if allows[row.Binding] == nil {
-				allows[row.Binding] = &seatAsks{}
+			if bindings[row.Binding] == nil {
+				bindings[row.Binding] = &through{}
 			}
-			covered[row.Binding] = append(covered[row.Binding], row.Asks)
-			for i, v := range verdicts {
-				if v == roleplan.Allowed {
-					allows[row.Binding][i] = append(allows[row.Binding][i], row.Asks)
+			b := bindings[row.Binding]
+			b.covered = append(b.covered, row.Asks)
+			for i, verdict := range verdicts {
+				switch verdict {
+				case roleplan.Allowed, roleplan.RefusedOnward:
+					b.allowed[i] = append(b.allowed[i], row.Asks)
+				case roleplan.RefusedNoRole:
+					b.noRole[i] = true
+				case roleplan.RefusedAtBinding:
+				default:
+					return nil, fmt.Errorf("scenario: %q: the plan states %q for %s, which no call a page makes through a binding is refused by", row.Name, verdict, people[i])
 				}
 			}
 		case row.Method != "" && !strings.ContainsAny(row.Method, "{*"):
-			rows = append(rows, Row{Name: row.Name, Call: Call{Procedure: row.Method}, Want: Want{
-				seats.Admin: expect(row.Admin == roleplan.Allowed), seats.User: expect(row.User == roleplan.Allowed), seats.None: expect(row.None == roleplan.Allowed)}})
+			want := Want{}
+			for i, verdict := range verdicts {
+				if want[people[i]], err = route(row, verdict); err != nil {
+					return nil, fmt.Errorf("scenario: %q, %s: %w", row.Name, people[i], err)
+				}
+			}
+			rows = append(rows, Row{Name: row.Name, Call: Call{Procedure: row.Method}, Want: want})
 		}
 	}
-	for _, binding := range slices.Sorted(maps.Keys(allows)) {
+	for _, binding := range slices.Sorted(maps.Keys(bindings)) {
+		b := bindings[binding]
 		audience := product.Bindings[binding].Audience
 		methods, ok := published[audience]
 		if !ok {
 			return nil, fmt.Errorf("scenario: the plan calls %s through binding %q, and no published contract of %s was read", audience, binding, audience)
 		}
+		nothing := fmt.Sprintf("holds nothing at %s through binding %q", audience, binding)
 		for _, procedure := range slices.Sorted(maps.Keys(methods)) {
 			var requires []string
 			for _, permission := range methods[procedure].Requires {
@@ -145,15 +226,32 @@ func PlanRows(plan roleplan.Plan, seats Seats, published Published) ([]Row, erro
 			covers := func(asks []string) bool {
 				return !slices.ContainsFunc(requires, func(p string) bool { return !slices.Contains(asks, p) })
 			}
-			if len(requires) == 0 || !slices.ContainsFunc(covered[binding], covers) {
+			// open: any checked caller, nothing more required.
+			open := methods[procedure].AnyCheckedCaller && len(requires) == 0
+			if !open && (len(requires) == 0 || !slices.ContainsFunc(b.covered, covers)) {
 				continue
 			}
 			want := Want{}
-			for i, seat := range []string{seats.Admin, seats.User, seats.None} {
-				want[seat] = expect(slices.ContainsFunc(allows[binding][i], covers))
+			for i, seat := range people {
+				switch {
+				case len(b.allowed[i]) == 0 && b.noRole[i]:
+					want[seat] = noRole
+				case len(b.allowed[i]) == 0:
+					want[seat] = refusal(fmt.Sprintf("at binding %q, through which the plan lets this role carry nothing", binding), []string{nothing}, requires)
+				case open || slices.ContainsFunc(b.allowed[i], covers):
+					want[seat] = Admit
+				default:
+					unmet := slices.DeleteFunc(slices.Clone(requires), func(p string) bool {
+						return slices.ContainsFunc(b.allowed[i], func(asks []string) bool { return slices.Contains(asks, p) })
+					})
+					if len(unmet) == 0 {
+						unmet = requires
+					}
+					want[seat] = refusal(fmt.Sprintf("at binding %q, for one of %v", binding, unmet), nil, unmet)
+				}
 			}
 			rows = append(rows, Row{Name: binding + " " + strings.TrimPrefix(procedure, "/"),
-				Call: Call{Page: plan.Product.Name, Procedure: strings.TrimPrefix(procedure, "/")}, Want: want})
+				Call: Call{Page: name, Procedure: strings.TrimPrefix(procedure, "/")}, Want: want})
 		}
 	}
 	return rows, nil

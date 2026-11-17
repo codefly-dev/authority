@@ -60,7 +60,12 @@ func TestWhoReadsTheNotes(t *testing.T) {
   (`authority-core/go/roleplan`) into rows, so nothing is listed by hand:
   every procedure the plan's rows cover at the modules the page binds (read
   from their published contracts, `Published`), called as the admin, the user
-  and a member with no role, and held to the plan's verdict. This holds the
+  and a member with no role, and held to the plan's verdict: let through, or
+  refused by the decision the plan names (no role on the product, the method
+  policy naming the permission that is unmet, nothing held through the
+  binding), so a refusal for another cause fails the row. A procedure open to
+  any checked caller is called as each seat too: the member with no role is
+  issued nothing from the page and is refused for it. This holds the
   plan's first hop to the real audience, which the plan's stand-in for it
   cannot: its real method policy, whether it checks owners, which kinds it
   shares, and that the composition routes the procedure at all. What a call
