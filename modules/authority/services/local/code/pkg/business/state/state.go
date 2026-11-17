@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
@@ -156,6 +157,12 @@ type Session struct {
 	// CastTeam is the team this session was cast onto, when it is a cast: it
 	// acts as that team and nothing else; the authority core holds the record.
 	CastTeam string
+	// Parent is the session this one was opened from, when it is a role view
+	// or a cast: ending that one ends this one.
+	Parent string
+	// ExpiresAt is when the session ends on its own; a role view or a cast
+	// carries its parent's.
+	ExpiresAt time.Time
 }
 
 type fixtureFile struct {
@@ -454,7 +461,7 @@ func (s *State) SignIn(token string) (Session, error) {
 		name = p.Email
 	}
 	sess := Session{PersonDisplayName: name, OrganizationDisplayName: s.orgs[p.Organization], ID: uuid.NewString(), Person: p.ID,
-		Organization: p.Organization, Roles: slices.Clone(p.Roles), Teams: slices.Clone(p.Teams)}
+		Organization: p.Organization, Roles: slices.Clone(p.Roles), Teams: slices.Clone(p.Teams), ExpiresAt: s.svc.Now().Add(SessionLifetime)}
 	s.sessions[sess.ID] = sess
 	return sess, nil
 }
@@ -476,12 +483,8 @@ func (s *State) OpenRoleView(ctx context.Context, parent, installationID string,
 	sess.ID, sess.RoleView = id, view.Roles
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, open := s.sessions[parent]; !open {
-		// The parent ended while the core decided: the view opens no session of its own.
-		return Session{}, fmt.Errorf("%w: an open session is required", ErrUnauthenticated)
-	}
-	s.sessions[id] = sess
-	return sess, nil
+	// A parent that ended while the core decided opens no session of its own.
+	return s.keepChildLocked(parent, sess)
 }
 
 // OpenTeamCast opens a session that acts as a member of team and of nothing
@@ -502,12 +505,8 @@ func (s *State) OpenTeamCast(ctx context.Context, parent, team string) (Session,
 	sess.ID, sess.RoleView, sess.CastTeam, sess.Roles, sess.Teams = id, cast.Roles, cast.Team, nil, []string{cast.Team}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, open := s.sessions[parent]; !open {
-		// The parent ended while the core decided: the cast opens no session of its own.
-		return Session{}, fmt.Errorf("%w: an open session is required", ErrUnauthenticated)
-	}
-	s.sessions[id] = sess
-	return sess, nil
+	// A parent that ended while the core decided opens no session of its own.
+	return s.keepChildLocked(parent, sess)
 }
 
 // CastableTeams is the teams the session may act as now, with what each
@@ -539,11 +538,11 @@ func (s *State) OrganizationDisplayName(organization string) string {
 	return s.orgs[organization]
 }
 
-// Session resolves an open session.
+// Session resolves an open session: one that neither ended nor expired.
 func (s *State) Session(id string) (Session, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	sess, ok := s.sessions[id]
+	sess, ok := s.openLocked(id)
 	if !ok {
 		return Session{}, fmt.Errorf("%w: an open session is required", ErrUnauthenticated)
 	}

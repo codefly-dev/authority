@@ -1,5 +1,5 @@
 // Package session serves codefly.dev/session for fixture people: who they are,
-// SignIn, and Current.
+// SignIn, Current and End, role views and casts.
 package session
 
 import (
@@ -47,21 +47,39 @@ func (p *Plugin) RegisterREST(ctx context.Context, mux *runtime.ServeMux, endpoi
 func (p *Plugin) Migrations() []string { return nil }
 
 // SignIn opens a session for a fixture person.
-func (p *Plugin) SignIn(_ context.Context, req *sessionv1.SignInRequest) (*sessionv1.Session, error) {
+func (p *Plugin) SignIn(ctx context.Context, req *sessionv1.SignInRequest) (*sessionv1.Session, error) {
 	sess, err := p.State.SignIn(req.GetFixtureToken())
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}
-	return wire(sess, sess.ID), nil
+	return p.wire(ctx, sess, sess.ID)
 }
 
-// wire is a session as the interface answers it.
-func wire(sess state.Session, bearer string) *sessionv1.Session {
-	out := &sessionv1.Session{PersonDisplayName: sess.PersonDisplayName, OrganizationDisplayName: sess.OrganizationDisplayName, SessionId: sess.ID, PersonId: sess.Person, OrganizationId: sess.Organization, Roles: sess.Roles, TeamIds: sess.Teams, Bearer: bearer, CastTeamId: sess.CastTeam}
+// wire is a session as the interface answers it: when it ends on its own, and
+// the grant epoch of what it holds now.
+func (p *Plugin) wire(ctx context.Context, sess state.Session, bearer string) (*sessionv1.Session, error) {
+	epoch, err := p.State.GrantEpoch(ctx, sess.ID)
+	if err != nil {
+		return nil, authorityplugin.Status(err)
+	}
+	out := &sessionv1.Session{PersonDisplayName: sess.PersonDisplayName, OrganizationDisplayName: sess.OrganizationDisplayName, SessionId: sess.ID, PersonId: sess.Person, OrganizationId: sess.Organization, Roles: sess.Roles, TeamIds: sess.Teams, Bearer: bearer, CastTeamId: sess.CastTeam,
+		ExpiresAtUnix: sess.ExpiresAt.Unix(), GrantEpoch: epoch}
 	for _, id := range slices.Sorted(maps.Keys(sess.RoleView)) {
 		out.RoleView = append(out.RoleView, &sessionv1.RoleViewEntry{InstallationId: id, Roles: sess.RoleView[id]})
 	}
-	return out
+	return out, nil
+}
+
+// End ends the caller's session and every role view and cast opened from it.
+func (p *Plugin) End(ctx context.Context, _ *sessionv1.EndRequest) (*sessionv1.EndResponse, error) {
+	bearer := authorityplugin.Bearer(ctx)
+	if bearer == "" {
+		return nil, status.Error(codes.Unauthenticated, "the call carries no session bearer")
+	}
+	if err := p.State.EndSession(bearer); err != nil {
+		return nil, status.Error(codes.Unauthenticated, "the bearer names no open session")
+	}
+	return &sessionv1.EndResponse{}, nil
 }
 
 // OpenRoleView opens a session that acts as some of the roles the caller's own
@@ -75,7 +93,7 @@ func (p *Plugin) OpenRoleView(ctx context.Context, req *sessionv1.OpenRoleViewRe
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}
-	return wire(sess, sess.ID), nil
+	return p.wire(ctx, sess, sess.ID)
 }
 
 // OpenTeamCast opens a session that acts as one team and nothing else; the
@@ -89,7 +107,7 @@ func (p *Plugin) OpenTeamCast(ctx context.Context, req *sessionv1.OpenTeamCastRe
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}
-	return wire(sess, sess.ID), nil
+	return p.wire(ctx, sess, sess.ID)
 }
 
 // ListCastableTeams answers the teams the caller may act as, each with what
@@ -126,7 +144,7 @@ func (p *Plugin) Current(ctx context.Context, _ *sessionv1.CurrentRequest) (*ses
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "the bearer names no open session")
 	}
-	return wire(sess, ""), nil
+	return p.wire(ctx, sess, "")
 }
 
 // ListFixturePeople answers every fixture person, for the edge's sign-in page.
