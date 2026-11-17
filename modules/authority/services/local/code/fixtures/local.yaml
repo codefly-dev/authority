@@ -6,80 +6,33 @@
 # "What a composition adds to the fixture"). The organisation, role and person
 # ids below are that document's contract with every composing repository.
 #
-# It is the ONE fixture every composition seeds, the saas host's dev-admin
-# fixture included (module-saas-starter, module/fixtures/dev-admin.yaml): the
-# same five people, by the same names, emails and sign-in tokens, so a
-# playground, a module page or a solution run on the local authority signs in
-# whom the product signs in.
+# A page has two roles, admin and user (handbook: decisions/
+# a-page-has-two-roles-admin-and-user.md), and a walk needs three people:
 #
-#   admin@acme.com   Sarah Chen    the platform admin; here, Acme's administrator
-#   alice@acme.com   Alice Johnson the organisation admin of Acme
+#   dana@example.com Dana Lee      the admin: of Acme, and of every target
+#   carol@acme.com   Carol Davis   the user of every target
 #   bob@acme.com     Bob Williams  a member holding no role on any target: refused
-#   carol@acme.com   Carol Davis   a member: the user of every target
-#   dana@example.com Dana Lee      a member: the admin of every target
 #
-# Every role-gated target the run composes (a solution, a module page declaring
-# roles) gets one team per role it declares, `<target>-<role>`: `<target>-admin`
-# and `<target>-user`. Carol and Dana join the team of their role
-# (`installations`, below); Bob joins none, so every page refuses him. Signed
-# in as Sarah or Alice, "Act as this team" at the edge's sign-in page opens a
-# session that is that team and nothing else; signed in as Carol or Dana, the
-# hop answers with that one team's reach, and signed in as Bob, with a refusal.
+# Nobody else. Every role-gated target the run composes (a solution, a module
+# page declaring roles) gets one team per role, `<target>-admin` and
+# `<target>-user`. Dana and Carol join the team of their role (`installations`,
+# below); Bob joins none, so every page refuses him. Dana administers Acme, so
+# she installs a solution and may "Act as this team" at the edge's sign-in page:
+# a session that is that team and nothing else.
 organizations:
   - id: acme
     name: Acme
-  - id: globex
-    name: Globex
-# The team directory. A team a person below belongs to exists already; list
-# here a team nobody belongs to yet, which a role may still be granted to. The
-# `<target>-<role>` teams are not listed: each exists once its target does.
-teams:
-  - {organization: acme, id: finance}
-  - {organization: acme, id: engineering}
-  - {organization: globex, id: ops}
 roles:
   - organization: acme
-    name: viewer
-    scopes:
-      # The authority console: a viewer reads who they are.
-      - {kind: console.identity, actions: [read]}
-  - organization: acme
-    name: editor
-    scopes: []
-  - organization: acme
     name: admin
     scopes: []
-  - organization: globex
-    name: admin
-    scopes: []
-  # Generated from the current delivered catalog, recomputed on each delivery,
-  # in Acme. A playground signs its person in as dev.
-  - organization: acme
-    name: developer
-    generated: true
 people:
-  # The five, as the product's fixture names them. Their sign-in tokens are
-  # the provider ids the saas host signs them in by.
-  - id: sarah
-    name: Sarah Chen
-    email: admin@acme.com
-    fixture_token: dev-admin
+  - id: dana
+    name: Dana Lee
+    email: dana@example.com
+    fixture_token: dev-dana
     organization: acme
     roles: [admin]
-    teams: []
-  - id: alice
-    name: Alice Johnson
-    email: alice@acme.com
-    fixture_token: dev-alice
-    organization: acme
-    roles: [admin]
-    teams: []
-  - id: bob
-    name: Bob Williams
-    email: bob@acme.com
-    fixture_token: dev-bob
-    organization: acme
-    roles: []
     teams: []
   - id: carol
     name: Carol Davis
@@ -88,81 +41,26 @@ people:
     organization: acme
     roles: []
     teams: []
-  - id: dana
-    name: Dana Lee
-    email: dana@example.com
-    fixture_token: dev-dana
+  - id: bob
+    name: Bob Williams
+    email: bob@acme.com
+    fixture_token: dev-bob
     organization: acme
     roles: []
     teams: []
-  # Retained aliases: the authority interface's own people, which the saas
-  # fixture keeps too, for parity with this sign-in page. The organisation
-  # roles they hold are what a composition's fixture-composition document
-  # grants at modules that declare no roles (the conformance matrix,
-  # pkg/business/testkit); `dev` holds the generated developer role every
-  # playground starts on; `no-roles` holds nothing, for the refusal cases;
-  # Globex is the other organisation. Nothing new is written against them.
-  - id: no-roles
-    email: no-roles@acme.test
-    fixture_token: fixture-no-roles
-    organization: acme
-    roles: []
-    teams: []
-  - id: maya
-    name: Maya
-    email: maya@acme.test
-    fixture_token: fixture-maya
-    organization: acme
-    roles: [viewer]
-    teams: [finance]
-  - id: remi
-    name: Rémi
-    email: remi@acme.test
-    fixture_token: fixture-remi
-    organization: acme
-    roles: [editor]
-    teams: [engineering]
-  - id: alex
-    name: Alex
-    email: alex@acme.test
-    fixture_token: fixture-alex
-    organization: acme
-    roles: [admin]
-    teams: [finance, engineering]
-  - id: zoe
-    name: Zoë
-    email: zoe@globex.test
-    fixture_token: fixture-zoe
-    organization: globex
-    roles: [admin]
-    teams: [ops]
-  - id: omar
-    name: Omar
-    email: omar@globex.test
-    fixture_token: fixture-omar
-    organization: globex
-    roles: []
-    teams: [ops]
-  - id: dev
-    name: Developer
-    email: dev@acme.test
-    fixture_token: fixture-dev
-    organization: acme
-    roles: [developer]
-    teams: [engineering]
 # The same people on every target: a row whose target is "*" stands for every
 # role-gated target the run composes, whatever the composition is, so no
 # composition has to name its targets here. Each declared role of each such
 # target goes to its `<target>-<role>` team, and each member joins the team of
 # the role named, where the target declares that role. The row installs
 # nothing: a module page is installed by composition; a solution by a composing
-# workspace's row naming it (its agent role, its owner, its teams), which is
-# kept, or by an administrator at the edge's setup page; each is seated the
-# moment it is active. Alice is the administrator the row stands for.
+# workspace's row naming it (its agent role, its owner, its teams), or by an
+# administrator at the edge's setup page; each is seated the moment it is
+# active. Dana is the administrator the row stands for.
 installations:
   - organization: acme
     target: "*"
-    owner: alice
+    owner: dana
     members:
       user: [carol]
       admin: [dana]
