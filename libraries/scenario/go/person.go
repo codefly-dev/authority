@@ -155,6 +155,9 @@ func (o Outcome) Text(path string) string {
 //
 // The verdict is read from the answer alone, first match:
 //
+//   - Unserved: the edge's own "no module serves <procedure>": it routes the
+//     procedure for no module. On the page route it says so as a Connect
+//     refusal (403 permission_denied), which is no decision on the person.
 //   - Denied: Connect permission_denied or unauthenticated, or HTTP 403 or 401.
 //   - Failed: an error that says "the authority refused" and is no denial: the
 //     hop relaying that the authority reached no decision on the caller (a
@@ -247,6 +250,8 @@ func (p *Person) do(call Call) (Outcome, error) {
 // message: the rule Do states.
 func verdictOf(status int, code, reason string) Verdict {
 	switch {
+	case strings.HasPrefix(reason, "no module serves "):
+		return Unserved
 	case code == "permission_denied" || code == "unauthenticated" || status == http.StatusForbidden || status == http.StatusUnauthorized:
 		return Denied
 	case strings.Contains(reason, "the authority refused"):

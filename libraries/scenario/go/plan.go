@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/roleplan"
 	"github.com/codefly-dev/authority/libraries/hop/go/policy"
+	"github.com/codefly-dev/core/composition"
 	"github.com/codefly-dev/core/resources"
 )
 
@@ -25,7 +27,8 @@ type Seats struct{ Admin, User, None string }
 type Published map[string]map[string]policy.Method
 
 // Published reads what every module the composition's workspace composes
-// publishes, each under its module's name, which is its audience: from where
+// publishes (the procedures its endpoints serve: PublishedIn), each under its
+// module's name, which is its audience: from where
 // the run resolved the module (Codefly's own resolution: a path, the local
 // overlay, or the checkout the run materialized for a pin). A module that
 // publishes no protobuf contract is left out.
@@ -52,32 +55,93 @@ func (c *Composition) Published(ctx context.Context) (Published, error) {
 
 var errNoContract = errors.New("no protobuf contract")
 
-// PublishedIn reads the contracts a module publishes under dir (its
+// PublishedIn reads what a module publishes under dir as audience's: the
+// procedures its endpoints serve, each with what its published contract (a
 // contracts/api/<service>/<endpoint>/contract.binpb, the descriptor sets a
-// delivery to the authority is read from) as audience's.
+// delivery to the authority is read from) declares for it.
+//
+// What an endpoint serves is what the module's contract catalog
+// (contracts/api/catalog.codefly.json) records for it: the procedures its
+// listener registers. A descriptor carries more than that (a protocol the
+// module publishes for other modules to serve, its imports' services), which
+// the module answers no call to and a delivery leaves out of its method
+// table; it is left out here too, so no plan is held to a call to nothing. A
+// procedure the catalog routes and its contract does not declare is a stale
+// catalog, and an error. A module with no catalog serves every service its
+// descriptors declare.
 func (p Published) PublishedIn(audience, dir string) error {
-	found, err := filepath.Glob(filepath.Join(dir, "contracts", "api", "*", "*", "contract.binpb"))
+	served, err := servedIn(dir)
 	if err != nil {
-		return err
-	}
-	if len(found) == 0 {
-		return fmt.Errorf("%s publishes under %s: %w", audience, dir, errNoContract)
+		return fmt.Errorf("%s publishes under %s: %w", audience, dir, err)
 	}
 	if p[audience] == nil {
 		p[audience] = map[string]policy.Method{}
 	}
-	for _, path := range found {
+	maps.Copy(p[audience], served)
+	return nil
+}
+
+// servedIn is the procedures the module at dir serves, each with what its
+// contract declares: PublishedIn's rule.
+func servedIn(dir string) (map[string]policy.Method, error) {
+	contract := func(path string) (map[string]policy.Method, error) {
 		raw, err := os.ReadFile(path)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		methods, err := policy.Contract(raw)
 		if err != nil {
-			return fmt.Errorf("%s: %w", path, err)
+			return nil, fmt.Errorf("%s: %w", path, err)
 		}
-		maps.Copy(p[audience], methods)
+		return methods, nil
 	}
-	return nil
+	out := map[string]policy.Method{}
+	catalog, err := composition.LoadAPIContractCatalog(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		found, err := filepath.Glob(filepath.Join(dir, "contracts", "api", "*", "*", "contract.binpb"))
+		if err != nil {
+			return nil, err
+		}
+		if len(found) == 0 {
+			return nil, errNoContract
+		}
+		for _, path := range found {
+			methods, err := contract(path)
+			if err != nil {
+				return nil, err
+			}
+			maps.Copy(out, methods)
+		}
+		return out, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	published := false
+	for _, endpoint := range catalog.Endpoints {
+		if endpoint.Kind != composition.APIContractKindProtobuf {
+			continue
+		}
+		published = true
+		methods, err := contract(filepath.Join(dir, filepath.FromSlash(endpoint.Path)))
+		if err != nil {
+			return nil, err
+		}
+		for _, service := range endpoint.Services {
+			for _, procedure := range service.Procedures {
+				declared, ok := methods[procedure]
+				if !ok {
+					return nil, fmt.Errorf("the catalog routes %s to %s/%s, and %s does not declare it; run codefly generate contracts",
+						procedure, endpoint.Service, endpoint.Endpoint, endpoint.Path)
+				}
+				out[procedure] = declared
+			}
+		}
+	}
+	if !published {
+		return nil, errNoContract
+	}
+	return out, nil
 }
 
 // PlanRows turns a product's role plan into the calls it speaks of, made for
