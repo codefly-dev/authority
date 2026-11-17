@@ -8,6 +8,7 @@ package policy
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -94,6 +95,66 @@ func (m Method) Unmet(holds func(kind, action string) bool) []string {
 	return unmet
 }
 
+// EveryOwner is where Apart says a permission is held by a grant that selects
+// no owner.
+const EveryOwner = "every owner"
+
+// Apart is each permission the method requires with the owners the call holds
+// it on ("kind:action on a, b", in the order required), when the call holds
+// every one of them and no owner is common to them all; nil otherwise. A
+// method that requires several permissions is one act on one resource, so
+// held apart (a read on one owner's resources, a write on another's) they are
+// held on nothing, and the hop refuses the call, where it used to pass it on
+// for the module to find it reaches nothing.
+//
+// A grant that selects no owner holds its permission on every owner, named
+// resources or not: it is held together with anything. Only owners are
+// compared: which resource of a shared owner the call reaches is the module's
+// question (hop.Admission.Required), so a call the module could serve on some
+// resource is never refused here. A permission held nowhere is Unmet's
+// refusal, and what a method carries is never required together.
+func (m Method) Apart(held []*basev0.WorkScopeV1) []string {
+	var common map[string]bool
+	var where []string
+	seen := map[Permission]bool{}
+	for _, p := range m.Requires {
+		if seen[p] {
+			continue
+		}
+		seen[p] = true
+		owners, every, somewhere := map[string]bool{}, false, false
+		for _, h := range held {
+			if h.GetResourceKind() != p.Kind || !(slices.Contains(h.GetActions(), p.Action) || slices.Contains(h.GetActions(), AnyAction)) {
+				continue
+			}
+			somewhere = true
+			if h.GetResourceOwnerId() == "" {
+				every = true
+			} else {
+				owners[h.GetResourceOwnerId()] = true
+			}
+		}
+		switch {
+		case !somewhere:
+			return nil
+		case every:
+			where = append(where, p.String()+" on "+EveryOwner)
+			continue
+		}
+		names := slices.Sorted(maps.Keys(owners))
+		where = append(where, p.String()+" on "+strings.Join(names, ", "))
+		if common == nil {
+			common = owners
+			continue
+		}
+		maps.DeleteFunc(common, func(owner string, _ bool) bool { return !owners[owner] })
+	}
+	if common == nil || len(common) > 0 {
+		return nil
+	}
+	return where
+}
+
 // Ceiling is every permission the method names, sorted: what a binding that
 // names the call may carry at most.
 func (m Method) Ceiling() []Permission {
@@ -151,6 +212,9 @@ func Admit(contract map[string]Method, method string, held []*basev0.WorkScopeV1
 	}
 	if unmet := m.Unmet(OnAnyResource(held)); len(unmet) > 0 {
 		return status.Errorf(codes.PermissionDenied, "hop: %s requires %s, which the call does not hold", method, strings.Join(unmet, ", "))
+	}
+	if apart := m.Apart(held); apart != nil {
+		return status.Errorf(codes.PermissionDenied, "hop: %s requires its permissions together, and the call holds them on no owner in common (%s)", method, strings.Join(apart, "; "))
 	}
 	return nil
 }

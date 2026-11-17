@@ -7,6 +7,7 @@ import (
 
 	hop "github.com/codefly-dev/authority/libraries/hop/go"
 	"github.com/codefly-dev/authority/libraries/hop/go/policy"
+	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
 // A method that requires more than one permission: a row write requires
@@ -227,5 +228,86 @@ func TestRequiredIsNeverWiderThanEachPermissionRead(t *testing.T) {
 				t.Fatalf("%+v: owner-selected owners %v and %v, each permission's owner-selected grants say %v", grants, selected.Owners(), required.OwnerSelected().Owners(), wantSelectedOwners)
 			}
 		}
+	}
+}
+
+// Apart is the hop's refusal, read by the module: over every way two required
+// permissions can each be held, it is exactly the decision the hop makes on
+// the scopes those grants are (policy.Method.Apart), so a verifier and the
+// hop in front of it never read one call two ways. A call that is apart
+// reaches nothing, owner-selected or not; a call that reaches something is
+// never apart.
+func TestApartIsWhatTheHopRefusesAndReachesNothing(t *testing.T) {
+	const records = "records.records"
+	terms := [][2]any{
+		{"", []string(nil)}, {"installation-a", []string(nil)}, {"installation-b", []string(nil)},
+		{"installation-a", []string{"r-1", "r-2"}}, {"installation-a", []string{"r-2"}}, {"installation-b", []string{"r-1"}}, {"", []string{"r-1", "r-3"}},
+	}
+	var choices [][]int
+	choices = append(choices, nil)
+	for i := range terms {
+		choices = append(choices, []int{i})
+		for j := i + 1; j < len(terms); j++ {
+			choices = append(choices, []int{i, j})
+		}
+	}
+	apart, together := 0, 0
+	for _, reads := range choices {
+		for _, writes := range choices {
+			var grants []hop.Grant
+			var scopes []*basev0.WorkScopeV1
+			hold := func(action string, chosen []int) {
+				for _, i := range chosen {
+					owner, ids := terms[i][0].(string), terms[i][1].([]string)
+					grants = append(grants, holds(records, action, owner, ids...))
+					scopes = append(scopes, &basev0.WorkScopeV1{ResourceKind: records, Actions: []string{action}, ResourceOwnerId: owner, ResourceIds: ids})
+				}
+			}
+			hold("read", reads)
+			hold("write", writes)
+			a := hop.AdmissionOf(readsAndWrites, "/records.v1.Records/Write", grants)
+			refused := readsAndWrites.Apart(scopes) != nil
+			if a.Apart() != refused {
+				t.Fatalf("%+v: the module reads apart=%v and the hop decides %v", grants, a.Apart(), refused)
+			}
+			if a.Apart() {
+				apart++
+				if !a.Required().Empty() || !a.RequiredOwnerSelected().Empty() {
+					t.Fatalf("%+v: apart, and Required reaches %s", grants, reach(a.Required()))
+				}
+			}
+			if !a.Required().Empty() {
+				together++
+			}
+		}
+	}
+	if apart == 0 || together == 0 {
+		t.Fatalf("%d apart, %d held together: the comparison proved nothing", apart, together)
+	}
+
+	for name, c := range map[string]struct {
+		declared policy.Method
+		grants   []hop.Grant
+		apart    bool
+	}{
+		"a read on one owner and a write on another":             {readsAndWrites, []hop.Grant{holds(records, "read", "installation-a"), holds(records, "write", "installation-b")}, true},
+		"two kinds held on different owners":                     {recordAndType, []hop.Grant{holds(records, "read", "installation-a"), holds("records.types", "read", "installation-b")}, true},
+		"resources named on different owners":                    {readsAndWrites, []hop.Grant{holds(records, "read", "installation-a", "r-1"), holds(records, "write", "installation-b", "r-1")}, true},
+		"one owner, resources named apart, is the module's":      {readsAndWrites, []hop.Grant{holds(records, "read", "installation-a", "r-1"), holds(records, "write", "installation-a", "r-2")}, false},
+		"the whole kind is held together with anything":          {readsAndWrites, []hop.Grant{holds(records, "read", "installation-a"), holds(records, "write", "")}, false},
+		"resources named with no owner are held on any owner":    {readsAndWrites, []hop.Grant{holds(records, "read", "installation-a"), holds(records, "write", "", "r-1")}, false},
+		"one required permission held nowhere is unmet":          {readsAndWrites, []hop.Grant{holds(records, "read", "installation-a")}, false},
+		"what is carried on another owner is not required there": {carriesContent, []hop.Grant{holds(records, "read", "installation-a"), holds(records, "write_content", "installation-b")}, false},
+		"one permission required":                                {policy.Method{Requires: readsAndWrites.Requires[:1]}, []hop.Grant{holds(records, "read", "installation-a"), holds(records, "write", "installation-b")}, false},
+		"a method that requires nothing":                         {policy.Method{AnyCheckedCaller: true}, []hop.Grant{holds(records, "read", "installation-a")}, false},
+		"a declaration that says two things":                     {policy.Method{AnyCheckedCaller: true, Requires: readsAndWrites.Requires}, []hop.Grant{holds(records, "read", "installation-a"), holds(records, "write", "installation-b")}, false},
+	} {
+		if got := hop.AdmissionOf(c.declared, "/records.v1.Records/Write", c.grants).Apart(); got != c.apart {
+			t.Errorf("%s: apart reads %v, want %v", name, got, c.apart)
+		}
+	}
+	var none *hop.Admission
+	if none.Apart() {
+		t.Error("no admission reads as apart")
 	}
 }

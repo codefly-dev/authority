@@ -2,6 +2,7 @@ package policy_test
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	hopv1 "github.com/codefly-dev/authority/libraries/hop/go/gen/authority/hop/v1"
@@ -150,5 +151,127 @@ func TestAContractIsReadAndDecided(t *testing.T) {
 	}
 	if err := policy.Admit(declared, "/p.S/Write", []*basev0.WorkScopeV1{scope("doc", "a", policy.AnyAction)}); err != nil {
 		t.Errorf("a fixture grant of every action is refused: %v", err)
+	}
+}
+
+// A method that requires two permissions is one act on one resource: a read
+// held on one owner's resources and a write held on another's hold it on
+// nothing. The hop refuses such a call itself, naming where each is held,
+// where it used to pass the call on for the module to find it reaches nothing.
+// A grant that selects no owner holds its permission on every owner, so it is
+// held together with anything, and a call is refused only when no owner at
+// all is common to what it requires: which resource of a shared owner is the
+// module's question still.
+func TestACallHoldingWhatAMethodRequiresOnNoOwnerInCommonIsRefused(t *testing.T) {
+	named := func(kind, owner string, ids []string, actions ...string) *basev0.WorkScopeV1 {
+		return &basev0.WorkScopeV1{ResourceKind: kind, ResourceOwnerId: owner, ResourceIds: ids, Actions: actions}
+	}
+	edits := policy.FromProto(requires("doc", "read", "write"))
+	typed := policy.Method{Requires: []policy.Permission{policy.Of("doc", "read"), policy.Of("doc", "write"), policy.Of("types", "read")}}
+	for _, tc := range []struct {
+		name   string
+		method policy.Method
+		held   []*basev0.WorkScopeV1
+		apart  []string
+	}{
+		{"a read on one owner and a write on another", edits,
+			[]*basev0.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "b", "write")},
+			[]string{"doc:read on a", "doc:write on b"}},
+		{"neither owner of the read holds the write", edits,
+			[]*basev0.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "b", "read"), scope("doc", "c", "write")},
+			[]string{"doc:read on a, b", "doc:write on c"}},
+		{"two of three share an owner the third is not held on", typed,
+			[]*basev0.WorkScopeV1{scope("doc", "a", "read", "write"), scope("types", "b", "read")},
+			[]string{"doc:read on a", "doc:write on a", "types:read on b"}},
+		{"the whole kind beside two owners that share nothing", typed,
+			[]*basev0.WorkScopeV1{scope("doc", "", "read"), scope("doc", "a", "write"), scope("types", "b", "read")},
+			[]string{"doc:read on every owner", "doc:write on a", "types:read on b"}},
+		{"resources named on different owners", edits,
+			[]*basev0.WorkScopeV1{named("doc", "a", []string{"d-1"}, "read"), named("doc", "b", []string{"d-1"}, "write")},
+			[]string{"doc:read on a", "doc:write on b"}},
+
+		{"both on one owner", edits, []*basev0.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "a", "write")}, nil},
+		{"one owner among several is common", edits,
+			[]*basev0.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "b", "read"), scope("doc", "b", "write"), scope("doc", "c", "write")}, nil},
+		{"the write on the whole kind", edits, []*basev0.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "", "write")}, nil},
+		{"both on the whole kind", edits, []*basev0.WorkScopeV1{scope("doc", "", "read", "write")}, nil},
+		{"every action on the whole kind", edits, []*basev0.WorkScopeV1{scope("doc", "", policy.AnyAction)}, nil},
+		{"every action on the owner of the read", edits, []*basev0.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "a", policy.AnyAction)}, nil},
+		{"resources named with no owner hold on any owner", edits,
+			[]*basev0.WorkScopeV1{scope("doc", "a", "read"), named("doc", "", []string{"d-1"}, "write")}, nil},
+		{"one owner, resources named apart: the module's question", edits,
+			[]*basev0.WorkScopeV1{named("doc", "a", []string{"d-1"}, "read"), named("doc", "a", []string{"d-2"}, "write")}, nil},
+		{"a whole kind and a kind on one owner", typed,
+			[]*basev0.WorkScopeV1{scope("doc", "a", "read", "write"), scope("types", "", "read")}, nil},
+		{"one permission required", policy.FromProto(requires("doc", "read")),
+			[]*basev0.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "b", "write")}, nil},
+		{"a permission held nowhere is unmet, not apart", edits, []*basev0.WorkScopeV1{scope("doc", "a", "read"), scope("types", "b", "write")}, nil},
+		{"a permission required twice", policy.Method{Requires: []policy.Permission{policy.Of("doc", "read"), policy.Of("doc", "read")}},
+			[]*basev0.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "b", "read")}, nil},
+		{"what a method carries is not required together", policy.Method{Requires: []policy.Permission{policy.Of("doc", "read")}, Carries: []policy.Permission{policy.Of("doc", "write")}},
+			[]*basev0.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "b", "write")}, nil},
+		{"any checked caller", policy.Method{AnyCheckedCaller: true}, []*basev0.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "b", "write")}, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.method.Apart(tc.held); !slices.Equal(got, tc.apart) {
+				t.Fatalf("apart %q, want %q", got, tc.apart)
+			}
+			unmet := len(tc.method.Unmet(policy.OnAnyResource(tc.held))) > 0
+			err := policy.Admit(map[string]policy.Method{"/p.S/M": tc.method}, "/p.S/M", tc.held)
+			switch {
+			case tc.apart != nil:
+				if status.Code(err) != codes.PermissionDenied {
+					t.Fatalf("the hop admits a call holding what the method requires on no owner in common: %v", err)
+				}
+				for _, where := range tc.apart {
+					if !strings.Contains(err.Error(), where) {
+						t.Errorf("the refusal %q does not say %q", err, where)
+					}
+				}
+				if !strings.Contains(err.Error(), "no owner in common") {
+					t.Errorf("the refusal does not say why: %v", err)
+				}
+			case !unmet && err != nil:
+				t.Fatalf("a call holding what the method requires on a common owner is refused: %v", err)
+			case unmet && (err == nil || strings.Contains(err.Error(), "no owner in common")):
+				t.Fatalf("an unmet requirement is refused as such: %v", err)
+			}
+		})
+	}
+}
+
+// What the module admits on an owner, the hop admitted: with two permissions
+// required, a call that holds both selected to one owner is never apart.
+func TestTheHopRefusesAsApartNothingTheModuleAdmitsOnAnOwner(t *testing.T) {
+	m := policy.FromProto(requires("doc", "read", "write"))
+	atoms := []*basev0.WorkScopeV1{
+		scope("doc", "a", "read"), scope("doc", "b", "read"), scope("doc", "", "read"),
+		scope("doc", "a", "write"), scope("doc", "b", "write"), scope("doc", "", "write"), scope("doc", "c", policy.AnyAction),
+	}
+	refused, admitted := 0, 0
+	for mask := range 1 << len(atoms) {
+		var held []*basev0.WorkScopeV1
+		for i, atom := range atoms {
+			if mask&(1<<i) != 0 {
+				held = append(held, atom)
+			}
+		}
+		hop := policy.Admit(map[string]policy.Method{"/p.S/M": m}, "/p.S/M", held) == nil
+		for _, owner := range []string{"a", "b", "c"} {
+			if len(m.Unmet(selectedTo(held, owner))) == 0 || len(m.Unmet(func(kind, action string) bool {
+				return selectedTo(held, owner)(kind, action) || selectedTo(held, owner)(kind, policy.AnyAction)
+			})) == 0 {
+				admitted++
+				if !hop {
+					t.Fatalf("the module admits %v on owner %s and the hop refuses the call", held, owner)
+				}
+			}
+		}
+		if !hop && len(m.Unmet(policy.OnAnyResource(held))) == 0 {
+			refused++
+		}
+	}
+	if refused == 0 || admitted == 0 {
+		t.Fatalf("%d calls refused as apart and %d admitted on an owner: the comparison proved nothing", refused, admitted)
 	}
 }

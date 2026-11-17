@@ -321,6 +321,26 @@ class Admission:
             return _both(self._all(False), carried)
         return carried
 
+    def apart(self) -> bool:
+        """Whether this is a call the hop refuses: every permission the method
+        requires is held, and no owner is common to them all, so the call
+        holds them together on nothing. A grant that selects no owner holds
+        its permission on every owner; only owners are compared, never the
+        resources named within one. A hop of this contract forwards no such
+        call, so a handler reads True only behind a hop older than it, and
+        ``required`` reaches nothing either way."""
+        common: set[str] | None = None
+        for h in self._held:
+            if h.carried:
+                continue
+            if h.selection.empty():
+                return False
+            owners = set(h.selection.owners()) | {n.owner for n in h.selection.named()}
+            if h.selection.whole() or "" in owners:
+                continue
+            common = owners if common is None else common & owners
+        return common is not None and not common
+
     def each(self) -> tuple[Held, ...]:
         """Every permission the method declares with its own selection, for
         the method that carries more than one thing. The permissions are the

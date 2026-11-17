@@ -286,6 +286,25 @@ export class Admission {
     return this.#held.some(h => !h.carried) ? this.#all(false).both(carried) : carried;
   }
 
+  /** Whether this is a call the hop refuses: every permission the method
+   * requires is held, and no owner is common to them all, so the call holds
+   * them together on nothing. A grant that selects no owner holds its
+   * permission on every owner; only owners are compared, never the resources
+   * named within one. A hop of this contract forwards no such call, so a
+   * handler reads true only behind a hop older than it, and required reaches
+   * nothing either way. */
+  apart(): boolean {
+    let common: Set<string> | undefined;
+    for (const h of this.#held) {
+      if (h.carried) continue;
+      if (h.selection.empty()) return false;
+      const owners = new Set([...h.selection.owners(), ...h.selection.named().map(n => n.owner)]);
+      if (h.selection.whole() || owners.has("")) continue;
+      common = common === undefined ? owners : new Set([...common].filter(owner => owners.has(owner)));
+    }
+    return common !== undefined && common.size === 0;
+  }
+
   /** Every permission the method declares with its own selection, for the
    * method that carries more than one thing. The permissions are the
    * declaration's; a handler still writes none. */

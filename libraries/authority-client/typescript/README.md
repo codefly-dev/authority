@@ -40,7 +40,10 @@ where the call holds each. `required().whole()` is a grant that selects no
 owner; a module whose resources have owners reads `requiredOwnerSelected()` (and
 `carriedOwnerSelected()`), where a grant that selects no owner is dropped and
 lends nothing to one that does. `named()` lists named
-resources and `each()` every declared permission with its own selection. A test
+resources and `each()` every declared permission with its own selection.
+`apart()` is the hop's refusal as the module reads it: every permission the
+method requires is held, on owners sharing none. The hop forwards no such call;
+`required()` reaches nothing for one either way. A test
 builds one with `admissionOf(declared, method, grants)`. This verifier reads no
 protobuf descriptor: a method missing from the table reads as undeclared and
 selects nothing.

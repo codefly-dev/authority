@@ -32,8 +32,6 @@ github.com/codefly-dev/authority/libraries/authority-client/go v0.2.1-0.20261115
 github.com/codefly-dev/authority/libraries/authority-client/go v0.2.1-0.20261115131434-3574603a5f27/go.mod h1:SkqsON9hTIITJba+fGFupUk7Q+osyYNX/fUn8zoXer8=
 github.com/codefly-dev/authority/libraries/delivery/go v0.0.0-20261026023425-000d44495d93 h1:PnhgA9wkib67bJnc5hkhkc80J2ch5uYiq+9/NiD/XFU=
 github.com/codefly-dev/authority/libraries/delivery/go v0.0.0-20261026023425-000d44495d93/go.mod h1:XsOFnO2MQdr37vM3ULa0Uwi8ZWptyVx7hRSUyIdaZ1Q=
-github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261111234045-1076f796c30f h1:1Q1Q9YdYNCSMHdImapN4LCLTaQyOVpeJIPLLn7xaFug=
-github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261111234045-1076f796c30f/go.mod h1:r/D4MAPuo1OgUv4qSdwm5W/ra4Yt8b8IhyhqbGxK6ks=
 github.com/codefly-dev/authority/libraries/resources/go v0.0.0-20261026023425-000d44495d93 h1:4EygH7/J0E6aM7hUPdbQGfit1rsLUNCtWJ8kMh2b9PE=
 github.com/codefly-dev/authority/libraries/resources/go v0.0.0-20261026023425-000d44495d93/go.mod h1:1rmjrVyr0h7zOuwOHS9i+BoeS9dr3XNvtupLZFwY6As=
 github.com/codefly-dev/core v0.19.34-0.20261116201543-b919b702e8cf h1:5jMXBMwX4KWA6ORN/8gr8qe+3XVVTFDc+q439rQcGOE=

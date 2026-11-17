@@ -63,6 +63,7 @@ def reading(admission, grants):
         "required": read(admission.required()), "carried": read(admission.carried()),
         "each": [{"kind": h.permission.kind, "action": h.permission.action, "carried": h.carried, "selection": read(h.selection)}
                  for h in admission.each()],
+        "apart": admission.apart(),
     }
 
 
@@ -153,6 +154,14 @@ def test_a_grant_that_selects_no_owner_lends_an_owner_selected_reading_nothing()
     assert [(n.owner, n.resources) for n in named.required_owner_selected().named()] == [("installation-a", ("r-2",))]
     apart = admission_of(writes, "/records.v1.Records/Write", [read("installation-a"), write("installation-b")])
     assert apart.required().empty() and apart.required_owner_selected().empty()
+    # Go's TestApartIsWhatTheHopRefusesAndReachesNothing: held on no owner in
+    # common is what the hop refuses; a grant that selects no owner is held
+    # together with anything, and only owners are compared.
+    assert apart.apart() and not lent.apart() and not held.apart() and not named.apart()
+    assert admission_of(writes, "/records.v1.Records/Write", [read("installation-a", "r-1"), write("installation-b", "r-1")]).apart()
+    assert not admission_of(writes, "/records.v1.Records/Write", [read("installation-a", "r-1"), write("installation-a", "r-2")]).apart()
+    assert not admission_of(writes, "/records.v1.Records/Write", [read("installation-a")]).apart()
+    assert not admitted(None).apart()
     content = Method(requires=(Permission("records.records", "read"),), carries=(Permission("records.records", "read_content"),))
     carried = admission_of(content, "/records.v1.Records/Content", [read(""), Grant("records.records", "read_content", "installation-a")])
     assert carried.carried().owners() == ["installation-a"] and carried.carried_owner_selected().empty()

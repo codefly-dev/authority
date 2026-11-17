@@ -740,6 +740,20 @@ The marks reach the authority in the delivery, and the authority decides:
    route inventory; the selected destination and declared policy method travel
    together into the single Check decision.
 
+A method that requires several permissions requires them of one resource.
+A call that holds each of them, on owners sharing none (a read on one
+installation's resources, a write on another's), holds them together on
+nothing, and `Check` refuses it by name (2026-11-17, owner's decision;
+`policy.Method.Apart`, applied by `decide.AdmitPolicy` and by `policy.Admit`):
+`<module> requires <permissions> together for <method>, and the call holds them
+on no owner in common`, with where each is held. Before this date the hop
+forwarded such a call and the module's reader found it reached nothing. A
+grant that selects no owner is held together with anything, named resources
+or not, and only owners are compared: a call holding the two on one owner's
+different resources is still forwarded, and which resource it reaches stays
+the module's question. The Go, Python and TypeScript verifiers read the same
+decision (`Apart()`, `apart()`), held to one another by `stamps.json`.
+
 A method may also list what a call carries beyond what it requires
 (`Policy.carries`, `MethodPolicyV1.carries`): an effect the module performs on
 some calls alone. No decision reads it, and the hop hands the module what the

@@ -133,6 +133,10 @@ type stampAdmission struct {
 	Required stampSelection `json:"required"`
 	Carried  stampSelection `json:"carried"`
 	Each     []stampHeld    `json:"each"`
+	// Apart is the hop's refusal as a verifier reads it: every permission the
+	// method requires is held, on no owner in common. The hop forwards no
+	// such call; one that arrives is still admitted, reaching nothing.
+	Apart bool `json:"apart"`
 }
 
 type stampHeld struct {
@@ -213,7 +217,7 @@ func admissionRead(a *Admission, grants []Grant) *stampAdmission {
 		}
 		return r
 	}
-	out.Required, out.Carried = read(a.Required(), false), read(a.Carried(), false)
+	out.Required, out.Carried, out.Apart = read(a.Required(), false), read(a.Carried(), false), a.Apart()
 	for _, h := range a.Each() {
 		out.Each = append(out.Each, stampHeld{Kind: h.Permission.Kind, Action: h.Permission.Action, Carried: h.Carried, Selection: read(h.Selection, false)})
 	}
@@ -497,6 +501,25 @@ func nonNil(s []string) []string {
 	return s
 }
 
+// declaredAs is a vector's declarations as a module hands them to its verifier.
+func declaredAs(in map[string]stampDeclared) map[string]policy.Method {
+	if in == nil {
+		return nil
+	}
+	declared := map[string]policy.Method{}
+	for method, d := range in {
+		m := policy.Method{AnyCheckedCaller: d.AnyCheckedCaller}
+		for _, p := range d.Requires {
+			m.Requires = append(m.Requires, policy.Of(p[0], p[1]))
+		}
+		for _, p := range d.Carries {
+			m.Carries = append(m.Carries, policy.Of(p[0], p[1]))
+		}
+		declared[method] = m
+	}
+	return declared
+}
+
 // verdict is what Go's verifier answers for the vector, at the vector's clock:
 // admission, or the refusal's code, and for an admitted call the code a second
 // delivery to another verifier on the same store is refused with.
@@ -521,18 +544,7 @@ func (v stampVector) verdict(t *testing.T) (accept bool, reason, replay string, 
 	build := func() *Verifier {
 		var opts []VerifierOption
 		if v.Declared != nil {
-			declared := map[string]policy.Method{}
-			for method, d := range v.Declared {
-				m := policy.Method{AnyCheckedCaller: d.AnyCheckedCaller}
-				for _, p := range d.Requires {
-					m.Requires = append(m.Requires, policy.Of(p[0], p[1]))
-				}
-				for _, p := range d.Carries {
-					m.Carries = append(m.Carries, policy.Of(p[0], p[1]))
-				}
-				declared[method] = m
-			}
-			opts = append(opts, Declarations(declared))
+			opts = append(opts, Declarations(declaredAs(v.Declared)))
 		}
 		verifier, err := NewVerifier(ctx, source, v.Audience, store, opts...)
 		if err != nil {
@@ -600,6 +612,23 @@ func TestTheStampVectorsAreGosVerdicts(t *testing.T) {
 			}
 			if got, want := must(json.Marshal(admissionRead(id.Admitted, id.Grants))), must(json.Marshal(v.Admission)); string(got) != string(want) {
 				t.Fatalf("Go hands the handler %s, the contract says %s", got, want)
+			}
+			// The hop's own decision on what the call holds (policy.Admit, the
+			// evaluator the authority decides with) refuses as apart exactly
+			// the calls the contract says are.
+			if v.Admission != nil {
+				declared, _ := (&Verifier{declared: declaredAs(v.Declared)}).declaration(v.Method)
+				var held []*basev0.WorkScopeV1
+				for _, g := range id.Grants {
+					held = append(held, &basev0.WorkScopeV1{ResourceKind: g.Kind, Actions: []string{g.Action}, ResourceOwnerId: g.Owner, ResourceIds: g.Resources})
+				}
+				refused := declared.Validate() == nil && declared.Apart(held) != nil
+				if err := policy.Admit(map[string]policy.Method{v.Method: declared}, v.Method, held); refused != (err != nil && strings.Contains(err.Error(), "no owner in common")) {
+					t.Fatalf("the hop decides apart=%v and refuses with %v", refused, err)
+				}
+				if refused != v.Admission.Apart {
+					t.Fatalf("the hop refuses the call as apart: %v; the contract says %v", refused, v.Admission.Apart)
+				}
 			}
 		})
 	}
@@ -692,6 +721,26 @@ func admissionCases(admitted func(string, func(*stampCase)) stampCase, refused f
 		// the reading is cut to owner-selected grants).
 		admitted("what admitted the call: two required permissions held on different owners reach nothing",
 			declaring(holding([]*basev0.WorkScopeV1{scope(kind, "installation-a", nil, "read"), scope(kind, "installation-b", nil, "write")}), on(method, readsAndWrites))),
+		// What the hop refuses itself: every required permission held, on no
+		// owner in common. Only owners are compared, and a grant that selects
+		// none is held together with anything.
+		admitted("what admitted the call: two kinds required and held on different owners are apart",
+			declaring(holding([]*basev0.WorkScopeV1{scope(kind, "installation-a", nil, "read"), scope("documents.types", "installation-b", nil, "read")}),
+				on(method, policy.Method{Requires: []policy.Permission{policy.Of(kind, "read"), policy.Of("documents.types", "read")}}))),
+		admitted("what admitted the call: resources named on different owners are apart",
+			declaring(holding([]*basev0.WorkScopeV1{scope(kind, "installation-a", []string{"c-1"}, "read"), scope(kind, "installation-b", []string{"c-1"}, "write")}), on(method, readsAndWrites))),
+		admitted("what admitted the call: the whole kind beside two owners that share nothing is apart",
+			declaring(holding([]*basev0.WorkScopeV1{
+				scope(kind, "", nil, "read"), scope(kind, "installation-a", nil, "write"), scope("documents.types", "installation-b", nil, "read"), scope("documents.types", "installation-c", []string{"t-1"}, "read"),
+			}), on(method, policy.Method{Requires: []policy.Permission{policy.Of(kind, "read"), policy.Of(kind, "write"), policy.Of("documents.types", "read")}}))),
+		admitted("what admitted the call: one owner with resources named apart reaches nothing and is not apart",
+			declaring(holding([]*basev0.WorkScopeV1{scope(kind, "installation-a", []string{"c-1"}, "read"), scope(kind, "installation-a", []string{"c-2"}, "write")}), on(method, readsAndWrites))),
+		admitted("what admitted the call: an owner in common among several is not apart",
+			declaring(holding([]*basev0.WorkScopeV1{
+				scope(kind, "installation-a", nil, "read"), scope(kind, "installation-b", nil, "read"), scope(kind, "installation-b", nil, "write"), scope(kind, "installation-c", nil, "write"),
+			}), on(method, readsAndWrites))),
+		admitted("what admitted the call: what is carried on another owner is not required there, so not apart",
+			declaring(holding([]*basev0.WorkScopeV1{scope(kind, "installation-a", nil, "read"), scope(kind, "installation-b", nil, "read_content")}), on(method, content))),
 		admitted("what admitted the call: one required permission on the whole kind lends an owner nothing owner-selected",
 			declaring(holding([]*basev0.WorkScopeV1{scope(kind, "installation-a", nil, "read"), scope(kind, "", nil, "write")}), on(method, readsAndWrites))),
 		admitted("what admitted the call: a required permission held on the whole kind and on the owner is owner-selected there",

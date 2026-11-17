@@ -29,6 +29,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"maps"
 	"slices"
 	"strings"
 
@@ -335,6 +336,44 @@ func (a *Admission) Carried() Selection {
 		return both(a.all(false), carried)
 	}
 	return carried
+}
+
+// Apart reports a call the hop refuses: every permission the method requires
+// is held, and no owner is common to them all, so the call holds them
+// together on nothing (policy.Method.Apart, which the hop decides on, read
+// here from the same grants). A grant that selects no owner holds its
+// permission on every owner; only owners are compared, never the resources
+// named within one. A hop of this contract forwards no such call, so a
+// handler reads true only behind a hop older than it, and Required reaches
+// nothing either way.
+func (a *Admission) Apart() bool {
+	if a == nil {
+		return false
+	}
+	var common map[string]bool
+	for _, h := range a.held {
+		if h.Carried {
+			continue
+		}
+		if h.Selection.Empty() {
+			return false
+		}
+		owners, every := map[string]bool{}, false
+		for _, t := range h.Selection.terms {
+			if t.Owner == "" {
+				every = true
+			}
+			owners[t.Owner] = true
+		}
+		switch {
+		case every:
+		case common == nil:
+			common = owners
+		default:
+			maps.DeleteFunc(common, func(owner string, _ bool) bool { return !owners[owner] })
+		}
+	}
+	return common != nil && len(common) == 0
 }
 
 // Each is every permission the method declares with its own selection, for

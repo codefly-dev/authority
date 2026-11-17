@@ -54,6 +54,9 @@ owner; a module whose resources have owners reads `required_owner_selected()`
 (and `carried_owner_selected()`), where a grant that selects no owner is dropped
 and lends nothing to one that does. `named()` lists
 named resources and `each()` every declared permission with its own selection.
+`apart()` is the hop's refusal as the module reads it: every permission the
+method requires is held, on owners sharing none. The hop forwards no such call;
+`required()` reaches nothing for one either way.
 A test builds one with `admission_of(declared, method, grants)`. This verifier
 reads no protobuf descriptor: a method missing from `declarations` reads as
 undeclared and selects nothing.

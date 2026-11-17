@@ -255,7 +255,8 @@
           ]
         }
       },
-      "each": []
+      "each": [],
+      "apart": false
     }
   },
   {
@@ -514,7 +515,8 @@
           ]
         }
       },
-      "each": []
+      "each": [],
+      "apart": false
     }
   },
   {
@@ -773,7 +775,8 @@
           ]
         }
       },
-      "each": []
+      "each": [],
+      "apart": false
     }
   },
   {
@@ -1032,7 +1035,8 @@
           ]
         }
       },
-      "each": []
+      "each": [],
+      "apart": false
     }
   },
   {
@@ -1297,7 +1301,8 @@
           ]
         }
       },
-      "each": []
+      "each": [],
+      "apart": false
     }
   },
   {
@@ -1546,7 +1551,8 @@
           ]
         }
       },
-      "each": []
+      "each": [],
+      "apart": false
     }
   },
   {
@@ -5053,7 +5059,8 @@
             }
           }
         }
-      ]
+      ],
+      "apart": false
     }
   },
   {
@@ -5554,7 +5561,8 @@
             }
           }
         }
-      ]
+      ],
+      "apart": false
     }
   },
   {
@@ -6189,7 +6197,8 @@
             }
           }
         }
-      ]
+      ],
+      "apart": false
     }
   },
   {
@@ -6626,7 +6635,8 @@
             }
           }
         }
-      ]
+      ],
+      "apart": false
     }
   },
   {
@@ -7867,7 +7877,8 @@
             }
           }
         }
-      ]
+      ],
+      "apart": false
     }
   },
   {
@@ -8428,7 +8439,8 @@
             }
           }
         }
-      ]
+      ],
+      "apart": false
     }
   },
   {
@@ -8706,7 +8718,8 @@
             }
           }
         }
-      ]
+      ],
+      "apart": false
     }
   },
   {
@@ -9241,7 +9254,8 @@
             }
           }
         }
-      ]
+      ],
+      "apart": false
     }
   },
   {
@@ -11741,7 +11755,8 @@
             }
           }
         }
-      ]
+      ],
+      "apart": false
     }
   },
   {
@@ -12263,7 +12278,4104 @@
             }
           }
         }
+      ],
+      "apart": true
+    }
+  },
+  {
+    "name": "what admitted the call: two kinds required and held on different owners are apart",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
       ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-admitted",
+        "W1siZG9jdW1lbnRzLmNvbGxlY3Rpb24iLCJyZWFkIiwiaW5zdGFsbGF0aW9uLWEiLFtdXSxbImRvY3VtZW50cy50eXBlcyIsInJlYWQiLCJpbnN0YWxsYXRpb24tYiIsW11dXQ"
+      ],
+      [
+        "x-codefly-hop-context",
+        "f6117588a1c26eaa7957a13102b1c05e6ba10955660c97951083fb3bceba8d9b"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsImY2MTE3NTg4YTFjMjZlYWE3OTU3YTEzMTAyYjFjMDVlNmJhMTA5NTU2NjBjOTc5NTEwODNmYjNiY2ViYThkOWIiLCJmNmI4ZjQ4N2M0MTdiMTRhMmZkZmIxYzMwZGY3NjE1Y2M5ZGQ1OGUxNGZmNzM3ZWI0OTJlZDY2YzZjMWFmODAxIiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.kgWyMm94mO2NHQdqFEvwLjcZJvLVIOpiwcp0zsATY1KpGuMHIfIN2ZoBo3gvLO58sgqCOPZ_KYHzJ722OiYfAQ"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        ""
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJDQ2YjM2NTU5LTAzODEtNDcwNS1iYzY1LWUzNDY2ZWY2MTVkOFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMWU0OTQ1NmUtZmJjZi00YTUxLWEwZjctZjgwNzlhOTFiM2U4igEsChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZCIOaW5zdGFsbGF0aW9uLWGKAScKD2RvY3VtZW50cy50eXBlcxIEcmVhZCIOaW5zdGFsbGF0aW9uLWKyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.d-6ZQF_ABJo65dxHgC-K7q2OLvd55q6a-oPSitkm-0v7moKgHgjzsaoJQKVTt9gzuYWJMx2kOjjwKhKIpF-YDg"
+      ]
+    ],
+    "accept": true,
+    "replay": "stamp_replayed",
+    "identity": {
+      "owner": "principal-owner",
+      "owner_kind": "human",
+      "tenant": "tenant-conformance",
+      "actors": [],
+      "scopes": [],
+      "binding": "",
+      "task": "task-conformance",
+      "expires": 1792818600
+    },
+    "declared": {
+      "/test.Service/Read": {
+        "any_checked_caller": false,
+        "requires": [
+          [
+            "documents.collection",
+            "read"
+          ],
+          [
+            "documents.types",
+            "read"
+          ]
+        ],
+        "carries": []
+      }
+    },
+    "admission": {
+      "method": "/test.Service/Read",
+      "declared": true,
+      "any_checked_caller": false,
+      "grants": [
+        [
+          "documents.collection",
+          "read",
+          "installation-a",
+          []
+        ],
+        [
+          "documents.types",
+          "read",
+          "installation-b",
+          []
+        ]
+      ],
+      "required": {
+        "empty": true,
+        "whole": false,
+        "owners": [],
+        "named": [],
+        "allows": [
+          {
+            "owner": "",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "installation-b",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "installation-b",
+            "id": "another-id",
+            "allowed": false
+          }
+        ],
+        "owner_selected": {
+          "empty": true,
+          "whole": false,
+          "owners": [],
+          "named": [],
+          "allows": [
+            {
+              "owner": "",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "installation-b",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "installation-b",
+              "id": "another-id",
+              "allowed": false
+            }
+          ]
+        }
+      },
+      "carried": {
+        "empty": true,
+        "whole": false,
+        "owners": [],
+        "named": [],
+        "allows": [
+          {
+            "owner": "",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "installation-b",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "installation-b",
+            "id": "another-id",
+            "allowed": false
+          }
+        ],
+        "owner_selected": {
+          "empty": true,
+          "whole": false,
+          "owners": [],
+          "named": [],
+          "allows": [
+            {
+              "owner": "",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "installation-b",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "installation-b",
+              "id": "another-id",
+              "allowed": false
+            }
+          ]
+        }
+      },
+      "each": [
+        {
+          "kind": "documents.collection",
+          "action": "read",
+          "carried": false,
+          "selection": {
+            "empty": false,
+            "whole": false,
+            "owners": [
+              "installation-a"
+            ],
+            "named": [],
+            "allows": [
+              {
+                "owner": "",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "installation-a",
+                "id": "",
+                "allowed": true
+              },
+              {
+                "owner": "installation-a",
+                "id": "another-id",
+                "allowed": true
+              },
+              {
+                "owner": "installation-b",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "installation-b",
+                "id": "another-id",
+                "allowed": false
+              }
+            ],
+            "owner_selected": {
+              "empty": false,
+              "whole": false,
+              "owners": [
+                "installation-a"
+              ],
+              "named": [],
+              "allows": [
+                {
+                  "owner": "",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "",
+                  "allowed": true
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "another-id",
+                  "allowed": true
+                },
+                {
+                  "owner": "installation-b",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-b",
+                  "id": "another-id",
+                  "allowed": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "kind": "documents.types",
+          "action": "read",
+          "carried": false,
+          "selection": {
+            "empty": false,
+            "whole": false,
+            "owners": [
+              "installation-b"
+            ],
+            "named": [],
+            "allows": [
+              {
+                "owner": "",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "installation-a",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "installation-a",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "installation-b",
+                "id": "",
+                "allowed": true
+              },
+              {
+                "owner": "installation-b",
+                "id": "another-id",
+                "allowed": true
+              }
+            ],
+            "owner_selected": {
+              "empty": false,
+              "whole": false,
+              "owners": [
+                "installation-b"
+              ],
+              "named": [],
+              "allows": [
+                {
+                  "owner": "",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-b",
+                  "id": "",
+                  "allowed": true
+                },
+                {
+                  "owner": "installation-b",
+                  "id": "another-id",
+                  "allowed": true
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "apart": true
+    }
+  },
+  {
+    "name": "what admitted the call: resources named on different owners are apart",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-admitted",
+        "W1siZG9jdW1lbnRzLmNvbGxlY3Rpb24iLCJyZWFkIiwiaW5zdGFsbGF0aW9uLWEiLFsiYy0xIl1dLFsiZG9jdW1lbnRzLmNvbGxlY3Rpb24iLCJ3cml0ZSIsImluc3RhbGxhdGlvbi1iIixbImMtMSJdXV0"
+      ],
+      [
+        "x-codefly-hop-context",
+        "43bdb4c2f98ebfa7029f7eac120f0f5fdb0c1959cbe10ef0657c778d13b3e97b"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjQzYmRiNGMyZjk4ZWJmYTcwMjlmN2VhYzEyMGYwZjVmZGIwYzE5NTljYmUxMGVmMDY1N2M3NzhkMTNiM2U5N2IiLCI5Yzc4ZmNlMGZjY2YyYjg4NjBjMTdiMDA2YmVmZTRmNjNhMDEyOTU4NTA5YmQ1N2I1ZjQ1Y2ZkMDIzZDA3ZWQxIiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.zHexWY2u-n098AnTciUMBXyrHkukNu_pVtfqjJARyDUjK7fKAplnEPWRhqFpiJyAKt6x5kopgmdS57yLJMaRDQ"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        ""
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJDQ2YjM2NTU5LTAzODEtNDcwNS1iYzY1LWUzNDY2ZWY2MTVkOFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMWU0OTQ1NmUtZmJjZi00YTUxLWEwZjctZjgwNzlhOTFiM2U4igExChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZBoDYy0xIg5pbnN0YWxsYXRpb24tYYoBMgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTEiDmluc3RhbGxhdGlvbi1isgEFaHVtYW7KARhvcmdhbml6YXRpb24tY29uZm9ybWFuY2XSAR4IAhIYaW5zdGFsbGF0aW9uLWNvbmZvcm1hbmNlGAM.MdsOCj2hWoHP7ShzymAL6uvagRWAdw8bw8b6LKWIwoDMig3OFM-c3Li0G4gtHVmCkY4I6EjiHOeYk4q5z6Q_Dg"
+      ]
+    ],
+    "accept": true,
+    "replay": "stamp_replayed",
+    "identity": {
+      "owner": "principal-owner",
+      "owner_kind": "human",
+      "tenant": "tenant-conformance",
+      "actors": [],
+      "scopes": [],
+      "binding": "",
+      "task": "task-conformance",
+      "expires": 1792818600
+    },
+    "declared": {
+      "/test.Service/Read": {
+        "any_checked_caller": false,
+        "requires": [
+          [
+            "documents.collection",
+            "read"
+          ],
+          [
+            "documents.collection",
+            "write"
+          ]
+        ],
+        "carries": []
+      }
+    },
+    "admission": {
+      "method": "/test.Service/Read",
+      "declared": true,
+      "any_checked_caller": false,
+      "grants": [
+        [
+          "documents.collection",
+          "read",
+          "installation-a",
+          [
+            "c-1"
+          ]
+        ],
+        [
+          "documents.collection",
+          "write",
+          "installation-b",
+          [
+            "c-1"
+          ]
+        ]
+      ],
+      "required": {
+        "empty": true,
+        "whole": false,
+        "owners": [],
+        "named": [],
+        "allows": [
+          {
+            "owner": "",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "",
+            "id": "c-1",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "c-1",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "c-1",
+            "allowed": false
+          },
+          {
+            "owner": "installation-b",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "installation-b",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "installation-b",
+            "id": "c-1",
+            "allowed": false
+          }
+        ],
+        "owner_selected": {
+          "empty": true,
+          "whole": false,
+          "owners": [],
+          "named": [],
+          "allows": [
+            {
+              "owner": "",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "",
+              "id": "c-1",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "c-1",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "c-1",
+              "allowed": false
+            },
+            {
+              "owner": "installation-b",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "installation-b",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "installation-b",
+              "id": "c-1",
+              "allowed": false
+            }
+          ]
+        }
+      },
+      "carried": {
+        "empty": true,
+        "whole": false,
+        "owners": [],
+        "named": [],
+        "allows": [
+          {
+            "owner": "",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "",
+            "id": "c-1",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "c-1",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "c-1",
+            "allowed": false
+          },
+          {
+            "owner": "installation-b",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "installation-b",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "installation-b",
+            "id": "c-1",
+            "allowed": false
+          }
+        ],
+        "owner_selected": {
+          "empty": true,
+          "whole": false,
+          "owners": [],
+          "named": [],
+          "allows": [
+            {
+              "owner": "",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "",
+              "id": "c-1",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "c-1",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "c-1",
+              "allowed": false
+            },
+            {
+              "owner": "installation-b",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "installation-b",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "installation-b",
+              "id": "c-1",
+              "allowed": false
+            }
+          ]
+        }
+      },
+      "each": [
+        {
+          "kind": "documents.collection",
+          "action": "read",
+          "carried": false,
+          "selection": {
+            "empty": false,
+            "whole": false,
+            "owners": [],
+            "named": [
+              {
+                "owner": "installation-a",
+                "resources": [
+                  "c-1"
+                ]
+              }
+            ],
+            "allows": [
+              {
+                "owner": "",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "",
+                "id": "c-1",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "c-1",
+                "allowed": false
+              },
+              {
+                "owner": "installation-a",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "installation-a",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "installation-a",
+                "id": "c-1",
+                "allowed": true
+              },
+              {
+                "owner": "installation-b",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "installation-b",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "installation-b",
+                "id": "c-1",
+                "allowed": false
+              }
+            ],
+            "owner_selected": {
+              "empty": false,
+              "whole": false,
+              "owners": [],
+              "named": [
+                {
+                  "owner": "installation-a",
+                  "resources": [
+                    "c-1"
+                  ]
+                }
+              ],
+              "allows": [
+                {
+                  "owner": "",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "",
+                  "id": "c-1",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "c-1",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "c-1",
+                  "allowed": true
+                },
+                {
+                  "owner": "installation-b",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-b",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-b",
+                  "id": "c-1",
+                  "allowed": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "kind": "documents.collection",
+          "action": "write",
+          "carried": false,
+          "selection": {
+            "empty": false,
+            "whole": false,
+            "owners": [],
+            "named": [
+              {
+                "owner": "installation-b",
+                "resources": [
+                  "c-1"
+                ]
+              }
+            ],
+            "allows": [
+              {
+                "owner": "",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "",
+                "id": "c-1",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "c-1",
+                "allowed": false
+              },
+              {
+                "owner": "installation-a",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "installation-a",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "installation-a",
+                "id": "c-1",
+                "allowed": false
+              },
+              {
+                "owner": "installation-b",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "installation-b",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "installation-b",
+                "id": "c-1",
+                "allowed": true
+              }
+            ],
+            "owner_selected": {
+              "empty": false,
+              "whole": false,
+              "owners": [],
+              "named": [
+                {
+                  "owner": "installation-b",
+                  "resources": [
+                    "c-1"
+                  ]
+                }
+              ],
+              "allows": [
+                {
+                  "owner": "",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "",
+                  "id": "c-1",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "c-1",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "c-1",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-b",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-b",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-b",
+                  "id": "c-1",
+                  "allowed": true
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "apart": true
+    }
+  },
+  {
+    "name": "what admitted the call: the whole kind beside two owners that share nothing is apart",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-admitted",
+        "W1siZG9jdW1lbnRzLmNvbGxlY3Rpb24iLCJyZWFkIiwiIixbXV0sWyJkb2N1bWVudHMuY29sbGVjdGlvbiIsIndyaXRlIiwiaW5zdGFsbGF0aW9uLWEiLFtdXSxbImRvY3VtZW50cy50eXBlcyIsInJlYWQiLCJpbnN0YWxsYXRpb24tYiIsW11dLFsiZG9jdW1lbnRzLnR5cGVzIiwicmVhZCIsImluc3RhbGxhdGlvbi1jIixbInQtMSJdXV0"
+      ],
+      [
+        "x-codefly-hop-context",
+        "5c2081ac5791b983f54274521b3671e340dbc58e0d63ba3fe4a65a2ad23e1a44"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjVjMjA4MWFjNTc5MWI5ODNmNTQyNzQ1MjFiMzY3MWUzNDBkYmM1OGUwZDYzYmEzZmU0YTY1YTJhZDIzZTFhNDQiLCI5OGY5OWVkNWRhZmRkN2NiNmM1ZGQxMTc4MzI2Nzc2NmQ2OWU5NWQxODkzM2RjNmFkMTc4MDRkZGE1OTExOWMwIiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.6OQULDH1YXsBv-OpksoK9t7rNEw6-P8g8HmHYLTZyOaht7rtbhNcWhM5fgq4-JQ4HTwBSR2If2MMIPkFRk_YCQ"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        "documents.collection:read"
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJDQ2YjM2NTU5LTAzODEtNDcwNS1iYzY1LWUzNDY2ZWY2MTVkOFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMWU0OTQ1NmUtZmJjZi00YTUxLWEwZjctZjgwNzlhOTFiM2U4igEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBLQoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlIg5pbnN0YWxsYXRpb24tYYoBJwoPZG9jdW1lbnRzLnR5cGVzEgRyZWFkIg5pbnN0YWxsYXRpb24tYooBLAoPZG9jdW1lbnRzLnR5cGVzEgRyZWFkGgN0LTEiDmluc3RhbGxhdGlvbi1jsgEFaHVtYW7KARhvcmdhbml6YXRpb24tY29uZm9ybWFuY2XSAR4IAhIYaW5zdGFsbGF0aW9uLWNvbmZvcm1hbmNlGAM.oWHBW1HZYwylAD6hOvWSU6m9jx1eKmJvOLakvB5_eSsllCCxKkIEveV00unpQyQK5OdoKj6ZPyNGRhMJxNWZDQ"
+      ]
+    ],
+    "accept": true,
+    "replay": "stamp_replayed",
+    "identity": {
+      "owner": "principal-owner",
+      "owner_kind": "human",
+      "tenant": "tenant-conformance",
+      "actors": [],
+      "scopes": [
+        "documents.collection:read"
+      ],
+      "binding": "",
+      "task": "task-conformance",
+      "expires": 1792818600
+    },
+    "declared": {
+      "/test.Service/Read": {
+        "any_checked_caller": false,
+        "requires": [
+          [
+            "documents.collection",
+            "read"
+          ],
+          [
+            "documents.collection",
+            "write"
+          ],
+          [
+            "documents.types",
+            "read"
+          ]
+        ],
+        "carries": []
+      }
+    },
+    "admission": {
+      "method": "/test.Service/Read",
+      "declared": true,
+      "any_checked_caller": false,
+      "grants": [
+        [
+          "documents.collection",
+          "read",
+          "",
+          []
+        ],
+        [
+          "documents.collection",
+          "write",
+          "installation-a",
+          []
+        ],
+        [
+          "documents.types",
+          "read",
+          "installation-b",
+          []
+        ],
+        [
+          "documents.types",
+          "read",
+          "installation-c",
+          [
+            "t-1"
+          ]
+        ]
+      ],
+      "required": {
+        "empty": true,
+        "whole": false,
+        "owners": [],
+        "named": [],
+        "allows": [
+          {
+            "owner": "",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "",
+            "id": "t-1",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "t-1",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "t-1",
+            "allowed": false
+          },
+          {
+            "owner": "installation-b",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "installation-b",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "installation-b",
+            "id": "t-1",
+            "allowed": false
+          },
+          {
+            "owner": "installation-c",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "installation-c",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "installation-c",
+            "id": "t-1",
+            "allowed": false
+          }
+        ],
+        "owner_selected": {
+          "empty": true,
+          "whole": false,
+          "owners": [],
+          "named": [],
+          "allows": [
+            {
+              "owner": "",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "",
+              "id": "t-1",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "t-1",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "t-1",
+              "allowed": false
+            },
+            {
+              "owner": "installation-b",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "installation-b",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "installation-b",
+              "id": "t-1",
+              "allowed": false
+            },
+            {
+              "owner": "installation-c",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "installation-c",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "installation-c",
+              "id": "t-1",
+              "allowed": false
+            }
+          ]
+        }
+      },
+      "carried": {
+        "empty": true,
+        "whole": false,
+        "owners": [],
+        "named": [],
+        "allows": [
+          {
+            "owner": "",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "",
+            "id": "t-1",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "t-1",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "t-1",
+            "allowed": false
+          },
+          {
+            "owner": "installation-b",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "installation-b",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "installation-b",
+            "id": "t-1",
+            "allowed": false
+          },
+          {
+            "owner": "installation-c",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "installation-c",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "installation-c",
+            "id": "t-1",
+            "allowed": false
+          }
+        ],
+        "owner_selected": {
+          "empty": true,
+          "whole": false,
+          "owners": [],
+          "named": [],
+          "allows": [
+            {
+              "owner": "",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "",
+              "id": "t-1",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "t-1",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "t-1",
+              "allowed": false
+            },
+            {
+              "owner": "installation-b",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "installation-b",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "installation-b",
+              "id": "t-1",
+              "allowed": false
+            },
+            {
+              "owner": "installation-c",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "installation-c",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "installation-c",
+              "id": "t-1",
+              "allowed": false
+            }
+          ]
+        }
+      },
+      "each": [
+        {
+          "kind": "documents.collection",
+          "action": "read",
+          "carried": false,
+          "selection": {
+            "empty": false,
+            "whole": true,
+            "owners": [],
+            "named": [],
+            "allows": [
+              {
+                "owner": "",
+                "id": "",
+                "allowed": true
+              },
+              {
+                "owner": "",
+                "id": "another-id",
+                "allowed": true
+              },
+              {
+                "owner": "",
+                "id": "t-1",
+                "allowed": true
+              },
+              {
+                "owner": "another-owner",
+                "id": "",
+                "allowed": true
+              },
+              {
+                "owner": "another-owner",
+                "id": "another-id",
+                "allowed": true
+              },
+              {
+                "owner": "another-owner",
+                "id": "t-1",
+                "allowed": true
+              },
+              {
+                "owner": "installation-a",
+                "id": "",
+                "allowed": true
+              },
+              {
+                "owner": "installation-a",
+                "id": "another-id",
+                "allowed": true
+              },
+              {
+                "owner": "installation-a",
+                "id": "t-1",
+                "allowed": true
+              },
+              {
+                "owner": "installation-b",
+                "id": "",
+                "allowed": true
+              },
+              {
+                "owner": "installation-b",
+                "id": "another-id",
+                "allowed": true
+              },
+              {
+                "owner": "installation-b",
+                "id": "t-1",
+                "allowed": true
+              },
+              {
+                "owner": "installation-c",
+                "id": "",
+                "allowed": true
+              },
+              {
+                "owner": "installation-c",
+                "id": "another-id",
+                "allowed": true
+              },
+              {
+                "owner": "installation-c",
+                "id": "t-1",
+                "allowed": true
+              }
+            ],
+            "owner_selected": {
+              "empty": true,
+              "whole": false,
+              "owners": [],
+              "named": [],
+              "allows": [
+                {
+                  "owner": "",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "",
+                  "id": "t-1",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "t-1",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "t-1",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-b",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-b",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-b",
+                  "id": "t-1",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-c",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-c",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-c",
+                  "id": "t-1",
+                  "allowed": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "kind": "documents.collection",
+          "action": "write",
+          "carried": false,
+          "selection": {
+            "empty": false,
+            "whole": false,
+            "owners": [
+              "installation-a"
+            ],
+            "named": [],
+            "allows": [
+              {
+                "owner": "",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "",
+                "id": "t-1",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "t-1",
+                "allowed": false
+              },
+              {
+                "owner": "installation-a",
+                "id": "",
+                "allowed": true
+              },
+              {
+                "owner": "installation-a",
+                "id": "another-id",
+                "allowed": true
+              },
+              {
+                "owner": "installation-a",
+                "id": "t-1",
+                "allowed": true
+              },
+              {
+                "owner": "installation-b",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "installation-b",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "installation-b",
+                "id": "t-1",
+                "allowed": false
+              },
+              {
+                "owner": "installation-c",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "installation-c",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "installation-c",
+                "id": "t-1",
+                "allowed": false
+              }
+            ],
+            "owner_selected": {
+              "empty": false,
+              "whole": false,
+              "owners": [
+                "installation-a"
+              ],
+              "named": [],
+              "allows": [
+                {
+                  "owner": "",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "",
+                  "id": "t-1",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "t-1",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "",
+                  "allowed": true
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "another-id",
+                  "allowed": true
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "t-1",
+                  "allowed": true
+                },
+                {
+                  "owner": "installation-b",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-b",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-b",
+                  "id": "t-1",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-c",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-c",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-c",
+                  "id": "t-1",
+                  "allowed": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "kind": "documents.types",
+          "action": "read",
+          "carried": false,
+          "selection": {
+            "empty": false,
+            "whole": false,
+            "owners": [
+              "installation-b"
+            ],
+            "named": [
+              {
+                "owner": "installation-c",
+                "resources": [
+                  "t-1"
+                ]
+              }
+            ],
+            "allows": [
+              {
+                "owner": "",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "",
+                "id": "t-1",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "t-1",
+                "allowed": false
+              },
+              {
+                "owner": "installation-a",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "installation-a",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "installation-a",
+                "id": "t-1",
+                "allowed": false
+              },
+              {
+                "owner": "installation-b",
+                "id": "",
+                "allowed": true
+              },
+              {
+                "owner": "installation-b",
+                "id": "another-id",
+                "allowed": true
+              },
+              {
+                "owner": "installation-b",
+                "id": "t-1",
+                "allowed": true
+              },
+              {
+                "owner": "installation-c",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "installation-c",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "installation-c",
+                "id": "t-1",
+                "allowed": true
+              }
+            ],
+            "owner_selected": {
+              "empty": false,
+              "whole": false,
+              "owners": [
+                "installation-b"
+              ],
+              "named": [
+                {
+                  "owner": "installation-c",
+                  "resources": [
+                    "t-1"
+                  ]
+                }
+              ],
+              "allows": [
+                {
+                  "owner": "",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "",
+                  "id": "t-1",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "t-1",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "t-1",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-b",
+                  "id": "",
+                  "allowed": true
+                },
+                {
+                  "owner": "installation-b",
+                  "id": "another-id",
+                  "allowed": true
+                },
+                {
+                  "owner": "installation-b",
+                  "id": "t-1",
+                  "allowed": true
+                },
+                {
+                  "owner": "installation-c",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-c",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-c",
+                  "id": "t-1",
+                  "allowed": true
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "apart": true
+    }
+  },
+  {
+    "name": "what admitted the call: one owner with resources named apart reaches nothing and is not apart",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-admitted",
+        "W1siZG9jdW1lbnRzLmNvbGxlY3Rpb24iLCJyZWFkIiwiaW5zdGFsbGF0aW9uLWEiLFsiYy0xIl1dLFsiZG9jdW1lbnRzLmNvbGxlY3Rpb24iLCJ3cml0ZSIsImluc3RhbGxhdGlvbi1hIixbImMtMiJdXV0"
+      ],
+      [
+        "x-codefly-hop-context",
+        "bc087b47cc019f24a46dd32e38f766fc7ecda027e3e9c68076e86a40ce147506"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsImJjMDg3YjQ3Y2MwMTlmMjRhNDZkZDMyZTM4Zjc2NmZjN2VjZGEwMjdlM2U5YzY4MDc2ZTg2YTQwY2UxNDc1MDYiLCJkYWUyMTI3YjIyZTE4ZTMyZDdhOWIzZDdjZDE0M2JlNGRlY2U0MmE3NzFkNzdjMWNlOWM5ZmY1YjczNDVkODY0IiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.ngwbnQd3HbZg7XOzPhqoEJdIS0zdwwV4BxfoSh3yvh-nCX-gFc7bC7qEbAw2w0qUAUKcYUhCeNDE5NU2vs8ACw"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        ""
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJDQ2YjM2NTU5LTAzODEtNDcwNS1iYzY1LWUzNDY2ZWY2MTVkOFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMWU0OTQ1NmUtZmJjZi00YTUxLWEwZjctZjgwNzlhOTFiM2U4igExChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZBoDYy0xIg5pbnN0YWxsYXRpb24tYYoBMgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTIiDmluc3RhbGxhdGlvbi1hsgEFaHVtYW7KARhvcmdhbml6YXRpb24tY29uZm9ybWFuY2XSAR4IAhIYaW5zdGFsbGF0aW9uLWNvbmZvcm1hbmNlGAM.X3eBR5WQNFusbLxfXOdFCJMlzDOv2AoPtXWZlES1tTyL5SXUgXQMd0bU2ccN1HGGsvJPQVsPeqc_H1LCYUT7Cw"
+      ]
+    ],
+    "accept": true,
+    "replay": "stamp_replayed",
+    "identity": {
+      "owner": "principal-owner",
+      "owner_kind": "human",
+      "tenant": "tenant-conformance",
+      "actors": [],
+      "scopes": [],
+      "binding": "",
+      "task": "task-conformance",
+      "expires": 1792818600
+    },
+    "declared": {
+      "/test.Service/Read": {
+        "any_checked_caller": false,
+        "requires": [
+          [
+            "documents.collection",
+            "read"
+          ],
+          [
+            "documents.collection",
+            "write"
+          ]
+        ],
+        "carries": []
+      }
+    },
+    "admission": {
+      "method": "/test.Service/Read",
+      "declared": true,
+      "any_checked_caller": false,
+      "grants": [
+        [
+          "documents.collection",
+          "read",
+          "installation-a",
+          [
+            "c-1"
+          ]
+        ],
+        [
+          "documents.collection",
+          "write",
+          "installation-a",
+          [
+            "c-2"
+          ]
+        ]
+      ],
+      "required": {
+        "empty": true,
+        "whole": false,
+        "owners": [],
+        "named": [],
+        "allows": [
+          {
+            "owner": "",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "",
+            "id": "c-1",
+            "allowed": false
+          },
+          {
+            "owner": "",
+            "id": "c-2",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "c-1",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "c-2",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "c-1",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "c-2",
+            "allowed": false
+          }
+        ],
+        "owner_selected": {
+          "empty": true,
+          "whole": false,
+          "owners": [],
+          "named": [],
+          "allows": [
+            {
+              "owner": "",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "",
+              "id": "c-1",
+              "allowed": false
+            },
+            {
+              "owner": "",
+              "id": "c-2",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "c-1",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "c-2",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "c-1",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "c-2",
+              "allowed": false
+            }
+          ]
+        }
+      },
+      "carried": {
+        "empty": true,
+        "whole": false,
+        "owners": [],
+        "named": [],
+        "allows": [
+          {
+            "owner": "",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "",
+            "id": "c-1",
+            "allowed": false
+          },
+          {
+            "owner": "",
+            "id": "c-2",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "c-1",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "c-2",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "c-1",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "c-2",
+            "allowed": false
+          }
+        ],
+        "owner_selected": {
+          "empty": true,
+          "whole": false,
+          "owners": [],
+          "named": [],
+          "allows": [
+            {
+              "owner": "",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "",
+              "id": "c-1",
+              "allowed": false
+            },
+            {
+              "owner": "",
+              "id": "c-2",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "c-1",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "c-2",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "c-1",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "c-2",
+              "allowed": false
+            }
+          ]
+        }
+      },
+      "each": [
+        {
+          "kind": "documents.collection",
+          "action": "read",
+          "carried": false,
+          "selection": {
+            "empty": false,
+            "whole": false,
+            "owners": [],
+            "named": [
+              {
+                "owner": "installation-a",
+                "resources": [
+                  "c-1"
+                ]
+              }
+            ],
+            "allows": [
+              {
+                "owner": "",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "",
+                "id": "c-1",
+                "allowed": false
+              },
+              {
+                "owner": "",
+                "id": "c-2",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "c-1",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "c-2",
+                "allowed": false
+              },
+              {
+                "owner": "installation-a",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "installation-a",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "installation-a",
+                "id": "c-1",
+                "allowed": true
+              },
+              {
+                "owner": "installation-a",
+                "id": "c-2",
+                "allowed": false
+              }
+            ],
+            "owner_selected": {
+              "empty": false,
+              "whole": false,
+              "owners": [],
+              "named": [
+                {
+                  "owner": "installation-a",
+                  "resources": [
+                    "c-1"
+                  ]
+                }
+              ],
+              "allows": [
+                {
+                  "owner": "",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "",
+                  "id": "c-1",
+                  "allowed": false
+                },
+                {
+                  "owner": "",
+                  "id": "c-2",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "c-1",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "c-2",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "c-1",
+                  "allowed": true
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "c-2",
+                  "allowed": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "kind": "documents.collection",
+          "action": "write",
+          "carried": false,
+          "selection": {
+            "empty": false,
+            "whole": false,
+            "owners": [],
+            "named": [
+              {
+                "owner": "installation-a",
+                "resources": [
+                  "c-2"
+                ]
+              }
+            ],
+            "allows": [
+              {
+                "owner": "",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "",
+                "id": "c-1",
+                "allowed": false
+              },
+              {
+                "owner": "",
+                "id": "c-2",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "c-1",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "c-2",
+                "allowed": false
+              },
+              {
+                "owner": "installation-a",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "installation-a",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "installation-a",
+                "id": "c-1",
+                "allowed": false
+              },
+              {
+                "owner": "installation-a",
+                "id": "c-2",
+                "allowed": true
+              }
+            ],
+            "owner_selected": {
+              "empty": false,
+              "whole": false,
+              "owners": [],
+              "named": [
+                {
+                  "owner": "installation-a",
+                  "resources": [
+                    "c-2"
+                  ]
+                }
+              ],
+              "allows": [
+                {
+                  "owner": "",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "",
+                  "id": "c-1",
+                  "allowed": false
+                },
+                {
+                  "owner": "",
+                  "id": "c-2",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "c-1",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "c-2",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "c-1",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "c-2",
+                  "allowed": true
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "apart": false
+    }
+  },
+  {
+    "name": "what admitted the call: an owner in common among several is not apart",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-admitted",
+        "W1siZG9jdW1lbnRzLmNvbGxlY3Rpb24iLCJyZWFkIiwiaW5zdGFsbGF0aW9uLWEiLFtdXSxbImRvY3VtZW50cy5jb2xsZWN0aW9uIiwicmVhZCIsImluc3RhbGxhdGlvbi1iIixbXV0sWyJkb2N1bWVudHMuY29sbGVjdGlvbiIsIndyaXRlIiwiaW5zdGFsbGF0aW9uLWIiLFtdXSxbImRvY3VtZW50cy5jb2xsZWN0aW9uIiwid3JpdGUiLCJpbnN0YWxsYXRpb24tYyIsW11dXQ"
+      ],
+      [
+        "x-codefly-hop-context",
+        "da6e2e5c44c5264c1c6c7676180ba3ba58e4f0e598b8de4b45e6fbb5a61df54b"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsImRhNmUyZTVjNDRjNTI2NGMxYzZjNzY3NjE4MGJhM2JhNThlNGYwZTU5OGI4ZGU0YjQ1ZTZmYmI1YTYxZGY1NGIiLCJjMmEyMjAwZDJlNDEyN2ZhYzdhNGM0NjMxNGFkY2NhZjkwMGUzNjRkZTQwYjRkZjQwYzM0NjRmMmQ5YjE0N2Y4IiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.zYAy9hsY206om7Rz46KJSzZBJhQc8AYGBxObSOLIWrIlaKB0tGhdiuZMdY8eK9Iv4w1YG1Y0u12OiNk3BTs1Bw"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        ""
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJDQ2YjM2NTU5LTAzODEtNDcwNS1iYzY1LWUzNDY2ZWY2MTVkOFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMWU0OTQ1NmUtZmJjZi00YTUxLWEwZjctZjgwNzlhOTFiM2U4igEsChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZCIOaW5zdGFsbGF0aW9uLWGKASwKFGRvY3VtZW50cy5jb2xsZWN0aW9uEgRyZWFkIg5pbnN0YWxsYXRpb24tYooBLQoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlIg5pbnN0YWxsYXRpb24tYooBLQoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlIg5pbnN0YWxsYXRpb24tY7IBBWh1bWFuygEYb3JnYW5pemF0aW9uLWNvbmZvcm1hbmNl0gEeCAISGGluc3RhbGxhdGlvbi1jb25mb3JtYW5jZRgD.YbDAfyrOmeh6rIX3p3EsnZp-9VlJo3zP2Vvx3snLJXpWct7NXMlO9hTtmJgyo26pQKe9DWWMAqwiYDcVSot1Bg"
+      ]
+    ],
+    "accept": true,
+    "replay": "stamp_replayed",
+    "identity": {
+      "owner": "principal-owner",
+      "owner_kind": "human",
+      "tenant": "tenant-conformance",
+      "actors": [],
+      "scopes": [],
+      "binding": "",
+      "task": "task-conformance",
+      "expires": 1792818600
+    },
+    "declared": {
+      "/test.Service/Read": {
+        "any_checked_caller": false,
+        "requires": [
+          [
+            "documents.collection",
+            "read"
+          ],
+          [
+            "documents.collection",
+            "write"
+          ]
+        ],
+        "carries": []
+      }
+    },
+    "admission": {
+      "method": "/test.Service/Read",
+      "declared": true,
+      "any_checked_caller": false,
+      "grants": [
+        [
+          "documents.collection",
+          "read",
+          "installation-a",
+          []
+        ],
+        [
+          "documents.collection",
+          "read",
+          "installation-b",
+          []
+        ],
+        [
+          "documents.collection",
+          "write",
+          "installation-b",
+          []
+        ],
+        [
+          "documents.collection",
+          "write",
+          "installation-c",
+          []
+        ]
+      ],
+      "required": {
+        "empty": false,
+        "whole": false,
+        "owners": [
+          "installation-b"
+        ],
+        "named": [],
+        "allows": [
+          {
+            "owner": "",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "installation-b",
+            "id": "",
+            "allowed": true
+          },
+          {
+            "owner": "installation-b",
+            "id": "another-id",
+            "allowed": true
+          },
+          {
+            "owner": "installation-c",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "installation-c",
+            "id": "another-id",
+            "allowed": false
+          }
+        ],
+        "owner_selected": {
+          "empty": false,
+          "whole": false,
+          "owners": [
+            "installation-b"
+          ],
+          "named": [],
+          "allows": [
+            {
+              "owner": "",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "installation-b",
+              "id": "",
+              "allowed": true
+            },
+            {
+              "owner": "installation-b",
+              "id": "another-id",
+              "allowed": true
+            },
+            {
+              "owner": "installation-c",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "installation-c",
+              "id": "another-id",
+              "allowed": false
+            }
+          ]
+        }
+      },
+      "carried": {
+        "empty": true,
+        "whole": false,
+        "owners": [],
+        "named": [],
+        "allows": [
+          {
+            "owner": "",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "installation-b",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "installation-b",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "installation-c",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "installation-c",
+            "id": "another-id",
+            "allowed": false
+          }
+        ],
+        "owner_selected": {
+          "empty": true,
+          "whole": false,
+          "owners": [],
+          "named": [],
+          "allows": [
+            {
+              "owner": "",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "installation-b",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "installation-b",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "installation-c",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "installation-c",
+              "id": "another-id",
+              "allowed": false
+            }
+          ]
+        }
+      },
+      "each": [
+        {
+          "kind": "documents.collection",
+          "action": "read",
+          "carried": false,
+          "selection": {
+            "empty": false,
+            "whole": false,
+            "owners": [
+              "installation-a",
+              "installation-b"
+            ],
+            "named": [],
+            "allows": [
+              {
+                "owner": "",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "installation-a",
+                "id": "",
+                "allowed": true
+              },
+              {
+                "owner": "installation-a",
+                "id": "another-id",
+                "allowed": true
+              },
+              {
+                "owner": "installation-b",
+                "id": "",
+                "allowed": true
+              },
+              {
+                "owner": "installation-b",
+                "id": "another-id",
+                "allowed": true
+              },
+              {
+                "owner": "installation-c",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "installation-c",
+                "id": "another-id",
+                "allowed": false
+              }
+            ],
+            "owner_selected": {
+              "empty": false,
+              "whole": false,
+              "owners": [
+                "installation-a",
+                "installation-b"
+              ],
+              "named": [],
+              "allows": [
+                {
+                  "owner": "",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "",
+                  "allowed": true
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "another-id",
+                  "allowed": true
+                },
+                {
+                  "owner": "installation-b",
+                  "id": "",
+                  "allowed": true
+                },
+                {
+                  "owner": "installation-b",
+                  "id": "another-id",
+                  "allowed": true
+                },
+                {
+                  "owner": "installation-c",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-c",
+                  "id": "another-id",
+                  "allowed": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "kind": "documents.collection",
+          "action": "write",
+          "carried": false,
+          "selection": {
+            "empty": false,
+            "whole": false,
+            "owners": [
+              "installation-b",
+              "installation-c"
+            ],
+            "named": [],
+            "allows": [
+              {
+                "owner": "",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "installation-a",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "installation-a",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "installation-b",
+                "id": "",
+                "allowed": true
+              },
+              {
+                "owner": "installation-b",
+                "id": "another-id",
+                "allowed": true
+              },
+              {
+                "owner": "installation-c",
+                "id": "",
+                "allowed": true
+              },
+              {
+                "owner": "installation-c",
+                "id": "another-id",
+                "allowed": true
+              }
+            ],
+            "owner_selected": {
+              "empty": false,
+              "whole": false,
+              "owners": [
+                "installation-b",
+                "installation-c"
+              ],
+              "named": [],
+              "allows": [
+                {
+                  "owner": "",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-b",
+                  "id": "",
+                  "allowed": true
+                },
+                {
+                  "owner": "installation-b",
+                  "id": "another-id",
+                  "allowed": true
+                },
+                {
+                  "owner": "installation-c",
+                  "id": "",
+                  "allowed": true
+                },
+                {
+                  "owner": "installation-c",
+                  "id": "another-id",
+                  "allowed": true
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "apart": false
+    }
+  },
+  {
+    "name": "what admitted the call: what is carried on another owner is not required there, so not apart",
+    "audience": "documents",
+    "method": "/test.Service/Read",
+    "now": 1792818000,
+    "keys": {
+      "issuer": "https://authority.hop.test",
+      "keys": [
+        {
+          "keyId": "hop-fixture",
+          "algorithm": "Ed25519",
+          "publicKey": "CViKnk6aO0k+3rS1SPdYggLCjBPmMG6s4UU/Y95Smqc=",
+          "purpose": "work-context"
+        }
+      ],
+      "admissionKeys": [
+        {
+          "keyId": "hop-c39261b4607295e9",
+          "algorithm": "Ed25519",
+          "publicKey": "FwU/dRlWglMCkljspfYdBcdmR+oL2RQ60b9fNuN9lik=",
+          "purpose": "hop-admission"
+        }
+      ]
+    },
+    "headers": [
+      [
+        "x-codefly-hop-actors",
+        ""
+      ],
+      [
+        "x-codefly-hop-admitted",
+        "W1siZG9jdW1lbnRzLmNvbGxlY3Rpb24iLCJyZWFkIiwiaW5zdGFsbGF0aW9uLWEiLFtdXSxbImRvY3VtZW50cy5jb2xsZWN0aW9uIiwicmVhZF9jb250ZW50IiwiaW5zdGFsbGF0aW9uLWIiLFtdXV0"
+      ],
+      [
+        "x-codefly-hop-context",
+        "eaabad63ba9c0615b376affe44b50f5f21676f2269e9a63d256e107df8a064ac"
+      ],
+      [
+        "x-codefly-hop-expires",
+        "1792818600"
+      ],
+      [
+        "x-codefly-hop-owner",
+        "principal-owner"
+      ],
+      [
+        "x-codefly-hop-owner-kind",
+        "human"
+      ],
+      [
+        "x-codefly-hop-proof",
+        "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsImVhYWJhZDYzYmE5YzA2MTViMzc2YWZmZTQ0YjUwZjVmMjE2NzZmMjI2OWU5YTYzZDI1NmUxMDdkZjhhMDY0YWMiLCIzYmMyYThmYmQ3MTA5NDkyMTg2MjAyZjFkMDk1ZTFjMmFjNmU1OGUwN2Y4YjUwODVlZDkxNzFiOWJhNzZiNmJhIiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.sd6t-vZbLfx-RRWwEnGsCrHwTprAmPEzzomEc6Nb3-XVfGy_7N-urvx43TZu3nO8BchUtEhUiC4Y8SF7hM0iDw"
+      ],
+      [
+        "x-codefly-hop-scopes",
+        ""
+      ],
+      [
+        "x-codefly-hop-task",
+        "task-conformance"
+      ],
+      [
+        "x-codefly-hop-tenant",
+        "tenant-conformance"
+      ],
+      [
+        "x-codefly-work-context",
+        "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJDQ2YjM2NTU5LTAzODEtNDcwNS1iYzY1LWUzNDY2ZWY2MTVkOFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMWU0OTQ1NmUtZmJjZi00YTUxLWEwZjctZjgwNzlhOTFiM2U4igEsChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZCIOaW5zdGFsbGF0aW9uLWGKATQKFGRvY3VtZW50cy5jb2xsZWN0aW9uEgxyZWFkX2NvbnRlbnQiDmluc3RhbGxhdGlvbi1isgEFaHVtYW7KARhvcmdhbml6YXRpb24tY29uZm9ybWFuY2XSAR4IAhIYaW5zdGFsbGF0aW9uLWNvbmZvcm1hbmNlGAM.n5UhR7JLdv2Z2oc2MDcsh4UHl2IDi9QC0VvOCdxSHlX8Rc0imlvP1OgQNikGme53KHeYb5FHuAbXSumdAaZSAA"
+      ]
+    ],
+    "accept": true,
+    "replay": "stamp_replayed",
+    "identity": {
+      "owner": "principal-owner",
+      "owner_kind": "human",
+      "tenant": "tenant-conformance",
+      "actors": [],
+      "scopes": [],
+      "binding": "",
+      "task": "task-conformance",
+      "expires": 1792818600
+    },
+    "declared": {
+      "/test.Service/Read": {
+        "any_checked_caller": false,
+        "requires": [
+          [
+            "documents.collection",
+            "read"
+          ]
+        ],
+        "carries": [
+          [
+            "documents.collection",
+            "read_content"
+          ]
+        ]
+      }
+    },
+    "admission": {
+      "method": "/test.Service/Read",
+      "declared": true,
+      "any_checked_caller": false,
+      "grants": [
+        [
+          "documents.collection",
+          "read",
+          "installation-a",
+          []
+        ],
+        [
+          "documents.collection",
+          "read_content",
+          "installation-b",
+          []
+        ]
+      ],
+      "required": {
+        "empty": false,
+        "whole": false,
+        "owners": [
+          "installation-a"
+        ],
+        "named": [],
+        "allows": [
+          {
+            "owner": "",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "",
+            "allowed": true
+          },
+          {
+            "owner": "installation-a",
+            "id": "another-id",
+            "allowed": true
+          },
+          {
+            "owner": "installation-b",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "installation-b",
+            "id": "another-id",
+            "allowed": false
+          }
+        ],
+        "owner_selected": {
+          "empty": false,
+          "whole": false,
+          "owners": [
+            "installation-a"
+          ],
+          "named": [],
+          "allows": [
+            {
+              "owner": "",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "",
+              "allowed": true
+            },
+            {
+              "owner": "installation-a",
+              "id": "another-id",
+              "allowed": true
+            },
+            {
+              "owner": "installation-b",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "installation-b",
+              "id": "another-id",
+              "allowed": false
+            }
+          ]
+        }
+      },
+      "carried": {
+        "empty": true,
+        "whole": false,
+        "owners": [],
+        "named": [],
+        "allows": [
+          {
+            "owner": "",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "another-owner",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "installation-a",
+            "id": "another-id",
+            "allowed": false
+          },
+          {
+            "owner": "installation-b",
+            "id": "",
+            "allowed": false
+          },
+          {
+            "owner": "installation-b",
+            "id": "another-id",
+            "allowed": false
+          }
+        ],
+        "owner_selected": {
+          "empty": true,
+          "whole": false,
+          "owners": [],
+          "named": [],
+          "allows": [
+            {
+              "owner": "",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "another-owner",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "installation-a",
+              "id": "another-id",
+              "allowed": false
+            },
+            {
+              "owner": "installation-b",
+              "id": "",
+              "allowed": false
+            },
+            {
+              "owner": "installation-b",
+              "id": "another-id",
+              "allowed": false
+            }
+          ]
+        }
+      },
+      "each": [
+        {
+          "kind": "documents.collection",
+          "action": "read",
+          "carried": false,
+          "selection": {
+            "empty": false,
+            "whole": false,
+            "owners": [
+              "installation-a"
+            ],
+            "named": [],
+            "allows": [
+              {
+                "owner": "",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "installation-a",
+                "id": "",
+                "allowed": true
+              },
+              {
+                "owner": "installation-a",
+                "id": "another-id",
+                "allowed": true
+              },
+              {
+                "owner": "installation-b",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "installation-b",
+                "id": "another-id",
+                "allowed": false
+              }
+            ],
+            "owner_selected": {
+              "empty": false,
+              "whole": false,
+              "owners": [
+                "installation-a"
+              ],
+              "named": [],
+              "allows": [
+                {
+                  "owner": "",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "",
+                  "allowed": true
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "another-id",
+                  "allowed": true
+                },
+                {
+                  "owner": "installation-b",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-b",
+                  "id": "another-id",
+                  "allowed": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "kind": "documents.collection",
+          "action": "read_content",
+          "carried": true,
+          "selection": {
+            "empty": false,
+            "whole": false,
+            "owners": [
+              "installation-b"
+            ],
+            "named": [],
+            "allows": [
+              {
+                "owner": "",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "another-owner",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "installation-a",
+                "id": "",
+                "allowed": false
+              },
+              {
+                "owner": "installation-a",
+                "id": "another-id",
+                "allowed": false
+              },
+              {
+                "owner": "installation-b",
+                "id": "",
+                "allowed": true
+              },
+              {
+                "owner": "installation-b",
+                "id": "another-id",
+                "allowed": true
+              }
+            ],
+            "owner_selected": {
+              "empty": false,
+              "whole": false,
+              "owners": [
+                "installation-b"
+              ],
+              "named": [],
+              "allows": [
+                {
+                  "owner": "",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "another-owner",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-a",
+                  "id": "another-id",
+                  "allowed": false
+                },
+                {
+                  "owner": "installation-b",
+                  "id": "",
+                  "allowed": true
+                },
+                {
+                  "owner": "installation-b",
+                  "id": "another-id",
+                  "allowed": true
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "apart": false
     }
   },
   {
@@ -12705,7 +16817,8 @@
             }
           }
         }
-      ]
+      ],
+      "apart": false
     }
   },
   {
@@ -13248,7 +17361,8 @@
             }
           }
         }
-      ]
+      ],
+      "apart": false
     }
   },
   {
@@ -13605,7 +17719,8 @@
             }
           }
         }
-      ]
+      ],
+      "apart": false
     }
   },
   {
@@ -14658,7 +18773,8 @@
             }
           }
         }
-      ]
+      ],
+      "apart": false
     }
   },
   {
@@ -15386,7 +19502,8 @@
             }
           }
         }
-      ]
+      ],
+      "apart": false
     }
   },
   {
@@ -15832,7 +19949,8 @@
             }
           }
         }
-      ]
+      ],
+      "apart": false
     }
   },
   {
@@ -16463,7 +20581,8 @@
             }
           }
         }
-      ]
+      ],
+      "apart": false
     }
   },
   {
@@ -16906,7 +21025,8 @@
             }
           }
         }
-      ]
+      ],
+      "apart": false
     }
   },
   {
@@ -17456,7 +21576,8 @@
             }
           }
         }
-      ]
+      ],
+      "apart": false
     }
   },
   {
@@ -17818,7 +21939,8 @@
           ]
         }
       },
-      "each": []
+      "each": [],
+      "apart": false
     }
   },
   {
@@ -18185,7 +22307,8 @@
           ]
         }
       },
-      "each": []
+      "each": [],
+      "apart": false
     }
   },
   {
@@ -18682,7 +22805,8 @@
             }
           }
         }
-      ]
+      ],
+      "apart": false
     }
   },
   {
@@ -19049,7 +23173,8 @@
           ]
         }
       },
-      "each": []
+      "each": [],
+      "apart": false
     }
   },
   {
@@ -20576,7 +24701,8 @@
             }
           }
         }
-      ]
+      ],
+      "apart": false
     }
   },
   {
@@ -21107,7 +25233,8 @@
             }
           }
         }
-      ]
+      ],
+      "apart": false
     }
   },
   {
@@ -21762,7 +25889,8 @@
             }
           }
         }
-      ]
+      ],
+      "apart": false
     }
   },
   {
@@ -22144,7 +26272,8 @@
           ]
         }
       },
-      "each": []
+      "each": [],
+      "apart": false
     }
   },
   {
@@ -22789,7 +26918,8 @@
             }
           }
         }
-      ]
+      ],
+      "apart": false
     }
   },
   {
@@ -23161,7 +27291,8 @@
           ]
         }
       },
-      "each": []
+      "each": [],
+      "apart": false
     }
   },
   {
@@ -23543,7 +27674,8 @@
           ]
         }
       },
-      "each": []
+      "each": [],
+      "apart": false
     }
   },
   {
@@ -24188,7 +28320,8 @@
             }
           }
         }
-      ]
+      ],
+      "apart": false
     }
   },
   {
@@ -24555,7 +28688,8 @@
           ]
         }
       },
-      "each": []
+      "each": [],
+      "apart": false
     }
   },
   {

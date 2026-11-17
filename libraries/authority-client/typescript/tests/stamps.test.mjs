@@ -51,6 +51,7 @@ const reading = (admission, grants) => {
     grants: grants.map(g => [g.kind, g.action, g.owner, [...g.resources]]),
     required: read(admission.required()), carried: read(admission.carried()),
     each: admission.each().map(h => ({ kind: h.permission.kind, action: h.permission.action, carried: h.carried, selection: read(h.selection) })),
+    apart: admission.apart(),
   };
 };
 
@@ -111,6 +112,14 @@ test('a grant that selects no owner lends an owner-selected reading nothing', ()
   assert.deepEqual(named.requiredOwnerSelected().named(), [{ owner: 'installation-a', resources: ['r-2'] }]);
   const apart = admissionOf(writes, '/records.v1.Records/Write', [grant('read', 'installation-a'), grant('write', 'installation-b')]);
   assert.ok(apart.required().empty() && apart.requiredOwnerSelected().empty());
+  // Go's TestApartIsWhatTheHopRefusesAndReachesNothing: held on no owner in
+  // common is what the hop refuses; a grant that selects no owner is held
+  // together with anything, and only owners are compared.
+  assert.ok(apart.apart() && !lent.apart() && !held.apart() && !named.apart());
+  assert.ok(admissionOf(writes, '/records.v1.Records/Write', [grant('read', 'installation-a', ['r-1']), grant('write', 'installation-b', ['r-1'])]).apart());
+  assert.ok(!admissionOf(writes, '/records.v1.Records/Write', [grant('read', 'installation-a', ['r-1']), grant('write', 'installation-a', ['r-2'])]).apart());
+  assert.ok(!admissionOf(writes, '/records.v1.Records/Write', [grant('read', 'installation-a')]).apart());
+  assert.ok(!admitted(undefined).apart());
   const content = { requires: [{ kind: 'records.records', action: 'read' }], carries: [{ kind: 'records.records', action: 'read_content' }] };
   const carried = admissionOf(content, '/records.v1.Records/Content', [grant('read', ''), grant('read_content', 'installation-a')]);
   assert.deepEqual(carried.carried().owners(), ['installation-a']);

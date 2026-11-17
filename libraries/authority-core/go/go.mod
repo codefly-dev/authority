@@ -61,3 +61,8 @@ require (
 )
 
 replace github.com/codefly-dev/authority/libraries/solutionhost/go => ../../solutionhost/go
+
+// The method decision is the hop library's one evaluator (policy): the core
+// decides with the copy beside it, never with a pinned one that decides
+// differently.
+replace github.com/codefly-dev/authority/libraries/hop/go => ../../hop/go

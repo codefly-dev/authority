@@ -102,7 +102,16 @@ owners reads `RequiredOwnerSelected()` (and `CarriedOwnerSelected()`) instead:
 each permission is cut to the grants that select an owner before they are
 combined, so a write held on no owner beside a read held on one installation
 reaches nothing. `Named()` lists named
-resources. The declaration is read from the protobuf descriptors linked into the
+resources. A method that requires several permissions requires them of one
+resource: a call that holds each of them, on owners sharing none (a read on
+one installation's resources, a write on another's), is refused by the hop's
+decision before it is forwarded (`policy.Method.Apart`, applied by the
+authority's `Check` and by `policy.Admit`), naming where each is held. A grant
+that selects no owner is held together with anything, and only owners are
+compared: which resource of a shared owner a call reaches stays the module's
+question. `Apart()` is that decision as the module reads it, true only behind
+a hop older than this rule; `Required()` reaches nothing for such a call
+either way. The declaration is read from the protobuf descriptors linked into the
 binary (`authority.hop.v1.policy` on each rpc). A module serving HTTP routes
 passes `hop.Declarations(map[string]policy.Method{"GET /v1/things/{id}": ...})`
 to `NewVerifier`. An HTTP module reads `id.Admitted` from `Admit`. A test builds
