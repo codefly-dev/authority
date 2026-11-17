@@ -95,8 +95,9 @@ func TestACapabilityOnAPersonsOwnSessionIsRefusedAtAModuleWithNoRoles(t *testing
 		_, err = h.svc.ListResources(h.ctx, token, "legacy-store", legacyKind, "read")
 		refused(t, err, reason)
 	}
-	// Nor does a hop from such a capability hold anything: the ledger, which
-	// declares no roles, hops nobody's own session on to the legacy store.
+	// Nor does a hop from such a capability hold anything: what a hop holds is
+	// decided again from the person's roles on installations, and the legacy
+	// store, which declares none, holds nothing for anybody's own session.
 	token, _, err := minter.Start(h.ctx, workcontext.StartInput{TenantID: acme, OrganizationID: acme, OwnerPrincipalID: "alex", OwnerPrincipalKind: "human",
 		TaskID: "own-session-hop", SessionID: "session-alex", Audience: "ledger", AuthorityScopes: []*basev0.WorkScopeV1{sc(ledgerKind, "read"), sc(legacyKind, "read")},
 		InstallationID: h.inst(acme, "ledger").ID, TTL: time.Minute, ReplayPolicy: workcontext.ReplayIdempotent})
@@ -104,11 +105,51 @@ func TestACapabilityOnAPersonsOwnSessionIsRefusedAtAModuleWithNoRoles(t *testing
 		t.Fatal(err)
 	}
 	_, err = h.svc.IssueChild(h.ctx, token, authority.Workload{Module: "ledger"}, authority.IssueRequest{Binding: "legacy"})
-	refused(t, err, "ledger declares no roles")
+	code(t, err, domain.Denied)
 	// The same method, reached through an installation whose role the person
 	// holds, is admitted: the page's user through the page's binding.
 	got := h.must(h.page("maya", "pages", "legacy-store"))
 	if _, _, refusal, err := h.svc.CheckMethod(h.ctx, got.Token, "legacy-store", method, false); err != nil || refusal != nil {
 		t.Fatalf("the page's user is refused at the module the page binds: %v %v", refusal, err)
+	}
+}
+
+// Naming a binding of a module that declares no roles asks nothing of the
+// module: the capability carries what the person's role on the binding's
+// target holds through the binding, for the module's hop there, and nothing
+// of the module's own. A person with no role on that target is refused,
+// whatever their organisation role, and the module's own methods stay closed
+// to the capability.
+func TestABindingOfAModuleWithNoRolesCarriesTheRoleOnItsTargetAlone(t *testing.T) {
+	h := matrixHarness(t)
+	const method = "/tools.v1.Tools/List"
+	tools := domain.Module{Name: "tools", Principal: "tools", Kind: domain.KindModule, Generation: 1, OwnerAware: true,
+		ResourceKinds: []*basev0.WorkScopeV1{sc("tools.item", "read")},
+		Methods:       map[string]domain.MethodPolicy{method: {Requires: []*basev0.WorkScopeV1{sc("tools.item", "read")}}},
+		Bindings:      map[string]domain.Binding{"a": {ID: "a", Audience: "a", InvokeScopes: []*basev0.WorkScopeV1{sc("a.note", "read", "write")}}}}
+	if _, err := h.svc.ApplyModule(h.ctx, tools); err != nil {
+		t.Fatal(err)
+	}
+	named := func(person string) (authority.Issued, error) {
+		return h.svc.IssueForPerson(h.ctx, h.person(person), authority.IssueRequest{Audience: "tools", Binding: "a"})
+	}
+	// maya is a user of a: its user role, read alone, on a's own data.
+	got := h.must(named("maya"))
+	exactly(t, got, "a.note", h.principal(acme, "a"), []string{"read"})
+	if err := h.check(got); err != nil {
+		t.Fatalf("the module cannot verify the capability it hops with: %v", err)
+	}
+	_, _, _, err := h.svc.CheckMethod(h.ctx, got.Token, "tools", method, false)
+	refused(t, err, "requires")
+	exactly(t, h.must(h.svc.IssueChild(h.ctx, got.Token, authority.Workload{Module: "tools"}, authority.IssueRequest{Binding: "a"})), "a.note", h.principal(acme, "a"), []string{"read"})
+	// No role on a: nothing, for the administrator and for an organisation
+	// role of any name; and nothing at the module itself for anybody.
+	for _, person := range []string{"alex", "boss", "rob"} {
+		_, err := named(person)
+		refused(t, err, person+` holds nothing under operation binding "a"`)
+	}
+	for _, person := range []string{"maya", "alex", "boss"} {
+		_, err := h.root(person, "tools")
+		refused(t, err, "tools declares no roles")
 	}
 }

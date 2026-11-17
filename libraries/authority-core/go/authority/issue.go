@@ -239,7 +239,10 @@ func (s *Service) startFencedUntil(ctx context.Context, f fence, in workcontext.
 // on its principal's data); sealed to that installation at their
 // organization. An audience that declares no roles is refused by name
 // (decide.NoRoles): a person's own session holds nothing there, whatever
-// their organisation role.
+// their organisation role. Naming a binding of such a module asks nothing of
+// the module itself: the capability carries what the person's role on the
+// binding's target holds through the binding, for the module's hop there, and
+// nothing when they hold no role on that target.
 func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest) (Issued, error) {
 	// The team this session is cast onto, if any: read inside the store read
 	// below, used for attribution after it.
@@ -273,7 +276,11 @@ func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest
 			return domain.Refuse("the session is opened at organization %s; a person is issued nothing at %s, which they did not sign in at", who.Organization, r.Organization)
 		}
 		viewing = viewNote(tx, p)
-		if !decide.RoleGated(audience) {
+		// A module that declares no roles holds nothing for a person's own
+		// session. Naming one of its bindings is no ask at the module: what
+		// that carries is the person's role on the binding's target, decided
+		// below, and nothing of the module's own.
+		if !decide.RoleGated(audience) && r.Binding == "" {
 			return decide.NoRoles(audience)
 		}
 		inst, err = installationOf(tx, p.Organization, audience.Name)
@@ -290,7 +297,7 @@ func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest
 		if audience.Kind == domain.KindSolution && !audience.OwnerAware {
 			return decide.OwnerAware(audience, decide.Scopes{{ResourceKind: audience.Name, ResourceOwnerId: inst.PrincipalID}})
 		}
-		if len(heldHere) == 0 {
+		if decide.RoleGated(audience) && len(heldHere) == 0 {
 			if len(roles) == 0 {
 				return domain.Refuse("%s holds no role on %s", p.ID, audience.Name)
 			}
@@ -679,12 +686,6 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 				return ownerGone(err, claims.GetOwnerPrincipalId())
 			}
 			viewing = viewNote(tx, p)
-			// A parent no issuance makes: a person's own session at a
-			// module declaring no roles holds nothing, and neither does a
-			// hop from it.
-			if err := ownSession(tx, claims, am); err != nil {
-				return err
-			}
 			if heldHere, sourceCeiling, bounded, err = throughSolutions(tx, p, audience, solutionPrincipals(claims, am.Principal)); err != nil {
 				return err
 			}

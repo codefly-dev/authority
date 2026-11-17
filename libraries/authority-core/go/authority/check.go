@@ -18,9 +18,10 @@ import (
 // does not declare owner-aware checking now, or one that withdrew it after
 // the capability was issued through a binding to it (never revived). A
 // capability issued in a cast is refused once the cast no longer holds
-// (castHolds). A person's capability naming no installation it came through,
-// at an audience that declares no roles, is refused (ownSession): no issuance
-// makes one, and an organisation role admits none.
+// (castHolds). A person's capability holding the audience's own kinds and
+// naming no installation it came through, at an audience that declares no
+// roles, is refused (ownSession): no issuance makes one, and an organisation
+// role admits none.
 func (s *Service) Check(ctx context.Context, token, audience string) (*workcontext.Verified, uint64, error) {
 	verified, err := s.Verify(ctx, token, audience)
 	if errors.Is(err, workcontext.ErrRevoked) {
@@ -50,7 +51,7 @@ func (s *Service) Check(ctx context.Context, token, audience string) (*workconte
 		if err := castOfClaims(tx, verified.Context()); err != nil {
 			return err
 		}
-		if err := ownSession(tx, verified.Context(), m); err != nil {
+		if err := ownSession(tx, verified.Context(), verified.EffectiveScopes(), m); err != nil {
 			return err
 		}
 		revision, err = tx.AuthorizationRevision(verified.Context().GetTenantId())
@@ -262,17 +263,27 @@ func reachedThrough(tx Tx, wc *basev0.WorkContextV1, module string) []string {
 	return principals
 }
 
-// ownSession refuses a person's capability at m that names no target whose
-// roles could have admitted it: no solution and no module page declaring
-// roles on its path, m itself included. That is a person's own session at a
-// module declaring no roles, which holds nothing (decide.NoRoles) and which
-// no issuance of this core makes; one minted by another host or an earlier
-// version is refused here, at every check.
-func ownSession(tx Tx, wc *basev0.WorkContextV1, m domain.Module) error {
+// ownSession refuses a person's capability that holds something of m's own
+// kinds and names no target whose roles could have admitted it: no solution
+// and no module page declaring roles on its path, m itself included. That is
+// a person's own session at a module declaring no roles, which holds nothing
+// of it (decide.NoRoles) and which no issuance of this core makes; one minted
+// by another host or an earlier version is refused here, at every check. A
+// capability carrying only what one of m's bindings reaches (the person's
+// role on the binding's target, for m's hop there) holds nothing of m and is
+// not refused: m's methods that require a scope refuse it themselves.
+func ownSession(tx Tx, wc *basev0.WorkContextV1, effective Scopes, m domain.Module) error {
 	if wc.GetOwnerPrincipalKind() != "human" || anyRoleGated(tx, reachedThrough(tx, wc, m.Principal)) {
 		return nil
 	}
-	return decide.NoRoles(m)
+	for _, served := range m.ResourceKinds {
+		for _, held := range effective {
+			if held.GetResourceKind() == served.GetResourceKind() && len(held.GetActions()) > 0 {
+				return decide.NoRoles(m)
+			}
+		}
+	}
+	return nil
 }
 
 // anySolution is whether a solution is among principals.
