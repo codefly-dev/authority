@@ -427,15 +427,7 @@ func (s *State) performInstall(ctx context.Context, i FixtureInstallation, inten
 		}
 	}
 	return s.write(func(tx authority.Tx) error {
-		// STOPGAP (one release): a target delivered before the rename
-		// declares its admin role as "installer" (domain.DeclaredAdminRole).
-		admin := AdminRole
-		if m, err := tx.ModuleNamed(i.Target); err == nil {
-			if declared, ok := domain.DeclaredAdminRole(m.Roles); ok {
-				admin = declared
-			}
-		}
-		grants := []domain.RoleGrant{{InstallationID: id, Role: admin, PersonID: i.Owner}}
+		grants := []domain.RoleGrant{{InstallationID: id, Role: AdminRole, PersonID: i.Owner}}
 		for _, team := range i.Teams {
 			grants = append(grants, domain.RoleGrant{InstallationID: id, Role: i.Role, TeamID: team})
 		}
