@@ -1,10 +1,10 @@
-# The local authority's fixture: who exists and which organisation roles they
-# hold, in the authority's own vocabulary only. What a role holds at a module,
-# which solutions are installed and which modules a run supervises itself
+# The local authority's fixture: who exists and who administers each
+# organisation, in the authority's own vocabulary only. Which solutions are
+# installed, who is seated on them and which modules a run supervises itself
 # belong to the composition that composes them: each composing workspace adds
 # them through its fixture-composition document (services/local/README.md,
-# "What a composition adds to the fixture"). The organisation, role and person
-# ids below are that document's contract with every composing repository.
+# "What a composition adds to the fixture"). The organisation and person ids
+# below are that document's contract with every composing repository.
 #
 # It is the ONE fixture every composition seeds, the saas host's dev-admin
 # fixture included (module-saas-starter, module/fixtures/dev-admin.yaml): the
@@ -37,26 +37,16 @@ teams:
   - {organization: acme, id: finance}
   - {organization: acme, id: engineering}
   - {organization: globex, id: ops}
+# Organisation roles decide administration only: who administers an
+# organisation's members, teams, installations and grants. A role is a name
+# and grants nothing at any module; a person reaches a module through a role
+# (admin, user) on an installation, which the `installations` rows below and
+# a composition's own seat.
 roles:
   - organization: acme
-    name: viewer
-    scopes:
-      # The authority console: a viewer reads who they are.
-      - {kind: console.identity, actions: [read]}
-  - organization: acme
-    name: editor
-    scopes: []
-  - organization: acme
     name: admin
-    scopes: []
   - organization: globex
     name: admin
-    scopes: []
-  # Generated from the current delivered catalog, recomputed on each delivery,
-  # in Acme. A playground signs its person in as dev.
-  - organization: acme
-    name: developer
-    generated: true
 people:
   # The five, as the product's fixture names them. Their sign-in tokens are
   # the provider ids the saas host signs them in by.
@@ -96,12 +86,11 @@ people:
     roles: []
     teams: []
   # Retained aliases: the authority interface's own people, which the saas
-  # fixture keeps too, for parity with this sign-in page. The organisation
-  # roles they hold are what a composition's fixture-composition document
-  # grants at modules that declare no roles (the conformance matrix,
-  # pkg/business/testkit); `dev` holds the generated developer role every
-  # playground starts on; `no-roles` holds nothing, for the refusal cases;
-  # Globex is the other organisation. Nothing new is written against them.
+  # fixture keeps too, for parity with this sign-in page. Alex and Zoë
+  # administer their organisations; the others hold no organisation role and
+  # reach a module only where a composition seats them on an installation;
+  # `no-roles` is seated nowhere, for the refusal cases; Globex is the other
+  # organisation. Nothing new is written against them.
   - id: no-roles
     email: no-roles@acme.test
     fixture_token: fixture-no-roles
@@ -113,14 +102,14 @@ people:
     email: maya@acme.test
     fixture_token: fixture-maya
     organization: acme
-    roles: [viewer]
+    roles: []
     teams: [finance]
   - id: remi
     name: Rémi
     email: remi@acme.test
     fixture_token: fixture-remi
     organization: acme
-    roles: [editor]
+    roles: []
     teams: [engineering]
   - id: alex
     name: Alex
@@ -148,7 +137,7 @@ people:
     email: dev@acme.test
     fixture_token: fixture-dev
     organization: acme
-    roles: [developer]
+    roles: []
     teams: [engineering]
 # The same people on every target: a row whose target is "*" stands for every
 # role-gated target the run composes, whatever the composition is, so no

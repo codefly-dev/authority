@@ -25,6 +25,7 @@ import (
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"gopkg.in/yaml.v3"
 
+	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	conformance "github.com/codefly-dev/authority/libraries/conformance/go"
 
 	"gateway/pkg/business/issuer"
@@ -103,17 +104,24 @@ func Scope(kind string, actions ...string) *basev0.WorkScopeV1 {
 	return &basev0.WorkScopeV1{ResourceKind: kind, Actions: actions}
 }
 
-// Evaluation is the module whose kinds the fixture's evaluation grants name.
+// Evaluation is a module page declaring roles: its user reads runs and
+// scores, its admin holds everything it serves. A person reaches it through
+// one of those roles on its installation and through nothing else.
 func Evaluation(generation uint64) state.Manifest {
+	served := []*basev0.WorkScopeV1{Scope("evaluation.runs", "read", "write"), Scope("evaluation.online", "read"), Scope("evaluation.definitions", "publish"),
+		Scope("evaluation.datasets", "write"), Scope("evaluation.labels", "write", "approve", "admin")}
 	return state.Manifest{Name: "evaluation", Principal: "evaluation", Kind: "module", Generation: generation,
-		ResourceKinds: []*basev0.WorkScopeV1{Scope("evaluation.runs", "read", "write"), Scope("evaluation.online", "read"), Scope("evaluation.definitions", "publish"),
-			Scope("evaluation.datasets", "write"), Scope("evaluation.labels", "write", "approve", "admin")}}
+		Page: true, InstallationRole: domain.NoInstallationRole, ResourceKinds: served,
+		Roles: map[string][]*basev0.WorkScopeV1{
+			state.AdminRole: served,
+			state.UserRole:  {Scope("evaluation.runs", "read"), Scope("evaluation.online", "read")},
+		}}
 }
 
-// Documents is a module with one binding towards model. It checks owners, as
-// the document store does: an organization role reaches nothing there on a
-// person's own session (RBAC-4a); a solution's role and an installation reach
-// their own principal's data.
+// Documents is a module with one binding towards model. It declares no roles
+// and checks owners, as the document store does: a person's own session holds
+// nothing there, and a solution's or a page's role reaches its own
+// installation's data through its binding.
 func Documents(generation uint64) state.Manifest {
 	return state.Manifest{Name: "documents", Principal: "documents", Kind: "module", Generation: generation, OwnerAware: true,
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("documents", "read", "write", "ingest"), Scope("documents.collection", "read", "transfer", "admin")},
@@ -126,13 +134,19 @@ func Documents(generation uint64) state.Manifest {
 	}
 }
 
-// Model is the module documents calls. It checks owners of its datasets; its
-// profiles are shared, so an organization role reaches them on a person's own
-// session and an installation's datasets are its own.
+// Model is the module documents calls, a module page declaring roles: its
+// user reads profiles, its admin invokes and administers them. It checks
+// owners of its datasets; its profiles are shared, so a role holds them
+// unselected, and an installation's datasets are its own.
 func Model(generation uint64) state.Manifest {
 	return state.Manifest{Name: "model", Principal: "model", Kind: "module", Generation: generation, OwnerAware: true,
+		Page: true, InstallationRole: domain.NoInstallationRole,
 		SharedKinds:   []string{"modelservice.profiles"},
-		ResourceKinds: []*basev0.WorkScopeV1{Scope("modelservice.profiles", "invoke", "read", "admin"), Scope("modelservice.datasets", "read")}}
+		ResourceKinds: []*basev0.WorkScopeV1{Scope("modelservice.profiles", "invoke", "read", "admin"), Scope("modelservice.datasets", "read")},
+		Roles: map[string][]*basev0.WorkScopeV1{
+			state.AdminRole: {Scope("modelservice.profiles", "invoke", "read", "admin"), Scope("modelservice.datasets", "read")},
+			state.UserRole:  {Scope("modelservice.profiles", "read")},
+		}}
 }
 
 // Runtime is the module documents fans work out through.
@@ -141,23 +155,36 @@ func Runtime(generation uint64) state.Manifest {
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("runtime.task", "admit", "read")}}
 }
 
-// Records is the module the directory page reads. It checks no owner, as the
-// record store does, so a person's organization roles reach it on their own
-// session; it calls the model as documents does, so a person's chain crosses
-// modules their organization roles reach.
+// Records is a module page declaring roles, which the directory page reads.
+// Its user reads records and its admin writes them; each role reaches the
+// model through its binding, as documents does, so a person's chain crosses
+// modules on the role they hold here. It checks no owner, as the record
+// store does.
 func Records(generation uint64) state.Manifest {
 	return state.Manifest{Name: "records", Principal: "records", Kind: "module", Generation: generation,
+		Page: true, InstallationRole: domain.NoInstallationRole,
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("records.records", "read", "write"), Scope("records.types", "read"), Scope("records.collection", "read", "admin")},
-		Bindings:      map[string]state.Binding{"model": Documents(generation).Bindings["model"]}}
+		Roles: map[string][]*basev0.WorkScopeV1{
+			state.AdminRole: {Scope("records.records", "read", "write"), Scope("records.types", "read"), Scope("records.collection", "read", "admin"),
+				Scope("modelservice.profiles", "invoke", "read"), Scope("modelservice.datasets", "read")},
+			state.UserRole: {Scope("records.records", "read"), Scope("records.types", "read"), Scope("records.collection", "read"), Scope("modelservice.profiles", "read")},
+		},
+		Bindings: map[string]state.Binding{"model": Documents(generation).Bindings["model"]}}
 }
 
-// OrgDirectory is a module with a page; it reads and writes records for the
-// viewer through its binding records, which is the binding its hop on the
-// viewer's context names, and a lookup through it reads alone. It checks no
-// owner, as the directory does.
+// OrgDirectory is a module page declaring roles; it reads and writes records
+// for a person through its binding records, which is the binding its hop on
+// their context names, and a lookup through it reads alone. Its user reads
+// through each binding and its admin writes. It checks no owner, as the
+// directory does.
 func OrgDirectory(generation uint64) state.Manifest {
 	return state.Manifest{Name: "org-directory", Principal: "org-directory", Kind: "module", Generation: generation,
+		Page: true, InstallationRole: domain.NoInstallationRole,
 		ResourceKinds: []*basev0.WorkScopeV1{Scope("directory.entry", "read", "write")},
+		Roles: map[string][]*basev0.WorkScopeV1{
+			state.AdminRole: {Scope("directory.entry", "read", "write"), Scope("records.records", "read", "write"), Scope("documents", "read", "write")},
+			state.UserRole:  {Scope("directory.entry", "read"), Scope("records.records", "read"), Scope("documents", "read")},
+		},
 		Bindings: map[string]state.Binding{
 			"records": {ID: "records", Audience: "records",
 				InvokeScopes: []*basev0.WorkScopeV1{Scope("records.records", "read", "write")}, HeadlessScopes: []*basev0.WorkScopeV1{Scope("records.records", "read")},
@@ -276,9 +303,33 @@ func Proposals(generation uint64) state.Manifest {
 		}}
 }
 
-// Matrix states what the fixture grants, allow and deny: the organisation's roles
-// at module audiences, the installation's roles at the wiki, and nothing across
-// organisations.
+// Seated is who the kit seats on its module pages, by role: Maya is the user
+// and Rémi the admin of records, the directory, evaluation and the model. Alex and Zoë
+// administer their organisations and hold no role on any of them; the
+// composition document seats the wiki's people.
+func Seated() map[string][]string {
+	return map[string][]string{state.UserRole: {"maya"}, state.AdminRole: {"remi"}}
+}
+
+// seat grants each role of each module page the kit composes to the people
+// Seated names, at Acme.
+func (k *Kit) seat(t *testing.T) {
+	t.Helper()
+	for _, page := range []string{"records", "org-directory", "evaluation", "model"} {
+		for role, people := range Seated() {
+			for _, person := range people {
+				if err := k.State.GrantRole(domain.RoleGrant{InstallationID: state.InstallationID("acme", page), Role: role, PersonID: person}); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+	}
+}
+
+// Matrix states what the fixture grants, allow and deny: the roles of an
+// installation at its target, a solution's or a module page's, and nothing
+// else. No organisation role reaches a module, the administrator's included,
+// and nothing crosses organisations.
 func Matrix() []conformance.Expectation {
 	allow := func(token, audience, kind, action string) conformance.Expectation {
 		return conformance.Expectation{Token: token, Audience: audience, Kind: kind, Action: action, Allowed: true}
@@ -287,41 +338,45 @@ func Matrix() []conformance.Expectation {
 		return conformance.Expectation{Token: token, Audience: audience, Kind: kind, Action: action}
 	}
 	return []conformance.Expectation{
-		// Acme's organisation roles name documents, but documents checks
-		// owners: on a person's own session they reach none of it, the
-		// administrator's included (RBAC-4a). Records checks no owner, so the
-		// same roles reach it.
+		// Documents declares no roles: nobody's own session holds anything
+		// there, the organisation's administrator's included.
 		deny("fixture-maya", "documents", "documents", "read"), deny("fixture-maya", "documents", "documents", "write"),
 		deny("fixture-remi", "documents", "documents", "write"), deny("fixture-remi", "documents", "documents", "ingest"),
 		deny("fixture-alex", "documents", "documents", "ingest"), deny("fixture-alex", "documents", "documents.collection", "admin"),
 		deny("fixture-alex", "documents", "documents.collection", "share"),
+		// Records, a module page: Maya its user reads, Rémi its admin writes,
+		// and Alex, who administers Acme and holds no role on it, is refused.
 		allow("fixture-maya", "records", "records.records", "read"), deny("fixture-maya", "records", "records.records", "write"),
 		allow("fixture-remi", "records", "records.records", "write"), deny("fixture-remi", "records", "records.types", "write"),
-		// Evaluation (a module the kit composes for this matrix): a viewer reads
-		// runs and scores, an editor runs an evaluation, an admin publishes and
-		// approves, and nobody but the developer approves what they wrote and
-		// runs it too.
+		deny("fixture-alex", "records", "records.records", "read"), deny("fixture-dev", "records", "records.records", "read"),
+		deny("fixture-no-roles", "records", "records.records", "read"),
+		// Evaluation, a module page: its user reads runs and scores, its admin
+		// runs, publishes and approves, and no organisation role does either.
 		allow("fixture-maya", "evaluation", "evaluation.runs", "read"), deny("fixture-maya", "evaluation", "evaluation.runs", "write"),
+		deny("fixture-maya", "evaluation", "evaluation.labels", "approve"),
 		allow("fixture-remi", "evaluation", "evaluation.runs", "write"), allow("fixture-remi", "evaluation", "evaluation.online", "read"),
-		deny("fixture-remi", "evaluation", "evaluation.labels", "approve"), allow("fixture-alex", "evaluation", "evaluation.labels", "approve"),
-		allow("fixture-alex", "evaluation", "evaluation.definitions", "publish"), deny("fixture-alex", "evaluation", "evaluation.runs", "write"),
-		allow("fixture-dev", "evaluation", "evaluation.labels", "approve"), allow("fixture-dev", "evaluation", "evaluation.runs", "write"),
-		// A module no role names: nothing.
-		deny("fixture-maya", "model", "modelservice.profiles", "read"),
-		// The wiki: the installation's roles, not the organisation's. Rémi, an
-		// editor of documents, is a user at the wiki like Maya: a user reads
-		// and asks, and only the wiki's admin writes and publishes.
+		allow("fixture-remi", "evaluation", "evaluation.labels", "approve"), allow("fixture-remi", "evaluation", "evaluation.definitions", "publish"),
+		deny("fixture-alex", "evaluation", "evaluation.labels", "approve"), deny("fixture-alex", "evaluation", "evaluation.runs", "read"),
+		deny("fixture-dev", "evaluation", "evaluation.labels", "approve"), deny("fixture-dev", "evaluation", "evaluation.runs", "write"),
+		// The model, a module page: its user reads profiles and invokes none,
+		// and nobody unseated holds anything.
+		allow("fixture-maya", "model", "modelservice.profiles", "read"), deny("fixture-maya", "model", "modelservice.profiles", "invoke"),
+		deny("fixture-alex", "model", "modelservice.profiles", "read"), deny("fixture-no-roles", "model", "modelservice.profiles", "read"),
+		// The wiki: the installation's roles. Rémi, an admin of records, is a
+		// user at the wiki like Maya: a user reads and asks, and only the
+		// wiki's admin writes and publishes.
 		allow("fixture-alex", "wiki", "wiki.page", "publish"), allow("fixture-maya", "wiki", "wiki.page", "read"),
 		deny("fixture-maya", "wiki", "wiki.page", "write"), deny("fixture-maya", "wiki", "wiki.page", "publish"),
 		allow("fixture-remi", "wiki", "wiki.page", "read"), deny("fixture-remi", "wiki", "wiki.page", "write"),
 		deny("fixture-remi", "wiki", "wiki.page", "publish"),
-		// Globex: its own installation of the wiki, and a documents role of its
-		// own, which reaches nothing there on Zoe's own session either.
+		// Globex: its own installation of the wiki, and nothing at Acme's
+		// pages or at a module with no roles.
 		allow("fixture-zoe", "wiki", "wiki.page", "publish"), allow("fixture-omar", "wiki", "wiki.page", "read"),
 		deny("fixture-omar", "wiki", "wiki.page", "write"), deny("fixture-omar", "wiki", "wiki.page", "publish"), deny("fixture-zoe", "documents", "documents", "write"),
 		deny("fixture-zoe", "documents", "documents.collection", "read"),
 		deny("fixture-omar", "documents", "documents.collection", "read"),
 		deny("fixture-omar", "documents", "documents", "read"),
+		deny("fixture-zoe", "records", "records.records", "read"), deny("fixture-omar", "records", "records.records", "read"),
 	}
 }
 
@@ -383,8 +438,9 @@ func bareWithClock(t *testing.T, clock func() time.Time) *Kit {
 	return &Kit{State: st, Launcher: launcher, Now: clock(), Issuer: issuer.New(st, Audience, "local-1", signing.Public().(ed25519.PublicKey))}
 }
 
-// New composes the suite's modules, loads the fixture, and applies the test
-// kit's composition document, which grants their kinds and installs the wiki.
+// New composes the suite's modules, loads the fixture, applies the test
+// kit's composition document, which installs the wiki, and seats the kit's
+// people on its module pages (Seated).
 func New(t *testing.T) *Kit {
 	t.Helper()
 	return compose(t, Bare(t), whole)
@@ -455,5 +511,6 @@ func compose(t *testing.T, k *Kit, fixture func([]byte) []byte) *Kit {
 			t.Fatal(err)
 		}
 	}
+	k.seat(t)
 	return k
 }

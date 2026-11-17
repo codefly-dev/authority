@@ -361,9 +361,16 @@ func TestSignedCarrierWithdrawalRevokesAlreadyIssuedPersonAuthority(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Maya reaches documents as the directory page's user, through the
+	// page's binding: her own session holds nothing at documents.
 	person := issuer.WithSession(ctx, session.ID)
-	request := &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents"}
-	issued, err := k.Issuer.Issue(person, request)
+	root, err := k.Issuer.Issue(person, &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "org-directory"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_ParentToken{ParentToken: root.GetToken()},
+		Actor: &authorityv1.WorkloadCredential{Credential: k.Credential(t, "org-directory")}, Audience: "documents", OperationBindingId: "documents"}
+	issued, err := k.Issuer.Issue(ctx, request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -376,7 +383,7 @@ func TestSignedCarrierWithdrawalRevokesAlreadyIssuedPersonAuthority(t *testing.T
 	if _, err := k.Issuer.Check(ctx, issued.GetToken(), "documents", ""); err == nil {
 		t.Fatal("old token remained valid")
 	}
-	if _, err := k.Issuer.Issue(person, request); err == nil {
+	if _, err := k.Issuer.Issue(ctx, request); err == nil {
 		t.Fatal("new authority issued for withdrawn module")
 	}
 	revision := k.Revision(t, "acme")

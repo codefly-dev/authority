@@ -1,6 +1,6 @@
 # The authority module's fragment of the local authority's fixture-composition
-# document: the authority serves no kind beyond the fixture's own vocabulary, so
+# document: the authority installs no solution and supervises no module of its own, so
 # it adds nothing. Every composed module ships its own fragment next to its
 # code, and the run merges them into the workspace's document
 # (services/local/README.md, "What a composition adds to the fixture").
-schema: codefly.dev/authority/fixture-composition/v1
+schema: codefly.dev/authority/fixture-composition/v2

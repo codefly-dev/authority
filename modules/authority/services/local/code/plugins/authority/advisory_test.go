@@ -30,6 +30,7 @@ func TestGeneratedCheckReportsAdvisoryWithoutChangingIdentity(t *testing.T) {
 	if _, err := k.State.ApplyManifest(manifest); err != nil {
 		t.Fatal(err)
 	}
+	k.Approve(t, "records")
 	server := grpc.NewServer()
 	(&authorityplugin.Plugin{Issuer: k.Issuer}).RegisterGRPC(server)
 	listener := bufconn.Listen(1 << 20)

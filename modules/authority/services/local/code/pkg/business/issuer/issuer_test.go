@@ -140,9 +140,9 @@ func TestAPersonIsIssuedWhatHerRolesHoldAtTheAudienceAndNoMore(t *testing.T) {
 	if wc.GetOwnerPrincipalId() != "maya" || wc.GetTenantId() != "acme" || wc.GetAudience() != "records" {
 		t.Fatalf("context = %v", wc)
 	}
-	// The viewer reads records and their types. She reads collections only by
-	// prefix and pattern, which a token cannot carry and never carries as the
-	// whole kind: an ask naming no collection carries none.
+	// Maya is the user of the records page: she reads its records, their
+	// types and its collections, each as the whole kind, since a role names no
+	// resource.
 	got := map[string]string{}
 	for _, sc := range wc.GetAuthorityScopes() {
 		got[sc.GetResourceKind()] = strings.Join(sc.GetActions(), ",")
@@ -150,8 +150,8 @@ func TestAPersonIsIssuedWhatHerRolesHoldAtTheAudienceAndNoMore(t *testing.T) {
 			t.Fatalf("the token names no resource: %v", sc)
 		}
 	}
-	if len(got) != 2 || got["records.records"] != "read" || got["records.types"] != "read" {
-		t.Fatalf("viewer scopes = %v", wc.GetAuthorityScopes())
+	if len(got) != 3 || got["records.records"] != "read" || got["records.types"] != "read" || got["records.collection"] != "read" {
+		t.Fatalf("the user's scopes = %v", wc.GetAuthorityScopes())
 	}
 	if wc.GetSeal().GetInstallationId() != state.InstallationID("acme", "records") {
 		t.Fatalf("sealed to %q", wc.GetSeal().GetInstallationId())
@@ -178,11 +178,10 @@ func TestAPersonIsIssuedWhatHerRolesHoldAtTheAudienceAndNoMore(t *testing.T) {
 	}
 }
 
-// RBAC-4a: documents checks owners, so the organization roles that name it
-// reach nothing there on a person's own session, the administrator's
-// included, whatever is asked. Its data is reached through a role on the
-// installation that owns it.
-func TestAnOrganizationRoleReachesNothingAtAModuleThatChecksOwners(t *testing.T) {
+// Documents declares no roles, so nobody's own session holds anything there,
+// the organisation's administrators' included, whatever is asked. Its data
+// is reached through a role on an installation that binds it.
+func TestNobodysOwnSessionHoldsAnythingAtAModuleThatDeclaresNoRoles(t *testing.T) {
 	k := testkit.New(t)
 	for _, tc := range []struct{ token, kind, action string }{
 		{"fixture-maya", "documents", "read"}, {"fixture-remi", "documents", "write"},
@@ -192,16 +191,16 @@ func TestAnOrganizationRoleReachesNothingAtAModuleThatChecksOwners(t *testing.T)
 		for _, ask := range [][]*authorityv1.WorkScopeV1{nil, scopes(testkit.Scope(tc.kind, tc.action))} {
 			_, err := k.Issuer.Issue(person(t, k, tc.token), &authorityv1.IssueRequest{
 				As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "documents", Scopes: ask})
-			if !errors.Is(err, issuer.ErrRefused) || !strings.Contains(err.Error(), "documents checks owners") {
+			if !errors.Is(err, issuer.ErrRefused) || !strings.Contains(err.Error(), "documents declares no roles") {
 				t.Fatalf("%s at documents asking %v: %v", tc.token, ask, err)
 			}
 		}
 	}
 }
 
-func TestAPersonHoldsNothingAtAModuleHerRolesDoNotName(t *testing.T) {
+func TestAPersonHoldsNothingAtAPageTheyHoldNoRoleOn(t *testing.T) {
 	k := testkit.New(t)
-	maya := person(t, k, "fixture-maya")
+	maya := person(t, k, "fixture-alex") // administers acme; seated on no page
 	_, err := k.Issuer.Issue(maya, &authorityv1.IssueRequest{
 		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "model",
 	})
@@ -503,34 +502,34 @@ func TestABindingNamingIssueMayLeaveItsAudienceToTheBinding(t *testing.T) {
 	}
 }
 
-// The local developer's role names no module: it holds every action on every
-// kind the audience serves. At a module whose manifest names kinds and not
-// actions, both explicit and empty asks are refused until concrete permission
-// declarations arrive. The developer role never invents actions from a wildcard.
-func TestTheDeveloperRoleHoldsWhatEachComposedModuleServes(t *testing.T) {
+// The fixture once generated a developer role holding every action of every
+// delivered kind: an organisation role reaching every module. It is gone. The
+// developer holds what an installation's role gives them and nothing else:
+// nothing at a page they hold no role on, nothing at a module that declares
+// none, whatever is asked.
+func TestTheDeveloperHoldsNoGeneratedRole(t *testing.T) {
 	k := testkit.New(t)
 	held, err := k.PersonScopes(t, "dev", "records")
-	if err != nil || len(held) != 3 {
+	if !errors.Is(err, issuer.ErrRefused) || len(held) != 0 || !strings.Contains(err.Error(), "dev holds no role on records") {
 		t.Fatalf("dev at records: %v %v", held, err)
 	}
 	if _, err := k.State.ApplyManifest(state.Manifest{Name: "probe", Principal: "probe", Kind: "module", Generation: 1,
-		ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope("probe.items", state.AnyAction)}}); err != nil {
+		ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope("probe.items", "run")}}); err != nil {
 		t.Fatal(err)
 	}
-	dev := person(t, k, "fixture-dev")
-	out, err := k.Issuer.Issue(dev, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "probe", Scopes: scopes(testkit.Scope("probe.items", "run"))})
-	if !errors.Is(err, issuer.ErrRefused) || out != nil {
-		t.Fatalf("undeclared action was invented: %v %v", out, err)
+	for _, token := range []string{"fixture-dev", "fixture-alex", "fixture-maya"} {
+		for _, ask := range [][]*authorityv1.WorkScopeV1{nil, scopes(testkit.Scope("probe.items", "run"))} {
+			out, err := k.Issuer.Issue(person(t, k, token), &authorityv1.IssueRequest{
+				As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "probe", Scopes: ask})
+			if !errors.Is(err, issuer.ErrRefused) || out != nil || !strings.Contains(err.Error(), "probe declares no roles") {
+				t.Fatalf("%s at a module declaring no roles, asking %v: %v %v", token, ask, out, err)
+			}
+		}
 	}
-	if _, err := k.Issuer.Issue(dev, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "probe"}); !errors.Is(err, issuer.ErrRefused) {
-		t.Fatalf("an empty ask over undeclared actions: %v", err)
-	}
-	maya := person(t, k, "fixture-maya")
-	if _, err := k.Issuer.Issue(maya, &authorityv1.IssueRequest{
-		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "probe", Scopes: scopes(testkit.Scope("probe.items", "run"))}); err == nil {
-		t.Fatal("a viewer holds nothing at a module her roles do not name")
+	// Seated as the page's user, the developer holds that role's reach.
+	k.Seat(t, "records", state.UserRole, "dev")
+	if held, err = k.PersonScopes(t, "dev", "records"); err != nil || len(held) != 3 {
+		t.Fatalf("dev, seated as user of records: %v %v", held, err)
 	}
 }
 
@@ -562,8 +561,9 @@ func TestPersonIssuanceCanonicalizesTeamsWithoutChangingTheSession(t *testing.T)
 			}
 			before := slices.Clone(session.Teams)
 			ctx := issuer.WithSession(context.Background(), session.ID)
-			// Alex's administrator role reaches the evaluation module, which
-			// checks no owner.
+			// Alex is seated as evaluation's admin: his administrator role
+			// reaches no module.
+			k.Seat(t, "evaluation", state.AdminRole, "alex")
 			out, err := k.Issuer.Issue(ctx, &authorityv1.IssueRequest{
 				As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "evaluation",
 			})

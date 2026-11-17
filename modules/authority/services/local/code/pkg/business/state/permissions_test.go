@@ -1,75 +1,64 @@
 package state_test
 
 import (
-	"gateway/pkg/business/state"
-	"gateway/pkg/business/testkit"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
-	"slices"
 	"strings"
 	"testing"
+
+	"gateway/pkg/business/state"
+	"gateway/pkg/business/testkit"
+
+	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
-func TestGeneratedDeveloperTracksReplacementAndReportsBusinessGaps(t *testing.T) {
+// The permission report covers a method by the module's own roles alone. A
+// module declaring none is reported as reached through an installation that
+// binds it, never through an organisation role, and nobody is issued anything
+// at it on their own session: not the developer the fixture once generated a
+// role for, not the administrator.
+func TestThePermissionReportCoversAMethodByInstallationRolesAlone(t *testing.T) {
 	k := testkit.New(t)
 	m := state.Manifest{Name: "ledger", Principal: "ledger", Kind: "module", Generation: 1,
 		Methods: map[string]state.MethodPolicy{
 			"/ledger/Write":   {Requires: []*basev0.WorkScopeV1{testkit.Scope("ledger.entry", "write")}},
 			"/ledger/Version": {AnyCheckedCaller: true},
-			"/ledger/Missing": {},
 		}}
-	before := k.State.RoleScopes("acme", "viewer")
 	if _, err := k.State.ApplyManifest(m); err != nil {
 		t.Fatal(err)
 	}
-	held, err := k.PersonScopes(t, "dev", "ledger")
-	if err != nil || !state.Attenuates([]*basev0.WorkScopeV1{testkit.Scope("ledger.entry", "write")}, held) {
-		t.Fatalf("developer: %v %v", held, err)
+	page := testkit.Records(2)
+	page.Methods = map[string]state.MethodPolicy{"/records/Write": {Requires: []*basev0.WorkScopeV1{testkit.Scope("records.records", "write")}}}
+	if _, err := k.State.ApplyManifest(page); err != nil {
+		t.Fatal(err)
 	}
-	report := strings.Join(k.State.PermissionReport(), "\n")
-	for _, want := range []string{"acme/developer × ledger@1 × /ledger/Write: covered statically", "acme/viewer × ledger@1 × /ledger/Write: state: forbidden", "/ledger/Missing: no single declared role", "resource checks still apply"} {
-		if !strings.Contains(report, want) {
-			t.Errorf("missing %q in report", want)
+	for _, person := range []string{"dev", "alex", "maya"} {
+		if held, err := k.PersonScopes(t, person, "ledger"); err == nil || len(held) != 0 {
+			t.Fatalf("%s holds %v at the ledger (%v)", person, held, err)
 		}
 	}
-	m.Generation = 2
-	m.Methods = map[string]state.MethodPolicy{"/ledger/Read": {Requires: []*basev0.WorkScopeV1{testkit.Scope("ledger.entry", "read")}}}
-	if _, err := k.State.ApplyManifest(m); err != nil {
-		t.Fatal(err)
+	report := strings.Join(k.State.PermissionReport(), "\n")
+	for _, want := range []string{
+		"ledger@1 /ledger/Write: declares no roles; reached through a role on an installation that binds it, never an organisation role",
+		"role installation/admin × records@2 × /records/Write: covered statically; identity, installation and resource checks still apply",
+		"role installation/user × records@2 × /records/Write: state: forbidden",
+	} {
+		if !strings.Contains(report, want) {
+			t.Errorf("missing %q in report:\n%s", want, report)
+		}
 	}
-	held, err = k.PersonScopes(t, "dev", "ledger")
-	if err != nil || state.Attenuates([]*basev0.WorkScopeV1{testkit.Scope("ledger.entry", "write")}, held) {
-		t.Fatalf("removed write retained: %v %v", held, err)
-	}
-	if !state.Attenuates([]*basev0.WorkScopeV1{testkit.Scope("ledger.entry", "read")}, held) {
-		t.Fatal("new read missing")
-	}
-	after := k.State.RoleScopes("acme", "viewer")
-	if !state.Attenuates(before, after) || !state.Attenuates(after, before) {
-		t.Fatal("business role changed")
-	}
-	for _, sc := range k.State.RoleScopes("acme", "developer") {
-		if sc.GetResourceKind() == "*" {
-			t.Fatal("generated wildcard")
+	for _, gone := range []string{"acme/developer", "acme/viewer", "acme/admin ×"} {
+		if strings.Contains(report, gone) {
+			t.Errorf("the report still covers a method by the organisation role %q", gone)
 		}
 	}
 }
 
-func TestGeneratedDeveloperNeverCopiesWildcardCarrierCeilings(t *testing.T) {
+func TestThePermissionReportNamesAWildcardCeiling(t *testing.T) {
 	k := testkit.New(t)
 	m := state.Manifest{Name: "unresolved", Principal: "unresolved", Kind: "module", Generation: 1,
 		ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope("unresolved.entry", "*")},
 		Methods:       map[string]state.MethodPolicy{"/unresolved/Read": {Requires: []*basev0.WorkScopeV1{testkit.Scope("unresolved.entry", "read")}}}}
 	if _, err := k.State.ApplyManifest(m); err != nil {
 		t.Fatal(err)
-	}
-	held := k.State.RoleScopes("acme", "developer")
-	for _, scope := range held {
-		if scope.GetResourceKind() == "*" || slices.Contains(scope.GetActions(), "*") {
-			t.Fatalf("wildcard leaked: %v", scope)
-		}
-	}
-	if !state.Attenuates([]*basev0.WorkScopeV1{testkit.Scope("unresolved.entry", "read")}, held) {
-		t.Fatal("explicit method permission lost")
 	}
 	if !strings.Contains(strings.Join(k.State.PermissionReport(), "\n"), "wildcard ceiling is unresolved") {
 		t.Fatal("missing wildcard diagnostic")

@@ -54,7 +54,6 @@ func localConformanceFixture(t *testing.T, clock *conformance.Clock) (grpc.Clien
 	if err := k.State.LoadFixture(context.Background(), []byte(`roles:
   - organization: acme
     name: owner
-    scopes: []
 people:
   - id: inventory-owner
     fixture_token: fixture-owner
@@ -82,14 +81,19 @@ people:
 	// declares, even when the live call reaches it through another module.
 	directory := testkit.OrgDirectory(2)
 	directory.Bindings["model"] = testkit.Documents(1).Bindings["model"]
+	// The directory's admin reaches the model through that binding: what
+	// Rémi, its admin, delegates and what his chain carries on to the model.
+	directory.Roles[state.AdminRole] = append(directory.Roles[state.AdminRole], testkit.Scope("modelservice.profiles", "read", "invoke"))
 	if _, err := k.State.ApplyManifest(directory); err != nil {
 		t.Fatal(err)
 	}
 	model := testkit.Model(2)
 	model.ResourceKinds = append(model.ResourceKinds, testkit.Scope("documents", "read", "write"))
-	// Shared at the model, so Rémi holds it there on his own session and the
-	// parent-limits case's dropped kind is really held (RBAC-4a).
+	// Shared at the model and named by its admin role, so Rémi, its admin,
+	// holds it there and the parent-limits case's dropped kind is really
+	// held; the same role reaches records through the model's binding.
 	model.SharedKinds = append(model.SharedKinds, "documents")
+	model.Roles[state.AdminRole] = append(model.Roles[state.AdminRole], testkit.Scope("documents", "read", "write"), testkit.Scope("records.records", "read", "write"))
 	model.Bindings = map[string]state.Binding{
 		"records": testkit.OrgDirectory(1).Bindings["records"],
 		"self":    {ID: "self", Audience: "model", InvokeScopes: model.ResourceKinds},
@@ -101,6 +105,11 @@ people:
 	records.Bindings = map[string]state.Binding{"model": testkit.Documents(1).Bindings["model"]}
 	if _, err := k.State.ApplyManifest(records); err != nil {
 		t.Fatal(err)
+	}
+	// Each page's widened role holds once its organisation's administrator
+	// approves the upgrade, as a solution's does.
+	for _, page := range []string{"org-directory", "model"} {
+		k.Approve(t, page)
 	}
 	signer, verifier := testkit.NewRelease(t, "local")
 	composed := &composition.Plugin{State: k.State, Coordinate: "local", Verifier: verifier, Carrier: k.CarrierAuthority, Keys: map[string]crypto.PublicKey{signer.KeyID(): signer.Public()}}
@@ -127,10 +136,10 @@ people:
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Rémi at the directory, on his own session: its records binding, then
-	// records' model binding, each through modules his organization roles
-	// reach (the directory and records check no owner; the model's profiles
-	// are shared).
+	// Rémi at the directory, its admin: its records binding, then records'
+	// model binding, each held to the roles he holds on the pages the chain
+	// came through (the directory and records check no owner; the model's
+	// profiles are shared).
 	chain := conformance.Chain{Token: "fixture-remi", Start: "org-directory", Hops: []conformance.Hop{
 		{Credential: k.Credential(t, "org-directory"), Binding: "records", Audience: "records", AskKind: "records.records", AskAction: "read"},
 		{Credential: k.Credential(t, "records"), Binding: "model", Audience: "model", AskKind: "modelservice.profiles", AskAction: "read"},
@@ -146,24 +155,6 @@ people:
 		if err := k.State.UninstallAsHost(state.InstallationID(org, "runtime")); err != nil {
 			t.Fatal(err)
 		}
-	}
-	// The transfer seam reads this person's own resource grant, never the
-	// solution's owner-selected admin scope. Y deliberately has no grant.
-	if err := k.State.LoadFixture(context.Background(), []byte(`roles:
-  - organization: acme
-    name: collection-transfer
-    scopes:
-      - kind: conformance.collection
-        actions: [admin]
-        resources: [{id: collection-x}]
-people:
-  - id: alex
-    fixture_token: fixture-alex
-    organization: acme
-    roles: [admin, collection-transfer]
-    teams: [finance, engineering]
-`)); err != nil {
-		t.Fatal(err)
 	}
 	// Two installed solutions for installation-owned role scopes: Alex installed
 	// both, and Maya's finance team holds A's user role and nothing of B's.
@@ -253,6 +244,15 @@ people:
 			Strand: func(_ context.Context, module string) error { return strandWithoutThrough(k.State, module) },
 			Reread: composed.Reread,
 		},
+		// Sarah administers Acme and holds no role on any installation (this
+		// kit seats nobody on every target): she administers, and is refused
+		// at every page and at documents, which declares no roles.
+		OrganisationRoles: &conformance.OrganisationRolesCase{
+			Administrator: "dev-admin",
+			RoleGated:     []string{"wiki", "org-directory", "evaluation", "model"},
+			NoRoles:       []string{"documents"},
+			Kinds:         map[string]conformance.Expectation{"documents": {Kind: "documents", Action: "read"}},
+		},
 		UnentitledToken: "fixture-no-roles",
 		Organization:    "acme", ViewerToken: "fixture-maya", AdminToken: "fixture-alex",
 		// Maya reads records; the directory page hops on her context through its
@@ -283,15 +283,16 @@ people:
 				{Credential: k.Credential(t, "documents"), Binding: "model", Audience: "model", AskKind: "modelservice.datasets", AskAction: "read"},
 			},
 		},
-		// Maya reads the directory's and the wiki's collections and every shared
-		// one at records, and administers none: the authority's answer, not her
-		// token's. The page may write records for Rémi, and a lookup through it
-		// reads.
+		// The page may write records for Rémi, its admin, and a lookup
+		// through it reads.
 		Lookup: &conformance.LookupCase{Token: "fixture-remi", Start: "org-directory", Credential: k.Credential(t, "org-directory"),
 			Binding: "records", Audience: "records", Kind: "records.records", Invoke: "write", Lookup: "read"},
-		// Rémi lets the page write records for him; Maya, a viewer, cannot.
+		// Rémi lets the page write records for him; Maya, its user, cannot.
 		Delegation: &conformance.DelegationCase{Token: "fixture-remi", Outsider: "fixture-maya", Module: "org-directory",
 			Credential: k.Credential(t, "org-directory"), Binding: "records", Audience: "records", Kind: "records.records", Action: "write"},
+		// Maya, the user of records, reads its collections: every one on her
+		// role, exactly those she names when she names some, and administers
+		// none.
 		Resources: &conformance.ResourceCase{
 			Token: "fixture-maya", Audience: "records", Kind: "records.collection", Action: "read",
 			Covered: []string{"derived\x1fdirectory", "derived\x1fwiki", "shared-finance"}, Uncovered: []string{"finance", "shared-Finance"}, Unheld: "admin",

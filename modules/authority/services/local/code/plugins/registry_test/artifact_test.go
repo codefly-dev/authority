@@ -34,29 +34,32 @@ func TestTheLocalAuthorityDecidesArtifactsAsEveryHostMust(t *testing.T) {
 	// and a member who is not one hold its activate and run actions through a
 	// role; another member holds run alone.
 	const module, policy = "conformance-probe", "conformance-probe.intent"
+	// The probe is a module page: its admin role holds activate and run, its
+	// user role run alone. Who approves is who holds the admin role on its
+	// installation, an organisation administrator or not; no organisation
+	// role reaches it.
 	if _, err := k.State.ApplyManifest(state.Manifest{Name: module, Principal: module, Kind: "module", Generation: 1,
-		ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope(policy, "activate", "run")}, Bindings: map[string]state.Binding{}}); err != nil {
+		Page: true, InstallationRole: "none",
+		ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope(policy, "activate", "run")},
+		Roles: map[string][]*basev0.WorkScopeV1{
+			state.AdminRole: {testkit.Scope(policy, "activate", "run")},
+			state.UserRole:  {testkit.Scope(policy, "run")},
+		},
+		Bindings: map[string]state.Binding{}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := k.State.UninstallAsHost(state.InstallationID("globex", module)); err != nil {
 		t.Fatal(err)
 	}
-	if err := k.State.LoadFixture(context.Background(), []byte(`roles:
-  - organization: acme
-    name: artifact-approver
-    scopes:
-      - {kind: conformance-probe.intent, actions: [activate, run]}
-  - organization: acme
-    name: artifact-runner
-    scopes:
-      - {kind: conformance-probe.intent, actions: [run]}
-people:
-  - {id: artifact-admin, fixture_token: fixture-artifact-admin, organization: acme, roles: [admin, artifact-approver]}
-  - {id: artifact-approver, fixture_token: fixture-artifact-approver, organization: acme, roles: [artifact-approver]}
-  - {id: artifact-runner, fixture_token: fixture-artifact-runner, organization: acme, roles: [artifact-runner]}
+	if err := k.State.LoadFixture(context.Background(), []byte(`people:
+  - {id: artifact-admin, fixture_token: fixture-artifact-admin, organization: acme, roles: [admin]}
+  - {id: artifact-approver, fixture_token: fixture-artifact-approver, organization: acme, roles: []}
+  - {id: artifact-runner, fixture_token: fixture-artifact-runner, organization: acme, roles: []}
 `)); err != nil {
 		t.Fatal(err)
 	}
+	k.Seat(t, module, state.AdminRole, "artifact-admin", "artifact-approver")
+	k.Seat(t, module, state.UserRole, "artifact-runner")
 	server := grpc.NewServer()
 	for _, p := range []framework.Plugin{
 		&authority.Plugin{Issuer: k.Issuer}, &artifact.Plugin{Issuer: k.Issuer},

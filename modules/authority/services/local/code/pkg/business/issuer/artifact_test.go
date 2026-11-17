@@ -19,24 +19,39 @@ import (
 	authorityv1 "gateway/pkg/gen/host/authority/v1"
 )
 
-// robin is a module whose authored artifacts people consent to: its intents
-// kind is the policy, and the fixture's admin holds activate on it, its editor
-// run. assistant is a module that hops to robin on a person's behalf.
+// robin is a module page whose authored artifacts people consent to: its
+// intents kind is the policy, its admin holds activate on it, its user run.
+// assistant is a module page that hops to robin on a person's behalf. Alex
+// and the developer are robin's admins, Rémi its user; the developer is the
+// assistant's user. Each reaches robin through that role and nothing else.
 func composeRobin(t *testing.T, k *testkit.Kit) {
 	t.Helper()
+	intents, tasks := testkit.Scope("robin.intents", "read", "run", "import", "configure", "activate"), testkit.Scope("robin.tasks", "execute", "read")
+	onward := testkit.Scope("robin.intents", "activate", "run")
 	for _, m := range []state.Manifest{
-		{Name: "robin", Principal: "robin", Kind: "module", Generation: 1,
-			ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope("robin.intents", "read", "run", "import", "configure", "activate"), testkit.Scope("robin.tasks", "execute", "read")},
-			Bindings:      map[string]state.Binding{}},
-		{Name: "assistant", Principal: "assistant", Kind: "module", Generation: 1,
+		{Name: "robin", Principal: "robin", Kind: "module", Generation: 1, Page: true, InstallationRole: "none",
+			ResourceKinds: []*basev0.WorkScopeV1{intents, tasks},
+			Roles: map[string][]*basev0.WorkScopeV1{
+				state.AdminRole: {intents, tasks},
+				state.UserRole:  {testkit.Scope("robin.intents", "read", "run"), tasks},
+			},
+			Bindings: map[string]state.Binding{}},
+		{Name: "assistant", Principal: "assistant", Kind: "module", Generation: 1, Page: true, InstallationRole: "none",
 			ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope("assistant.task", "run")},
+			Roles: map[string][]*basev0.WorkScopeV1{
+				state.AdminRole: {testkit.Scope("assistant.task", "run"), onward},
+				state.UserRole:  {testkit.Scope("assistant.task", "run"), onward},
+			},
 			Bindings: map[string]state.Binding{"robin": {ID: "robin", Audience: "robin",
-				InvokeScopes: []*basev0.WorkScopeV1{testkit.Scope("robin.intents", "activate", "run")}}}},
+				InvokeScopes: []*basev0.WorkScopeV1{onward}}}},
 	} {
 		if _, err := k.State.ApplyManifest(m); err != nil {
 			t.Fatal(err)
 		}
 	}
+	k.Seat(t, "robin", state.AdminRole, "alex", "dev")
+	k.Seat(t, "robin", state.UserRole, "remi")
+	k.Seat(t, "assistant", state.UserRole, "dev")
 }
 
 func personAt(t *testing.T, k *testkit.Kit, token, audience string) string {
@@ -75,14 +90,14 @@ func TestAPersonPresentApprovesAnArtifactAndARunReadsItBack(t *testing.T) {
 	if err != nil || !proto.Equal(again, approved) {
 		t.Fatalf("approving again: %v %v", again, err)
 	}
-	// Remi, an editor, runs it: she holds run, not activate.
+	// Remi, robin's user, runs it: he holds run, not activate.
 	remi := personAt(t, k, "fixture-remi", "robin")
 	run, err := k.Issuer.Artifact(ctx, "run", &artifactv1.ArtifactRequest{ParentToken: remi, ActorCredential: robin, InstallationId: acmeRobin, Policy: "robin.intents", Identity: fieldNaturalist(3)})
 	if err != nil || !proto.Equal(run, approved) {
 		t.Fatalf("run reads back: %v %v", run, err)
 	}
 	if _, err := k.Issuer.Artifact(ctx, "activate", &artifactv1.ArtifactRequest{ParentToken: remi, ActorCredential: robin, InstallationId: acmeRobin, Policy: "robin.intents", Identity: fieldNaturalist(3)}); !denied(err) || !strings.Contains(err.Error(), "robin.intents:activate") {
-		t.Fatalf("an editor approving: %v", err)
+		t.Fatalf("a user approving: %v", err)
 	}
 	// A different artifact, or the same one for another installation, stands unapproved.
 	other := fieldNaturalist(3)
@@ -93,7 +108,7 @@ func TestAPersonPresentApprovesAnArtifactAndARunReadsItBack(t *testing.T) {
 	// Revoked, for good.
 	id := strings.TrimPrefix(approved.GetQualifiedName(), "host/approved-artifacts/")
 	if _, err := k.Issuer.RevokeArtifact(ctx, &artifactv1.RevokeRequest{ParentToken: remi, ActorCredential: robin, InstallationId: acmeRobin, Policy: "robin.intents", ApprovalId: id}); !denied(err) {
-		t.Fatalf("an editor revoking: %v", err)
+		t.Fatalf("a user revoking: %v", err)
 	}
 	if _, err := k.Issuer.RevokeArtifact(ctx, &artifactv1.RevokeRequest{ParentToken: alex, ActorCredential: robin, InstallationId: acmeRobin, Policy: "robin.intents", ApprovalId: id}); err != nil {
 		t.Fatalf("revoke: %v", err)
@@ -115,7 +130,7 @@ func TestConsentIsThePersonsOwnAtTheModuleAsking(t *testing.T) {
 	identity := fieldNaturalist(1)
 
 	// A context addressed to another module is not consent at robin.
-	if _, err := k.Issuer.Artifact(ctx, "activate", &artifactv1.ArtifactRequest{ParentToken: personAt(t, k, "fixture-alex", "evaluation"), ActorCredential: robin, InstallationId: acmeRobin, Policy: "robin.intents", Identity: identity}); !denied(err) || !strings.Contains(err.Error(), "addressed to evaluation") {
+	if _, err := k.Issuer.Artifact(ctx, "activate", &artifactv1.ArtifactRequest{ParentToken: personAt(t, k, "fixture-remi", "evaluation"), ActorCredential: robin, InstallationId: acmeRobin, Policy: "robin.intents", Identity: identity}); !denied(err) || !strings.Contains(err.Error(), "addressed to evaluation") {
 		t.Fatalf("another audience: %v", err)
 	}
 	// Nor is robin's context presented by another module.

@@ -69,9 +69,6 @@ func (s *State) Reread(ctx context.Context, m Manifest) (bool, error) {
 	if err != nil {
 		return false, classify(err)
 	}
-	if reread {
-		s.refreshRolesLocked()
-	}
 	return reread, nil
 }
 
@@ -246,6 +243,5 @@ func (s *State) withdrawLocked(alias string) error {
 			return err
 		}
 	}
-	s.refreshRolesLocked()
 	return nil
 }

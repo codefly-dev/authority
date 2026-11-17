@@ -21,7 +21,6 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/memstore"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
 	fixturecomposition "github.com/codefly-dev/authority/libraries/fixture-composition/go"
-	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	"github.com/codefly-dev/authority/libraries/solutionhost/go/workloadidentity"
 	"github.com/codefly-dev/authority/libraries/solutionhost/go/workloadidentity/native"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
@@ -38,15 +37,9 @@ var (
 	ErrStale           = errors.New("state: generation is not newer")
 )
 
-// Scope is one (kind, actions) pair as the fixture spells it, optionally
-// narrowed to named resources (ResourceMatch). With no resources it covers
-// every resource of the kind. The fixture and the fixture-composition document
-// spell it the same way, so it is the document's own type.
+// Scope is one (kind, actions) pair a stand-in module serves, as the
+// fixture-composition document spells it.
 type Scope = fixturecomposition.Scope
-
-// ResourceMatch is one resource grant as the fixture spells it: exactly one of
-// every resource, one id, an id prefix or a pattern (libraries/resources).
-type ResourceMatch = fixturecomposition.ResourceMatch
 
 // Person is a fixture person.
 type Person struct {
@@ -59,12 +52,16 @@ type Person struct {
 	Teams        []string `yaml:"teams"`
 }
 
-// Role is a named set of scopes at one organisation.
+// Role is an organisation role: a name people of one organisation hold. It
+// decides administration only (the core's decide.IsAdministrator reads the
+// name) and grants nothing at any module, so it carries no scope. A fixture
+// that still states scopes, or the generated developer role that held every
+// delivered kind, is refused by name (LoadFixture).
 type Role struct {
-	Organization string  `yaml:"organization"`
-	Name         string  `yaml:"name"`
-	Generated    bool    `yaml:"generated,omitempty"`
-	Scopes       []Scope `yaml:"scopes"`
+	Organization string    `yaml:"organization"`
+	Name         string    `yaml:"name"`
+	Generated    bool      `yaml:"generated,omitempty"`
+	Scopes       yaml.Node `yaml:"scopes"`
 }
 
 // The core's objects, as this host names them.
@@ -205,7 +202,7 @@ type State struct {
 	people     map[string]Person
 	order      []string // people's ids, in the fixture's order
 	byToken    map[string]string
-	roles      map[string]Role // org/name, as authored, the generated developer role included
+	roles      map[string]Role // org/name: the organisation roles the fixture defines
 	sessions   map[string]Session
 	deliveries map[string]*appliedDelivery // binding → verified record, including withdrawals
 	// trustDomain is the run's: the one trust domain the launcher's anchor
@@ -297,15 +294,11 @@ func (s *State) LoadFixture(ctx context.Context, data []byte) error {
 		s.store.PutTeam(team.Organization, team.ID)
 	}
 	for _, r := range f.Roles {
-		if r.Generated && (r.Name != "developer" || len(r.Scopes) != 0) {
+		if r.Generated || len(r.Scopes.Content) > 0 {
 			s.mu.Unlock()
-			return fmt.Errorf("fixture: generated role must be developer with no authored scopes")
+			return fmt.Errorf("fixture: role %s/%s states what it grants (scopes, or generated): an organisation role decides administration only and grants nothing at a module; a person reaches a module through a role on an installation (installations: members)", r.Organization, r.Name)
 		}
-		if err := compileScopes(r); err != nil {
-			s.mu.Unlock()
-			return err
-		}
-		s.roles[r.Organization+"/"+r.Name] = r
+		s.roles[r.Organization+"/"+r.Name] = Role{Organization: r.Organization, Name: r.Name}
 	}
 	for _, p := range f.People {
 		if _, ok := s.orgs[p.Organization]; !ok {
@@ -330,7 +323,6 @@ func (s *State) LoadFixture(ctx context.Context, data []byte) error {
 			s.store.PutTeam(p.Organization, team)
 		}
 	}
-	s.refreshRolesLocked()
 	s.mu.Unlock()
 	for _, d := range f.Delegations {
 		if d.ID == "" || d.Grantor == "" || d.Module == "" || d.Organization == "" {
@@ -384,19 +376,6 @@ func (s *State) LoadFixture(ctx context.Context, data []byte) error {
 	}
 	_, err := s.SeatRoleTeams(ctx)
 	return err
-}
-
-func compileScopes(r Role) error {
-	for _, sc := range r.Scopes {
-		grants := make([]resources.Grant, 0, len(sc.Resources))
-		for _, m := range sc.Resources {
-			grants = append(grants, m.Grant())
-		}
-		if _, err := resources.Compile(grants); err != nil {
-			return fmt.Errorf("role %s/%s scope %s: %w", r.Organization, r.Name, sc.Kind, err)
-		}
-	}
-	return nil
 }
 
 // ensureModuleInstallations holds every composed module installed at every
@@ -632,7 +611,6 @@ func (s *State) applyManifestLocked(m Manifest) ([]string, []FixtureInstallation
 	if err != nil {
 		return nil, nil, classify(err)
 	}
-	s.refreshRolesLocked()
 	return ids, s.takePendingInstalls(m.Name), nil
 }
 

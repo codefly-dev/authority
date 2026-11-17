@@ -38,9 +38,11 @@ func TestParentLimitsPreserveActionSpecificResources(t *testing.T) {
 	model.Bindings = map[string]state.Binding{
 		"records": testkit.OrgDirectory(1).Bindings["records"],
 	}
+	model.Roles[state.AdminRole] = append(model.Roles[state.AdminRole], testkit.Scope("records.records", "read", "write"))
 	if _, err := k.State.ApplyManifest(model); err != nil {
 		t.Fatal(err)
 	}
+	k.Approve(t, "model")
 	parent, err := k.Issuer.Issue(person(t, k, "fixture-remi"), &authorityv1.IssueRequest{
 		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "model",
 		Scopes: scopes(
