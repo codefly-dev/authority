@@ -5,17 +5,16 @@ import (
 	"crypto/ed25519"
 	"errors"
 	"fmt"
-	"github.com/codefly-dev/core/workcontext"
-	"github.com/google/uuid"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/codefly-dev/core/workcontext"
+	"github.com/google/uuid"
+
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/memstore"
-	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
@@ -25,10 +24,10 @@ import (
 // owners), people at acme and globex.
 //
 // Organisation roles decide administration only and reach no module: alex and
-// zoe administer their organisations, ada's store-admin administers the
-// organisation's resource store-x (AuthorizeTransfer), and none of them, nor
-// rob's reader roles, is issued anything by it. A person reaches a module
-// through a role on an installation.
+// zoe administer their organisations, and neither they nor ada and rob, whose
+// organisation roles are named after the store and the ledger, are issued
+// anything by one. A person reaches a module through a role on an
+// installation.
 const (
 	kind, legacyKind = "collection", "legacy"
 	acme, globex     = "acme", "globex"
@@ -95,15 +94,9 @@ func newHarness(t *testing.T) *harness {
 	}
 	h.store.PutTeam(acme, "team")
 	h.store.PutTeam(globex, "ops")
-	// A host's catalogue may describe an administrator as every kind and
-	// action (the saas store answers owner and admin so). The fixtures carry
-	// that form to prove it issues nothing.
-	anything := []domain.RoleScope{{Kind: scope.AnyKind, Actions: []string{scope.AnyAction}}}
-	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "admin", Scopes: anything})
-	h.store.PutOrgRole(domain.OrgRole{Organization: globex, Name: "admin", Scopes: anything})
-	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "store-admin", Scopes: []domain.RoleScope{{Kind: kind, Actions: []string{"admin"}, Resources: []resources.Grant{{ID: "store-x"}}}}})
-	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "store-reader", Scopes: []domain.RoleScope{{Kind: kind, Actions: []string{"read"}, Resources: []resources.Grant{{ID: "store-x"}}}}})
-	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "ledger-reader", Scopes: []domain.RoleScope{{Kind: ledgerKind, Actions: []string{"read"}, Resources: []resources.Grant{{ID: "entry-x"}}}}})
+	// An organisation role is a name a person holds. "admin" (and "owner")
+	// administer; ada's and rob's are names of no meaning to the core, held to
+	// prove that no name reaches a module.
 	for _, p := range []domain.Person{
 		{ID: "alex", Organization: acme, Roles: []string{"admin"}},
 		{ID: "maya", Organization: acme}, {ID: "remi", Organization: acme}, {ID: "dev", Organization: acme},
@@ -141,6 +134,12 @@ func (h *harness) person(id string) authority.Person {
 		org = globex
 	}
 	return authority.Person{ID: id, Organization: org, SessionID: "session-" + id}
+}
+
+// administrator makes person an administrator of acme beside alex: the
+// organisation role that hands an organisation's resource to an installation.
+func (h *harness) administrator(person string) {
+	h.store.PutPerson(domain.Person{ID: person, Organization: acme, Roles: []string{"admin"}})
 }
 
 func (h *harness) admin(org string) authority.Person {

@@ -21,7 +21,6 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"github.com/google/uuid"
 )
@@ -40,13 +39,12 @@ type Team struct {
 }
 
 // Member is one person's membership of one organization: an administrator
-// or not, their teams there, and the organization-role scopes they hold
-// there. A person may be a member of several organizations.
+// or not, and their teams there. A person may be a member of several
+// organizations.
 type Member struct {
 	Organization, Person string
 	Administrator        bool
 	Teams                []string
-	Scopes               []domain.RoleScope
 }
 
 // Open seeds id into a store and opens it.
@@ -114,15 +112,6 @@ func Run(t *testing.T, open Open) {
 				}
 				if p.ID != m.Person || p.Organization != m.Organization || decide.IsAdministrator(p) != m.Administrator || !sameSet(p.Teams, m.Teams) {
 					t.Errorf("member %s of %s reads %+v, want %+v", m.Person, m.Organization, p, m)
-				}
-				if !m.Administrator {
-					held, err := heldScopes(tx, p)
-					if err != nil {
-						return err
-					}
-					if want := points(m.Scopes); !samePoints(held, want) {
-						t.Errorf("member %s of %s holds %v, want %v", m.Person, m.Organization, held, want)
-					}
 				}
 				if _, err := tx.Person(m.Person); err != nil {
 					t.Errorf("person %s: %v", m.Person, err)
@@ -628,14 +617,13 @@ type fixture struct {
 
 func newFixture() *fixture {
 	f := &fixture{run: uuid.NewString()[:8], orgA: uuid.NewString(), orgB: uuid.NewString(), onlyA: uuid.NewString(), both: uuid.NewString(), team: uuid.NewString()}
-	reader := []domain.RoleScope{{Kind: "storetest.item", Actions: []string{"read"}}, {Kind: "storetest.note", Actions: []string{"write"}, Resources: []resources.Grant{{ID: "note-1"}}}}
 	f.identity = Identity{
 		Organizations: []domain.Organization{{ID: f.orgA, Name: "Storetest A " + f.run}, {ID: f.orgB, Name: "Storetest B " + f.run}},
 		Teams:         []Team{{Organization: f.orgA, ID: f.team}, {Organization: f.orgA, ID: uuid.NewString()}},
 		Members: []Member{
-			{Organization: f.orgA, Person: f.onlyA, Teams: []string{f.team}, Scopes: reader},
+			{Organization: f.orgA, Person: f.onlyA, Teams: []string{f.team}},
 			{Organization: f.orgA, Person: f.both, Administrator: true},
-			{Organization: f.orgB, Person: f.both, Scopes: []domain.RoleScope{{Kind: "storetest.item", Actions: []string{"write"}}}},
+			{Organization: f.orgB, Person: f.both},
 		},
 	}
 	return f
@@ -735,49 +723,4 @@ func nonEmpty(m map[string][]string) map[string][]string {
 		}
 	}
 	return out
-}
-
-// point is one (kind, action, resource matcher) an organization role grants.
-type point struct{ kind, action, resource string }
-
-func points(scopes []domain.RoleScope) map[point]bool {
-	out := map[point]bool{}
-	for _, sc := range scopes {
-		for _, a := range sc.Actions {
-			if len(sc.Resources) == 0 {
-				out[point{sc.Kind, a, ""}] = true
-			}
-			for _, r := range sc.Resources {
-				out[point{sc.Kind, a, r.ID + "|" + r.Prefix + "|" + r.Pattern}] = true
-			}
-		}
-	}
-	return out
-}
-
-func heldScopes(tx authority.Tx, p domain.Person) (map[point]bool, error) {
-	var all []domain.RoleScope
-	for _, name := range p.Roles {
-		r, err := tx.OrgRole(p.Organization, name)
-		if errors.Is(err, domain.ErrNotFound) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		all = append(all, r.Scopes...)
-	}
-	return points(all), nil
-}
-
-func samePoints(a, b map[point]bool) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for k := range a {
-		if !b[k] {
-			return false
-		}
-	}
-	return true
 }

@@ -24,7 +24,6 @@ type Store struct {
 	orgs          map[string]domain.Organization
 	people        map[string]map[string]domain.Person // id → organization → membership
 	teams         map[string]map[string]bool          // organization → team id
-	roles         map[string]domain.OrgRole           // organization/name
 	modules       map[string]domain.Module            // name
 	installations map[string]domain.Installation
 	grants        map[string][]domain.RoleGrant
@@ -42,7 +41,7 @@ type Store struct {
 // New is an empty store.
 func New() *Store {
 	return &Store{
-		orgs: map[string]domain.Organization{}, people: map[string]map[string]domain.Person{}, roles: map[string]domain.OrgRole{},
+		orgs: map[string]domain.Organization{}, people: map[string]map[string]domain.Person{},
 		modules: map[string]domain.Module{}, installations: map[string]domain.Installation{}, grants: map[string][]domain.RoleGrant{},
 		revisions: map[string]uint64{}, personEpochs: map[string]uint64{}, grantEpochs: map[string]uint64{},
 		ownerAware: map[string]uint64{}, delegations: map[string]domain.Delegation{}, tombstones: map[string]domain.Tombstone{},
@@ -115,7 +114,7 @@ func (s *Store) restore(b state) {
 	s.views = b.views
 }
 
-// PutOrganization, PutPerson, DeletePerson and PutOrgRole seed and change
+// PutOrganization, PutPerson and DeletePerson seed and change
 // identity, the host's own data.
 func (s *Store) PutOrganization(o domain.Organization) {
 	s.mu.Lock()
@@ -167,13 +166,6 @@ func (s *Store) DeleteMember(organization, id string) {
 	if len(s.people[id]) == 0 {
 		delete(s.people, id)
 	}
-}
-
-// PutOrgRole records an organization role.
-func (s *Store) PutOrgRole(r domain.OrgRole) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.roles[r.Organization+"/"+r.Name] = r
 }
 
 type tx struct {
@@ -238,14 +230,6 @@ func (t tx) People(org string) ([]domain.Person, error) {
 
 func (t tx) TeamExists(organization, id string) (bool, error) {
 	return t.s.teams[organization][id], nil
-}
-
-func (t tx) OrgRole(org, name string) (domain.OrgRole, error) {
-	r, ok := t.s.roles[org+"/"+name]
-	if !ok {
-		return r, missing("role", org+"/"+name)
-	}
-	return r, nil
 }
 
 func (t tx) Module(principal string) (domain.Module, error) {

@@ -6,7 +6,6 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"github.com/google/uuid"
 )
@@ -141,7 +140,6 @@ func TestAModuleIsNeverOfferedOrInstalledByAnAdministrator(t *testing.T) {
 // one until the upgrade is approved and the role granted.
 func TestAModuleThatGainsOrLosesRolesKeepsItsInstallation(t *testing.T) {
 	h := newHarness(t)
-	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "page-reader", Scopes: []domain.RoleScope{{Kind: "pages.note", Actions: []string{"read"}}}})
 	h.store.PutPerson(domain.Person{ID: "ines", Organization: acme, Roles: []string{"page-reader"}})
 	if _, err := h.svc.ApplyModule(h.ctx, pageModule(1, false)); err != nil {
 		t.Fatal(err)
@@ -153,8 +151,8 @@ func TestAModuleThatGainsOrLosesRolesKeepsItsInstallation(t *testing.T) {
 			t.Fatalf("%s moved the installation: %+v, was %+v", when, now, inst)
 		}
 	}
-	// ines holds an organisation role a host's catalogue describes as reading
-	// the page's kind: it reaches nothing.
+	// ines holds an organisation role named for reading the page: it reaches
+	// nothing.
 	_, err := h.root("ines", "pages")
 	refused(t, err, "pages declares no roles")
 
@@ -246,7 +244,6 @@ func TestAModuleThatGainsOrLosesRolesKeepsItsInstallation(t *testing.T) {
 // installation is its own; an undeclared role is refused; a revoke ends it.
 func TestAModulePagesRolesDecideWhoIsListedAndWhoMayUseIt(t *testing.T) {
 	h := newHarness(t)
-	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "page-reader", Scopes: []domain.RoleScope{{Kind: "pages.note", Actions: []string{"read"}}}})
 	h.store.PutPerson(domain.Person{ID: "ines", Organization: acme, Roles: []string{"page-reader"}})
 	if _, err := h.svc.ApplyModule(h.ctx, pageModule(1, true)); err != nil {
 		t.Fatal(err)
@@ -275,7 +272,6 @@ func TestAModulePagesRolesDecideWhoIsListedAndWhoMayUseIt(t *testing.T) {
 	if err != nil || len(listed) != 1 || !listed[0].All || listed[0].Owner != "" {
 		t.Fatalf("the user lists %v, %v", listed, err)
 	}
-	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "one-note", Scopes: []domain.RoleScope{{Kind: "pages.note", Actions: []string{"read"}, Resources: []resources.Grant{{ID: "x"}}}}})
 	h.store.PutPerson(domain.Person{ID: "maya", Organization: acme, Roles: []string{"one-note"}})
 	if listed, err = h.svc.ListResources(h.ctx, user.Token, "pages", "pages.note", "read"); err != nil || len(listed) != 1 || !listed[0].All {
 		t.Fatalf("an organization role narrowed the user's listing: %v, %v", listed, err)

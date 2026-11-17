@@ -42,7 +42,6 @@ func TestAPagesCallGoesThroughItsTargetsBinding(t *testing.T) {
 		refused(t, err, "holds no role on pages")
 	})
 	t.Run("a module the page's target declares no binding to is refused, whatever the person's organisation role", func(t *testing.T) {
-		h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "legacy-reader", Scopes: []domain.RoleScope{{Kind: legacyKind, Actions: []string{"read"}}}})
 		h.store.PutPerson(domain.Person{ID: "lea", Organization: acme, Roles: []string{"legacy-reader"}})
 		for _, person := range []string{"lea", "maya", "alex"} {
 			_, err := h.page(person, "pages", "legacy-store")

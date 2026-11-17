@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"time"
 
-	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
@@ -77,27 +76,6 @@ type RoleView struct {
 	// they hold; see Person.Cast.) Roles may still be set beside it, and then
 	// narrows the cast further on the installations it names.
 	Team string
-}
-
-// OrgRole is an organisation role as a host's catalogue describes it.
-// Organisation roles decide administration only: who administers the
-// organisation is read from the names a person holds (decide.IsAdministrator),
-// and the scopes here answer one administrative question, which of the
-// organisation's own resources a person may hand to an installation
-// (AuthorizeTransfer). No scope here reaches a module: a person is issued
-// nothing from an organisation role.
-type OrgRole struct {
-	Organization, Name string
-	Scopes             []RoleScope
-}
-
-// RoleScope is one organization-role scope: a kind (or AnyKind) and actions,
-// optionally narrowed to resources by matcher. It administers; it is never
-// issued.
-type RoleScope struct {
-	Kind      string
-	Actions   []string
-	Resources []resources.Grant
 }
 
 // Binding is a module's declared call towards another module.

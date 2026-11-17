@@ -63,7 +63,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/memstore"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	"github.com/codefly-dev/authority/libraries/solutionhost/go"
+	solutionhost "github.com/codefly-dev/authority/libraries/solutionhost/go"
 	"github.com/codefly-dev/core/configurations"
 	modulecontract "github.com/codefly-dev/core/contracts/module"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
@@ -367,7 +367,6 @@ func compose(m domain.Module) (*harness, error) {
 	}
 	h := &harness{ctx: context.Background(), svc: svc, product: m}
 	store.PutOrganization(domain.Organization{ID: organization, Name: organization})
-	store.PutOrgRole(domain.OrgRole{Organization: organization, Name: "admin", Scopes: []domain.RoleScope{{Kind: scope.AnyKind, Actions: []string{scope.AnyAction}}}})
 	store.PutPerson(domain.Person{ID: installer, Organization: organization, Roles: []string{"admin"}})
 	store.PutPerson(domain.Person{ID: newcomer, Organization: organization})
 	for _, s := range subjects {

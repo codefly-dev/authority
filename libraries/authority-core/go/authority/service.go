@@ -456,23 +456,6 @@ func notFound(err error) error {
 	return err
 }
 
-// orgRoles are a person's organization roles, those the catalogue defines:
-// read for administration alone (AuthorizeTransfer), never for issuance.
-func orgRoles(tx Tx, p domain.Person) ([]domain.OrgRole, error) {
-	var out []domain.OrgRole
-	for _, name := range p.Roles {
-		r, err := tx.OrgRole(p.Organization, name)
-		if errors.Is(err, domain.ErrNotFound) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, r)
-	}
-	return out, nil
-}
-
 func clamp(ttl, max time.Duration) time.Duration {
 	if ttl <= 0 || ttl > max {
 		return max

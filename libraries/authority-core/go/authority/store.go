@@ -22,8 +22,11 @@ type Store interface {
 // against a concurrent one and was not retried to success.
 var ErrConflict = errors.New("authority: the transaction conflicted with another")
 
-// Tx is one transaction's view. Identity (organizations, people, teams and
-// organization roles) is the host's: the authority only reads it.
+// Tx is one transaction's view. Identity (organizations, people with the
+// names of their organisation roles, and teams) is the host's: the authority
+// only reads it. An organisation role is a name on a person and nothing more
+// here: it decides administration (decide.IsAdministrator) and is never read
+// for what it might grant at a module.
 type Tx interface {
 	Organizations() ([]domain.Organization, error)
 	Organization(id string) (domain.Organization, error)
@@ -39,7 +42,6 @@ type Tx interface {
 	// independently of membership. Empty teams exist; absent, deleted and
 	// other-organization teams answer false. Storage failures return an error.
 	TeamExists(organization, id string) (bool, error)
-	OrgRole(organization, name string) (domain.OrgRole, error)
 
 	// Module answers by principal, ModuleNamed by name; Modules lists every one.
 	Module(principal string) (domain.Module, error)

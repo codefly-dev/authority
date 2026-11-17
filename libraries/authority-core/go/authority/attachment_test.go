@@ -194,6 +194,7 @@ func (s *beforeWriteStore) Write(ctx context.Context, f func(authority.Tx) error
 
 func TestPublicIssuanceTransfersOnlyAfterLiveAuthorization(t *testing.T) {
 	h := newHarness(t)
+	h.administrator("ada")
 	h.grant("a", "admin", "ada")
 	capability := h.must(h.through("ada", "a", "store"))
 	for _, row := range effective(capability) {
@@ -207,11 +208,12 @@ func TestPublicIssuanceTransfersOnlyAfterLiveAuthorization(t *testing.T) {
 	foreign.To = h.principal(globex, "a")
 	_, err := h.svc.AuthorizeTransfer(h.ctx, foreign)
 	refused(t, err, "not active at acme")
-	// A personal grant lost after issue is read live, even without a revision bump.
-	h.store.PutPerson(domain.Person{ID: "ada", Organization: acme})
-	_, err = h.svc.AuthorizeTransfer(h.ctx, request)
-	refused(t, err, "own organization grants")
+	// Administration lost after issue is read live, even without a revision
+	// bump; an organisation role of another name administers nothing.
 	h.store.PutPerson(domain.Person{ID: "ada", Organization: acme, Roles: []string{"store-admin"}})
+	_, err = h.svc.AuthorizeTransfer(h.ctx, request)
+	refused(t, err, "ada is not an administrator of acme")
+	h.administrator("ada")
 	if err := h.store.Read(h.ctx, func(tx authority.Tx) error {
 		inst, err := tx.Installation(h.inst(acme, "a").ID)
 		if len(inst.Owned) != 0 {
@@ -240,6 +242,7 @@ func TestTransferUsesTheAttachmentBoundAndWriteFence(t *testing.T) {
 	for _, test := range []string{"cap", "revision", "exclusive"} {
 		t.Run(test, func(t *testing.T) {
 			h := newHarness(t)
+			h.administrator("ada")
 			h.grant("a", "admin", "ada")
 			capability := h.must(h.through("ada", "a", "store"))
 			service := h.svc

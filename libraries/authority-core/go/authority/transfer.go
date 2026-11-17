@@ -8,7 +8,6 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
@@ -26,10 +25,10 @@ type TransferDecision struct {
 }
 
 // AuthorizeTransfer authorizes a transfer and records the installation-owned id
-// atomically, reading everything live. It is the one decision an organisation
-// role's scopes take part in, and it is administration: whether the person
-// administers the organisation's resource they hand to the installation. What
-// they reach in the store is their role on that installation. The caller
+// atomically, reading everything live. It is administration, so the person's
+// organisation role decides it (decide.IsAdministrator): an administrator
+// hands the organisation's resource to the installation. What they reach in
+// the store is their role on that installation. The caller
 // is the kind's one serving module; the capability is addressed to it.
 func (s *Service) AuthorizeTransfer(ctx context.Context, r TransferRequest) (TransferDecision, error) {
 	if err := decide.ValidResourceID(r.ResourceID); err != nil {
@@ -101,14 +100,7 @@ func (s *Service) AuthorizeTransfer(ctx context.Context, r TransferRequest) (Tra
 		if fp, err := memberRecord(tx, wc.GetTenantId(), r.From); err == nil {
 			t.FromPerson = &fp
 		}
-		roles, err := orgRoles(tx, p)
-		if err != nil {
-			return err
-		}
-		if matchers := decide.ResourceGrants(roles, r.Kind, "admin"); len(matchers) > 0 {
-			covered, err := resources.Compile(matchers)
-			t.Administers = err == nil && covered.Matches(r.ResourceID)
-		}
+		t.Administers = decide.IsAdministrator(p)
 		target, err := tx.InstallationByPrincipal(r.To)
 		if err != nil {
 			return notFound(err)

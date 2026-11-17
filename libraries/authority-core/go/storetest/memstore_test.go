@@ -24,11 +24,6 @@ func TestTheMemoryStoreMeetsTheStoreContract(t *testing.T) {
 			if m.Administrator {
 				p.Roles = append(p.Roles, "admin")
 			}
-			if len(m.Scopes) > 0 {
-				role := "storetest-" + m.Person
-				s.PutOrgRole(domain.OrgRole{Organization: m.Organization, Name: role, Scopes: m.Scopes})
-				p.Roles = append(p.Roles, role)
-			}
 			s.PutPerson(p)
 		}
 		return s

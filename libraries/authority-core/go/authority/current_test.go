@@ -1,8 +1,9 @@
 package authority_test
 
 import (
-	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"testing"
+
+	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 )

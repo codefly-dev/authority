@@ -7,7 +7,6 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
@@ -200,7 +199,7 @@ func TestATransferIsDecidedInOrder(t *testing.T) {
 		"from another organization":          {func(x *decide.Transfer) { x.From = "globex" }, "not a person or the organization"},
 		"from another organization's person": {func(x *decide.Transfer) { x.From, x.FromPerson = "omar", &omar }, "not a person or the organization"},
 		"from nobody":                        {func(x *decide.Transfer) { x.From = "" }, "not a person or the organization"},
-		"without admin on the resource":      {func(x *decide.Transfer) { x.Administers = false }, "own organization grants"},
+		"by no administrator":                {func(x *decide.Transfer) { x.Administers = false }, "is not an administrator of"},
 		"without write on the principal":     {func(x *decide.Transfer) { x.Writes = false }, "write on"},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -216,17 +215,11 @@ func TestATransferIsDecidedInOrder(t *testing.T) {
 
 func TestOrganizationGrantsAndModules(t *testing.T) {
 	audience := domain.Module{Name: "docs", ResourceKinds: []*basev0.WorkScopeV1{sc("doc", "read", "admin")}}
-	roles := []domain.OrgRole{{Name: "r", Scopes: []domain.RoleScope{{Kind: "*", Actions: []string{"read"}}, {Kind: "doc", Actions: []string{"admin"}, Resources: []resources.Grant{{ID: "x"}}}}}}
 	// An organisation role reaches no module: a person's own session at one
-	// that declares no roles is refused by name. What its scopes still answer
-	// is which of the organisation's resources it administers: admin on x
-	// alone, never the kind.
+	// that declares no roles is refused by name.
 	refused(t, decide.NoRoles(audience), domain.Denied, "declares no roles")
 	if decide.RoleGated(audience) {
 		t.Fatal("a module declaring no roles is role-gated")
-	}
-	if got := decide.ResourceGrants(roles, "doc", "admin"); len(got) != 1 || got[0].ID != "x" {
-		t.Fatalf("matchers %v", got)
 	}
 	if err := decide.ValidateModule(solution); err != nil {
 		t.Fatal(err)

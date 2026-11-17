@@ -101,9 +101,8 @@ func TestRBACIssuanceMatrix(t *testing.T) {
 			refuse: "confined to its principal's data"},
 		// --- a person on their own session at a module with no roles ----------
 		// Organisation roles decide administration only: whatever a person's
-		// organisation role is called and whatever a host's catalogue says it
-		// grants, their own session holds nothing at a module that declares no
-		// roles. It is reached through a role on an installation that reaches
+		// organisation role is called, their own session holds nothing at a
+		// module that declares no roles. It is reached through a role on an installation that reaches
 		// it (M10, M19f, M20, M21) and through nothing else.
 		{id: "M16", principal: "person: organisation role naming the module's kind and a resource, no installation role", target: "module with no roles, not owner-aware", resource: "the named id",
 			issue: func(h *harness) (authority.Issued, error) {
@@ -121,28 +120,28 @@ func TestRBACIssuanceMatrix(t *testing.T) {
 		{id: "M18b", principal: "person: user on a solution that reaches the module, on their own session", target: "module with no roles", resource: "any",
 			issue: func(h *harness) (authority.Issued, error) { return h.root("maya", "store") }, refuse: "store declares no roles"},
 
-		{id: "M19", principal: "person: organisation administrator (every kind, every action), no installation role", target: "module with no roles, owner-aware", resource: "a solution installation's data",
+		{id: "M19", principal: "person: an organisation role named everything, no installation role", target: "module with no roles, owner-aware", resource: "a solution installation's data",
 			issue: func(h *harness) (authority.Issued, error) {
 				return h.root("boss", "store", owned(kind, h.principal(acme, "a"), []string{"read"}))
 			}, refuse: "store declares no roles"},
-		{id: "M19b", principal: "person: organisation administrator (every kind, every action), no installation role", target: "module with no roles, owner-aware", resource: "the whole kind, unowned",
+		{id: "M19b", principal: "person: an organisation role named everything, no installation role", target: "module with no roles, owner-aware", resource: "the whole kind, unowned",
 			issue:  func(h *harness) (authority.Issued, error) { return h.root("boss", "store", sc(kind, "read")) },
 			refuse: "store declares no roles"},
 		{id: "M19c", principal: "person: organisation administrator named admin, no installation role", target: "module with no roles, owner-aware", resource: "anything",
 			issue:  func(h *harness) (authority.Issued, error) { return h.root("alex", "store") },
 			refuse: "store declares no roles"},
-		{id: "M19d", principal: "person: organisation administrator (every kind, every action), no installation role", target: "module with no roles, not owner-aware", resource: "the whole kind",
+		{id: "M19d", principal: "person: an organisation role named everything, no installation role", target: "module with no roles, not owner-aware", resource: "the whole kind",
 			issue:  func(h *harness) (authority.Issued, error) { return h.root("boss", "legacy-store") },
 			refuse: "legacy-store declares no roles"},
 		{id: "M19d2", principal: "person: organisation administrator named admin, no installation role", target: "module with no roles, not owner-aware", resource: "the whole kind",
 			issue:  func(h *harness) (authority.Issued, error) { return h.root("alex", "legacy-store") },
 			refuse: "legacy-store declares no roles"},
-		{id: "M19e", principal: "person: organisation administrator (every kind, every action), no installation role", target: "module with no roles (shared kind)", resource: "shared kind",
+		{id: "M19e", principal: "person: an organisation role named everything, no installation role", target: "module with no roles (shared kind)", resource: "shared kind",
 			issue: func(h *harness) (authority.Issued, error) {
 				return h.root("boss", "profiles", sc("profiles.profile", "read"))
 			},
 			refuse: "profiles declares no roles"},
-		{id: "M19g", principal: "person: organisation administrator (every kind, every action), no installation role", target: "module page", resource: "anything",
+		{id: "M19g", principal: "person: an organisation role named everything, no installation role", target: "module page", resource: "anything",
 			issue:  func(h *harness) (authority.Issued, error) { return h.root("boss", "pages") },
 			refuse: "boss holds no role on pages"},
 		{id: "M19f", principal: "person: user on a solution installation", target: "module (owner-aware) through the solution", resource: "that installation's data",
@@ -324,11 +323,9 @@ func matrixHarness(t *testing.T) *harness {
 	if _, err := h.svc.ApplyModule(h.ctx, elsewhere); err != nil {
 		t.Fatal(err)
 	}
-	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "elsewhere-reader", Scopes: []domain.RoleScope{{Kind: kind + ".elsewhere", Actions: []string{"read"}}}})
 	h.store.PutPerson(domain.Person{ID: "rob", Organization: acme, Roles: []string{"store-reader", "ledger-reader", "elsewhere-reader"}})
-	// An organisation role a host's catalogue describes as every kind and
-	// every action: it administers nothing by that and reaches no module.
-	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "everything", Scopes: []domain.RoleScope{{Kind: "*", Actions: []string{"*"}}}})
+	// An organisation role named for everything: the name administers nothing
+	// and reaches no module.
 	h.store.PutPerson(domain.Person{ID: "boss", Organization: acme, Roles: []string{"everything"}})
 	h.grant("a", "user", "maya")
 	h.grant("a", "user", "remi")

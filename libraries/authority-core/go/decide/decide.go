@@ -9,7 +9,6 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"google.golang.org/protobuf/proto"
 )
@@ -30,27 +29,6 @@ func IsAdministrator(p domain.Person) bool {
 // and is reached through the binding of an installation that reaches it.
 func NoRoles(audience domain.Module) error {
 	return domain.Refuse("%s declares no roles, so a person's own session holds nothing there, whatever their organisation role: it is reached through a role on an installation that reaches it", audience.Name)
-}
-
-// ResourceGrants are the resource matchers of every organization-role scope
-// holding action on kind, or every resource for a scope that names none. It
-// answers one administrative question, which of the organisation's own
-// resources a person may hand to an installation (AuthorizeTransfer), and
-// nothing a person is issued: an organisation role reaches no module.
-func ResourceGrants(roles []domain.OrgRole, kind, action string) []resources.Grant {
-	var grants []resources.Grant
-	for _, role := range roles {
-		for _, sc := range role.Scopes {
-			if (sc.Kind != kind && sc.Kind != scope.AnyKind) || (!slices.Contains(sc.Actions, action) && !slices.Contains(sc.Actions, scope.AnyAction)) {
-				continue
-			}
-			if len(sc.Resources) == 0 {
-				return []resources.Grant{{All: true}}
-			}
-			grants = append(grants, sc.Resources...)
-		}
-	}
-	return grants
 }
 
 // HeldRoles are the roles a person holds on one installation: granted on it
@@ -361,7 +339,8 @@ type Transfer struct {
 	FromPrincipal bool
 	FromPerson    *domain.Person
 	To            string
-	// Administers: the person's own organization grants hold admin on the resource.
+	// Administers: the person administers their organisation (IsAdministrator),
+	// whose resource this is until it joins the installation.
 	Administers bool
 	// Writes: the person's current roles on To's installation hold write on the kind.
 	Writes bool
@@ -369,8 +348,11 @@ type Transfer struct {
 
 // AuthorizeTransfer decides whether an existing resource joins a solution
 // principal: a person's act, through that principal's installation, from the
-// organization or a person of it, administered on that resource through the
-// person's own grants, by a holder of write on the principal's data.
+// organization or a person of it, by an administrator of that organisation
+// who holds write on the principal's data through their roles on its
+// installation. Handing the organisation's resource to an installation is
+// administration, so the organisation role decides it; what the person
+// reaches in the store is their installation role.
 func AuthorizeTransfer(t Transfer) error {
 	switch {
 	case t.OwnerKind != "human":
@@ -382,7 +364,7 @@ func AuthorizeTransfer(t Transfer) error {
 	case t.From != t.Person.Organization && (t.FromPerson == nil || t.FromPerson.Organization != t.Person.Organization):
 		return domain.Refuse("%q is not a person or the organization of %s", t.From, t.Person.Organization)
 	case !t.Administers:
-		return domain.Refuse("%s holds no admin on the resource from their own organization grants", t.Person.ID)
+		return domain.Refuse("%s is not an administrator of %s: an organisation's resource joins an installation by its administrator's act", t.Person.ID, t.Person.Organization)
 	case !t.Writes:
 		return domain.Refuse("%s holds no write on %s's data through their roles", t.Person.ID, t.To)
 	}

@@ -152,8 +152,8 @@ func TestRBAC1AnInstallationWithoutAPrincipalIsGivenOneAndItsOldCapabilitiesEnd(
 // principal is unowned in the store, so owner selection hides it. The store
 // attaches each such resource to the page installation through the same
 // AuthorizeTransfer a solution's installation uses: a person present on the
-// page, holding write there through their role and admin on the resource
-// through their own organization grants. Afterwards the row is the
+// page, holding write there through their role, who administers the
+// organisation. Afterwards the row is the
 // installation's: its decision names the principal, and a user's capability
 // selects exactly that owner, so the row is visible again. Nobody else's
 // principal is a target, and a user (no write) cannot attach.
@@ -161,7 +161,8 @@ func TestRBAC1AModulePageAttachesWhatItWroteBeforeItHeldAPrincipal(t *testing.T)
 	h := newHarness(t)
 	pageReachingTheStore(t, h)
 	mine := h.principal(acme, "pages")
-	h.grant("pages", domain.AdminRole, "ada") // ada administers store-x through her organization role
+	h.administrator("ada") // an organisation's resource joins an installation by its administrator's act
+	h.grant("pages", domain.AdminRole, "ada")
 	transfer := func(person, to string) (authority.TransferDecision, error) {
 		at := h.must(h.page(person, "pages", "store"))
 		return h.svc.AuthorizeTransfer(h.ctx, authority.TransferRequest{Token: at.Token, Store: authority.Workload{Module: "store"},

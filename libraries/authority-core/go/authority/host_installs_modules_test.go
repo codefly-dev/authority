@@ -32,7 +32,6 @@ func newHostInstalled(t *testing.T) *hostInstalled {
 	for _, org := range []string{acme, globex} {
 		store.PutOrganization(domain.Organization{ID: org, Name: org})
 	}
-	store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "admin"})
 	store.PutPerson(domain.Person{ID: "alex", Organization: acme, Roles: []string{"admin"}})
 	if _, err := svc.ApplyModule(h.ctx, domain.Module{Name: "relay", Principal: "relay", Kind: domain.KindModule, Generation: 1,
 		ResourceKinds: []*basev0.WorkScopeV1{sc(legacyKind, "read")}}); err != nil {

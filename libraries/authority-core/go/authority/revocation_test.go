@@ -108,6 +108,7 @@ func TestUninstallDisablesThePrincipalAndClearsGrants(t *testing.T) {
 func TestATransferIsAPersonsActOnWhatTheyAdminister(t *testing.T) {
 	h := newHarness(t)
 	u, v := h.principal(acme, "a"), h.principal(acme, "b")
+	h.administrator("ada")
 	h.grant("a", "user", "ada")
 	asUser := h.must(h.through("ada", "a", "store"))
 	transfer := func(capability authority.Issued, storeModule, id, from, to string) (authority.TransferDecision, error) {
@@ -131,20 +132,19 @@ func TestATransferIsAPersonsActOnWhatTheyAdminister(t *testing.T) {
 		capability                  authority.Issued
 		store, id, from, to, reason string
 	}{
-		"from another solution principal":       {asUser, "store", "store-x", v, u, "solution principal"},
-		"from another organization":             {asUser, "store", "store-x", globex, u, "not a person or the organization"},
-		"from another organization's person":    {asUser, "store", "store-x", "omar", u, "not a person or the organization"},
-		"from an unknown owner":                 {asUser, "store", "store-x", "nobody", u, "not a person or the organization"},
-		"from no owner":                         {asUser, "store", "store-x", "", u, "not a person or the organization"},
-		"a resource the person does not admin":  {asUser, "store", "store-y", acme, u, "own organization grants"},
-		"to a principal it is not through":      {asUser, "store", "store-x", acme, v, "not issued through"},
-		"by a user":                             {reads, "store", "store-x", acme, u, "own organization grants"},
-		"by the admin role alone":               {installs, "store", "store-x", acme, u, "own organization grants"},
-		"by the agent":                          {agent, "store", "store-x", acme, u, "a person's act"},
-		"asked by a module that does not serve": {asUser, "a", "store-x", acme, u, "does not serve"},
-		"with a capability addressed elsewhere": {atRoot, "store", "store-x", acme, u, "audience"},
-		"of the wildcard id":                    {asUser, "store", "*", acme, u, "not a usable id"},
-		"of an oversize id":                     {asUser, "store", strings.Repeat("x", 129), acme, u, "not a usable id"},
+		"from another solution principal":                           {asUser, "store", "store-x", v, u, "solution principal"},
+		"from another organization":                                 {asUser, "store", "store-x", globex, u, "not a person or the organization"},
+		"from another organization's person":                        {asUser, "store", "store-x", "omar", u, "not a person or the organization"},
+		"from an unknown owner":                                     {asUser, "store", "store-x", "nobody", u, "not a person or the organization"},
+		"from no owner":                                             {asUser, "store", "store-x", "", u, "not a person or the organization"},
+		"to a principal it is not through":                          {asUser, "store", "store-x", acme, v, "not issued through"},
+		"by a holder of an organisation role named after the store": {reads, "store", "store-x", acme, u, "rob is not an administrator of acme"},
+		"by the installation's admin role alone":                    {installs, "store", "store-x", acme, u, "ines is not an administrator of acme"},
+		"by the agent":                                              {agent, "store", "store-x", acme, u, "a person's act"},
+		"asked by a module that does not serve":                     {asUser, "a", "store-x", acme, u, "does not serve"},
+		"with a capability addressed elsewhere":                     {atRoot, "store", "store-x", acme, u, "audience"},
+		"of the wildcard id":                                        {asUser, "store", "*", acme, u, "not a usable id"},
+		"of an oversize id":                                         {asUser, "store", strings.Repeat("x", 129), acme, u, "not a usable id"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := transfer(c.capability, c.store, c.id, c.from, c.to)
