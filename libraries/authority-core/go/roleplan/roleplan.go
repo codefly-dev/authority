@@ -25,7 +25,8 @@
 // permission a binding carries for a person that no row asks for (a headless
 // binding is no person's, so it is not planned), and, for least privilege, a
 // permission a role grants that no row its holder is allowed uses through the
-// way it is granted: an own kind by a method's policy, a consumed kind by an
+// way it is granted: an own kind by a method's policy (what the method
+// requires or carries), a consumed kind by an
 // ask through a binding that carries it, a scope named through a binding by a
 // row going onward through that binding.
 //
@@ -71,11 +72,17 @@ import (
 	"github.com/google/uuid"
 )
 
-// Policy is what one method requires of a call, as a generated permissions
-// table states it: each permission "<resource kind>:<action>", or open to any
-// checked caller.
+// Policy is what one method declares of a call, as its published contract
+// states it: each permission "<resource kind>:<action>" it requires, or open
+// to any checked caller.
 type Policy struct {
-	Requires         []string
+	Requires []string
+	// Carries is what a call may exercise beyond what the method requires
+	// (authority.hop.v1.Policy.carries): content within metadata. The hop
+	// requires none of it, so it changes no verdict and is not delivered to
+	// the authority here; a role's grant of it is used by a row its holder is
+	// allowed (Coverage).
+	Carries          []string
 	AnyCheckedCaller bool
 }
 
@@ -194,7 +201,7 @@ func Problems(plan Plan) []string {
 	if err != nil {
 		return []string{fmt.Sprintf("roleplan: the product does not compose: %v", err)}
 	}
-	out := Coverage(m, plan.Rows)
+	out := Coverage(m, plan.Product.Methods, plan.Rows)
 	h, err := compose(m)
 	if err != nil {
 		return append(out, fmt.Sprintf("roleplan: %v", err))
@@ -254,8 +261,10 @@ func Module(p Product) (domain.Module, error) {
 // no row (or two), a row naming none m serves or no binding m declares, a
 // permission a binding carries for a person that no row asks for (headless
 // scopes are no person's and are not planned), and a permission a role grants
-// that no row its holder is allowed uses through the way it is granted.
-func Coverage(m domain.Module, rows []Row) []string {
+// that no row its holder is allowed uses through the way it is granted. A row
+// at a method uses what the method requires and what it carries (declared,
+// the product's published table: a delivery states no carries, so m does not).
+func Coverage(m domain.Module, declared map[string]Policy, rows []Row) []string {
 	var out []string
 	planned := map[string]int{}
 	asked := map[string]bool{}
@@ -287,6 +296,11 @@ func Coverage(m domain.Module, rows []Row) []string {
 				continue
 			}
 			for _, p := range permissions(m.Methods[row.Method].Requires) {
+				used[role][" "+p] = true
+			}
+			// What the method carries is exercised by a holder the row lets
+			// through, on the grant the role gives of it. It decided nothing.
+			for _, p := range permissions(Scopes(declared[row.Method].Carries)) {
 				used[role][" "+p] = true
 			}
 			for _, p := range row.Asks {
