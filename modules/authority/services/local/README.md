@@ -220,7 +220,7 @@ installations:  # installations of a solution the run composes, the fixture's ow
   # admin role; teams: each granted role on the installation (so a row
   # granting teams names it);
   # members: by declared role, who joins its `<target>-<role>` team.
-  - {organization: acme, target: atlas, role: user, owner: alex, teams: [finance], members: {user: [carol]}}
+  - {organization: acme, target: atlas, role: user, owner: dana, members: {user: [carol]}}
 modules:        # a module the run supervises itself, until its own delivery
   - module: oracle
     kinds: [{kind: oracle.answers, actions: [read]}]
@@ -286,9 +286,10 @@ naming a target is kept, and that target is seated the same way; its own
 wiki-admin [dana] wiki-user [carol]`.
 
 **The contract.** The `schema` line versions the document. Its sections, and
-the fixture's organisation, role and person ids it names (`acme`, `globex`,
-`viewer`, `editor`, `admin`, `alex`, …), are a contract with every composing
-repository. A breaking change is a new schema version, never an edit to v1.
+the fixture's organisation, role and person ids it names (`acme`, `admin`,
+`dana`, `carol`, `bob`), are a contract with every composing repository. The
+shipped fixture defines only those (2026-11-17); a fragment naming `viewer`,
+`editor`, `globex` or a person it no longer has is refused at boot by name. A breaking change is a new schema version, never an edit to v1.
 
 **What is refused.** Each of these refuses the merge or the boot by name and
 changes no role:

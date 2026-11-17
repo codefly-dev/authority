@@ -325,8 +325,17 @@ func Matrix() []conformance.Expectation {
 	}
 }
 
-// FixturePath is the committed fixture.
+// FixturePath is the test kit's fixture (fixture.yaml beside this file): the
+// matrix the authority's tests run on. It is not the fixture a run is given;
+// ShippedFixturePath is.
 func FixturePath() string {
+	_, file, _, _ := runtime.Caller(0)
+	return filepath.Join(filepath.Dir(file), "fixture.yaml")
+}
+
+// ShippedFixturePath is the fixture a run is given (`--fixture local`): the
+// three people a walk needs.
+func ShippedFixturePath() string {
 	_, file, _, _ := runtime.Caller(0)
 	return filepath.Join(filepath.Dir(file), "..", "..", "..", "fixtures", "local.yaml")
 }

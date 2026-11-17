@@ -487,7 +487,8 @@ That call returns `FailedPrecondition` when the audience has no active
 installation in the person's organization, and `PermissionDenied` when installed
 but the person holds no grant. Shared conformance exercises both distinctions;
 its optional `UnentitledToken` must name a fixture person with no roles or teams.
-The local fixture includes `no-roles` in Acme for that case.
+The test kit's fixture (`pkg/business/testkit/fixture.yaml`) includes `no-roles`
+in Acme for that case; in the shipped fixture, Bob is that person.
 
 The suite proves it as a matrix: the fixture states, for each person at each
 audience, which kind and action is allowed and which refused, and the suite asks
@@ -624,36 +625,33 @@ codefly-dev/cli#1128:
 Every refusal through the hop is also in the hop's log, naming the module, the
 method and the reason.
 
-**Who signs in, and acting as a team (2026-11-12).** The fixture
-(`modules/authority/services/local/code/fixtures/local.yaml`) is the one the
-product's host seeds too: Sarah Chen `admin@acme.com` (the platform admin;
-here Acme's administrator), Alice Johnson `alice@acme.com` (Acme's
-administrator), and three members, Bob Williams `bob@acme.com`, Carol Davis
-`carol@acme.com` and Dana Lee `dana@example.com`, signed in by the tokens
-`dev-admin`, `dev-alice`, `dev-bob`, `dev-carol`, `dev-dana`. Every role-gated
-target the run composes (a solution, a module page declaring roles) gets one
-team per role it declares, `<target>-<role>`, holding that role on the
-installation: `<target>-admin` and `<target>-user`. Dana is seated in the
-admin team and Carol in the user team the moment the target is active, and
-Bob in neither: he holds no role on any page, so every page refuses him; a fixture row
-standing for every target says so once (`target: "*"`, [what a composition
-adds to the fixture](modules/authority/services/local/README.md#what-a-composition-adds-to-the-fixture)).
+**Who signs in, and acting as a team (2026-11-17).** The fixture a run is given
+(`modules/authority/services/local/code/fixtures/local.yaml`) holds the three
+people a walk needs and nobody else: Dana Lee `dana@example.com` (`dev-dana`),
+Acme's administrator and the admin of every target; Carol Davis
+`carol@acme.com` (`dev-carol`), the user of every target; and Bob Williams
+`bob@acme.com` (`dev-bob`), who holds no role anywhere and is refused by every
+page (handbook: [a page has two roles, admin and
+user](https://github.com/obin-ai/handbook/blob/main/decisions/a-page-has-two-roles-admin-and-user.md)).
+Every role-gated target the run composes (a solution, a module page declaring
+roles) gets one team per role, `<target>-admin` and `<target>-user`. Dana is
+seated on the admin team and Carol on the user team the moment the target is
+active. One fixture row standing for every target says so (`target: "*"`,
+[what a composition adds to the fixture](modules/authority/services/local/README.md#what-a-composition-adds-to-the-fixture)).
 The host-independent part is the core's: `authority.ConventionalTeamName`,
 `RoleTeamsOf` and `GrantRoleTeamsAsHost`, which both hosts call; the local
 authority's directory and seating is `pkg/business/state/teams.go`. Signed in
-as Alice at the edge's sign-in page, **Act as this team** on `<target>-user`
+as Dana at the edge's sign-in page, **Act as this team** on `<target>-user`
 opens a session that is that team and nothing else (the session interface's
 `OpenTeamCast`: a person may act as a team whose roles they could grant,
-member of it or not — the core decides, and a refusal is shown by name); the
-hop then answers with the user's reach alone, and **Back to your own
-session** restores hers. Signed in as Carol, the hop answers with
-`<target>-user`'s reach and nothing else; signed in as Dana, with
-`<target>-admin`'s; signed in as Bob, with a refusal naming that he holds no
-role there. The authority interface's own
-people (`maya`, `remi`, `alex`, `dev`, `zoe`, `omar`, `no-roles`) are
-retained as aliases: the conformance matrix, the generated developer role
-every playground starts on, the refusal cases and the other organisation
-are written against them, and the product's fixture keeps them too.
+member of it or not; the core decides, and a refusal is shown by name). The
+hop then answers with the user's reach alone, and **Back to your own session**
+restores hers. Signed in as Carol, the hop answers with `<target>-user`'s
+reach; signed in as Bob, with a refusal naming that he holds no role there.
+The other people the tables above and below name (Maya, Rémi, Alex, Dev,
+Zoë, Omar, `no-roles`, the Globex organisation) are the test kit's matrix
+(`pkg/business/testkit/fixture.yaml`), which the conformance suite and the
+business tests run on. No run is given it.
 
 ### The hop side is a conformance target too (2026-11-03)
 
