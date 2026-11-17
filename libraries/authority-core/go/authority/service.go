@@ -66,6 +66,20 @@ type Config struct {
 	// Journal records each change of authority in the transaction that makes
 	// it; an error aborts the change. nil journals nothing.
 	Journal func(ctx context.Context, tx Tx, e domain.Event) error
+	// Decisions is told each decision the authority makes for a caller,
+	// admitted and refused alike: every issuance (IssueForPerson,
+	// IssueForPage, IssueForWorkload, IssueForInstallation, IssueChild,
+	// IssueForDelegation, IssueForClientDelegation), CheckMethod and
+	// ListResources. An error fails the operation: an admitted issuance
+	// hands out no capability and an admitted check is not answered, so
+	// nothing is admitted that the host could not record; a refusal stays
+	// the refusal it was, with the hook's error beside it. It is called once
+	// per call, after the decision and outside any store transaction: what a
+	// host writes is its own. The host decides what it keeps; an admitted
+	// check costs it one call and a comparison (Decision.AdmittedCheck), and
+	// the core reads nothing and formats nothing to describe one. nil tells
+	// nobody.
+	Decisions func(ctx context.Context, d Decision) error
 	// HostInstallsModules says the host decides which organizations hold each
 	// composed module, by its own administrators' consent, and its store
 	// answers those installations from the host's own records. The core then

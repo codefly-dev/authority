@@ -1,6 +1,7 @@
 package authority
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"slices"
@@ -23,6 +24,17 @@ import (
 // roles, is refused (ownSession): no issuance makes one, and an organisation
 // role admits none.
 func (s *Service) Check(ctx context.Context, token, audience string) (*workcontext.Verified, uint64, error) {
+	verified, revision, err := s.check(ctx, token, audience)
+	if err != nil {
+		return nil, 0, err
+	}
+	return verified, revision, nil
+}
+
+// check is Check that, when it refuses a capability that verified, still
+// answers that capability beside the refusal: what a decision told to the
+// host names as proven.
+func (s *Service) check(ctx context.Context, token, audience string) (*workcontext.Verified, uint64, error) {
 	verified, err := s.Verify(ctx, token, audience)
 	if errors.Is(err, workcontext.ErrRevoked) {
 		// Verified up to the revocation: name an owner-aware withdrawal,
@@ -58,7 +70,7 @@ func (s *Service) Check(ctx context.Context, token, audience string) (*workconte
 		return err
 	})
 	if err != nil {
-		return nil, 0, err
+		return verified, 0, err
 	}
 	return verified, revision, nil
 }
@@ -77,6 +89,21 @@ func (s *Service) Check(ctx context.Context, token, audience string) (*workconte
 // it compares verified organization and installation seal with body and carriers
 // before callback or cached acknowledgement. Advisory never relaxes this path.
 func (s *Service) CheckMethod(ctx context.Context, token, audience, method string, advisory bool) (verified *workcontext.Verified, revision uint64, refusal error, err error) {
+	var proven *workcontext.Verified
+	verified, revision, refusal, err = s.checkMethod(ctx, token, audience, method, advisory, &proven)
+	if s.cfg.Decisions == nil {
+		return verified, revision, refusal, err
+	}
+	d := Decision{Kind: DecisionCheck, Audience: audience, Method: method, Advisory: err == nil && refusal != nil}
+	if failed := s.checked(ctx, &d, token, proven, cmp.Or(err, refusal)); failed != nil {
+		return nil, 0, nil, failed
+	}
+	return verified, revision, refusal, err
+}
+
+// checkMethod decides CheckMethod, and sets proven to the capability
+// whenever it verified, refused after that or not.
+func (s *Service) checkMethod(ctx context.Context, token, audience, method string, advisory bool, proven **workcontext.Verified) (verified *workcontext.Verified, revision uint64, refusal error, err error) {
 	if audience == "" {
 		return nil, 0, nil, domain.Refuse("a check names the audience the caller is")
 	}
@@ -84,10 +111,18 @@ func (s *Service) CheckMethod(ctx context.Context, token, audience, method strin
 		// Setup credentials never enter ordinary checking. Advisory cannot
 		// relax this authentication boundary or activate an installation.
 		verified, revision, err = s.VerifyInstallationStep(ctx, token, audience)
+		if err == nil {
+			*proven = verified
+		}
 		return verified, revision, nil, err
 	}
-	if verified, revision, err = s.Check(ctx, token, audience); err != nil || method == "" {
-		return verified, revision, nil, err
+	verified, revision, err = s.check(ctx, token, audience)
+	*proven = verified
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	if method == "" {
+		return verified, revision, nil, nil
 	}
 	err = s.store.Read(ctx, func(tx Tx) error {
 		m, err := tx.Module(audience)
@@ -124,10 +159,24 @@ type Grant struct {
 // person's capability that came through neither is refused when it is
 // checked (Check).
 func (s *Service) ListResources(ctx context.Context, token, audience, kind, action string) ([]Grant, error) {
+	var proven *workcontext.Verified
+	out, err := s.listResources(ctx, token, audience, kind, action, &proven)
+	if s.cfg.Decisions == nil {
+		return out, err
+	}
+	d := Decision{Kind: DecisionListResources, Audience: audience}
+	if failed := s.checked(ctx, &d, token, proven, err); failed != nil {
+		return nil, failed
+	}
+	return out, err
+}
+
+func (s *Service) listResources(ctx context.Context, token, audience, kind, action string, proven **workcontext.Verified) ([]Grant, error) {
 	if audience == "" || kind == "" || action == "" {
 		return nil, domain.Refuse("a resource question names the audience, a kind and an action")
 	}
-	verified, _, err := s.Check(ctx, token, audience)
+	verified, _, err := s.check(ctx, token, audience)
+	*proven = verified
 	if err != nil {
 		return nil, err
 	}

@@ -1136,13 +1136,72 @@ the interface, with a suite line, or named as belonging elsewhere.
 | Live seal and revision answers for a module verifying a token (`WorkContextSources`) | the hop asks `Check`; modules verify nothing | suite: a callee refuses what does not verify; the hop's tests |
 | Which collections or resources a caller reads (saas `ListReadableSourceCollections`) | `ListResources`, by id, prefix or pattern | suite: the authority answers which resources a context covers |
 | Executable artifact approvals (`Approve`, `Authorize`, `RevokeExecutableArtifact`) | not authority: the signed release (handbook#146) | open |
-| Audit (`EmitAuditEvent`, `DeclareAuditEventTypes`) | not authority: an optional audit interface; with none injected, the module logs each event | the record store |
+| Audit (`EmitAuditEvent`, `DeclareAuditEventTypes`) | a module's own audit events are not authority, and this repository declares no interface for them (an earlier line here named an "optional audit interface"; none was ever built). The authority's own record is the host's journal: each change of authority through `authority.Config.Journal`, each decision and refusal through `authority.Config.Decisions` (below) | core: `TestEveryChangeIsJournaledInItsOwnTransaction`, `TestTheHostIsToldEveryDecision`; a module's own events: open |
 | Notifications (`NotifyUser`, `NotifyOrgAdmins`) | host services, optional interfaces | open |
 | Current installation identity and authored namespace | `InstallationService.Current`, confined to the authenticated module in the parent organization | shared core and public RPC tests; host adoption pending |
 
 The local authority supplies these cases. Each host must run the current suite
 against its own provider; missing required fixtures fail. Earlier Accounts
 results do not qualify later suite additions.
+
+## The authority's decisions reach the host's journal (2026-11-17)
+
+Owner decision 11: the authority's decisions and refusals become audit rows in
+the journal the host already keeps. The core keeps none itself. A host injects
+two hooks in `authority.Config` (`libraries/authority-core/go/authority`):
+
+- `Journal(ctx, tx, domain.Event) error` is told each **change** of authority
+  (a role granted, an installation activated, a delegation revoked) inside the
+  transaction that makes it; an error aborts the change.
+- `Decisions(ctx, authority.Decision) error` is told each **decision** made for
+  a caller, admitted and refused alike: every issuance (`IssueForPerson`,
+  `IssueForPage`, `IssueForWorkload`, `IssueForInstallation`, `IssueChild`,
+  `IssueForDelegation`, `IssueForClientDelegation`), `CheckMethod` and
+  `ListResources`. It is called once per call, after the decision, outside any
+  store transaction. `IssueForPage` is one decision, whichever steps it took.
+
+A `Decision` carries its `Kind`, its `Outcome` (`Admitted` or `Refused`), a
+refusal's `Code` and `Reason`, and whatever of `Organization`, `Owner`,
+`Actor`, `Audience`, `Binding`, `Operation`, `Method`, `Installation`, `Task`
+and `Delegation` was known when it ended. An admitted one reads them from the
+capability that was signed or verified. A refused one carries what the ask
+named and what the authority had resolved by then, so a refused ask still says
+where and who, which its error alone does not. `Claimed` marks a row whose
+organization, owner, actor, installation and task were read from a capability
+that did not verify (expired, revoked, presented at another audience): what it
+claims, proven by nothing, and never a reason to file the row in that
+organization's journal on its word. `Advisory` marks a method check that was
+decided and not enforced.
+
+An error from `Decisions` fails the operation: an admitted issuance hands out
+no capability and an admitted check is not answered, so nothing is admitted on
+a decision the host could not record. A refusal stays the refusal it was (its
+code, its reason), with the hook's error beside it. `nil` tells nobody and is
+exactly the behaviour before the hook existed.
+
+The host decides which outcomes it records. Every served call makes one
+admitted check, so a host that keeps issuances and refusals returns early on
+`Decision.AdmittedCheck()`; the core reads nothing from its store and formats
+nothing to describe an admitted decision.
+
+```go
+cfg.Decisions = func(ctx context.Context, d authority.Decision) error {
+	if d.AdmittedCheck() {
+		return nil // one admitted check per served call: not recorded
+	}
+	organization := d.Organization
+	if d.Claimed {
+		organization = "" // an unverified capability names no tenant's journal
+	}
+	return journal.Append(ctx, organization, string(d.Kind), string(d.Outcome), d.Code, d.Reason,
+		d.Owner, d.Actor, d.Audience, d.Binding, d.Method, d.Installation, d.Task)
+}
+```
+
+Not told: `Check` and `Verify` called directly (a host that serves checks
+calls `CheckMethod`, with an empty method for a check that names none),
+`IssueInstallationStep`, and the hop library's own refusals, which never
+reach the authority.
 
 ## Open decisions
 

@@ -27,6 +27,12 @@ import (
 // module, the page's binding is, and a person's own session holds nothing at
 // a module.
 func (s *Service) IssueForPage(ctx context.Context, who Person, target string, r IssueRequest) (Issued, error) {
+	d := Decision{Kind: DecisionIssuePage, Organization: who.Organization, Owner: who.ID, Actor: who.ID, Audience: r.Audience, Binding: r.Binding, Operation: r.Operation}
+	out, err := s.issueForPage(ctx, who, target, r, &d)
+	return s.issued(ctx, &d, out, err)
+}
+
+func (s *Service) issueForPage(ctx context.Context, who Person, target string, r IssueRequest, seen *Decision) (Issued, error) {
 	var page domain.Module
 	var binding string
 	err := s.store.Read(ctx, func(tx Tx) error {
@@ -46,14 +52,16 @@ func (s *Service) IssueForPage(ctx context.Context, who Person, target string, r
 	}
 	if binding == "" {
 		// The page's own module: the person at target, on their role there.
-		r.Binding = ""
-		return s.IssueForPerson(ctx, who, r)
+		r.Binding, seen.Binding = "", ""
+		return s.issueForPerson(ctx, who, r)
 	}
-	root, err := s.IssueForPerson(ctx, who, IssueRequest{Audience: page.Principal, Organization: r.Organization, TTL: r.TTL, page: true})
+	// The binding the call goes through, as the page declares it.
+	seen.Binding = binding
+	root, err := s.issueForPerson(ctx, who, IssueRequest{Audience: page.Principal, Organization: r.Organization, TTL: r.TTL, page: true})
 	if err != nil {
 		return Issued{}, err
 	}
-	return s.IssueChild(ctx, root.Token, Workload{Module: page.Name}, IssueRequest{Audience: r.Audience, Binding: binding, Operation: r.Operation, Scopes: r.Scopes, TTL: r.TTL, page: true})
+	return s.issueChild(ctx, root.Token, Workload{Module: page.Name}, IssueRequest{Audience: r.Audience, Binding: binding, Operation: r.Operation, Scopes: r.Scopes, TTL: r.TTL, page: true}, &Decision{})
 }
 
 // pageBinding is the binding of page a person's call at audience goes

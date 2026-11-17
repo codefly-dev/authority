@@ -1,6 +1,7 @@
 package authority
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -244,6 +245,12 @@ func (s *Service) startFencedUntil(ctx context.Context, f fence, in workcontext.
 // binding's target holds through the binding, for the module's hop there, and
 // nothing when they hold no role on that target.
 func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest) (Issued, error) {
+	d := Decision{Kind: DecisionIssuePerson, Organization: who.Organization, Owner: who.ID, Actor: who.ID, Audience: r.Audience, Binding: r.Binding, Operation: r.Operation}
+	out, err := s.issueForPerson(ctx, who, r)
+	return s.issued(ctx, &d, out, err)
+}
+
+func (s *Service) issueForPerson(ctx context.Context, who Person, r IssueRequest) (Issued, error) {
 	// The team this session is cast onto, if any: read inside the store read
 	// below, used for attribution after it.
 	var actingCast string
@@ -377,10 +384,19 @@ func attributionTeams(cast string, teams []string) []string {
 // IssueForWorkload: owner = actor = the module; scopes = its binding's
 // headless scopes within asked; the binding names the audience.
 func (s *Service) IssueForWorkload(ctx context.Context, w Workload, r IssueRequest) (Issued, error) {
+	d := Decision{Kind: DecisionIssueWorkload, Organization: cmp.Or(w.Organization, r.Organization), Actor: w.Module, Audience: r.Audience, Binding: r.Binding, Operation: r.Operation}
+	out, err := s.issueForWorkload(ctx, w, r, &d)
+	return s.issued(ctx, &d, out, err)
+}
+
+func (s *Service) issueForWorkload(ctx context.Context, w Workload, r IssueRequest, seen *Decision) (Issued, error) {
 	var module, audience domain.Module
 	var through, scopes Scopes
 	var org, instID string
 	var f fence
+	// What a refusal still says: the organization once resolved, and the
+	// module whose authority was asked for.
+	defer func() { seen.resolved(org, module.Principal, r.Audience) }()
 	err := s.store.Read(ctx, func(tx Tx) error {
 		var err error
 		if module, err = tx.ModuleNamed(w.Module); err != nil {
@@ -497,7 +513,16 @@ func (s *Service) IssueForWorkload(ctx context.Context, w Workload, r IssueReque
 // itself, with its agent role, confined to its own data; at another audience
 // it acts through one of its solution's bindings. Its solution's workload asks.
 func (s *Service) IssueForInstallation(ctx context.Context, w Workload, installationID string, r IssueRequest) (Issued, error) {
+	d := Decision{Kind: DecisionIssueInstallation, Organization: cmp.Or(w.Organization, r.Organization), Actor: w.Module, Audience: r.Audience, Binding: r.Binding, Operation: r.Operation, Installation: installationID}
+	out, err := s.issueForInstallation(ctx, w, installationID, r, &d)
+	return s.issued(ctx, &d, out, err)
+}
+
+func (s *Service) issueForInstallation(ctx context.Context, w Workload, installationID string, r IssueRequest, seen *Decision) (Issued, error) {
 	var inst domain.Installation
+	// What a refusal still says: the installation the workload asked to act
+	// as, where it is, once it was read.
+	defer func() { seen.resolved(inst.Organization, inst.PrincipalID, r.Audience) }()
 	var solution, audience domain.Module
 	var heldHere, scopes Scopes
 	var f fence
@@ -621,6 +646,17 @@ func (s *Service) IssueForInstallation(ctx context.Context, w Workload, installa
 // by a solution is sealed to that solution's installation: revoking a role
 // there, or uninstalling it, ends it.
 func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload, r IssueRequest) (Issued, error) {
+	d := Decision{Kind: DecisionIssueChild, Actor: actor.Module, Audience: r.Audience, Binding: r.Binding, Operation: r.Operation}
+	out, err := s.issueChild(ctx, parent, actor, r, &d)
+	if err != nil {
+		d.claimedBy(parent)
+	}
+	return s.issued(ctx, &d, out, err)
+}
+
+func (s *Service) issueChild(ctx context.Context, parent string, actor Workload, r IssueRequest, seen *Decision) (Issued, error) {
+	// What a refusal still says: the audience the binding names.
+	defer func() { seen.resolved("", "", r.Audience) }()
 	var am, audience domain.Module
 	var binding domain.Binding
 	var through, scopes, authorityScopes Scopes
@@ -661,6 +697,7 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 		return Issued{}, err
 	}
 	claims = verified.Context()
+	seen.onParent(claims)
 	if claims.GetAudience() != am.Principal {
 		return Issued{}, domain.Refuse("%s hops only on a token addressed to it; this one is addressed to %s", am.Name, claims.GetAudience())
 	}
