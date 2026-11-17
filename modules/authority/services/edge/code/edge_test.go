@@ -683,3 +683,58 @@ func TestAPageHeldThroughItsBindingsIsUsable(t *testing.T) {
 		t.Fatalf("an inactive installation was offered: %v", who)
 	}
 }
+
+// A page with no backend of its own (a module page serving neither a REST nor
+// a Connect face) is no module this edge routes to, so nothing is asked of the
+// authority at it and nothing refuses it. It is still the person's to open
+// when the host says they hold a role on its installation (ListHeld), and is
+// listed once. A person the host answers no holding sees nothing of it, and so
+// does one whose holding carries no role or is not active: no refusal names a
+// target the edge does not route.
+func TestAPageWithNoBackendOfItsOwnIsListedForWhoHoldsIt(t *testing.T) {
+	f := newFixture(t)
+	cookie := f.signIn(t)
+	held := func(id, target string, roles []string, status installationv1.Installation_Status) *installationv1.HeldInstallation {
+		return &installationv1.HeldInstallation{Roles: roles, Installation: &installationv1.Installation{Id: id, OrganizationId: "acme", Target: target, Status: status}}
+	}
+	modules := map[string]Module{"records": {Name: "records", REST: mustURL(t, f.rest.URL)}}
+	session := func(held ...*installationv1.HeldInstallation) ([]any, map[string]any) {
+		t.Helper()
+		host := holdings{&setupHost{standIn: f.authority}, held}
+		res, who := sessionOf(t, &Edge{Sessions: f.authority, Authority: f.authority, Installer: host, Modules: modules}, cookie)
+		if res.Code != http.StatusOK {
+			t.Fatalf("session answered %d: %s", res.Code, res.Body)
+		}
+		installed, _ := who["installations"].([]any)
+		refused, _ := who["refused"].(map[string]any)
+		return installed, refused
+	}
+
+	// Held with a role: listed beside the routed module, at its installation
+	// and page route; the routed module the person also holds is listed once.
+	installed, refused := session(
+		held("playground-1", "playground", []string{"user"}, installationv1.Installation_STATUS_ACTIVE),
+		held(recordsInstallation, "records", []string{"user"}, installationv1.Installation_STATUS_ACTIVE),
+	)
+	if len(installed) != 2 || len(refused) != 0 {
+		t.Fatalf("installations = %v, refused = %v", installed, refused)
+	}
+	if page, _ := installed[0].(map[string]any); page["target"] != "playground" || page["id"] != "playground-1" || page["moduleApiBase"] != "/api/solutions/playground/proxy/_browser" {
+		t.Fatalf("held page = %v", page)
+	}
+	if records, _ := installed[1].(map[string]any); records["target"] != "records" || records["id"] != recordsInstallation {
+		t.Fatalf("routed module = %v", records)
+	}
+
+	// Held by nobody here, with no role, or not active: absent, and not refused.
+	for name, none := range map[string][]*installationv1.HeldInstallation{
+		"no holding": nil,
+		"no role":    {held("playground-1", "playground", nil, installationv1.Installation_STATUS_ACTIVE)},
+		"not active": {held("playground-1", "playground", []string{"user"}, installationv1.Installation_STATUS_PENDING)},
+	} {
+		installed, refused := session(none...)
+		if len(installed) != 1 || installed[0].(map[string]any)["target"] != "records" || len(refused) != 0 {
+			t.Errorf("%s: installations = %v, refused = %v", name, installed, refused)
+		}
+	}
+}

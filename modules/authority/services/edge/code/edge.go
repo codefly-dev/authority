@@ -433,6 +433,11 @@ func (e *Edge) evict(bearer string) {
 // host's answer to which installations they hold a role on (ListHeld), so a
 // target the person holds a role on is usable with that installation, its
 // refusal at the target itself dropped.
+//
+// A page with no backend of its own (neither a REST nor a Connect face) is no
+// module this edge routes to, so nothing is asked at it and nothing refuses
+// it: the host's answer alone lists it, once, for a person who holds a role on
+// its installation, and it is absent for everyone else.
 func (e *Edge) usable(ctx context.Context, bearer, organization string) ([]installation, map[string]string) {
 	type result struct {
 		name string
@@ -456,11 +461,17 @@ func (e *Edge) usable(ctx context.Context, bearer, organization string) ([]insta
 		}
 		usable = append(usable, installation{ID: r.wc.installation, Target: r.name, ModuleAPIBase: pageRoute(r.name)})
 	}
+	listed := map[string]bool{}
+	for _, u := range usable {
+		listed[u.Target] = true
+	}
 	for _, page := range e.heldPages(ctx, bearer, organization) {
-		if _, wasRefused := refused[page.Target]; wasRefused {
-			delete(refused, page.Target)
-			usable = append(usable, page)
+		if listed[page.Target] {
+			continue
 		}
+		listed[page.Target] = true
+		delete(refused, page.Target)
+		usable = append(usable, page)
 	}
 	sort.Slice(usable, func(i, j int) bool { return usable[i].Target < usable[j].Target })
 	return usable, refused
