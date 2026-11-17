@@ -115,7 +115,7 @@ func TestAModulePageRoleNamesWhatItServesOrConsumes(t *testing.T) {
 // binding, a child narrowed to the role intersected with the binding, and
 // nothing beyond: not an action the binding does not carry, not an action the
 // role does not grant, not without the role, and not on their own session at
-// the module the page reaches, where their own grants still decide. At a
+// the module the page reaches, which holds nothing there. At a
 // module that checks owners the role reaches only the page installation's
 // own data (RBAC-1).
 func TestAModulePageRoleReachesThroughThePagesBinding(t *testing.T) {
@@ -134,7 +134,7 @@ func TestAModulePageRoleReachesThroughThePagesBinding(t *testing.T) {
 	_, err = h.through("remi", "pages", "ledger")
 	refused(t, err, "holds no role on pages")
 	_, err = h.root("maya", "ledger")
-	refused(t, err, "the owner holds nothing at this audience")
+	refused(t, err, "ledger declares no roles")
 
 	h.revoke("pages", "user", "maya", "")
 	_, err = h.through("maya", "pages", "ledger")

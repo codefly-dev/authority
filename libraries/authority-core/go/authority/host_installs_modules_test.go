@@ -203,6 +203,31 @@ func (h *hostInstalled) recordConsent(org, id string, bindings map[string]domain
 	}
 }
 
+// storeUser redelivers the store as a module page declaring roles and seats
+// person as its user on the host's installation id: what a person holds at
+// the store on their own session is that role.
+func (h *hostInstalled) storeUser(id, person string) {
+	h.t.Helper()
+	if _, err := h.svc.ApplyModule(h.ctx, domain.Module{Name: "store", Principal: "store", Kind: domain.KindModule, Generation: 2,
+		Page: true, InstallationRole: domain.NoInstallationRole,
+		ResourceKinds: []*basev0.WorkScopeV1{sc(kind, "read", "write")},
+		Roles: map[string][]*basev0.WorkScopeV1{
+			domain.AdminRole: {sc(kind, "read", "write"), sc(legacyKind, "read")},
+			domain.UserRole:  {sc(kind, "read"), sc(legacyKind, "read")},
+		},
+		Bindings: map[string]domain.Binding{
+			"self": {ID: "self", Audience: "store",
+				InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write")}, HeadlessScopes: []*basev0.WorkScopeV1{sc(kind, "read")}},
+			"relay": {ID: "relay", Audience: "relay", InvokeScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}},
+		},
+	}); err != nil {
+		h.t.Fatal(err)
+	}
+	if _, err := h.svc.GrantRole(h.ctx, authority.Person{ID: "alex", Organization: acme, SessionID: "s"}, authority.RoleRequest{Organization: acme, InstallationID: id, Role: domain.UserRole, PersonID: person}); err != nil {
+		h.t.Fatal(err)
+	}
+}
+
 // What a host's consent allows of a module's bindings at one installation
 // bounds every issue through them, whatever the delivery declares: a binding
 // the consent does not name issues nothing, one it narrows issues within the
@@ -254,8 +279,7 @@ func TestAnInstallationsConsentBoundsItsModulesBindings(t *testing.T) {
 	t.Run("a hop back to the module's own audience is bounded by its parent, not by the consent", func(t *testing.T) {
 		h := newHostInstalled(t)
 		h.recordConsent(acme, "host-1", map[string]domain.Binding{})
-		h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "user", Scopes: []domain.RoleScope{{Kind: kind, Actions: []string{"read"}}}})
-		h.store.PutPerson(domain.Person{ID: "alex", Organization: acme, Roles: []string{"admin", "user"}})
+		h.storeUser("host-1", "alex")
 		parent, err := h.svc.IssueForPerson(h.ctx, authority.Person{ID: "alex", Organization: acme, SessionID: "s"}, authority.IssueRequest{Audience: "store"})
 		if err != nil {
 			t.Fatal(err)
@@ -272,8 +296,7 @@ func TestAnInstallationsConsentBoundsItsModulesBindings(t *testing.T) {
 	t.Run("a person's hop through a binding the consent does not name is refused", func(t *testing.T) {
 		h := newHostInstalled(t)
 		h.recordConsent(acme, "host-1", map[string]domain.Binding{})
-		h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "user", Scopes: []domain.RoleScope{{Kind: kind, Actions: []string{"read"}}}})
-		h.store.PutPerson(domain.Person{ID: "alex", Organization: acme, Roles: []string{"admin", "user"}})
+		h.storeUser("host-1", "alex")
 		parent, err := h.svc.IssueForPerson(h.ctx, authority.Person{ID: "alex", Organization: acme, SessionID: "s"}, authority.IssueRequest{Audience: "store"})
 		if err != nil {
 			t.Fatal(err)

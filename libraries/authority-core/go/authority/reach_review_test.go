@@ -156,14 +156,12 @@ func TestADelegationThroughASolutionIsHeldToTheApprovedReach(t *testing.T) {
 // from the ledger is refused by name.
 func TestAHeadlessHopForAPersonIsRefused(t *testing.T) {
 	h := newHarness(t)
-	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "legacy-reader", Scopes: []domain.RoleScope{{Kind: legacyKind, Actions: []string{"read"}}}})
-	h.store.PutPerson(domain.Person{ID: "rob", Organization: acme, Roles: []string{"ledger-reader", "legacy-reader"}})
+	// rob is a user of the ledger's page, whose role reads the legacy store.
 	m := ledger()
 	m.Generation = 2
 	m.Bindings["quiet"] = domain.Binding{ID: "quiet", Audience: "legacy-store", HeadlessScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}}
-	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
-		t.Fatal(err)
-	}
+	ledgerRoles(&m)
+	seatLedgerUsers(t, h, m, "rob")
 	at := h.must(h.root("rob", "ledger"))
 	_, err := h.svc.IssueChild(h.ctx, at.Token, authority.Workload{Module: "ledger"}, authority.IssueRequest{Binding: "quiet", Operation: "headless"})
 	refused(t, err, "acting for nobody")

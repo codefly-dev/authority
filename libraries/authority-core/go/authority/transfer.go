@@ -26,7 +26,10 @@ type TransferDecision struct {
 }
 
 // AuthorizeTransfer authorizes a transfer and records the installation-owned id
-// atomically, reading everything live. The caller
+// atomically, reading everything live. It is the one decision an organisation
+// role's scopes take part in, and it is administration: whether the person
+// administers the organisation's resource they hand to the installation. What
+// they reach in the store is their role on that installation. The caller
 // is the kind's one serving module; the capability is addressed to it.
 func (s *Service) AuthorizeTransfer(ctx context.Context, r TransferRequest) (TransferDecision, error) {
 	if err := decide.ValidResourceID(r.ResourceID); err != nil {

@@ -70,8 +70,8 @@ func TestACastHoldsTheTeamsReachAndTheOwnSessionKeepsItsOwn(t *testing.T) {
 	h.store.PutPerson(domain.Person{ID: "carol", Organization: acme, Teams: []string{"a-admin"}})
 
 	// alex administers acme and is granted admin on a directly: his own
-	// session writes a's notes (an organization role alone reaches no
-	// owner's data at an owner-aware solution, RBAC-4a; the direct grant does).
+	// session writes a's notes (an organisation role reaches no module and no
+	// solution; the direct grant does).
 	h.grant("a", "admin", "alex")
 	own := h.must(h.root("alex", "a"))
 	if !holds(own, "a.note", "write") {

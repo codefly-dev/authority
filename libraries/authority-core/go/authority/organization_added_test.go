@@ -14,11 +14,12 @@ import (
 // stays retired, and asking twice changes nothing.
 func TestAnOrganizationAddedLaterHoldsEveryComposedModule(t *testing.T) {
 	h := newHarness(t)
+	// The ledger is a module page declaring roles: ivy reaches it as its user
+	// once initech holds it and the host seats her.
+	ledgerWithRoles(t, h)
 	const initech = "initech"
 	h.store.PutOrganization(domain.Organization{ID: initech, Name: initech})
 	h.store.PutPerson(domain.Person{ID: "ivy", Organization: initech})
-	h.store.PutOrgRole(domain.OrgRole{Organization: initech, Name: "user", Scopes: []domain.RoleScope{{Kind: ledgerKind, Actions: []string{"read"}}}})
-	h.store.PutPerson(domain.Person{ID: "ivy", Organization: initech, Roles: []string{"user"}})
 	ivy := authority.Person{ID: "ivy", Organization: initech, SessionID: "s-ivy"}
 	_, err := h.svc.IssueForPerson(h.ctx, ivy, authority.IssueRequest{Audience: "ledger", Scopes: []*basev0.WorkScopeV1{sc(ledgerKind, "read")}})
 	code(t, err, domain.Precondition)
@@ -29,6 +30,9 @@ func TestAnOrganizationAddedLaterHoldsEveryComposedModule(t *testing.T) {
 	}
 	if len(ids) != 3 { // store, legacy-store and ledger; solutions are installed explicitly
 		t.Fatalf("module installations %v", ids)
+	}
+	if _, err := h.svc.GrantRoleAsHost(h.ctx, authority.RoleRequest{Organization: initech, InstallationID: authority.StableInstallationID(initech, "ledger"), Role: domain.UserRole, PersonID: "ivy"}); err != nil {
+		t.Fatal(err)
 	}
 	if _, err := h.svc.IssueForPerson(h.ctx, ivy, authority.IssueRequest{Audience: "ledger", Scopes: []*basev0.WorkScopeV1{sc(ledgerKind, "read")}}); err != nil {
 		t.Fatal(err)

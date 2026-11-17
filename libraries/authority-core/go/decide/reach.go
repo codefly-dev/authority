@@ -56,8 +56,8 @@ const JointRoles = ""
 //     steps. A hop that carries nothing ends its chain, as issuance refuses
 //     it.
 //   - On an edge dependency of the target, on the holder's own session
-//     ("person"): the holder's own grants there decide, so the row carries
-//     no scopes and no operations.
+//     ("person"): the target declares no binding there, so the row carries
+//     no scopes and no operations, and issuance refuses the page's call.
 //
 // Each row lists the operations of its module its scopes are admitted to
 // (AdmitMethod), one per operation whatever face serves it (Operation), and

@@ -79,14 +79,21 @@ type RoleView struct {
 	Team string
 }
 
-// OrgRole is a named set of scopes at one organization.
+// OrgRole is an organisation role as a host's catalogue describes it.
+// Organisation roles decide administration only: who administers the
+// organisation is read from the names a person holds (decide.IsAdministrator),
+// and the scopes here answer one administrative question, which of the
+// organisation's own resources a person may hand to an installation
+// (AuthorizeTransfer). No scope here reaches a module: a person is issued
+// nothing from an organisation role.
 type OrgRole struct {
 	Organization, Name string
 	Scopes             []RoleScope
 }
 
 // RoleScope is one organization-role scope: a kind (or AnyKind) and actions,
-// optionally narrowed to resources by matcher.
+// optionally narrowed to resources by matcher. It administers; it is never
+// issued.
 type RoleScope struct {
 	Kind      string
 	Actions   []string
@@ -331,7 +338,7 @@ type ConsentApproval struct {
 // (module names, the target first, Module last), Via the role on the target
 // itself, the target's bindings acting for the holder, or the holder's own
 // session; the Scopes the holder's capability there can carry at most (none
-// on their own session, where their own grants decide), how the role
+// on their own session, which reaches no module the target does not bind), how the role
 // confines them on the target, the Operations of Module those scopes are
 // admitted to, and the Policies of every operation of Module as declared
 // then, by operation: what roles held together are admitted to there.

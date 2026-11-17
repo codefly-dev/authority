@@ -298,15 +298,14 @@ func TestAClientsCallAtASolutionIsHeldToItsApprovedReach(t *testing.T) {
 	}
 }
 
-// A person's call at a module page that came through no solution and no page
-// declaring roles is held to the page's approved reach, as their own call at
-// it is: what they hold there is the page's roles (held), so the consent
-// that bounds those roles bounds the call, whichever plain module it hopped
-// from. The store becomes a role-gated page held at composition's receipt,
-// maya its user; a relay that declares no roles hops her to it. The store
-// relaxing Purge to read widens what its user reaches; until approved,
-// Purge is refused at the store on her own session and through the relay.
-func TestACallThroughAPlainModuleIsHeldToThePagesApprovedReach(t *testing.T) {
+// A person's own call at a module page is held to the page's approved reach:
+// what they hold there is the page's roles (held), so the consent that bounds
+// those roles bounds the call. The store becomes a role-gated page held at
+// composition's receipt, rob its user. The store relaxing Purge to read
+// widens what its user reaches; until approved, Purge is refused at the store
+// on his own session. A relay that declares no roles is no second way there:
+// his own session holds nothing at it, so nothing hops from it.
+func TestAPersonsOwnCallAtAModulePageIsHeldToItsApprovedReach(t *testing.T) {
 	h := newHarness(t)
 	paged := func(generation uint64, purge string) domain.Module {
 		m := storeAt(generation, purge, true)
@@ -341,8 +340,9 @@ func TestACallThroughAPlainModuleIsHeldToThePagesApprovedReach(t *testing.T) {
 		t.Fatalf("the page relaxing Purge to its user offers no upgrade: %v %v", up, err)
 	}
 	own := h.must(h.root("rob", "store"))
-	relayed := h.must(h.through("rob", "relay", "store"))
-	for name, i := range map[string]authority.Issued{"his own session": own, "the relay": relayed} {
+	_, err := h.through("rob", "relay", "store")
+	refused(t, err, "relay declares no roles")
+	for name, i := range map[string]authority.Issued{"his own session": own} {
 		if err := h.callStore(i, storeRead); err != nil {
 			t.Fatalf("%s is refused the approved Read: %v", name, err)
 		}

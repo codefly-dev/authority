@@ -24,9 +24,11 @@ import (
 // "collection" (owner-aware), a legacy store and a ledger (neither checks
 // owners), people at acme and globex.
 //
-// Organization roles reach no owner's data at the owner-aware store (RBAC-4a):
-// rob's and ada's store roles hold nothing there on their own session, and the
-// tests of an organization role's own reach read the owner-blind ledger.
+// Organisation roles decide administration only and reach no module: alex and
+// zoe administer their organisations, ada's store-admin administers the
+// organisation's resource store-x (AuthorizeTransfer), and none of them, nor
+// rob's reader roles, is issued anything by it. A person reaches a module
+// through a role on an installation.
 const (
 	kind, legacyKind = "collection", "legacy"
 	acme, globex     = "acme", "globex"
@@ -93,10 +95,9 @@ func newHarness(t *testing.T) *harness {
 	}
 	h.store.PutTeam(acme, "team")
 	h.store.PutTeam(globex, "ops")
-	// An administrator holds every kind and action of its organization, as the
-	// hosts answer it (the saas store answers owner and admin as AnyKind/AnyAction),
-	// so the fixtures hold the grant-set form production is moving to, not an
-	// administrator that is one only by name.
+	// A host's catalogue may describe an administrator as every kind and
+	// action (the saas store answers owner and admin so). The fixtures carry
+	// that form to prove it issues nothing.
 	anything := []domain.RoleScope{{Kind: scope.AnyKind, Actions: []string{scope.AnyAction}}}
 	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "admin", Scopes: anything})
 	h.store.PutOrgRole(domain.OrgRole{Organization: globex, Name: "admin", Scopes: anything})

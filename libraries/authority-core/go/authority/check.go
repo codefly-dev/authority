@@ -18,7 +18,9 @@ import (
 // does not declare owner-aware checking now, or one that withdrew it after
 // the capability was issued through a binding to it (never revived). A
 // capability issued in a cast is refused once the cast no longer holds
-// (castHolds).
+// (castHolds). A person's capability naming no installation it came through,
+// at an audience that declares no roles, is refused (ownSession): no issuance
+// makes one, and an organisation role admits none.
 func (s *Service) Check(ctx context.Context, token, audience string) (*workcontext.Verified, uint64, error) {
 	verified, err := s.Verify(ctx, token, audience)
 	if errors.Is(err, workcontext.ErrRevoked) {
@@ -46,6 +48,9 @@ func (s *Service) Check(ctx context.Context, token, audience string) (*workconte
 			return err
 		}
 		if err := castOfClaims(tx, verified.Context()); err != nil {
+			return err
+		}
+		if err := ownSession(tx, verified.Context(), m); err != nil {
 			return err
 		}
 		revision, err = tx.AuthorizationRevision(verified.Context().GetTenantId())
@@ -113,9 +118,10 @@ type Grant struct {
 // ListResources answers which resources of kind a checked capability may act
 // on with action, decided now: a person's through a solution are its roles on
 // the principal's data, a person's at a module page declaring roles that
-// page's roles granted them, a person's own their organization roles' matchers,
-// cut to any ids the capability names; a module's or an installation's own
-// work is bounded by the capability alone.
+// page's roles granted them, cut to any ids the capability names; a module's
+// or an installation's own work is bounded by the capability alone. A
+// person's capability that came through neither is refused when it is
+// checked (Check).
 func (s *Service) ListResources(ctx context.Context, token, audience, kind, action string) ([]Grant, error) {
 	if audience == "" || kind == "" || action == "" {
 		return nil, domain.Refuse("a resource question names the audience, a kind and an action")
@@ -155,30 +161,17 @@ func (s *Service) ListResources(ctx context.Context, token, audience, kind, acti
 			if cerr != nil {
 				return cerr
 			}
-			switch {
-			case bounded:
+			if bounded {
 				rows = scope.Intersect(effective, ceiling)
-			case err == nil && decide.RoleGated(at):
-				// A module page declaring roles answers from its roles, as
-				// issuance does, never from organization roles.
-				h, err := held(tx, p, at, effective)
+			} else {
+				// A person's own session at a solution or a module page
+				// declaring roles answers from their roles there, as issuance
+				// does. Check admitted nothing else of a person's.
+				h, err := held(tx, p, at)
 				if err != nil {
 					return err
 				}
 				rows = scope.Intersect(effective, h)
-			default:
-				// Organization roles reach no owned kind of a module that
-				// checks owners (decide.OrgScopes): a capability issued
-				// before it adopted owner checks answers none of it.
-				if err == nil && at.OwnerAware && !slices.Contains(at.SharedKinds, kind) {
-					return nil
-				}
-				roles, err := orgRoles(tx, p)
-				if err != nil {
-					return err
-				}
-				out = narrow(decide.ResourceGrants(roles, kind, action), effective, kind, action)
-				return nil
 			}
 		}
 		out = grantsOf(rows, kind, action)
@@ -210,36 +203,6 @@ func grantsOf(rows Scopes, kind, action string) []Grant {
 	return out
 }
 
-// narrow cuts an organization role's matchers to the ids the capability
-// names, when it names any.
-func narrow(matchers []resources.Grant, effective Scopes, kind, action string) []Grant {
-	var ids []string
-	for _, sc := range effective {
-		if !holds(sc, kind, action) {
-			continue
-		}
-		if len(sc.GetResourceIds()) == 0 {
-			out := make([]Grant, 0, len(matchers))
-			for _, m := range matchers {
-				out = append(out, Grant{Grant: m})
-			}
-			return out
-		}
-		ids = append(ids, sc.GetResourceIds()...)
-	}
-	covered, err := resources.Compile(matchers)
-	out := []Grant{}
-	if err != nil {
-		return out
-	}
-	for _, id := range ids {
-		if covered.Matches(id) {
-			out = append(out, Grant{Grant: resources.Grant{ID: id}})
-		}
-	}
-	return out
-}
-
 // effectiveOf is a context's effective scopes: its last actor's, else its own.
 func effectiveOf(wc *basev0.WorkContextV1) Scopes {
 	if chain := wc.GetActorChain(); len(chain) > 0 {
@@ -255,8 +218,7 @@ func effectiveOf(wc *basev0.WorkContextV1) Scopes {
 // A delivery of m, or of the target, that admits more than was approved
 // admits nobody more until the upgrade is approved, and the approved policy
 // holds on effective, what the call itself carries, as well as on the
-// approved reach. A person's call through no solution or page is not looked
-// up further.
+// approved reach.
 func (s *Service) withinApprovedReach(tx Tx, wc *basev0.WorkContextV1, effective Scopes, m domain.Module, method string) (error, error) {
 	owner := reachOwner{}
 	switch wc.GetOwnerPrincipalKind() {
@@ -264,9 +226,6 @@ func (s *Service) withinApprovedReach(tx Tx, wc *basev0.WorkContextV1, effective
 		owner.agent = wc.GetOwnerPrincipalId()
 	case "human":
 		owner.principals = reachedThrough(tx, wc, m.Principal)
-		if !anyRoleGated(tx, owner.principals) {
-			return nil, nil
-		}
 		p, err := personOfClaims(tx, wc)
 		if err != nil {
 			return ownerGone(err, wc.GetOwnerPrincipalId()), nil
@@ -301,6 +260,19 @@ func reachedThrough(tx Tx, wc *basev0.WorkContextV1, module string) []string {
 		return through
 	}
 	return principals
+}
+
+// ownSession refuses a person's capability at m that names no target whose
+// roles could have admitted it: no solution and no module page declaring
+// roles on its path, m itself included. That is a person's own session at a
+// module declaring no roles, which holds nothing (decide.NoRoles) and which
+// no issuance of this core makes; one minted by another host or an earlier
+// version is refused here, at every check.
+func ownSession(tx Tx, wc *basev0.WorkContextV1, m domain.Module) error {
+	if wc.GetOwnerPrincipalKind() != "human" || anyRoleGated(tx, reachedThrough(tx, wc, m.Principal)) {
+		return nil
+	}
+	return decide.NoRoles(m)
 }
 
 // anySolution is whether a solution is among principals.

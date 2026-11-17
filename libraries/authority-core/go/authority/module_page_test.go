@@ -136,8 +136,9 @@ func TestAModuleIsNeverOfferedOrInstalledByAnAdministrator(t *testing.T) {
 // status never move. The grants of a role still declared survive, and what
 // they issued stays valid; a role widened holds what was approved until the
 // upgrade is, as a solution's does; a page that stops declaring roles ends
-// their grants. Without roles, organization roles decide; with roles again,
-// nobody holds one until the upgrade is approved and the role granted.
+// their grants. Without roles nobody holds anything there on their own
+// session, whatever their organisation role; with roles again, nobody holds
+// one until the upgrade is approved and the role granted.
 func TestAModuleThatGainsOrLosesRolesKeepsItsInstallation(t *testing.T) {
 	h := newHarness(t)
 	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "page-reader", Scopes: []domain.RoleScope{{Kind: "pages.note", Actions: []string{"read"}}}})
@@ -152,16 +153,18 @@ func TestAModuleThatGainsOrLosesRolesKeepsItsInstallation(t *testing.T) {
 			t.Fatalf("%s moved the installation: %+v, was %+v", when, now, inst)
 		}
 	}
-	orgReader := h.must(h.root("ines", "pages"))
+	// ines holds an organisation role a host's catalogue describes as reading
+	// the page's kind: it reaches nothing.
+	_, err := h.root("ines", "pages")
+	refused(t, err, "pages declares no roles")
 
-	// Gaining roles: the installation stays; organization roles stop deciding.
+	// Gaining roles: the installation stays, and its roles decide.
 	if _, err := h.svc.ApplyModule(h.ctx, pageModule(2, true)); err != nil {
 		t.Fatal(err)
 	}
 	kept("gaining roles")
-	if err := h.check(orgReader); err == nil {
-		t.Fatal("an organization role's capability outlived the module declaring its own roles")
-	}
+	_, err = h.root("ines", "pages")
+	refused(t, err, "ines holds no role on pages")
 	h.grant("pages", "user", "maya")
 	user := h.must(h.root("maya", "pages"))
 
@@ -179,7 +182,7 @@ func TestAModuleThatGainsOrLosesRolesKeepsItsInstallation(t *testing.T) {
 		t.Fatalf("a role widened ended the user's capability: %v", err)
 	}
 	exactly(t, h.must(h.root("maya", "pages")), "pages.note", "", []string{"read"})
-	_, err := h.svc.GrantRole(h.ctx, h.admin(acme), authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: "publisher", PersonID: "remi"})
+	_, err = h.svc.GrantRole(h.ctx, h.admin(acme), authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: "publisher", PersonID: "remi"})
 	refused(t, err, `pages declares no role "publisher"`)
 	if _, err := h.approvePage(h.svc, "alex"); err != nil {
 		t.Fatal(err)
@@ -198,7 +201,8 @@ func TestAModuleThatGainsOrLosesRolesKeepsItsInstallation(t *testing.T) {
 	exactly(t, h.must(h.root("maya", "pages")), "pages.note", "", []string{"read"})
 
 	// Losing every role: the installation stays, the grants and what they
-	// issued end, and organization roles decide, as at any module.
+	// issued end, and nobody's own session holds anything there, as at any
+	// module declaring no roles.
 	if _, err := h.svc.ApplyModule(h.ctx, pageModule(5, false)); err != nil {
 		t.Fatal(err)
 	}
@@ -209,9 +213,10 @@ func TestAModuleThatGainsOrLosesRolesKeepsItsInstallation(t *testing.T) {
 	if grants := h.roleGrants("pages"); len(grants) != 0 {
 		t.Fatalf("the dropped roles kept their grants: %v", grants)
 	}
-	exactly(t, h.must(h.root("ines", "pages")), "pages.note", "", []string{"read"})
+	_, err = h.root("ines", "pages")
+	refused(t, err, "pages declares no roles")
 	_, err = h.root("maya", "pages")
-	refused(t, err, "holds nothing")
+	refused(t, err, "pages declares no roles")
 	_, err = h.svc.GrantRole(h.ctx, h.admin(acme), authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: "user", PersonID: "maya"})
 	refused(t, err, `pages declares no role "user"`)
 

@@ -22,110 +22,21 @@ func IsAdministrator(p domain.Person) bool {
 	return slices.Contains(p.Roles, "admin") || slices.Contains(p.Roles, "owner")
 }
 
-// OrgScopes is what a person's organization roles grant at audience: the
-// union of their scopes (AnyKind spanning every served kind) within what the
-// audience serves. A role scope naming no resource holds the whole kind; one
-// naming resources holds exactly the ids its matchers select (heldIDs), never
-// the whole kind, so Issue refuses an ask naming any other id and an empty
-// ask carries those ids. named is what the decision is about: the ask, and
-// the capability a hop or a delegation derives from.
-//
-// At an audience that checks owners, organization roles reach no owner's
-// data: only a kind the audience declares shared is held (AnyKind spans those
-// alone). An owner's data there is reached through a role granted on the
-// installation that owns it (RBAC-4a).
-func OrgScopes(roles []domain.OrgRole, audience domain.Module, named Scopes) Scopes {
-	var held Scopes
-	for _, role := range roles {
-		for _, sc := range role.Scopes {
-			kinds := []string{sc.Kind}
-			if sc.Kind == scope.AnyKind {
-				kinds = kinds[:0]
-				for _, kind := range audience.ResourceKinds {
-					kinds = append(kinds, kind.GetResourceKind())
-				}
-			}
-			for _, kind := range kinds {
-				if audience.OwnerAware && !slices.Contains(audience.SharedKinds, kind) {
-					continue
-				}
-				ids, all := heldIDs(sc.Resources, kind, named)
-				if !all && len(ids) == 0 {
-					// No row: a row naming no id is the whole kind.
-					continue
-				}
-				held = append(held, &basev0.WorkScopeV1{ResourceKind: kind, Actions: slices.Clone(sc.Actions), ResourceIds: ids})
-			}
-		}
-	}
-	return scope.Intersect(scope.Normalize(held), audience.ResourceKinds)
-}
-
-// OwnSession names why a person's own session was refused at an audience
-// that checks owners (RBAC-4a): organization roles reach none of its owned
-// kinds there. An ask naming only shared kinds, or a refusal at an audience
-// that checks no owner, is answered as refused.
-func OwnSession(audience domain.Module, asked Scopes, refused error) error {
-	if !audience.OwnerAware || RoleGated(audience) {
-		return refused
-	}
-	ownedKind := func(kind string) bool {
-		return !slices.Contains(audience.SharedKinds, kind) &&
-			slices.ContainsFunc(audience.ResourceKinds, func(sc *basev0.WorkScopeV1) bool { return sc.GetResourceKind() == kind })
-	}
-	owned := false
-	if len(asked) == 0 {
-		// An empty ask names the rule only when nothing was held at all.
-		owned = strings.Contains(refused.Error(), "holds nothing")
-	}
-	for _, sc := range asked {
-		owned = owned || ownedKind(sc.GetResourceKind())
-	}
-	if !owned {
-		return refused
-	}
-	return domain.Refuse("%v: %s checks owners, so an organization role reaches none of its owned data on a person's own session; reach it through a role on the installation that owns it", refused, audience.Name)
-}
-
-// heldIDs is what a role scope's matchers hold of kind: every resource when
-// they name none or All; otherwise each ID matcher's id, and of a prefix or a
-// pattern only the ids named on kind that it matches. A token cannot carry a
-// prefix or a pattern, and carrying it as the whole kind would hand a module
-// reading the token every resource of the kind, so an ask naming no id holds
-// none of it: the person names the ids they act on. Matchers that do not
-// compile hold nothing.
-func heldIDs(grants []resources.Grant, kind string, named Scopes) (ids []string, all bool) {
-	if len(grants) == 0 {
-		return nil, true
-	}
-	m, err := resources.Compile(grants)
-	if err != nil {
-		return nil, false
-	}
-	if m.All() {
-		return nil, true
-	}
-	for _, g := range grants {
-		if g.ID != "" {
-			ids = append(ids, g.ID)
-		}
-	}
-	for _, sc := range named {
-		if sc.GetResourceKind() != kind {
-			continue
-		}
-		for _, id := range sc.GetResourceIds() {
-			if m.Matches(id) {
-				ids = append(ids, id)
-			}
-		}
-	}
-	slices.Sort(ids)
-	return slices.Compact(ids), false
+// NoRoles is the refusal of a person's own session at a module that declares
+// no roles. Organisation roles decide administration only (members, teams,
+// installations, grants): none reaches a module, whatever it is called. A
+// module is reached through a role on an installation, a solution's or a
+// module page's; one that declares no roles has no installation role to hold
+// and is reached through the binding of an installation that reaches it.
+func NoRoles(audience domain.Module) error {
+	return domain.Refuse("%s declares no roles, so a person's own session holds nothing there, whatever their organisation role: it is reached through a role on an installation that reaches it", audience.Name)
 }
 
 // ResourceGrants are the resource matchers of every organization-role scope
-// holding action on kind, or every resource for a scope that names none.
+// holding action on kind, or every resource for a scope that names none. It
+// answers one administrative question, which of the organisation's own
+// resources a person may hand to an installation (AuthorizeTransfer), and
+// nothing a person is issued: an organisation role reaches no module.
 func ResourceGrants(roles []domain.OrgRole, kind, action string) []resources.Grant {
 	var grants []resources.Grant
 	for _, role := range roles {

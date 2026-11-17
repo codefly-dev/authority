@@ -7,7 +7,6 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
 	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
@@ -216,11 +215,15 @@ func TestATransferIsDecidedInOrder(t *testing.T) {
 }
 
 func TestOrganizationGrantsAndModules(t *testing.T) {
-	audience := domain.Module{ResourceKinds: []*basev0.WorkScopeV1{sc("doc", "read", "admin")}}
+	audience := domain.Module{Name: "docs", ResourceKinds: []*basev0.WorkScopeV1{sc("doc", "read", "admin")}}
 	roles := []domain.OrgRole{{Name: "r", Scopes: []domain.RoleScope{{Kind: "*", Actions: []string{"read"}}, {Kind: "doc", Actions: []string{"admin"}, Resources: []resources.Grant{{ID: "x"}}}}}}
-	// read holds the whole kind; admin holds x alone, never the kind.
-	if got := decide.OrgScopes(roles, audience, nil); !scope.Same(got, []*basev0.WorkScopeV1{sc("doc", "read"), owned("doc", "", []string{"admin"}, "x")}) {
-		t.Fatalf("org scopes %v", got)
+	// An organisation role reaches no module: a person's own session at one
+	// that declares no roles is refused by name. What its scopes still answer
+	// is which of the organisation's resources it administers: admin on x
+	// alone, never the kind.
+	refused(t, decide.NoRoles(audience), domain.Denied, "declares no roles")
+	if decide.RoleGated(audience) {
+		t.Fatal("a module declaring no roles is role-gated")
 	}
 	if got := decide.ResourceGrants(roles, "doc", "admin"); len(got) != 1 || got[0].ID != "x" {
 		t.Fatalf("matchers %v", got)
@@ -257,8 +260,8 @@ func TestOrganizationGrantsAndModules(t *testing.T) {
 
 // Withdrawing owner-aware checking is a narrowing: owner-selected
 // capabilities already issued to the module end with it. Adopting it is one
-// too, as is a kind no longer shared: what an organization role held there
-// unselected on a person's own session is no longer held (RBAC-4a).
+// too, as is a kind no longer shared: what a role held there unselected is no
+// longer held.
 func TestWithdrawingOrAdoptingOwnerAwareIsANarrowing(t *testing.T) {
 	aware := domain.Module{Name: "store", Principal: "store", Kind: domain.KindModule, Generation: 1, OwnerAware: true, SharedKinds: []string{"profiles"}}
 	blind := aware

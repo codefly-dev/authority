@@ -323,7 +323,8 @@ func StandardRoles(m domain.Module) map[string]Scopes {
 
 // RoleGated reports whether what a person holds at m is the roles granted on
 // its installation: a solution's, or a module page's that declares roles.
-// Otherwise it is their organization roles within what m serves.
+// Otherwise a person holds nothing at m on their own session (NoRoles): it is
+// reached through the binding of an installation whose role they hold.
 func RoleGated(m domain.Module) bool {
 	return m.Kind == domain.KindSolution || len(m.Roles) > 0
 }
@@ -331,10 +332,10 @@ func RoleGated(m domain.Module) bool {
 // Narrowed reports whether next narrows what previous granted: a binding
 // removed, readdressed or cut, owner-aware checking withdrawn or adopted, a
 // kind no longer shared at a module that checks owners, any of its roles cut,
-// or a module moved between organization roles and its own. A narrowing
+// or a module that started or stopped declaring roles of its own. A narrowing
 // invalidates capabilities already issued. Adopting owner checks narrows too:
-// what an organization role or a module's role held there unselected is no
-// longer held (RBAC-4a, ModuleRoleAt).
+// what a module's role held there unselected is no longer held
+// (ModuleRoleAt).
 func Narrowed(previous, next domain.Module) bool {
 	if previous.OwnerAware != next.OwnerAware {
 		return true

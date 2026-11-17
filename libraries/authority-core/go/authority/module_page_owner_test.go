@@ -187,7 +187,7 @@ func TestRBAC1AModulePageAttachesWhatItWroteBeforeItHeldAPrincipal(t *testing.T)
 
 // ledger is a module that checks no owner, with a binding to itself and one
 // to the legacy store: what a module page's role reaches as it is
-// (decide.ModuleRoleAt), and what an organization role reaches on a person's
+// (decide.ModuleRoleAt), and what no person reaches on their
 // own session, for the tests that are not about owners. The harness delivers
 // it.
 const ledgerKind = "ledger.entry"
@@ -199,6 +199,38 @@ func ledger() domain.Module {
 			"self":   {ID: "self", Audience: "ledger", InvokeScopes: []*basev0.WorkScopeV1{sc(ledgerKind, "read", "write")}, HeadlessScopes: []*basev0.WorkScopeV1{sc(ledgerKind, "read")}},
 			"legacy": {ID: "legacy", Audience: "legacy-store", InvokeScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}},
 		}}
+}
+
+// ledgerWithRoles redelivers the ledger as a module page declaring roles (its
+// user reads, its admin writes) and seats users as its users: the one way a
+// person holds anything at the ledger on their own session is a role on its
+// installation.
+func ledgerWithRoles(t *testing.T, h *harness, users ...string) {
+	t.Helper()
+	m := ledger()
+	m.Generation = 2
+	ledgerRoles(&m)
+	seatLedgerUsers(t, h, m, users...)
+}
+
+// ledgerRoles makes the ledger a module page whose user reads and whose admin
+// writes, each reaching the legacy store's read.
+func ledgerRoles(m *domain.Module) {
+	m.Page, m.InstallationRole = true, domain.NoInstallationRole
+	m.Roles = map[string][]*basev0.WorkScopeV1{
+		domain.AdminRole: {sc(ledgerKind, "read", "write"), sc(legacyKind, "read")},
+		domain.UserRole:  {sc(ledgerKind, "read"), sc(legacyKind, "read")},
+	}
+}
+
+func seatLedgerUsers(t *testing.T, h *harness, m domain.Module, users ...string) {
+	t.Helper()
+	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
+		t.Fatal(err)
+	}
+	for _, user := range users {
+		h.grant("ledger", domain.UserRole, user)
+	}
 }
 
 // ledgerPage is a module page whose user reads the ledger and whose
@@ -364,8 +396,7 @@ func TestRBAC1AModulePageAttachesWhatItCreatesToItsInstallation(t *testing.T) {
 // nothing). What the store's own page creates is attached to the store's own
 // installation, because the capability holds the create selected to it; a
 // capability another page's role brought is still attached to that page's
-// installation, never the store's, and an organization role still reaches
-// none of it (RBAC-4a).
+// installation, never the store's.
 func TestAStorePagesOwnRoleReachesItsOwnInstallationsData(t *testing.T) {
 	h := newHarness(t)
 	var store domain.Module

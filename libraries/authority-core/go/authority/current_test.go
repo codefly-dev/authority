@@ -2,7 +2,6 @@ package authority_test
 
 import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
@@ -10,7 +9,9 @@ import (
 
 func TestCurrentInstallationIsConfinedToTheAuthenticatedAudience(t *testing.T) {
 	h := newHarness(t)
-	// rob and omar read the ledger's entry-x alone: each asks for what they hold.
+	// rob at acme and omar at globex are users of the ledger's page: each
+	// holds its role on their own organisation's installation.
+	ledgerWithRoles(t, h, "rob")
 	parent := h.must(h.root("rob", "ledger", owned(ledgerKind, "", []string{"read"}, "entry-x")))
 	inst, err := h.svc.CurrentInstallation(h.ctx, parent.Token, authority.Workload{Module: "ledger"})
 	if err != nil || inst.ID != authority.StableInstallationID(acme, "ledger") || inst.Organization != acme || inst.Target != "ledger" {
@@ -24,8 +25,9 @@ func TestCurrentInstallationIsConfinedToTheAuthenticatedAudience(t *testing.T) {
 	if _, err := h.svc.CurrentInstallation(h.ctx, "forged", authority.Workload{Module: "ledger"}); err == nil {
 		t.Fatal("forged parent read an installation")
 	}
-	h.store.PutPerson(domain.Person{ID: "omar", Organization: globex, Roles: []string{"ledger-reader"}})
-	h.store.PutOrgRole(domain.OrgRole{Organization: globex, Name: "ledger-reader", Scopes: []domain.RoleScope{{Kind: ledgerKind, Actions: []string{"read"}, Resources: []resources.Grant{{ID: "entry-x"}}}}})
+	if _, err := h.svc.GrantRole(h.ctx, h.person("zoe"), authority.RoleRequest{Organization: globex, InstallationID: h.inst(globex, "ledger").ID, Role: domain.UserRole, PersonID: "omar"}); err != nil {
+		t.Fatal(err)
+	}
 	foreign := h.must(h.root("omar", "ledger", owned(ledgerKind, "", []string{"read"}, "entry-x")))
 	other, err := h.svc.CurrentInstallation(h.ctx, foreign.Token, authority.Workload{Module: "ledger"})
 	if err != nil || other.Organization != globex || other.ID == inst.ID {

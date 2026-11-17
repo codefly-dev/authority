@@ -31,6 +31,7 @@ func TestEveryChangeIsJournaledInItsOwnTransaction(t *testing.T) {
 		t.Fatal(err)
 	}
 	alex := h.person("alex")
+	h.grant("b", "user", "rob") // what rob delegates below: his role on b
 	inst := h.inst(acme, "a").ID
 	user := authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "user", PersonID: "maya"}
 	steps := []struct {
@@ -43,7 +44,7 @@ func TestEveryChangeIsJournaledInItsOwnTransaction(t *testing.T) {
 		{"a role revoked", func() error { _, err := svc.RevokeRole(h.ctx, alex, user); return err },
 			domain.Event{Kind: domain.RoleRevoked, Organization: acme, Actor: "alex", Subject: inst}},
 		{"a delegation granted", func() error {
-			_, err := svc.Delegate(h.ctx, h.person("rob"), "ledger", []*basev0.WorkScopeV1{owned(ledgerKind, "", []string{"read"}, "entry-x")}, "a purpose", 0)
+			_, err := svc.Delegate(h.ctx, h.person("rob"), "b", []*basev0.WorkScopeV1{owned(kind, h.principal(acme, "b"), []string{"read"})}, "a purpose", 0)
 			return err
 		}, domain.Event{Kind: domain.DelegationGranted, Organization: acme, Actor: "rob"}},
 		{"an installation uninstalled", func() error { return svc.Uninstall(h.ctx, alex, acme, inst) },

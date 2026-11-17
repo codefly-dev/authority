@@ -39,56 +39,52 @@ type Issued struct {
 	Context *basev0.WorkContextV1
 }
 
-// held is what a person holds at an audience: at a solution, the scopes of the
-// roles granted them on its installation, owned by its principal; at a module
-// page declaring roles, those of its roles granted them on its installation,
-// within what it serves; at any other module, their organization roles within
-// what it serves, resource-scoped roles holding the ids their matchers select
-// of named; at a module that checks owners only the kinds it declares shared
-// (decide.OrgScopes, RBAC-4a).
-func held(tx Tx, p domain.Person, audience domain.Module, named Scopes) (Scopes, error) {
-	_, h, err := heldAs(tx, p, audience, named)
+// held is what a person holds at an audience, and it is their roles on its
+// installation and nothing else: at a solution, the scopes of the roles
+// granted them there, owned by its principal; at a module page declaring
+// roles, those of its roles granted them on its installation, within what it
+// serves. At a module that declares no roles a person holds nothing of their
+// own: an organisation role decides administration only, and such a module is
+// reached through the binding of an installation whose role the person holds
+// (throughSolutions).
+func held(tx Tx, p domain.Person, audience domain.Module) (Scopes, error) {
+	_, h, err := heldAs(tx, p, audience)
 	return h, err
 }
 
-// heldAs is held, and the roles it came from at an audience whose roles
-// decide (decide.RoleGated): the two are not one answer. A role may name only
-// kinds of the modules its target reaches through its bindings, so a person
-// holds it and yet holds nothing of what the target itself serves; reading
-// that as "holds no role" refuses the role's whole reach and names the wrong
-// reason.
-func heldAs(tx Tx, p domain.Person, audience domain.Module, named Scopes) ([]string, Scopes, error) {
-	if decide.RoleGated(audience) {
-		inst, err := installationOf(tx, p.Organization, audience.Name)
-		if errors.Is(err, domain.ErrNotFound) {
-			return nil, nil, nil
-		}
-		if err != nil {
-			return nil, nil, err
-		}
-		grants, err := tx.RoleGrants(inst.ID)
-		if err != nil {
-			return nil, nil, err
-		}
-		approved, err := approvedModule(tx, inst, audience)
-		if err != nil {
-			return nil, nil, err
-		}
-		names := decide.HeldRoles(p, inst, grants)
-		role, err := decide.RoleScopes(approved, inst, names)
-		if err != nil {
-			return nil, nil, err
-		}
-		// A module page's roles at the module itself, as at any module that
-		// checks owners: its installation's data (decide.ModuleRoleAt).
-		role = decide.ModuleRoleAt(audience, inst, audience, role)
-		return names, scope.Intersect(role, audience.ResourceKinds), nil
+// heldAs is held, and the roles it came from: the two are not one answer. A
+// role may name only kinds of the modules its target reaches through its
+// bindings, so a person holds it and yet holds nothing of what the target
+// itself serves; reading that as "holds no role" refuses the role's whole
+// reach and names the wrong reason.
+func heldAs(tx Tx, p domain.Person, audience domain.Module) ([]string, Scopes, error) {
+	if !decide.RoleGated(audience) {
+		return nil, nil, nil
 	}
-	roles, err := orgRoles(tx, p)
+	inst, err := installationOf(tx, p.Organization, audience.Name)
+	if errors.Is(err, domain.ErrNotFound) {
+		return nil, nil, nil
+	}
 	if err != nil {
 		return nil, nil, err
 	}
-	return nil, decide.OrgScopes(roles, audience, named), nil
+	grants, err := tx.RoleGrants(inst.ID)
+	if err != nil {
+		return nil, nil, err
+	}
+	approved, err := approvedModule(tx, inst, audience)
+	if err != nil {
+		return nil, nil, err
+	}
+	names := decide.HeldRoles(p, inst, grants)
+	role, err := decide.RoleScopes(approved, inst, names)
+	if err != nil {
+		return nil, nil, err
+	}
+	// A module page's roles at the module itself, as at any module that
+	// checks owners: its installation's data (decide.ModuleRoleAt).
+	role = decide.ModuleRoleAt(audience, inst, audience, role)
+	return names, scope.Intersect(role, audience.ResourceKinds), nil
 }
 
 // solutionCeiling intersects the current roles of each solution the verified
@@ -152,34 +148,25 @@ func rolesCeiling(tx Tx, p domain.Person, principals []string, audience domain.M
 // throughSolutions is what a person holds at audience on a path through
 // principals: the solutions' roles alone when a solution is on the path
 // (confined to its principal's data), else the roles of the module pages
-// declaring roles on it, the person's own grants otherwise.
-func throughSolutions(tx Tx, p domain.Person, audience domain.Module, principals []string, named Scopes) (h, ceiling Scopes, bounded bool, err error) {
+// declaring roles on it; on a path naming neither, their roles on audience's
+// own installation (held), which is nothing at a module declaring no roles.
+func throughSolutions(tx Tx, p domain.Person, audience domain.Module, principals []string) (h, ceiling Scopes, bounded bool, err error) {
 	if ceiling, bounded, err = solutionCeiling(tx, p, principals, audience); err != nil {
 		return
 	}
 	if !bounded {
-		h, err = held(tx, p, audience, named)
+		h, err = held(tx, p, audience)
 		return
 	}
 	h = scope.Intersect(ceiling, audience.ResourceKinds)
 	if audience.Kind == domain.KindSolution {
 		var target Scopes
-		if target, err = held(tx, p, audience, named); err != nil {
+		if target, err = held(tx, p, audience); err != nil {
 			return
 		}
 		h = scope.Intersect(h, target)
 	}
 	return
-}
-
-// namedBy is what a hop decides about: its ask and every scope its parent
-// carries, so a prefix or a pattern holds the ids the parent was issued on.
-func namedBy(asked Scopes, parent *basev0.WorkContextV1) Scopes {
-	named := append(slices.Clone(asked), parent.GetAuthorityScopes()...)
-	for _, actor := range parent.GetActorChain() {
-		named = append(named, actor.GetGrantedScopes()...)
-	}
-	return named
 }
 
 // solutionPrincipals are the current actor and the services of a verified chain.
@@ -248,8 +235,11 @@ func (s *Service) startFencedUntil(ctx context.Context, f fence, in workcontext.
 }
 
 // IssueForPerson: owner = actor = the person; scopes = asked within what they
-// hold at the audience (a solution: their granted roles on its principal's
-// data); sealed to the audience's installation at their organization.
+// hold at the audience through their roles on its installation (a solution:
+// on its principal's data); sealed to that installation at their
+// organization. An audience that declares no roles is refused by name
+// (decide.NoRoles): a person's own session holds nothing there, whatever
+// their organisation role.
 func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest) (Issued, error) {
 	// The team this session is cast onto, if any: read inside the store read
 	// below, used for attribution after it.
@@ -283,6 +273,9 @@ func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest
 			return domain.Refuse("the session is opened at organization %s; a person is issued nothing at %s, which they did not sign in at", who.Organization, r.Organization)
 		}
 		viewing = viewNote(tx, p)
+		if !decide.RoleGated(audience) {
+			return decide.NoRoles(audience)
+		}
 		inst, err = installationOf(tx, p.Organization, audience.Name)
 		if err != nil || inst.Status != domain.Active {
 			return domain.NotNow("audience %q is not installed in this organization, so there is no installation to seal the capability to", audience.Principal)
@@ -291,13 +284,13 @@ func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest
 			return err
 		}
 		var roles []string
-		if roles, heldHere, err = heldAs(tx, p, audience, r.Scopes); err != nil {
+		if roles, heldHere, err = heldAs(tx, p, audience); err != nil {
 			return err
 		}
 		if audience.Kind == domain.KindSolution && !audience.OwnerAware {
 			return decide.OwnerAware(audience, decide.Scopes{{ResourceKind: audience.Name, ResourceOwnerId: inst.PrincipalID}})
 		}
-		if decide.RoleGated(audience) && len(heldHere) == 0 {
+		if len(heldHere) == 0 {
 			if len(roles) == 0 {
 				return domain.Refuse("%s holds no role on %s", p.ID, audience.Name)
 			}
@@ -327,7 +320,7 @@ func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest
 			if err != nil {
 				return notFound(err)
 			}
-			there, _, _, err := throughSolutions(tx, p, target, []string{audience.Principal}, r.Scopes)
+			there, _, _, err := throughSolutions(tx, p, target, []string{audience.Principal})
 			if err != nil {
 				return err
 			}
@@ -347,9 +340,6 @@ func (s *Service) IssueForPerson(ctx context.Context, who Person, r IssueRequest
 			heldHere = scope.Normalize(append(heldHere, through...))
 		}
 		if scopes, err = decide.Issue(r.Scopes, heldHere); err != nil {
-			if r.Binding == "" {
-				return decide.OwnSession(audience, r.Scopes, err)
-			}
 			return err
 		}
 		return decide.OwnerAware(audience, scopes)
@@ -689,7 +679,13 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 				return ownerGone(err, claims.GetOwnerPrincipalId())
 			}
 			viewing = viewNote(tx, p)
-			if heldHere, sourceCeiling, bounded, err = throughSolutions(tx, p, audience, solutionPrincipals(claims, am.Principal), namedBy(r.Scopes, claims)); err != nil {
+			// A parent no issuance makes: a person's own session at a
+			// module declaring no roles holds nothing, and neither does a
+			// hop from it.
+			if err := ownSession(tx, claims, am); err != nil {
+				return err
+			}
+			if heldHere, sourceCeiling, bounded, err = throughSolutions(tx, p, audience, solutionPrincipals(claims, am.Principal)); err != nil {
 				return err
 			}
 			// What a solution on the path reaches is held to the reach

@@ -12,20 +12,23 @@ import (
 // organization, which would answer an ask nobody made.
 func TestAPersonAskingForAnotherOrganizationIsRefused(t *testing.T) {
 	h := newHarness(t)
-	zoe := h.person("zoe") // globex's administrator
-	read := []*basev0.WorkScopeV1{sc(ledgerKind, "read")}
+	zoe := h.person("zoe") // globex's administrator, and a user of its solution a
+	if _, err := h.svc.GrantRole(h.ctx, zoe, authority.RoleRequest{Organization: globex, InstallationID: h.inst(globex, "a").ID, Role: "user", PersonID: "zoe"}); err != nil {
+		t.Fatal(err)
+	}
+	read := []*basev0.WorkScopeV1{owned("a.note", h.principal(globex, "a"), []string{"read"})}
 
-	_, err := h.svc.IssueForPerson(h.ctx, zoe, authority.IssueRequest{Audience: "ledger", Organization: acme, Scopes: read})
+	_, err := h.svc.IssueForPerson(h.ctx, zoe, authority.IssueRequest{Audience: "a", Organization: acme, Scopes: read})
 	refused(t, err, "a person is issued nothing at "+acme)
 
 	t.Run("through a page as well", func(t *testing.T) {
-		_, err := h.svc.IssueForPage(h.ctx, zoe, "a", authority.IssueRequest{Audience: "ledger", Organization: acme, Scopes: read})
+		_, err := h.svc.IssueForPage(h.ctx, zoe, "a", authority.IssueRequest{Audience: "store", Organization: acme})
 		refused(t, err, "a person is issued nothing at "+acme)
 	})
 
 	t.Run("naming the session's own organization, or none, is issued there", func(t *testing.T) {
 		for _, org := range []string{globex, ""} {
-			out, err := h.svc.IssueForPerson(h.ctx, zoe, authority.IssueRequest{Audience: "ledger", Organization: org, Scopes: read})
+			out, err := h.svc.IssueForPerson(h.ctx, zoe, authority.IssueRequest{Audience: "a", Organization: org, Scopes: read})
 			if err != nil {
 				t.Fatalf("organization %q: %v", org, err)
 			}
