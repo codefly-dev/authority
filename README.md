@@ -1201,7 +1201,9 @@ cfg.Decisions = func(ctx context.Context, d authority.Decision) error {
 Not told: `Check` and `Verify` called directly (a host that serves checks
 calls `CheckMethod`, with an empty method for a check that names none),
 `IssueInstallationStep`, and the hop library's own refusals, which never
-reach the authority.
+reach the authority: a host receives those from the front door's sink,
+`forward.Config.Refused` (`libraries/hop/go/README.md`), where the authority's
+own refusals are marked `ByAuthority` so they are not recorded twice.
 
 ## Open decisions
 

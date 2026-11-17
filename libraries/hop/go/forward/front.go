@@ -37,8 +37,8 @@ type Authority interface {
 	hop.Registrar
 }
 
-// Config is what a host hands the front door. Every field but Enforcement and
-// Log is required.
+// Config is what a host hands the front door. Every field but Enforcement,
+// Log and Refused is required.
 type Config struct {
 	// Signer holds the host's admission key, from the seed Codefly delivers
 	// to the host (stamp.NewSigner). The seed never leaves the host.
@@ -62,6 +62,17 @@ type Config struct {
 	// Log names every refusal and the admission key's registration; nil is
 	// the context's logger, in "hop".
 	Log *wool.Wool
+	// Refused, when set, receives every refusal either face makes, with its
+	// reason and what identifies the call (Refusal), on the refused call's
+	// context: the hop's own refusals (no Work Context, no published route,
+	// an authority that did not answer inside the hop's deadline, an
+	// admission that cannot be signed, no admission-key publication, a
+	// module that did not answer, a Work Context that expired mid-call),
+	// which never reach the authority, and the authority's own, marked
+	// ByAuthority. It is called synchronously, before the caller is
+	// answered, so a slow sink slows refusals and nothing else. nil is the
+	// log line alone, as before; the log line is written either way.
+	Refused Sink
 }
 
 // Front is the host's half of standing in front of modules: the gRPC face,
@@ -179,7 +190,7 @@ func New(ctx context.Context, c Config) (*Front, error) {
 	if err := requireEnforcement(c.Enforcement); err != nil {
 		return nil, err
 	}
-	refused := func(method string, err error) {
+	logged := func(method string, err error) {
 		w.Warn("refused", wool.Field("method", method), wool.Field("reason", err.Error()))
 	}
 	// The authority publishes the host's admission key once the host
@@ -187,13 +198,13 @@ func New(ctx context.Context, c Config) (*Front, error) {
 	// own proof: the seed stays here.
 	publication := hop.Registration{Authority: c.Authority, Signer: c.Signer, Credential: c.Credential, Report: registrationReport(w)}.Start(ctx)
 	decision := decide.Decider{Routes: routes, Authority: c.Authority, Modules: modules}.Decide
-	p := &Proxy{Decide: decision, Upstreams: upstreams, Signer: c.Signer, Refused: refused, Ready: publication.Ready}
+	p := &Proxy{Decide: decision, Upstreams: upstreams, Signer: c.Signer, Refused: logged, Sink: c.Refused, Ready: publication.Ready}
 	configured = true
 	var closeOnce sync.Once
 	return &Front{
 		publication:   publication,
 		ServerOptions: p.ServerOptions(),
-		Handler:       &HTTP{Decide: decision, Upstreams: webs, Signer: c.Signer, Refused: refused, Ready: publication.Ready},
+		Handler:       &HTTP{Decide: decision, Upstreams: webs, Signer: c.Signer, Refused: logged, Sink: c.Refused, Ready: publication.Ready},
 		Close: func() {
 			closeOnce.Do(func() {
 				publication.Close()

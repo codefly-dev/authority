@@ -36,6 +36,15 @@ type Decision struct {
 	Identity hop.Identity
 	// Route is the destination; the authority checks the actual HTTP request.
 	Route *routing.RouteEndpoint
+	// Addressed is set on a refusal only, once the call's Work Context was
+	// read: the module it is addressed to, unverified. A refusal names no
+	// Module, Identity or Route, so nothing is forwarded on one.
+	Addressed string
+	// Answered is set on a refusal the authority made: it answered the check
+	// and refused the call. Every other refusal is the hop's own, decided
+	// without the authority (no Work Context, no route, a check that was
+	// not answered in time).
+	Answered bool
 }
 
 type Decider struct {
@@ -88,7 +97,7 @@ func (d Decider) decide(ctx context.Context, method string, md metadata.MD) (Dec
 		return Decision{}, status.Errorf(codes.Unauthenticated, "the call to %s carries a Work Context that does not decode: %v", method, err)
 	}
 	if !d.Modules[module] {
-		return Decision{}, status.Errorf(codes.PermissionDenied, "the call to %s is addressed to %q, a module this hop does not stand in front of", method, module)
+		return Decision{Addressed: module}, status.Errorf(codes.PermissionDenied, "the call to %s is addressed to %q, a module this hop does not stand in front of", method, module)
 	}
 	transport := "grpc"
 	if !strings.HasPrefix(method, "/") {
@@ -96,7 +105,7 @@ func (d Decider) decide(ctx context.Context, method string, md metadata.MD) (Dec
 	}
 	selected, policy, routeErr := d.Routes.Resolve(module, transport, method)
 	if routeErr != nil {
-		return Decision{}, status.Error(codes.NotFound, routeErr.Error())
+		return Decision{Addressed: module}, status.Error(codes.NotFound, routeErr.Error())
 	}
 	route := &selected
 	timeout := d.Timeout
@@ -121,18 +130,18 @@ func (d Decider) decide(ctx context.Context, method string, md metadata.MD) (Dec
 		// is still live. Only the first is the caller's doing, answered with
 		// the code its own context ended with.
 		if ended := ctx.Err(); ended != nil && (refusal.Code() == codes.Canceled || refusal.Code() == codes.DeadlineExceeded) {
-			return Decision{}, status.Errorf(status.FromContextError(ended).Code(), "the caller's request ended before the authority checked the call to %s: %s", module, refusal.Message())
+			return Decision{Addressed: module}, status.Errorf(status.FromContextError(ended).Code(), "the caller's request ended before the authority checked the call to %s: %s", module, refusal.Message())
 		}
 		if refusal.Code() == codes.Unavailable || refusal.Code() == codes.DeadlineExceeded {
-			return Decision{}, status.Errorf(codes.Unavailable, "the hop could not reach the authority to check the call to %s: %s", module, refusal.Message())
+			return Decision{Addressed: module}, status.Errorf(codes.Unavailable, "the hop could not reach the authority to check the call to %s: %s", module, refusal.Message())
 		}
 		if refusal.Code() == codes.Canceled {
-			return Decision{}, status.Errorf(codes.Unavailable, "the authority's check of the call to %s was cancelled before it answered: %s", module, refusal.Message())
+			return Decision{Addressed: module}, status.Errorf(codes.Unavailable, "the authority's check of the call to %s was cancelled before it answered: %s", module, refusal.Message())
 		}
-		return Decision{}, status.Errorf(refusal.Code(), "the authority refused the call to %s: %s", module, refusal.Message())
+		return Decision{Addressed: module, Answered: true}, status.Errorf(refusal.Code(), "the authority refused the call to %s: %s", module, refusal.Message())
 	}
 	if checked.GetRefusal() != "" {
-		return Decision{}, status.Error(codes.PermissionDenied, "the authority refused the method policy")
+		return Decision{Addressed: module, Answered: true}, status.Error(codes.PermissionDenied, "the authority refused the method policy")
 	}
 	id := IdentityOf(checked.GetContext())
 	return Decision{Module: module, Identity: id, Route: route}, nil

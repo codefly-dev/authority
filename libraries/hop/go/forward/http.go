@@ -14,6 +14,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-client/go/host"
 	callstamp "github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
 	"github.com/codefly-dev/authority/libraries/hop/go"
+	"github.com/codefly-dev/authority/libraries/hop/go/decide"
 	"github.com/codefly-dev/authority/libraries/hop/go/routing"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -35,42 +36,50 @@ type HTTP struct {
 	Ready func() bool
 	// Refused is told every refusal, so the hop's log names it.
 	Refused func(method string, err error)
+	// Sink, when set, receives every refusal this face makes, beside the
+	// log: those Refused is told, and those the log never named (no
+	// admission-key publication, an admission that cannot be signed, a
+	// decision with no connection behind it). nil records nothing.
+	Sink Sink
 }
 
 func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if err := requirePublication(h.Ready); err != nil {
-		refuse(w, r, err)
-		return
-	}
 	method := r.Method + " " + r.URL.Path
-	if err := routing.CanonicalPath(r.URL.Path, r.URL.EscapedPath()); err != nil {
-		refusal := status.Error(codes.InvalidArgument, err.Error())
-		if h.Refused != nil {
-			h.Refused(method, refusal)
-		}
-		refuse(w, r, refusal)
-		return
-	}
 	md := metadata.MD{}
 	for key, values := range r.Header {
 		md[strings.ToLower(key)] = values
 	}
+	// The call as it arrived: the sink is told on its context, whatever
+	// deadline the hop puts on the forwarded request below.
+	arrived := r.Context()
+	var decision decide.Decision
+	// refusing answers the caller with err and tells the sink, and the log
+	// what the log was always told.
+	refusing := func(logged bool, err error) {
+		refused(arrived, h.Refused, h.Sink, logged, method, md, decision, err)
+		refuse(w, r, err)
+	}
+	if err := requirePublication(h.Ready); err != nil {
+		refusing(false, err)
+		return
+	}
+	if err := routing.CanonicalPath(r.URL.Path, r.URL.EscapedPath()); err != nil {
+		refusing(true, status.Error(codes.InvalidArgument, err.Error()))
+		return
+	}
 	decision, err := h.Decide(r.Context(), method, md)
 	if err != nil {
-		if h.Refused != nil {
-			h.Refused(method, err)
-		}
-		refuse(w, r, err)
+		refusing(true, err)
 		return
 	}
 	module, id := decision.Module, decision.Identity
 	if decision.Route == nil {
-		refuse(w, r, status.Error(codes.Internal, "the hop decision names no published route"))
+		refusing(false, status.Error(codes.Internal, "the hop decision names no published route"))
 		return
 	}
 	target, ok := h.Upstreams[decision.Route.Address]
 	if !ok {
-		refuse(w, r, status.Errorf(codes.Internal, "the hop has no HTTP connection to %s", module))
+		refusing(false, status.Errorf(codes.Internal, "the hop has no HTTP connection to %s", module))
 		return
 	}
 	stamp := metadata.MD{}
@@ -83,11 +92,11 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// The final pre-sign check admits this call; it does not reserve the
 	// lease through Stamp or I/O if Close or expiry races after this point.
 	if err := requirePublication(h.Ready); err != nil {
-		refuse(w, r, err)
+		refusing(false, err)
 		return
 	}
 	if err := hop.Stamp(stamp, id, h.Signer, boundMethod, module, time.Now()); err != nil {
-		refuse(w, r, status.Error(codes.Unauthenticated, err.Error()))
+		refusing(false, status.Error(codes.Unauthenticated, err.Error()))
 		return
 	}
 	// The request lives no longer than the Work Context that admitted it: a
@@ -117,9 +126,7 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			if hop.Expired(r.Context()) {
 				expired := hop.ExpiredStatus()
-				if h.Refused != nil {
-					h.Refused(method, expired)
-				}
+				refused(arrived, h.Refused, h.Sink, true, method, md, decision, expired)
 				refuse(w, r, expired)
 				return
 			}
@@ -132,11 +139,10 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// The transport error can name the module's internal address:
 			// the hop's log is told it, the caller is told what happened.
 			failed := status.Errorf(codes.Unavailable, "the module did not answer: %v", err)
-			if h.Refused != nil {
-				h.Refused(method, failed)
-			} else {
+			if h.Refused == nil {
 				slog.Warn("hop: the module did not answer", "method", method, "module", module, "error", err)
 			}
+			refused(arrived, h.Refused, h.Sink, true, method, md, decision, failed)
 			refuse(w, r, status.Error(codes.Unavailable, "the module did not answer"))
 		},
 	}).ServeHTTP(w, r)

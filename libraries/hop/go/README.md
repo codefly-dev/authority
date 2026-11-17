@@ -155,6 +155,37 @@ Invalid configuration returns an error and closes any connections already dialle
 read. `decide.Decider`, `forward.Proxy` and `forward.HTTP` are the parts New
 assembles, for a host that needs one face alone.
 
+The hop keeps no record of what it refuses. Each refusal is a line of its log,
+and a host that records refusals hands New a sink:
+
+```go
+front, err := forward.New(ctx, forward.Config{
+	// ... as above
+	Refused: func(ctx context.Context, r forward.Refusal) {
+		if r.ByAuthority {
+			return // the authority decided it and told its own host (authority.Config.Decisions)
+		}
+		record(ctx, r.Method, r.Code, r.Reason, r.Module, r.Organization, r.Owner, r.Actor, r.Binding, r.Task, r.Claimed)
+	},
+})
+```
+
+`Refused` receives every refusal either face makes, on the refused call's
+context, before the caller is answered: the hop's own (no Work Context, no
+published route, an authority that did not answer inside `decide.CheckTimeout`,
+an admission that cannot be signed, no admission-key publication, a module that
+did not answer, a Work Context that expired mid-call), which reach the
+authority from nobody else, and the authority's, marked `ByAuthority`. A
+`Refusal` names the method, the code and the hop's own reason (which may name
+a module's address and is never for a caller), and the module, organization,
+owner, last actor, binding and task of the call. `Claimed` says those were read
+from the call's Work Context unverified, because the authority did not check
+the call or refused it; false, they are the identity the authority checked.
+nil is the log line alone, as before, and the log line is written either way.
+What the sink does not see is what the module itself refuses after the hop
+forwarded the call (a stamp its Verifier rejects): that is the module's
+refusal, answered in its process.
+
 Both faces check publication at entry and again after policy checking,
 immediately before signing. This final check is the call's admission point,
 not an atomic reservation through Stamp or I/O: an admitted call may continue
