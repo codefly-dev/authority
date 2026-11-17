@@ -103,10 +103,16 @@ func module(t *testing.T, contract []byte, decide rule, carry func(scopes []*bas
 				scopes = decoded.Context().GetAuthorityScopes()
 			}
 		}
+		// "kind:action" is held on the fixture's installation; "kind:action@owner"
+		// on that owner, and "kind:action@" on no owner at all.
 		return func(permission string) bool {
 			kind, action, _ := strings.Cut(permission, ":")
+			owner := "installation"
+			if a, o, selected := strings.Cut(action, "@"); selected {
+				action, owner = a, o
+			}
 			return slices.ContainsFunc(scopes, func(s *basev0.WorkScopeV1) bool {
-				return s.GetResourceKind() == kind && s.GetResourceOwnerId() == "installation" && slices.Contains(s.GetActions(), action)
+				return s.GetResourceKind() == kind && s.GetResourceOwnerId() == owner && slices.Contains(s.GetActions(), action)
 			})
 		}
 	}
@@ -344,5 +350,46 @@ func TestAShowsThatAcceptsNothingIsAFinding(t *testing.T) {
 	findings, err := probe.Check(t.Context(), m)
 	if err != nil || len(findings) != 1 || !strings.HasPrefix(findings[0], list+": its case's Shows accepts an empty answer") {
 		t.Fatalf("findings %q (%v)", findings, err)
+	}
+}
+
+// A module's own headless context carries its scopes as declared, selecting no
+// owner (the authority's decide.HeadlessAt), and a handler serving such a call
+// reads the kind across owners. Under the module's fixture owner that call
+// cannot be made, and the probe reports a disagreement the hop never sees; a
+// case that names no owner, or its own, makes the call the handler serves. A
+// case that names neither means what it always did.
+func TestACaseNamesItsOwnOwnerOrNone(t *testing.T) {
+	contract := published(t, all)
+	owned := func(t *testing.T, decide rule, change func(*probe.Case)) []string {
+		t.Helper()
+		m := module(t, contract, decide, asGiven)
+		c := m.Cases[check]
+		change(&c)
+		m.Cases[check] = c
+		findings, err := probe.Check(t.Context(), m)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return findings
+	}
+	headless := refusing(check, codes.PermissionDenied, "doc:read@")
+	if findings := owned(t, headless, func(*probe.Case) {}); len(findings) != 1 || !strings.HasPrefix(findings[0], check+": holding exactly what it declares (doc:read@installation), the call is answered PermissionDenied") {
+		t.Fatalf("a headless handler probed on the module's owner: findings %q, want the one disagreement", findings)
+	}
+	if findings := owned(t, headless, func(c *probe.Case) { c.Unowned = true }); len(findings) != 0 {
+		t.Fatalf("a case selecting no owner, at a handler that serves a scope selecting none: findings %q, want none", findings)
+	}
+	elsewhere := refusing(check, codes.PermissionDenied, "doc:read@another")
+	if findings := owned(t, elsewhere, func(c *probe.Case) { c.Owner = "another" }); len(findings) != 0 {
+		t.Fatalf("a case naming its own owner, at a handler that serves that owner: findings %q, want none", findings)
+	}
+	// The case's choice is the call that is made and nothing looser: a handler
+	// that serves only the module's owner disagrees with a case naming none.
+	if findings := owned(t, refusing(check, codes.PermissionDenied, "doc:read"), func(c *probe.Case) { c.Unowned = true }); len(findings) != 1 || !strings.HasPrefix(findings[0], check+": holding exactly what it declares (doc:read@), the call is answered PermissionDenied") {
+		t.Fatalf("a case selecting no owner at a handler that wants the module's: findings %q, want the one disagreement", findings)
+	}
+	if findings := owned(t, headless, func(c *probe.Case) { c.Owner, c.Unowned = "another", true }); len(findings) != 1 || !strings.HasPrefix(findings[0], check+": its case names an owner (another) and no owner at once") {
+		t.Fatalf("a case naming an owner and none: findings %q, want it refused by name", findings)
 	}
 }

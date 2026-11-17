@@ -8,7 +8,9 @@
 // Work Context at all, fails by name.
 //
 // What it proves is that the declaration is SUFFICIENT, for the principal,
-// owner and request the case chooses. It does not prove:
+// owner and request the case chooses: the module's fixture owner, unless the
+// case names its own (Case.Owner) or none (Case.Unowned, a call on a module's
+// own headless context, whose scopes select no owner). It does not prove:
 //
 //   - that the handler requires as much as it declares. A handler laxer than
 //     its declaration passes; the hop refuses those calls before it.
@@ -84,7 +86,9 @@ type Module struct {
 	// Conn reaches Server. The probe invokes each procedure on it.
 	Conn grpc.ClientConnInterface
 	// Owner is the fixture installation every scope the probe builds is
-	// selected to; empty for a module whose kinds have no owner.
+	// selected to; empty for a module whose kinds have no owner. A case that
+	// makes its call for another owner, or for none, says so itself
+	// (Case.Owner, Case.Unowned).
 	Owner string
 	// Carry returns ctx carrying, as outgoing metadata, a Work Context that
 	// holds exactly scopes and the stamp of a hop that admitted the call to
@@ -98,8 +102,19 @@ type Module struct {
 
 // Case is a call that succeeds for a caller holding what the method declares.
 type Case struct {
-	// Request addresses a resource the fixture's Owner holds.
+	// Request addresses a resource the owner the case's scopes select holds:
+	// the fixture's Owner, unless the case names its own or none.
 	Request proto.Message
+	// Owner, when set, is the owner this case's scopes are selected to in
+	// place of Module.Owner: a procedure that serves another installation's
+	// data than the fixture's.
+	Owner string
+	// Unowned makes the call with scopes that select no owner, whatever
+	// Module.Owner is: a call on a module's own headless context, whose
+	// scopes the authority carries as declared, at a handler that reads a
+	// kind across owners. A case names an owner or none, never both; one
+	// that sets neither is selected to Module.Owner.
+	Unowned bool
 	// Shows returns an error unless the answer carries what the request
 	// asked for: the row, the type, the page's entries. It is required, and
 	// it is the only thing that tells an answer from a refusal rendered as
@@ -227,7 +242,16 @@ func (m Module) probe(ctx context.Context, method string, descriptor protoreflec
 	if err := m.invoke(ctx, method, descriptor, c.Request, bare); status.Code(err) != codes.Unauthenticated && status.Code(err) != codes.PermissionDenied {
 		return fmt.Sprintf("a call carrying no Work Context is answered %v, want it refused; the server does not read what a call holds", status.Code(err))
 	}
-	scopes := exactly(declared.Requires, m.Owner)
+	owner := m.Owner
+	switch {
+	case c.Owner != "" && c.Unowned:
+		return fmt.Sprintf("its case names an owner (%s) and no owner at once; a case selects one owner, or none", c.Owner)
+	case c.Unowned:
+		owner = ""
+	case c.Owner != "":
+		owner = c.Owner
+	}
+	scopes := exactly(declared.Requires, owner)
 	if err := policy.Admit(map[string]policy.Method{method: declared}, method, scopes); err != nil {
 		return err.Error()
 	}
