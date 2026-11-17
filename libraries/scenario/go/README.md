@@ -45,9 +45,13 @@ func TestWhoReadsTheNotes(t *testing.T) {
   (`"GET /v1/…"`). `Stream` reads a streamed answer.
 - **`Outcome`** is what became of it: `Allowed` (it answered), `Admitted` (the
   authority and the hop let it through and the method refused the request for
-  a reason of its own), `Denied` (refused for who makes it; the reason is the
-  caller's own words for it), `Unserved` (the composition serves no such call
-  to anyone). `Value("a.0.b")` and `Text` read the answer.
+  a reason of its own: an argument, a record, a state), `Denied` (refused for
+  who makes it; the reason is the caller's own words for it), `Unserved` (the
+  composition serves no such call to anyone), `Failed` (no verdict: the module
+  did not answer, a 5xx, unavailable, a fault, a timeout, or the authority
+  reaching no decision; it satisfies no expectation, `Admit` included).
+  `Person.Do` states the exact rule. `Value("a.0.b")` and `Text` read the
+  answer.
 - **`Check`** runs a table: `Row` × the people it names, each a subtest. An
   expectation is `Allow`, `Admit` or `Deny("part of the reason")`, with
   `.And(func(Outcome) error)` for what the answer must hold. A refusal that

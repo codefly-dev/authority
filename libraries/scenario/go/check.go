@@ -17,8 +17,11 @@ type Expect struct {
 var (
 	// Allow: the call answers.
 	Allow = Expect{verdict: Allowed}
-	// Admit: the person may make the call: it answers, or the method refuses
-	// it for a reason of its own. For a call made with no real argument.
+	// Admit: the person may make the call: it answers, or it reached its
+	// method and the method refuses the request for a reason of its own
+	// (Admitted, as Do reads it). For a call made with no real argument. A
+	// call that failed (Failed: the module down, a fault, a timeout) reached
+	// no method and does not satisfy it.
 	Admit = Expect{verdict: Admitted}
 )
 
@@ -79,6 +82,9 @@ func (e Expect) problem(got Outcome) string {
 	switch {
 	case e.verdict == 0:
 		return "the row states no expectation"
+	case got.Verdict == Failed:
+		// Nobody was let through and nobody was refused: no expectation holds.
+		return "the call failed before any verdict: " + said
 	case got.Verdict == Denied && strings.TrimSpace(got.Reason) == "":
 		return "denied with no reason"
 	case got.Verdict == Unserved && (e.verdict != Denied || e.reason != ""):
@@ -93,7 +99,7 @@ func (e Expect) problem(got Outcome) string {
 		return fmt.Sprintf("refused, but not for %q: %s", e.reason, got.Reason)
 	case e.verdict == Allowed && got.Verdict != Allowed:
 		return "expected an answer, got " + said
-	case e.verdict == Admitted && got.Verdict == Denied:
+	case e.verdict == Admitted && got.Verdict != Allowed && got.Verdict != Admitted:
 		return "expected the call to be let through, got " + said
 	}
 	for _, holds := range e.holds {

@@ -85,9 +85,10 @@ type Verdict int
 const (
 	// Allowed: every decision let the call through and it answered.
 	Allowed Verdict = iota + 1
-	// Admitted: the authority and the hop let the call through and the
-	// method refused it for a reason of its own (an argument it requires, a
-	// record that does not exist). It says the caller may make the call.
+	// Admitted: the authority and the hop let the call through, it reached
+	// its method, and the method refused the request for a reason of its own
+	// (an argument it requires, a record that does not exist). It says the
+	// caller may make the call. See Do for the exact rule.
 	Admitted
 	// Denied: the call was refused for who makes it, by the edge's issuance,
 	// the hop's admission or a module on the way.
@@ -95,10 +96,14 @@ const (
 	// Unserved: the composition serves no such call to anyone: the edge
 	// routes the procedure to no module, or no module implements it.
 	Unserved
+	// Failed: the call reached no verdict: the module did not answer, the hop
+	// or the authority could not decide, a fault, a deadline. Nobody was let
+	// through and nobody was refused, so it satisfies no expectation.
+	Failed
 )
 
 func (v Verdict) String() string {
-	return [...]string{"no verdict", "allowed", "admitted", "denied", "unserved"}[v]
+	return [...]string{"no verdict", "allowed", "admitted", "denied", "unserved", "failed"}[v]
 }
 
 // Outcome is a call's answer.
@@ -146,6 +151,27 @@ func (o Outcome) Text(path string) string {
 
 // Do makes the call as the person and answers what became of it. A call
 // that cannot be made at all (the edge unreachable) is the test's failure.
+//
+// The verdict is read from the answer alone, first match:
+//
+//   - Denied: Connect permission_denied or unauthenticated, or HTTP 403 or 401.
+//   - Failed: an error that says "the authority refused" and is no denial: the
+//     hop relaying that the authority reached no decision on the caller (a
+//     module it does not hold, an installation that is not active).
+//   - Unserved: Connect unimplemented, or HTTP 404 with no Connect code.
+//   - Allowed: HTTP 200 with no error (a stream: no error in its last frame).
+//   - Admitted: an error only the method itself gives of a request it was
+//     handed: Connect invalid_argument, not_found, already_exists,
+//     failed_precondition, out_of_range or aborted; or, with no Connect code
+//     (a route), HTTP 400 to 499 other than 408, 429 and 499.
+//   - Failed: everything else: HTTP 5xx (the edge's 502 "the module did not
+//     answer"), a redirect, Connect unavailable, internal, unknown,
+//     deadline_exceeded, canceled, resource_exhausted, data_loss, and a code
+//     this list does not know.
+//
+// So "admitted" is never inferred from the absence of a refusal: a module
+// that is down, a hop that could not reach it or the authority, a fault and a
+// timeout are Failed, which satisfies no expectation (Expect).
 func (p *Person) Do(t testing.TB, call Call) Outcome {
 	t.Helper()
 	out, err := p.do(call)
@@ -207,17 +233,33 @@ func (p *Person) do(call Call) (Outcome, error) {
 		}
 		out.Code, out.Reason = refusal.Code, refusal.Message+refusal.Error
 	}
-	switch {
-	case out.Code == "permission_denied" || out.Code == "unauthenticated" || res.StatusCode == http.StatusForbidden || res.StatusCode == http.StatusUnauthorized:
-		out.Verdict = Denied
-	case out.Code == "unimplemented" || out.Code == "" && res.StatusCode == http.StatusNotFound:
-		out.Verdict = Unserved
-	case out.Code != "" || res.StatusCode >= 300:
-		out.Verdict = Admitted
-	default:
-		out.Verdict = Allowed
-	}
+	out.Verdict = verdictOf(res.StatusCode, out.Code, out.Reason)
 	return out, nil
+}
+
+// verdictOf reads a verdict from an answer's HTTP status, Connect code and
+// message: the rule Do states.
+func verdictOf(status int, code, reason string) Verdict {
+	switch {
+	case code == "permission_denied" || code == "unauthenticated" || status == http.StatusForbidden || status == http.StatusUnauthorized:
+		return Denied
+	case strings.Contains(reason, "the authority refused"):
+		return Failed
+	case code == "unimplemented" || code == "" && status == http.StatusNotFound:
+		return Unserved
+	case code == "" && status == http.StatusOK:
+		return Allowed
+	}
+	switch code {
+	case "invalid_argument", "not_found", "already_exists", "failed_precondition", "out_of_range", "aborted":
+		return Admitted
+	case "":
+		// 499 is a request whose caller left before it was answered.
+		if status >= 400 && status < 500 && status != http.StatusRequestTimeout && status != http.StatusTooManyRequests && status != 499 {
+			return Admitted
+		}
+	}
+	return Failed
 }
 
 // envelope frames one message as Connect's streaming protocol sends it.
