@@ -3,14 +3,19 @@
 // to the local authority's fixture. It is the one parser of the document and
 // the one place its merge rules live.
 //
-// The fixture says who exists and which organisation roles they hold, in the
-// authority's own vocabulary. What those roles may do at a module is the
-// module's to say: each module ships a fragment of this document next to its
-// code (configurations/<profile>/fixture-composition.yaml in the module), and
-// a composition ships one more for what is truly its own (a seeded
-// collection's id). The run merges every fragment into the document the local
-// authority reads (Merge); the local authority then checks the result against
-// its fixture.
+// The fixture says who exists, in the authority's own vocabulary. A
+// composition adds what is its own: the installations of the solutions it
+// composes and who is seated on them, and the modules the run supervises
+// itself. Each module ships a fragment of this document next to its code
+// (configurations/<profile>/fixture-composition.yaml in the module), and a
+// composition ships one more for what is truly its own. The run merges every
+// fragment into the document the local authority reads (Merge); the local
+// authority then checks the result against its fixture.
+//
+// The document grants no organisation role anything. Organisation roles
+// decide administration only, and a person reaches a module through a role
+// (admin, user) on an installation: a fixture person who is to reach a module
+// is seated on a team of an installation that reaches it (Installation.Members).
 package fixturecomposition
 
 import (
@@ -22,20 +27,29 @@ import (
 	"slices"
 	"strings"
 
-	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	"gopkg.in/yaml.v3"
 )
 
 // Name is the workspace configuration document the local authority reads.
 const Name = "fixture-composition"
 
-// Schema versions the document. Its sections and the fixture's organisation,
-// role and person ids it names are a contract with every composing
-// repository: a breaking change is a new schema, never an edit.
-const Schema = "codefly.dev/authority/fixture-composition/v1"
+// Schema versions the document. Its sections and the fixture's organisation
+// and person ids it names are a contract with every composing repository: a
+// breaking change is a new schema, never an edit.
+const Schema = "codefly.dev/authority/fixture-composition/v2"
 
-// The wildcards a composition never grants: a wildcard on a business role
-// would erase the difference between viewer, editor and administrator.
+// RetiredSchema is the version before: it carried a roles section granting a
+// module's kinds to an organisation role, which no organisation role holds
+// any more. A document stating it is refused by name (Decode), whatever it
+// carries, so that no fragment is read as granting what it no longer grants.
+const RetiredSchema = "codefly.dev/authority/fixture-composition/v1"
+
+// noRoles is what a document that still tries to grant an organisation role
+// is told.
+const noRoles = "organisation roles decide administration only, and a person reaches a module through a role on an installation: seat each person who is to reach a module on a team of an installation that reaches it (installations: members), and remove the roles section"
+
+// The wildcards a stand-in module never serves: it declares the concrete
+// kinds and actions the module it stands in for serves.
 const (
 	anyKind   = "*"
 	anyAction = "*"
@@ -48,53 +62,25 @@ var (
 	actionGrammar = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
 )
 
-// ErrConflict is the same thing stated twice — the same role's grant on one
-// kind, the same installation, the same stand-in module — whether by two
-// sources (Merge) or twice within one document (Decode).
+// ErrConflict is the same thing stated twice — the same installation, the
+// same stand-in module — whether by two sources (Merge) or twice within one
+// document (Decode).
 var ErrConflict = errors.New("fixture-composition: one statement, stated twice")
 
 // Document is one fixture-composition document.
 type Document struct {
 	Schema string `yaml:"schema"`
-	// Roles adds grants to roles the fixture defines.
-	Roles []Role `yaml:"roles,omitempty"`
 	// Installations are installations of a solution the run composes, taking
-	// the fixture's own path.
+	// the fixture's own path, and who is seated on a role-gated target.
 	Installations []Installation `yaml:"installations,omitempty"`
 	// Modules are modules the run supervises itself, until their own delivery.
 	Modules []Module `yaml:"modules,omitempty"`
 }
 
-// Role is grants added to one role the fixture defines.
-type Role struct {
-	Organization string  `yaml:"organization"`
-	Name         string  `yaml:"name"`
-	Scopes       []Scope `yaml:"scopes"`
-}
-
-// Key is the role as the fixture names it, organisation/name.
-func (r Role) Key() string { return r.Organization + "/" + r.Name }
-
-// Scope is one (kind, actions) pair, optionally narrowed to named resources.
-// With no resources it covers every resource of the kind.
+// Scope is one (kind, actions) pair a stand-in module serves.
 type Scope struct {
-	Kind      string          `yaml:"kind"`
-	Actions   []string        `yaml:"actions,flow"`
-	Resources []ResourceMatch `yaml:"resources,omitempty"`
-}
-
-// ResourceMatch is one resource grant: exactly one of every resource, one id,
-// an id prefix or a pattern (libraries/resources).
-type ResourceMatch struct {
-	All     bool   `yaml:"all,omitempty"`
-	ID      string `yaml:"id,omitempty"`
-	Prefix  string `yaml:"prefix,omitempty"`
-	Pattern string `yaml:"pattern,omitempty"`
-}
-
-// Grant is the match as the shared library evaluates it.
-func (r ResourceMatch) Grant() resources.Grant {
-	return resources.Grant{All: r.All, ID: r.ID, Prefix: r.Prefix, Pattern: r.Pattern}
+	Kind    string   `yaml:"kind"`
+	Actions []string `yaml:"actions,flow"`
 }
 
 // Installation is one installation performed through the real install path
@@ -136,9 +122,11 @@ type Module struct {
 // Decode reads exactly one versioned mapping and checks everything that does
 // not depend on the fixture. An empty or null document, a section spelled
 // null and an unknown field are each refused, so a mistake never reads as
-// "grants nothing"; so are a wildcard, a kind or action outside the grammar,
-// a malformed resource matcher, a role or stand-in module with no scope, and
-// an installation with no target or role.
+// "states nothing"; so are a wildcard, a kind or action outside the grammar,
+// a stand-in module with no kind, and an installation with no target. A roles
+// section, and the retired schema that had one, are refused saying where a
+// person's reach is stated now: a document that granted an organisation role
+// a module's kinds is never read as one that grants nothing.
 func Decode(data []byte) (Document, error) {
 	var doc Document
 	var node yaml.Node
@@ -152,6 +140,14 @@ func Decode(data []byte) (Document, error) {
 		return doc, errors.New("the document is not a mapping")
 	}
 	mapping := node.Content[0]
+	for i := 0; i+1 < len(mapping.Content); i += 2 {
+		switch key, value := mapping.Content[i].Value, mapping.Content[i+1]; {
+		case key == "schema" && value.Value == RetiredSchema:
+			return doc, fmt.Errorf("schema %s is retired; this authority reads %s, which has no roles section: %s, then state the schema as %s", RetiredSchema, Schema, noRoles, Schema)
+		case key == "roles":
+			return doc, fmt.Errorf("roles: a composition grants no organisation role a module's kinds: %s", noRoles)
+		}
+	}
 	for i := 0; i+1 < len(mapping.Content); i += 2 {
 		if mapping.Content[i+1].Tag == "!!null" {
 			return doc, fmt.Errorf("%s is null: omit it, or give a list", mapping.Content[i].Value)
@@ -170,43 +166,11 @@ func Decode(data []byte) (Document, error) {
 
 // validate holds one document — a single fragment, or a merged one — to the
 // rules that do not depend on the fixture, the one-statement-one-source rule
-// included: the same (organisation, role, kind), the same installation and the
-// same stand-in module are each stated once in a document, as they are stated
-// by one source across documents (Merge).
-//
-// Within one document that rule is what the cross-source rule exists for. The
-// grants of a kind are a UNION — a role holding `documents.collection:read` on
-// `{id: seeded}` and again on `{all: true}` reads every collection, the exact
-// widening the rule refuses between two fragments — and whoever reads the
-// first statement has no reason to look for a second further down the file.
+// included: the same installation and the same stand-in module are each
+// stated once in a document, as they are stated by one source across
+// documents (Merge). Whoever reads the first statement has no reason to look
+// for a second further down the file.
 func (d Document) validate() error {
-	grants := map[string]bool{}
-	for _, r := range d.Roles {
-		key := r.Key()
-		switch {
-		case r.Organization == "" || r.Name == "":
-			return fmt.Errorf("a role names no organization or no name (%q)", key)
-		case len(r.Scopes) == 0:
-			return fmt.Errorf("%s names no scope", key)
-		}
-		for _, sc := range r.Scopes {
-			if err := CheckScope(sc.Kind, sc.Actions); err != nil {
-				return fmt.Errorf("%s: %w", key, err)
-			}
-			if grants[key+" "+sc.Kind] {
-				return fmt.Errorf("%w: %s's grant on %s is stated twice in one document; state it once, with every action and resource it covers",
-					ErrConflict, key, sc.Kind)
-			}
-			grants[key+" "+sc.Kind] = true
-			compiled := make([]resources.Grant, 0, len(sc.Resources))
-			for _, m := range sc.Resources {
-				compiled = append(compiled, m.Grant())
-			}
-			if _, err := resources.Compile(compiled); err != nil {
-				return fmt.Errorf("%s scope %s: %w", key, sc.Kind, err)
-			}
-		}
-	}
 	installations := map[string]bool{}
 	for _, i := range d.Installations {
 		switch {
@@ -255,11 +219,10 @@ func (d Document) validate() error {
 }
 
 // CheckScope refuses a wildcard by name, then anything outside the grammar
-// (whitespace included). A composition grants the concrete permissions its
-// modules serve.
+// (whitespace included). A stand-in module serves concrete kinds and actions.
 func CheckScope(kind string, actions []string) error {
 	if kind == anyKind {
-		return errors.New("a composition grants concrete kinds; the wildcard kind \"*\" is refused")
+		return errors.New("a stand-in module serves concrete kinds; the wildcard kind \"*\" is refused")
 	}
 	if !kindGrammar.MatchString(kind) {
 		return fmt.Errorf("kind %q is not a kind (dot-separated lowercase segments)", kind)
@@ -269,7 +232,7 @@ func CheckScope(kind string, actions []string) error {
 	}
 	for _, action := range actions {
 		if action == anyAction {
-			return fmt.Errorf("a composition grants concrete actions; the wildcard action \"*\" on %s is refused", kind)
+			return fmt.Errorf("a stand-in module serves concrete actions; the wildcard action \"*\" on %s is refused", kind)
 		}
 		if !actionGrammar.MatchString(action) {
 			return fmt.Errorf("action %q on %s is not an action (one lowercase word)", action, kind)
@@ -287,16 +250,11 @@ type Source struct {
 
 // Merge combines fragments into the one document the local authority reads.
 //
-// Every statement has exactly one source: a role's grant on one kind (the
-// organisation, the role and the kind together), one installation (its
-// organisation and target), one stand-in module. Two sources stating the same
-// one is refused naming both, even when they agree, because the fragment that
-// owns it is the one a reader goes to: a composition narrowing a module's grant
-// to a seeded resource must not be silently widened by the module's, and a
-// module's grant copied into a composition is the drift this exists to end.
-// Within ONE source the same rule holds, and for the same reason — the grants
-// of a kind are a union, so a fragment stating one twice widens it exactly as
-// two fragments would — which Decode refuses (validate).
+// Every statement has exactly one source: one installation (its organisation
+// and target), one stand-in module. Two sources stating the same one is
+// refused naming both, even when they agree, because the fragment that owns
+// it is the one a reader goes to. Within ONE source the same rule holds,
+// which Decode refuses (validate).
 //
 // The result does not depend on the order the sources are given in: they are
 // merged in the order of their names, and two sources of one name are refused.
@@ -304,7 +262,6 @@ func Merge(sources []Source) (Document, error) {
 	sorted := slices.Clone(sources)
 	slices.SortFunc(sorted, func(a, b Source) int { return strings.Compare(a.Name, b.Name) })
 	merged := Document{Schema: Schema}
-	grants := map[string]string{}
 	installations := map[string]string{}
 	modules := map[string]string{}
 	for i, source := range sorted {
@@ -317,16 +274,6 @@ func Merge(sources []Source) (Document, error) {
 		doc, err := Decode(source.Data)
 		if err != nil {
 			return Document{}, fmt.Errorf("%s: %w", source.Name, err)
-		}
-		for _, r := range doc.Roles {
-			for _, sc := range r.Scopes {
-				key := r.Key() + " " + sc.Kind
-				if owner, ok := grants[key]; ok && owner != source.Name {
-					return Document{}, fmt.Errorf("%w: %s's grant on %s is stated by %s and by %s; state it in one of them",
-						ErrConflict, r.Key(), sc.Kind, owner, source.Name)
-				}
-				grants[key] = source.Name
-			}
 		}
 		for _, in := range doc.Installations {
 			key := in.Organization + "/" + in.Target
@@ -343,7 +290,6 @@ func Merge(sources []Source) (Document, error) {
 			}
 			modules[m.Module] = source.Name
 		}
-		merged.Roles = append(merged.Roles, doc.Roles...)
 		merged.Installations = append(merged.Installations, doc.Installations...)
 		merged.Modules = append(merged.Modules, doc.Modules...)
 	}

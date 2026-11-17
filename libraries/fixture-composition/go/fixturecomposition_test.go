@@ -9,41 +9,66 @@ import (
 	fixturecomposition "github.com/codefly-dev/authority/libraries/fixture-composition/go"
 )
 
-const head = "schema: codefly.dev/authority/fixture-composition/v1\n"
+const head = "schema: codefly.dev/authority/fixture-composition/v2\n"
+
+// The document grants no organisation role anything: organisation roles decide
+// administration only, and a person reaches a module through a role on an
+// installation. A document that still carries a roles section is refused by
+// name, with what to write instead, and so is the schema that had one. A
+// refusal, never a section read as "grants nothing": a fixture person who
+// reached a module through such a grant no longer does, and the document says
+// why.
+func TestTheDocumentGrantsNoOrganisationRoleAModulesKinds(t *testing.T) {
+	const grant = "roles: [{organization: acme, name: admin, scopes: [{kind: evaluation.labels, actions: [approve]}]}]\n"
+	for name, tc := range map[string]struct{ doc, reason string }{
+		"a roles section":           {head + grant, "roles: a composition grants no organisation role a module's kinds"},
+		"an empty roles section":    {head + "roles: []\n", "roles: a composition grants no organisation role a module's kinds"},
+		"a null roles section":      {head + "roles: null\n", "roles: a composition grants no organisation role a module's kinds"},
+		"the schema that had one":   {"schema: codefly.dev/authority/fixture-composition/v1\n" + grant, "fixture-composition/v1 is retired"},
+		"that schema, granting nil": {"schema: codefly.dev/authority/fixture-composition/v1\n", "fixture-composition/v1 is retired"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := fixturecomposition.Decode([]byte(tc.doc))
+			if err == nil || !strings.Contains(err.Error(), tc.reason) {
+				t.Fatalf("got %v, want a refusal naming %q", err, tc.reason)
+			}
+			// The refusal says where a person's reach is stated now.
+			if !strings.Contains(err.Error(), "a role on an installation") {
+				t.Fatalf("the refusal does not say how a person reaches a module: %v", err)
+			}
+			_, err = fixturecomposition.Merge([]fixturecomposition.Source{{Name: "module evaluation", Data: []byte(tc.doc)}})
+			if err == nil || !strings.HasPrefix(err.Error(), "module evaluation: ") || !strings.Contains(err.Error(), tc.reason) {
+				t.Fatalf("the merge does not name the fragment: %v", err)
+			}
+		})
+	}
+	// What a person reaches is stated by seating them: a member of a role's
+	// team on an installation.
+	doc, err := fixturecomposition.Decode([]byte(head + `installations:
+  - organization: acme
+    target: evaluation-playground
+    owner: alice
+    members: {admin: [alex], user: [maya]}
+`))
+	if err != nil || len(doc.Installations) != 1 || !reflect.DeepEqual(doc.Installations[0].Members, map[string][]string{"admin": {"alex"}, "user": {"maya"}}) {
+		t.Fatalf("%+v %v", doc.Installations, err)
+	}
+}
 
 // Two modules' fragments and the composition's own merge into one document
-// that holds each source's grants, in an order that does not depend on the
-// order the sources were given in, and that reads back unchanged.
+// that holds each source's statements, in an order that does not depend on
+// the order the sources were given in, and that reads back unchanged.
 func TestMergeTwoModuleFragmentsAndTheCompositionsOwn(t *testing.T) {
 	store := fixturecomposition.Source{Name: "module documents", Data: []byte(head + `
-roles:
-  - organization: acme
-    name: viewer
-    scopes:
-      - {kind: documents, actions: [read]}
-  - organization: acme
-    name: admin
-    scopes:
-      - {kind: documents, actions: [read, write, ingest]}
-      - {kind: documents.collection, actions: [read, transfer, admin, publish, freeze]}
+modules: [{module: oracle, kinds: [{kind: oracle.answers, actions: [read]}]}]
 `)}
 	chat := fixturecomposition.Source{Name: "module robin", Data: []byte(head + `
-roles:
-  - organization: acme
-    name: viewer
-    scopes:
-      - {kind: robin.conversations, actions: [read]}
+installations:
+  - {organization: acme, target: robin-playground, owner: alice, members: {user: [maya]}}
 `)}
 	own := fixturecomposition.Source{Name: "module robin-playground", Data: []byte(head + `
-roles:
-  - organization: acme
-    name: viewer
-    scopes:
-      - kind: documents.collection
-        actions: [read]
-        resources: [{id: "derived\x1frobin-playground"}]
 installations:
-  - {organization: acme, target: atlas, role: viewer, owner: alex, teams: [finance]}
+  - {organization: acme, target: atlas, role: user, owner: alex, teams: [finance]}
 `)}
 	empty := fixturecomposition.Source{Name: "module authority", Data: []byte(head)}
 
@@ -55,19 +80,15 @@ installations:
 	if err != nil || !reflect.DeepEqual(merged, reordered) {
 		t.Fatalf("the merge depends on the order of its sources: %v", err)
 	}
-	var viewer []string
-	for _, r := range merged.Roles {
-		if r.Key() == "acme/viewer" {
-			for _, sc := range r.Scopes {
-				viewer = append(viewer, sc.Kind)
-			}
-		}
+	var targets []string
+	for _, i := range merged.Installations {
+		targets = append(targets, i.Target)
 	}
-	if want := []string{"documents", "robin.conversations", "documents.collection"}; !reflect.DeepEqual(viewer, want) {
-		t.Fatalf("the viewer holds %v, want %v", viewer, want)
+	if want := []string{"robin-playground", "atlas"}; !reflect.DeepEqual(targets, want) {
+		t.Fatalf("installations %v, want %v", targets, want)
 	}
-	if len(merged.Installations) != 1 || merged.Installations[0].Target != "atlas" {
-		t.Fatalf("installations: %+v", merged.Installations)
+	if len(merged.Modules) != 1 || merged.Modules[0].Module != "oracle" {
+		t.Fatalf("modules: %+v", merged.Modules)
 	}
 
 	encoded, err := fixturecomposition.Encode(merged)
@@ -78,30 +99,24 @@ installations:
 	if err != nil || !reflect.DeepEqual(back, merged) {
 		t.Fatalf("the encoded merge does not read back: %v\n%s", err, encoded)
 	}
-	if !strings.Contains(strings.ToLower(string(encoded)), `"derived\x1frobin-playground"`) {
-		t.Fatalf("the seeded id lost its separator:\n%s", encoded)
-	}
 }
 
-// A grant one source owns that another restates is refused naming both, even
-// when the two agree; so are an installation and a stand-in module stated
+// A statement one source owns that another restates is refused naming both,
+// even when the two agree: an installation and a stand-in module stated
 // twice, and two sources of one name.
 func TestMergeRefusesAConflictNamingBothSources(t *testing.T) {
 	module := fixturecomposition.Source{Name: "module documents", Data: []byte(head + `
-roles: [{organization: acme, name: viewer, scopes: [{kind: documents.collection, actions: [read]}]}]
-installations: [{organization: acme, target: atlas, role: viewer, owner: alex}]
+installations: [{organization: acme, target: atlas, role: user, owner: alex}]
 modules: [{module: oracle, kinds: [{kind: oracle.answers, actions: [read]}]}]
 `)}
 	for name, tc := range map[string]struct {
 		other  string
 		reason string
 	}{
-		"narrowed grant": {`roles: [{organization: acme, name: viewer, scopes: [{kind: documents.collection, actions: [read], resources: [{id: seeded}]}]}]`,
-			"acme/viewer's grant on documents.collection is stated by module documents and by module playground"},
-		"agreeing grant": {`roles: [{organization: acme, name: viewer, scopes: [{kind: documents.collection, actions: [read]}]}]`,
-			"acme/viewer's grant on documents.collection"},
-		"installation": {`installations: [{organization: acme, target: atlas, role: editor, owner: alex}]`,
+		"installation": {`installations: [{organization: acme, target: atlas, role: admin, owner: alex}]`,
 			"the installation of atlas at acme is stated by module documents and by module playground"},
+		"agreeing installation": {`installations: [{organization: acme, target: atlas, role: user, owner: alex}]`,
+			"the installation of atlas at acme"},
 		"stand-in": {`modules: [{module: oracle, kinds: [{kind: oracle.answers, actions: [write]}]}]`,
 			"stand-in module oracle is stated by module documents and by module playground"},
 	} {
@@ -113,11 +128,11 @@ modules: [{module: oracle, kinds: [{kind: oracle.answers, actions: [read]}]}]
 			}
 		})
 	}
-	// Another role, another organisation or another kind is not a conflict.
+	// Another organisation or another target is not a conflict.
 	for _, other := range []string{
-		`roles: [{organization: acme, name: editor, scopes: [{kind: documents.collection, actions: [read]}]}]`,
-		`roles: [{organization: globex, name: viewer, scopes: [{kind: documents.collection, actions: [read]}]}]`,
-		`roles: [{organization: acme, name: viewer, scopes: [{kind: documents, actions: [read]}]}]`,
+		`installations: [{organization: globex, target: atlas, role: user, owner: zoe}]`,
+		`installations: [{organization: acme, target: wiki, role: user, owner: alex}]`,
+		`modules: [{module: sibyl, kinds: [{kind: oracle.answers, actions: [read]}]}]`,
 	} {
 		if _, err := fixturecomposition.Merge([]fixturecomposition.Source{module, {Name: "module playground", Data: []byte(head + other + "\n")}}); err != nil {
 			t.Errorf("%s: %v", other, err)
@@ -132,20 +147,18 @@ modules: [{module: oracle, kinds: [{kind: oracle.answers, actions: [read]}]}]
 // document's own rules hold in a fragment as they do in the merged result.
 func TestMergeNamesTheFragmentThatDoesNotRead(t *testing.T) {
 	for name, tc := range map[string]struct{ doc, reason string }{
-		"empty":           {"", "the document is empty"},
-		"null":            {"null", "not a mapping"},
-		"other schema":    {"schema: codefly.dev/authority/fixture-composition/v2\n", "this authority reads"},
-		"null roles":      {head + "roles: null\n", "roles is null"},
-		"misspelt":        {head + "grants: []\n", "field grants not found"},
-		"generated":       {head + `roles: [{organization: acme, name: developer, generated: true, scopes: [{kind: ledger.entry, actions: [read]}]}]`, "field generated not found"},
-		"no scope":        {head + `roles: [{organization: acme, name: editor}]`, "acme/editor names no scope"},
-		"wildcard kind":   {head + `roles: [{organization: acme, name: viewer, scopes: [{kind: "*", actions: [read]}]}]`, "wildcard kind"},
-		"wildcard action": {head + `roles: [{organization: acme, name: viewer, scopes: [{kind: ledger.entry, actions: ["*"]}]}]`, "wildcard action"},
-		"padded action":   {head + `roles: [{organization: acme, name: editor, scopes: [{kind: ledger.entry, actions: [" read"]}]}]`, "is not an action"},
-		"bad resource":    {head + `roles: [{organization: acme, name: editor, scopes: [{kind: ledger.entry, actions: [read], resources: [{}]}]}]`, "acme/editor scope ledger.entry"},
-		"no target":       {head + `installations: [{organization: acme, role: viewer, owner: alex}]`, "names no target"},
-		"teams no role":   {head + `installations: [{organization: acme, target: atlas, owner: alex, teams: [finance]}]`, "grants teams and names no role"},
-		"bad stand-in":    {head + `modules: [{module: Oracle, kinds: [{kind: oracle.answers, actions: [read]}]}]`, "names no valid module"},
+		"empty":             {"", "the document is empty"},
+		"null":              {"null", "not a mapping"},
+		"other schema":      {"schema: codefly.dev/authority/fixture-composition/v3\n", "this authority reads"},
+		"null section":      {head + "installations: null\n", "installations is null"},
+		"misspelt":          {head + "grants: []\n", "field grants not found"},
+		"no target":         {head + `installations: [{organization: acme, role: user, owner: alex}]`, "names no target"},
+		"teams no role":     {head + `installations: [{organization: acme, target: atlas, owner: alex, teams: [finance]}]`, "grants teams and names no role"},
+		"bad stand-in":      {head + `modules: [{module: Oracle, kinds: [{kind: oracle.answers, actions: [read]}]}]`, "names no valid module"},
+		"wildcard kind":     {head + `modules: [{module: oracle, kinds: [{kind: "*", actions: [read]}]}]`, "wildcard kind"},
+		"wildcard action":   {head + `modules: [{module: oracle, kinds: [{kind: oracle.answers, actions: ["*"]}]}]`, "wildcard action"},
+		"padded action":     {head + `modules: [{module: oracle, kinds: [{kind: oracle.answers, actions: [" read"]}]}]`, "is not an action"},
+		"a kind's resource": {head + `modules: [{module: oracle, kinds: [{kind: oracle.answers, actions: [read], resources: [{id: x}]}]}]`, "field resources not found"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := fixturecomposition.Merge([]fixturecomposition.Source{{Name: "module ledger", Data: []byte(tc.doc)}})
@@ -161,7 +174,7 @@ func TestMergeNamesTheFragmentThatDoesNotRead(t *testing.T) {
 // role overriding the declaration. It grants no team either, since a row's
 // teams take its role.
 func TestARowWithNoRoleInstallsWithTheTargetsDeclaration(t *testing.T) {
-	doc := "schema: codefly.dev/authority/fixture-composition/v1\ninstallations: [{organization: acme, target: wiki, owner: alex}]\n"
+	doc := head + "installations: [{organization: acme, target: wiki, owner: alex}]\n"
 	merged, err := fixturecomposition.Merge([]fixturecomposition.Source{{Name: "module wiki", Data: []byte(doc)}})
 	if err != nil {
 		t.Fatal(err)
@@ -184,31 +197,14 @@ func TestMergeOfNothingIsTheSchemaAlone(t *testing.T) {
 	}
 }
 
-// The one-statement-one-source rule holds inside a fragment too: the grants of
-// a kind are a union, so a fragment stating the same (organisation, role, kind)
-// twice widens it exactly as two fragments would — `{id: seeded}` and again
-// `{all: true}` reads every resource of the kind, the failure the rule exists
-// to stop. The same holds for an installation and a stand-in module.
+// The one-statement-one-source rule holds inside a fragment too: whoever reads
+// the first statement of an installation or a stand-in module has no reason to
+// look for a second further down the file.
 func TestADocumentStatingOneThingTwiceIsRefused(t *testing.T) {
 	for name, tc := range map[string]struct{ doc, reason string }{
-		"widening grant": {`roles:
-  - organization: acme
-    name: viewer
-    scopes:
-      - {kind: documents.collection, actions: [read], resources: [{id: seeded}]}
-      - {kind: documents.collection, actions: [read], resources: [{all: true}]}`,
-			"acme/viewer's grant on documents.collection is stated twice in one document"},
-		"two role entries": {`roles:
-  - organization: acme
-    name: viewer
-    scopes: [{kind: documents, actions: [read]}]
-  - organization: acme
-    name: viewer
-    scopes: [{kind: documents, actions: [write]}]`,
-			"acme/viewer's grant on documents is stated twice"},
 		"installation": {`installations:
-  - {organization: acme, target: atlas, role: viewer, owner: alex}
-  - {organization: acme, target: atlas, role: editor, owner: alex}`,
+  - {organization: acme, target: atlas, role: user, owner: alex}
+  - {organization: acme, target: atlas, role: admin, owner: alex}`,
 			"the installation of atlas at acme is stated twice"},
 		"stand-in": {`modules:
   - {module: oracle, kinds: [{kind: oracle.answers, actions: [read]}]}
@@ -227,16 +223,10 @@ func TestADocumentStatingOneThingTwiceIsRefused(t *testing.T) {
 			}
 		})
 	}
-	// One role stating two different kinds, and two roles stating one kind,
-	// are not duplicates.
-	for _, doc := range []string{
-		`roles: [{organization: acme, name: viewer, scopes: [{kind: documents, actions: [read]}, {kind: robin.conversations, actions: [read]}]}]`,
-		`roles: [{organization: acme, name: viewer, scopes: [{kind: documents, actions: [read]}]}, {organization: acme, name: editor, scopes: [{kind: documents, actions: [read]}]}]`,
-		`installations: [{organization: acme, target: atlas, role: viewer, owner: alex}, {organization: globex, target: atlas, role: viewer, owner: zoe}]`,
-	} {
-		if _, err := fixturecomposition.Decode([]byte(head + doc + "\n")); err != nil {
-			t.Errorf("%s: %v", doc, err)
-		}
+	// One target at two organisations is not a duplicate.
+	doc := `installations: [{organization: acme, target: atlas, role: user, owner: alex}, {organization: globex, target: atlas, role: user, owner: zoe}]`
+	if _, err := fixturecomposition.Decode([]byte(head + doc + "\n")); err != nil {
+		t.Errorf("%s: %v", doc, err)
 	}
 }
 
