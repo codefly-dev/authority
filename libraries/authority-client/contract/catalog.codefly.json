@@ -10,7 +10,7 @@
       "kind": "protobuf",
       "package": "",
       "path": "contract.binpb",
-      "digest": "sha256:ce7191030e653435da9dc7dc017752078f4ffb025504f52bd56dfd579229626d",
+      "digest": "sha256:ab3b288ee0fe2686d7f2dcf581b0ebcde5180fbc8e7111a6b033f0eea84f3a56",
       "services": [
         {
           "name": "LocalService",
@@ -79,6 +79,7 @@
           "fullName": "host.session.v1.SessionService",
           "procedures": [
             "/host.session.v1.SessionService/Current",
+            "/host.session.v1.SessionService/End",
             "/host.session.v1.SessionService/ListCastableTeams",
             "/host.session.v1.SessionService/ListFixturePeople",
             "/host.session.v1.SessionService/OpenRoleView",

@@ -19,7 +19,7 @@
   "paths": {
     "/v1/session": {
       "get": {
-        "summary": "Current answers the session the caller's bearer (`authorization: Bearer\n\u003cbearer\u003e`) belongs to: who a page's request is for, decided by the host,\nnever read from a header the request wrote. The bearer itself is not\nhanded back. An unknown or ended session is unauthenticated.",
+        "summary": "Current answers the session the caller's bearer (`authorization: Bearer\n\u003cbearer\u003e`) belongs to: who a page's request is for, decided by the host,\nnever read from a header the request wrote. The bearer itself is not\nhanded back. An unknown, ended or expired session is unauthenticated.",
         "operationId": "SessionService_Current",
         "responses": {
           "200": {
@@ -81,6 +81,40 @@
             }
           }
         },
+        "tags": [
+          "SessionService"
+        ]
+      }
+    },
+    "/v1/session:end": {
+      "post": {
+        "summary": "End ends the session the caller's bearer belongs to, and with it every\nsession opened from it: its role views and casts, and theirs. From then on\neach of those bearers is unauthenticated wherever a session is read:\nCurrent, a person's Issue, and every call here. It is a sign-out, and the\nway back from a cast: a browser edge ends the cast it leaves, and the\nsession the cast was opened from is untouched. Ending is never undone, and\na bearer that names no open session is unauthenticated, as it is anywhere.\nA Work Context issued to the session before it ended lapses on its own\nexpiry. The callers OpenRoleView refuses are refused here.",
+        "operationId": "SessionService_End",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1EndResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "EndRequest ends the caller's own session; the bearer is the call's.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1EndRequest"
+            }
+          }
+        ],
         "tags": [
           "SessionService"
         ]
@@ -239,6 +273,14 @@
         }
       },
       "description": "CastableTeam is one team a caller may act as, and what a cast onto it holds."
+    },
+    "v1EndRequest": {
+      "type": "object",
+      "description": "EndRequest ends the caller's own session; the bearer is the call's."
+    },
+    "v1EndResponse": {
+      "type": "object",
+      "description": "EndResponse says the session and every session opened from it ended."
     },
     "v1FixturePerson": {
       "type": "object",
@@ -404,6 +446,15 @@
         "castTeamId": {
           "type": "string",
           "description": "The team this session was cast onto: it acts as a member of that team and\nof nothing else, so `roles` is empty and `team_ids` names this team alone.\nEmpty for a session that is not a cast."
+        },
+        "expiresAtUnix": {
+          "type": "string",
+          "format": "int64",
+          "description": "When the session ends on its own, in Unix seconds: from then on its bearer\nis unauthenticated wherever a session is read, as an ended one is. Every\nsession carries one. A role view or a cast ends no later than the session\nit was opened from. A browser edge keeps its cookie no longer than this."
+        },
+        "grantEpoch": {
+          "type": "string",
+          "description": "The grant epoch of who this session acts as: a value that is different\nwhenever what the session holds on the organisation's installations is\ndifferent, so it moves when a role is granted or revoked, to the person,\nto a team of theirs or to the team a cast acts as, when they leave a team,\nand when an installation is made, upgraded or ended. It is opaque and is\ncompared for equality only. A caller that keeps a Work Context it was\nissued for this session (a browser edge) reads it on Current and drops\nwhat it keeps when it differs, so a change made anywhere applies from the\nnext call instead of when the kept context lapses. Empty: the host states\nnone, and the caller keeps what it holds until it lapses or is refused."
         }
       },
       "description": "Session is an open session."

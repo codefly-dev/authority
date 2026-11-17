@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file host/session/v1/session.proto.
  */
 export const file_host_session_v1_session: GenFile = /*@__PURE__*/
-  fileDesc("Ch1ob3N0L3Nlc3Npb24vdjEvc2Vzc2lvbi5wcm90bxIPaG9zdC5zZXNzaW9uLnYxIhoKGExpc3RDYXN0YWJsZVRlYW1zUmVxdWVzdCJJChlMaXN0Q2FzdGFibGVUZWFtc1Jlc3BvbnNlEiwKBXRlYW1zGAEgAygLMh0uaG9zdC5zZXNzaW9uLnYxLkNhc3RhYmxlVGVhbSJiCgxDYXN0YWJsZVRlYW0SDwoHdGVhbV9pZBgBIAEoCRIUCgxkaXNwbGF5X25hbWUYAiABKAkSKwoFaG9sZHMYAyADKAsyHC5ob3N0LnNlc3Npb24udjEuVGVhbUhvbGRpbmciRAoLVGVhbUhvbGRpbmcSFwoPaW5zdGFsbGF0aW9uX2lkGAEgASgJEg4KBnRhcmdldBgCIAEoCRIMCgRyb2xlGAMgASgJIhoKGExpc3RGaXh0dXJlUGVvcGxlUmVxdWVzdCJLChlMaXN0Rml4dHVyZVBlb3BsZVJlc3BvbnNlEi4KBnBlb3BsZRgBIAMoCzIeLmhvc3Quc2Vzc2lvbi52MS5GaXh0dXJlUGVyc29uIqUBCg1GaXh0dXJlUGVyc29uEhEKCXBlcnNvbl9pZBgBIAEoCRINCgVlbWFpbBgCIAEoCRIXCg9vcmdhbml6YXRpb25faWQYAyABKAkSDQoFcm9sZXMYBCADKAkSEAoIdGVhbV9pZHMYBSADKAkSFQoNZml4dHVyZV90b2tlbhgGIAEoCRIhChlvcmdhbml6YXRpb25fZGlzcGxheV9uYW1lGAcgASgJIj0KE09wZW5Sb2xlVmlld1JlcXVlc3QSFwoPaW5zdGFsbGF0aW9uX2lkGAEgASgJEg0KBXJvbGVzGAIgAygJIiYKE09wZW5UZWFtQ2FzdFJlcXVlc3QSDwoHdGVhbV9pZBgBIAEoCSI3Cg1Sb2xlVmlld0VudHJ5EhcKD2luc3RhbGxhdGlvbl9pZBgBIAEoCRINCgVyb2xlcxgCIAMoCSIQCg5DdXJyZW50UmVxdWVzdCImCg1TaWduSW5SZXF1ZXN0EhUKDWZpeHR1cmVfdG9rZW4YASABKAkigwIKB1Nlc3Npb24SEgoKc2Vzc2lvbl9pZBgBIAEoCRIRCglwZXJzb25faWQYAiABKAkSFwoPb3JnYW5pemF0aW9uX2lkGAMgASgJEg0KBXJvbGVzGAQgAygJEhAKCHRlYW1faWRzGAUgAygJEg4KBmJlYXJlchgGIAEoCRIbChNwZXJzb25fZGlzcGxheV9uYW1lGAcgASgJEiEKGW9yZ2FuaXphdGlvbl9kaXNwbGF5X25hbWUYCCABKAkSMQoJcm9sZV92aWV3GAkgAygLMh4uaG9zdC5zZXNzaW9uLnYxLlJvbGVWaWV3RW50cnkSFAoMY2FzdF90ZWFtX2lkGAogASgJMt8FCg5TZXNzaW9uU2VydmljZRJiCgZTaWduSW4SHi5ob3N0LnNlc3Npb24udjEuU2lnbkluUmVxdWVzdBoYLmhvc3Quc2Vzc2lvbi52MS5TZXNzaW9uIh6C0+STAhg6ASoiEy92MS9zZXNzaW9uOnNpZ24taW4SWQoHQ3VycmVudBIfLmhvc3Quc2Vzc2lvbi52MS5DdXJyZW50UmVxdWVzdBoYLmhvc3Quc2Vzc2lvbi52MS5TZXNzaW9uIhOC0+STAg0SCy92MS9zZXNzaW9uEnUKDE9wZW5Sb2xlVmlldxIkLmhvc3Quc2Vzc2lvbi52MS5PcGVuUm9sZVZpZXdSZXF1ZXN0GhguaG9zdC5zZXNzaW9uLnYxLlNlc3Npb24iJYLT5JMCHzoBKiIaL3YxL3Nlc3Npb246b3Blbi1yb2xlLXZpZXcSdQoMT3BlblRlYW1DYXN0EiQuaG9zdC5zZXNzaW9uLnYxLk9wZW5UZWFtQ2FzdFJlcXVlc3QaGC5ob3N0LnNlc3Npb24udjEuU2Vzc2lvbiIlgtPkkwIfOgEqIhovdjEvc2Vzc2lvbjpvcGVuLXRlYW0tY2FzdBKOAQoRTGlzdENhc3RhYmxlVGVhbXMSKS5ob3N0LnNlc3Npb24udjEuTGlzdENhc3RhYmxlVGVhbXNSZXF1ZXN0GiouaG9zdC5zZXNzaW9uLnYxLkxpc3RDYXN0YWJsZVRlYW1zUmVzcG9uc2UiIoLT5JMCHBIaL3YxL3Nlc3Npb24vY2FzdGFibGUtdGVhbXMSjgEKEUxpc3RGaXh0dXJlUGVvcGxlEikuaG9zdC5zZXNzaW9uLnYxLkxpc3RGaXh0dXJlUGVvcGxlUmVxdWVzdBoqLmhvc3Quc2Vzc2lvbi52MS5MaXN0Rml4dHVyZVBlb3BsZVJlc3BvbnNlIiKC0+STAhwSGi92MS9zZXNzaW9uL2ZpeHR1cmUtcGVvcGxlQitaKWdhdGV3YXkvcGtnL2dlbi9ob3N0L3Nlc3Npb24vdjE7c2Vzc2lvbnYxYgZwcm90bzM", [file_google_api_annotations]);
+  fileDesc("Ch1ob3N0L3Nlc3Npb24vdjEvc2Vzc2lvbi5wcm90bxIPaG9zdC5zZXNzaW9uLnYxIhoKGExpc3RDYXN0YWJsZVRlYW1zUmVxdWVzdCJJChlMaXN0Q2FzdGFibGVUZWFtc1Jlc3BvbnNlEiwKBXRlYW1zGAEgAygLMh0uaG9zdC5zZXNzaW9uLnYxLkNhc3RhYmxlVGVhbSJiCgxDYXN0YWJsZVRlYW0SDwoHdGVhbV9pZBgBIAEoCRIUCgxkaXNwbGF5X25hbWUYAiABKAkSKwoFaG9sZHMYAyADKAsyHC5ob3N0LnNlc3Npb24udjEuVGVhbUhvbGRpbmciRAoLVGVhbUhvbGRpbmcSFwoPaW5zdGFsbGF0aW9uX2lkGAEgASgJEg4KBnRhcmdldBgCIAEoCRIMCgRyb2xlGAMgASgJIhoKGExpc3RGaXh0dXJlUGVvcGxlUmVxdWVzdCJLChlMaXN0Rml4dHVyZVBlb3BsZVJlc3BvbnNlEi4KBnBlb3BsZRgBIAMoCzIeLmhvc3Quc2Vzc2lvbi52MS5GaXh0dXJlUGVyc29uIqUBCg1GaXh0dXJlUGVyc29uEhEKCXBlcnNvbl9pZBgBIAEoCRINCgVlbWFpbBgCIAEoCRIXCg9vcmdhbml6YXRpb25faWQYAyABKAkSDQoFcm9sZXMYBCADKAkSEAoIdGVhbV9pZHMYBSADKAkSFQoNZml4dHVyZV90b2tlbhgGIAEoCRIhChlvcmdhbml6YXRpb25fZGlzcGxheV9uYW1lGAcgASgJIj0KE09wZW5Sb2xlVmlld1JlcXVlc3QSFwoPaW5zdGFsbGF0aW9uX2lkGAEgASgJEg0KBXJvbGVzGAIgAygJIiYKE09wZW5UZWFtQ2FzdFJlcXVlc3QSDwoHdGVhbV9pZBgBIAEoCSI3Cg1Sb2xlVmlld0VudHJ5EhcKD2luc3RhbGxhdGlvbl9pZBgBIAEoCRINCgVyb2xlcxgCIAMoCSIQCg5DdXJyZW50UmVxdWVzdCIMCgpFbmRSZXF1ZXN0Ig0KC0VuZFJlc3BvbnNlIiYKDVNpZ25JblJlcXVlc3QSFQoNZml4dHVyZV90b2tlbhgBIAEoCSKxAgoHU2Vzc2lvbhISCgpzZXNzaW9uX2lkGAEgASgJEhEKCXBlcnNvbl9pZBgCIAEoCRIXCg9vcmdhbml6YXRpb25faWQYAyABKAkSDQoFcm9sZXMYBCADKAkSEAoIdGVhbV9pZHMYBSADKAkSDgoGYmVhcmVyGAYgASgJEhsKE3BlcnNvbl9kaXNwbGF5X25hbWUYByABKAkSIQoZb3JnYW5pemF0aW9uX2Rpc3BsYXlfbmFtZRgIIAEoCRIxCglyb2xlX3ZpZXcYCSADKAsyHi5ob3N0LnNlc3Npb24udjEuUm9sZVZpZXdFbnRyeRIUCgxjYXN0X3RlYW1faWQYCiABKAkSFwoPZXhwaXJlc19hdF91bml4GAsgASgDEhMKC2dyYW50X2Vwb2NoGAwgASgJMr0GCg5TZXNzaW9uU2VydmljZRJiCgZTaWduSW4SHi5ob3N0LnNlc3Npb24udjEuU2lnbkluUmVxdWVzdBoYLmhvc3Quc2Vzc2lvbi52MS5TZXNzaW9uIh6C0+STAhg6ASoiEy92MS9zZXNzaW9uOnNpZ24taW4SWQoHQ3VycmVudBIfLmhvc3Quc2Vzc2lvbi52MS5DdXJyZW50UmVxdWVzdBoYLmhvc3Quc2Vzc2lvbi52MS5TZXNzaW9uIhOC0+STAg0SCy92MS9zZXNzaW9uElwKA0VuZBIbLmhvc3Quc2Vzc2lvbi52MS5FbmRSZXF1ZXN0GhwuaG9zdC5zZXNzaW9uLnYxLkVuZFJlc3BvbnNlIhqC0+STAhQ6ASoiDy92MS9zZXNzaW9uOmVuZBJ1CgxPcGVuUm9sZVZpZXcSJC5ob3N0LnNlc3Npb24udjEuT3BlblJvbGVWaWV3UmVxdWVzdBoYLmhvc3Quc2Vzc2lvbi52MS5TZXNzaW9uIiWC0+STAh86ASoiGi92MS9zZXNzaW9uOm9wZW4tcm9sZS12aWV3EnUKDE9wZW5UZWFtQ2FzdBIkLmhvc3Quc2Vzc2lvbi52MS5PcGVuVGVhbUNhc3RSZXF1ZXN0GhguaG9zdC5zZXNzaW9uLnYxLlNlc3Npb24iJYLT5JMCHzoBKiIaL3YxL3Nlc3Npb246b3Blbi10ZWFtLWNhc3QSjgEKEUxpc3RDYXN0YWJsZVRlYW1zEikuaG9zdC5zZXNzaW9uLnYxLkxpc3RDYXN0YWJsZVRlYW1zUmVxdWVzdBoqLmhvc3Quc2Vzc2lvbi52MS5MaXN0Q2FzdGFibGVUZWFtc1Jlc3BvbnNlIiKC0+STAhwSGi92MS9zZXNzaW9uL2Nhc3RhYmxlLXRlYW1zEo4BChFMaXN0Rml4dHVyZVBlb3BsZRIpLmhvc3Quc2Vzc2lvbi52MS5MaXN0Rml4dHVyZVBlb3BsZVJlcXVlc3QaKi5ob3N0LnNlc3Npb24udjEuTGlzdEZpeHR1cmVQZW9wbGVSZXNwb25zZSIigtPkkwIcEhovdjEvc2Vzc2lvbi9maXh0dXJlLXBlb3BsZUIrWilnYXRld2F5L3BrZy9nZW4vaG9zdC9zZXNzaW9uL3YxO3Nlc3Npb252MWIGcHJvdG8z", [file_google_api_annotations]);
 
 /**
  * ListCastableTeamsRequest asks for the teams the caller may act as, at the
@@ -321,6 +321,36 @@ export const CurrentRequestSchema: GenMessage<CurrentRequest> = /*@__PURE__*/
   messageDesc(file_host_session_v1_session, 10);
 
 /**
+ * EndRequest ends the caller's own session; the bearer is the call's.
+ *
+ * @generated from message host.session.v1.EndRequest
+ */
+export type EndRequest = Message<"host.session.v1.EndRequest"> & {
+};
+
+/**
+ * Describes the message host.session.v1.EndRequest.
+ * Use `create(EndRequestSchema)` to create a new message.
+ */
+export const EndRequestSchema: GenMessage<EndRequest> = /*@__PURE__*/
+  messageDesc(file_host_session_v1_session, 11);
+
+/**
+ * EndResponse says the session and every session opened from it ended.
+ *
+ * @generated from message host.session.v1.EndResponse
+ */
+export type EndResponse = Message<"host.session.v1.EndResponse"> & {
+};
+
+/**
+ * Describes the message host.session.v1.EndResponse.
+ * Use `create(EndResponseSchema)` to create a new message.
+ */
+export const EndResponseSchema: GenMessage<EndResponse> = /*@__PURE__*/
+  messageDesc(file_host_session_v1_session, 12);
+
+/**
  * SignInRequest presents a fixture token.
  *
  * @generated from message host.session.v1.SignInRequest
@@ -339,7 +369,7 @@ export type SignInRequest = Message<"host.session.v1.SignInRequest"> & {
  * Use `create(SignInRequestSchema)` to create a new message.
  */
 export const SignInRequestSchema: GenMessage<SignInRequest> = /*@__PURE__*/
-  messageDesc(file_host_session_v1_session, 11);
+  messageDesc(file_host_session_v1_session, 13);
 
 /**
  * Session is an open session.
@@ -422,6 +452,32 @@ export type Session = Message<"host.session.v1.Session"> & {
    * @generated from field: string cast_team_id = 10;
    */
   castTeamId: string;
+
+  /**
+   * When the session ends on its own, in Unix seconds: from then on its bearer
+   * is unauthenticated wherever a session is read, as an ended one is. Every
+   * session carries one. A role view or a cast ends no later than the session
+   * it was opened from. A browser edge keeps its cookie no longer than this.
+   *
+   * @generated from field: int64 expires_at_unix = 11;
+   */
+  expiresAtUnix: bigint;
+
+  /**
+   * The grant epoch of who this session acts as: a value that is different
+   * whenever what the session holds on the organisation's installations is
+   * different, so it moves when a role is granted or revoked, to the person,
+   * to a team of theirs or to the team a cast acts as, when they leave a team,
+   * and when an installation is made, upgraded or ended. It is opaque and is
+   * compared for equality only. A caller that keeps a Work Context it was
+   * issued for this session (a browser edge) reads it on Current and drops
+   * what it keeps when it differs, so a change made anywhere applies from the
+   * next call instead of when the kept context lapses. Empty: the host states
+   * none, and the caller keeps what it holds until it lapses or is refused.
+   *
+   * @generated from field: string grant_epoch = 12;
+   */
+  grantEpoch: string;
 };
 
 /**
@@ -429,7 +485,7 @@ export type Session = Message<"host.session.v1.Session"> & {
  * Use `create(SessionSchema)` to create a new message.
  */
 export const SessionSchema: GenMessage<Session> = /*@__PURE__*/
-  messageDesc(file_host_session_v1_session, 12);
+  messageDesc(file_host_session_v1_session, 14);
 
 /**
  * SessionService opens sessions.
@@ -451,7 +507,7 @@ export const SessionService: GenService<{
    * Current answers the session the caller's bearer (`authorization: Bearer
    * <bearer>`) belongs to: who a page's request is for, decided by the host,
    * never read from a header the request wrote. The bearer itself is not
-   * handed back. An unknown or ended session is unauthenticated.
+   * handed back. An unknown, ended or expired session is unauthenticated.
    *
    * @generated from rpc host.session.v1.SessionService.Current
    */
@@ -459,6 +515,24 @@ export const SessionService: GenService<{
     methodKind: "unary";
     input: typeof CurrentRequestSchema;
     output: typeof SessionSchema;
+  },
+  /**
+   * End ends the session the caller's bearer belongs to, and with it every
+   * session opened from it: its role views and casts, and theirs. From then on
+   * each of those bearers is unauthenticated wherever a session is read:
+   * Current, a person's Issue, and every call here. It is a sign-out, and the
+   * way back from a cast: a browser edge ends the cast it leaves, and the
+   * session the cast was opened from is untouched. Ending is never undone, and
+   * a bearer that names no open session is unauthenticated, as it is anywhere.
+   * A Work Context issued to the session before it ended lapses on its own
+   * expiry. The callers OpenRoleView refuses are refused here.
+   *
+   * @generated from rpc host.session.v1.SessionService.End
+   */
+  end: {
+    methodKind: "unary";
+    input: typeof EndRequestSchema;
+    output: typeof EndResponseSchema;
   },
   /**
    * OpenRoleView opens a session that acts as some of the roles the caller

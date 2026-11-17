@@ -42,6 +42,8 @@ const (
 	SessionServiceSignInProcedure = "/host.session.v1.SessionService/SignIn"
 	// SessionServiceCurrentProcedure is the fully-qualified name of the SessionService's Current RPC.
 	SessionServiceCurrentProcedure = "/host.session.v1.SessionService/Current"
+	// SessionServiceEndProcedure is the fully-qualified name of the SessionService's End RPC.
+	SessionServiceEndProcedure = "/host.session.v1.SessionService/End"
 	// SessionServiceOpenRoleViewProcedure is the fully-qualified name of the SessionService's
 	// OpenRoleView RPC.
 	SessionServiceOpenRoleViewProcedure = "/host.session.v1.SessionService/OpenRoleView"
@@ -63,8 +65,18 @@ type SessionServiceClient interface {
 	// Current answers the session the caller's bearer (`authorization: Bearer
 	// <bearer>`) belongs to: who a page's request is for, decided by the host,
 	// never read from a header the request wrote. The bearer itself is not
-	// handed back. An unknown or ended session is unauthenticated.
+	// handed back. An unknown, ended or expired session is unauthenticated.
 	Current(context.Context, *connect.Request[v1.CurrentRequest]) (*connect.Response[v1.Session], error)
+	// End ends the session the caller's bearer belongs to, and with it every
+	// session opened from it: its role views and casts, and theirs. From then on
+	// each of those bearers is unauthenticated wherever a session is read:
+	// Current, a person's Issue, and every call here. It is a sign-out, and the
+	// way back from a cast: a browser edge ends the cast it leaves, and the
+	// session the cast was opened from is untouched. Ending is never undone, and
+	// a bearer that names no open session is unauthenticated, as it is anywhere.
+	// A Work Context issued to the session before it ended lapses on its own
+	// expiry. The callers OpenRoleView refuses are refused here.
+	End(context.Context, *connect.Request[v1.EndRequest]) (*connect.Response[v1.EndResponse], error)
 	// OpenRoleView opens a session that acts as some of the roles the caller
 	// holds on one installation: a role view. The caller's bearer is the session
 	// it is opened from. The host records the view, decided by the authority, as
@@ -128,6 +140,12 @@ func NewSessionServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(sessionServiceMethods.ByName("Current")),
 			connect.WithClientOptions(opts...),
 		),
+		end: connect.NewClient[v1.EndRequest, v1.EndResponse](
+			httpClient,
+			baseURL+SessionServiceEndProcedure,
+			connect.WithSchema(sessionServiceMethods.ByName("End")),
+			connect.WithClientOptions(opts...),
+		),
 		openRoleView: connect.NewClient[v1.OpenRoleViewRequest, v1.Session](
 			httpClient,
 			baseURL+SessionServiceOpenRoleViewProcedure,
@@ -159,6 +177,7 @@ func NewSessionServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 type sessionServiceClient struct {
 	signIn            *connect.Client[v1.SignInRequest, v1.Session]
 	current           *connect.Client[v1.CurrentRequest, v1.Session]
+	end               *connect.Client[v1.EndRequest, v1.EndResponse]
 	openRoleView      *connect.Client[v1.OpenRoleViewRequest, v1.Session]
 	openTeamCast      *connect.Client[v1.OpenTeamCastRequest, v1.Session]
 	listCastableTeams *connect.Client[v1.ListCastableTeamsRequest, v1.ListCastableTeamsResponse]
@@ -173,6 +192,11 @@ func (c *sessionServiceClient) SignIn(ctx context.Context, req *connect.Request[
 // Current calls host.session.v1.SessionService.Current.
 func (c *sessionServiceClient) Current(ctx context.Context, req *connect.Request[v1.CurrentRequest]) (*connect.Response[v1.Session], error) {
 	return c.current.CallUnary(ctx, req)
+}
+
+// End calls host.session.v1.SessionService.End.
+func (c *sessionServiceClient) End(ctx context.Context, req *connect.Request[v1.EndRequest]) (*connect.Response[v1.EndResponse], error) {
+	return c.end.CallUnary(ctx, req)
 }
 
 // OpenRoleView calls host.session.v1.SessionService.OpenRoleView.
@@ -202,8 +226,18 @@ type SessionServiceHandler interface {
 	// Current answers the session the caller's bearer (`authorization: Bearer
 	// <bearer>`) belongs to: who a page's request is for, decided by the host,
 	// never read from a header the request wrote. The bearer itself is not
-	// handed back. An unknown or ended session is unauthenticated.
+	// handed back. An unknown, ended or expired session is unauthenticated.
 	Current(context.Context, *connect.Request[v1.CurrentRequest]) (*connect.Response[v1.Session], error)
+	// End ends the session the caller's bearer belongs to, and with it every
+	// session opened from it: its role views and casts, and theirs. From then on
+	// each of those bearers is unauthenticated wherever a session is read:
+	// Current, a person's Issue, and every call here. It is a sign-out, and the
+	// way back from a cast: a browser edge ends the cast it leaves, and the
+	// session the cast was opened from is untouched. Ending is never undone, and
+	// a bearer that names no open session is unauthenticated, as it is anywhere.
+	// A Work Context issued to the session before it ended lapses on its own
+	// expiry. The callers OpenRoleView refuses are refused here.
+	End(context.Context, *connect.Request[v1.EndRequest]) (*connect.Response[v1.EndResponse], error)
 	// OpenRoleView opens a session that acts as some of the roles the caller
 	// holds on one installation: a role view. The caller's bearer is the session
 	// it is opened from. The host records the view, decided by the authority, as
@@ -263,6 +297,12 @@ func NewSessionServiceHandler(svc SessionServiceHandler, opts ...connect.Handler
 		connect.WithSchema(sessionServiceMethods.ByName("Current")),
 		connect.WithHandlerOptions(opts...),
 	)
+	sessionServiceEndHandler := connect.NewUnaryHandler(
+		SessionServiceEndProcedure,
+		svc.End,
+		connect.WithSchema(sessionServiceMethods.ByName("End")),
+		connect.WithHandlerOptions(opts...),
+	)
 	sessionServiceOpenRoleViewHandler := connect.NewUnaryHandler(
 		SessionServiceOpenRoleViewProcedure,
 		svc.OpenRoleView,
@@ -293,6 +333,8 @@ func NewSessionServiceHandler(svc SessionServiceHandler, opts ...connect.Handler
 			sessionServiceSignInHandler.ServeHTTP(w, r)
 		case SessionServiceCurrentProcedure:
 			sessionServiceCurrentHandler.ServeHTTP(w, r)
+		case SessionServiceEndProcedure:
+			sessionServiceEndHandler.ServeHTTP(w, r)
 		case SessionServiceOpenRoleViewProcedure:
 			sessionServiceOpenRoleViewHandler.ServeHTTP(w, r)
 		case SessionServiceOpenTeamCastProcedure:
@@ -316,6 +358,10 @@ func (UnimplementedSessionServiceHandler) SignIn(context.Context, *connect.Reque
 
 func (UnimplementedSessionServiceHandler) Current(context.Context, *connect.Request[v1.CurrentRequest]) (*connect.Response[v1.Session], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.session.v1.SessionService.Current is not implemented"))
+}
+
+func (UnimplementedSessionServiceHandler) End(context.Context, *connect.Request[v1.EndRequest]) (*connect.Response[v1.EndResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.session.v1.SessionService.End is not implemented"))
 }
 
 func (UnimplementedSessionServiceHandler) OpenRoleView(context.Context, *connect.Request[v1.OpenRoleViewRequest]) (*connect.Response[v1.Session], error) {

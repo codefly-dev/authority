@@ -18,9 +18,21 @@ service SessionService {
   // Current answers the session the caller's bearer (`authorization: Bearer
   // <bearer>`) belongs to: who a page's request is for, decided by the host,
   // never read from a header the request wrote. The bearer itself is not
-  // handed back. An unknown or ended session is unauthenticated.
+  // handed back. An unknown, ended or expired session is unauthenticated.
   rpc Current(CurrentRequest) returns (Session) {
     option (google.api.http) = {get: "/v1/session"};
+  }
+  // End ends the session the caller's bearer belongs to, and with it every
+  // session opened from it: its role views and casts, and theirs. From then on
+  // each of those bearers is unauthenticated wherever a session is read:
+  // Current, a person's Issue, and every call here. It is a sign-out, and the
+  // way back from a cast: a browser edge ends the cast it leaves, and the
+  // session the cast was opened from is untouched. Ending is never undone, and
+  // a bearer that names no open session is unauthenticated, as it is anywhere.
+  // A Work Context issued to the session before it ended lapses on its own
+  // expiry. The callers OpenRoleView refuses are refused here.
+  rpc End(EndRequest) returns (EndResponse) {
+    option (google.api.http) = {post: "/v1/session:end" body: "*"};
   }
   // OpenRoleView opens a session that acts as some of the roles the caller
   // holds on one installation: a role view. The caller's bearer is the session
@@ -156,6 +168,12 @@ message RoleViewEntry {
 // CurrentRequest asks for the caller's own session; the bearer is the call's.
 message CurrentRequest {}
 
+// EndRequest ends the caller's own session; the bearer is the call's.
+message EndRequest {}
+
+// EndResponse says the session and every session opened from it ended.
+message EndResponse {}
+
 // SignInRequest presents a fixture token.
 message SignInRequest {
   // The person's fixture token.
@@ -190,4 +208,20 @@ message Session {
   // of nothing else, so `roles` is empty and `team_ids` names this team alone.
   // Empty for a session that is not a cast.
   string cast_team_id = 10;
+  // When the session ends on its own, in Unix seconds: from then on its bearer
+  // is unauthenticated wherever a session is read, as an ended one is. Every
+  // session carries one. A role view or a cast ends no later than the session
+  // it was opened from. A browser edge keeps its cookie no longer than this.
+  int64 expires_at_unix = 11;
+  // The grant epoch of who this session acts as: a value that is different
+  // whenever what the session holds on the organisation's installations is
+  // different, so it moves when a role is granted or revoked, to the person,
+  // to a team of theirs or to the team a cast acts as, when they leave a team,
+  // and when an installation is made, upgraded or ended. It is opaque and is
+  // compared for equality only. A caller that keeps a Work Context it was
+  // issued for this session (a browser edge) reads it on Current and drops
+  // what it keeps when it differs, so a change made anywhere applies from the
+  // next call instead of when the kept context lapses. Empty: the host states
+  // none, and the caller keeps what it holds until it lapses or is refused.
+  string grant_epoch = 12;
 }
