@@ -107,13 +107,25 @@ func (e *Edge) delegationProcedures() []faceProcedure {
 }
 
 // installationProcedures serves the Setup tab's installation reads and changes.
+//
+// A grant or a revoke is followed, whatever the host answered (an answer that
+// never came may still have applied), by dropping what the edge holds: it was
+// issued before the change (rolesChanged).
 func (e *Edge) installationProcedures() []faceProcedure {
+	grant := func(ctx context.Context, in *installationv1.GrantRoleRequest, opts ...grpc.CallOption) (*installationv1.Installation, error) {
+		defer e.rolesChanged()
+		return e.Installer.GrantRole(ctx, in, opts...)
+	}
+	revoke := func(ctx context.Context, in *installationv1.RevokeRoleRequest, opts ...grpc.CallOption) (*installationv1.Installation, error) {
+		defer e.rolesChanged()
+		return e.Installer.RevokeRole(ctx, in, opts...)
+	}
 	return []faceProcedure{
 		{installationv1.InstallationService_List_FullMethodName, forward(installationv1.InstallationService_List_FullMethodName, e.Installer.List)},
 		{installationv1.InstallationService_ListHeld_FullMethodName, forward(installationv1.InstallationService_ListHeld_FullMethodName, e.Installer.ListHeld)},
 		{installationv1.InstallationService_ListRoleGrants_FullMethodName, forward(installationv1.InstallationService_ListRoleGrants_FullMethodName, e.Installer.ListRoleGrants)},
-		{installationv1.InstallationService_GrantRole_FullMethodName, forward(installationv1.InstallationService_GrantRole_FullMethodName, e.Installer.GrantRole)},
-		{installationv1.InstallationService_RevokeRole_FullMethodName, forward(installationv1.InstallationService_RevokeRole_FullMethodName, e.Installer.RevokeRole)},
+		{installationv1.InstallationService_GrantRole_FullMethodName, forward(installationv1.InstallationService_GrantRole_FullMethodName, grant)},
+		{installationv1.InstallationService_RevokeRole_FullMethodName, forward(installationv1.InstallationService_RevokeRole_FullMethodName, revoke)},
 		{installationv1.InstallationService_Review_FullMethodName, forward(installationv1.InstallationService_Review_FullMethodName, e.Installer.Review)},
 		{installationv1.OfferService_ListOffers_FullMethodName, forward(installationv1.OfferService_ListOffers_FullMethodName, e.Offers.ListOffers)},
 		{installationv1.OfferService_ReviewOffer_FullMethodName, forward(installationv1.OfferService_ReviewOffer_FullMethodName, e.Offers.ReviewOffer)},

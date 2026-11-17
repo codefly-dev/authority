@@ -1,17 +1,20 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	hop "github.com/codefly-dev/authority/libraries/hop/go"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -118,6 +121,9 @@ type held struct {
 	// installation is the installation the authority sealed the context to.
 	installation string
 	renew        time.Time
+	// cached: this copy was handed out of what the edge held, not issued for
+	// the call asking; never set on what is held.
+	cached bool
 }
 
 func (e *Edge) now() time.Time {
@@ -222,25 +228,121 @@ func (e *Edge) toModule(w http.ResponseWriter, r *http.Request, module Module, t
 		refuseCall(w, r, http.StatusForbidden, "a write must come from this origin")
 		return
 	}
-	wc, err := e.workContext(r.Context(), bearer, module.Name, pageOf(r))
-	if err != nil {
-		code := http.StatusForbidden
-		if status.Code(err) == codes.Unauthenticated {
-			code = http.StatusUnauthorized
+	issue := func() (held, bool) {
+		wc, err := e.workContext(r.Context(), bearer, module.Name, pageOf(r))
+		if err != nil {
+			code := http.StatusForbidden
+			if status.Code(err) == codes.Unauthenticated {
+				code = http.StatusUnauthorized
+			}
+			refuseCall(w, r, code, "the authority refused this person at "+module.Name+": "+status.Convert(err).Message())
 		}
-		refuseCall(w, r, code, "the authority refused this person at "+module.Name+": "+status.Convert(err).Message())
+		return wc, err == nil
+	}
+	wc, ok := issue()
+	if !ok {
 		return
 	}
 	// Each module call is its own effect, minted here: an operation that keeps
 	// receipts requires an effect id, and a browser may not name one.
-	proxy(target, wc.token, uuid.NewString(), w, r)
+	if !wc.cached {
+		proxy(target, wc.token, uuid.NewString(), w, r)
+		return
+	}
+	// A held context is the person's roles as they were when it was issued,
+	// and nothing tells the edge they changed since: a role granted is not in
+	// it, and a revoke that leaves them another role ends it. The module's
+	// refusal of a held context is therefore not yet the person's answer: the
+	// edge drops it, asks the authority again and sends the call once more,
+	// as a new effect. A refusal of a context issued for this call is.
+	again := replayable(r)
+	send(target, wc.token, uuid.NewString(), w, r, func(res *http.Response) bool {
+		if !refusedByModule(res) {
+			return false
+		}
+		e.forget(bearer, module.Name, pageOf(r), wc.token)
+		return again != nil
+	}, func() {
+		if fresh, ok := issue(); ok {
+			proxy(target, fresh.token, uuid.NewString(), w, again())
+		}
+	})
+}
+
+// refusedByModule is whether the module's face (the hop behind it) refused the
+// call's Work Context: 401 or 403, or a gRPC answer of nothing but
+// Unauthenticated or PermissionDenied.
+func refusedByModule(res *http.Response) bool {
+	if res.StatusCode == http.StatusUnauthorized || res.StatusCode == http.StatusForbidden {
+		return true
+	}
+	code := res.Header.Get("Grpc-Status")
+	return code == strconv.Itoa(int(codes.PermissionDenied)) || code == strconv.Itoa(int(codes.Unauthenticated))
+}
+
+// replayBytes is the largest body the edge keeps to send a call again.
+const replayBytes = 1 << 20
+
+// replayable keeps r's body when it can be sent a second time, and answers the
+// call to send again; nil when it cannot: a body whose length is not known (a
+// stream, which is never read ahead) or is more than replayBytes.
+func replayable(r *http.Request) func() *http.Request {
+	if r.Body == nil || r.Body == http.NoBody || r.ContentLength == 0 {
+		return func() *http.Request { return r.Clone(r.Context()) }
+	}
+	if r.ContentLength < 0 || r.ContentLength > replayBytes {
+		return nil
+	}
+	body := r.Body
+	kept, err := io.ReadAll(io.LimitReader(body, r.ContentLength))
+	if err != nil || int64(len(kept)) != r.ContentLength {
+		// What was read is sent on with the rest, which fails as it would have.
+		r.Body = struct {
+			io.Reader
+			io.Closer
+		}{io.MultiReader(bytes.NewReader(kept), body), body}
+		return nil
+	}
+	r.Body = io.NopCloser(bytes.NewReader(kept))
+	return func() *http.Request {
+		out := r.Clone(r.Context())
+		out.Body = io.NopCloser(bytes.NewReader(kept))
+		return out
+	}
+}
+
+// heldKey is what a held Work Context is kept under.
+func heldKey(bearer, module, page string) [32]byte {
+	return sha256.Sum256([]byte(bearer + "\x00" + module + "\x00" + page))
+}
+
+// forget drops the Work Context held for bearer at module and page when it is
+// still token: a call refused with an older one leaves a fresh one held.
+func (e *Edge) forget(bearer, module, page, token string) {
+	key := heldKey(bearer, module, page)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if h, ok := e.held[key]; ok && h.token == token {
+		delete(e.held, key)
+	}
+}
+
+// rolesChanged drops every Work Context the edge holds and fences in-flight
+// cache writes: a role was granted or revoked through this edge, to a person
+// or to a team whose members the edge does not know, so anything held may be
+// from before it.
+func (e *Edge) rolesChanged() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.cacheGeneration++
+	clear(e.held)
 }
 
 // workContext is the person's Work Context at module, issued by the authority
 // for everything the person holds there and held until shortly before it
 // lapses. The hop narrows each call to what its method requires.
 func (e *Edge) workContext(ctx context.Context, bearer, module, page string) (held, error) {
-	key := sha256.Sum256([]byte(bearer + "\x00" + module + "\x00" + page))
+	key := heldKey(bearer, module, page)
 	e.mu.Lock()
 	for key, h := range e.held {
 		if !e.now().Before(h.renew) {
@@ -250,6 +352,7 @@ func (e *Edge) workContext(ctx context.Context, bearer, module, page string) (he
 	generation := e.cacheGeneration
 	if h, ok := e.held[key]; ok && e.now().Before(h.renew) {
 		e.mu.Unlock()
+		h.cached = true
 		return h, nil
 	}
 	e.mu.Unlock()
@@ -610,7 +713,17 @@ func sameOrigin(r *http.Request) bool {
 // call's effect, so a caller can never name one and replay another person's
 // receipt.
 func proxy(target *url.URL, token, effect string, w http.ResponseWriter, r *http.Request) {
-	(&httputil.ReverseProxy{
+	send(target, token, effect, w, r, nil, nil)
+}
+
+// errAskAgain is the module's answer withheld from the caller (send).
+var errAskAgain = errors.New("the module refused a held Work Context")
+
+// send is proxy, with the module's answer shown to withhold before any of it
+// reaches the caller: when withhold says so the answer is dropped and again
+// answers the caller instead.
+func send(target *url.URL, token, effect string, w http.ResponseWriter, r *http.Request, withhold func(*http.Response) bool, again func()) {
+	rp := &httputil.ReverseProxy{
 		// Never through a proxy from the environment, which would read the
 		// person's Work Context.
 		Transport: host.HTTPTransport(),
@@ -637,10 +750,23 @@ func proxy(target *url.URL, token, effect string, w http.ResponseWriter, r *http
 		// The transport error can name the module's internal address: the
 		// edge's log is told it, the caller is told what happened.
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			if errors.Is(err, errAskAgain) {
+				again()
+				return
+			}
 			log.Printf("edge: the module did not answer %s %s: %v", r.Method, r.URL.Path, err)
 			refuse(w, http.StatusBadGateway, "the module did not answer")
 		},
-	}).ServeHTTP(w, r)
+	}
+	if withhold != nil {
+		rp.ModifyResponse = func(res *http.Response) error {
+			if withhold(res) {
+				return errAskAgain
+			}
+			return nil
+		}
+	}
+	rp.ServeHTTP(w, r)
 }
 
 // connectRefusal answers in Connect's (or gRPC's) words only a caller that
