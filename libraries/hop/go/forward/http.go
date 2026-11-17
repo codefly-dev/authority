@@ -90,6 +90,12 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		refuse(w, r, status.Error(codes.Unauthenticated, err.Error()))
 		return
 	}
+	// The request lives no longer than the Work Context that admitted it: a
+	// response the module is still streaming at its expiry is cut there, and a
+	// request the module has not answered by then is refused as expired.
+	bounded, cancel := hop.UntilExpiry(r.Context(), time.Unix(id.Expires, 0))
+	defer cancel()
+	r = r.WithContext(bounded)
 	(&httputil.ReverseProxy{
 		// Never through a proxy from the environment, which would see the stamp,
 		// the run's proof and the forwarded Work Context.
@@ -109,6 +115,14 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			if hop.Expired(r.Context()) {
+				expired := hop.ExpiredStatus()
+				if h.Refused != nil {
+					h.Refused(method, expired)
+				}
+				refuse(w, r, expired)
+				return
+			}
 			// A caller that ended its request is not a module that did not
 			// answer: the module may be healthy.
 			if ended := r.Context().Err(); ended != nil {

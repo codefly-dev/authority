@@ -22,15 +22,16 @@
   },
   "headers": {
     "x-codefly-hop-actors": "",
-    "x-codefly-hop-context": "978f0ed23f4c5a96367cb2b8bda07368a1018b5717ec671104eba7e9328ebab4",
+    "x-codefly-hop-admitted": "W1siZG9jdW1lbnRzLmNvbGxlY3Rpb24iLCJyZWFkIiwiIixbXV0sWyJkb2N1bWVudHMuY29sbGVjdGlvbiIsIndyaXRlIiwiIixbImMtMSJdXV0",
+    "x-codefly-hop-context": "8401fbb7f573b386002fb87453c82c7848043298908f55eceaed89b727264f9a",
     "x-codefly-hop-expires": "1792818600",
     "x-codefly-hop-owner": "principal-owner",
     "x-codefly-hop-owner-kind": "human",
-    "x-codefly-hop-proof": "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjk3OGYwZWQyM2Y0YzVhOTYzNjdjYjJiOGJkYTA3MzY4YTEwMThiNTcxN2VjNjcxMTA0ZWJhN2U5MzI4ZWJhYjQiLCI1NzE5NTA4Yzc4ODMxODFhNjExNDk3ODg1YjBlNTA1OTE2NDcxNTI1Zjg4ZGZjNmFhYzExZTYxNzBlMjI0ZWZiIiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.G7tlrYUanR448OvpJ9KEDgL4XpaURINC0aefPXigdauI18NwMCeiexentKI1LuZHD7R0Dq_VR3Q1w2cr_ixYAA",
+    "x-codefly-hop-proof": "WyJjb2RlZmx5LWhvcC12MSIsIi90ZXN0LlNlcnZpY2UvUmVhZCIsImRvY3VtZW50cyIsIjg0MDFmYmI3ZjU3M2IzODYwMDJmYjg3NDUzYzgyYzc4NDgwNDMyOTg5MDhmNTVlY2VhZWQ4OWI3MjcyNjRmOWEiLCI0ZTJkOWMyNjg4MTc3NzhhMzgwODY1NjUzYTBhZDFlOTA3Yjg1ZTE5MzNkMTg1ZjU2MDNjN2M5NWY0ZjJhNTc2IiwxNzkyODE4MDAwLDE3OTI4MTgwMzBd.Co8WLZwK8Kn2ijjfzXy5Bo3e2BjwSLuGTlAkQ25K3bLa7jBRukzAGgRrdNZO21XmoobO511cQzoAyi80szQUDA",
     "x-codefly-hop-scopes": "documents.collection:read",
     "x-codefly-hop-task": "task-conformance",
     "x-codefly-hop-tenant": "tenant-conformance",
-    "x-codefly-work-context": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJGFkODI5MzU0LWNlM2UtNDdjMS1hNGMzLWZiMTA5NWU3NjNlZFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMjMwZjMwZWUtZmU4Zi00OTYxLTgxOTYtNjM0YTBjN2Q2OWQzigEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.NYofoki9BRAE-lS0wgUgLdGDYEiLj12BxCBM9RoyK0ldoWaue4iA8m6EPF2-qSm9RtW2Z0F1lwoazJ79O2FdCQ"
+    "x-codefly-work-context": "Chdjb2RlZmx5LndvcmstY29udGV4dC92MRIHRWQyNTUxORoLaG9wLWZpeHR1cmUiGmh0dHBzOi8vYXV0aG9yaXR5LmhvcC50ZXN0Kglkb2N1bWVudHMw0Pbw1gY40Pbw1gZAqPvw1gZKJDQ2YjM2NTU5LTAzODEtNDcwNS1iYzY1LWUzNDY2ZWY2MTVkOFAHWgpzaW5nbGUtdXNlYhJ0ZW5hbnQtY29uZm9ybWFuY2VqD3ByaW5jaXBhbC1vd25lcnIQdGFzay1jb25mb3JtYW5jZXokMWU0OTQ1NmUtZmJjZi00YTUxLWEwZjctZjgwNzlhOTFiM2U4igEcChRkb2N1bWVudHMuY29sbGVjdGlvbhIEcmVhZIoBIgoUZG9jdW1lbnRzLmNvbGxlY3Rpb24SBXdyaXRlGgNjLTGyAQVodW1hbsoBGG9yZ2FuaXphdGlvbi1jb25mb3JtYW5jZdIBHggCEhhpbnN0YWxsYXRpb24tY29uZm9ybWFuY2UYAw.36iYT-oBVp760EX9CBcGHp6rhGXwr_Ex6O7DNBH3YKfpGJ1XysrSKK3PNVFrOZNHf-2prziDOLCeDQKYajWPBg"
   },
   "identity": {
     "actors": null,

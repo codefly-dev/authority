@@ -84,6 +84,29 @@ nor whether a particular call will be admitted.
 with a fresh key and answers `Keys`; `Issue` mints a Work Context and
 `hoptest.Forward` stamps it exactly as the hop does.
 
+### Narrowing without naming a permission
+
+A handler that must narrow a query reads what admitted its call:
+
+```go
+admitted, ok := hop.Admitted(ctx)        // nil, false: the hop stamped none; select nothing
+owners := admitted.Required().Owners()   // owners on which the call holds all the method requires
+content := admitted.Carried()            // how far what the method carries reaches; Empty() if not held
+content.Allows(row.Owner, row.ID)        // one stored resource
+```
+
+`Required().Whole()` is a grant that selects no owner; a module whose resources
+have owners reads `Required().OwnerSelected()` to drop it. `Named()` lists named
+resources. The declaration is read from the protobuf descriptors linked into the
+binary (`authority.hop.v1.policy` on each rpc). A module serving HTTP routes
+passes `hop.Declarations(map[string]policy.Method{"GET /v1/things/{id}": ...})`
+to `NewVerifier`. An HTTP module reads `id.Admitted` from `Admit`. A test builds
+one with `hop.AdmissionOf(declared, method, grants)`.
+
+`StreamServerInterceptor` ends an admitted stream when its Work Context expires
+(`Unauthenticated`, reason `expired`); the handler's context is done and its
+sends and receives refuse.
+
 ## The host side: `forward`
 
 A host stands in front of modules with one front door, built once at startup:

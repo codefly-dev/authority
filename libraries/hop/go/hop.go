@@ -44,6 +44,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-client/go/refusal"
 	"github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
 	"github.com/codefly-dev/authority/libraries/authority-client/go/workcontext"
+	"github.com/codefly-dev/authority/libraries/hop/go/policy"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"github.com/codefly-dev/core/resources"
 	core "github.com/codefly-dev/core/workcontext"
@@ -105,6 +106,13 @@ type Identity struct {
 	Claims *workcontext.Claims
 	// Advisory is diagnostic only. Stamp refuses an identity carrying a refusal.
 	Advisory string
+	// Grants are what the call holds once every actor narrowed it, each with
+	// its selection: what the hop stamps as AdmittedKey.
+	Grants []Grant
+	// Admitted is what admitted this call on its method, set by the Verifier
+	// for a call the hop stamped an admission on. A handler reads it (or
+	// Admitted(ctx)) instead of naming a permission.
+	Admitted *Admission
 }
 
 // Has reports whether the identity may do action on kind.
@@ -136,7 +144,12 @@ func Stamp(md metadata.MD, id Identity, signer *stamp.Signer, method, audience s
 	if err != nil {
 		return err
 	}
+	admitted, err := EncodeGrants(id.Grants)
+	if err != nil {
+		return err
+	}
 	Strip(md)
+	md.Set(AdmittedKey, admitted)
 	md.Set(ProofKey, proof)
 	md.Set(OwnerKey, id.Owner)
 	md.Set(OwnerKindKey, id.OwnerKind)
@@ -183,6 +196,7 @@ func IdentityOf(wc *basev0.WorkContextV1) Identity {
 		scopes = slices.DeleteFunc(scopes, func(s string) bool { return !slices.Contains(held, s) })
 	}
 	id.Scopes = scopes
+	id.Grants = grantsOf(wc)
 	return id
 }
 
@@ -265,6 +279,9 @@ type Verifier struct {
 	replay   core.ReplayStore
 	now      func() time.Time
 	timeout  time.Duration
+	// declared is what each method declares, when the module handed it over
+	// (Declarations); otherwise it is read from the contract the binary serves.
+	declared map[string]policy.Method
 
 	mu        sync.Mutex
 	trust     workcontext.Trust
@@ -286,7 +303,9 @@ type Verifier struct {
 // module starts before its authority serves keys, and refuses calls, with the
 // reason, until they are read.
 //
-// Clock is the only option, and a deployment passes none.
+// Clock is for conformance suites; a deployment passes none. Declarations is
+// for a module whose methods are not procedures of a protobuf contract linked
+// into its binary.
 func NewVerifier(ctx context.Context, keys KeySource, audience string, replay core.ReplayStore, opts ...VerifierOption) (*Verifier, error) {
 	if replay == nil {
 		return nil, refusal.Configuration
@@ -297,7 +316,7 @@ func NewVerifier(ctx context.Context, keys KeySource, audience string, replay co
 	return newVerifier(ctx, keys, audience, replay, opts...)
 }
 
-// VerifierOption shapes a verifier as it is built. Clock is the only one.
+// VerifierOption shapes a verifier as it is built: Clock and Declarations.
 type VerifierOption func(*Verifier)
 
 // Clock judges every window — a stamp's issue and expiry, a Work Context's,
@@ -451,6 +470,7 @@ func (v *Verifier) Admit(ctx context.Context, md metadata.MD, method string) (Id
 	if err != nil {
 		return Identity{}, nil, err
 	}
+	id.Admitted = v.admittedOn(md, method, id)
 	return id, release, nil
 }
 
@@ -700,6 +720,15 @@ func sameAsStamped(md metadata.MD, id Identity) error {
 			return fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.StampIdentity)
 		}
 	}
+	// What the call holds is the token's too. A hop older than this key
+	// stamps none, and the module is then handed no admission; one that is
+	// stamped must be exactly what the authenticated claims hold.
+	if stamped := md.Get(AdmittedKey); len(stamped) > 0 {
+		held, err := EncodeGrants(id.Grants)
+		if err != nil || len(stamped) != 1 || stamped[0] != held {
+			return fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.StampIdentity)
+		}
+	}
 	return nil
 }
 
@@ -737,8 +766,37 @@ func (v *Verifier) StreamServerInterceptor() grpc.StreamServerInterceptor {
 		if err != nil {
 			return err
 		}
-		defer finishAdmission(ctx)
-		return handler(srv, &stamped{ServerStream: ss, ctx: ctx})
+		id, admitted := FromContext(ctx)
+		if !admitted || id.Expires <= 0 {
+			// A health check: no Work Context admitted it, so none ends it.
+			defer finishAdmission(ctx)
+			return handler(srv, &stamped{ServerStream: ss, ctx: ctx})
+		}
+		// The stream ends when the context that admitted it expires, on the
+		// verifier's clock. The handler runs beside the interceptor so that
+		// one blocked in a send or a receive cannot hold the stream open:
+		// the interceptor answers at the expiry, gRPC ends the stream, and
+		// the handler's context is done and its sends and receives refuse.
+		ctx, cancel := UntilExpiry(ctx, time.Now().Add(time.Unix(id.Expires, 0).Sub(v.now())))
+		done := make(chan error, 1)
+		go func() {
+			defer cancel()
+			defer finishAdmission(ctx)
+			done <- handler(srv, &stamped{ServerStream: ss, ctx: ctx})
+		}()
+		select {
+		case err := <-done:
+			if err != nil && Expired(ctx) {
+				return ExpiredStatus()
+			}
+			return err
+		case <-ctx.Done():
+			if Expired(ctx) {
+				return ExpiredStatus()
+			}
+			// The caller ended the stream; the handler says how.
+			return <-done
+		}
 	}
 }
 
@@ -770,6 +828,7 @@ func (v *Verifier) admit(ctx context.Context, method string) (context.Context, e
 		held.finish()
 		return nil, status.Error(codes.Unauthenticated, err.Error())
 	}
+	id.Admitted = v.admittedOn(held.md, method, id)
 	return context.WithValue(context.WithValue(ctx, admissionKey{}, held), identityKey{}, id), nil
 }
 
@@ -779,6 +838,23 @@ type stamped struct {
 }
 
 func (s *stamped) Context() context.Context { return s.ctx }
+
+// SendMsg and RecvMsg refuse once the Work Context that admitted the stream
+// has expired: nothing more is sent to, or read from, a caller it no longer
+// admits.
+func (s *stamped) SendMsg(m any) error {
+	if Expired(s.ctx) {
+		return ExpiredStatus()
+	}
+	return s.ServerStream.SendMsg(m)
+}
+
+func (s *stamped) RecvMsg(m any) error {
+	if Expired(s.ctx) {
+		return ExpiredStatus()
+	}
+	return s.ServerStream.RecvMsg(m)
+}
 
 func first(md metadata.MD, key string) string {
 	if v := md.Get(key); len(v) > 0 {

@@ -192,6 +192,61 @@ admission is refused by name: `stamp_replayed` while the reservation is held,
 a caller that runs the call's work itself holds it with `Admit` (Go) or `admit`
 (Python and TypeScript) until that work has ended.
 
+## What admitted the call: `x-codefly-hop-admitted`
+
+No handler names a permission. The hop admits a call on its method's declaration
+and stamps, beside the identity, everything the call holds once every actor has
+narrowed it (the last actor's granted scopes, or the owner's when no one acts for
+them), each grant with its selection:
+
+```
+x-codefly-hop-admitted = base64url_nopad( JSON [[kind, action, owner, [resource_id, ...]], ...] )
+```
+
+One entry per action of each scope; `owner` is `""` and the ids `[]` when the
+scope names none (no owner and no ids is the whole kind); ids sorted; entries
+sorted by kind, action, owner, ids, each once. It is written under the stamp
+prefix, so a caller's value is stripped, and nothing is written on a refused
+call because nothing is forwarded.
+
+A verifier trusts it exactly as it trusts the stamped identity: it derives the
+same entries from the Work Context it authenticated and refuses the call as
+`stamp_identity` when the header is repeated or says anything else. It then
+reads the method's own declaration from the contract the module serves and
+hands the handler, for what the method `requires` and for what it `carries`,
+the owners and resources the call holds it on (Go: `hop.Admitted(ctx)`,
+`Required()`, `Carried()`). A method that requires metadata and carries content
+reads `Carried()` to learn how far content reaches; a caller holding only the
+required scope has no carried grant on the stamp and `Carried()` is empty.
+
+The hop does not know a method's declaration, only the authority does, so the
+stamp carries what the call holds and the verifier, in the library, reads it
+against the declaration. A hop older than this key stamps none: the call is
+still admitted, the module is handed no admission, and a handler that narrows
+reaches nothing. The key is additive: a verifier that does not know it ignores it.
+
+Python and TypeScript verifiers (`codefly_hop`, `work-context.ts`) do not read
+the key yet. They need: decode it, compare it to the entries derived from the
+authenticated claims (refuse `stamp_identity` on any difference or repeat), and
+the same two readings over the module's declaration table.
+
+## A call ends with its Work Context
+
+`stamp.Lifetime` bounds when an admitted call may start, not how long it runs.
+The hop bounds every call it forwards, on both faces, at the checked context's
+expiry: a gRPC stream still open then ends `Unauthenticated` with reason
+`expired`, an HTTP response still streaming is cut, and a request the module has
+not answered is refused 401. The Go verifier's stream interceptor ends an
+admitted stream at the same instant on its own clock, whatever its handler is
+doing. A long stream is opened again on a current context, and so checked again.
+Revocation inside the context's lifetime does not end a running stream.
+
+## The hop's deadline on the authority
+
+The hop waits `decide.CheckTimeout` (five seconds) for the authority's `Check`,
+whatever deadline the caller set. A check unanswered by then fails the call
+closed: `Unavailable` (503), nothing forwarded, nothing kept for the next call.
+
 ## Replicas and durable replay storage
 
 A stateless signature or request digest cannot reject an identical replay. A

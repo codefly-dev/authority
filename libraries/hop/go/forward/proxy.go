@@ -79,7 +79,10 @@ func (p *Proxy) handle(_ any, in grpc.ServerStream) error {
 	if err := hop.Stamp(out, id, p.Signer, method, module, time.Now()); err != nil {
 		return status.Error(codes.Unauthenticated, err.Error())
 	}
-	ctx, cancel := context.WithCancel(metadata.NewOutgoingContext(in.Context(), out))
+	// The call lives no longer than the Work Context that admitted it: a
+	// stream still open at its expiry is ended here, and opened again only on
+	// a context the authority checks again.
+	ctx, cancel := hop.UntilExpiry(metadata.NewOutgoingContext(in.Context(), out), time.Unix(id.Expires, 0))
 	defer cancel()
 	if decision.Route == nil {
 		return status.Error(codes.Internal, "the hop decision names no published route")
@@ -90,23 +93,51 @@ func (p *Proxy) handle(_ any, in grpc.ServerStream) error {
 	}
 	up, err := upstream.NewStream(ctx, &grpc.StreamDesc{ServerStreams: true, ClientStreams: true}, method)
 	if err != nil {
+		if hop.Expired(ctx) {
+			return p.expired(method)
+		}
 		return p.unanswered(in.Context(), method, err)
 	}
 	sent, received := make(chan error, 1), make(chan error, 1)
 	go func() { sent <- forward(in, up) }()
 	go func() { received <- back(up, in) }()
+	ended := ctx.Done()
 	for {
 		select {
 		case err := <-sent:
+			if hop.Expired(ctx) {
+				return p.expired(method)
+			}
 			if err != nil {
 				return status.Errorf(codes.Internal, "the hop could not forward the call to the module: %v", err)
 			}
 			sent = nil // the caller is done sending; the reply is still coming
 		case err := <-received:
+			// The module's stream ends with the hop's context, so its last
+			// status may be that ending's; the caller is told the expiry.
+			if err != nil && hop.Expired(ctx) {
+				return p.expired(method)
+			}
 			in.SetTrailer(up.Trailer())
 			return err
+		case <-ended:
+			if hop.Expired(ctx) {
+				return p.expired(method)
+			}
+			ended = nil // the caller ended the call; the module's stream says how
 		}
 	}
+}
+
+// expired ends a call at the expiry of the Work Context that admitted it. The
+// deferred cancel ends the module's stream; the caller is told why, and the
+// hop's log names it.
+func (p *Proxy) expired(method string) error {
+	err := hop.ExpiredStatus()
+	if p.Refused != nil {
+		p.Refused(method, err)
+	}
+	return err
 }
 
 // unanswered refuses a call whose stream to the module could not be opened. A

@@ -124,12 +124,22 @@ func (a *Authority) IssueSingleUse(t testing.TB, audience string, scopes ...*bas
 	return a.issue(t, audience, core.ReplaySingleUse, scopes...)
 }
 
+// IssueFor is Issue for a Work Context that lives ttl, for a test of what
+// ends at its expiry.
+func (a *Authority) IssueFor(t testing.TB, audience string, ttl time.Duration, scopes ...*basev0.WorkScopeV1) string {
+	return a.issueFor(t, audience, core.ReplayIdempotent, ttl, scopes...)
+}
+
 func (a *Authority) issue(t testing.TB, audience, replay string, scopes ...*basev0.WorkScopeV1) string {
+	return a.issueFor(t, audience, replay, 10*time.Minute, scopes...)
+}
+
+func (a *Authority) issueFor(t testing.TB, audience, replay string, ttl time.Duration, scopes ...*basev0.WorkScopeV1) string {
 	t.Helper()
 	token, _, err := a.signer.Start(context.Background(), core.StartInput{
 		TenantID: core.FixtureTenant, OwnerPrincipalID: core.FixturePrincipal, OwnerPrincipalKind: "human",
 		OrganizationID: core.FixtureOrganization, TaskID: core.FixtureTask, Audience: audience,
-		ReplayPolicy: replay, AuthorityScopes: scopes, InstallationID: core.FixtureInstallation, TTL: 10 * time.Minute,
+		ReplayPolicy: replay, AuthorityScopes: scopes, InstallationID: core.FixtureInstallation, TTL: ttl,
 	})
 	if err != nil {
 		t.Fatal(err)
