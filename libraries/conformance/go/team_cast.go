@@ -38,16 +38,7 @@ func (sp *principalSuite) teamCast(t *testing.T) {
 	sp.grant(t, A, "user", map[string]any{"team_id": f.Team})
 	defer sp.revoke(t, A, "user", map[string]any{"team_id": f.Team})
 
-	cast := func(t *testing.T, from, team string) (string, error) {
-		t.Helper()
-		out, err := sp.c.call(sp.as(t, from), "host.session.v1.SessionService", "OpenTeamCast", map[string]any{"team_id": team})
-		if err != nil {
-			return "", err
-		}
-		name := "team-cast:" + str(out, "session_id")
-		sp.sessions[name] = out
-		return name, nil
-	}
+	cast := sp.cast
 
 	instA := str(sp.ensure(t, f.Organization, A), "id")
 	for who, from := range map[string]string{"an administrator who is not in the team": f.Admin, "a member of the team": f.TeamMember} {
@@ -106,6 +97,19 @@ func (sp *principalSuite) teamCast(t *testing.T) {
 	if _, err = cast(t, f.OtherMember, f.Team); err == nil {
 		t.Fatal("a member of another organization was cast onto this organization's team")
 	}
+}
+
+// cast opens a session of from's cast onto team, and answers the name the
+// suite's other steps act as it by (as).
+func (sp *principalSuite) cast(t *testing.T, from, team string) (string, error) {
+	t.Helper()
+	out, err := sp.c.call(sp.as(t, from), "host.session.v1.SessionService", "OpenTeamCast", map[string]any{"team_id": team})
+	if err != nil {
+		return "", err
+	}
+	name := "team-cast:" + str(out, "session_id")
+	sp.sessions[name] = out
+	return name, nil
 }
 
 // castable is what ListCastableTeams answers the session from: each team's

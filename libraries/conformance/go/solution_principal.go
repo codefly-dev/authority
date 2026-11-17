@@ -525,13 +525,9 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		sp.grant(t, A, "user", team)
 		sp.must(t)(sp.through(t, f.TeamMember, A, "store"))
 		refused(t, sp.check(before), codes.PermissionDenied, "revoked")
-		leaving := sp.must(t)(sp.through(t, f.TeamLeaver, A, "store"))
-		if err := f.RemoveFromTeam(ctx, sp.personID(t, f.TeamLeaver), f.Team); err != nil {
-			t.Fatal(err)
-		}
-		refused(t, sp.check(leaving), codes.PermissionDenied, "revoked")
-		_, err = sp.root(t, f.TeamLeaver, A)
-		refused(t, err, codes.PermissionDenied, "holds no role")
+		t.Run("a member removed from a team loses, by the next check, what only the team's role gave them, and acting as that team is refused", func(t *testing.T) {
+			sp.teamRemoval(t)
+		})
 	})
 	t.Run("a team nobody belongs to yet is granted a role, listed and revoked", func(t *testing.T) {
 		empty := map[string]any{"team_id": f.EmptyTeam}
