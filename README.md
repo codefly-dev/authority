@@ -998,12 +998,23 @@ they were.
 `Check` answers for one call. Which resources of a kind a caller may touch,
 such as the document collections a person reads, is the authority's other
 question: `ListResources(token, audience, kind, action)`. It is decided at the
-time of the call, from the owner's live grants, rather than carried in the
-token, so tokens stay small and a new grant takes effect at once.
+time of the call, and (corrected 2026-11-17; this paragraph first said the
+selection was not carried in the token) from two things. The capability
+carries its own selection: each scope's `resource_owner_id` and
+`resource_ids`, as issuance cut them. A person's answer is that selection cut
+again to what her roles grant now, so a revocation takes effect at once; a
+grant made after issue widens nothing the capability does not already name. A
+module's or an installation's own work is bounded by its capability alone
+(`authority.ListResources`, `grantsOf`).
 
-The answer is a list of grants. Each one covers every resource of the kind, one
-id, an id prefix, or a whole-id RE2 pattern of at most 256 bytes. A resource is
-covered when any grant matches its id. `libraries/resources/go` is the one
+The answer is a list of grants. Each one covers every resource of the kind or
+one id, qualified by the owner the resource must have when the scope selects
+one. The wire (`ResourceGrant`) and `libraries/resources/go` also define an id
+prefix and a whole-id RE2 pattern of at most 256 bytes; no authority here emits
+either. `ListResources` projects scopes, which carry ids and never a matcher,
+and no role in the local fixture carries a `resources` matcher. Both forms are
+evaluated by a reader that receives one and are otherwise unused.
+A resource is covered when any grant matches its id. `libraries/resources/go` is the one
 evaluation of grants, used by the local authority to validate its roles, by
 the suite, and by any module deciding which of its own resources a caller sees.
 The authority knows resources by id only; each module maps ids onto its own.
@@ -1134,7 +1145,7 @@ the interface, with a suite line, or named as belonging elsewhere.
 | A source's operation context (`MintSourceOperationContext`) and a child by delegation id (`ExchangeOperation` with `DelegationID`) | `Delegate` and `RevokeDelegation`, and `Issue` from a delegation (`hop.Outbound.ForDelegation`): owned by the grantor, the module as actor, re-checked on every issue, renewed by issuing again | suite: a delegation issues as its grantor through its module, until revoked |
 | The live revision check that keeps delegation-backed work honest after its token expires (`CheckAuthorizationRevision` with the delegation's binding) | `GetDelegation`, read by the delegation's module (workload credential) or its grantor; anyone else is told it does not exist | suite: the same delegation line reads it standing, then revoked |
 | Live seal and revision answers for a module verifying a token (`WorkContextSources`) | the hop asks `Check`; modules verify nothing | suite: a callee refuses what does not verify; the hop's tests |
-| Which collections or resources a caller reads (saas `ListReadableSourceCollections`) | `ListResources`, by id, prefix or pattern | suite: the authority answers which resources a context covers |
+| Which collections or resources a caller reads (saas `ListReadableSourceCollections`) | `ListResources`, by whole kind or id, each qualified by owner (the prefix and pattern forms are defined and never emitted) | suite: the authority answers which resources a context covers |
 | Executable artifact approvals (`Approve`, `Authorize`, `RevokeExecutableArtifact`) | not authority: the signed release (handbook#146) | open |
 | Audit (`EmitAuditEvent`, `DeclareAuditEventTypes`) | a module's own audit events are not authority, and this repository declares no interface for them (an earlier line here named an "optional audit interface"; none was ever built). The authority's own record is the host's journal: each change of authority through `authority.Config.Journal`, each decision and refusal through `authority.Config.Decisions` (below) | core: `TestEveryChangeIsJournaledInItsOwnTransaction`, `TestTheHostIsToldEveryDecision`; a module's own events: open |
 | Notifications (`NotifyUser`, `NotifyOrgAdmins`) | host services, optional interfaces | open |
