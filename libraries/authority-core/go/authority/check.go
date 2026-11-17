@@ -16,7 +16,9 @@ import (
 // Check verifies a capability for the audience the caller is, and refuses
 // owner-selected scopes the audience can no longer honour: an audience that
 // does not declare owner-aware checking now, or one that withdrew it after
-// the capability was issued through a binding to it (never revived).
+// the capability was issued through a binding to it (never revived). A
+// capability issued in a cast is refused once the cast no longer holds
+// (castHolds).
 func (s *Service) Check(ctx context.Context, token, audience string) (*workcontext.Verified, uint64, error) {
 	verified, err := s.Verify(ctx, token, audience)
 	if errors.Is(err, workcontext.ErrRevoked) {
@@ -41,6 +43,9 @@ func (s *Service) Check(ctx context.Context, token, audience string) (*workconte
 			return notFound(err)
 		}
 		if err := decide.OwnerAware(m, verified.EffectiveScopes()); err != nil {
+			return err
+		}
+		if err := castOfClaims(tx, verified.Context()); err != nil {
 			return err
 		}
 		revision, err = tx.AuthorizationRevision(verified.Context().GetTenantId())
@@ -130,7 +135,7 @@ func (s *Service) ListResources(ctx context.Context, token, audience, kind, acti
 		if wc.GetOwnerPrincipalKind() == "human" {
 			p, err := personOfClaims(tx, wc)
 			if err != nil {
-				return domain.Refuse("the owner %s is no longer a member", wc.GetOwnerPrincipalId())
+				return ownerGone(err, wc.GetOwnerPrincipalId())
 			}
 			at, err := tx.Module(wc.GetAudience())
 			if err != nil && !errors.Is(err, domain.ErrNotFound) {
@@ -264,7 +269,7 @@ func (s *Service) withinApprovedReach(tx Tx, wc *basev0.WorkContextV1, effective
 		}
 		p, err := personOfClaims(tx, wc)
 		if err != nil {
-			return domain.Refuse("the owner %s is no longer a member", wc.GetOwnerPrincipalId()), nil
+			return ownerGone(err, wc.GetOwnerPrincipalId()), nil
 		}
 		owner.person = &p
 	default:

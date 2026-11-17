@@ -686,7 +686,7 @@ func (s *Service) IssueChild(ctx context.Context, parent string, actor Workload,
 		case "human":
 			p, err := personOfClaims(tx, claims)
 			if err != nil {
-				return domain.Refuse("the owner %s is no longer a member", claims.GetOwnerPrincipalId())
+				return ownerGone(err, claims.GetOwnerPrincipalId())
 			}
 			viewing = viewNote(tx, p)
 			if heldHere, sourceCeiling, bounded, err = throughSolutions(tx, p, audience, solutionPrincipals(claims, am.Principal), namedBy(r.Scopes, claims)); err != nil {

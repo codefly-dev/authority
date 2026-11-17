@@ -74,7 +74,7 @@ func (s *Service) AuthorizeTransfer(ctx context.Context, r TransferRequest) (Tra
 		}
 		p, err := personOfClaims(tx, wc)
 		if err != nil {
-			return domain.Refuse("the owner %s is no longer a member", wc.GetOwnerPrincipalId())
+			return ownerGone(err, wc.GetOwnerPrincipalId())
 		}
 		if p.Organization != wc.GetTenantId() {
 			return domain.Refuse("the person no longer belongs to the capability's organization")

@@ -47,6 +47,11 @@ type TeamCastRequest struct {
 // administrator actually has, and it is what makes "be this team and see what
 // it sees" answer honestly. It composes with a role view, which narrows it
 // further; the order never widens.
+//
+// The rule is live. It is decided here, and again at every read of the cast
+// session (personFor, castHolds): a cast whose person could no longer grant
+// what the team holds, or whose team was granted what they could not grant,
+// is refused from then on.
 func (s *Service) OpenTeamCast(ctx context.Context, who Person, r TeamCastRequest) (domain.RoleView, error) {
 	var cast domain.RoleView
 	err := s.store.Write(ctx, func(tx Tx) error {

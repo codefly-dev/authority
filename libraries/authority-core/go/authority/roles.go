@@ -120,7 +120,13 @@ func (s *Service) GrantRoleAsHost(ctx context.Context, r RoleRequest) (domain.In
 
 // RevokeRole ends one grant. Its subject's capabilities through that
 // installation are refused at once (their grant epoch on it moves): a
-// person's, or every member's of a team. Nobody else's are touched.
+// person's, or, of a team, every member's and every person's who may act as
+// the team (teamIsWithin), since a cast holds what the team holds and its
+// person is by design not a member. The store lists no cast by team, so
+// every person who could hold one is moved, cast or not: an administrator
+// who could grant the team's roles, a person holding them directly. Their own
+// capabilities through that installation are issued again; nobody else's are
+// touched.
 func (s *Service) RevokeRole(ctx context.Context, caller Person, r RoleRequest) (domain.Installation, error) {
 	var inst domain.Installation
 	err := s.store.Write(ctx, func(tx Tx) error {
@@ -128,21 +134,31 @@ func (s *Service) RevokeRole(ctx context.Context, caller Person, r RoleRequest) 
 		if inst, err = decideRoleChange(tx, &caller, r, false, true); err != nil {
 			return err
 		}
-		if err := tx.DeleteRoleGrant(r.grant()); err != nil {
-			return err
-		}
 		subjects := []string{r.PersonID}
 		if r.TeamID != "" {
+			// Read before the grant ends: who may act as the team is asked
+			// of what the team holds, this grant included.
 			people, err := tx.People(inst.Organization)
 			if err != nil {
 				return err
 			}
 			subjects = nil
 			for _, p := range people {
-				if slices.Contains(p.Teams, r.TeamID) {
+				member := slices.Contains(p.Teams, r.TeamID)
+				if !member {
+					within, reaches, err := teamIsWithin(tx, Person{ID: p.ID, Organization: p.Organization}, p, inst.Organization, r.TeamID)
+					if err != nil {
+						return err
+					}
+					member = within && reaches
+				}
+				if member {
 					subjects = append(subjects, p.ID)
 				}
 			}
+		}
+		if err := tx.DeleteRoleGrant(r.grant()); err != nil {
+			return err
 		}
 		for _, person := range subjects {
 			if err := tx.BumpGrantEpoch(person, inst.ID); err != nil {
