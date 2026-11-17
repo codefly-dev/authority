@@ -55,8 +55,8 @@ func TestANarrowingBetweenDecisionAndMintIsNeverHandedOut(t *testing.T) {
 				t.Fatal(err)
 			}
 			mem.PutOrganization(domain.Organization{ID: acme, Name: acme})
-			mem.PutOrgRole(domain.OrgRole{Organization: acme, Name: "reader", Scopes: []domain.RoleScope{{Kind: legacyKind, Actions: []string{"read", "write"}}, {Kind: kind, Actions: []string{"read"}}}})
-			mem.PutPerson(domain.Person{ID: "alex", Organization: acme, Roles: []string{"reader"}})
+			mem.PutOrgRole(domain.OrgRole{Organization: acme, Name: "user", Scopes: []domain.RoleScope{{Kind: legacyKind, Actions: []string{"read", "write"}}, {Kind: kind, Actions: []string{"read"}}}})
+			mem.PutPerson(domain.Person{ID: "alex", Organization: acme, Roles: []string{"user"}})
 			relayScopes := []*basev0.WorkScopeV1{sc(legacyKind, "read", "write")}
 			for _, m := range []domain.Module{
 				{Name: "relay", Principal: "relay", Kind: domain.KindModule, Generation: 1, ResourceKinds: relayScopes},

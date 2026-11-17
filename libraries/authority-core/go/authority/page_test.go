@@ -20,9 +20,9 @@ func (h *harness) page(person, target, audience string, scopes ...*basev0.WorkSc
 func TestAPagesCallGoesThroughItsTargetsBinding(t *testing.T) {
 	h := newHarness(t)
 	ledgerPage(t, h)
-	h.grant("pages", "reader", "maya")
+	h.grant("pages", "user", "maya")
 
-	t.Run("a module page's reader reaches the ledger through the page's binding, read alone", func(t *testing.T) {
+	t.Run("a module page's user reaches the ledger through the page's binding, read alone", func(t *testing.T) {
 		got := h.must(h.page("maya", "pages", "ledger"))
 		exactly(t, got, ledgerKind, "", []string{"read"})
 		if chain := got.Context.GetActorChain(); len(chain) == 0 || chain[len(chain)-1].GetPrincipalId() != "pages" {
@@ -49,7 +49,7 @@ func TestAPagesCallGoesThroughItsTargetsBinding(t *testing.T) {
 		refused(t, err, "the owner holds nothing at this audience")
 	})
 	t.Run("a solution's page goes through the solution's binding, as its backend does", func(t *testing.T) {
-		h.grant("a", "reader", "tal")
+		h.grant("a", "user", "tal")
 		want := h.must(h.through("tal", "a", "store"))
 		got := h.must(h.page("tal", "a", "store"))
 		if len(effective(got)) != len(effective(want)) || effective(got)[0].GetResourceOwnerId() != effective(want)[0].GetResourceOwnerId() {
@@ -65,7 +65,7 @@ func TestAPagesCallGoesThroughItsTargetsBinding(t *testing.T) {
 func TestAPageHopIsThePersonPresent(t *testing.T) {
 	h := newHarness(t)
 	ledgerPage(t, h)
-	h.grant("pages", "reader", "maya")
+	h.grant("pages", "user", "maya")
 	kindOf := func(i authority.Issued) []string {
 		var kinds []string
 		for _, a := range i.Context.GetActorChain() {

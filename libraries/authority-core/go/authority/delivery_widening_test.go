@@ -60,20 +60,20 @@ func TestModulePageRoleWidenedOnItsOwnKindHoldsItsHoldersAtTheApprovedRole(t *te
 		t.Fatal(err)
 	}
 	inst := h.pagesAt(acme)
-	if _, err := svc.GrantRole(h.ctx, h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: "reader", PersonID: "maya"}); err != nil {
+	if _, err := svc.GrantRole(h.ctx, h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: "user", PersonID: "maya"}); err != nil {
 		t.Fatal(err)
 	}
 	write := authority.IssueRequest{Audience: "pages", Scopes: []*basev0.WorkScopeV1{sc("pages.note", "write")}}
 	m := pageModule(2, true)
-	m.Roles["reader"] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}
+	m.Roles["user"] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}
 	if _, err := svc.ApplyModule(h.ctx, m); err != nil {
 		t.Fatal(err)
 	}
 	if got, err := svc.IssueForPerson(h.ctx, h.person("maya"), write); err == nil {
-		t.Fatalf("a reader granted read holds write after a delivery widened the role: %s", scopeText(got.Context.GetAuthorityScopes()))
+		t.Fatalf("a user granted read holds write after a delivery widened the role: %s", scopeText(got.Context.GetAuthorityScopes()))
 	}
 	if _, err := svc.IssueForPerson(h.ctx, h.person("maya"), authority.IssueRequest{Audience: "pages", Scopes: []*basev0.WorkScopeV1{sc("pages.note", "read")}}); err != nil {
-		t.Fatalf("the reader's grant no longer answers at the approved role: %v", err)
+		t.Fatalf("the user's grant no longer answers at the approved role: %v", err)
 	}
 	if !slices.Contains(kinds(*events), domain.InstallationUpgradeAvailable) || slices.Contains(kinds(*events), domain.RoleRevoked) {
 		t.Fatalf("the widening is not offered as an upgrade, or revoked a grant: %v", kinds(*events))
@@ -103,7 +103,7 @@ func TestGrantDoesNotSurviveTheWithdrawalOfItsModule(t *testing.T) {
 	if err := h.store.Write(h.ctx, func(tx authority.Tx) error { return tx.PutInstallation(inst) }); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.GrantRole(h.ctx, h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: "reader", PersonID: "maya"}); err != nil {
+	if _, err := svc.GrantRole(h.ctx, h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: "user", PersonID: "maya"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := svc.WithdrawModule(h.ctx, "pages"); err != nil {
@@ -127,7 +127,7 @@ func TestGrantDoesNotSurviveTheWithdrawalOfItsModule(t *testing.T) {
 		t.Fatalf("the ended grant is not journaled: %v", kinds(events))
 	}
 	m := pageModule(3, true)
-	m.Roles["reader"] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}
+	m.Roles["user"] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}
 	if _, err := svc.ApplyModule(h.ctx, m); err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +151,7 @@ func TestCapabilityLifetimeCeilingIsFifteenMinutes(t *testing.T) {
 		t.Fatal(err)
 	}
 	inst := h.pagesAt(acme)
-	if _, err := svc.GrantRole(h.ctx, h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: "reader", PersonID: "maya"}); err != nil {
+	if _, err := svc.GrantRole(h.ctx, h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: "user", PersonID: "maya"}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := svc.IssueForPerson(h.ctx, h.person("maya"), authority.IssueRequest{Audience: "pages", TTL: 2 * time.Hour})

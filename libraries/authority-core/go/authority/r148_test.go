@@ -70,7 +70,7 @@ func TestATombstonedPrincipalIsNeverClaimed(t *testing.T) {
 		t.Fatal(err)
 	}
 	admin := h.admin(globex)
-	_, err = svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, h.approval(globex, "b"), nil)
+	_, err = svc.Install(h.ctx, admin, globex, "b", "admin", admin.ID, h.approval(globex, "b"), nil)
 	code(t, err, domain.Denied)
 }
 
@@ -115,7 +115,7 @@ func (o outage) Read(ctx context.Context, fn func(authority.Tx) error) error {
 // refusal.
 func TestAnIssueReportsAStoreOutage(t *testing.T) {
 	h := newHarness(t)
-	h.grant("a", "reader", "maya")
+	h.grant("a", "user", "maya")
 	svc, err := authority.New(outage{h.store}, h.cfg)
 	if err != nil {
 		t.Fatal(err)

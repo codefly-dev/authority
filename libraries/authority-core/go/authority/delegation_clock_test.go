@@ -41,7 +41,7 @@ func TestDelegationDeadlineSurvivesMintReadLatency(t *testing.T) {
 				t.Run(fmt.Sprintf("client=%t/delay=%s/ttl=%s", client, delay, requested), func(t *testing.T) {
 					h := newHarness(t)
 					h.now = h.now.Add(950 * time.Millisecond)
-					h.grant("a", "reader", "maya")
+					h.grant("a", "user", "maya")
 					scopes := authority.Scopes{owned(kind, h.principal(acme, "a"), read)}
 					var d domain.Delegation
 					var err error

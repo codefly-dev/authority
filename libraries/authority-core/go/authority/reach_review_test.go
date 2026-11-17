@@ -15,7 +15,7 @@ import (
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
-// widenDownstream relaxes the store's Purge to what a's author holds and
+// widenDownstream relaxes the store's Purge to what a's admin holds and
 // binds the store to a new replica: a's reach widens, a unchanged.
 func widenDownstream(t *testing.T, h *harness) {
 	t.Helper()
@@ -33,7 +33,7 @@ func widenDownstream(t *testing.T, h *harness) {
 
 // The installation's agent is held to the approved reach as its holders
 // are: a downstream redelivery that relaxes a method and adds a binding
-// widens what a's agent (author) reaches; until an administrator approves,
+// widens what a's agent (admin) reaches; until an administrator approves,
 // the agent's call to the relaxed method and its hop onward are refused;
 // once approved, both are admitted.
 func TestTheInstallationsAgentIsHeldToTheApprovedReach(t *testing.T) {
@@ -125,7 +125,7 @@ func TestADelegationThroughASolutionIsHeldToTheApprovedReach(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.install(acme, "a")
-	h.grant("a", "author", "maya")
+	h.grant("a", "admin", "maya")
 	if _, err := h.svc.ApplyModule(h.ctx, storeAt(3, "admin", true)); err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +189,7 @@ func TestAModuleDeliveredAgainAfterAWithdrawalHoldsNoGrants(t *testing.T) {
 	}
 	alex := authority.Person{ID: "alex", Organization: acme, SessionID: "s"}
 	for _, g := range []authority.RoleRequest{
-		{Organization: acme, InstallationID: "host-pages", Role: "reader", PersonID: "maya"},
+		{Organization: acme, InstallationID: "host-pages", Role: "user", PersonID: "maya"},
 		{Organization: acme, InstallationID: "host-pages", Role: domain.AdminRole, PersonID: "alex"},
 	} {
 		if _, err := h.svc.GrantRole(h.ctx, alex, g); err != nil {
@@ -199,9 +199,7 @@ func TestAModuleDeliveredAgainAfterAWithdrawalHoldsNoGrants(t *testing.T) {
 	if err := h.svc.WithdrawModule(h.ctx, "pages"); err != nil {
 		t.Fatal(err)
 	}
-	again := pageModule(2, true)
-	delete(again.Roles, "reader")
-	if _, err := h.svc.ApplyModule(h.ctx, again); err != nil {
+	if _, err := h.svc.ApplyModule(h.ctx, pageModule(2, true)); err != nil {
 		t.Fatal(err)
 	}
 	var grants []domain.RoleGrant
@@ -268,7 +266,7 @@ func soundComposition(r *rand.Rand) []domain.Module {
 				}
 				return slices.Clone(m.ResourceKinds)
 			}
-			m.Kind, m.Roles = domain.KindSolution, map[string][]*basev0.WorkScopeV1{domain.AdminRole: slices.Clone(m.ResourceKinds), "r": role(), "s": role()}
+			m.Kind, m.Roles = domain.KindSolution, map[string][]*basev0.WorkScopeV1{domain.AdminRole: role(), domain.UserRole: role()}
 		}
 		out = append(out, m)
 	}
@@ -311,12 +309,12 @@ func TestTheRuntimeNeverAdmitsBeyondReach(t *testing.T) {
 			var inst domain.Installation
 			var err error
 			if consented {
-				inst = h.installAs(acme, "app", "r")
-			} else if inst, err = h.svc.InstallAsHost(h.ctx, acme, "app", "r", "alex", nil); err != nil {
+				inst = h.installAs(acme, "app", domain.AdminRole)
+			} else if inst, err = h.svc.InstallAsHost(h.ctx, acme, "app", domain.AdminRole, "alex", nil); err != nil {
 				t.Fatalf("seed %d: %v", seed, err)
 			}
-			h.grant("app", "r", "maya")
-			h.grant("app", "s", "maya")
+			h.grant("app", domain.AdminRole, "maya")
+			h.grant("app", domain.UserRole, "maya")
 			return h, inst
 		}
 		uncapped, uInst := build(false)
@@ -358,8 +356,8 @@ func TestTheRuntimeNeverAdmitsBeyondReach(t *testing.T) {
 			return b
 		}
 		app := byPrincipal["app"]
-		person := boundOf(decide.JointRoles, scope.Unowned(append(slices.Clone(app.Roles["r"]), app.Roles["s"]...)))
-		agent := boundOf("r", nil)
+		person := boundOf(decide.JointRoles, scope.Unowned(append(slices.Clone(app.Roles[domain.AdminRole]), app.Roles[domain.UserRole]...)))
+		agent := boundOf(domain.AdminRole, nil)
 		verify := func(b bound, u, c authority.Issued, module string, chain []string) {
 			// What a capability carries for kinds its audience does not
 			// serve (a root naming a binding) is usable only further on.
@@ -469,7 +467,7 @@ func sameScopes(a, b []*basev0.WorkScopeV1) bool {
 
 // Each face of an operation is held to its own approved policy: the store's
 // Connect face of Purge asks write where its gRPC face asks admin, and a's
-// author (write, no admin), through a, is admitted on the Connect face and
+// admin (write, no admin), through a, is admitted on the Connect face and
 // refused on the gRPC one by the store's own policy, never by the cap.
 func TestEachFaceOfAnOperationIsHeldToItsOwnApprovedPolicy(t *testing.T) {
 	h := newHarness(t)
@@ -479,7 +477,7 @@ func TestEachFaceOfAnOperationIsHeldToItsOwnApprovedPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.install(acme, "a")
-	h.grant("a", "author", "maya")
+	h.grant("a", "admin", "maya")
 	at := h.must(h.through("maya", "a", "store"))
 	if err := h.callStore(at, "POST "+storePurge); err != nil {
 		t.Fatalf("the Connect face, approved with its own policy, is refused: %v", err)
@@ -494,9 +492,9 @@ func TestEachFaceOfAnOperationIsHeldToItsOwnApprovedPolicy(t *testing.T) {
 // of an unrelated module and a host's start both succeed.
 func TestALegacyConsentWhoseApprovedGenerationIsNotKeptNeverRefusesADelivery(t *testing.T) {
 	h := newHarness(t)
-	h.grant("a", "reader", "maya")
+	h.grant("a", "user", "maya")
 	widened := solution("a", true).Roles
-	widened["extra"] = []*basev0.WorkScopeV1{sc("a.note", "read")}
+	widened["user"] = append(slices.Clone(widened["user"]), sc("a.note", "write"))
 	for _, generation := range []uint64{2, 3} {
 		if _, err := h.svc.ApplyModule(h.ctx, at("a", generation, widened)); err != nil {
 			t.Fatal(err)

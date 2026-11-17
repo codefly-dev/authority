@@ -44,21 +44,21 @@ func TestHeldInstallationsAreTheCallersOwnRoles(t *testing.T) {
 	for _, p := range []authority.Person{maya, tam, h.admin(acme)} {
 		heldIs(t, p.ID, h.heldBy(p, acme))
 	}
-	h.grant("a", "reader", "maya")
 	h.grant("a", "user", "maya")
-	h.grantTeam("b", "reader", "team")
-	h.grant("b", "author", "tam")
-	heldIs(t, "maya", h.heldBy(maya, acme), "a:[reader user]")
-	heldIs(t, "tam", h.heldBy(tam, acme), "b:[author reader]")
-	heldIs(t, "tal", h.heldBy(tal, acme), "b:[reader]")
+	h.grant("a", "admin", "maya")
+	h.grantTeam("b", "user", "team")
+	h.grant("b", "admin", "tam")
+	heldIs(t, "maya", h.heldBy(maya, acme), "a:[admin user]")
+	heldIs(t, "tam", h.heldBy(tam, acme), "b:[admin user]")
+	heldIs(t, "tal", h.heldBy(tal, acme), "b:[user]")
 	heldIs(t, "alex, an administrator holding no role", h.heldBy(h.admin(acme), acme))
 
 	// Another organization's installation of the same solution is its own.
-	if _, err := h.svc.GrantRole(h.ctx, h.admin(globex), authority.RoleRequest{Organization: globex, InstallationID: h.inst(globex, "a").ID, Role: "reader", PersonID: "omar"}); err != nil {
+	if _, err := h.svc.GrantRole(h.ctx, h.admin(globex), authority.RoleRequest{Organization: globex, InstallationID: h.inst(globex, "a").ID, Role: "user", PersonID: "omar"}); err != nil {
 		t.Fatal(err)
 	}
-	heldIs(t, "omar", h.heldBy(h.person("omar"), globex), "a:[reader]")
-	heldIs(t, "maya", h.heldBy(maya, acme), "a:[reader user]")
+	heldIs(t, "omar", h.heldBy(h.person("omar"), globex), "a:[user]")
+	heldIs(t, "maya", h.heldBy(maya, acme), "a:[admin user]")
 	// Nobody reads acme's from globex, its administrator included.
 	for _, p := range []authority.Person{h.person("omar"), h.admin(globex)} {
 		_, err := h.svc.HeldInstallations(h.ctx, p, acme)
@@ -69,23 +69,23 @@ func TestHeldInstallationsAreTheCallersOwnRoles(t *testing.T) {
 	_, err := h.svc.HeldInstallations(h.ctx, authority.Person{ID: "maya", Organization: globex, SessionID: "session-maya"}, acme)
 	refused(t, err, `organization "acme"`)
 
+	h.revoke("a", "admin", "maya", "")
+	heldIs(t, "maya", h.heldBy(maya, acme), "a:[user]")
 	h.revoke("a", "user", "maya", "")
-	heldIs(t, "maya", h.heldBy(maya, acme), "a:[reader]")
-	h.revoke("a", "reader", "maya", "")
 	heldIs(t, "maya", h.heldBy(maya, acme))
-	h.revoke("b", "reader", "", "team")
-	heldIs(t, "tam", h.heldBy(tam, acme), "b:[author]")
+	h.revoke("b", "user", "", "team")
+	heldIs(t, "tam", h.heldBy(tam, acme), "b:[admin]")
 	heldIs(t, "tal", h.heldBy(tal, acme))
 
-	h.grantTeam("c", "reader", "team")
-	heldIs(t, "tal", h.heldBy(tal, acme), "c:[reader]")
+	h.grantTeam("c", "user", "team")
+	heldIs(t, "tal", h.heldBy(tal, acme), "c:[user]")
 	h.store.PutPerson(domain.Person{ID: "tal", Organization: acme})
 	heldIs(t, "tal, who left the team", h.heldBy(tal, acme))
 
 	if err := h.svc.Uninstall(h.ctx, h.admin(acme), acme, h.inst(acme, "b").ID); err != nil {
 		t.Fatal(err)
 	}
-	heldIs(t, "tam, b uninstalled", h.heldBy(tam, acme), "c:[reader]")
+	heldIs(t, "tam, b uninstalled", h.heldBy(tam, acme), "c:[user]")
 }
 
 // A page that consumes a module declaring no roles names its installation by

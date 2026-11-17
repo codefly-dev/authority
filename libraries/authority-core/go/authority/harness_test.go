@@ -63,11 +63,12 @@ func solution(name string, ownerAware bool) domain.Module {
 			"store":  {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "admin", "create", "read", "write")}},
 			"legacy": {ID: "legacy", Audience: "legacy-store", InvokeScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}},
 		},
+		// The two roles a solution declares. Neither holds the store's admin
+		// action, which the store binding offers: what no role names is
+		// beyond every person and the installation's agent.
 		Roles: map[string][]*basev0.WorkScopeV1{
-			domain.AdminRole: {sc(own, "read", "write"), sc(kind, "admin", "create", "read", "write")},
-			"author":         {sc(own, "read", "write"), sc(kind, "create", "read", "write")},
-			"user":           {sc(own, "read"), sc(kind, "read")},
-			"reader":         {sc(own, "read"), sc(kind, "read"), sc(legacyKind, "read")},
+			domain.AdminRole: {sc(own, "read", "write"), sc(kind, "create", "read", "write")},
+			domain.UserRole:  {sc(own, "read"), sc(kind, "read"), sc(legacyKind, "read")},
 		}}
 }
 
@@ -83,9 +84,6 @@ func newHarness(t *testing.T) *harness {
 	replay.Now = func() time.Time { return h.now }
 	h.cfg = authority.Config{Issuer: "https://authority.test", KeyID: "k1", Signer: private, Keys: keys{public}, Replay: replay,
 		Clock: func() time.Time { return h.now }, NewID: func() string { n++; return fmt.Sprintf("id-%d", n) }}
-	// The fixture solution declares four roles (admin, author, user, reader):
-	// the core's model, wider than what a host now admits.
-	authority.AllowAnyRoleNamesForTest(&h.cfg)
 	h.svc, err = authority.New(h.store, h.cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -152,7 +150,7 @@ func (h *harness) admin(org string) authority.Person {
 }
 
 func (h *harness) install(org, target string) domain.Installation {
-	return h.installAs(org, target, "author")
+	return h.installAs(org, target, "admin")
 }
 
 // installAs installs target at org through the administrator's review, with

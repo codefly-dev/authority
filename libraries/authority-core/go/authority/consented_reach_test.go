@@ -43,7 +43,7 @@ func relayAt(generation uint64, toVault bool) domain.Module {
 	return m
 }
 
-// relayConsumer is a solution, or a module page, whose reader runs turns on
+// relayConsumer is a solution, or a module page, whose user runs turns on
 // the relay and names, through its binding to it, the vault's read and write:
 // a declaration consented to before the vault serves write.
 func relayConsumer(page bool) domain.Module {
@@ -54,8 +54,8 @@ func relayConsumer(page bool) domain.Module {
 	}
 	m.Bindings = map[string]domain.Binding{"relay": {ID: "relay", Audience: "relay", InvokeScopes: []*basev0.WorkScopeV1{sc("relay.turn", "run")}}}
 	own := m.ResourceKinds[0].GetResourceKind()
-	m.Roles = map[string][]*basev0.WorkScopeV1{domain.AdminRole: {sc(own, "read")}, "reader": {sc(own, "read"), sc("relay.turn", "run")}}
-	through(&m, "reader", "relay", sc(vaultKind, "read", "write"))
+	m.Roles = map[string][]*basev0.WorkScopeV1{domain.AdminRole: {sc(own, "read")}, "user": {sc(own, "read"), sc("relay.turn", "run")}}
+	through(&m, "user", "relay", sc(vaultKind, "read", "write"))
 	return m
 }
 
@@ -175,13 +175,13 @@ func TestAPersonNamingAPagesBindingIsHeldToTheApprovedReach(t *testing.T) {
 	h := newHarness(t)
 	page := pageModule(1, true)
 	page.Bindings = map[string]domain.Binding{"vault": {ID: "vault", Audience: "vault", InvokeScopes: []*basev0.WorkScopeV1{sc(vaultKind, "read", "write")}}}
-	page.Roles["reader"] = append(page.Roles["reader"], sc(vaultKind, "read", "write"))
+	page.Roles["user"] = append(page.Roles["user"], sc(vaultKind, "read", "write"))
 	for _, m := range []domain.Module{vaultAt(1, []string{"read"}, vaultMethods()), page} {
 		if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
 			t.Fatal(err)
 		}
 	}
-	h.grant("pages", "reader", "maya")
+	h.grant("pages", "user", "maya")
 	if err := h.svc.AdoptLegacyReach(h.ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -214,13 +214,13 @@ func TestAPersonNamingAPagesBindingIsHeldToTheConsentedBinding(t *testing.T) {
 	h := newHarness(t)
 	page := pageModule(1, true)
 	page.Bindings = map[string]domain.Binding{"vault": {ID: "vault", Audience: "vault", InvokeScopes: []*basev0.WorkScopeV1{sc(vaultKind, "read", "write")}}}
-	page.Roles["reader"] = append(page.Roles["reader"], sc(vaultKind, "read", "write"))
+	page.Roles["user"] = append(page.Roles["user"], sc(vaultKind, "read", "write"))
 	for _, m := range []domain.Module{vaultAt(1, []string{"read", "write"}, map[string]domain.MethodPolicy{vaultRead: requires("read"), vaultWrite: requires("write")}), page} {
 		if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
 			t.Fatal(err)
 		}
 	}
-	h.grant("pages", "reader", "maya")
+	h.grant("pages", "user", "maya")
 	ask := func(actions ...string) (authority.Issued, error) {
 		return h.svc.IssueForPerson(h.ctx, h.person("maya"), authority.IssueRequest{Audience: "pages", Binding: "vault", Scopes: []*basev0.WorkScopeV1{sc(vaultKind, actions...)}})
 	}

@@ -7,16 +7,16 @@ import (
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
-// pageWithSteward is the module page reaching the store, with a role that
-// names nothing the page itself serves: steward writes at the store, through
-// the page's binding, and holds none of pages.note. It is the shape of a role
-// whose whole reach is another module's kind (a type user's "define" at a
+// pageWhoseUserOnlyReaches is the module page reaching the store, with a role
+// that names nothing the page itself serves: its user writes at the store,
+// through the page's binding, and holds none of pages.note. It is the shape
+// of a role whose whole reach is another module's kind (a "define" at a
 // record store, on a page whose own kind is its entries).
-func pageWithSteward(t *testing.T) *harness {
+func pageWhoseUserOnlyReaches(t *testing.T) *harness {
 	t.Helper()
 	h := newHarness(t)
 	m := pageReachingStore(1, "read")
-	m.Roles["steward"] = []*basev0.WorkScopeV1{sc(kind, "write")}
+	m.Roles["user"] = []*basev0.WorkScopeV1{sc(kind, "write")}
 	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
 		t.Fatal(err)
 	}
@@ -30,11 +30,11 @@ func pageWithSteward(t *testing.T) *harness {
 // names of the page's own kinds was read as whether the role is held at all.
 func TestATeamsRoleReachingOnlyThroughABindingIsIssued(t *testing.T) {
 	for name, grant := range map[string]func(*harness){
-		"granted to the person's team": func(h *harness) { h.grantTeam("pages", "steward", "team") },
-		"granted to the person":        func(h *harness) { h.grant("pages", "steward", "tam") },
+		"granted to the person's team": func(h *harness) { h.grantTeam("pages", "user", "team") },
+		"granted to the person":        func(h *harness) { h.grant("pages", "user", "tam") },
 	} {
 		t.Run(name, func(t *testing.T) {
-			h := pageWithSteward(t)
+			h := pageWhoseUserOnlyReaches(t)
 			grant(h)
 			// Write alone, on the page's installation's data: the role cut to
 			// the binding, which carries read and write.
@@ -51,12 +51,12 @@ func TestATeamsRoleReachingOnlyThroughABindingIsIssued(t *testing.T) {
 // The other team member holds it too, and someone outside the team does not:
 // membership decides, read when the call is issued.
 func TestATeamsRoleReachingOnlyThroughABindingFollowsMembership(t *testing.T) {
-	h := pageWithSteward(t)
-	h.grantTeam("pages", "steward", "team")
+	h := pageWhoseUserOnlyReaches(t)
+	h.grantTeam("pages", "user", "team")
 	exactly(t, h.must(h.page("tal", "pages", "store")), kind, h.principal(acme, "pages"), []string{"write"})
 	_, err := h.page("maya", "pages", "store")
 	refused(t, err, "maya holds no role on pages")
-	h.revoke("pages", "steward", "", "team")
+	h.revoke("pages", "user", "", "team")
 	_, err = h.page("tam", "pages", "store")
 	refused(t, err, "tam holds no role on pages")
 }
@@ -67,31 +67,31 @@ func TestATeamsRoleReachingOnlyThroughABindingFollowsMembership(t *testing.T) {
 // No capability with no scope is handed to anyone: the root that carries
 // nothing is the page hop's own step.
 func TestARoleReachingOnlyThroughABindingHoldsNothingAtThePageItself(t *testing.T) {
-	h := pageWithSteward(t)
-	h.grantTeam("pages", "steward", "team")
+	h := pageWhoseUserOnlyReaches(t)
+	h.grantTeam("pages", "user", "team")
 	_, err := h.root("tam", "pages")
-	refused(t, err, "tam holds steward on pages, which names nothing pages itself serves")
+	refused(t, err, "tam holds user on pages, which names nothing pages itself serves")
 	_, err = h.root("tam", "pages", sc("pages.note", "read"))
-	refused(t, err, "tam holds steward on pages, which names nothing pages itself serves")
+	refused(t, err, "tam holds user on pages, which names nothing pages itself serves")
 	// The page calling its own module is the person's own ask there.
 	_, err = h.page("tam", "pages", "pages")
-	refused(t, err, "tam holds steward on pages, which names nothing pages itself serves")
+	refused(t, err, "tam holds user on pages, which names nothing pages itself serves")
 	// Beyond the role, through the binding, is refused as any ask beyond is.
 	if _, err = h.page("tam", "pages", "store", sc(kind, "read")); err == nil {
-		t.Fatal("a steward was issued read at the store, which the role does not name")
+		t.Fatal("the user was issued read at the store, which the role does not name")
 	}
 	// Holding a role that does name the page's kind beside it, the person is
 	// issued that role's part at the page, as ever.
-	h.grantTeam("pages", "reader", "team")
-	exactly(t, h.must(h.svc.IssueForPerson(h.ctx, h.person("tam"), authority.IssueRequest{Audience: "pages"})), "pages.note", "", []string{"read"})
+	h.grantTeam("pages", "admin", "team")
+	exactly(t, h.must(h.svc.IssueForPerson(h.ctx, h.person("tam"), authority.IssueRequest{Audience: "pages"})), "pages.note", "", []string{"read", "write"})
 }
 
 // An administrator cast onto that team holds what the team holds: the cast
 // reads the team's grants through the same rule, so it was refused the same
 // way, and is issued the same reach now.
 func TestACastOntoATeamHoldsItsRoleReachingOnlyThroughABinding(t *testing.T) {
-	h := pageWithSteward(t)
-	h.grantTeam("pages", "steward", "team")
+	h := pageWhoseUserOnlyReaches(t)
+	h.grantTeam("pages", "user", "team")
 	cast, err := h.casting("alex", "team")
 	if err != nil {
 		t.Fatal(err)

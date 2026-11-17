@@ -254,8 +254,8 @@ func TestAnInstallationsConsentBoundsItsModulesBindings(t *testing.T) {
 	t.Run("a hop back to the module's own audience is bounded by its parent, not by the consent", func(t *testing.T) {
 		h := newHostInstalled(t)
 		h.recordConsent(acme, "host-1", map[string]domain.Binding{})
-		h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "reader", Scopes: []domain.RoleScope{{Kind: kind, Actions: []string{"read"}}}})
-		h.store.PutPerson(domain.Person{ID: "alex", Organization: acme, Roles: []string{"admin", "reader"}})
+		h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "user", Scopes: []domain.RoleScope{{Kind: kind, Actions: []string{"read"}}}})
+		h.store.PutPerson(domain.Person{ID: "alex", Organization: acme, Roles: []string{"admin", "user"}})
 		parent, err := h.svc.IssueForPerson(h.ctx, authority.Person{ID: "alex", Organization: acme, SessionID: "s"}, authority.IssueRequest{Audience: "store"})
 		if err != nil {
 			t.Fatal(err)
@@ -272,8 +272,8 @@ func TestAnInstallationsConsentBoundsItsModulesBindings(t *testing.T) {
 	t.Run("a person's hop through a binding the consent does not name is refused", func(t *testing.T) {
 		h := newHostInstalled(t)
 		h.recordConsent(acme, "host-1", map[string]domain.Binding{})
-		h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "reader", Scopes: []domain.RoleScope{{Kind: kind, Actions: []string{"read"}}}})
-		h.store.PutPerson(domain.Person{ID: "alex", Organization: acme, Roles: []string{"admin", "reader"}})
+		h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "user", Scopes: []domain.RoleScope{{Kind: kind, Actions: []string{"read"}}}})
+		h.store.PutPerson(domain.Person{ID: "alex", Organization: acme, Roles: []string{"admin", "user"}})
 		parent, err := h.svc.IssueForPerson(h.ctx, authority.Person{ID: "alex", Organization: acme, SessionID: "s"}, authority.IssueRequest{Audience: "store"})
 		if err != nil {
 			t.Fatal(err)

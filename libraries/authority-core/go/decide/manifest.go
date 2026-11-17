@@ -36,28 +36,43 @@ func ValidateModule(m domain.Module) error {
 	return noOwners(m)
 }
 
-// PageRoles holds what a NEW generation declares to the two roles a person
-// holds on a solution or a module page: a target declaring roles declares
-// exactly admin (or, for the stopgap, its legacy name,
-// domain.LegacyInstallerRole) and user. Which roles exist is decided here,
-// never by the contract's reader (core reads roles as declared). The Service
-// applies it to every generation it admits, applies or pre-checks
-// (authority.Service.Admit, ApplyModule), never to one it already holds, read
-// again (RereadModule): the core's own model is wider by design, carrying the
-// old names a crossover moves (domain.CrossoverRole) at the next delivery.
+// PageRoles holds what a generation declares to the two roles a person holds
+// on a solution or a module page: a target declaring roles declares exactly
+// admin and user, no other name (RoleNames) and both (ValidateModule requires
+// admin). Which roles exist is decided here, never by the contract's reader
+// (core reads roles as declared). The Service applies it to every generation
+// it admits, applies or pre-checks (authority.Service.Admit, ApplyModule).
 func PageRoles(m domain.Module) error {
-	if len(m.Roles) == 0 || (m.Kind != domain.KindSolution && !m.Page) {
-		return nil // none declared, or roles on a module without a page, which ValidateModule refuses as such
-	}
-	for _, name := range slices.Sorted(maps.Keys(m.Roles)) {
-		if name != domain.UserRole && !domain.IsAdminRole(name) {
-			return domain.Refuse("%s declares role %q, which is neither %q nor %q: a solution, or a module page declaring roles, declares exactly those two", m.Name, name, domain.AdminRole, domain.UserRole)
-		}
+	if err := RoleNames(m); err != nil || !declaresPersonRoles(m) {
+		return err
 	}
 	if _, ok := m.Roles[domain.UserRole]; !ok {
 		return domain.Refuse("%s declares %d role(s) and none is %q: a solution, or a module page declaring roles, declares %q beside %q, what a person does with it day to day (a module page declaring none derives %q only from a kind it serves read or write on, so one serving neither declares its roles)", m.Name, len(m.Roles), domain.UserRole, domain.UserRole, domain.AdminRole, domain.UserRole)
 	}
 	return nil
+}
+
+// RoleNames refuses, by its name, a role a solution or a module page declares
+// that is neither admin nor user (domain.IsRole): no former name of either
+// ("installer", "editor", "viewer", "steward") and no role of a target's own
+// is declared, in a new generation or in one the core holds, read again.
+func RoleNames(m domain.Module) error {
+	if !declaresPersonRoles(m) {
+		return nil
+	}
+	for _, name := range slices.Sorted(maps.Keys(m.Roles)) {
+		if !domain.IsRole(name) {
+			return domain.Refuse("%s declares role %q, which is neither %q nor %q: a solution, or a module page declaring roles, declares exactly those two", m.Name, name, domain.AdminRole, domain.UserRole)
+		}
+	}
+	return nil
+}
+
+// declaresPersonRoles: m declares roles a person holds. None declared, or
+// roles on a module without a page (which ValidateModule refuses as such),
+// are not held to the two names.
+func declaresPersonRoles(m domain.Module) bool {
+	return len(m.Roles) > 0 && (m.Kind == domain.KindSolution || m.Page)
 }
 
 // Unreached refuses, by name, a scope a role of m names through one of its
@@ -201,19 +216,9 @@ func validateModule(m domain.Module) error {
 			return domain.Refuse("module %q declares roles and no page; a module's access is the organization's roles unless it declares a page", m.Name)
 		}
 	}
-	// STOPGAP (one release): DeclaredAdminRole also accepts the legacy
-	// "installer" (domain.LegacyInstallerRole), so a delivery not yet
-	// re-rendered is not refused while hosts cross the rename.
-	if _, ok := domain.DeclaredAdminRole(m.Roles); !ok {
+	if _, ok := m.Roles[domain.AdminRole]; !ok {
 		return &domain.Refusal{Code: domain.Denied, Cause: domain.ErrNoAdminRole,
 			Reason: fmt.Sprintf("%s declares %d role(s) and none is %q: a solution, or a module page declaring roles, declares an admin role", m.Name, len(m.Roles), domain.AdminRole)}
-	}
-	// STOPGAP (one release): naming both would give the target two
-	// admin-powered roles, so a holder of a narrowly scoped "installer"
-	// could grant themselves admin.
-	_, admin := m.Roles[domain.AdminRole]
-	if _, legacy := m.Roles[domain.LegacyInstallerRole]; admin && legacy {
-		return domain.Refuse("%s declares both %q and %q: %q is the admin role's old name, and a target declares one admin role", m.Name, domain.AdminRole, domain.LegacyInstallerRole, domain.LegacyInstallerRole)
 	}
 	// A role reaches through its target's bindings, a solution's and a
 	// module page's alike (a person's capability through either carries the

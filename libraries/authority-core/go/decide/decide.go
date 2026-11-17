@@ -145,11 +145,14 @@ func ResourceGrants(roles []domain.OrgRole, kind, action string) []resources.Gra
 // HeldRoles are the roles a person holds on one installation: granted on it
 // to them, or to a team they belong to, within their role view on it when
 // the session has one (domain.RoleView). Grants on any other installation
-// count for nothing here, however the caller gathered them.
+// count for nothing here, however the caller gathered them, and so does a
+// grant of a name that is no role (domain.IsRole), which only a store written
+// before the roles were admin and user still holds: it is held as nothing,
+// whatever a declaration of that time says of it.
 func HeldRoles(p domain.Person, inst domain.Installation, grants []domain.RoleGrant) []string {
 	var roles []string
 	for _, g := range grants {
-		if g.InstallationID != inst.ID {
+		if g.InstallationID != inst.ID || !domain.IsRole(g.Role) {
 			continue
 		}
 		if p.Cast != "" {
@@ -376,10 +379,11 @@ type RoleChange struct {
 // ChangeRole decides a role change, in order: the organization the request
 // names must be the installation's, before the caller's authority is read;
 // then the caller must administer that organization or hold the admin role
-// on that installation (domain.HoldsAdmin, which for one release also counts
-// the legacy "installer"). A revoke then needs only exactly one subject; a
-// grant needs the installation active, the role declared, exactly one
-// subject named, and that subject of the organization.
+// on that installation (domain.HoldsAdmin). A revoke then needs only exactly
+// one subject, whatever the role is named, so a grant a store still holds of
+// a name that is no role is revocable; a grant needs the installation active,
+// the role one of the two (domain.IsRole) and declared, exactly one subject
+// named, and that subject of the organization.
 func ChangeRole(r RoleChange) error {
 	inst := r.Installation
 	if r.RequestOrganization != inst.Organization {
@@ -405,6 +409,11 @@ func ChangeRole(r RoleChange) error {
 	}
 	if _, declared := r.Solution.Roles[r.Role]; !declared {
 		return domain.Missing("%s declares no role %q", inst.Target, r.Role)
+	}
+	if !domain.IsRole(r.Role) {
+		// A declaration held from before the roles were the two may still
+		// name another; nobody is granted it.
+		return domain.Refuse("role %q is neither %q nor %q, the roles a person holds on %s", r.Role, domain.AdminRole, domain.UserRole, inst.Target)
 	}
 	if (r.PersonID == "") == (r.TeamID == "") {
 		return domain.Malformed("a role grant names exactly one person or team")

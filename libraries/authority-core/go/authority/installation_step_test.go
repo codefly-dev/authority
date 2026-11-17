@@ -18,7 +18,7 @@ func pendingStep(t *testing.T) (*harness, authority.InstallationStepAttempt, *do
 	h := newHarness(t)
 	approval := h.approval(globex, "b")
 	admin := h.admin(globex)
-	inst, err := h.svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, approval, func(context.Context, domain.Installation) error { return awaitingStep })
+	inst, err := h.svc.Install(h.ctx, admin, globex, "b", "admin", admin.ID, approval, func(context.Context, domain.Installation) error { return awaitingStep })
 	if !errors.Is(err, awaitingStep) || inst.Status != domain.Pending {
 		t.Fatalf("pending: %+v %v", inst, err)
 	}
@@ -65,7 +65,7 @@ func TestInstallationStepOnlyAdmitsExactSetupMethods(t *testing.T) {
 		t.Fatal("tampered token accepted")
 	}
 	admin := h.admin(globex)
-	inst, err := h.svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, approval, func(context.Context, domain.Installation) error { return nil })
+	inst, err := h.svc.Install(h.ctx, admin, globex, "b", "admin", admin.ID, approval, func(context.Context, domain.Installation) error { return nil })
 	if err != nil || inst.Status != domain.Active {
 		t.Fatalf("ack: %+v %v", inst, err)
 	}
@@ -120,7 +120,7 @@ func TestInstallationStepRevocationAndReplacement(t *testing.T) {
 			case "uninstall":
 				err = h.svc.Uninstall(h.ctx, admin, globex, a.InstallationID)
 			case "approval":
-				_, err = h.svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, h.approval(globex, "b"), func(context.Context, domain.Installation) error { return awaitingStep })
+				_, err = h.svc.Install(h.ctx, admin, globex, "b", "admin", admin.ID, h.approval(globex, "b"), func(context.Context, domain.Installation) error { return awaitingStep })
 				if errors.Is(err, awaitingStep) {
 					err = nil
 				}
@@ -140,7 +140,7 @@ func TestInstallationStepRevocationAndReplacement(t *testing.T) {
 					return tx.PutInstallation(i)
 				})
 			case "activation":
-				_, err = h.svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, approval, func(context.Context, domain.Installation) error { return nil })
+				_, err = h.svc.Install(h.ctx, admin, globex, "b", "admin", admin.ID, approval, func(context.Context, domain.Installation) error { return nil })
 			}
 			if err != nil {
 				t.Fatal(err)

@@ -15,30 +15,31 @@ import (
 func TestACastHoldsTheTeamsGrantsAndNothingElse(t *testing.T) {
 	inst := domain.Installation{ID: "inst-1", Target: "wiki"}
 	grants := []domain.RoleGrant{
-		{InstallationID: "inst-1", TeamID: "wiki-reader", Role: "reader"},
 		{InstallationID: "inst-1", TeamID: "wiki-user", Role: "user"},
+		{InstallationID: "inst-1", TeamID: "wiki-admin", Role: "admin"},
 		{InstallationID: "inst-1", PersonID: "p1", Role: "admin"},
 	}
 
 	// The person's own session: their direct grant and both their teams.
-	own := domain.Person{ID: "p1", Teams: []string{"wiki-reader", "wiki-user"}}
-	if got := HeldRoles(own, inst, grants); !slices.Equal(got, []string{"admin", "reader", "user"}) {
-		t.Fatalf("own session: want admin+reader+user, got %v", got)
+	own := domain.Person{ID: "p1", Teams: []string{"wiki-user", "wiki-admin"}}
+	if got := HeldRoles(own, inst, grants); !slices.Equal(got, []string{"admin", "user"}) {
+		t.Fatalf("own session: want admin+user, got %v", got)
 	}
 
-	// Cast onto wiki-reader: only that team's grant survives.
-	cast := domain.Person{ID: "p1", Teams: []string{"wiki-reader", "wiki-user"}, Cast: "wiki-reader"}
-	if got := HeldRoles(cast, inst, grants); !slices.Equal(got, []string{"reader"}) {
-		t.Fatalf("cast onto wiki-reader: want only reader, got %v", got)
+	// Cast onto wiki-user: only that team's grant survives, not the admin
+	// they hold directly and through their other team.
+	cast := domain.Person{ID: "p1", Teams: []string{"wiki-user", "wiki-admin"}, Cast: "wiki-user"}
+	if got := HeldRoles(cast, inst, grants); !slices.Equal(got, []string{"user"}) {
+		t.Fatalf("cast onto wiki-user: want only user, got %v", got)
 	}
 
 	// A cast onto a team the person does NOT belong to still holds exactly
 	// that team's grants: membership is not what a cast reads. Whether the
 	// person may name it is the grant rule's answer, decided when the cast
-	// is opened, not here.
-	stranger := domain.Person{ID: "p2", Teams: nil, Cast: "wiki-user"}
-	if got := HeldRoles(stranger, inst, grants); !slices.Equal(got, []string{"user"}) {
-		t.Fatalf("cast without membership: want only user, got %v", got)
+	// is opened and wherever the cast session is read, not here.
+	stranger := domain.Person{ID: "p2", Teams: nil, Cast: "wiki-admin"}
+	if got := HeldRoles(stranger, inst, grants); !slices.Equal(got, []string{"admin"}) {
+		t.Fatalf("cast without membership: want only admin, got %v", got)
 	}
 
 	// A cast onto a team with no grant on this installation reaches nothing.
@@ -52,11 +53,11 @@ func TestACastHoldsTheTeamsGrantsAndNothingElse(t *testing.T) {
 func TestARoleViewNarrowsACastFurther(t *testing.T) {
 	inst := domain.Installation{ID: "inst-1", Target: "wiki"}
 	grants := []domain.RoleGrant{
+		{InstallationID: "inst-1", TeamID: "t", Role: "admin"},
 		{InstallationID: "inst-1", TeamID: "t", Role: "user"},
-		{InstallationID: "inst-1", TeamID: "t", Role: "reader"},
 	}
-	p := domain.Person{ID: "p1", Cast: "t", View: map[string][]string{"inst-1": {"reader"}}}
-	if got := HeldRoles(p, inst, grants); !slices.Equal(got, []string{"reader"}) {
-		t.Fatalf("view over cast: want only reader, got %v", got)
+	p := domain.Person{ID: "p1", Cast: "t", View: map[string][]string{"inst-1": {"user"}}}
+	if got := HeldRoles(p, inst, grants); !slices.Equal(got, []string{"user"}) {
+		t.Fatalf("view over cast: want only user, got %v", got)
 	}
 }

@@ -29,15 +29,14 @@ func TestAnOwnersArtifactIsInItsOwnersNamespace(t *testing.T) {
 		Bindings:         map[string]domain.Binding{"agent": {ID: "agent", Audience: "agent", InvokeScopes: []*basev0.WorkScopeV1{sc("agent.intents", "read", "activate", "run")}}},
 		Roles: map[string][]*basev0.WorkScopeV1{
 			domain.AdminRole: {sc("builder.note", "read", "write"), sc("agent.intents", "read", "activate", "run")},
-			"user":           {sc("builder.note", "read"), sc("agent.intents", "read", "activate", "run")},
-			"reader":         {sc("builder.note", "read"), sc("agent.intents", "read", "run")},
+			"user":           {sc("builder.note", "read"), sc("agent.intents", "read", "run")},
 		}}
 	if _, err := h.svc.ApplyModule(h.ctx, builder); err != nil {
 		t.Fatal(err)
 	}
 	h.installAs(acme, "builder", "")
-	h.grant("builder", "user", "maya")
-	h.grant("builder", "reader", "remi")
+	h.grant("builder", "admin", "maya")
+	h.grant("builder", "user", "remi")
 	all, err := h.svc.Installations(h.ctx, h.admin(acme), acme)
 	if err != nil {
 		t.Fatal(err)
@@ -74,10 +73,10 @@ func TestAnOwnersArtifactIsInItsOwnersNamespace(t *testing.T) {
 	if err := decideAs(backend, decide.ArtifactRun, owned); err != nil {
 		t.Fatalf("the builder's backend runs its artifact for the user: %v", err)
 	}
-	reader := h.must(h.page("remi", "builder", "agent"))
-	refused(t, decideAs(reader, decide.ArtifactActivate, owned), "agent.intents:activate")
-	if err := decideAs(reader, decide.ArtifactRun, owned); err != nil {
-		t.Fatalf("the reader runs the builder's artifact: %v", err)
+	user := h.must(h.page("remi", "builder", "agent"))
+	refused(t, decideAs(user, decide.ArtifactActivate, owned), "agent.intents:activate")
+	if err := decideAs(user, decide.ArtifactRun, owned); err != nil {
+		t.Fatalf("the user runs the builder's artifact: %v", err)
 	}
 }
 
@@ -96,12 +95,12 @@ func TestTheParentAuthorsInItsOwnersNamespace(t *testing.T) {
 	builder := domain.Module{Name: "builder", Principal: "builder", Kind: domain.KindSolution, Generation: 1, OwnerAware: true, Page: true,
 		InstallationRole: domain.NoInstallationRole, ResourceKinds: []*basev0.WorkScopeV1{sc("builder.note", "read")},
 		Bindings: map[string]domain.Binding{"agent": {ID: "agent", Audience: "agent", InvokeScopes: []*basev0.WorkScopeV1{sc("agent.intents", "read", "run")}}},
-		Roles:    map[string][]*basev0.WorkScopeV1{domain.AdminRole: {sc("builder.note", "read")}, "reader": {sc("builder.note", "read"), sc("agent.intents", "read", "run")}}}
+		Roles:    map[string][]*basev0.WorkScopeV1{domain.AdminRole: {sc("builder.note", "read")}, "user": {sc("builder.note", "read"), sc("agent.intents", "read", "run")}}}
 	if _, err := h.svc.ApplyModule(h.ctx, builder); err != nil {
 		t.Fatal(err)
 	}
 	h.installAs(acme, "builder", "")
-	h.grant("builder", "reader", "remi")
+	h.grant("builder", "user", "remi")
 	owned := h.must(h.page("remi", "builder", "agent"))
 	inst, namespace, err := h.svc.CurrentAuthoring(h.ctx, owned.Token, authority.Workload{Module: "agent"})
 	if err != nil || namespace != acme+".builder" || inst.Target != "agent" {

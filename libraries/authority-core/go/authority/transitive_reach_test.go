@@ -59,19 +59,18 @@ func reachSolutions() (wiki, builder domain.Module) {
 	wiki = domain.Module{Name: "wiki", Principal: "wiki", Kind: domain.KindSolution, Generation: 1, OwnerAware: true, Page: true,
 		InstallationRole: domain.NoInstallationRole, ResourceKinds: []*basev0.WorkScopeV1{sc("wiki.page", "read")},
 		Bindings: map[string]domain.Binding{"agent": {ID: "agent", Audience: "agent", InvokeScopes: []*basev0.WorkScopeV1{sc("agent.intents", "read", "run"), sc("agent.tasks", "execute")}}},
-		Roles:    map[string][]*basev0.WorkScopeV1{domain.AdminRole: {sc("wiki.page", "read")}, "reader": append([]*basev0.WorkScopeV1{sc("wiki.page", "read")}, chat...)}}
-	through(&wiki, "reader", "agent", chatThrough...)
-	author := []*basev0.WorkScopeV1{sc("builder.assistant", "read", "write"), sc("agent.intents", "read", "configure", "activate", "run"), sc("agent.tasks", "execute")}
+		Roles:    map[string][]*basev0.WorkScopeV1{domain.AdminRole: {sc("wiki.page", "read")}, "user": append([]*basev0.WorkScopeV1{sc("wiki.page", "read")}, chat...)}}
+	through(&wiki, "user", "agent", chatThrough...)
+	admin := []*basev0.WorkScopeV1{sc("builder.assistant", "read", "write"), sc("agent.intents", "read", "configure", "activate", "run"), sc("agent.tasks", "execute")}
 	authorThrough := []*basev0.WorkScopeV1{sc("model.profiles", "read", "invoke"), sc("docs.doc", "read", "write")}
 	builder = domain.Module{Name: "builder", Principal: "builder", Kind: domain.KindSolution, Generation: 1, OwnerAware: true, Page: true,
 		InstallationRole: domain.NoInstallationRole, ResourceKinds: []*basev0.WorkScopeV1{sc("builder.assistant", "read", "write")},
 		Bindings: map[string]domain.Binding{"agent": {ID: "agent", Audience: "agent", InvokeScopes: []*basev0.WorkScopeV1{
 			sc("agent.intents", "read", "configure", "activate", "run"), sc("agent.tasks", "execute")}}},
-		Roles: map[string][]*basev0.WorkScopeV1{domain.AdminRole: slices.Clone(author), "user": slices.Clone(author),
-			"reader": append([]*basev0.WorkScopeV1{sc("builder.assistant", "read")}, chat...)}}
+		Roles: map[string][]*basev0.WorkScopeV1{domain.AdminRole: slices.Clone(admin),
+			"user": append([]*basev0.WorkScopeV1{sc("builder.assistant", "read")}, chat...)}}
 	through(&builder, domain.AdminRole, "agent", authorThrough...)
-	through(&builder, "user", "agent", authorThrough...)
-	through(&builder, "reader", "agent", chatThrough...)
+	through(&builder, "user", "agent", chatThrough...)
 	return wiki, builder
 }
 
@@ -100,11 +99,11 @@ func (h *harness) onward(parent authority.Issued, binding string, scopes ...*bas
 func TestAPagesPersonReachesThroughTheAgentWhatTheirRoleNames(t *testing.T) {
 	h := newHarness(t)
 	reachComposition(t, h, true)
-	h.grant("wiki", "reader", "maya")
-	h.grant("builder", "user", "remi")
-	h.grant("builder", "reader", "tal")
+	h.grant("wiki", "user", "maya")
+	h.grant("builder", "admin", "remi")
+	h.grant("builder", "user", "tal")
 
-	t.Run("a wiki reader's turn reaches the model and reads the evidence", func(t *testing.T) {
+	t.Run("a wiki user's turn reaches the model and reads the evidence", func(t *testing.T) {
 		atAgent := h.must(h.page("maya", "wiki", "agent"))
 		model := h.must(h.onward(atAgent, "model"))
 		exactly(t, model, "model.profiles", "", []string{"invoke", "read"})
@@ -131,7 +130,7 @@ func TestAPagesPersonReachesThroughTheAgentWhatTheirRoleNames(t *testing.T) {
 			}
 		}
 	})
-	t.Run("a builder reader runs, and neither writes a configuration nor activates", func(t *testing.T) {
+	t.Run("a builder user runs, and neither writes a configuration nor activates", func(t *testing.T) {
 		atAgent := h.must(h.page("tal", "builder", "agent"))
 		_, err := h.onward(atAgent, "configuration-write")
 		refused(t, err, `holds nothing at docs through binding "configuration-write"`)
@@ -144,7 +143,7 @@ func TestAPagesPersonReachesThroughTheAgentWhatTheirRoleNames(t *testing.T) {
 func TestAModelThatDeclaresNoSharedKindReceivesNoOwnedScope(t *testing.T) {
 	h := newHarness(t)
 	reachComposition(t, h, false)
-	h.grant("wiki", "reader", "maya")
+	h.grant("wiki", "user", "maya")
 	atAgent := h.must(h.page("maya", "wiki", "agent"))
 	_, err := h.onward(atAgent, "model")
 	refused(t, err, "does not declare owner-aware checking")
@@ -166,26 +165,26 @@ func TestReachIsDeclaredThroughABinding(t *testing.T) {
 	reachComposition(t, h, true)
 	wiki, _ := reachSolutions()
 	wiki.Generation = 2
-	wiki.Roles["reader"] = append(wiki.Roles["reader"], sc("docs.doc", "write"))
+	wiki.Roles["user"] = append(wiki.Roles["user"], sc("docs.doc", "write"))
 	_, err := h.svc.ApplyModule(h.ctx, wiki)
 	refused(t, err, "a kind reached downstream of a binding is named through it")
 
 	wiki, _ = reachSolutions()
 	wiki.Generation = 2
-	through(&wiki, "reader", "nowhere", sc("docs.doc", "read"))
+	through(&wiki, "user", "nowhere", sc("docs.doc", "read"))
 	_, err = h.svc.ApplyModule(h.ctx, wiki)
 	refused(t, err, `names scopes through binding "nowhere", which wiki does not declare`)
 
 	wiki, _ = reachSolutions()
 	wiki.Generation = 2
 	wiki.Bindings["jobs"] = domain.Binding{ID: "jobs", Audience: "agent", HeadlessScopes: []*basev0.WorkScopeV1{sc("agent.tasks", "execute")}}
-	through(&wiki, "reader", "jobs", sc("docs.doc", "read"))
+	through(&wiki, "user", "jobs", sc("docs.doc", "read"))
 	_, err = h.svc.ApplyModule(h.ctx, wiki)
 	refused(t, err, `through binding "jobs", which carries nothing for a person`)
 
 	wiki, _ = reachSolutions()
 	wiki.Generation = 2
-	through(&wiki, "reader", "agent", sc("billing.invoice", "read"))
+	through(&wiki, "user", "agent", sc("billing.invoice", "read"))
 	_, err = h.svc.ApplyModule(h.ctx, wiki)
 	refused(t, err, `names billing.invoice:read through binding "agent", which reaches it nowhere`)
 }
@@ -204,7 +203,7 @@ func TestAnUnreachedReachIsReportedAndReconverges(t *testing.T) {
 			t.Fatal(err)
 		}
 		h.installAs(acme, "wiki", "")
-		if gaps, _ := h.svc.Unreached(h.ctx, h.stored(acme, "wiki")); len(gaps) != 1 || gaps[0] != "role reader reaches nothing of docs.doc:read, model.profiles:invoke, model.profiles:read through agent: agent not composed" {
+		if gaps, _ := h.svc.Unreached(h.ctx, h.stored(acme, "wiki")); len(gaps) != 1 || gaps[0] != "role user reaches nothing of docs.doc:read, model.profiles:invoke, model.profiles:read through agent: agent not composed" {
 			t.Fatalf("a reach waiting for its module is reported so: %v", gaps)
 		}
 	})
@@ -212,7 +211,7 @@ func TestAnUnreachedReachIsReportedAndReconverges(t *testing.T) {
 	svc, events := journaled(h)
 	h.svc = svc
 	reachComposition(t, h, true)
-	h.grant("wiki", "reader", "maya")
+	h.grant("wiki", "user", "maya")
 	wiki := h.stored(acme, "wiki")
 	if gaps, _ := h.svc.Unreached(h.ctx, wiki); len(gaps) != 0 {
 		t.Fatalf("a composition reaching what the wiki names reports %v", gaps)
@@ -228,7 +227,7 @@ func TestAnUnreachedReachIsReportedAndReconverges(t *testing.T) {
 		t.Fatalf("an agent delivered without what a solution names through it is accepted: %v", err)
 	}
 	gaps, err := h.svc.Unreached(h.ctx, h.stored(acme, "wiki"))
-	if err != nil || len(gaps) != 1 || gaps[0] != "role reader reaches nothing of model.profiles:invoke, model.profiles:read through agent: no module agent reaches consumes it for a person" {
+	if err != nil || len(gaps) != 1 || gaps[0] != "role user reaches nothing of model.profiles:invoke, model.profiles:read through agent: no module agent reaches consumes it for a person" {
 		t.Fatalf("the wiki's reach is reported unreached: %v %v", gaps, err)
 	}
 	if e, ok := lastEvent(*events, domain.InstallationReachUnreached); !ok || e.Subject != wiki.ID || !strings.Contains(e.Detail["unreached"], "model.profiles") {
@@ -280,7 +279,7 @@ func TestTheReviewShowsAReachThroughTheAgent(t *testing.T) {
 		}
 		composition[m.Principal] = m
 	}
-	rows, err := decide.Reach(composition[wiki.Principal], "reader", composition)
+	rows, err := decide.Reach(composition[wiki.Principal], "user", composition)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -306,7 +305,7 @@ func TestTheReviewShowsAReachThroughTheAgent(t *testing.T) {
 func TestARunnableAsksItsOperationsScopesThroughTheSolution(t *testing.T) {
 	h := newHarness(t)
 	reachComposition(t, h, true)
-	h.grant("wiki", "reader", "maya")
+	h.grant("wiki", "user", "maya")
 	wiki := h.principal(acme, "wiki")
 	owned := func(kind, owner string, actions ...string) *basev0.WorkScopeV1 {
 		return &basev0.WorkScopeV1{ResourceKind: kind, Actions: actions, ResourceOwnerId: owner}

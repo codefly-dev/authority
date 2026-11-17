@@ -21,7 +21,7 @@ func TestADelegationWithALifetimeEndsByItself(t *testing.T) {
 	// which issues through its "store" binding (as race_test does).
 	setup := func(t *testing.T) (*harness, []*basev0.WorkScopeV1) {
 		h := newHarness(t)
-		h.grant("a", "reader", "maya")
+		h.grant("a", "user", "maya")
 		return h, []*basev0.WorkScopeV1{owned(kind, h.principal(acme, "a"), []string{"read"})}
 	}
 	issue := func(h *harness, d domain.Delegation) error {
@@ -103,7 +103,7 @@ func TestDelegatedCapabilitiesDoNotOutliveTheirDelegation(t *testing.T) {
 	for _, requested := range []time.Duration{0, time.Hour, 10 * time.Second} {
 		t.Run(requested.String(), func(t *testing.T) {
 			h := newHarness(t)
-			h.grant("a", "reader", "maya")
+			h.grant("a", "user", "maya")
 			d, err := h.svc.Delegate(h.ctx, h.person("maya"), "a",
 				[]*basev0.WorkScopeV1{owned(kind, h.principal(acme, "a"), []string{"read"})}, "one bounded run", 60)
 			if err != nil {
@@ -146,7 +146,7 @@ func (s *changeAfterSigning) Sign(random io.Reader, digest []byte, opts crypto.S
 
 func TestDelegationEndIsRereadAfterSigning(t *testing.T) {
 	h := newHarness(t)
-	h.grant("a", "reader", "maya")
+	h.grant("a", "user", "maya")
 	d, err := h.svc.Delegate(h.ctx, h.person("maya"), "a",
 		[]*basev0.WorkScopeV1{owned(kind, h.principal(acme, "a"), []string{"read"})}, "one bounded run", 60)
 	if err != nil {

@@ -17,7 +17,7 @@ func widenTo(h *harness, generation uint64) domain.Module {
 	h.t.Helper()
 	wider := solution("a", true)
 	wider.Generation = generation
-	wider.Roles["reader"] = []*basev0.WorkScopeV1{sc("a.note", "read", "write"), sc(kind, "read"), sc(legacyKind, "read")}
+	wider.Roles["user"] = []*basev0.WorkScopeV1{sc("a.note", "read", "write"), sc(kind, "read"), sc(legacyKind, "read")}
 	if _, err := h.svc.ApplyModule(h.ctx, wider); err != nil {
 		h.t.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func widenTo(h *harness, generation uint64) domain.Module {
 // the upgrade.
 func TestTheExportedApprovedDeclarationIsIssuancesChoice(t *testing.T) {
 	h := newHarness(t)
-	h.grant("a", "reader", "maya")
+	h.grant("a", "user", "maya")
 	declared := func() domain.Module {
 		t.Helper()
 		m, err := h.svc.ApprovedDeclaration(h.ctx, h.stored(acme, "a"))
@@ -45,17 +45,17 @@ func TestTheExportedApprovedDeclarationIsIssuancesChoice(t *testing.T) {
 	}
 	widenTo(h, 2)
 	m := declared()
-	if m.Generation != 1 || !slices.Equal(m.Roles["reader"][0].GetActions(), []string{"read"}) {
-		t.Fatalf("behind the delivered generation the rule answers %d with reader %v, want the approved generation 1", m.Generation, m.Roles["reader"])
+	if m.Generation != 1 || !slices.Equal(m.Roles["user"][0].GetActions(), []string{"read"}) {
+		t.Fatalf("behind the delivered generation the rule answers %d with user %v, want the approved generation 1", m.Generation, m.Roles["user"])
 	}
-	// Issuance holds the reader to exactly what the rule answers.
+	// Issuance holds the user to exactly what the rule answers.
 	exactly(t, h.must(h.root("maya", "a")), "a.note", h.principal(acme, "a"), []string{"read"})
 
-	if _, err := h.svc.Install(h.ctx, h.admin(acme), acme, "a", "author", "remi", h.approval(acme, "a"), nil); err != nil {
+	if _, err := h.svc.Install(h.ctx, h.admin(acme), acme, "a", "admin", "remi", h.approval(acme, "a"), nil); err != nil {
 		t.Fatal(err)
 	}
-	if m := declared(); m.Generation != 2 || !slices.Equal(m.Roles["reader"][0].GetActions(), []string{"read", "write"}) {
-		t.Fatalf("after the upgrade the rule answers generation %d with reader %v", m.Generation, m.Roles["reader"])
+	if m := declared(); m.Generation != 2 || !slices.Equal(m.Roles["user"][0].GetActions(), []string{"read", "write"}) {
+		t.Fatalf("after the upgrade the rule answers generation %d with user %v", m.Generation, m.Roles["user"])
 	}
 	exactly(t, h.must(h.root("maya", "a")), "a.note", h.principal(acme, "a"), []string{"read", "write"})
 }
@@ -66,7 +66,7 @@ func TestTheExportedApprovedDeclarationIsIssuancesChoice(t *testing.T) {
 // lists roles from it either.
 func TestAnApprovedDeclarationThatIsNotTheConsentedOfferRefusesIssuance(t *testing.T) {
 	h := newHarness(t)
-	h.grant("a", "reader", "maya")
+	h.grant("a", "user", "maya")
 	widenTo(h, 2)
 	h.must(h.root("maya", "a"))
 
@@ -115,7 +115,7 @@ func TestAGoverningScopeAddedByARedeliveryWaitsForApproval(t *testing.T) {
 	if m.Generation != 1 || len(m.SourceGovernance) != 0 {
 		t.Fatalf("before approval the declaration at generation %d governs by %v", m.Generation, m.SourceGovernance)
 	}
-	if _, err := h.svc.Install(h.ctx, h.admin(acme), acme, "a", "author", "remi", h.approval(acme, "a"), nil); err != nil {
+	if _, err := h.svc.Install(h.ctx, h.admin(acme), acme, "a", "admin", "remi", h.approval(acme, "a"), nil); err != nil {
 		t.Fatal(err)
 	}
 	if m, err = h.svc.ApprovedDeclaration(h.ctx, h.stored(acme, "a")); err != nil || m.Generation != 2 || len(m.SourceGovernance) != 1 {
@@ -149,7 +149,7 @@ func TestALegacyConsentApprovesNoGoverningScope(t *testing.T) {
 	if len(m.SourceGovernance) != 0 {
 		t.Fatalf("a legacy consent approves the governing scopes %v it never saw", m.SourceGovernance)
 	}
-	if _, err := h.svc.Install(h.ctx, h.admin(acme), acme, "a", "author", "remi", h.approval(acme, "a"), nil); err != nil {
+	if _, err := h.svc.Install(h.ctx, h.admin(acme), acme, "a", "admin", "remi", h.approval(acme, "a"), nil); err != nil {
 		t.Fatal(err)
 	}
 	if m, err = h.svc.ApprovedDeclaration(h.ctx, h.stored(acme, "a")); err != nil || len(m.SourceGovernance) != 1 {
@@ -165,7 +165,7 @@ func TestADeliveryGoverningByAnActionItDoesNotServeIsRefused(t *testing.T) {
 	m := solution("a", true)
 	m.Generation = 2
 	m.ResourceKinds = []*basev0.WorkScopeV1{sc("a.note", "read")}
-	m.Roles["author"] = []*basev0.WorkScopeV1{sc("a.note", "read"), sc(kind, "create", "read", "write")}
+	m.Roles["admin"] = []*basev0.WorkScopeV1{sc("a.note", "read"), sc(kind, "create", "read", "write")}
 	m.Roles[domain.AdminRole] = []*basev0.WorkScopeV1{sc("a.note", "read"), sc(kind, "admin", "create", "read", "write")}
 	m.SourceGovernance = []*basev0.WorkScopeV1{sc("a.note", "write")}
 	if _, err := h.svc.ApplyModule(h.ctx, m); err == nil || !strings.Contains(err.Error(), "which its own ceiling does not name") {

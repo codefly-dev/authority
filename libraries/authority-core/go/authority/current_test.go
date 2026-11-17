@@ -35,12 +35,12 @@ func TestCurrentInstallationIsConfinedToTheAuthenticatedAudience(t *testing.T) {
 
 func TestCurrentInstallationRechecksRevokedAuthority(t *testing.T) {
 	h := newHarness(t)
-	h.grant("a", "reader", "maya")
+	h.grant("a", "user", "maya")
 	parent := h.must(h.root("maya", "a"))
 	if _, err := h.svc.CurrentInstallation(h.ctx, parent.Token, authority.Workload{Module: "a"}); err != nil {
 		t.Fatal(err)
 	}
-	h.revoke("a", "reader", "maya", "")
+	h.revoke("a", "user", "maya", "")
 	if _, err := h.svc.CurrentInstallation(h.ctx, parent.Token, authority.Workload{Module: "a"}); err == nil {
 		t.Fatal("revoked parent still read installation metadata")
 	}
@@ -48,7 +48,7 @@ func TestCurrentInstallationRechecksRevokedAuthority(t *testing.T) {
 
 func TestCurrentInstallationForAChildIsTheDestinationNotTheSource(t *testing.T) {
 	h := newHarness(t)
-	h.grant("a", "reader", "maya")
+	h.grant("a", "user", "maya")
 	child := h.must(h.through("maya", "a", "store"))
 	if child.Context.GetSeal().GetInstallationId() != h.inst(acme, "a").ID {
 		t.Fatal("fixture must carry a source-actor seal")

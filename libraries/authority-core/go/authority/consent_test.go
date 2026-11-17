@@ -18,7 +18,7 @@ func TestInstallationConsentBindsReviewedStateAndOperation(t *testing.T) {
 	install := func(a *domain.ConsentApproval, role string) (domain.Installation, error) {
 		return h.svc.Install(h.ctx, admin, globex, "b", role, admin.ID, a, step)
 	}
-	_, err := install(nil, "author")
+	_, err := install(nil, "admin")
 	refused(t, err, "INSTALLATION_APPROVAL_REQUIRED")
 	for _, mutate := range []struct {
 		reason string
@@ -31,31 +31,31 @@ func TestInstallationConsentBindsReviewedStateAndOperation(t *testing.T) {
 	} {
 		bad := *a
 		mutate.change(&bad)
-		_, err := install(&bad, "author")
+		_, err := install(&bad, "admin")
 		refused(t, err, "INSTALLATION_APPROVAL_"+mutate.reason)
 	}
 	if steps != 0 {
 		t.Fatal("a refused approval ran the install step")
 	}
-	first, err := install(a, "author")
+	first, err := install(a, "admin")
 	if err != nil {
 		t.Fatal(err)
 	}
-	retry, err := install(a, "author")
+	retry, err := install(a, "admin")
 	if err != nil || !reflect.DeepEqual(first, retry) || steps != 1 {
 		t.Fatalf("unchanged retry: %+v, steps=%d, err=%v", retry, steps, err)
 	}
-	_, err = install(a, "reader")
+	_, err = install(a, "user")
 	refused(t, err, "INSTALLATION_APPROVAL_OPERATION_CONFLICT")
-	_, err = h.svc.Install(h.ctx, admin, globex, "b", "author", "", a, step)
+	_, err = h.svc.Install(h.ctx, admin, globex, "b", "admin", "", a, step)
 	refused(t, err, "INSTALLATION_APPROVAL_OPERATION_CONFLICT")
 	if err := h.svc.Uninstall(h.ctx, admin, globex, first.ID); err != nil {
 		t.Fatal(err)
 	}
-	_, err = install(a, "author")
+	_, err = install(a, "admin")
 	refused(t, err, "INSTALLATION_APPROVAL_REVISION_CHANGED")
 	fresh := h.approval(globex, "b")
-	again, err := install(fresh, "author")
+	again, err := install(fresh, "admin")
 	if err != nil || again.PrincipalID != first.PrincipalID || again.Revision <= first.Revision {
 		t.Fatalf("fresh reinstall: %+v %v", again, err)
 	}
@@ -64,7 +64,7 @@ func TestInstallationConsentBindsReviewedStateAndOperation(t *testing.T) {
 	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
 		t.Fatal(err)
 	}
-	_, err = install(fresh, "author")
+	_, err = install(fresh, "admin")
 	refused(t, err, "INSTALLATION_APPROVAL_GENERATION_CHANGED")
 }
 
@@ -88,7 +88,7 @@ func TestInstallationConsentIsRecheckedAtAcknowledgement(t *testing.T) {
 					return nil
 				}
 			}
-			_, err := h.svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, a, step)
+			_, err := h.svc.Install(h.ctx, admin, globex, "b", "admin", admin.ID, a, step)
 			if err == nil {
 				t.Fatal("changed approval activated at acknowledgement")
 			}
@@ -118,18 +118,18 @@ func TestAFreshApprovalSupersedesAPendingAttemptAfterRedelivery(t *testing.T) {
 		_, err := h.svc.ApplyModule(ctx, m)
 		return err
 	}
-	if _, err := h.svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, stale, redeliver); err == nil {
+	if _, err := h.svc.Install(h.ctx, admin, globex, "b", "admin", admin.ID, stale, redeliver); err == nil {
 		t.Fatal("a redelivery during the step activated the stale approval")
 	}
 	ok := func(context.Context, domain.Installation) error { return nil }
-	_, err := h.svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, stale, ok)
+	_, err := h.svc.Install(h.ctx, admin, globex, "b", "admin", admin.ID, stale, ok)
 	refused(t, err, "INSTALLATION_APPROVAL_GENERATION_CHANGED")
 	fresh := h.approval(globex, "b")
-	inst, err := h.svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, fresh, ok)
+	inst, err := h.svc.Install(h.ctx, admin, globex, "b", "admin", admin.ID, fresh, ok)
 	if err != nil || inst.Status != domain.Active || inst.Consent.OperationID != fresh.OperationID {
 		t.Fatalf("fresh approval after redelivery: %+v %v", inst, err)
 	}
-	_, err = h.svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, stale, ok)
+	_, err = h.svc.Install(h.ctx, admin, globex, "b", "admin", admin.ID, stale, ok)
 	if err == nil {
 		t.Fatal("the superseded operation was accepted")
 	}
