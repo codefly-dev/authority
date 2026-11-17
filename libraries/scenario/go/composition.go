@@ -45,8 +45,10 @@ import (
 	"github.com/codefly-dev/core/sdk"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 // Options is what a test package says of its composition.
@@ -75,8 +77,21 @@ type Options struct {
 	// on the pages of the modules behind it, and a blanket seat there hides a
 	// refusal the product's own role should have met. When Seated names any
 	// target, the administrator withdraws every role granted on every other
-	// installation before the first scenario. Empty leaves the fixture as it
-	// is.
+	// installation of their organisation before the first scenario, and the
+	// seating holds for the whole run: the host seats its people again on
+	// every installation after each install and each delivery (a module
+	// starting late, a hot reload), so the harness looks again after every
+	// install it makes and before every call a person makes, and withdraws
+	// what came back, saying so on stderr. A role a scenario grants itself
+	// (Grant) is its own and is kept.
+	//
+	// Empty leaves the fixture as it is: its people hold their roles on every
+	// role-gated target, the pages of the modules behind a product included.
+	// A call a person makes at such a module on their own session or from the
+	// module's own page is then answered on that seat, whatever the product's
+	// role reaches, and their session lists every such page; so a run with no
+	// Seated does not show that a module is reached through the product's
+	// role alone, and a refusal that depends on it never appears.
 	Seated []string
 	// Administrator installs and withdraws: a fixture person who administers their
 	// organisation. Empty is "alice".
@@ -98,7 +113,29 @@ type Composition struct {
 	mu     sync.Mutex
 	people map[string]*sessionv1.FixturePerson
 	signed map[string]*Person
+
+	// seating is the seating the run asked for (Options.Seated), held before
+	// every call; nil when it asked for none.
+	seating *seating
 }
+
+// seating is the targets the fixture's people keep their roles on, and what
+// holding it takes.
+type seating struct {
+	mu            sync.Mutex
+	administrator string
+	seated        []string
+	// bearer is the administrator's session at the host, opened once.
+	bearer string
+	// own are the roles a scenario granted itself (Grant), which are kept.
+	own map[roleGranted]bool
+	// held: the seating was established once; a role withdrawn after that is
+	// one the host granted again.
+	held bool
+}
+
+// roleGranted is one role a scenario granted a person on a target.
+type roleGranted struct{ organization, target, role, person string }
 
 // Main runs a package's tests on one composition: it starts it, points
 // *composition at it, runs m and tears the run down. A start that fails is
@@ -193,11 +230,45 @@ func (c *Composition) connect(ctx context.Context, options Options) error {
 			return fmt.Errorf("install %s as %s: %w", target, administrator, err)
 		}
 	}
-	if len(options.Seated) > 0 {
-		if err := c.seatOnly(ctx, administrator, options.Seated); err != nil {
-			return fmt.Errorf("seat the fixture's people on %v alone, as %s: %w", options.Seated, administrator, err)
-		}
+	return c.seat(ctx, options, administrator)
+}
+
+// seat keeps the fixture's people on options.Seated alone, when it names any
+// target, from here to the end of the run.
+func (c *Composition) seat(ctx context.Context, options Options, administrator string) error {
+	if len(options.Seated) == 0 {
+		return nil
 	}
+	c.seating = &seating{administrator: administrator, seated: options.Seated, own: map[roleGranted]bool{}}
+	return c.holdSeats(ctx)
+}
+
+// holdSeats holds the seating the run asked for: whatever role stands on an
+// installation that is not seated is withdrawn, the first time and every
+// time the host granted it again since (it seats its people on every
+// installation after each install and each delivery).
+func (c *Composition) holdSeats(ctx context.Context) error {
+	s := c.seating
+	if s == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	withdrawn, err := c.seatOnly(ctx, s)
+	if status.Code(err) == codes.Unauthenticated && len(withdrawn) == 0 {
+		// The administrator's session ended: open another, once.
+		s.bearer = ""
+		withdrawn, err = c.seatOnly(ctx, s)
+	}
+	if err != nil {
+		return fmt.Errorf("seat the fixture's people on %v alone, as %s: %w", s.seated, s.administrator, err)
+	}
+	if s.held && len(withdrawn) > 0 {
+		fmt.Fprintf(os.Stderr, "scenario: the host seated its people again on %v (an install or a delivery); withdrawn again, as Seated asks\n", withdrawn)
+	}
+	s.held = true
 	return nil
 }
 
@@ -216,34 +287,50 @@ func (c *Composition) administer(ctx context.Context, administrator string) (con
 }
 
 // seatOnly withdraws every role granted on every installation of the
-// administrator's organisation whose target is not one of seated.
-func (c *Composition) seatOnly(ctx context.Context, administrator string, seated []string) error {
-	ctx, person, err := c.administer(ctx, administrator)
-	if err != nil {
-		return err
+// administrator's organisation whose target is not seated, but those a
+// scenario granted itself, and answers the targets it withdrew a role on.
+func (c *Composition) seatOnly(ctx context.Context, s *seating) ([]string, error) {
+	person, ok := c.people[s.administrator]
+	if !ok {
+		return nil, fmt.Errorf("%s is not a fixture person", s.administrator)
 	}
+	if s.bearer == "" {
+		session, err := sessionv1.NewSessionServiceClient(c.conn).SignIn(ctx, &sessionv1.SignInRequest{FixtureToken: person.GetFixtureToken()})
+		if err != nil {
+			return nil, err
+		}
+		s.bearer = session.GetBearer()
+	}
+	ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+s.bearer)
 	org := person.GetOrganizationId()
 	installations := installationv1.NewInstallationServiceClient(c.conn)
 	listed, err := installations.List(ctx, &installationv1.ListRequest{OrganizationId: org})
 	if err != nil {
-		return err
+		return nil, err
 	}
+	var withdrawn []string
 	for _, installation := range listed.GetInstallations() {
-		if slices.Contains(seated, installation.GetTarget()) {
+		if slices.Contains(s.seated, installation.GetTarget()) {
 			continue
 		}
 		grants, err := installations.ListRoleGrants(ctx, &installationv1.ListRoleGrantsRequest{OrganizationId: org, InstallationId: installation.GetId()})
 		if err != nil {
-			return fmt.Errorf("the roles granted on %s: %w", installation.GetTarget(), err)
+			return withdrawn, fmt.Errorf("the roles granted on %s: %w", installation.GetTarget(), err)
 		}
 		for _, grant := range grants.GetGrants() {
+			if grant.GetTeamId() == "" && s.own[roleGranted{org, installation.GetTarget(), grant.GetRole(), grant.GetPersonId()}] {
+				continue
+			}
 			if _, err := installations.RevokeRole(ctx, &installationv1.RevokeRoleRequest{OrganizationId: org, InstallationId: installation.GetId(),
 				Role: grant.GetRole(), PersonId: grant.GetPersonId(), TeamId: grant.GetTeamId()}); err != nil {
-				return fmt.Errorf("withdraw %s on %s from %s%s: %w", grant.GetRole(), installation.GetTarget(), grant.GetPersonId(), grant.GetTeamId(), err)
+				return withdrawn, fmt.Errorf("withdraw %s on %s from %s%s: %w", grant.GetRole(), installation.GetTarget(), grant.GetPersonId(), grant.GetTeamId(), err)
+			}
+			if !slices.Contains(withdrawn, installation.GetTarget()) {
+				withdrawn = append(withdrawn, installation.GetTarget())
 			}
 		}
 	}
-	return nil
+	return withdrawn, nil
 }
 
 // address is the address the run delivered to the anchor for a dependency's
@@ -299,14 +386,21 @@ func (c *Composition) Origin() string { return c.origin }
 // Install installs target for the organisation administrator administers,
 // with the consent the authority reviews: a scenario's own installation, in an
 // organisation no other scenario touches, so what it reads is what it wrote.
+// The host seats its people again on every installation after an install;
+// the seating the run asked for (Options.Seated) is held again here.
 func (c *Composition) Install(t testing.TB, administrator, target string) {
 	t.Helper()
 	if err := c.install(context.Background(), administrator, target); err != nil {
 		t.Fatalf("install %s as %s: %v", target, administrator, err)
 	}
+	if err := c.holdSeats(context.Background()); err != nil {
+		t.Fatalf("after installing %s: %v", target, err)
+	}
 }
 
-// Grant grants role on target's installation to person, as administrator.
+// Grant grants role on target's installation to person, as administrator. On
+// a target the run does not seat (Options.Seated), the grant is the
+// scenario's own and is kept.
 func (c *Composition) Grant(t testing.TB, administrator, target, role, person string) {
 	t.Helper()
 	ctx, admin, err := c.administer(context.Background(), administrator)
@@ -325,6 +419,11 @@ func (c *Composition) Grant(t testing.TB, administrator, target, role, person st
 		if _, err := installations.GrantRole(ctx, &installationv1.GrantRoleRequest{OrganizationId: admin.GetOrganizationId(),
 			InstallationId: installation.GetId(), Role: role, PersonId: person}); err != nil {
 			t.Fatalf("grant %s on %s to %s as %s: %v", role, target, person, administrator, err)
+		}
+		if s := c.seating; s != nil {
+			s.mu.Lock()
+			s.own[roleGranted{admin.GetOrganizationId(), target, role, person}] = true
+			s.mu.Unlock()
 		}
 		return
 	}

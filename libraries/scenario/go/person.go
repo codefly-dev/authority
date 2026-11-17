@@ -2,6 +2,7 @@ package scenario
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -182,6 +183,11 @@ func (p *Person) Do(t testing.TB, call Call) Outcome {
 }
 
 func (p *Person) do(call Call) (Outcome, error) {
+	// The seating the run asked for is what the call is decided on: the host
+	// may have seated its people again since the last call.
+	if err := p.c.holdSeats(context.Background()); err != nil {
+		return Outcome{}, err
+	}
 	payload := []byte("{}")
 	if call.Request != nil {
 		var err error

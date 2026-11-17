@@ -35,7 +35,13 @@ func TestWhoReadsTheNotes(t *testing.T) {
   package and tears it down; `Options` says what the run leaves out, the
   workspace values of this run alone, what Codefly generates per naming scope
   before the start, and the solutions the organisation's administrator
-  installs (with the consent the authority reviews).
+  installs (with the consent the authority reviews). `Seated` keeps the
+  fixture's people on the named targets alone, for the whole run: the host
+  seats them again on every installation after each install and delivery, so
+  the harness withdraws what came back after every install it makes and
+  before every call. With no `Seated`, the people hold their roles on every
+  module's own page too, and a run does not show that a module is reached
+  through the product's role alone.
 - **`As(t, "carol")`** signs a fixture person in at the edge by the fixture's
   own token for them, read from the host (`ListFixturePeople`), never written
   down. A call carries their session and nothing else, as a browser's does.
