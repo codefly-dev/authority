@@ -56,9 +56,10 @@ subtest names as well as failures/skips. Validate isolation with `go test -race
 '^Test(TheLocalAuthorityPassesTheSuiteEveryImplementationMustPass|ConformanceFixturesIsolateKeysSessionsAndClocks)$'
 ./plugins/registry_test`.
 
-The local fixture contains Acme and Globex; Maya is a viewer, Remi an editor,
-Alex an administrator, Dev the developer, Zoe a Globex administrator, and Omar
-has no organization role. Omar's ops team does hold a Globex wiki installation
+The local fixture contains Acme and Globex; Alex and Zoe administer them, and
+nobody else holds an organisation role. The local kit seats Maya as the user
+and Remi as the admin of the module pages it composes (records, the directory,
+evaluation, the model); Dev and Omar are seated on none of them. Omar's ops team does hold a Globex wiki installation
 role, so the no-entitlement case uses the existing `fixture-no-roles` person.
 An additional organization owner proves inventory access without the admin role.
 Host fixtures map these behaviours to their own person and organization IDs;
@@ -137,18 +138,28 @@ active installing organizations or none, naming “must name the organization of
 the work item”. `WorkloadOrganizations` supplies these two fixtures. Successful
 single-organization inference remains a local convenience, not a shared promise.
 
-## Fixture rule: own sessions and modules that check owners (RBAC-4a)
+## Fixture rule: a person reaches a module through a role on an installation
 
-A person's organization roles on their own session reach no owned kind of a
-module that checks owners; they reach a kind it declares shared, and every kind
-of a module that checks no owner. So a host's fixture puts each case that starts
-from a person's own session (Audience/ReadKind, Chain, ChildScopes, Lookup,
-Delegation, ParentLimits, Resources and the Matrix's allow rows) on modules that
-check no owner or on shared kinds, and the cases that reach an installation's
-data (SolutionRoles, InstallationChain, InstallationResources) on modules that
-check owners. A Matrix deny row at a module that checks owners states the rule
-for the host. ParentLimits refuses a fixture whose dropped kind the person does
-not hold at the root, since its refusal would then prove nothing.
+Organisation roles decide administration only. A person's own session holds
+what their role on the audience's installation holds: at a solution or a module
+page declaring roles, that role; at a module that declares no roles, nothing,
+refused by name. So a host's fixture puts each case that starts from a person's
+own session (Audience/ReadKind, Chain, ChildScopes, Lookup, Delegation,
+ParentLimits, Resources and the Matrix's allow rows) on a module page declaring
+roles, with the person seated on a role there, and where the chain goes on
+through a binding the page's role names the kind it reaches. The cases that
+reach an installation's data (SolutionRoles, InstallationChain,
+InstallationResources) stay on modules that check owners. A Matrix deny row at
+a module that declares no roles, and for an organisation administrator at a
+page they hold no role on, states the rule for the host. ParentLimits refuses a
+fixture whose dropped kind the person does not hold at the root, since its
+refusal would then prove nothing.
+
+`Fixture.OrganisationRoles` is required: an administrator of the organisation
+holding no role on any installation, the role-gated audiences they are refused
+at, and at least one composed module declaring no roles, where nobody's own
+session holds anything. A host that lets an organisation role reach a module
+fails there.
 
 ## Target: solution principal (not yet part of `Run`)
 

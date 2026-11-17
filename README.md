@@ -408,9 +408,19 @@ readers accept those too, as crossover moves made under that rule. A
 declaration keeping a third role beside `admin` and `user` is not the rename: a role it drops ends
 its grants as usual. Both are a stopgap while modules are re-rendered before
 their host, deleted in the next release; `editor`, `viewer` and `steward`
-are aliases of nothing. A module without a page declares
-no roles; a person's access to a module is the organisation's roles intersected
-with what the module serves. A person's access to a solution is the role its
+are aliases of nothing.
+
+**Organisation roles decide administration only.** They say who administers an
+organisation's members, teams, installations and grants, and they reach no
+module: a person reaches a module only through a role (`admin`, `user`) on an
+installation, a solution's or a module page's
+([the decision](https://github.com/obin-ai/handbook/blob/main/decisions/organisation-roles-decide-administration-only.md)).
+A module without a page declares no roles, so nobody's own session holds
+anything there, the organisation's administrator's included: it is refused by
+name (`<module> declares no roles`) and reached through the binding of an
+installation whose role the person holds. A page's call to a module its target
+declares no binding to is refused by that name; being signed in on a page is
+not a way in. A person's access to a solution is the role its
 installation grants her, the admin role as its owner or the installation's
 role through a granted team, and nothing from the organisation's roles. Another
 organisation's installation grants nothing. The values of real roles belong to
@@ -439,8 +449,12 @@ The authority applies this source to person issuance naming a solution binding,
 children, delegation admission and use, and resource reads. Every solution in the
 verified actor chain continues to bound later module calls; a later module cannot
 recover a permission that the solution role withheld. A target solution also
-requires the person's entitlement there. Independent person-to-module work still
-uses organisation roles; child derivation follows the target rule below.
+requires the person's entitlement there. There is no independent
+person-to-module work: on their own session a person holds what their role on
+the audience's installation holds, and nothing at a module that declares none.
+Naming a binding of such a module asks nothing of the module itself: the
+capability carries what the person's role on the binding's target holds through
+it, for the module's hop there. Child derivation follows the target rule below.
 
 Solution roles preserve exact resource IDs and whole-kind grants through issuance
 and resource listing. Restricted grants still do not satisfy a method policy
@@ -492,19 +506,23 @@ The local fixture includes `no-roles` in Acme for that case.
 The suite proves it as a matrix: the fixture states, for each person at each
 audience, which kind and action is allowed and which refused, and the suite asks
 for exactly that scope and expects the answer. The local authority's fixture carries
-two organisations, a person with no roles or teams and an automatically generated
-developer role; the test kit's composition document installs a solution under
-different roles in each. The host supplies its own matrix from its
+two organisations and a person with no roles or teams; the test kit seats its
+people on the roles of the module pages it composes, and its composition
+document installs a solution under different roles in each. The suite also
+requires that an organisation administrator holding no role on an installation
+is refused at every module (`Fixture.OrganisationRoles`): a host that lets an
+organisation role reach a module fails conformance. The host supplies its own matrix from its
 own fixture. The suite requires a signed carrier and authenticated delivery
 workload, with the paired authority document carrying the solution's roles.
 
-The fixture names only the authority's own vocabulary. Each module states what
-the fixture's roles may do at its kinds in a fragment next to its code, a
-composition states only what is its own, and the run merges the fragments into
-the versioned `fixture-composition` document
+The fixture names only the authority's own vocabulary: who exists and who
+administers each organisation. A module or a composition states what is its
+own (an installation of its solution, who is seated on a role-gated target, a
+module the run supervises itself) in a fragment next to its code, and the run
+merges the fragments into the versioned `fixture-composition` document, which
+at schema v2 grants no organisation role anything
 ([what a composition adds to the fixture](modules/authority/services/local/README.md#what-a-composition-adds-to-the-fixture)).
-The local authority also logs a delivery-time role × method report and
-generates its local developer role from concrete delivered permissions. See
+The local authority also logs a delivery-time role × method report. See
 [local permission diagnostics](modules/authority/services/local/README.md#permission-diagnostics-during-local-development)
 for the distinction between static coverage and runtime authorization.
 
@@ -652,9 +670,11 @@ session** restores hers. Signed in as Carol, the hop answers with
 `<target>-admin`'s; signed in as Bob, with a refusal naming that he holds no
 role there. The authority interface's own
 people (`maya`, `remi`, `alex`, `dev`, `zoe`, `omar`, `no-roles`) are
-retained as aliases: the conformance matrix, the generated developer role
-every playground starts on, the refusal cases and the other organisation
-are written against them, and the product's fixture keeps them too.
+retained as aliases: the conformance matrix, the refusal cases and the other
+organisation are written against them, and the product's fixture keeps them
+too. They hold no organisation role but `admin` (Alex, Zoë) and reach a module
+only where a composition or a test seats them on an installation; the `viewer`,
+`editor` and generated `developer` organisation roles are gone.
 
 ### The hop side is a conformance target too (2026-11-03)
 

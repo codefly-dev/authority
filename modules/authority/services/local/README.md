@@ -192,27 +192,25 @@ declare the group: declaring it would give it authority bindings of its own.
 
 ## What a composition adds to the fixture
 
-The embedded fixture (`code/fixtures/local.yaml`) says who exists and which
-organisation roles they hold, in the authority's own vocabulary only
-(`console.identity`). It names no module's kinds, no solution and no stand-in
-module. What the fixture's roles may do at a module is that module's to say,
-once, next to its code; what is truly a composition's own (a collection its
-seed writes, an installation of its solution) is the composition's. Both are
-**fragments** of the workspace configuration document `fixture-composition`:
+The embedded fixture (`code/fixtures/local.yaml`) says who exists and who
+administers each organisation, in the authority's own vocabulary only. It
+names no module's kinds, no solution and no stand-in module, and an
+organisation role in it is a name: it decides administration and grants
+nothing at any module. **A person reaches a module only through a role
+(`admin`, `user`) on an installation**, so what a composition adds is who is
+seated where, never a grant of a module's kinds to an organisation role. Its
+part is a **fragment** of the workspace configuration document
+`fixture-composition`:
 
 - a module ships `configurations/<profile>/fixture-composition.yaml` in its own
-  directory: the grants of the fixture's standard roles (viewer, editor, admin,
-  …) at that module's kinds, and nothing about any other module;
+  directory for what is its own (a module it stands in for), and nothing about
+  any other module;
 - a composition ships the same file in its own module's directory, for what
-  only it knows: the seeded collection a viewer reads, by id.
+  only it knows: the installation of its solution, and who is seated on the
+  roles of its page.
 
 ```yaml
-schema: codefly.dev/authority/fixture-composition/v1
-roles:          # grants added to roles the fixture defines
-  - organization: acme
-    name: editor
-    scopes:
-      - {kind: ledger.entry, actions: [read, write]}
+schema: codefly.dev/authority/fixture-composition/v2
 installations:  # installations of a solution the run composes, the fixture's own path
   # role: the installation's own (its agent's) role, omitted for a target that
   # declares it (installation_role, `none` included: the authority refuses a
@@ -237,31 +235,13 @@ fragment is applied until it is deleted. The merge
 rules are this repository's, in [`libraries/fixture-composition`](../../../../libraries/fixture-composition/go/README.md),
 the one parser of the document:
 
-- every statement has exactly one source: a role's grant on one kind, one
-  installation, one stand-in module. Two fragments stating the same one are
-  refused naming both, even when they agree, so a composition narrowing a
-  module's grant to its seeded collection is never silently widened by the
-  module's, and a module's grant copied into a playground is refused rather
-  than left to drift. One **fragment** stating the same one twice is refused
-  too, and for the same reason: the grants of a kind are a union, so a file
-  granting `{id: seeded}` and again `{all: true}` widens exactly as two files
-  would;
+- every statement has exactly one source: one installation (its organisation
+  and target), one stand-in module. Two fragments stating the same one are
+  refused naming both, even when they agree, so the fragment that owns a
+  statement is the one a reader goes to. One **fragment** stating the same one
+  twice is refused too;
 - the result does not depend on the order fragments are found in.
 
-**What the merge does not enforce: ownership.** A statement is keyed by
-organisation, role and kind alone, never by which module ships the fragment, so
-a module's fragment *can* grant at another module's kinds — and a composition's
-fragment does, by design: the robin playground grants its viewer
-`documents.collection` on the collection its own seed writes, a kind the
-document store owns. "One definition per module" is therefore a convention
-about where a grant is written, enforced only in that two fragments cannot
-state the same grant; it is not a check that a module grants on its own kinds.
-Nothing is lost by that: these fragments reach the development fixture alone,
-never a host, and a grant at a kind no composed module serves resolves to
-nothing (the authority intersects every capability with the delivered
-manifests), so the failure mode is a refusal, not a widening. A composition
-that wanted ownership enforced would have to name each kind's owning module in
-the document, which v1 does not.
 
 The authority module's own fragment
 (`modules/authority/configurations/local/fixture-composition.yaml`) is the
@@ -286,44 +266,46 @@ naming a target is kept, and that target is seated the same way; its own
 wiki-admin [dana] wiki-user [carol]`.
 
 **The contract.** The `schema` line versions the document. Its sections, and
-the fixture's organisation, role and person ids it names (`acme`, `globex`,
-`viewer`, `editor`, `admin`, `alex`, …), are a contract with every composing
-repository. A breaking change is a new schema version, never an edit to v1.
+the fixture's organisation and person ids it names (`acme`, `globex`, `alex`,
+…), are a contract with every composing repository. A breaking change is a new
+schema version, never an edit. Schema v1 carried a `roles` section granting a
+module's kinds to an organisation role; v2 has none
+([moving a fragment from v1](../../../../libraries/fixture-composition/go/README.md)).
 
 **What is refused.** Each of these refuses the merge or the boot by name and
-changes no role:
+changes nothing:
 - an empty or null document, a section spelled `null`, an unknown field, or a
-  schema other than v1;
-- an entry naming a role the fixture does not define, or the generated
-  `developer` role (it is derived from the delivered catalog);
-- no scope, or a scope with no action;
-- a wildcard kind or action (`*`): a composition grants the concrete
-  permissions its modules serve, so viewer, editor and administrator stay
-  distinct;
-- a kind or action outside the grammar, surrounding whitespace included;
-- a malformed resource matcher;
+  schema other than v2;
+- a `roles` section, and schema v1 whatever it carries: no organisation role
+  is granted a module's kinds, and the refusal says where a person's reach is
+  stated now (`installations: members`);
+- a stand-in module with no kind, a kind with no action, a wildcard kind or
+  action (`*`), a kind or action outside the grammar, surrounding whitespace
+  included;
 - an installation whose organisation, owner or members the fixture does not
   define, a row standing for every target that names a role or teams, and a
   member entry naming no role or nobody;
-- two fragments stating the same grant, installation or stand-in module.
+- two fragments stating the same installation or stand-in module.
 
-The boot log names each effect, for example `the composition grants
-acme/editor: ledger.entry:[read write]`, or says that the composition adds
+The fixture itself is held to the same rule: a role in it that states `scopes`
+or `generated` is refused by name.
+
+The boot log names each effect, for example `the composition seats wiki at
+acme: wiki-admin [dana] wiki-user [carol]`, or says that the composition adds
 nothing. The local authority refuses to start in a pod.
 
 ## Permission diagnostics during local development
 
-The local fixture's `developer` role uses `generated: true` and declares no
-scopes. The local authority replaces its scopes after each delivery with the explicit
-union of currently delivered module kinds/actions. Method requirements contribute
-to that catalog; explicitly declared non-method ceilings remain supported during
-migration. A new delivery can remove an action as well as add one. The generated
-role does not assign itself to anyone and does not change business roles or
-solution installation roles. This is fixture behavior in the development local authority.
+The fixture once generated a `developer` organisation role holding every
+delivered kind and action. It is gone with every other organisation-role
+grant: a developer reaches a module as anybody does, through a role on an
+installation (the fixture seats Carol as `user` and Dana as `admin` on every
+role-gated target a run composes).
 
 Every successful composition delivery logs a sorted role × module-generation ×
-method report. It names uncovered requirements, unrecognized fixture actions and
-kinds unresolved in the currently delivered composition. These are diagnostics,
+method report over the roles each module itself declares. It names uncovered
+requirements, and says of a module declaring no roles that it is reached through
+a role on an installation that binds it, never an organisation role. These are diagnostics,
 not a demand that every role may call every method. Static coverage still needs
 valid identity, active installation, consent where required and resource checks.
 An absent method policy remains a named local refusal; contradictory or malformed
