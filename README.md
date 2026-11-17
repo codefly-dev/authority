@@ -473,6 +473,22 @@ Core's ordinary live verification. Role expansion alone leaves existing narrow
 installation roots valid; module actors still obey their generation checks.
 New issuance resolves the current declaration.
 
+Revoking a role (`RevokeRole`) moves no organisation revision: it moves its
+subject's grant epoch, on the installation the role was on and on every
+installation a hop after it may be sealed to (2026-11-17). A capability is
+sealed to its last actor's installation, so a person's call through a
+solution, then the reached module's own hop, is sealed to that module's
+installation and holds what the role on the solution gave. Before this date
+the revoke moved the epoch on the role's installation alone, and such a hop
+kept verifying, and kept being admitted by `Check`, until it expired; only
+`ListResources`, read at the time of the call, answered it nothing. A module
+that reads what admitted a call instead of asking `ListResources` relies on
+`Check`, which now refuses it. The subject's other capabilities sealed to
+those installations are issued again; nobody else's are touched. Uninstall,
+detachment, a narrowing delivery, an approved upgrade and a re-convergence
+move the organisation's revision, which every capability carries, and always
+ended such a hop.
+
 Issuance binds those role reads to the authorization revision Core signs. If
 delivery changes it between resolution and minting, issuance refuses with
 `permissions changed during issuance`; it does not retry with the old scopes.

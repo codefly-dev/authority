@@ -127,6 +127,13 @@ func (s *Service) GrantRoleAsHost(ctx context.Context, r RoleRequest) (domain.In
 // administrator who could grant the team's roles. Their own
 // capabilities through that installation are issued again; nobody else's are
 // touched.
+//
+// "Through that installation" is every capability whose path names it, not
+// only the ones sealed to it: a hop is sealed to its last actor's
+// installation (IssueChild), so the subject's epoch moves on each
+// installation such a path may be sealed to as well (sealedAlong). A module
+// that reads what admitted a call, and never asks which resources its caller
+// holds now, is told of the revoke by Check alone.
 func (s *Service) RevokeRole(ctx context.Context, caller Person, r RoleRequest) (domain.Installation, error) {
 	var inst domain.Installation
 	err := s.store.Write(ctx, func(tx Tx) error {
@@ -160,14 +167,66 @@ func (s *Service) RevokeRole(ctx context.Context, caller Person, r RoleRequest) 
 		if err := tx.DeleteRoleGrant(r.grant()); err != nil {
 			return err
 		}
+		sealed, err := sealedAlong(tx, inst)
+		if err != nil {
+			return err
+		}
 		for _, person := range subjects {
-			if err := tx.BumpGrantEpoch(person, inst.ID); err != nil {
-				return err
+			for _, id := range sealed {
+				if err := tx.BumpGrantEpoch(person, id); err != nil {
+					return err
+				}
 			}
 		}
 		return s.journal(ctx, tx, r.event(domain.RoleRevoked, caller.ID))
 	})
 	return inst, err
+}
+
+// sealedAlong is every active installation, inst first, that a capability
+// holding what a role on inst gives may be sealed to. A capability is sealed
+// to its last actor's installation, and a role on inst's target bounds every
+// hop after the target on a path: one sealed to the target's installation or
+// to that of a module its bindings reach, one binding after another. Wider
+// than the paths that exist, never narrower: a capability of the subject's
+// sealed to one of these that never came through inst is issued again too,
+// and one through an installation none of these bindings join stands. A role
+// also bounds a call addressed to its target from another one, and no such
+// call is issued (each target's role selects its own installation's data),
+// so the installations binding to the target are not moved.
+func sealedAlong(tx Tx, inst domain.Installation) ([]string, error) {
+	out := []string{inst.ID}
+	target, err := tx.ModuleNamed(inst.Target)
+	if errors.Is(err, domain.ErrNotFound) {
+		return out, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	composed, err := composition(tx)
+	if err != nil {
+		return nil, err
+	}
+	along := map[string]bool{target.Name: true}
+	for queue := []domain.Module{target}; len(queue) > 0; queue = queue[1:] {
+		for _, b := range queue[0].Bindings {
+			if next, ok := composed[b.Audience]; ok && !along[next.Name] {
+				along[next.Name] = true
+				queue = append(queue, next)
+			}
+		}
+	}
+	all, err := tx.Installations(inst.Organization)
+	if err != nil {
+		return nil, err
+	}
+	for _, other := range all {
+		if other.ID != inst.ID && other.Status == domain.Active && along[other.Target] {
+			out = append(out, other.ID)
+		}
+	}
+	slices.Sort(out[1:])
+	return out, nil
 }
 
 // ListRoleGrants answers who holds which role on an installation.
