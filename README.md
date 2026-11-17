@@ -1072,14 +1072,17 @@ requires a lifetime of a
 delegation made from a page ([services/edge](modules/authority/services/edge/README.md#a-page-delegates-a-run-2026-10-28)).
 
 MCP client acquisition is still incomplete. The owner settled a distinct client
-identity with RFC 7591 registration, explicit background-client consent, and a
+identity registered by a Client ID Metadata Document only (no dynamic client
+registration, RFC 7591: corrected 17 November 2026 to follow the handbook's
+registered-clients decision), explicit background-client consent, and a
 resource declared per solution and resolved by the SDK (issuer: the edge origin).
-The shared core now registers scope-free client identities and extends the same
+The shared core now records scope-free client identities and extends the same
 delegation to them, preserving the client actor through downstream module hops.
 The [acquisition work and owner decisions](docs/mcp-acquisition.md) record the
 tested core path, the host OAuth reuse boundary and the exact continuation point.
-HTTP registration, consent, code/refresh exchange and the live proof are not yet
-wired; the new core operations are not exposed through the public interface.
+Admission of metadata-document clients, consent, code/refresh exchange and the
+live proof are not yet wired; the new core operations are not exposed through
+the public interface, and no registration endpoint is to be built.
 
 Revoking a delegation advances the organization's authorization revision in the
 same state update. Previously issued capabilities, including descendants, then
