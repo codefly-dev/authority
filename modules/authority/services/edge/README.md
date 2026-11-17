@@ -71,16 +71,54 @@ procedure this edge does not compose. `unauthenticated` and
 `permission_denied` are kept for what they mean: no open session, and the
 authority's refusal of the person.
 
-Known gap (decision 8, 17 November): which procedures a module's Connect face
-serves is still what the composition writes in `<MODULE>_RPC`. It must be
-derived from the catalog the module publishes
-(`contracts/api/catalog.codefly.json`), as the hop's routes and a delivery to
-the authority are. The edge process is handed no catalog today: the SDK
-answers a service run from its producer's checkout from its carriers alone,
-and the one generated carrier of the catalogs, `hop-routes`, is the hop's by
-the CLI's rule (declaring it is what makes a service the hop). Until a carrier
-generated from the same catalogs reaches the edge, a service missing from
-`<MODULE>_RPC` is answered `unimplemented` though its module publishes it.
+## The edge routes what a module declares (decision 8, 17 November)
+
+Which procedures a module's Connect face serves is generated, never typed. The
+edge declares the workspace-configuration group `edge-routes`, and Codefly
+generates its one value, `ROUTES`, for the service declaring it
+(`cli/pkg/orchestration/edge_routes.go`):
+
+```json
+{"schema":"codefly.dev/edge-routes/v1","modules":[{"audience":"tracing","procedures":["/tracing.v1.TraceReadService/GetTrace", "..."]}]}
+```
+
+- **Which modules.** Every module the edge mounts (`edge/MODULES`) that is
+  published through the hop (`hop/MODULES`). A module mounted for its own REST
+  face alone (a solution's backend) is not in it and needs no catalog.
+- **Which procedures.** Every procedure the module's own published contracts
+  declare on a Connect listener, read from the API catalog
+  (`contracts/api/catalog.codefly.json`) the hop's routes and a delivery to the
+  authority are read from. The catalog does not say which service a page calls
+  and which only another module does, so both are in it (robin's execution and
+  sandbox services beside its chat service) and the hop behind the face decides
+  who is admitted. A foreign method, another module's protocol served to that
+  module (`annotations.v1.TargetAuthorityService` on robin and on documents),
+  is not: several mounted modules serve the same one and a page's path names no
+  module.
+- **No address.** Where a module's face is stays `<MODULE>_CONNECT` in the
+  composition's `edge` group, an ordinary `${endpoint:…}` reference.
+
+The edge routes a procedure exactly when its module publishes it: a method the
+catalog does not declare is answered `no module serves <procedure>` by the
+edge, and nothing is asked of the authority or the module.
+
+`<MODULE>_RPC` is read by nobody and can be deleted from every composition.
+There is no fallback to it. The edge refuses to start, by name, when:
+
+- `edge-routes/ROUTES` is empty or malformed. A Codefly that does not generate
+  the group refuses the declaration itself, before the edge's code runs
+  ("no configuration found" for `edge-routes`): run with a Codefly that has
+  `generatedEdgeRoutes`.
+- `<MODULE>_CONNECT` names a face for a module that publishes no Connect
+  procedure through the hop.
+- two mounted modules publish the same procedure.
+
+A module that publishes Connect procedures and is given no `<MODULE>_CONNECT`
+is served at its REST face alone, and the edge's log says so at startup.
+
+The document's shape is written twice, in the CLI that encodes it and here
+where it is decoded (`code/routes.go`), and each side's tests hold the same
+bytes (`cli/pkg/orchestration/edge_routes_test.go`, `code/routes_test.go`).
 
 ## Act as a team
 

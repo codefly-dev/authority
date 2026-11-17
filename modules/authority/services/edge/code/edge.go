@@ -13,6 +13,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -77,12 +78,12 @@ type Issuer interface {
 }
 
 // Module is one module the edge routes to: REST under /v1/<name>/, Connect
-// for the services it serves.
+// for the procedures it publishes (/package.Service/Method, routes.go).
 type Module struct {
-	Name     string
-	REST     *url.URL
-	Connect  *url.URL
-	Services []string
+	Name       string
+	REST       *url.URL
+	Connect    *url.URL
+	Procedures []string
 }
 
 // Edge serves the browser.
@@ -210,12 +211,12 @@ func (e *Edge) route(path string) (Module, *url.URL, bool) {
 		}
 		return Module{}, nil, false
 	}
-	service, _, _ := strings.Cut(strings.TrimPrefix(path, "/"), "/")
+	// A procedure is routed exactly when a module publishes it: a method the
+	// module's catalog does not declare is no module's, and one procedure has
+	// one publisher (mount refuses a second).
 	for _, m := range e.Modules {
-		for _, s := range m.Services {
-			if s == service && m.Connect != nil {
-				return m, m.Connect, true
-			}
+		if m.Connect != nil && slices.Contains(m.Procedures, path) {
+			return m, m.Connect, true
 		}
 	}
 	return Module{}, nil, false

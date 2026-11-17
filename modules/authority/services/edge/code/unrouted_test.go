@@ -39,7 +39,7 @@ func TestACallNoModuleServesIsUnimplementedNotPermissionDenied(t *testing.T) {
 
 	// With no frontend to serve what no module claims, the same holds off the
 	// page route.
-	e := &Edge{Sessions: f.authority, Authority: f.authority, Modules: map[string]Module{"records": {Name: "records", Connect: mustURL(t, f.connect.URL), Services: []string{"records.v1.RecordsService"}}}}
+	e := &Edge{Sessions: f.authority, Authority: f.authority, Modules: map[string]Module{"records": {Name: "records", Connect: mustURL(t, f.connect.URL), Procedures: []string{"/records.v1.RecordsService/List", "/records.v1.RecordsService/Query"}}}}
 	req := httptest.NewRequest(http.MethodPost, "/nothing.v1.Service/Read", strings.NewReader("{}"))
 	for name, values := range speaksConnect {
 		req.Header[name] = values

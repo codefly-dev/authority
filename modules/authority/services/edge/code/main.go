@@ -48,13 +48,13 @@ func main() {
 
 // compose reads the edge's composition: its own listener, the host it depends
 // on (host.go), and the modules it routes to. The edge group names the modules
-// (MODULES) and, per module, its REST face (<MODULE>_REST), its Connect face
-// (<MODULE>_CONNECT) and the RPC services the Connect face serves
-// (<MODULE>_RPC); FRONTEND is what every other path serves. Each address is an
-// ${endpoint:…} reference the run resolves and delivers: the edge declares no
-// dependency on the modules it routes, so the SDK holds no carrier for them,
-// and the delivered value is the composition's answer. The authority module's
-// registry of composed modules replaces this list.
+// (MODULES) and, per module, its REST face (<MODULE>_REST) and its Connect
+// face (<MODULE>_CONNECT); FRONTEND is what every other path serves. Each
+// address is an ${endpoint:…} reference the run resolves and delivers: the
+// edge declares no dependency on the modules it routes, so the SDK holds no
+// carrier for them, and the delivered value is the composition's answer. The
+// procedures a Connect face serves are the generated edge-routes group's, read
+// from each module's published API catalog (routes.go).
 func compose(ctx context.Context) (*Edge, int, func(), error) {
 	// A query keeps what it is told, so each address gets a query of its own.
 	self, err := codefly.For(ctx).Endpoint("http").API("http").ResolveNetworkInstance()
@@ -79,22 +79,11 @@ func compose(ctx context.Context) (*Edge, int, func(), error) {
 		_ = conn.Close()
 		return nil, 0, nil, fmt.Errorf("edge: SIGN_IN_CHOICES: %w", err)
 	}
-	for _, name := range list(value("MODULES")) {
-		prefix := strings.ToUpper(strings.ReplaceAll(name, "-", "_")) + "_"
-		m := Module{Name: name, Services: list(value(prefix + "RPC"))}
-		if m.REST, err = baseURL(value(prefix + "REST")); err != nil {
-			return nil, 0, nil, fmt.Errorf("edge: %sREST: %w", prefix, err)
-		}
-		if m.Connect, err = baseURL(value(prefix + "CONNECT")); err != nil {
-			return nil, 0, nil, fmt.Errorf("edge: %sCONNECT: %w", prefix, err)
-		}
-		if len(m.Services) > 0 && m.Connect == nil {
-			return nil, 0, nil, fmt.Errorf("edge: %s serves %v over Connect but %sCONNECT names no face", name, m.Services, prefix)
-		}
-		if m.REST == nil && m.Connect == nil {
-			return nil, 0, nil, fmt.Errorf("edge: the composition names neither a REST nor a Connect face for %s", name)
-		}
-		edge.Modules[name] = m
+	// What each Connect face serves is generated, never typed (routes.go).
+	routes, _ := codefly.For(ctx).WorkspaceConfiguration(edgeRoutesGroup, edgeRoutesKey)
+	if edge.Modules, err = mount(value, routes); err != nil {
+		_ = conn.Close()
+		return nil, 0, nil, err
 	}
 	if edge.Frontend, err = baseURL(value("FRONTEND")); err != nil {
 		return nil, 0, nil, fmt.Errorf("edge: FRONTEND: %w", err)

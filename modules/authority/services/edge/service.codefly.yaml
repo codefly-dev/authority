@@ -33,6 +33,11 @@ workspace-configuration-dependencies:
     # The modules the edge routes to, their REST and Connect faces, and the
     # frontend every other path serves (code/main.go).
     - edge
+    # What each module's Connect face serves: the procedures Codefly generates
+    # from the published API catalog of every module named here and behind the
+    # hop (code/routes.go). Generated, never authored; a Codefly that does not
+    # generate it refuses this declaration before the edge starts.
+    - edge-routes
 endpoints:
     # The browser's origin: the one address a person reaches.
     - name: http

@@ -229,7 +229,7 @@ type fixture struct {
 func newFixture(t *testing.T) fixture {
 	f := fixture{authority: &standIn{}, rest: newUpstream(t), connect: newUpstream(t), frontend: newUpstream(t), secrets: newUpstream(t)}
 	e := &Edge{Credential: func() (string, error) { return "edge-credential", nil }, Sessions: f.authority, Authority: f.authority, Installations: f.authority, Frontend: mustURL(t, f.frontend.URL), Modules: map[string]Module{
-		"records": {Name: "records", REST: mustURL(t, f.rest.URL), Connect: mustURL(t, f.connect.URL), Services: []string{"records.v1.RecordsService"}},
+		"records": {Name: "records", REST: mustURL(t, f.rest.URL), Connect: mustURL(t, f.connect.URL), Procedures: []string{"/records.v1.RecordsService/List", "/records.v1.RecordsService/Query"}},
 		"secrets": {Name: "secrets", REST: mustURL(t, f.secrets.URL)},
 	}}
 	f.edge = httptest.NewServer(e)
