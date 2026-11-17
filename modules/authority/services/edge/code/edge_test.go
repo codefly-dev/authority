@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -736,5 +738,86 @@ func TestAPageWithNoBackendOfItsOwnIsListedForWhoHoldsIt(t *testing.T) {
 		if len(installed) != 1 || installed[0].(map[string]any)["target"] != "records" || len(refused) != 0 {
 			t.Errorf("%s: installations = %v, refused = %v", name, installed, refused)
 		}
+	}
+}
+
+// unheld is a host whose ListHeld fails with a fixed error.
+type unheld struct {
+	*setupHost
+	err error
+}
+
+func (h unheld) ListHeld(context.Context, *installationv1.ListHeldRequest, ...grpc.CallOption) (*installationv1.ListHeldResponse, error) {
+	return nil, h.err
+}
+
+// logged captures what the edge logs for the rest of the test.
+func logged(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var out bytes.Buffer
+	previous := log.Writer()
+	log.SetOutput(&out)
+	t.Cleanup(func() { log.SetOutput(previous) })
+	return &out
+}
+
+// A host that did not answer which installations the person holds a role on
+// has not said they hold none. What the authority issued stays usable; a
+// target it refused, which the host's answer could have made the person's to
+// open, says the host did not answer beside the authority's reason; and the
+// edge's log is told the cause. A host that serves no ListHeld at all has
+// nothing to answer: the refusal stands as the authority gave it.
+func TestAHostThatDoesNotAnswerWhatIsHeldIsNotHoldingNothing(t *testing.T) {
+	f := newFixture(t)
+	cookie := f.signIn(t)
+	modules := map[string]Module{
+		"records": {Name: "records", REST: mustURL(t, f.rest.URL)},
+		"secrets": {Name: "secrets", REST: mustURL(t, f.secrets.URL)},
+	}
+	session := func(err error) (map[string]any, string) {
+		t.Helper()
+		out := logged(t)
+		res, who := sessionOf(t, &Edge{Sessions: f.authority, Authority: f.authority, Installer: unheld{&setupHost{standIn: f.authority}, err}, Modules: modules}, cookie)
+		installed, _ := who["installations"].([]any)
+		if res.Code != http.StatusOK || len(installed) != 1 || installed[0].(map[string]any)["target"] != "records" {
+			t.Fatalf("with ListHeld answering %v the session answered %d: %s", err, res.Code, res.Body)
+		}
+		refused, _ := who["refused"].(map[string]any)
+		return refused, out.String()
+	}
+	for _, code := range []codes.Code{codes.Unavailable, codes.DeadlineExceeded, codes.Internal} {
+		refused, log := session(status.Error(code, "ListHeld failed: test reason"))
+		reason, _ := refused["secrets"].(string)
+		if len(refused) != 1 || !strings.Contains(reason, "holds nothing at secrets") || !strings.Contains(reason, "ListHeld failed: test reason") {
+			t.Errorf("%s: refused = %v", code, refused)
+		}
+		if !strings.Contains(log, "ListHeld") || !strings.Contains(log, "ListHeld failed: test reason") || !strings.Contains(log, code.String()) || strings.Contains(log, "remi-session") {
+			t.Errorf("%s: the edge's log was told %q", code, log)
+		}
+	}
+	refused, log := session(status.Error(codes.Unimplemented, "unknown method ListHeld"))
+	if reason, _ := refused["secrets"].(string); len(refused) != 1 || !strings.HasSuffix(reason, "holds nothing at secrets") || log != "" {
+		t.Errorf("a host serving no ListHeld: refused = %v, logged %q", refused, log)
+	}
+}
+
+// A target the authority did not answer at is not usable because the host
+// says the person holds a role on it: only the authority's refusal to issue at
+// the target itself is what a holding answers. It stays refused, by its reason.
+func TestATargetTheAuthorityDidNotAnswerAtStaysRefusedThoughHeld(t *testing.T) {
+	f := newFixture(t)
+	cookie := f.signIn(t)
+	modules := map[string]Module{
+		"records": {Name: "records", REST: mustURL(t, f.rest.URL)},
+		"down":    {Name: "down", REST: mustURL(t, f.secrets.URL)},
+	}
+	host := holdings{&setupHost{standIn: f.authority}, []*installationv1.HeldInstallation{
+		{Roles: []string{"admin"}, Installation: &installationv1.Installation{Id: "down-1", OrganizationId: "acme", Target: "down", Status: installationv1.Installation_STATUS_ACTIVE}},
+	}}
+	res, who := sessionOf(t, &Edge{Sessions: f.authority, Authority: f.authority, Installer: host, Modules: modules}, cookie)
+	installed, _ := who["installations"].([]any)
+	refused, _ := who["refused"].(map[string]any)
+	if res.Code != http.StatusOK || len(installed) != 1 || installed[0].(map[string]any)["target"] != "records" || refused["down"] != "connection refused" {
+		t.Fatalf("session answered %d: %s", res.Code, res.Body)
 	}
 }

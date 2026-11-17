@@ -452,6 +452,14 @@ func (e *Edge) evict(bearer string) {
 // module this edge routes to, so nothing is asked at it and nothing refuses
 // it: the host's answer alone lists it, once, for a person who holds a role on
 // its installation, and it is absent for everyone else.
+//
+// Only the authority's refusal to issue at a target is what a holding
+// answers: a target the authority did not answer at stays refused though the
+// host lists a role on it. And a host that did not answer what the person
+// holds has not said they hold nothing: the edge's log is told the cause, and
+// each target a holding could have made theirs says so beside its refusal. A
+// page with no backend of its own has no entry to say it under, so it is
+// absent from that answer with nothing in the answer naming why.
 func (e *Edge) usable(ctx context.Context, bearer, organization string) ([]installation, map[string]string) {
 	type result struct {
 		name string
@@ -463,14 +471,20 @@ func (e *Edge) usable(ctx context.Context, bearer, organization string) ([]insta
 		go func() { wc, err := e.workContext(ctx, bearer, name, ""); results <- result{name, wc, err} }()
 	}
 	usable, refused := []installation{}, map[string]string{}
+	// heldAnswers are the refused targets a holding makes the person's to open.
+	heldAnswers := map[string]bool{}
 	for range e.Modules {
 		r := <-results
 		if r.err != nil {
 			refused[r.name] = status.Convert(r.err).Message()
+			if code := status.Code(r.err); code == codes.PermissionDenied || code == codes.FailedPrecondition {
+				heldAnswers[r.name] = true
+			}
 			continue
 		}
 		if r.wc.installation == "" {
 			refused[r.name] = "the authority sealed the person's Work Context at " + r.name + " to no installation"
+			heldAnswers[r.name] = true
 			continue
 		}
 		usable = append(usable, installation{ID: r.wc.installation, Target: r.name, ModuleAPIBase: pageRoute(r.name)})
@@ -479,8 +493,15 @@ func (e *Edge) usable(ctx context.Context, bearer, organization string) ([]insta
 	for _, u := range usable {
 		listed[u.Target] = true
 	}
-	for _, page := range e.heldPages(ctx, bearer, organization) {
-		if listed[page.Target] {
+	pages, err := e.heldPages(ctx, bearer, organization)
+	if err != nil {
+		log.Printf("edge: the host did not answer which installations a person of %q holds a role on (ListHeld), so the session may list fewer than they hold: %v", organization, err)
+		for name := range heldAnswers {
+			refused[name] += "; and the host did not answer which installations this person holds a role on, so whether its page is theirs to open is not known: " + status.Convert(err).Message()
+		}
+	}
+	for _, page := range pages {
+		if _, was := refused[page.Target]; listed[page.Target] || was && !heldAnswers[page.Target] {
 			continue
 		}
 		listed[page.Target] = true
@@ -493,14 +514,18 @@ func (e *Edge) usable(ctx context.Context, bearer, organization string) ([]insta
 
 // heldPages are the active installations the person holds a role on, as the
 // host answers (ListHeld); none when the edge composes no installation
-// interface or the host does not answer.
-func (e *Edge) heldPages(ctx context.Context, bearer, organization string) []installation {
+// interface or the host serves no ListHeld (Unimplemented). Any other failure
+// to answer is an error: it is never the person holding nothing.
+func (e *Edge) heldPages(ctx context.Context, bearer, organization string) ([]installation, error) {
 	if e.Installer == nil || organization == "" {
-		return nil
+		return nil, nil
 	}
 	held, err := e.Installer.ListHeld(metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+bearer), &installationv1.ListHeldRequest{OrganizationId: organization})
+	if status.Code(err) == codes.Unimplemented {
+		return nil, nil
+	}
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	var out []installation
 	for _, h := range held.GetInstallations() {
@@ -510,7 +535,7 @@ func (e *Edge) heldPages(ctx context.Context, bearer, organization string) []ins
 		}
 		out = append(out, installation{ID: i.GetId(), Target: i.GetTarget(), ModuleAPIBase: pageRoute(i.GetTarget())})
 	}
-	return out
+	return out, nil
 }
 
 // namespaces names the namespace of each usable installation from List, the
