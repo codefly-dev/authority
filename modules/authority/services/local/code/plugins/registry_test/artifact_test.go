@@ -63,7 +63,7 @@ func TestTheLocalAuthorityDecidesArtifactsAsEveryHostMust(t *testing.T) {
 	server := grpc.NewServer()
 	for _, p := range []framework.Plugin{
 		&authority.Plugin{Issuer: k.Issuer}, &artifact.Plugin{Issuer: k.Issuer},
-		&installation.Plugin{State: k.State}, &session.Plugin{State: k.State},
+		&installation.Plugin{State: k.State}, &session.Plugin{State: k.State, Fixture: true},
 	} {
 		p.RegisterGRPC(server)
 	}

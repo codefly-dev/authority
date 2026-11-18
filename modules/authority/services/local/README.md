@@ -64,6 +64,26 @@ Generated code (`pkg/gen`, `*_gen.go`, `main.go`) comes from `codefly generate`
 and the agent; `work.go` and everything under `pkg/business`, `pkg/infra` and
 `plugins` is written here.
 
+## Where the fixture is served
+
+The fixture's people sign in by a token the repository holds, so the fixture
+is served only where that is meant, and nothing turns it on by default:
+
+- the service starts only in the run named exactly `local`
+  (`CODEFLY__ENVIRONMENT`, the one "local" signal it reads; `localRun`,
+  `work.go`), never in a pod, and only on a fixture the run selected by name
+  (`CODEFLY__FIXTURE`, which the environment's `fixture:` or `--fixture`
+  delivers). An environment that selects none is refused by name rather than
+  handed `local`;
+- the session plugin lists fixture people and signs them in by fixture token
+  only when it was told the run is one (`wiring.SetFixtureRun`, set after the
+  checks above); otherwise `ListFixturePeople` and `SignIn` answer
+  `FailedPrecondition`;
+- an advisory `Check` is answered as advice in that run alone.
+
+The edge and the hop's HTTP face bind the host the run resolved for them
+(loopback on a developer's machine) and the wildcard only in a container.
+
 ## The setup read
 
 Beside the installation interface the local authority serves

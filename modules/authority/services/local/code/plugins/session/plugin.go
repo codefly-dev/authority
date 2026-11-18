@@ -25,6 +25,19 @@ import (
 type Plugin struct {
 	sessionv1.UnimplementedSessionServiceServer
 	State *state.State
+	// Fixture says this run was started on a fixture it selected, in a local
+	// run: the fixture's people are listed, with the tokens they sign in by,
+	// and signed in by them. It is false unless said (wiring.FixtureRun; a
+	// test says so itself), and then the plugin lists nobody and signs nobody
+	// in: the listing is unauthenticated, so nothing else stands between a
+	// fixture token and whoever reaches the listener.
+	Fixture bool
+}
+
+// notAFixtureRun is the refusal of fixture sign-in by a run that was not
+// started on a fixture.
+func notAFixtureRun() error {
+	return status.Error(codes.FailedPrecondition, "this authority was not started on a fixture in a local run, so it lists no fixture person and signs nobody in by a fixture token")
 }
 
 // Name is the plugin's identifier.
@@ -48,6 +61,9 @@ func (p *Plugin) Migrations() []string { return nil }
 
 // SignIn opens a session for a fixture person.
 func (p *Plugin) SignIn(ctx context.Context, req *sessionv1.SignInRequest) (*sessionv1.Session, error) {
+	if !p.Fixture {
+		return nil, notAFixtureRun()
+	}
 	sess, err := p.State.SignIn(req.GetFixtureToken())
 	if err != nil {
 		return nil, authorityplugin.Status(err)
@@ -147,8 +163,12 @@ func (p *Plugin) Current(ctx context.Context, _ *sessionv1.CurrentRequest) (*ses
 	return p.wire(ctx, sess, "")
 }
 
-// ListFixturePeople answers every fixture person, for the edge's sign-in page.
+// ListFixturePeople answers every fixture person, for the edge's sign-in page,
+// in a run started on its fixture (Fixture); any other lists nobody.
 func (p *Plugin) ListFixturePeople(context.Context, *sessionv1.ListFixturePeopleRequest) (*sessionv1.ListFixturePeopleResponse, error) {
+	if !p.Fixture {
+		return nil, notAFixtureRun()
+	}
 	out := &sessionv1.ListFixturePeopleResponse{}
 	for _, person := range p.State.FixturePeople() {
 		out.People = append(out.People, &sessionv1.FixturePerson{PersonId: person.ID, Email: person.Email, OrganizationId: person.Organization,
@@ -158,4 +178,4 @@ func (p *Plugin) ListFixturePeople(context.Context, *sessionv1.ListFixturePeople
 }
 
 // New is the registry's constructor: the plugin over what Configure wired.
-func New() framework.Plugin { return &Plugin{State: wiring.State()} }
+func New() framework.Plugin { return &Plugin{State: wiring.State(), Fixture: wiring.FixtureRun()} }

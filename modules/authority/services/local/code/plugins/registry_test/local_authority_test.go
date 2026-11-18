@@ -104,7 +104,7 @@ func localConformanceFixture(t *testing.T, clock *conformance.Clock) (grpc.Clien
 	composed := &composition.Plugin{State: k.State, Coordinate: "local", Verifier: verifier, Carrier: k.CarrierAuthority, Keys: map[string]crypto.PublicKey{signer.KeyID(): signer.Public()}}
 	plugins := []framework.Plugin{
 		&authority.Plugin{Issuer: k.Issuer}, composed,
-		&installation.Plugin{State: k.State}, &session.Plugin{State: k.State},
+		&installation.Plugin{State: k.State}, &session.Plugin{State: k.State, Fixture: true},
 	}
 	server := grpc.NewServer()
 	for _, p := range plugins {

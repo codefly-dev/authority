@@ -99,6 +99,14 @@ func standInFront(ctx context.Context, config *adapters.Configuration) (Clean, e
 	}, nil
 }
 
+// httpListenAddress is where the hop's HTTP face listens: bound as the
+// service's generated listeners are (listenerHost), the resolved host in a
+// native run and the wildcard in a container, never every interface of a
+// developer's machine.
+func httpListenAddress(hostname string, port int) string {
+	return net.JoinHostPort(listenerHost(hostname), fmt.Sprint(port))
+}
+
 // serveHTTP listens on the hop's http endpoint, as the run allocated it, with
 // the hop's HTTP face.
 func serveHTTP(ctx context.Context, face http.Handler) (func(), error) {
@@ -106,7 +114,7 @@ func serveHTTP(ctx context.Context, face http.Handler) (func(), error) {
 	if err != nil {
 		return nil, fmt.Errorf("hop: the hop's http endpoint does not resolve: %w", err)
 	}
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", instance.Port))
+	listener, err := net.Listen("tcp", httpListenAddress(instance.Hostname, int(instance.Port)))
 	if err != nil {
 		return nil, fmt.Errorf("hop: listen on the hop's http endpoint: %w", err)
 	}

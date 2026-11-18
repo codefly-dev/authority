@@ -53,6 +53,27 @@ func localRun() bool {
 	return os.Getenv(resources.EnvironmentPrefix) == "local"
 }
 
+// selectedFixture is the fixture this run was started on. The local authority
+// serves a fixture and nothing else (its people sign in by a token the
+// repository holds), so it starts only where that is meant: in the run named
+// exactly "local", on a fixture the run selected by name. Nothing is
+// defaulted: an environment that selected none, because it loads a real
+// provider, is refused rather than handed the fixture's people.
+func selectedFixture() (string, error) {
+	environment := os.Getenv(resources.EnvironmentPrefix)
+	if environment == "" {
+		return "", fmt.Errorf("the run names no environment (%s is unset): the local authority serves its fixture only in the run named \"local\"", resources.EnvironmentPrefix)
+	}
+	if !localRun() {
+		return "", fmt.Errorf("the local authority serves a fixture, whose people sign in by a token anyone can read, and only in the run named \"local\": this run is %q", environment)
+	}
+	name := os.Getenv(resources.FixturePrefix)
+	if name == "" {
+		return "", fmt.Errorf("this run selected no fixture (%s is unset), and the local authority serves a fixture and nothing else: none is defaulted. Declare `fixture: local` on the environment, or pass --fixture", resources.FixturePrefix)
+	}
+	return name, nil
+}
+
 // coreConfig is the core's configuration for this run's signing key. Advice
 // (an advisory Check answered with the capability and the refusal it did not
 // make) is served in a local run only; any other run enforces every check.
@@ -89,9 +110,9 @@ func configureLocalAuthority(ctx context.Context, _ *adapters.Configuration) (Cl
 	if err != nil {
 		return nil, err
 	}
-	name := os.Getenv("CODEFLY__FIXTURE")
-	if name == "" {
-		name = "local"
+	name, err := selectedFixture()
+	if err != nil {
+		return nil, err
 	}
 	data, err := fixtures.ReadFile("fixtures/" + name + ".yaml")
 	if errors.Is(err, os.ErrNotExist) {
@@ -115,6 +136,9 @@ func configureLocalAuthority(ctx context.Context, _ *adapters.Configuration) (Cl
 	// Keys publishes the hop's admission key once the hop registers it
 	// (RegisterAdmissionKey): nothing about the hop is configured here.
 	wiring.Set(st, issuer.New(st, issuerName, keyID, signing.Public().(ed25519.PublicKey)))
+	// The run selected this fixture, in a local run (selectedFixture): its
+	// people are listed and signed in by their fixture tokens.
+	wiring.SetFixtureRun(true)
 	// A delivery is verified against the policy the run wrote for its host, and
 	// carried only by the module's own delivery workload, attested by the
 	// anchor. With no policy the carrier path refuses by name and says so.

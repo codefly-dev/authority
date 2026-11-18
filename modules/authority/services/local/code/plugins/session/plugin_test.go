@@ -76,7 +76,7 @@ func second[T any](_ T, err error) error { return err }
 // never undone.
 func TestEndEndsTheSessionAndEverySessionOpenedFromIt(t *testing.T) {
 	k := testkit.New(t)
-	p := &session.Plugin{State: k.State}
+	p := &session.Plugin{State: k.State, Fixture: true}
 	wiki := state.InstallationID("acme", "wiki")
 	dana := signIn(t, p, "dev-dana")
 	other := signIn(t, p, "dev-dana")
@@ -125,7 +125,7 @@ func TestEverySessionExpiresAndAViewOrCastNoLaterThanItsParent(t *testing.T) {
 	var offset atomic.Int64
 	start := time.Date(2026, 11, 17, 9, 0, 0, 0, time.UTC)
 	k := testkit.NewWithClock(t, func() time.Time { return start.Add(time.Duration(offset.Load())) })
-	p := &session.Plugin{State: k.State}
+	p := &session.Plugin{State: k.State, Fixture: true}
 	wiki := state.InstallationID("acme", "wiki")
 
 	dana := signIn(t, p, "dev-dana")
@@ -169,7 +169,7 @@ func TestEverySessionExpiresAndAViewOrCastNoLaterThanItsParent(t *testing.T) {
 func TestTheGrantEpochDiffersWheneverWhatTheSessionHoldsDiffers(t *testing.T) {
 	k := testkit.New(t)
 	ctx := context.Background()
-	p := &session.Plugin{State: k.State}
+	p := &session.Plugin{State: k.State, Fixture: true}
 	wiki := state.InstallationID("acme", "wiki")
 	svc := k.State.Service()
 

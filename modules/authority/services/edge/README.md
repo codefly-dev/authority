@@ -33,6 +33,14 @@ A Current outage returns 503 with the authority's reason and preserves cached
 contexts. Only Unauthenticated evicts the session's cached contexts and returns
 401. Other Current failures also remain service failures, not evidence of sign-out.
 
+## Where the edge listens
+
+The edge binds the host the run resolved for its `http` endpoint
+(`listenAddress`, `code/main.go`): loopback on a developer's machine, so the
+sign-in page, which lists the fixture's sign-in tokens, is not served on every
+interface of it. In a container it binds the wildcard, as the container's
+ingress needs; with no runtime context named it binds as a native run does.
+
 ## The session ends, expires and states its grant epoch (session 0.6.0)
 
 The edge depends on `codefly.dev/session` 0.6.0 and holds the host to it:

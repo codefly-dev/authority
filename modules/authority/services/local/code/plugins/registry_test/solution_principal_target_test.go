@@ -46,7 +46,7 @@ people:
 	for _, p := range []framework.Plugin{
 		&authority.Plugin{Issuer: k.Issuer},
 		&composition.Plugin{State: k.State, Coordinate: "local", Verifier: testkit.ReleaseVerifier(t, "local"), Carrier: k.CarrierAuthority, Keys: testkit.ReleaseKeys()},
-		&installation.Plugin{State: k.State}, &session.Plugin{State: k.State},
+		&installation.Plugin{State: k.State}, &session.Plugin{State: k.State, Fixture: true},
 	} {
 		p.RegisterGRPC(server)
 	}
