@@ -79,6 +79,10 @@ procedure this edge does not compose. `unauthenticated` and
 `permission_denied` are kept for what they mean: no open session, and the
 authority's refusal of the person.
 
+If the edge routes a call but cannot contact the module, Connect callers receive
+`unavailable` and REST callers receive HTTP 502. Both get the reason
+“the module did not answer.” The edge logs the upstream transport error.
+
 ## The edge routes what a module declares (decision 8, 17 November)
 
 Which procedures a module's Connect face serves is generated, never typed. The
