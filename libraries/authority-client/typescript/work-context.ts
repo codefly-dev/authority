@@ -309,6 +309,14 @@ export interface KeySource {
  * KEY_MAX_AGE. */
 const KEY_RETRY_MS = 10_000, KEY_MAX_AGE_MS = 300_000, KEY_STALE_MS = 900_000, KEY_TIMEOUT_MS = 5_000;
 const SIGNER_RETRY_MS = 10_000;
+/** The hop's admission keys are held to shorter bounds than the Work Context
+ * keys, as in Go, because a withdrawn one must stop admitting promptly: a stamp
+ * or a readiness poll arriving when they were read more than ADMISSION_MAX_AGE
+ * ago starts a re-read (at most every KEY_RETRY) and uses them while it runs,
+ * so a key the authority withdrew stops admitting when that read lands; keys
+ * the authority has not confirmed for ADMISSION_STALE admit nothing, the call
+ * waiting for a read first. */
+export const ADMISSION_MAX_AGE_MS = 10_000, ADMISSION_STALE_MS = 120_000;
 
 /** What keysError reports, for the module's logs, while the authority's keys
  * read but publish no hop admission key: every call is refused as
@@ -370,7 +378,10 @@ export class Verifier {
   ready(): boolean {
     const now = this.now();
     const unadmitting = this.replay !== undefined && this.admission.length === 0;
-    if ((!this.trust || now - this.fetched > KEY_MAX_AGE_MS || unadmitting) && !this.inflight && now - this.tried >= KEY_RETRY_MS) void this.refresh();
+    // An admitting verifier keeps its admission keys no older than
+    // ADMISSION_MAX_AGE, so a withdrawn one is dropped without traffic.
+    const aged = this.replay !== undefined && now - this.fetched > ADMISSION_MAX_AGE_MS;
+    if ((!this.trust || now - this.fetched > KEY_MAX_AGE_MS || unadmitting || aged) && !this.inflight && now - this.tried >= KEY_RETRY_MS) void this.refresh();
     return this.trust !== undefined && now - this.fetched <= KEY_STALE_MS && !unadmitting;
   }
 
@@ -441,9 +452,11 @@ export class Verifier {
   }
 
   /** The published hop admission key the admission is signed by. It is judged
-   * on the keys held: keys past KEY_MAX_AGE start no read here, so a caller
-   * without an admission can neither drive the authority's keys nor delay a
-   * genuine call's read. When no trusted keys are held at all (never read, or
+   * on the keys held, so a caller without an admission can neither drive the
+   * authority's keys nor delay a genuine call's read: admission keys read more
+   * than ADMISSION_MAX_AGE ago start a read for a well-formed admission only and
+   * are used while it runs (a key the authority withdrew stops admitting when
+   * it lands), and past ADMISSION_STALE a well-formed admission waits for it. When no trusted keys are held at all (never read, or
    * past KEY_STALE), or the last read published no admission key (the hop had
    * not registered yet), it starts one, at most every KEY_RETRY as readiness
    * does, and waits for it. A well-formed stamp signed by none of the keys held
@@ -461,13 +474,24 @@ export class Verifier {
     const now = this.now();
     const trusted = () => this.trust !== undefined && this.now() - this.fetched <= KEY_STALE_MS;
     const judgeable = () => trusted() && this.admission.length > 0;
-    if (!judgeable() && !this.inflight && now - this.tried >= KEY_RETRY_MS) void this.refresh();
-    if (!judgeable() && this.inflight) await this.inflight;
+    // Admission keys read more than ADMISSION_MAX_AGE ago are read again and
+    // used while that read runs; past ADMISSION_STALE they are not used, and
+    // the call waits for it. Only a well-formed admission starts or waits for
+    // either: nothing else reaches the key read.
+    const age = now - this.fetched;
+    const aged = judgeable() && age > ADMISSION_MAX_AGE_MS && proof(pairs) !== undefined;
+    if ((!judgeable() || aged) && !this.inflight && now - this.tried >= KEY_RETRY_MS) void this.refresh();
+    if ((!judgeable() || (aged && age > ADMISSION_STALE_MS)) && this.inflight) await this.inflight;
     if (!trusted()) {
       if (this.keysError instanceof Unauthenticated && this.keysError.code === Reason.InvalidKey) throw new Unauthenticated(Reason.InvalidKey);
       throw new Unauthenticated(Reason.KeysUnavailable);
     }
     if (this.admission.length === 0) throw new Unauthenticated(Reason.KeysUnavailable);
+    // Keys the authority could not confirm for ADMISSION_STALE admit nothing:
+    // one of them may have been withdrawn since.
+    if (this.now() - this.fetched > ADMISSION_STALE_MS) {
+      throw new Unauthenticated(proof(pairs) === undefined ? Reason.StampProof : Reason.KeysUnavailable);
+    }
     const key = signedBy(pairs, this.admission);
     if (key) return key;
     if (proof(pairs) === undefined) throw new Unauthenticated(Reason.StampProof);

@@ -217,7 +217,8 @@ func mustDecode(t *testing.T, token string) *basev0.WorkContextV1 {
 
 // A rotated key is fetched when a token first names it, at most once per
 // keyRetry; a removed key stops verifying within keyMaxAge; keys that cannot
-// be re-read are trusted no longer than keyStale.
+// be re-read are trusted no longer than keyStale, and for a stamped call no
+// longer than admissionStale (TestAdmissionKeysTheAuthorityCannotConfirm...).
 func TestPublishedKeysAreRereadOnRotationAndExpireWhenUnreadable(t *testing.T) {
 	first, second := newSigner("first"), newSigner("second")
 	source := &keys{response: &authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{first.published()}}}
@@ -250,11 +251,14 @@ func TestPublishedKeysAreRereadOnRotationAndExpireWhenUnreadable(t *testing.T) {
 		t.Fatal("a key the authority no longer publishes still verifies")
 	}
 	source.set(nil, errors.New("dial authority.internal:4000: connection refused"), nil)
-	clock = clock.Add(keyMaxAge + time.Second)
+	// A stamped call is judged on the admission keys too, which are held to
+	// the shorter bounds: re-read past admissionMaxAge, trusted unconfirmed
+	// no longer than admissionStale.
+	clock = clock.Add(admissionMaxAge + time.Second)
 	if err := verify(second.issue(t, clock, "documents")); err != nil {
-		t.Fatalf("a failed re-read keeps the last keys until keyStale: %v", err)
+		t.Fatalf("a failed re-read keeps the last keys until admissionStale: %v", err)
 	}
-	clock = clock.Add(keyStale)
+	clock = clock.Add(admissionStale)
 	err = verify(second.issue(t, clock, "documents"))
 	if !errors.Is(err, workcontext.ErrUnauthenticated) || !strings.Contains(err.Error(), "unavailable") || strings.Contains(err.Error(), "4000") {
 		t.Fatalf("stale keys are refused with a fixed reason that names no address: %v", err)
@@ -321,7 +325,7 @@ func TestAHungReadStallsNoHeldKeyAndACallerGivingUpDelaysNoOne(t *testing.T) {
 	v.fetched, v.tried = start, start
 	hold := make(chan struct{})
 	source.set(&authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{first.published(), second.published()}}, nil, hold)
-	clock = start.Add(keyMaxAge + time.Second) // old keys: a background read starts, and hangs
+	clock = start.Add(admissionMaxAge + time.Second) // aged keys: a background read starts, and hangs
 	done := make(chan error, 1)
 	go func() {
 		_, err := v.Verify(context.Background(), forwarded(t, first.issue(t, clock, "documents"), "proof", ""), "/test.Service/Read")
@@ -502,7 +506,9 @@ func TestAnUnreadyReplicaBecomesReadyByPollingAlone(t *testing.T) {
 }
 
 // Review r74 B1, second case: an idle replica (no calls) polled for readiness
-// past keyStale re-reads as its keys age and stays ready.
+// past keyStale re-reads as its keys age and stays ready. An admitting
+// verifier's keys age at admissionMaxAge, so each poll a minute apart re-reads:
+// a withdrawn admission key is dropped without business traffic.
 func TestAnIdleReplicaPolledForReadinessStaysReady(t *testing.T) {
 	first := newSigner("first")
 	source := &keys{response: &authorityv1.KeysResponse{Issuer: first.issuer, Keys: []*authorityv1.PublicKey{first.published()}}}
@@ -518,8 +524,8 @@ func TestAnIdleReplicaPolledForReadinessStaysReady(t *testing.T) {
 			t.Fatalf("an idle replica went unready at minute %d (reads %d)", minute, source.count())
 		}
 	}
-	if reads := source.count(); reads < 10 || reads > 13 {
-		t.Fatalf("an hour of readiness polls re-read the keys %d times; keyMaxAge says about 12", reads)
+	if reads := source.count(); reads < 59 || reads > 62 {
+		t.Fatalf("an hour of readiness polls a minute apart re-read the keys %d times; admissionMaxAge says one a poll, about 60", reads)
 	}
 }
 

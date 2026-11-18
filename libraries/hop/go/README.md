@@ -50,7 +50,7 @@ typed in, never mounted. A read runs on its own, detached from every call and
 bounded by 5 s, one at a time: no caller can cancel it, fail it or delay the
 next one. Keys are re-read when a token names a key the verifier does not hold
 (at most every 10 s; that call waits for the read while it lasts) and when older
-than 5 minutes (the held keys serve meanwhile); keys that cannot be re-read are
+than 5 minutes (the held keys serve meanwhile; the admission keys after 10 s, and unconfirmed for 2 minutes they admit nothing: [a withdrawn key](../README.md)); keys that cannot be re-read are
 trusted for 15 minutes at most, and a call on keys older than that waits for the
 re-read as a call on an unknown key does, refused if the read fails.
 A stamp signed by no admission key held is re-read for too: a hop that

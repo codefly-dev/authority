@@ -388,6 +388,20 @@ routed to it, while a hop with the retiring seed keeps renewing the retiring
 key; the retiring key lapses `AdmissionLease` after the last hop signing with
 it stops.
 
+**A withdrawn admission key stops admitting promptly.** In all three verifiers
+the admission keys are held to shorter bounds than the Work Context keys. Read
+more than 10 s ago (`admissionMaxAge` / `ADMISSION_MAX_AGE`), they are read
+again on the next well-formed stamp or readiness poll, at most once per 10 s,
+and used while that read runs: a key the authority no longer publishes admits
+nothing once it lands. Not confirmed for 2 minutes (`admissionStale` /
+`ADMISSION_STALE`, re-reads failing), they admit nothing at all: a well-formed
+stamp waits for the read and is refused as `keys_unavailable` if it fails. So a
+withdrawal is honoured in about ten seconds with the authority reachable and
+in two minutes at most without it, where it was five and fifteen. A caller
+without a well-formed admission still drives no key read. The Work Context
+keys keep their bounds (5 and 15 minutes). There is no revocation message: the
+authority withdraws a key by no longer publishing it.
+
 Accounts implements registration and publication in its host adapter and key
 store. That source implementation does not establish adoption in a particular
 running cell.

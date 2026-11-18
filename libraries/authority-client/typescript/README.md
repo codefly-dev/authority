@@ -53,7 +53,7 @@ the keys read through `Keys` (re-read on an unknown key at most every 10 s, once
 on a stamp signed by no admission key held at most every 10 s for all such stamps
 together, such a stamp waiting instead for a read already running (still
 unauthenticated, and held at most until that read's 5 s timeout), each re-read
-it starts logged with `console.info`, and when older than 5 minutes, on a read of its own bounded by 5 s; stale after 15
+it starts logged with `console.info`, and when older than 5 minutes (the admission keys after 10 s, and unconfirmed for 2 minutes they admit nothing: [a withdrawn key](../../hop/README.md)), on a read of its own bounded by 5 s; stale after 15
 minutes, when a call waits for the re-read as it does on an unknown key), then
 `authenticateToken`, the one identity reader (a caller holding headers extracts
 the bound token with `boundToken` first): Core's decode path (size, the

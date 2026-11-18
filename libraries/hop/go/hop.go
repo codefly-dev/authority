@@ -281,6 +281,17 @@ const (
 	keyMaxAge   = 5 * time.Minute
 	keyStale    = 15 * time.Minute
 	keyTimeout  = 5 * time.Second
+	// The hop's admission keys are held to shorter bounds than the Work
+	// Context keys, because a withdrawn one must stop admitting promptly: a
+	// stamp or a readiness poll arriving when they were read more than
+	// admissionMaxAge ago starts a re-read (at most once per keyRetry) and
+	// uses them while it runs, so a key the authority withdrew stops
+	// admitting when that read lands; and keys the authority has not
+	// confirmed for admissionStale admit nothing, the call waiting for a
+	// read first. Every call through the hop already costs the authority one
+	// Check, so an outage that long admits nothing anyway.
+	admissionMaxAge = 10 * time.Second
+	admissionStale  = 2 * time.Minute
 )
 
 // errKeysUnavailable is the one reason a caller is given when keys are
@@ -446,7 +457,10 @@ func (v *Verifier) Ready() bool {
 	defer v.mu.Unlock()
 	now := v.now()
 	unadmitting := v.replay != nil && len(v.admission) == 0
-	if (v.fetched.IsZero() || now.Sub(v.fetched) > keyMaxAge || unadmitting) && v.inflight == nil && now.Sub(v.tried) >= keyRetry {
+	// An admitting verifier keeps its admission keys no older than
+	// admissionMaxAge, so a withdrawn one is dropped without business traffic.
+	aged := v.replay != nil && now.Sub(v.fetched) > admissionMaxAge
+	if (v.fetched.IsZero() || now.Sub(v.fetched) > keyMaxAge || unadmitting || aged) && v.inflight == nil && now.Sub(v.tried) >= keyRetry {
 		v.refresh()
 	}
 	return !v.fetched.IsZero() && now.Sub(v.fetched) <= keyStale && !unadmitting
@@ -546,7 +560,11 @@ func (v *Verifier) trustFor(ctx context.Context, keyID string) (workcontext.Trus
 // all (never read, or past keyStale, as on an idle replica's first call), or
 // the last read published no admission key (the hop had not registered yet),
 // it starts a read, at most once per keyRetry as readiness does, and waits for
-// it. A well-formed stamp signed by none of the keys held may be a hop's that registered
+// it. So do admission keys the authority has not confirmed for admissionStale.
+// Admission keys read more than admissionMaxAge ago start a read too, at most
+// once per keyRetry, and are used while it runs, so a key the authority
+// withdrew stops admitting when that read lands: about admissionMaxAge under
+// traffic or readiness polling, and never later than admissionStale. A well-formed stamp signed by none of the keys held may be a hop's that registered
 // since the last read (a restarted gateway signs with its fresh key at once,
 // and keyMaxAge is five minutes away): it waits for the read already running
 // (readiness, keys past keyMaxAge, another stamp's), which starts none, or else
@@ -564,12 +582,21 @@ func (v *Verifier) admissionKey(ctx context.Context, md metadata.MD) (string, er
 	// authority publishes the hop's once the hop registers it, which may be
 	// after this verifier first read Keys.
 	untrusted := v.trusted() != nil || len(v.admission) == 0
-	if untrusted && v.inflight == nil && v.now().Sub(v.tried) >= keyRetry {
+	// Admission keys read more than admissionMaxAge ago are read again, at
+	// most once per keyRetry, and used while that read runs: a key the
+	// authority withdrew stops admitting when the read lands. Keys it has not
+	// confirmed for admissionStale are not used at all: the call waits for
+	// the read. Only a well-formed admission starts or waits for either:
+	// nothing else reaches the key read.
+	age := v.now().Sub(v.fetched)
+	aged := !untrusted && age > admissionMaxAge && stamp.WellFormed(md)
+	stale := aged && age > admissionStale
+	if (untrusted || aged) && v.inflight == nil && v.now().Sub(v.tried) >= keyRetry {
 		v.refresh()
 	}
 	wait := v.inflight
 	v.mu.Unlock()
-	if untrusted {
+	if untrusted || stale {
 		if err := v.await(ctx, wait); err != nil {
 			return "", err
 		}
@@ -580,6 +607,14 @@ func (v *Verifier) admissionKey(ctx context.Context, md metadata.MD) (string, er
 		return "", err
 	}
 	if len(v.admission) == 0 {
+		return "", errKeysUnavailable
+	}
+	// Keys the authority could not confirm for admissionStale admit nothing:
+	// a re-read that keeps failing cannot say none of them was withdrawn.
+	if v.now().Sub(v.fetched) > admissionStale {
+		if !stamp.WellFormed(md) {
+			return "", fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.StampProof)
+		}
 		return "", errKeysUnavailable
 	}
 	key := stamp.SignedBy(md, v.admission)

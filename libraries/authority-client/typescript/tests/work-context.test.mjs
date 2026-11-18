@@ -147,7 +147,7 @@ test('a call without the proof never reads the keys, and a hung read stalls no h
   }
   assert.equal(keys.reads, 1, 'a proof-less call read the keys');
   hang = true;
-  clock = fixture.now*1000 + 400_000; // keys older than max age: a background re-read starts and hangs
+  clock = fixture.now*1000 + 11_000; // admission keys past ADMISSION_MAX_AGE: a background re-read starts and hangs
   const id = await v.verify(fresh(v.now()), METHOD);
   assert.equal(id.owner, fixture.identity.owner);
   assert.equal(keys.reads, 2);
@@ -267,7 +267,9 @@ test('an unready replica becomes ready by polling alone', async () => {
 });
 
 // Review r74 B1: an idle replica polled for readiness past the stale window
-// re-reads as its keys age and stays ready.
+// re-reads as its keys age and stays ready. An admitting verifier's keys age at
+// ADMISSION_MAX_AGE, so each poll a minute apart re-reads: a withdrawn admission
+// key is dropped without business traffic.
 test('an idle replica polled for readiness stays ready', async () => {
   const keys = source();
   let clock = fixture.now*1000;
@@ -279,7 +281,7 @@ test('an idle replica polled for readiness stays ready', async () => {
     await settle();
     assert.ok(v.ready(), `unready at minute ${minute}`);
   }
-  assert.ok(keys.reads >= 10 && keys.reads <= 14, `reads=${keys.reads}`);
+  assert.ok(keys.reads >= 59 && keys.reads <= 62, `reads=${keys.reads}`);
 });
 
 test('review probes: read stamp cannot retarget, cross audiences or replay across replicas', async () => {
@@ -528,7 +530,7 @@ test('a stamp under an unheld key waits for the read already running', async t =
  const running = response => {
   let release;
   answer = () => new Promise(resolve => { release = () => resolve(response); });
-  now += 301_000;
+  now += 11_000; // past ADMISSION_MAX_AGE: readiness re-reads
   v.ready();
   answer = () => Promise.resolve(response);
   return () => release();
@@ -590,7 +592,7 @@ test('many stamps wait for one running read and are held no longer than its time
  const running = async (hop, response) => {
   let release;
   answer = () => new Promise(resolve => { release = () => resolve(response); });
-  now += 301_000;
+  now += 11_000; // past ADMISSION_MAX_AGE: readiness re-reads
   const before = keys.reads;
   v.ready();
   answer = () => Promise.resolve(response);
@@ -660,6 +662,54 @@ test('a rotation overlap admits both keys until the retiring one is withdrawn', 
  await settle();
  await assert.rejects(v.verify(fresh(now, METHOD, fixture.audience, fixture.headers, 'retiring'), METHOD), e => e.code === Reason.StampProof);
  await v.verify(fresh(now, METHOD, fixture.audience, fixture.headers, 'current'), METHOD);
+});
+
+// A hop admission key the authority has withdrawn stops admitting about
+// ADMISSION_MAX_AGE (10 s) later, as in Go: a stamp arriving once the admission
+// keys held are older than that starts a re-read, and once it lands the key
+// admits nothing, with no readiness poll and no wait for KEY_MAX_AGE. Inside
+// ADMISSION_MAX_AGE the held keys admit, reading nothing.
+test('a withdrawn admission key stops admitting within ADMISSION_MAX_AGE', async () => {
+ let now = fixture.now * 1000, answer = publishing('withdrawn', 'current');
+ const keys = source(() => Promise.resolve(answer));
+ const v = new Verifier(keys, fixture.audience, replay(), () => now);
+ const admit = async hop => { try { return await v.verify(fresh(now, METHOD, fixture.audience, fixture.headers, hop), METHOD); } finally { await settle(); } };
+ for (const hop of ['withdrawn', 'current']) await admit(hop);
+ answer = publishing('current'); // the authority withdraws the key
+ const reads = keys.reads;
+ now += 9_000;
+ await admit('withdrawn');
+ assert.equal(keys.reads, reads, 'inside ADMISSION_MAX_AGE the held keys admit and nothing is read');
+ now += 2_000;
+ await admit('current'); // past ADMISSION_MAX_AGE a stamp starts the re-read
+ assert.equal(keys.reads, reads + 1);
+ await assert.rejects(admit('withdrawn'), e => e.code === Reason.StampProof);
+ await admit('current');
+});
+
+// Admission keys the authority cannot confirm are trusted no longer than
+// ADMISSION_STALE (2 min): failed re-reads keep them that long, and then every
+// stamp is refused as keys_unavailable, a malformed one as stamp_proof without
+// a read. The Work Context keys keep their own bound.
+test('admission keys the authority cannot confirm are trusted no longer than ADMISSION_STALE', async () => {
+ const start = fixture.now * 1000;
+ let now = start, failing = false;
+ const keys = source(() => failing ? Promise.reject(new Error('authority down')) : Promise.resolve(publishing('the-hop')));
+ const v = new Verifier(keys, fixture.audience, replay(), () => now);
+ await v.verify(fresh(now, METHOD, fixture.audience, fixture.headers, 'the-hop'), METHOD);
+ failing = true;
+ now = start + 11_000;
+ await v.verify(fresh(now, METHOD, fixture.audience, fixture.headers, 'the-hop'), METHOD); // one failed re-read keeps the key
+ await settle();
+ now = start + 121_000;
+ await assert.rejects(v.verify(fresh(now, METHOD, fixture.audience, fixture.headers, 'the-hop'), METHOD), e => e.code === Reason.KeysUnavailable);
+ await settle();
+ now += 11_000;
+ const reads = keys.reads;
+ await assert.rejects(v.verify({...fixture.headers, 'x-codefly-hop-proof': 'not-an-admission'}, METHOD), e => e.code === Reason.StampProof);
+ assert.equal(keys.reads, reads, 'a malformed proof read the keys');
+ const id = await v.verifyToken(fixture.headers['x-codefly-work-context']);
+ assert.equal(id.owner, fixture.identity.owner);
 });
 
 // Each key serves its own purpose only: an admission key published among the

@@ -31,6 +31,7 @@ from authority_client._gen.host.authority.v1.work_context_pb2 import WorkContext
 from authority_client.work_context import Claims, Trust, Unauthenticated, Reason, authenticate_token, bound_token, collect
 
 __all__ = ["Identity", "Verifier", "Unauthenticated", "Reason", "identity_of", "ReplayStore", "ReservationStore", "Replayed", "Expired", "NoAdmissionKeys",
+           "ADMISSION_MAX_AGE", "ADMISSION_STALE",
            "ADMITTED_KEY", "ANY_ACTION", "Admission", "Grant", "Held", "Method", "Named", "Permission", "Selection",
            "admission_of", "admitted", "encode_grants", "grants_of"]
 
@@ -61,6 +62,14 @@ ADVISORY_KEY = STAMP_PREFIX + "advisory"
 # KEY_MAX_AGE.
 KEY_RETRY, KEY_MAX_AGE, KEY_STALE, KEY_TIMEOUT = 10.0, 300.0, 900.0, 5.0
 SIGNER_RETRY = 10.0
+# The hop's admission keys are held to shorter bounds than the Work Context
+# keys, as in Go, because a withdrawn one must stop admitting promptly: a stamp
+# or a readiness poll arriving when they were read more than ADMISSION_MAX_AGE
+# ago starts a re-read (at most every KEY_RETRY) and uses them while it runs,
+# so a key the authority withdrew stops admitting when that read lands; keys
+# the authority has not confirmed for ADMISSION_STALE admit nothing, the call
+# waiting for a read first.
+ADMISSION_MAX_AGE, ADMISSION_STALE = 10.0, 120.0
 
 
 @dataclass(frozen=True)
@@ -196,7 +205,10 @@ class Verifier:
         with self._lock:
             now = self._now()
             unadmitting = self._replay is not None and not self._admission
-            if (self._trust is None or now - self._fetched > KEY_MAX_AGE or unadmitting) and self._inflight is None and now - self._tried >= KEY_RETRY:
+            # An admitting verifier keeps its admission keys no older than
+            # ADMISSION_MAX_AGE, so a withdrawn one is dropped without traffic.
+            aged = self._replay is not None and now - self._fetched > ADMISSION_MAX_AGE
+            if (self._trust is None or now - self._fetched > KEY_MAX_AGE or unadmitting or aged) and self._inflight is None and now - self._tried >= KEY_RETRY:
                 self._refresh()
             return self._trust is not None and now - self._fetched <= KEY_STALE and not unadmitting
 
@@ -251,7 +263,7 @@ class Verifier:
     def _admit(self, headers, method):
         arrival, mark = self._now(), time.monotonic()
         pairs = self._pairs(headers)
-        wait = self._admission_read()
+        wait = self._admission_read(pairs)
         if wait is not None:
             futures.wait((wait,), self._timeout)
         key, wait, started = self._signer_key(pairs, reread=True)
@@ -289,7 +301,7 @@ class Verifier:
     async def _admit_async(self, headers, method):
         arrival, mark = self._now(), time.monotonic()
         pairs = self._pairs(headers)
-        wait = self._admission_read()
+        wait = self._admission_read(pairs)
         if wait is not None:
             try:
                 await asyncio.wait_for(asyncio.wrap_future(wait), self._timeout)
@@ -359,21 +371,29 @@ class Verifier:
             raise Unauthenticated(Reason.CONFIGURATION)
         return list(headers.items() if isinstance(headers, Mapping) else headers)
 
-    def _admission_read(self) -> futures.Future[None] | None:
+    def _admission_read(self, pairs) -> futures.Future[None] | None:
         """The read an admission must wait for, if any. An admission is judged on
-        the keys held: keys past ``KEY_MAX_AGE`` start no read here, and a stamp
-        signed by no key held starts at most one per ``SIGNER_RETRY``
-        (``_signer_key``), so a caller without an admission can neither drive the
-        authority's keys nor delay a genuine call's read. Only
-        when no trusted keys are held at all (never read, or past ``KEY_STALE``),
+        the keys held, and a stamp signed by no key held starts at most one read
+        per ``SIGNER_RETRY`` (``_signer_key``), so a caller without an admission
+        can neither drive the authority's keys nor delay a genuine call's read.
+        When no trusted keys are held at all (never read, or past ``KEY_STALE``),
         or the last read published no admission key (the hop had not registered
-        yet), does it start one, at most every ``KEY_RETRY`` as readiness does."""
+        yet), it starts a read, at most every ``KEY_RETRY`` as readiness does,
+        and the call waits for it. Admission keys read more than
+        ``ADMISSION_MAX_AGE`` ago start one too, for a well-formed admission
+        only, and are used while it runs: a key the authority withdrew stops
+        admitting when that read lands. Past ``ADMISSION_STALE`` they are not
+        used: a well-formed admission waits for the read."""
         with self._lock:
             now = self._now()
-            trusted = self._trust is not None and now - self._fetched <= KEY_STALE and bool(self._admission)
-            if not trusted and self._inflight is None and now - self._tried >= KEY_RETRY:
+            age = now - self._fetched
+            trusted = self._trust is not None and age <= KEY_STALE and bool(self._admission)
+            # Only a well-formed admission starts or waits for a read of keys
+            # that are held: nothing else reaches the key read.
+            aged = trusted and age > ADMISSION_MAX_AGE and _proof(collect(pairs)) is not None
+            if (not trusted or aged) and self._inflight is None and now - self._tried >= KEY_RETRY:
                 self._refresh()
-            return None if trusted else self._inflight
+            return self._inflight if not trusted or (aged and age > ADMISSION_STALE) else None
 
     def _signer_key(self, pairs, *, reread: bool, started: bool = False) -> tuple[str, futures.Future[None] | None, bool]:
         """The published hop admission key the admission is signed by, judged on
@@ -395,8 +415,12 @@ class Verifier:
                     raise Unauthenticated(Reason.INVALIDKEY)
                 raise Unauthenticated(Reason.KEYSUNAVAILABLE)
             published = self._admission
+            # Keys the authority could not confirm for ADMISSION_STALE admit
+            # nothing: one of them may have been withdrawn since.
             if not published:
                 raise Unauthenticated(Reason.KEYSUNAVAILABLE)
+            if self._now() - self._fetched > ADMISSION_STALE:
+                raise Unauthenticated(Reason.KEYSUNAVAILABLE if _proof(collect(pairs)) is not None else Reason.STAMPPROOF)
             key = signed_by(pairs, published)
             if key:
                 return key, None, False
