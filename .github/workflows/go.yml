@@ -65,6 +65,9 @@ jobs:
           echo "HOP_TEST_POSTGRES=host=/var/run/postgresql dbname=postgres" >> "$GITHUB_ENV"
       - name: go vet
         run: go vet ./...
+      - name: ordinary-build reach performance guard
+        if: matrix.module == 'libraries/authority-core/go'
+        run: go test ./decide -run '^TestReachOfIsFastOnDenseCompositions$' -count=1
       - name: go test -race
         run: go test -race -count=1 ./...
 
