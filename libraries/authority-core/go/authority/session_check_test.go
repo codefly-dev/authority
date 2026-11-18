@@ -3,6 +3,7 @@ package authority_test
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
@@ -49,5 +50,60 @@ func TestSessionLedgerFailureRefusesIssueVerifyAndChild(t *testing.T) {
 	}
 	if out, err := svc.IssueChild(h.ctx, root.Token, authority.Workload{Module: "ledger"}, authority.IssueRequest{Binding: "self"}); !errors.Is(err, failure) || out.Token != "" {
 		t.Fatalf("child issue returned token=%t err=%v", out.Token != "", err)
+	}
+}
+
+// Hold issuance after its session lookup has observed the live session. Ending
+// the session in that window must fence even a token signed after sign-out.
+func TestSignOutDuringPersonIssuance(t *testing.T) {
+	h := newHarness(t)
+	ledgerWithRoles(t, h, "rob")
+	var ended atomic.Bool
+	checked := make(chan struct{})
+	resume := make(chan struct{})
+	expired := errors.New("session ended")
+	cfg := h.cfg
+	cfg.CheckSession = func(context.Context, string) error {
+		if ended.Load() {
+			return expired
+		}
+		close(checked)
+		<-resume
+		return nil
+	}
+	svc, err := authority.New(h.store, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	person := h.person("rob")
+	person.SessionID = "interactive-root"
+	type result struct {
+		token string
+		err   error
+	}
+	done := make(chan result, 1)
+	go func() {
+		out, err := svc.IssueForPerson(h.ctx, person, authority.IssueRequest{Audience: "ledger"})
+		done <- result{out.Token, err}
+	}()
+	select {
+	case <-checked:
+	case r := <-done:
+		t.Fatalf("issuance finished before checking the session: %v", r.err)
+	}
+	ended.Store(true)
+	close(resume)
+	r := <-done
+	if r.err != nil {
+		if !errors.Is(r.err, expired) || r.token != "" {
+			t.Fatalf("unexpected issuance result: token=%t err=%v", r.token != "", r.err)
+		}
+		return
+	}
+	if r.token == "" {
+		t.Fatal("successful issue returned an empty token")
+	}
+	if _, err := svc.Verify(h.ctx, r.token, "ledger"); !errors.Is(err, expired) {
+		t.Fatalf("verification after sign-out: %v", err)
 	}
 }
