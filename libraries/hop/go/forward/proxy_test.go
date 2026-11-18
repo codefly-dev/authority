@@ -62,12 +62,15 @@ var identityRead = &basev0.WorkScopeV1{ResourceKind: "console.identity", Actions
 // Verifier a module runs.
 type module struct {
 	reached int
+	// received is the metadata of the last call that reached the module.
+	received metadata.MD
 }
 
 func (m *module) Version(ctx context.Context) (string, error) {
 	m.reached++
 	id, _ := hop.FromContext(ctx)
 	md, _ := metadata.FromIncomingContext(ctx)
+	m.received = md
 	return id.Owner + "@" + id.Tenant + " " + strings.Join(id.Scopes, ",") + " token=" + strings.Join(md.Get(hop.WorkContextKey), ""), nil
 }
 

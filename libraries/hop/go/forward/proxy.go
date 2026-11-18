@@ -75,6 +75,9 @@ func (p *Proxy) handle(_ any, in grpc.ServerStream) error {
 			out[key] = values
 		}
 	}
+	// The module receives what the hop vouches for, and no credential of the
+	// caller's.
+	hop.StripCredentials(out)
 	// This final check is the admission point, not a reservation through
 	// stamping or I/O. An admitted call may finish across Close or expiry.
 	if err := requirePublication(p.Ready); err != nil {

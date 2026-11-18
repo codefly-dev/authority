@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -113,7 +114,9 @@ func (h *HTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			pr.SetURL(target)
 			pr.Out.Host = target.Host
 			for name := range pr.Out.Header {
-				if strings.HasPrefix(strings.ToLower(name), hop.StampPrefix) {
+				// No stamp of the caller's and no credential of the caller's
+				// (hop.CallerCredentials) reaches the module.
+				if lower := strings.ToLower(name); strings.HasPrefix(lower, hop.StampPrefix) || slices.Contains(hop.CallerCredentials, lower) {
 					pr.Out.Header.Del(name)
 				}
 			}

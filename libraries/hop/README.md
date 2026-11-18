@@ -209,6 +209,13 @@ sorted by kind, action, owner, ids, each once. It is written under the stamp
 prefix, so a caller's value is stripped, and nothing is written on a refused
 call because nothing is forwarded.
 
+The hop forwards no credential of the caller's: `authorization`, `cookie` and
+`proxy-authorization` (`hop.CallerCredentials`) are removed on both faces, so a
+module receives the checked Work Context and the stamp and never a session or
+a bearer meant for something else. What names the caller's operation still
+arrives, because modules read it to apply an effect once: `x-codefly-effect-id`,
+`Idempotency-Key` and `x-codefly-operation-id`.
+
 A verifier trusts it exactly as it trusts the stamped identity: it derives the
 same entries from the Work Context it authenticated and refuses the call as
 `stamp_identity` when the header is repeated or says anything else. It then

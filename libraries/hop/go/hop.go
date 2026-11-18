@@ -135,6 +135,28 @@ func Strip(md metadata.MD) {
 	}
 }
 
+// CallerCredentials are the metadata keys (HTTP headers, compared without
+// case) that carry a credential of the caller's: the session a browser sent,
+// a bearer for the hop or for another service, a proxy's. They are for the
+// hop and whoever stood before it. A module receives the Work Context the
+// authority checked and the hop's stamp, and none of these, so a module that
+// logs, forwards or trusts a header never does so with a caller's credential.
+//
+// What names the caller's operation rather than who it is still passes: the
+// effect id (x-codefly-effect-id), the Idempotency-Key and the operation id
+// (x-codefly-operation-id), which modules read to apply an effect once.
+var CallerCredentials = []string{"authorization", "cookie", "proxy-authorization"}
+
+// StripCredentials removes every caller credential (CallerCredentials) from
+// what the hop forwards.
+func StripCredentials(md metadata.MD) {
+	for key := range md {
+		if slices.Contains(CallerCredentials, strings.ToLower(key)) {
+			delete(md, key)
+		}
+	}
+}
+
 // Stamp writes identity and a signed call admission, stripping caller stamps.
 func Stamp(md metadata.MD, id Identity, signer *stamp.Signer, method, audience string, now time.Time) error {
 	if id.Advisory != "" {
