@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"log"
 	"net"
 	"net/http"
@@ -32,6 +33,18 @@ func TestAModuleTheEdgeCannotReachKeepsItsAddressInTheLog(t *testing.T) {
 	proxy(target, "", "", rec, httptest.NewRequest(http.MethodGet, "/v1/documents", nil))
 	if rec.Code != http.StatusBadGateway || rec.Body.String() != "{\"error\":\"the module did not answer\"}\n" {
 		t.Fatalf("the caller was told %d %s", rec.Code, rec.Body.String())
+	}
+	request := httptest.NewRequest(http.MethodPost, "/documents.v1.DocumentsService/Search", nil)
+	request.Header.Set("Connect-Protocol-Version", "1")
+	request.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	proxy(target, "", "", rec, request)
+	var failure struct{ Code, Message string }
+	if err := json.Unmarshal(rec.Body.Bytes(), &failure); err != nil {
+		t.Fatal(err)
+	}
+	if rec.Code != http.StatusServiceUnavailable || failure.Code != "unavailable" || failure.Message != "the module did not answer" {
+		t.Fatalf("Connect caller received %d %s", rec.Code, rec.Body.String())
 	}
 	if !strings.Contains(logged.String(), address) {
 		t.Fatalf("the edge's log was told %q", logged.String())

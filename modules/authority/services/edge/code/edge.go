@@ -818,7 +818,7 @@ func send(target *url.URL, token, effect string, w http.ResponseWriter, r *http.
 				return
 			}
 			log.Printf("edge: the module did not answer %s %s: %v", r.Method, r.URL.Path, err)
-			refuse(w, http.StatusBadGateway, "the module did not answer")
+			refuseCall(w, r, http.StatusBadGateway, "the module did not answer")
 		},
 	}
 	if withhold != nil {
@@ -851,7 +851,7 @@ func refuseCall(w http.ResponseWriter, r *http.Request, code int, reason string)
 			c = connect.CodeUnauthenticated
 		case http.StatusNotFound:
 			c = connect.CodeUnimplemented
-		case http.StatusServiceUnavailable:
+		case http.StatusBadGateway, http.StatusServiceUnavailable:
 			c = connect.CodeUnavailable
 		}
 		_ = connectRefusal.Write(w, r, connect.NewError(c, errors.New(reason)))
