@@ -160,6 +160,7 @@ type Session struct {
 	// ExpiresAt is when the session ends on its own; a role view or a cast
 	// carries its parent's.
 	ExpiresAt time.Time
+	Ended     bool
 }
 
 type fixtureFile struct {
@@ -243,13 +244,23 @@ func New(anchor native.Anchor, audience string, cfg authority.Config) (*State, e
 		cfg.Keys = keySet{cfg.KeyID: public}
 	}
 	store := memstore.New()
+	var state *State
+	cfg.CheckSession = func(ctx context.Context, id string) error {
+		state.mu.RLock()
+		defer state.mu.RUnlock()
+		if session, known := state.sessions[id]; known && (session.Ended || !state.svc.Now().Before(session.ExpiresAt)) {
+			return fmt.Errorf("%w: session ended or expired", ErrUnauthenticated)
+		}
+		return nil
+	}
 	svc, err := authority.New(store, cfg)
 	if err != nil {
 		return nil, err
 	}
-	return &State{store: store, svc: svc, attester: attester, audience: audience, trustDomain: runTrustDomain(anchor),
+	state = &State{store: store, svc: svc, attester: attester, audience: audience, trustDomain: runTrustDomain(anchor),
 		orgs: map[string]string{}, people: map[string]Person{}, byToken: map[string]string{}, roles: map[string]Role{},
-		sessions: map[string]Session{}, deliveries: map[string]*appliedDelivery{}, Approvals: &MemoryApprovals{}}, nil
+		sessions: map[string]Session{}, deliveries: map[string]*appliedDelivery{}, Approvals: &MemoryApprovals{}}
+	return state, nil
 }
 
 // Service is the core this host issues and decides through.
@@ -572,7 +583,7 @@ func (s *State) Caller(sessionID string) (authority.Person, error) {
 	if err != nil {
 		return authority.Person{}, err
 	}
-	return authority.Person{ID: sess.Person, Organization: sess.Organization, SessionID: sess.ID, Teams: slices.Clone(sess.Teams)}, nil
+	return authority.Person{ID: sess.Person, Organization: sess.Organization, SessionID: sess.ID, ExpiresAt: sess.ExpiresAt, Teams: slices.Clone(sess.Teams)}, nil
 }
 
 // ApplyManifest is trusted host fixture setup, never a public request path.

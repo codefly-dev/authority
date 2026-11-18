@@ -156,6 +156,12 @@ func (d *Decision) claimedBy(parent string) {
 // issued tells the host an issuance's decision and answers the caller: the
 // capability, unless it was refused or the host could not record it.
 func (s *Service) issued(ctx context.Context, d *Decision, out Issued, err error) (Issued, error) {
+	if err == nil && s.cfg.CheckSession != nil && out.Context.GetOwnerPrincipalKind() == "human" {
+		if err = s.cfg.CheckSession(ctx, rootSession(out.Context)); err != nil {
+			out = Issued{}
+		}
+	}
+
 	if s.cfg.Decisions == nil {
 		return out, err
 	}

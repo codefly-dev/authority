@@ -1705,3 +1705,16 @@ selects `--module-name api` explicitly to preserve the existing root Go package
 when consuming the exported contracts directory. Only existing reviewed entries
 in the generated-file inventory have their hashes refreshed; no exclusion is
 added. SQL/cell installation evidence remains owned by the integrating host.
+
+### Child capability deadlines
+
+A child capability expires no later than its original parent, including time
+spent reading issuance state. Rebuilding the actor chain uses the original
+absolute deadline, rather than adding an earlier remaining duration to a later
+clock reading. The advancing-clock regression is
+`TestChildDeadlineDoesNotSlideWhileIssuanceReadsState`.
+
+Interactive session roots are checked against the host session ledger at
+verification and before issuance returns. Ended rows must remain recognizable
+until their issued capabilities expire. Noninteractive roots do not name a
+host session. The local host keeps ended sessions as tombstones.

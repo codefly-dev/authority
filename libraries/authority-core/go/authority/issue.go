@@ -361,12 +361,12 @@ func (s *Service) issueForPerson(ctx context.Context, who Person, r IssueRequest
 	if err != nil {
 		return Issued{}, underView(viewing, err)
 	}
-	return s.startFenced(ctx, f, workcontext.StartInput{
+	return s.startFencedUntil(ctx, f, workcontext.StartInput{
 		TenantID: who.Organization, OrganizationID: who.Organization,
 		OwnerPrincipalID: who.ID, OwnerPrincipalKind: "human", TaskID: s.cfg.NewID(), SessionID: who.SessionID,
 		Audience: audience.Principal, AuthorityScopes: scope.Limits{}.Project(heldHere, scopes), AttributionTeamIDs: sortedTeams(attributionTeams(actingCast, who.Teams)),
 		InstallationID: inst.ID, TTL: clamp(r.TTL, s.cfg.MaxTTL),
-	})
+	}, who.ExpiresAt)
 }
 
 // attributionTeams is the teams work is attributed to. In a cast it is the
@@ -840,16 +840,17 @@ func (s *Service) derive(ctx context.Context, verified *workcontext.Verified, am
 	if len(hops) == 0 {
 		rootSession = parentSession
 	}
-	token, _, err := s.authority.Start(ctx, workcontext.StartInput{
+	root, err := s.startFencedUntil(ctx, f, workcontext.StartInput{
 		TenantID: tenant, OrganizationID: claims.GetOrganizationId(),
 		WorkspaceID: claims.GetWorkspaceId(), ProjectID: claims.GetProjectId(),
 		OwnerPrincipalID: claims.GetOwnerPrincipalId(), OwnerPrincipalKind: claims.GetOwnerPrincipalKind(), OwnerAgentID: claims.GetOwnerAgentId(),
 		TaskID: claims.GetTaskId(), Audience: audience.Principal, AuthorityScopes: authorityScopes, AttributionTeamIDs: claims.GetAttributionTeamIds(),
 		InstallationID: sealTo, SessionID: rootSession, TTL: ttl, ReplayPolicy: workcontext.ReplayIdempotent,
-	})
+	}, time.Unix(claims.GetExpiresAtUnix(), 0))
 	if err != nil {
 		return Issued{}, err
 	}
+	token := root.Token
 	for n := 0; n <= len(hops); n++ {
 		current, err := s.Verify(ctx, token, audience.Principal)
 		if err != nil {

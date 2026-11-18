@@ -38,6 +38,12 @@ type KeySource interface {
 // id (the core never holds a key), the verification keys, the clock and the
 // id sources, replay and approval-grant state.
 type Config struct {
+	// CheckSession checks a root identifier against the host's session ledger.
+	// Unknown identifiers belong to noninteractive roots. Ended session rows
+	// must remain distinguishable until every capability issued from them expires.
+	// Any lookup failure refuses verification and issuance.
+	CheckSession func(context.Context, string) error
+
 	Issuer, KeyID string
 	Signer        crypto.Signer
 	Keys          KeySource
@@ -175,6 +181,9 @@ func (s *Service) Now() time.Time { return s.cfg.Clock() }
 // Person is an authenticated person: who the session is, at which organization.
 type Person struct {
 	ID, Organization, SessionID string
+	// ExpiresAt bounds authority issued from this authenticated session.
+	// Zero is reserved for callers whose authority is not session-bound.
+	ExpiresAt time.Time
 	// Teams is the session's snapshot, kept as attribution; authority reads
 	// the person's teams live.
 	Teams []string
@@ -211,6 +220,11 @@ func (s *Service) Verify(ctx context.Context, token, audience string) (*workcont
 	if errors.Is(err, workcontext.ErrRevoked) {
 		// A seal, a grant or a membership moved since issue: say so by name.
 		return nil, fmt.Errorf("the capability was revoked: %w", err)
+	}
+	if err == nil && s.cfg.CheckSession != nil && verified.Context().GetOwnerPrincipalKind() == "human" {
+		if err = s.cfg.CheckSession(ctx, rootSession(verified.Context())); err != nil {
+			return nil, err
+		}
 	}
 	return verified, err
 }

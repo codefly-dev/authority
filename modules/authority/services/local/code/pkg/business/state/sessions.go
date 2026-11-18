@@ -21,7 +21,7 @@ const SessionLifetime = 12 * time.Hour
 // Caller holds mu.
 func (s *State) openLocked(id string) (Session, bool) {
 	sess, ok := s.sessions[id]
-	if !ok || !s.svc.Now().Before(sess.ExpiresAt) {
+	if !ok || sess.Ended || !s.svc.Now().Before(sess.ExpiresAt) {
 		return Session{}, false
 	}
 	return sess, true
@@ -40,9 +40,9 @@ func (s *State) keepChildLocked(parent string, sess Session) (Session, error) {
 }
 
 // EndSession ends the open session id names and every session opened from it,
-// transitively: its role views and casts, and theirs. An ended session is
-// forgotten, so its bearer names no open session from then on and nothing
-// reopens it. The session it was itself opened from is untouched.
+// transitively: its role views and casts, and theirs. An ended session remains
+// in the ledger so its bearer and issued capabilities stay refused. The session
+// it was itself opened from is untouched.
 func (s *State) EndSession(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -53,7 +53,9 @@ func (s *State) EndSession(id string) error {
 	for len(ending) > 0 {
 		next := ending[0]
 		ending = ending[1:]
-		delete(s.sessions, next)
+		session := s.sessions[next]
+		session.Ended = true
+		s.sessions[next] = session
 		for child, sess := range s.sessions {
 			if sess.Parent == next {
 				ending = append(ending, child)
