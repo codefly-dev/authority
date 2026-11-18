@@ -15,9 +15,9 @@ import (
 	"gateway/pkg/business/testkit"
 )
 
-// The fixture is the one the product seeds: the same five people, by the
-// same names, emails and sign-in tokens, first and in this order.
-func TestTheFixtureNamesTheFivePeopleTheProductSeeds(t *testing.T) {
+// These identities belong to the test-only authority matrix. The shipped
+// sign-in choices are covered by TestTheShippedFixtureIsTheCastAndNobodyElse.
+func TestAuthorityMatrixFixtureIdentities(t *testing.T) {
 	k := testkit.New(t)
 	people := k.State.FixturePeople()
 	want := []state.Person{

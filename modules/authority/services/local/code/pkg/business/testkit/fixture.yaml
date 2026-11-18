@@ -23,8 +23,7 @@ roles:
   - organization: globex
     name: admin
 people:
-  # The five, as the product's fixture names them. Their sign-in tokens are
-  # the provider ids the saas host signs them in by.
+  # Stable identities for tests of organisation administration and solution access.
   - id: sarah
     name: Sarah Chen
     email: admin@acme.com
