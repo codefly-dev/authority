@@ -386,6 +386,9 @@ func (s *Service) approvedReach(tx Tx, owner reachOwner, module string) (held Sc
 	}
 	if owner.agent != "" {
 		inst, err := tx.InstallationByPrincipal(owner.agent)
+		if err != nil && !errors.Is(err, domain.ErrNotFound) {
+			return nil, nil, false, err // an outage is no answer: "no installation" is NotFound alone
+		}
 		if err != nil || inst.AgentRole == "" || inst.AgentRole == domain.NoInstallationRole {
 			return nil, nil, false, nil // issuance refuses an agent with no installation or no standing authority
 		}
@@ -398,11 +401,20 @@ func (s *Service) approvedReach(tx Tx, owner reachOwner, module string) (held Sc
 			continue
 		}
 		seen[principal] = true
+		// Only "there is none" skips a principal: a module or an installation
+		// that could not be read is an outage, and reading it as nothing to
+		// bound the call by would admit what no consent approved.
 		m, err := tx.Module(principal)
+		if err != nil && !errors.Is(err, domain.ErrNotFound) {
+			return nil, nil, false, err
+		}
 		if err != nil || !decide.RoleGated(m) {
 			continue
 		}
 		inst, err := installationOf(tx, p.Organization, m.Name)
+		if err != nil && !errors.Is(err, domain.ErrNotFound) {
+			return nil, nil, false, err
+		}
 		if err != nil {
 			continue
 		}

@@ -269,6 +269,10 @@ func effectiveOf(wc *basev0.WorkContextV1) Scopes {
 // admits nobody more until the upgrade is approved, and the approved policy
 // holds on effective, what the call itself carries, as well as on the
 // approved reach.
+//
+// It fails closed: an owner kind it does not know is refused, and a lookup it
+// cannot make (approvedReach) is that failure, returned as the error. Only a
+// call it read as bounded by no consented installation passes unbounded.
 func (s *Service) withinApprovedReach(tx Tx, wc *basev0.WorkContextV1, effective Scopes, m domain.Module, method string) (error, error) {
 	owner := reachOwner{}
 	switch wc.GetOwnerPrincipalKind() {
@@ -281,8 +285,14 @@ func (s *Service) withinApprovedReach(tx Tx, wc *basev0.WorkContextV1, effective
 			return ownerGone(err, wc.GetOwnerPrincipalId()), nil
 		}
 		owner.person = &p
-	default:
+	case "service":
+		// A module's own work: no installation's consent bounds it, and its
+		// capability alone does.
 		return nil, nil
+	default:
+		// Core mints human, service and agent owners. Another kind is one
+		// this gate cannot bound, so it is refused, never passed unbounded.
+		return domain.Refuse("the capability's owner kind %q is none of human, agent and service, so no approved reach can bound its call at %s", wc.GetOwnerPrincipalKind(), m.Name), nil
 	}
 	_, admits, bounded, err := s.approvedReach(tx, owner, m.Name)
 	if err != nil || !bounded {
