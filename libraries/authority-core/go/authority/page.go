@@ -20,9 +20,11 @@ import (
 // present on the target's page, which consent in person admits as it admits
 // no other actor (decide.Artifact). Only this path takes it; a host serves it
 // to its module edge alone. r.Binding names the binding when target declares
-// more than one to the audience. When target declares none, the audience is an edge
-// the page reaches on the person's own session, and their own access there
-// decides, as IssueForPerson answers.
+// more than one to the audience. A call to target itself is the person's
+// capability there, their roles on it (IssueForPerson). A call to any other
+// module target declares no person-usable binding to (invoke or lookup) is
+// refused, by name: a page reaches a module only through a binding its
+// target declares, never on the person's own access (RBAC-3).
 func (s *Service) IssueForPage(ctx context.Context, who Person, target string, r IssueRequest) (Issued, error) {
 	var page domain.Module
 	var binding string
@@ -35,6 +37,9 @@ func (s *Service) IssueForPage(ctx context.Context, who Person, target string, r
 		if err != nil {
 			return notFound(err)
 		}
+		if audience.Principal == page.Principal {
+			return nil
+		}
 		binding, err = pageBinding(page, audience.Principal, r.Binding)
 		return err
 	})
@@ -42,6 +47,7 @@ func (s *Service) IssueForPage(ctx context.Context, who Person, target string, r
 		return Issued{}, err
 	}
 	if binding == "" {
+		// The page's own target: the person's roles there.
 		r.Binding = ""
 		return s.IssueForPerson(ctx, who, r)
 	}
@@ -53,9 +59,9 @@ func (s *Service) IssueForPage(ctx context.Context, who Person, target string, r
 }
 
 // pageBinding is the binding of page a person's call at audience goes
-// through: the one page declares to it for a person (invoke or lookup), the
-// one named among them, or none when it declares none. Two, with none named,
-// is refused rather than chosen.
+// through: the one page declares to it for a person (invoke or lookup), or
+// the one named among them. None declared, a name page does not declare, or
+// two with none named is refused rather than chosen.
 func pageBinding(page domain.Module, audience, named string) (string, error) {
 	var declared []string
 	for id, b := range page.Bindings {
@@ -74,5 +80,5 @@ func pageBinding(page domain.Module, audience, named string) (string, error) {
 	case len(declared) == 1:
 		return declared[0], nil
 	}
-	return "", nil
+	return "", domain.Refuse("%s declares no binding to %s: a page reaches a module only through a binding its target declares (invoke or lookup), never on the person's own access", page.Name, audience)
 }
