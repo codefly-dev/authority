@@ -204,7 +204,10 @@ func castHolds(tx Tx, member domain.Person, v domain.RoleView, casts []string) e
 
 // castOfClaims refuses a person's capability that descends from a cast which
 // no longer holds (castHolds), and passes every other: a capability issued in
-// a cast is the cast's, on whichever installation it was issued.
+// a cast is the cast's, on whichever installation it was issued. It passes
+// only a cast it read as holding: a person the host no longer has is refused
+// as the member they no longer are, and a read that failed is that failure,
+// never a pass.
 func castOfClaims(tx Tx, wc *basev0.WorkContextV1) error {
 	session := rootSession(wc)
 	if wc.GetOwnerPrincipalKind() != "human" || session == "" {
@@ -218,9 +221,10 @@ func castOfClaims(tx Tx, wc *basev0.WorkContextV1) error {
 		return err
 	}
 	if _, err := personOfClaims(tx, wc); err != nil {
-		if c, ok := domain.CodeOf(err); ok && c == domain.Denied {
-			return err
+		if errors.Is(err, domain.ErrNotFound) {
+			return ownerGone(err, wc.GetOwnerPrincipalId())
 		}
+		return err
 	}
 	return nil
 }
