@@ -412,18 +412,18 @@ func (s *State) performInstall(ctx context.Context, i FixtureInstallation, inten
 			return fmt.Errorf("fixture installation of %s at %s: %w", i.Target, i.Organization, classify(err))
 		}
 	}
-	return s.write(func(tx authority.Tx) error {
-		grants := []domain.RoleGrant{{InstallationID: id, Role: AdminRole, PersonID: i.Owner}}
-		for _, team := range i.Teams {
-			grants = append(grants, domain.RoleGrant{InstallationID: id, Role: i.Role, TeamID: team})
+	// Each grant goes through the core's decision, as an administrator's
+	// would: nothing the fixture names is written past it.
+	grants := []domain.RoleGrant{{InstallationID: id, Role: AdminRole, PersonID: i.Owner}}
+	for _, team := range i.Teams {
+		grants = append(grants, domain.RoleGrant{InstallationID: id, Role: i.Role, TeamID: team})
+	}
+	for _, g := range grants {
+		if err := s.grantAsHost(ctx, g); err != nil {
+			return fmt.Errorf("fixture installation of %s at %s: %w", i.Target, i.Organization, err)
 		}
-		for _, g := range grants {
-			if err := tx.PutRoleGrant(g); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
+	}
+	return nil
 }
 
 // SignIn opens a session for the person holding a fixture token.
@@ -699,9 +699,25 @@ func (s *State) UninstallAsHost(id string) error {
 	return s.svc.UninstallAsHost(context.Background(), inst.Organization, id)
 }
 
-// GrantRole grants a role as the host's own setup (no caller): a test's.
+// GrantRole grants a role as the host's own setup (no caller): a test's. It
+// is decided as every grant is (grantAsHost).
 func (s *State) GrantRole(g domain.RoleGrant) error {
-	return s.write(func(tx authority.Tx) error { return tx.PutRoleGrant(g) })
+	return s.grantAsHost(context.Background(), g)
+}
+
+// grantAsHost grants a role with no caller, through the core's one grant
+// decision (authority.GrantRoleAsHost), the organization's administrator
+// standing as the caller: the installation is installed, the role is one its
+// target declares, and the subject is one person or one team of its
+// organization. The host writes no grant the decision did not admit, and the
+// core journals it as it does an administrator's.
+func (s *State) grantAsHost(ctx context.Context, g domain.RoleGrant) error {
+	inst, ok := s.Installation(g.InstallationID)
+	if !ok {
+		return fmt.Errorf("%w: installation %q", ErrUnknown, g.InstallationID)
+	}
+	_, err := s.svc.GrantRoleAsHost(ctx, authority.RoleRequest{Organization: inst.Organization, InstallationID: g.InstallationID, Role: g.Role, PersonID: g.PersonID, TeamID: g.TeamID})
+	return classify(err)
 }
 
 // runTrustDomain is the one trust domain every workload anchor declares is
