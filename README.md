@@ -505,7 +505,10 @@ minting and after issuance. These checks do not choose a child-scope policy or
 qualify the separate accounts implementation.
 
 Installation administration (`List`, `Install`) requires an open session whose
-current person is an administrator or owner of the requested organization; role
+current person is an administrator of the requested organization: a holder of
+its `admin` role, the one organisation role the core reads (no other name
+administers, `owner` included; a host with another name for an administrator
+hands the core `admin` for that person); role
 grants (`GrantRole`, `RevokeRole`, `ListRoleGrants`) also admit the holder of the
 admin role on that installation. Anonymous and invalid sessions are
 `Unauthenticated`; anyone else receives `PermissionDenied`, and a caller of

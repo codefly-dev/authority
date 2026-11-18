@@ -51,17 +51,6 @@ func localConformanceFixture(t *testing.T, clock *conformance.Clock) (grpc.Clien
 	// wiki must be hers alone: the composition's team grants become the same
 	// role granted to each member directly.
 	directGrants(t, k, state.InstallationID("acme", "wiki"), "user", map[string][]string{"finance": {"maya", "alex"}, "engineering": {"remi", "alex", "dev"}})
-	if err := k.State.LoadFixture(context.Background(), []byte(`roles:
-  - organization: acme
-    name: owner
-people:
-  - id: inventory-owner
-    fixture_token: fixture-owner
-    organization: acme
-    roles: [owner]
-`)); err != nil {
-		t.Fatal(err)
-	}
 	source := testkit.Wiki(1)
 	source.Name, source.Principal = "assistant", "assistant"
 	source.Bindings = map[string]state.Binding{
@@ -197,7 +186,6 @@ people:
 			None:      conformance.WorkloadOrganizationCase{Credential: k.Credential(t, "runtime"), Module: "runtime", Binding: "model", Audience: "model"},
 		},
 		LocalAdvisory:   true,
-		OwnerToken:      "fixture-owner",
 		OtherAdminToken: "fixture-zoe",
 		HopCredential:   k.HopCredential(t),
 		EdgeCredential:  k.EdgeCredential(t),

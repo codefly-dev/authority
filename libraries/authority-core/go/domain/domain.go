@@ -23,7 +23,7 @@ type Organization struct {
 }
 
 // Person is a member of one organization: its organization roles (an
-// administrator holds "admin" or "owner") and its teams. Identity is the
+// administrator holds "admin", and no other name administers) and its teams. Identity is the
 // host's; the authority reads it.
 type Person struct {
 	ID, Organization string

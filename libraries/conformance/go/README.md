@@ -77,7 +77,10 @@ nobody else holds an organisation role. The local kit seats Maya as the user
 and Remi as the admin of the module pages it composes (records, the directory,
 evaluation, the model); Dev and Omar are seated on none of them. Omar's ops team does hold a Globex wiki installation
 role, so the no-entitlement case uses the existing `fixture-no-roles` person.
-An additional organization owner proves inventory access without the admin role.
+`admin` is the one organisation role that administers. A host whose membership
+has another name for an administrator (an organisation's creator called
+`owner`, say) hands the core `admin` for that person; the suite no longer takes
+an `OwnerToken`.
 Host fixtures map these behaviours to their own person and organization IDs;
 providing different labels does not remove an obligation.
 

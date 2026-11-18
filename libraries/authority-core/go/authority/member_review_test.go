@@ -21,7 +21,7 @@ func TestAMemberHoldingARoleReviewsTheOfferWithoutItsConsent(t *testing.T) {
 	for _, target := range []string{"a", "no-such-solution", "store"} {
 		_, err := h.svc.ReviewOffer(h.ctx, maya, acme, target)
 		code(t, err, domain.Denied)
-		if want := `reviewing "` + target + `" requires an administrator or owner of organization "acme", or a role on its installation there`; err.Error() != want {
+		if want := `reviewing "` + target + `" requires an administrator of organization "acme", or a role on its installation there`; err.Error() != want {
 			t.Fatalf("maya, holding nothing, reviewing %s: %v", target, err)
 		}
 	}
@@ -43,11 +43,11 @@ func TestAMemberHoldingARoleReviewsTheOfferWithoutItsConsent(t *testing.T) {
 	_, err = h.svc.ReviewOffer(h.ctx, maya, acme, "b")
 	refused(t, err, `reviewing "b" requires`)
 	_, err = h.svc.Review(h.ctx, maya, acme, "a")
-	refused(t, err, "installation administration requires an administrator or owner")
+	refused(t, err, "installation administration requires an administrator")
 	_, err = h.svc.ReviewOffer(h.ctx, tam, globex, "a")
 	refused(t, err, `organization "globex"`)
 	_, err = h.svc.ReviewOffer(h.ctx, h.admin(globex), acme, "a")
-	refused(t, err, `reviewing "a" requires an administrator or owner of organization "acme"`)
+	refused(t, err, `reviewing "a" requires an administrator of organization "acme"`)
 
 	h.revoke("a", "user", "maya", "")
 	_, err = h.svc.ReviewOffer(h.ctx, maya, acme, "a")

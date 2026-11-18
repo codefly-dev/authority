@@ -67,8 +67,6 @@ type Fixture struct {
 	SolutionRoles *SolutionRoleCase
 	// Lifecycle controls the real install-step acknowledgement and revocation.
 	Lifecycle *InstallationLifecycleCase
-	// OwnerToken is a member with the organization owner role, not admin.
-	OwnerToken string
 	// OtherAdminToken signs in an administrator of another organization.
 	OtherAdminToken string
 	// HopCredential is the workload credential of the composition's hop, the

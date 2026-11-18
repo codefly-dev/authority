@@ -94,8 +94,8 @@ func newHarness(t *testing.T) *harness {
 	}
 	h.store.PutTeam(acme, "team")
 	h.store.PutTeam(globex, "ops")
-	// An organisation role is a name a person holds. "admin" (and "owner")
-	// administer; ada's and rob's are names of no meaning to the core, held to
+	// An organisation role is a name a person holds. "admin" alone
+	// administers; ada's and rob's are names of no meaning to the core, held to
 	// prove that no name reaches a module.
 	for _, p := range []domain.Person{
 		{ID: "alex", Organization: acme, Roles: []string{"admin"}},

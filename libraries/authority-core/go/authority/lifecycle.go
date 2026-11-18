@@ -1310,7 +1310,7 @@ func (s *Service) Installations(ctx context.Context, caller Person, org string) 
 	err := s.store.Read(ctx, func(tx Tx) error {
 		p, err := memberAs(tx, caller, org)
 		if err != nil || !decide.IsAdministrator(p) {
-			return domain.Refuse("installation administration requires an administrator or owner of organization %q", org)
+			return domain.Refuse("installation administration requires an administrator of organization %q", org)
 		}
 		out, err = tx.Installations(org)
 		return err

@@ -102,7 +102,7 @@ func TestADeliveryWideningAPageRolesReachHoldsItsInstallationAtTheApprovedReach(
 
 	// A user approves nothing; a further widening still holds at 7.
 	_, err = h.approvePage(svc, "maya")
-	refused(t, err, "requires an administrator or owner")
+	refused(t, err, "requires an administrator")
 	nine := pageReachingStore(9, "read", "write")
 	nine.Roles[domain.AdminRole] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(kind, "read", "write")}
 	if _, err := svc.ApplyModule(h.ctx, nine); err != nil {

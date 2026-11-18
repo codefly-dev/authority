@@ -266,7 +266,7 @@ func TestAUserNeitherApprovesNorAdministersAPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := h.approvePage(h.svc, "maya")
-	refused(t, err, "requires an administrator or owner")
+	refused(t, err, "requires an administrator")
 	code(t, h.grantAs("maya", domain.UserRole, "dev"), domain.Denied)
 	if up, err := h.approvePage(h.svc, "remi"); err != nil || up.Consent.Generation != 2 {
 		t.Fatalf("the admin's approval: %+v %v", up.Consent, err)

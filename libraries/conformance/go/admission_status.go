@@ -12,14 +12,6 @@ import (
 // use an installed audience. Navigation must not need an administrative List.
 func (c *client) admissionStatus(t *testing.T, ctx context.Context, f Fixture) {
 	c.run(t, f, "installation inventory is an administrator read", func(t *testing.T, c *client, f Fixture) {
-		t.Run("an organization owner can list installations", func(t *testing.T) {
-			if f.OwnerToken == "" {
-				t.Fatal("required conformance fixture missing: organization owner distinct from admin")
-			}
-			owner := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.OwnerToken})
-			_, err := c.call(as(ctx, owner), "host.installation.v1.InstallationService", "List", map[string]any{"organization_id": f.Organization})
-			refused(t, err, codes.OK, "")
-		})
 		viewer := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
 		admin := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.AdminToken})
 		for _, tc := range []struct {
@@ -37,7 +29,7 @@ func (c *client) admissionStatus(t *testing.T, ctx context.Context, f Fixture) {
 				_, err := c.call(tc.ctx, "host.installation.v1.InstallationService", "List", map[string]any{"organization_id": tc.org})
 				reason := ""
 				if tc.want == codes.PermissionDenied {
-					reason = "owner"
+					reason = "requires an administrator of organization"
 					if tc.name == "foreign organization" {
 						reason = "organization"
 					}

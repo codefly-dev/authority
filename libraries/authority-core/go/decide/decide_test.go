@@ -106,6 +106,19 @@ func TestOwnerSelectedScopesNeedAnOwnerAwareAudience(t *testing.T) {
 	}
 }
 
+// "admin" is the one organisation role that administers. No other name does,
+// "owner" included: the roles a host hands the core are admin or nothing.
+func TestOnlyTheAdminRoleAdministers(t *testing.T) {
+	for _, roles := range [][]string{nil, {"owner"}, {"Admin"}, {"owner", "member"}, {"administrator"}} {
+		if decide.IsAdministrator(domain.Person{ID: "p", Organization: "acme", Roles: roles}) {
+			t.Errorf("a person holding %q administers", roles)
+		}
+	}
+	if !decide.IsAdministrator(domain.Person{ID: "p", Organization: "acme", Roles: []string{"member", "admin"}}) {
+		t.Error("the admin role does not administer")
+	}
+}
+
 func TestWhoMayChangeARoleInOrder(t *testing.T) {
 	inst := domain.Installation{ID: "i", Organization: "acme", Target: "a", Status: domain.Active}
 	admin := domain.Person{ID: "alex", Organization: "acme", Roles: []string{"admin"}}

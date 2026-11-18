@@ -16,9 +16,13 @@ import (
 // Scopes is a scope list.
 type Scopes = []*basev0.WorkScopeV1
 
-// IsAdministrator: an organization's administrators hold "admin" or "owner".
+// IsAdministrator: an organization's administrators hold "admin". It is the
+// one organisation role the core reads, and no other name administers:
+// "owner" included. A host whose own membership has another name for an
+// administrator (the organisation's creator, say) hands the core "admin" for
+// that person; a name it hands over unmapped grants nothing.
 func IsAdministrator(p domain.Person) bool {
-	return slices.Contains(p.Roles, "admin") || slices.Contains(p.Roles, "owner")
+	return slices.Contains(p.Roles, "admin")
 }
 
 // NoRoles is the refusal of a person's own session at a module that declares
