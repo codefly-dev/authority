@@ -65,6 +65,13 @@ subtest names as well as failures/skips. Validate isolation with `go test -race
 '^Test(TheLocalAuthorityPassesTheSuiteEveryImplementationMustPass|ConformanceFixturesIsolateKeysSessionsAndClocks)$'
 ./plugins/registry_test`.
 
+A host that bounds its run of the suite calibrates that ceiling without the race
+detector and passes it through `conformance.Ceiling`: the ceiling as calibrated
+in an ordinary build, `RaceFactor` (8) times it in a binary built with `-race`,
+where the same cases take several times as long. The ceiling is never raised
+for every build to make room for the detector, and `go test -timeout` still
+bounds the binary: raise it as well for a run under `-race`.
+
 The local fixture contains Acme and Globex; Alex and Zoe administer them, and
 nobody else holds an organisation role. The local kit seats Maya as the user
 and Remi as the admin of the module pages it composes (records, the directory,
