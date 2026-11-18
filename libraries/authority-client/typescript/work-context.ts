@@ -356,9 +356,14 @@ export class Verifier {
     void this.refresh();
   }
 
-  /** Whether trusted keys are held: true from the first successful read and
-   * through failed re-reads inside the 15-minute window; false before any read
-   * succeeded or once the keys are stale. Readiness uses this, never keysError.
+  /** Whether the keys this verifier needs are held, as Go's Ready reports it:
+   * true from the first successful read and through failed re-reads inside the
+   * 15-minute window; false before any read succeeded or once the keys are
+   * stale. A verifier that admits calls (built with a replay store) also needs a
+   * published hop admission key: keys that read but publish none, or a read
+   * that sees the last one withdrawn, leave it unready, because every call
+   * would be refused. A token-only verifier needs none. Readiness uses this,
+   * never keysError.
    * It also starts the read a call would (keys missing or older than 5 min, or
    * no admission key published, at most every 10 s, never waiting), so an unready replica, which gets no calls,
    * recovers, and an idle one never goes stale. */
@@ -366,7 +371,7 @@ export class Verifier {
     const now = this.now();
     const unadmitting = this.replay !== undefined && this.admission.length === 0;
     if ((!this.trust || now - this.fetched > KEY_MAX_AGE_MS || unadmitting) && !this.inflight && now - this.tried >= KEY_RETRY_MS) void this.refresh();
-    return this.trust !== undefined && now - this.fetched <= KEY_STALE_MS;
+    return this.trust !== undefined && now - this.fetched <= KEY_STALE_MS && !unadmitting;
   }
 
   /** Who the call is for, or Unauthenticated naming why it is refused. The

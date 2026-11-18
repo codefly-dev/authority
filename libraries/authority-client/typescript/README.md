@@ -71,7 +71,10 @@ rule Core adds later is held only once a vector is written for it. A
 read's own failure is kept in `verifier.keysError` for logs, never sent to a
 caller. **Readiness uses `verifier.ready()`**: true while trusted keys are held,
 through failed re-reads inside the 15-minute window; false before the first read
-or once they are stale. It also starts the same rate-limited, non-blocking
+or once they are stale. A verifier that admits calls (built with a replay store)
+is also unready while it holds no published hop admission key, as Go's `Ready()`
+is: keys that read but publish none would refuse every call. A token-only
+verifier needs none. It also starts the same rate-limited, non-blocking
 re-read a call would, so an unready replica recovers and an idle one never goes
 stale. Never gate readiness on `keysError`. Before reading the keys, it reserves
 the nonce through the required durable replay store shared across replicas, and

@@ -680,6 +680,36 @@ test('no published admission key refuses every call and says why', async () => {
  assert.ok(v.keysError instanceof NoAdmissionKeys);
 });
 
+// Go's Ready(): a verifier that admits calls is ready only while it holds an
+// admission key. Keys that read but publish none leave it unready, a later
+// publication makes it ready, and a read that sees the last one withdrawn
+// makes it unready again. A token-only verifier needs none.
+test('an admitting verifier is not ready until it holds an admission key', async () => {
+ let now = fixture.now * 1000, answer = () => Promise.resolve(publishing());
+ const v = new Verifier(source(() => answer()), fixture.audience, replay(), () => now);
+ await settle();
+ assert.equal(v.keysError instanceof NoAdmissionKeys, true, 'the keys were read');
+ assert.equal(v.ready(), false, 'ready with no admission key held: every call would be refused');
+ answer = () => Promise.resolve(publishing('the-hop'));
+ now += 10_000;
+ v.ready();
+ await settle();
+ assert.equal(v.ready(), true);
+ answer = () => Promise.reject(new Error('authority down'));
+ now += 301_000; // a failed re-read keeps the keys held
+ v.ready();
+ await settle();
+ assert.ok(v.keysError && v.ready());
+ answer = () => Promise.resolve(publishing());
+ now += 10_000; // a read that sees the last key withdrawn
+ v.ready();
+ await settle();
+ assert.equal(v.ready(), false);
+ const tokenOnly = new Verifier(source(() => Promise.resolve(publishing())), fixture.audience, undefined, () => now);
+ await settle();
+ assert.equal(tokenOnly.ready(), true);
+});
+
 // Review r5: a verifier that first read the keys before the hop registered its
 // key holds no admission key; once the authority publishes one, the next call
 // or readiness check after KEY_RETRY reads it, without waiting out

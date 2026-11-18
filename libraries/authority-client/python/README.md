@@ -78,7 +78,10 @@ construct on an authority that is not serving yet, and refuses calls with a
 fixed reason until it is; `verifier.keys_error` holds the read's failure for
 logs. **Readiness uses `verifier.ready()`**: true while trusted keys are held,
 through failed re-reads inside the 15-minute window; false before the first read
-or once they are stale. It also starts the same rate-limited, non-blocking re-read a
+or once they are stale. A verifier that admits calls (built with `replay`) is
+also unready while it holds no published hop admission key, as Go's `Ready()`
+is: keys that read but publish none would refuse every call. A token-only
+verifier needs none. It also starts the same rate-limited, non-blocking re-read a
 call would, so an unready replica recovers and an idle one never goes stale. Never
 gate readiness on `keys_error`. `codefly_hop` reads the hop's signed fixture (`../../hop/testdata/stamped.json`)
 as the Go library writes it, and replays the hop conformance target's wire

@@ -1055,6 +1055,34 @@ def test_no_published_admission_key_refuses_every_call_and_says_why():
     assert isinstance(v.keys_error, NoAdmissionKeys)
 
 
+# Go's Ready(): a verifier that admits calls is ready only while it holds an
+# admission key. Keys that read but publish none leave it unready, a later
+# publication makes it ready, and a read that sees the last one withdrawn
+# makes it unready again. A token-only verifier needs none.
+def test_an_admitting_verifier_is_not_ready_until_it_holds_an_admission_key():
+    clock = [FIXTURE["now"]]
+    source = Keys(publishing())
+    v = Verifier(source, audience=FIXTURE["audience"], replay=Replay(), now=lambda: clock[0])
+    assert v._trust is not None, "the keys were read"
+    assert not v.ready(), "ready with no admission key held: every call would be refused"
+    source.response = publishing(b"the-hop")
+    clock[0] += KEY_RETRY
+    v.ready()
+    settle(v)
+    assert v.ready()
+    source.error = RuntimeError("authority down")
+    clock[0] += KEY_MAX_AGE + 1  # a failed re-read keeps the keys held
+    v.ready()
+    settle(v)
+    assert v.keys_error is not None and v.ready()
+    source.error, source.response = None, publishing()
+    clock[0] += KEY_RETRY  # a read that sees the last key withdrawn
+    v.ready()
+    settle(v)
+    assert not v.ready()
+    assert Verifier(Keys(publishing()), audience=FIXTURE["audience"], now=lambda: clock[0]).ready()
+
+
 # Review r5: a verifier that first read the keys before the hop registered its
 # key holds no admission key; once the authority publishes one, the next call
 # or readiness check after KEY_RETRY reads it, without waiting out KEY_MAX_AGE,

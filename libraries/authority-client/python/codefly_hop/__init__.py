@@ -181,11 +181,15 @@ class Verifier:
         futures.wait((started,), timeout)
 
     def ready(self) -> bool:
-        """Whether trusted keys are held: true from the first successful read and
-        through failed re-reads inside the 15-minute window; false before any read
-        succeeded or once the keys are stale. Readiness uses this, never
-        ``keys_error``: a brief authority outage must not take a replica out of
-        rotation while its keys are still trusted. It also starts the read a call
+        """Whether the keys this verifier needs are held, as Go's ``Ready`` reports
+        it: true from the first successful read and through failed re-reads inside
+        the 15-minute window; false before any read succeeded or once the keys are
+        stale. A verifier that admits calls (built with ``replay``) also needs a
+        published hop admission key: keys that read but publish none, or a read
+        that sees the last one withdrawn, leave it unready, because every call
+        would be refused. A token-only verifier needs none. Readiness uses this,
+        never ``keys_error``: a brief authority outage must not take a replica out
+        of rotation while its keys are still trusted. It also starts the read a call
         would (keys missing or older than 5 min, or no admission key published, at
         most every 10 s, never waiting), so an unready replica, which gets no calls, recovers, and an idle one never
         goes stale."""
@@ -194,7 +198,7 @@ class Verifier:
             unadmitting = self._replay is not None and not self._admission
             if (self._trust is None or now - self._fetched > KEY_MAX_AGE or unadmitting) and self._inflight is None and now - self._tried >= KEY_RETRY:
                 self._refresh()
-            return self._trust is not None and now - self._fetched <= KEY_STALE
+            return self._trust is not None and now - self._fetched <= KEY_STALE and not unadmitting
 
     def verify(self, headers: Mapping[str, str] | Iterable[tuple[str, str]], method: str) -> Identity:
         """Who the call is for, or ``Unauthenticated`` naming why it is refused.
