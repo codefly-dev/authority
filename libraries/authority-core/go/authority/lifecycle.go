@@ -1153,9 +1153,14 @@ func (s *Service) Uninstall(ctx context.Context, caller Person, organization, in
 			return err
 		}
 		// Authorize before reading the installation: unauthorized callers
-		// cannot tell a present installation from an absent one.
-		if err != nil || !decide.IsAdministrator(p) {
+		// cannot tell a present installation from an absent one. A caller of
+		// another organization is answered as for an installation theirs
+		// does not have; a member of this one is told what is true of them.
+		if err != nil {
 			return decide.ForeignInstallation(installationID, organization)
+		}
+		if !decide.IsAdministrator(p) {
+			return decide.NotAdministrator(p.ID, organization, "an installation is uninstalled by its organization's administrator")
 		}
 		inst, err := installationIn(tx, organization, installationID)
 		if err != nil {

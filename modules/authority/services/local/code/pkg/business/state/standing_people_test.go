@@ -141,8 +141,8 @@ func TestAliceCastsOntoATeamAndBobIsRefusedThePage(t *testing.T) {
 		t.Fatalf("dana, the admin, administers the wiki's grants: %v", err)
 	}
 	_, err = k.State.Service().GrantRole(ctx, must(k.State.Caller(carol.ID)), authority.RoleRequest{Organization: "acme", InstallationID: wiki, Role: state.AdminRole, PersonID: "carol"})
-	if code, ok := domain.CodeOf(err); !ok || code != domain.Denied || !strings.Contains(err.Error(), "belongs to another organization") {
-		t.Fatalf("carol, a user, granting herself admin: want Denied, answered as a foreign installation, got %v", err)
+	if code, ok := domain.CodeOf(err); !ok || code != domain.Denied || !strings.Contains(err.Error(), "carol is neither an administrator of acme nor a holder of the admin role on installation "+wiki) {
+		t.Fatalf("carol, a user, granting herself admin: want Denied, told she is no administrator, got %v", err)
 	}
 }
 

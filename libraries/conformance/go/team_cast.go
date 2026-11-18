@@ -53,7 +53,7 @@ func (sp *principalSuite) teamCast(t *testing.T) {
 			refused(t, err, codes.PermissionDenied, "widens")
 			_, err = sp.c.call(sp.as(t, as), "host.installation.v1.InstallationService", "GrantRole", map[string]any{
 				"organization_id": f.Organization, "installation_id": str(sp.ensure(t, f.Organization, A), "id"), "role": "admin", "team_id": f.Team})
-			refused(t, err, codes.PermissionDenied, "belongs to another organization") // what a user is answered
+			refused(t, err, codes.PermissionDenied, "is neither an administrator of "+f.Organization+" nor a holder of the admin role") // what a user is answered
 			_, err = cast(t, as, f.Team)
 			refused(t, err, codes.PermissionDenied, "already cast")
 

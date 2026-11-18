@@ -25,7 +25,10 @@ func decideRoleChange(tx Tx, caller *Person, r RoleRequest, list, revoke bool) (
 	// A caller of another organization than the one named learns nothing of
 	// it: the foreign answer comes before any installation is read. Then the
 	// installation is resolved by (organization, id): another organization's
-	// and an absent one answer alike, having done the same work.
+	// and an absent one answer alike, having done the same work. A member who
+	// does not administer the organization is answered what they would be for
+	// an installation of their own they hold no admin role on, which is as
+	// true of these: they cannot tell the three apart.
 	c := domain.Person{Organization: r.Organization, Roles: []string{"admin"}}
 	if caller != nil {
 		var err error
@@ -39,6 +42,9 @@ func decideRoleChange(tx Tx, caller *Person, r RoleRequest, list, revoke bool) (
 	}
 	inst, err := tx.Installation(r.InstallationID)
 	if errors.Is(err, domain.ErrNotFound) || (err == nil && inst.Organization != r.Organization) {
+		if caller != nil && !decide.IsAdministrator(c) {
+			return domain.Installation{}, decide.NotRoleAdministrator(c.ID, r.Organization, r.InstallationID)
+		}
 		return inst, decide.ForeignInstallation(r.InstallationID, r.Organization)
 	}
 	if err != nil {

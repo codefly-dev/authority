@@ -23,7 +23,10 @@ func TestWithdrawnModuleCannotBeUninstalledByAPerson(t *testing.T) {
 	}
 }
 
-func TestRolelessMemberGetsForeignAnswerFromEveryRoleCall(t *testing.T) {
+// A member holding no role is answered alike by every role call, for an
+// installation of their organization and for an absent one: what is true of
+// them, never that the installation is another organization's.
+func TestRolelessMemberGetsOneTrueAnswerFromEveryRoleCall(t *testing.T) {
 	h := newHarness(t)
 	for _, id := range []string{h.inst(acme, "a").ID, authority.StableInstallationID(acme, "absent")} {
 		r := authority.RoleRequest{Organization: acme, InstallationID: id, Role: "user", PersonID: "maya"}
@@ -31,7 +34,7 @@ func TestRolelessMemberGetsForeignAnswerFromEveryRoleCall(t *testing.T) {
 		_, revoke := h.svc.RevokeRole(h.ctx, h.person("remi"), r)
 		_, list := h.svc.ListRoleGrants(h.ctx, h.person("remi"), acme, id)
 		for name, err := range map[string]error{"grant": grant, "revoke": revoke, "list": list} {
-			want := "installation " + id + " belongs to another organization than \"acme\""
+			want := "remi is neither an administrator of acme nor a holder of the admin role on installation " + id
 			if err == nil || err.Error() != want {
 				t.Errorf("%s: got %v, want %s", name, err, want)
 			}

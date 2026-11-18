@@ -34,15 +34,16 @@ type installationHost struct {
 const proposalsInstallation = "4f0c5b1e-0000-5000-8000-0000000000aa"
 
 type hostPerson struct {
+	id    string
 	org   string
 	admin bool
 	holds bool
 }
 
 var hostPeople = map[string]hostPerson{
-	"alex-session": {"acme", true, true},
-	"maya-session": {"acme", false, true},
-	"zoe-session":  {"globex", true, false},
+	"alex-session": {"alex", "acme", true, true},
+	"maya-session": {"maya", "acme", false, true},
+	"zoe-session":  {"zoe", "globex", true, false},
 }
 
 func (h *installationHost) caller(ctx context.Context, call, org string) (hostPerson, error) {
@@ -60,11 +61,16 @@ func (h *installationHost) caller(ctx context.Context, call, org string) (hostPe
 	return p, nil
 }
 
-// administers answers a grant-shaped call as decide.ChangeRole does.
+// administers answers a grant-shaped call as decide.ChangeRole does: a caller
+// of another organization as for an installation theirs does not have, a
+// member of this one who is no administrator with that reason.
 func (h *installationHost) administers(ctx context.Context, call, org, installation string) error {
-	if _, err := h.caller(ctx, call, org); err != nil {
+	if p, err := h.caller(ctx, call, org); err != nil {
 		if status.Code(err) == codes.Unauthenticated {
 			return err
+		}
+		if p.org == org {
+			return status.Errorf(codes.PermissionDenied, "%s is neither an administrator of %s nor a holder of the admin role on installation %s", p.id, org, installation)
 		}
 		return status.Errorf(codes.PermissionDenied, "installation %s belongs to another organization than %q", installation, org)
 	}
@@ -281,7 +287,7 @@ func TestAMemberReadsTheRolesButIsRefusedAGrantWithItsReason(t *testing.T) {
 	}
 	_, err = browser[installationv1.GrantRoleRequest, installationv1.Installation](t, srv, srv.URL, "maya-session", installationv1.InstallationService_GrantRole_FullMethodName,
 		&installationv1.GrantRoleRequest{OrganizationId: "acme", InstallationId: proposalsInstallation, Role: "user", PersonId: "maya"})
-	refusedWith(t, err, connect.CodePermissionDenied, fmt.Sprintf("installation %s belongs to another organization than \"acme\"", proposalsInstallation))
+	refusedWith(t, err, connect.CodePermissionDenied, fmt.Sprintf("maya is neither an administrator of acme nor a holder of the admin role on installation %s", proposalsInstallation))
 	_, err = browser[installationv1.ListRequest, installationv1.ListResponse](t, srv, srv.URL, "maya-session", installationv1.InstallationService_List_FullMethodName, &installationv1.ListRequest{OrganizationId: "acme"})
 	refusedWith(t, err, connect.CodePermissionDenied, `installation administration requires an administrator or owner of organization "acme"`)
 }

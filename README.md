@@ -509,7 +509,13 @@ current person is an administrator or owner of the requested organization; role
 grants (`GrantRole`, `RevokeRole`, `ListRoleGrants`) also admit the holder of the
 admin role on that installation. Anonymous and invalid sessions are
 `Unauthenticated`; anyone else receives `PermissionDenied`, and a caller of
-another organization is answered as if the installation did not exist. Every
+another organization is answered as if the installation did not exist
+("installation … belongs to another organization than …"). A member of the
+organization named who may not do it is told that instead, and the same
+whichever installation they name, so they tell an installation of theirs from
+no other: "… is neither an administrator of … nor a holder of the admin role
+on installation …" for a role change, "… is not an administrator of …" for an
+uninstall. Every
 decision is the generic authority core's (`libraries/authority-core/go`); the
 local authority is a host over it. This is
 not the navigation API: a member probes each target with an empty-scope `Issue`.

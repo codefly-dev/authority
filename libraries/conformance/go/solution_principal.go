@@ -353,21 +353,24 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 			code           codes.Code
 			reason         string
 		}{
-			"a user granting itself admin": {f.UserHolder, "GrantRole", grant(instA, "admin", sp.person(t, f.UserHolder)), codes.PermissionDenied, "belongs to another organization"},
-			"a user revoking the admin":    {f.UserHolder, "RevokeRole", grant(instA, "admin", sp.person(t, f.AdminHolder)), codes.PermissionDenied, "belongs to another organization"},
-			"a user listing grants":        {f.UserHolder, "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": instA}, codes.PermissionDenied, "belongs to another organization"},
+			"a user granting itself admin": {f.UserHolder, "GrantRole", grant(instA, "admin", sp.person(t, f.UserHolder)), codes.PermissionDenied, "is neither an administrator of " + f.Organization + " nor a holder of the admin role on installation " + instA},
+			"a user revoking the admin":    {f.UserHolder, "RevokeRole", grant(instA, "admin", sp.person(t, f.AdminHolder)), codes.PermissionDenied, "is neither an administrator of " + f.Organization + " nor a holder of the admin role on installation " + instA},
+			"a user listing grants":        {f.UserHolder, "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": instA}, codes.PermissionDenied, "is neither an administrator of " + f.Organization + " nor a holder of the admin role on installation " + instA},
 			// A caller of another organization learns nothing of this one: the
-			// installation answers as an absent one would (r143 M-a).
+			// installation answers as an absent one would (r143 M-a). A member
+			// of this one who may not change its roles is told that, the same
+			// whichever installation they name: never that their own
+			// organization's installation is another's.
 			"another organization's administrator granting":    {f.OtherAdmin, "GrantRole", grant(instA, "user", member), codes.PermissionDenied, "belongs to another organization"},
 			"another organization's administrator revoking":    {f.OtherAdmin, "RevokeRole", grant(instA, "user", sp.person(t, f.UserHolder)), codes.PermissionDenied, "belongs to another organization"},
 			"another organization's administrator listing":     {f.OtherAdmin, "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": instA}, codes.PermissionDenied, "belongs to another organization"},
-			"A's admin granting on B":                          {f.AdminHolder, "GrantRole", grant(instB, "admin", sp.person(t, f.AdminHolder)), codes.PermissionDenied, "belongs to another organization"},
-			"A's admin revoking on B":                          {f.AdminHolder, "RevokeRole", grant(instB, "user", member), codes.PermissionDenied, "belongs to another organization"},
+			"A's admin granting on B":                          {f.AdminHolder, "GrantRole", grant(instB, "admin", sp.person(t, f.AdminHolder)), codes.PermissionDenied, "is neither an administrator of " + f.Organization + " nor a holder of the admin role on installation " + instB},
+			"A's admin revoking on B":                          {f.AdminHolder, "RevokeRole", grant(instB, "user", member), codes.PermissionDenied, "is neither an administrator of " + f.Organization + " nor a holder of the admin role on installation " + instB},
 			"another organization's id":                        {f.Admin, "GrantRole", map[string]any{"organization_id": f.OtherOrganization, "installation_id": instA, "role": "user", "person_id": sp.personID(t, f.Member)}, codes.PermissionDenied, "organization"},
 			"granting on another organization's installation":  {f.Admin, "GrantRole", grant(instElsewhere, "user", member), codes.PermissionDenied, "organization"},
 			"revoking on another organization's installation":  {f.Admin, "RevokeRole", grant(instElsewhere, "user", sp.person(t, f.OtherMember)), codes.PermissionDenied, "organization"},
 			"listing another organization's installation":      {f.Admin, "ListRoleGrants", map[string]any{"organization_id": f.Organization, "installation_id": instElsewhere}, codes.PermissionDenied, "organization"},
-			"the admin on another organization's installation": {f.AdminHolder, "GrantRole", grant(instElsewhere, "user", member), codes.PermissionDenied, "organization"},
+			"the admin on another organization's installation": {f.AdminHolder, "GrantRole", grant(instElsewhere, "user", member), codes.PermissionDenied, "is neither an administrator of " + f.Organization + " nor a holder of the admin role on installation " + instElsewhere},
 			"an undeclared role":                               {f.Admin, "GrantRole", grant(instA, "owner", member), codes.NotFound, "declares no role"},
 			"both a person and a team":                         {f.Admin, "GrantRole", grant(instA, "user", map[string]any{"person_id": sp.personID(t, f.Member), "team_id": f.Team}), codes.InvalidArgument, "exactly one"},
 			"neither a person nor a team":                      {f.Admin, "GrantRole", grant(instA, "user", nil), codes.InvalidArgument, "exactly one"},

@@ -65,8 +65,13 @@ func TestAnUninstallIsTheOrganizationsAdministrators(t *testing.T) {
 	h := newHarness(t)
 	id := h.inst(acme, "a").ID
 	maya, zoe := h.person("maya"), h.person("zoe")
-	// A member who administers nothing learns nothing either (r148 m2).
-	refused(t, h.svc.Uninstall(h.ctx, maya, acme, id), "belongs to another organization")
+	// A member who administers nothing is told that, and learns nothing
+	// either (r148 m2): a present installation and an absent one answer alike.
+	present, missing := h.svc.Uninstall(h.ctx, maya, acme, id), h.svc.Uninstall(h.ctx, maya, acme, "no-such-installation")
+	code(t, present, domain.Denied)
+	if want := "maya is not an administrator of acme: an installation is uninstalled by its organization's administrator"; present.Error() != want || missing.Error() != want {
+		t.Fatalf("a member of acme uninstalling: present %q, absent %q, want %q", present, missing, want)
+	}
 	foreign := h.svc.Uninstall(h.ctx, zoe, globex, id)
 	absent := h.svc.Uninstall(h.ctx, zoe, globex, "no-such-installation")
 	code(t, foreign, domain.Denied)

@@ -268,7 +268,10 @@ type RoleChange struct {
 // ChangeRole decides a role change, in order: the organization the request
 // names must be the installation's, before the caller's authority is read;
 // then the caller must administer that organization or hold the admin role
-// on that installation (domain.HoldsAdmin). A revoke then needs only exactly
+// on that installation (domain.HoldsAdmin). A caller of another organization
+// is answered as for an installation theirs does not have
+// (ForeignInstallation); a member of the installation's own who is neither is
+// told so (NotRoleAdministrator), never that it is another organization's. A revoke then needs only exactly
 // one subject, whatever the role is named, so a grant a store still holds of
 // a name that is no role is revocable; a grant needs the installation active,
 // the role one of the two (domain.IsRole) and declared, exactly one subject
@@ -278,8 +281,11 @@ func ChangeRole(r RoleChange) error {
 	if r.RequestOrganization != inst.Organization {
 		return ForeignInstallation(r.RequestedID, r.RequestOrganization)
 	}
-	if r.Caller.Organization != inst.Organization || (!IsAdministrator(r.Caller) && !domain.HoldsAdmin(r.CallerRoles)) {
+	if r.Caller.Organization != inst.Organization {
 		return ForeignInstallation(r.RequestedID, r.RequestOrganization)
+	}
+	if !IsAdministrator(r.Caller) && !domain.HoldsAdmin(r.CallerRoles) {
+		return NotRoleAdministrator(r.Caller.ID, r.RequestOrganization, r.RequestedID)
 	}
 	if r.Revoke {
 		// A grant stays revocable whatever happened since: an installation
@@ -326,6 +332,26 @@ func ForeignInstallation(id, organization string) error {
 	return domain.Refuse("installation %s belongs to another organization than %q", id, organization)
 }
 
+// NotRoleAdministrator is the answer to a member of the organization a request
+// names who may not grant, revoke or list an installation's roles: they
+// neither administer the organization nor hold the admin role on that
+// installation. It says only what is true of the caller in their own
+// organization, and echoes the id as requested. A host answers it for an
+// installation that organization does not have too, when the caller does not
+// administer it: holding no role on such an installation is equally true, so
+// a member cannot tell their organization's installation from another's or
+// from none.
+func NotRoleAdministrator(person, organization, id string) error {
+	return domain.Refuse("%s is neither an administrator of %s nor a holder of the admin role on installation %s", person, organization, id)
+}
+
+// NotAdministrator is the answer to a member of an organization for an act
+// that is its administrator's alone, named by what: it says only what is true
+// of the caller in their own organization.
+func NotAdministrator(person, organization, what string) error {
+	return domain.Refuse("%s is not an administrator of %s: %s", person, organization, what)
+}
+
 // Transfer is one AuthorizeTransfer with what it is decided against.
 type Transfer struct {
 	// OwnerKind and Person are the presented capability's owner.
@@ -364,7 +390,7 @@ func AuthorizeTransfer(t Transfer) error {
 	case t.From != t.Person.Organization && (t.FromPerson == nil || t.FromPerson.Organization != t.Person.Organization):
 		return domain.Refuse("%q is not a person or the organization of %s", t.From, t.Person.Organization)
 	case !t.Administers:
-		return domain.Refuse("%s is not an administrator of %s: an organisation's resource joins an installation by its administrator's act", t.Person.ID, t.Person.Organization)
+		return NotAdministrator(t.Person.ID, t.Person.Organization, "an organisation's resource joins an installation by its administrator's act")
 	case !t.Writes:
 		return domain.Refuse("%s holds no write on %s's data through their roles", t.Person.ID, t.To)
 	}

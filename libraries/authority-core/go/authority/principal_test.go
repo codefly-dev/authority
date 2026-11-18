@@ -2,6 +2,7 @@ package authority_test
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
@@ -197,9 +198,9 @@ func TestWhoMayGrantAndEveryMalformedGrant(t *testing.T) {
 		code   domain.Code
 		reason string
 	}{
-		"a user granting itself":               {h.person("maya"), authority.RoleRequest{Organization: acme, InstallationID: instA, Role: domain.AdminRole, PersonID: "maya"}, domain.Denied, "belongs to another organization"},
+		"a user granting itself":               {h.person("maya"), authority.RoleRequest{Organization: acme, InstallationID: instA, Role: domain.AdminRole, PersonID: "maya"}, domain.Denied, "maya is neither an administrator of acme nor a holder of the admin role on installation " + instA},
 		"another organization's administrator": {h.person("zoe"), authority.RoleRequest{Organization: acme, InstallationID: instA, Role: "user", PersonID: "dev"}, domain.Denied, "belongs to another organization"},
-		"A's admin on B":                       {ines, authority.RoleRequest{Organization: acme, InstallationID: instB, Role: "admin", PersonID: "ines"}, domain.Denied, "belongs to another organization"},
+		"A's admin on B":                       {ines, authority.RoleRequest{Organization: acme, InstallationID: instB, Role: "admin", PersonID: "ines"}, domain.Denied, "ines is neither an administrator of acme nor a holder of the admin role on installation " + instB},
 		"another organization named":           {h.person("alex"), authority.RoleRequest{Organization: globex, InstallationID: instA, Role: "user", PersonID: "dev"}, domain.Denied, "organization"},
 		"another organization's installation":  {h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: elsewhere, Role: "user", PersonID: "dev"}, domain.Denied, "organization"},
 		"an undeclared role":                   {h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: instA, Role: "owner", PersonID: "dev"}, domain.NotFound, "declares no role"},
@@ -215,5 +216,37 @@ func TestWhoMayGrantAndEveryMalformedGrant(t *testing.T) {
 		})
 	}
 	_, err = h.svc.ListRoleGrants(h.ctx, h.person("maya"), acme, instA)
-	refused(t, err, "belongs to another organization")
+	refused(t, err, "maya is neither an administrator of acme nor a holder of the admin role on installation "+instA)
+}
+
+// A member who may not change an installation's roles is told the true
+// reason, and learns nothing by it: their organization's installation, another
+// organization's and one nobody has answer alike but for the id they named.
+func TestAMemberRefusedARoleChangeIsToldWhyAndLearnsNothing(t *testing.T) {
+	h := newHarness(t)
+	maya := h.person("maya")
+	answers := map[string]string{}
+	for name, id := range map[string]string{"their organization's": h.inst(acme, "a").ID, "another organization's": h.inst(globex, "a").ID, "nobody's": "no-such"} {
+		_, grant := h.svc.GrantRole(h.ctx, maya, authority.RoleRequest{Organization: acme, InstallationID: id, Role: "user", PersonID: "dev"})
+		_, revoke := h.svc.RevokeRole(h.ctx, maya, authority.RoleRequest{Organization: acme, InstallationID: id, Role: "user", PersonID: "dev"})
+		_, list := h.svc.ListRoleGrants(h.ctx, maya, acme, id)
+		for _, err := range []error{grant, revoke, list} {
+			code(t, err, domain.Denied)
+			if want := "maya is neither an administrator of acme nor a holder of the admin role on installation " + id; err.Error() != want {
+				t.Fatalf("%s installation: maya, a member of acme, is answered %q, want %q", name, err, want)
+			}
+		}
+		answers[name] = strings.ReplaceAll(grant.Error(), id, "<id>")
+	}
+	if answers["their organization's"] != answers["another organization's"] || answers["another organization's"] != answers["nobody's"] {
+		t.Fatalf("a member tells installations apart: %v", answers)
+	}
+	// An administrator of the organization is still answered alike for
+	// another organization's installation and an absent one.
+	alex := h.person("alex")
+	_, foreign := h.svc.ListRoleGrants(h.ctx, alex, acme, h.inst(globex, "a").ID)
+	_, absent := h.svc.ListRoleGrants(h.ctx, alex, acme, "no-such")
+	if got, want := strings.ReplaceAll(foreign.Error(), h.inst(globex, "a").ID, "no-such"), absent.Error(); got != want || !strings.Contains(want, "belongs to another organization") {
+		t.Fatalf("an administrator: foreign %q, absent %q", foreign, absent)
+	}
 }

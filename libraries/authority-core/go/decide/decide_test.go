@@ -128,7 +128,7 @@ func TestWhoMayChangeARoleInOrder(t *testing.T) {
 		reason string
 	}{
 		"another organization, even for a non-admin": {func(r *decide.RoleChange) { r.RequestOrganization = "globex"; r.Caller = member }, domain.Denied, "organization"},
-		"a member": {func(r *decide.RoleChange) { r.Caller = member }, domain.Denied, "belongs to another organization"},
+		"a member": {func(r *decide.RoleChange) { r.Caller = member }, domain.Denied, "dev is neither an administrator of acme nor a holder of the admin role on installation i"},
 		"another organization's admin": {func(r *decide.RoleChange) {
 			r.Caller = domain.Person{ID: "zoe", Organization: "globex", Roles: []string{"admin"}}
 		}, domain.Denied, "belongs to another organization"},
@@ -138,8 +138,8 @@ func TestWhoMayChangeARoleInOrder(t *testing.T) {
 		"no subject":                       {func(r *decide.RoleChange) { r.PersonID = "" }, domain.Invalid, "exactly one"},
 		"a person of another organization": {func(r *decide.RoleChange) { r.PersonID, r.Subject = "omar", &omar }, domain.Denied, "not a member"},
 		"a team of another organization":   {func(r *decide.RoleChange) { r.PersonID, r.TeamID = "", "ops" }, domain.Denied, "not a team of"},
-		"a member listing":                 {func(r *decide.RoleChange) { r.Caller, r.List = member, true }, domain.Denied, "belongs to another organization"},
-		"a member revoking":                {func(r *decide.RoleChange) { r.Caller, r.Revoke = member, true }, domain.Denied, "belongs to another organization"},
+		"a member listing":                 {func(r *decide.RoleChange) { r.Caller, r.List = member, true }, domain.Denied, "is neither an administrator of acme nor"},
+		"a member revoking":                {func(r *decide.RoleChange) { r.Caller, r.Revoke = member, true }, domain.Denied, "is neither an administrator of acme nor"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			r := base()
@@ -166,6 +166,14 @@ func TestWhoMayChangeARoleInOrder(t *testing.T) {
 		})
 	}
 	refused(t, func() error { r := base(); r.Revoke, r.TeamID = true, "t"; return decide.ChangeRole(r) }(), domain.Invalid, "exactly one")
+	// A member of the installation's own organization who may not change its
+	// roles is told that, never that the installation is another
+	// organization's: it is theirs.
+	own := base()
+	own.Caller = member
+	if got := decide.ChangeRole(own).Error(); strings.Contains(got, "another organization") {
+		t.Fatalf("acme's member is refused acme's installation as another organization's: %q", got)
+	}
 	// Another organization's installation and none at all answer alike, with
 	// the id as requested.
 	other := base()
