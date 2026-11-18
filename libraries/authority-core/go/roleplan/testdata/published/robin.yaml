@@ -1,0 +1,55 @@
+# Robin's published module contract, vendored from obin-ai/module-robin
+# modules/robin/module.contract.codefly.yaml at c7d6a601 and cut down to what
+# its `run` and `chat` bundles need: its kinds, its binding to the model
+# gateway and the two bundles, word for word. `run` includes the model
+# gateway's `infer`, and `chat` the document store's `read` and annotations'
+# `annotate`: bundles of other modules, read from the contracts those modules
+# publish. A fixture: the module's own file is the declaration.
+schema: codefly/module-contract/v1
+principal: robin
+installation_role: none
+owner_aware: true
+namespaces:
+    - robin
+queues: []
+scope_ceilings:
+    - resource_kind: robin.tasks
+      actions: [execute, read]
+    - resource_kind: robin.answers
+      actions: [read, review]
+    - resource_kind: robin.intents
+      actions: [read, read_config, import, configure, activate, run]
+    - resource_kind: robin.conversations
+      actions: [read, write, share, delete]
+bindings:
+    - id: model
+      operations: [invoke, lookup]
+      audience: {from: robin/model-audience}
+      resource_kind: {from: robin/model-resource-kind}
+      binding_key: {from: robin/model-binding}
+      scope_ceiling:
+          invoke: [invoke, read]
+          lookup: [read]
+bundles:
+    - name: run
+      includes:
+          - {module: model, bundle: infer, through: robin}
+      scopes:
+          - resource_kind: robin.intents
+            actions: [run]
+          - resource_kind: robin.tasks
+            actions: [execute]
+    - name: chat
+      includes:
+          - run
+          - {module: documents, bundle: read, through: robin}
+          - {module: annotations, bundle: annotate, through: robin}
+      scopes:
+          - resource_kind: robin.conversations
+            actions: [read, write, delete]
+          - resource_kind: annotations.annotations
+            actions: [redact]
+            through: robin
+          - resource_kind: robin.answers
+            actions: [read]
+            through: robin

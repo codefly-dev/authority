@@ -1,0 +1,38 @@
+# The model gateway's published module contract, vendored from
+# obin-ai/module-model-gateway modules/model/module.contract.codefly.yaml at
+# 82f8b39c with its comments dropped. A fixture: the module's own file is the
+# declaration.
+schema: codefly/module-contract/v1
+principal: model
+namespaces: []
+queues: []
+scope_ceilings:
+  - resource_kind: modelservice.profiles
+    actions: [invoke, read]
+    shared: true
+roles:
+  - name: user
+    includes:
+      - {module: model, bundle: discover}
+  - name: admin
+    includes:
+      - {module: model, bundle: discover}
+bundles:
+    - name: discover
+      scopes:
+          - resource_kind: modelservice.profiles
+            actions: [read]
+    - name: infer
+      includes: [discover]
+      scopes:
+          - resource_kind: modelservice.profiles
+            actions: [invoke]
+installation_role: none
+bindings:
+  - id: tracing
+    operations: [headless]
+    audience: {from: trace-export/trace-audience}
+    resource_kind: {from: trace-export/trace-resource-kind}
+    binding_key: {from: trace-export/trace-binding}
+    scope_ceiling:
+      headless: [export]
