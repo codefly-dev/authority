@@ -1,0 +1,132 @@
+# The test-only authority matrix. Runtime fixtures contain only Dana, Carol
+# and Bob. Organisation roles administer; installation roles grant module access.
+organizations:
+  - id: acme
+    name: Acme
+  - id: globex
+    name: Globex
+# The team directory. A team a person below belongs to exists already; list
+# here a team nobody belongs to yet, which a role may still be granted to. The
+# `<target>-<role>` teams are not listed: each exists once its target does.
+teams:
+  - {organization: acme, id: finance}
+  - {organization: acme, id: engineering}
+  - {organization: globex, id: ops}
+# Organisation roles decide administration only: who administers an
+# organisation's members, teams, installations and grants. A role is a name
+# and grants nothing at any module; a person reaches a module through a role
+# (admin, user) on an installation, which the `installations` rows below and
+# a composition's own seat.
+roles:
+  - organization: acme
+    name: admin
+  - organization: globex
+    name: admin
+people:
+  # The five, as the product's fixture names them. Their sign-in tokens are
+  # the provider ids the saas host signs them in by.
+  - id: sarah
+    name: Sarah Chen
+    email: admin@acme.com
+    fixture_token: dev-admin
+    organization: acme
+    roles: [admin]
+    teams: []
+  - id: alice
+    name: Alice Johnson
+    email: alice@acme.com
+    fixture_token: dev-alice
+    organization: acme
+    roles: [admin]
+    teams: []
+  - id: bob
+    name: Bob Williams
+    email: bob@acme.com
+    fixture_token: dev-bob
+    organization: acme
+    roles: []
+    teams: []
+  - id: carol
+    name: Carol Davis
+    email: carol@acme.com
+    fixture_token: dev-carol
+    organization: acme
+    roles: []
+    teams: []
+  - id: dana
+    name: Dana Lee
+    email: dana@example.com
+    fixture_token: dev-dana
+    organization: acme
+    roles: []
+    teams: []
+  # Retained aliases: the authority interface's own people, which the saas
+  # fixture keeps too, for parity with this sign-in page. Alex and Zoë
+  # administer their organisations; the others hold no organisation role and
+  # reach a module only where a composition seats them on an installation;
+  # `no-roles` is seated nowhere, for the refusal cases; Globex is the other
+  # organisation. Nothing new is written against them.
+  - id: no-roles
+    email: no-roles@acme.test
+    fixture_token: fixture-no-roles
+    organization: acme
+    roles: []
+    teams: []
+  - id: maya
+    name: Maya
+    email: maya@acme.test
+    fixture_token: fixture-maya
+    organization: acme
+    roles: []
+    teams: [finance]
+  - id: remi
+    name: Rémi
+    email: remi@acme.test
+    fixture_token: fixture-remi
+    organization: acme
+    roles: []
+    teams: [engineering]
+  - id: alex
+    name: Alex
+    email: alex@acme.test
+    fixture_token: fixture-alex
+    organization: acme
+    roles: [admin]
+    teams: [finance, engineering]
+  - id: zoe
+    name: Zoë
+    email: zoe@globex.test
+    fixture_token: fixture-zoe
+    organization: globex
+    roles: [admin]
+    teams: [ops]
+  - id: omar
+    name: Omar
+    email: omar@globex.test
+    fixture_token: fixture-omar
+    organization: globex
+    roles: []
+    teams: [ops]
+  - id: dev
+    name: Developer
+    email: dev@acme.test
+    fixture_token: fixture-dev
+    organization: acme
+    roles: []
+    teams: [engineering]
+# The same people on every target: a row whose target is "*" stands for every
+# role-gated target the run composes, whatever the composition is, so no
+# composition has to name its targets here. Each declared role of each such
+# target goes to its `<target>-<role>` team, and each member joins the team of
+# the role named, where the target declares that role. The row installs
+# nothing: a module page is installed by composition; a solution by a composing
+# workspace's row naming it (its agent role, its owner, its teams), which is
+# kept, or by an administrator at the edge's setup page; each is seated the
+# moment it is active. Alice is the administrator the row stands for.
+installations:
+  - organization: acme
+    target: "*"
+    owner: alice
+    members:
+      user: [carol]
+      admin: [dana]
