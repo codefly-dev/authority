@@ -28,7 +28,9 @@ config.GRPCServerOptions = append(config.GRPCServerOptions,
 	grpc.StatsHandler(verifier.StatsHandler()),
 	grpc.ChainUnaryInterceptor(verifier.UnaryServerInterceptor()),
 	grpc.ChainStreamInterceptor(verifier.StreamServerInterceptor()))
-// in a handler: id, _ := hop.FromContext(ctx); id.Tenant, id.Has(kind, action), id.Claims.Allows(kind, action, resourceID)
+// in a handler: id, _ := hop.FromContext(ctx); id.Tenant; what admitted the call is hop.Admitted(ctx)
+// (Required(), Carried(): the selection to narrow a query by). A handler names no permission: the hop
+// decided the method's, and id.Claims.Allows(kind, action, resourceID) answers a resource-exact question.
 // an HTTP module, once the headers arrive and before reading the body:
 //	id, done, err := verifier.Admit(ctx, metadataFromHeaders, observedFullProcedure); defer done()
 ```

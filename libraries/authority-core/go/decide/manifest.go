@@ -213,7 +213,7 @@ func validateModule(m domain.Module) error {
 			return nil
 		}
 		if !m.Page {
-			return domain.Refuse("module %q declares roles and no page; a module's access is the organization's roles unless it declares a page", m.Name)
+			return domain.Refuse("module %q declares roles and no page; a person reaches a module that has no page through a role on an installation that binds it, so only a page declares roles", m.Name)
 		}
 	}
 	if _, ok := m.Roles[domain.AdminRole]; !ok {
