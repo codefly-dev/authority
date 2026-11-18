@@ -141,7 +141,7 @@ func TestRolesInTheDocumentAreHeldToTheRoleContract(t *testing.T) {
 		"a role on a kind the solution does not serve": {"conformance-solution", solutionhost.KindSolution,
 			&compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{admin(all[0], scope("documents", "read")), user}}, codes.PermissionDenied, "grants beyond what conformance-solution serves"},
 		"a module declaring roles": {"conformance-probe", solutionhost.KindModule,
-			&compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{admin(all...)}}, codes.PermissionDenied, "a module's access is the organization's roles"},
+			&compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{admin(all...)}}, codes.PermissionDenied, "declares roles and no page"},
 		"a role neither admin nor user": {"conformance-solution", solutionhost.KindSolution,
 			&compositionv1.AuthorityManifestV1{ScopeCeilings: all, Roles: []*compositionv1.RoleV1{admin(all...), user, {Name: "viewer", Scopes: all}}}, codes.PermissionDenied, `declares role "viewer", which is neither "admin" nor "user"`},
 		"no user": {"conformance-solution", solutionhost.KindSolution,
