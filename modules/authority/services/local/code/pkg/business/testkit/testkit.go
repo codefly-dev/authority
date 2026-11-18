@@ -431,7 +431,11 @@ func bareWithClock(t *testing.T, clock func() time.Time) *Kit {
 	if err != nil {
 		t.Fatal(err)
 	}
-	st, err := state.New(launcher.Anchor(), Audience, issuer.Config(Audience, "local-1", signing, clock))
+	// The kit is a local run: it serves advice, as the local authority does
+	// when the composition names its run "local".
+	cfg := issuer.Config(Audience, "local-1", signing, clock)
+	cfg.Advisory = true
+	st, err := state.New(launcher.Anchor(), Audience, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

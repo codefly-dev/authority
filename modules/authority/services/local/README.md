@@ -410,7 +410,10 @@ omitting it works only for a sole active installing organization; it is not a
 shared host requirement. Method admission checks kind/action while preserving
 resource limits for the module's resource check. The hop refuses `ENFORCEMENT=warn`
 unless the SDK identifies the environment as local; advisory conformance is
-explicitly enabled only by the local runner.
+explicitly enabled only by the local runner. The service itself answers an
+advisory Check as advice only when `CODEFLY__ENVIRONMENT` is exactly `local`
+(`localRun`, `work.go`); otherwise the check is enforced and a refused method
+is a refusal.
 
 HTTP Check uses the concrete verb and canonical path, with literal precedence
 and ambiguity refusal over the delivered manifest. Published Connect calls use

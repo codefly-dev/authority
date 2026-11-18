@@ -1374,6 +1374,10 @@ requires its installed caller's workload credential; an installation ID alone
 is never authority. Workloads name the work item's organization; the local
 sole-installation convenience is not required of other hosts. Advisory Check
 is a local diagnostic extension; the hop requires enforcing Check in every environment.
+The core answers advice only for a host that says it serves it
+(`authority.Config.Advisory`); any other host enforces an advisory Check, so a
+refused method never returns the capability. The local authority says so only
+in the run named exactly `local` (`CODEFLY__ENVIRONMENT`).
 
 `codefly.dev/session@0.2.0` adds person and organization display names to Current
 and SignIn (fields 7 and 8). Missing fields fail conformance. These implement the

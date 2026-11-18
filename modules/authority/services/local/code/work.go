@@ -11,8 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/solutionhost/go/workloadidentity"
 	"github.com/codefly-dev/authority/libraries/solutionhost/go/workloadidentity/native"
+	"github.com/codefly-dev/core/resources"
 	"github.com/codefly-dev/core/wool"
 	codefly "github.com/codefly-dev/sdk-go"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -43,6 +45,23 @@ func init() {
 	WithWork(func(context.Context) (Clean, error) { return nil, nil })
 }
 
+// localRun is whether the composition started this process in the run named
+// exactly "local" (CODEFLY__ENVIRONMENT, the signal the hop library reads for
+// the same question). It is the one thing here that says "this is a
+// developer's own run"; nothing defaults to it.
+func localRun() bool {
+	return os.Getenv(resources.EnvironmentPrefix) == "local"
+}
+
+// coreConfig is the core's configuration for this run's signing key. Advice
+// (an advisory Check answered with the capability and the refusal it did not
+// make) is served in a local run only; any other run enforces every check.
+func coreConfig(keyID string, signing ed25519.PrivateKey) authority.Config {
+	cfg := issuer.Config(issuerName, keyID, signing, time.Now)
+	cfg.Advisory = localRun()
+	return cfg
+}
+
 // configureLocalAuthority builds the whole authority before the listeners start:
 // the launcher's anchor from the run, the fixture named by the run, a signing
 // key for this run, and the issuer over them. The registry's plugins read the
@@ -66,7 +85,7 @@ func configureLocalAuthority(ctx context.Context, _ *adapters.Configuration) (Cl
 		return nil, err
 	}
 	keyID := "run-" + time.Now().UTC().Format("20060102T150405Z")
-	st, err := state.New(anchor, Audience, issuer.Config(issuerName, keyID, signing, time.Now))
+	st, err := state.New(anchor, Audience, coreConfig(keyID, signing))
 	if err != nil {
 		return nil, err
 	}

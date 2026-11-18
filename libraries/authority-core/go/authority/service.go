@@ -58,6 +58,13 @@ type Config struct {
 	// MaxDelegationTTL clamps the lifetime a delegation is asked for; zero
 	// means DefaultMaxDelegationTTL.
 	MaxDelegationTTL time.Duration
+	// Advisory says this host answers an advisory check (CheckMethod's
+	// advisory) as advice: a method its policy refuses is answered with the
+	// verified capability and the refusal beside it. It is for a local
+	// development run, and a host sets it only for one; left false, an
+	// advisory check is enforced as any other, so no caller is handed a
+	// capability's contents for a call that was refused.
+	Advisory bool
 	// Replay consumes single-use capabilities. It is required: a deployed
 	// host shares it across replicas, and nothing defaults to memory.
 	Replay workcontext.ReplayStore

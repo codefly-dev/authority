@@ -80,7 +80,9 @@ func (s *Service) check(ctx context.Context, token, audience string) (*workconte
 // grant, never the owner's authority above it): decide.AdmitMethod. An empty
 // method is Check alone. Advisory decides the method but does not enforce it:
 // a sound capability is answered with the method's refusal beside it, the
-// same refusal a check that enforces it returns as its error.
+// same refusal a check that enforces it returns as its error. Only a host
+// that says it serves advice (Config.Advisory) answers so; any other enforces
+// an advisory check as it does every check.
 // The exact reserved InstallationStepHTTPMethod (POST /_codefly/installations)
 // and InstallationStepRPCMethod (/host.installation.v1.InstallableService/Install)
 // instead require a setup-only credential for the current consented pending
@@ -104,6 +106,9 @@ func (s *Service) CheckMethod(ctx context.Context, token, audience, method strin
 // checkMethod decides CheckMethod, and sets proven to the capability
 // whenever it verified, refused after that or not.
 func (s *Service) checkMethod(ctx context.Context, token, audience, method string, advisory bool, proven **workcontext.Verified) (verified *workcontext.Verified, revision uint64, refusal error, err error) {
+	// Advice is a development run's: a host that did not say it serves it
+	// enforces the check (Config.Advisory).
+	advisory = advisory && s.cfg.Advisory
 	if audience == "" {
 		return nil, 0, nil, domain.Refuse("a check names the audience the caller is")
 	}

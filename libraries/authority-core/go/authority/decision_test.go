@@ -23,6 +23,7 @@ func newDecisions(t *testing.T) *decisions {
 	t.Helper()
 	d := &decisions{harness: newHarness(t)}
 	cfg := d.cfg
+	cfg.Advisory = true // this host serves advice, so an advisory decision is told as one
 	cfg.Decisions = func(_ context.Context, got authority.Decision) error {
 		d.seen = append(d.seen, got)
 		return d.fail
