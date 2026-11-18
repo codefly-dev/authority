@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 
 	"gateway/pkg/business/state"
@@ -15,11 +16,17 @@ import (
 // manifest's other declarations named the kind.
 func TestAModuleServesWhatItsMethodsRequire(t *testing.T) {
 	k := testkit.New(t)
+	define := []*basev0.WorkScopeV1{{ResourceKind: "ledger.accounts", Actions: []string{"define"}}}
 	m := state.Manifest{Name: "ledger", Principal: "ledger", Kind: "module", Generation: 1, Bindings: map[string]state.Binding{},
+		Page: true, InstallationRole: "none",
+		Roles: map[string][]*basev0.WorkScopeV1{state.AdminRole: define, state.UserRole: define},
 		Methods: map[string]state.MethodPolicy{
-			"/ledger.v1.Ledger/DefineAccount": {Requires: []*basev0.WorkScopeV1{{ResourceKind: "ledger.accounts", Actions: []string{"define"}}}},
+			"/ledger.v1.Ledger/DefineAccount": {Requires: define},
 		}}
 	if _, err := k.State.ApplyManifest(m); err != nil {
+		t.Fatal(err)
+	}
+	if err := k.State.GrantRole(domain.RoleGrant{InstallationID: state.InstallationID("acme", "ledger"), Role: state.UserRole, PersonID: "dev"}); err != nil {
 		t.Fatal(err)
 	}
 	held, err := k.PersonScopes(t, "dev", "ledger")

@@ -71,7 +71,8 @@ func TestAttachmentRefusalsAndExclusiveBoundedLifecycle(t *testing.T) {
 	}
 	_, err := h.svc.AttachResource(h.ctx, authority.AttachmentRequest{Token: token, Store: authority.Workload{Module: "a"}, Kind: kind, ResourceID: "x"})
 	refused(t, err, "does not serve")
-	wrong := h.must(h.root("rob", "ledger"))
+	h.grant("b", "user", "maya")
+	wrong := h.must(h.root("maya", "b"))
 	_, err = h.svc.AttachResource(h.ctx, authority.AttachmentRequest{Token: wrong.Token, Store: authority.Workload{Module: "a"}, Kind: "a.note", ResourceID: "x"})
 	refused(t, err, "audience")
 	var before domain.Installation
@@ -193,7 +194,8 @@ func (s *beforeWriteStore) Write(ctx context.Context, f func(authority.Tx) error
 
 func TestPublicIssuanceTransfersOnlyAfterLiveAuthorization(t *testing.T) {
 	h := newHarness(t)
-	h.grant("a", "author", "ada")
+	h.administrator("ada")
+	h.grant("a", "admin", "ada")
 	capability := h.must(h.through("ada", "a", "store"))
 	for _, row := range effective(capability) {
 		if row.GetResourceOwnerId() != h.principal(acme, "a") {
@@ -206,11 +208,12 @@ func TestPublicIssuanceTransfersOnlyAfterLiveAuthorization(t *testing.T) {
 	foreign.To = h.principal(globex, "a")
 	_, err := h.svc.AuthorizeTransfer(h.ctx, foreign)
 	refused(t, err, "not active at acme")
-	// A personal grant lost after issue is read live, even without a revision bump.
-	h.store.PutPerson(domain.Person{ID: "ada", Organization: acme})
-	_, err = h.svc.AuthorizeTransfer(h.ctx, request)
-	refused(t, err, "own organization grants")
+	// Administration lost after issue is read live, even without a revision
+	// bump; an organisation role of another name administers nothing.
 	h.store.PutPerson(domain.Person{ID: "ada", Organization: acme, Roles: []string{"store-admin"}})
+	_, err = h.svc.AuthorizeTransfer(h.ctx, request)
+	refused(t, err, "ada is not an administrator of acme")
+	h.administrator("ada")
 	if err := h.store.Read(h.ctx, func(tx authority.Tx) error {
 		inst, err := tx.Installation(h.inst(acme, "a").ID)
 		if len(inst.Owned) != 0 {
@@ -239,13 +242,14 @@ func TestTransferUsesTheAttachmentBoundAndWriteFence(t *testing.T) {
 	for _, test := range []string{"cap", "revision", "exclusive"} {
 		t.Run(test, func(t *testing.T) {
 			h := newHarness(t)
-			h.grant("a", "author", "ada")
+			h.administrator("ada")
+			h.grant("a", "admin", "ada")
 			capability := h.must(h.through("ada", "a", "store"))
 			service := h.svc
 			reason := "already owns 32"
 			switch test {
 			case "cap":
-				h.grant("a", "author", "alex")
+				h.grant("a", "admin", "alex")
 				created := h.must(h.through("alex", "a", "store"))
 				for n := range authority.MaxOwnedPerKind {
 					if _, err := attach(h, created.Token, fmt.Sprintf("id-%d", n)); err != nil {
@@ -253,7 +257,7 @@ func TestTransferUsesTheAttachmentBoundAndWriteFence(t *testing.T) {
 					}
 				}
 			case "exclusive":
-				h.grant("b", "author", "alex")
+				h.grant("b", "admin", "alex")
 				created := h.must(h.through("alex", "b", "store"))
 				if _, err := attach(h, created.Token, "store-x"); err != nil {
 					t.Fatal(err)
@@ -281,7 +285,7 @@ func TestTransferUsesTheAttachmentBoundAndWriteFence(t *testing.T) {
 
 func TestPublicCreationIsTenantBoundAndSupportsInstallationAgents(t *testing.T) {
 	h := newHarness(t)
-	if _, err := h.svc.GrantRole(h.ctx, h.person("zoe"), authority.RoleRequest{Organization: globex, InstallationID: h.inst(globex, "a").ID, Role: "author", PersonID: "zoe"}); err != nil {
+	if _, err := h.svc.GrantRole(h.ctx, h.person("zoe"), authority.RoleRequest{Organization: globex, InstallationID: h.inst(globex, "a").ID, Role: "admin", PersonID: "zoe"}); err != nil {
 		t.Fatal(err)
 	}
 	for _, capability := range []authority.Issued{h.must(h.agent("a", "store")), h.must(h.through("zoe", "a", "store"))} {

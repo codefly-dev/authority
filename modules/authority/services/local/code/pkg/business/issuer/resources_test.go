@@ -3,7 +3,6 @@ package issuer_test
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
@@ -32,7 +31,7 @@ func covered(t *testing.T, owned []authority.Grant) *resources.Matcher {
 	var grants []resources.Grant
 	for _, g := range owned {
 		if g.Owner != "" {
-			t.Fatalf("an organisation grant names an owner: %+v", g)
+			t.Fatalf("records checks no owner, and the grant names one: %+v", g)
 		}
 		grants = append(grants, g.Grant)
 	}
@@ -43,11 +42,10 @@ func covered(t *testing.T, owned []authority.Grant) *resources.Matcher {
 	return m
 }
 
-// The authority answers which collections a person reads from her roles, now,
-// at records, which checks no owner (at documents, which does, her roles reach
-// none on her own session: RBAC-4a).
-// Maya reads by prefix and pattern, which a token cannot carry: she names the
-// collections she acts on, and an ask naming none carries none of the kind.
+// The authority answers which collections a person reads at records, now,
+// from the role they hold on its installation. A role names no resource: the
+// page's user reads every collection, and a capability she narrowed to named
+// ones covers exactly those.
 func TestTheAuthorityAnswersWhichResourcesAContextCovers(t *testing.T) {
 	k := testkit.New(t)
 	ctx := context.Background()
@@ -65,14 +63,13 @@ func TestTheAuthorityAnswersWhichResourcesAContextCovers(t *testing.T) {
 		}
 	}
 	if m.All() {
-		t.Error("maya reads every collection")
+		t.Error("a capability narrowed to two collections covers every one")
 	}
-	if _, err := k.Issuer.ListResources(ctx, issued(t, k, "fixture-maya", nil), "records", "records.collection", "read"); !errors.Is(err, issuer.ErrRefused) {
-		t.Fatalf("an ask naming no collection carried the kind: %v", err)
-	}
-	remi, err := k.Issuer.ListResources(ctx, issued(t, k, "fixture-remi", nil), "records", "records.collection", "read")
-	if err != nil || !covered(t, remi).All() {
-		t.Fatalf("an editor reads every collection: %v %v", remi, err)
+	for _, token := range []string{"fixture-maya", "fixture-remi"} {
+		all, err := k.Issuer.ListResources(ctx, issued(t, k, token, nil), "records", "records.collection", "read")
+		if err != nil || !covered(t, all).All() {
+			t.Fatalf("%s, holding a role on records, reads every collection: %v %v", token, all, err)
+		}
 	}
 	if _, err := k.Issuer.ListResources(ctx, named, "records", "records.collection", "admin"); !errors.Is(err, issuer.ErrRefused) {
 		t.Fatalf("an action the context does not hold: %v", err)
@@ -82,17 +79,17 @@ func TestTheAuthorityAnswersWhichResourcesAContextCovers(t *testing.T) {
 	}
 }
 
-// Asking for an id never widens: an ask naming one the owner's grants do not
-// cover is refused, even beside one they do, and a capability narrowed to
-// named resources covers exactly those.
-func TestANarrowedContextCoversOnlyTheIDsItNamesThatTheOwnerHolds(t *testing.T) {
+// Asking for ids never widens: an ask naming an action the role lacks is
+// refused even on a named id, and a capability narrowed to named resources
+// covers exactly those.
+func TestANarrowedContextCoversOnlyTheIDsItNames(t *testing.T) {
 	k := testkit.New(t)
 	_, err := k.Issuer.Issue(person(t, k, "fixture-maya"), &authorityv1.IssueRequest{
 		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "records",
-		Scopes: []*authorityv1.WorkScopeV1{{ResourceKind: "records.collection", Actions: []string{"read"}, ResourceIds: []string{"derived\x1fdirectory", "secret"}}},
+		Scopes: []*authorityv1.WorkScopeV1{{ResourceKind: "records.collection", Actions: []string{"admin"}, ResourceIds: []string{"derived\x1fdirectory"}}},
 	})
-	if !errors.Is(err, issuer.ErrRefused) || !strings.Contains(err.Error(), "widens") {
-		t.Fatalf("an ask naming an id the owner does not hold: %v", err)
+	if !errors.Is(err, issuer.ErrRefused) {
+		t.Fatalf("an ask naming an action the role lacks: %v", err)
 	}
 	token := issued(t, k, "fixture-maya", []*authorityv1.WorkScopeV1{
 		{ResourceKind: "records.collection", Actions: []string{"read"}, ResourceIds: []string{"derived\x1fdirectory"}},

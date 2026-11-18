@@ -46,6 +46,15 @@ and clock. Merely wrapping its current setup in the factory is unsafe. The
 separate `RunArtifacts` and `RunSolutionPrincipalTarget` entry points and
 Accounts-only tests retain their existing execution order.
 
+A host driven through `Run` is one host for every case, so a case owns the
+names it delivers: a module another case delivered is an installation approved
+at that case's generation, and a later generation of it is an upgrade the host
+holds back until an administrator approves it. A case that redelivers a name
+approves the upgrade itself (`Review`, then `Install`), as the redelivery
+cases do. The local runner drives both modes:
+`TestTheLocalAuthorityPassesTheSuiteOnOneSharedHost` runs every case in order
+against one host, beside the isolated `RunParallel` run.
+
 Measure the local shared run with `go test -json -count=1 -run
 '^TestTheLocalAuthorityPassesTheSuiteEveryImplementationMustPass$'
 ./plugins/registry_test` from `modules/authority/services/local/code`. Use the
@@ -56,11 +65,22 @@ subtest names as well as failures/skips. Validate isolation with `go test -race
 '^Test(TheLocalAuthorityPassesTheSuiteEveryImplementationMustPass|ConformanceFixturesIsolateKeysSessionsAndClocks)$'
 ./plugins/registry_test`.
 
-The local fixture contains Acme and Globex; Maya is a viewer, Remi an editor,
-Alex an administrator, Dev the developer, Zoe a Globex administrator, and Omar
-has no organization role. Omar's ops team does hold a Globex wiki installation
+A host that bounds its run of the suite calibrates that ceiling without the race
+detector and passes it through `conformance.Ceiling`: the ceiling as calibrated
+in an ordinary build, `RaceFactor` (8) times it in a binary built with `-race`,
+where the same cases take several times as long. The ceiling is never raised
+for every build to make room for the detector, and `go test -timeout` still
+bounds the binary: raise it as well for a run under `-race`.
+
+The local fixture contains Acme and Globex; Alex and Zoe administer them, and
+nobody else holds an organisation role. The local kit seats Maya as the user
+and Remi as the admin of the module pages it composes (records, the directory,
+evaluation, the model); Dev and Omar are seated on none of them. Omar's ops team does hold a Globex wiki installation
 role, so the no-entitlement case uses the existing `fixture-no-roles` person.
-An additional organization owner proves inventory access without the admin role.
+`admin` is the one organisation role that administers. A host whose membership
+has another name for an administrator (an organisation's creator called
+`owner`, say) hands the core `admin` for that person; the suite no longer takes
+an `OwnerToken`.
 Host fixtures map these behaviours to their own person and organization IDs;
 providing different labels does not remove an obligation.
 
@@ -87,8 +107,8 @@ the rename. Run-time enforcement belongs to the release that deletes the
 | An installation survives delivery | `installationSurvivesDelivery` (no host fixture beyond `AdminToken` and `UnentitledToken`; the delivery workload `conformance-redelivered`): the suite delivers a solution, installs it as `AdminToken` and grants its `user` to `UnentitledToken`; a redelivery narrowing `user` re-converges the installation (active, `approved_generation` advanced, revision moved, the grant kept, the earlier capability refused, a fresh `Install` refused as already installed); a redelivery widening `user` leaves it on its consent (`approved_generation` unchanged, `upgrade_available` true, the grant and the earlier capability kept, the holder issued exactly the approved `user`'s scopes); a fresh `Review` and `Install` upgrade it in place (same id, active, `approved_generation` current, the grant kept, the earlier capability refused, the holder issued the delivered `user`'s scopes); a redelivery narrowing `user` to the page alone re-converges with the grant kept, and widening it back leaves the installation on its consent, the holder issued the narrower `user` until a fresh `Review` and `Install` upgrade it; a binding added, then widened (invoke read to read and write on `ReadKind` at `Audience`), each offers an upgrade the same way, and a binding cut back re-converges. |
 | Absent installation versus no entitlement | `FailedPrecondition` with the absent-installation reason versus `PermissionDenied` with the holds-nothing reason |
 | Inventory access | Admin and owner allowed; ordinary member, anonymous and foreign-organization reads refused |
-| Resource discovery and whole-kind policy admission | `Resources`, plus resource-limited method admission without widening resource authority |
-| Delivered method policies and advisory | Signed methods cover required scopes, any checked caller, unmarked and missing methods; local-only `LocalAdvisory` returns the same checked context/revision and the exact refusal, and still rejects an invalid capability. |
+| Resource discovery and whole-kind policy admission | `Resources`, plus resource-limited method admission without widening resource authority; the delivery workload `conformance-resource-method`, the case's own module |
+| Delivered method policies and advisory | Signed methods cover required scopes, any checked caller, unmarked and missing methods; local-only `LocalAdvisory` returns the same checked context/revision and the exact refusal, and still rejects an invalid capability. A delivery whose method carries (`MethodPolicyV1.carries`) an action the module's scope ceilings do not list, or a kind it does not serve, is refused `PermissionDenied` naming the method and the permission, and the module keeps the policy it had: a host that drops the field on the way in accepts it and fails. |
 | Solution route policy | Signed GET/POST routes distinguish `requires` from `any_checked_caller`, including template paths and an unknown route. |
 | Delivery and installation lifecycle | Manifest/role ceilings, forward generation, mismatched signed documents, blocked acknowledgement, then team exposure |
 | Session identity and display names | Current requires person and organization IDs plus nonempty `Session.person_display_name = 7` and `Session.organization_display_name = 8`. Listed fixture people carry the same organization display name as their signed-in session through `FixturePerson.organization_display_name = 7`. |
@@ -137,18 +157,28 @@ active installing organizations or none, naming “must name the organization of
 the work item”. `WorkloadOrganizations` supplies these two fixtures. Successful
 single-organization inference remains a local convenience, not a shared promise.
 
-## Fixture rule: own sessions and modules that check owners (RBAC-4a)
+## Fixture rule: a person reaches a module through a role on an installation
 
-A person's organization roles on their own session reach no owned kind of a
-module that checks owners; they reach a kind it declares shared, and every kind
-of a module that checks no owner. So a host's fixture puts each case that starts
-from a person's own session (Audience/ReadKind, Chain, ChildScopes, Lookup,
-Delegation, ParentLimits, Resources and the Matrix's allow rows) on modules that
-check no owner or on shared kinds, and the cases that reach an installation's
-data (SolutionRoles, InstallationChain, InstallationResources) on modules that
-check owners. A Matrix deny row at a module that checks owners states the rule
-for the host. ParentLimits refuses a fixture whose dropped kind the person does
-not hold at the root, since its refusal would then prove nothing.
+Organisation roles decide administration only. A person's own session holds
+what their role on the audience's installation holds: at a solution or a module
+page declaring roles, that role; at a module that declares no roles, nothing,
+refused by name. So a host's fixture puts each case that starts from a person's
+own session (Audience/ReadKind, Chain, ChildScopes, Lookup, Delegation,
+ParentLimits, Resources and the Matrix's allow rows) on a module page declaring
+roles, with the person seated on a role there, and where the chain goes on
+through a binding the page's role names the kind it reaches. The cases that
+reach an installation's data (SolutionRoles, InstallationChain,
+InstallationResources) stay on modules that check owners. A Matrix deny row at
+a module that declares no roles, and for an organisation administrator at a
+page they hold no role on, states the rule for the host. ParentLimits refuses a
+fixture whose dropped kind the person does not hold at the root, since its
+refusal would then prove nothing.
+
+`Fixture.OrganisationRoles` is required: an administrator of the organisation
+holding no role on any installation, the role-gated audiences they are refused
+at, and at least one composed module declaring no roles, where nobody's own
+session holds anything. A host that lets an organisation role reach a module
+fails there.
 
 ## Target: solution principal (not yet part of `Run`)
 
@@ -199,7 +229,7 @@ then runs these cases, each making its own grants:
 13. a child never widens the owner, the actions or the ids it narrowed to
 14. an existing resource joins the principal only by a transfer from the organization or its person, administered on that resource through the person's own grants, by a holder of write on the principal's data (fourteen named refusals)
 15. revoking a person's role stops their access at once, theirs alone; their old capabilities stay dead after a re-grant
-16. a team's role is its members' access; revoking it or leaving the team stops them at once; a direct grant survives the team's revoke
+16. a team's role is its members' access; revoking it or leaving the team stops them at once; a direct grant survives the team's revoke. Its last step, `team_removal.go`, is the host removing a member from the team (`RemoveFromTeam`): the authority reads a person's teams from the host and ends nothing already issued unless the host tells it the person changed, so a host passes only if, by the next call, `Check` refuses with "revoked" what the member was issued through the team's role (their call through A, and the store's own hop on it, sealed to the store's installation), `ListResources` refuses it too, a fresh ask at A "holds no role", the session they had cast onto the team issues nothing and what it was issued is refused, a new cast is refused "could not grant", `ListCastableTeams` offers them the team no more, the role granted to them directly on B is issued again, and another member of the team is untouched
 17. a person leaving the organization loses the solution's data at once
 18. uninstalling disables the principal at once and its data stays owned; old capabilities (a person's, the agent's, a parent's children) stay dead after reinstall and re-grant
 

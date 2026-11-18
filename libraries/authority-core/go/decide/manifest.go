@@ -36,28 +36,43 @@ func ValidateModule(m domain.Module) error {
 	return noOwners(m)
 }
 
-// PageRoles holds what a NEW generation declares to the two roles a person
-// holds on a solution or a module page: a target declaring roles declares
-// exactly admin (or, for the stopgap, its legacy name,
-// domain.LegacyInstallerRole) and user. Which roles exist is decided here,
-// never by the contract's reader (core reads roles as declared). The Service
-// applies it to every generation it admits, applies or pre-checks
-// (authority.Service.Admit, ApplyModule), never to one it already holds, read
-// again (RereadModule): the core's own model is wider by design, carrying the
-// old names a crossover moves (domain.CrossoverRole) at the next delivery.
+// PageRoles holds what a generation declares to the two roles a person holds
+// on a solution or a module page: a target declaring roles declares exactly
+// admin and user, no other name (RoleNames) and both (ValidateModule requires
+// admin). Which roles exist is decided here, never by the contract's reader
+// (core reads roles as declared). The Service applies it to every generation
+// it admits, applies or pre-checks (authority.Service.Admit, ApplyModule).
 func PageRoles(m domain.Module) error {
-	if len(m.Roles) == 0 || (m.Kind != domain.KindSolution && !m.Page) {
-		return nil // none declared, or roles on a module without a page, which ValidateModule refuses as such
-	}
-	for _, name := range slices.Sorted(maps.Keys(m.Roles)) {
-		if name != domain.UserRole && !domain.IsAdminRole(name) {
-			return domain.Refuse("%s declares role %q, which is neither %q nor %q: a solution, or a module page declaring roles, declares exactly those two", m.Name, name, domain.AdminRole, domain.UserRole)
-		}
+	if err := RoleNames(m); err != nil || !declaresPersonRoles(m) {
+		return err
 	}
 	if _, ok := m.Roles[domain.UserRole]; !ok {
 		return domain.Refuse("%s declares %d role(s) and none is %q: a solution, or a module page declaring roles, declares %q beside %q, what a person does with it day to day (a module page declaring none derives %q only from a kind it serves read or write on, so one serving neither declares its roles)", m.Name, len(m.Roles), domain.UserRole, domain.UserRole, domain.AdminRole, domain.UserRole)
 	}
 	return nil
+}
+
+// RoleNames refuses, by its name, a role a solution or a module page declares
+// that is neither admin nor user (domain.IsRole): no former name of either
+// ("installer", "editor", "viewer", "steward") and no role of a target's own
+// is declared, in a new generation or in one the core holds, read again.
+func RoleNames(m domain.Module) error {
+	if !declaresPersonRoles(m) {
+		return nil
+	}
+	for _, name := range slices.Sorted(maps.Keys(m.Roles)) {
+		if !domain.IsRole(name) {
+			return domain.Refuse("%s declares role %q, which is neither %q nor %q: a solution, or a module page declaring roles, declares exactly those two", m.Name, name, domain.AdminRole, domain.UserRole)
+		}
+	}
+	return nil
+}
+
+// declaresPersonRoles: m declares roles a person holds. None declared, or
+// roles on a module without a page (which ValidateModule refuses as such),
+// are not held to the two names.
+func declaresPersonRoles(m domain.Module) bool {
+	return len(m.Roles) > 0 && (m.Kind == domain.KindSolution || m.Page)
 }
 
 // Unreached refuses, by name, a scope a role of m names through one of its
@@ -187,6 +202,9 @@ func validateModule(m domain.Module) error {
 			return domain.Refuse("binding %s: headless scopes exceed invoke scopes", id)
 		}
 	}
+	if err := validateInstallationRole(m); err != nil {
+		return err
+	}
 	if m.Kind != domain.KindSolution {
 		if len(m.OwnedRoles) > 0 {
 			return domain.Refuse("module %q declares installation-owned roles; only a solution declares them", m.Name)
@@ -195,22 +213,12 @@ func validateModule(m domain.Module) error {
 			return nil
 		}
 		if !m.Page {
-			return domain.Refuse("module %q declares roles and no page; a module's access is the organization's roles unless it declares a page", m.Name)
+			return domain.Refuse("module %q declares roles and no page; a person reaches a module that has no page through a role on an installation that binds it, so only a page declares roles", m.Name)
 		}
 	}
-	// STOPGAP (one release): DeclaredAdminRole also accepts the legacy
-	// "installer" (domain.LegacyInstallerRole), so a delivery not yet
-	// re-rendered is not refused while hosts cross the rename.
-	if _, ok := domain.DeclaredAdminRole(m.Roles); !ok {
+	if _, ok := m.Roles[domain.AdminRole]; !ok {
 		return &domain.Refusal{Code: domain.Denied, Cause: domain.ErrNoAdminRole,
 			Reason: fmt.Sprintf("%s declares %d role(s) and none is %q: a solution, or a module page declaring roles, declares an admin role", m.Name, len(m.Roles), domain.AdminRole)}
-	}
-	// STOPGAP (one release): naming both would give the target two
-	// admin-powered roles, so a holder of a narrowly scoped "installer"
-	// could grant themselves admin.
-	_, admin := m.Roles[domain.AdminRole]
-	if _, legacy := m.Roles[domain.LegacyInstallerRole]; admin && legacy {
-		return domain.Refuse("%s declares both %q and %q: %q is the admin role's old name, and a target declares one admin role", m.Name, domain.AdminRole, domain.LegacyInstallerRole, domain.LegacyInstallerRole)
 	}
 	// A role reaches through its target's bindings, a solution's and a
 	// module page's alike (a person's capability through either carries the
@@ -315,7 +323,8 @@ func StandardRoles(m domain.Module) map[string]Scopes {
 
 // RoleGated reports whether what a person holds at m is the roles granted on
 // its installation: a solution's, or a module page's that declares roles.
-// Otherwise it is their organization roles within what m serves.
+// Otherwise a person holds nothing at m on their own session (NoRoles): it is
+// reached through the binding of an installation whose role they hold.
 func RoleGated(m domain.Module) bool {
 	return m.Kind == domain.KindSolution || len(m.Roles) > 0
 }
@@ -323,10 +332,10 @@ func RoleGated(m domain.Module) bool {
 // Narrowed reports whether next narrows what previous granted: a binding
 // removed, readdressed or cut, owner-aware checking withdrawn or adopted, a
 // kind no longer shared at a module that checks owners, any of its roles cut,
-// or a module moved between organization roles and its own. A narrowing
+// or a module that started or stopped declaring roles of its own. A narrowing
 // invalidates capabilities already issued. Adopting owner checks narrows too:
-// what an organization role or a module's role held there unselected is no
-// longer held (RBAC-4a, ModuleRoleAt).
+// what a module's role held there unselected is no longer held
+// (ModuleRoleAt).
 func Narrowed(previous, next domain.Module) bool {
 	if previous.OwnerAware != next.OwnerAware {
 		return true
@@ -443,4 +452,26 @@ func Unselect(audience domain.Module, scopes Scopes) Scopes {
 		out = append(out, sc)
 	}
 	return scope.Normalize(out)
+}
+
+// validateInstallationRole holds the installation_role declaration to the roles
+// the module declares: empty (undeclared), the "none" marker, or one declared
+// role spelled exactly. No role may be named "none", which is the marker's.
+// These are role rules, so the authority decides them; the contract schema
+// only carries the string.
+func validateInstallationRole(m domain.Module) error {
+	if _, reserved := m.Roles[domain.NoInstallationRole]; reserved {
+		return domain.Refuse("%s declares a role named %s, which is reserved for the installation_role declaration of no standing grant", m.Name, domain.NoInstallationRole)
+	}
+	selected := m.InstallationRole
+	if strings.TrimSpace(selected) != selected {
+		return domain.Refuse("%s declares installation_role %q with surrounding whitespace; declare the exact role name or none", m.Name, selected)
+	}
+	if selected == "" || selected == domain.NoInstallationRole {
+		return nil
+	}
+	if _, declared := m.Roles[selected]; !declared {
+		return domain.Refuse("%s declares installation_role %q, which is not one of its roles %v (or declare none)", m.Name, selected, slices.Sorted(maps.Keys(m.Roles)))
+	}
+	return nil
 }

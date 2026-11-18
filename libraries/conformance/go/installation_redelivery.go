@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/codefly-dev/core/solutionhost"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )

@@ -9,7 +9,6 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"google.golang.org/protobuf/proto"
 )
@@ -17,146 +16,44 @@ import (
 // Scopes is a scope list.
 type Scopes = []*basev0.WorkScopeV1
 
-// IsAdministrator: an organization's administrators hold "admin" or "owner".
+// IsAdministrator: an organization's administrators hold "admin". It is the
+// one organisation role the core reads, and no other name administers:
+// "owner" included. A host whose own membership has another name for an
+// administrator (the organisation's creator, say) hands the core "admin" for
+// that person; a name it hands over unmapped grants nothing.
 func IsAdministrator(p domain.Person) bool {
-	return slices.Contains(p.Roles, "admin") || slices.Contains(p.Roles, "owner")
+	return slices.Contains(p.Roles, "admin")
 }
 
-// OrgScopes is what a person's organization roles grant at audience: the
-// union of their scopes (AnyKind spanning every served kind) within what the
-// audience serves. A role scope naming no resource holds the whole kind; one
-// naming resources holds exactly the ids its matchers select (heldIDs), never
-// the whole kind, so Issue refuses an ask naming any other id and an empty
-// ask carries those ids. named is what the decision is about: the ask, and
-// the capability a hop or a delegation derives from.
-//
-// At an audience that checks owners, organization roles reach no owner's
-// data: only a kind the audience declares shared is held (AnyKind spans those
-// alone). An owner's data there is reached through a role granted on the
-// installation that owns it (RBAC-4a).
-func OrgScopes(roles []domain.OrgRole, audience domain.Module, named Scopes) Scopes {
-	var held Scopes
-	for _, role := range roles {
-		for _, sc := range role.Scopes {
-			kinds := []string{sc.Kind}
-			if sc.Kind == scope.AnyKind {
-				kinds = kinds[:0]
-				for _, kind := range audience.ResourceKinds {
-					kinds = append(kinds, kind.GetResourceKind())
-				}
-			}
-			for _, kind := range kinds {
-				if audience.OwnerAware && !slices.Contains(audience.SharedKinds, kind) {
-					continue
-				}
-				ids, all := heldIDs(sc.Resources, kind, named)
-				if !all && len(ids) == 0 {
-					// No row: a row naming no id is the whole kind.
-					continue
-				}
-				held = append(held, &basev0.WorkScopeV1{ResourceKind: kind, Actions: slices.Clone(sc.Actions), ResourceIds: ids})
-			}
-		}
-	}
-	return scope.Intersect(scope.Normalize(held), audience.ResourceKinds)
-}
-
-// OwnSession names why a person's own session was refused at an audience
-// that checks owners (RBAC-4a): organization roles reach none of its owned
-// kinds there. An ask naming only shared kinds, or a refusal at an audience
-// that checks no owner, is answered as refused.
-func OwnSession(audience domain.Module, asked Scopes, refused error) error {
-	if !audience.OwnerAware || RoleGated(audience) {
-		return refused
-	}
-	ownedKind := func(kind string) bool {
-		return !slices.Contains(audience.SharedKinds, kind) &&
-			slices.ContainsFunc(audience.ResourceKinds, func(sc *basev0.WorkScopeV1) bool { return sc.GetResourceKind() == kind })
-	}
-	owned := false
-	if len(asked) == 0 {
-		// An empty ask names the rule only when nothing was held at all.
-		owned = strings.Contains(refused.Error(), "holds nothing")
-	}
-	for _, sc := range asked {
-		owned = owned || ownedKind(sc.GetResourceKind())
-	}
-	if !owned {
-		return refused
-	}
-	return domain.Refuse("%v: %s checks owners, so an organization role reaches none of its owned data on a person's own session; reach it through a role on the installation that owns it", refused, audience.Name)
-}
-
-// heldIDs is what a role scope's matchers hold of kind: every resource when
-// they name none or All; otherwise each ID matcher's id, and of a prefix or a
-// pattern only the ids named on kind that it matches. A token cannot carry a
-// prefix or a pattern, and carrying it as the whole kind would hand a module
-// reading the token every resource of the kind, so an ask naming no id holds
-// none of it: the person names the ids they act on. Matchers that do not
-// compile hold nothing.
-func heldIDs(grants []resources.Grant, kind string, named Scopes) (ids []string, all bool) {
-	if len(grants) == 0 {
-		return nil, true
-	}
-	m, err := resources.Compile(grants)
-	if err != nil {
-		return nil, false
-	}
-	if m.All() {
-		return nil, true
-	}
-	for _, g := range grants {
-		if g.ID != "" {
-			ids = append(ids, g.ID)
-		}
-	}
-	for _, sc := range named {
-		if sc.GetResourceKind() != kind {
-			continue
-		}
-		for _, id := range sc.GetResourceIds() {
-			if m.Matches(id) {
-				ids = append(ids, id)
-			}
-		}
-	}
-	slices.Sort(ids)
-	return slices.Compact(ids), false
-}
-
-// ResourceGrants are the resource matchers of every organization-role scope
-// holding action on kind, or every resource for a scope that names none.
-func ResourceGrants(roles []domain.OrgRole, kind, action string) []resources.Grant {
-	var grants []resources.Grant
-	for _, role := range roles {
-		for _, sc := range role.Scopes {
-			if (sc.Kind != kind && sc.Kind != scope.AnyKind) || (!slices.Contains(sc.Actions, action) && !slices.Contains(sc.Actions, scope.AnyAction)) {
-				continue
-			}
-			if len(sc.Resources) == 0 {
-				return []resources.Grant{{All: true}}
-			}
-			grants = append(grants, sc.Resources...)
-		}
-	}
-	return grants
+// NoRoles is the refusal of a person's own session at a module that declares
+// no roles. Organisation roles decide administration only (members, teams,
+// installations, grants): none reaches a module, whatever it is called. A
+// module is reached through a role on an installation, a solution's or a
+// module page's; one that declares no roles has no installation role to hold
+// and is reached through the binding of an installation that reaches it.
+func NoRoles(audience domain.Module) error {
+	return domain.Refuse("%s declares no roles, so a person's own session holds nothing there, whatever their organisation role: it is reached through a role on an installation that reaches it", audience.Name)
 }
 
 // HeldRoles are the roles a person holds on one installation: granted on it
 // to them, or to a team they belong to, within their role view on it when
 // the session has one (domain.RoleView). Grants on any other installation
-// count for nothing here, however the caller gathered them.
+// count for nothing here, however the caller gathered them, and so does a
+// grant of a name that is no role (domain.IsRole), which only a store written
+// before the roles were admin and user still holds: it is held as nothing,
+// whatever a declaration of that time says of it.
 func HeldRoles(p domain.Person, inst domain.Installation, grants []domain.RoleGrant) []string {
 	var roles []string
 	for _, g := range grants {
-		if g.InstallationID != inst.ID {
+		if g.InstallationID != inst.ID || !domain.IsRole(g.Role) {
 			continue
 		}
 		if p.Cast != "" {
 			// Cast onto a team: this session holds what that team is granted
 			// and nothing else — not the person's direct grants, not their
 			// other teams. Membership is not consulted; the grant rule that
-			// admitted the cast already decided the person may be this.
+			// admits the cast is asked wherever the acting person is read
+			// (authority.personFor), before this.
 			if g.TeamID == p.Cast {
 				roles = append(roles, g.Role)
 			}
@@ -375,17 +272,24 @@ type RoleChange struct {
 // ChangeRole decides a role change, in order: the organization the request
 // names must be the installation's, before the caller's authority is read;
 // then the caller must administer that organization or hold the admin role
-// on that installation (domain.HoldsAdmin, which for one release also counts
-// the legacy "installer"). A revoke then needs only exactly one subject; a
-// grant needs the installation active, the role declared, exactly one
-// subject named, and that subject of the organization.
+// on that installation (domain.HoldsAdmin). A caller of another organization
+// is answered as for an installation theirs does not have
+// (ForeignInstallation); a member of the installation's own who is neither is
+// told so (NotRoleAdministrator), never that it is another organization's. A revoke then needs only exactly
+// one subject, whatever the role is named, so a grant a store still holds of
+// a name that is no role is revocable; a grant needs the installation active,
+// the role one of the two (domain.IsRole) and declared, exactly one subject
+// named, and that subject of the organization.
 func ChangeRole(r RoleChange) error {
 	inst := r.Installation
 	if r.RequestOrganization != inst.Organization {
 		return ForeignInstallation(r.RequestedID, r.RequestOrganization)
 	}
-	if r.Caller.Organization != inst.Organization || (!IsAdministrator(r.Caller) && !domain.HoldsAdmin(r.CallerRoles)) {
+	if r.Caller.Organization != inst.Organization {
 		return ForeignInstallation(r.RequestedID, r.RequestOrganization)
+	}
+	if !IsAdministrator(r.Caller) && !domain.HoldsAdmin(r.CallerRoles) {
+		return NotRoleAdministrator(r.Caller.ID, r.RequestOrganization, r.RequestedID)
 	}
 	if r.Revoke {
 		// A grant stays revocable whatever happened since: an installation
@@ -404,6 +308,11 @@ func ChangeRole(r RoleChange) error {
 	}
 	if _, declared := r.Solution.Roles[r.Role]; !declared {
 		return domain.Missing("%s declares no role %q", inst.Target, r.Role)
+	}
+	if !domain.IsRole(r.Role) {
+		// A declaration held from before the roles were the two may still
+		// name another; nobody is granted it.
+		return domain.Refuse("role %q is neither %q nor %q, the roles a person holds on %s", r.Role, domain.AdminRole, domain.UserRole, inst.Target)
 	}
 	if (r.PersonID == "") == (r.TeamID == "") {
 		return domain.Malformed("a role grant names exactly one person or team")
@@ -427,6 +336,26 @@ func ForeignInstallation(id, organization string) error {
 	return domain.Refuse("installation %s belongs to another organization than %q", id, organization)
 }
 
+// NotRoleAdministrator is the answer to a member of the organization a request
+// names who may not grant, revoke or list an installation's roles: they
+// neither administer the organization nor hold the admin role on that
+// installation. It says only what is true of the caller in their own
+// organization, and echoes the id as requested. A host answers it for an
+// installation that organization does not have too, when the caller does not
+// administer it: holding no role on such an installation is equally true, so
+// a member cannot tell their organization's installation from another's or
+// from none.
+func NotRoleAdministrator(person, organization, id string) error {
+	return domain.Refuse("%s is neither an administrator of %s nor a holder of the admin role on installation %s", person, organization, id)
+}
+
+// NotAdministrator is the answer to a member of an organization for an act
+// that is its administrator's alone, named by what: it says only what is true
+// of the caller in their own organization.
+func NotAdministrator(person, organization, what string) error {
+	return domain.Refuse("%s is not an administrator of %s: %s", person, organization, what)
+}
+
 // Transfer is one AuthorizeTransfer with what it is decided against.
 type Transfer struct {
 	// OwnerKind and Person are the presented capability's owner.
@@ -440,7 +369,8 @@ type Transfer struct {
 	FromPrincipal bool
 	FromPerson    *domain.Person
 	To            string
-	// Administers: the person's own organization grants hold admin on the resource.
+	// Administers: the person administers their organisation (IsAdministrator),
+	// whose resource this is until it joins the installation.
 	Administers bool
 	// Writes: the person's current roles on To's installation hold write on the kind.
 	Writes bool
@@ -448,8 +378,11 @@ type Transfer struct {
 
 // AuthorizeTransfer decides whether an existing resource joins a solution
 // principal: a person's act, through that principal's installation, from the
-// organization or a person of it, administered on that resource through the
-// person's own grants, by a holder of write on the principal's data.
+// organization or a person of it, by an administrator of that organisation
+// who holds write on the principal's data through their roles on its
+// installation. Handing the organisation's resource to an installation is
+// administration, so the organisation role decides it; what the person
+// reaches in the store is their installation role.
 func AuthorizeTransfer(t Transfer) error {
 	switch {
 	case t.OwnerKind != "human":
@@ -461,7 +394,7 @@ func AuthorizeTransfer(t Transfer) error {
 	case t.From != t.Person.Organization && (t.FromPerson == nil || t.FromPerson.Organization != t.Person.Organization):
 		return domain.Refuse("%q is not a person or the organization of %s", t.From, t.Person.Organization)
 	case !t.Administers:
-		return domain.Refuse("%s holds no admin on the resource from their own organization grants", t.Person.ID)
+		return NotAdministrator(t.Person.ID, t.Person.Organization, "an organisation's resource joins an installation by its administrator's act")
 	case !t.Writes:
 		return domain.Refuse("%s holds no write on %s's data through their roles", t.Person.ID, t.To)
 	}

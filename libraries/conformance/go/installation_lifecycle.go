@@ -171,7 +171,7 @@ func (c *client) installationLifecycle(t *testing.T, ctx context.Context, f Fixt
 			_, err := issue()
 			refused(t, err, codes.FailedPrecondition, "pending")
 			_, err = c.call(adminCtx, "host.installation.v1.InstallationService", expose, grant)
-			refused(t, err, codes.PermissionDenied, "organization")
+			refused(t, err, codes.PermissionDenied, "is neither an administrator of") // still a member: told why, not that it is another organization's
 			_, err = c.call(adminCtx, "host.installation.v1.InstallationService", "Install", request)
 			refused(t, err, codes.PermissionDenied, "administrator")
 		})

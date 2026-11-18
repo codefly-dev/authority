@@ -22,7 +22,10 @@ The module arm remains unchanged: `Delegate` requires an installed composed
 module and `IssueForDelegation` its attested workload and declared binding.
 The core now also supports a client grantee on the **same stored delegation**:
 `RegisterClient`, `ClientScopes`, `DelegateToClient` and
-`IssueForClientDelegation`. Registration creates identity only. The owner stays
+`IssueForClientDelegation`. `RegisterClient` is a core operation, not an
+endpoint: it records the identity of a client the host has already admitted
+(an operator's registry row, or a Client ID Metadata Document the host fetched
+and validated; see the decisions below) and creates identity only. The owner stays
 the person, and the actor chain carries `principal_kind=client` and the client's
 own ID through later solution/module hops. A client borrows no installation,
 workload credential or binding. The solution's installation seals the capability.
@@ -48,15 +51,29 @@ Copying its store or minter here would violate this repository's reuse boundary.
 The host owner still needs to reconcile a shared implementation with Accounts;
 local tests do not establish host adoption or SaaS parity.
 
-## Owner decisions, settled 2026-10-28
+## Owner decisions, settled 2026-10-28, corrected 2026-11-17
 
-These are the owner's explicit decisions in the #52 working session:
+These are the owner's explicit decisions in the #52 working session. The first
+was corrected on 17 November 2026: as written on 28 October it required
+dynamic client registration (RFC 7591), which contradicted the handbook's
+[registered clients](https://github.com/obin-ai/handbook/blob/main/decisions/registered-clients.md)
+decision. The owner ruled that the handbook decision is the single statement of
+how a client registers (its "Amendment, 2026-11-17"; decision 10 of the
+[17 November proposal](https://github.com/obin-ai/handbook/blob/main/proposals/2026-11-17-organisation-roles-administer-and-a-declaration-decides.md)),
+and this note follows it.
 
-1. **An external client has its own identity; RFC 7591 is required.** It holds no
-   scopes of its own and receives all authority from the person's delegation.
-   Borrowing a composed module identity is rejected. Dynamic registration is
-   part of acceptance because clients such as `claude mcp add` attempt it;
-   hand-registration is not the URL-only flow.
+1. **An external client has its own identity, and registers by a Client ID
+   Metadata Document only.** It holds no scopes of its own and receives all
+   authority from the person's delegation. Borrowing a composed module identity
+   is rejected. A client is declared by the operator in the host's registry, or
+   it registers itself by publishing a Client ID Metadata Document: its
+   `client_id` is the URL of that document, which the host fetches and
+   validates at authorization. **There is no dynamic client registration (RFC
+   7591):** neither a host nor this authority publishes a registration endpoint,
+   and the authorization-server metadata carries no `registration_endpoint`,
+   which is how a conforming client learns not to try. A client that can only
+   register dynamically is not served by the URL-only flow; that is the
+   decision's cost, accepted, not a gap to close here.
 2. **An explicit consent page at the edge names the solution, scopes and expiry.**
    Consent supplements the expiring delegation. The
    [#50 proposal](https://github.com/obin-ai/handbook/blob/main/proposals/2026-10-28-a-person-delegates-a-run-from-the-page.md)
@@ -92,9 +109,14 @@ Forwarded headers, internal service addresses or guessed frontend routes.
 
 The authorization-server document describes code + refresh, public-client
 authentication (`none`) and S256. It may only be published when those handlers
-actually exist. RFC 7591 registration is required by the owner; its endpoint must be advertised
-when implemented. Metadata-client support remains optional and may be advertised
-only when implemented. No OAuth scope vocabulary has been
+actually exist. It never names a `registration_endpoint`: there is no dynamic
+client registration (decision 1). Client ID Metadata Document support is how a
+client registers itself, and is advertised
+(`client_id_metadata_document_supported`) only once the host fetches and
+validates those documents. `oauthwire` still carries an optional
+`RegistrationEndpoint` field and `ValidateRegistration` from before the
+ruling; no caller may set the field, and removing it is a change to the core.
+No OAuth scope vocabulary has been
 invented: callers must declare only scopes their flow enforces.
 
 The PKCE checks use the RFC 7636 vector, strict unpadded SHA-256 challenges and
@@ -176,8 +198,8 @@ with the run. No such run is claimed by this change.
 
 The flow still stops at the first unauthenticated MCP request: the running edge
 returns its existing session 401 without OAuth discovery. Core client identity
-and client delegation are implemented and tested; they are not an HTTP DCR
-endpoint. There are no issued OAuth codes, access handles or rotating refresh
+and client delegation are implemented and tested; no registration endpoint
+exists, and none is to be built. There are no issued OAuth codes, access handles or rotating refresh
 credentials yet. The consent page and solution-owned SDK projection are not wired.
 
 The remaining reuse boundary is concrete. At Accounts commit `55563cda`:
@@ -199,7 +221,9 @@ added. This work crosses into `module-saas-starter`; it cannot be delivered
 solely by changing this authority PR. No issue or ticket has been opened for it.
 
 After that shared path exists: propose/generate the client arm of the public
-interface, wire bounded RFC 7591 registration and explicit consent, resolve each
+interface, admit Client ID Metadata Document clients (fetch and validate the
+document a `client_id` URL names, on a short TTL, and publish no
+`registration_endpoint`) and wire explicit consent, resolve each
 solution's declared resource and the edge origin via the SDK, wire discovery,
 code/refresh exchange and exact-resource edge admission, then execute and record
 the composed five-tool and second-solution refusal run. PR #53 remains draft.

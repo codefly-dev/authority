@@ -31,27 +31,14 @@ func TestTheLocalAuthorityMeetsTheSolutionPrincipalTarget(t *testing.T) {
 	// team no installation is granted to, and a team nobody belongs to.
 	if err := k.State.LoadFixture(context.Background(), []byte(`teams:
   - {organization: acme, id: principal-empty-team}
-roles:
-  - organization: acme
-    name: principal-store-admin
-    scopes:
-      - {kind: principal.collection, actions: [admin], resources: [{id: store-x}]}
-  - organization: acme
-    name: principal-store-reader
-    scopes:
-      - {kind: principal.collection, actions: [read], resources: [{id: store-x}]}
-  - organization: acme
-    name: principal-note-reader
-    scopes:
-      - {kind: principal-a.note, actions: [read]}
 people:
-  - {id: store-administrator, fixture_token: fixture-store-administrator, organization: acme, roles: [principal-store-admin]}
-  - {id: store-reader, fixture_token: fixture-store-reader, organization: acme, roles: [principal-store-reader]}
+  - {id: store-administrator, fixture_token: fixture-store-administrator, organization: acme, roles: [admin]}
+  - {id: store-reader, fixture_token: fixture-store-reader, organization: acme, roles: []}
   - {id: principal-admin, fixture_token: fixture-principal-admin, organization: acme, roles: []}
   - {id: principal-team-member, fixture_token: fixture-principal-team-member, organization: acme, roles: [], teams: [principal-team]}
   - {id: principal-team-leaver, fixture_token: fixture-principal-team-leaver, organization: acme, roles: [], teams: [principal-team]}
   - {id: principal-org-leaver, fixture_token: fixture-principal-org-leaver, organization: acme, roles: []}
-  - {id: principal-note-reader, fixture_token: fixture-principal-note-reader, organization: acme, roles: [principal-note-reader]}
+  - {id: principal-note-reader, fixture_token: fixture-principal-note-reader, organization: acme, roles: []}
 `)); err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +46,7 @@ people:
 	for _, p := range []framework.Plugin{
 		&authority.Plugin{Issuer: k.Issuer},
 		&composition.Plugin{State: k.State, Coordinate: "local", Verifier: testkit.ReleaseVerifier(t, "local"), Carrier: k.CarrierAuthority, Keys: testkit.ReleaseKeys()},
-		&installation.Plugin{State: k.State}, &session.Plugin{State: k.State},
+		&installation.Plugin{State: k.State}, &session.Plugin{State: k.State, Fixture: true},
 	} {
 		p.RegisterGRPC(server)
 	}

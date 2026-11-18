@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/codefly-dev/core/solutionhost"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -20,9 +20,9 @@ import (
 // page declaring none is gated by the standard two the core derives from
 // what it serves (decide.StandardRoles). The holder is
 // UnentitledToken (no role, no team); ViewerToken is another member, of at
-// least one team, whose organization roles read ReadKind: the module serves
-// ReadKind too, so they would hold it there were organization roles to
-// decide.
+// least one team, who reads ReadKind at Audience through a role there: the
+// module serves ReadKind too, and a role held elsewhere holds nothing of it
+// here.
 const (
 	pageModule      = "conformance-page-module"
 	pageModuleNote  = pageModule + ".note"
@@ -33,8 +33,8 @@ const (
 
 func (c *client) modulePageRoles(t *testing.T, ctx context.Context, f Fixture) {
 	c.run(t, f, "a module page is installed by composition; its roles decide who is listed for it and who may use it", func(t *testing.T, c *client, f Fixture) {
-		if f.SignManifest == nil || f.SignAuthority == nil || f.DeliveryCredential == nil || f.AdminToken == "" || f.OtherAdminToken == "" || f.UnentitledToken == "" || f.ViewerToken == "" || f.Audience == "" || f.ReadKind == "" {
-			t.Fatal("required conformance fixture missing: signed delivery, an administrator here and in another organization, a viewer reading ReadKind, a member holding no role (UnentitledToken) and a composed module without roles (Audience)")
+		if f.SignManifest == nil || f.SignAuthority == nil || f.DeliveryCredential == nil || f.AdminToken == "" || f.OtherAdminToken == "" || f.UnentitledToken == "" || f.ViewerToken == "" || f.OrganisationRoles == nil || len(f.OrganisationRoles.NoRoles) == 0 || f.ReadKind == "" {
+			t.Fatal("required conformance fixture missing: signed delivery, an administrator here and in another organization, a viewer reading ReadKind, a member holding no role (UnentitledToken) and a composed module without roles (OrganisationRoles.NoRoles)")
 		}
 		page := &solutionhost.Frontend{Title: pageModuleTitle, ExposedModule: "./Page", HostContract: 1, Payload: f.PagePayload}
 		// roles declares exactly the two roles: admin reads and writes, user
@@ -102,7 +102,7 @@ func (c *client) modulePageRoles(t *testing.T, ctx context.Context, f Fixture) {
 		// an approval of an offer the page never made is refused by that
 		// offer, never by composition.
 		t.Run("a module is never offered or installed by an administrator; a page's installation is reviewed for its upgrade", func(t *testing.T) {
-			for _, target := range []string{pageModule, f.Audience} {
+			for _, target := range []string{pageModule, f.OrganisationRoles.NoRoles[0]} {
 				page := target == pageModule
 				if f.ReviewOfferNotServed == "" {
 					if offered(t, target) {
@@ -226,7 +226,7 @@ func (c *client) modulePageRoles(t *testing.T, ctx context.Context, f Fixture) {
 				t.Fatalf("the holder lists %v, want every %s by the role", grants, pageModuleNote)
 			}
 		})
-		t.Run("another member holds and lists nothing there, whatever the organization grants them", func(t *testing.T) {
+		t.Run("another member holds and lists nothing there, whatever they hold elsewhere", func(t *testing.T) {
 			_, err := issue(viewer)
 			refused(t, err, codes.PermissionDenied, c.noRole())
 			_, err = issue(viewer, readKind)

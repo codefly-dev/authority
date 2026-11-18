@@ -10,14 +10,14 @@ import (
 
 // pageNamingBeyondReach is the page at generation reaching the store as
 // pageReachingStore(generation, "read") does, with a second binding to the
-// legacy store, which carries read alone, and its reader naming write of the
+// legacy store, which carries read alone, and its user naming write of the
 // legacy kind through it: a reach the composition does not hold, which the
 // core refuses by name (decide.Unreached).
 func pageNamingBeyondReach(generation uint64) domain.Module {
 	m := pageReachingStore(generation, "read")
 	m.Bindings["legacy"] = domain.Binding{ID: "legacy", Audience: "legacy-store", InvokeScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}}
-	m.Roles["reader"] = append(m.Roles["reader"], sc(legacyKind, "write"))
-	m.Through = map[string]map[string][]*basev0.WorkScopeV1{"reader": {"legacy": {sc(legacyKind, "write")}}}
+	m.Roles["user"] = append(m.Roles["user"], sc(legacyKind, "write"))
+	m.Through = map[string]map[string][]*basev0.WorkScopeV1{"user": {"legacy": {sc(legacyKind, "write")}}}
 	return m
 }
 
@@ -36,7 +36,7 @@ func TestAdmitAnswersWhatApplyModuleWouldRefuse(t *testing.T) {
 	if _, err := h.svc.ApplyModule(h.ctx, pageReachingStore(7, "read")); err != nil {
 		t.Fatal(err)
 	}
-	h.grant("pages", "reader", "maya")
+	h.grant("pages", "user", "maya")
 	h.grant("pages", domain.AdminRole, "remi")
 	grants := h.roleGrants("pages")
 	revision := h.pagesAt(acme).Revision
@@ -59,7 +59,7 @@ func TestAdmitAnswersWhatApplyModuleWouldRefuse(t *testing.T) {
 	eight := pageNamingBeyondReach(8)
 	err := h.svc.Admit(h.ctx, eight)
 	code(t, err, domain.Denied)
-	refused(t, err, `role "reader" of pages names legacy:write through binding "legacy", which reaches it nowhere in the composition`)
+	refused(t, err, `role "user" of pages names legacy:write through binding "legacy", which reaches it nowhere in the composition`)
 	_, applied := h.svc.ApplyModule(h.ctx, eight)
 	if applied == nil || applied.Error() != err.Error() {
 		t.Fatalf("ApplyModule answered %v; Admit answered %v", applied, err)

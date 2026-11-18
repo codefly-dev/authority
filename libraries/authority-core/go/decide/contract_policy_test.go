@@ -39,8 +39,8 @@ func through(m *domain.Module, role, binding string, scope *basev0.WorkScopeV1) 
 // Every authorization rule core's contract reader held before codefly-dev/core
 // v0.19.32 is the host's: one row per conformance fixture core deleted, the
 // same declaration refused where a delivery is read (PageRoles) or composed
-// (ValidateModule), naming why. The legacy "installer" core refused by name is
-// the host's one-release alias of admin instead (legacy_installer_test.go).
+// (ValidateModule), naming why. The "installer" core refused by name is refused
+// here as any name that is neither admin nor user (role_names_test.go).
 func TestTheHostHoldsWhatCoresReaderNoLongerDoes(t *testing.T) {
 	if err := hostRefusal(policySolution()); err != nil {
 		t.Fatalf("the base declaration is refused: %v", err)

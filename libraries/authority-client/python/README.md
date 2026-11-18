@@ -27,6 +27,40 @@ async with verifier.admit_async(request.headers, full_procedure) as identity: ..
 identity.tenant, identity.has(kind, action), identity.claims.allows(kind, action, resource_id)
 ```
 
+### Narrowing without naming a permission
+
+The hop stamps what admitted the call (`x-codefly-hop-admitted`); the verifier
+holds that stamp to the authenticated Work Context (any difference, or a repeat,
+is refused as `stamp_identity`) and reads it over the declarations the module
+hands it. It is the Go library's `hop.Admitted`, held to it reading for reading
+by `testdata/stamps.json`:
+
+```python
+from codefly_hop import Method, Permission, Verifier, admitted
+
+declared = {"/records.v1.Records/Content": Method(
+    requires=(Permission("records.records", "read"),), carries=(Permission("records.records", "read_content"),))}
+verifier = Verifier(stub, audience=module, replay=store, declarations=declared)  # an HTTP route is keyed "GET /v1/records/{id}"
+
+read = admitted(identity)               # selects nothing when the hop stamped none (identity.admitted is None)
+owners = read.required().owners()       # owners on which the call holds all the method requires
+content = read.carried()                # how far what the method carries reaches; empty() if not held
+content.allows(row.owner, row.id)       # one stored resource
+```
+
+`required()` is the intersection, across the permissions the method requires, of
+where the call holds each. `required().whole()` is a grant that selects no
+owner; a module whose resources have owners reads `required_owner_selected()`
+(and `carried_owner_selected()`), where a grant that selects no owner is dropped
+and lends nothing to one that does. `named()` lists
+named resources and `each()` every declared permission with its own selection.
+`apart()` is the hop's refusal as the module reads it: every permission the
+method requires is held, on owners sharing none. The hop forwards no such call;
+`required()` reaches nothing for one either way.
+A test builds one with `admission_of(declared, method, grants)`. This verifier
+reads no protobuf descriptor: a method missing from `declarations` reads as
+undeclared and selects nothing.
+
 The verifier requires the [signed admission protocol](../../hop/README.md),
 including an atomic durable replay store shared across replicas, and refuses at
 construction, outside the run named exactly `local`, a store whose `shared` is
@@ -37,14 +71,17 @@ on an unknown key (at most every 10 s), once on a stamp signed by no admission
 key held (at most every 10 s for all such stamps together, so a restarted hop's
 fresh key is admitted on its first call; such a stamp arriving while a read
 already runs waits for that read instead, starting none, and the verifier logs
-each re-read it starts), and when older than 5 minutes; keys that
+each re-read it starts), and when older than 5 minutes (the admission keys after 10 s, and unconfirmed for 2 minutes they admit nothing: [a withdrawn key](../../hop/README.md)); keys that
 cannot be re-read are trusted for 15 minutes at most, and a call on keys older than
 that waits for the re-read as a call on an unknown key does. It never fails to
 construct on an authority that is not serving yet, and refuses calls with a
 fixed reason until it is; `verifier.keys_error` holds the read's failure for
 logs. **Readiness uses `verifier.ready()`**: true while trusted keys are held,
 through failed re-reads inside the 15-minute window; false before the first read
-or once they are stale. It also starts the same rate-limited, non-blocking re-read a
+or once they are stale. A verifier that admits calls (built with `replay`) is
+also unready while it holds no published hop admission key, as Go's `Ready()`
+is: keys that read but publish none would refuse every call. A token-only
+verifier needs none. It also starts the same rate-limited, non-blocking re-read a
 call would, so an unready replica recovers and an idle one never goes stale. Never
 gate readiness on `keys_error`. `codefly_hop` reads the hop's signed fixture (`../../hop/testdata/stamped.json`)
 as the Go library writes it, and replays the hop conformance target's wire

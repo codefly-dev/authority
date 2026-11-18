@@ -1,6 +1,9 @@
 import { admissionKeys, checkCall, Expired, proof, Replayed, signedBy, SKEW, type ReplayStore } from "./hop-call.js";
 export { Expired, Replayed, LIFETIME, SKEW, PURPOSE } from "./hop-call.js";
 export type { ReplayStore } from "./hop-call.js";
+import { ADMITTED_KEY, admissionOf, declaration, encodeGrants, grantsHeld, type Admission, type Grant, type Method } from "./admitted.js";
+export { ADMITTED_KEY, ANY_ACTION, Admission, Selection, admissionOf, admitted, declaration, encodeGrants, grantsHeld, grantsOf } from "./admitted.js";
+export type { Grant, Held, Method, Named, Permission } from "./admitted.js";
 /** Work Context identity readers and method-bound, single-use hop admission.
  * Verifier consumes signed call nonces in a required durable shared ReplayStore.
  * authenticateToken alone authenticates identity, not admission. */
@@ -257,6 +260,13 @@ export interface Identity {
   /** The refusal the hop allowed in warning mode; diagnostic, grants nothing. */
   readonly advisory: string;
   readonly claims: Claims;
+  /** What the call holds once every actor narrowed it, each grant with its
+   * selection: what the hop stamps as ADMITTED_KEY. */
+  readonly grants: readonly Grant[];
+  /** What admitted this call on its method, set by the Verifier for a call the
+   * hop stamped an admission on; undefined when it stamped none. A handler
+   * reads admitted(identity) instead of naming a permission. */
+  readonly admitted?: Admission;
 }
 
 function flatten(scopes: readonly WorkScopeV1[]): string[] {
@@ -271,7 +281,7 @@ function flatten(scopes: readonly WorkScopeV1[]): string[] {
 /** The Go library's IdentityOf: the owner's authority narrowed by every actor's
  * grant (an actor granted nothing narrows to nothing); resource-limited scopes
  * are left out rather than widened. */
-export function identityOf(context: WorkContextV1): Omit<Identity, "context" | "advisory" | "claims"> {
+export function identityOf(context: WorkContextV1): Omit<Identity, "context" | "advisory" | "claims" | "admitted"> {
   let scopes = flatten(context.authorityScopes);
   for (const actor of context.actorChain) {
     const held = flatten(actor.grantedScopes);
@@ -281,6 +291,7 @@ export function identityOf(context: WorkContextV1): Omit<Identity, "context" | "
     owner: context.ownerPrincipalId, ownerKind: context.ownerPrincipalKind ?? "", tenant: context.tenantId,
     actors: context.actorChain.map(actor => actor.principalId), scopes,
     binding: context.operationBinding?.bindingId ?? "", task: context.taskId, expires: Number(context.expiresAtUnix),
+    grants: grantsHeld(context),
   };
 }
 
@@ -298,6 +309,14 @@ export interface KeySource {
  * KEY_MAX_AGE. */
 const KEY_RETRY_MS = 10_000, KEY_MAX_AGE_MS = 300_000, KEY_STALE_MS = 900_000, KEY_TIMEOUT_MS = 5_000;
 const SIGNER_RETRY_MS = 10_000;
+/** The hop's admission keys are held to shorter bounds than the Work Context
+ * keys, as in Go, because a withdrawn one must stop admitting promptly: a stamp
+ * or a readiness poll arriving when they were read more than ADMISSION_MAX_AGE
+ * ago starts a re-read (at most every KEY_RETRY) and uses them while it runs,
+ * so a key the authority withdrew stops admitting when that read lands; keys
+ * the authority has not confirmed for ADMISSION_STALE admit nothing, the call
+ * waiting for a read first. */
+export const ADMISSION_MAX_AGE_MS = 10_000, ADMISSION_STALE_MS = 120_000;
 
 /** What keysError reports, for the module's logs, while the authority's keys
  * read but publish no hop admission key: every call is refused as
@@ -313,7 +332,12 @@ export class NoAdmissionKeys extends Error {
  * keys, are read through its Keys, never typed in. Without a replay store it
  * authenticates bare tokens only and admits no call. Construction never fails
  * on an authority that is not serving yet: calls are refused, with the reason,
- * until its keys are read. */
+ * until its keys are read.
+ *
+ * declarations is what each method the module serves declares, keyed
+ * "/package.Service/Method" or, for an HTTP route, "<VERB> <template>": the
+ * table identity.admitted is read over. Without it every method reads as
+ * undeclared and selects nothing. */
 export class Verifier {
   private trust?: Trust;
   /** The published hop admission keys, hex, read with trust. */
@@ -328,7 +352,8 @@ export class Verifier {
 
   constructor(private readonly source: KeySource, private readonly audience: string,
               private readonly replay?: ReplayStore,
-              private readonly now: () => number = Date.now, private readonly timeoutMs: number = KEY_TIMEOUT_MS) {
+              private readonly now: () => number = Date.now, private readonly timeoutMs: number = KEY_TIMEOUT_MS,
+              private readonly declarations?: Readonly<Record<string, Method>>) {
     if (!source || !audience) throw new Unauthenticated(Reason.Configuration);
     // A process-local store answers only for its own process: a captured
     // admission would replay once per replica, and a restart would forget every
@@ -339,17 +364,25 @@ export class Verifier {
     void this.refresh();
   }
 
-  /** Whether trusted keys are held: true from the first successful read and
-   * through failed re-reads inside the 15-minute window; false before any read
-   * succeeded or once the keys are stale. Readiness uses this, never keysError.
+  /** Whether the keys this verifier needs are held, as Go's Ready reports it:
+   * true from the first successful read and through failed re-reads inside the
+   * 15-minute window; false before any read succeeded or once the keys are
+   * stale. A verifier that admits calls (built with a replay store) also needs a
+   * published hop admission key: keys that read but publish none, or a read
+   * that sees the last one withdrawn, leave it unready, because every call
+   * would be refused. A token-only verifier needs none. Readiness uses this,
+   * never keysError.
    * It also starts the read a call would (keys missing or older than 5 min, or
    * no admission key published, at most every 10 s, never waiting), so an unready replica, which gets no calls,
    * recovers, and an idle one never goes stale. */
   ready(): boolean {
     const now = this.now();
     const unadmitting = this.replay !== undefined && this.admission.length === 0;
-    if ((!this.trust || now - this.fetched > KEY_MAX_AGE_MS || unadmitting) && !this.inflight && now - this.tried >= KEY_RETRY_MS) void this.refresh();
-    return this.trust !== undefined && now - this.fetched <= KEY_STALE_MS;
+    // An admitting verifier keeps its admission keys no older than
+    // ADMISSION_MAX_AGE, so a withdrawn one is dropped without traffic.
+    const aged = this.replay !== undefined && now - this.fetched > ADMISSION_MAX_AGE_MS;
+    if ((!this.trust || now - this.fetched > KEY_MAX_AGE_MS || unadmitting || aged) && !this.inflight && now - this.tried >= KEY_RETRY_MS) void this.refresh();
+    return this.trust !== undefined && now - this.fetched <= KEY_STALE_MS && !unadmitting;
   }
 
   /** Who the call is for, or Unauthenticated naming why it is refused. The
@@ -400,9 +433,18 @@ export class Verifier {
           throw new Unauthenticated(Reason.StampIdentity);
         }
       }
+      // What the call holds is the token's too. A hop older than this key
+      // stamps none, and the module is then handed no admission; one that is
+      // stamped must be exactly what the authenticated claims hold.
+      const held = pairs.filter(([name]) => name === ADMITTED_KEY).map(([, value]) => value);
+      let admission: Admission | undefined;
+      if (held.length > 0) {
+        if (held.length !== 1 || held[0] !== encodeGrants(id.grants)) throw new Unauthenticated(Reason.StampIdentity);
+        admission = admissionOf(declaration(this.declarations, method), method, id.grants);
+      }
       // An admission carrying an advisory refusal is refused by checkCall, so an
       // admitted call never has one: diagnostic identity is never authority.
-      return { identity: Object.freeze({ ...id, advisory: "" }), finish };
+      return { identity: Object.freeze({ ...id, advisory: "", admitted: admission }), finish };
     } catch (error) {
       await finish();
       throw error;
@@ -410,9 +452,11 @@ export class Verifier {
   }
 
   /** The published hop admission key the admission is signed by. It is judged
-   * on the keys held: keys past KEY_MAX_AGE start no read here, so a caller
-   * without an admission can neither drive the authority's keys nor delay a
-   * genuine call's read. When no trusted keys are held at all (never read, or
+   * on the keys held, so a caller without an admission can neither drive the
+   * authority's keys nor delay a genuine call's read: admission keys read more
+   * than ADMISSION_MAX_AGE ago start a read for a well-formed admission only and
+   * are used while it runs (a key the authority withdrew stops admitting when
+   * it lands), and past ADMISSION_STALE a well-formed admission waits for it. When no trusted keys are held at all (never read, or
    * past KEY_STALE), or the last read published no admission key (the hop had
    * not registered yet), it starts one, at most every KEY_RETRY as readiness
    * does, and waits for it. A well-formed stamp signed by none of the keys held
@@ -430,13 +474,24 @@ export class Verifier {
     const now = this.now();
     const trusted = () => this.trust !== undefined && this.now() - this.fetched <= KEY_STALE_MS;
     const judgeable = () => trusted() && this.admission.length > 0;
-    if (!judgeable() && !this.inflight && now - this.tried >= KEY_RETRY_MS) void this.refresh();
-    if (!judgeable() && this.inflight) await this.inflight;
+    // Admission keys read more than ADMISSION_MAX_AGE ago are read again and
+    // used while that read runs; past ADMISSION_STALE they are not used, and
+    // the call waits for it. Only a well-formed admission starts or waits for
+    // either: nothing else reaches the key read.
+    const age = now - this.fetched;
+    const aged = judgeable() && age > ADMISSION_MAX_AGE_MS && proof(pairs) !== undefined;
+    if ((!judgeable() || aged) && !this.inflight && now - this.tried >= KEY_RETRY_MS) void this.refresh();
+    if ((!judgeable() || (aged && age > ADMISSION_STALE_MS)) && this.inflight) await this.inflight;
     if (!trusted()) {
       if (this.keysError instanceof Unauthenticated && this.keysError.code === Reason.InvalidKey) throw new Unauthenticated(Reason.InvalidKey);
       throw new Unauthenticated(Reason.KeysUnavailable);
     }
     if (this.admission.length === 0) throw new Unauthenticated(Reason.KeysUnavailable);
+    // Keys the authority could not confirm for ADMISSION_STALE admit nothing:
+    // one of them may have been withdrawn since.
+    if (this.now() - this.fetched > ADMISSION_STALE_MS) {
+      throw new Unauthenticated(proof(pairs) === undefined ? Reason.StampProof : Reason.KeysUnavailable);
+    }
     const key = signedBy(pairs, this.admission);
     if (key) return key;
     if (proof(pairs) === undefined) throw new Unauthenticated(Reason.StampProof);

@@ -3,6 +3,7 @@ package installation_test
 import (
 	"context"
 	"gateway/pkg/business/state"
+	"strings"
 	"testing"
 
 	"gateway/pkg/business/testkit"
@@ -64,7 +65,9 @@ func TestInstallationAdministrationUsesCurrentCallerAndOrganization(t *testing.T
 	}
 }
 
-func TestOrganizationOwnerCanReadInstallations(t *testing.T) {
+// "admin" is the one organisation role that administers: a person whose only
+// organisation role is named "owner" reads no inventory.
+func TestARoleNamedOwnerDoesNotReadInstallations(t *testing.T) {
 	k := testkit.New(t)
 	if err := k.State.LoadFixture(t.Context(), []byte(`roles:
   - organization: acme
@@ -84,7 +87,8 @@ people:
 	}
 	ctx := metadata.NewIncomingContext(t.Context(), metadata.Pairs("authorization", "Bearer "+sess.ID))
 	p := &installation.Plugin{State: k.State}
-	if _, err := p.List(ctx, &installationv1.ListRequest{OrganizationId: "acme"}); err != nil {
-		t.Fatal(err)
+	_, err = p.List(ctx, &installationv1.ListRequest{OrganizationId: "acme"})
+	if status.Code(err) != codes.PermissionDenied || !strings.Contains(err.Error(), `requires an administrator of organization "acme"`) {
+		t.Fatalf("a person holding only a role named owner listed the installations: %v", err)
 	}
 }

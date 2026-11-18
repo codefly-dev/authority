@@ -1,10 +1,10 @@
-# The local authority's fixture: who exists and which organisation roles they
-# hold, in the authority's own vocabulary only. What a role holds at a module,
-# which solutions are installed and which modules a run supervises itself
+# The local authority's fixture: who exists and who administers each
+# organisation, in the authority's own vocabulary only. Which solutions are
+# installed, who is seated on them and which modules a run supervises itself
 # belong to the composition that composes them: each composing workspace adds
 # them through its fixture-composition document (services/local/README.md,
-# "What a composition adds to the fixture"). The organisation, role and person
-# ids below are that document's contract with every composing repository.
+# "What a composition adds to the fixture"). The organisation and person ids
+# below are that document's contract with every composing repository.
 #
 # A page has two roles, admin and user (handbook: decisions/
 # a-page-has-two-roles-admin-and-user.md), and a walk needs three people:
@@ -25,7 +25,6 @@ organizations:
 roles:
   - organization: acme
     name: admin
-    scopes: []
 people:
   - id: dana
     name: Dana Lee

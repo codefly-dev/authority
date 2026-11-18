@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/declare"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 	modulecontract "github.com/codefly-dev/core/contracts/module"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
-	"github.com/codefly-dev/core/solutionhost"
 	"github.com/stretchr/testify/require"
 )
 
@@ -119,4 +119,63 @@ func TestDeclareModuleRendersTheCallersRequest(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "ledger", declaration.Authority.Principal)
 	require.Equal(t, []solutionhost.AuthorityBinding{{ID: "store", Audience: "store", Operations: map[string][]string{"invoke": {"store.item:read"}}}}, declaration.Authority.Bindings)
+}
+
+// published answers a module's bundles from its contract, as a renderer
+// reading the composed modules does; no call is ever asked of it.
+type published map[string]*modulecontract.Contract
+
+func (p published) Bundle(module, name string) ([]modulecontract.CeilingScope, error) {
+	return p[module].Bundle(name)
+}
+
+func (published) Requires(string, string) ([]string, error) { return nil, os.ErrNotExist }
+
+// A role that includes a bundle another module publishes is declared with the
+// bundle's scopes granted beside its own: the declaration a host receives
+// carries what the role grants, never only the include's name. A scope the
+// bundle reaches through its module is declared through the unit's binding
+// to that module.
+func TestADeclaredRoleCarriesTheBundlesItIncludes(t *testing.T) {
+	agent, err := modulecontract.Parse([]byte(`schema: codefly/module-contract/v1
+principal: store
+namespaces: []
+queues: []
+scope_ceilings: [{resource_kind: store.item, actions: [read, write]}]
+bindings: []
+destinations: []
+bundles:
+  - name: browse
+    scopes:
+      - {resource_kind: store.item, actions: [read]}
+      - {resource_kind: notes, actions: [read], through: store}
+`))
+	require.NoError(t, err)
+	unit, err := modulecontract.Parse([]byte(`schema: codefly/module-contract/v1
+principal: ledger
+owner_aware: true
+namespaces: []
+queues: []
+scope_ceilings: [{resource_kind: ledger.page, actions: [read]}]
+roles:
+  - name: admin
+    includes: [{module: store, bundle: browse}]
+    scopes: [{resource_kind: ledger.page, actions: [read]}]
+  - name: user
+    scopes: [{resource_kind: ledger.page, actions: [read]}]
+bindings:
+  - id: store
+    operations: [invoke]
+    audience: {from: ledger/store-audience}
+    scope_ceiling:
+      invoke: [{resource_kind: store.item, actions: [read]}]
+destinations: []
+`))
+	require.NoError(t, err)
+	resolve := solutionhost.Resolver(composed{Values: map[string]map[string]string{"ledger": {"store-audience": "store"}}}.infos(), "", published{"store": agent})
+	declaration, _, err := declare.Module(t.TempDir(), "ledger", unit, resolve)
+	require.NoError(t, err)
+	admin := declaration.Document.Roles[0]
+	require.Equal(t, []declare.DeclaredScope{{ResourceKind: "ledger.page", Actions: []string{"read"}}, {ResourceKind: "store.item", Actions: []string{"read"}}}, admin.Scopes)
+	require.Equal(t, []declare.RoleThrough{{Binding: "store", Scopes: []declare.DeclaredScope{{ResourceKind: "notes", Actions: []string{"read"}}}}}, admin.Through)
 }

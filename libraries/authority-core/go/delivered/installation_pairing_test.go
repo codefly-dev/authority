@@ -7,8 +7,8 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/delivered"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	delivery "github.com/codefly-dev/authority/libraries/delivery/go"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 	modulecontract "github.com/codefly-dev/core/contracts/module"
-	"github.com/codefly-dev/core/solutionhost"
 )
 
 // These are shared-reader tests, not the CLI-generated signed protobuf path.

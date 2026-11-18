@@ -9,7 +9,7 @@ agent:
 # browser talks to. A person signs in here; every call to a module is routed by
 # its path to the module's own HTTP face with the person's Work Context, and the
 # hop in front of the module checks and stamps it (code/edge.go).
-# The host interfaces the edge calls: session (SignIn, Current,
+# The host interfaces the edge calls: session (SignIn, Current, End,
 # ListFixturePeople), installation (List) and authority (Issue). The edge
 # reaches the host the composition names in the authority group's endpoint —
 # saas accounts implements the same interfaces — and the local authority that
@@ -20,16 +20,24 @@ agent:
 # comes from (/api/solutions/<alias>/proxy/_browser/...), and proves it is
 # this host's module edge with its own workload credential (module-identity
 # below), the one caller the authority takes a page from.
+# Session 0.6.0: the edge ends a session at sign-out and the cast it leaves
+# (End), keeps its cookies no longer than the session lasts (expires_at_unix)
+# and drops a Work Context it holds when the session's grant epoch moves.
 # Installation 0.5.0: the setup page posts the reach_digest a review answered,
 # which Install requires.
 service-dependencies:
     - interface: codefly.dev/authority@>=0.3.6 <0.4.0
-    - interface: codefly.dev/session@>=0.5.0 <0.6.0
+    - interface: codefly.dev/session@>=0.6.0 <0.7.0
     - interface: codefly.dev/installation@>=0.5.0 <0.6.0
 workspace-configuration-dependencies:
     # The modules the edge routes to, their REST and Connect faces, and the
     # frontend every other path serves (code/main.go).
     - edge
+    # What each module's Connect face serves: the procedures Codefly generates
+    # from the published API catalog of every module named here and behind the
+    # hop (code/routes.go). Generated, never authored; a Codefly that does not
+    # generate it refuses this declaration before the edge starts.
+    - edge-routes
 endpoints:
     # The browser's origin: the one address a person reaches.
     - name: http

@@ -3,12 +3,14 @@ package issuer_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"gateway/pkg/business/issuer"
 	"gateway/pkg/business/state"
 	"gateway/pkg/business/testkit"
 	authorityv1 "gateway/pkg/gen/host/authority/v1"
+
 	base "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
@@ -18,9 +20,14 @@ func declareDelegationChain(t *testing.T, k *testkit.Kit) {
 	t.Helper()
 	directory := testkit.OrgDirectory(2)
 	directory.Bindings["model"] = testkit.Documents(1).Bindings["model"]
+	// The directory's admin reaches the model's profiles through that
+	// binding, once the widened role is approved: what Rémi, its admin,
+	// delegates is what that role holds.
+	directory.Roles[state.AdminRole] = append(directory.Roles[state.AdminRole], testkit.Scope("modelservice.profiles", "read"))
 	if _, err := k.State.ApplyManifest(directory); err != nil {
 		t.Fatal(err)
 	}
+	k.Approve(t, "org-directory")
 }
 
 func TestChildUsesOnlyCurrentTargetBinding(t *testing.T) {
@@ -142,6 +149,15 @@ func TestBindingProjectionPersistsAndServiceOwnerNeverGainsNewAuthority(t *testi
 				b.InvokeScopes = []*base.WorkScopeV1{testkit.Scope("modelservice.profiles", "read")}
 				b.HeadlessScopes = nil
 				records.Bindings["model"] = b
+				for role, held := range records.Roles {
+					var kept []*base.WorkScopeV1
+					for _, sc := range held {
+						if !strings.HasPrefix(sc.GetResourceKind(), "modelservice.") {
+							kept = append(kept, sc)
+						}
+					}
+					records.Roles[role] = append(kept, testkit.Scope("modelservice.profiles", "read"))
+				}
 				if _, err := k.State.ApplyManifest(records); err != nil {
 					t.Fatal(err)
 				}

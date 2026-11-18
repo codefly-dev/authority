@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -28,6 +31,58 @@ type standIn struct {
 	mu     sync.Mutex
 	issued []string
 	pages  []string
+	// ended are the bearers End was called with, in order; a session it ended
+	// is unauthenticated from then on. endErr, when set, is End's answer.
+	ended  []string
+	endErr error
+	// epoch is the grant epoch Current states for every session; a host that
+	// states none answers the empty one.
+	epoch string
+	// noExpiry is a host that states no expiry for the sessions it opens.
+	noExpiry bool
+}
+
+// sessionExpiry is when Rémi's session ends on its own, and castExpiry when a
+// cast opened from it does: no later than the session.
+var (
+	sessionExpiry = time.Now().Add(8 * time.Hour).Truncate(time.Second)
+	castExpiry    = sessionExpiry.Add(-time.Hour)
+)
+
+func (s *standIn) expiry(at time.Time) int64 {
+	if s.noExpiry {
+		return 0
+	}
+	return at.Unix()
+}
+
+// End ends the session the bearer names, as the host does.
+func (s *standIn) End(ctx context.Context, _ *sessionv1.EndRequest, _ ...grpc.CallOption) (*sessionv1.EndResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.endErr != nil {
+		return nil, s.endErr
+	}
+	bearer := bearerIn(ctx)
+	if (bearer != "remi-session" && bearer != "remi-as-users") || slices.Contains(s.ended, bearer) {
+		return nil, status.Error(codes.Unauthenticated, "no session")
+	}
+	s.ended = append(s.ended, bearer)
+	return &sessionv1.EndResponse{}, nil
+}
+
+// state is what the host states now: the bearers it ended and its grant epoch.
+func (s *standIn) state() ([]string, string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.ended), s.epoch
+}
+
+// moved is a change to what Rémi holds made somewhere this edge does not see.
+func (s *standIn) moved(epoch string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.epoch = epoch
 }
 
 func bearerIn(ctx context.Context) string {
@@ -42,15 +97,19 @@ func (s *standIn) SignIn(_ context.Context, in *sessionv1.SignInRequest, _ ...gr
 	if in.GetFixtureToken() != "fixture-remi" {
 		return nil, status.Error(codes.NotFound, "no such fixture person")
 	}
-	return &sessionv1.Session{SessionId: "s1", PersonId: "remi", OrganizationId: "acme", PersonDisplayName: "Rémi", OrganizationDisplayName: "Acme", Bearer: "remi-session"}, nil
+	return &sessionv1.Session{SessionId: "s1", PersonId: "remi", OrganizationId: "acme", PersonDisplayName: "Rémi", OrganizationDisplayName: "Acme", Bearer: "remi-session", ExpiresAtUnix: s.expiry(sessionExpiry)}, nil
 }
 
 func (s *standIn) Current(ctx context.Context, _ *sessionv1.CurrentRequest, _ ...grpc.CallOption) (*sessionv1.Session, error) {
+	ended, epoch := s.state()
+	if slices.Contains(ended, bearerIn(ctx)) {
+		return nil, status.Error(codes.Unauthenticated, "no session")
+	}
 	switch bearerIn(ctx) {
 	case "remi-session":
-		return &sessionv1.Session{SessionId: "s1", PersonId: "remi", OrganizationId: "acme", PersonDisplayName: "Rémi", OrganizationDisplayName: "Acme", Roles: []string{"editor"}, TeamIds: []string{"records-user"}}, nil
+		return &sessionv1.Session{SessionId: "s1", PersonId: "remi", OrganizationId: "acme", PersonDisplayName: "Rémi", OrganizationDisplayName: "Acme", Roles: []string{"editor"}, TeamIds: []string{"records-user"}, ExpiresAtUnix: s.expiry(sessionExpiry), GrantEpoch: epoch}, nil
 	case "remi-as-users":
-		return &sessionv1.Session{SessionId: "s2", PersonId: "remi", OrganizationId: "acme", PersonDisplayName: "Rémi", OrganizationDisplayName: "Acme", TeamIds: []string{"records-user"}, CastTeamId: "records-user"}, nil
+		return &sessionv1.Session{SessionId: "s2", PersonId: "remi", OrganizationId: "acme", PersonDisplayName: "Rémi", OrganizationDisplayName: "Acme", TeamIds: []string{"records-user"}, CastTeamId: "records-user", ExpiresAtUnix: s.expiry(castExpiry), GrantEpoch: epoch}, nil
 	}
 	return nil, status.Error(codes.Unauthenticated, "no session")
 }
@@ -64,7 +123,7 @@ func (s *standIn) OpenTeamCast(ctx context.Context, in *sessionv1.OpenTeamCastRe
 	if in.GetTeamId() != "records-user" {
 		return nil, status.Errorf(codes.PermissionDenied, "team %q holds roles you could not grant, so you may not act as it", in.GetTeamId())
 	}
-	return &sessionv1.Session{SessionId: "s2", PersonId: "remi", OrganizationId: "acme", TeamIds: []string{"records-user"}, CastTeamId: "records-user", Bearer: "remi-as-users"}, nil
+	return &sessionv1.Session{SessionId: "s2", PersonId: "remi", OrganizationId: "acme", TeamIds: []string{"records-user"}, CastTeamId: "records-user", Bearer: "remi-as-users", ExpiresAtUnix: s.expiry(castExpiry)}, nil
 }
 
 // ListCastableTeams lists records-user to Rémi, holding user on records.
@@ -170,7 +229,7 @@ type fixture struct {
 func newFixture(t *testing.T) fixture {
 	f := fixture{authority: &standIn{}, rest: newUpstream(t), connect: newUpstream(t), frontend: newUpstream(t), secrets: newUpstream(t)}
 	e := &Edge{Credential: func() (string, error) { return "edge-credential", nil }, Sessions: f.authority, Authority: f.authority, Installations: f.authority, Frontend: mustURL(t, f.frontend.URL), Modules: map[string]Module{
-		"records": {Name: "records", REST: mustURL(t, f.rest.URL), Connect: mustURL(t, f.connect.URL), Services: []string{"records.v1.RecordsService"}},
+		"records": {Name: "records", REST: mustURL(t, f.rest.URL), Connect: mustURL(t, f.connect.URL), Procedures: []string{"/records.v1.RecordsService/List", "/records.v1.RecordsService/Query"}},
 		"secrets": {Name: "secrets", REST: mustURL(t, f.secrets.URL)},
 	}}
 	f.edge = httptest.NewServer(e)
@@ -485,8 +544,8 @@ func TestAJSONSignInHandsTheBearerBack(t *testing.T) {
 func TestCacheEvictsOnExpiryAndSignOut(t *testing.T) {
 	f := newFixture(t)
 	now := time.Now()
-	e := &Edge{Authority: f.authority, Now: func() time.Time { return now }}
-	if _, err := e.workContext(context.Background(), "remi-session", "records", ""); err != nil {
+	e := &Edge{Sessions: f.authority, Authority: f.authority, Now: func() time.Time { return now }}
+	if _, err := e.workContext(context.Background(), "remi-session", "records", "", ""); err != nil {
 		t.Fatal(err)
 	}
 	if len(e.held) != 1 {
@@ -494,14 +553,14 @@ func TestCacheEvictsOnExpiryAndSignOut(t *testing.T) {
 	}
 	now = now.Add(time.Hour)
 	// Even a refused refresh must remove old contexts.
-	if _, err := e.workContext(context.Background(), "remi-session", "down", ""); err == nil {
+	if _, err := e.workContext(context.Background(), "remi-session", "down", "", ""); err == nil {
 		t.Fatal("expected refused target")
 	}
 	if len(e.held) != 0 {
 		t.Fatal("expired context retained")
 	}
 	now = time.Now()
-	if _, err := e.workContext(context.Background(), "remi-session", "records", ""); err != nil {
+	if _, err := e.workContext(context.Background(), "remi-session", "records", "", ""); err != nil {
 		t.Fatal(err)
 	}
 	req := httptest.NewRequest(http.MethodPost, "http://edge.test/auth/sign-out", nil)
@@ -528,7 +587,7 @@ func TestSessionIssuesConcurrently(t *testing.T) {
 	s := &blockedIssuer{standIn: &standIn{}, started: make(chan string, 2), release: make(chan struct{})}
 	e := &Edge{Authority: s, Modules: map[string]Module{"a": {}, "b": {}}}
 	done := make(chan struct{})
-	go func() { e.usable(context.Background(), "remi-session"); close(done) }()
+	go func() { _, _, _ = e.usable(context.Background(), "remi-session", "acme", ""); close(done) }()
 	defer func() { close(s.release); <-done }()
 	for range 2 {
 		select {
@@ -542,7 +601,10 @@ func TestSignOutFencesAnInflightCacheWrite(t *testing.T) {
 	s := &blockedIssuer{standIn: &standIn{}, started: make(chan string, 1), release: make(chan struct{})}
 	e := &Edge{Authority: s}
 	done := make(chan struct{})
-	go func() { defer close(done); _, _ = e.workContext(context.Background(), "remi-session", "records", "") }()
+	go func() {
+		defer close(done)
+		_, _ = e.workContext(context.Background(), "remi-session", "records", "", "")
+	}()
 	<-s.started
 	e.evict("remi-session")
 	close(s.release)
@@ -565,7 +627,7 @@ func TestSessionOutagePreservesCacheAndReportsTheActualReason(t *testing.T) {
 		t.Run(code.String(), func(t *testing.T) {
 			s := &standIn{}
 			e := &Edge{Authority: s, Sessions: failingCurrent{s, status.Error(code, "Current failed: test reason")}}
-			if _, err := e.workContext(context.Background(), "remi-session", "records", ""); err != nil {
+			if _, err := e.workContext(context.Background(), "remi-session", "records", "", ""); err != nil {
 				t.Fatal(err)
 			}
 			r := httptest.NewRequest(http.MethodGet, "/auth/session", nil)
@@ -634,5 +696,190 @@ func TestAPagesModuleCallNamesThePageToTheAuthority(t *testing.T) {
 	}
 	if res, _ := f.do(t, http.MethodGet, "/api/solutions/org-directory/proxy/_browser/records.v1.RecordsService/Query", http.Header{"Cookie": {cookie.String()}}); res.StatusCode != http.StatusNotFound {
 		t.Fatalf("a GET answered %d", res.StatusCode)
+	}
+}
+
+// holdings is the host's installation interface answering ListHeld with what
+// the person holds; every other procedure is setupHost's.
+type holdings struct {
+	*setupHost
+	held []*installationv1.HeldInstallation
+}
+
+func (h holdings) ListHeld(context.Context, *installationv1.ListHeldRequest, ...grpc.CallOption) (*installationv1.ListHeldResponse, error) {
+	return &installationv1.ListHeldResponse{Installations: h.held}, nil
+}
+
+// A page whose roles reach only through its bindings is issued nothing at
+// itself, so its own target refuses the person. That the person holds a role
+// on its installation is the host's answer (ListHeld): the page is theirs to
+// open, at that installation, and the refusal at the target itself is no
+// reason not to. An installation they hold no role on, or one not active,
+// stays refused with the authority's reason.
+func TestAPageHeldThroughItsBindingsIsUsable(t *testing.T) {
+	f := newFixture(t)
+	cookie := f.signIn(t)
+	held := func(id, target string, roles []string, status installationv1.Installation_Status) *installationv1.HeldInstallation {
+		return &installationv1.HeldInstallation{Roles: roles, Installation: &installationv1.Installation{Id: id, OrganizationId: "acme", Target: target, Status: status}}
+	}
+	modules := map[string]Module{
+		"records": {Name: "records", REST: mustURL(t, f.rest.URL)},
+		"secrets": {Name: "secrets", REST: mustURL(t, f.secrets.URL)},
+		"wiki":    {Name: "wiki", REST: mustURL(t, f.secrets.URL)},
+	}
+	host := holdings{&setupHost{standIn: f.authority}, []*installationv1.HeldInstallation{
+		held("secrets-1", "secrets", []string{"admin"}, installationv1.Installation_STATUS_ACTIVE),
+		held("wiki-1", "wiki", nil, installationv1.Installation_STATUS_ACTIVE),
+	}}
+	res, who := sessionOf(t, &Edge{Sessions: f.authority, Authority: f.authority, Installer: host, Modules: modules}, cookie)
+	installed, _ := who["installations"].([]any)
+	refused, _ := who["refused"].(map[string]any)
+	if res.Code != http.StatusOK || len(installed) != 2 || len(refused) != 1 || refused["wiki"] == nil {
+		t.Fatalf("session answered %d: %s", res.Code, res.Body)
+	}
+	if secrets, _ := installed[1].(map[string]any); secrets["target"] != "secrets" || secrets["id"] != "secrets-1" || secrets["moduleApiBase"] != "/api/solutions/secrets/proxy/_browser" {
+		t.Fatalf("held page = %v", secrets)
+	}
+	host.held[0] = held("secrets-1", "secrets", []string{"admin"}, installationv1.Installation_STATUS_UNSPECIFIED)
+	if _, who := sessionOf(t, &Edge{Sessions: f.authority, Authority: f.authority, Installer: host, Modules: modules}, cookie); who["refused"].(map[string]any)["secrets"] == nil {
+		t.Fatalf("an inactive installation was offered: %v", who)
+	}
+}
+
+// A page with no backend of its own (a module page serving neither a REST nor
+// a Connect face) is no module this edge routes to, so nothing is asked of the
+// authority at it and nothing refuses it. It is still the person's to open
+// when the host says they hold a role on its installation (ListHeld), and is
+// listed once. A person the host answers no holding sees nothing of it, and so
+// does one whose holding carries no role or is not active: no refusal names a
+// target the edge does not route.
+func TestAPageWithNoBackendOfItsOwnIsListedForWhoHoldsIt(t *testing.T) {
+	f := newFixture(t)
+	cookie := f.signIn(t)
+	held := func(id, target string, roles []string, status installationv1.Installation_Status) *installationv1.HeldInstallation {
+		return &installationv1.HeldInstallation{Roles: roles, Installation: &installationv1.Installation{Id: id, OrganizationId: "acme", Target: target, Status: status}}
+	}
+	modules := map[string]Module{"records": {Name: "records", REST: mustURL(t, f.rest.URL)}}
+	session := func(held ...*installationv1.HeldInstallation) ([]any, map[string]any) {
+		t.Helper()
+		host := holdings{&setupHost{standIn: f.authority}, held}
+		res, who := sessionOf(t, &Edge{Sessions: f.authority, Authority: f.authority, Installer: host, Modules: modules}, cookie)
+		if res.Code != http.StatusOK {
+			t.Fatalf("session answered %d: %s", res.Code, res.Body)
+		}
+		installed, _ := who["installations"].([]any)
+		refused, _ := who["refused"].(map[string]any)
+		return installed, refused
+	}
+
+	// Held with a role: listed beside the routed module, at its installation
+	// and page route; the routed module the person also holds is listed once.
+	installed, refused := session(
+		held("playground-1", "playground", []string{"user"}, installationv1.Installation_STATUS_ACTIVE),
+		held(recordsInstallation, "records", []string{"user"}, installationv1.Installation_STATUS_ACTIVE),
+	)
+	if len(installed) != 2 || len(refused) != 0 {
+		t.Fatalf("installations = %v, refused = %v", installed, refused)
+	}
+	if page, _ := installed[0].(map[string]any); page["target"] != "playground" || page["id"] != "playground-1" || page["moduleApiBase"] != "/api/solutions/playground/proxy/_browser" {
+		t.Fatalf("held page = %v", page)
+	}
+	if records, _ := installed[1].(map[string]any); records["target"] != "records" || records["id"] != recordsInstallation {
+		t.Fatalf("routed module = %v", records)
+	}
+
+	// Held by nobody here, with no role, or not active: absent, and not refused.
+	for name, none := range map[string][]*installationv1.HeldInstallation{
+		"no holding": nil,
+		"no role":    {held("playground-1", "playground", nil, installationv1.Installation_STATUS_ACTIVE)},
+		"not active": {held("playground-1", "playground", []string{"user"}, installationv1.Installation_STATUS_PENDING)},
+	} {
+		installed, refused := session(none...)
+		if len(installed) != 1 || installed[0].(map[string]any)["target"] != "records" || len(refused) != 0 {
+			t.Errorf("%s: installations = %v, refused = %v", name, installed, refused)
+		}
+	}
+}
+
+// unheld is a host whose ListHeld fails with a fixed error.
+type unheld struct {
+	*setupHost
+	err error
+}
+
+func (h unheld) ListHeld(context.Context, *installationv1.ListHeldRequest, ...grpc.CallOption) (*installationv1.ListHeldResponse, error) {
+	return nil, h.err
+}
+
+// logged captures what the edge logs for the rest of the test.
+func logged(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var out bytes.Buffer
+	previous := log.Writer()
+	log.SetOutput(&out)
+	t.Cleanup(func() { log.SetOutput(previous) })
+	return &out
+}
+
+// A host that did not answer which installations the person holds a role on
+// has not said they hold none, and a page with no backend of its own has no
+// other entry in the session's answer: an answer would be missing it with
+// nothing saying so. The session is therefore not answered at all (503, with
+// the host's reason), which no shell can read as "holds nothing", and the
+// edge's log is told the cause. A host that serves no ListHeld at all has
+// nothing to answer: the session answers, and a refusal stands as the
+// authority gave it.
+func TestAHostThatDoesNotAnswerWhatIsHeldIsNotHoldingNothing(t *testing.T) {
+	f := newFixture(t)
+	cookie := f.signIn(t)
+	modules := map[string]Module{
+		"records": {Name: "records", REST: mustURL(t, f.rest.URL)},
+		"secrets": {Name: "secrets", REST: mustURL(t, f.secrets.URL)},
+	}
+	session := func(err error) (*httptest.ResponseRecorder, map[string]any, string) {
+		t.Helper()
+		out := logged(t)
+		res, who := sessionOf(t, &Edge{Sessions: f.authority, Authority: f.authority, Installer: unheld{&setupHost{standIn: f.authority}, err}, Modules: modules}, cookie)
+		return res, who, out.String()
+	}
+	for _, code := range []codes.Code{codes.Unavailable, codes.DeadlineExceeded, codes.Internal} {
+		res, who, log := session(status.Error(code, "ListHeld failed: test reason"))
+		reason, _ := who["error"].(string)
+		if res.Code != http.StatusServiceUnavailable || who["installations"] != nil || who["refused"] != nil || !strings.Contains(reason, "holds a role on") || !strings.Contains(reason, "ListHeld failed: test reason") {
+			t.Errorf("%s: the session answered %d: %s", code, res.Code, res.Body)
+		}
+		if !strings.Contains(log, "ListHeld") || !strings.Contains(log, "ListHeld failed: test reason") || !strings.Contains(log, code.String()) || strings.Contains(log, "remi-session") {
+			t.Errorf("%s: the edge's log was told %q", code, log)
+		}
+	}
+	res, who, log := session(status.Error(codes.Unimplemented, "unknown method ListHeld"))
+	installed, _ := who["installations"].([]any)
+	refused, _ := who["refused"].(map[string]any)
+	if res.Code != http.StatusOK || len(installed) != 1 || installed[0].(map[string]any)["target"] != "records" {
+		t.Fatalf("a host serving no ListHeld: the session answered %d: %s", res.Code, res.Body)
+	}
+	if reason, _ := refused["secrets"].(string); len(refused) != 1 || !strings.HasSuffix(reason, "holds nothing at secrets") || log != "" {
+		t.Errorf("a host serving no ListHeld: refused = %v, logged %q", refused, log)
+	}
+}
+
+// A target the authority did not answer at is not usable because the host
+// says the person holds a role on it: only the authority's refusal to issue at
+// the target itself is what a holding answers. It stays refused, by its reason.
+func TestATargetTheAuthorityDidNotAnswerAtStaysRefusedThoughHeld(t *testing.T) {
+	f := newFixture(t)
+	cookie := f.signIn(t)
+	modules := map[string]Module{
+		"records": {Name: "records", REST: mustURL(t, f.rest.URL)},
+		"down":    {Name: "down", REST: mustURL(t, f.secrets.URL)},
+	}
+	host := holdings{&setupHost{standIn: f.authority}, []*installationv1.HeldInstallation{
+		{Roles: []string{"admin"}, Installation: &installationv1.Installation{Id: "down-1", OrganizationId: "acme", Target: "down", Status: installationv1.Installation_STATUS_ACTIVE}},
+	}}
+	res, who := sessionOf(t, &Edge{Sessions: f.authority, Authority: f.authority, Installer: host, Modules: modules}, cookie)
+	installed, _ := who["installations"].([]any)
+	refused, _ := who["refused"].(map[string]any)
+	if res.Code != http.StatusOK || len(installed) != 1 || installed[0].(map[string]any)["target"] != "records" || refused["down"] != "connection refused" {
+		t.Fatalf("session answered %d: %s", res.Code, res.Body)
 	}
 }

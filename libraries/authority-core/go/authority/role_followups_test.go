@@ -26,72 +26,61 @@ func (h *harness) roleGrants(target string) []domain.RoleGrant {
 	return grants
 }
 
-// A redelivery that drops a role drops its grants with it, on a solution and
-// on a module page alike: a later generation declaring the name again, wider,
-// finds no holder, and nobody holds a role an administrator never granted
-// under that meaning.
+// A redelivery that drops a role drops its grants with it, journaled as
+// revoked by the delivery: a later generation declaring the name again,
+// wider, finds no holder, and nobody holds a role an administrator never
+// granted under that meaning. A solution always declares its two roles, so
+// the target that drops them is a module page, which stops declaring roles
+// and declares them again.
 func TestARedeliveryDroppingARoleDropsItsGrants(t *testing.T) {
 	h := newHarness(t)
-	roles := solution("a", true).Roles
-	h.grant("a", "reader", "maya")
-	h.grantTeam("a", "reader", "team")
-	h.grant("a", "user", "remi")
-	exactly(t, h.must(h.root("maya", "a")), "a.note", h.principal(acme, "a"), []string{"read"})
-
-	without := map[string][]*basev0.WorkScopeV1{}
-	for name, scopes := range roles {
-		if name != "reader" {
-			without[name] = scopes
-		}
-	}
-	if _, err := h.svc.ApplyModule(h.ctx, at("a", 2, without)); err != nil {
+	svc, events := journaled(h)
+	if _, err := svc.ApplyModule(h.ctx, pageModule(1, true)); err != nil {
 		t.Fatal(err)
 	}
+	h.grant("pages", "user", "maya")
+	h.grantTeam("pages", "user", "team")
+	h.grant("pages", "admin", "remi")
 	for _, person := range []string{"maya", "tam"} {
-		_, err := h.root(person, "a")
-		refused(t, err, "holds no role")
+		exactly(t, h.must(h.root(person, "pages")), "pages.note", "", []string{"read"})
 	}
-	if grants := h.roleGrants("a"); slices.ContainsFunc(grants, func(g domain.RoleGrant) bool { return g.Role == "reader" }) ||
-		!slices.ContainsFunc(grants, func(g domain.RoleGrant) bool { return g.Role == "user" && g.PersonID == "remi" }) {
-		t.Fatalf("the dropped role's grants stay, or another role's went: %v", grants)
-	}
-	exactly(t, h.must(h.root("remi", "a")), "a.note", h.principal(acme, "a"), []string{"read"})
 
-	// Declared again, and wider: the old holders hold nothing until granted.
-	wider := map[string][]*basev0.WorkScopeV1{}
-	for name, scopes := range roles {
-		wider[name] = scopes
-	}
-	wider["reader"] = []*basev0.WorkScopeV1{sc("a.note", "read", "write")}
-	if _, err := h.svc.ApplyModule(h.ctx, at("a", 3, wider)); err != nil {
+	if _, err := svc.ApplyModule(h.ctx, pageModule(2, false)); err != nil {
 		t.Fatal(err)
 	}
-	_, err := h.root("maya", "a")
-	refused(t, err, "holds no role")
-	// The wider declaration asks more: an administrator upgrades to it
-	// before its reader can be granted.
-	h.install(acme, "a")
-	h.grant("a", "reader", "maya")
-	exactly(t, h.must(h.root("maya", "a")), "a.note", h.principal(acme, "a"), []string{"read", "write"})
-
-	// A module page redelivered without roles drops them all from its
-	// composition installation; declaring roles again entitles nobody.
-	if _, err := h.svc.ApplyModule(h.ctx, pageModule(1, true)); err != nil {
-		t.Fatal(err)
-	}
-	h.grant("pages", "reader", "maya")
-	exactly(t, h.must(h.root("maya", "pages")), "pages.note", "", []string{"read"})
-	if _, err := h.svc.ApplyModule(h.ctx, pageModule(2, false)); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := h.svc.ApplyModule(h.ctx, pageModule(3, true)); err != nil {
-		t.Fatal(err)
-	}
-	_, err = h.root("maya", "pages")
-	refused(t, err, "holds no role")
 	if grants := h.roleGrants("pages"); len(grants) != 0 {
 		t.Fatalf("a module page's dropped roles kept their grants: %v", grants)
 	}
+	if n := countEvents(*events, domain.RoleRevoked); n != 3 {
+		t.Fatalf("%d revocations journaled, want one for each of the three dropped grants", n)
+	}
+	if e, ok := lastEvent(*events, domain.RoleRevoked); !ok || e.Actor != "delivery:pages" {
+		t.Fatalf("the dropped role's grant was not journaled as revoked by the delivery: %+v %v", e, ok)
+	}
+
+	// Declared again, and wider: the old holders hold nothing, before the
+	// upgrade is approved and after it, until granted.
+	wider := pageModule(3, true)
+	wider.Roles["user"] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}
+	if _, err := svc.ApplyModule(h.ctx, wider); err != nil {
+		t.Fatal(err)
+	}
+	for _, person := range []string{"maya", "tam", "remi"} {
+		_, err := h.root(person, "pages")
+		refused(t, err, "holds no role")
+	}
+	if _, err := h.approvePage(svc, "alex"); err != nil {
+		t.Fatal(err)
+	}
+	for _, person := range []string{"maya", "tam", "remi"} {
+		_, err := h.root(person, "pages")
+		refused(t, err, "holds no role")
+	}
+	if grants := h.roleGrants("pages"); len(grants) != 0 {
+		t.Fatalf("declaring the roles again revived grants: %v", grants)
+	}
+	h.grant("pages", "user", "maya")
+	exactly(t, h.must(h.root("maya", "pages")), "pages.note", "", []string{"read", "write"})
 }
 
 // A module page's role reaches through the page's bindings as a solution's
@@ -103,21 +92,21 @@ func TestAModulePageRoleNamesWhatItServesOrConsumes(t *testing.T) {
 	h := newHarness(t)
 	m := pageModule(1, true)
 	m.Bindings = map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read")}}}
-	m.Roles["reader"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read")}
+	m.Roles["user"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read")}
 	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
 		t.Fatalf("a page role naming what its binding consumes is accepted: %v", err)
 	}
 	m.Generation = 2
-	m.Roles["reader"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read", "write")}
+	m.Roles["user"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read", "write")}
 	_, err := h.svc.ApplyModule(h.ctx, m)
 	refused(t, err, "grants beyond what pages serves or explicitly consumes")
-	m.Through = map[string]map[string][]*basev0.WorkScopeV1{"reader": {"store": {sc(kind, "write")}}}
+	m.Through = map[string]map[string][]*basev0.WorkScopeV1{"user": {"store": {sc(kind, "write")}}}
 	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
 		t.Fatalf("the store's own binding reaches the kind's write, so a role may name it through the binding: %v", err)
 	}
 	m.Generation = 3
-	m.Roles["reader"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read"), sc("unreached.kind", "read")}
-	m.Through = map[string]map[string][]*basev0.WorkScopeV1{"reader": {"store": {sc("unreached.kind", "read")}}}
+	m.Roles["user"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read"), sc("unreached.kind", "read")}
+	m.Through = map[string]map[string][]*basev0.WorkScopeV1{"user": {"store": {sc("unreached.kind", "read")}}}
 	_, err = h.svc.ApplyModule(h.ctx, m)
 	refused(t, err, `names unreached.kind:read through binding "store", which reaches it nowhere`)
 }
@@ -126,13 +115,13 @@ func TestAModulePageRoleNamesWhatItServesOrConsumes(t *testing.T) {
 // binding, a child narrowed to the role intersected with the binding, and
 // nothing beyond: not an action the binding does not carry, not an action the
 // role does not grant, not without the role, and not on their own session at
-// the module the page reaches, where their own grants still decide. At a
+// the module the page reaches, which holds nothing there. At a
 // module that checks owners the role reaches only the page installation's
 // own data (RBAC-1).
 func TestAModulePageRoleReachesThroughThePagesBinding(t *testing.T) {
 	h := newHarness(t)
 	ledgerPage(t, h)
-	h.grant("pages", "reader", "maya")
+	h.grant("pages", "user", "maya")
 
 	child := h.must(h.through("maya", "pages", "ledger"))
 	exactly(t, child, ledgerKind, "", []string{"read"})
@@ -145,9 +134,9 @@ func TestAModulePageRoleReachesThroughThePagesBinding(t *testing.T) {
 	_, err = h.through("remi", "pages", "ledger")
 	refused(t, err, "holds no role on pages")
 	_, err = h.root("maya", "ledger")
-	refused(t, err, "the owner holds nothing at this audience")
+	refused(t, err, "ledger declares no roles")
 
-	h.revoke("pages", "reader", "maya", "")
+	h.revoke("pages", "user", "maya", "")
 	_, err = h.through("maya", "pages", "ledger")
 	refused(t, err, "holds no role on pages")
 }
@@ -179,12 +168,12 @@ func TestAModulePageOnAHostThatInstallsModulesIsGrantedAtTheHostsRecord(t *testi
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.svc.GrantRole(h.ctx, alex, authority.RoleRequest{Organization: acme, InstallationID: "host-pages", Role: "reader", PersonID: "maya"}); err != nil {
+	if _, err := h.svc.GrantRole(h.ctx, alex, authority.RoleRequest{Organization: acme, InstallationID: "host-pages", Role: "user", PersonID: "maya"}); err != nil {
 		t.Fatal(err)
 	}
 	held, err := h.svc.HeldInstallations(h.ctx, maya, acme)
-	if err != nil || len(held) != 1 || held[0].Installation.ID != "host-pages" || !slices.Equal(held[0].Roles, []string{"reader"}) {
-		t.Fatalf("maya holds %+v (%v), want reader at the host's record", held, err)
+	if err != nil || len(held) != 1 || held[0].Installation.ID != "host-pages" || !slices.Equal(held[0].Roles, []string{"user"}) {
+		t.Fatalf("maya holds %+v (%v), want user at the host's record", held, err)
 	}
 	issued, err := h.svc.IssueForPerson(h.ctx, maya, authority.IssueRequest{Audience: "pages"})
 	if err != nil {

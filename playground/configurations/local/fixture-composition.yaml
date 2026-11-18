@@ -1,14 +1,8 @@
 # What this playground adds to the local authority's fixture for the modules it
-# composes: the document store, the record store and the organisation
-# directory (services/local/README.md, "What a composition adds to the
-# fixture"). The fixture itself names none of their kinds.
-schema: codefly.dev/authority/fixture-composition/v1
-# The fixture's one organisation role is Acme's admin, Dana: what she holds at
-# the modules this playground composes. Carol and Bob hold no organisation
-# role; what they reach is their team's role on each page.
-roles:
-  - organization: acme
-    name: admin
-    scopes:
-      - {kind: documents, actions: [read, write, ingest]}
-      - {kind: documents.collection, actions: [read, transfer, admin]}
+# composes (services/local/README.md, "What a composition adds to the
+# fixture"): nothing of its own. The document store, the record store and the
+# organisation directory are reached through a role on an installation that
+# reaches them; the fixture's own row seats Carol as user and Dana as admin on
+# every role-gated target the run composes. No organisation role is granted a
+# module's kinds (fixture-composition v2 has no roles section).
+schema: codefly.dev/authority/fixture-composition/v2

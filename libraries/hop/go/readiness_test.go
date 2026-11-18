@@ -161,9 +161,13 @@ func TestReadyPreservesFreshnessBoundariesOnReadFailures(t *testing.T) {
 				} else {
 					source.set(nil, errors.New("authority down"), nil)
 				}
-				clock.Store(start + int64(keyMaxAge))
+				refreshAge := keyMaxAge
+				if !tokenOnly {
+					refreshAge = admissionMaxAge
+				}
+				clock.Store(start + int64(refreshAge))
 				if !v.Ready() || source.count() != 1 {
-					t.Fatal("refresh at exact keyMaxAge changed")
+					t.Fatal("refresh at exact mode-specific maximum age changed")
 				}
 				clock.Add(1)
 				if !v.Ready() {

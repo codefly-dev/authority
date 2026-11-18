@@ -14,12 +14,46 @@ await verifier.admit(requestHeaders, fullProcedure, async id => handle(id));  //
 id.tenant; id.scopes; id.claims.allows(resourceKind, action, exactResourceID);
 ```
 
+### Narrowing without naming a permission
+
+The hop stamps what admitted the call (`x-codefly-hop-admitted`); the verifier
+holds that stamp to the authenticated Work Context (any difference, or a repeat,
+is refused as `stamp_identity`) and reads it over the declarations the module
+hands it. It is the Go library's `hop.Admitted`, held to it reading for reading
+by `testdata/stamps.json`:
+
+```ts
+import { Verifier, admitted } from '@codefly-dev/authority-client/work-context';
+
+const declared = { '/records.v1.Records/Content': {
+  requires: [{ kind: 'records.records', action: 'read' }], carries: [{ kind: 'records.records', action: 'read_content' }] } };
+const verifier = new Verifier(client, audience, store, undefined, undefined, declared);  // an HTTP route is keyed "GET /v1/records/{id}"
+
+const read = admitted(id);                // selects nothing when the hop stamped none (id.admitted is undefined)
+const owners = read.required().owners();  // owners on which the call holds all the method requires
+const content = read.carried();           // how far what the method carries reaches; empty() if not held
+content.allows(row.owner, row.id);        // one stored resource
+```
+
+`required()` is the intersection, across the permissions the method requires, of
+where the call holds each. `required().whole()` is a grant that selects no
+owner; a module whose resources have owners reads `requiredOwnerSelected()` (and
+`carriedOwnerSelected()`), where a grant that selects no owner is dropped and
+lends nothing to one that does. `named()` lists named
+resources and `each()` every declared permission with its own selection.
+`apart()` is the hop's refusal as the module reads it: every permission the
+method requires is held, on owners sharing none. The hop forwards no such call;
+`required()` reaches nothing for one either way. A test
+builds one with `admissionOf(declared, method, grants)`. This verifier reads no
+protobuf descriptor: a method missing from the table reads as undeclared and
+selects nothing.
+
 It is the Go library's `hop.Verifier`: the signed method, audience, token digest and admission window first, then
 the keys read through `Keys` (re-read on an unknown key at most every 10 s, once
 on a stamp signed by no admission key held at most every 10 s for all such stamps
 together, such a stamp waiting instead for a read already running (still
 unauthenticated, and held at most until that read's 5 s timeout), each re-read
-it starts logged with `console.info`, and when older than 5 minutes, on a read of its own bounded by 5 s; stale after 15
+it starts logged with `console.info`, and when older than 5 minutes (the admission keys after 10 s, and unconfirmed for 2 minutes they admit nothing: [a withdrawn key](../../hop/README.md)), on a read of its own bounded by 5 s; stale after 15
 minutes, when a call waits for the re-read as it does on an unknown key), then
 `authenticateToken`, the one identity reader (a caller holding headers extracts
 the bound token with `boundToken` first): Core's decode path (size, the
@@ -37,7 +71,10 @@ rule Core adds later is held only once a vector is written for it. A
 read's own failure is kept in `verifier.keysError` for logs, never sent to a
 caller. **Readiness uses `verifier.ready()`**: true while trusted keys are held,
 through failed re-reads inside the 15-minute window; false before the first read
-or once they are stale. It also starts the same rate-limited, non-blocking
+or once they are stale. A verifier that admits calls (built with a replay store)
+is also unready while it holds no published hop admission key, as Go's `Ready()`
+is: keys that read but publish none would refuse every call. A token-only
+verifier needs none. It also starts the same rate-limited, non-blocking
 re-read a call would, so an unready replica recovers and an idle one never goes
 stale. Never gate readiness on `keysError`. Before reading the keys, it reserves
 the nonce through the required durable replay store shared across replicas, and

@@ -7,12 +7,15 @@ import (
 )
 
 // RBAC-4a: a module that adopts owner checks narrows what was issued at it.
-// Rob's own-session capability at the ledger, issued while it checked no
-// owner, no longer checks once the ledger checks owners, and a fresh issue is
-// refused by name.
-func TestAModuleAdoptingOwnerChecksEndsOwnSessionCapabilities(t *testing.T) {
+// Maya's capability at the ledger through the page's binding, issued
+// unselected while the ledger checked no owner, no longer checks once it
+// does, and a fresh one selects the page installation's data.
+func TestAModuleAdoptingOwnerChecksEndsUnselectedCapabilities(t *testing.T) {
 	h := newHarness(t)
-	before := h.must(h.root("rob", "ledger"))
+	ledgerPage(t, h)
+	h.grant("pages", "user", "maya")
+	before := h.must(h.page("maya", "pages", "ledger"))
+	exactly(t, before, ledgerKind, "", []string{"read"})
 	if err := h.check(before); err != nil {
 		t.Fatal(err)
 	}
@@ -27,20 +30,26 @@ func TestAModuleAdoptingOwnerChecksEndsOwnSessionCapabilities(t *testing.T) {
 	if _, err := h.svc.ListResources(h.ctx, before.Token, "ledger", ledgerKind, "read"); err == nil {
 		t.Fatal("a capability issued before the ledger checked owners still lists")
 	}
-	_, err := h.root("rob", "ledger")
-	refused(t, err, "ledger checks owners, so an organization role reaches none of its owned data on a person's own session")
+	exactly(t, h.must(h.page("maya", "pages", "ledger")), ledgerKind, h.principal(acme, "pages"), []string{"read"})
+	// On a person's own session the ledger holds nothing, before or after.
+	_, err := h.root("maya", "ledger")
+	refused(t, err, "ledger declares no roles")
 }
 
-// A kind the store no longer shares narrows too: Rob's own-session capability
-// on it ends, and a fresh issue is refused by name.
-func TestAKindNoLongerSharedEndsOwnSessionCapabilities(t *testing.T) {
+// A kind the store no longer shares narrows too: maya's unselected capability
+// on it through the page's binding ends, and a fresh one selects the page
+// installation's data.
+func TestAKindNoLongerSharedEndsUnselectedCapabilities(t *testing.T) {
 	h := newHarness(t)
 	shared := storeAt(2, "admin", true)
 	shared.SharedKinds = []string{kind}
 	if _, err := h.svc.ApplyModule(h.ctx, shared); err != nil {
 		t.Fatal(err)
 	}
-	before := h.must(h.root("rob", "store"))
+	ledgerPage(t, h)
+	h.grant("pages", "user", "maya")
+	before := h.must(h.page("maya", "pages", "store"))
+	exactly(t, before, kind, "", []string{"read"})
 	if err := h.check(before); err != nil {
 		t.Fatal(err)
 	}
@@ -51,16 +60,18 @@ func TestAKindNoLongerSharedEndsOwnSessionCapabilities(t *testing.T) {
 	if err := h.check(before); err == nil {
 		t.Fatal("a capability on a kind no longer shared still checks")
 	}
-	_, err := h.root("rob", "store")
-	refused(t, err, "store checks owners, so an organization role reaches none of its owned data")
+	exactly(t, h.must(h.page("maya", "pages", "store")), kind, h.principal(acme, "pages"), []string{"read"})
 }
 
-// A capability minted before owner checks applied, with no revision moved
-// since (a code rollout over a module already checking owners), still checks,
-// and ListResources answers none of the owned kind from organization roles.
-func TestListResourcesAnswersNoOwnedKindFromOrganizationRoles(t *testing.T) {
+// A capability minted unselected before owner checks applied, with no
+// revision moved since (a code rollout over a module already checking
+// owners), still checks, and ListResources answers the kind as the roles
+// reach it now: the page installation's data and no unowned resource.
+func TestListResourcesAnswersAnOwnedKindAsTheInstallationsDataAlone(t *testing.T) {
 	h := newHarness(t)
-	before := h.must(h.root("rob", "ledger"))
+	ledgerPage(t, h)
+	h.grant("pages", "user", "maya")
+	before := h.must(h.page("maya", "pages", "ledger"))
 	aware := ledger()
 	aware.OwnerAware = true
 	if err := h.store.Write(h.ctx, func(tx authority.Tx) error { return tx.PutModule(aware) }); err != nil {
@@ -70,7 +81,12 @@ func TestListResourcesAnswersNoOwnedKindFromOrganizationRoles(t *testing.T) {
 		t.Fatalf("the test needs the old capability to still check: %v", err)
 	}
 	grants, err := h.svc.ListResources(h.ctx, before.Token, "ledger", ledgerKind, "read")
-	if err != nil || len(grants) != 0 {
-		t.Fatalf("listed %v (%v) of an owned kind from organization roles", grants, err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, g := range grants {
+		if g.Owner != h.principal(acme, "pages") {
+			t.Fatalf("listed %+v of an owned kind beyond the page installation's data", g)
+		}
 	}
 }

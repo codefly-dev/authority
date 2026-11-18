@@ -39,11 +39,14 @@ func (c *client) resourceMethod(t *testing.T, ctx context.Context, f Fixture) {
 			t.Fatal("required conformance fixture missing: resources and signed method policy")
 		}
 		r := *f.Resources
-		const target = "conformance-methods"
+		// The case's own module, at its first generation: on a host every case
+		// shares, a name another case delivered is an installation an
+		// administrator approved at that case's generation, and a later
+		// generation of it is an upgrade nobody approved, which the host
+		// rightly keeps from its holders.
+		const target = "conformance-resource-method"
 		const method = "/conformance.Service/WholeKind"
-		if _, err := c.deliverWithMethods(ctx, f, target, 4, []string{r.Kind}, []any{map[string]any{"method": method, "requires": []any{scopeAsk(r.Kind, []string{r.Action}, nil)}}}, 0); err != nil {
-			t.Fatal(err)
-		}
+		c.deliverPageWithMethods(t, ctx, f, target, 1, []string{r.Kind}, []any{map[string]any{"method": method, "requires": []any{scopeAsk(r.Kind, []string{r.Action}, nil)}}}, r.Token, r.Action)
 		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": r.Token})
 		out := c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": target, "scopes": []any{scopeAsk(r.Kind, []string{r.Action}, []string{r.Covered[0]})}})
 		checked := c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(out, "token"), "audience": target, "method": method})

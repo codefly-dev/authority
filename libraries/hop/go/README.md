@@ -28,7 +28,9 @@ config.GRPCServerOptions = append(config.GRPCServerOptions,
 	grpc.StatsHandler(verifier.StatsHandler()),
 	grpc.ChainUnaryInterceptor(verifier.UnaryServerInterceptor()),
 	grpc.ChainStreamInterceptor(verifier.StreamServerInterceptor()))
-// in a handler: id, _ := hop.FromContext(ctx); id.Tenant, id.Has(kind, action), id.Claims.Allows(kind, action, resourceID)
+// in a handler: id, _ := hop.FromContext(ctx); id.Tenant; what admitted the call is hop.Admitted(ctx)
+// (Required(), Carried(): the selection to narrow a query by). A handler names no permission: the hop
+// decided the method's, and id.Claims.Allows(kind, action, resourceID) answers a resource-exact question.
 // an HTTP module, once the headers arrive and before reading the body:
 //	id, done, err := verifier.Admit(ctx, metadataFromHeaders, observedFullProcedure); defer done()
 ```
@@ -50,7 +52,7 @@ typed in, never mounted. A read runs on its own, detached from every call and
 bounded by 5 s, one at a time: no caller can cancel it, fail it or delay the
 next one. Keys are re-read when a token names a key the verifier does not hold
 (at most every 10 s; that call waits for the read while it lasts) and when older
-than 5 minutes (the held keys serve meanwhile); keys that cannot be re-read are
+than 5 minutes (the held keys serve meanwhile; the admission keys after 10 s, and unconfirmed for 2 minutes they admit nothing: [a withdrawn key](../README.md)); keys that cannot be re-read are
 trusted for 15 minutes at most, and a call on keys older than that waits for the
 re-read as a call on an unknown key does, refused if the read fails.
 A stamp signed by no admission key held is re-read for too: a hop that
@@ -83,6 +85,43 @@ nor whether a particular call will be admitted.
 `hoptest` is a real authority for a module's own tests: `hoptest.New(t)` signs
 with a fresh key and answers `Keys`; `Issue` mints a Work Context and
 `hoptest.Forward` stamps it exactly as the hop does.
+
+### Narrowing without naming a permission
+
+A handler that must narrow a query reads what admitted its call:
+
+```go
+admitted, ok := hop.Admitted(ctx)        // nil, false: the hop stamped none; select nothing
+owners := admitted.Required().Owners()   // owners on which the call holds all the method requires
+content := admitted.Carried()            // how far what the method carries reaches; Empty() if not held
+content.Allows(row.Owner, row.ID)        // one stored resource
+```
+
+`Required()` is the intersection, across the permissions the method requires,
+of where the call holds each. `Required().Whole()` is a grant that selects no
+owner, which holds its permission on every owner. A module whose resources have
+owners reads `RequiredOwnerSelected()` (and `CarriedOwnerSelected()`) instead:
+each permission is cut to the grants that select an owner before they are
+combined, so a write held on no owner beside a read held on one installation
+reaches nothing. `Named()` lists named
+resources. A method that requires several permissions requires them of one
+resource: a call that holds each of them, on owners sharing none (a read on
+one installation's resources, a write on another's), is refused by the hop's
+decision before it is forwarded (`policy.Method.Apart`, applied by the
+authority's `Check` and by `policy.Admit`), naming where each is held. A grant
+that selects no owner is held together with anything, and only owners are
+compared: which resource of a shared owner a call reaches stays the module's
+question. `Apart()` is that decision as the module reads it, true only behind
+a hop older than this rule; `Required()` reaches nothing for such a call
+either way. The declaration is read from the protobuf descriptors linked into the
+binary (`authority.hop.v1.policy` on each rpc). A module serving HTTP routes
+passes `hop.Declarations(map[string]policy.Method{"GET /v1/things/{id}": ...})`
+to `NewVerifier`. An HTTP module reads `id.Admitted` from `Admit`. A test builds
+one with `hop.AdmissionOf(declared, method, grants)`.
+
+`StreamServerInterceptor` ends an admitted stream when its Work Context expires
+(`Unauthenticated`, reason `expired`); the handler's context is done and its
+sends and receives refuse.
 
 ## The host side: `forward`
 
@@ -126,6 +165,37 @@ Invalid configuration returns an error and closes any connections already dialle
 `forward.MissingRoutes(err)` is the refusal for a routes view the host could not
 read. `decide.Decider`, `forward.Proxy` and `forward.HTTP` are the parts New
 assembles, for a host that needs one face alone.
+
+The hop keeps no record of what it refuses. Each refusal is a line of its log,
+and a host that records refusals hands New a sink:
+
+```go
+front, err := forward.New(ctx, forward.Config{
+	// ... as above
+	Refused: func(ctx context.Context, r forward.Refusal) {
+		if r.ByAuthority {
+			return // the authority decided it and told its own host (authority.Config.Decisions)
+		}
+		record(ctx, r.Method, r.Code, r.Reason, r.Module, r.Organization, r.Owner, r.Actor, r.Binding, r.Task, r.Claimed)
+	},
+})
+```
+
+`Refused` receives every refusal either face makes, on the refused call's
+context, before the caller is answered: the hop's own (no Work Context, no
+published route, an authority that did not answer inside `decide.CheckTimeout`,
+an admission that cannot be signed, no admission-key publication, a module that
+did not answer, a Work Context that expired mid-call), which reach the
+authority from nobody else, and the authority's, marked `ByAuthority`. A
+`Refusal` names the method, the code and the hop's own reason (which may name
+a module's address and is never for a caller), and the module, organization,
+owner, last actor, binding and task of the call. `Claimed` says those were read
+from the call's Work Context unverified, because the authority did not check
+the call or refused it; false, they are the identity the authority checked.
+nil is the log line alone, as before, and the log line is written either way.
+What the sink does not see is what the module itself refuses after the hop
+forwarded the call (a stamp its Verifier rejects): that is the module's
+refusal, answered in its process.
 
 Both faces check publication at entry and again after policy checking,
 immediately before signing. This final check is the call's admission point,

@@ -24,8 +24,9 @@ import (
 // from this origin, here also in the Connect protocol): allowed, the browser
 // becomes the cast and keeps its own session as the way back, both in
 // HttpOnly cookies, and the answer carries no bearer, because no script holds
-// a credential. The way back stays the form's (`action=back`): the interface
-// has no call for it.
+// a credential. The way back stays the form's (`action=back`), which ends the
+// cast at the host and restores the session it was opened from: End is served
+// to no page, because ending the browser's session is the edge's own act.
 //
 // No answer to a browser holding a cookie carries the session id either: a
 // host may key its sessions by the bearer (the local authority's session id
@@ -60,8 +61,14 @@ func (e *Edge) openTeamCast(ctx context.Context, req *connect.Request[sessionv1.
 	}
 	res := connect.NewResponse(cast)
 	if cookie, _ := ctx.Value(sessionFromCookie{}).(bool); cookie {
-		res.Header().Add("Set-Cookie", sessionCookie(SessionKey, cast.GetBearer()).String())
-		res.Header().Add("Set-Cookie", sessionCookie(ParentKey, bearer).String())
+		cookies, err := e.castCookies(cast, bearer)
+		if err != nil {
+			_ = e.end(ctx, cast.GetBearer())
+			return nil, connect.NewError(connect.CodeUnavailable, errors.New("the cast opened no session the edge keeps: "+err.Error()))
+		}
+		for _, c := range cookies {
+			res.Header().Add("Set-Cookie", c.String())
+		}
 		cast.Bearer, cast.SessionId = "", ""
 	}
 	return res, nil

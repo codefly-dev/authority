@@ -137,7 +137,7 @@ func TestAStampUnderAnUnheldKeyWaitsForTheReadAlreadyRunning(t *testing.T) {
 	running := func(response *authorityv1.KeysResponse) (release func()) {
 		hold := make(chan struct{})
 		source.set(response, nil, hold)
-		clock = clock.Add(keyMaxAge + time.Second)
+		clock = clock.Add(admissionMaxAge + time.Second)
 		v.Ready()
 		return func() { close(hold) }
 	}
@@ -230,7 +230,7 @@ func TestManyStampsWaitForOneRunningReadAndAreHeldNoLongerThanItsTimeout(t *test
 		begin := make(chan struct{})
 		source.set(response, nil, hold)
 		source.gate(begin)
-		clock = clock.Add(keyMaxAge + time.Second)
+		clock = clock.Add(admissionMaxAge + time.Second)
 		before := source.count()
 		v.Ready()
 		token := authority.issue(t, clock, "documents")

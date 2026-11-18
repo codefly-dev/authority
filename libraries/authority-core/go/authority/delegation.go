@@ -149,7 +149,15 @@ func (s *Service) Delegation(ctx context.Context, id string, who *Person, module
 // was granted to: what was delegated, cut to what the grantor holds at the
 // audience now and to the binding. No live capability is presented.
 func (s *Service) IssueForDelegation(ctx context.Context, id string, actor Workload, r IssueRequest) (Issued, error) {
+	told := Decision{Kind: DecisionIssueDelegation, Actor: actor.Module, Audience: r.Audience, Binding: r.Binding, Operation: r.Operation, Delegation: id}
+	out, err := s.issueForDelegation(ctx, id, actor, r, &told)
+	return s.issued(ctx, &told, out, err)
+}
+
+func (s *Service) issueForDelegation(ctx context.Context, id string, actor Workload, r IssueRequest, seen *Decision) (Issued, error) {
 	var d domain.Delegation
+	// What a refusal still says: whose delegation it is, and where.
+	defer func() { seen.resolved(d.Organization, d.Grantor, r.Audience) }()
 	var am, audience domain.Module
 	var through, scopes Scopes
 	var f fence
@@ -201,7 +209,7 @@ func (s *Service) IssueForDelegation(ctx context.Context, id string, actor Workl
 		if err != nil {
 			return domain.Refuse("the grantor %s is no longer a member", d.Grantor)
 		}
-		h, _, _, err := throughSolutions(tx, p, audience, []string{am.Principal}, d.Scopes)
+		h, _, _, err := throughSolutions(tx, p, audience, []string{am.Principal})
 		if err != nil {
 			return err
 		}
@@ -270,7 +278,7 @@ func (s *Service) IssueForDelegation(ctx context.Context, id string, actor Workl
 // delegableScopes is the one ceiling for a person's delegation: what they hold
 // here and through this module/solution's declared bindings.
 func delegableScopes(tx Tx, p domain.Person, m domain.Module, scopes Scopes) (Scopes, error) {
-	holdings, err := held(tx, p, m, scopes)
+	holdings, err := held(tx, p, m)
 	if err != nil {
 		return nil, err
 	}
@@ -279,7 +287,7 @@ func delegableScopes(tx Tx, p domain.Person, m domain.Module, scopes Scopes) (Sc
 		if err != nil {
 			continue
 		}
-		there, _, _, err := throughSolutions(tx, p, target, []string{m.Principal}, scopes)
+		there, _, _, err := throughSolutions(tx, p, target, []string{m.Principal})
 		if err != nil {
 			return nil, err
 		}

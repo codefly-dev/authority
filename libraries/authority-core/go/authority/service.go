@@ -38,6 +38,12 @@ type KeySource interface {
 // id (the core never holds a key), the verification keys, the clock and the
 // id sources, replay and approval-grant state.
 type Config struct {
+	// CheckSession checks a root identifier against the host's session ledger.
+	// Unknown identifiers belong to noninteractive roots. Ended session rows
+	// must remain distinguishable until every capability issued from them expires.
+	// Any lookup failure refuses verification and issuance.
+	CheckSession func(context.Context, string) error
+
 	Issuer, KeyID string
 	Signer        crypto.Signer
 	Keys          KeySource
@@ -58,6 +64,13 @@ type Config struct {
 	// MaxDelegationTTL clamps the lifetime a delegation is asked for; zero
 	// means DefaultMaxDelegationTTL.
 	MaxDelegationTTL time.Duration
+	// Advisory says this host answers an advisory check (CheckMethod's
+	// advisory) as advice: a method its policy refuses is answered with the
+	// verified capability and the refusal beside it. It is for a local
+	// development run, and a host sets it only for one; left false, an
+	// advisory check is enforced as any other, so no caller is handed a
+	// capability's contents for a call that was refused.
+	Advisory bool
 	// Replay consumes single-use capabilities. It is required: a deployed
 	// host shares it across replicas, and nothing defaults to memory.
 	Replay workcontext.ReplayStore
@@ -66,6 +79,20 @@ type Config struct {
 	// Journal records each change of authority in the transaction that makes
 	// it; an error aborts the change. nil journals nothing.
 	Journal func(ctx context.Context, tx Tx, e domain.Event) error
+	// Decisions is told each decision the authority makes for a caller,
+	// admitted and refused alike: every issuance (IssueForPerson,
+	// IssueForPage, IssueForWorkload, IssueForInstallation, IssueChild,
+	// IssueForDelegation, IssueForClientDelegation), CheckMethod and
+	// ListResources. An error fails the operation: an admitted issuance
+	// hands out no capability and an admitted check is not answered, so
+	// nothing is admitted that the host could not record; a refusal stays
+	// the refusal it was, with the hook's error beside it. It is called once
+	// per call, after the decision and outside any store transaction: what a
+	// host writes is its own. The host decides what it keeps; an admitted
+	// check costs it one call and a comparison (Decision.AdmittedCheck), and
+	// the core reads nothing and formats nothing to describe one. nil tells
+	// nobody.
+	Decisions func(ctx context.Context, d Decision) error
 	// HostInstallsModules says the host decides which organizations hold each
 	// composed module, by its own administrators' consent, and its store
 	// answers those installations from the host's own records. The core then
@@ -76,12 +103,6 @@ type Config struct {
 	// a redelivery narrows the module, which the store applies to the host's
 	// record. false: every composed module is installed at every organization.
 	HostInstallsModules bool
-	// anyRoleNames composes a NEW generation declaring roles other than
-	// exactly admin and user (decide.PageRoles). Unexported, and set only by
-	// this package's test build (AllowAnyRoleNamesForTest), for its fixtures
-	// that model the core's wider role model (the old names a crossover
-	// moves) through hand-built modules: no host can set it.
-	anyRoleNames bool
 }
 
 var (
@@ -160,6 +181,9 @@ func (s *Service) Now() time.Time { return s.cfg.Clock() }
 // Person is an authenticated person: who the session is, at which organization.
 type Person struct {
 	ID, Organization, SessionID string
+	// ExpiresAt bounds authority issued from this authenticated session.
+	// Zero is reserved for callers whose authority is not session-bound.
+	ExpiresAt time.Time
 	// Teams is the session's snapshot, kept as attribution; authority reads
 	// the person's teams live.
 	Teams []string
@@ -196,6 +220,11 @@ func (s *Service) Verify(ctx context.Context, token, audience string) (*workcont
 	if errors.Is(err, workcontext.ErrRevoked) {
 		// A seal, a grant or a membership moved since issue: say so by name.
 		return nil, fmt.Errorf("the capability was revoked: %w", err)
+	}
+	if err == nil && s.cfg.CheckSession != nil && verified.Context().GetOwnerPrincipalKind() == "human" {
+		if err = s.cfg.CheckSession(ctx, rootSession(verified.Context())); err != nil {
+			return nil, err
+		}
 	}
 	return verified, err
 }
@@ -460,22 +489,6 @@ func notFound(err error) error {
 		return domain.Missing("%v", err)
 	}
 	return err
-}
-
-// orgRoles are a person's organization roles, those the catalogue defines.
-func orgRoles(tx Tx, p domain.Person) ([]domain.OrgRole, error) {
-	var out []domain.OrgRole
-	for _, name := range p.Roles {
-		r, err := tx.OrgRole(p.Organization, name)
-		if errors.Is(err, domain.ErrNotFound) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, r)
-	}
-	return out, nil
 }
 
 func clamp(ttl, max time.Duration) time.Duration {

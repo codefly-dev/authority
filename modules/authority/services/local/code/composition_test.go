@@ -24,12 +24,15 @@ func TestCompositionReachesBootThroughCodefly(t *testing.T) {
 	t.Cleanup(func() { _ = codefly.InjectConfigurations() })
 	for _, tc := range []struct {
 		name, document, path, reason string
-		granted                      bool
+		standsIn                     bool
 	}{
 		{name: "absent", reason: "no fixture-composition document was delivered"},
 		{name: "shipped default", path: testkit.DefaultCompositionPath()},
-		{name: "composition", document: "schema: codefly.dev/authority/fixture-composition/v1\nroles:\n  - organization: acme\n    name: editor\n    scopes:\n      - {kind: ledger.entry, actions: [write]}\n", granted: true},
-		{name: "unknown role", document: "schema: codefly.dev/authority/fixture-composition/v1\nroles: [{organization: acme, name: missing, scopes: [{kind: ledger.entry, actions: [write]}]}]", reason: "acme/missing is not a role"},
+		{name: "composition", document: "schema: codefly.dev/authority/fixture-composition/v2\nmodules:\n  - module: oracle\n    kinds: [{kind: oracle.answers, actions: [read]}]\n", standsIn: true},
+		// A document that grants an organisation role a module's kinds never
+		// boots: no organisation role reaches a module.
+		{name: "a roles section", document: "schema: codefly.dev/authority/fixture-composition/v2\nroles: [{organization: acme, name: admin, scopes: [{kind: ledger.entry, actions: [write]}]}]", reason: "a composition grants no organisation role a module's kinds"},
+		{name: "the retired schema", document: "schema: codefly.dev/authority/fixture-composition/v1\nroles: [{organization: acme, name: admin, scopes: [{kind: ledger.entry, actions: [write]}]}]", reason: "fixture-composition/v1 is retired"},
 		{name: "null", document: "null", reason: "not a mapping"},
 		{name: "unversioned", document: "{}", reason: "schema is"},
 	} {
@@ -70,14 +73,13 @@ func TestCompositionReachesBootThroughCodefly(t *testing.T) {
 			} else if err != nil {
 				t.Fatal(err)
 			}
-			found := false
-			for _, scope := range k.State.RoleScopes("acme", "editor") {
-				if scope.GetResourceKind() == "ledger.entry" {
-					found = true
-				}
+			if _, composed := k.State.Module("oracle"); composed != tc.standsIn {
+				t.Fatalf("the composition's stand-in module composed = %v, want %v", composed, tc.standsIn)
 			}
-			if found != tc.granted {
-				t.Fatalf("composition grant present = %v, want %v", found, tc.granted)
+			// Whatever the document said, the organisation's administrator
+			// holds nothing at the module.
+			if held, err := k.PersonScopes(t, "alex", "ledger"); err == nil || len(held) != 0 {
+				t.Fatalf("alex, who administers acme, holds %v at ledger (%v)", held, err)
 			}
 		})
 	}

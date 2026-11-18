@@ -620,6 +620,80 @@ func (*CurrentRequest) Descriptor() ([]byte, []int) {
 	return file_host_session_v1_session_proto_rawDescGZIP(), []int{10}
 }
 
+// EndRequest ends the caller's own session; the bearer is the call's.
+type EndRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EndRequest) Reset() {
+	*x = EndRequest{}
+	mi := &file_host_session_v1_session_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EndRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EndRequest) ProtoMessage() {}
+
+func (x *EndRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_host_session_v1_session_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EndRequest.ProtoReflect.Descriptor instead.
+func (*EndRequest) Descriptor() ([]byte, []int) {
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{11}
+}
+
+// EndResponse says the session and every session opened from it ended.
+type EndResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EndResponse) Reset() {
+	*x = EndResponse{}
+	mi := &file_host_session_v1_session_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EndResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EndResponse) ProtoMessage() {}
+
+func (x *EndResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_host_session_v1_session_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EndResponse.ProtoReflect.Descriptor instead.
+func (*EndResponse) Descriptor() ([]byte, []int) {
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{12}
+}
+
 // SignInRequest presents a fixture token.
 type SignInRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -631,7 +705,7 @@ type SignInRequest struct {
 
 func (x *SignInRequest) Reset() {
 	*x = SignInRequest{}
-	mi := &file_host_session_v1_session_proto_msgTypes[11]
+	mi := &file_host_session_v1_session_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -643,7 +717,7 @@ func (x *SignInRequest) String() string {
 func (*SignInRequest) ProtoMessage() {}
 
 func (x *SignInRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_host_session_v1_session_proto_msgTypes[11]
+	mi := &file_host_session_v1_session_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -656,7 +730,7 @@ func (x *SignInRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SignInRequest.ProtoReflect.Descriptor instead.
 func (*SignInRequest) Descriptor() ([]byte, []int) {
-	return file_host_session_v1_session_proto_rawDescGZIP(), []int{11}
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *SignInRequest) GetFixtureToken() string {
@@ -694,14 +768,30 @@ type Session struct {
 	// The team this session was cast onto: it acts as a member of that team and
 	// of nothing else, so `roles` is empty and `team_ids` names this team alone.
 	// Empty for a session that is not a cast.
-	CastTeamId    string `protobuf:"bytes,10,opt,name=cast_team_id,json=castTeamId,proto3" json:"cast_team_id,omitempty"`
+	CastTeamId string `protobuf:"bytes,10,opt,name=cast_team_id,json=castTeamId,proto3" json:"cast_team_id,omitempty"`
+	// When the session ends on its own, in Unix seconds: from then on its bearer
+	// is unauthenticated wherever a session is read, as an ended one is. Every
+	// session carries one. A role view or a cast ends no later than the session
+	// it was opened from. A browser edge keeps its cookie no longer than this.
+	ExpiresAtUnix int64 `protobuf:"varint,11,opt,name=expires_at_unix,json=expiresAtUnix,proto3" json:"expires_at_unix,omitempty"`
+	// The grant epoch of who this session acts as: a value that is different
+	// whenever what the session holds on the organisation's installations is
+	// different, so it moves when a role is granted or revoked, to the person,
+	// to a team of theirs or to the team a cast acts as, when they leave a team,
+	// and when an installation is made, upgraded or ended. It is opaque and is
+	// compared for equality only. A caller that keeps a Work Context it was
+	// issued for this session (a browser edge) reads it on Current and drops
+	// what it keeps when it differs, so a change made anywhere applies from the
+	// next call instead of when the kept context lapses. Empty: the host states
+	// none, and the caller keeps what it holds until it lapses or is refused.
+	GrantEpoch    string `protobuf:"bytes,12,opt,name=grant_epoch,json=grantEpoch,proto3" json:"grant_epoch,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Session) Reset() {
 	*x = Session{}
-	mi := &file_host_session_v1_session_proto_msgTypes[12]
+	mi := &file_host_session_v1_session_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -713,7 +803,7 @@ func (x *Session) String() string {
 func (*Session) ProtoMessage() {}
 
 func (x *Session) ProtoReflect() protoreflect.Message {
-	mi := &file_host_session_v1_session_proto_msgTypes[12]
+	mi := &file_host_session_v1_session_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -726,7 +816,7 @@ func (x *Session) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Session.ProtoReflect.Descriptor instead.
 func (*Session) Descriptor() ([]byte, []int) {
-	return file_host_session_v1_session_proto_rawDescGZIP(), []int{12}
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *Session) GetSessionId() string {
@@ -799,6 +889,20 @@ func (x *Session) GetCastTeamId() string {
 	return ""
 }
 
+func (x *Session) GetExpiresAtUnix() int64 {
+	if x != nil {
+		return x.ExpiresAtUnix
+	}
+	return 0
+}
+
+func (x *Session) GetGrantEpoch() string {
+	if x != nil {
+		return x.GrantEpoch
+	}
+	return ""
+}
+
 var File_host_session_v1_session_proto protoreflect.FileDescriptor
 
 const file_host_session_v1_session_proto_rawDesc = "" +
@@ -834,9 +938,12 @@ const file_host_session_v1_session_proto_rawDesc = "" +
 	"\rRoleViewEntry\x12'\n" +
 	"\x0finstallation_id\x18\x01 \x01(\tR\x0einstallationId\x12\x14\n" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles\"\x10\n" +
-	"\x0eCurrentRequest\"4\n" +
+	"\x0eCurrentRequest\"\f\n" +
+	"\n" +
+	"EndRequest\"\r\n" +
+	"\vEndResponse\"4\n" +
 	"\rSignInRequest\x12#\n" +
-	"\rfixture_token\x18\x01 \x01(\tR\ffixtureToken\"\x82\x03\n" +
+	"\rfixture_token\x18\x01 \x01(\tR\ffixtureToken\"\xcb\x03\n" +
 	"\aSession\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1b\n" +
@@ -850,10 +957,14 @@ const file_host_session_v1_session_proto_rawDesc = "" +
 	"\trole_view\x18\t \x03(\v2\x1e.host.session.v1.RoleViewEntryR\broleView\x12 \n" +
 	"\fcast_team_id\x18\n" +
 	" \x01(\tR\n" +
-	"castTeamId2\xdf\x05\n" +
+	"castTeamId\x12&\n" +
+	"\x0fexpires_at_unix\x18\v \x01(\x03R\rexpiresAtUnix\x12\x1f\n" +
+	"\vgrant_epoch\x18\f \x01(\tR\n" +
+	"grantEpoch2\xbd\x06\n" +
 	"\x0eSessionService\x12b\n" +
 	"\x06SignIn\x12\x1e.host.session.v1.SignInRequest\x1a\x18.host.session.v1.Session\"\x1e\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/v1/session:sign-in\x12Y\n" +
-	"\aCurrent\x12\x1f.host.session.v1.CurrentRequest\x1a\x18.host.session.v1.Session\"\x13\x82\xd3\xe4\x93\x02\r\x12\v/v1/session\x12u\n" +
+	"\aCurrent\x12\x1f.host.session.v1.CurrentRequest\x1a\x18.host.session.v1.Session\"\x13\x82\xd3\xe4\x93\x02\r\x12\v/v1/session\x12\\\n" +
+	"\x03End\x12\x1b.host.session.v1.EndRequest\x1a\x1c.host.session.v1.EndResponse\"\x1a\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/session:end\x12u\n" +
 	"\fOpenRoleView\x12$.host.session.v1.OpenRoleViewRequest\x1a\x18.host.session.v1.Session\"%\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v1/session:open-role-view\x12u\n" +
 	"\fOpenTeamCast\x12$.host.session.v1.OpenTeamCastRequest\x1a\x18.host.session.v1.Session\"%\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v1/session:open-team-cast\x12\x8e\x01\n" +
 	"\x11ListCastableTeams\x12).host.session.v1.ListCastableTeamsRequest\x1a*.host.session.v1.ListCastableTeamsResponse\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/v1/session/castable-teams\x12\x8e\x01\n" +
@@ -871,7 +982,7 @@ func file_host_session_v1_session_proto_rawDescGZIP() []byte {
 	return file_host_session_v1_session_proto_rawDescData
 }
 
-var file_host_session_v1_session_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_host_session_v1_session_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_host_session_v1_session_proto_goTypes = []any{
 	(*ListCastableTeamsRequest)(nil),  // 0: host.session.v1.ListCastableTeamsRequest
 	(*ListCastableTeamsResponse)(nil), // 1: host.session.v1.ListCastableTeamsResponse
@@ -884,28 +995,32 @@ var file_host_session_v1_session_proto_goTypes = []any{
 	(*OpenTeamCastRequest)(nil),       // 8: host.session.v1.OpenTeamCastRequest
 	(*RoleViewEntry)(nil),             // 9: host.session.v1.RoleViewEntry
 	(*CurrentRequest)(nil),            // 10: host.session.v1.CurrentRequest
-	(*SignInRequest)(nil),             // 11: host.session.v1.SignInRequest
-	(*Session)(nil),                   // 12: host.session.v1.Session
+	(*EndRequest)(nil),                // 11: host.session.v1.EndRequest
+	(*EndResponse)(nil),               // 12: host.session.v1.EndResponse
+	(*SignInRequest)(nil),             // 13: host.session.v1.SignInRequest
+	(*Session)(nil),                   // 14: host.session.v1.Session
 }
 var file_host_session_v1_session_proto_depIdxs = []int32{
 	2,  // 0: host.session.v1.ListCastableTeamsResponse.teams:type_name -> host.session.v1.CastableTeam
 	3,  // 1: host.session.v1.CastableTeam.holds:type_name -> host.session.v1.TeamHolding
 	6,  // 2: host.session.v1.ListFixturePeopleResponse.people:type_name -> host.session.v1.FixturePerson
 	9,  // 3: host.session.v1.Session.role_view:type_name -> host.session.v1.RoleViewEntry
-	11, // 4: host.session.v1.SessionService.SignIn:input_type -> host.session.v1.SignInRequest
+	13, // 4: host.session.v1.SessionService.SignIn:input_type -> host.session.v1.SignInRequest
 	10, // 5: host.session.v1.SessionService.Current:input_type -> host.session.v1.CurrentRequest
-	7,  // 6: host.session.v1.SessionService.OpenRoleView:input_type -> host.session.v1.OpenRoleViewRequest
-	8,  // 7: host.session.v1.SessionService.OpenTeamCast:input_type -> host.session.v1.OpenTeamCastRequest
-	0,  // 8: host.session.v1.SessionService.ListCastableTeams:input_type -> host.session.v1.ListCastableTeamsRequest
-	4,  // 9: host.session.v1.SessionService.ListFixturePeople:input_type -> host.session.v1.ListFixturePeopleRequest
-	12, // 10: host.session.v1.SessionService.SignIn:output_type -> host.session.v1.Session
-	12, // 11: host.session.v1.SessionService.Current:output_type -> host.session.v1.Session
-	12, // 12: host.session.v1.SessionService.OpenRoleView:output_type -> host.session.v1.Session
-	12, // 13: host.session.v1.SessionService.OpenTeamCast:output_type -> host.session.v1.Session
-	1,  // 14: host.session.v1.SessionService.ListCastableTeams:output_type -> host.session.v1.ListCastableTeamsResponse
-	5,  // 15: host.session.v1.SessionService.ListFixturePeople:output_type -> host.session.v1.ListFixturePeopleResponse
-	10, // [10:16] is the sub-list for method output_type
-	4,  // [4:10] is the sub-list for method input_type
+	11, // 6: host.session.v1.SessionService.End:input_type -> host.session.v1.EndRequest
+	7,  // 7: host.session.v1.SessionService.OpenRoleView:input_type -> host.session.v1.OpenRoleViewRequest
+	8,  // 8: host.session.v1.SessionService.OpenTeamCast:input_type -> host.session.v1.OpenTeamCastRequest
+	0,  // 9: host.session.v1.SessionService.ListCastableTeams:input_type -> host.session.v1.ListCastableTeamsRequest
+	4,  // 10: host.session.v1.SessionService.ListFixturePeople:input_type -> host.session.v1.ListFixturePeopleRequest
+	14, // 11: host.session.v1.SessionService.SignIn:output_type -> host.session.v1.Session
+	14, // 12: host.session.v1.SessionService.Current:output_type -> host.session.v1.Session
+	12, // 13: host.session.v1.SessionService.End:output_type -> host.session.v1.EndResponse
+	14, // 14: host.session.v1.SessionService.OpenRoleView:output_type -> host.session.v1.Session
+	14, // 15: host.session.v1.SessionService.OpenTeamCast:output_type -> host.session.v1.Session
+	1,  // 16: host.session.v1.SessionService.ListCastableTeams:output_type -> host.session.v1.ListCastableTeamsResponse
+	5,  // 17: host.session.v1.SessionService.ListFixturePeople:output_type -> host.session.v1.ListFixturePeopleResponse
+	11, // [11:18] is the sub-list for method output_type
+	4,  // [4:11] is the sub-list for method input_type
 	4,  // [4:4] is the sub-list for extension type_name
 	4,  // [4:4] is the sub-list for extension extendee
 	0,  // [0:4] is the sub-list for field type_name
@@ -922,7 +1037,7 @@ func file_host_session_v1_session_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_host_session_v1_session_proto_rawDesc), len(file_host_session_v1_session_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   13,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

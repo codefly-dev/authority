@@ -408,9 +408,19 @@ readers accept those too, as crossover moves made under that rule. A
 declaration keeping a third role beside `admin` and `user` is not the rename: a role it drops ends
 its grants as usual. Both are a stopgap while modules are re-rendered before
 their host, deleted in the next release; `editor`, `viewer` and `steward`
-are aliases of nothing. A module without a page declares
-no roles; a person's access to a module is the organisation's roles intersected
-with what the module serves. A person's access to a solution is the role its
+are aliases of nothing.
+
+**Organisation roles decide administration only.** They say who administers an
+organisation's members, teams, installations and grants, and they reach no
+module: a person reaches a module only through a role (`admin`, `user`) on an
+installation, a solution's or a module page's
+([the decision](https://github.com/obin-ai/handbook/blob/main/decisions/organisation-roles-decide-administration-only.md)).
+A module without a page declares no roles, so nobody's own session holds
+anything there, the organisation's administrator's included: it is refused by
+name (`<module> declares no roles`) and reached through the binding of an
+installation whose role the person holds. A page's call to a module its target
+declares no binding to is refused by that name; being signed in on a page is
+not a way in. A person's access to a solution is the role its
 installation grants her, the admin role as its owner or the installation's
 role through a granted team, and nothing from the organisation's roles. Another
 organisation's installation grants nothing. The values of real roles belong to
@@ -439,8 +449,12 @@ The authority applies this source to person issuance naming a solution binding,
 children, delegation admission and use, and resource reads. Every solution in the
 verified actor chain continues to bound later module calls; a later module cannot
 recover a permission that the solution role withheld. A target solution also
-requires the person's entitlement there. Independent person-to-module work still
-uses organisation roles; child derivation follows the target rule below.
+requires the person's entitlement there. There is no independent
+person-to-module work: on their own session a person holds what their role on
+the audience's installation holds, and nothing at a module that declares none.
+Naming a binding of such a module asks nothing of the module itself: the
+capability carries what the person's role on the binding's target holds through
+it, for the module's hop there. Child derivation follows the target rule below.
 
 Solution roles preserve exact resource IDs and whole-kind grants through issuance
 and resource listing. Restricted grants still do not satisfy a method policy
@@ -459,6 +473,22 @@ Core's ordinary live verification. Role expansion alone leaves existing narrow
 installation roots valid; module actors still obey their generation checks.
 New issuance resolves the current declaration.
 
+Revoking a role (`RevokeRole`) moves no organisation revision: it moves its
+subject's grant epoch, on the installation the role was on and on every
+installation a hop after it may be sealed to (2026-11-17). A capability is
+sealed to its last actor's installation, so a person's call through a
+solution, then the reached module's own hop, is sealed to that module's
+installation and holds what the role on the solution gave. Before this date
+the revoke moved the epoch on the role's installation alone, and such a hop
+kept verifying, and kept being admitted by `Check`, until it expired; only
+`ListResources`, read at the time of the call, answered it nothing. A module
+that reads what admitted a call instead of asking `ListResources` relies on
+`Check`, which now refuses it. The subject's other capabilities sealed to
+those installations are issued again; nobody else's are touched. Uninstall,
+detachment, a narrowing delivery, an approved upgrade and a re-convergence
+move the organisation's revision, which every capability carries, and always
+ended such a hop.
+
 Issuance binds those role reads to the authorization revision Core signs. If
 delivery changes it between resolution and minting, issuance refuses with
 `permissions changed during issuance`; it does not retry with the old scopes.
@@ -475,11 +505,20 @@ minting and after issuance. These checks do not choose a child-scope policy or
 qualify the separate accounts implementation.
 
 Installation administration (`List`, `Install`) requires an open session whose
-current person is an administrator or owner of the requested organization; role
+current person is an administrator of the requested organization: a holder of
+its `admin` role, the one organisation role the core reads (no other name
+administers, `owner` included; a host with another name for an administrator
+hands the core `admin` for that person); role
 grants (`GrantRole`, `RevokeRole`, `ListRoleGrants`) also admit the holder of the
 admin role on that installation. Anonymous and invalid sessions are
 `Unauthenticated`; anyone else receives `PermissionDenied`, and a caller of
-another organization is answered as if the installation did not exist. Every
+another organization is answered as if the installation did not exist
+("installation … belongs to another organization than …"). A member of the
+organization named who may not do it is told that instead, and the same
+whichever installation they name, so they tell an installation of theirs from
+no other: "… is neither an administrator of … nor a holder of the admin role
+on installation …" for a role change, "… is not an administrator of …" for an
+uninstall. Every
 decision is the generic authority core's (`libraries/authority-core/go`); the
 local authority is a host over it. This is
 not the navigation API: a member probes each target with an empty-scope `Issue`.
@@ -493,19 +532,23 @@ in Acme for that case; in the shipped fixture, Bob is that person.
 The suite proves it as a matrix: the fixture states, for each person at each
 audience, which kind and action is allowed and which refused, and the suite asks
 for exactly that scope and expects the answer. The local authority's fixture carries
-two organisations, a person with no roles or teams and an automatically generated
-developer role; the test kit's composition document installs a solution under
-different roles in each. The host supplies its own matrix from its
+two organisations and a person with no roles or teams; the test kit seats its
+people on the roles of the module pages it composes, and its composition
+document installs a solution under different roles in each. The suite also
+requires that an organisation administrator holding no role on an installation
+is refused at every module (`Fixture.OrganisationRoles`): a host that lets an
+organisation role reach a module fails conformance. The host supplies its own matrix from its
 own fixture. The suite requires a signed carrier and authenticated delivery
 workload, with the paired authority document carrying the solution's roles.
 
-The fixture names only the authority's own vocabulary. Each module states what
-the fixture's roles may do at its kinds in a fragment next to its code, a
-composition states only what is its own, and the run merges the fragments into
-the versioned `fixture-composition` document
+The fixture names only the authority's own vocabulary: who exists and who
+administers each organisation. A module or a composition states what is its
+own (an installation of its solution, who is seated on a role-gated target, a
+module the run supervises itself) in a fragment next to its code, and the run
+merges the fragments into the versioned `fixture-composition` document, which
+at schema v2 grants no organisation role anything
 ([what a composition adds to the fixture](modules/authority/services/local/README.md#what-a-composition-adds-to-the-fixture)).
-The local authority also logs a delivery-time role × method report and
-generates its local developer role from concrete delivered permissions. See
+The local authority also logs a delivery-time role × method report. See
 [local permission diagnostics](modules/authority/services/local/README.md#permission-diagnostics-during-local-development)
 for the distinction between static coverage and runtime authorization.
 
@@ -643,15 +686,17 @@ The host-independent part is the core's: `authority.ConventionalTeamName`,
 authority's directory and seating is `pkg/business/state/teams.go`. Signed in
 as Dana at the edge's sign-in page, **Act as this team** on `<target>-user`
 opens a session that is that team and nothing else (the session interface's
-`OpenTeamCast`: a person may act as a team whose roles they could grant,
-member of it or not; the core decides, and a refusal is shown by name). The
-hop then answers with the user's reach alone, and **Back to your own session**
-restores hers. Signed in as Carol, the hop answers with `<target>-user`'s
-reach; signed in as Bob, with a refusal naming that he holds no role there.
-The other people the tables above and below name (Maya, Rémi, Alex, Dev,
-Zoë, Omar, `no-roles`, the Globex organisation) are the test kit's matrix
-(`pkg/business/testkit/fixture.yaml`), which the conformance suite and the
-business tests run on. No run is given it.
+`OpenTeamCast`: a person may act as a team only if they are a member of it
+or could grant every role it holds — the core decides, and a refusal is shown
+by name); the
+hop then answers with the user's reach alone, and **Back to your own
+session** restores hers. Signed in as Carol, the hop answers with
+`<target>-user`'s reach and nothing else; signed in as Dana, with
+`<target>-admin`'s; signed in as Bob, with a refusal naming that he holds no
+role there. The other people the tables name (Maya, Rémi, Alex, Dev, Zoë, Omar,
+`no-roles`, the Globex organisation) belong to the test kit's matrix
+(`pkg/business/testkit/fixture.yaml`), used by conformance and business tests.
+No run is given that matrix.
 
 ### The hop side is a conformance target too (2026-11-03)
 
@@ -700,6 +745,34 @@ The marks reach the authority in the delivery, and the authority decides:
    no permission requirements and polls nothing. Codefly supplies its published
    route inventory; the selected destination and declared policy method travel
    together into the single Check decision.
+
+A method that requires several permissions requires them of one resource.
+A call that holds each of them, on owners sharing none (a read on one
+installation's resources, a write on another's), holds them together on
+nothing, and `Check` refuses it by name (2026-11-17, owner's decision;
+`policy.Method.Apart`, applied by `decide.AdmitPolicy` and by `policy.Admit`):
+`<module> requires <permissions> together for <method>, and the call holds them
+on no owner in common`, with where each is held. Before this date the hop
+forwarded such a call and the module's reader found it reached nothing. A
+grant that selects no owner is held together with anything, named resources
+or not, and only owners are compared: a call holding the two on one owner's
+different resources is still forwarded, and which resource it reaches stays
+the module's question. The Go, Python and TypeScript verifiers read the same
+decision (`Apart()`, `apart()`), held to one another by `stamps.json`.
+
+A method may also list what a call carries beyond what it requires
+(`Policy.carries`, `MethodPolicyV1.carries`): an effect the module performs on
+some calls alone. No decision reads it, and the hop hands the module what the
+call holds of it. Delivery holds it to what the module serves (2026-11-17,
+`delivered.CarriesServed`): a method carrying an action the module's scope
+ceilings do not list, or a kind it does not serve, is refused by name, as is
+one carrying resource ids, an owner, no action, or anything beside
+`any_checked_caller`. A capability at a module holds nothing beyond the
+module's ceilings, so such a permission reached no handler whatever a role
+granted, and nothing refused the call: the handler read that nothing was
+carried. The local authority dropped the field on the way in until this date.
+A module keeps no record of what its methods carry; the hop reads it from the
+published contract.
 
 A method requirement names a whole resource kind. Delivery rejects a method
 requirement containing resource IDs instead of silently dropping its restriction.
@@ -975,12 +1048,23 @@ they were.
 `Check` answers for one call. Which resources of a kind a caller may touch,
 such as the document collections a person reads, is the authority's other
 question: `ListResources(token, audience, kind, action)`. It is decided at the
-time of the call, from the owner's live grants, rather than carried in the
-token, so tokens stay small and a new grant takes effect at once.
+time of the call, and (corrected 2026-11-17; this paragraph first said the
+selection was not carried in the token) from two things. The capability
+carries its own selection: each scope's `resource_owner_id` and
+`resource_ids`, as issuance cut them. A person's answer is that selection cut
+again to what her roles grant now, so a revocation takes effect at once; a
+grant made after issue widens nothing the capability does not already name. A
+module's or an installation's own work is bounded by its capability alone
+(`authority.ListResources`, `grantsOf`).
 
-The answer is a list of grants. Each one covers every resource of the kind, one
-id, an id prefix, or a whole-id RE2 pattern of at most 256 bytes. A resource is
-covered when any grant matches its id. `libraries/resources/go` is the one
+The answer is a list of grants. Each one covers every resource of the kind or
+one id, qualified by the owner the resource must have when the scope selects
+one. The wire (`ResourceGrant`) and `libraries/resources/go` also define an id
+prefix and a whole-id RE2 pattern of at most 256 bytes; no authority here emits
+either. `ListResources` projects scopes, which carry ids and never a matcher,
+and no role in the local fixture carries a `resources` matcher. Both forms are
+evaluated by a reader that receives one and are otherwise unused.
+A resource is covered when any grant matches its id. `libraries/resources/go` is the one
 evaluation of grants, used by the local authority to validate its roles, by
 the suite, and by any module deciding which of its own resources a caller sees.
 The authority knows resources by id only; each module maps ids onto its own.
@@ -1069,14 +1153,17 @@ requires a lifetime of a
 delegation made from a page ([services/edge](modules/authority/services/edge/README.md#a-page-delegates-a-run-2026-10-28)).
 
 MCP client acquisition is still incomplete. The owner settled a distinct client
-identity with RFC 7591 registration, explicit background-client consent, and a
+identity registered by a Client ID Metadata Document only (no dynamic client
+registration, RFC 7591: corrected 17 November 2026 to follow the handbook's
+registered-clients decision), explicit background-client consent, and a
 resource declared per solution and resolved by the SDK (issuer: the edge origin).
-The shared core now registers scope-free client identities and extends the same
+The shared core now records scope-free client identities and extends the same
 delegation to them, preserving the client actor through downstream module hops.
 The [acquisition work and owner decisions](docs/mcp-acquisition.md) record the
 tested core path, the host OAuth reuse boundary and the exact continuation point.
-HTTP registration, consent, code/refresh exchange and the live proof are not yet
-wired; the new core operations are not exposed through the public interface.
+Admission of metadata-document clients, consent, code/refresh exchange and the
+live proof are not yet wired; the new core operations are not exposed through
+the public interface, and no registration endpoint is to be built.
 
 Revoking a delegation advances the organization's authorization revision in the
 same state update. Previously issued capabilities, including descendants, then
@@ -1108,15 +1195,76 @@ the interface, with a suite line, or named as belonging elsewhere.
 | A source's operation context (`MintSourceOperationContext`) and a child by delegation id (`ExchangeOperation` with `DelegationID`) | `Delegate` and `RevokeDelegation`, and `Issue` from a delegation (`hop.Outbound.ForDelegation`): owned by the grantor, the module as actor, re-checked on every issue, renewed by issuing again | suite: a delegation issues as its grantor through its module, until revoked |
 | The live revision check that keeps delegation-backed work honest after its token expires (`CheckAuthorizationRevision` with the delegation's binding) | `GetDelegation`, read by the delegation's module (workload credential) or its grantor; anyone else is told it does not exist | suite: the same delegation line reads it standing, then revoked |
 | Live seal and revision answers for a module verifying a token (`WorkContextSources`) | the hop asks `Check`; modules verify nothing | suite: a callee refuses what does not verify; the hop's tests |
-| Which collections or resources a caller reads (saas `ListReadableSourceCollections`) | `ListResources`, by id, prefix or pattern | suite: the authority answers which resources a context covers |
+| Which collections or resources a caller reads (saas `ListReadableSourceCollections`) | `ListResources`, by whole kind or id, each qualified by owner (the prefix and pattern forms are defined and never emitted) | suite: the authority answers which resources a context covers |
 | Executable artifact approvals (`Approve`, `Authorize`, `RevokeExecutableArtifact`) | not authority: the signed release (handbook#146) | open |
-| Audit (`EmitAuditEvent`, `DeclareAuditEventTypes`) | not authority: an optional audit interface; with none injected, the module logs each event | the record store |
+| Audit (`EmitAuditEvent`, `DeclareAuditEventTypes`) | a module's own audit events are not authority, and this repository declares no interface for them (an earlier line here named an "optional audit interface"; none was ever built). The authority's own record is the host's journal: each change of authority through `authority.Config.Journal`, each decision and refusal through `authority.Config.Decisions` (below) | core: `TestEveryChangeIsJournaledInItsOwnTransaction`, `TestTheHostIsToldEveryDecision`; a module's own events: open |
 | Notifications (`NotifyUser`, `NotifyOrgAdmins`) | host services, optional interfaces | open |
 | Current installation identity and authored namespace | `InstallationService.Current`, confined to the authenticated module in the parent organization | shared core and public RPC tests; host adoption pending |
 
 The local authority supplies these cases. Each host must run the current suite
 against its own provider; missing required fixtures fail. Earlier Accounts
 results do not qualify later suite additions.
+
+## The authority's decisions reach the host's journal (2026-11-17)
+
+Owner decision 11: the authority's decisions and refusals become audit rows in
+the journal the host already keeps. The core keeps none itself. A host injects
+two hooks in `authority.Config` (`libraries/authority-core/go/authority`):
+
+- `Journal(ctx, tx, domain.Event) error` is told each **change** of authority
+  (a role granted, an installation activated, a delegation revoked) inside the
+  transaction that makes it; an error aborts the change.
+- `Decisions(ctx, authority.Decision) error` is told each **decision** made for
+  a caller, admitted and refused alike: every issuance (`IssueForPerson`,
+  `IssueForPage`, `IssueForWorkload`, `IssueForInstallation`, `IssueChild`,
+  `IssueForDelegation`, `IssueForClientDelegation`), `CheckMethod` and
+  `ListResources`. It is called once per call, after the decision, outside any
+  store transaction. `IssueForPage` is one decision, whichever steps it took.
+
+A `Decision` carries its `Kind`, its `Outcome` (`Admitted` or `Refused`), a
+refusal's `Code` and `Reason`, and whatever of `Organization`, `Owner`,
+`Actor`, `Audience`, `Binding`, `Operation`, `Method`, `Installation`, `Task`
+and `Delegation` was known when it ended. An admitted one reads them from the
+capability that was signed or verified. A refused one carries what the ask
+named and what the authority had resolved by then, so a refused ask still says
+where and who, which its error alone does not. `Claimed` marks a row whose
+organization, owner, actor, installation and task were read from a capability
+that did not verify (expired, revoked, presented at another audience): what it
+claims, proven by nothing, and never a reason to file the row in that
+organization's journal on its word. `Advisory` marks a method check that was
+decided and not enforced.
+
+An error from `Decisions` fails the operation: an admitted issuance hands out
+no capability and an admitted check is not answered, so nothing is admitted on
+a decision the host could not record. A refusal stays the refusal it was (its
+code, its reason), with the hook's error beside it. `nil` tells nobody and is
+exactly the behaviour before the hook existed.
+
+The host decides which outcomes it records. Every served call makes one
+admitted check, so a host that keeps issuances and refusals returns early on
+`Decision.AdmittedCheck()`; the core reads nothing from its store and formats
+nothing to describe an admitted decision.
+
+```go
+cfg.Decisions = func(ctx context.Context, d authority.Decision) error {
+	if d.AdmittedCheck() {
+		return nil // one admitted check per served call: not recorded
+	}
+	organization := d.Organization
+	if d.Claimed {
+		organization = "" // an unverified capability names no tenant's journal
+	}
+	return journal.Append(ctx, organization, string(d.Kind), string(d.Outcome), d.Code, d.Reason,
+		d.Owner, d.Actor, d.Audience, d.Binding, d.Method, d.Installation, d.Task)
+}
+```
+
+Not told: `Check` and `Verify` called directly (a host that serves checks
+calls `CheckMethod`, with an empty method for a check that names none),
+`IssueInstallationStep`, and the hop library's own refusals, which never
+reach the authority: a host receives those from the front door's sink,
+`forward.Config.Refused` (`libraries/hop/go/README.md`), where the authority's
+own refusals are marked `ByAuthority` so they are not recorded twice.
 
 ## Open decisions
 
@@ -1223,6 +1371,10 @@ requires its installed caller's workload credential; an installation ID alone
 is never authority. Workloads name the work item's organization; the local
 sole-installation convenience is not required of other hosts. Advisory Check
 is a local diagnostic extension; the hop requires enforcing Check in every environment.
+The core answers advice only for a host that says it serves it
+(`authority.Config.Advisory`); any other host enforces an advisory Check, so a
+refused method never returns the capability. The local authority says so only
+in the run named exactly `local` (`CODEFLY__ENVIRONMENT`).
 
 `codefly.dev/session@0.2.0` adds person and organization display names to Current
 and SignIn (fields 7 and 8). Missing fields fail conformance. These implement the
@@ -1550,3 +1702,16 @@ selects `--module-name api` explicitly to preserve the existing root Go package
 when consuming the exported contracts directory. Only existing reviewed entries
 in the generated-file inventory have their hashes refreshed; no exclusion is
 added. SQL/cell installation evidence remains owned by the integrating host.
+
+### Child capability deadlines
+
+A child capability expires no later than its original parent, including time
+spent reading issuance state. Rebuilding the actor chain uses the original
+absolute deadline, rather than adding an earlier remaining duration to a later
+clock reading. The advancing-clock regression is
+`TestChildDeadlineDoesNotSlideWhileIssuanceReadsState`.
+
+Interactive session roots are checked against the host session ledger at
+verification and before issuance returns. Ended rows must remain recognizable
+until their issued capabilities expire. Noninteractive roots do not name a
+host session. The local host keeps ended sessions as tombstones.

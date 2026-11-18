@@ -15,9 +15,10 @@ import (
 // does not declare is NotFound; a module that declares no method policy, a
 // method declaring nothing, or one declaring both that it requires scopes and
 // that it requires none, is refused: an absent or ambiguous declaration is
-// never read as permission. Method admission checks kinds and actions only:
-// the module still checks each resource, and its owner, against the
-// unchanged scopes.
+// never read as permission. Method admission checks kinds and actions, and
+// that what a method requires together is held on some owner in common
+// (policy.Method.Apart): the module still checks each resource, and its
+// owner, against the unchanged scopes.
 //
 // method is a full protobuf procedure, or an HTTP request "<VERB> <path>"
 // admitted under the one route template "<VERB> <template>" its path is an
@@ -56,6 +57,20 @@ func AdmitPolicy(audience, method string, p domain.MethodPolicy, held Scopes) er
 	if unmet := declared.Unmet(policy.OnAnyResource(held)); len(unmet) > 0 {
 		return domain.Refuse("%s requires %s for %s, which the call does not hold (it holds %s)",
 			audience, strings.Join(unmet, ", "), method, describe(held))
+	}
+	// Each permission is held somewhere; a method requires them on one
+	// resource, so held on owners that share none they are held on nothing
+	// (policy.Method.Apart). Refused here, the hop never forwards a call its
+	// module would serve nothing of.
+	if apart := declared.Apart(held); apart != nil {
+		var required []string
+		for _, p := range declared.Requires {
+			if !slices.Contains(required, p.String()) {
+				required = append(required, p.String())
+			}
+		}
+		return domain.Refuse("%s requires %s together for %s, and the call holds them on no owner in common: %s",
+			audience, strings.Join(required, ", "), method, strings.Join(apart, "; "))
 	}
 	return nil
 }

@@ -7,8 +7,6 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
@@ -108,6 +106,19 @@ func TestOwnerSelectedScopesNeedAnOwnerAwareAudience(t *testing.T) {
 	}
 }
 
+// "admin" is the one organisation role that administers. No other name does,
+// "owner" included: the roles a host hands the core are admin or nothing.
+func TestOnlyTheAdminRoleAdministers(t *testing.T) {
+	for _, roles := range [][]string{nil, {"owner"}, {"Admin"}, {"owner", "member"}, {"administrator"}} {
+		if decide.IsAdministrator(domain.Person{ID: "p", Organization: "acme", Roles: roles}) {
+			t.Errorf("a person holding %q administers", roles)
+		}
+	}
+	if !decide.IsAdministrator(domain.Person{ID: "p", Organization: "acme", Roles: []string{"member", "admin"}}) {
+		t.Error("the admin role does not administer")
+	}
+}
+
 func TestWhoMayChangeARoleInOrder(t *testing.T) {
 	inst := domain.Installation{ID: "i", Organization: "acme", Target: "a", Status: domain.Active}
 	admin := domain.Person{ID: "alex", Organization: "acme", Roles: []string{"admin"}}
@@ -130,7 +141,7 @@ func TestWhoMayChangeARoleInOrder(t *testing.T) {
 		reason string
 	}{
 		"another organization, even for a non-admin": {func(r *decide.RoleChange) { r.RequestOrganization = "globex"; r.Caller = member }, domain.Denied, "organization"},
-		"a member": {func(r *decide.RoleChange) { r.Caller = member }, domain.Denied, "belongs to another organization"},
+		"a member": {func(r *decide.RoleChange) { r.Caller = member }, domain.Denied, "dev is neither an administrator of acme nor a holder of the admin role on installation i"},
 		"another organization's admin": {func(r *decide.RoleChange) {
 			r.Caller = domain.Person{ID: "zoe", Organization: "globex", Roles: []string{"admin"}}
 		}, domain.Denied, "belongs to another organization"},
@@ -140,8 +151,8 @@ func TestWhoMayChangeARoleInOrder(t *testing.T) {
 		"no subject":                       {func(r *decide.RoleChange) { r.PersonID = "" }, domain.Invalid, "exactly one"},
 		"a person of another organization": {func(r *decide.RoleChange) { r.PersonID, r.Subject = "omar", &omar }, domain.Denied, "not a member"},
 		"a team of another organization":   {func(r *decide.RoleChange) { r.PersonID, r.TeamID = "", "ops" }, domain.Denied, "not a team of"},
-		"a member listing":                 {func(r *decide.RoleChange) { r.Caller, r.List = member, true }, domain.Denied, "belongs to another organization"},
-		"a member revoking":                {func(r *decide.RoleChange) { r.Caller, r.Revoke = member, true }, domain.Denied, "belongs to another organization"},
+		"a member listing":                 {func(r *decide.RoleChange) { r.Caller, r.List = member, true }, domain.Denied, "is neither an administrator of acme nor"},
+		"a member revoking":                {func(r *decide.RoleChange) { r.Caller, r.Revoke = member, true }, domain.Denied, "is neither an administrator of acme nor"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			r := base()
@@ -168,6 +179,14 @@ func TestWhoMayChangeARoleInOrder(t *testing.T) {
 		})
 	}
 	refused(t, func() error { r := base(); r.Revoke, r.TeamID = true, "t"; return decide.ChangeRole(r) }(), domain.Invalid, "exactly one")
+	// A member of the installation's own organization who may not change its
+	// roles is told that, never that the installation is another
+	// organization's: it is theirs.
+	own := base()
+	own.Caller = member
+	if got := decide.ChangeRole(own).Error(); strings.Contains(got, "another organization") {
+		t.Fatalf("acme's member is refused acme's installation as another organization's: %q", got)
+	}
 	// Another organization's installation and none at all answer alike, with
 	// the id as requested.
 	other := base()
@@ -201,7 +220,7 @@ func TestATransferIsDecidedInOrder(t *testing.T) {
 		"from another organization":          {func(x *decide.Transfer) { x.From = "globex" }, "not a person or the organization"},
 		"from another organization's person": {func(x *decide.Transfer) { x.From, x.FromPerson = "omar", &omar }, "not a person or the organization"},
 		"from nobody":                        {func(x *decide.Transfer) { x.From = "" }, "not a person or the organization"},
-		"without admin on the resource":      {func(x *decide.Transfer) { x.Administers = false }, "own organization grants"},
+		"by no administrator":                {func(x *decide.Transfer) { x.Administers = false }, "is not an administrator of"},
 		"without write on the principal":     {func(x *decide.Transfer) { x.Writes = false }, "write on"},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -216,14 +235,12 @@ func TestATransferIsDecidedInOrder(t *testing.T) {
 }
 
 func TestOrganizationGrantsAndModules(t *testing.T) {
-	audience := domain.Module{ResourceKinds: []*basev0.WorkScopeV1{sc("doc", "read", "admin")}}
-	roles := []domain.OrgRole{{Name: "r", Scopes: []domain.RoleScope{{Kind: "*", Actions: []string{"read"}}, {Kind: "doc", Actions: []string{"admin"}, Resources: []resources.Grant{{ID: "x"}}}}}}
-	// read holds the whole kind; admin holds x alone, never the kind.
-	if got := decide.OrgScopes(roles, audience, nil); !scope.Same(got, []*basev0.WorkScopeV1{sc("doc", "read"), owned("doc", "", []string{"admin"}, "x")}) {
-		t.Fatalf("org scopes %v", got)
-	}
-	if got := decide.ResourceGrants(roles, "doc", "admin"); len(got) != 1 || got[0].ID != "x" {
-		t.Fatalf("matchers %v", got)
+	audience := domain.Module{Name: "docs", ResourceKinds: []*basev0.WorkScopeV1{sc("doc", "read", "admin")}}
+	// An organisation role reaches no module: a person's own session at one
+	// that declares no roles is refused by name.
+	refused(t, decide.NoRoles(audience), domain.Denied, "declares no roles")
+	if decide.RoleGated(audience) {
+		t.Fatal("a module declaring no roles is role-gated")
 	}
 	if err := decide.ValidateModule(solution); err != nil {
 		t.Fatal(err)
@@ -257,8 +274,8 @@ func TestOrganizationGrantsAndModules(t *testing.T) {
 
 // Withdrawing owner-aware checking is a narrowing: owner-selected
 // capabilities already issued to the module end with it. Adopting it is one
-// too, as is a kind no longer shared: what an organization role held there
-// unselected on a person's own session is no longer held (RBAC-4a).
+// too, as is a kind no longer shared: what a role held there unselected is no
+// longer held.
 func TestWithdrawingOrAdoptingOwnerAwareIsANarrowing(t *testing.T) {
 	aware := domain.Module{Name: "store", Principal: "store", Kind: domain.KindModule, Generation: 1, OwnerAware: true, SharedKinds: []string{"profiles"}}
 	blind := aware

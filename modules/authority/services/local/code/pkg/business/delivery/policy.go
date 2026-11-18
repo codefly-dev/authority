@@ -16,7 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/codefly-dev/core/solutionhost"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 )
 
 // TrustAnchorEnvironment names the directory the run writes the policy into.

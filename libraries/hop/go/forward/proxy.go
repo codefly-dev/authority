@@ -36,6 +36,11 @@ type Proxy struct {
 	Ready func() bool
 	// Refused is told every refusal, so the hop's log names it.
 	Refused func(method string, err error)
+	// Sink, when set, receives every refusal this face makes, beside the
+	// log: those Refused is told, and those the log never named (no
+	// admission-key publication, an admission that cannot be signed, a
+	// decision with no connection behind it). nil records nothing.
+	Sink Sink
 }
 
 // ServerOptions make the hop's server answer every method it does not serve
@@ -53,15 +58,14 @@ func CallOptions() []grpc.CallOption {
 
 func (p *Proxy) handle(_ any, in grpc.ServerStream) error {
 	method, _ := grpc.MethodFromServerStream(in)
+	md, _ := metadata.FromIncomingContext(in.Context())
 	if err := requirePublication(p.Ready); err != nil {
+		refused(in.Context(), p.Refused, p.Sink, false, method, md, decide.Decision{}, err)
 		return err
 	}
-	md, _ := metadata.FromIncomingContext(in.Context())
 	decision, err := p.Decide(in.Context(), method, md)
 	if err != nil {
-		if p.Refused != nil {
-			p.Refused(method, err)
-		}
+		refused(in.Context(), p.Refused, p.Sink, true, method, md, decision, err)
 		return err
 	}
 	module, id := decision.Module, decision.Identity
@@ -71,40 +75,72 @@ func (p *Proxy) handle(_ any, in grpc.ServerStream) error {
 			out[key] = values
 		}
 	}
+	// The module receives what the hop vouches for, and no credential of the
+	// caller's.
+	hop.StripCredentials(out)
 	// This final check is the admission point, not a reservation through
 	// stamping or I/O. An admitted call may finish across Close or expiry.
 	if err := requirePublication(p.Ready); err != nil {
+		refused(in.Context(), p.Refused, p.Sink, false, method, md, decision, err)
 		return err
 	}
 	if err := hop.Stamp(out, id, p.Signer, method, module, time.Now()); err != nil {
-		return status.Error(codes.Unauthenticated, err.Error())
+		unsigned := status.Error(codes.Unauthenticated, err.Error())
+		refused(in.Context(), p.Refused, p.Sink, false, method, md, decision, unsigned)
+		return unsigned
 	}
-	ctx, cancel := context.WithCancel(metadata.NewOutgoingContext(in.Context(), out))
+	// The call lives no longer than the Work Context that admitted it: a
+	// stream still open at its expiry is ended here, and opened again only on
+	// a context the authority checks again.
+	ctx, cancel := hop.UntilExpiry(metadata.NewOutgoingContext(in.Context(), out), time.Unix(id.Expires, 0))
 	defer cancel()
+	// told is the call as the sink is told of it, should it be refused from here.
+	told := func(logged bool, err error) error {
+		refused(in.Context(), p.Refused, p.Sink, logged, method, md, decision, err)
+		return err
+	}
 	if decision.Route == nil {
-		return status.Error(codes.Internal, "the hop decision names no published route")
+		return told(false, status.Error(codes.Internal, "the hop decision names no published route"))
 	}
 	upstream, ok := p.Upstreams[decision.Route.Address]
 	if !ok {
-		return status.Errorf(codes.Internal, "the hop has no connection to %s", module)
+		return told(false, status.Errorf(codes.Internal, "the hop has no connection to %s", module))
 	}
+	expired := func() error { return told(true, hop.ExpiredStatus()) }
 	up, err := upstream.NewStream(ctx, &grpc.StreamDesc{ServerStreams: true, ClientStreams: true}, method)
 	if err != nil {
-		return p.unanswered(in.Context(), method, err)
+		if hop.Expired(ctx) {
+			return expired()
+		}
+		return p.unanswered(in.Context(), method, md, decision, err)
 	}
 	sent, received := make(chan error, 1), make(chan error, 1)
 	go func() { sent <- forward(in, up) }()
 	go func() { received <- back(up, in) }()
+	ended := ctx.Done()
 	for {
 		select {
 		case err := <-sent:
+			if hop.Expired(ctx) {
+				return expired()
+			}
 			if err != nil {
 				return status.Errorf(codes.Internal, "the hop could not forward the call to the module: %v", err)
 			}
 			sent = nil // the caller is done sending; the reply is still coming
 		case err := <-received:
+			// The module's stream ends with the hop's context, so its last
+			// status may be that ending's; the caller is told the expiry.
+			if err != nil && hop.Expired(ctx) {
+				return expired()
+			}
 			in.SetTrailer(up.Trailer())
 			return err
+		case <-ended:
+			if hop.Expired(ctx) {
+				return expired()
+			}
+			ended = nil // the caller ended the call; the module's stream says how
 		}
 	}
 }
@@ -118,16 +154,15 @@ func (p *Proxy) handle(_ any, in grpc.ServerStream) error {
 // Once the stream is open, every failure passes through as gRPC reports it:
 // gRPC does not tell a transport failure from the module's own status there,
 // and rewording one would reword the other.
-func (p *Proxy) unanswered(ctx context.Context, method string, err error) error {
+func (p *Proxy) unanswered(ctx context.Context, method string, md metadata.MD, decision decide.Decision, err error) error {
 	if ended := ctx.Err(); ended != nil {
 		return status.Errorf(status.FromContextError(ended).Code(), "the caller's request ended before the module answered: %v", ended)
 	}
 	failed := status.Errorf(codes.Unavailable, "the module did not answer: %v", err)
-	if p.Refused != nil {
-		p.Refused(method, failed)
-	} else {
+	if p.Refused == nil {
 		slog.Warn("hop: the module did not answer", "method", method, "error", err)
 	}
+	refused(ctx, p.Refused, p.Sink, true, method, md, decision, failed)
 	return status.Error(codes.Unavailable, "the module did not answer")
 }
 

@@ -298,28 +298,19 @@ func (s *Service) Admit(ctx context.Context, m domain.Module) error {
 	})
 }
 
-// pageRoles holds a NEW generation to the two roles a person holds on a
-// solution or a module page (decide.PageRoles): what is admitted, applied or
-// pre-checked as a delivery. A generation the core already holds is never
-// refused for it: a replay of it, or a re-read of its delivery
-// (RereadModule), composes it as it was taken, and a held generation naming
-// an old role moves to admin and user by the crossover at its next delivery
-// (domain.CrossoverRole). Refusing it there would strand every pass that
-// reads the held generations again (a host's boot reconciliation, its
-// approved-declaration backfill) on data no delivery can now change.
+// pageRoles holds a generation to the two roles a person holds on a solution
+// or a module page: what is admitted, applied or pre-checked as a delivery
+// declares exactly admin and user (decide.PageRoles). A generation the core
+// already holds, delivered again (a replay) or read again from its delivery
+// (RereadModule), composes as it was taken, so one from before user was
+// required still reads, but it is refused by name for any role that is
+// neither (decide.RoleNames), as a new one is: no name but the two is
+// composed on any path, and a host holding such a generation is delivered
+// the two roles before it reads it again. What a store still holds under
+// another name holds nothing meanwhile (decide.HeldRoles).
 func (s *Service) pageRoles(m domain.Module, a admission, reread bool) error {
-	if a.replay || s.cfg.anyRoleNames {
-		return nil
-	}
-	if reread {
-		// A re-read composes the held generation as taken, old names
-		// included, but introduces no role name it did not hold.
-		for _, name := range slices.Sorted(maps.Keys(m.Roles)) {
-			if _, held := a.previous.Roles[name]; !held && name != domain.AdminRole && name != domain.UserRole {
-				return domain.Refuse("%s generation %d read again declares role %q, which the held generation does not: a re-read introduces no role name", m.Name, m.Generation, name)
-			}
-		}
-		return nil
+	if a.replay || reread {
+		return decide.RoleNames(m)
 	}
 	return decide.PageRoles(m)
 }
@@ -366,10 +357,8 @@ func (s *Service) ApplyModule(ctx context.Context, m domain.Module) ([]string, e
 // source (composed before the core kept one) takes m.Source here, which the
 // host vouches for, and every later reading of it must come from that source.
 // A different delivery at the held generation is refused as ApplyModule
-// refuses it. The same declaration is a replay, which only records the source
-// and, for one release (domain.LegacyInstallerRole), moves the old-name
-// grants a delivery before the crossover left on an installation that would
-// advance on the rename without an approval (reconverge, strandedOnly).
+// refuses it. The same declaration is a replay, which only records the
+// source.
 //
 // A changed declaration is a redelivery that keeps its generation: an
 // installation consented to is held at what it approved and its reach,
@@ -406,14 +395,7 @@ func (s *Service) applyModule(ctx context.Context, m domain.Module, reread bool)
 					return err
 				}
 			}
-			// STOPGAP (one release, domain.LegacyInstallerRole): a host
-			// holding the renamed generation already crosses over the old
-			// grants its delivery left (reconverge, strandedOnly). Any other
-			// declaration has nothing to cross over to.
-			if !domain.Renamed(a.previous.Roles) {
-				return nil
-			}
-			return s.reconverge(ctx, tx, a.previous, a.previous, true)
+			return nil
 		}
 		changed = a.reread
 		previous, exists, withdrawn := a.previous, a.exists, a.withdrawn
@@ -447,7 +429,7 @@ func (s *Service) applyModule(ctx context.Context, m domain.Module, reread bool)
 			if err != nil {
 				return err
 			}
-			if err := s.reconverge(ctx, tx, previous, stored, false); err != nil {
+			if err := s.reconverge(ctx, tx, previous, stored); err != nil {
 				return err
 			}
 		}
@@ -563,16 +545,7 @@ func (s *Service) dropGrantsAfterWithdrawal(ctx context.Context, tx Tx, m domain
 // one) follows the delivered declaration: it advances with every delivery,
 // so the grants of a role next no longer declares end now. No other grant is
 // touched here.
-//
-// STOPGAP (one release, domain.LegacyInstallerRole): an installation held by
-// composition's receipt advances on the page-role rename when next asks
-// nothing else of it (crossesOnly), and its grants cross over. strandedOnly
-// is the held generation delivered again (a replay): only an installation
-// whose grants hold an old role next crosses over, and which would advance
-// without an approval, moves; it is how a host that holds the renamed
-// generation already, its grants left on the old names by a delivery before
-// the crossover, converges at its next delivery or start.
-func (s *Service) reconverge(ctx context.Context, tx Tx, previous, next domain.Module, strandedOnly bool) error {
+func (s *Service) reconverge(ctx context.Context, tx Tx, previous, next domain.Module) error {
 	all, err := tx.Installations("")
 	if err != nil {
 		return err
@@ -596,23 +569,7 @@ func (s *Service) reconverge(ctx context.Context, tx Tx, previous, next domain.M
 		if inst.Target != previous.Name || inst.Status != domain.Active {
 			continue
 		}
-		crossing, err := crossesOnly(tx, inst, next, reach)
-		if err != nil {
-			return err
-		}
-		if strandedOnly && !crossing {
-			if inst.Consent.OperationID != "" {
-				continue
-			}
-			moves, err := crossoverAsks(tx, inst, next)
-			if err != nil {
-				return err
-			}
-			if len(moves) == 0 {
-				continue
-			}
-		}
-		moved := narrowed || strandedOnly
+		moved := narrowed
 		if inst.Consent.OperationID == "" {
 			if err := s.dropUndeclaredGrants(ctx, tx, inst, next, "delivery:"+next.Name); err != nil {
 				return err
@@ -621,8 +578,6 @@ func (s *Service) reconverge(ctx context.Context, tx Tx, previous, next domain.M
 			asks := widened
 			behind := inst.Consent.Generation != previous.Generation || inst.Consent.Digest != approvedDigest
 			switch {
-			case crossing:
-				asks = nil
 			case inst.Consent.Generation == 0:
 				asks = []string{"approved generation unknown: review and approve the delivered offer"}
 			case behind:
@@ -633,17 +588,6 @@ func (s *Service) reconverge(ctx context.Context, tx Tx, previous, next domain.M
 					return err
 				}
 				asks = append(slices.Clone(asks), further...)
-			}
-			if behind && !crossing {
-				// STOPGAP (one release, domain.LegacyInstallerRole): the
-				// declaration comparison above names no crossover here, so
-				// name each move the approval will make. A consent of unknown
-				// generation is behind too (no delivered generation is 0).
-				moves, err := crossoverAsks(tx, inst, next)
-				if err != nil {
-					return err
-				}
-				asks = append(slices.Clone(asks), moves...)
 			}
 			detail := map[string]string{"target": inst.Target, "approved_generation": fmt.Sprint(inst.Consent.Generation), "generation": fmt.Sprint(next.Generation)}
 			if len(asks) == 0 {
@@ -1209,9 +1153,14 @@ func (s *Service) Uninstall(ctx context.Context, caller Person, organization, in
 			return err
 		}
 		// Authorize before reading the installation: unauthorized callers
-		// cannot tell a present installation from an absent one.
-		if err != nil || !decide.IsAdministrator(p) {
+		// cannot tell a present installation from an absent one. A caller of
+		// another organization is answered as for an installation theirs
+		// does not have; a member of this one is told what is true of them.
+		if err != nil {
 			return decide.ForeignInstallation(installationID, organization)
+		}
+		if !decide.IsAdministrator(p) {
+			return decide.NotAdministrator(p.ID, organization, "an installation is uninstalled by its organization's administrator")
 		}
 		inst, err := installationIn(tx, organization, installationID)
 		if err != nil {
@@ -1361,7 +1310,7 @@ func (s *Service) Installations(ctx context.Context, caller Person, org string) 
 	err := s.store.Read(ctx, func(tx Tx) error {
 		p, err := memberAs(tx, caller, org)
 		if err != nil || !decide.IsAdministrator(p) {
-			return domain.Refuse("installation administration requires an administrator or owner of organization %q", org)
+			return domain.Refuse("installation administration requires an administrator of organization %q", org)
 		}
 		out, err = tx.Installations(org)
 		return err

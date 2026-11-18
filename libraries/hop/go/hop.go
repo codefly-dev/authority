@@ -44,6 +44,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-client/go/refusal"
 	"github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
 	"github.com/codefly-dev/authority/libraries/authority-client/go/workcontext"
+	"github.com/codefly-dev/authority/libraries/hop/go/policy"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"github.com/codefly-dev/core/resources"
 	core "github.com/codefly-dev/core/workcontext"
@@ -105,6 +106,13 @@ type Identity struct {
 	Claims *workcontext.Claims
 	// Advisory is diagnostic only. Stamp refuses an identity carrying a refusal.
 	Advisory string
+	// Grants are what the call holds once every actor narrowed it, each with
+	// its selection: what the hop stamps as AdmittedKey.
+	Grants []Grant
+	// Admitted is what admitted this call on its method, set by the Verifier
+	// for a call the hop stamped an admission on. A handler reads it (or
+	// Admitted(ctx)) instead of naming a permission.
+	Admitted *Admission
 }
 
 // Has reports whether the identity may do action on kind.
@@ -127,6 +135,28 @@ func Strip(md metadata.MD) {
 	}
 }
 
+// CallerCredentials are the metadata keys (HTTP headers, compared without
+// case) that carry a credential of the caller's: the session a browser sent,
+// a bearer for the hop or for another service, a proxy's. They are for the
+// hop and whoever stood before it. A module receives the Work Context the
+// authority checked and the hop's stamp, and none of these, so a module that
+// logs, forwards or trusts a header never does so with a caller's credential.
+//
+// What names the caller's operation rather than who it is still passes: the
+// effect id (x-codefly-effect-id), the Idempotency-Key and the operation id
+// (x-codefly-operation-id), which modules read to apply an effect once.
+var CallerCredentials = []string{"authorization", "cookie", "proxy-authorization"}
+
+// StripCredentials removes every caller credential (CallerCredentials) from
+// what the hop forwards.
+func StripCredentials(md metadata.MD) {
+	for key := range md {
+		if slices.Contains(CallerCredentials, strings.ToLower(key)) {
+			delete(md, key)
+		}
+	}
+}
+
 // Stamp writes identity and a signed call admission, stripping caller stamps.
 func Stamp(md metadata.MD, id Identity, signer *stamp.Signer, method, audience string, now time.Time) error {
 	if id.Advisory != "" {
@@ -136,7 +166,12 @@ func Stamp(md metadata.MD, id Identity, signer *stamp.Signer, method, audience s
 	if err != nil {
 		return err
 	}
+	admitted, err := EncodeGrants(id.Grants)
+	if err != nil {
+		return err
+	}
 	Strip(md)
+	md.Set(AdmittedKey, admitted)
 	md.Set(ProofKey, proof)
 	md.Set(OwnerKey, id.Owner)
 	md.Set(OwnerKindKey, id.OwnerKind)
@@ -183,6 +218,7 @@ func IdentityOf(wc *basev0.WorkContextV1) Identity {
 		scopes = slices.DeleteFunc(scopes, func(s string) bool { return !slices.Contains(held, s) })
 	}
 	id.Scopes = scopes
+	id.Grants = grantsOf(wc)
 	return id
 }
 
@@ -245,6 +281,17 @@ const (
 	keyMaxAge   = 5 * time.Minute
 	keyStale    = 15 * time.Minute
 	keyTimeout  = 5 * time.Second
+	// The hop's admission keys are held to shorter bounds than the Work
+	// Context keys, because a withdrawn one must stop admitting promptly: a
+	// stamp or a readiness poll arriving when they were read more than
+	// admissionMaxAge ago starts a re-read (at most once per keyRetry) and
+	// uses them while it runs, so a key the authority withdrew stops
+	// admitting when that read lands; and keys the authority has not
+	// confirmed for admissionStale admit nothing, the call waiting for a
+	// read first. Every call through the hop already costs the authority one
+	// Check, so an outage that long admits nothing anyway.
+	admissionMaxAge = 10 * time.Second
+	admissionStale  = 2 * time.Minute
 )
 
 // errKeysUnavailable is the one reason a caller is given when keys are
@@ -265,6 +312,9 @@ type Verifier struct {
 	replay   core.ReplayStore
 	now      func() time.Time
 	timeout  time.Duration
+	// declared is what each method declares, when the module handed it over
+	// (Declarations); otherwise it is read from the contract the binary serves.
+	declared map[string]policy.Method
 
 	mu        sync.Mutex
 	trust     workcontext.Trust
@@ -286,7 +336,9 @@ type Verifier struct {
 // module starts before its authority serves keys, and refuses calls, with the
 // reason, until they are read.
 //
-// Clock is the only option, and a deployment passes none.
+// Clock is for conformance suites; a deployment passes none. Declarations is
+// for a module whose methods are not procedures of a protobuf contract linked
+// into its binary.
 func NewVerifier(ctx context.Context, keys KeySource, audience string, replay core.ReplayStore, opts ...VerifierOption) (*Verifier, error) {
 	if replay == nil {
 		return nil, refusal.Configuration
@@ -297,7 +349,7 @@ func NewVerifier(ctx context.Context, keys KeySource, audience string, replay co
 	return newVerifier(ctx, keys, audience, replay, opts...)
 }
 
-// VerifierOption shapes a verifier as it is built. Clock is the only one.
+// VerifierOption shapes a verifier as it is built: Clock and Declarations.
 type VerifierOption func(*Verifier)
 
 // Clock judges every window — a stamp's issue and expiry, a Work Context's,
@@ -405,7 +457,10 @@ func (v *Verifier) Ready() bool {
 	defer v.mu.Unlock()
 	now := v.now()
 	unadmitting := v.replay != nil && len(v.admission) == 0
-	if (v.fetched.IsZero() || now.Sub(v.fetched) > keyMaxAge || unadmitting) && v.inflight == nil && now.Sub(v.tried) >= keyRetry {
+	// An admitting verifier keeps its admission keys no older than
+	// admissionMaxAge, so a withdrawn one is dropped without business traffic.
+	aged := v.replay != nil && now.Sub(v.fetched) > admissionMaxAge
+	if (v.fetched.IsZero() || now.Sub(v.fetched) > keyMaxAge || unadmitting || aged) && v.inflight == nil && now.Sub(v.tried) >= keyRetry {
 		v.refresh()
 	}
 	return !v.fetched.IsZero() && now.Sub(v.fetched) <= keyStale && !unadmitting
@@ -451,6 +506,7 @@ func (v *Verifier) Admit(ctx context.Context, md metadata.MD, method string) (Id
 	if err != nil {
 		return Identity{}, nil, err
 	}
+	id.Admitted = v.admittedOn(md, method, id)
 	return id, release, nil
 }
 
@@ -504,7 +560,11 @@ func (v *Verifier) trustFor(ctx context.Context, keyID string) (workcontext.Trus
 // all (never read, or past keyStale, as on an idle replica's first call), or
 // the last read published no admission key (the hop had not registered yet),
 // it starts a read, at most once per keyRetry as readiness does, and waits for
-// it. A well-formed stamp signed by none of the keys held may be a hop's that registered
+// it. So do admission keys the authority has not confirmed for admissionStale.
+// Admission keys read more than admissionMaxAge ago start a read too, at most
+// once per keyRetry, and are used while it runs, so a key the authority
+// withdrew stops admitting when that read lands: about admissionMaxAge under
+// traffic or readiness polling, and never later than admissionStale. A well-formed stamp signed by none of the keys held may be a hop's that registered
 // since the last read (a restarted gateway signs with its fresh key at once,
 // and keyMaxAge is five minutes away): it waits for the read already running
 // (readiness, keys past keyMaxAge, another stamp's), which starts none, or else
@@ -522,12 +582,21 @@ func (v *Verifier) admissionKey(ctx context.Context, md metadata.MD) (string, er
 	// authority publishes the hop's once the hop registers it, which may be
 	// after this verifier first read Keys.
 	untrusted := v.trusted() != nil || len(v.admission) == 0
-	if untrusted && v.inflight == nil && v.now().Sub(v.tried) >= keyRetry {
+	// Admission keys read more than admissionMaxAge ago are read again, at
+	// most once per keyRetry, and used while that read runs: a key the
+	// authority withdrew stops admitting when the read lands. Keys it has not
+	// confirmed for admissionStale are not used at all: the call waits for
+	// the read. Only a well-formed admission starts or waits for either:
+	// nothing else reaches the key read.
+	age := v.now().Sub(v.fetched)
+	aged := !untrusted && age > admissionMaxAge && stamp.WellFormed(md)
+	stale := aged && age > admissionStale
+	if (untrusted || aged) && v.inflight == nil && v.now().Sub(v.tried) >= keyRetry {
 		v.refresh()
 	}
 	wait := v.inflight
 	v.mu.Unlock()
-	if untrusted {
+	if untrusted || stale {
 		if err := v.await(ctx, wait); err != nil {
 			return "", err
 		}
@@ -538,6 +607,14 @@ func (v *Verifier) admissionKey(ctx context.Context, md metadata.MD) (string, er
 		return "", err
 	}
 	if len(v.admission) == 0 {
+		return "", errKeysUnavailable
+	}
+	// Keys the authority could not confirm for admissionStale admit nothing:
+	// a re-read that keeps failing cannot say none of them was withdrawn.
+	if v.now().Sub(v.fetched) > admissionStale {
+		if !stamp.WellFormed(md) {
+			return "", fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.StampProof)
+		}
 		return "", errKeysUnavailable
 	}
 	key := stamp.SignedBy(md, v.admission)
@@ -700,6 +777,15 @@ func sameAsStamped(md metadata.MD, id Identity) error {
 			return fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.StampIdentity)
 		}
 	}
+	// What the call holds is the token's too. A hop older than this key
+	// stamps none, and the module is then handed no admission; one that is
+	// stamped must be exactly what the authenticated claims hold.
+	if stamped := md.Get(AdmittedKey); len(stamped) > 0 {
+		held, err := EncodeGrants(id.Grants)
+		if err != nil || len(stamped) != 1 || stamped[0] != held {
+			return fmt.Errorf("%w: %w", workcontext.ErrUnauthenticated, refusal.StampIdentity)
+		}
+	}
 	return nil
 }
 
@@ -737,8 +823,37 @@ func (v *Verifier) StreamServerInterceptor() grpc.StreamServerInterceptor {
 		if err != nil {
 			return err
 		}
-		defer finishAdmission(ctx)
-		return handler(srv, &stamped{ServerStream: ss, ctx: ctx})
+		id, admitted := FromContext(ctx)
+		if !admitted || id.Expires <= 0 {
+			// A health check: no Work Context admitted it, so none ends it.
+			defer finishAdmission(ctx)
+			return handler(srv, &stamped{ServerStream: ss, ctx: ctx})
+		}
+		// The stream ends when the context that admitted it expires, on the
+		// verifier's clock. The handler runs beside the interceptor so that
+		// one blocked in a send or a receive cannot hold the stream open:
+		// the interceptor answers at the expiry, gRPC ends the stream, and
+		// the handler's context is done and its sends and receives refuse.
+		ctx, cancel := UntilExpiry(ctx, time.Now().Add(time.Unix(id.Expires, 0).Sub(v.now())))
+		done := make(chan error, 1)
+		go func() {
+			defer cancel()
+			defer finishAdmission(ctx)
+			done <- handler(srv, &stamped{ServerStream: ss, ctx: ctx})
+		}()
+		select {
+		case err := <-done:
+			if err != nil && Expired(ctx) {
+				return ExpiredStatus()
+			}
+			return err
+		case <-ctx.Done():
+			if Expired(ctx) {
+				return ExpiredStatus()
+			}
+			// The caller ended the stream; the handler says how.
+			return <-done
+		}
 	}
 }
 
@@ -770,6 +885,7 @@ func (v *Verifier) admit(ctx context.Context, method string) (context.Context, e
 		held.finish()
 		return nil, status.Error(codes.Unauthenticated, err.Error())
 	}
+	id.Admitted = v.admittedOn(held.md, method, id)
 	return context.WithValue(context.WithValue(ctx, admissionKey{}, held), identityKey{}, id), nil
 }
 
@@ -779,6 +895,23 @@ type stamped struct {
 }
 
 func (s *stamped) Context() context.Context { return s.ctx }
+
+// SendMsg and RecvMsg refuse once the Work Context that admitted the stream
+// has expired: nothing more is sent to, or read from, a caller it no longer
+// admits.
+func (s *stamped) SendMsg(m any) error {
+	if Expired(s.ctx) {
+		return ExpiredStatus()
+	}
+	return s.ServerStream.SendMsg(m)
+}
+
+func (s *stamped) RecvMsg(m any) error {
+	if Expired(s.ctx) {
+		return ExpiredStatus()
+	}
+	return s.ServerStream.RecvMsg(m)
+}
 
 func first(md metadata.MD, key string) string {
 	if v := md.Get(key); len(v) > 0 {

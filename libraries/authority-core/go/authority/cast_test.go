@@ -25,21 +25,21 @@ func (h *harness) casting(person, team string) (authority.Person, error) {
 // being in that team. "alex" administers acme and belongs to no team here.
 func TestAnAdministratorCastsOntoATeamTheyDoNotBelongTo(t *testing.T) {
 	h := newHarness(t)
-	h.grantTeam("a", "reader", "team")
+	h.grantTeam("a", "user", "team")
 
 	cast, err := h.casting("alex", "team")
 	if err != nil {
 		t.Fatalf("an administrator must be able to act as a team they are not in: %v", err)
 	}
 
-	// And in that cast they hold what the team holds — the reader role — not
+	// And in that cast they hold what the team holds — the user role — not
 	// their own administrator reach.
 	issued, err := h.rootAs(cast, "a")
 	if err != nil {
 		t.Fatalf("issue in a cast: %v", err)
 	}
 	if holds(issued, "a.thing", "write") {
-		t.Error("a cast onto a reader team still writes: the administrator's reach was not dropped")
+		t.Error("a cast onto a user team still writes: the administrator's reach was not dropped")
 	}
 }
 
@@ -60,7 +60,7 @@ func TestACastOntoATeamThatHoldsNothingIsRefusedByName(t *testing.T) {
 // A cast is never changed or widened: a session already cast cannot cast again.
 func TestACastIsNeverRecast(t *testing.T) {
 	h := newHarness(t)
-	h.grantTeam("a", "reader", "team")
+	h.grantTeam("a", "user", "team")
 
 	cast, err := h.casting("alex", "team")
 	if err != nil {
@@ -94,6 +94,52 @@ func TestAPersonWhoCannotGrantCannotActAsTheTeam(t *testing.T) {
 	}
 }
 
+// Holding the same role names is not membership. maya holds user on a by a
+// direct grant, is not in the team and can grant nothing; the team holds user
+// on a too. Acting as it would attribute her work to a team she is not in and
+// could not have seated, so she is refused, and the team is not listed to her.
+func TestAPersonHoldingTheTeamsRolesDirectlyButNotAMemberCannotActAsIt(t *testing.T) {
+	h := newHarness(t)
+	h.grantTeam("a", "user", "team")
+	h.grant("a", "user", "maya")
+
+	_, err := h.casting("maya", "team")
+	if err == nil {
+		t.Fatal("a person who is not a member and could grant nothing acted as the team, by holding the same role name")
+	}
+	if !strings.Contains(err.Error(), "could not grant") {
+		t.Errorf("the refusal must say they could not grant those roles, got: %v", err)
+	}
+	maya := h.person("maya")
+	if listed, err := h.svc.CastableTeams(h.ctx, maya, maya.Organization); err != nil || len(listed) != 0 {
+		t.Fatalf("a non-member who could grant nothing lists %v (%v); want none", listed, err)
+	}
+}
+
+// The positive twin: a member acts as their own team, though they could grant
+// nothing, and the work is attributed to that team alone.
+func TestAMemberActsAsTheirOwnTeam(t *testing.T) {
+	h := newHarness(t)
+	h.grantTeam("a", "user", "team")
+
+	cast, err := h.casting("tam", "team")
+	if err != nil {
+		t.Fatalf("a member must be able to act as their own team: %v", err)
+	}
+	issued, err := h.rootAs(cast, "a")
+	if err != nil {
+		t.Fatalf("issue in a member's cast: %v", err)
+	}
+	if got := issued.Context.GetAttributionTeamIds(); len(got) != 1 || got[0] != "team" {
+		t.Fatalf("attributed to %v; want the cast team alone", got)
+	}
+	tam := h.person("tam")
+	listed, err := h.svc.CastableTeams(h.ctx, tam, tam.Organization)
+	if err != nil || len(listed) != 1 || listed[0].Team != "team" {
+		t.Fatalf("a member lists %v (%v); want their own team", listed, err)
+	}
+}
+
 // A role view opened FROM a cast stays inside that cast. This is the escape an
 // independent review found and reproduced: the view record carried the viewed
 // roles but not the team, so the new session's Cast was empty and HeldRoles
@@ -101,13 +147,13 @@ func TestAPersonWhoCannotGrantCannotActAsTheTeam(t *testing.T) {
 //
 // It never exceeded the PERSON — the organisation role is cleared either way —
 // but it exceeded the CAST, which is the whole point of casting: "view as a
-// reader" would then answer from reach a reader does not have, and pass.
+// user" would then answer from reach a user does not have, and pass.
 func TestARoleViewOpenedFromACastStaysInTheCast(t *testing.T) {
 	h := newHarness(t)
-	h.grantTeam("a", "reader", "team")
-	// tam belongs to `team`, and separately holds author on both a and b.
-	h.grant("a", "author", "tam")
-	h.grant("b", "author", "tam")
+	h.grantTeam("a", "user", "team")
+	// tam belongs to `team`, and separately holds admin on both a and b.
+	h.grant("a", "admin", "tam")
+	h.grant("b", "admin", "tam")
 
 	cast, err := h.casting("tam", "team")
 	if err != nil {
@@ -123,7 +169,7 @@ func TestARoleViewOpenedFromACastStaysInTheCast(t *testing.T) {
 	viewed.SessionID = "tam-cast-then-view"
 	if _, err := h.svc.OpenRoleView(h.ctx, cast, authority.RoleViewRequest{
 		Organization: cast.Organization, InstallationID: h.inst(acme, "a").ID,
-		SessionID: viewed.SessionID, Roles: []string{"reader"},
+		SessionID: viewed.SessionID, Roles: []string{"user"},
 	}); err != nil {
 		t.Fatalf("open a view from a cast: %v", err)
 	}
@@ -141,7 +187,7 @@ func TestARoleViewOpenedFromACastStaysInTheCast(t *testing.T) {
 // granted nothing is not listed; a cast lists the one team it acts as.
 func TestCastableTeamsListsWhatOpenTeamCastWouldOpen(t *testing.T) {
 	h := newHarness(t)
-	h.grantTeam("a", "reader", "team")
+	h.grantTeam("a", "user", "team")
 	h.grantTeam("b", "user", "team")
 	h.store.PutTeam(acme, "other")
 	h.grantTeam("a", "user", "other")
@@ -164,8 +210,8 @@ func TestCastableTeamsListsWhatOpenTeamCastWouldOpen(t *testing.T) {
 	for _, h := range listed[1].Holds {
 		held = append(held, h.Target+":"+h.Role)
 	}
-	if slices.Sort(held); strings.Join(held, ",") != "a:reader,b:user" {
-		t.Fatalf("team holds %v; want reader on a and user on b", held)
+	if slices.Sort(held); strings.Join(held, ",") != "a:user,b:user" {
+		t.Fatalf("team holds %v; want user on a and user on b", held)
 	}
 	for _, team := range listed {
 		if _, err := h.svc.OpenTeamCast(h.ctx, alex, authority.TeamCastRequest{Organization: acme, Team: team.Team, SessionID: "listed-" + team.Team}); err != nil {
@@ -187,5 +233,127 @@ func TestCastableTeamsListsWhatOpenTeamCastWouldOpen(t *testing.T) {
 	}
 	if _, err := h.svc.CastableTeams(h.ctx, alex, "another-org"); err == nil {
 		t.Fatal("a member of acme listed another organization's teams")
+	}
+}
+
+// A cast is a live rule, not a decision taken once at open: "a person may act
+// as a team whose roles they could grant" is asked again at every issuance
+// and every role decision made under the cast. remi holds admin on a, casts
+// onto a team holding admin there, and loses the admin: the cast is refused by
+// name, and it cannot grant the admin back to the person behind it.
+func TestACastEndsWhenThePersonCouldNoLongerGrantTheTeamsRoles(t *testing.T) {
+	h := newHarness(t)
+	h.grant("a", "admin", "remi")
+	h.grantTeam("a", "admin", "team")
+	cast, err := h.casting("remi", "team")
+	if err != nil {
+		t.Fatalf("an installation's admin casts onto a team holding roles there: %v", err)
+	}
+	h.must(h.rootAs(cast, "a"))
+
+	h.revoke("a", "admin", "remi", "")
+
+	_, err = h.rootAs(cast, "a")
+	refused(t, err, "could not grant")
+	_, err = h.svc.GrantRole(h.ctx, cast, authority.RoleRequest{Organization: acme, InstallationID: h.inst(acme, "a").ID, Role: "admin", PersonID: "remi"})
+	refused(t, err, "could not grant")
+	if _, err := h.svc.ListRoleGrants(h.ctx, cast, acme, h.inst(acme, "a").ID); err == nil {
+		t.Fatal("a cast that ended still lists the installation's grants")
+	}
+	if _, err := h.root("remi", "a"); err == nil {
+		t.Fatal("the revoked admin was restored")
+	}
+	// Granted again, the same cast holds again: the rule is read, not stored.
+	h.grant("a", "admin", "remi")
+	h.must(h.rootAs(cast, "a"))
+}
+
+// The cast is one rule over everything the team holds, so losing the right to
+// grant on one installation ends what the cast was issued on another: a
+// capability issued at b is refused once the person could no longer grant the
+// team's role on a.
+func TestACapabilityIssuedInACastIsRefusedOnceTheCastEnds(t *testing.T) {
+	h := newHarness(t)
+	h.grant("a", "admin", "remi")
+	h.grant("b", "admin", "remi")
+	h.grantTeam("a", "admin", "team")
+	h.grantTeam("b", "user", "team")
+	cast, err := h.casting("remi", "team")
+	if err != nil {
+		t.Fatal(err)
+	}
+	atB := h.must(h.rootAs(cast, "b"))
+	if err := h.check(atB); err != nil {
+		t.Fatalf("a cast's capability checks while the cast holds: %v", err)
+	}
+
+	h.revoke("a", "admin", "remi", "")
+
+	refused(t, h.check(atB), "could not grant")
+	_, err = h.rootAs(cast, "b")
+	refused(t, err, "could not grant")
+}
+
+// The team gains a role the person could never grant: ines administers a
+// only, and the team is later granted admin on b. The rule is about the team,
+// so the whole cast is refused (as a fresh cast is), on b and on a alike; it
+// is never issued the new role, and never grants with it.
+func TestACastEndsWhenTheTeamGainsARoleThePersonCouldNotGrant(t *testing.T) {
+	h := newHarness(t)
+	h.grant("a", "admin", "ines")
+	h.grantTeam("a", "user", "team")
+	cast, err := h.casting("ines", "team")
+	if err != nil {
+		t.Fatalf("an installation's admin casts onto a team holding roles there: %v", err)
+	}
+	h.must(h.rootAs(cast, "a"))
+
+	h.grantTeam("b", "admin", "team")
+
+	_, err = h.rootAs(cast, "b")
+	refused(t, err, "could not grant")
+	_, err = h.svc.GrantRole(h.ctx, cast, authority.RoleRequest{Organization: acme, InstallationID: h.inst(acme, "b").ID, Role: "admin", PersonID: "ines"})
+	refused(t, err, "could not grant")
+	_, err = h.rootAs(cast, "a")
+	refused(t, err, "could not grant")
+	_, err = h.svc.OpenTeamCast(h.ctx, h.person("ines"), authority.TeamCastRequest{Organization: acme, Team: "team", SessionID: "a-fresh-cast"})
+	refused(t, err, "could not grant")
+
+	// The team's role on b ends, and the same cast holds again.
+	h.revoke("b", "admin", "", "team")
+	h.must(h.rootAs(cast, "a"))
+}
+
+// Revoking a team's role ends the capabilities held through it at once: a
+// member's, and a cast's, whose person is by design not a member. Nobody
+// else's are touched.
+func TestRevokingATeamsRoleEndsACapabilityHeldThroughACast(t *testing.T) {
+	h := newHarness(t)
+	h.grantTeam("a", "user", "team")
+	h.grant("a", "admin", "remi")
+	h.grant("b", "user", "maya")
+	casts := map[string]authority.Issued{}
+	for _, person := range []string{"alex", "remi"} {
+		cast, err := h.casting(person, "team")
+		if err != nil {
+			t.Fatalf("%s casts onto the team: %v", person, err)
+		}
+		casts[person] = h.must(h.rootAs(cast, "a"))
+	}
+	member := h.must(h.root("tam", "a"))
+	unrelated := h.must(h.root("maya", "b"))
+
+	h.revoke("a", "user", "", "team")
+
+	if err := h.check(member); err == nil {
+		t.Fatal("a team revoke left a member's capability valid")
+	}
+	for person, issued := range casts {
+		if err := h.check(issued); err == nil {
+			t.Fatalf("a team revoke left the capability %s holds through a cast onto it valid", person)
+		}
+	}
+	if err := h.check(unrelated); err != nil {
+		t.Fatalf("a team revoke on a ended the capability of a person who could not act as the team: %v", err)
 	}
 }

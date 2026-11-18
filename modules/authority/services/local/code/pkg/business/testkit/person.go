@@ -7,9 +7,12 @@ import (
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	"github.com/google/uuid"
 
 	"gateway/pkg/business/issuer"
+	"gateway/pkg/business/state"
 	authorityv1 "gateway/pkg/gen/host/authority/v1"
 )
 
@@ -101,4 +104,33 @@ func (k *Kit) Revision(t *testing.T, org string) uint64 {
 		t.Fatal(err)
 	}
 	return revision
+}
+
+// Approve approves the upgrade a module page's redelivery offers at Acme, as
+// the organisation's administrator does through Review and Install: until
+// then a page's roles reach what its installation approved and no more, as a
+// solution's do.
+func (k *Kit) Approve(t *testing.T, target string) {
+	t.Helper()
+	ctx := context.Background()
+	admin := authority.Person{ID: "alex", Organization: "acme", SessionID: "approve-" + target}
+	approval, err := k.State.Service().Review(ctx, admin, "acme", target)
+	if err != nil {
+		t.Fatalf("review %s: %v", target, err)
+	}
+	approval.OperationID = uuid.NewString()
+	if _, err := k.State.Service().Install(ctx, admin, "acme", target, "", "", &approval, nil); err != nil {
+		t.Fatalf("approve %s: %v", target, err)
+	}
+}
+
+// Seat grants person role on target's installation at Acme, as its
+// administrator would: the one way a person reaches a module.
+func (k *Kit) Seat(t *testing.T, target, role string, people ...string) {
+	t.Helper()
+	for _, person := range people {
+		if err := k.State.GrantRole(domain.RoleGrant{InstallationID: state.InstallationID("acme", target), Role: role, PersonID: person}); err != nil {
+			t.Fatalf("seat %s as %s of %s: %v", person, role, target, err)
+		}
+	}
 }

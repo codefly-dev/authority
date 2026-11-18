@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/codefly-dev/core/solutionhost"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -24,8 +24,9 @@ type InstallationResourcesCase struct {
 	// Generation the suite delivers Store, A and B at.
 	Generation uint64
 	// ResourceA and ResourceA2 are created through A, ResourceB through B.
-	// ResourceX and ResourceY exist and no installation owns them: Owner, as
-	// A's admin, has a personal organization grant to administer X only.
+	// ResourceX and ResourceY exist and no installation owns them: they are
+	// the organisation's, which Owner, its administrator and A's admin, may
+	// hand to A. User, A's user and no administrator, may hand over neither.
 	ResourceA, ResourceA2, ResourceB, ResourceX, ResourceY string
 }
 
@@ -212,7 +213,7 @@ func (c *client) installationResources(t *testing.T, ctx context.Context, fixtur
 			refused(t, err, codes.PermissionDenied, "widens")
 		}
 	})
-	t.Run("existing resources require AuthorizeTransfer and personal grants", func(t *testing.T) {
+	t.Run("existing resources require AuthorizeTransfer, by an administrator of the organization", func(t *testing.T) {
 		capability, err := through(t, owner, f.A, admin)
 		if err != nil {
 			t.Fatal(err)
@@ -229,8 +230,16 @@ func (c *client) installationResources(t *testing.T, ctx context.Context, fixtur
 				"token": str(capability, "token"), "actor": map[string]any{"credential": f.StoreCredential},
 				"resource_kind": f.Kind, "resource_id": id, "from_owner_id": from, "to_principal_id": principal})
 		}
-		_, err = transfer(f.ResourceY, fixture.Organization)
-		refused(t, err, codes.PermissionDenied, "own organization grants")
+		// A's user is no administrator: the organisation's resource is not
+		// theirs to hand over, whatever they read through A.
+		viewed, err := through(t, user, f.A)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = c.call(ctx, "host.authority.v1.AuthorityService", "AuthorizeTransfer", map[string]any{
+			"token": str(viewed, "token"), "actor": map[string]any{"credential": f.StoreCredential},
+			"resource_kind": f.Kind, "resource_id": f.ResourceY, "from_owner_id": fixture.Organization, "to_principal_id": principal})
+		refused(t, err, codes.PermissionDenied, "is not an administrator of")
 		_, err = transfer(f.ResourceX, "unknown-owner")
 		refused(t, err, codes.PermissionDenied, "not a person or the organization")
 		out, err := transfer(f.ResourceX, fixture.Organization)
@@ -240,7 +249,7 @@ func (c *client) installationResources(t *testing.T, ctx context.Context, fixtur
 		if got := str(out, "principal_id"); got != principal {
 			t.Fatalf("transfer owner %s, want %s", got, principal)
 		}
-		viewed, err := through(t, user, f.A)
+		viewed, err = through(t, user, f.A)
 		if err != nil {
 			t.Fatal(err)
 		}

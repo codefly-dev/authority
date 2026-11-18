@@ -18,13 +18,13 @@ func administrator(tx Tx, caller Person, org string) error {
 		return err
 	}
 	if err != nil || !decide.IsAdministrator(p) {
-		return domain.Refuse("installation administration requires an administrator or owner of organization %q", org)
+		return domain.Refuse("installation administration requires an administrator of organization %q", org)
 	}
 	return nil
 }
 
 // approver authorizes the administration of target's installation at org:
-// an administrator or owner of org, as for every target; and, for a module
+// an administrator of org, as for every target; and, for a module
 // page (a module declaring roles, which composition installs), a member
 // holding the page's admin role on its active installation there, since
 // that role already administers the installation's grants (decide.ChangeRole)
@@ -177,7 +177,7 @@ func (s *Service) reviewOffer(ctx context.Context, caller Person, org, target st
 				return err
 			}
 			if !held {
-				return domain.Refuse("reviewing %q requires an administrator or owner of organization %q, or a role on its installation there", target, org)
+				return domain.Refuse("reviewing %q requires an administrator of organization %q, or a role on its installation there", target, org)
 			}
 		}
 		m, err := tx.ModuleNamed(target)

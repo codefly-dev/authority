@@ -1,6 +1,7 @@
 package authority
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"slices"
@@ -16,8 +17,24 @@ import (
 // Check verifies a capability for the audience the caller is, and refuses
 // owner-selected scopes the audience can no longer honour: an audience that
 // does not declare owner-aware checking now, or one that withdrew it after
-// the capability was issued through a binding to it (never revived).
+// the capability was issued through a binding to it (never revived). A
+// capability issued in a cast is refused once the cast no longer holds
+// (castHolds). A person's capability holding the audience's own kinds and
+// naming no installation it came through, at an audience that declares no
+// roles, is refused (ownSession): no issuance makes one, and an organisation
+// role admits none.
 func (s *Service) Check(ctx context.Context, token, audience string) (*workcontext.Verified, uint64, error) {
+	verified, revision, err := s.check(ctx, token, audience)
+	if err != nil {
+		return nil, 0, err
+	}
+	return verified, revision, nil
+}
+
+// check is Check that, when it refuses a capability that verified, still
+// answers that capability beside the refusal: what a decision told to the
+// host names as proven.
+func (s *Service) check(ctx context.Context, token, audience string) (*workcontext.Verified, uint64, error) {
 	verified, err := s.Verify(ctx, token, audience)
 	if errors.Is(err, workcontext.ErrRevoked) {
 		// Verified up to the revocation: name an owner-aware withdrawal,
@@ -43,11 +60,17 @@ func (s *Service) Check(ctx context.Context, token, audience string) (*workconte
 		if err := decide.OwnerAware(m, verified.EffectiveScopes()); err != nil {
 			return err
 		}
+		if err := castOfClaims(tx, verified.Context()); err != nil {
+			return err
+		}
+		if err := ownSession(tx, verified.Context(), verified.EffectiveScopes(), m); err != nil {
+			return err
+		}
 		revision, err = tx.AuthorizationRevision(verified.Context().GetTenantId())
 		return err
 	})
 	if err != nil {
-		return nil, 0, err
+		return verified, 0, err
 	}
 	return verified, revision, nil
 }
@@ -57,7 +80,9 @@ func (s *Service) Check(ctx context.Context, token, audience string) (*workconte
 // grant, never the owner's authority above it): decide.AdmitMethod. An empty
 // method is Check alone. Advisory decides the method but does not enforce it:
 // a sound capability is answered with the method's refusal beside it, the
-// same refusal a check that enforces it returns as its error.
+// same refusal a check that enforces it returns as its error. Only a host
+// that says it serves advice (Config.Advisory) answers so; any other enforces
+// an advisory check as it does every check.
 // The exact reserved InstallationStepHTTPMethod (POST /_codefly/installations)
 // and InstallationStepRPCMethod (/host.installation.v1.InstallableService/Install)
 // instead require a setup-only credential for the current consented pending
@@ -66,6 +91,24 @@ func (s *Service) Check(ctx context.Context, token, audience string) (*workconte
 // it compares verified organization and installation seal with body and carriers
 // before callback or cached acknowledgement. Advisory never relaxes this path.
 func (s *Service) CheckMethod(ctx context.Context, token, audience, method string, advisory bool) (verified *workcontext.Verified, revision uint64, refusal error, err error) {
+	var proven *workcontext.Verified
+	verified, revision, refusal, err = s.checkMethod(ctx, token, audience, method, advisory, &proven)
+	if s.cfg.Decisions == nil {
+		return verified, revision, refusal, err
+	}
+	d := Decision{Kind: DecisionCheck, Audience: audience, Method: method, Advisory: err == nil && refusal != nil}
+	if failed := s.checked(ctx, &d, token, proven, cmp.Or(err, refusal)); failed != nil {
+		return nil, 0, nil, failed
+	}
+	return verified, revision, refusal, err
+}
+
+// checkMethod decides CheckMethod, and sets proven to the capability
+// whenever it verified, refused after that or not.
+func (s *Service) checkMethod(ctx context.Context, token, audience, method string, advisory bool, proven **workcontext.Verified) (verified *workcontext.Verified, revision uint64, refusal error, err error) {
+	// Advice is a development run's: a host that did not say it serves it
+	// enforces the check (Config.Advisory).
+	advisory = advisory && s.cfg.Advisory
 	if audience == "" {
 		return nil, 0, nil, domain.Refuse("a check names the audience the caller is")
 	}
@@ -73,10 +116,18 @@ func (s *Service) CheckMethod(ctx context.Context, token, audience, method strin
 		// Setup credentials never enter ordinary checking. Advisory cannot
 		// relax this authentication boundary or activate an installation.
 		verified, revision, err = s.VerifyInstallationStep(ctx, token, audience)
+		if err == nil {
+			*proven = verified
+		}
 		return verified, revision, nil, err
 	}
-	if verified, revision, err = s.Check(ctx, token, audience); err != nil || method == "" {
-		return verified, revision, nil, err
+	verified, revision, err = s.check(ctx, token, audience)
+	*proven = verified
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	if method == "" {
+		return verified, revision, nil, nil
 	}
 	err = s.store.Read(ctx, func(tx Tx) error {
 		m, err := tx.Module(audience)
@@ -108,14 +159,29 @@ type Grant struct {
 // ListResources answers which resources of kind a checked capability may act
 // on with action, decided now: a person's through a solution are its roles on
 // the principal's data, a person's at a module page declaring roles that
-// page's roles granted them, a person's own their organization roles' matchers,
-// cut to any ids the capability names; a module's or an installation's own
-// work is bounded by the capability alone.
+// page's roles granted them, cut to any ids the capability names; a module's
+// or an installation's own work is bounded by the capability alone. A
+// person's capability that came through neither is refused when it is
+// checked (Check).
 func (s *Service) ListResources(ctx context.Context, token, audience, kind, action string) ([]Grant, error) {
+	var proven *workcontext.Verified
+	out, err := s.listResources(ctx, token, audience, kind, action, &proven)
+	if s.cfg.Decisions == nil {
+		return out, err
+	}
+	d := Decision{Kind: DecisionListResources, Audience: audience}
+	if failed := s.checked(ctx, &d, token, proven, err); failed != nil {
+		return nil, failed
+	}
+	return out, err
+}
+
+func (s *Service) listResources(ctx context.Context, token, audience, kind, action string, proven **workcontext.Verified) ([]Grant, error) {
 	if audience == "" || kind == "" || action == "" {
 		return nil, domain.Refuse("a resource question names the audience, a kind and an action")
 	}
-	verified, _, err := s.Check(ctx, token, audience)
+	verified, _, err := s.check(ctx, token, audience)
+	*proven = verified
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +196,7 @@ func (s *Service) ListResources(ctx context.Context, token, audience, kind, acti
 		if wc.GetOwnerPrincipalKind() == "human" {
 			p, err := personOfClaims(tx, wc)
 			if err != nil {
-				return domain.Refuse("the owner %s is no longer a member", wc.GetOwnerPrincipalId())
+				return ownerGone(err, wc.GetOwnerPrincipalId())
 			}
 			at, err := tx.Module(wc.GetAudience())
 			if err != nil && !errors.Is(err, domain.ErrNotFound) {
@@ -150,30 +216,17 @@ func (s *Service) ListResources(ctx context.Context, token, audience, kind, acti
 			if cerr != nil {
 				return cerr
 			}
-			switch {
-			case bounded:
+			if bounded {
 				rows = scope.Intersect(effective, ceiling)
-			case err == nil && decide.RoleGated(at):
-				// A module page declaring roles answers from its roles, as
-				// issuance does, never from organization roles.
-				h, err := held(tx, p, at, effective)
+			} else {
+				// A person's own session at a solution or a module page
+				// declaring roles answers from their roles there, as issuance
+				// does. Check admitted nothing else of a person's.
+				h, err := held(tx, p, at)
 				if err != nil {
 					return err
 				}
 				rows = scope.Intersect(effective, h)
-			default:
-				// Organization roles reach no owned kind of a module that
-				// checks owners (decide.OrgScopes): a capability issued
-				// before it adopted owner checks answers none of it.
-				if err == nil && at.OwnerAware && !slices.Contains(at.SharedKinds, kind) {
-					return nil
-				}
-				roles, err := orgRoles(tx, p)
-				if err != nil {
-					return err
-				}
-				out = narrow(decide.ResourceGrants(roles, kind, action), effective, kind, action)
-				return nil
 			}
 		}
 		out = grantsOf(rows, kind, action)
@@ -205,36 +258,6 @@ func grantsOf(rows Scopes, kind, action string) []Grant {
 	return out
 }
 
-// narrow cuts an organization role's matchers to the ids the capability
-// names, when it names any.
-func narrow(matchers []resources.Grant, effective Scopes, kind, action string) []Grant {
-	var ids []string
-	for _, sc := range effective {
-		if !holds(sc, kind, action) {
-			continue
-		}
-		if len(sc.GetResourceIds()) == 0 {
-			out := make([]Grant, 0, len(matchers))
-			for _, m := range matchers {
-				out = append(out, Grant{Grant: m})
-			}
-			return out
-		}
-		ids = append(ids, sc.GetResourceIds()...)
-	}
-	covered, err := resources.Compile(matchers)
-	out := []Grant{}
-	if err != nil {
-		return out
-	}
-	for _, id := range ids {
-		if covered.Matches(id) {
-			out = append(out, Grant{Grant: resources.Grant{ID: id}})
-		}
-	}
-	return out
-}
-
 // effectiveOf is a context's effective scopes: its last actor's, else its own.
 func effectiveOf(wc *basev0.WorkContextV1) Scopes {
 	if chain := wc.GetActorChain(); len(chain) > 0 {
@@ -250,8 +273,11 @@ func effectiveOf(wc *basev0.WorkContextV1) Scopes {
 // A delivery of m, or of the target, that admits more than was approved
 // admits nobody more until the upgrade is approved, and the approved policy
 // holds on effective, what the call itself carries, as well as on the
-// approved reach. A person's call through no solution or page is not looked
-// up further.
+// approved reach.
+//
+// It fails closed: an owner kind it does not know is refused, and a lookup it
+// cannot make (approvedReach) is that failure, returned as the error. Only a
+// call it read as bounded by no consented installation passes unbounded.
 func (s *Service) withinApprovedReach(tx Tx, wc *basev0.WorkContextV1, effective Scopes, m domain.Module, method string) (error, error) {
 	owner := reachOwner{}
 	switch wc.GetOwnerPrincipalKind() {
@@ -259,16 +285,19 @@ func (s *Service) withinApprovedReach(tx Tx, wc *basev0.WorkContextV1, effective
 		owner.agent = wc.GetOwnerPrincipalId()
 	case "human":
 		owner.principals = reachedThrough(tx, wc, m.Principal)
-		if !anyRoleGated(tx, owner.principals) {
-			return nil, nil
-		}
 		p, err := personOfClaims(tx, wc)
 		if err != nil {
-			return domain.Refuse("the owner %s is no longer a member", wc.GetOwnerPrincipalId()), nil
+			return ownerGone(err, wc.GetOwnerPrincipalId()), nil
 		}
 		owner.person = &p
-	default:
+	case "service":
+		// A module's own work: no installation's consent bounds it, and its
+		// capability alone does.
 		return nil, nil
+	default:
+		// Core mints human, service and agent owners. Another kind is one
+		// this gate cannot bound, so it is refused, never passed unbounded.
+		return domain.Refuse("the capability's owner kind %q is none of human, agent and service, so no approved reach can bound its call at %s", wc.GetOwnerPrincipalKind(), m.Name), nil
 	}
 	_, admits, bounded, err := s.approvedReach(tx, owner, m.Name)
 	if err != nil || !bounded {
@@ -296,6 +325,29 @@ func reachedThrough(tx Tx, wc *basev0.WorkContextV1, module string) []string {
 		return through
 	}
 	return principals
+}
+
+// ownSession refuses a person's capability that holds something of m's own
+// kinds and names no target whose roles could have admitted it: no solution
+// and no module page declaring roles on its path, m itself included. That is
+// a person's own session at a module declaring no roles, which holds nothing
+// of it (decide.NoRoles) and which no issuance of this core makes; one minted
+// by another host or an earlier version is refused here, at every check. A
+// capability carrying only what one of m's bindings reaches (the person's
+// role on the binding's target, for m's hop there) holds nothing of m and is
+// not refused: m's methods that require a scope refuse it themselves.
+func ownSession(tx Tx, wc *basev0.WorkContextV1, effective Scopes, m domain.Module) error {
+	if wc.GetOwnerPrincipalKind() != "human" || anyRoleGated(tx, reachedThrough(tx, wc, m.Principal)) {
+		return nil
+	}
+	for _, served := range m.ResourceKinds {
+		for _, held := range effective {
+			if held.GetResourceKind() == served.GetResourceKind() && len(held.GetActions()) > 0 {
+				return decide.NoRoles(m)
+			}
+		}
+	}
+	return nil
 }
 
 // anySolution is whether a solution is among principals.

@@ -70,12 +70,14 @@ func TestATombstonedPrincipalIsNeverClaimed(t *testing.T) {
 		t.Fatal(err)
 	}
 	admin := h.admin(globex)
-	_, err = svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, h.approval(globex, "b"), nil)
+	_, err = svc.Install(h.ctx, admin, globex, "b", "admin", admin.ID, h.approval(globex, "b"), nil)
 	code(t, err, domain.Denied)
 }
 
 // m2: a caller the store no longer knows, and a current member who
-// administers nothing, cannot tell an installation from an absent one.
+// administers nothing, cannot tell an installation from an absent one. The
+// member is told what is true of them, the same for both; the caller the
+// organization no longer has is answered as an outsider is.
 func TestNoOneButAnAdministratorTellsPresentFromAbsent(t *testing.T) {
 	h := newHarness(t)
 	present, absent := h.inst(acme, "a").ID, authority.StableInstallationID(acme, "never-installed")
@@ -84,9 +86,11 @@ func TestNoOneButAnAdministratorTellsPresentFromAbsent(t *testing.T) {
 	h.store.DeletePerson("maya")
 	for _, id := range []string{present, absent} {
 		want := "installation " + id + " belongs to another organization than \"acme\""
+		if err, told := h.svc.Uninstall(h.ctx, remi, acme, id), "remi is not an administrator of acme: an installation is uninstalled by its organization's administrator"; err == nil || err.Error() != told {
+			t.Fatalf("a member uninstalling on %s: %v", id, err)
+		}
 		for name, err := range map[string]error{
-			"a member uninstalling": h.svc.Uninstall(h.ctx, remi, acme, id),
-			"a deleted ex-member":   h.svc.Uninstall(h.ctx, maya, acme, id),
+			"a deleted ex-member": h.svc.Uninstall(h.ctx, maya, acme, id),
 			"a deleted ex-member listing": func() error {
 				_, err := h.svc.ListRoleGrants(h.ctx, maya, acme, id)
 				return err
@@ -115,7 +119,7 @@ func (o outage) Read(ctx context.Context, fn func(authority.Tx) error) error {
 // refusal.
 func TestAnIssueReportsAStoreOutage(t *testing.T) {
 	h := newHarness(t)
-	h.grant("a", "reader", "maya")
+	h.grant("a", "user", "maya")
 	svc, err := authority.New(outage{h.store}, h.cfg)
 	if err != nil {
 		t.Fatal(err)

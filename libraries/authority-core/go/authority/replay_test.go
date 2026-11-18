@@ -21,8 +21,8 @@ func TestARedeliveryOfTheHeldGenerationIsAReplay(t *testing.T) {
 	// The same declaration as a store reads it back: its scopes in another
 	// order, an empty set spelled as absent.
 	again := solution("a", true)
-	reader := again.Roles["reader"]
-	again.Roles["reader"] = []*basev0.WorkScopeV1{reader[2], reader[0], reader[1]}
+	user := again.Roles["user"]
+	again.Roles["user"] = []*basev0.WorkScopeV1{user[2], user[0], user[1]}
 	again.OwnedRoles = map[string][]*basev0.WorkScopeV1{}
 	ids, err := h.svc.ApplyModule(h.ctx, again)
 	if err != nil {
@@ -46,7 +46,7 @@ func TestARedeliveryOfTheHeldGenerationIsAReplay(t *testing.T) {
 	}
 
 	other := solution("a", true)
-	other.Roles["reader"] = append(slices.Clone(other.Roles["reader"]), sc("a.note", "write"))
+	other.Roles["user"] = append(slices.Clone(other.Roles["user"]), sc("a.note", "write"))
 	_, err = h.svc.ApplyModule(h.ctx, other)
 	code(t, err, domain.Precondition)
 	refused(t, err, "a generation 1 is held as sha256:")

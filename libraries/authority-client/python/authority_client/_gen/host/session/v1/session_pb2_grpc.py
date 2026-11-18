@@ -45,6 +45,11 @@ class SessionServiceStub(object):
                 request_serializer=host_dot_session_dot_v1_dot_session__pb2.CurrentRequest.SerializeToString,
                 response_deserializer=host_dot_session_dot_v1_dot_session__pb2.Session.FromString,
                 _registered_method=True)
+        self.End = channel.unary_unary(
+                '/host.session.v1.SessionService/End',
+                request_serializer=host_dot_session_dot_v1_dot_session__pb2.EndRequest.SerializeToString,
+                response_deserializer=host_dot_session_dot_v1_dot_session__pb2.EndResponse.FromString,
+                _registered_method=True)
         self.OpenRoleView = channel.unary_unary(
                 '/host.session.v1.SessionService/OpenRoleView',
                 request_serializer=host_dot_session_dot_v1_dot_session__pb2.OpenRoleViewRequest.SerializeToString,
@@ -82,7 +87,22 @@ class SessionServiceServicer(object):
         """Current answers the session the caller's bearer (`authorization: Bearer
         <bearer>`) belongs to: who a page's request is for, decided by the host,
         never read from a header the request wrote. The bearer itself is not
-        handed back. An unknown or ended session is unauthenticated.
+        handed back. An unknown, ended or expired session is unauthenticated.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def End(self, request, context):
+        """End ends the session the caller's bearer belongs to, and with it every
+        session opened from it: its role views and casts, and theirs. From then on
+        each of those bearers is unauthenticated wherever a session is read:
+        Current, a person's Issue, and every call here. It is a sign-out, and the
+        way back from a cast: a browser edge ends the cast it leaves, and the
+        session the cast was opened from is untouched. Ending is never undone, and
+        a bearer that names no open session is unauthenticated, as it is anywhere.
+        A Work Context issued to the session before it ended lapses on its own
+        expiry. The callers OpenRoleView refuses are refused here.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -158,6 +178,11 @@ def add_SessionServiceServicer_to_server(servicer, server):
                     servicer.Current,
                     request_deserializer=host_dot_session_dot_v1_dot_session__pb2.CurrentRequest.FromString,
                     response_serializer=host_dot_session_dot_v1_dot_session__pb2.Session.SerializeToString,
+            ),
+            'End': grpc.unary_unary_rpc_method_handler(
+                    servicer.End,
+                    request_deserializer=host_dot_session_dot_v1_dot_session__pb2.EndRequest.FromString,
+                    response_serializer=host_dot_session_dot_v1_dot_session__pb2.EndResponse.SerializeToString,
             ),
             'OpenRoleView': grpc.unary_unary_rpc_method_handler(
                     servicer.OpenRoleView,
@@ -235,6 +260,33 @@ class SessionService(object):
             '/host.session.v1.SessionService/Current',
             host_dot_session_dot_v1_dot_session__pb2.CurrentRequest.SerializeToString,
             host_dot_session_dot_v1_dot_session__pb2.Session.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def End(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/host.session.v1.SessionService/End',
+            host_dot_session_dot_v1_dot_session__pb2.EndRequest.SerializeToString,
+            host_dot_session_dot_v1_dot_session__pb2.EndResponse.FromString,
             options,
             channel_credentials,
             insecure,

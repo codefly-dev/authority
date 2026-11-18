@@ -11,9 +11,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go/workloadidentity"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go/workloadidentity/native"
+	"github.com/codefly-dev/core/resources"
 	"github.com/codefly-dev/core/wool"
-	"github.com/codefly-dev/core/workloadidentity"
-	"github.com/codefly-dev/core/workloadidentity/native"
 	codefly "github.com/codefly-dev/sdk-go"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -43,6 +45,44 @@ func init() {
 	WithWork(func(context.Context) (Clean, error) { return nil, nil })
 }
 
+// localRun is whether the composition started this process in the run named
+// exactly "local" (CODEFLY__ENVIRONMENT, the signal the hop library reads for
+// the same question). It is the one thing here that says "this is a
+// developer's own run"; nothing defaults to it.
+func localRun() bool {
+	return os.Getenv(resources.EnvironmentPrefix) == "local"
+}
+
+// selectedFixture is the fixture this run was started on. The local authority
+// serves a fixture and nothing else (its people sign in by a token the
+// repository holds), so it starts only where that is meant: in the run named
+// exactly "local", on a fixture the run selected by name. Nothing is
+// defaulted: an environment that selected none, because it loads a real
+// provider, is refused rather than handed the fixture's people.
+func selectedFixture() (string, error) {
+	environment := os.Getenv(resources.EnvironmentPrefix)
+	if environment == "" {
+		return "", fmt.Errorf("the run names no environment (%s is unset): the local authority serves its fixture only in the run named \"local\"", resources.EnvironmentPrefix)
+	}
+	if !localRun() {
+		return "", fmt.Errorf("the local authority serves a fixture, whose people sign in by a token anyone can read, and only in the run named \"local\": this run is %q", environment)
+	}
+	name := os.Getenv(resources.FixturePrefix)
+	if name == "" {
+		return "", fmt.Errorf("this run selected no fixture (%s is unset), and the local authority serves a fixture and nothing else: none is defaulted. Declare `fixture: local` on the environment, or pass --fixture", resources.FixturePrefix)
+	}
+	return name, nil
+}
+
+// coreConfig is the core's configuration for this run's signing key. Advice
+// (an advisory Check answered with the capability and the refusal it did not
+// make) is served in a local run only; any other run enforces every check.
+func coreConfig(keyID string, signing ed25519.PrivateKey) authority.Config {
+	cfg := issuer.Config(issuerName, keyID, signing, time.Now)
+	cfg.Advisory = localRun()
+	return cfg
+}
+
 // configureLocalAuthority builds the whole authority before the listeners start:
 // the launcher's anchor from the run, the fixture named by the run, a signing
 // key for this run, and the issuer over them. The registry's plugins read the
@@ -66,13 +106,13 @@ func configureLocalAuthority(ctx context.Context, _ *adapters.Configuration) (Cl
 		return nil, err
 	}
 	keyID := "run-" + time.Now().UTC().Format("20060102T150405Z")
-	st, err := state.New(anchor, Audience, issuer.Config(issuerName, keyID, signing, time.Now))
+	st, err := state.New(anchor, Audience, coreConfig(keyID, signing))
 	if err != nil {
 		return nil, err
 	}
-	name := os.Getenv("CODEFLY__FIXTURE")
-	if name == "" {
-		name = "local"
+	name, err := selectedFixture()
+	if err != nil {
+		return nil, err
 	}
 	data, err := fixtures.ReadFile("fixtures/" + name + ".yaml")
 	if errors.Is(err, os.ErrNotExist) {
@@ -96,6 +136,9 @@ func configureLocalAuthority(ctx context.Context, _ *adapters.Configuration) (Cl
 	// Keys publishes the hop's admission key once the hop registers it
 	// (RegisterAdmissionKey): nothing about the hop is configured here.
 	wiring.Set(st, issuer.New(st, issuerName, keyID, signing.Public().(ed25519.PublicKey)))
+	// The run selected this fixture, in a local run (selectedFixture): its
+	// people are listed and signed in by their fixture tokens.
+	wiring.SetFixtureRun(true)
 	// A delivery is verified against the policy the run wrote for its host, and
 	// carried only by the module's own delivery workload, attested by the
 	// anchor. With no policy the carrier path refuses by name and says so.

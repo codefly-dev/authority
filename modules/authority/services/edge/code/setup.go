@@ -208,6 +208,8 @@ func (e *Edge) change(ctx context.Context, sess *sessionv1.Session, form url.Val
 		default:
 			return "", formError("Choose a person or a team.")
 		}
+		// What the edge holds was issued before this change (rolesChanged).
+		defer e.rolesChanged()
 		if form.Get("action") == "grant" {
 			_, err := e.Installer.GrantRole(ctx, &installationv1.GrantRoleRequest{OrganizationId: org, InstallationId: form.Get("installationId"), Role: form.Get("role"), PersonId: person, TeamId: team})
 			return "granted", err

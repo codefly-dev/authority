@@ -10,6 +10,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
+	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
@@ -53,26 +54,26 @@ func (h *harness) stored(org, target string) domain.Installation {
 // A redelivery that asks nothing new of an organization re-converges its
 // active installation without a click: the consent moves to the new
 // generation, the revision moves (what was issued under the old generation
-// ends), every grant of a role still declared is kept, the grants of a role
-// the new generation drops end with the consent, and the change is journaled.
+// ends), every grant is kept, and the change is journaled. (A solution always
+// declares its two roles, so no delivery of one drops a role: the grants of
+// a role no longer declared end where a module page stops declaring roles,
+// TestARedeliveryDroppingARoleDropsItsGrants.)
 func TestARedeliveryAskingNothingNewReconvergesAnActiveInstallation(t *testing.T) {
 	h := newHarness(t)
 	svc, events := journaled(h)
-	h.grant("a", "reader", "maya")
-	h.grant("a", "user", "remi")
+	h.grant("a", "user", "maya")
+	h.grant("a", "admin", "remi")
 	before := h.stored(acme, "a")
 	if before.Consent.Generation != 1 || before.Consent.Digest == "" {
 		t.Fatalf("the install recorded no approved generation and digest: %+v", before.Consent)
 	}
-	reader := h.must(h.root("maya", "a"))
+	user := h.must(h.root("maya", "a"))
 
-	// Generation 2 cuts the reader's reach, drops the user role and
-	// changes nothing else; the installer's and the author's roles are as
-	// approved.
+	// Generation 2 cuts the user's reach and changes nothing else; the
+	// admin's role is as approved.
 	narrowed := solution("a", true)
 	narrowed.Generation = 2
-	narrowed.Roles["reader"] = []*basev0.WorkScopeV1{sc("a.note", "read")}
-	delete(narrowed.Roles, "user")
+	narrowed.Roles["user"] = []*basev0.WorkScopeV1{sc("a.note", "read")}
 	if _, err := svc.ApplyModule(h.ctx, narrowed); err != nil {
 		t.Fatal(err)
 	}
@@ -83,11 +84,11 @@ func TestARedeliveryAskingNothingNewReconvergesAnActiveInstallation(t *testing.T
 	if decide.UpgradeAvailable(after, narrowed) {
 		t.Fatal("a re-converged installation offers an upgrade")
 	}
-	if grants := h.roleGrants("a"); len(grants) != 1 || grants[0].Role != "reader" || grants[0].PersonID != "maya" {
-		t.Fatalf("the grants are not the reader's alone once the user role is gone: %v", grants)
+	if grants := h.roleGrants("a"); len(grants) != 2 {
+		t.Fatalf("a narrowing touched the grants of roles still declared: %v", grants)
 	}
-	if e, ok := lastEvent(*events, domain.RoleRevoked); !ok || e.Actor != "delivery:a" || e.Detail["role"] != "user" || e.Detail["person"] != "remi" {
-		t.Fatalf("the dropped role's grant was not journaled as revoked by the delivery: %+v %v", e, ok)
+	if e, ok := lastEvent(*events, domain.RoleRevoked); ok {
+		t.Fatalf("a narrowing that drops no role revoked a grant: %+v", e)
 	}
 	e, ok := lastEvent(*events, domain.InstallationReconverged)
 	if !ok || e.Subject != after.ID || e.Organization != acme || e.Detail["generation"] != "2" || e.Detail["approved_generation"] != "1" {
@@ -96,11 +97,11 @@ func TestARedeliveryAskingNothingNewReconvergesAnActiveInstallation(t *testing.T
 	if _, ok := lastEvent(*events, domain.InstallationUpgradeAvailable); ok {
 		t.Fatal("a subset redelivery journaled an upgrade")
 	}
-	if err := h.check(reader); err == nil {
+	if err := h.check(user); err == nil {
 		t.Fatal("a capability issued under the wider generation survived the redelivery")
 	}
-	reader = h.must(h.root("maya", "a"))
-	exactly(t, reader, "a.note", h.principal(acme, "a"), []string{"read"})
+	user = h.must(h.root("maya", "a"))
+	exactly(t, user, "a.note", h.principal(acme, "a"), []string{"read"})
 	// The other organization's installation re-converged too.
 	if g := h.stored(globex, "a"); g.Consent.Generation != 2 {
 		t.Fatalf("globex's installation stayed at %+v", g.Consent)
@@ -116,32 +117,30 @@ func TestARedeliveryAskingNothingNewReconvergesAnActiveInstallation(t *testing.T
 	}
 	// A fresh approval of the offer the consent already stands on is not an
 	// upgrade: the installation is already installed, and its grants stay.
-	_, err := svc.Install(h.ctx, h.admin(acme), acme, "a", "author", "alex", h.approval(acme, "a"), nil)
+	_, err := svc.Install(h.ctx, h.admin(acme), acme, "a", "admin", "alex", h.approval(acme, "a"), nil)
 	if !errors.Is(err, domain.ErrAlreadyInstalled) {
 		t.Fatalf("want already installed, got %v", err)
 	}
-	if grants := h.roleGrants("a"); len(grants) != 1 {
+	if grants := h.roleGrants("a"); len(grants) != 2 {
 		t.Fatalf("a refused install touched the grants: %v", grants)
 	}
 }
 
 // A redelivery that asks more leaves the installation on its consent, active
 // with its grants, and offers an upgrade naming what widened. Until the
-// upgrade, holders hold what the approved generation granted and the new
-// role cannot be granted. Install with a fresh review approves the new offer
+// upgrade, holders hold what the approved generation granted. Install with a fresh review approves the new offer
 // in place: its step runs, the installation is active throughout, grants are
 // kept, the installer stays, consent and revision move, no uninstall.
 func TestARedeliveryAskingMoreOffersAnUpgradeThatKeepsGrants(t *testing.T) {
 	h := newHarness(t)
 	svc, events := journaled(h)
-	h.grant("a", "reader", "maya")
+	h.grant("a", "user", "maya")
 	h.grantTeam("a", "user", "team")
 	before := h.stored(acme, "a")
 
 	wider := solution("a", true)
 	wider.Generation = 2
-	wider.Roles["publisher"] = []*basev0.WorkScopeV1{sc("a.note", "read", "write")}
-	wider.Roles["reader"] = []*basev0.WorkScopeV1{sc("a.note", "read", "write"), sc(kind, "read"), sc(legacyKind, "read")}
+	wider.Roles["user"] = []*basev0.WorkScopeV1{sc("a.note", "read", "write"), sc(kind, "read"), sc(legacyKind, "read")}
 	if _, err := svc.ApplyModule(h.ctx, wider); err != nil {
 		t.Fatal(err)
 	}
@@ -153,26 +152,24 @@ func TestARedeliveryAskingMoreOffersAnUpgradeThatKeepsGrants(t *testing.T) {
 		t.Fatal("the installation does not offer the upgrade")
 	}
 	e, ok := lastEvent(*events, domain.InstallationUpgradeAvailable)
-	if !ok || e.Subject != held.ID || !strings.Contains(e.Detail["widened"], "role publisher added") || !strings.Contains(e.Detail["widened"], "role reader reaches further") {
+	if !ok || e.Subject != held.ID || !strings.Contains(e.Detail["widened"], "role user reaches further") {
 		t.Fatalf("installation.upgrade_available does not name what widened: %+v %v", e, ok)
 	}
 	if grants := h.roleGrants("a"); len(grants) != 2 {
 		t.Fatalf("the widening touched the grants: %v", grants)
 	}
 	// Until the upgrade is approved, holders hold what the approved roles
-	// grant them (the reader reads, whatever the delivered reader may now
-	// write), the new role cannot be granted, and a role holder's review
-	// shows the approved roles.
-	reader := h.must(h.root("maya", "a"))
-	exactly(t, reader, "a.note", h.principal(acme, "a"), []string{"read"})
+	// grant them (the user reads, whatever the delivered user may now
+	// write), and a role holder's review shows the approved roles.
+	user := h.must(h.root("maya", "a"))
+	exactly(t, user, "a.note", h.principal(acme, "a"), []string{"read"})
 	_, err := h.root("maya", "a", sc("a.note", "write"))
 	refused(t, err, "beyond")
-	_, err = h.svc.GrantRole(h.ctx, h.admin(acme), authority.RoleRequest{Organization: acme, InstallationID: held.ID, Role: "publisher", PersonID: "remi"})
-	refused(t, err, `a declares no role "publisher"`)
-	if offer, err := h.svc.ReviewOffer(h.ctx, h.person("maya"), acme, "a"); err != nil || offer.Module.Generation != 1 || len(offer.Module.Roles) != 4 {
+	writes := func(m domain.Module) bool { return scope.HoldsAction(m.Roles["user"], "a.note", "write") }
+	if offer, err := h.svc.ReviewOffer(h.ctx, h.person("maya"), acme, "a"); err != nil || offer.Module.Generation != 1 || writes(offer.Module) {
 		t.Fatalf("a role holder reviews the delivered declaration, not the approved one: %+v %v", offer.Module, err)
 	}
-	if offer, err := h.svc.ReviewOffer(h.ctx, h.admin(acme), acme, "a"); err != nil || offer.Module.Generation != 2 || len(offer.Module.Roles) != 5 {
+	if offer, err := h.svc.ReviewOffer(h.ctx, h.admin(acme), acme, "a"); err != nil || offer.Module.Generation != 2 || !writes(offer.Module) {
 		t.Fatalf("the administrator reviews the approved declaration, not the delivered one: %+v %v", offer.Module, err)
 	}
 
@@ -195,13 +192,13 @@ func TestARedeliveryAskingMoreOffersAnUpgradeThatKeepsGrants(t *testing.T) {
 		}
 		return nil
 	}
-	if _, err := svc.Install(h.ctx, h.admin(acme), acme, "a", "author", "remi", approval, step); !errors.Is(err, failing) {
+	if _, err := svc.Install(h.ctx, h.admin(acme), acme, "a", "admin", "remi", approval, step); !errors.Is(err, failing) {
 		t.Fatalf("a failed step: %v", err)
 	}
 	if again := h.stored(acme, "a"); again.Consent != held.Consent || again.Revision != held.Revision {
 		t.Fatalf("a failed step moved the consent: %+v", again)
 	}
-	upgraded, err := svc.Install(h.ctx, h.admin(acme), acme, "a", "author", "remi", approval, step)
+	upgraded, err := svc.Install(h.ctx, h.admin(acme), acme, "a", "admin", "remi", approval, step)
 	if err != nil || steps != 2 || upgraded.Status != domain.Active || upgraded.Consent.Generation != 2 || upgraded.Revision != held.Revision+1 || upgraded.PrincipalID != held.PrincipalID {
 		t.Fatalf("upgrade: %+v %v, steps %d", upgraded, err, steps)
 	}
@@ -217,24 +214,21 @@ func TestARedeliveryAskingMoreOffersAnUpgradeThatKeepsGrants(t *testing.T) {
 	if e, ok := lastEvent(*events, domain.InstallationUpgraded); !ok || e.Subject != upgraded.ID || e.Actor != "alex" || e.Detail["generation"] != "2" {
 		t.Fatalf("installation.upgraded was not journaled: %+v %v", e, ok)
 	}
-	if err := h.check(reader); err == nil {
+	if err := h.check(user); err == nil {
 		t.Fatal("a capability issued before the upgrade survived it")
 	}
-	// Now the delivered roles decide: the reader writes, the new role is
-	// granted.
+	// Now the delivered roles decide: the user writes, by the grant made
+	// before the upgrade and by one made after it.
 	exactly(t, h.must(h.root("maya", "a")), "a.note", h.principal(acme, "a"), []string{"read", "write"})
-	if _, err := h.svc.GrantRole(h.ctx, h.admin(acme), authority.RoleRequest{Organization: acme, InstallationID: held.ID, Role: "publisher", PersonID: "remi"}); err != nil {
-		t.Fatal(err)
-	}
-	publisher := h.must(h.root("remi", "a"))
-	exactly(t, publisher, "a.note", h.principal(acme, "a"), []string{"read", "write"})
+	h.grant("a", "user", "remi")
+	exactly(t, h.must(h.root("remi", "a")), "a.note", h.principal(acme, "a"), []string{"read", "write"})
 	// The same approval again is the unchanged retry, which runs no step;
 	// another fresh one is already installed.
-	again, err := svc.Install(h.ctx, h.admin(acme), acme, "a", "author", "remi", approval, step)
+	again, err := svc.Install(h.ctx, h.admin(acme), acme, "a", "admin", "remi", approval, step)
 	if err != nil || again.Revision != upgraded.Revision || steps != 2 {
 		t.Fatalf("retry: %+v %v, steps %d", again, err, steps)
 	}
-	_, err = svc.Install(h.ctx, h.admin(acme), acme, "a", "author", "alex", h.approval(acme, "a"), nil)
+	_, err = svc.Install(h.ctx, h.admin(acme), acme, "a", "admin", "alex", h.approval(acme, "a"), nil)
 	if !errors.Is(err, domain.ErrAlreadyInstalled) {
 		t.Fatalf("want already installed, got %v", err)
 	}
@@ -252,7 +246,7 @@ func TestAnInstallationBehindTheDeliveryStaysBehindUntilUpgraded(t *testing.T) {
 	svc, events := journaled(h)
 	wider := solution("a", true)
 	wider.Generation = 2
-	wider.Roles["publisher"] = []*basev0.WorkScopeV1{sc("a.note", "read", "write")}
+	wider.Roles["user"] = append(slices.Clone(wider.Roles["user"]), sc("a.note", "write"))
 	if _, err := svc.ApplyModule(h.ctx, wider); err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +262,7 @@ func TestAnInstallationBehindTheDeliveryStaysBehindUntilUpgraded(t *testing.T) {
 	if e, ok := lastEvent(*events, domain.InstallationUpgradeAvailable); !ok || !strings.Contains(e.Detail["widened"], "approved generation 1 is behind") {
 		t.Fatalf("the lag is not named: %+v %v", e, ok)
 	}
-	if up, err := svc.Install(h.ctx, h.admin(acme), acme, "a", "author", "alex", h.approval(acme, "a"), nil); err != nil || up.Consent.Generation != 3 {
+	if up, err := svc.Install(h.ctx, h.admin(acme), acme, "a", "admin", "alex", h.approval(acme, "a"), nil); err != nil || up.Consent.Generation != 3 {
 		t.Fatalf("upgrade: %+v %v", up, err)
 	}
 }
@@ -280,7 +274,7 @@ func TestAnInstallationBehindTheDeliveryStaysBehindUntilUpgraded(t *testing.T) {
 func TestAConsentOfUnknownGenerationOffersOneUpgrade(t *testing.T) {
 	h := newHarness(t)
 	svc, events := journaled(h)
-	h.grant("a", "reader", "maya")
+	h.grant("a", "user", "maya")
 	id := h.inst(acme, "a").ID
 	if err := h.store.Write(h.ctx, func(tx authority.Tx) error {
 		inst, err := tx.Installation(id)
@@ -305,44 +299,12 @@ func TestAConsentOfUnknownGenerationOffersOneUpgrade(t *testing.T) {
 		t.Fatalf("the unknown generation is not named: %+v %v", e, ok)
 	}
 	exactly(t, h.must(h.root("maya", "a")), "a.note", h.principal(acme, "a"), []string{"read"})
-	if up, err := svc.Install(h.ctx, h.admin(acme), acme, "a", "author", "alex", h.approval(acme, "a"), nil); err != nil || up.Consent.Generation != 2 || decide.UpgradeAvailable(up, same) {
+	if up, err := svc.Install(h.ctx, h.admin(acme), acme, "a", "admin", "alex", h.approval(acme, "a"), nil); err != nil || up.Consent.Generation != 2 || decide.UpgradeAvailable(up, same) {
 		t.Fatalf("upgrade: %+v %v", up, err)
 	}
 	if grants := h.roleGrants("a"); len(grants) != 1 {
 		t.Fatalf("the upgrade touched the grants: %v", grants)
 	}
-}
-
-// An upgrade ends the grants of a role the approved offer no longer declares,
-// and no other.
-func TestAnUpgradeDropsTheGrantsOfARoleNoLongerDeclared(t *testing.T) {
-	h := newHarness(t)
-	svc, events := journaled(h)
-	h.grant("a", "reader", "maya")
-	h.grant("a", "user", "remi")
-	wider := solution("a", true)
-	wider.Generation = 2
-	delete(wider.Roles, "user")
-	wider.Roles["publisher"] = []*basev0.WorkScopeV1{sc("a.note", "read", "write")}
-	if _, err := svc.ApplyModule(h.ctx, wider); err != nil {
-		t.Fatal(err)
-	}
-	// Until the upgrade the user's grant stands, on the approved offer.
-	if grants := h.roleGrants("a"); len(grants) != 2 {
-		t.Fatalf("the widening touched the grants: %v", grants)
-	}
-	exactly(t, h.must(h.root("remi", "a")), "a.note", h.principal(acme, "a"), []string{"read"})
-	if _, err := svc.Install(h.ctx, h.admin(acme), acme, "a", "author", "alex", h.approval(acme, "a"), nil); err != nil {
-		t.Fatal(err)
-	}
-	if grants := h.roleGrants("a"); len(grants) != 1 || grants[0].Role != "reader" {
-		t.Fatalf("the upgrade did not end the user's grant alone: %v", grants)
-	}
-	if e, ok := lastEvent(*events, domain.RoleRevoked); !ok || e.Actor != "alex" || e.Detail["role"] != "user" {
-		t.Fatalf("the dropped grant was not journaled as revoked by the upgrader: %+v %v", e, ok)
-	}
-	_, err := h.root("remi", "a")
-	refused(t, err, "holds no role")
 }
 
 // Grants end by RevokeRole and by an uninstall alone. An install never deletes
@@ -351,9 +313,9 @@ func TestAnUpgradeDropsTheGrantsOfARoleNoLongerDeclared(t *testing.T) {
 // holds.
 func TestGrantsEndOnlyByRevokeAndUninstall(t *testing.T) {
 	h := newHarness(t)
-	h.grant("a", "reader", "maya")
+	h.grant("a", "user", "maya")
 	h.grant("a", "user", "remi")
-	h.revoke("a", "reader", "maya", "")
+	h.revoke("a", "user", "maya", "")
 	if grants := h.roleGrants("a"); len(grants) != 1 || grants[0].PersonID != "remi" {
 		t.Fatalf("revoke: %v", grants)
 	}
@@ -369,7 +331,7 @@ func TestGrantsEndOnlyByRevokeAndUninstall(t *testing.T) {
 	if again.ID != id || again.Status != domain.Active || len(h.roleGrants("a")) != 0 {
 		t.Fatalf("reinstall: %+v, grants %v", again, h.roleGrants("a"))
 	}
-	h.grant("a", "reader", "maya")
+	h.grant("a", "user", "maya")
 	if names := func() []string {
 		var out []string
 		for _, g := range h.roleGrants("a") {
@@ -377,7 +339,7 @@ func TestGrantsEndOnlyByRevokeAndUninstall(t *testing.T) {
 		}
 		slices.Sort(out)
 		return out
-	}(); !slices.Equal(names, []string{"reader:maya"}) {
+	}(); !slices.Equal(names, []string{"user:maya"}) {
 		t.Fatalf("grants after reinstall: %v", names)
 	}
 }

@@ -196,9 +196,9 @@ func TestSetupShowsRefusalsAndKeepsAnUncertainInstall(t *testing.T) {
 	if !strings.Contains(body, "Retry the same install") || !strings.Contains(body, `"operationId":"5d3c0b0e-8f5e-4c3f-9d55-6c1f1a0b7e21"`) {
 		t.Fatalf("an uncertain install must keep its request: %s", body)
 	}
-	host.refuse = status.Error(codes.PermissionDenied, `installation administration requires an administrator or owner of organization "acme"`)
+	host.refuse = status.Error(codes.PermissionDenied, `installation administration requires an administrator of organization "acme"`)
 	_, body = f.do(t, http.MethodGet, "/auth/setup", http.Header{"Cookie": {cookie.String()}})
-	if !strings.Contains(body, "requires an administrator or owner") {
+	if !strings.Contains(body, "requires an administrator") {
 		t.Fatalf("a refused read must name its reason: %s", body)
 	}
 }

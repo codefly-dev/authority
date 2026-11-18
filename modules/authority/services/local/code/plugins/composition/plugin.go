@@ -10,7 +10,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/delivered"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	"github.com/codefly-dev/core/solutionhost"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -178,7 +178,7 @@ func DocumentOf(in *compositionv1.AuthorityManifestV1) *delivered.Document {
 	}
 	doc.SharedKinds = append(doc.SharedKinds, in.GetSharedKinds()...)
 	for _, m := range in.GetMethods() {
-		doc.Methods = append(doc.Methods, delivered.Method{Method: m.GetMethod(), Requires: issuer.FromWire(m.GetRequires()), AnyCheckedCaller: m.GetAnyCheckedCaller()})
+		doc.Methods = append(doc.Methods, delivered.Method{Method: m.GetMethod(), Requires: issuer.FromWire(m.GetRequires()), AnyCheckedCaller: m.GetAnyCheckedCaller(), Carries: issuer.FromWire(m.GetCarries())})
 	}
 	for _, r := range in.GetRoles() {
 		role := delivered.Role{Name: r.GetName(), Scopes: issuer.FromWire(r.GetScopes()), InstallationOwned: issuer.FromWire(r.GetInstallationOwnedScopes())}

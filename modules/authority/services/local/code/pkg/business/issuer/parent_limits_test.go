@@ -41,9 +41,13 @@ func TestParentLimitsSurviveIntermediateAudiences(t *testing.T) {
 		"records": testkit.OrgDirectory(1).Bindings["records"],
 		"self":    {ID: "self", Audience: "model", InvokeScopes: testkit.Documents(1).Bindings["model"].InvokeScopes},
 	}
+	// The model's admin reaches records through its binding: Rémi, its admin,
+	// holds there what that role names, once the widened role is approved.
+	model.Roles[state.AdminRole] = append(model.Roles[state.AdminRole], testkit.Scope("records.records", "read", "write"))
 	if _, err := k.State.ApplyManifest(model); err != nil {
 		t.Fatal(err)
 	}
+	k.Approve(t, "model")
 	root, err := k.Issuer.Issue(person(t, k, "fixture-remi"), &authorityv1.IssueRequest{
 		As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "model",
 		Scopes: scopes(&base.WorkScopeV1{ResourceKind: "modelservice.profiles", Actions: []string{"read"}, ResourceIds: []string{"a"}}),
@@ -84,16 +88,18 @@ func TestExplicitlyDroppedKindNeverReturns(t *testing.T) {
 	for _, where := range []string{"root", "child"} {
 		t.Run(where, func(t *testing.T) {
 			k := testkit.New(t)
-			// Two kinds the same owner holds at the target, both shared, so
-			// the owner's organization roles reach them (RBAC-4a). The named
-			// binding reaches both; an explicit ask deliberately retains only one.
+			// Two kinds the same owner holds at the target through their
+			// role there, both shared. The named binding reaches both; an
+			// explicit ask deliberately retains only one.
 			model := testkit.Model(2)
 			model.ResourceKinds = append(model.ResourceKinds, testkit.Scope("documents", "read", "write"))
 			model.SharedKinds = append(model.SharedKinds, "documents")
+			model.Roles[state.AdminRole] = append(model.Roles[state.AdminRole], testkit.Scope("documents", "read", "write"))
 			model.Bindings = map[string]state.Binding{"self": {ID: "self", Audience: "model", InvokeScopes: model.ResourceKinds}}
 			if _, err := k.State.ApplyManifest(model); err != nil {
 				t.Fatal(err)
 			}
+			k.Approve(t, "model")
 			req := &authorityv1.IssueRequest{As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "model"}
 			if where == "root" {
 				req.Scopes = scopes(testkit.Scope("modelservice.profiles", "read"))
@@ -144,9 +150,12 @@ func TestDisjointTargetScopeStaysDeniedAfterLaterHops(t *testing.T) {
 				"/model.Service/ReadDocument": {Requires: []*base.WorkScopeV1{testkit.Scope("documents", "read")}},
 				"/model.Service/ReadProfile":  {Requires: []*base.WorkScopeV1{testkit.Scope("modelservice.profiles", "read")}},
 			}
+			// The kind the model now serves is its admin's once approved.
+			model.Roles[state.AdminRole] = append(model.Roles[state.AdminRole], testkit.Scope("documents", "read", "write"))
 			if _, err := k.State.ApplyManifest(model); err != nil {
 				t.Fatal(err)
 			}
+			k.Approve(t, "model")
 			parent, err := k.Issuer.Issue(person(t, k, "fixture-remi"), &authorityv1.IssueRequest{
 				As: &authorityv1.IssueRequest_Person{Person: &authorityv1.PersonSession{}}, Audience: "model",
 				Scopes: scopes(&base.WorkScopeV1{ResourceKind: "modelservice.profiles", Actions: []string{"read"}, ResourceIds: []string{"a"}}, testkit.Scope("documents", "read")),

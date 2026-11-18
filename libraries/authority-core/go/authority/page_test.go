@@ -16,13 +16,13 @@ func (h *harness) page(person, target, audience string, scopes ...*basev0.WorkSc
 // One rule for every page: a call a page makes on the host's module edge to a
 // module its target declares a binding to is issued through that binding,
 // the person's role on the target cut to it; to a module its target declares
-// no binding to, on the person's own access.
+// no binding to, it is refused, whoever asks.
 func TestAPagesCallGoesThroughItsTargetsBinding(t *testing.T) {
 	h := newHarness(t)
 	ledgerPage(t, h)
-	h.grant("pages", "reader", "maya")
+	h.grant("pages", "user", "maya")
 
-	t.Run("a module page's reader reaches the ledger through the page's binding, read alone", func(t *testing.T) {
+	t.Run("a module page's user reaches the ledger through the page's binding, read alone", func(t *testing.T) {
 		got := h.must(h.page("maya", "pages", "ledger"))
 		exactly(t, got, ledgerKind, "", []string{"read"})
 		if chain := got.Context.GetActorChain(); len(chain) == 0 || chain[len(chain)-1].GetPrincipalId() != "pages" {
@@ -41,15 +41,15 @@ func TestAPagesCallGoesThroughItsTargetsBinding(t *testing.T) {
 		_, err = h.page("remi", "pages", "ledger")
 		refused(t, err, "holds no role on pages")
 	})
-	t.Run("a module the page's target declares no binding to is on the person's own access", func(t *testing.T) {
-		h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "legacy-reader", Scopes: []domain.RoleScope{{Kind: legacyKind, Actions: []string{"read"}}}})
+	t.Run("a module the page's target declares no binding to is refused, whatever the person's organisation role", func(t *testing.T) {
 		h.store.PutPerson(domain.Person{ID: "lea", Organization: acme, Roles: []string{"legacy-reader"}})
-		exactly(t, h.must(h.page("lea", "pages", "legacy-store")), legacyKind, "", []string{"read"})
-		_, err := h.page("maya", "pages", "legacy-store")
-		refused(t, err, "the owner holds nothing at this audience")
+		for _, person := range []string{"lea", "maya", "alex"} {
+			_, err := h.page(person, "pages", "legacy-store")
+			refused(t, err, "pages declares no binding to legacy-store")
+		}
 	})
 	t.Run("a solution's page goes through the solution's binding, as its backend does", func(t *testing.T) {
-		h.grant("a", "reader", "tal")
+		h.grant("a", "user", "tal")
 		want := h.must(h.through("tal", "a", "store"))
 		got := h.must(h.page("tal", "a", "store"))
 		if len(effective(got)) != len(effective(want)) || effective(got)[0].GetResourceOwnerId() != effective(want)[0].GetResourceOwnerId() {
@@ -65,7 +65,7 @@ func TestAPagesCallGoesThroughItsTargetsBinding(t *testing.T) {
 func TestAPageHopIsThePersonPresent(t *testing.T) {
 	h := newHarness(t)
 	ledgerPage(t, h)
-	h.grant("pages", "reader", "maya")
+	h.grant("pages", "user", "maya")
 	kindOf := func(i authority.Issued) []string {
 		var kinds []string
 		for _, a := range i.Context.GetActorChain() {

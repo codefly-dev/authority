@@ -5,8 +5,8 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/delivered"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
-	"github.com/codefly-dev/core/solutionhost"
 )
 
 // The scopes that govern a module's sources ride on core's signed manifest,

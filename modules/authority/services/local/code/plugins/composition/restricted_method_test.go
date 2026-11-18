@@ -7,7 +7,7 @@ import (
 
 	authorityv1 "gateway/pkg/gen/host/authority/v1"
 	compositionv1 "gateway/pkg/gen/host/composition/v1"
-	"github.com/codefly-dev/core/solutionhost"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

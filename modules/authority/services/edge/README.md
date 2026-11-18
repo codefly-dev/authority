@@ -15,6 +15,11 @@ committed build. After changing `web/`, rebuild it and commit the output:
 
 Session discovery asks routed modules concurrently. A failed module is listed in
 `refused` with its authority reason; other modules and the session still answer.
+A host that does not answer which installations the person holds a role on
+(`ListHeld`) has not said they hold none, and a page with no backend of its own
+is listed by that answer alone: `/auth/session` then answers 503 with the host's
+reason rather than a list that silently lacks it. A host that serves no
+`ListHeld` has nothing to answer and the session answers.
 Cached Work Contexts are removed on expiry and sign-out, which also fences
 in-flight cache writes. Authority endpoints use the shared host client's transport rule: verified TLS,
 or an in-cluster Service address under `internal-transport/mesh-protected=true`;
@@ -28,11 +33,100 @@ A Current outage returns 503 with the authority's reason and preserves cached
 contexts. Only Unauthenticated evicts the session's cached contexts and returns
 401. Other Current failures also remain service failures, not evidence of sign-out.
 
-Known interface gap: `host.session.v1` has no SignOut RPC. Browser sign-out clears
-the local cookie and edge cache; it does not revoke a copied bearer at the host.
-Host-wide termination requires a proposed Session.SignOut interface addition,
-its host implementations, and the edge call before browser sign-out can promise
-revocation. This change does not invent a second session revocation mechanism.
+## Where the edge listens
+
+The edge binds the host the run resolved for its `http` endpoint
+(`listenAddress`, `code/main.go`): loopback on a developer's machine, so the
+sign-in page, which lists the fixture's sign-in tokens, is not served on every
+interface of it. In a container it binds the wildcard, as the container's
+ingress needs; with no runtime context named it binds as a native run does.
+
+## The session ends, expires and states its grant epoch (session 0.6.0)
+
+The edge depends on `codefly.dev/session` 0.6.0 and holds the host to it:
+
+- **Sign-out ends the session at the host.** `POST /auth/sign-out` calls
+  `SessionService.End` with the browser's bearer, and with the session a cast
+  was opened from when the browser holds one, so a copy of either bearer is
+  unauthenticated from then on. The cookies are cleared whatever the host
+  answers; when it did not end a session the answer is 503 and says the
+  session lasts until it expires. A session the host already ended is a
+  plain 204.
+- **Every module call reads the session now.** Before a call is sent on, the
+  edge asks `Current`: a session ended or expired at the host is 401 though
+  the edge holds a Work Context for it that has not lapsed, and a host that
+  does not answer is 503.
+- **Cookies last no longer than the session.** The session cookie expires at
+  the session's `expires_at_unix`; a cast's cookie and the way back kept
+  beside it expire with the cast, which ends no later than the session it was
+  opened from. A session that states no expiry is none the edge keeps: the
+  sign-in or act-as is refused (502) and the session ended.
+- **A grant made anywhere applies from the next call.** A held Work Context
+  remembers the session's `grant_epoch` as `Current` stated it when the
+  context was asked for, and is dropped when `Current` states another: a role
+  granted or revoked through another edge, or by the host itself, no longer
+  waits for the held context to lapse or for a module to refuse it. A host
+  that states no epoch (empty) keeps the earlier behaviour.
+
+## A call no module serves
+
+A procedure the edge routes to no module is nobody's to refuse: no person was
+judged. A Connect caller is answered `unimplemented` (it used to read
+`permission_denied`, a decision about the person that was never made), and
+any other caller the plain 404, both saying `no module serves <procedure>`.
+The same holds for a path that is no page's module call and for a host
+procedure this edge does not compose. `unauthenticated` and
+`permission_denied` are kept for what they mean: no open session, and the
+authority's refusal of the person.
+
+## The edge routes what a module declares (decision 8, 17 November)
+
+Which procedures a module's Connect face serves is generated, never typed. The
+edge declares the workspace-configuration group `edge-routes`, and Codefly
+generates its one value, `ROUTES`, for the service declaring it
+(`cli/pkg/orchestration/edge_routes.go`):
+
+```json
+{"schema":"codefly.dev/edge-routes/v1","modules":[{"audience":"tracing","procedures":["/tracing.v1.TraceReadService/GetTrace", "..."]}]}
+```
+
+- **Which modules.** Every module the edge mounts (`edge/MODULES`) that is
+  published through the hop (`hop/MODULES`). A module mounted for its own REST
+  face alone (a solution's backend) is not in it and needs no catalog.
+- **Which procedures.** Every procedure the module's own published contracts
+  declare on a Connect listener, read from the API catalog
+  (`contracts/api/catalog.codefly.json`) the hop's routes and a delivery to the
+  authority are read from. The catalog does not say which service a page calls
+  and which only another module does, so both are in it (robin's execution and
+  sandbox services beside its chat service) and the hop behind the face decides
+  who is admitted. A foreign method, another module's protocol served to that
+  module (`annotations.v1.TargetAuthorityService` on robin and on documents),
+  is not: several mounted modules serve the same one and a page's path names no
+  module.
+- **No address.** Where a module's face is stays `<MODULE>_CONNECT` in the
+  composition's `edge` group, an ordinary `${endpoint:…}` reference.
+
+The edge routes a procedure exactly when its module publishes it: a method the
+catalog does not declare is answered `no module serves <procedure>` by the
+edge, and nothing is asked of the authority or the module.
+
+`<MODULE>_RPC` is read by nobody and can be deleted from every composition.
+There is no fallback to it. The edge refuses to start, by name, when:
+
+- `edge-routes/ROUTES` is empty or malformed. A Codefly that does not generate
+  the group refuses the declaration itself, before the edge's code runs
+  ("no configuration found" for `edge-routes`): run with a Codefly that has
+  `generatedEdgeRoutes`.
+- `<MODULE>_CONNECT` names a face for a module that publishes no Connect
+  procedure through the hop.
+- two mounted modules publish the same procedure.
+
+A module that publishes Connect procedures and is given no `<MODULE>_CONNECT`
+is served at its REST face alone, and the edge's log says so at startup.
+
+The document's shape is written twice, in the CLI that encodes it and here
+where it is decoded (`code/routes.go`), and each side's tests hold the same
+bytes (`cli/pkg/orchestration/edge_routes_test.go`, `code/routes_test.go`).
 
 ## Act as a team
 
@@ -48,11 +142,13 @@ refused by name on the page. Allowed, the browser becomes the cast session —
 the team's grants and none of the person's own: no direct grant, no other
 team, no organisation role — and keeps the session it came from in a second
 `HttpOnly` cookie, `edge_session_parent`, so **Back to your own session**
-(`action=back`) is a form too, never a second sign-in; sign-out clears both,
-and a sign-in clears the way back, so it belongs to one person's session
-only. "Back" is the browser forgetting the cast, not its revocation: the
-cast session is not ended at the authority (the session interface has no end
-call, for a sign-out either) and expires on its own as any session does.
+(`action=back`) is a form too, never a second sign-in; sign-out ends and
+clears both, and a sign-in clears the way back, so it belongs to one person's
+session only. "Back" ends the cast at the host (`SessionService.End`), so a
+copy of the cast's bearer is unauthenticated from then on, and restores the
+session it was opened from, which is untouched; a cast the host did not end
+is not left (503), and a way back to a session that has itself ended is a
+sign-in.
 A cast is never widened: the authority refuses an act-as from a cast. Like
 sign-in, an act-as is a write from this origin, and `/auth/session` says
 `castTeamId` for a cast session. Nothing here decides who may act as what,
@@ -75,9 +171,10 @@ They are admitted as the installation face's are: a session, this origin in
 who the browser is exactly as the act-as form does: allowed, the cast becomes
 the session cookie and the own session the `edge_session_parent` cookie, and
 the answer's `bearer` is empty, because no script holds a credential. The way
-back is the form's `action=back` on `/auth/act-as` (a POST from this origin):
-the interface has no call for it. `SignIn`, `OpenRoleView` and
-`ListFixturePeople` are served to no page.
+back is the form's `action=back` on `/auth/act-as` (a POST from this origin),
+which ends the cast at the host. `SignIn`, `End`, `OpenRoleView` and
+`ListFixturePeople` are served to no page: ending the browser's session is
+the edge's own act, at sign-out and on the way back.
 
 ## Composition-owned sign-in choices
 

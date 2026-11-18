@@ -11,7 +11,7 @@ import (
 func clientGrant(t *testing.T) (*harness, domain.Client, domain.Delegation) {
 	t.Helper()
 	h := newHarness(t)
-	h.grant("a", "reader", "maya")
+	h.grant("a", "user", "maya")
 	c, err := h.svc.RegisterClient(h.ctx, "External client", []string{"https://client.invalid/callback"})
 	if err != nil {
 		t.Fatal(err)
@@ -86,7 +86,7 @@ func TestClientDelegationRefusesChangesAndRechecksLiveAuthority(t *testing.T) {
 			h.now = d.ExpiresAt
 		},
 		"role lost": func(h *harness, _ *domain.Client, _ *domain.Delegation, _ *authority.IssueRequest) {
-			h.revoke("a", "reader", "maya", "")
+			h.revoke("a", "user", "maya", "")
 		},
 		"uninstalled": func(h *harness, _ *domain.Client, _ *domain.Delegation, _ *authority.IssueRequest) {
 			if err := h.svc.UninstallAsHost(h.ctx, acme, h.inst(acme, "a").ID); err != nil {
@@ -117,8 +117,8 @@ func TestClientDelegationCannotGrowAtRefresh(t *testing.T) {
 	if first.Context.GetExpiresAtUnix() != h.now.Add(15*time.Minute).Unix() {
 		t.Fatal("local MaxTTL was not retained")
 	}
-	h.grant("a", "author", "maya")
-	// Newly held write is outside the already approved reader delegation.
+	h.grant("a", "admin", "maya")
+	// Newly held write is outside the already approved user delegation.
 	_, err := h.svc.IssueForClientDelegation(h.ctx, d.ID, c.ID, d.Resource, authority.IssueRequest{Scopes: authority.Scopes{owned(kind, h.principal(acme, "a"), []string{"write"})}})
 	if err == nil {
 		t.Fatal("refresh widened the old consent")

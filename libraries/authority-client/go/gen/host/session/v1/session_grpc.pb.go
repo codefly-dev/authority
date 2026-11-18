@@ -27,6 +27,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	SessionService_SignIn_FullMethodName            = "/host.session.v1.SessionService/SignIn"
 	SessionService_Current_FullMethodName           = "/host.session.v1.SessionService/Current"
+	SessionService_End_FullMethodName               = "/host.session.v1.SessionService/End"
 	SessionService_OpenRoleView_FullMethodName      = "/host.session.v1.SessionService/OpenRoleView"
 	SessionService_OpenTeamCast_FullMethodName      = "/host.session.v1.SessionService/OpenTeamCast"
 	SessionService_ListCastableTeams_FullMethodName = "/host.session.v1.SessionService/ListCastableTeams"
@@ -44,8 +45,18 @@ type SessionServiceClient interface {
 	// Current answers the session the caller's bearer (`authorization: Bearer
 	// <bearer>`) belongs to: who a page's request is for, decided by the host,
 	// never read from a header the request wrote. The bearer itself is not
-	// handed back. An unknown or ended session is unauthenticated.
+	// handed back. An unknown, ended or expired session is unauthenticated.
 	Current(ctx context.Context, in *CurrentRequest, opts ...grpc.CallOption) (*Session, error)
+	// End ends the session the caller's bearer belongs to, and with it every
+	// session opened from it: its role views and casts, and theirs. From then on
+	// each of those bearers is unauthenticated wherever a session is read:
+	// Current, a person's Issue, and every call here. It is a sign-out, and the
+	// way back from a cast: a browser edge ends the cast it leaves, and the
+	// session the cast was opened from is untouched. Ending is never undone, and
+	// a bearer that names no open session is unauthenticated, as it is anywhere.
+	// A Work Context issued to the session before it ended lapses on its own
+	// expiry. The callers OpenRoleView refuses are refused here.
+	End(ctx context.Context, in *EndRequest, opts ...grpc.CallOption) (*EndResponse, error)
 	// OpenRoleView opens a session that acts as some of the roles the caller
 	// holds on one installation: a role view. The caller's bearer is the session
 	// it is opened from. The host records the view, decided by the authority, as
@@ -114,6 +125,16 @@ func (c *sessionServiceClient) Current(ctx context.Context, in *CurrentRequest, 
 	return out, nil
 }
 
+func (c *sessionServiceClient) End(ctx context.Context, in *EndRequest, opts ...grpc.CallOption) (*EndResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EndResponse)
+	err := c.cc.Invoke(ctx, SessionService_End_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *sessionServiceClient) OpenRoleView(ctx context.Context, in *OpenRoleViewRequest, opts ...grpc.CallOption) (*Session, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Session)
@@ -165,8 +186,18 @@ type SessionServiceServer interface {
 	// Current answers the session the caller's bearer (`authorization: Bearer
 	// <bearer>`) belongs to: who a page's request is for, decided by the host,
 	// never read from a header the request wrote. The bearer itself is not
-	// handed back. An unknown or ended session is unauthenticated.
+	// handed back. An unknown, ended or expired session is unauthenticated.
 	Current(context.Context, *CurrentRequest) (*Session, error)
+	// End ends the session the caller's bearer belongs to, and with it every
+	// session opened from it: its role views and casts, and theirs. From then on
+	// each of those bearers is unauthenticated wherever a session is read:
+	// Current, a person's Issue, and every call here. It is a sign-out, and the
+	// way back from a cast: a browser edge ends the cast it leaves, and the
+	// session the cast was opened from is untouched. Ending is never undone, and
+	// a bearer that names no open session is unauthenticated, as it is anywhere.
+	// A Work Context issued to the session before it ended lapses on its own
+	// expiry. The callers OpenRoleView refuses are refused here.
+	End(context.Context, *EndRequest) (*EndResponse, error)
 	// OpenRoleView opens a session that acts as some of the roles the caller
 	// holds on one installation: a role view. The caller's bearer is the session
 	// it is opened from. The host records the view, decided by the authority, as
@@ -220,6 +251,9 @@ func (UnimplementedSessionServiceServer) SignIn(context.Context, *SignInRequest)
 }
 func (UnimplementedSessionServiceServer) Current(context.Context, *CurrentRequest) (*Session, error) {
 	return nil, status.Error(codes.Unimplemented, "method Current not implemented")
+}
+func (UnimplementedSessionServiceServer) End(context.Context, *EndRequest) (*EndResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method End not implemented")
 }
 func (UnimplementedSessionServiceServer) OpenRoleView(context.Context, *OpenRoleViewRequest) (*Session, error) {
 	return nil, status.Error(codes.Unimplemented, "method OpenRoleView not implemented")
@@ -286,6 +320,24 @@ func _SessionService_Current_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(SessionServiceServer).Current(ctx, req.(*CurrentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SessionService_End_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EndRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).End(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_End_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).End(ctx, req.(*EndRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -376,6 +428,10 @@ var SessionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Current",
 			Handler:    _SessionService_Current_Handler,
+		},
+		{
+			MethodName: "End",
+			Handler:    _SessionService_End_Handler,
 		},
 		{
 			MethodName: "OpenRoleView",

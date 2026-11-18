@@ -29,15 +29,14 @@ func TestAnOwnersArtifactIsInItsOwnersNamespace(t *testing.T) {
 		Bindings:         map[string]domain.Binding{"agent": {ID: "agent", Audience: "agent", InvokeScopes: []*basev0.WorkScopeV1{sc("agent.intents", "read", "activate", "run")}}},
 		Roles: map[string][]*basev0.WorkScopeV1{
 			domain.AdminRole: {sc("builder.note", "read", "write"), sc("agent.intents", "read", "activate", "run")},
-			"user":           {sc("builder.note", "read"), sc("agent.intents", "read", "activate", "run")},
-			"reader":         {sc("builder.note", "read"), sc("agent.intents", "read", "run")},
+			"user":           {sc("builder.note", "read"), sc("agent.intents", "read", "run")},
 		}}
 	if _, err := h.svc.ApplyModule(h.ctx, builder); err != nil {
 		t.Fatal(err)
 	}
 	h.installAs(acme, "builder", "")
-	h.grant("builder", "user", "maya")
-	h.grant("builder", "reader", "remi")
+	h.grant("builder", "admin", "maya")
+	h.grant("builder", "user", "remi")
 	all, err := h.svc.Installations(h.ctx, h.admin(acme), acme)
 	if err != nil {
 		t.Fatal(err)
@@ -74,17 +73,17 @@ func TestAnOwnersArtifactIsInItsOwnersNamespace(t *testing.T) {
 	if err := decideAs(backend, decide.ArtifactRun, owned); err != nil {
 		t.Fatalf("the builder's backend runs its artifact for the user: %v", err)
 	}
-	reader := h.must(h.page("remi", "builder", "agent"))
-	refused(t, decideAs(reader, decide.ArtifactActivate, owned), "agent.intents:activate")
-	if err := decideAs(reader, decide.ArtifactRun, owned); err != nil {
-		t.Fatalf("the reader runs the builder's artifact: %v", err)
+	user := h.must(h.page("remi", "builder", "agent"))
+	refused(t, decideAs(user, decide.ArtifactActivate, owned), "agent.intents:activate")
+	if err := decideAs(user, decide.ArtifactRun, owned); err != nil {
+		t.Fatalf("the user runs the builder's artifact: %v", err)
 	}
 }
 
 // The namespace an owned parent authors in is its owner's installation's; an
-// unowned parent's is the module installation's own. At an owner-aware module
-// an organization role holds only a kind the module declares shared (RBAC-4a),
-// so the unowned parent reads the agent's shared profiles.
+// unowned parent's is the module installation's own. A kind the module
+// declares shared is held unselected through the builder's binding, so the
+// unowned parent reads the agent's shared profiles.
 func TestTheParentAuthorsInItsOwnersNamespace(t *testing.T) {
 	h := newHarness(t)
 	agent := domain.Module{Name: "agent", Principal: "agent", Kind: domain.KindModule, Generation: 1, OwnerAware: true,
@@ -95,21 +94,19 @@ func TestTheParentAuthorsInItsOwnersNamespace(t *testing.T) {
 	}
 	builder := domain.Module{Name: "builder", Principal: "builder", Kind: domain.KindSolution, Generation: 1, OwnerAware: true, Page: true,
 		InstallationRole: domain.NoInstallationRole, ResourceKinds: []*basev0.WorkScopeV1{sc("builder.note", "read")},
-		Bindings: map[string]domain.Binding{"agent": {ID: "agent", Audience: "agent", InvokeScopes: []*basev0.WorkScopeV1{sc("agent.intents", "read", "run")}}},
-		Roles:    map[string][]*basev0.WorkScopeV1{domain.AdminRole: {sc("builder.note", "read")}, "reader": {sc("builder.note", "read"), sc("agent.intents", "read", "run")}}}
+		Bindings: map[string]domain.Binding{"agent": {ID: "agent", Audience: "agent", InvokeScopes: []*basev0.WorkScopeV1{sc("agent.intents", "read", "run"), sc("agent.profiles", "read")}}},
+		Roles:    map[string][]*basev0.WorkScopeV1{domain.AdminRole: {sc("builder.note", "read")}, "user": {sc("builder.note", "read"), sc("agent.intents", "read", "run"), sc("agent.profiles", "read")}}}
 	if _, err := h.svc.ApplyModule(h.ctx, builder); err != nil {
 		t.Fatal(err)
 	}
 	h.installAs(acme, "builder", "")
-	h.grant("builder", "reader", "remi")
-	owned := h.must(h.page("remi", "builder", "agent"))
+	h.grant("builder", "user", "remi")
+	owned := h.must(h.page("remi", "builder", "agent", &basev0.WorkScopeV1{ResourceKind: "agent.intents", Actions: []string{"read", "run"}, ResourceOwnerId: h.principal(acme, "builder")}))
 	inst, namespace, err := h.svc.CurrentAuthoring(h.ctx, owned.Token, authority.Workload{Module: "agent"})
 	if err != nil || namespace != acme+".builder" || inst.Target != "agent" {
 		t.Fatalf("an owned parent authors in %q at %s (%v)", namespace, inst.Target, err)
 	}
-	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "agent-reader", Scopes: []domain.RoleScope{{Kind: "agent.intents", Actions: []string{"read"}}, {Kind: "agent.profiles", Actions: []string{"read"}}}})
-	h.store.PutPerson(domain.Person{ID: "lea", Organization: acme, Roles: []string{"agent-reader"}})
-	own := h.must(h.root("lea", "agent"))
+	own := h.must(h.page("remi", "builder", "agent", sc("agent.profiles", "read")))
 	exactly(t, own, "agent.profiles", "", []string{"read"})
 	if _, namespace, err := h.svc.CurrentAuthoring(h.ctx, own.Token, authority.Workload{Module: "agent"}); err != nil || namespace != acme+".agent" {
 		t.Fatalf("an unowned parent authors in %q (%v)", namespace, err)

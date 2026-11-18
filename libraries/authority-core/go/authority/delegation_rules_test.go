@@ -33,8 +33,9 @@ func TestDelegationRules(t *testing.T) {
 
 func TestADelegationIsEndedByItsGrantorOrAnAdministratorAlone(t *testing.T) {
 	h := newHarness(t)
-	// Rob reads the ledger's entry-x alone: he delegates that, never the whole kind.
-	read := []*basev0.WorkScopeV1{owned(ledgerKind, "", []string{"read"}, "entry-x")}
+	// Rob is a user of solution a: he delegates what that role reads at the store.
+	h.grant("a", "user", "rob")
+	read := []*basev0.WorkScopeV1{owned(kind, h.principal(acme, "a"), []string{"read"})}
 	rob, maya, alex, zoe := h.person("rob"), h.person("maya"), h.person("alex"), h.person("zoe")
 	for _, tc := range []struct {
 		name   string
@@ -48,7 +49,7 @@ func TestADelegationIsEndedByItsGrantorOrAnAdministratorAlone(t *testing.T) {
 		{"its grantor", rob, true, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d, err := h.svc.Delegate(h.ctx, rob, "ledger", read, "a job", 0)
+			d, err := h.svc.Delegate(h.ctx, rob, "a", read, "a job", 0)
 			if err != nil {
 				t.Fatal(err)
 			}

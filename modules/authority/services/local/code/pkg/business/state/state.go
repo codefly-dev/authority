@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
@@ -20,10 +21,9 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/memstore"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
 	fixturecomposition "github.com/codefly-dev/authority/libraries/fixture-composition/go"
-	resources "github.com/codefly-dev/authority/libraries/resources/go"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go/workloadidentity"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go/workloadidentity/native"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
-	"github.com/codefly-dev/core/workloadidentity"
-	"github.com/codefly-dev/core/workloadidentity/native"
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 )
@@ -37,15 +37,9 @@ var (
 	ErrStale           = errors.New("state: generation is not newer")
 )
 
-// Scope is one (kind, actions) pair as the fixture spells it, optionally
-// narrowed to named resources (ResourceMatch). With no resources it covers
-// every resource of the kind. The fixture and the fixture-composition document
-// spell it the same way, so it is the document's own type.
+// Scope is one (kind, actions) pair a stand-in module serves, as the
+// fixture-composition document spells it.
 type Scope = fixturecomposition.Scope
-
-// ResourceMatch is one resource grant as the fixture spells it: exactly one of
-// every resource, one id, an id prefix or a pattern (libraries/resources).
-type ResourceMatch = fixturecomposition.ResourceMatch
 
 // Person is a fixture person.
 type Person struct {
@@ -58,12 +52,16 @@ type Person struct {
 	Teams        []string `yaml:"teams"`
 }
 
-// Role is a named set of scopes at one organisation.
+// Role is an organisation role: a name people of one organisation hold. It
+// decides administration only (the core's decide.IsAdministrator reads the
+// name) and grants nothing at any module, so it carries no scope. A fixture
+// that still states scopes, or the generated developer role that held every
+// delivered kind, is refused by name (LoadFixture).
 type Role struct {
-	Organization string  `yaml:"organization"`
-	Name         string  `yaml:"name"`
-	Generated    bool    `yaml:"generated,omitempty"`
-	Scopes       []Scope `yaml:"scopes"`
+	Organization string    `yaml:"organization"`
+	Name         string    `yaml:"name"`
+	Generated    bool      `yaml:"generated,omitempty"`
+	Scopes       yaml.Node `yaml:"scopes"`
 }
 
 // The core's objects, as this host names them.
@@ -156,6 +154,13 @@ type Session struct {
 	// CastTeam is the team this session was cast onto, when it is a cast: it
 	// acts as that team and nothing else; the authority core holds the record.
 	CastTeam string
+	// Parent is the session this one was opened from, when it is a role view
+	// or a cast: ending that one ends this one.
+	Parent string
+	// ExpiresAt is when the session ends on its own; a role view or a cast
+	// carries its parent's.
+	ExpiresAt time.Time
+	Ended     bool
 }
 
 type fixtureFile struct {
@@ -198,7 +203,7 @@ type State struct {
 	people     map[string]Person
 	order      []string // people's ids, in the fixture's order
 	byToken    map[string]string
-	roles      map[string]Role // org/name, as authored, the generated developer role included
+	roles      map[string]Role // org/name: the organisation roles the fixture defines
 	sessions   map[string]Session
 	deliveries map[string]*appliedDelivery // binding → verified record, including withdrawals
 	// trustDomain is the run's: the one trust domain the launcher's anchor
@@ -239,13 +244,23 @@ func New(anchor native.Anchor, audience string, cfg authority.Config) (*State, e
 		cfg.Keys = keySet{cfg.KeyID: public}
 	}
 	store := memstore.New()
+	var state *State
+	cfg.CheckSession = func(ctx context.Context, id string) error {
+		state.mu.RLock()
+		defer state.mu.RUnlock()
+		if session, known := state.sessions[id]; known && (session.Ended || !state.svc.Now().Before(session.ExpiresAt)) {
+			return fmt.Errorf("%w: session ended or expired", ErrUnauthenticated)
+		}
+		return nil
+	}
 	svc, err := authority.New(store, cfg)
 	if err != nil {
 		return nil, err
 	}
-	return &State{store: store, svc: svc, attester: attester, audience: audience, trustDomain: runTrustDomain(anchor),
+	state = &State{store: store, svc: svc, attester: attester, audience: audience, trustDomain: runTrustDomain(anchor),
 		orgs: map[string]string{}, people: map[string]Person{}, byToken: map[string]string{}, roles: map[string]Role{},
-		sessions: map[string]Session{}, deliveries: map[string]*appliedDelivery{}, Approvals: &MemoryApprovals{}}, nil
+		sessions: map[string]Session{}, deliveries: map[string]*appliedDelivery{}, Approvals: &MemoryApprovals{}}
+	return state, nil
 }
 
 // Service is the core this host issues and decides through.
@@ -290,15 +305,11 @@ func (s *State) LoadFixture(ctx context.Context, data []byte) error {
 		s.store.PutTeam(team.Organization, team.ID)
 	}
 	for _, r := range f.Roles {
-		if r.Generated && (r.Name != "developer" || len(r.Scopes) != 0) {
+		if r.Generated || len(r.Scopes.Content) > 0 {
 			s.mu.Unlock()
-			return fmt.Errorf("fixture: generated role must be developer with no authored scopes")
+			return fmt.Errorf("fixture: role %s/%s states what it grants (scopes, or generated): an organisation role decides administration only and grants nothing at a module; a person reaches a module through a role on an installation (installations: members)", r.Organization, r.Name)
 		}
-		if err := compileScopes(r); err != nil {
-			s.mu.Unlock()
-			return err
-		}
-		s.roles[r.Organization+"/"+r.Name] = r
+		s.roles[r.Organization+"/"+r.Name] = Role{Organization: r.Organization, Name: r.Name}
 	}
 	for _, p := range f.People {
 		if _, ok := s.orgs[p.Organization]; !ok {
@@ -323,7 +334,6 @@ func (s *State) LoadFixture(ctx context.Context, data []byte) error {
 			s.store.PutTeam(p.Organization, team)
 		}
 	}
-	s.refreshRolesLocked()
 	s.mu.Unlock()
 	for _, d := range f.Delegations {
 		if d.ID == "" || d.Grantor == "" || d.Module == "" || d.Organization == "" {
@@ -379,19 +389,6 @@ func (s *State) LoadFixture(ctx context.Context, data []byte) error {
 	return err
 }
 
-func compileScopes(r Role) error {
-	for _, sc := range r.Scopes {
-		grants := make([]resources.Grant, 0, len(sc.Resources))
-		for _, m := range sc.Resources {
-			grants = append(grants, m.Grant())
-		}
-		if _, err := resources.Compile(grants); err != nil {
-			return fmt.Errorf("role %s/%s scope %s: %w", r.Organization, r.Name, sc.Kind, err)
-		}
-	}
-	return nil
-}
-
 // ensureModuleInstallations holds every composed module installed at every
 // organisation, through the core.
 func (s *State) ensureModuleInstallations() error {
@@ -426,26 +423,18 @@ func (s *State) performInstall(ctx context.Context, i FixtureInstallation, inten
 			return fmt.Errorf("fixture installation of %s at %s: %w", i.Target, i.Organization, classify(err))
 		}
 	}
-	return s.write(func(tx authority.Tx) error {
-		// STOPGAP (one release): a target delivered before the rename
-		// declares its admin role as "installer" (domain.DeclaredAdminRole).
-		admin := AdminRole
-		if m, err := tx.ModuleNamed(i.Target); err == nil {
-			if declared, ok := domain.DeclaredAdminRole(m.Roles); ok {
-				admin = declared
-			}
+	// Each grant goes through the core's decision, as an administrator's
+	// would: nothing the fixture names is written past it.
+	grants := []domain.RoleGrant{{InstallationID: id, Role: AdminRole, PersonID: i.Owner}}
+	for _, team := range i.Teams {
+		grants = append(grants, domain.RoleGrant{InstallationID: id, Role: i.Role, TeamID: team})
+	}
+	for _, g := range grants {
+		if err := s.grantAsHost(ctx, g); err != nil {
+			return fmt.Errorf("fixture installation of %s at %s: %w", i.Target, i.Organization, err)
 		}
-		grants := []domain.RoleGrant{{InstallationID: id, Role: admin, PersonID: i.Owner}}
-		for _, team := range i.Teams {
-			grants = append(grants, domain.RoleGrant{InstallationID: id, Role: i.Role, TeamID: team})
-		}
-		for _, g := range grants {
-			if err := tx.PutRoleGrant(g); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
+	}
+	return nil
 }
 
 // SignIn opens a session for the person holding a fixture token.
@@ -462,7 +451,7 @@ func (s *State) SignIn(token string) (Session, error) {
 		name = p.Email
 	}
 	sess := Session{PersonDisplayName: name, OrganizationDisplayName: s.orgs[p.Organization], ID: uuid.NewString(), Person: p.ID,
-		Organization: p.Organization, Roles: slices.Clone(p.Roles), Teams: slices.Clone(p.Teams)}
+		Organization: p.Organization, Roles: slices.Clone(p.Roles), Teams: slices.Clone(p.Teams), ExpiresAt: s.svc.Now().Add(SessionLifetime)}
 	s.sessions[sess.ID] = sess
 	return sess, nil
 }
@@ -484,12 +473,8 @@ func (s *State) OpenRoleView(ctx context.Context, parent, installationID string,
 	sess.ID, sess.RoleView = id, view.Roles
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, open := s.sessions[parent]; !open {
-		// The parent ended while the core decided: the view opens no session of its own.
-		return Session{}, fmt.Errorf("%w: an open session is required", ErrUnauthenticated)
-	}
-	s.sessions[id] = sess
-	return sess, nil
+	// A parent that ended while the core decided opens no session of its own.
+	return s.keepChildLocked(parent, sess)
 }
 
 // OpenTeamCast opens a session that acts as a member of team and of nothing
@@ -510,12 +495,8 @@ func (s *State) OpenTeamCast(ctx context.Context, parent, team string) (Session,
 	sess.ID, sess.RoleView, sess.CastTeam, sess.Roles, sess.Teams = id, cast.Roles, cast.Team, nil, []string{cast.Team}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, open := s.sessions[parent]; !open {
-		// The parent ended while the core decided: the cast opens no session of its own.
-		return Session{}, fmt.Errorf("%w: an open session is required", ErrUnauthenticated)
-	}
-	s.sessions[id] = sess
-	return sess, nil
+	// A parent that ended while the core decided opens no session of its own.
+	return s.keepChildLocked(parent, sess)
 }
 
 // CastableTeams is the teams the session may act as now, with what each
@@ -547,11 +528,11 @@ func (s *State) OrganizationDisplayName(organization string) string {
 	return s.orgs[organization]
 }
 
-// Session resolves an open session.
+// Session resolves an open session: one that neither ended nor expired.
 func (s *State) Session(id string) (Session, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	sess, ok := s.sessions[id]
+	sess, ok := s.openLocked(id)
 	if !ok {
 		return Session{}, fmt.Errorf("%w: an open session is required", ErrUnauthenticated)
 	}
@@ -602,7 +583,7 @@ func (s *State) Caller(sessionID string) (authority.Person, error) {
 	if err != nil {
 		return authority.Person{}, err
 	}
-	return authority.Person{ID: sess.Person, Organization: sess.Organization, SessionID: sess.ID, Teams: slices.Clone(sess.Teams)}, nil
+	return authority.Person{ID: sess.Person, Organization: sess.Organization, SessionID: sess.ID, ExpiresAt: sess.ExpiresAt, Teams: slices.Clone(sess.Teams)}, nil
 }
 
 // ApplyManifest is trusted host fixture setup, never a public request path.
@@ -641,7 +622,6 @@ func (s *State) applyManifestLocked(m Manifest) ([]string, []FixtureInstallation
 	if err != nil {
 		return nil, nil, classify(err)
 	}
-	s.refreshRolesLocked()
 	return ids, s.takePendingInstalls(m.Name), nil
 }
 
@@ -730,9 +710,25 @@ func (s *State) UninstallAsHost(id string) error {
 	return s.svc.UninstallAsHost(context.Background(), inst.Organization, id)
 }
 
-// GrantRole grants a role as the host's own setup (no caller): a test's.
+// GrantRole grants a role as the host's own setup (no caller): a test's. It
+// is decided as every grant is (grantAsHost).
 func (s *State) GrantRole(g domain.RoleGrant) error {
-	return s.write(func(tx authority.Tx) error { return tx.PutRoleGrant(g) })
+	return s.grantAsHost(context.Background(), g)
+}
+
+// grantAsHost grants a role with no caller, through the core's one grant
+// decision (authority.GrantRoleAsHost), the organization's administrator
+// standing as the caller: the installation is installed, the role is one its
+// target declares, and the subject is one person or one team of its
+// organization. The host writes no grant the decision did not admit, and the
+// core journals it as it does an administrator's.
+func (s *State) grantAsHost(ctx context.Context, g domain.RoleGrant) error {
+	inst, ok := s.Installation(g.InstallationID)
+	if !ok {
+		return fmt.Errorf("%w: installation %q", ErrUnknown, g.InstallationID)
+	}
+	_, err := s.svc.GrantRoleAsHost(ctx, authority.RoleRequest{Organization: inst.Organization, InstallationID: g.InstallationID, Role: g.Role, PersonID: g.PersonID, TeamID: g.TeamID})
+	return classify(err)
 }
 
 // runTrustDomain is the one trust domain every workload anchor declares is

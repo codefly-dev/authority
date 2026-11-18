@@ -14,11 +14,12 @@ import (
 // stays retired, and asking twice changes nothing.
 func TestAnOrganizationAddedLaterHoldsEveryComposedModule(t *testing.T) {
 	h := newHarness(t)
+	// The ledger is a module page declaring roles: ivy reaches it as its user
+	// once initech holds it and the host seats her.
+	ledgerWithRoles(t, h)
 	const initech = "initech"
 	h.store.PutOrganization(domain.Organization{ID: initech, Name: initech})
 	h.store.PutPerson(domain.Person{ID: "ivy", Organization: initech})
-	h.store.PutOrgRole(domain.OrgRole{Organization: initech, Name: "reader", Scopes: []domain.RoleScope{{Kind: ledgerKind, Actions: []string{"read"}}}})
-	h.store.PutPerson(domain.Person{ID: "ivy", Organization: initech, Roles: []string{"reader"}})
 	ivy := authority.Person{ID: "ivy", Organization: initech, SessionID: "s-ivy"}
 	_, err := h.svc.IssueForPerson(h.ctx, ivy, authority.IssueRequest{Audience: "ledger", Scopes: []*basev0.WorkScopeV1{sc(ledgerKind, "read")}})
 	code(t, err, domain.Precondition)
@@ -29,6 +30,9 @@ func TestAnOrganizationAddedLaterHoldsEveryComposedModule(t *testing.T) {
 	}
 	if len(ids) != 3 { // store, legacy-store and ledger; solutions are installed explicitly
 		t.Fatalf("module installations %v", ids)
+	}
+	if _, err := h.svc.GrantRoleAsHost(h.ctx, authority.RoleRequest{Organization: initech, InstallationID: authority.StableInstallationID(initech, "ledger"), Role: domain.UserRole, PersonID: "ivy"}); err != nil {
+		t.Fatal(err)
 	}
 	if _, err := h.svc.IssueForPerson(h.ctx, ivy, authority.IssueRequest{Audience: "ledger", Scopes: []*basev0.WorkScopeV1{sc(ledgerKind, "read")}}); err != nil {
 		t.Fatal(err)
@@ -69,24 +73,24 @@ func TestTheHostGrantsARoleAsTheAdministratorWould(t *testing.T) {
 		r    authority.RoleRequest
 		code domain.Code
 	}{
-		{"another organization's installation", authority.RoleRequest{Organization: globex, InstallationID: inst, Role: "reader", PersonID: "omar"}, domain.Denied},
+		{"another organization's installation", authority.RoleRequest{Organization: globex, InstallationID: inst, Role: "user", PersonID: "omar"}, domain.Denied},
 		{"an undeclared role", authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "owner", PersonID: "maya"}, domain.NotFound},
-		{"no subject", authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "reader"}, domain.Invalid},
-		{"a person of another organization", authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "reader", PersonID: "omar"}, domain.Denied},
-		{"a team of another organization", authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "reader", TeamID: "ops"}, domain.Denied},
+		{"no subject", authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "user"}, domain.Invalid},
+		{"a person of another organization", authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "user", PersonID: "omar"}, domain.Denied},
+		{"a team of another organization", authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "user", TeamID: "ops"}, domain.Denied},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := h.svc.GrantRoleAsHost(h.ctx, tc.r)
 			code(t, err, tc.code)
 		})
 	}
-	if _, err := h.svc.GrantRoleAsHost(h.ctx, authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "reader", PersonID: "maya"}); err != nil {
+	if _, err := h.svc.GrantRoleAsHost(h.ctx, authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "user", PersonID: "maya"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := h.root("maya", "a"); err != nil {
 		t.Fatalf("the granted role is held: %v", err)
 	}
-	if _, err := h.svc.GrantRoleAsHost(h.ctx, authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "reader", TeamID: "team"}); err != nil {
+	if _, err := h.svc.GrantRoleAsHost(h.ctx, authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "user", TeamID: "team"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := h.root("tam", "a"); err != nil {
@@ -97,7 +101,7 @@ func TestTheHostGrantsARoleAsTheAdministratorWould(t *testing.T) {
 func TestAComposedModuleReadsAsDelivered(t *testing.T) {
 	h := newHarness(t)
 	m, err := h.svc.Composed(h.ctx, "a")
-	if err != nil || m.Principal != "a" || m.Kind != domain.KindSolution || len(m.Roles) != 4 {
+	if err != nil || m.Principal != "a" || m.Kind != domain.KindSolution || len(m.Roles) != 2 {
 		t.Fatalf("composed %+v %v", m, err)
 	}
 	_, err = h.svc.Composed(h.ctx, "absent")
@@ -106,7 +110,7 @@ func TestAComposedModuleReadsAsDelivered(t *testing.T) {
 
 func TestInstallingAnInstalledTargetNamesIt(t *testing.T) {
 	h := newHarness(t)
-	_, err := h.svc.InstallAsHost(h.ctx, acme, "a", "author", "alex", nil)
+	_, err := h.svc.InstallAsHost(h.ctx, acme, "a", "admin", "alex", nil)
 	code(t, err, domain.Denied)
 	if !errors.Is(err, domain.ErrAlreadyInstalled) {
 		t.Fatalf("an installed target's refusal names it: %v", err)

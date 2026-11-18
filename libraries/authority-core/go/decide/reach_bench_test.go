@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"math/rand"
+	"runtime/debug"
 	"slices"
 	"testing"
 	"time"
@@ -81,10 +82,21 @@ func BenchmarkReachOf32Modules10Kinds(b *testing.B) { benchmarkReachOf(b, 32, 10
 // The budget separates the polynomial walk from the exponential one it
 // replaced (12 modules / 6 kinds took 3 s, 16 / 8 did not finish), not
 // one machine's speed: the polynomial walk takes about 65 ms on the
-// largest shape, about 560 ms under the race detector, which CI runs.
+// largest shape locally. Shared CI measured 2.58 s under the race detector;
+// instrumentation must not be judged against the ordinary binary budget.
+// Keep the ordinary 2 s bound, and apply the same eightfold allowance used
+// by the conformance suite only to race-instrumented binaries.
 const reachBudget = 2 * time.Second
 
 func TestReachOfIsFastOnDenseCompositions(t *testing.T) {
+	budget := reachBudget
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range info.Settings {
+			if setting.Key == "-race" && setting.Value == "true" {
+				budget *= 8
+			}
+		}
+	}
 	for _, shape := range [][2]int{{8, 5}, {12, 6}, {16, 8}, {32, 10}} {
 		for seed := int64(1); seed <= 5; seed++ {
 			target, all := denseComposition(seed, shape[0], shape[1])
@@ -93,7 +105,7 @@ func TestReachOfIsFastOnDenseCompositions(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if took := time.Since(start); took > reachBudget {
+			if took := time.Since(start); took > budget {
 				t.Fatalf("%d modules, %d kinds, seed %d: ReachOf took %v (roles %v)", shape[0], shape[1], seed, took, slices.Sorted(maps.Keys(reach)))
 			}
 		}

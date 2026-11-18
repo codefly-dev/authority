@@ -222,3 +222,142 @@ func TestARefusalThatIsNoDenialIsNoStage(t *testing.T) {
 		Admin: roleplan.RefusedAtBinding, User: roleplan.RefusedAtBinding, None: roleplan.RefusedNoRole})
 	problems(t, roleplan.Plan{Product: product(t, contract), Rows: r}, `"a binding nobody declared": admin-holder is not decided on a role`)
 }
+
+// page is the notebook delivered as a module with a page: the same contract,
+// roles and method table, installed by composition rather than by an
+// administrator's consent.
+func page(t *testing.T, c string) roleplan.Product {
+	t.Helper()
+	p := product(t, c)
+	p.Kind = domain.KindModule
+	return p
+}
+
+// A module with a page proves its plan as a solution does: the authority
+// installed it by composition when it was delivered, and the plan is held on
+// that installation, where admin is allowed, user is refused by the decision
+// the plan names, and a member holding no role is issued nothing.
+func TestAModulePagesPlanHolds(t *testing.T) {
+	roleplan.Assert(t, roleplan.Plan{Product: page(t, contract), Rows: rows()})
+}
+
+// What a module page's plan is held to is what a solution's is: a grant no
+// allowed row uses, a method no row covers, a verdict the authority does not
+// give and a refusal that moved are each a problem.
+func TestAModulePagesPlanIsHeldAsASolutionsIs(t *testing.T) {
+	widened := strings.Replace(contract, `          - resource_kind: notebook.note
+            actions: [read]`, `          - resource_kind: notebook.note
+            actions: [read, write]`, 1)
+	r := slices.DeleteFunc(rows(), func(r roleplan.Row) bool { return r.Name == "the page writes the store" })
+	r[1].User, r[3].User = roleplan.RefusedByPolicy, roleplan.RefusedByPolicy
+	problems(t, roleplan.Plan{Product: page(t, widened), Rows: r},
+		"role user grants notebook.note:write, which no row its holder is allowed uses the way it is granted",
+		`"write a note": user-holder is allowed, the plan says refused by the method policy`)
+
+	p := page(t, contract)
+	p.Methods["DELETE /v1/notebook/notes"] = roleplan.Policy{Requires: []string{"notebook.note:write"}}
+	problems(t, roleplan.Plan{Product: p, Rows: rows()}, "notebook serves DELETE /v1/notebook/notes, which 0 rows of the plan name")
+
+	r = rows()
+	r[1].User, r[0].None = roleplan.Allowed, roleplan.RefusedByPolicy
+	problems(t, roleplan.Plan{Product: page(t, contract), Rows: r},
+		`"write a note": user-holder is refused by the method policy, the plan says allowed: notebook requires notebook.note:write`,
+		`"read notes": no-role is refused: no role, the plan says refused by the method policy`)
+
+	p = page(t, contract)
+	p.Methods["POST /v1/notebook/store/put"] = roleplan.Policy{Requires: []string{"notebook.note:read"}}
+	problems(t, roleplan.Plan{Product: p, Rows: rows()},
+		`"put into the store": user-holder is refused at the binding, the plan says refused by the method policy`)
+}
+
+// carrying is the notebook whose roles also hold reading a note's content, as
+// granted: a permission the notes read carries beyond what it requires
+// (authority.hop.v1.Policy.carries), and the hop requires none of.
+func carrying(t *testing.T, roles ...string) string {
+	t.Helper()
+	c := strings.Replace(contract, `    - resource_kind: notebook.note
+      actions: [read, write]`, `    - resource_kind: notebook.note
+      actions: [read, write, read_content]`, 1)
+	for _, role := range roles {
+		granted := map[string]string{"admin": "[read, write]", "user": "[read]"}[role]
+		before := "    - name: " + role + "\n      scopes:\n          - resource_kind: notebook.note\n            actions: " + granted
+		if !strings.Contains(c, before) {
+			t.Fatalf("the contract does not grant %s %s", role, granted)
+		}
+		c = strings.Replace(c, before, strings.TrimSuffix(before, "]")+", read_content]", 1)
+	}
+	return c
+}
+
+const readContent = "notebook.note:read_content"
+
+// A role's grant that a method carries is used by a row its holder is allowed:
+// the admin reads a note's content through the notes read, which carries it.
+// Read without the method's carries, the same grant is one nothing uses.
+func TestAGrantAMethodCarriesIsUsedByARowItsHolderIsAllowed(t *testing.T) {
+	unused := "role admin grants " + readContent + ", which no row its holder is allowed uses the way it is granted"
+	problems(t, roleplan.Plan{Product: product(t, carrying(t, "admin")), Rows: rows()}, unused)
+
+	p := product(t, carrying(t, "admin"))
+	p.Methods["GET /v1/notebook/notes"] = roleplan.Policy{Requires: []string{"notebook.note:read"}, Carries: []string{readContent}}
+	roleplan.Assert(t, roleplan.Plan{Product: p, Rows: rows()})
+}
+
+// A grant neither required nor carried by a row its holder is allowed is still
+// reported: carried only by a method the plan refuses the holder, carried by
+// no method at all, or carried for another role's holder.
+func TestAGrantNoAllowedRowRequiresOrCarriesIsStillReported(t *testing.T) {
+	// The user is refused the write, so what the write carries is no use of
+	// the user's grant; the admin, allowed it, uses theirs.
+	p := product(t, carrying(t, "admin", "user"))
+	p.Methods["POST /v1/notebook/notes"] = roleplan.Policy{Requires: []string{"notebook.note:write"}, Carries: []string{readContent}}
+	got := roleplan.Problems(roleplan.Plan{Product: p, Rows: rows()})
+	if len(got) != 1 || !strings.Contains(got[0], "role user grants "+readContent+", which no row its holder is allowed uses the way it is granted") {
+		t.Fatalf("want the user's grant alone reported, got %q", got)
+	}
+	// Carried by no method: every holder's grant is reported.
+	problems(t, roleplan.Plan{Product: product(t, carrying(t, "admin", "user")), Rows: rows()},
+		"role admin grants "+readContent, "role user grants "+readContent)
+	// What a method carries uses that permission only: the admin's write is
+	// still required by a row, and a grant of it nothing requires is reported.
+	p = product(t, carrying(t))
+	p.Methods["POST /v1/notebook/notes"] = roleplan.Policy{AnyCheckedCaller: false, Requires: []string{"notebook.note:read"}, Carries: []string{readContent}}
+	p.Methods["POST /v1/notebook/store/put"] = roleplan.Policy{Requires: []string{"notebook.note:read"}}
+	r := rows()
+	r[1].User, r[3].User = roleplan.Allowed, roleplan.Allowed
+	problems(t, roleplan.Plan{Product: p, Rows: r}, "role admin grants notebook.note:write, which no row its holder is allowed uses the way it is granted")
+}
+
+// What a method carries changes no verdict: the hop requires none of it. A
+// holder of nothing carried is let through exactly as before, and holding what
+// a method carries admits no one to what the method requires.
+func TestWhatAMethodCarriesChangesNoVerdict(t *testing.T) {
+	// Every method carries a permission the notebook serves and no role
+	// holds; the plan's verdicts are the ones it had.
+	p := product(t, carrying(t))
+	for method, declared := range p.Methods {
+		if !declared.AnyCheckedCaller {
+			declared.Carries = []string{readContent}
+			p.Methods[method] = declared
+		}
+	}
+	roleplan.Assert(t, roleplan.Plan{Product: p, Rows: rows()})
+
+	// One the notebook does not serve is no declaration to plan against: no
+	// capability at the notebook holds it, and its delivery is refused by
+	// name (delivered.CarriesServed), so the plan is too.
+	p = product(t, contract)
+	p.Methods["GET /v1/notebook/notes"] = roleplan.Policy{Requires: []string{"notebook.note:read"}, Carries: []string{"notebook.note:erase"}}
+	problems(t, roleplan.Plan{Product: p, Rows: rows()}, "GET /v1/notebook/notes carries notebook.note:erase, which notebook does not serve")
+
+	// The user holds what the write carries and not what it requires: still
+	// refused by the method policy, for the permission it requires.
+	p = product(t, carrying(t, "admin", "user"))
+	p.Methods["GET /v1/notebook/notes"] = roleplan.Policy{Requires: []string{"notebook.note:read"}, Carries: []string{readContent}}
+	p.Methods["POST /v1/notebook/notes"] = roleplan.Policy{Requires: []string{"notebook.note:write"}, Carries: []string{readContent}}
+	roleplan.Assert(t, roleplan.Plan{Product: p, Rows: rows()})
+	r := rows()
+	r[1].User = roleplan.Allowed
+	problems(t, roleplan.Plan{Product: p, Rows: r},
+		`"write a note": user-holder is refused by the method policy, the plan says allowed: notebook requires notebook.note:write`)
+}

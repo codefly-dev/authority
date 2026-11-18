@@ -21,12 +21,19 @@ from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+from .admitted import (
+    ADMITTED_KEY, ANY_ACTION, Admission, Grant, Held, Method, Named, Permission, Selection,
+    admission_of, admitted, declaration, encode_grants, grants_held, grants_of,
+)
 from .call import SKEW, Expired, Replayed, ReplayStore, ReservationStore, _proof, admission_keys, check, signed_by
 from authority_client._gen.host.authority.v1.authority_pb2 import KeysRequest
 from authority_client._gen.host.authority.v1.work_context_pb2 import WorkContextV1
 from authority_client.work_context import Claims, Trust, Unauthenticated, Reason, authenticate_token, bound_token, collect
 
-__all__ = ["Identity", "Verifier", "Unauthenticated", "Reason", "identity_of", "ReplayStore", "ReservationStore", "Replayed", "Expired", "NoAdmissionKeys"]
+__all__ = ["Identity", "Verifier", "Unauthenticated", "Reason", "identity_of", "ReplayStore", "ReservationStore", "Replayed", "Expired", "NoAdmissionKeys",
+           "ADMISSION_MAX_AGE", "ADMISSION_STALE",
+           "ADMITTED_KEY", "ANY_ACTION", "Admission", "Grant", "Held", "Method", "Named", "Permission", "Selection",
+           "admission_of", "admitted", "encode_grants", "grants_of"]
 
 WORK_CONTEXT_KEY = "x-codefly-work-context"
 STAMP_PREFIX = "x-codefly-hop-"
@@ -55,6 +62,14 @@ ADVISORY_KEY = STAMP_PREFIX + "advisory"
 # KEY_MAX_AGE.
 KEY_RETRY, KEY_MAX_AGE, KEY_STALE, KEY_TIMEOUT = 10.0, 300.0, 900.0, 5.0
 SIGNER_RETRY = 10.0
+# The hop's admission keys are held to shorter bounds than the Work Context
+# keys, as in Go, because a withdrawn one must stop admitting promptly: a stamp
+# or a readiness poll arriving when they were read more than ADMISSION_MAX_AGE
+# ago starts a re-read (at most every KEY_RETRY) and uses them while it runs,
+# so a key the authority withdrew stops admitting when that read lands; keys
+# the authority has not confirmed for ADMISSION_STALE admit nothing, the call
+# waiting for a read first.
+ADMISSION_MAX_AGE, ADMISSION_STALE = 10.0, 120.0
 
 
 @dataclass(frozen=True)
@@ -76,6 +91,13 @@ class Identity:
     # The refusal the hop allowed in warning mode; diagnostic, grants nothing.
     advisory: str = ""
     claims: Claims | None = field(default=None, compare=False, repr=False)
+    # What the call holds once every actor narrowed it, each grant with its
+    # selection: what the hop stamps as ADMITTED_KEY.
+    grants: tuple[Grant, ...] = ()
+    # What admitted this call on its method, set by the Verifier for a call the
+    # hop stamped an admission on; None when it stamped none. A handler reads
+    # ``admitted(identity)`` instead of naming a permission.
+    admitted: Admission | None = field(default=None, compare=False, repr=False)
 
     def has(self, kind: str, action: str) -> bool:
         """Whether the call may do action on the whole of kind."""
@@ -100,6 +122,7 @@ def identity_of(context) -> Identity:
         binding=context.operation_binding.binding_id,
         task=context.task_id,
         expires=int(context.expires_at_unix),
+        grants=grants_held(context),
     )
 
 
@@ -132,10 +155,16 @@ class Verifier:
     startup; it never fails on an authority that is not serving yet, and refuses
     calls, with the reason, until the keys are read. Without ``replay`` it
     authenticates bare tokens only and admits no call.
+
+    ``declarations`` is what each method the module serves declares, keyed
+    "/package.Service/Method" or, for an HTTP route, "<VERB> <template>": the
+    table ``identity.admitted`` is read over. Without it every method reads as
+    undeclared and selects nothing.
     """
 
     def __init__(self, keys, *, audience: str, replay: ReplayStore | None = None,
-                 now: Callable[[], float] | None = None, timeout: float = KEY_TIMEOUT) -> None:
+                 now: Callable[[], float] | None = None, timeout: float = KEY_TIMEOUT,
+                 declarations: Mapping[str, Method] | None = None) -> None:
         admitting = replay is not None
         if keys is None or not audience:
             raise Unauthenticated(Reason.CONFIGURATION)
@@ -146,6 +175,7 @@ class Verifier:
             raise Unauthenticated(Reason.STORENOTSHARED)
         self._source, self._audience, self._timeout = keys, audience, timeout
         self._replay = replay
+        self._declared = dict(declarations or {})
         self._now = now or time.time
         self._lock = threading.Lock()
         self._trust: Trust | None = None
@@ -160,20 +190,27 @@ class Verifier:
         futures.wait((started,), timeout)
 
     def ready(self) -> bool:
-        """Whether trusted keys are held: true from the first successful read and
-        through failed re-reads inside the 15-minute window; false before any read
-        succeeded or once the keys are stale. Readiness uses this, never
-        ``keys_error``: a brief authority outage must not take a replica out of
-        rotation while its keys are still trusted. It also starts the read a call
+        """Whether the keys this verifier needs are held, as Go's ``Ready`` reports
+        it: true from the first successful read and through failed re-reads inside
+        the 15-minute window; false before any read succeeded or once the keys are
+        stale. A verifier that admits calls (built with ``replay``) also needs a
+        published hop admission key: keys that read but publish none, or a read
+        that sees the last one withdrawn, leave it unready, because every call
+        would be refused. A token-only verifier needs none. Readiness uses this,
+        never ``keys_error``: a brief authority outage must not take a replica out
+        of rotation while its keys are still trusted. It also starts the read a call
         would (keys missing or older than 5 min, or no admission key published, at
         most every 10 s, never waiting), so an unready replica, which gets no calls, recovers, and an idle one never
         goes stale."""
         with self._lock:
             now = self._now()
             unadmitting = self._replay is not None and not self._admission
-            if (self._trust is None or now - self._fetched > KEY_MAX_AGE or unadmitting) and self._inflight is None and now - self._tried >= KEY_RETRY:
+            # An admitting verifier keeps its admission keys no older than
+            # ADMISSION_MAX_AGE, so a withdrawn one is dropped without traffic.
+            aged = self._replay is not None and now - self._fetched > ADMISSION_MAX_AGE
+            if (self._trust is None or now - self._fetched > KEY_MAX_AGE or unadmitting or aged) and self._inflight is None and now - self._tried >= KEY_RETRY:
                 self._refresh()
-            return self._trust is not None and now - self._fetched <= KEY_STALE
+            return self._trust is not None and now - self._fetched <= KEY_STALE and not unadmitting
 
     def verify(self, headers: Mapping[str, str] | Iterable[tuple[str, str]], method: str) -> Identity:
         """Who the call is for, or ``Unauthenticated`` naming why it is refused.
@@ -226,7 +263,7 @@ class Verifier:
     def _admit(self, headers, method):
         arrival, mark = self._now(), time.monotonic()
         pairs = self._pairs(headers)
-        wait = self._admission_read()
+        wait = self._admission_read(pairs)
         if wait is not None:
             futures.wait((wait,), self._timeout)
         key, wait, started = self._signer_key(pairs, reread=True)
@@ -256,7 +293,7 @@ class Verifier:
             wait = self._start(_key_id(token))
             if wait is not None:
                 futures.wait((wait,), self._timeout)
-            return self._finish(pairs, token), finish
+            return self._finish(pairs, token, method), finish
         except BaseException:
             finish()
             raise
@@ -264,7 +301,7 @@ class Verifier:
     async def _admit_async(self, headers, method):
         arrival, mark = self._now(), time.monotonic()
         pairs = self._pairs(headers)
-        wait = self._admission_read()
+        wait = self._admission_read(pairs)
         if wait is not None:
             try:
                 await asyncio.wait_for(asyncio.wrap_future(wait), self._timeout)
@@ -303,7 +340,7 @@ class Verifier:
                     await asyncio.wait_for(asyncio.wrap_future(wait), self._timeout)
                 except asyncio.TimeoutError:
                     pass  # judged below on the keys held: stale ones are refused with the reason
-            return self._finish(pairs, token), finish
+            return self._finish(pairs, token, method), finish
         except BaseException:
             await finish()
             raise
@@ -334,21 +371,29 @@ class Verifier:
             raise Unauthenticated(Reason.CONFIGURATION)
         return list(headers.items() if isinstance(headers, Mapping) else headers)
 
-    def _admission_read(self) -> futures.Future[None] | None:
+    def _admission_read(self, pairs) -> futures.Future[None] | None:
         """The read an admission must wait for, if any. An admission is judged on
-        the keys held: keys past ``KEY_MAX_AGE`` start no read here, and a stamp
-        signed by no key held starts at most one per ``SIGNER_RETRY``
-        (``_signer_key``), so a caller without an admission can neither drive the
-        authority's keys nor delay a genuine call's read. Only
-        when no trusted keys are held at all (never read, or past ``KEY_STALE``),
+        the keys held, and a stamp signed by no key held starts at most one read
+        per ``SIGNER_RETRY`` (``_signer_key``), so a caller without an admission
+        can neither drive the authority's keys nor delay a genuine call's read.
+        When no trusted keys are held at all (never read, or past ``KEY_STALE``),
         or the last read published no admission key (the hop had not registered
-        yet), does it start one, at most every ``KEY_RETRY`` as readiness does."""
+        yet), it starts a read, at most every ``KEY_RETRY`` as readiness does,
+        and the call waits for it. Admission keys read more than
+        ``ADMISSION_MAX_AGE`` ago start one too, for a well-formed admission
+        only, and are used while it runs: a key the authority withdrew stops
+        admitting when that read lands. Past ``ADMISSION_STALE`` they are not
+        used: a well-formed admission waits for the read."""
         with self._lock:
             now = self._now()
-            trusted = self._trust is not None and now - self._fetched <= KEY_STALE and bool(self._admission)
-            if not trusted and self._inflight is None and now - self._tried >= KEY_RETRY:
+            age = now - self._fetched
+            trusted = self._trust is not None and age <= KEY_STALE and bool(self._admission)
+            # Only a well-formed admission starts or waits for a read of keys
+            # that are held: nothing else reaches the key read.
+            aged = trusted and age > ADMISSION_MAX_AGE and _proof(collect(pairs)) is not None
+            if (not trusted or aged) and self._inflight is None and now - self._tried >= KEY_RETRY:
                 self._refresh()
-            return None if trusted else self._inflight
+            return self._inflight if not trusted or (aged and age > ADMISSION_STALE) else None
 
     def _signer_key(self, pairs, *, reread: bool, started: bool = False) -> tuple[str, futures.Future[None] | None, bool]:
         """The published hop admission key the admission is signed by, judged on
@@ -370,8 +415,12 @@ class Verifier:
                     raise Unauthenticated(Reason.INVALIDKEY)
                 raise Unauthenticated(Reason.KEYSUNAVAILABLE)
             published = self._admission
+            # Keys the authority could not confirm for ADMISSION_STALE admit
+            # nothing: one of them may have been withdrawn since.
             if not published:
                 raise Unauthenticated(Reason.KEYSUNAVAILABLE)
+            if self._now() - self._fetched > ADMISSION_STALE:
+                raise Unauthenticated(Reason.KEYSUNAVAILABLE if _proof(collect(pairs)) is not None else Reason.STAMPPROOF)
             key = signed_by(pairs, published)
             if key:
                 return key, None, False
@@ -425,7 +474,7 @@ class Verifier:
         identity = identity_of(claims.context)
         return Identity(**{**identity.__dict__, "context": token, "claims": claims})
 
-    def _finish(self, pairs: list[tuple[str, str]], token: str) -> Identity:
+    def _finish(self, pairs: list[tuple[str, str]], token: str, method: str) -> Identity:
         identity = self._token_identity(token)
         values = collect(pairs)
         stamped = {
@@ -438,9 +487,18 @@ class Verifier:
             got = values.get(key, [])
             if len(got) > 1 or (got[0] if got else "") != want:
                 raise Unauthenticated(Reason.STAMPIDENTITY)
+        # What the call holds is the token's too. A hop older than this key
+        # stamps none, and the module is then handed no admission; one that is
+        # stamped must be exactly what the authenticated claims hold.
+        admission = None
+        stamped = values.get(ADMITTED_KEY, [])
+        if stamped:
+            if len(stamped) != 1 or stamped[0] != encode_grants(identity.grants):
+                raise Unauthenticated(Reason.STAMPIDENTITY)
+            admission = admission_of(declaration(self._declared, method), method, identity.grants)
         # An admission carrying an advisory refusal is refused by ``check``, so
         # an admitted call never has one: diagnostic identity is never authority.
-        return Identity(**{**identity.__dict__, "context": token, "advisory": "", "claims": identity.claims})
+        return Identity(**{**identity.__dict__, "context": token, "advisory": "", "claims": identity.claims, "admitted": admission})
 
     def _refresh(self) -> futures.Future[None]:
         """Start the one read, on its own thread and timeout; the lock is held. The

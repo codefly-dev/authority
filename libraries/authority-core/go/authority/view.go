@@ -120,6 +120,13 @@ func personAs(tx Tx, caller Person) (domain.Person, error) {
 // session's role view. A view that belongs to another person is refused, not
 // ignored: ignoring it would widen.
 func personFor(tx Tx, org, id, session string) (domain.Person, error) {
+	return personUnder(tx, org, id, session, nil)
+}
+
+// personUnder is personFor; casts are the cast sessions being read above this
+// one, so a record that names itself as its own origin is refused, not
+// followed.
+func personUnder(tx Tx, org, id, session string, casts []string) (domain.Person, error) {
 	p, err := tx.Member(org, id)
 	if err != nil || session == "" {
 		// No session, no view: a capability whose root names none (a delegation's)
@@ -145,16 +152,97 @@ func personFor(tx Tx, org, id, session string) (domain.Person, error) {
 	p.Roles = nil
 	// A cast goes further: the session acts as a member of exactly one team,
 	// so the person's own teams and direct grants stop reaching anything
-	// (decide.HeldRoles). Their membership of the team is not required and
-	// not consulted — OpenTeamCast already decided they may be it.
+	// (decide.HeldRoles). What is consulted is the rule the cast was opened
+	// by (a member of the team, or could grant every role it holds), and it
+	// is asked again here, at every read of whoever acts: a cast is a rule
+	// that holds now, never a decision OpenTeamCast took once.
+	if v.Team != "" {
+		if err := castHolds(tx, p, v, casts); err != nil {
+			return domain.Person{}, err
+		}
+	}
 	p.Cast = v.Team
 	return p, nil
+}
+
+// castHolds asks the cast rule of v, a cast or a view opened from one, now:
+// the person behind it, read through the session the cast was opened from
+// (never through the cast, which holds the team's roles and would answer for
+// itself), may still act as the team (teamIsWithin). A cast whose person lost
+// the role that let them grant, or whose team was granted a role they could
+// not grant, is refused by name, whole: at every issuance, every role
+// decision and every check made under it, on every installation. It holds
+// again when the rule does. member is the person as the store holds them.
+//
+// A team that holds nothing any more is within the rule: the cast then holds
+// nothing, and each decision under it says so.
+func castHolds(tx Tx, member domain.Person, v domain.RoleView, casts []string) error {
+	if slices.Contains(casts, v.SessionID) {
+		return domain.Refuse("session %s is cast from itself", v.SessionID)
+	}
+	parent, err := personUnder(tx, member.Organization, member.ID, v.Parent, append(casts, v.SessionID))
+	if err != nil {
+		return err
+	}
+	if parent.Cast != "" {
+		// A view opened from a cast: reading the cast it was opened from
+		// asked the rule already.
+		if parent.Cast != v.Team {
+			return domain.Refuse("session %s acts as team %q from a cast onto team %q", v.SessionID, v.Team, parent.Cast)
+		}
+		return nil
+	}
+	within, _, err := teamIsWithin(tx, Person{ID: member.ID, Organization: member.Organization, SessionID: v.Parent}, parent, member.Organization, v.Team)
+	if err != nil {
+		return err
+	}
+	if !within {
+		return domain.Refuse("this session acts as team %q, which now holds roles you could not grant, so the cast has ended; sign in without it to act as yourself", v.Team)
+	}
+	return nil
+}
+
+// castOfClaims refuses a person's capability that descends from a cast which
+// no longer holds (castHolds), and passes every other: a capability issued in
+// a cast is the cast's, on whichever installation it was issued. It passes
+// only a cast it read as holding: a person the host no longer has is refused
+// as the member they no longer are, and a read that failed is that failure,
+// never a pass.
+func castOfClaims(tx Tx, wc *basev0.WorkContextV1) error {
+	session := rootSession(wc)
+	if wc.GetOwnerPrincipalKind() != "human" || session == "" {
+		return nil
+	}
+	v, err := tx.RoleView(session)
+	if errors.Is(err, domain.ErrNotFound) || (err == nil && v.Team == "") {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if _, err := personOfClaims(tx, wc); err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return ownerGone(err, wc.GetOwnerPrincipalId())
+		}
+		return err
+	}
+	return nil
 }
 
 // personOfClaims is the human a verified capability's owner is, under the
 // role view of the session the capability descends from.
 func personOfClaims(tx Tx, wc *basev0.WorkContextV1) (domain.Person, error) {
 	return personFor(tx, wc.GetTenantId(), wc.GetOwnerPrincipalId(), rootSession(wc))
+}
+
+// ownerGone names why a capability's owner could not be read as the person
+// who acts: a refusal of their session's view or cast (castHolds) in its own
+// words, anything else as the member they no longer are.
+func ownerGone(err error, owner string) error {
+	if c, ok := domain.CodeOf(err); ok && c == domain.Denied {
+		return err
+	}
+	return domain.Refuse("the owner %s is no longer a member", owner)
 }
 
 // rootSession is the session a person's capability descends from: a root

@@ -23,15 +23,18 @@ func TestWithdrawnModuleCannotBeUninstalledByAPerson(t *testing.T) {
 	}
 }
 
-func TestRolelessMemberGetsForeignAnswerFromEveryRoleCall(t *testing.T) {
+// A member holding no role is answered alike by every role call, for an
+// installation of their organization and for an absent one: what is true of
+// them, never that the installation is another organization's.
+func TestRolelessMemberGetsOneTrueAnswerFromEveryRoleCall(t *testing.T) {
 	h := newHarness(t)
 	for _, id := range []string{h.inst(acme, "a").ID, authority.StableInstallationID(acme, "absent")} {
-		r := authority.RoleRequest{Organization: acme, InstallationID: id, Role: "reader", PersonID: "maya"}
+		r := authority.RoleRequest{Organization: acme, InstallationID: id, Role: "user", PersonID: "maya"}
 		_, grant := h.svc.GrantRole(h.ctx, h.person("remi"), r)
 		_, revoke := h.svc.RevokeRole(h.ctx, h.person("remi"), r)
 		_, list := h.svc.ListRoleGrants(h.ctx, h.person("remi"), acme, id)
 		for name, err := range map[string]error{"grant": grant, "revoke": revoke, "list": list} {
-			want := "installation " + id + " belongs to another organization than \"acme\""
+			want := "remi is neither an administrator of acme nor a holder of the admin role on installation " + id
 			if err == nil || err.Error() != want {
 				t.Errorf("%s: got %v, want %s", name, err, want)
 			}
@@ -46,7 +49,7 @@ func TestMissingCallerCannotSelectHostPower(t *testing.T) {
 	if !reflect.DeepEqual(h.inst(acme, "store"), before) {
 		t.Fatal("empty caller retired module")
 	}
-	_, err := h.svc.Install(h.ctx, authority.Person{}, globex, "b", "author", h.admin(globex).ID, h.approval(globex, "b"), nil)
+	_, err := h.svc.Install(h.ctx, authority.Person{}, globex, "b", "admin", h.admin(globex).ID, h.approval(globex, "b"), nil)
 	code(t, err, domain.Denied)
 	if err := h.store.Read(h.ctx, func(tx authority.Tx) error {
 		_, err := tx.Installation(authority.StableInstallationID(globex, "b"))
@@ -61,7 +64,7 @@ func TestMissingCallerCannotSelectHostPower(t *testing.T) {
 	if err := h.svc.UninstallAsHost(h.ctx, acme, before.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.svc.InstallAsHost(h.ctx, globex, "b", "author", h.admin(globex).ID, nil); err != nil {
+	if _, err := h.svc.InstallAsHost(h.ctx, globex, "b", "admin", h.admin(globex).ID, nil); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -125,7 +128,7 @@ func TestLifecycleStoreFailuresAreReturnedWithoutMutation(t *testing.T) {
 			if !reflect.DeepEqual(h.inst(acme, "store"), before) {
 				t.Fatal("outage mutated installation")
 			}
-			_, err = svc.Install(h.ctx, h.admin(globex), globex, "b", "author", h.admin(globex).ID, h.approval(globex, "b"), nil)
+			_, err = svc.Install(h.ctx, h.admin(globex), globex, "b", "admin", h.admin(globex).ID, h.approval(globex, "b"), nil)
 			if !errors.Is(err, outage) {
 				t.Fatalf("install hid outage: %v", err)
 			}

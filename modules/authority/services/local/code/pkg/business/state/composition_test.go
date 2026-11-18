@@ -12,7 +12,7 @@ import (
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
-const head = "schema: codefly.dev/authority/fixture-composition/v1\n"
+const head = "schema: codefly.dev/authority/fixture-composition/v2\n"
 
 // fixtureOnly is a state holding the embedded fixture and one synthetic
 // module, ledger, that the fixture never names.
@@ -38,75 +38,105 @@ func fixtureOnly(t *testing.T) *testkit.Kit {
 	return k
 }
 
-// The embedded fixture grants nothing at a module; a composition grants the
-// fixture's roles exactly what it names.
-func TestCompositionGrantsFixtureRolesWhatItsModuleServes(t *testing.T) {
-	k := fixtureOnly(t)
-	for _, person := range []string{"maya", "remi", "alex", "zoe"} {
-		if held, _ := k.PersonScopes(t, person, "ledger"); len(held) != 0 {
-			t.Fatalf("the fixture alone grants %s %v at ledger", person, held)
+// nobodyHoldsTheLedger requires that no fixture person, the administrators
+// included, holds anything at the ledger on their own session.
+func nobodyHoldsTheLedger(t *testing.T, k *testkit.Kit, when string) {
+	t.Helper()
+	for _, person := range []string{"sarah", "alice", "bob", "carol", "dana", "maya", "remi", "alex", "dev", "zoe"} {
+		held, err := k.PersonScopes(t, person, "ledger")
+		if err == nil || len(held) != 0 || !strings.Contains(err.Error(), "ledger declares no roles") {
+			t.Fatalf("%s: %s holds %v at ledger (%v), want a refusal naming that it declares no roles", when, person, held, err)
 		}
 	}
-	lines, err := k.State.ApplyComposition(context.Background(), []byte(head+`
+}
+
+// No organisation role reaches a module: the embedded fixture grants nothing
+// at one, and no composition can. A document that tries is refused by name
+// and changes nothing; so is the schema that could.
+func TestNoCompositionGrantsAnOrganisationRoleAModulesKinds(t *testing.T) {
+	k := fixtureOnly(t)
+	nobodyHoldsTheLedger(t, k, "the fixture alone")
+	for name, tc := range map[string]struct{ doc, reason string }{
+		"a roles section": {head + `
 roles:
   - organization: acme
-    name: editor
+    name: admin
     scopes:
-      - {kind: ledger.entry, actions: [read, write]}
+      - {kind: ledger.entry, actions: [read, write, approve]}
+`, "a composition grants no organisation role a module's kinds"},
+		"the retired schema": {`schema: codefly.dev/authority/fixture-composition/v1
+roles:
   - organization: acme
     name: admin
     scopes:
       - {kind: ledger.entry, actions: [approve]}
-  - organization: acme
-    name: viewer
-    scopes:
-      - kind: ledger.entry
-        actions: [read]
-        resources: [{prefix: "public-"}]
-`))
-	if err != nil || len(lines) != 3 {
-		t.Fatalf("apply: %v %v", lines, err)
-	}
-	for person, scope := range map[string]*basev0.WorkScopeV1{
-		"remi": testkit.Scope("ledger.entry", "read", "write"),
-		"alex": testkit.Scope("ledger.entry", "approve"),
+`, "fixture-composition/v1 is retired"},
 	} {
-		held, err := k.PersonScopes(t, person, "ledger")
-		if err != nil || !state.Attenuates([]*basev0.WorkScopeV1{scope}, held) {
-			t.Errorf("%s holds %v at ledger (%v), want %v", person, held, err, scope)
-		}
-	}
-	if held, _ := k.PersonScopes(t, "alex", "ledger"); state.Attenuates([]*basev0.WorkScopeV1{testkit.Scope("ledger.entry", "write")}, held) {
-		t.Error("a grant to the editor reached the admin")
-	}
-	if err := k.State.AdmitMethod("ledger", "/ledger/Approve", mustHeld(t, k, "remi")); err == nil {
-		t.Error("the editor was admitted to the admin's method")
-	}
-	// The viewer's grant keeps its prefix: she is issued an id it matches and
-	// refused one it does not, and an ask naming none carries none of it.
-	grants, err := k.ResourceGrants(t, "maya", "ledger", "ledger.entry", "read", "public-1")
-	if err != nil || len(grants) != 1 || grants[0].ID != "public-1" {
-		t.Errorf("the viewer's grant keeps its resources: %v %v", grants, err)
-	}
-	if _, err := k.ResourceGrants(t, "maya", "ledger", "ledger.entry", "read", "private-1"); err == nil || !strings.Contains(err.Error(), "what the owner holds") {
-		t.Errorf("the viewer's grant widened past its prefix: %v", err)
-	}
-	if _, err := k.ResourceGrants(t, "maya", "ledger", "ledger.entry", "read"); err == nil {
-		t.Error("an empty ask carried the viewer's prefix as the whole kind")
-	}
-	// The fixture's own vocabulary stays.
-	if scopes := k.State.RoleScopes("acme", "viewer"); !state.Attenuates([]*basev0.WorkScopeV1{testkit.Scope("console.identity", "read")}, scopes) {
-		t.Errorf("the fixture's console grant was lost: %v", scopes)
+		t.Run(name, func(t *testing.T) {
+			_, err := k.State.ApplyComposition(context.Background(), []byte(tc.doc))
+			if err == nil || !strings.Contains(err.Error(), tc.reason) || !strings.Contains(err.Error(), state.CompositionDocument) {
+				t.Fatalf("got %v, want a refusal naming %q", err, tc.reason)
+			}
+			nobodyHoldsTheLedger(t, k, name)
+		})
 	}
 }
 
-func mustHeld(t *testing.T, k *testkit.Kit, person string) []*basev0.WorkScopeV1 {
-	t.Helper()
-	held, err := k.PersonScopes(t, person, "ledger")
-	if err != nil {
+// A fixture role is a name: one that states what it grants, as the fixture
+// once could, is refused by name.
+func TestAFixtureRoleStatesNoGrant(t *testing.T) {
+	for name, doc := range map[string]string{
+		"scopes":    "organizations: [{id: acme, name: Acme}]\nroles: [{organization: acme, name: viewer, scopes: [{kind: console.identity, actions: [read]}]}]\n",
+		"generated": "organizations: [{id: acme, name: Acme}]\nroles: [{organization: acme, name: developer, generated: true}]\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := testkit.Bare(t).State.LoadFixture(context.Background(), []byte(doc))
+			if err == nil || !strings.Contains(err.Error(), "an organisation role decides administration only") {
+				t.Fatalf("got %v, want the role refused for stating a grant", err)
+			}
+		})
+	}
+}
+
+// A person reaches a module through a role on an installation: a row naming a
+// role-gated target seats its members on that target's role teams, and they
+// hold exactly that role there.
+func TestACompositionSeatsPeopleOnAnInstallationsRoles(t *testing.T) {
+	k := fixtureOnly(t)
+	page := state.Manifest{Name: "ledger-page", Principal: "ledger-page", Kind: "module", Generation: 1, Page: true, InstallationRole: "none",
+		ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope("ledger-page.note", "read", "write")},
+		Roles: map[string][]*basev0.WorkScopeV1{
+			state.AdminRole: {testkit.Scope("ledger-page.note", "read", "write")},
+			state.UserRole:  {testkit.Scope("ledger-page.note", "read")},
+		}}
+	if _, err := k.State.ApplyManifest(page); err != nil {
 		t.Fatal(err)
 	}
-	return held
+	if held, err := k.PersonScopes(t, "maya", "ledger-page"); err == nil || len(held) != 0 {
+		t.Fatalf("before she is seated maya holds %v at the page (%v)", held, err)
+	}
+	if _, err := k.State.ApplyComposition(context.Background(), []byte(head+`
+installations:
+  - organization: acme
+    target: ledger-page
+    owner: alice
+    members: {user: [maya], admin: [remi]}
+`)); err != nil {
+		t.Fatal(err)
+	}
+	for person, want := range map[string]*basev0.WorkScopeV1{
+		"maya": testkit.Scope("ledger-page.note", "read"),
+		"remi": testkit.Scope("ledger-page.note", "read", "write"),
+	} {
+		held, err := k.PersonScopes(t, person, "ledger-page")
+		if err != nil || !state.Attenuates([]*basev0.WorkScopeV1{want}, held) || !state.Attenuates(held, []*basev0.WorkScopeV1{want}) {
+			t.Errorf("%s holds %v at the page (%v), want exactly %v", person, held, err, want)
+		}
+	}
+	// Alex administers acme and was seated nowhere: nothing.
+	if held, err := k.PersonScopes(t, "alex", "ledger-page"); err == nil || len(held) != 0 {
+		t.Fatalf("alex holds %v at the page (%v)", held, err)
+	}
 }
 
 // Installations and stand-in modules take the fixture's own path.
@@ -114,7 +144,7 @@ func TestCompositionInstallsItsSolutionsAndStandsInForModules(t *testing.T) {
 	k := fixtureOnly(t)
 	lines, err := k.State.ApplyComposition(context.Background(), []byte(head+`
 installations:
-  - {organization: acme, target: atlas, role: viewer, owner: alex, teams: [finance]}
+  - {organization: acme, target: atlas, role: user, owner: alex, teams: [finance]}
 modules:
   - module: oracle
     kinds: [{kind: oracle.answers, actions: [read]}]
@@ -127,53 +157,29 @@ modules:
 	}
 }
 
-// A composition grants concrete permissions to roles the fixture defines, and
-// a refused document changes nothing.
+// A refused document changes nothing.
 func TestCompositionRefusesByName(t *testing.T) {
-	// A valid entry prepended to every roles case below, so a refused later
-	// entry cannot leave it applied. Its kind differs from the cases' own:
-	// one document states each (organisation, role, kind) once, so reusing
-	// ledger.entry here would make every case a duplicate and hide what it
-	// is actually testing.
-	valid := `{organization: acme, name: editor, scopes: [{kind: ledger.audit, actions: [read]}]}`
 	for name, tc := range map[string]struct{ doc, reason string }{
 		"empty":             {"", "the document is empty"},
 		"null":              {"null", "not a mapping"},
 		"empty mapping":     {"{}", "schema is \"\""},
-		"no schema":         {`{roles: [` + valid + `]}`, "schema is \"\""},
-		"other schema":      {"schema: codefly.dev/authority/fixture-composition/v2\n", "this authority reads"},
-		"null roles":        {head + "roles: null\n", "roles is null"},
+		"other schema":      {"schema: codefly.dev/authority/fixture-composition/v3\n", "this authority reads"},
 		"null installs":     {head + "installations:\n", "installations is null"},
 		"misspelt":          {head + "grants: []\n", "field grants not found"},
-		"unknown role":      {head + `roles: [{organization: acme, name: auditor, scopes: [{kind: ledger.entry, actions: [read]}]}]`, "acme/auditor is not a role the fixture defines"},
-		"other org":         {head + `roles: [{organization: initech, name: admin, scopes: [{kind: ledger.entry, actions: [read]}]}]`, "initech/admin is not a role"},
-		"developer":         {head + `roles: [{organization: acme, name: developer, scopes: [{kind: ledger.entry, actions: [read]}]}]`, "derived from the delivered catalog"},
-		"no scope":          {head + `roles: [{organization: acme, name: editor}]`, "acme/editor names no scope"},
-		"no action":         {head + `roles: [{organization: acme, name: editor, scopes: [{kind: ledger.entry}]}]`, "names no action"},
-		"wildcard kind":     {head + `roles: [{organization: acme, name: viewer, scopes: [{kind: "*", actions: [read]}]}]`, "wildcard kind"},
-		"wildcard action":   {head + `roles: [{organization: acme, name: viewer, scopes: [{kind: ledger.entry, actions: ["*"]}]}]`, "wildcard action"},
-		"padded kind":       {head + `roles: [{organization: acme, name: editor, scopes: [{kind: " ledger.entry", actions: [read]}]}]`, "is not a kind"},
-		"padded action":     {head + `roles: [{organization: acme, name: editor, scopes: [{kind: ledger.entry, actions: [" read"]}]}]`, "is not an action"},
-		"bad resource":      {head + `roles: [{organization: acme, name: editor, scopes: [{kind: ledger.entry, actions: [read], resources: [{}]}]}]`, "acme/editor scope ledger.entry"},
-		"stranger owner":    {head + `installations: [{organization: acme, target: atlas, role: viewer, owner: zoe}]`, "not a person of acme"},
-		"no target":         {head + `installations: [{organization: acme, role: viewer, owner: alex}]`, "names no target"},
+		"stranger owner":    {head + `installations: [{organization: acme, target: atlas, role: user, owner: zoe}]`, "not a person of acme"},
+		"no target":         {head + `installations: [{organization: acme, role: user, owner: alex}]`, "names no target"},
 		"wildcard stand-in": {head + `modules: [{module: oracle, kinds: [{kind: oracle.answers, actions: ["*"]}]}]`, "wildcard action"},
+		"padded kind":       {head + `modules: [{module: oracle, kinds: [{kind: " oracle.answers", actions: [read]}]}]`, "is not a kind"},
+		"no action":         {head + `modules: [{module: oracle, kinds: [{kind: oracle.answers}]}]`, "names no action"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			k := fixtureOnly(t)
-			before := k.State.RoleScopes("acme", "editor")
-			doc := tc.doc
-			// A valid first entry must not survive a refused later one.
-			if strings.HasPrefix(doc, head+"roles: [") {
-				doc = strings.Replace(doc, "roles: [", "roles: ["+valid+", ", 1)
-			}
-			_, err := k.State.ApplyComposition(context.Background(), []byte(doc))
+			_, err := k.State.ApplyComposition(context.Background(), []byte(tc.doc))
 			if err == nil || !strings.Contains(err.Error(), tc.reason) || !strings.Contains(err.Error(), state.CompositionDocument) {
 				t.Fatalf("got %v, want a refusal naming %q", err, tc.reason)
 			}
-			after := k.State.RoleScopes("acme", "editor")
-			if !state.Attenuates(before, after) || !state.Attenuates(after, before) {
-				t.Fatalf("a refused document changed the editor: %v → %v", before, after)
+			if _, composed := k.State.Module("oracle"); composed {
+				t.Fatal("a refused document composed its stand-in module")
 			}
 		})
 	}
@@ -188,40 +194,5 @@ func TestTheShippedDefaultAddsNothing(t *testing.T) {
 	}
 	if lines, err := k.State.ApplyComposition(context.Background(), data); err != nil || len(lines) != 0 {
 		t.Fatalf("%v %v", lines, err)
-	}
-}
-
-// A document the fixture validates but that fails while being APPLIED leaves
-// every role as it was: the applying step that can fail runs before the one
-// that cannot.
-//
-// The document has to fail INSIDE LoadFixture to exercise that, which is the
-// whole point of the ordering. A refused installation does not: an owner the
-// fixture does not define is caught by checkComposedSetup, pure validation
-// that runs before either applying step in both orderings, so such a document
-// never reaches the code the ordering moves. A stand-in module named after a
-// fixture person does: checkComposedSetup only checks its kinds and logs a
-// line, and the core refuses it when the manifest is applied ("names a
-// person; a module's principal is its own"). With the role writes first, that
-// left the editor holding the grant from a document that was refused.
-func TestADocumentRefusedWhileApplyingLeavesTheRolesAlone(t *testing.T) {
-	k := fixtureOnly(t)
-	before := k.State.RoleScopes("acme", "editor")
-	lines, err := k.State.ApplyComposition(context.Background(), []byte(head+`
-roles:
-  - organization: acme
-    name: editor
-    scopes:
-      - {kind: ledger.entry, actions: [approve]}
-modules:
-  - module: maya
-    kinds: [{kind: maya.things, actions: [read]}]
-`))
-	if err == nil || !strings.Contains(err.Error(), "names a person") {
-		t.Fatalf("got %v (%v), want the stand-in module refused while applying", err, lines)
-	}
-	after := k.State.RoleScopes("acme", "editor")
-	if !state.Attenuates(before, after) || !state.Attenuates(after, before) {
-		t.Fatalf("a refused document granted the editor anyway: %v → %v", before, after)
 	}
 }

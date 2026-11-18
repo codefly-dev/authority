@@ -18,6 +18,7 @@ func TestRestrictedCapabilityPassesMethodWithoutWidening(t *testing.T) {
 	if _, err := k.State.ApplyManifest(m); err != nil {
 		t.Fatal(err)
 	}
+	k.Approve(t, "records")
 	token := issued(t, k, "fixture-remi", []*authorityv1.WorkScopeV1{{ResourceKind: "records.collection", Actions: []string{"read"}, ResourceIds: []string{"one"}}})
 	ctx := context.Background()
 	if _, err := k.Issuer.Check(ctx, token, "records", method); err != nil {

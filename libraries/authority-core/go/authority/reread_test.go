@@ -83,7 +83,7 @@ func TestARereadOfTheHeldGenerationWidensNothingUntilTheUpgradeIsApproved(t *tes
 
 	// The administrator approves the re-read at the same generation: both
 	// readings stay kept, each for the consent that approved it.
-	if _, err := svc.Install(h.ctx, h.admin(acme), acme, "a", "author", "remi", h.approval(acme, "a"), nil); err != nil {
+	if _, err := svc.Install(h.ctx, h.admin(acme), acme, "a", "admin", "remi", h.approval(acme, "a"), nil); err != nil {
 		t.Fatalf("the re-read's upgrade is not approved: %v", err)
 	}
 	if err := writes(); err != nil {
@@ -120,7 +120,7 @@ func TestARereadFromAnotherDeliveryOrOfAGenerationNotHeldIsRefused(t *testing.T)
 	// From then on, the generation is held from that delivery: another one,
 	// read as another declaration, is a new generation on either path.
 	other := readWithThrough("sha256:another-delivery-at-1")
-	other.Roles["reader"] = other.Roles["reader"][:1]
+	other.Roles["user"] = other.Roles["user"][:1]
 	for name, apply := range map[string]func(domain.Module) error{
 		"re-read":  func(m domain.Module) error { _, err := h.svc.RereadModule(h.ctx, m); return err },
 		"delivery": func(m domain.Module) error { _, err := h.svc.ApplyModule(h.ctx, m); return err },
@@ -138,7 +138,7 @@ func TestARereadFromAnotherDeliveryOrOfAGenerationNotHeldIsRefused(t *testing.T)
 
 func TestARereadReadingTheSameRecordsItsSourceAndANarrowingAppliesAtOnce(t *testing.T) {
 	h := newHarness(t)
-	h.grant("a", "reader", "maya")
+	h.grant("a", "user", "maya")
 	same := solution("a", true)
 	same.Source = deliveryOfA
 	if reread, err := h.svc.RereadModule(h.ctx, same); err != nil || reread {
@@ -151,7 +151,7 @@ func TestARereadReadingTheSameRecordsItsSourceAndANarrowingAppliesAtOnce(t *test
 	revision := h.stored(acme, "a").Revision
 
 	narrower := solution("a", true)
-	narrower.Roles["reader"] = narrower.Roles["reader"][:2] // the legacy kind was never the reader's
+	narrower.Roles["user"] = narrower.Roles["user"][:2] // the legacy kind was never the user's
 	narrower.Source = deliveryOfA
 	if reread, err := h.svc.RereadModule(h.ctx, narrower); err != nil || !reread {
 		t.Fatalf("a narrowing re-read: reread %t, %v", reread, err)
@@ -167,10 +167,10 @@ func TestARereadReadingTheSameRecordsItsSourceAndANarrowingAppliesAtOnce(t *test
 		t.Fatal("what was issued under the wider reading still checks")
 	}
 	if _, err := h.root("maya", "a", sc(legacyKind, "read")); err == nil {
-		t.Fatal("the reader still holds what the narrowing re-read dropped")
+		t.Fatal("the user still holds what the narrowing re-read dropped")
 	}
 	if _, err := h.root("maya", "a"); err != nil {
-		t.Fatalf("the reader's grant ended with the narrowing: %v", err)
+		t.Fatalf("the user's grant ended with the narrowing: %v", err)
 	}
 	_ = errors.New
 	_ = authority.OfferDigest
@@ -187,21 +187,21 @@ func TestAModulePageReadAgainWiderHoldsItsHoldersAtItsReceipt(t *testing.T) {
 		t.Fatal(err)
 	}
 	inst := h.pagesAt(acme)
-	if _, err := svc.GrantRole(h.ctx, h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: "reader", PersonID: "maya"}); err != nil {
+	if _, err := svc.GrantRole(h.ctx, h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: inst.ID, Role: "user", PersonID: "maya"}); err != nil {
 		t.Fatal(err)
 	}
 	wider := pageModule(1, true)
-	wider.Roles["reader"] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}
+	wider.Roles["user"] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}
 	wider.Source = "sha256:the-signed-documents-of-pages-at-1"
 	if reread, err := svc.RereadModule(h.ctx, wider); err != nil || !reread {
 		t.Fatalf("the page read again: reread %t, %v", reread, err)
 	}
 	write := authority.IssueRequest{Audience: "pages", Scopes: []*basev0.WorkScopeV1{sc("pages.note", "write")}}
 	if _, err := svc.IssueForPerson(h.ctx, h.person("maya"), write); err == nil {
-		t.Fatal("a reader granted read holds write after the page was read again wider")
+		t.Fatal("a user granted read holds write after the page was read again wider")
 	}
 	if _, err := svc.IssueForPerson(h.ctx, h.person("maya"), authority.IssueRequest{Audience: "pages", Scopes: []*basev0.WorkScopeV1{sc("pages.note", "read")}}); err != nil {
-		t.Fatalf("the reader's grant no longer answers at its receipt: %v", err)
+		t.Fatalf("the user's grant no longer answers at its receipt: %v", err)
 	}
 	if up, err := svc.UpgradeAvailable(h.ctx, h.pagesAt(acme)); err != nil || !up {
 		t.Fatalf("the page offers no upgrade: %t, %v", up, err)

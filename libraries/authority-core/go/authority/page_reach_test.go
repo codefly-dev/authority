@@ -13,13 +13,13 @@ import (
 )
 
 // pageReachingStore is the module page at generation with a binding to the
-// store carrying read and write, its reader naming the store's kind with
+// store carrying read and write, its user naming the store's kind with
 // readerAtStore and its admin role reading it.
 func pageReachingStore(generation uint64, readerAtStore ...string) domain.Module {
 	m := pageModule(generation, true)
 	m.Bindings = map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write")}}}
 	m.Roles[domain.AdminRole] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(kind, "read")}
-	m.Roles["reader"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, readerAtStore...)}
+	m.Roles["user"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, readerAtStore...)}
 	return m
 }
 
@@ -46,7 +46,7 @@ func lastEventOn(events []domain.Event, kind domain.EventKind, subject string) (
 }
 
 func readerGranted(grants []domain.RoleGrant, person string) bool {
-	return slices.ContainsFunc(grants, func(g domain.RoleGrant) bool { return g.Role == "reader" && g.PersonID == person })
+	return slices.ContainsFunc(grants, func(g domain.RoleGrant) bool { return g.Role == "user" && g.PersonID == person })
 }
 
 // A module page's installation is held at an approved reach exactly as a
@@ -55,7 +55,7 @@ func readerGranted(grants []domain.RoleGrant, person string) bool {
 // widens one. The holders keep the reach approved (generation 7's), the
 // installation offers an upgrade (installation.upgrade_available), and the
 // upgrade is approved through Review and Install by an administrator or by a
-// holder of the page's admin role; a reader cannot approve it, and a
+// holder of the page's admin role; a user cannot approve it, and a
 // later delivery that widens further still holds at 7. Once approved, the
 // wider reach is issued and the grants are the same grants. A narrowing
 // re-converges by itself and keeps every grant.
@@ -65,12 +65,12 @@ func TestADeliveryWideningAPageRolesReachHoldsItsInstallationAtTheApprovedReach(
 	if _, err := svc.ApplyModule(h.ctx, pageReachingStore(7, "read")); err != nil {
 		t.Fatal(err)
 	}
-	h.grant("pages", "reader", "maya")
+	h.grant("pages", "user", "maya")
 	h.grant("pages", domain.AdminRole, "remi")
 	exactly(t, h.must(h.through("maya", "pages", "store")), kind, h.principal(acme, "pages"), []string{"read"})
 	before := h.pagesAt(acme)
 
-	// Generation 8 widens the reader to write at the store: the incident.
+	// Generation 8 widens the user to write at the store: the incident.
 	if _, err := svc.ApplyModule(h.ctx, pageReachingStore(8, "read", "write")); err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func TestADeliveryWideningAPageRolesReachHoldsItsInstallationAtTheApprovedReach(
 	}
 	e, ok := lastEventOn(*events, domain.InstallationUpgradeAvailable, held.ID)
 	if !ok || e.Detail["approved_generation"] != "7" || e.Detail["generation"] != "8" ||
-		!strings.Contains(e.Detail["widened"], "role reader reaches further") || !strings.Contains(e.Detail["widened"], "further at pages > store") {
+		!strings.Contains(e.Detail["widened"], "role user reaches further") || !strings.Contains(e.Detail["widened"], "further at pages > store") {
 		t.Fatalf("installation.upgrade_available: %+v %v", e, ok)
 	}
 	if e, ok := lastEvent(*events, domain.RoleRevoked); ok {
@@ -100,9 +100,9 @@ func TestADeliveryWideningAPageRolesReachHoldsItsInstallationAtTheApprovedReach(
 		t.Fatalf("the holder's review: %v, %+v", err, offer.Installation)
 	}
 
-	// A reader approves nothing; a further widening still holds at 7.
+	// A user approves nothing; a further widening still holds at 7.
 	_, err = h.approvePage(svc, "maya")
-	refused(t, err, "requires an administrator or owner")
+	refused(t, err, "requires an administrator")
 	nine := pageReachingStore(9, "read", "write")
 	nine.Roles[domain.AdminRole] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(kind, "read", "write")}
 	if _, err := svc.ApplyModule(h.ctx, nine); err != nil {
@@ -182,7 +182,7 @@ func TestAPageInstallationRecordedByItsHostIsHeldAtTheReachItHad(t *testing.T) {
 	if err := h.store.Write(h.ctx, func(tx authority.Tx) error { return tx.PutInstallation(inst) }); err != nil {
 		t.Fatal(err)
 	}
-	h.grant("pages", "reader", "maya")
+	h.grant("pages", "user", "maya")
 	if err := svc.AdoptLegacyReach(h.ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +194,7 @@ func TestAPageInstallationRecordedByItsHostIsHeldAtTheReachItHad(t *testing.T) {
 	}
 	exactly(t, h.must(h.through("maya", "pages", "store")), kind, h.principal(acme, "pages"), []string{"read"})
 	if !readerGranted(h.roleGrants("pages"), "maya") {
-		t.Fatal("the widening ended the reader's grant")
+		t.Fatal("the widening ended the user's grant")
 	}
 	if up, err := svc.UpgradeAvailable(h.ctx, h.pagesAt(acme)); err != nil || !up {
 		t.Fatalf("no upgrade offered: %v %v", up, err)
@@ -213,13 +213,13 @@ func records(generation uint64) domain.Module {
 }
 
 // pageReachingRecords is the module page with a binding "records-rows" to
-// records carrying read and write, its reader reading there and its
+// records carrying read and write, its user reading there and its
 // admin reading and writing.
 func pageReachingRecords(generation uint64) domain.Module {
 	m := pageModule(generation, true)
 	m.Bindings = map[string]domain.Binding{"records-rows": {ID: "records-rows", Audience: "records", InvokeScopes: []*basev0.WorkScopeV1{sc(recordsKind, "read", "write")}}}
 	m.Roles[domain.AdminRole] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(recordsKind, "read", "write")}
-	m.Roles["reader"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(recordsKind, "read")}
+	m.Roles["user"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(recordsKind, "read")}
 	return m
 }
 
@@ -234,7 +234,7 @@ func TestAPageComposedBeforeAModuleItReachesHoldsItOnceComposed(t *testing.T) {
 	if _, err := svc.ApplyModule(h.ctx, pageReachingRecords(1)); err != nil {
 		t.Fatal(err)
 	}
-	h.grant("pages", "reader", "maya")
+	h.grant("pages", "user", "maya")
 	h.grant("pages", domain.AdminRole, "remi")
 	if _, err := h.through("maya", "pages", "records-rows"); err == nil || !strings.Contains(err.Error(), "records") {
 		t.Fatalf("a module not composed is reached: %v", err)
@@ -261,8 +261,8 @@ func TestAPageComposedBeforeAModuleItReachesHoldsItOnceComposed(t *testing.T) {
 	if got := h.pagesAt(acme); got.Consent.Generation != 2 || got.Consent.ReachDigest != held.Consent.ReachDigest {
 		t.Fatalf("a redelivery reaching the same re-converged to %+v, was %+v", got, held)
 	}
-	// A redelivery of records that widens what the reader reaches is a
-	// declaration changing: it offers the upgrade and holds the reader.
+	// A redelivery of records that widens what the user reaches is a
+	// declaration changing: it offers the upgrade and holds the user.
 	wider := records(2)
 	wider.Methods = map[string]domain.MethodPolicy{"/records.v1.Rows/List": {AnyCheckedCaller: true}}
 	if _, err := svc.ApplyModule(h.ctx, wider); err != nil {
@@ -292,7 +292,7 @@ func TestAPageInstallationRecordedByItsHostHoldsAModuleComposedLater(t *testing.
 	if err := h.store.Write(h.ctx, func(tx authority.Tx) error { return tx.PutInstallation(inst) }); err != nil {
 		t.Fatal(err)
 	}
-	h.grant("pages", "reader", "maya")
+	h.grant("pages", "user", "maya")
 	if err := svc.AdoptLegacyReach(h.ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -315,12 +315,12 @@ func TestAModuleComposedForTheFirstTimeApprovesNoUpgradePending(t *testing.T) {
 	svc, _ := journaled(h)
 	page := pageReachingRecords(1)
 	page.Bindings["tally-rows"] = domain.Binding{ID: "tally-rows", Audience: "tally", InvokeScopes: []*basev0.WorkScopeV1{sc("tally.row", "read")}}
-	page.Roles["reader"] = append(page.Roles["reader"], sc("tally.row", "read"))
+	page.Roles["user"] = append(page.Roles["user"], sc("tally.row", "read"))
 	page.Roles[domain.AdminRole] = append(page.Roles[domain.AdminRole], sc("tally.row", "read"))
 	if _, err := svc.ApplyModule(h.ctx, page); err != nil {
 		t.Fatal(err)
 	}
-	h.grant("pages", "reader", "maya")
+	h.grant("pages", "user", "maya")
 	h.grant("pages", domain.AdminRole, "remi")
 	if _, err := svc.ApplyModule(h.ctx, records(1)); err != nil {
 		t.Fatal(err)
@@ -361,7 +361,7 @@ func TestAModuleWithdrawnAndDeliveredWiderOffersThePageAnUpgrade(t *testing.T) {
 	if _, err := svc.ApplyModule(h.ctx, pageReachingRecords(1)); err != nil {
 		t.Fatal(err)
 	}
-	h.grant("pages", "reader", "maya")
+	h.grant("pages", "user", "maya")
 	if _, err := svc.ApplyModule(h.ctx, records(1)); err != nil {
 		t.Fatal(err)
 	}
@@ -409,7 +409,7 @@ func TestAStandInReplacedByItsDeliveryHoldsThePageAtTheDeliveredModule(t *testin
 	if _, err := svc.ApplyModule(h.ctx, pageReachingRecords(1)); err != nil {
 		t.Fatal(err)
 	}
-	h.grant("pages", "reader", "maya")
+	h.grant("pages", "user", "maya")
 	delivered := records(1)
 	delivered.Methods = map[string]domain.MethodPolicy{"/records.v1.Rows/List": {Requires: []*basev0.WorkScopeV1{sc(recordsKind, "read")}}}
 	if _, err := svc.ApplyModule(h.ctx, delivered); err != nil {
@@ -428,7 +428,7 @@ func TestAStandInReplacedByItsDeliveryHoldsThePageAtTheDeliveredModule(t *testin
 	exactly(t, h.must(h.through("maya", "pages", "records-rows")), recordsKind, "", []string{"read"})
 }
 
-// A session cast onto a team that holds the page's reader role holds, at the
+// A session cast onto a team that holds the page's user role holds, at the
 // page's binding, the team's reach and nothing of the person's own, in
 // either delivery order: nora holds no role herself and is the team's
 // member; alex administers acme and is not. Each hop to records reads, and a
@@ -449,13 +449,13 @@ func TestACastOntoAPageReaderTeamReachesThePagesBindingInEitherOrder(t *testing.
 				t.Fatal(err)
 			}
 		}
-		h.store.PutTeam(acme, "pages-reader")
-		h.store.PutPerson(domain.Person{ID: "nora", Organization: acme, Teams: []string{"pages-reader"}})
-		h.grantTeam("pages", "reader", "pages-reader")
+		h.store.PutTeam(acme, "pages-user")
+		h.store.PutPerson(domain.Person{ID: "nora", Organization: acme, Teams: []string{"pages-user"}})
+		h.grantTeam("pages", "user", "pages-user")
 		for _, who := range []string{"nora", "alex"} {
-			cast, err := h.casting(who, "pages-reader")
+			cast, err := h.casting(who, "pages-user")
 			if err != nil {
-				t.Fatalf("page first %v: %s casts onto pages-reader: %v", pageFirst, who, err)
+				t.Fatalf("page first %v: %s casts onto pages-user: %v", pageFirst, who, err)
 			}
 			root := h.must(h.rootAs(cast, "pages"))
 			hop := authority.Workload{Module: "pages"}

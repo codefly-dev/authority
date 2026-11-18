@@ -12,8 +12,8 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
 	delivery "github.com/codefly-dev/authority/libraries/delivery/go"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
-	"github.com/codefly-dev/core/solutionhost"
 )
 
 func ws(kind string, actions ...string) *basev0.WorkScopeV1 {

@@ -1,6 +1,7 @@
 package authority
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"time"
@@ -92,7 +93,15 @@ func (s *Service) DelegateToClient(ctx context.Context, who Person, clientID, au
 // refresh redemption, not by possession of a public client ID. No module's
 // credential, principal, binding or installation is borrowed for this actor.
 func (s *Service) IssueForClientDelegation(ctx context.Context, id, clientID, resource string, r IssueRequest) (Issued, error) {
+	told := Decision{Kind: DecisionIssueClientDelegation, Actor: clientID, Audience: r.Audience, Binding: r.Binding, Operation: r.Operation, Delegation: id}
+	out, err := s.issueForClientDelegation(ctx, id, clientID, resource, r, &told)
+	return s.issued(ctx, &told, out, err)
+}
+
+func (s *Service) issueForClientDelegation(ctx context.Context, id, clientID, resource string, r IssueRequest, seen *Decision) (Issued, error) {
 	var d domain.Delegation
+	// What a refusal still says: whose delegation it is, and where.
+	defer func() { seen.resolved(d.Organization, d.Grantor, cmp.Or(r.Audience, d.Audience)) }()
 	var audience domain.Module
 	var scopes Scopes
 	var inst domain.Installation

@@ -33,9 +33,9 @@ func TestAnOutsiderCannotTellInstalledFromAbsent(t *testing.T) {
 	for _, id := range []string{present, absent} {
 		_, err := h.svc.ListRoleGrants(h.ctx, zoe, acme, id)
 		answer(err, id)
-		_, err = h.svc.GrantRole(h.ctx, zoe, authority.RoleRequest{Organization: acme, InstallationID: id, Role: "reader", PersonID: "dev"})
+		_, err = h.svc.GrantRole(h.ctx, zoe, authority.RoleRequest{Organization: acme, InstallationID: id, Role: "user", PersonID: "dev"})
 		answer(err, id)
-		_, err = h.svc.RevokeRole(h.ctx, zoe, authority.RoleRequest{Organization: acme, InstallationID: id, Role: "reader", PersonID: "dev"})
+		_, err = h.svc.RevokeRole(h.ctx, zoe, authority.RoleRequest{Organization: acme, InstallationID: id, Role: "user", PersonID: "dev"})
 		answer(err, id)
 	}
 }
@@ -193,12 +193,12 @@ func TestAFailedInstallStepCanBeRetried(t *testing.T) {
 	admin := h.admin(globex)
 	down := func(context.Context, domain.Installation) error { return errors.New("step down") }
 	approval := h.approval(globex, "b")
-	if _, err := h.svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, approval, down); err == nil {
+	if _, err := h.svc.Install(h.ctx, admin, globex, "b", "admin", admin.ID, approval, down); err == nil {
 		t.Fatal("a failing step installed")
 	}
-	_, err := h.svc.Install(h.ctx, admin, globex, "b", "reader", admin.ID, approval, nil)
+	_, err := h.svc.Install(h.ctx, admin, globex, "b", "user", admin.ID, approval, nil)
 	refused(t, err, "INSTALLATION_APPROVAL_OPERATION_CONFLICT")
-	inst, err := h.svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, approval, nil)
+	inst, err := h.svc.Install(h.ctx, admin, globex, "b", "admin", admin.ID, approval, nil)
 	if err != nil || inst.Status != domain.Active {
 		t.Fatalf("the retry: %+v %v", inst, err)
 	}
@@ -217,7 +217,7 @@ func TestAnInstallPrincipalIsItsOwn(t *testing.T) {
 				t.Fatal(err)
 			}
 			admin := h.admin(globex)
-			_, err = svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, h.approval(globex, "b"), nil)
+			_, err = svc.Install(h.ctx, admin, globex, "b", "admin", admin.ID, h.approval(globex, "b"), nil)
 			code(t, err, domain.Denied)
 		})
 	}

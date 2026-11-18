@@ -20,8 +20,8 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
 	delivery "github.com/codefly-dev/authority/libraries/delivery/go"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
-	"github.com/codefly-dev/core/solutionhost"
 )
 
 // Scopes is a scope list.
@@ -50,6 +50,11 @@ type Method struct {
 	Method           string
 	Requires         Scopes
 	AnyCheckedCaller bool
+	// Carries is what a call may exercise beyond what the method requires
+	// (authority.hop.v1.Policy.carries). No decision of the authority reads
+	// it and no module keeps it: a delivery is held to it here (carried), and
+	// the hop reads it from the module's published contract.
+	Carries Scopes
 }
 
 // Role is one of a solution's or a module page's roles: its scopes, and those
@@ -136,6 +141,9 @@ func Module(manifest *solutionhost.ModuleManifest, doc *Document) (domain.Module
 	if m, err = Ceiled(m, doc.ScopeCeilings); err != nil {
 		return m, err
 	}
+	if err = CarriesServed(m.Name, m.ResourceKinds, doc.Methods); err != nil {
+		return m, err
+	}
 	if m.Roles, m.OwnedRoles, m.Through, err = roles(doc.Roles); err != nil {
 		return m, err
 	}
@@ -188,6 +196,44 @@ func methods(in []Method) (map[string]domain.MethodPolicy, error) {
 		out[method.Method] = domain.MethodPolicy{Requires: method.Requires, AnyCheckedCaller: method.AnyCheckedCaller}
 	}
 	return out, nil
+}
+
+// CarriesServed refuses, by name, a method carrying what the module does not
+// serve: a permission outside served, the module's own kinds at their
+// ceilings. A capability at the module holds nothing beyond them (issuance
+// cuts what its owner holds to the audience's kinds), so such a permission
+// reaches no handler whatever a role grants, and nothing refuses the call:
+// the hop requires none of what a method carries, and the handler reads that
+// nothing was carried. What a method carries names whole kinds, as what it
+// requires does, and stands beside requirements, never beside
+// any_checked_caller, which the hop refuses on every call.
+func CarriesServed(module string, served Scopes, methods []Method) error {
+	for _, method := range methods {
+		var unserved []string
+		for _, sc := range method.Carries {
+			if len(sc.GetResourceIds()) > 0 || sc.GetResourceOwnerId() != "" {
+				return domain.Refuse("%s: %s: what a method carries names whole resource kinds; resource ids and owners are not supported", module, method.Method)
+			}
+			if len(sc.GetActions()) == 0 {
+				return domain.Refuse("%s: %s carries %s with no action", module, method.Method, sc.GetResourceKind())
+			}
+			for _, action := range sc.GetActions() {
+				permission := sc.GetResourceKind() + ":" + action
+				if method.AnyCheckedCaller {
+					return domain.Refuse("%s: %s carries %s beside any_checked_caller; a method carries only beside what it requires", module, method.Method, permission)
+				}
+				if !scope.Attenuates(Scopes{{ResourceKind: sc.GetResourceKind(), Actions: []string{action}}}, served) && !slices.Contains(unserved, permission) {
+					unserved = append(unserved, permission)
+				}
+			}
+		}
+		if len(unserved) > 0 {
+			slices.Sort(unserved)
+			return domain.Refuse("%s: %s carries %s, which %s does not serve: no capability at %s holds it, so no call would ever carry it; list it in the module's scope ceilings, or carry it no more",
+				module, method.Method, strings.Join(unserved, ", "), module, module)
+		}
+	}
+	return nil
 }
 
 // roles reads the roles a solution or a module page declares, by name, the

@@ -55,12 +55,15 @@ func TestANarrowingBetweenDecisionAndMintIsNeverHandedOut(t *testing.T) {
 				t.Fatal(err)
 			}
 			mem.PutOrganization(domain.Organization{ID: acme, Name: acme})
-			mem.PutOrgRole(domain.OrgRole{Organization: acme, Name: "reader", Scopes: []domain.RoleScope{{Kind: legacyKind, Actions: []string{"read", "write"}}, {Kind: kind, Actions: []string{"read"}}}})
-			mem.PutPerson(domain.Person{ID: "alex", Organization: acme, Roles: []string{"reader"}})
+			mem.PutPerson(domain.Person{ID: "alex", Organization: acme, Roles: []string{"admin"}})
 			relayScopes := []*basev0.WorkScopeV1{sc(legacyKind, "read", "write")}
 			for _, m := range []domain.Module{
 				{Name: "relay", Principal: "relay", Kind: domain.KindModule, Generation: 1, ResourceKinds: relayScopes},
+				// The store is a module page declaring roles: alex reaches the
+				// relay through it as its user.
 				{Name: "store", Principal: "store", Kind: domain.KindModule, Generation: 1, ResourceKinds: []*basev0.WorkScopeV1{sc(kind, "read")},
+					Page: true, InstallationRole: domain.NoInstallationRole,
+					Roles:    map[string][]*basev0.WorkScopeV1{domain.AdminRole: {sc(kind, "read"), sc(legacyKind, "read", "write")}, domain.UserRole: {sc(kind, "read"), sc(legacyKind, "read", "write")}},
 					Bindings: map[string]domain.Binding{"relay": {ID: "relay", Audience: "relay", InvokeScopes: relayScopes, HeadlessScopes: relayScopes}}},
 			} {
 				if _, err := svc.ApplyModule(h.ctx, m); err != nil {
@@ -75,6 +78,9 @@ func TestANarrowingBetweenDecisionAndMintIsNeverHandedOut(t *testing.T) {
 				}
 			}
 			put(1, map[string]domain.Binding{"relay": {ID: "relay", InvokeScopes: relayScopes, HeadlessScopes: relayScopes}})
+			if _, err := svc.GrantRole(h.ctx, authority.Person{ID: "alex", Organization: acme, SessionID: "s"}, authority.RoleRequest{Organization: acme, InstallationID: "st-1", Role: domain.UserRole, PersonID: "alex"}); err != nil {
+				t.Fatal(err)
+			}
 			narrow := func() { put(2, map[string]domain.Binding{}) }
 			if path == "workload" {
 				store.arm(narrow)
@@ -134,13 +140,14 @@ func TestTheConsentBoundsInstallationAndDelegationIssues(t *testing.T) {
 	})
 	t.Run("an issue from a delegation", func(t *testing.T) {
 		h := newHarness(t)
-		rob := h.person("rob")
-		d, err := h.svc.Delegate(h.ctx, rob, "ledger", []*basev0.WorkScopeV1{owned(ledgerKind, "", []string{"read"}, "entry-x")}, "a job", 0)
+		h.grant("a", "user", "maya")
+		d, err := h.svc.Delegate(h.ctx, h.person("maya"), "a", []*basev0.WorkScopeV1{owned(kind, h.principal(acme, "a"), []string{"read"})}, "a job", 0)
 		if err != nil {
 			t.Fatal(err)
 		}
-		h.consented(acme, "ledger", map[string]domain.Binding{})
-		_, err = h.svc.IssueForDelegation(h.ctx, d.ID, authority.Workload{Module: "ledger"}, authority.IssueRequest{Binding: "legacy"})
+		h.must(h.svc.IssueForDelegation(h.ctx, d.ID, authority.Workload{Module: "a"}, authority.IssueRequest{Binding: "store"}))
+		h.consented(acme, "a", map[string]domain.Binding{"legacy": {ID: "legacy", InvokeScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}}})
+		_, err = h.svc.IssueForDelegation(h.ctx, d.ID, authority.Workload{Module: "a"}, authority.IssueRequest{Binding: "store"})
 		refusedByConsent(t, err)
 	})
 }

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"time"
 
-	resources "github.com/codefly-dev/authority/libraries/resources/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
@@ -24,7 +23,7 @@ type Organization struct {
 }
 
 // Person is a member of one organization: its organization roles (an
-// administrator holds "admin" or "owner") and its teams. Identity is the
+// administrator holds "admin", and no other name administers) and its teams. Identity is the
 // host's; the authority reads it.
 type Person struct {
 	ID, Organization string
@@ -77,20 +76,6 @@ type RoleView struct {
 	// they hold; see Person.Cast.) Roles may still be set beside it, and then
 	// narrows the cast further on the installations it names.
 	Team string
-}
-
-// OrgRole is a named set of scopes at one organization.
-type OrgRole struct {
-	Organization, Name string
-	Scopes             []RoleScope
-}
-
-// RoleScope is one organization-role scope: a kind (or AnyKind) and actions,
-// optionally narrowed to resources by matcher.
-type RoleScope struct {
-	Kind      string
-	Actions   []string
-	Resources []resources.Grant
 }
 
 // Binding is a module's declared call towards another module.
@@ -331,7 +316,7 @@ type ConsentApproval struct {
 // (module names, the target first, Module last), Via the role on the target
 // itself, the target's bindings acting for the holder, or the holder's own
 // session; the Scopes the holder's capability there can carry at most (none
-// on their own session, where their own grants decide), how the role
+// on their own session, which reaches no module the target does not bind), how the role
 // confines them on the target, the Operations of Module those scopes are
 // admitted to, and the Policies of every operation of Module as declared
 // then, by operation: what roles held together are admitted to there.

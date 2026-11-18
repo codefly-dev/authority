@@ -14,15 +14,16 @@ import (
 // the child, whatever the parent carried (rule A, r122 on runtime #311).
 func TestAChildHoldsOnlyWhatTheBindingAndTheOwnersGrantsShare(t *testing.T) {
 	h := newHarness(t)
-	page := domain.Module{Name: "page", Principal: "page", Kind: domain.KindModule, Generation: 1,
-		ResourceKinds: []*basev0.WorkScopeV1{sc("page.entry", "read"), sc(ledgerKind, "read", "write"), sc("profiles", "read")},
+	wide := []*basev0.WorkScopeV1{sc("page.entry", "read"), sc(ledgerKind, "read", "write"), sc("profiles", "read")}
+	page := domain.Module{Name: "page", Principal: "page", Kind: domain.KindModule, Generation: 1, Page: true, InstallationRole: domain.NoInstallationRole,
+		ResourceKinds: wide,
+		Roles:         map[string][]*basev0.WorkScopeV1{domain.AdminRole: wide, domain.UserRole: wide},
 		Bindings:      map[string]domain.Binding{"ledger": {ID: "ledger", Audience: "ledger", InvokeScopes: []*basev0.WorkScopeV1{sc(ledgerKind, "read", "write")}}}}
 	if _, err := h.svc.ApplyModule(h.ctx, page); err != nil {
 		t.Fatal(err)
 	}
-	h.store.PutOrgRole(domain.OrgRole{Organization: acme, Name: "wide", Scopes: []domain.RoleScope{
-		{Kind: "page.entry", Actions: []string{"read"}}, {Kind: ledgerKind, Actions: []string{"read", "write"}}, {Kind: "profiles", Actions: []string{"read"}}}})
-	h.store.PutPerson(domain.Person{ID: "wren", Organization: acme, Roles: []string{"wide"}})
+	h.store.PutPerson(domain.Person{ID: "wren", Organization: acme})
+	h.grant("page", domain.UserRole, "wren")
 
 	parent := h.must(h.root("wren", "page"))
 	if kinds := kindsOf(effective(parent)); !slices.Equal(kinds, []string{ledgerKind, "page.entry", "profiles"}) {

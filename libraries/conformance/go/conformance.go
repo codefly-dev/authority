@@ -14,7 +14,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	resources "github.com/codefly-dev/authority/libraries/resources/go"
-	"github.com/codefly-dev/core/solutionhost"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 	"github.com/codefly-dev/core/workcontext"
 	"strings"
 	"testing"
@@ -41,10 +41,10 @@ type Fixture struct {
 	// WorkloadOrganizations proves both mandatory empty-tenant isolation refusals.
 	WorkloadOrganizations *WorkloadOrganizationsCase
 	Organization          string // the one organisation the people belong to
-	ViewerToken           string // signs in a person who may read ReadKind at Audience and nothing more
+	ViewerToken           string // signs in a person holding a role on Audience's installation that reads ReadKind there and nothing more
 	UnentitledToken       string // signs in a member with neither roles nor teams; empty leaves this line unproven
 	AdminToken            string // signs in an organisation administrator
-	Audience              string // a composed module the viewer holds "read" on
+	Audience              string // a composed module page declaring roles, whose installation the viewer holds a reading role on
 	ReadKind              string // the resource kind the viewer may read at Audience
 	WorkloadModule        string // the principal of the module WorkloadCredential names; a person's token for its hop is addressed here
 	WorkloadCredential    string // the credential of a composed module's workload; the module declares Binding, addressed to BindingAudience
@@ -53,17 +53,20 @@ type Fixture struct {
 	Elsewhere             string // a composed audience the viewer's context at Audience is not addressed to
 	InstalledSolution     string // an active installation the viewer is entitled to
 	InstalledCredential   string // workload credential of InstalledAudience, required for installation-owned Issue
-	InstalledAudience     string // the installed solution principal; distinct from the organisation-role module Audience
+	InstalledAudience     string // the installed solution principal; distinct from the module page Audience
+
+	// OrganisationRoles proves that an organisation role reaches no module:
+	// a person reaches one only through a role on an installation. Omission
+	// fails conformance.
+	OrganisationRoles *OrganisationRolesCase
 
 	// LocalAdvisory enables the local-only advisory Check contract.
 	LocalAdvisory bool
 
-	// SolutionRoles proves a delivered solution role, independently of organization grants.
+	// SolutionRoles proves a delivered solution role: what a person reaches is that role's and no organisation role's.
 	SolutionRoles *SolutionRoleCase
 	// Lifecycle controls the real install-step acknowledgement and revocation.
 	Lifecycle *InstallationLifecycleCase
-	// OwnerToken is a member with the organization owner role, not admin.
-	OwnerToken string
 	// OtherAdminToken signs in an administrator of another organization.
 	OtherAdminToken string
 	// HopCredential is the workload credential of the composition's hop, the
@@ -164,9 +167,10 @@ type Hop struct {
 }
 
 // ResourceCase is one ListResources expectation: a person signed in with Token
-// and issued at Audience on Covered covers each id of Covered and none of
-// Uncovered for Action on Kind, and does not hold Unheld on Kind at all. An
-// ask naming an id of Uncovered, or the whole kind, is refused.
+// holds Action on Kind at Audience through a role on its installation. Issued
+// there on Covered, they cover each id of Covered and none of Uncovered;
+// issued on nothing in particular, every resource of Kind; and they do not
+// hold Unheld on Kind at all.
 type ResourceCase struct {
 	Token     string
 	Audience  string
@@ -228,6 +232,38 @@ func (c *client) applyManifest(ctx context.Context, f Fixture, alias, kind strin
 // manifest's, to prove a mismatched pair is refused.
 func (c *client) deliverWithMethods(ctx context.Context, f Fixture, alias string, generation uint64, kinds []string, methods []any, skew uint64) (protoreflect.Message, error) {
 	return c.deliver(ctx, f, alias, "module", generation, kinds, map[string]any{"methods": methods}, skew)
+}
+
+// deliverPageWithMethods delivers alias as a module page declaring roles (its
+// user holds userActions on each kind, its admin read and write) with the
+// authority's document listing methods, and seats token's person as its user
+// at Fixture.Organization: a person holds something at a module only through
+// a role on an installation, so a module the suite's person is to call on
+// their own session declares roles and the suite grants one.
+func (c *client) deliverPageWithMethods(t *testing.T, ctx context.Context, f Fixture, alias string, generation uint64, kinds []string, methods []any, token string, userActions ...string) {
+	t.Helper()
+	var all, user []any
+	for _, k := range kinds {
+		all = append(all, scopeAsk(k, []string{"read", "write"}, nil))
+		user = append(user, scopeAsk(k, userActions, nil))
+	}
+	document := map[string]any{"methods": methods, "scope_ceilings": all, "installation_role": "none",
+		"roles": []any{map[string]any{"name": "admin", "scopes": all}, map[string]any{"name": "user", "scopes": user}}}
+	page := &solutionhost.Frontend{Title: "Conformance " + alias, ExposedModule: "./Page", HostContract: 1, Payload: f.PagePayload}
+	if _, err := c.deliverPage(ctx, f, page, alias, "module", generation, kinds, document, 0); err != nil {
+		t.Fatalf("deliver %s as a module page with roles and methods: %v", alias, err)
+	}
+	admin := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.AdminToken})
+	person := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": token})
+	for _, inst := range listMsgs(c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "List", map[string]any{"organization_id": f.Organization}), "installations") {
+		if str(inst, "target") != alias || enumName(inst, "status") != "STATUS_ACTIVE" {
+			continue
+		}
+		c.must(t, as(ctx, admin), "host.installation.v1.InstallationService", "GrantRole", map[string]any{
+			"organization_id": f.Organization, "installation_id": str(inst, "id"), "role": "user", "person_id": str(person, "person_id")})
+		return
+	}
+	t.Fatalf("%s is not installed active at %s", alias, f.Organization)
 }
 
 // deliver delivers a signed manifest as the CLI does: core's manifest under the
@@ -329,6 +365,7 @@ func Run(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f Fixt
 func run(t *testing.T, c *client, f Fixture) {
 	ctx := context.Background()
 	c.admissionStatus(t, ctx, f)
+	c.organisationRoles(t, ctx, f)
 	c.solutionRoleCases(t, ctx, f)
 	c.solutionDeclaration(t, ctx, f)
 	c.modulePageRoles(t, ctx, f)
@@ -585,12 +622,12 @@ func run(t *testing.T, c *client, f Fixture) {
 			t.Fatalf("installation issue: %v", out)
 		}
 		c.must(t, ctx, "host.authority.v1.AuthorityService", "Check", map[string]any{"token": str(out, "token"), "audience": f.InstalledAudience})
-		// The independent organisation role catalogue cannot grant this installation
-		// authority at an unrelated module merely because a role label matches.
+		// An installation holds its agent role's reach and nothing at an
+		// unrelated module, whatever a role there is called.
 		if f.InstalledAudience != f.Audience {
 			_, err := c.call(ctx, "host.authority.v1.AuthorityService", "Issue", map[string]any{"installation": map[string]any{"installation_id": str(installation, "id")}, "audience": f.Audience, "actor": map[string]any{"credential": f.InstalledCredential}})
 			if status.Code(err) != codes.PermissionDenied {
-				t.Fatalf("installation acquired unrelated organisation-role authority: %v", err)
+				t.Fatalf("installation acquired authority at an unrelated module: %v", err)
 			}
 		}
 	})
@@ -717,9 +754,9 @@ func run(t *testing.T, c *client, f Fixture) {
 			map[string]any{"method": "/conformance.Service/Open", "any_checked_caller": true},
 			map[string]any{"method": "/conformance.Service/Unmarked"},
 		}
-		if _, err := c.deliverWithMethods(ctx, f, module, 1, []string{f.ReadKind}, methods, 0); err != nil {
-			t.Fatalf("deliver with the authority's document: %v", err)
-		}
+		// The module is a page whose user reads ReadKind; the viewer is seated
+		// as its user, and holds read there by that role alone.
+		c.deliverPageWithMethods(t, ctx, f, module, 1, []string{f.ReadKind}, methods, f.ViewerToken, "read")
 		sess := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.ViewerToken})
 		token := str(c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": module}), "token")
 		check := func(method string) error {
@@ -757,6 +794,28 @@ func run(t *testing.T, c *client, f Fixture) {
 			})
 		}
 
+		// A method carrying what the module's ceilings do not list is refused
+		// by name: no capability at the module holds it, so no call would
+		// ever carry it and nothing would say so. The module keeps the policy
+		// it had, and the generation is not consumed.
+		t.Run("a method carrying an action the module does not serve is refused at delivery, by name", func(t *testing.T) {
+			if !c.hasElement("host.composition.v1.MethodPolicyV1", "carries") {
+				t.Fatal("the published contract lacks host.composition.v1.MethodPolicyV1.carries: what a method carries is never delivered, so nothing holds it to what the module serves")
+			}
+			carrying := func(kind, action string) error {
+				_, err := c.deliver(ctx, f, module, "module", 2, []string{f.ReadKind}, map[string]any{
+					"scope_ceilings": []any{scopeAsk(f.ReadKind, []string{"read", "write"}, nil)},
+					"methods": []any{map[string]any{"method": "/conformance.Service/Read", "requires": read,
+						"carries": []any{scopeAsk(kind, []string{action}, nil)}}}}, 0)
+				return err
+			}
+			refused(t, carrying(f.ReadKind, "purge"), codes.PermissionDenied, "/conformance.Service/Read carries "+f.ReadKind+":purge")
+			refused(t, carrying("conformance.unserved", "read"), codes.PermissionDenied, "/conformance.Service/Read carries conformance.unserved:read")
+			if err := check("/conformance.Service/Read"); err != nil {
+				t.Fatalf("a refused delivery changed the module's policy: %v", err)
+			}
+		})
+
 		// A document that does not match the manifest it travels with is refused,
 		// and the module keeps the policy it had.
 		if _, err := c.deliverWithMethods(ctx, f, module, 2, []string{f.ReadKind}, []any{map[string]any{"method": "/conformance.Service/Write", "any_checked_caller": true}}, 1); status.Code(err) != codes.PermissionDenied {
@@ -765,13 +824,16 @@ func run(t *testing.T, c *client, f Fixture) {
 		if status.Code(check("/conformance.Service/Write")) != codes.PermissionDenied {
 			t.Fatal("a refused delivery must not loosen the module's policy")
 		}
-		// A delivery without the document leaves no method policy: fail closed.
+		// A delivery without the document leaves no roles and no method
+		// policy: fail closed. Nobody's own session holds anything at the
+		// module any more, and what was issued before admits no method.
 		if _, err := c.applyManifest(ctx, f, module, "module", 3, []string{f.ReadKind}); err != nil {
 			t.Fatalf("deliver without the document: %v", err)
 		}
-		token = str(c.must(t, as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": module}), "token")
-		if status.Code(check("/conformance.Service/Read")) != codes.PermissionDenied || check("") != nil {
-			t.Fatal("with no document delivered, a check naming a method is refused and one naming none is not")
+		_, err := c.call(as(ctx, sess), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": module})
+		refused(t, err, codes.PermissionDenied, "declares no roles")
+		if check("/conformance.Service/Read") == nil {
+			t.Fatal("with no document delivered, a check naming a method is still admitted")
 		}
 	})
 	c.run(t, f, "the authority answers which resources a context covers, by grant", func(t *testing.T, c *client, f Fixture) {
@@ -821,34 +883,21 @@ func run(t *testing.T, c *client, f Fixture) {
 		if _, err := list(str(out, "token"), rc.Unheld); status.Code(err) != codes.PermissionDenied {
 			t.Fatalf("an action the context does not hold: %v", err)
 		}
-		// An empty ask never carries the kind whole: a module deciding from
-		// the context's claims would read it as every resource. Each row of
-		// the kind it carries names ids, none of them uncovered.
-		if out, err := issue(nil); err == nil {
-			for _, row := range listMsgs(msg(out, "context"), "authority_scopes") {
-				if str(row, "resource_kind") != rc.Kind || field(row, "actions").List().Len() == 0 {
-					continue
-				}
-				ids := field(row, "resource_ids").List()
-				if ids.Len() == 0 {
-					t.Fatalf("an empty ask carries the whole of %s", rc.Kind)
-				}
-				for i := 0; i < ids.Len(); i++ {
-					if slices.Contains(rc.Uncovered, ids.Get(i).String()) {
-						t.Fatalf("an empty ask carries %s, which the person does not hold", ids.Get(i).String())
-					}
-				}
-			}
-		} else if status.Code(err) != codes.PermissionDenied {
+		// A role names no resource: the same person asking for nothing in
+		// particular holds the kind as their role on the audience's
+		// installation holds it, and the authority answers every resource.
+		// What a person may act on is narrowed by the capability they asked
+		// for, never by an organisation role's matchers.
+		whole, err := issue(nil)
+		if err != nil {
 			t.Fatalf("an empty ask: %v", err)
 		}
-		// An ask naming an uncovered id is refused, even beside a covered one,
-		// and so is an ask for the whole kind.
-		if len(rc.Covered) > 0 && len(rc.Uncovered) > 0 {
-			_, err := issue([]any{scopeAsk(rc.Kind, []string{rc.Action}, []string{rc.Covered[0], rc.Uncovered[0]})})
-			refused(t, err, codes.PermissionDenied, "widens")
+		all, err := list(str(whole, "token"), rc.Action)
+		if err != nil || !all.All() {
+			t.Fatalf("the role's whole holding of %s:%s answers %v (%v), want every resource", rc.Kind, rc.Action, all, err)
 		}
-		_, err = issue([]any{scopeAsk(rc.Kind, []string{rc.Action}, nil)})
+		// Asking for an action the role lacks is refused, on named ids too.
+		_, err = issue([]any{scopeAsk(rc.Kind, []string{rc.Unheld}, rc.Covered)})
 		refused(t, err, codes.PermissionDenied, "what the owner holds")
 	})
 	c.run(t, f, "a lookup through a binding carries only the binding's lookup scopes", func(t *testing.T, c *client, f Fixture) {

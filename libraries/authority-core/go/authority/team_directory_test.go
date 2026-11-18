@@ -17,14 +17,14 @@ func TestARoleIsGrantedToATeamTheDirectoryHolds(t *testing.T) {
 	h.store.PutPerson(domain.Person{ID: "pat", Organization: acme, Teams: []string{"phantom"}}) // a membership with no directory entry
 	inst := h.inst(acme, "a").ID
 	grant := func(team string) error {
-		_, err := h.svc.GrantRole(h.ctx, h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "reader", TeamID: team})
+		_, err := h.svc.GrantRole(h.ctx, h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "user", TeamID: team})
 		return err
 	}
 
 	if err := grant("reviewers"); err != nil {
 		t.Fatalf("an empty team of the organization is refused: %v", err)
 	}
-	if _, err := h.svc.GrantRoleAsHost(h.ctx, authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "author", TeamID: "reviewers"}); err != nil {
+	if _, err := h.svc.GrantRoleAsHost(h.ctx, authority.RoleRequest{Organization: acme, InstallationID: inst, Role: "admin", TeamID: "reviewers"}); err != nil {
 		t.Fatalf("the host's setup cannot grant an empty team: %v", err)
 	}
 	if err := grant("team"); err != nil {
@@ -57,7 +57,7 @@ func TestARoleIsGrantedToATeamTheDirectoryHolds(t *testing.T) {
 
 	// A grant stays revocable after its team left the directory.
 	h.store.DeleteTeam(acme, "reviewers")
-	h.revoke("a", "reader", "", "reviewers")
+	h.revoke("a", "user", "", "reviewers")
 	if err := grant("reviewers"); err == nil {
 		t.Fatal("a deleted team was granted")
 	}

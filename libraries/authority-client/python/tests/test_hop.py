@@ -14,7 +14,7 @@ from authority_client._gen.host.authority.v1.authority_pb2 import KeysResponse
 from authority_client._gen.host.authority.v1.work_context_pb2 import WorkContextV1
 from codefly_hop.call import SKEW
 from codefly_hop import (
-    ACTORS_KEY, CONTEXT_KEY, KEY_MAX_AGE, KEY_RETRY, KEY_STALE, SCOPES_KEY, TENANT_KEY, WORK_CONTEXT_KEY, Identity, Unauthenticated,
+    ACTORS_KEY, ADMISSION_MAX_AGE, ADMISSION_STALE, CONTEXT_KEY, KEY_MAX_AGE, KEY_RETRY, KEY_STALE, SCOPES_KEY, TENANT_KEY, WORK_CONTEXT_KEY, Identity, Unauthenticated,
     Verifier, Replayed, Expired, identity_of,
 )
 
@@ -133,7 +133,7 @@ def test_keys_are_reread_when_old_and_trusted_no_longer_than_stale():
     rotated.keys.add(key_id="rotated", algorithm="Ed25519", public_key=bytes(32))
     source.response = rotated
     source.hold = threading.Event()
-    clock[0] += 400  # older than KEY_MAX_AGE: a re-read starts; the held key serves this call
+    clock[0] += ADMISSION_MAX_AGE + 1  # aged admission keys: a re-read starts; the held key serves this call
     try:
         v.verify(fresh(v._now()), METHOD)
     finally:
@@ -222,7 +222,7 @@ def test_a_hung_read_stalls_no_held_key():
     source = Keys(published())
     v = verifier(clock=lambda: clock[0], source=source)
     source.hold = threading.Event()
-    clock[0] += 400  # old keys: a background read starts and hangs
+    clock[0] += ADMISSION_MAX_AGE + 1  # aged keys: a background read starts and hangs
     started = clock_time.monotonic()
     assert v.verify(fresh(v._now()), METHOD).owner == FIXTURE["identity"]["owner"]
     assert clock_time.monotonic() - started < 1
@@ -368,7 +368,9 @@ def test_an_unready_replica_becomes_ready_by_polling_alone():
 
 
 # Review r74 B1: an idle replica polled for readiness past the stale window
-# re-reads as its keys age and stays ready.
+# re-reads as its keys age and stays ready. An admitting verifier's keys age at
+# ADMISSION_MAX_AGE, so each poll a minute apart re-reads: a withdrawn admission
+# key is dropped without business traffic.
 def test_an_idle_replica_polled_for_readiness_stays_ready():
     clock = [FIXTURE["now"]]
     source = Keys(published())
@@ -378,7 +380,7 @@ def test_an_idle_replica_polled_for_readiness_stays_ready():
         v.ready()
         settle(v)
         assert v.ready(), f"an idle replica went unready at minute {minute + 1}"
-    assert 10 <= source.reads <= 14
+    assert 59 <= source.reads <= 62
 
 
 # Independent review probes: method retargeting, cross-audience use, replay on
@@ -817,7 +819,7 @@ def test_a_stamp_under_an_unheld_key_waits_for_the_read_already_running(asynchro
         """A read readiness starts, as a scheduled refresh does, held open until
         the returned event is set; it then answers response."""
         source.response, source.hold = response, threading.Event()
-        clock[0] += KEY_MAX_AGE + 1
+        clock[0] += ADMISSION_MAX_AGE + 1
         v.ready()
         return source.hold
 
@@ -902,7 +904,7 @@ def test_many_stamps_wait_for_one_running_read_and_are_held_no_longer_than_its_t
         handed.clear()
         v._timeout = timeout
         source.response, source.hold, source.begin = response, threading.Event(), threading.Event()
-        clock[0] += KEY_MAX_AGE + 1
+        clock[0] += ADMISSION_MAX_AGE + 1
         before = source.reads
         v.ready()
         while source.reads == before:  # the read has reached the source: its deadline runs
@@ -1030,6 +1032,60 @@ def test_a_rotations_overlap_admits_both_keys_until_the_retiring_one_is_withdraw
     v.verify(fresh(clock[0], hop=b"current"), METHOD)
 
 
+# A hop admission key the authority has withdrawn stops admitting about
+# ADMISSION_MAX_AGE later, as in Go: a stamp arriving once the admission keys
+# held are older than that starts a re-read, and once it lands the key admits
+# nothing, with no readiness poll and no wait for KEY_MAX_AGE. Inside
+# ADMISSION_MAX_AGE the held keys admit, reading nothing.
+def test_a_withdrawn_admission_key_stops_admitting_within_admission_max_age():
+    clock = [FIXTURE["now"]]
+    source = Keys(publishing(b"withdrawn", b"current"))
+    v = Verifier(source, audience=FIXTURE["audience"], replay=Replay(), now=lambda: clock[0])
+
+    def admit(hop):
+        try:
+            return v.verify(fresh(clock[0], hop=hop), METHOD)
+        finally:
+            settle(v)
+
+    for hop in (b"withdrawn", b"current"):
+        admit(hop)
+    source.response = publishing(b"current")  # the authority withdraws the key
+    reads = source.reads
+    clock[0] += ADMISSION_MAX_AGE - 1
+    admit(b"withdrawn")
+    assert source.reads == reads, "inside ADMISSION_MAX_AGE the held keys admit and nothing is read"
+    clock[0] += 2
+    admit(b"current")  # past ADMISSION_MAX_AGE a stamp starts the re-read
+    assert source.reads == reads + 1
+    with pytest.raises(Unauthenticated) as refused:
+        admit(b"withdrawn")
+    assert refused.value.code == "stamp_proof"
+    admit(b"current")
+    assert ADMISSION_MAX_AGE <= 30, "a withdrawal is honoured within seconds, not minutes"
+
+
+# Admission keys the authority cannot confirm are trusted no longer than
+# ADMISSION_STALE: failed re-reads keep them that long, and then every stamp is
+# refused as keys_unavailable. The Work Context keys keep their own bound.
+def test_admission_keys_the_authority_cannot_confirm_are_trusted_no_longer_than_admission_stale():
+    start = FIXTURE["now"]
+    clock = [start]
+    source = Keys(publishing(b"the-hop"))
+    v = Verifier(source, audience=FIXTURE["audience"], replay=Replay(), now=lambda: clock[0])
+    v.verify(fresh(clock[0], hop=b"the-hop"), METHOD)
+    source.error = RuntimeError("authority down")
+    clock[0] = start + ADMISSION_MAX_AGE + 1
+    v.verify(fresh(clock[0], hop=b"the-hop"), METHOD)  # one failed re-read keeps the key
+    settle(v)
+    clock[0] = start + ADMISSION_STALE + 1
+    with pytest.raises(Unauthenticated) as refused:
+        v.verify(fresh(clock[0], hop=b"the-hop"), METHOD)
+    assert refused.value.code == "keys_unavailable"
+    assert v.verify_token(FIXTURE["headers"][WORK_CONTEXT_KEY]).owner == FIXTURE["identity"]["owner"]
+    assert ADMISSION_STALE < KEY_STALE
+
+
 # Each key serves its own purpose only: an admission key published among the
 # Work Context keys admits nothing, and an admission key never signs a Work
 # Context.
@@ -1053,6 +1109,34 @@ def test_no_published_admission_key_refuses_every_call_and_says_why():
         v.verify(fresh(FIXTURE["now"]), METHOD)
     assert refused.value.code == "keys_unavailable"
     assert isinstance(v.keys_error, NoAdmissionKeys)
+
+
+# Go's Ready(): a verifier that admits calls is ready only while it holds an
+# admission key. Keys that read but publish none leave it unready, a later
+# publication makes it ready, and a read that sees the last one withdrawn
+# makes it unready again. A token-only verifier needs none.
+def test_an_admitting_verifier_is_not_ready_until_it_holds_an_admission_key():
+    clock = [FIXTURE["now"]]
+    source = Keys(publishing())
+    v = Verifier(source, audience=FIXTURE["audience"], replay=Replay(), now=lambda: clock[0])
+    assert v._trust is not None, "the keys were read"
+    assert not v.ready(), "ready with no admission key held: every call would be refused"
+    source.response = publishing(b"the-hop")
+    clock[0] += KEY_RETRY
+    v.ready()
+    settle(v)
+    assert v.ready()
+    source.error = RuntimeError("authority down")
+    clock[0] += KEY_MAX_AGE + 1  # a failed re-read keeps the keys held
+    v.ready()
+    settle(v)
+    assert v.keys_error is not None and v.ready()
+    source.error, source.response = None, publishing()
+    clock[0] += KEY_RETRY  # a read that sees the last key withdrawn
+    v.ready()
+    settle(v)
+    assert not v.ready()
+    assert Verifier(Keys(publishing()), audience=FIXTURE["audience"], now=lambda: clock[0]).ready()
 
 
 # Review r5: a verifier that first read the keys before the hop registered its

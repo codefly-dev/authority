@@ -34,15 +34,16 @@ type installationHost struct {
 const proposalsInstallation = "4f0c5b1e-0000-5000-8000-0000000000aa"
 
 type hostPerson struct {
+	id    string
 	org   string
 	admin bool
 	holds bool
 }
 
 var hostPeople = map[string]hostPerson{
-	"alex-session": {"acme", true, true},
-	"maya-session": {"acme", false, true},
-	"zoe-session":  {"globex", true, false},
+	"alex-session": {"alex", "acme", true, true},
+	"maya-session": {"maya", "acme", false, true},
+	"zoe-session":  {"zoe", "globex", true, false},
 }
 
 func (h *installationHost) caller(ctx context.Context, call, org string) (hostPerson, error) {
@@ -55,16 +56,21 @@ func (h *installationHost) caller(ctx context.Context, call, org string) (hostPe
 		return p, status.Error(codes.Unauthenticated, "no session")
 	}
 	if p.org != org || !p.admin {
-		return p, status.Errorf(codes.PermissionDenied, "installation administration requires an administrator or owner of organization %q", org)
+		return p, status.Errorf(codes.PermissionDenied, "installation administration requires an administrator of organization %q", org)
 	}
 	return p, nil
 }
 
-// administers answers a grant-shaped call as decide.ChangeRole does.
+// administers answers a grant-shaped call as decide.ChangeRole does: a caller
+// of another organization as for an installation theirs does not have, a
+// member of this one who is no administrator with that reason.
 func (h *installationHost) administers(ctx context.Context, call, org, installation string) error {
-	if _, err := h.caller(ctx, call, org); err != nil {
+	if p, err := h.caller(ctx, call, org); err != nil {
 		if status.Code(err) == codes.Unauthenticated {
 			return err
+		}
+		if p.org == org {
+			return status.Errorf(codes.PermissionDenied, "%s is neither an administrator of %s nor a holder of the admin role on installation %s", p.id, org, installation)
 		}
 		return status.Errorf(codes.PermissionDenied, "installation %s belongs to another organization than %q", installation, org)
 	}
@@ -100,7 +106,7 @@ func (h *installationHost) ReviewOffer(ctx context.Context, in *installationv1.R
 		return nil, err
 	}
 	if err != nil && (p.org != in.GetOrganizationId() || !p.holds) {
-		return nil, status.Errorf(codes.PermissionDenied, "reviewing %q requires an administrator or owner of organization %q, or a role on its installation there", in.GetTarget(), in.GetOrganizationId())
+		return nil, status.Errorf(codes.PermissionDenied, "reviewing %q requires an administrator of organization %q, or a role on its installation there", in.GetTarget(), in.GetOrganizationId())
 	}
 	offer := &installationv1.ReviewedOffer{Target: in.GetTarget(), ToolsComposed: true,
 		Installation: &installationv1.Installation{Id: proposalsInstallation, OrganizationId: "acme", Target: "proposals", Status: installationv1.Installation_STATUS_ACTIVE},
@@ -281,9 +287,9 @@ func TestAMemberReadsTheRolesButIsRefusedAGrantWithItsReason(t *testing.T) {
 	}
 	_, err = browser[installationv1.GrantRoleRequest, installationv1.Installation](t, srv, srv.URL, "maya-session", installationv1.InstallationService_GrantRole_FullMethodName,
 		&installationv1.GrantRoleRequest{OrganizationId: "acme", InstallationId: proposalsInstallation, Role: "user", PersonId: "maya"})
-	refusedWith(t, err, connect.CodePermissionDenied, fmt.Sprintf("installation %s belongs to another organization than \"acme\"", proposalsInstallation))
+	refusedWith(t, err, connect.CodePermissionDenied, fmt.Sprintf("maya is neither an administrator of acme nor a holder of the admin role on installation %s", proposalsInstallation))
 	_, err = browser[installationv1.ListRequest, installationv1.ListResponse](t, srv, srv.URL, "maya-session", installationv1.InstallationService_List_FullMethodName, &installationv1.ListRequest{OrganizationId: "acme"})
-	refusedWith(t, err, connect.CodePermissionDenied, `installation administration requires an administrator or owner of organization "acme"`)
+	refusedWith(t, err, connect.CodePermissionDenied, `installation administration requires an administrator of organization "acme"`)
 }
 
 // A member lists the installations they may use, with their own session: the
@@ -316,7 +322,7 @@ func TestAMemberListsTheInstallationsTheyHoldThroughTheHostFace(t *testing.T) {
 func TestAPersonOfAnotherOrganizationIsRefused(t *testing.T) {
 	srv, _ := newHostFace(t)
 	_, err := browser[installationv1.ReviewRequest, installationv1.ReviewedOffer](t, srv, srv.URL, "zoe-session", installationv1.OfferService_ReviewOffer_FullMethodName, &installationv1.ReviewRequest{OrganizationId: "acme", Target: "proposals"})
-	refusedWith(t, err, connect.CodePermissionDenied, `requires an administrator or owner of organization "acme"`)
+	refusedWith(t, err, connect.CodePermissionDenied, `requires an administrator of organization "acme"`)
 	_, err = browser[installationv1.RevokeRoleRequest, installationv1.Installation](t, srv, srv.URL, "zoe-session", installationv1.InstallationService_RevokeRole_FullMethodName,
 		&installationv1.RevokeRoleRequest{OrganizationId: "acme", InstallationId: proposalsInstallation, Role: "user", PersonId: "maya"})
 	refusedWith(t, err, connect.CodePermissionDenied, "belongs to another organization")

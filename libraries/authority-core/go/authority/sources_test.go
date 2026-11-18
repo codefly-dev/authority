@@ -29,7 +29,7 @@ func TestAReinstallNeverRepeatsThePrincipalsEpoch(t *testing.T) {
 		t.Fatal("an uninstalled principal has an epoch")
 	}
 	admin := h.admin(acme)
-	if _, err := h.svc.Install(h.ctx, admin, acme, "a", "reader", admin.ID, h.approval(acme, "a"), nil); err != nil {
+	if _, err := h.svc.Install(h.ctx, admin, acme, "a", "user", admin.ID, h.approval(acme, "a"), nil); err != nil {
 		t.Fatal(err)
 	}
 	after, err := h.svc.Seals().PrincipalEpoch(h.ctx, u)
@@ -65,8 +65,13 @@ func TestAnUninstallIsTheOrganizationsAdministrators(t *testing.T) {
 	h := newHarness(t)
 	id := h.inst(acme, "a").ID
 	maya, zoe := h.person("maya"), h.person("zoe")
-	// A member who administers nothing learns nothing either (r148 m2).
-	refused(t, h.svc.Uninstall(h.ctx, maya, acme, id), "belongs to another organization")
+	// A member who administers nothing is told that, and learns nothing
+	// either (r148 m2): a present installation and an absent one answer alike.
+	present, missing := h.svc.Uninstall(h.ctx, maya, acme, id), h.svc.Uninstall(h.ctx, maya, acme, "no-such-installation")
+	code(t, present, domain.Denied)
+	if want := "maya is not an administrator of acme: an installation is uninstalled by its organization's administrator"; present.Error() != want || missing.Error() != want {
+		t.Fatalf("a member of acme uninstalling: present %q, absent %q, want %q", present, missing, want)
+	}
 	foreign := h.svc.Uninstall(h.ctx, zoe, globex, id)
 	absent := h.svc.Uninstall(h.ctx, zoe, globex, "no-such-installation")
 	code(t, foreign, domain.Denied)
@@ -113,19 +118,19 @@ func TestTheSealRevisionNeverRepeats(t *testing.T) {
 		last = seal.InstallationRevision
 	}
 	step("installed")
-	h.grant("a", "reader", "maya")
-	h.revoke("a", "reader", "maya", "")
+	h.grant("a", "user", "maya")
+	h.revoke("a", "user", "maya", "")
 	step("revoked")
 	narrowed := solution("a", true)
 	narrowed.Generation = 2
-	narrowed.Roles["reader"] = narrowed.Roles["reader"][:1]
+	narrowed.Roles["user"] = narrowed.Roles["user"][:1]
 	if _, err := h.svc.ApplyModule(h.ctx, narrowed); err != nil {
 		t.Fatal(err)
 	}
 	step("narrowed")
 	blind := solution("a", false)
 	blind.Generation = 3
-	blind.Roles["reader"] = narrowed.Roles["reader"]
+	blind.Roles["user"] = narrowed.Roles["user"]
 	if _, err := h.svc.ApplyModule(h.ctx, blind); err != nil {
 		t.Fatal(err)
 	}
@@ -218,13 +223,13 @@ func (h *harness) seal(person, target string) uint64 {
 func TestARevokeMovesOnlyItsSubjectsSealOnThatInstallation(t *testing.T) {
 	h := newHarness(t)
 	mayaA, mayaB, remiA := h.seal("maya", "a"), h.seal("maya", "b"), h.seal("remi", "a")
-	h.grant("a", "reader", "maya")
-	h.grant("b", "reader", "maya")
-	h.grant("a", "reader", "remi")
+	h.grant("a", "user", "maya")
+	h.grant("b", "user", "maya")
+	h.grant("a", "user", "remi")
 	if h.seal("maya", "a") != mayaA || h.seal("maya", "b") != mayaB || h.seal("remi", "a") != remiA {
 		t.Fatal("a grant moved a seal")
 	}
-	h.revoke("a", "reader", "maya", "")
+	h.revoke("a", "user", "maya", "")
 	if h.seal("maya", "a") <= mayaA {
 		t.Fatal("the revoke left maya's seal on a")
 	}
@@ -238,8 +243,8 @@ func TestARevokeMovesOnlyItsSubjectsSealOnThatInstallation(t *testing.T) {
 func TestATeamRevokeAndALeaveMoveTheirMembers(t *testing.T) {
 	h := newHarness(t)
 	tam, tal := h.seal("tam", "a"), h.seal("tal", "a")
-	h.grantTeam("a", "reader", "team")
-	h.revoke("a", "reader", "", "team")
+	h.grantTeam("a", "user", "team")
+	h.revoke("a", "user", "", "team")
 	if h.seal("tam", "a") <= tam || h.seal("tal", "a") <= tal {
 		t.Fatal("the team's revoke left a member's seal")
 	}
@@ -267,28 +272,31 @@ func TestARevokedGrantStaysGone(t *testing.T) {
 		}
 		return len(g)
 	}
-	h.grant("a", "reader", "maya")
+	h.grant("a", "user", "maya")
 	if err := h.svc.UninstallAsHost(h.ctx, acme, id); err != nil {
 		t.Fatal(err)
 	}
-	h.revoke("a", "reader", "maya", "")
+	h.revoke("a", "user", "maya", "")
 	if again := h.install(acme, "a"); again.ID != id || grants() != 0 {
 		t.Fatalf("the reinstall %s carries %d grant(s)", again.ID, grants())
 	}
-	h.grant("a", "reader", "maya")
-	retired := solution("a", true)
-	retired.Generation = 2
-	delete(retired.Roles, "reader")
-	if _, err := h.svc.ApplyModule(h.ctx, retired); err != nil {
+	// A solution always declares its two roles: the role retired and
+	// declared again is a module page's.
+	if _, err := h.svc.ApplyModule(h.ctx, pageModule(1, true)); err != nil {
 		t.Fatal(err)
 	}
-	h.revoke("a", "reader", "maya", "")
-	back := solution("a", true)
-	back.Generation = 3
-	if _, err := h.svc.ApplyModule(h.ctx, back); err != nil {
+	h.grant("pages", "user", "maya")
+	if _, err := h.svc.ApplyModule(h.ctx, pageModule(2, false)); err != nil {
 		t.Fatal(err)
 	}
-	if grants() != 0 {
-		t.Fatal("the re-declared role revived the revoked grant")
+	h.revoke("pages", "user", "maya", "")
+	if _, err := h.svc.ApplyModule(h.ctx, pageModule(3, true)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.approvePage(h.svc, "alex"); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(h.roleGrants("pages")); n != 0 {
+		t.Fatalf("the re-declared role revived the revoked grant: %d grant(s)", n)
 	}
 }

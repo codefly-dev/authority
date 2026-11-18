@@ -164,3 +164,60 @@ func TestAContradictoryPolicyIsRefusedEvenWithAnEmptyRequirement(t *testing.T) {
 		t.Errorf("a kind containing a colon is not matched as declared: %v", err)
 	}
 }
+
+// A method requiring two permissions is admitted where the call holds them
+// together. Held on owners that share none (a read on one installation's
+// resources, a write on another's), the call holds them on nothing and the
+// authority refuses it, saying where each is held, so the hop that asked
+// passes the refusal on instead of a call its module serves nothing of. A
+// grant that selects no owner is held together with anything.
+func TestAMethodRequiringTwoPermissionsIsRefusedWhereTheyShareNoOwner(t *testing.T) {
+	owned := func(owner string, ids []string, actions ...string) *basev0.WorkScopeV1 {
+		return &basev0.WorkScopeV1{ResourceKind: "gauge.items", Actions: actions, ResourceOwnerId: owner, ResourceIds: ids}
+	}
+	edit := domain.MethodPolicy{Requires: []*basev0.WorkScopeV1{ws("gauge.items", nil, "read", "write")}}
+	gauge := domain.Module{Name: "gauge", Principal: "gauge", Methods: map[string]domain.MethodPolicy{"/gauge.Service/Edit": edit, "/gauge.Service/List": reads("gauge.items")}}
+	for name, held := range map[string][]*basev0.WorkScopeV1{
+		"a read on one owner, a write on another": {owned("installation-a", nil, "read"), owned("installation-b", nil, "write")},
+		"named resources on different owners":     {owned("installation-a", []string{"i-1"}, "read"), owned("installation-b", []string{"i-1"}, "write")},
+		"two reads and a write on three owners":   {owned("installation-a", nil, "read"), owned("installation-b", nil, "write"), owned("installation-c", nil, "read")},
+	} {
+		t.Run("refused: "+name, func(t *testing.T) {
+			err := decide.AdmitMethod(gauge, "/gauge.Service/Edit", held)
+			wantCode(t, err, domain.Denied)
+			for _, want := range []string{"gauge requires gauge.items:read, gauge.items:write together for /gauge.Service/Edit", "no owner in common",
+				"gauge.items:read on installation-a", "gauge.items:write on installation-b"} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("refusal %q does not say %q", err, want)
+				}
+			}
+			// One permission required: the same call lists.
+			if err := decide.AdmitMethod(gauge, "/gauge.Service/List", held); err != nil {
+				t.Fatalf("a method requiring the read alone is refused: %v", err)
+			}
+		})
+	}
+	for name, held := range map[string][]*basev0.WorkScopeV1{
+		"both on one owner":                           {owned("installation-a", nil, "read", "write")},
+		"an owner in common among several":            {owned("installation-a", nil, "read"), owned("installation-b", nil, "read", "write"), owned("installation-c", nil, "write")},
+		"the write on the whole kind":                 {owned("installation-a", nil, "read"), ws("gauge.items", nil, "write")},
+		"the whole kind":                              {ws("gauge.items", nil, "read", "write")},
+		"every action on the read's owner":            {owned("installation-a", nil, "read"), owned("installation-a", nil, scope.AnyAction)},
+		"resources named with no owner":               {owned("installation-a", nil, "read"), ws("gauge.items", []string{"i-1"}, "write")},
+		"one owner, resources named apart":            {owned("installation-a", []string{"i-1"}, "read"), owned("installation-a", []string{"i-2"}, "write")},
+		"a whole-kind read beside two owners' writes": {ws("gauge.items", nil, "read"), owned("installation-a", nil, "write"), owned("installation-b", nil, "write")},
+	} {
+		t.Run("admitted: "+name, func(t *testing.T) {
+			if err := decide.AdmitMethod(gauge, "/gauge.Service/Edit", held); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+	t.Run("a permission held nowhere is refused as not held", func(t *testing.T) {
+		err := decide.AdmitMethod(gauge, "/gauge.Service/Edit", []*basev0.WorkScopeV1{owned("installation-a", nil, "read")})
+		wantCode(t, err, domain.Denied)
+		if !strings.Contains(err.Error(), "which the call does not hold") || strings.Contains(err.Error(), "no owner in common") {
+			t.Fatal(err)
+		}
+	})
+}

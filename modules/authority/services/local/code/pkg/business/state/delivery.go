@@ -9,7 +9,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 
-	"github.com/codefly-dev/core/solutionhost"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 )
 
 // appliedDelivery retains Core's verified bytes, the paired policy identity and
@@ -68,9 +68,6 @@ func (s *State) Reread(ctx context.Context, m Manifest) (bool, error) {
 	reread, err := s.svc.RereadModule(ctx, m)
 	if err != nil {
 		return false, classify(err)
-	}
-	if reread {
-		s.refreshRolesLocked()
 	}
 	return reread, nil
 }
@@ -246,6 +243,5 @@ func (s *State) withdrawLocked(alias string) error {
 			return err
 		}
 	}
-	s.refreshRolesLocked()
 	return nil
 }

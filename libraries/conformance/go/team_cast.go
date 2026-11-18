@@ -10,8 +10,8 @@ import (
 // teamCast is SessionService.OpenTeamCast: a person fixes a session to act as
 // a member of one team and of nothing else, so that what a member of the team
 // sees can be checked by someone whose own reach answers everything. The rule
-// is the authority's and is one rule: a person acts as a team whose roles they
-// could grant, member of it or not.
+// is the authority's and is one rule: a person acts as a team only if they are
+// a member of it or could grant every role it holds.
 //   - an administrator who is not in the team casts onto it, and the cast holds
 //     exactly what the team's role holds, at the solution and at the store
 //     through its binding; an ask beyond it is refused "widens", and the cast
@@ -38,16 +38,7 @@ func (sp *principalSuite) teamCast(t *testing.T) {
 	sp.grant(t, A, "user", map[string]any{"team_id": f.Team})
 	defer sp.revoke(t, A, "user", map[string]any{"team_id": f.Team})
 
-	cast := func(t *testing.T, from, team string) (string, error) {
-		t.Helper()
-		out, err := sp.c.call(sp.as(t, from), "host.session.v1.SessionService", "OpenTeamCast", map[string]any{"team_id": team})
-		if err != nil {
-			return "", err
-		}
-		name := "team-cast:" + str(out, "session_id")
-		sp.sessions[name] = out
-		return name, nil
-	}
+	cast := sp.cast
 
 	instA := str(sp.ensure(t, f.Organization, A), "id")
 	for who, from := range map[string]string{"an administrator who is not in the team": f.Admin, "a member of the team": f.TeamMember} {
@@ -62,7 +53,7 @@ func (sp *principalSuite) teamCast(t *testing.T) {
 			refused(t, err, codes.PermissionDenied, "widens")
 			_, err = sp.c.call(sp.as(t, as), "host.installation.v1.InstallationService", "GrantRole", map[string]any{
 				"organization_id": f.Organization, "installation_id": str(sp.ensure(t, f.Organization, A), "id"), "role": "admin", "team_id": f.Team})
-			refused(t, err, codes.PermissionDenied, "belongs to another organization") // what a user is answered
+			refused(t, err, codes.PermissionDenied, "is neither an administrator of "+f.Organization+" nor a holder of the admin role") // what a user is answered
 			_, err = cast(t, as, f.Team)
 			refused(t, err, codes.PermissionDenied, "already cast")
 
@@ -106,6 +97,19 @@ func (sp *principalSuite) teamCast(t *testing.T) {
 	if _, err = cast(t, f.OtherMember, f.Team); err == nil {
 		t.Fatal("a member of another organization was cast onto this organization's team")
 	}
+}
+
+// cast opens a session of from's cast onto team, and answers the name the
+// suite's other steps act as it by (as).
+func (sp *principalSuite) cast(t *testing.T, from, team string) (string, error) {
+	t.Helper()
+	out, err := sp.c.call(sp.as(t, from), "host.session.v1.SessionService", "OpenTeamCast", map[string]any{"team_id": team})
+	if err != nil {
+		return "", err
+	}
+	name := "team-cast:" + str(out, "session_id")
+	sp.sessions[name] = out
+	return name, nil
 }
 
 // castable is what ListCastableTeams answers the session from: each team's

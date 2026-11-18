@@ -2,6 +2,7 @@ package decide_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
@@ -29,7 +30,12 @@ func TestAModulePageDeclaresRolesLikeASolution(t *testing.T) {
 	}
 	headless := modulePage()
 	headless.Page = false
-	refused(t, decide.ValidateModule(headless), domain.Denied, "declares roles and no page")
+	refused(t, decide.ValidateModule(headless), domain.Denied, "declares roles and no page; a person reaches a module that has no page through a role on an installation that binds it")
+	// The retired model, where an organisation role reached a module, is in
+	// no refusal: no organisation role reaches one.
+	if err := decide.ValidateModule(headless); strings.Contains(err.Error(), "organization's roles") {
+		t.Fatalf("the refusal still states that an organisation's roles are a module's access: %v", err)
+	}
 	noAdmin := modulePage()
 	delete(noAdmin.Roles, domain.AdminRole)
 	if err := decide.ValidateModule(noAdmin); !errors.Is(err, domain.ErrNoAdminRole) {

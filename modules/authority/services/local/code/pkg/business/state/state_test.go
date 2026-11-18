@@ -7,9 +7,9 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/codefly-dev/authority/libraries/solutionhost/go/workloadidentity/native"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"github.com/codefly-dev/core/workcontext"
-	"github.com/codefly-dev/core/workloadidentity/native"
 
 	"gateway/pkg/business/state"
 	"gateway/pkg/business/testkit"

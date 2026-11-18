@@ -28,6 +28,7 @@ func TestChildPreservesVerifiedTaskAndActorProvenance(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newHarness(t)
+			ledgerWithRoles(t, h, "rob")
 			narrow := sc(ledgerKind, "read")
 			narrow.ResourceIds = []string{"entry-x"}
 			root := h.must(h.root("rob", "ledger", narrow))

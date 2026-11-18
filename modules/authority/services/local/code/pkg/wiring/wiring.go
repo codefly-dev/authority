@@ -7,7 +7,7 @@ import (
 	"context"
 	"crypto"
 
-	"github.com/codefly-dev/core/solutionhost"
+	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 
 	"gateway/pkg/business/issuer"
 	"gateway/pkg/business/state"
@@ -24,6 +24,16 @@ func Set(st *state.State, is *issuer.Issuer) { configuredState, configuredIssuer
 // State is the configured state; nil before Configure ran, which a plugin's New
 // reports by refusing to serve.
 func State() *state.State { return configuredState }
+
+// SetFixtureRun records that this run was started on a fixture it selected, in
+// a local run: the session plugin then lists the fixture's people and signs
+// them in by their fixture tokens. Unset, it does neither.
+func SetFixtureRun(fixture bool) { configuredFixtureRun = fixture }
+
+var configuredFixtureRun bool
+
+// FixtureRun is whether this run serves its fixture's sign-in.
+func FixtureRun() bool { return configuredFixtureRun }
 
 // Issuer is the configured issuer.
 func Issuer() *issuer.Issuer { return configuredIssuer }

@@ -29,16 +29,15 @@ func TestInstallationDeclarationSelection(t *testing.T) {
 		name, selector, requested, want string
 		refused                         bool
 	}{
-		{"legacy", "", "author", "author", false},
+		{"legacy", "", "admin", "admin", false},
 		{"legacy missing", "", "", "", true},
 		{"legacy caller none", "", "none", "", true},
 		{"named default", "user", "", "user", false},
 		{"named same", "user", "user", "user", false},
-		{"named override", "user", "author", "", true},
-		{"named missing", "missing", "", "", true},
+		{"named override", "user", "admin", "", true},
 		{"declared none", "none", "", "none", false},
 		{"none caller none", "none", "none", "", true},
-		{"none override", "none", "author", "", true},
+		{"none override", "none", "admin", "", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newHarness(t)
@@ -56,6 +55,18 @@ func TestInstallationDeclarationSelection(t *testing.T) {
 				t.Fatalf("selection: %+v %v", inst, err)
 			}
 		})
+	}
+}
+
+// A declaration naming a role it does not declare never reaches an install:
+// the manifest itself is refused when it is applied.
+func TestAnInstallationRoleNamingNoDeclaredRoleIsRefusedOnApply(t *testing.T) {
+	h := newHarness(t)
+	m := solution("b", true)
+	m.Generation++
+	m.InstallationRole = "missing"
+	if _, err := h.svc.ApplyModule(h.ctx, m); err == nil || !strings.Contains(err.Error(), "not one of its roles") {
+		t.Fatalf("applied a declaration naming no declared role: %v", err)
 	}
 }
 
@@ -83,7 +94,7 @@ func TestNoStandingAuthorityStillHasFencedSetup(t *testing.T) {
 	if _, _, err = h.svc.VerifyInstallationStep(h.ctx, issued.Token, approval.TargetID); err == nil {
 		t.Fatal("setup survived activation")
 	}
-	for _, req := range []authority.IssueRequest{{Audience: "b"}, {Audience: "b", Scopes: m.Roles["author"]}} {
+	for _, req := range []authority.IssueRequest{{Audience: "b"}, {Audience: "b", Scopes: m.Roles["admin"]}} {
 		if out, err := h.svc.IssueForInstallation(h.ctx, authority.Workload{Module: "b"}, inst.ID, req); err == nil || out.Token != "" {
 			t.Fatal("zero standing authority issued", err)
 		}
@@ -140,7 +151,7 @@ func TestInstallationDeclarationDigestAndStaleApproval(t *testing.T) {
 					return err
 				}
 				if field == "selector" {
-					m.InstallationRole = "author"
+					m.InstallationRole = "admin"
 				} else {
 					m.EdgeDependencies = []domain.EdgeDependency{{Module: "store", Presence: "required"}}
 				}
@@ -150,7 +161,7 @@ func TestInstallationDeclarationDigestAndStaleApproval(t *testing.T) {
 				t.Fatal(err)
 			}
 			admin := h.admin(globex)
-			_, err = h.svc.Install(h.ctx, admin, globex, "b", "author", admin.ID, approval, nil)
+			_, err = h.svc.Install(h.ctx, admin, globex, "b", "admin", admin.ID, approval, nil)
 			if err == nil || !strings.Contains(err.Error(), "DIGEST_CHANGED") {
 				t.Fatal("changed declaration reused review", err)
 			}
