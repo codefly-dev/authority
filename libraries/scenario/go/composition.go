@@ -94,7 +94,7 @@ type Options struct {
 	// role alone, and a refusal that depends on it never appears.
 	Seated []string
 	// Administrator installs and withdraws: a fixture person who administers their
-	// organisation. Empty is "alice".
+	// organisation. When omitted, the fixture must name exactly one organization admin for setup.
 	Administrator string
 }
 
@@ -221,9 +221,9 @@ func (c *Composition) connect(ctx context.Context, options Options) error {
 	for _, p := range listed.GetPeople() {
 		c.people[p.GetPersonId()] = p
 	}
-	administrator := options.Administrator
-	if administrator == "" {
-		administrator = "alice"
+	administrator, err := fixtureAdministrator(options, listed.GetPeople())
+	if err != nil {
+		return err
 	}
 	for _, target := range options.Install {
 		if err := c.install(ctx, administrator, target); err != nil {
@@ -231,6 +231,22 @@ func (c *Composition) connect(ctx context.Context, options Options) error {
 		}
 	}
 	return c.seat(ctx, options, administrator)
+}
+
+func fixtureAdministrator(options Options, people []*sessionv1.FixturePerson) (string, error) {
+	if options.Administrator != "" || (len(options.Install) == 0 && len(options.Seated) == 0) {
+		return options.Administrator, nil
+	}
+	var admins []string
+	for _, person := range people {
+		if slices.Contains(person.GetRoles(), "admin") {
+			admins = append(admins, person.GetPersonId())
+		}
+	}
+	if len(admins) != 1 {
+		return "", fmt.Errorf("fixture lists %d organization administrators; specify Options.Administrator", len(admins))
+	}
+	return admins[0], nil
 }
 
 // seat keeps the fixture's people on options.Seated alone, when it names any

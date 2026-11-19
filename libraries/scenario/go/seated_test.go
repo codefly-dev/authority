@@ -207,3 +207,23 @@ func TestNoSeatingAskedForLeavesTheFixture(t *testing.T) {
 		t.Errorf("tracing is held by %v after %d sign-ins of the administrator", got, host.signIns)
 	}
 }
+
+func TestFixtureAdministrator(t *testing.T) {
+	people := []*sessionv1.FixturePerson{{PersonId: "ordinary"}, {PersonId: "installer", Roles: []string{"admin"}}}
+	setup := Options{Seated: []string{"tracing"}}
+	if got, err := fixtureAdministrator(setup, people); err != nil || got != "installer" {
+		t.Fatalf("fixture administrator = %q, %v", got, err)
+	}
+	for _, ambiguous := range [][]*sessionv1.FixturePerson{nil, {people[1], {PersonId: "another", Roles: []string{"admin"}}}} {
+		if _, err := fixtureAdministrator(setup, ambiguous); err == nil {
+			t.Fatal("expected an explicit administrator to be required")
+		}
+	}
+	setup.Administrator = "another"
+	if got, err := fixtureAdministrator(setup, nil); got != "another" || err != nil {
+		t.Fatalf("explicit administrator = %q, %v", got, err)
+	}
+	if _, err := fixtureAdministrator(Options{}, nil); err != nil {
+		t.Fatal(err)
+	}
+}
