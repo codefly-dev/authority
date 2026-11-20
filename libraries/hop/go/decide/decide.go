@@ -14,6 +14,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/hop/go"
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 	"github.com/codefly-dev/core/workcontext"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -138,7 +139,18 @@ func (d Decider) decide(ctx context.Context, method string, md metadata.MD) (Dec
 		if refusal.Code() == codes.Canceled {
 			return Decision{Addressed: module}, status.Errorf(codes.Unavailable, "the authority's check of the call to %s was cancelled before it answered: %s", module, refusal.Message())
 		}
-		return Decision{Addressed: module, Answered: true}, status.Errorf(refusal.Code(), "the authority refused the call to %s: %s", module, refusal.Message())
+		reason := status.Newf(refusal.Code(), "the authority refused the call to %s: %s", module, refusal.Message())
+		if refusal.Code() == codes.ResourceExhausted {
+			for _, detail := range refusal.Details() {
+				if hint, ok := detail.(*errdetails.RetryInfo); ok {
+					if detailed, err := reason.WithDetails(hint); err == nil {
+						reason = detailed
+					}
+					break
+				}
+			}
+		}
+		return Decision{Addressed: module, Answered: true}, reason.Err()
 	}
 	if checked.GetRefusal() != "" {
 		return Decision{Addressed: module, Answered: true}, status.Error(codes.PermissionDenied, "the authority refused the method policy")

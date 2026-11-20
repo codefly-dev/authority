@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +19,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/hop/go"
 	"github.com/codefly-dev/authority/libraries/hop/go/decide"
 	"github.com/codefly-dev/authority/libraries/hop/go/routing"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -171,6 +174,19 @@ const statusClientClosedRequest = 499
 // passed or the authority did not answer (DeadlineExceeded, Unavailable, 503).
 func refuse(w http.ResponseWriter, r *http.Request, err error) {
 	s := status.Convert(err)
+	if s.Code() == codes.ResourceExhausted {
+		for _, detail := range s.Details() {
+			hint, ok := detail.(*errdetails.RetryInfo)
+			if !ok || hint.GetRetryDelay().CheckValid() != nil {
+				continue
+			}
+			delay := hint.GetRetryDelay().AsDuration()
+			if delay >= 0 {
+				w.Header().Set("Retry-After", strconv.FormatInt(int64(math.Ceil(delay.Seconds())), 10))
+				break
+			}
+		}
+	}
 	if connectRefusal.IsSupported(r) {
 		_ = connectRefusal.Write(w, r, connect.NewError(connect.Code(s.Code()), errors.New(s.Message())))
 		return

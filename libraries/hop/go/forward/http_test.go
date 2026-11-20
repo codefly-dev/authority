@@ -15,9 +15,11 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/hop/go"
 	"github.com/codefly-dev/authority/libraries/hop/go/routing"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 // An HTTP request is decided for "<VERB> <path>" with its headers as the call's
@@ -218,4 +220,23 @@ func TestARESTCallerKeepsItsErrorBodyAndStatus(t *testing.T) {
 func withType(r *http.Request, contentType string) *http.Request {
 	r.Header.Set("Content-Type", contentType)
 	return r
+}
+
+func TestThrottleReportsRetryAfterForRESTAndConnect(t *testing.T) {
+	throttle, err := status.New(codes.ResourceExhausted, "rate_limited").WithDetails(&errdetails.RetryInfo{RetryDelay: durationpb.New(1250 * time.Millisecond)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, protocol := range []string{"rest", "connect"} {
+		req := httptest.NewRequest(http.MethodPost, "/example.Service/Read", strings.NewReader("{}"))
+		req.Header.Set("Content-Type", "application/json")
+		if protocol == "connect" {
+			req.Header.Set("Connect-Protocol-Version", "1")
+		}
+		rec := httptest.NewRecorder()
+		refuse(rec, req, throttle.Err())
+		if rec.Code != http.StatusTooManyRequests || rec.Header().Get("Retry-After") != "2" {
+			t.Fatalf("%s returned %d with headers %v", protocol, rec.Code, rec.Header())
+		}
+	}
 }

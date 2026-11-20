@@ -8,10 +8,12 @@ import (
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
 	"github.com/codefly-dev/authority/libraries/hop/go"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 type ended struct{}
@@ -69,5 +71,29 @@ func TestACheckWhoseCallerDeadlinePassedIsDeadlineExceeded(t *testing.T) {
 	_, err = d.Decide(context.Background(), "GET /v1/model/profiles", metadata.Pairs(hop.WorkContextKey, "x"))
 	if status.Code(err) != codes.Unavailable {
 		t.Fatalf("a live caller refused %v, want Unavailable", err)
+	}
+}
+
+type throttledCheck struct{ err error }
+
+func (c throttledCheck) Check(context.Context, *authorityv1.CheckRequest, ...grpc.CallOption) (*authorityv1.CheckResponse, error) {
+	return nil, c.err
+}
+
+func TestAuthorityThrottleKeepsRetryDelay(t *testing.T) {
+	throttle, err := status.New(codes.ResourceExhausted, "rate_limited").WithDetails(&errdetails.RetryInfo{RetryDelay: durationpb.New(13 * time.Second)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := Decider{Authority: throttledCheck{throttle.Err()}, AudienceOf: func(string) (string, error) { return "model", nil },
+		Routes: testRoutes("model", "GET /v1/model/profiles"), Modules: map[string]bool{"model": true}}
+	_, err = d.Decide(context.Background(), "GET /v1/model/profiles", metadata.Pairs(hop.WorkContextKey, "x"))
+	st := status.Convert(err)
+	if st.Code() != codes.ResourceExhausted || len(st.Details()) != 1 {
+		t.Fatalf("authority retry hint lost: %v", st.Proto())
+	}
+	info, ok := st.Details()[0].(*errdetails.RetryInfo)
+	if !ok || info.GetRetryDelay().AsDuration() != 13*time.Second {
+		t.Fatalf("unexpected detail: %v", st.Details())
 	}
 }
