@@ -183,6 +183,8 @@ func refuse(w http.ResponseWriter, r *http.Request, err error) {
 		code = http.StatusForbidden
 	case codes.InvalidArgument:
 		code = http.StatusBadRequest
+	case codes.ResourceExhausted:
+		code = http.StatusTooManyRequests
 	case codes.NotFound:
 		code = http.StatusNotFound
 	case codes.Canceled:

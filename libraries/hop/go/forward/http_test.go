@@ -178,6 +178,7 @@ func TestARESTCallerKeepsItsErrorBodyAndStatus(t *testing.T) {
 		codes.PermissionDenied:   http.StatusForbidden,
 		codes.InvalidArgument:    http.StatusBadRequest,
 		codes.NotFound:           http.StatusNotFound,
+		codes.ResourceExhausted:  http.StatusTooManyRequests,
 		codes.Unavailable:        http.StatusServiceUnavailable,
 		codes.DeadlineExceeded:   http.StatusServiceUnavailable,
 		codes.FailedPrecondition: http.StatusInternalServerError,
