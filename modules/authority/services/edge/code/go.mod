@@ -4,8 +4,8 @@ go 1.27.4
 
 require (
 	connectrpc.com/connect v1.21.1
-	github.com/codefly-dev/authority/libraries/authority-client/go v0.2.1-0.20261114124942-66a55f61159d
-	github.com/codefly-dev/authority/libraries/hop/go v0.0.0-00010101000000-000000000000
+	github.com/codefly-dev/authority/libraries/authority-client/go v0.2.1-0.20261121110442-6c64e549645a
+	github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261121110442-6c64e549645a
 	github.com/codefly-dev/core v0.19.36-0.20261121094328-95a426c5096f
 	github.com/codefly-dev/sdk-go v0.4.5-0.20261121101950-387a613100c4
 	github.com/google/uuid v1.6.0
