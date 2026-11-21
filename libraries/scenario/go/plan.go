@@ -18,8 +18,19 @@ import (
 )
 
 // Seats are the fixture people who hold a product's roles: the holder of its
-// admin role, the holder of its user role and a member holding none.
-type Seats struct{ Admin, User, None string }
+// admin role, the holder of its user role and a member holding none. Outsider
+// is the administrator of another organisation, who holds no role on any
+// installation of theirs; a plan's rows (PlanRows) are the first three's, and
+// the outsider is held to tenant isolation (Isolated, Withheld).
+type Seats struct{ Admin, User, None, Outsider string }
+
+// Cast is the local authority's shipped fixture, by seat: at Acme, Dana is
+// every role-gated target's admin (and the organisation's administrator, who
+// installs), Carol its user and Bob a member holding no role; Zoë administers
+// Globex, where she is the admin of its own installation of every module page
+// the run composes. The ids are the fixture's contract with every composing
+// repository; a person's token is still read from the host.
+var Cast = Seats{Admin: "dana", User: "carol", None: "bob", Outsider: "zoe"}
 
 // Published is what each composed module publishes of its methods: by
 // audience, each procedure "/package.Service/Method" and the permissions it

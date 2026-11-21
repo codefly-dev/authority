@@ -94,7 +94,10 @@ type Options struct {
 	// role alone, and a refusal that depends on it never appears.
 	Seated []string
 	// Administrator installs and withdraws: a fixture person who administers their
-	// organisation. When omitted, the fixture must name exactly one organization admin for setup.
+	// organisation. When omitted, it is the one administrator of the
+	// composition's own organisation, the one the fixture lists first (Acme,
+	// on the local authority's fixture); another organisation's administrator
+	// (Outsider) is never chosen for it.
 	Administrator string
 }
 
@@ -113,6 +116,9 @@ type Composition struct {
 	mu     sync.Mutex
 	people map[string]*sessionv1.FixturePerson
 	signed map[string]*Person
+	// home is the composition's own organisation: the administrator's, or
+	// the one the fixture lists first. Outsider is held against it.
+	home string
 
 	// seating is the seating the run asked for (Options.Seated), held before
 	// every call; nil when it asked for none.
@@ -225,6 +231,7 @@ func (c *Composition) connect(ctx context.Context, options Options) error {
 	if err != nil {
 		return err
 	}
+	c.home = homeOrganization(administrator, listed.GetPeople())
 	for _, target := range options.Install {
 		if err := c.install(ctx, administrator, target); err != nil {
 			return fmt.Errorf("install %s as %s: %w", target, administrator, err)
@@ -233,20 +240,39 @@ func (c *Composition) connect(ctx context.Context, options Options) error {
 	return c.seat(ctx, options, administrator)
 }
 
+// fixtureAdministrator is who installs and withdraws: the one the options
+// name, or the one administrator of the composition's own organisation, the
+// one the fixture lists first. A fixture with a second organisation (the
+// outsider's) still names one administrator for setup.
 func fixtureAdministrator(options Options, people []*sessionv1.FixturePerson) (string, error) {
 	if options.Administrator != "" || (len(options.Install) == 0 && len(options.Seated) == 0) {
 		return options.Administrator, nil
 	}
+	home := homeOrganization("", people)
 	var admins []string
 	for _, person := range people {
-		if slices.Contains(person.GetRoles(), "admin") {
+		if person.GetOrganizationId() == home && slices.Contains(person.GetRoles(), "admin") {
 			admins = append(admins, person.GetPersonId())
 		}
 	}
 	if len(admins) != 1 {
-		return "", fmt.Errorf("fixture lists %d organization administrators; specify Options.Administrator", len(admins))
+		return "", fmt.Errorf("fixture lists %d administrators of its first organization %q; specify Options.Administrator", len(admins), home)
 	}
 	return admins[0], nil
+}
+
+// homeOrganization is the composition's own organisation: administrator's,
+// when the fixture lists them, or the one of the first person it lists.
+func homeOrganization(administrator string, people []*sessionv1.FixturePerson) string {
+	for _, person := range people {
+		if person.GetPersonId() == administrator {
+			return person.GetOrganizationId()
+		}
+	}
+	if len(people) == 0 {
+		return ""
+	}
+	return people[0].GetOrganizationId()
 }
 
 // seat keeps the fixture's people on options.Seated alone, when it names any

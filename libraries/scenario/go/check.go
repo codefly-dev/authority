@@ -17,7 +17,10 @@ type Expect struct {
 	// none of not, which are an earlier decision's words.
 	among, unmet, not []string
 	stage             string
-	holds             []func(Outcome) error
+	// withheld: the expectation is Withheld, which a refusal for who makes
+	// the call or the method's own "not found" each satisfy.
+	withheld bool
+	holds    []func(Outcome) error
 }
 
 // staged: the expectation is a refusal by one named decision.
@@ -61,6 +64,17 @@ var (
 	// no method and does not satisfy it.
 	Admit = Expect{verdict: Admitted}
 )
+
+// Withheld: the call names something of another organisation's (a row, an
+// installation) and its caller is not given it: the call is refused for who
+// makes it, or it reached its method and the method answers that no such
+// thing exists (Connect not_found), which is what a store scoped to the
+// caller's own organisation says of another's row. Nothing else satisfies it:
+// an answer gave the row away; a request refused for another reason of the
+// method's own (an argument), a call nobody is served and a call that failed
+// prove nothing about the row. A route's plain 404 is read as unserved (Do),
+// so hold a route to Deny or to what its answer lacks (HoldsNone).
+var Withheld = Expect{verdict: Denied, withheld: true}
 
 // Deny: the call is refused for who makes it, and the refusal says reason
 // (a part of it). A refusal that names no reason fails whatever is expected.
@@ -124,6 +138,10 @@ func (e Expect) problem(got Outcome) string {
 		return "the call failed before any verdict: " + said
 	case got.Verdict == Denied && strings.TrimSpace(got.Reason) == "":
 		return "denied with no reason"
+	case e.withheld && got.Verdict != Denied && (got.Verdict != Admitted || got.Code != "not_found"):
+		return "expected another organisation's to be withheld (a refusal, or not found), got " + said
+	case e.withheld:
+		// Withheld: refused, or not found.
 	case got.Verdict == Unserved && (e.verdict != Denied || e.reason != "" || e.staged()):
 		// A call nobody is served is refused to everyone, which satisfies a
 		// refusal expected for no stated reason, and nothing else: never a

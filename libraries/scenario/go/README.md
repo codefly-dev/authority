@@ -62,6 +62,37 @@ func TestWhoReadsTheNotes(t *testing.T) {
   expectation is `Allow`, `Admit` or `Deny("part of the reason")`, with
   `.And(func(Outcome) error)` for what the answer must hold. A refusal that
   names no reason fails whatever was expected.
+- **The outsider** is the administrator of another organisation, who holds no
+  role on any installation of the composition's own: on the local authority's
+  fixture, Zoë of Globex. `scenario.Cast` names the shipped fixture by seat
+  (`Admin` dana, `User` carol, `None` bob, `Outsider` zoe), and
+  `composed.Outsider(t)` reads her from the host instead (the one
+  administrator of an organisation that is not the administrator's own) and
+  signs her in. A module page is installed at every organisation by
+  composition and the fixture seats Zoë as its admin at Globex, so she calls
+  the same page on her own seat and is answered her own organisation's rows;
+  a solution she installs herself (`composed.Install(t, scenario.Cast.Outsider, "wiki")`).
+  Two helpers hold a suite to tenant isolation:
+
+  ```go
+  // Each reads their own organisation's rows and none of the other's: both
+  // ways, and only against rows that are really there.
+  composed.Isolated(t, "list the notes", scenario.Call{Page: "notes", Procedure: "notes.v1.NotesService/List"},
+  	scenario.Own{scenario.Cast.Admin: {danasNote}, scenario.Cast.Outsider: {zoesNote}})
+
+  // Naming Acme's row, Zoë is refused or told it does not exist; never answered.
+  composed.Check(t, scenario.Row{Name: "read Acme's note", Call: scenario.Call{Page: "notes", Procedure: "notes.v1.NotesService/Get", Request: map[string]string{"id": danasNote}},
+  	Want: scenario.Want{scenario.Cast.Admin: scenario.Allow, scenario.Cast.Outsider: scenario.Withheld}})
+  ```
+
+  `Isolated` fails a read that is refused or answers nothing, and a table
+  whose people are all of one organisation: neither shows isolation.
+  `Withheld` is a refusal for who calls or the method's own Connect
+  `not_found`; an answer, a refusal for another reason, an unserved call and
+  a failure do not satisfy it. `Holds` and `HoldsNone` say what an answer
+  carries, for `.And`. `Options.Administrator`, when omitted, is the one
+  administrator of the organisation the fixture lists first, so Zoë never
+  makes the setup ambiguous.
 - **`PlanRows`** turns a product's role plan
   (`authority-core/go/roleplan`) into rows, so nothing is listed by hand:
   every procedure the plan's rows cover at the modules the page binds (read

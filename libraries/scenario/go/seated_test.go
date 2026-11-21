@@ -214,7 +214,12 @@ func TestFixtureAdministrator(t *testing.T) {
 	if got, err := fixtureAdministrator(setup, people); err != nil || got != "installer" {
 		t.Fatalf("fixture administrator = %q, %v", got, err)
 	}
-	for _, ambiguous := range [][]*sessionv1.FixturePerson{nil, {people[1], {PersonId: "another", Roles: []string{"admin"}}}} {
+	// Another organisation's administrator (the outsider) is not a second one.
+	elsewhere := append(slices.Clone(people), &sessionv1.FixturePerson{PersonId: "outsider", OrganizationId: "elsewhere", Roles: []string{"admin"}})
+	if got, err := fixtureAdministrator(setup, elsewhere); err != nil || got != "installer" {
+		t.Fatalf("fixture administrator beside another organisation's = %q, %v", got, err)
+	}
+	for _, ambiguous := range [][]*sessionv1.FixturePerson{nil, {people[1], {PersonId: "another", Roles: []string{"admin"}}}, {{PersonId: "ordinary"}, elsewhere[2]}} {
 		if _, err := fixtureAdministrator(setup, ambiguous); err == nil {
 			t.Fatal("expected an explicit administrator to be required")
 		}
