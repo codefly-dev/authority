@@ -84,8 +84,24 @@ func TestTheShippedFixtureIsTheCastAndNobodyElse(t *testing.T) {
 // Carol none of Globex's. What each is issued is her own organisation's, and
 // an ask for the other's, or an act on the other's installation, is refused.
 func TestTheShippedFixtureKeepsEachOrganisationToItsOwn(t *testing.T) {
+	for name, fragment := range map[string]string{
+		"the fixture alone": "",
+		// A composition naming who administers the page at Globex, beside the
+		// fixture's own row standing for every target there, changes nothing.
+		"a composition's row for the page at globex": "installations:\n  - {organization: globex, target: org-directory, owner: zoe}\n",
+	} {
+		t.Run(name, func(t *testing.T) { eachOrganisationKeepsItsOwn(t, fragment) })
+	}
+}
+
+func eachOrganisationKeepsItsOwn(t *testing.T, fragment string) {
 	k := shipped(t)
 	ctx := context.Background()
+	if fragment != "" {
+		if _, err := k.State.ApplyComposition(ctx, []byte("schema: "+state.CompositionSchema+"\n"+fragment)); err != nil {
+			t.Fatal(err)
+		}
+	}
 	page := testkit.OrgDirectory(1)
 	page.Page = true
 	page.Roles = map[string][]*basev0.WorkScopeV1{
