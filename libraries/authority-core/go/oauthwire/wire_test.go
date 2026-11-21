@@ -95,7 +95,6 @@ func TestDiscoveryRefusesIncompleteOrUnsafeDeclarations(t *testing.T) {
 		"header injection":            func(d *oauthwire.Discovery) { d.ResourceMetadataURL += "\"\r\nX: injected" },
 		"padding":                     func(d *oauthwire.Discovery) { d.Resource += " " },
 		"remote http":                 func(d *oauthwire.Discovery) { d.Issuer = "http://issuer.invalid"; d.Local = true },
-		"invalid registration":        func(d *oauthwire.Discovery) { d.RegistrationEndpoint = "/register" },
 		"scope list instead of token": func(d *oauthwire.Discovery) { d.Scopes = []string{"read write"} },
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -186,5 +185,30 @@ func TestLifetimeIsTheEarlierEndRoundedDown(t *testing.T) {
 	}
 	if _, err := oauthwire.ExpiresIn(now, time.Time{}, now.Add(time.Hour)); err == nil {
 		t.Fatal("missing capability accepted")
+	}
+}
+
+// There is no dynamic client registration (RFC 7591): a client is known by
+// its Client ID Metadata Document. Neither document names a registration
+// endpoint, with every capability a host can declare switched on, and no
+// field of either type could carry one.
+func TestNoDocumentNamesARegistrationEndpoint(t *testing.T) {
+	d := discovery(t)
+	d.ClientMetadataSupported, d.Scopes = true, []string{"read"}
+	r, a, err := d.Documents()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, document := range map[string]any{"protected resource": r, "authorization server": a, "declaration": d} {
+		raw, err := json.Marshal(document)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(strings.ToLower(string(raw)), "registration") {
+			t.Fatalf("the %s document names a registration: %s", name, raw)
+		}
+	}
+	if !a.ClientMetadataSupported {
+		t.Fatal("client ID metadata document support, declared, is not published")
 	}
 }

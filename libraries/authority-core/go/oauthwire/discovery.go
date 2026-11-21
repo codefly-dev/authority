@@ -17,8 +17,11 @@ import (
 // URL the MCP client dials; none of these strings is normalized or reconstructed.
 type Discovery struct {
 	Resource, ResourceMetadataURL, Issuer, AuthorizationEndpoint, TokenEndpoint string
-	// Set these only when the host actually implements the corresponding flow.
-	RegistrationEndpoint    string
+	// ClientMetadataSupported is set only when the host fetches and validates
+	// Client ID Metadata Documents, which is how a client makes itself known.
+	// There is no dynamic client registration (RFC 7591), so no registration
+	// endpoint is named here or published: its absence from the document is
+	// how a conforming client learns not to try.
 	ClientMetadataSupported bool
 	Scopes                  []string
 	// Local permits HTTP on a loopback host for a local composition.
@@ -34,7 +37,8 @@ type ProtectedResourceMetadata struct {
 }
 
 // AuthorizationServerMetadata describes an authorization-code + PKCE server
-// with refresh for public clients. A host must implement these capabilities
+// with refresh for public clients. It has no registration_endpoint: a client
+// is known by its Client ID Metadata Document, never registered dynamically. A host must implement these capabilities
 // before publishing the document; discovery is not an implementation of them.
 type AuthorizationServerMetadata struct {
 	Issuer                   string   `json:"issuer"`
@@ -45,7 +49,6 @@ type AuthorizationServerMetadata struct {
 	TokenEndpointAuthMethods []string `json:"token_endpoint_auth_methods_supported"`
 	CodeChallengeMethods     []string `json:"code_challenge_methods_supported"`
 	Scopes                   []string `json:"scopes_supported,omitempty"`
-	RegistrationEndpoint     string   `json:"registration_endpoint,omitempty"`
 	ClientMetadataSupported  bool     `json:"client_id_metadata_document_supported,omitempty"`
 }
 
@@ -60,11 +63,6 @@ func (d Discovery) Documents() (ProtectedResourceMetadata, AuthorizationServerMe
 	} {
 		if err := publicURL(raw, d.Local); err != nil {
 			return ProtectedResourceMetadata{}, AuthorizationServerMetadata{}, fmt.Errorf("%s: %w", name, err)
-		}
-	}
-	if d.RegistrationEndpoint != "" {
-		if err := publicURL(d.RegistrationEndpoint, d.Local); err != nil {
-			return ProtectedResourceMetadata{}, AuthorizationServerMetadata{}, fmt.Errorf("registration endpoint: %w", err)
 		}
 	}
 	resource, _ := url.Parse(d.Resource)
@@ -85,8 +83,7 @@ func (d Discovery) Documents() (ProtectedResourceMetadata, AuthorizationServerMe
 		Issuer: d.Issuer, AuthorizationEndpoint: d.AuthorizationEndpoint, TokenEndpoint: d.TokenEndpoint,
 		ResponseTypes: []string{"code"}, GrantTypes: []string{"authorization_code", "refresh_token"},
 		TokenEndpointAuthMethods: []string{"none"}, CodeChallengeMethods: []string{S256},
-		Scopes: append([]string(nil), d.Scopes...), RegistrationEndpoint: d.RegistrationEndpoint,
-		ClientMetadataSupported: d.ClientMetadataSupported,
+		Scopes: append([]string(nil), d.Scopes...), ClientMetadataSupported: d.ClientMetadataSupported,
 	}, nil
 }
 

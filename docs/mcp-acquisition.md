@@ -113,9 +113,12 @@ actually exist. It never names a `registration_endpoint`: there is no dynamic
 client registration (decision 1). Client ID Metadata Document support is how a
 client registers itself, and is advertised
 (`client_id_metadata_document_supported`) only once the host fetches and
-validates those documents. `oauthwire` still carries an optional
-`RegistrationEndpoint` field and `ValidateRegistration` from before the
-ruling; no caller may set the field, and removing it is a change to the core.
+validates those documents. `oauthwire.Discovery` has no registration field,
+so no host can publish one, and a test holds the published document to
+carrying no `registration_endpoint` whatever is configured.
+`oauthwire.ValidateRegistration` and the core's `RegisterClient` remain from
+before the ruling: they bound and record public-client metadata, no host
+serves them, and they are not a registration endpoint.
 No OAuth scope vocabulary has been
 invented: callers must declare only scopes their flow enforces.
 
