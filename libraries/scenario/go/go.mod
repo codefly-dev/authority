@@ -6,7 +6,7 @@ require (
 	github.com/codefly-dev/authority/libraries/authority-client/go v0.2.1-0.20261117225105-2833202cea6d
 	github.com/codefly-dev/authority/libraries/authority-core/go v0.1.2-0.20261117225105-2833202cea6d
 	github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261117225105-2833202cea6d
-	github.com/codefly-dev/core v0.19.34-0.20261117211945-b67415c6891b
+	github.com/codefly-dev/core v0.19.36-0.20261121094328-95a426c5096f
 	github.com/google/uuid v1.6.0
 	google.golang.org/grpc v1.85.0
 	google.golang.org/protobuf v1.36.12
@@ -22,13 +22,14 @@ require (
 	github.com/VividCortex/ewma v1.2.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
+	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cheggaaa/pb/v3 v3.2.1 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/codefly-dev/authority/libraries/delivery/go v0.0.0-20261117225105-2833202cea6d // indirect
 	github.com/codefly-dev/authority/libraries/resources/go v0.0.0-20261117225105-2833202cea6d // indirect
 	github.com/codefly-dev/authority/libraries/solutionhost/go v0.0.0-20261117225105-2833202cea6d // indirect
-	github.com/codefly-dev/sdk-go v0.4.0 // indirect
+	github.com/codefly-dev/sdk-go v0.4.5-0.20261121101950-387a613100c4 // indirect
 	github.com/fatih/color v1.19.0 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -72,9 +73,14 @@ require (
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.72.0 // indirect
 	go.opentelemetry.io/otel v1.47.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.47.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.47.0 // indirect
+	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.47.0 // indirect
 	go.opentelemetry.io/otel/log v1.47.0 // indirect
 	go.opentelemetry.io/otel/metric v1.47.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.47.0 // indirect
 	go.opentelemetry.io/otel/trace v1.47.0 // indirect
+	go.opentelemetry.io/proto/otlp v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/exp v0.0.0-20261014143641-f0251eb4aa3e // indirect
 	golang.org/x/net v0.62.0 // indirect

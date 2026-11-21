@@ -3,7 +3,7 @@ version: 0.0.0
 agent:
     kind: codefly:service
     name: go
-    version: 0.0.71
+    version: 0.0.76
     publisher: codefly.dev
 # The auth gateway's role in a run that composes the authority: the one origin a
 # browser talks to. A person signs in here; every call to a module is routed by

@@ -40,12 +40,12 @@ github.com/clipperhouse/uax29/v2 v2.7.0 h1:+gs4oBZ2gPfVrKPthwbMzWZDaAFPGYK72F0NJ
 github.com/clipperhouse/uax29/v2 v2.7.0/go.mod h1:EFJ2TJMRUaplDxHKj1qAEhCtQPW2tJSwu5BF98AuoVM=
 github.com/codefly-dev/authority/libraries/authority-client/go v0.2.1-0.20261117225105-2833202cea6d h1:659Iq/v9P8tSBZtkuqBZZe6oMuYMtR/OzMcqiqaml1I=
 github.com/codefly-dev/authority/libraries/authority-client/go v0.2.1-0.20261117225105-2833202cea6d/go.mod h1:SkqsON9hTIITJba+fGFupUk7Q+osyYNX/fUn8zoXer8=
-github.com/codefly-dev/core v0.19.34-0.20261117211945-b67415c6891b h1:jD9GObftJycpWzmvyo7dJubEmvdRJiQt96Sus0e7qx4=
-github.com/codefly-dev/core v0.19.34-0.20261117211945-b67415c6891b/go.mod h1:BoFWBVL/cCXxIKa9dgu8O2faT2QZXGH+OpNktPE6DVc=
+github.com/codefly-dev/core v0.19.36-0.20261121094328-95a426c5096f h1:hVjp0VHekyGqxVNGuv8bVtVch5/553lKQKtlV/sS+Po=
+github.com/codefly-dev/core v0.19.36-0.20261121094328-95a426c5096f/go.mod h1:BoFWBVL/cCXxIKa9dgu8O2faT2QZXGH+OpNktPE6DVc=
 github.com/codefly-dev/gortk v0.2.0 h1:7bOlS5valYz2zil+fZctQNcPCYBcPj86abcw9N8h1hQ=
 github.com/codefly-dev/gortk v0.2.0/go.mod h1:dDWUMFgAP063OCGhTEpV7FFUj9+zTcxxO/nV80VKEwg=
-github.com/codefly-dev/sdk-go v0.4.3 h1:f7QHqqE7xqqpglOQ2kJ+DZCO/TbrNaDEZhGZ1IOd46Q=
-github.com/codefly-dev/sdk-go v0.4.3/go.mod h1:gviNmTzFn5UuK0CTQTxk9h11tkNXLgKu09NzuuPX5Eo=
+github.com/codefly-dev/sdk-go v0.4.5-0.20261121101950-387a613100c4 h1:nzaje26NFNMKRW6Vubm7O0LRjpZGvAmBOahIdjNbsiY=
+github.com/codefly-dev/sdk-go v0.4.5-0.20261121101950-387a613100c4/go.mod h1:tubX7Im7M90Y+Ua/ctDq6gUQYiF/9k6gMkf40RKR5ZQ=
 github.com/containerd/errdefs v1.0.0 h1:tg5yIfIlQIrxYtu9ajqY42W3lpS19XqdxRQeEwYG8PI=
 github.com/containerd/errdefs v1.0.0/go.mod h1:+YBYIdtsnF4Iw6nWZhJcqGSg/dwvV7tyJ/kCkyJ2k+M=
 github.com/containerd/errdefs/pkg v0.3.0 h1:9IKJ06FvyNlexW690DXuQNx2KA2cUJXx151Xdx3ZPPE=

@@ -16,7 +16,7 @@
     },
     {
       "name": "a path-like principal",
-      "owner": "solutions/org-1/wiki:principal"
+      "owner": "solutions/org-1/notes:principal"
     },
     {
       "name": "every allowed punctuation",

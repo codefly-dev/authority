@@ -65,6 +65,14 @@ type Options struct {
 	// Without are dependencies ("<module>/<service>") the run leaves out, and
 	// WithoutConfigurations the workspace configuration groups that name them.
 	Without, WithoutConfigurations []string
+	// Roots are services ("<module>/<service>") the run starts as roots
+	// beside the anchor's dependencies: what the scenarios need running and
+	// nothing they call depends on, a worker that polls a store or a
+	// dispatcher that progresses it. The anchor names what the scenarios
+	// call; a service private to its module is never one of those, and is
+	// named here as `codefly run service` names it on a command line. A root
+	// hands the scenarios no address.
+	Roots []string
 	// Set are workspace configuration values of this run alone.
 	Set []Value
 	// Install are solutions the organisation's administrator installs before
@@ -171,14 +179,8 @@ func Start(ctx context.Context, options Options) (*Composition, error) {
 	if timeout == 0 {
 		timeout = 10 * time.Minute
 	}
-	opts := []sdk.OptionFunc{sdk.WithDirectory(anchor), sdk.WithNamingScope(scope), sdk.WithTimeout(timeout),
-		sdk.WithCommandScopedEnvironment(),
-		sdk.WithExcludedDependencies(options.Without...), sdk.WithExcludedWorkspaceConfigurations(options.WithoutConfigurations...)}
-	for _, v := range options.Set {
-		opts = append(opts, sdk.WithWorkspaceConfiguration(v.Name, v.Key, v.Value))
-	}
 	began := time.Now()
-	deps, err := sdk.WithDependencies(ctx, opts...)
+	deps, err := sdk.WithDependencies(ctx, sessionOptions(anchor, scope, timeout, options)...)
 	if err != nil {
 		return nil, err
 	}
@@ -188,6 +190,22 @@ func Start(ctx context.Context, options Options) (*Composition, error) {
 		return nil, err
 	}
 	return c, nil
+}
+
+// sessionOptions is what the options say of the dependency session: the
+// anchor, the naming scope, what the run leaves out, the roots it starts
+// beside the anchor's dependencies and the values of this run alone.
+func sessionOptions(anchor, scope string, timeout time.Duration, options Options) []sdk.OptionFunc {
+	opts := []sdk.OptionFunc{sdk.WithDirectory(anchor), sdk.WithNamingScope(scope), sdk.WithTimeout(timeout),
+		sdk.WithCommandScopedEnvironment(),
+		sdk.WithExcludedDependencies(options.Without...), sdk.WithExcludedWorkspaceConfigurations(options.WithoutConfigurations...)}
+	if len(options.Roots) > 0 {
+		opts = append(opts, sdk.WithCoRoots(options.Roots...))
+	}
+	for _, v := range options.Set {
+		opts = append(opts, sdk.WithWorkspaceConfiguration(v.Name, v.Key, v.Value))
+	}
+	return opts
 }
 
 // Close stops the run and removes what it created.
