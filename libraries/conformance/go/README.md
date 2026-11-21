@@ -87,11 +87,13 @@ providing different labels does not remove an obligation.
 Every solution and module page the suite delivers declares exactly two person
 roles, `admin` and `user`; where a case needs a holder who only reads, it uses
 a declaration whose `user` only reads. No case requires a host to accept a
-third role. Hosts do not refuse one at run time either: core's module contract
-rule enforces the two roles statically when a contract is rendered, and a
-run-time refusal would refuse the deliveries still in flight while hosts cross
-the rename. Run-time enforcement belongs to the release that deletes the
-`installer` alias.
+third role, and the suite requires a host to refuse one: a delivery declaring
+any role but `admin` and `user` is refused by that name
+(`module_page_roles.go`: `declares role "viewer", which is neither "admin"
+nor "user"`). The shared core holds the rest, in its own tests: nobody is
+granted another name, and a stored grant of one is held as nothing. No former
+name (`installer`, `editor`, `viewer`, `steward`) stands for either role; the
+one-release `installer` alias and its crossover are deleted.
 
 | Behaviour | Shared case / fixture |
 | --- | --- |

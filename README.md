@@ -367,48 +367,37 @@ whoever installs the solution holds it on that installation, which is the
 install-and-configure surface, and its holder administers the installation's
 role grants and approves a module page's pending update. `user` reads and
 writes the target's own content; like any role, it holds only the scopes it
-declares. Core's module contract rule enforces the two roles statically when
-a contract is rendered; the authority does not refuse a further role at run
-time, because that would refuse the deliveries still in flight while hosts
-cross the rename. Run-time enforcement belongs to the release that deletes
-the `installer` alias below. A page that declares no roles is given both,
-derived from what it serves (`decide.StandardRoles`): `user` reads and writes
-its kinds, `admin` holds every action it serves. For one release a delivery
-that still names the old `installer` is accepted as declaring `admin`, and a
-holder of `installer` administers as an `admin` holder does; a declaration
-naming both `installer` and `admin` is refused. When a declaration of
-exactly `admin` and `user` replaces one whose grants hold the old names, those
-grants move instead of ending, at the approval of the update for an
-installation an administrator consented to, and on the delivery itself for
-one no consent holds or one held only by the receipt composition took (a
-module page's), when the update asks nothing beyond the rename: nobody
-reviewed that receipt, so no administrator owes the approval. Beyond the
-rename (each new role measured against what the old roles crossing to it
-held together, declaration and reach) a composition-held page waits for
-its admin's approval like any consented installation. A host holding the
-renamed generation already, its grants left on the old names by a delivery
-before the crossover, moves them at its next delivery or start, when it
-replays that generation. The rule is fixed: `installer` to `admin`, and `editor`, `viewer` and `steward` to
-`user`, whatever they held. This is the owner's least-privilege decision
-(2026-11-15): a page's `user` holds only what the page's screens call, mostly
-reading, so a former editor or steward may hold less than before (on the
-Wiki, a former editor no longer uploads), and an admin promotes whoever needs
-more. It supersedes the earlier goal that nobody loses access, for writes no
-page uses; nobody is promoted to `admin` by the rename. A former viewer may
-gain whatever `user` declares. The pending update names each move among what
-it asks (`holders of role editor move to user`, in
-`installation.upgrade_available`'s `widened`), also when the consent is
-behind the delivered generation. Each moved grant and revocation is journaled
-with `crossover_from` naming the old role and `crossover_basis` naming the
-rule (`installer` or `legacy_to_user`), so an audit tells it from a deliberate
-grant, and a subject is granted the new role once. A host that ran the
-coverage rule of #110 before this one may already hold journal rows whose
-`crossover_basis` is `declared_coverage` or `unknown_declaration`; audit
-readers accept those too, as crossover moves made under that rule. A
-declaration keeping a third role beside `admin` and `user` is not the rename: a role it drops ends
-its grants as usual. Both are a stopgap while modules are re-rendered before
-their host, deleted in the next release; `editor`, `viewer` and `steward`
-are aliases of nothing.
+declares. The two names are the only two (`domain.IsRole`), and the authority
+holds every path to them at run time, beside core's module contract rule,
+which holds a contract to them when it is rendered:
+
+- **A delivery declaring any other role is refused by that name**
+  (`decide.RoleNames`, `decide.PageRoles`), for a solution and for a module
+  page, admitted or applied, beside the two or in place of one. A declaration
+  with no `admin`, or no `user`, is refused saying which is missing.
+- **Nobody is granted another name** (`decide.ChangeRole`): the organisation's
+  administrator is refused `role "<name>" is neither "admin" nor "user"`.
+- **A grant of another name that a store still holds is held as nothing**
+  (`decide.HeldRoles`): its holder is issued nothing on it, administers
+  nothing, acts as no team, and is told they hold no role. It can still be
+  revoked.
+
+A page that declares no roles is given both, derived from what it serves
+(`decide.StandardRoles`): `user` reads and writes its kinds, `admin` holds
+every action it serves.
+
+No former name stands for either role. `installer`, once the admin role's
+name, is no alias of `admin`: a declaration naming it in `admin`'s place
+declares no admin and is refused, and a holder of a stored `installer` grant
+administers nothing. `editor`, `viewer` and `steward` are aliases of nothing.
+The one-release crossover that accepted `installer` as `admin` and moved
+grants of the old names to the new ones on a delivery or an approval is
+deleted: nothing moves a grant from an old name, and no journal row is
+written with `crossover_from` or `crossover_basis`. A store that held grants
+under the old names is re-granted by an administrator, `admin` or `user`, on
+each installation. This is the owner's least-privilege decision (2026-11-15):
+a page's `user` holds only what the page's screens call, and an admin
+promotes whoever needs more.
 
 **Organisation roles decide administration only.** They say who administers an
 organisation's members, teams, installations and grants, and they reach no
