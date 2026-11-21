@@ -670,16 +670,30 @@ method and the reason.
 
 **Who signs in, and acting as a team (2026-11-17).** The fixture a run is given
 (`modules/authority/services/local/code/fixtures/local.yaml`) holds the three
-people a walk needs and nobody else: Dana Lee `dana@example.com` (`dev-dana`),
+people a walk needs, all of Acme: Dana Lee `dana@example.com` (`dev-dana`),
 Acme's administrator and the admin of every target; Carol Davis
 `carol@acme.com` (`dev-carol`), the user of every target; and Bob Williams
 `bob@acme.com` (`dev-bob`), who holds no role anywhere and is refused by every
 page (handbook: [a page has two roles, admin and
 user](https://github.com/obin-ai/handbook/blob/main/decisions/a-page-has-two-roles-admin-and-user.md)).
+It holds one person more, of a second organisation, and nobody else: Zoë
+`zoe@globex.test` (`fixture-zoe`, the token the host's fixture and the
+composed suites already sign her in by), Globex's one administrator and the
+admin of every target at Globex. She is the outsider a suite holds an
+organisation's rows against: she holds no role on any installation of Acme's
+and administers nothing there, so an ask for Acme's or an act on its
+installation is refused, and what she is issued is Globex's. A module page is
+installed at every organisation by composition, so Globex holds its own
+installation of each page the run composes, where what Zoë writes is hers and
+no person of Acme reads it; a solution is installed at Globex only where a
+composition's row names it or Zoë installs it
+(`TestTheShippedFixtureKeepsEachOrganisationToItsOwn`). The edge's sign-in
+page lists all four unless the composition chooses (`SIGN_IN_CHOICES`), so a
+playground that offers Dana, Carol and Bob still offers those three.
 Every role-gated target the run composes (a solution, a module page declaring
 roles) gets one team per role, `<target>-admin` and `<target>-user`. Dana is
 seated on the admin team and Carol on the user team the moment the target is
-active. One fixture row standing for every target says so (`target: "*"`,
+active, and Zoë on the admin team of Globex's. One fixture row per organisation, standing for every target, says so (`target: "*"`,
 [what a composition adds to the fixture](modules/authority/services/local/README.md#what-a-composition-adds-to-the-fixture)).
 The host-independent part is the core's: `authority.ConventionalTeamName`,
 `RoleTeamsOf` and `GrantRoleTeamsAsHost`, which both hosts call; the local
@@ -693,8 +707,8 @@ hop then answers with the user's reach alone, and **Back to your own
 session** restores hers. Signed in as Carol, the hop answers with
 `<target>-user`'s reach and nothing else; signed in as Dana, with
 `<target>-admin`'s; signed in as Bob, with a refusal naming that he holds no
-role there. The other people the tables name (Maya, Rémi, Alex, Dev, Zoë, Omar,
-`no-roles`, the Globex organisation) belong to the test kit's matrix
+role there. The other people the tables name (Maya, Rémi, Alex, Dev, Omar,
+`no-roles`, and Zoë's `ops` team at Globex) belong to the test kit's matrix
 (`pkg/business/testkit/fixture.yaml`), used by conformance and business tests.
 No run is given that matrix.
 

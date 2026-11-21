@@ -213,7 +213,14 @@ declare the group: declaring it would give it authority bindings of its own.
 ## What a composition adds to the fixture
 
 The embedded fixture (`code/fixtures/local.yaml`) says who exists and who
-administers each organisation, in the authority's own vocabulary only. It
+administers each organisation, in the authority's own vocabulary only: at
+`acme`, `dana` (its administrator, and every target's admin), `carol` (every
+target's user) and `bob` (no role anywhere); at `globex`, `zoe`, its one
+administrator and the admin of every target there, who holds nothing of
+Acme's and is the person a suite proves another organisation's refusal with.
+A fragment names those ids and no others, and seats a person only on an
+installation of their own organisation: a row seating `zoe` at `acme`, or
+`dana` at `globex`, is refused by name. It
 names no module's kinds, no solution and no stand-in module, and an
 organisation role in it is a name: it decides administration and grants
 nothing at any module. **A person reaches a module only through a role

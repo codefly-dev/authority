@@ -1,5 +1,6 @@
-# The test-only authority matrix. Runtime fixtures contain only Dana, Carol
-# and Bob. Organisation roles administer; installation roles grant module access.
+# The test-only authority matrix. The fixture a run is given
+# (fixtures/local.yaml) holds only Dana, Carol and Bob of Acme and Zoë of
+# Globex. Organisation roles administer; installation roles grant module access.
 organizations:
   - id: acme
     name: Acme

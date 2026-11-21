@@ -389,7 +389,7 @@ func FixturePath() string {
 }
 
 // ShippedFixturePath is the fixture a run is given (`--fixture local`): the
-// three people a walk needs.
+// three people a walk needs, of Acme, and Zoë, who administers Globex.
 func ShippedFixturePath() string {
 	_, file, _, _ := runtime.Caller(0)
 	return filepath.Join(filepath.Dir(file), "..", "..", "..", "fixtures", "local.yaml")
