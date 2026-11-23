@@ -27,12 +27,12 @@ This repository holds two things, and only these two:
 authority/verifier, workload attestation and signed composition machinery.
 Its local issuer delegates issuance and grant derivation to this repository's
 shared authority core; the state adapter supplies fixture roles and delivery data.
-It does not currently link Accounts' sign-in or grant-derivation packages, and
-this adapter migration does not establish Accounts adoption of that core.
-The original host-package reuse requirement
-remains an unresolved design obligation with the host owner, not a guarantee
-established by this checkout. The shared conformance suite must run against both
-implementations; a local pass or a skipped provider scenario does not prove parity.
+SaaS Starter Accounts also constructs the shared authority core, using its
+Postgres adapter and session ledger. The local implementation supplies fixture
+sign-in. The public host RPCs are called by modules and solutions, while the
+core's Go dependencies supply host state, session checks and signing keys.
+Each implementation exercises the shared conformance suite. A local pass
+establishes the fixture host's behavior. Accounts parity requires its own run.
 
 **What this repo is, in one line.** The interfaces the host's saas component
 MUST satisfy, with the suite that proves it, and the development implementation

@@ -17,12 +17,12 @@ another clause, it does not belong here.
   attestation and composition packages, plus this repo's libraries. The local
   service does not currently import module-saas-starter.
 
-The local issuer now adapts requests to `libraries/authority-core/go`; its state
-adapter supplies fixture roles and delivery data to that shared core. This does
-not establish Accounts adoption or settle the host-package reuse requirement
-above. Do not add a parallel resolver, infer that local tests prove SaaS parity,
-or silently erase that obligation to match the implementation. Reconcile it with
-the host owner.
+The local issuer and SaaS Starter Accounts both use
+`libraries/authority-core/go` for issuance and grant derivation. The local
+adapter supplies fixture state and sign-in. Accounts supplies its Postgres
+adapter and session ledger. Keep grant derivation in the shared core and run
+conformance against both hosts when shared behavior changes. Reconcile any
+remaining host-package reuse obligation with the host owner.
 
 Rules, governed by https://github.com/obin-ai/handbook/blob/main/concepts/boundaries.md
 and the development contract at
