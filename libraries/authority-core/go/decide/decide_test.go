@@ -295,3 +295,29 @@ func TestWithdrawingOrAdoptingOwnerAwareIsANarrowing(t *testing.T) {
 		t.Fatal("sharing a kind is a narrowing")
 	}
 }
+
+func TestAudienceGrantOwnershipAndRevocation(t *testing.T) {
+	m := domain.Module{Principal: "notebook", Kind: domain.KindSolution, Roles: map[string]decide.Scopes{"user": nil}, AudienceRoles: map[string]map[string]decide.Scopes{"user": {"documents": {sc("item", "read")}}}}
+	inst := domain.Installation{PrincipalID: "installation-A"}
+	for _, audience := range []string{"documents", "archive", "notebook"} {
+		got, err := decide.RoleScopesAt(m, inst, []string{"user"}, audience)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if audience == "documents" {
+			if len(got) != 1 || got[0].GetResourceOwnerId() != inst.PrincipalID {
+				t.Fatalf("expected installation-bound read, got %v", got)
+			}
+		} else if len(got) != 0 {
+			t.Fatalf("%s received %v", audience, got)
+		}
+	}
+	if _, err := decide.RoleScopesAt(m, domain.Installation{}, []string{"user"}, "documents"); err == nil {
+		t.Fatal("issued an addressed grant without an installation principal")
+	}
+	next := m
+	next.AudienceRoles = map[string]map[string]decide.Scopes{"user": {"archive": {sc("item", "read")}}}
+	if !decide.Narrowed(m, next) {
+		t.Fatal("moving an unchanged scope to another audience must revoke the old grant")
+	}
+}

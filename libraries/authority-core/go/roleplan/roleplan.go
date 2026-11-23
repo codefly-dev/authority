@@ -327,6 +327,15 @@ func Coverage(m domain.Module, declared map[string]Policy, rows []Row) []string 
 		}
 	}
 	for _, role := range slices.Sorted(maps.Keys(used)) {
+		for _, audience := range slices.Sorted(maps.Keys(m.AudienceRoles[role])) {
+			for _, permission := range permissions(m.AudienceRoles[role][audience]) {
+				if !slices.ContainsFunc(slices.Sorted(maps.Keys(m.Bindings)), func(id string) bool {
+					return m.Bindings[id].Audience == audience && used[role]["ask "+id+" "+permission]
+				}) {
+					out = append(out, fmt.Sprintf("role %s grants unused %s at %s", role, permission, audience))
+				}
+			}
+		}
 		for _, p := range permissions(append(slices.Clone(m.Roles[role]), m.OwnedRoles[role]...)) {
 			if !slices.ContainsFunc(grantedWays(m, role, p), func(way string) bool { return used[role][way+" "+p] }) {
 				out = append(out, fmt.Sprintf("role %s grants %s, which no row its holder is allowed uses the way it is granted: least privilege grants nothing unused", role, p))

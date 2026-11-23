@@ -165,6 +165,13 @@ message RoleV1 {
   // naming it when it is not. A role's grant is scopes and every through's
   // scopes together.
   repeated RoleThroughV1 through = 4;
+  // Grants usable only at the named callee principal.
+  repeated RoleAudienceV1 audiences = 5;
+}
+
+message RoleAudienceV1 {
+  string audience = 1;
+  repeated host.authority.v1.WorkScopeV1 scopes = 2;
 }
 
 // RoleThroughV1 is what a role names through one binding of its unit.

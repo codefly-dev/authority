@@ -103,6 +103,8 @@ type Module struct {
 	// Roles are a solution's roles, levels on the data its principal owns, or
 	// a module page's, levels on what it serves at its organization.
 	Roles map[string][]*basev0.WorkScopeV1
+	// AudienceRoles confines a role grant to its resolved callee principal.
+	AudienceRoles map[string]map[string][]*basev0.WorkScopeV1 `json:",omitempty"`
 	// OwnedRoles resolve only to the exact ids attached to this installation.
 	OwnedRoles map[string][]*basev0.WorkScopeV1
 	// Through are, per role and per binding of the module's own, the scopes

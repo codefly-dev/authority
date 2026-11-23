@@ -60,6 +60,7 @@ type Method struct {
 // Role is one of a solution's or a module page's roles: its scopes, and those
 // it declares installation-owned (resolved to the ids each installation owns).
 type Role struct {
+	Audiences                 map[string]Scopes
 	Name                      string
 	Scopes, InstallationOwned Scopes
 	// Through are the scopes the role names downstream of each of the
@@ -146,6 +147,14 @@ func Module(manifest *solutionhost.ModuleManifest, doc *Document) (domain.Module
 	}
 	if m.Roles, m.OwnedRoles, m.Through, err = roles(doc.Roles); err != nil {
 		return m, err
+	}
+	for _, role := range doc.Roles {
+		if len(role.Audiences) > 0 {
+			if m.AudienceRoles == nil {
+				m.AudienceRoles = map[string]map[string]Scopes{}
+			}
+			m.AudienceRoles[role.Name] = role.Audiences
+		}
 	}
 	// A module page declaring no roles gets the standard two, derived from
 	// what it serves (decide.StandardRoles): every page is gated by its own
@@ -377,6 +386,12 @@ func Declared(manifest *solutionhost.ModuleManifest, d *declare.Declaration, met
 	}
 	for _, role := range d.Document.Roles {
 		r := Role{Name: role.Name, Scopes: declaredScopes(role.Scopes), InstallationOwned: declaredScopes(role.InstallationOwnedScopes)}
+		for _, entry := range role.Audiences {
+			if r.Audiences == nil {
+				r.Audiences = map[string]Scopes{}
+			}
+			r.Audiences[entry.Audience] = append(r.Audiences[entry.Audience], declaredScopes(entry.Scopes)...)
+		}
 		for _, through := range role.Through {
 			if r.Through == nil {
 				r.Through = map[string]Scopes{}

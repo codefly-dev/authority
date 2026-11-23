@@ -76,11 +76,15 @@ func Reach(target domain.Module, role string, modules map[string]domain.Module) 
 	if !declared {
 		return nil, domain.Missing("%s declares no role %q", target.Name, role)
 	}
-	return reach(target, literal, target.OwnedRoles[role], modules), nil
+	return reach(target, literal, target.OwnedRoles[role], target.AudienceRoles[role], modules), nil
 }
 
-func reach(target domain.Module, literal, owned Scopes, modules map[string]domain.Module) []domain.ReachRow {
+func reach(target domain.Module, literal, owned Scopes, addressed map[string]Scopes, modules map[string]domain.Module) []domain.ReachRow {
 	held := scope.Unowned(append(slices.Clone(literal), owned...))
+	at := func(audience string) Scopes {
+		return scope.Normalize(append(slices.Clone(held), addressed[audience]...))
+	}
+	literal = append(slices.Clone(literal), addressed[target.Principal]...)
 	rows := map[string]*domain.ReachRow{}
 	add := func(m domain.Module, path []string, via, confinement string, scopes Scopes) {
 		key := m.Name + "\x00" + via + "\x00" + confinement
@@ -139,7 +143,7 @@ func reach(target domain.Module, literal, owned Scopes, modules map[string]domai
 		path := append(slices.Clone(from), next.Name)
 		for _, operation := range []string{"invoke", "lookup"} {
 			through, _ := ScopesFor(b, operation, "")
-			carried := limits.Constrain(Through(held, b, operation, next))
+			carried := limits.Constrain(Through(at(next.Principal), b, operation, next))
 			if len(carried) == 0 {
 				continue
 			}
@@ -155,7 +159,7 @@ func reach(target domain.Module, literal, owned Scopes, modules map[string]domai
 	// carries what the holder holds through it (its invoke scopes there); and
 	// a delegation to the target issued through one of its bindings, which
 	// starts at the binding's audience with no limit from the target.
-	direct := scope.Intersect(held, served)
+	direct := scope.Intersect(at(target.Principal), served)
 	arrive(target, root, rootAt(direct))
 	for _, id := range slices.Sorted(maps.Keys(target.Bindings)) {
 		b := target.Bindings[id]
@@ -163,8 +167,8 @@ func reach(target domain.Module, literal, owned Scopes, modules map[string]domai
 		if !ok {
 			continue
 		}
-		naming := scope.Intersect(scope.Intersect(held, next.ResourceKinds), b.InvokeScopes)
-		arrive(target, root, rootAt(scope.Normalize(append(slices.Clone(direct), naming...))))
+		naming := scope.Intersect(scope.Intersect(at(next.Principal), next.ResourceKinds), b.InvokeScopes)
+		arrive(target, root, rootAt(scope.Normalize(append(slices.Clone(direct), scope.Intersect(naming, at(target.Principal))...))))
 		hops(root, scope.Limits{}, b, next)
 	}
 	for len(queue) > 0 {
@@ -294,6 +298,7 @@ func ReachOf(target domain.Module, modules []domain.Module) (map[string][]domain
 	}
 	out := map[string][]domain.ReachRow{}
 	var literal, owned Scopes
+	addressed := map[string]Scopes{}
 	for _, role := range slices.Sorted(maps.Keys(target.Roles)) {
 		rows, err := Reach(target, role, byPrincipal)
 		if err != nil {
@@ -302,9 +307,12 @@ func ReachOf(target domain.Module, modules []domain.Module) (map[string][]domain
 		out[role] = rows
 		literal = append(literal, target.Roles[role]...)
 		owned = append(owned, target.OwnedRoles[role]...)
+		for audience, scopes := range target.AudienceRoles[role] {
+			addressed[audience] = append(addressed[audience], scopes...)
+		}
 	}
 	if len(target.Roles) > 1 {
-		out[JointRoles] = reach(target, scope.Normalize(literal), scope.Normalize(owned), byPrincipal)
+		out[JointRoles] = reach(target, scope.Normalize(literal), scope.Normalize(owned), addressed, byPrincipal)
 	}
 	return out, nil
 }

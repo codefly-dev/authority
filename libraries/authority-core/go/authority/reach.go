@@ -372,6 +372,7 @@ func (s *Service) approvedReach(tx Tx, owner reachOwner, module string) (held Sc
 			for _, role := range roles {
 				declared = append(declared, m.Roles[role]...)
 				declared = append(declared, m.OwnedRoles[role]...)
+				declared = append(declared, m.AudienceRoles[role][module]...)
 			}
 			joint := index[decide.JointRoles][module]
 			here = reachCell{scopes: scope.Intersect(joint.scopes, scope.Unowned(declared)), policies: joint.policies}

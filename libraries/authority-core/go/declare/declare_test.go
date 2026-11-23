@@ -179,3 +179,20 @@ destinations: []
 	require.Equal(t, []declare.DeclaredScope{{ResourceKind: "ledger.page", Actions: []string{"read"}}, {ResourceKind: "store.item", Actions: []string{"read"}}}, admin.Scopes)
 	require.Equal(t, []declare.RoleThrough{{Binding: "store", Scopes: []declare.DeclaredScope{{ResourceKind: "notes", Actions: []string{"read"}}}}}, admin.Through)
 }
+
+func TestRenderPreservesAnAudienceAddressedGrant(t *testing.T) {
+	dir := filepath.Join("testdata", "declare", "roles-no-owner-shared")
+	unit, err := modulecontract.Load(dir)
+	require.NoError(t, err)
+	unit.Roles[1].Scopes = nil
+	unit.Roles[1].Bindings = []modulecontract.RoleBinding{{Binding: "store", Operation: "invoke"}}
+	resolve := solutionhost.Resolver(composed{Values: map[string]map[string]string{"board": {"store-audience": "records"}}}.infos(), "", nil)
+	resolved, err := resolve(unit)
+	require.NoError(t, err)
+	require.Equal(t, []string{"store.item:read", "store.item:write"}, resolved.Roles[1].Grants["records"])
+	declaration, err := declare.From(unit, resolved)
+	require.NoError(t, err)
+	role := declaration.Document.Roles[1]
+	require.Empty(t, role.Scopes)
+	require.Equal(t, []declare.RoleAudience{{Audience: "records", Scopes: []declare.DeclaredScope{{ResourceKind: "store.item", Actions: []string{"read"}}, {ResourceKind: "store.item", Actions: []string{"write"}}}}}, role.Audiences)
+}

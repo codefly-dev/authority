@@ -516,6 +516,16 @@ func cloneModule(m domain.Module) domain.Module {
 		}
 		m.Roles = roles
 	}
+	if m.AudienceRoles != nil {
+		addressed := make(map[string]map[string][]*basev0.WorkScopeV1, len(m.AudienceRoles))
+		for role, audiences := range m.AudienceRoles {
+			addressed[role] = make(map[string][]*basev0.WorkScopeV1, len(audiences))
+			for audience, grants := range audiences {
+				addressed[role][audience] = cloneScopes(grants)
+			}
+		}
+		m.AudienceRoles = addressed
+	}
 	owned := make(map[string][]*basev0.WorkScopeV1, len(m.OwnedRoles))
 	for role, scopes := range m.OwnedRoles {
 		owned[role] = cloneScopes(scopes)

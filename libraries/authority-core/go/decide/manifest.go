@@ -252,9 +252,36 @@ func validateModule(m domain.Module) error {
 			}
 		}
 	}
+	for _, role := range slices.Sorted(maps.Keys(m.AudienceRoles)) {
+		audiences := m.AudienceRoles[role]
+		if _, ok := m.Roles[role]; !ok {
+			return domain.Refuse("audience grant for undeclared role %q", role)
+		}
+		for _, audience := range slices.Sorted(maps.Keys(audiences)) {
+			scopes := audiences[audience]
+			var ceiling Scopes
+			for _, binding := range m.Bindings {
+				if binding.Audience == audience {
+					ceiling = append(ceiling, binding.InvokeScopes...)
+					ceiling = append(ceiling, binding.LookupScopes...)
+				}
+			}
+			for _, grant := range scopes {
+				if grant.GetResourceKind() == scope.AnyKind || slices.Contains(grant.GetActions(), scope.AnyAction) {
+					return domain.Refuse("role %q at %q must name specific kinds and actions", role, audience)
+				}
+				if grant.GetResourceKind() == "" || len(grant.GetActions()) == 0 || len(grant.GetResourceIds()) > 0 || grant.GetResourceOwnerId() != "" {
+					return domain.Refuse("role %q at %q must declare a kind and actions; resource selection belongs to the installation", role, audience)
+				}
+			}
+			if audience == "" || len(scopes) == 0 || !scope.Attenuates(scopes, ceiling) {
+				return domain.Refuse("role %q grants invalid scopes at audience %q", role, audience)
+			}
+		}
+	}
 	for _, name := range slices.Sorted(maps.Keys(m.Roles)) {
 		scopes := m.Roles[name]
-		if len(scopes) == 0 && len(m.OwnedRoles[name]) == 0 {
+		if len(scopes) == 0 && len(m.OwnedRoles[name]) == 0 && len(m.AudienceRoles[name]) == 0 {
 			return domain.Refuse("role %q of %s grants nothing", name, m.Name)
 		}
 		if scope.HasOwner(scopes) {
@@ -356,6 +383,13 @@ func Narrowed(previous, next domain.Module) bool {
 	}
 	if RoleGated(previous) != RoleGated(next) {
 		return true
+	}
+	for role, audiences := range previous.AudienceRoles {
+		for audience, grants := range audiences {
+			if !scope.Attenuates(grants, next.AudienceRoles[role][audience]) {
+				return true
+			}
+		}
 	}
 	for name, scopes := range previous.OwnedRoles {
 		if !scope.Attenuates(scopes, next.OwnedRoles[name]) {

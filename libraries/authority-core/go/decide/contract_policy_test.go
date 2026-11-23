@@ -114,3 +114,24 @@ func TestAPageDerivingNoUserIsToldToDeclareItsRoles(t *testing.T) {
 		t.Fatalf("a page deriving no user: %v", err)
 	}
 }
+
+func TestAnAudienceGrantFitsItsOwnPersonBinding(t *testing.T) {
+	for _, tc := range []struct {
+		audience, kind, action string
+		allowed                bool
+	}{
+		{"store", "store.item", "read", true},
+		{"store", "store.item", "write", false},
+		{"elsewhere", "store.item", "read", false},
+		{"jobs", "jobs.run", "start", false},
+		{"store", "store.item", "*", false},
+		{"store", "*", "read", false},
+	} {
+		m := policySolution()
+		m.AudienceRoles = map[string]map[string]decide.Scopes{"user": {tc.audience: {rsc(tc.kind, tc.action)}}}
+		err := decide.ValidateModule(m)
+		if (err == nil) != tc.allowed {
+			t.Errorf("%s %s:%s: %v", tc.audience, tc.kind, tc.action, err)
+		}
+	}
+}

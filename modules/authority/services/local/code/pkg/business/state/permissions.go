@@ -44,7 +44,7 @@ func (s *State) PermissionReport() []string {
 		for name, scopes := range m.Roles {
 			// Statically an installation-owned scope covers its kind; which
 			// ids is each installation's, decided at issue.
-			roles["installation/"+name] = Normalize(append(slices.Clone(scopes), m.OwnedRoles[name]...))
+			roles["installation/"+name] = Normalize(slices.Concat(scopes, m.OwnedRoles[name], m.AudienceRoles[name][m.Principal]))
 		}
 		for method := range m.Methods {
 			covered := false

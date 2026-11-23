@@ -78,9 +78,15 @@ func HeldRoles(p domain.Person, inst domain.Installation, grants []domain.RoleGr
 // select every owner's resources. A module page's roles are returned as
 // declared; what another module receives of them is ModuleRoleAt's.
 func RoleScopes(solution domain.Module, inst domain.Installation, roles []string) (Scopes, error) {
+	return RoleScopesAt(solution, inst, roles, solution.Principal)
+}
+
+// RoleScopesAt selects addressed grants before applying installation ownership.
+func RoleScopesAt(solution domain.Module, inst domain.Installation, roles []string, audience string) (Scopes, error) {
 	var literal, attached Scopes
 	for _, role := range roles {
 		literal = append(literal, solution.Roles[role]...)
+		literal = append(literal, solution.AudienceRoles[role][audience]...)
 		for _, sc := range solution.OwnedRoles[role] {
 			if ids := inst.Owned[sc.GetResourceKind()]; len(ids) > 0 {
 				attached = append(attached, &basev0.WorkScopeV1{ResourceKind: sc.GetResourceKind(), Actions: slices.Clone(sc.GetActions()), ResourceIds: slices.Clone(ids)})

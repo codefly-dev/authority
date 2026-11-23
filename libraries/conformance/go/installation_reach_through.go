@@ -7,6 +7,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -47,14 +48,19 @@ func (c *client) reachThroughConsent(t *testing.T, ctx context.Context, f Fixtur
 		if _, err := c.deliver(ctx, f, throughRelay, "module", 1, []string{throughTurn}, relay, 0, toVault); err != nil {
 			t.Fatalf("deliver %s: %v", throughRelay, err)
 		}
+		const otherRelay = "conformance-through-other-relay"
+		if _, err := c.deliver(ctx, f, otherRelay, "module", 1, []string{throughTurn}, relay, 0, toVault); err != nil {
+			t.Fatal(err)
+		}
 		page := throughSolution + ".page"
 		role := func(name string) map[string]any {
-			return map[string]any{"name": name, "scopes": []any{scopeAsk(page, []string{"read"}, nil), scopeAsk(throughTurn, []string{"run"}, nil)},
-				"through": []any{map[string]any{"binding": "relay", "scopes": []any{scopeAsk(throughItem, []string{"read", "write"}, nil)}}}}
+			return map[string]any{"name": name, "scopes": []any{scopeAsk(page, []string{"read"}, nil)},
+				"audiences": []any{map[string]any{"audience": throughRelay, "scopes": []any{scopeAsk(throughTurn, []string{"run"}, nil)}}},
+				"through":   []any{map[string]any{"binding": "relay", "scopes": []any{scopeAsk(throughItem, []string{"read", "write"}, nil)}}}}
 		}
 		solution := map[string]any{"owner_aware": true, "scope_ceilings": []any{scopeAsk(page, []string{"read"}, nil)}, "roles": []any{role("admin"), role("user")}}
 		toRelay := solutionhost.AuthorityBinding{ID: "relay", Audience: throughRelay, Operations: map[string][]string{"invoke": {throughTurn + ":run"}}}
-		if _, err := c.deliver(ctx, f, throughSolution, "solution", 1, []string{page}, solution, 0, toRelay); err != nil {
+		if _, err := c.deliver(ctx, f, throughSolution, "solution", 1, []string{page}, solution, 0, toRelay, solutionhost.AuthorityBinding{ID: "other", Audience: otherRelay, Operations: toRelay.Operations}); err != nil {
 			t.Fatalf("deliver %s: %v", throughSolution, err)
 		}
 		admin := c.must(t, ctx, "host.session.v1.SessionService", "SignIn", map[string]any{"fixture_token": f.AdminToken})
@@ -67,6 +73,14 @@ func (c *client) reachThroughConsent(t *testing.T, ctx context.Context, f Fixtur
 		}
 		id := install(t)
 		c.must(t, adminCtx, "host.installation.v1.InstallationService", "GrantRole", map[string]any{"organization_id": f.Organization, "installation_id": id, "role": "user", "person_id": str(holder, "person_id")})
+		_, parentWidening := c.call(as(ctx, holder), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": throughSolution, "operation_binding_id": "relay", "scopes": []any{scopeAsk(throughTurn, []string{"run"}, nil)}})
+		if status.Code(parentWidening) != codes.PermissionDenied {
+			t.Fatalf("the relay's grant appeared on a token addressed to its caller: %v", parentWidening)
+		}
+		_, denied := c.call(as(ctx, holder), "host.authority.v1.AuthorityService", "Issue", map[string]any{"person": map[string]any{}, "audience": throughSolution, "operation_binding_id": "other"})
+		if status.Code(denied) != codes.PermissionDenied {
+			t.Fatalf("same permission at a sibling audience: %v", denied)
+		}
 		upgrade := func(t *testing.T) bool {
 			t.Helper()
 			for _, inst := range listMsgs(c.must(t, adminCtx, "host.installation.v1.InstallationService", "List", map[string]any{"organization_id": f.Organization}), "installations") {

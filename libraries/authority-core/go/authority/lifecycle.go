@@ -128,16 +128,20 @@ func asStored(m domain.Module) domain.Module {
 		return out
 	}
 	m.Roles, m.OwnedRoles = roles(m.Roles, true), roles(m.OwnedRoles, false)
-	var through map[string]map[string][]*basev0.WorkScopeV1
-	for role, byBinding := range m.Through {
-		if kept := roles(byBinding, false); kept != nil {
-			if through == nil {
-				through = map[string]map[string][]*basev0.WorkScopeV1{}
+	normalizeAddressed := func(in map[string]map[string][]*basev0.WorkScopeV1) map[string]map[string][]*basev0.WorkScopeV1 {
+		var out map[string]map[string][]*basev0.WorkScopeV1
+		for role, byKey := range in {
+			if kept := roles(byKey, false); kept != nil {
+				if out == nil {
+					out = map[string]map[string][]*basev0.WorkScopeV1{}
+				}
+				out[role] = kept
 			}
-			through[role] = kept
 		}
+		return out
 	}
-	m.Through = through
+	m.Through = normalizeAddressed(m.Through)
+	m.AudienceRoles = normalizeAddressed(m.AudienceRoles)
 	if m.Methods != nil {
 		methods := make(map[string]domain.MethodPolicy, len(m.Methods))
 		for name, p := range m.Methods {

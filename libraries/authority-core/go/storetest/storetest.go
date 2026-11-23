@@ -642,6 +642,7 @@ func (f *fixture) module(kind string) domain.Module {
 		m.Roles = map[string][]*basev0.WorkScopeV1{domain.AdminRole: read, "reader": append(slices.Clone(read), onward...)}
 		m.OwnedRoles = map[string][]*basev0.WorkScopeV1{"reader": {{ResourceKind: "store.item", Actions: []string{"read"}}}}
 		m.Through = map[string]map[string][]*basev0.WorkScopeV1{"reader": {"store": onward}}
+		m.AudienceRoles = map[string]map[string][]*basev0.WorkScopeV1{"reader": {"store": read}}
 		// The admin's write on the solution's own, unshared page kind.
 		m.ResourceKinds = append(m.ResourceKinds, &basev0.WorkScopeV1{ResourceKind: "storetest.page", Actions: []string{"read", "write"}})
 		m.Roles[domain.AdminRole] = append(slices.Clone(read), &basev0.WorkScopeV1{ResourceKind: "storetest.page", Actions: []string{"write"}})
@@ -673,6 +674,13 @@ func sameModule(t *testing.T, got, want domain.Module) {
 	}
 	for name, scopes := range want.Roles {
 		ok = ok && sameScopes(got.Roles[name], scopes)
+	}
+	ok = ok && len(got.AudienceRoles) == len(want.AudienceRoles)
+	for role, audiences := range want.AudienceRoles {
+		ok = ok && len(got.AudienceRoles[role]) == len(audiences)
+		for audience, grants := range audiences {
+			ok = ok && sameScopes(got.AudienceRoles[role][audience], grants)
+		}
 	}
 	for name, scopes := range want.OwnedRoles {
 		ok = ok && sameScopes(got.OwnedRoles[name], scopes)

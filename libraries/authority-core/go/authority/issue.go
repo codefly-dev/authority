@@ -49,7 +49,7 @@ type Issued struct {
 // reached through the binding of an installation whose role the person holds
 // (throughSolutions).
 func held(tx Tx, p domain.Person, audience domain.Module) (Scopes, error) {
-	_, h, err := heldAs(tx, p, audience)
+	_, h, _, err := heldAs(tx, p, audience)
 	return h, err
 }
 
@@ -58,34 +58,34 @@ func held(tx Tx, p domain.Person, audience domain.Module) (Scopes, error) {
 // bindings, so a person holds it and yet holds nothing of what the target
 // itself serves; reading that as "holds no role" refuses the role's whole
 // reach and names the wrong reason.
-func heldAs(tx Tx, p domain.Person, audience domain.Module) ([]string, Scopes, error) {
+func heldAs(tx Tx, p domain.Person, audience domain.Module) ([]string, Scopes, Scopes, error) {
 	if !decide.RoleGated(audience) {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	inst, err := installationOf(tx, p.Organization, audience.Name)
 	if errors.Is(err, domain.ErrNotFound) {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	grants, err := tx.RoleGrants(inst.ID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	approved, err := approvedModule(tx, inst, audience)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	names := decide.HeldRoles(p, inst, grants)
-	role, err := decide.RoleScopes(approved, inst, names)
+	role, err := decide.RoleScopesAt(approved, inst, names, audience.Principal)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	// A module page's roles at the module itself, as at any module that
 	// checks owners: its installation's data (decide.ModuleRoleAt).
-	role = decide.ModuleRoleAt(audience, inst, audience, role)
-	return names, scope.Intersect(role, audience.ResourceKinds), nil
+	atAudience := decide.ModuleRoleAt(audience, inst, audience, role)
+	return names, scope.Intersect(atAudience, audience.ResourceKinds), role, nil
 }
 
 // solutionCeiling intersects the current roles of each solution the verified
@@ -129,7 +129,7 @@ func rolesCeiling(tx Tx, p domain.Person, principals []string, audience domain.M
 			if aerr != nil {
 				return nil, false, aerr
 			}
-			if role, err = decide.RoleScopes(approved, inst, decide.HeldRoles(p, inst, grants)); err != nil {
+			if role, err = decide.RoleScopesAt(approved, inst, decide.HeldRoles(p, inst, grants), audience.Principal); err != nil {
 				return nil, false, err
 			}
 			role = decide.ModuleRoleAt(m, inst, audience, role)
@@ -298,7 +298,8 @@ func (s *Service) issueForPerson(ctx context.Context, who Person, r IssueRequest
 			return err
 		}
 		var roles []string
-		if roles, heldHere, err = heldAs(tx, p, audience); err != nil {
+		var rootRole Scopes
+		if roles, heldHere, rootRole, err = heldAs(tx, p, audience); err != nil {
 			return err
 		}
 		if audience.Kind == domain.KindSolution && !audience.OwnerAware {
@@ -351,7 +352,16 @@ func (s *Service) issueForPerson(ctx context.Context, who Person, r IssueRequest
 			if len(through) == 0 {
 				return domain.Refuse("%s holds nothing under operation binding %q", p.ID, r.Binding)
 			}
+			// A named binding proves a call into its target. Only scopes
+			// granted at the root may appear in a token addressed to the
+			// root. The child is issued separately at its own audience.
+			if decide.RoleGated(audience) {
+				through = scope.Intersect(through, rootRole)
+			}
 			heldHere = scope.Normalize(append(heldHere, through...))
+			if len(heldHere) == 0 && len(r.Scopes) == 0 {
+				return nil
+			}
 		}
 		if scopes, err = decide.Issue(r.Scopes, heldHere); err != nil {
 			return err
@@ -561,7 +571,7 @@ func (s *Service) issueForInstallation(ctx context.Context, w Workload, installa
 		if err := decide.OwnerAware(audience, decide.Scopes{{ResourceKind: audience.Name, ResourceOwnerId: inst.PrincipalID}}); err != nil {
 			return err
 		}
-		agent, err := decide.RoleScopes(solution, inst, []string{inst.AgentRole})
+		agent, err := decide.RoleScopesAt(solution, inst, []string{inst.AgentRole}, audience.Principal)
 		if err != nil {
 			return err
 		}
@@ -747,7 +757,7 @@ func (s *Service) issueChild(ctx context.Context, parent string, actor Workload,
 			if solution, err = approvedModule(tx, inst, solution); err != nil {
 				return err
 			}
-			agent, err := decide.RoleScopes(solution, inst, []string{inst.AgentRole})
+			agent, err := decide.RoleScopesAt(solution, inst, []string{inst.AgentRole}, audience.Principal)
 			if err != nil {
 				return err
 			}

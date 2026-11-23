@@ -1,5 +1,13 @@
 # authority
 
+A role can grant a binding operation. The renderer signs the operation’s resolved
+permissions with their target audience. Local authority and SaaS Accounts select
+those grants by callee principal before applying the installation owner and binding
+ceilings. An RPC at a sibling module that uses the same kind and action receives
+no grant from that declaration. Moving a grant to a different audience narrows
+the old grant and participates in the installation’s consent review.
+
+
 **What we are doing.** Making the interface the mapping between local development
 and deployment. The local authority a developer runs on a laptop and the host's
 accounts service implement the same declared contract, checked by the render and

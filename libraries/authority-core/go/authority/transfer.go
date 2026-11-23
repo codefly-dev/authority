@@ -112,11 +112,15 @@ func (s *Service) AuthorizeTransfer(ctx context.Context, r TransferRequest) (Tra
 		if err != nil {
 			return notFound(err)
 		}
+		solution, err = approvedModule(tx, target, solution)
+		if err != nil {
+			return err
+		}
 		grants, err := tx.RoleGrants(target.ID)
 		if err != nil {
 			return err
 		}
-		role, err := decide.RoleScopes(solution, target, decide.HeldRoles(p, target, grants))
+		role, err := decide.RoleScopesAt(solution, target, decide.HeldRoles(p, target, grants), current.Principal)
 		if err != nil {
 			return err
 		}

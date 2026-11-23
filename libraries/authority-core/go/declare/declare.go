@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 
 	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 	modulecontract "github.com/codefly-dev/core/contracts/module"
@@ -41,10 +42,17 @@ type AuthorityDocument struct {
 	EdgeDependencies []modulecontract.EdgeDependency `json:"edge_dependencies,omitempty"`
 }
 
+// RoleAudience grants scopes at one resolved module principal.
+type RoleAudience struct {
+	Audience string          `json:"audience"`
+	Scopes   []DeclaredScope `json:"scopes"`
+}
+
 // DeclaredRole is one role as the authority's document carries it: the scopes
 // it grants, those it grants on what the installation owns, and those it names
 // through each of the module's bindings, per binding in the order first named.
 type DeclaredRole struct {
+	Audiences               []RoleAudience  `json:"audiences,omitempty"`
 	Name                    string          `json:"name"`
 	Scopes                  []DeclaredScope `json:"scopes,omitempty"`
 	InstallationOwnedScopes []DeclaredScope `json:"installation_owned_scopes,omitempty"`
@@ -137,6 +145,24 @@ func declaredRoles(contract *modulecontract.Contract, resolved *modulecontract.R
 		}
 		delivered := resolved.Roles[index].Through
 		declared := DeclaredRole{Name: role.Name, InstallationOwnedScopes: declaredScopes(role.InstallationOwnedScopes)}
+		for _, grant := range role.Bindings {
+			for _, binding := range resolved.Bindings {
+				if binding.ID != grant.Binding && binding.ID != modulecontract.AudienceBindingID(grant.Binding, binding.Audience) {
+					continue
+				}
+				var scopes []DeclaredScope
+				for _, permission := range binding.Scopes[grant.Operation] {
+					kind, action, ok := strings.Cut(permission, ":")
+					if !ok || kind == "" || action == "" {
+						return nil, fmt.Errorf("invalid resolved permission %q", permission)
+					}
+					scopes = append(scopes, DeclaredScope{ResourceKind: kind, Actions: []string{action}})
+				}
+				if len(scopes) > 0 {
+					declared.Audiences = append(declared.Audiences, RoleAudience{Audience: binding.Audience, Scopes: scopes})
+				}
+			}
+		}
 		var own []modulecontract.CeilingScope
 		// The role as resolved: its own scopes with every bundle it includes
 		// granted beside them (core's ResolvedRole.Scopes), never the

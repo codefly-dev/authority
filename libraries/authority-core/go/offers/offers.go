@@ -109,8 +109,9 @@ func Project(offer authority.ReviewedOffer, bindings map[string]*runnablev0.Prep
 		role.Scopes = append(role.Scopes, offerScopes(m.OwnedRoles[name], true, inst.Owned)...)
 		// What the role reaches, by kind and action: its confinement to the
 		// installation narrows resources, never which operations it covers.
-		held := scope.Unowned(append(slices.Clone(m.Roles[name]), m.OwnedRoles[name]...))
+		direct := scope.Unowned(append(slices.Clone(m.Roles[name]), m.OwnedRoles[name]...))
 		for _, target := range modules {
+			held := scope.Normalize(append(slices.Clone(direct), m.AudienceRoles[name][target.Principal]...))
 			for _, method := range slices.Sorted(maps.Keys(target.Methods)) {
 				policy := target.Methods[method]
 				if policy.AnyCheckedCaller || len(policy.Requires) == 0 || !scope.Attenuates(policy.Requires, held) {
