@@ -9,11 +9,14 @@ name: go
 # contracts` writes from the services' sources, and every method a host
 # fronting the module receives declares its policy.
 #
-# One job per module, and three for each of the two modules whose race tests
-# outlast every other job in the run (libraries/authority-core/go and
-# tools/noproxygate, 167 s and 158 s of `go test -race` against under 60 s for
-# the rest): .github/scripts/go-test-shard.sh splits a module's top-level tests
-# into disjoint parts that together are `go test -race -count=1 ./...`.
+# One job per module, and three for tools/noproxygate, whose 13 tests each
+# type-check every module (158 s of `go test -race` against under 60 s for most
+# of the rest): .github/scripts/go-test-shard.sh splits a module's top-level
+# tests into disjoint parts that together are `go test -race -count=1 ./...`.
+# libraries/authority-core/go is as long (167 s) and is not split: measured,
+# about 150 s of it sits in one shard whatever the split, in the `authority`
+# package's tests, so shortening it is a change to those tests, not to this
+# file.
 #
 # The integration branch is tested on push as main is; it has no pull request
 # to carry the checks.
@@ -47,7 +50,7 @@ jobs:
           # Every module is one entry, or one per shard for the modules named
           # here. A module this names that no longer exists fails the job
           # rather than leaving a split nobody runs.
-          split='{"libraries/authority-core/go": 3, "tools/noproxygate": 3}'
+          split='{"tools/noproxygate": 3}'
           missing=$(jq -cn --argjson found "$found" --argjson split "$split" '($split | keys) - $found')
           if [ "$missing" != "[]" ]; then
             echo "::error::go.yml splits modules that have no go.mod: $missing"; exit 1
