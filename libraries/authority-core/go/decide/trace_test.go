@@ -104,6 +104,23 @@ func TestTraceNamesTheFirstRefusingLinkAndKeepsWalking(t *testing.T) {
 			c.Role, c.Binding, c.Envelope = "user", "rows", allows("invoke", "define", "read")
 			return c
 		}, "role=admitted ceiling=refused envelope=admitted policy=admitted owner=admitted", "ceiling", "grants beyond what catalog serves"},
+		// A grant addressed to the audience is the role's there, as issuance
+		// reads it (RoleScopesAt); addressed to another, it is not.
+		{"the role holds the method's scope as a grant addressed to the audience", func() decide.Call {
+			c := traced(reads)
+			c.Caller.Roles["user"] = nil
+			c.Caller.AudienceRoles = map[string]map[string]decide.Scopes{"user": {"shelf": {ws("store.types", nil, "read")}}}
+			c.Role, c.Binding, c.Envelope = "user", "rows", allows("invoke", "define", "read")
+			return c
+		}, "role=admitted ceiling=admitted envelope=admitted policy=admitted owner=admitted", "", ""},
+		{"a grant addressed to a sibling audience is not held at this one", func() decide.Call {
+			c := traced(reads)
+			c.Caller.Roles["user"] = nil
+			c.Caller.Bindings["sibling"] = domain.Binding{ID: "sibling", Audience: "other-shelf", InvokeScopes: decide.Scopes{ws("store.types", nil, "read")}}
+			c.Caller.AudienceRoles = map[string]map[string]decide.Scopes{"user": {"other-shelf": {ws("store.types", nil, "read")}}}
+			c.Role, c.Binding, c.Envelope = "user", "rows", allows("invoke", "define", "read")
+			return c
+		}, "role=refused ceiling=refused envelope=refused policy=refused owner=refused", "role", "requires store.types:read"},
 		{"a method the audience does not declare", func() decide.Call {
 			c := traced(reads)
 			c.Role, c.Binding, c.Method, c.Envelope = "user", "rows", "/store.v1.Store/Other", allows("invoke", "read")

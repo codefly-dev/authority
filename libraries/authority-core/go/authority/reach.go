@@ -368,11 +368,19 @@ func (s *Service) approvedReach(tx Tx, owner reachOwner, module string) (held Sc
 			if m, err = approvedModule(tx, inst, m); err != nil {
 				return err
 			}
+			// An audience grant is declared at the callee's principal
+			// (domain.Module.AudienceRoles); module is its name.
+			callee, err := tx.ModuleNamed(module)
+			if err != nil && !errors.Is(err, domain.ErrNotFound) {
+				return err
+			}
 			var declared Scopes
 			for _, role := range roles {
 				declared = append(declared, m.Roles[role]...)
 				declared = append(declared, m.OwnedRoles[role]...)
-				declared = append(declared, m.AudienceRoles[role][module]...)
+				if err == nil {
+					declared = append(declared, m.AudienceRoles[role][callee.Principal]...)
+				}
 			}
 			joint := index[decide.JointRoles][module]
 			here = reachCell{scopes: scope.Intersect(joint.scopes, scope.Unowned(declared)), policies: joint.policies}

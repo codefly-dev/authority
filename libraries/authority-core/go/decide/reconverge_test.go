@@ -24,7 +24,8 @@ func approvedModule() domain.Module {
 			domain.AdminRole: {rsc("a.note", "read", "write")},
 			"reader":         {rsc("a.note", "read")},
 		},
-		OwnedRoles: map[string][]*basev0.WorkScopeV1{"reader": {rsc("store.item", "read")}},
+		AudienceRoles: map[string]map[string][]*basev0.WorkScopeV1{domain.AdminRole: {"store": {rsc("store.item", "read")}}},
+		OwnedRoles:    map[string][]*basev0.WorkScopeV1{"reader": {rsc("store.item", "read")}},
 		Bindings: map[string]domain.Binding{"store": {ID: "store", Audience: "store",
 			InvokeScopes: []*basev0.WorkScopeV1{rsc("store.item", "read", "write")}, HeadlessScopes: []*basev0.WorkScopeV1{rsc("store.item", "read")}, LookupScopes: []*basev0.WorkScopeV1{rsc("store.item", "read")}}},
 		EdgeDependencies: []domain.EdgeDependency{{Module: "robin", Presence: "required"}, {Module: "tracing", Presence: decide.EdgeOptional}},
@@ -96,6 +97,26 @@ func TestWidensNamesEachClauseOfTheReviewedSurface(t *testing.T) {
 			m.Roles["user"] = []*basev0.WorkScopeV1{rsc("a.note", "read")}
 			m.Methods["/a.Notes/List"] = domain.MethodPolicy{Requires: []*basev0.WorkScopeV1{rsc("a.note", "read")}}
 		}, []string{"role user added", "method /a.Notes/List added"}},
+		// An audience grant is held at its one audience beside the role's
+		// literal scopes, so it widens when it names what the approved role
+		// did not already hold there.
+		{"audience grant added to a role", func(m *domain.Module) {
+			m.AudienceRoles = map[string]map[string][]*basev0.WorkScopeV1{"reader": {"store": {rsc("store.item", "write")}}}
+		}, []string{"role reader reaches further at store"}},
+		{"audience grant reaches further", func(m *domain.Module) {
+			m.AudienceRoles = map[string]map[string][]*basev0.WorkScopeV1{domain.AdminRole: {"store": {rsc("store.item", "read", "write")}}}
+		}, []string{"role admin reaches further at store"}},
+		{"audience grant at a second audience", func(m *domain.Module) {
+			m.AudienceRoles = map[string]map[string][]*basev0.WorkScopeV1{domain.AdminRole: {"store": {rsc("store.item", "read")}, "vault": {rsc("store.item", "read")}}}
+		}, []string{"role admin reaches further at vault"}},
+		{"audience grant of a new role is the role added", func(m *domain.Module) {
+			m.Roles["user"] = []*basev0.WorkScopeV1{rsc("a.note", "read")}
+			m.AudienceRoles = map[string]map[string][]*basev0.WorkScopeV1{"user": {"store": {rsc("store.item", "read")}}}
+		}, []string{"role user added"}},
+		{"audience grant cut", func(m *domain.Module) {
+			m.AudienceRoles = map[string]map[string][]*basev0.WorkScopeV1{domain.AdminRole: {"store": {rsc("store.item", "read")}}}
+		}, nil},
+		{"audience grant dropped", func(m *domain.Module) { m.AudienceRoles = nil }, nil},
 		// Narrowings and neutral changes ask nothing new.
 		{"role dropped", func(m *domain.Module) { delete(m.Roles, "reader"); delete(m.OwnedRoles, "reader") }, nil},
 		{"role scope cut", func(m *domain.Module) { m.Roles[domain.AdminRole] = []*basev0.WorkScopeV1{rsc("a.note", "read")} }, nil},
@@ -136,6 +157,24 @@ func TestWidensNamesEachClauseOfTheReviewedSurface(t *testing.T) {
 		next.Roles["reader"] = []*basev0.WorkScopeV1{rsc("a.note", "read", "write", "publish")}
 		if got := decide.Widens(approved, next); len(got) != 0 {
 			t.Fatalf("an approved wildcard was widened by named actions: %v", got)
+		}
+	})
+	// A literal scope is held at every audience, so addressing it to its one
+	// audience (a contract moving a role's scope under bindings:) narrows:
+	// the role holds there what it held, and nowhere else any more.
+	t.Run("a literal scope moved to its audience asks nothing", func(t *testing.T) {
+		approved, next := approvedModule(), approvedModule()
+		approved.Roles["reader"] = []*basev0.WorkScopeV1{rsc("a.note", "read"), rsc("store.item", "write")}
+		next.AudienceRoles["reader"] = map[string][]*basev0.WorkScopeV1{"store": {rsc("store.item", "write")}}
+		if got := decide.Widens(approved, next); len(got) != 0 {
+			t.Fatalf("addressing a held scope to its audience widened: %v", got)
+		}
+		if !decide.Narrowed(approved, next) {
+			t.Fatal("a scope no longer held at every audience did not narrow")
+		}
+		next.AudienceRoles["reader"]["store"] = []*basev0.WorkScopeV1{rsc("store.item", "admin", "write")}
+		if got := decide.Widens(approved, next); !slices.Equal(got, []string{"role reader reaches further at store"}) {
+			t.Fatalf("widens %v", got)
 		}
 	})
 	t.Run("a selector change from a role to the installer's choice asks", func(t *testing.T) {

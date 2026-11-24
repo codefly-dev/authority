@@ -343,3 +343,122 @@ func TestGrantsEndOnlyByRevokeAndUninstall(t *testing.T) {
 		t.Fatalf("grants after reinstall: %v", names)
 	}
 }
+
+// addressed is a person's root at target naming binding, then target's hop
+// over it: how a role's audience-addressed grant is exercised, since a token
+// addressed to target never carries what the role holds at the callee alone.
+func (h *harness) addressed(person, target, binding string, scopes ...*basev0.WorkScopeV1) (authority.Issued, error) {
+	r, err := h.svc.IssueForPerson(h.ctx, h.person(person), authority.IssueRequest{Audience: target, Binding: binding})
+	if err != nil {
+		return r, err
+	}
+	return h.svc.IssueChild(h.ctx, r.Token, authority.Workload{Module: target}, authority.IssueRequest{Binding: binding, Scopes: scopes})
+}
+
+// A redelivery that addresses more of an approved binding's scopes to a role
+// asks more of the organization that approved the role: the installation
+// stands on its consent and offers the upgrade, and its holders hold the
+// approved role meanwhile. The declaration alone decides it, so a consent
+// recorded before reach was kept (no ReachDigest) offers it too.
+func TestARedeliveryAddingAnAudienceGrantOffersAnUpgrade(t *testing.T) {
+	// d's roles hold nothing of the store's kind, which its approved store
+	// binding offers.
+	d := func(generation uint64) domain.Module {
+		m := solution("d", true)
+		m.Generation = generation
+		m.Roles = map[string][]*basev0.WorkScopeV1{domain.AdminRole: {sc("d.note", "read", "write")}, domain.UserRole: {sc("d.note", "read")}}
+		return m
+	}
+	for _, legacy := range []bool{false, true} {
+		name := "a consent that kept its reach"
+		if legacy {
+			name = "a consent recorded before reach was kept"
+		}
+		t.Run(name, func(t *testing.T) {
+			h := newHarness(t)
+			svc, events := journaled(h)
+			if _, err := svc.ApplyModule(h.ctx, d(1)); err != nil {
+				t.Fatal(err)
+			}
+			h.install(acme, "d")
+			h.grant("d", "user", "maya")
+			if legacy {
+				if err := h.store.Write(h.ctx, func(tx authority.Tx) error {
+					inst, err := tx.Installation(h.inst(acme, "d").ID)
+					if err != nil {
+						return err
+					}
+					inst.Consent.ReachDigest, inst.Consent.Reach = "", ""
+					return tx.PutInstallation(inst)
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			before := h.stored(acme, "d")
+			wider := d(2)
+			wider.AudienceRoles = map[string]map[string][]*basev0.WorkScopeV1{"user": {"store": {sc(kind, "read")}}}
+			if _, err := svc.ApplyModule(h.ctx, wider); err != nil {
+				t.Fatal(err)
+			}
+			held := h.stored(acme, "d")
+			if held.Status != domain.Active || held.Consent.Generation != 1 || held.Consent.Digest != before.Consent.Digest || held.Revision != before.Revision {
+				t.Fatalf("an added audience grant moved the installation: %+v, was %+v", held, before)
+			}
+			if !decide.UpgradeAvailable(held, wider) {
+				t.Fatal("the installation does not offer the upgrade")
+			}
+			e, ok := lastEvent(*events, domain.InstallationUpgradeAvailable)
+			if !ok || e.Subject != held.ID || !strings.Contains(e.Detail["widened"], "role user reaches further at store") {
+				t.Fatalf("installation.upgrade_available does not name the audience grant: %+v %v", e, ok)
+			}
+			// The administrator's review shows the grant where a role's reach
+			// at another module is shown: the role's row at the store. (A
+			// reviewed role's own scopes are those held at every audience.)
+			offer, err := svc.ReviewOffer(h.ctx, h.admin(acme), acme, "d")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !slices.ContainsFunc(offer.Reach["user"], func(r domain.ReachRow) bool {
+				return r.Module == "store" && r.Via == decide.ReachBinding && scope.HoldsAction(r.Scopes, kind, "read")
+			}) {
+				t.Fatalf("the reviewed offer does not show the user's grant at the store: %+v", offer.Reach["user"])
+			}
+			if got, err := h.addressed("maya", "d", "store"); err == nil {
+				t.Fatalf("the audience grant is held before the upgrade is approved: %s", scopeText(effective(got)))
+			}
+			if up, err := svc.Install(h.ctx, h.admin(acme), acme, "d", "admin", "alex", h.approval(acme, "d"), nil); err != nil || up.Consent.Generation != 2 {
+				t.Fatalf("upgrade: %+v %v", up, err)
+			}
+			exactly(t, h.must(h.addressed("maya", "d", "store")), kind, h.principal(acme, "d"), []string{"read"})
+		})
+	}
+}
+
+// A redelivery that addresses a scope the role already held to the audience
+// of its one binding asks nothing new: the role holds there what it held and
+// no longer holds it anywhere else, so the installation re-converges.
+func TestARedeliveryAddressingAHeldScopeToItsAudienceReconverges(t *testing.T) {
+	h := newHarness(t)
+	svc, events := journaled(h)
+	h.grant("a", "user", "maya")
+	before := h.stored(acme, "a")
+	moved := solution("a", true)
+	moved.Generation = 2
+	moved.Roles["user"] = []*basev0.WorkScopeV1{sc("a.note", "read"), sc(legacyKind, "read")}
+	moved.AudienceRoles = map[string]map[string][]*basev0.WorkScopeV1{"user": {"store": {sc(kind, "read")}}}
+	if _, err := svc.ApplyModule(h.ctx, moved); err != nil {
+		t.Fatal(err)
+	}
+	after := h.stored(acme, "a")
+	if e, ok := lastEvent(*events, domain.InstallationUpgradeAvailable); ok {
+		t.Fatalf("addressing a held scope to its audience asked for consent: %+v", e)
+	}
+	if after.Consent.Generation != 2 || after.Revision != before.Revision+1 || decide.UpgradeAvailable(after, moved) {
+		t.Fatalf("the installation did not re-converge: %+v, was %+v", after, before)
+	}
+	got, err := h.addressed("maya", "a", "store")
+	if err != nil {
+		t.Fatalf("the addressed scope is no longer held at its audience: %v", err)
+	}
+	exactly(t, got, kind, h.principal(acme, "a"), []string{"read"})
+}

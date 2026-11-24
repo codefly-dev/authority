@@ -361,3 +361,29 @@ func TestWhatAMethodCarriesChangesNoVerdict(t *testing.T) {
 	problems(t, roleplan.Plan{Product: p, Rows: r},
 		`"write a note": user-holder is refused by the method policy, the plan says allowed: notebook requires notebook.note:write`)
 }
+
+// A role's bindings: grant gives it everything the binding carries for the
+// operation, addressed to the binding's audience. The user is granted the
+// store binding's invoke, which carries write, and no row lets the user write
+// to the store: the write it holds there is unused authority, named with the
+// audience it is held at.
+func TestAnAudienceGrantNoAllowedRowAsksForFails(t *testing.T) {
+	addressed := strings.Replace(contract, `          - resource_kind: notebook.note
+            actions: [read]
+          - resource_kind: store.item
+            actions: [read]`, `          - resource_kind: notebook.note
+            actions: [read]
+      bindings:
+          - binding: store
+            operation: invoke`, 1)
+	if addressed == contract {
+		t.Fatal("the contract no longer declares the user's scopes as this test replaces them")
+	}
+	got := roleplan.Problems(roleplan.Plan{Product: product(t, addressed), Rows: rows()})
+	if !slices.Contains(got, "role user grants unused store.item:write at store") {
+		t.Fatalf("want the unused audience grant named, got %q", got)
+	}
+	if slices.ContainsFunc(got, func(p string) bool { return strings.Contains(p, "unused store.item:read") }) {
+		t.Fatalf("the read the user's allowed rows ask for through the store is reported unused: %q", got)
+	}
+}

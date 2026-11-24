@@ -135,6 +135,57 @@ func (c *client) reachThroughConsent(t *testing.T, ctx context.Context, f Fixtur
 		if err := call(throughGet); err != nil {
 			t.Fatalf("the approved reach through the relay is refused: %v", err)
 		}
+		// The grant is the relay's alone, on every way to ask for it: a root
+		// naming the relay's binding carries none of the relay's kind (it is
+		// addressed to the solution), and the solution's hop from that root
+		// over its other binding, to the sibling serving the same turn, is
+		// refused as the root naming that binding was.
+		issue := func(ctx context.Context, fields map[string]any) (protoreflect.Message, error) {
+			return c.call(ctx, "host.authority.v1.AuthorityService", "Issue", fields)
+		}
+		rootAsk := map[string]any{"person": map[string]any{}, "audience": throughSolution, "operation_binding_id": "relay"}
+		childAsk := func(parent protoreflect.Message, actor, binding, audience string) map[string]any {
+			return map[string]any{"parent_token": str(parent, "token"), "actor": map[string]any{"credential": f.DeliveryCredential(actor)}, "operation_binding_id": binding, "audience": audience}
+		}
+		root, err := issue(as(ctx, holder), rootAsk)
+		if err != nil {
+			t.Fatalf("the holder's root naming the relay's binding: %v", err)
+		}
+		for _, sc := range listMsgs(msg(root, "context"), "authority_scopes") {
+			if str(sc, "resource_kind") == throughTurn && len(listStrings(sc, "actions")) > 0 {
+				t.Fatalf("a token addressed to %s carries the relay's %s %v, granted at the relay alone", throughSolution, throughTurn, listStrings(sc, "actions"))
+			}
+		}
+		_, sibling := issue(ctx, childAsk(root, throughSolution, "other", otherRelay))
+		if status.Code(sibling) != codes.PermissionDenied {
+			t.Fatalf("the solution's hop to a sibling audience, from a root naming the relay: %v", sibling)
+		}
+		// A revoked role ends every way its grant was exercised: a new root,
+		// a hop from a root issued before the revocation, and a hop from the
+		// relay's token issued before it.
+		atRelay, err := issue(ctx, childAsk(root, throughSolution, "relay", throughRelay))
+		if err != nil {
+			t.Fatalf("the solution's hop to the relay: %v", err)
+		}
+		grant := map[string]any{"organization_id": f.Organization, "installation_id": id, "role": "user", "person_id": str(holder, "person_id")}
+		c.must(t, adminCtx, "host.installation.v1.InstallationService", "RevokeRole", grant)
+		for _, ended := range []struct {
+			name string
+			ctx  context.Context
+			ask  map[string]any
+		}{
+			{"a root naming the relay's binding", as(ctx, holder), rootAsk},
+			{"the solution's hop to the relay from a root issued before it", ctx, childAsk(root, throughSolution, "relay", throughRelay)},
+			{"the relay's hop to the vault from a token issued before it", ctx, childAsk(atRelay, throughRelay, "vault", throughVault)},
+		} {
+			if _, err := issue(ended.ctx, ended.ask); status.Code(err) != codes.PermissionDenied {
+				t.Fatalf("after the user role is revoked, %s: %v, want PermissionDenied", ended.name, err)
+			}
+		}
+		c.must(t, adminCtx, "host.installation.v1.InstallationService", "GrantRole", grant)
+		if err := call(throughGet); err != nil {
+			t.Fatalf("the role granted again does not reach the vault: %v", err)
+		}
 
 		t.Run("a redelivery opening an operation within the consented scopes offers an upgrade; holders keep the approved reach", func(t *testing.T) {
 			if _, err := c.deliver(ctx, f, throughVault, "module", 2, []string{throughItem}, vault([]string{"read", "write"}, get, put), 0); err != nil {

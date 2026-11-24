@@ -18,7 +18,8 @@ import (
 // role selector, each method's policy and each scope that governs its
 // sources. next widens when it adds a role, a binding, an edge dependency, a
 // method or a governing scope (its holders then manage the installation's
-// sources); reaches further with a role or a binding; readdresses a binding;
+// sources); reaches further with a role, at every audience or at the one a
+// grant is addressed to, or with a binding; readdresses a binding;
 // asks standing authority the approved declaration did not (any selector
 // change but to "none"); or lets a method be called with less than the
 // approved one required (more roles then cover it). A role, binding, edge
@@ -37,6 +38,24 @@ func Widens(approved, next domain.Module) []string {
 			out = append(out, "role "+name+" added")
 		case !scope.Attenuates(next.Roles[name], was):
 			out = append(out, "role "+name+" reaches further")
+		}
+	}
+	// An audience grant is held at its one audience, beside the role's
+	// literal scopes, which are held at every audience: it widens when it
+	// names there what the approved role did not already hold there.
+	// Addressing a scope the role held literally to one audience therefore
+	// narrows (Narrowed reports the literal scope cut). A role approved did
+	// not declare is listed once, above, as added.
+	for _, name := range slices.Sorted(maps.Keys(next.AudienceRoles)) {
+		was, ok := approved.Roles[name]
+		if !ok {
+			continue
+		}
+		for _, audience := range slices.Sorted(maps.Keys(next.AudienceRoles[name])) {
+			held := append(slices.Clone(was), approved.AudienceRoles[name][audience]...)
+			if !scope.Attenuates(next.AudienceRoles[name][audience], held) {
+				out = append(out, "role "+name+" reaches further at "+audience)
+			}
 		}
 	}
 	for _, name := range slices.Sorted(maps.Keys(next.OwnedRoles)) {

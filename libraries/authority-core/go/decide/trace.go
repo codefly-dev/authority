@@ -69,7 +69,7 @@ type Call struct {
 // earliest; First names the link that refuses first.
 //
 // It decides nothing itself: each verdict is the answer of the decision the
-// authority applies there (ValidateModule, Through, Granted, ModuleRoleAt,
+// authority applies there (ValidateModule, RoleScopesAt, Through, Granted, ModuleRoleAt,
 // HeadlessAt, AdmitMethod). It covers one hop, from declarations alone: what
 // an installation consented to, a delegation, and the handler's own check of
 // each resource are not in it, and the owner link says so rather than pass.
@@ -109,8 +109,16 @@ func Trace(c Call) []Link {
 		if !ok {
 			roleErr = domain.Missing("%s declares no role %q", c.Caller.Name, c.Role)
 		}
+		// The role at this audience, as issuance reads it (RoleScopesAt):
+		// its literal scopes and what it is granted addressed to the
+		// audience's principal, never what it is granted at another.
+		field := "roles[" + c.Role + "].scopes"
+		if addressed := c.Caller.AudienceRoles[c.Role][c.Audience.Principal]; len(addressed) > 0 {
+			role = append(slices.Clone(role), addressed...)
+			field += " and roles[" + c.Role + "].audiences[" + c.Audience.Principal + "]"
+		}
 		held = scope.Intersect(role, c.Audience.ResourceKinds)
-		stage(LinkRole, "roles["+c.Role+"].scopes", held, roleErr)
+		stage(LinkRole, field, held, roleErr)
 	}
 
 	switch {

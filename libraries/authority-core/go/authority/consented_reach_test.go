@@ -234,3 +234,34 @@ func TestAPersonNamingAPagesBindingIsHeldToTheConsentedBinding(t *testing.T) {
 	_, err := ask("read")
 	refusedByConsent(t, err)
 }
+
+// Roles held together are held to what the approved roles declare at the
+// module called, and an audience grant is declared at that module's
+// principal, which is not always its name. A person holding both roles of a
+// solution, each addressed to a relay whose principal differs from its name,
+// reaches the relay as a holder of either does.
+func TestRolesHeldTogetherKeepAnAudienceGrantAtAModuleWhosePrincipalIsNotItsName(t *testing.T) {
+	h := newHarness(t)
+	const principal = "relay.principal"
+	turn := []*basev0.WorkScopeV1{sc("relay.turn", "run")}
+	if _, err := h.svc.ApplyModule(h.ctx, domain.Module{Name: "relay", Principal: principal, Kind: domain.KindModule, Generation: 1, OwnerAware: true, ResourceKinds: turn}); err != nil {
+		t.Fatal(err)
+	}
+	e := solution("e", true)
+	e.Bindings = map[string]domain.Binding{"relay": {ID: "relay", Audience: principal, InvokeScopes: turn}}
+	e.Roles = map[string][]*basev0.WorkScopeV1{domain.AdminRole: {sc("e.note", "read", "write")}, domain.UserRole: {sc("e.note", "read")}}
+	e.AudienceRoles = map[string]map[string][]*basev0.WorkScopeV1{domain.AdminRole: {principal: turn}, domain.UserRole: {principal: turn}}
+	if _, err := h.svc.ApplyModule(h.ctx, e); err != nil {
+		t.Fatal(err)
+	}
+	h.install(acme, "e")
+	h.grant("e", "user", "maya")
+	one := h.must(h.addressed("maya", "e", "relay"))
+	exactly(t, one, "relay.turn", h.principal(acme, "e"), []string{"run"})
+	h.grant("e", "admin", "maya")
+	both, err := h.addressed("maya", "e", "relay")
+	if err != nil {
+		t.Fatalf("holding a second role lost the grant both roles hold at the relay: %v", err)
+	}
+	exactly(t, both, "relay.turn", h.principal(acme, "e"), []string{"run"})
+}
