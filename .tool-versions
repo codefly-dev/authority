@@ -1,0 +1,3 @@
+# The toolchain a local run selects (mise, asdf), so it builds with what CI
+# builds with: Node 24. Go is the toolchain each go.mod names.
+node 24
