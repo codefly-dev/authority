@@ -6,8 +6,8 @@ require (
 	buf.build/go/protovalidate v1.4.0
 	connectrpc.com/connect v1.21.1
 	connectrpc.com/vanguard v0.4.0
-	github.com/codefly-dev/authority/libraries/authority-client/go v0.2.1-0.20261121110442-6c64e549645a
-	github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261121110442-6c64e549645a
+	github.com/codefly-dev/authority/libraries/authority-client/go v0.2.1-0.20261124171806-52e0a373e69b
+	github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261124171806-52e0a373e69b
 	github.com/codefly-dev/core v0.19.36-0.20261121094328-95a426c5096f
 	github.com/codefly-dev/sdk-go v0.4.5-0.20261121101950-387a613100c4
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.33.0

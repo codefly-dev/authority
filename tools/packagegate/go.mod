@@ -3,7 +3,7 @@ module github.com/codefly-dev/authority/tools/packagegate
 go 1.27.4
 
 require (
-	github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261121110442-6c64e549645a
+	github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261124171806-52e0a373e69b
 	github.com/codefly-dev/core v0.19.36-0.20261121094328-95a426c5096f
 	google.golang.org/genproto/googleapis/api v0.0.0-20261026165753-2ffab32bce7e
 	google.golang.org/protobuf v1.36.12

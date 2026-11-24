@@ -3,7 +3,7 @@ module github.com/codefly-dev/authority/tools/noproxygate
 go 1.27.4
 
 require (
-	github.com/codefly-dev/authority/libraries/authority-client/go v0.2.1-0.20261121110442-6c64e549645a
+	github.com/codefly-dev/authority/libraries/authority-client/go v0.2.1-0.20261124171806-52e0a373e69b
 	golang.org/x/tools v0.52.0
 	google.golang.org/grpc v1.85.0
 )

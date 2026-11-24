@@ -3,9 +3,9 @@ module github.com/codefly-dev/authority/libraries/scenario/go
 go 1.27.4
 
 require (
-	github.com/codefly-dev/authority/libraries/authority-client/go v0.2.1-0.20261121110442-6c64e549645a
-	github.com/codefly-dev/authority/libraries/authority-core/go v0.1.2-0.20261121110442-6c64e549645a
-	github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261121110442-6c64e549645a
+	github.com/codefly-dev/authority/libraries/authority-client/go v0.2.1-0.20261124171806-52e0a373e69b
+	github.com/codefly-dev/authority/libraries/authority-core/go v0.1.2-0.20261124171806-52e0a373e69b
+	github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261124171806-52e0a373e69b
 	github.com/codefly-dev/core v0.19.36-0.20261121094328-95a426c5096f
 	github.com/google/uuid v1.6.0
 	google.golang.org/grpc v1.85.0
@@ -26,9 +26,9 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cheggaaa/pb/v3 v3.2.1 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
-	github.com/codefly-dev/authority/libraries/delivery/go v0.0.0-20261121110442-6c64e549645a // indirect
-	github.com/codefly-dev/authority/libraries/resources/go v0.0.0-20261121110442-6c64e549645a // indirect
-	github.com/codefly-dev/authority/libraries/solutionhost/go v0.0.0-20261121110442-6c64e549645a // indirect
+	github.com/codefly-dev/authority/libraries/delivery/go v0.0.0-20261124171806-52e0a373e69b // indirect
+	github.com/codefly-dev/authority/libraries/resources/go v0.0.0-20261124171806-52e0a373e69b // indirect
+	github.com/codefly-dev/authority/libraries/solutionhost/go v0.0.0-20261124171806-52e0a373e69b // indirect
 	github.com/codefly-dev/sdk-go v0.4.5-0.20261121101950-387a613100c4 // indirect
 	github.com/fatih/color v1.19.0 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
