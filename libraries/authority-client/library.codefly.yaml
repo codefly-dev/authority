@@ -20,9 +20,10 @@ sources:
       module: authority
       service: local
       endpoint: grpc
-      contract-digest: sha256:ce0350e0f94288e8453dd47301231aa7c7192006ff4aa69f176811722c3f30d1
+      contract-digest: sha256:87c19748cedb7626818307159a0084f67578d20011a44dde21fb0175e5cfbaba
       services:
         - LocalService
+        - AccessService
         - ArtifactService
         - AuthorityService
         - CompositionService
@@ -31,5 +32,6 @@ sources:
         - SessionService
       as: api
 generated-by:
+    codefly: development
     companion: ghcr.io/codefly-dev/proto:0.0.30@sha256:2734bc42db9d76eb17e4125306964ba493a053a470705ac351920ff4194a665a
     facade: false

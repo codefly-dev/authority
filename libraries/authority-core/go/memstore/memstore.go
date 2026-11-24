@@ -6,6 +6,7 @@ package memstore
 import (
 	"context"
 	"fmt"
+	"github.com/google/uuid"
 	"maps"
 	"slices"
 	"sort"
@@ -36,17 +37,28 @@ type Store struct {
 	clients       map[string]domain.Client
 	approved      map[string]domain.Module // name\x00generation\x00offer digest
 	views         map[string]domain.RoleView
+	// access are the access grants by natural key, and accessRevisions each
+	// organization's count of the changes made to them (access.go).
+	access          map[domain.AccessKey]domain.AccessGrant
+	accessRevisions map[string]uint64
+	// sequence counts every committed transaction and every identity change,
+	// in commit order; epoch names this store's history of it, lost with the
+	// process (access.Sequence).
+	sequence uint64
+	epoch    [16]byte
 }
 
 // New is an empty store.
 func New() *Store {
 	return &Store{
-		orgs: map[string]domain.Organization{}, people: map[string]map[string]domain.Person{},
+		epoch: uuid.New(),
+		orgs:  map[string]domain.Organization{}, people: map[string]map[string]domain.Person{},
 		modules: map[string]domain.Module{}, installations: map[string]domain.Installation{}, grants: map[string][]domain.RoleGrant{},
 		revisions: map[string]uint64{}, personEpochs: map[string]uint64{}, grantEpochs: map[string]uint64{},
 		ownerAware: map[string]uint64{}, delegations: map[string]domain.Delegation{}, tombstones: map[string]domain.Tombstone{},
 		clients: map[string]domain.Client{}, teams: map[string]map[string]bool{}, approved: map[string]domain.Module{},
-		views: map[string]domain.RoleView{},
+		views:  map[string]domain.RoleView{},
+		access: map[domain.AccessKey]domain.AccessGrant{}, accessRevisions: map[string]uint64{},
 	}
 }
 
@@ -74,24 +86,27 @@ func (s *Store) Write(_ context.Context, fn func(authority.Tx) error) (err error
 		return err
 	}
 	committed = true
+	s.sequence++
 	return nil
 }
 
 // state is every map the authority writes; identity (organizations, people,
 // roles) is the host's and changes only through the seeding methods.
 type state struct {
-	modules       map[string]domain.Module
-	installations map[string]domain.Installation
-	grants        map[string][]domain.RoleGrant
-	revisions     map[string]uint64
-	personEpochs  map[string]uint64
-	grantEpochs   map[string]uint64
-	ownerAware    map[string]uint64
-	delegations   map[string]domain.Delegation
-	tombstones    map[string]domain.Tombstone
-	clients       map[string]domain.Client
-	approved      map[string]domain.Module
-	views         map[string]domain.RoleView
+	modules         map[string]domain.Module
+	installations   map[string]domain.Installation
+	grants          map[string][]domain.RoleGrant
+	revisions       map[string]uint64
+	personEpochs    map[string]uint64
+	grantEpochs     map[string]uint64
+	ownerAware      map[string]uint64
+	delegations     map[string]domain.Delegation
+	tombstones      map[string]domain.Tombstone
+	clients         map[string]domain.Client
+	approved        map[string]domain.Module
+	views           map[string]domain.RoleView
+	access          map[domain.AccessKey]domain.AccessGrant
+	accessRevisions map[string]uint64
 }
 
 func (s *Store) snapshot() state {
@@ -102,7 +117,8 @@ func (s *Store) snapshot() state {
 	return state{modules: maps.Clone(s.modules), installations: maps.Clone(s.installations), grants: grants,
 		revisions: maps.Clone(s.revisions), personEpochs: maps.Clone(s.personEpochs), grantEpochs: maps.Clone(s.grantEpochs),
 		ownerAware: maps.Clone(s.ownerAware), delegations: maps.Clone(s.delegations), tombstones: maps.Clone(s.tombstones), clients: maps.Clone(s.clients),
-		approved: maps.Clone(s.approved), views: maps.Clone(s.views)}
+		approved: maps.Clone(s.approved), views: maps.Clone(s.views),
+		access: maps.Clone(s.access), accessRevisions: maps.Clone(s.accessRevisions)}
 }
 
 func (s *Store) restore(b state) {
@@ -112,6 +128,7 @@ func (s *Store) restore(b state) {
 	s.clients = b.clients
 	s.approved = b.approved
 	s.views = b.views
+	s.access, s.accessRevisions = b.access, b.accessRevisions
 }
 
 // PutOrganization, PutPerson and DeletePerson seed and change
@@ -119,6 +136,7 @@ func (s *Store) restore(b state) {
 func (s *Store) PutOrganization(o domain.Organization) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.sequence++
 	s.orgs[o.ID] = o
 }
 
@@ -126,6 +144,7 @@ func (s *Store) PutOrganization(o domain.Organization) {
 func (s *Store) PutTeam(organization, id string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.sequence++
 	if s.teams[organization] == nil {
 		s.teams[organization] = map[string]bool{}
 	}
@@ -137,6 +156,7 @@ func (s *Store) PutTeam(organization, id string) {
 func (s *Store) DeleteTeam(organization, id string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.sequence++
 	delete(s.teams[organization], id)
 }
 
@@ -145,6 +165,7 @@ func (s *Store) DeleteTeam(organization, id string) {
 func (s *Store) PutPerson(p domain.Person) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.sequence++
 	if s.people[p.ID] == nil {
 		s.people[p.ID] = map[string]domain.Person{}
 	}
@@ -155,6 +176,7 @@ func (s *Store) PutPerson(p domain.Person) {
 func (s *Store) DeletePerson(id string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.sequence++
 	delete(s.people, id)
 }
 
@@ -162,6 +184,7 @@ func (s *Store) DeletePerson(id string) {
 func (s *Store) DeleteMember(organization, id string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.sequence++
 	delete(s.people[id], organization)
 	if len(s.people[id]) == 0 {
 		delete(s.people, id)

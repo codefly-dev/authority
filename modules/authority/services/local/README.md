@@ -2,8 +2,8 @@
 
 The development implementation of the host interfaces, one process: it signs
 fixture people in with their roles, issues and verifies Work Contexts, knows the
-composition from the manifests the run delivers, and answers the installation
-and artifact interfaces. The repository's [README](../../../../README.md) is the
+composition from the manifests the run delivers, and answers the installation,
+artifact and access interfaces. The repository's [README](../../../../README.md) is the
 story and the rules; this page is what the process keeps and where.
 
 **A host over the core.** Every decision and every signature is the generic

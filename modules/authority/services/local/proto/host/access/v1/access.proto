@@ -1,0 +1,340 @@
+syntax = "proto3";
+// The access interface: who may act on one collection, one document or one
+// exact version of it, beyond what their role on an installation reaches.
+// The host writes and answers every grant; the module that serves the kind
+// asks, forwarding the caller's Work Context and attesting where the resource
+// sits (its owner, and the collections above it) from its own durable rows.
+// A module stores no grant of its own and registers no document here.
+//
+// Every request carries the caller's Work Context as the module received it
+// and the module's own workload credential, and nothing else names who is
+// asking: the tenant, the viewer, the actor chain and the binding are read
+// from the verified Work Context alone. The module asking is the one module
+// serving every kind its request names.
+package host.access.v1;
+
+import "host/authority/v1/authority.proto";
+
+option go_package = "gateway/pkg/gen/host/access/v1;accessv1";
+
+// AccessService is implemented by the host and by the local authority.
+service AccessService {
+  // Grant gives one subject actions on one reference, or refreshes the
+  // actions and expiry of the grant that subject already holds on it (one
+  // grant per organization, reference and subject). The Work Context holds
+  // `share` on the target's kind and every action it grants, and its owner
+  // either owns the target as the module attests it or holds `admin` on the
+  // target or on a collection above it.
+  rpc Grant(GrantRequest) returns (GrantResponse);
+  // Revoke ends the grant one subject holds on one reference, for the callers
+  // Grant admits. A grant that does not exist, or has expired, answers
+  // NOT_FOUND "nothing was revoked", after the caller was authorized: a
+  // caller who may not revoke is answered the same whether it exists.
+  rpc Revoke(RevokeRequest) returns (RevokeResponse);
+  // ListGrants answers the grants on one reference, every version of it, for
+  // the callers Grant admits.
+  rpc ListGrants(ListGrantsRequest) returns (ListGrantsResponse);
+  // Check decides one action on one placed resource for the Work Context.
+  // A Work Context that does not hold the action on the resource's kind at
+  // all is refused PERMISSION_DENIED naming the kind and the action; any
+  // other answer is a decision, DECISION_DENIED included.
+  rpc Check(CheckRequest) returns (CheckResponse);
+  // CheckBatch decides one action on up to 1000 placed resources against one
+  // snapshot, answered in request order. A resource nobody was granted is
+  // DECISION_DENIED, never an error.
+  rpc CheckBatch(CheckBatchRequest) returns (CheckBatchResponse);
+  // ListViewerGrants pages the references the Work Context's owner is
+  // granted the action on directly (themselves, a team of theirs, or the
+  // installation they are), ordered by kind, id and version. It answers the
+  // viewer's grants, not a decision: the module checks what it serves. A page
+  // token is refused ABORTED "stale_revision" once a grant of the
+  // organization changed, one of the viewer's expired, or the viewer's teams
+  // moved; the caller restarts from the first page.
+  rpc ListViewerGrants(ListViewerGrantsRequest) returns (ListViewerGrantsResponse);
+}
+
+// ResourceRef names a collection, a document or one version of a document.
+message ResourceRef {
+  // The resource kind, one the asking module serves.
+  string resource_kind = 1;
+  // The resource id, opaque and compared byte for byte.
+  string resource_id = 2;
+  // The exact version; empty follows every version, past and future.
+  string version = 3;
+}
+
+// Subject is who a grant is made to: exactly one of a person, a team or an
+// installation of the organization.
+message Subject {
+  // Exactly one is set.
+  oneof subject {
+    // A person, a member of the organization.
+    string person_id = 1;
+    // A team of the organization; its members hold the grant while they
+    // belong to it.
+    string team_id = 2;
+    // An installation of the organization: its agent, and every capability
+    // acting through it, holds the grant while it stays installed. An
+    // uninstall ends the grant for good; a reinstall does not revive it.
+    string installation_id = 3;
+  }
+}
+
+// PlacedNode is one resource as the serving module records it.
+message PlacedNode {
+  // The resource.
+  ResourceRef ref = 1;
+  // Its owner as the module records it: a person, an installation's
+  // principal, or empty when the module records none.
+  string owner_id = 2;
+}
+
+// Placement is where a resource sits now, attested by the module serving it.
+message Placement {
+  // The resource the question is about.
+  PlacedNode resource = 1;
+  // The collections above it, nearest first; at most 8, none twice.
+  repeated PlacedNode ancestors = 2;
+}
+
+// AccessRevision names a state of one organization at the host: every change
+// that can alter a decision there (a grant, a role, a team, a membership, an
+// installation) up to one point of the host's own commit order. Every answer
+// returns the revision it was computed at, and a module may ask that an
+// answer be computed at no earlier a state by naming one as a minimum. The
+// module stores and returns it, compares it only for byte equality, and never
+// reads it: only the host orders two revisions. A revision does not expire.
+//
+// A host that does not serve minimums yet refuses a request that names one, or
+// asks for FRESHNESS_HEAD, FAILED_PRECONDITION rather than ignoring it. A host
+// that serves them refuses a revision of another organization
+// INVALID_ARGUMENT "revision_foreign", and one it never issued (an unknown
+// encoding, another epoch of its history, a point past its newest state)
+// FAILED_PRECONDITION "revision_unknown". When it cannot reach a state at or
+// past the minimum it answers UNAVAILABLE "stale_revision": never a decision
+// read from an earlier state.
+message AccessRevision {
+  // The organization.
+  string organization_id = 1;
+  // The host's own encoding of the revision; compared, never read.
+  bytes opaque = 2;
+}
+
+// Freshness is how new a state an answer must be computed at.
+enum Freshness {
+  // The host chooses: any state at or past every minimum the request names.
+  FRESHNESS_UNSPECIFIED = 0;
+  // The host's newest committed state: what a module asks before it exposes
+  // content, so the revision it records is past every revocation that
+  // returned before it asked.
+  FRESHNESS_HEAD = 1;
+}
+
+// AccessGrant is one grant.
+message AccessGrant {
+  // The grant's id, kept when the grant is refreshed.
+  string grant_id = 1;
+  // The organization it belongs to.
+  string organization_id = 2;
+  // What is granted: a collection, a document or one exact version.
+  ResourceRef resource = 3;
+  // Who holds it.
+  Subject subject = 4;
+  // The actions it gives, sorted.
+  repeated string actions = 5;
+  // When it ends by itself, in Unix seconds; zero stands until revoked.
+  int64 expires_at_unix = 6;
+  // The principal that made or last refreshed it.
+  string granted_by = 7;
+  // When it was first made, in Unix seconds.
+  int64 created_at_unix = 8;
+}
+
+// GrantRequest makes or refreshes one grant.
+message GrantRequest {
+  // The Work Context the module received, addressed to it.
+  string token = 1;
+  // The module asking, proving which module it is.
+  host.authority.v1.WorkloadCredential actor = 2;
+  // What is granted. A set version grants exactly that version.
+  ResourceRef target = 3;
+  // Where the target sits: placement.resource is the target.
+  Placement placement = 4;
+  // Who is granted.
+  Subject subject = 5;
+  // The actions granted, each one the Work Context holds on the target's kind.
+  repeated string actions = 6;
+  // When the grant ends by itself, in Unix seconds; zero stands until revoked.
+  int64 expires_at_unix = 7;
+}
+
+// GrantResponse answers the grant as it stands.
+message GrantResponse {
+  // The grant.
+  AccessGrant grant = 1;
+  // The state the change is part of: a decision asked with it as a minimum
+  // sees the change.
+  AccessRevision revision = 2;
+}
+
+// RevokeRequest ends one grant, named as Grant named it.
+message RevokeRequest {
+  // The Work Context the module received, addressed to it.
+  string token = 1;
+  // The module asking, proving which module it is.
+  host.authority.v1.WorkloadCredential actor = 2;
+  // The reference the grant is on, its version included.
+  ResourceRef target = 3;
+  // Where the target sits: placement.resource is the target.
+  Placement placement = 4;
+  // Whose grant ends.
+  Subject subject = 5;
+}
+
+// RevokeResponse answers the grant that was removed.
+message RevokeResponse {
+  // The grant removed.
+  AccessGrant revoked = 1;
+  // The state the change is part of: a decision asked with it as a minimum
+  // sees the change.
+  AccessRevision revision = 2;
+}
+
+// ListGrantsRequest asks for the grants on one reference.
+message ListGrantsRequest {
+  // The Work Context the module received, addressed to it.
+  string token = 1;
+  // The module asking, proving which module it is.
+  host.authority.v1.WorkloadCredential actor = 2;
+  // The reference; its version is not read, every version's grants are listed.
+  ResourceRef target = 3;
+  // Where the target sits: placement.resource is the target.
+  Placement placement = 4;
+}
+
+// ListGrantsResponse answers the reference's grants.
+message ListGrantsResponse {
+  // The unexpired grants, ordered by version and subject.
+  repeated AccessGrant grants = 1;
+  // The state the grants were read at.
+  AccessRevision revision = 2;
+}
+
+// CheckRequest asks one decision.
+message CheckRequest {
+  // The Work Context the module received, addressed to it.
+  string token = 1;
+  // The module asking, proving which module it is.
+  host.authority.v1.WorkloadCredential actor = 2;
+  // The action.
+  string action = 3;
+  // The resource and where it sits.
+  Placement placement = 4;
+  // The decision is computed at this revision or a later one; unset, at any.
+  AccessRevision min_revision = 5;
+  // How new a state the decision is computed at.
+  Freshness freshness = 6;
+}
+
+// Decision is the answer to a check.
+enum Decision {
+  // Unset.
+  DECISION_UNSPECIFIED = 0;
+  // Every required subject holds the resource.
+  DECISION_ALLOWED = 1;
+  // At least one does not.
+  DECISION_DENIED = 2;
+}
+
+// Basis is one way the Work Context's owner holds the resource.
+enum Basis {
+  // Unset.
+  BASIS_UNSPECIFIED = 0;
+  // The Work Context's own scopes select the resource or a collection above it.
+  BASIS_ROLE_SCOPE = 1;
+  // A grant on a collection above it.
+  BASIS_ANCESTOR_GRANT = 2;
+  // A grant on the resource that follows its versions.
+  BASIS_RESOURCE_GRANT = 3;
+  // A grant on exactly the version asked.
+  BASIS_VERSION_GRANT = 4;
+}
+
+// CheckResponse is one decision.
+message CheckResponse {
+  // The decision.
+  Decision decision = 1;
+  // How the Work Context's owner holds the resource, sorted; empty when they
+  // do not. The module may only narrow by it: role scope and ancestor grant
+  // leave the module's own owner and source limits standing, a resource
+  // grant waives the owner limit, and a version grant alone confines the
+  // viewer to that version.
+  repeated Basis viewer_bases = 2;
+  // Why, for the module's audit record: never shown to the caller, and never
+  // naming a resource.
+  string reason = 3;
+  // The state the decision was computed at: at or past every minimum the
+  // request named.
+  AccessRevision revision = 4;
+  // When an allowed decision stops holding by itself, in Unix seconds: the
+  // Work Context's expiry or the earliest expiry of a grant it rests on.
+  int64 valid_until_unix = 5;
+}
+
+// CheckBatchRequest asks one action on many resources.
+message CheckBatchRequest {
+  // The Work Context the module received, addressed to it.
+  string token = 1;
+  // The module asking, proving which module it is.
+  host.authority.v1.WorkloadCredential actor = 2;
+  // The action.
+  string action = 3;
+  // The resources, at most 1000.
+  repeated Placement placements = 4;
+  // Every decision is computed at this revision or a later one.
+  AccessRevision min_revision = 5;
+  // A minimum per placement, in request order: none, or exactly one for each
+  // placement (an unset one names no minimum). The batch is still one state,
+  // at or past the latest of them and of min_revision.
+  repeated AccessRevision item_min_revisions = 6;
+  // How new a state the decisions are computed at.
+  Freshness freshness = 7;
+}
+
+// CheckBatchResponse answers every placement.
+message CheckBatchResponse {
+  // One decision per placement, in request order.
+  repeated CheckResponse results = 1;
+  // The one state every decision was computed at.
+  AccessRevision revision = 2;
+}
+
+// ListViewerGrantsRequest pages the viewer's direct grants.
+message ListViewerGrantsRequest {
+  // The Work Context the module received, addressed to it.
+  string token = 1;
+  // The module asking, proving which module it is.
+  host.authority.v1.WorkloadCredential actor = 2;
+  // The kinds asked, each one the module serves; at least one.
+  repeated string resource_kinds = 3;
+  // The action the grants must give.
+  string action = 4;
+  // The page size; zero is the host's default, and it is capped at 1000.
+  int32 page_size = 5;
+  // The token of the page to read; empty reads the first.
+  string page_token = 6;
+  // The page is read at this revision or a later one.
+  AccessRevision min_revision = 7;
+}
+
+// ListViewerGrantsResponse is one page.
+message ListViewerGrantsResponse {
+  // The references granted, ordered by kind, id and version.
+  repeated ResourceRef resources = 1;
+  // The next page's token; empty on the last page.
+  string next_page_token = 2;
+  // The state the page was read at.
+  AccessRevision revision = 3;
+  // When the listing stops holding by itself, in Unix seconds.
+  int64 valid_until_unix = 4;
+}

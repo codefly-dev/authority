@@ -25,7 +25,9 @@ import (
 // permission levels on U's data, and role names carry no rank: what a role
 // may do is the scopes it declares. Granting a person or a team a role
 // (GrantRole) is the access, revoking it (RevokeRole) ends it at once, both
-// idempotent, and ListRoleGrants answers who holds which. A new grant leaves
+// idempotent (a revoke answers whether it removed a grant, grant_removed, so
+// its success is never taken for a revocation), and ListRoleGrants answers
+// who holds which. A new grant leaves
 // every existing capability valid; only a revoke, leaving a team or the
 // organization, an uninstall or a withdrawn owner_aware invalidates, and that
 // is permanent: only fresh capabilities work afterwards. An uninstall clears
@@ -491,7 +493,7 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		if !slices.Contains(sp.roleGrants(t, f.Admin, f.Organization, A), "user person "+sp.personID(t, f.UserHolder)) {
 			t.Fatalf("ListRoleGrants does not show the grant: %v", sp.roleGrants(t, f.Admin, f.Organization, A))
 		}
-		sp.revoke(t, A, "user", sp.person(t, f.UserHolder))
+		sp.revokeHeld(t, A, "user", sp.person(t, f.UserHolder))
 		refused(t, sp.check(before), codes.PermissionDenied, "revoked")
 		_, err := sp.hop(t, before)
 		refused(t, err, codes.PermissionDenied, "revoked")
@@ -515,7 +517,7 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		}
 		before := sp.must(t)(sp.through(t, f.TeamMember, A, "store"))
 		exactOwnedScope(t, msg(before, "context"), f.Kind, []string{"read"}, U(t))
-		sp.revoke(t, A, "user", team)
+		sp.revokeHeld(t, A, "user", team)
 		refused(t, sp.check(before), codes.PermissionDenied, "revoked")
 		_, err := sp.root(t, f.TeamMember, A)
 		refused(t, err, codes.PermissionDenied, "holds no role")
@@ -538,10 +540,34 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		if !slices.Contains(sp.roleGrants(t, f.Admin, f.Organization, A), "user team "+f.EmptyTeam) {
 			t.Fatalf("ListRoleGrants does not show the empty team's grant: %v", sp.roleGrants(t, f.Admin, f.Organization, A))
 		}
-		sp.revoke(t, A, "user", empty)
+		sp.revokeHeld(t, A, "user", empty)
 		if slices.Contains(sp.roleGrants(t, f.Admin, f.Organization, A), "user team "+f.EmptyTeam) {
 			t.Fatal("ListRoleGrants still shows the empty team's revoked grant")
 		}
+	})
+	t.Run("revoking a role stays idempotent, and its answer says whether a grant was actually removed", func(t *testing.T) {
+		if !c.hasElement("host.installation.v1.Installation", "grant_removed") {
+			t.Fatal("the published contract lacks host.installation.v1.Installation.grant_removed: a revoke of nothing reads as a revocation")
+		}
+		subject := sp.person(t, f.NoteReader)
+		sp.revoke(t, B, "user", subject)
+		if removed, _ := sp.revokeReporting(t, B, "user", subject); removed {
+			t.Fatal("revoking a role nobody holds answered that a grant was removed")
+		}
+		sp.grant(t, B, "user", subject)
+		if removed, _ := sp.revokeReporting(t, B, "user", subject); !removed {
+			t.Fatal("revoking a standing grant answered that none was removed")
+		}
+		if removed, _ := sp.revokeReporting(t, B, "user", subject); removed {
+			t.Fatal("revoking it a second time answered that a grant was removed")
+		}
+		// No other answer sets it.
+		granted := sp.c.must(t, sp.as(t, f.Admin), "host.installation.v1.InstallationService", "GrantRole", map[string]any{
+			"organization_id": f.Organization, "installation_id": str(sp.ensure(t, f.Organization, B), "id"), "role": "user", "person_id": sp.personID(t, f.NoteReader)})
+		if bool_(granted, "grant_removed") {
+			t.Fatal("GrantRole answered grant_removed")
+		}
+		sp.revokeHeld(t, B, "user", subject)
 	})
 	t.Run("a member lists exactly the installations they hold a role on, directly or through a team; holding nothing is an empty list; a revoke or leaving the team drops one at once; another organization's never appear", func(t *testing.T) {
 		sp.heldInstallations(t)
@@ -765,6 +791,32 @@ func (sp *principalSuite) grant(t *testing.T, s SolutionUnderTest, role string, 
 func (sp *principalSuite) revoke(t *testing.T, s SolutionUnderTest, role string, subject map[string]any) {
 	t.Helper()
 	sp.roleAs(t, sp.f.Admin, "RevokeRole", sp.f.Organization, s, role, subject)
+}
+
+// revokeHeld is a revoke made on purpose, of a grant that stands: RevokeRole
+// is idempotent, so its success alone proves no revocation. Where the
+// contract answers whether a grant was removed (Installation.grant_removed),
+// the answer must say one was.
+func (sp *principalSuite) revokeHeld(t *testing.T, s SolutionUnderTest, role string, subject map[string]any) {
+	t.Helper()
+	if removed, reported := sp.revokeReporting(t, s, role, subject); reported && !removed {
+		t.Fatalf("RevokeRole of %s on %s removed no grant: the revoke this case rests on revoked nothing", role, s.Solution)
+	}
+}
+
+// revokeReporting revokes as the administrator and answers grant_removed,
+// and whether the published contract carries it.
+func (sp *principalSuite) revokeReporting(t *testing.T, s SolutionUnderTest, role string, subject map[string]any) (removed, reported bool) {
+	t.Helper()
+	request := map[string]any{"organization_id": sp.f.Organization, "installation_id": str(sp.ensure(t, sp.f.Organization, s), "id"), "role": role}
+	for k, v := range subject {
+		request[k] = v
+	}
+	out := sp.c.must(t, sp.as(t, sp.f.Admin), "host.installation.v1.InstallationService", "RevokeRole", request)
+	if !sp.c.hasElement("host.installation.v1.Installation", "grant_removed") {
+		return false, false
+	}
+	return bool_(out, "grant_removed"), true
 }
 
 // roleGrants reads ListRoleGrants, as caller, as "<role> person <id>" or

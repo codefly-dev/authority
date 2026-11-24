@@ -44,7 +44,8 @@ service InstallationService {
   // of the admin role on that installation, grants.
   rpc GrantRole(GrantRoleRequest) returns (Installation);
   // RevokeRole ends one grant; every capability its subject holds from it is
-  // refused at once. Idempotent; the same callers as GrantRole.
+  // refused at once. Idempotent; the same callers as GrantRole. The answer's
+  // grant_removed says whether a grant was actually removed.
   rpc RevokeRole(RevokeRoleRequest) returns (Installation);
   // ListRoleGrants answers who holds which role on the installation; the same
   // callers as GrantRole.
@@ -261,6 +262,11 @@ message Installation {
   // itself once a later delivery reaches it again. A host renders it as a
   // degraded condition naming each.
   repeated string unreached = 14;
+  // Set only in the answer to RevokeRole: whether the call removed a grant.
+  // RevokeRole stays idempotent, so revoking a grant nobody holds succeeds
+  // with this false; a caller that revokes on purpose reads it rather than
+  // taking the success for a revocation. False in every other answer.
+  bool grant_removed = 15;
 
   // Status is the installation's lifecycle.
   enum Status {

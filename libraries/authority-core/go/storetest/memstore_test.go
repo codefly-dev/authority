@@ -3,6 +3,7 @@ package storetest_test
 import (
 	"testing"
 
+	"github.com/codefly-dev/authority/libraries/authority-core/go/access"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/memstore"
@@ -28,4 +29,10 @@ func TestTheMemoryStoreMeetsTheStoreContract(t *testing.T) {
 		}
 		return s
 	})
+}
+
+// The in-memory store meets the contract every host's access store meets.
+func TestTheMemoryStoreMeetsTheAccessStoreContract(t *testing.T) {
+	storetest.RunAccess(t, func(*testing.T) access.Store { return memstore.New() })
+	storetest.RunAccessSequence(t, func(*testing.T) access.Store { return memstore.New() })
 }

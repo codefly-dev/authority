@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/codefly-dev/authority/libraries/authority-core/go/access"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
@@ -197,6 +198,8 @@ type State struct {
 	mu         sync.RWMutex
 	store      *memstore.Store
 	svc        *authority.Service
+	access     *access.Service
+	accessLag  *memstore.Lagged
 	attester   *native.Attester
 	audience   string
 	orgs       map[string]string // id → display name
@@ -253,11 +256,22 @@ func New(anchor native.Anchor, audience string, cfg authority.Config) (*State, e
 		}
 		return nil
 	}
+	// An uninstall forgets the installation's access grants in its own
+	// transaction: the store carries both, and a reinstall revives none.
+	cfg.Journal = access.Journal(cfg.Journal)
 	svc, err := authority.New(store, cfg)
 	if err != nil {
 		return nil, err
 	}
-	state = &State{store: store, svc: svc, attester: attester, audience: audience, trustDomain: runTrustDomain(anchor),
+	// The access service reads through a reader that only a test ever holds
+	// behind the store (FreezeAccessReads); the store is the newest state,
+	// which serves every revision minimum the reader has not reached.
+	lag := memstore.Lagging(store)
+	grants, err := access.New(svc, lag, access.Config{Clock: svc.Now, MinRevisions: true, Primary: store})
+	if err != nil {
+		return nil, err
+	}
+	state = &State{store: store, svc: svc, access: grants, accessLag: lag, attester: attester, audience: audience, trustDomain: runTrustDomain(anchor),
 		orgs: map[string]string{}, people: map[string]Person{}, byToken: map[string]string{}, roles: map[string]Role{},
 		sessions: map[string]Session{}, deliveries: map[string]*appliedDelivery{}, Approvals: &MemoryApprovals{}}
 	return state, nil
@@ -265,6 +279,20 @@ func New(anchor native.Anchor, audience string, cfg authority.Config) (*State, e
 
 // Service is the core this host issues and decides through.
 func (s *State) Service() *authority.Service { return s.svc }
+
+// Access is the access service (codefly.dev/access) over the same core and
+// the same in-memory store: grants on a collection, a document or a version.
+func (s *State) Access() *access.Service { return s.access }
+
+// FreezeAccessReads holds the access service's reader at the grants as they
+// stand now, as a replica that stopped replaying would, until the function it
+// answers is called. It exists for the conformance cases that prove a
+// decision asked with a revision minimum is never read from an earlier state;
+// nothing in a running authority calls it.
+func (s *State) FreezeAccessReads() (catchUp func()) {
+	s.accessLag.Freeze()
+	return s.accessLag.CatchUp
+}
 
 // OnInstall sets the install step the host runs for a solution installation.
 func (s *State) OnInstall(step InstallStep) { s.installStep = step }

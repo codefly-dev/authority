@@ -1,6 +1,6 @@
 kind: module
 name: authority
-# The local authority's grpc endpoint serves the five host interfaces it
+# The local authority's grpc endpoint serves the six host interfaces it
 # implements, declared under interfaces/ (installable is a solution's, not the
 # host's). accounts in the host implements the same identities; a consumer
 # depends on an interface, never on either service.
@@ -9,6 +9,7 @@ interface:
         - service: local
           endpoint: grpc
           implements:
+              - codefly.dev/access@0.1.0
               - codefly.dev/artifact@0.1.0
               - codefly.dev/authority@0.3.6
               - codefly.dev/composition@0.2.1

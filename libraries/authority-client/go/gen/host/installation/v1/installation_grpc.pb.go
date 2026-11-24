@@ -76,7 +76,8 @@ type InstallationServiceClient interface {
 	// of the admin role on that installation, grants.
 	GrantRole(ctx context.Context, in *GrantRoleRequest, opts ...grpc.CallOption) (*Installation, error)
 	// RevokeRole ends one grant; every capability its subject holds from it is
-	// refused at once. Idempotent; the same callers as GrantRole.
+	// refused at once. Idempotent; the same callers as GrantRole. The answer's
+	// grant_removed says whether a grant was actually removed.
 	RevokeRole(ctx context.Context, in *RevokeRoleRequest, opts ...grpc.CallOption) (*Installation, error)
 	// ListRoleGrants answers who holds which role on the installation; the same
 	// callers as GrantRole.
@@ -221,7 +222,8 @@ type InstallationServiceServer interface {
 	// of the admin role on that installation, grants.
 	GrantRole(context.Context, *GrantRoleRequest) (*Installation, error)
 	// RevokeRole ends one grant; every capability its subject holds from it is
-	// refused at once. Idempotent; the same callers as GrantRole.
+	// refused at once. Idempotent; the same callers as GrantRole. The answer's
+	// grant_removed says whether a grant was actually removed.
 	RevokeRole(context.Context, *RevokeRoleRequest) (*Installation, error)
 	// ListRoleGrants answers who holds which role on the installation; the same
 	// callers as GrantRole.

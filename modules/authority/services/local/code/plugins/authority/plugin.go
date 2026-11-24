@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
+	"github.com/codefly-dev/authority/libraries/authority-core/go/access"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 
 	"gateway/pkg/business/issuer"
@@ -249,6 +250,14 @@ func Status(err error) error {
 		}[c], err.Error())
 	}
 	switch {
+	case errors.Is(err, access.ErrStale):
+		// What the caller holds was read at a state of the grants that no
+		// longer stands: it starts again. The reason names nothing else.
+		return status.Error(codes.Aborted, access.StaleRevision)
+	case errors.Is(err, access.ErrUnavailable):
+		// No state at or past the minimum asked can be reached: the caller
+		// retries, and is never answered from an earlier state.
+		return status.Error(codes.Unavailable, access.StaleRevision)
 	case errors.Is(err, state.ErrUnknown), errors.Is(err, workcontext.ErrNoBinding):
 		return status.Error(codes.NotFound, err.Error())
 	case errors.Is(err, workcontext.ErrRevoked), errors.Is(err, workcontext.ErrNoSeal),

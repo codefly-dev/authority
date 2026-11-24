@@ -919,6 +919,76 @@ administrator. Before this change the local authority answered `NotFound` for
 another organization's installation and let a module name another module's
 installation at its own organization; both are refused now.
 
+## The access interface: grants on a collection, a document or a version (2026-11-24)
+
+A sixth interface, `host.access.v1.AccessService`, published as
+`codefly.dev/access@0.1.0` (`interfaces/access`): `Grant`, `Revoke`,
+`ListGrants`, `Check`, `CheckBatch` and `ListViewerGrants`. The host writes and
+answers every grant; the module serving the kind asks, forwarding the caller's
+Work Context and attesting where the resource sits (its owner and the
+collections above it) from its own rows. A module stores no grant and
+registers no document here, so a move needs no host write: a grant on a
+collection stops matching when the placement names another, and a grant on
+the document follows it.
+
+- **Who is asking is the verified Work Context alone.** No request carries a
+  viewer, a tenant or an owner. The module asking is proven by its workload
+  credential and must be the one module serving every kind it names, the rule
+  `AttachResource` uses.
+- **The decision** is one shared core package,
+  `libraries/authority-core/go/access` (`Decide`), over its own `access.Store`,
+  separate from `authority.Tx` so a host that implements the latter keeps
+  building. The capability must hold the action on the kind at all; then the
+  owner and every actor of the chain must hold the resource (the owner alone
+  for an installed-content read, a host's own class of binding, injected as
+  `access.Config.InstalledContentRead`), by role scope or by an unexpired grant
+  to them, a team of theirs or their installation.
+- **A grant** is one per organization, reference (kind, id, version) and
+  subject (a person, a team or an installation); a re-grant refreshes its
+  actions and expiry. It gives `read`, `write` or `share` and nothing else.
+  Granting, revoking and listing need `share` on the kind and either the
+  target's owner as the module attests it or `admin` on the target or a
+  collection above it. A grantee whose share gives `share` shares on only
+  what that share gives, on the reference it is on and for no longer than it
+  lasts, and revokes the shares they made; they never list the grants. Nobody
+  grants what they do not hold, and `delete` is never granted. A share made
+  on stands until it is revoked or expires: revoking the share it rested on
+  does not end it.
+- **Revoking nothing is not a revocation**: `Revoke` of an absent or expired
+  grant is `NOT_FOUND` "nothing was revoked", after the caller was authorized.
+  `InstallationService.RevokeRole` stays idempotent for its existing callers,
+  and its answer gained `Installation.grant_removed`, which a caller that
+  revokes on purpose reads.
+- **An uninstalled installation's grants never decide again.** The local
+  authority forgets them in the uninstall's own transaction (`access.Journal`
+  over the in-memory store, which carries both); a reinstall keeps the id and
+  the principal and none of the grants.
+- **`AccessRevision`** names a state of one organization in the host's own
+  commit order (`access.Revision`: an epoch and a sequence, opaque to a
+  module). Every change and every answer returns one. A check may name a
+  minimum (`min_revision`, `item_min_revisions`) or ask for the newest state
+  (`FRESHNESS_HEAD`), and is then never decided on an earlier state: a reader
+  behind the minimum is read again for `access.Config.LagWait`, then
+  `access.Config.Primary` is, and when that does not answer the call is
+  `UNAVAILABLE` `stale_revision`. Another organization's revision is
+  `INVALID_ARGUMENT` `revision_foreign`; one the host never issued is
+  `FAILED_PRECONDITION` `revision_unknown`. A host that does not serve
+  minimums yet (`access.Config.MinRevisions` false) refuses every such
+  request `FAILED_PRECONDITION`, never ignoring it. The local authority
+  serves them: its sequence is the in-memory store's commit counter, and its
+  epoch is new at every start, so a revision stored before a restart is
+  unknown after it.
+
+`conformance.RunAccess` (`libraries/conformance/go/access.go`, cases H1 to H23,
+listed in [its README](libraries/conformance/go/README.md)) is the shared
+suite both hosts run, and `conformance.RunAccessRevisions` (cases R1 to R15)
+the one a host that serves minimums also runs; the local authority runs both
+in `plugins/registry_test/access_test.go`. `storetest.RunAccess` and
+`storetest.RunAccessSequence` are the contract every `access.Store` meets.
+
+Not here yet: `Forget` (ending every grant on a deleted reference), which the
+design places with document deletion.
+
 ## The edge: the browser's origin (2026-10-23)
 
 The edge is the authority module's third service. It is the auth gateway's

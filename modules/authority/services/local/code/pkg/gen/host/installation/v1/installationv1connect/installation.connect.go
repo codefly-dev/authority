@@ -107,7 +107,8 @@ type InstallationServiceClient interface {
 	// of the admin role on that installation, grants.
 	GrantRole(context.Context, *connect.Request[v1.GrantRoleRequest]) (*connect.Response[v1.Installation], error)
 	// RevokeRole ends one grant; every capability its subject holds from it is
-	// refused at once. Idempotent; the same callers as GrantRole.
+	// refused at once. Idempotent; the same callers as GrantRole. The answer's
+	// grant_removed says whether a grant was actually removed.
 	RevokeRole(context.Context, *connect.Request[v1.RevokeRoleRequest]) (*connect.Response[v1.Installation], error)
 	// ListRoleGrants answers who holds which role on the installation; the same
 	// callers as GrantRole.
@@ -269,7 +270,8 @@ type InstallationServiceHandler interface {
 	// of the admin role on that installation, grants.
 	GrantRole(context.Context, *connect.Request[v1.GrantRoleRequest]) (*connect.Response[v1.Installation], error)
 	// RevokeRole ends one grant; every capability its subject holds from it is
-	// refused at once. Idempotent; the same callers as GrantRole.
+	// refused at once. Idempotent; the same callers as GrantRole. The answer's
+	// grant_removed says whether a grant was actually removed.
 	RevokeRole(context.Context, *connect.Request[v1.RevokeRoleRequest]) (*connect.Response[v1.Installation], error)
 	// ListRoleGrants answers who holds which role on the installation; the same
 	// callers as GrantRole.

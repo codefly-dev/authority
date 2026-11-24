@@ -1215,6 +1215,13 @@ func scalar(fd protoreflect.FieldDescriptor, value any, fresh func() protoreflec
 		return protoreflect.ValueOfString(value.(string)), nil
 	case protoreflect.BytesKind:
 		return protoreflect.ValueOfBytes(value.([]byte)), nil
+	case protoreflect.EnumKind:
+		name, _ := value.(string)
+		v := fd.Enum().Values().ByName(protoreflect.Name(name))
+		if v == nil {
+			return protoreflect.Value{}, fmt.Errorf("%s has no value %q", fd.Enum().FullName(), name)
+		}
+		return protoreflect.ValueOfEnum(v.Number()), nil
 	case protoreflect.Uint64Kind:
 		return protoreflect.ValueOfUint64(value.(uint64)), nil
 	case protoreflect.Int64Kind:

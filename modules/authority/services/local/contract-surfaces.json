@@ -8,6 +8,18 @@
       ]
     },
     {
+      "name": "AccessService",
+      "fullName": "host.access.v1.AccessService",
+      "procedures": [
+        "/host.access.v1.AccessService/Grant",
+        "/host.access.v1.AccessService/Revoke",
+        "/host.access.v1.AccessService/ListGrants",
+        "/host.access.v1.AccessService/Check",
+        "/host.access.v1.AccessService/CheckBatch",
+        "/host.access.v1.AccessService/ListViewerGrants"
+      ]
+    },
+    {
       "name": "ArtifactService",
       "fullName": "host.artifact.v1.ArtifactService",
       "procedures": [

@@ -99,9 +99,20 @@ func (p *Plugin) GrantRole(ctx context.Context, req *installationv1.GrantRoleReq
 }
 
 // RevokeRole ends one grant.
+// It stays idempotent; the answer's grant_removed says whether a grant was
+// actually removed, so a success is never taken for a revocation.
 func (p *Plugin) RevokeRole(ctx context.Context, req *installationv1.RevokeRoleRequest) (*installationv1.Installation, error) {
-	return p.change(ctx, p.State.Service().RevokeRole, authority.RoleRequest{Organization: req.GetOrganizationId(), InstallationID: req.GetInstallationId(),
+	removed := false
+	out, err := p.change(ctx, func(ctx context.Context, caller authority.Person, r authority.RoleRequest) (inst state.Installation, err error) {
+		inst, removed, err = p.State.Service().RevokeRoleReporting(ctx, caller, r)
+		return inst, err
+	}, authority.RoleRequest{Organization: req.GetOrganizationId(), InstallationID: req.GetInstallationId(),
 		Role: req.GetRole(), PersonID: req.GetPersonId(), TeamID: req.GetTeamId()})
+	if err != nil {
+		return nil, err
+	}
+	out.GrantRemoved = removed
+	return out, nil
 }
 
 func (p *Plugin) change(ctx context.Context, do func(context.Context, authority.Person, authority.RoleRequest) (state.Installation, error), r authority.RoleRequest) (*installationv1.Installation, error) {

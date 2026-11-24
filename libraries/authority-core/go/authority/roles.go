@@ -141,12 +141,27 @@ func (s *Service) GrantRoleAsHost(ctx context.Context, r RoleRequest) (domain.In
 // that reads what admitted a call, and never asks which resources its caller
 // holds now, is told of the revoke by Check alone.
 func (s *Service) RevokeRole(ctx context.Context, caller Person, r RoleRequest) (domain.Installation, error) {
-	var inst domain.Installation
-	err := s.store.Write(ctx, func(tx Tx) error {
+	inst, _, err := s.RevokeRoleReporting(ctx, caller, r)
+	return inst, err
+}
+
+// RevokeRoleReporting is RevokeRole, and also answers whether a grant was
+// actually removed. RevokeRole is idempotent: revoking a grant nobody holds
+// succeeds, and that success is no revocation. A caller that revokes on
+// purpose (a test's helper, an administrator's surface) reads removed rather
+// than taking the success for one.
+func (s *Service) RevokeRoleReporting(ctx context.Context, caller Person, r RoleRequest) (inst domain.Installation, removed bool, err error) {
+	err = s.store.Write(ctx, func(tx Tx) error {
 		var err error
+		removed = false
 		if inst, err = decideRoleChange(tx, &caller, r, false, true); err != nil {
 			return err
 		}
+		standing, err := tx.RoleGrants(inst.ID)
+		if err != nil {
+			return err
+		}
+		removed = slices.Contains(standing, r.grant())
 		subjects := []string{r.PersonID}
 		if r.TeamID != "" {
 			// Read before the grant ends: who may act as the team is asked
@@ -186,7 +201,10 @@ func (s *Service) RevokeRole(ctx context.Context, caller Person, r RoleRequest) 
 		}
 		return s.journal(ctx, tx, r.event(domain.RoleRevoked, caller.ID))
 	})
-	return inst, err
+	if err != nil {
+		removed = false
+	}
+	return inst, removed, err
 }
 
 // sealedAlong is every active installation, inst first, that a capability

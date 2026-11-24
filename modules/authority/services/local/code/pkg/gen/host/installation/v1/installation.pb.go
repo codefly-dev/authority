@@ -917,7 +917,12 @@ type Installation struct {
 	// it stands; it grants nothing there, as each hop narrows, and clears by
 	// itself once a later delivery reaches it again. A host renders it as a
 	// degraded condition naming each.
-	Unreached     []string `protobuf:"bytes,14,rep,name=unreached,proto3" json:"unreached,omitempty"`
+	Unreached []string `protobuf:"bytes,14,rep,name=unreached,proto3" json:"unreached,omitempty"`
+	// Set only in the answer to RevokeRole: whether the call removed a grant.
+	// RevokeRole stays idempotent, so revoking a grant nobody holds succeeds
+	// with this false; a caller that revokes on purpose reads it rather than
+	// taking the success for a revocation. False in every other answer.
+	GrantRemoved  bool `protobuf:"varint,15,opt,name=grant_removed,json=grantRemoved,proto3" json:"grant_removed,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1034,6 +1039,13 @@ func (x *Installation) GetUnreached() []string {
 		return x.Unreached
 	}
 	return nil
+}
+
+func (x *Installation) GetGrantRemoved() bool {
+	if x != nil {
+		return x.GrantRemoved
+	}
+	return false
 }
 
 // InstallationNotice is what the host hands the solution's install step.
@@ -2143,7 +2155,7 @@ const file_host_installation_v1_installation_proto_rawDesc = "" +
 	"\vListRequest\x12'\n" +
 	"\x0forganization_id\x18\x01 \x01(\tR\x0eorganizationId\"X\n" +
 	"\fListResponse\x12H\n" +
-	"\rinstallations\x18\x01 \x03(\v2\".host.installation.v1.InstallationR\rinstallations\"\xac\x04\n" +
+	"\rinstallations\x18\x01 \x03(\v2\".host.installation.v1.InstallationR\rinstallations\"\xd1\x04\n" +
 	"\fInstallation\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12'\n" +
 	"\x0forganization_id\x18\x02 \x01(\tR\x0eorganizationId\x12\x16\n" +
@@ -2157,7 +2169,8 @@ const file_host_installation_v1_installation_proto_rawDesc = "" +
 	"\x05roles\x18\v \x03(\tR\x05roles\x12/\n" +
 	"\x13approved_generation\x18\f \x01(\x04R\x12approvedGeneration\x12+\n" +
 	"\x11upgrade_available\x18\r \x01(\bR\x10upgradeAvailable\x12\x1c\n" +
-	"\tunreached\x18\x0e \x03(\tR\tunreached\"[\n" +
+	"\tunreached\x18\x0e \x03(\tR\tunreached\x12#\n" +
+	"\rgrant_removed\x18\x0f \x01(\bR\fgrantRemoved\"[\n" +
 	"\x06Status\x12\x16\n" +
 	"\x12STATUS_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eSTATUS_PENDING\x10\x01\x12\x11\n" +

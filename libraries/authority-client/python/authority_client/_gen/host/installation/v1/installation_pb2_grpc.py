@@ -142,7 +142,8 @@ class InstallationServiceServicer(object):
 
     def RevokeRole(self, request, context):
         """RevokeRole ends one grant; every capability its subject holds from it is
-        refused at once. Idempotent; the same callers as GrantRole.
+        refused at once. Idempotent; the same callers as GrantRole. The answer's
+        grant_removed says whether a grant was actually removed.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')

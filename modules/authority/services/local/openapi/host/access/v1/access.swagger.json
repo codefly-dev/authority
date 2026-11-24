@@ -1,0 +1,50 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "host/access/v1/access.proto",
+    "description": "The access interface: who may act on one collection, one document or one\nexact version of it, beyond what their role on an installation reaches.\nThe host writes and answers every grant; the module that serves the kind\nasks, forwarding the caller's Work Context and attesting where the resource\nsits (its owner, and the collections above it) from its own durable rows.\nA module stores no grant of its own and registers no document here.\n\nEvery request carries the caller's Work Context as the module received it\nand the module's own workload credential, and nothing else names who is\nasking: the tenant, the viewer, the actor chain and the binding are read\nfrom the verified Work Context alone. The module asking is the one module\nserving every kind its request names.",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "AccessService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {},
+  "definitions": {
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    }
+  }
+}

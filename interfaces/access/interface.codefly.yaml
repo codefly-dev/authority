@@ -1,0 +1,11 @@
+kind: interface
+publisher: codefly.dev
+name: access
+description: Who may act on one collection, document or exact version beyond what a role on an installation reaches; the host writes and answers every grant, and the module serving the kind asks, attesting where the resource sits. Implemented by accounts and by the local authority.
+version: 0.1.0
+type: connect
+protobuf:
+    package: host.access.v1
+    services:
+        - name: AccessService
+          methods: [Grant, Revoke, ListGrants, Check, CheckBatch, ListViewerGrants]

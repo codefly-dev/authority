@@ -43,7 +43,7 @@ current runner uses `t.Setenv`, package-wide server singletons and one database.
 Move environment/dependency setup outside parallel cases, inject host services
 instead of shared singletons, and give each factory invocation its own database
 and clock. Merely wrapping its current setup in the factory is unsafe. The
-separate `RunArtifacts` and `RunSolutionPrincipalTarget` entry points and
+separate `RunArtifacts`, `RunAccess` and `RunSolutionPrincipalTarget` entry points and
 Accounts-only tests retain their existing execution order.
 
 A host driven through `Run` is one host for every case, so a case owns the
@@ -115,6 +115,8 @@ one-release `installer` alias and its crossover are deleted.
 | Delivery and installation lifecycle | Manifest/role ceilings, forward generation, mismatched signed documents, blocked acknowledgement, then team exposure |
 | Session identity and display names | Current requires person and organization IDs plus nonempty `Session.person_display_name = 7` and `Session.organization_display_name = 8`. Listed fixture people carry the same organization display name as their signed-in session through `FixturePerson.organization_display_name = 7`. |
 | Revocation and expiry | Revoked delegations and installations stop existing and fresh work; expired capabilities fail after skew. |
+| Grants on a collection, a document or one version (`codefly.dev/access`) | `RunAccess` with `AccessCase`, its own entry point: cases H1 to H22, [below](#access-grants-on-a-collection-a-document-or-a-version-runaccess) |
+| A revoke of a role says whether it removed a grant | `RunSolutionPrincipalTarget`: `RevokeRole` stays idempotent and answers `Installation.grant_removed`; the suite's revokes that a case rests on (`revokeHeld`) require it true |
 
 `Lifecycle.PauseInstall` pauses the host's real install step, and returns an
 idempotent resume function. The suite first removes administrator status after
@@ -158,6 +160,97 @@ Empty workload organizations are required refusals when the module has multiple
 active installing organizations or none, naming “must name the organization of
 the work item”. `WorkloadOrganizations` supplies these two fixtures. Successful
 single-organization inference remains a local convenience, not a shared promise.
+
+## Access: grants on a collection, a document or a version (`RunAccess`)
+
+`conformance.RunAccess(t, conn, descriptors, AccessCase)` is the suite of
+`codefly.dev/access` (`host.access.v1.AccessService`), run by both hosts. It
+plays the module serving the kinds: it delivers `Store` serving `Kind`
+(documents) and `CollectionKind` (collections), holds `StoreCredential`,
+forwards the Work Context of whoever asks and attests each resource's
+placement (its owner and the collections above it). Nothing about a document
+is registered at the host.
+
+`AccessCase` embeds `SolutionPrincipalCase` (the cast and the host's own
+`Uninstall`, `RemoveFromTeam` and `RemoveFromOrganization`) and adds
+`CollectionKind`, `Advance` (the host's clock moved forward; nil waits in real
+time) and `InstalledRead` (a host's class of installed-content read bindings;
+nil when it has none). The suite delivers its own declarations for A, B, C and
+Store, so a host gives it a fixture of its own, never the one
+`RunSolutionPrincipalTarget` runs on. A owns the two collections; on A and B
+the `user` role reads and shares documents and names no collection, so a person
+through one holds a document by a grant and never by their role; C is the
+sibling installation, and its `user` role holds no read on `Kind`.
+
+The rule the cases hold a host to. The Work Context must hold the action on
+the resource's kind at all (the ceiling: `PermissionDenied` naming kind and
+action). Then every required subject must hold the resource: the owner and
+every actor of the chain, or the owner alone for an installed-content read. A
+subject holds it by the scopes it contributes selecting the resource or a
+collection above it (`BASIS_ROLE_SCOPE`; an installation holds what its
+principal owns), or by an unexpired grant to it, a team it belongs to now, or
+its installation: on a collection above (`BASIS_ANCESTOR_GRANT`), on the
+resource following its versions (`BASIS_RESOURCE_GRANT`), or on exactly the
+version asked (`BASIS_VERSION_GRANT`). A resource the viewer does not hold is
+a decision, `DECISION_DENIED`, whose reason names no resource.
+
+| # | Case | What it proves |
+| --- | --- | --- |
+| H1 | a document shared with a person | allowed at every version with `BASIS_RESOURCE_GRANT`; its sibling in the same collection denied |
+| H2 | a share pinned to one version | that version allowed with `BASIS_VERSION_GRANT` alone; another version, and a question naming no version, denied; the pinned grant is its own row |
+| H3 | a share to a team | its members allowed; after `RemoveFromTeam` the leaver is denied on the next check and the other member is not |
+| H4 | a grant expiring at T | allowed before with `valid_until_unix` at most T; denied once the clock passes T; an expiry in the past refused; an expired grant is nothing to revoke |
+| H5 | a grant on a collection | covers a document under it with `BASIS_ANCESTOR_GRANT`; under another collection denied; only the collection's owner or administrator grants it |
+| H6 | a grant on the document | still allowed after the document moves to another collection |
+| H7 | revoking a grant that exists | answers the grant removed and a revision; the next check is denied |
+| H8 | revoking a grant that never existed, another version's, or twice | `NotFound` "nothing was revoked" |
+| H9 | a revoke by a person who neither owns nor administers | `PermissionDenied`, the same message whether the grant exists; a grantee whose share gives no `share` neither revokes nor grants on |
+| H10 | a module acting for a person | denied while only the person is granted (the viewer's bases still say they hold it); allowed once the acting installation is granted too; the installation's grant is no other person's |
+| H11 | a reader through an installed binding | allowed while the binding is live; refused once the solution is delivered without it. The owner-alone leg runs when the host declares `InstalledRead`, and is skipped by name otherwise |
+| H12 | a share to an installation | its agent allowed with `BASIS_RESOURCE_GRANT`; a sibling installation's agent denied; an installation's agent reads its own collection by `BASIS_ROLE_SCOPE` |
+| H13 | uninstall, then reinstall | the old capability decides nothing; nothing is granted to an uninstalled installation; the reinstalled one (same id and principal) is denied and the grant is gone from the ACL |
+| H14 | sibling audiences and kinds | a capability addressed elsewhere is `Unauthenticated` by its audience; a grant on another kind with the same id decides nothing and is not listed |
+| H15 | two organizations, and a leaver | a grant to another organization's person is refused naming the granter's organization only, as an absent person is; another organization's capability holds and lists nothing of this one's grants; a person who left is refused |
+| H16 | the ceiling | a share without read on the kind is `PermissionDenied` naming kind and action, never the resource; nobody grants an action they do not hold, nor one no grant gives |
+| H17 | a derived document | shared by itself, without its source; its source's share does not cover it |
+| H18 | `CheckBatch` | the point checks' answers, in order; an unknown id is denied, not an error; none and more than 1000 placements refused |
+| H19 | `ListViewerGrants` | the viewer's own grants in order across pages; a page token from before a revoke is `Aborted` `stale_revision`; a restart omits the revoked reference |
+| H20 | `ListGrants` | the owner and the collection's administrator read the ACL; the grantee and a stranger are refused, the same whether grants exist |
+| H21 | a revision precondition (`min_revision`, `item_min_revisions`, `FRESHNESS_HEAD`) | never ignored: a host that declares `AccessCase.MinRevision` answers each with a revision; one that does not refuses each `FailedPrecondition`, on `Check`, `CheckBatch` and `ListViewerGrants` |
+| H22 | caller-supplied authority | only the kind's one serving module asks, on every method; a kind it does not serve, a malformed id, a duplicate or a ninth ancestor are refused; no decision request carries a field naming who is asking (descriptor assertion) |
+| H23 | a share that gives `share` | its grantee shares on the actions it gives, on the reference it is on (a pinned share shares its version, never the document), ending no later than it does; `delete` is never granted by anyone; the grantee revokes the shares they made, is answered `NotFound` "nothing was revoked" for anyone else's as for an absent one, never lists the ACL, and shares nothing on once their share is revoked |
+
+### Revisions: `RunAccessRevisions`
+
+A host that serves revision minimums sets `AccessCase.MinRevision` and also
+runs `RunAccessRevisions(t, conn, descriptors, AccessCase)` on a fixture of its
+own. `AccessCase.Lag` freezes the host's access reader at its state now, as a
+replica that stopped replaying, until the function it answers is called; a
+host with one store leaves it nil and the cases that need a reader held behind
+are skipped by name. The suite treats a revision as a module does: bytes it
+stores and returns, compared only for equality.
+
+| # | Case | What it proves |
+| --- | --- | --- |
+| R1 | grant, revoke, grant | each answers a revision of the organization, none the same |
+| R2 | a check asked with a revision just returned | answered, and the revision it names is itself a minimum the host serves |
+| R3 | revoke, then a check at the revoke's revision | denied |
+| R4 | reader behind a revoke, no minimum asked | the host may still allow, and then does not name the revoke's revision |
+| R5 | reader behind a revoke; the publisher asks `FRESHNESS_HEAD`; the revoked reader asks at that revision | denied, and denied at the head |
+| R7 | reader behind; a member leaves the team; the same sequence | the leaver denied, the member who stayed allowed |
+| R8 | `CheckBatch` with a minimum per placement | one state at or past the latest, every result naming the batch's revision, answering as point checks do; a minimum for some placements and not all is `InvalidArgument` |
+| R9 | `ListViewerGrants` at a revoke's revision, reader behind | the revoked reference is absent |
+| R10 | another organization's revision | `InvalidArgument` `revision_foreign`, the same whether that organization exists |
+| R11 | bytes the host never issued | `FailedPrecondition` `revision_unknown` |
+| R13 | a grant with an expiry, asked at an old revision after the clock passes it | denied: expiry is by the clock |
+| R15 | a grant read back at its own revision, reader behind | allowed |
+
+R6 (the store holding the newest state does not answer: `Unavailable`
+`stale_revision`), R12 (a sequence past the newest state) and R14 (interleaved
+revokes, head checks and readers) need a hook the suite does not have; the
+shared core proves them over its own stores
+(`libraries/authority-core/go/access/revision_test.go`), R14 under the race
+detector.
 
 ## Fixture rule: a person reaches a module through a role on an installation
 
