@@ -8,8 +8,10 @@ name: clients
 
 on:
   pull_request:
+  # The integration branch is tested on push as main is; it has no pull
+  # request to carry the checks.
   push:
-    branches: [main]
+    branches: [main, feature/revenge]
 
 permissions:
   contents: read

@@ -8,11 +8,20 @@ name: go
 # ships its package manifest, and its contracts match what `codefly generate
 # contracts` writes from the services' sources, and every method a host
 # fronting the module receives declares its policy.
+#
+# One job per module, and three for each of the two modules whose race tests
+# outlast every other job in the run (libraries/authority-core/go and
+# tools/noproxygate, 167 s and 158 s of `go test -race` against under 60 s for
+# the rest): .github/scripts/go-test-shard.sh splits a module's top-level tests
+# into disjoint parts that together are `go test -race -count=1 ./...`.
+#
+# The integration branch is tested on push as main is; it has no pull request
+# to carry the checks.
 
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, feature/revenge]
 
 permissions:
   contents: read
@@ -32,28 +41,58 @@ jobs:
       - id: find
         name: list every go.mod
         run: |
-          modules=$(find . -name go.mod -not -path '*/.git/*' -printf '%h\n' | sed 's|^\./||' | sort | jq -R . | jq -cs .)
+          found=$(find . -name go.mod -not -path '*/.git/*' -printf '%h\n' | sed 's|^\./||' | sort | jq -R . | jq -cs .)
+          echo "$found"
+          test "$(echo "$found" | jq length)" -gt 0
+          # Every module is one entry, or one per shard for the modules named
+          # here. A module this names that no longer exists fails the job
+          # rather than leaving a split nobody runs.
+          split='{"libraries/authority-core/go": 3, "tools/noproxygate": 3}'
+          missing=$(jq -cn --argjson found "$found" --argjson split "$split" '($split | keys) - $found')
+          if [ "$missing" != "[]" ]; then
+            echo "::error::go.yml splits modules that have no go.mod: $missing"; exit 1
+          fi
+          modules=$(jq -cn --argjson found "$found" --argjson split "$split" \
+            '[$found[] as $m | ($split[$m] // 1) as $n | range(1; $n + 1) | {module: $m, shard: ., shards: $n}]')
           echo "$modules"
-          test "$(echo "$modules" | jq length)" -gt 0
+          # Every module found is in the matrix, each shard of it once.
+          test "$(echo "$modules" | jq -c '[.[].module] | unique')" = "$(echo "$found" | jq -c 'unique')"
+          test "$(echo "$modules" | jq -c '[.[] | select(.shard == 1)] | length')" = "$(echo "$found" | jq length)"
           echo "modules=$modules" >> "$GITHUB_OUTPUT"
 
   test:
-    name: ${{ matrix.module }}
+    name: ${{ matrix.module }}${{ matrix.shards > 1 && format(' ({0}/{1})', matrix.shard, matrix.shards) || '' }}
     needs: modules
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        module: ${{ fromJSON(needs.modules.outputs.modules) }}
+        include: ${{ fromJSON(needs.modules.outputs.modules) }}
     defaults:
       run:
         working-directory: ${{ matrix.module }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        id: go
         with:
           go-version-file: ${{ matrix.module }}/go.mod
-          cache-dependency-path: ${{ matrix.module }}/go.sum
+          # Cached below: setup-go's own key is the go.sum hash alone, so a
+          # branch that moves one dependency starts from nothing.
+          cache: false
+      # Modules and compiled artifacts, per module. The exact key is this
+      # go.sum; without it the newest cache of the same module and toolchain
+      # is restored, from this branch or from main. Test results are never
+      # reused: every run is -count=1.
+      - name: restore the Go module and build caches
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ steps.go.outputs.go-version }}-${{ matrix.module }}-${{ hashFiles(format('{0}/go.sum', matrix.module)) }}
+          restore-keys: |
+            go-${{ runner.os }}-${{ steps.go.outputs.go-version }}-${{ matrix.module }}-
       # The hop library's single-use admission regressions run over the real
       # transport and a real Postgres: the runner's own, started here, reached
       # over its socket as the runner's user, with no password written down.
@@ -63,13 +102,20 @@ jobs:
           sudo systemctl start postgresql.service
           sudo -u postgres createuser --superuser "$USER"
           echo "HOP_TEST_POSTGRES=host=/var/run/postgresql dbname=postgres" >> "$GITHUB_ENV"
+      # Vet and the performance guard are the module's, not a shard's: once.
       - name: go vet
+        if: matrix.shard == 1
         run: go vet ./...
       - name: ordinary-build reach performance guard
-        if: matrix.module == 'libraries/authority-core/go'
+        if: matrix.module == 'libraries/authority-core/go' && matrix.shard == 1
         run: go test ./decide -run '^TestReachOfIsFastOnDenseCompositions$' -count=1
       - name: go test -race
+        if: matrix.shards == 1
         run: go test -race -count=1 ./...
+      - name: go test -race, this shard's tests
+        if: matrix.shards > 1
+        run: |
+          "$GITHUB_WORKSPACE/.github/scripts/go-test-shard.sh" '${{ matrix.shard }}' '${{ matrix.shards }}'
 
   required:
     name: Go checks
