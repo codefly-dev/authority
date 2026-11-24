@@ -4,11 +4,17 @@
 #
 # Run from the module's root. It lists every top-level test, example and fuzz
 # target the module declares (`go test -list`, so the list is what the compiler
-# sees, build tags included), sorts the distinct names, and runs those at
-# positions i, i+n, i+2n, … with the flags the unsplit job uses:
-# `go test -race -count=1 ./...`. Every shard computes the same list from the
-# same commit, so the n shards together run each test exactly once and nothing
-# else. A name two packages share runs in both, in the one shard that holds it.
+# sees, build tags included) and runs the distinct names whose checksum
+# (cksum, modulo n) is i - 1, with the flags the unsplit job uses:
+# `go test -race -count=1 ./...`. A name's shard depends on the name alone,
+# so the n shards together run each test exactly once and nothing else. A name
+# two packages share runs in both, in the one shard that holds it.
+#
+# By checksum, not by position in the sorted list: tests are named in
+# families (the same case for each of three kinds, say), and every n-th name
+# of a sorted list then picks the same member of each family. Measured on
+# libraries/authority-core/go, a split by position put 166 s of 207 s in one
+# shard of three.
 #
 # A shard that would run nothing fails: a split that silently drops tests is
 # the failure this script exists to rule out.
@@ -30,7 +36,10 @@ if [ "$total" -eq 0 ]; then
   exit 2
 fi
 
-selected=$(printf '%s\n' "$names" | awk -v i="$i" -v n="$n" '(NR - 1) % n == i - 1')
+selected=$(printf '%s\n' "$names" | while IFS= read -r name; do
+  sum=$(printf '%s' "$name" | cksum)
+  if [ $((${sum%% *} % n)) -eq $((i - 1)) ]; then printf '%s\n' "$name"; fi
+done)
 count=$(printf '%s' "$selected" | grep -c . || true)
 if [ "$count" -eq 0 ]; then
   echo "go-test-shard: shard $i/$n selects none of the module's $total tests" >&2
