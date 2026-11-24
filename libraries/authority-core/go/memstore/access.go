@@ -46,6 +46,7 @@ func (s *Store) WriteAccess(_ context.Context, fn func(access.Tx) error) (err er
 
 func cloneGrant(g domain.AccessGrant) domain.AccessGrant {
 	g.Actions = slices.Clone(g.Actions)
+	g.Sources = slices.Clone(g.Sources)
 	return g
 }
 

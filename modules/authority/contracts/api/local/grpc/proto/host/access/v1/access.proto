@@ -21,19 +21,40 @@ option go_package = "gateway/pkg/gen/host/access/v1;accessv1";
 service AccessService {
   // Grant gives one subject actions on one reference, or refreshes the
   // actions and expiry of the grant that subject already holds on it (one
-  // grant per organization, reference and subject). The Work Context holds
-  // `share` on the target's kind and every action it grants, and its owner
-  // either owns the target as the module attests it or holds `admin` on the
-  // target or on a collection above it.
+  // grant per organization, reference and subject). A grant gives `read`,
+  // `write` or `share`, never anything else. The Work Context holds `share`
+  // on the target's kind and every action it grants, and its owner either
+  // owns the target as the module attests it or holds `admin` on the target
+  // or on a collection above it.
+  //
+  // A grantee whose share of the target gives `share` grants too: only the
+  // actions that share gives, on the reference it is on (a share of one
+  // version shares that version on, never the document), ending no later
+  // than it does; and they change only the grants they made. Nobody grants
+  // what they do not hold, and a share made on never outlives the share it
+  // was made from: once that share is revoked, expires, is narrowed below
+  // `share` or the action, or stops being its grantor's (a team left, an
+  // installation removed), every share made on from it stops deciding, and
+  // so does every share made on from those. Making the revoked share again
+  // revives none of them.
   rpc Grant(GrantRequest) returns (GrantResponse);
-  // Revoke ends the grant one subject holds on one reference, for the callers
-  // Grant admits. A grant that does not exist, or has expired, answers
+  // Revoke ends the grant one subject holds on one reference. The owner and
+  // the administrators Grant admits end any grant; a grantee whose share
+  // gives `share` ends the grants they made. A grant that does not exist, has
+  // expired, no longer stands, or is not the caller's to end answers
   // NOT_FOUND "nothing was revoked", after the caller was authorized: a
-  // caller who may not revoke is answered the same whether it exists.
+  // caller who may not revoke at all is answered the same whether it exists.
   rpc Revoke(RevokeRequest) returns (RevokeResponse);
-  // ListGrants answers the grants on one reference, every version of it, for
-  // the callers Grant admits.
+  // ListGrants answers the grants standing on one reference, every version of
+  // it, for its owner and the administrators Grant admits; never a grantee.
   rpc ListGrants(ListGrantsRequest) returns (ListGrantsResponse);
+  // Forget ends every grant on a reference the module removed: the grants on
+  // exactly the target, or with every_version every grant on the resource.
+  // It answers how many there were; forgetting nothing is no error, so a
+  // module sends it again until it is answered. Only the kind's one serving
+  // module asks, for itself: the Work Context names the organization and
+  // need hold nothing on the resource.
+  rpc Forget(ForgetRequest) returns (ForgetResponse);
   // Check decides one action on one placed resource for the Work Context.
   // A Work Context that does not hold the action on the resource's kind at
   // all is refused PERMISSION_DENIED naming the kind and the action; any
@@ -45,7 +66,8 @@ service AccessService {
   rpc CheckBatch(CheckBatchRequest) returns (CheckBatchResponse);
   // ListViewerGrants pages the references the Work Context's owner is
   // granted the action on directly (themselves, a team of theirs, or the
-  // installation they are), ordered by kind, id and version. It answers the
+  // installation they are) by a grant that still stands, ordered by kind, id
+  // and version. It answers the
   // viewer's grants, not a decision: the module checks what it serves. A page
   // token is refused ABORTED "stale_revision" once a grant of the
   // organization changed, one of the viewer's expired, or the viewer's teams
@@ -217,6 +239,29 @@ message ListGrantsResponse {
   // The unexpired grants, ordered by version and subject.
   repeated AccessGrant grants = 1;
   // The state the grants were read at.
+  AccessRevision revision = 2;
+}
+
+// ForgetRequest ends the grants on a reference that is gone.
+message ForgetRequest {
+  // A Work Context addressed to the module: it names the organization.
+  string token = 1;
+  // The module asking, proving which module it is.
+  host.authority.v1.WorkloadCredential actor = 2;
+  // The reference: with a version, the grants on that version; without one,
+  // the grants that follow the resource's versions.
+  ResourceRef target = 3;
+  // Every grant on the resource, whatever its version; the target then names
+  // no version.
+  bool every_version = 4;
+}
+
+// ForgetResponse answers how many grants were ended.
+message ForgetResponse {
+  // The grants ended; zero when there were none.
+  int32 forgotten = 1;
+  // The state the change is part of: a decision asked with it as a minimum
+  // sees the change.
   AccessRevision revision = 2;
 }
 

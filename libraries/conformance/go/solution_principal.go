@@ -68,6 +68,9 @@ import (
 //   - UserHolder, Author, Member, AdminHolder, TeamMember, TeamLeaver, OrgLeaver:
 //     members with no role on A, B or C but what the suite grants; TeamMember
 //     and TeamLeaver belong to Team.
+//   - SecondTeam and TwoTeamMember: another team of Organization, and a
+//     member with no role on A, B or C but what the suite grants who belongs
+//     to both Team and SecondTeam.
 //   - EmptyTeam: a team of Organization in the host's team directory that
 //     nobody belongs to: a team exists because the host holds it, not because
 //     a member carries it.
@@ -91,6 +94,7 @@ type SolutionPrincipalCase struct {
 	Admin, UserHolder, Author, Member, AdminHolder string
 	Team, TeamMember, TeamLeaver, OrgLeaver        string
 	EmptyTeam                                      string
+	SecondTeam, TwoTeamMember                      string
 	Administrator, Reader, NoteReader              string
 	OtherAdmin, OtherMember, OtherTeam             string
 	Existing                                       string
@@ -533,6 +537,71 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		t.Run("a member removed from a team loses, by the next check, what only the team's role gave them, and acting as that team is refused", func(t *testing.T) {
 			sp.teamRemoval(t)
 		})
+	})
+	t.Run("a member of two teams granted different roles on one installation holds both roles and the union of their scopes at every audience; cast onto one team they hold that team's alone; revoking one team's role leaves the other's and ends the capabilities issued before", func(t *testing.T) {
+		if f.SecondTeam == "" || f.SecondTeam == f.Team || f.TwoTeamMember == "" {
+			t.Fatal("required conformance fixture missing: SecondTeam, another team than Team, and TwoTeamMember, a member of both")
+		}
+		note := A.Solution + ".note"
+		both := f.TwoTeamMember
+		user, admin := map[string]any{"team_id": f.Team}, map[string]any{"team_id": f.SecondTeam}
+		a := str(sp.ensure(t, f.Organization, A), "id")
+		// held is the roles ListHeld answers the person on A.
+		held := func(t *testing.T, as string) []string {
+			t.Helper()
+			out := sp.must(t)(sp.c.call(sp.as(t, as), "host.installation.v1.InstallationService", "ListHeld", map[string]any{"organization_id": f.Organization}))
+			for _, h := range listMsgs(out, "installations") {
+				if str(msg(h, "installation"), "id") == a {
+					return slices.Sorted(slices.Values(listStrings(h, "roles")))
+				}
+			}
+			return nil
+		}
+		sp.grant(t, A, "user", user)
+		t.Cleanup(func() { sp.revoke(t, A, "user", user); sp.revoke(t, A, "admin", admin) })
+		// One team's role alone: what user holds, at the solution and at the store.
+		exactOwnedScope(t, msg(sp.must(t)(sp.root(t, both, A)), "context"), note, []string{"read"}, U(t))
+		exactOwnedScope(t, msg(sp.must(t)(sp.through(t, both, A, "store")), "context"), f.Kind, []string{"read"}, U(t))
+		// Both teams' roles: both are held, and each audience carries the union.
+		sp.grant(t, A, "admin", admin)
+		if got := held(t, both); !slices.Equal(got, []string{"admin", "user"}) {
+			t.Fatalf("a member of two teams granted user and admin holds %v on the installation, want both roles", got)
+		}
+		atStore := sp.must(t)(sp.through(t, both, A, "store"))
+		exactOwnedScope(t, msg(sp.must(t)(sp.root(t, both, A)), "context"), note, []string{"read", "write"}, U(t))
+		exactOwnedScope(t, msg(atStore, "context"), f.Kind, []string{"create", "read", "write"}, U(t))
+		// Cast onto one team, the session holds that team's role and nothing
+		// of the other's.
+		asUser, err := sp.cast(t, both, f.Team)
+		if err != nil {
+			t.Fatalf("a member casts onto their own team: %v", err)
+		}
+		asAdmin, err := sp.cast(t, both, f.SecondTeam)
+		if err != nil {
+			t.Fatalf("a member casts onto their own team: %v", err)
+		}
+		exactOwnedScope(t, msg(sp.must(t)(sp.root(t, asUser, A)), "context"), note, []string{"read"}, U(t))
+		exactOwnedScope(t, msg(sp.must(t)(sp.through(t, asUser, A, "store")), "context"), f.Kind, []string{"read"}, U(t))
+		_, err = sp.through(t, asUser, A, "store", sp.owned(f.Kind, []string{"write"}, U(t)))
+		refused(t, err, codes.PermissionDenied, "widens")
+		exactOwnedScope(t, msg(sp.must(t)(sp.through(t, asAdmin, A, "store")), "context"), f.Kind, []string{"create", "read", "write"}, U(t))
+		// Revoking one team's role leaves the other's, and ends every
+		// capability issued while both stood.
+		sp.revokeHeld(t, A, "admin", admin)
+		refused(t, sp.check(atStore), codes.PermissionDenied, "revoked")
+		_, err = sp.hop(t, atStore)
+		refused(t, err, codes.PermissionDenied, "revoked")
+		exactOwnedScope(t, msg(sp.must(t)(sp.root(t, both, A)), "context"), note, []string{"read"}, U(t))
+		if got := held(t, both); !slices.Equal(got, []string{"user"}) {
+			t.Fatalf("after one team's role is revoked the member holds %v, want the other team's role alone", got)
+		}
+		exactOwnedScope(t, msg(sp.must(t)(sp.through(t, both, A, "store")), "context"), f.Kind, []string{"read"}, U(t))
+		grants := sp.roleGrants(t, f.Admin, f.Organization, A)
+		if !slices.Contains(grants, "user team "+f.Team) || slices.Contains(grants, "admin team "+f.SecondTeam) {
+			t.Fatalf("after revoking %s's role the installation's grants are %v", f.SecondTeam, grants)
+		}
+		_, err = sp.cast(t, both, f.SecondTeam)
+		refused(t, err, codes.NotFound, "nothing to act as")
 	})
 	t.Run("a team nobody belongs to yet is granted a role, listed and revoked", func(t *testing.T) {
 		empty := map[string]any{"team_id": f.EmptyTeam}

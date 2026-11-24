@@ -71,6 +71,7 @@ const NothingRevoked = "nothing was revoked"
 type Authority interface {
 	AccessCaller(ctx context.Context, token string, actor authority.Workload, kinds []string) (authority.AccessCaller, error)
 	AccessSubjectExists(ctx context.Context, org string, subject domain.AccessSubject) (bool, error)
+	AccessSubjectsOf(ctx context.Context, org, principal string) ([]domain.AccessSubject, error)
 }
 
 // Config is what a host injects.
@@ -191,7 +192,10 @@ type ViewerGrants struct {
 
 // Grant gives a subject actions on a reference, or refreshes the grant the
 // subject holds there. The caller holds share and every granted action on the
-// target's kind, and owns the target or administers it.
+// target's kind, and owns the target or administers it; or it holds a share
+// of the target that gives share and every action granted, and then the grant
+// rests on that share (lineage.go): it ends no later, and stops deciding when
+// the share does. A grantee refreshes the grants they made and no other.
 func (s *Service) Grant(ctx context.Context, r GrantRequest) (domain.AccessGrant, Revision, error) {
 	if err := validSubject(r.Subject); err != nil {
 		return domain.AccessGrant{}, Revision{}, err
@@ -221,28 +225,32 @@ func (s *Service) Grant(ctx context.Context, r GrantRequest) (domain.AccessGrant
 	if !exists {
 		return domain.AccessGrant{}, Revision{}, domain.Refuse("the subject is not a member, a team or an active installation of %s", caller.Organization)
 	}
-	grant := domain.AccessGrant{AccessKey: key(caller.Organization, r.Target, r.Subject), Actions: actions,
-		ExpiresAt: r.ExpiresAt, GrantedBy: caller.Claims.GetOwnerPrincipalId()}
+	by := caller.Claims.GetOwnerPrincipalId()
+	p := placedAt(r.Placement, r.Target)
+	var grant domain.AccessGrant
 	revision := Revision{Organization: caller.Organization}
-	err = s.writer().WriteAccess(ctx, func(tx Tx) error {
+	err = s.managing(ctx, caller.Organization, refsOf(p), now, func(tx Tx, grants []domain.AccessGrant, l lineage) error {
+		grant = domain.AccessGrant{AccessKey: key(caller.Organization, r.Target, r.Subject), Actions: actions, ExpiresAt: r.ExpiresAt, GrantedBy: by}
+		at := slices.IndexFunc(grants, func(g domain.AccessGrant) bool { return g.AccessKey == grant.AccessKey })
+		standing := at >= 0 && l.givesAny(grants[at], &p)
 		if !full {
-			// A grantee shares on only what a share gives them, and for no
-			// longer: nobody grants what they do not hold.
-			until, err := s.resharer(tx, caller, r.Target, r.Placement, now, actions...)
+			until, sources, err := resharer(l, grants, caller, p, actions...)
 			if err != nil {
 				return err
 			}
 			if !until.IsZero() && (r.ExpiresAt.IsZero() || r.ExpiresAt.After(until)) {
 				return domain.Refuse("a share made on from a share that expires ends no later than it does")
 			}
+			if standing && grants[at].GrantedBy != by {
+				return domain.Refuse("the subject holds a share there that is not the caller's to change")
+			}
+			grant.Sources = sources
 		}
+		// A grant that stands is refreshed and stays the grant it was; one
+		// that expired or stopped standing is nothing, and a new grant is made.
 		grant.ID, grant.CreatedAt = s.cfg.NewID(), now
-		standing, err := tx.AccessGrant(grant.AccessKey)
-		switch {
-		case err == nil:
-			grant.ID, grant.CreatedAt = standing.ID, standing.CreatedAt
-		case !errors.Is(err, domain.ErrNotFound):
-			return err
+		if standing {
+			grant.ID, grant.CreatedAt = grants[at].ID, grants[at].CreatedAt
 		}
 		if err := tx.PutAccessGrant(grant); err != nil {
 			return err
@@ -257,9 +265,11 @@ func (s *Service) Grant(ctx context.Context, r GrantRequest) (domain.AccessGrant
 }
 
 // Revoke ends the grant a subject holds on a reference, for the callers Grant
-// admits. A grant that is absent or expired is refused NotFound
-// (NothingRevoked) once the caller was authorized, so a caller who may not
-// revoke learns nothing of whether it exists.
+// admits. A grant that is absent, expired or no longer standing is refused
+// NotFound (NothingRevoked) once the caller was authorized, so a caller who
+// may not revoke learns nothing of whether it exists. A grantee ends the
+// shares they made and no other: anyone else's is answered as an absent one.
+// Every share made on from the grant revoked stops deciding with it.
 func (s *Service) Revoke(ctx context.Context, r RevokeRequest) (domain.AccessGrant, Revision, error) {
 	if err := validSubject(r.Subject); err != nil {
 		return domain.AccessGrant{}, Revision{}, err
@@ -268,26 +278,18 @@ func (s *Service) Revoke(ctx context.Context, r RevokeRequest) (domain.AccessGra
 	if err != nil {
 		return domain.AccessGrant{}, Revision{}, err
 	}
+	p := placedAt(r.Placement, r.Target)
 	var revoked domain.AccessGrant
 	revision := Revision{Organization: caller.Organization}
-	err = s.writer().WriteAccess(ctx, func(tx Tx) error {
+	err = s.managing(ctx, caller.Organization, refsOf(p), s.cfg.Clock(), func(tx Tx, grants []domain.AccessGrant, l lineage) error {
 		if !full {
-			if _, err := s.resharer(tx, caller, r.Target, r.Placement, s.cfg.Clock()); err != nil {
+			if _, _, err := resharer(l, grants, caller, p); err != nil {
 				return err
 			}
 		}
 		k := key(caller.Organization, r.Target, r.Subject)
-		standing, err := tx.AccessGrant(k)
-		if errors.Is(err, domain.ErrNotFound) || (err == nil && !standing.Live(s.cfg.Clock())) {
-			return domain.Missing(NothingRevoked)
-		}
-		if err != nil {
-			return err
-		}
-		if !full && standing.GrantedBy != caller.Claims.GetOwnerPrincipalId() {
-			// A grantee ends the shares they made and no other: one made by
-			// somebody else is nothing of theirs to revoke, and is answered
-			// as an absent one is.
+		at := slices.IndexFunc(grants, func(g domain.AccessGrant) bool { return g.AccessKey == k })
+		if at < 0 || !l.givesAny(grants[at], &p) || (!full && grants[at].GrantedBy != caller.Claims.GetOwnerPrincipalId()) {
 			return domain.Missing(NothingRevoked)
 		}
 		existed, err := tx.DeleteAccessGrant(k)
@@ -297,7 +299,7 @@ func (s *Service) Revoke(ctx context.Context, r RevokeRequest) (domain.AccessGra
 		if !existed {
 			return domain.Missing(NothingRevoked)
 		}
-		revoked = standing
+		revoked = grants[at]
 		revision.Sequence, err = tx.AccessSequence(caller.Organization)
 		return err
 	})
@@ -307,9 +309,9 @@ func (s *Service) Revoke(ctx context.Context, r RevokeRequest) (domain.AccessGra
 	return revoked, revision, nil
 }
 
-// ListGrants answers the live grants on a reference, every version of it, for
-// the callers Grant admits, read at the newest state: a grant just made is
-// listed.
+// ListGrants answers the grants standing on a reference, every version of it,
+// for its owner and its administrators, read at the newest state: a grant
+// just made is listed, and one that stopped standing is not.
 func (s *Service) ListGrants(ctx context.Context, r ListRequest) ([]domain.AccessGrant, Revision, error) {
 	caller, full, err := s.manager(ctx, r.Token, r.Actor, r.Target, r.Placement)
 	if err != nil {
@@ -319,15 +321,116 @@ func (s *Service) ListGrants(ctx context.Context, r ListRequest) ([]domain.Acces
 		// A grantee, share or not, never reads who else holds the reference.
 		return nil, Revision{}, errNotManager
 	}
+	now := s.cfg.Clock()
 	var grants []domain.AccessGrant
+	var all map[domain.AccessKey]domain.AccessGrant
 	revision, err := s.view(ctx, caller.Organization, true, nil, func(tx Tx) (err error) {
-		grants, err = tx.AccessGrantsOn(caller.Organization, []Ref{{Kind: r.Target.Kind, ResourceID: r.Target.ResourceID}}, s.cfg.Clock())
+		if grants, err = tx.AccessGrantsOn(caller.Organization, refsOf(r.Placement), now); err != nil {
+			return err
+		}
+		all, err = sourcesOf(tx, grants)
 		return err
 	})
 	if err != nil {
 		return nil, Revision{}, err
 	}
-	return grants, revision, nil
+	l, err := s.lineageOf(ctx, caller.Organization, all, now)
+	if err != nil {
+		return nil, Revision{}, err
+	}
+	var out []domain.AccessGrant
+	for _, g := range grants {
+		if g.Kind != r.Target.Kind || g.ResourceID != r.Target.ResourceID {
+			continue
+		}
+		p := placedAt(r.Placement, Target{Kind: g.Kind, ResourceID: g.ResourceID, Version: g.Version})
+		if l.givesAny(g, &p) {
+			out = append(out, g)
+		}
+	}
+	return out, revision, nil
+}
+
+// ForgetRequest ends every grant on a reference that is gone.
+type ForgetRequest struct {
+	// Token is a Work Context addressed to the module asking: it names the
+	// organization, and nothing else of it is read.
+	Token  string
+	Actor  authority.Workload
+	Target Target
+	// EveryVersion forgets the grants on every version of the resource, and
+	// the ones that follow its versions; Target then names no version.
+	EveryVersion bool
+}
+
+// Forget ends every grant on a reference the serving module removed: the
+// grants at exactly the target (its version's, or the ones following its
+// versions when it names none), or with EveryVersion every grant on the
+// resource. It answers how many there were; forgetting nothing is no error,
+// so a module may send it again. Only the kind's one serving module asks, and
+// it asks for itself: no share and no ownership is required of the Work
+// Context, which the module is trusted for as it is for where a resource
+// sits. A share made on from a forgotten grant stops deciding with it.
+func (s *Service) Forget(ctx context.Context, r ForgetRequest) (int, Revision, error) {
+	if r.Target.Kind == "" {
+		return 0, Revision{}, domain.Malformed("a forgotten resource names its kind")
+	}
+	if err := decide.ValidResourceID(r.Target.ResourceID); err != nil {
+		return 0, Revision{}, err
+	}
+	if err := validVersion(r.Target.Version); err != nil {
+		return 0, Revision{}, err
+	}
+	if r.EveryVersion && r.Target.Version != "" {
+		return 0, Revision{}, domain.Malformed("every version of a resource is forgotten by naming no version")
+	}
+	caller, err := s.authority.AccessCaller(ctx, r.Token, r.Actor, []string{r.Target.Kind})
+	if err != nil {
+		return 0, Revision{}, err
+	}
+	forgotten := 0
+	revision := Revision{Organization: caller.Organization}
+	err = s.writer().WriteAccess(ctx, func(tx Tx) error {
+		forgotten = 0
+		// Expired grants too: nothing is left on a reference that is gone.
+		grants, err := tx.AccessGrantsOn(caller.Organization, []Ref{{Kind: r.Target.Kind, ResourceID: r.Target.ResourceID}}, time.Time{})
+		if err != nil {
+			return err
+		}
+		for _, g := range grants {
+			if !r.EveryVersion && g.Version != r.Target.Version {
+				continue
+			}
+			existed, err := tx.DeleteAccessGrant(g.AccessKey)
+			if err != nil {
+				return err
+			}
+			if existed {
+				forgotten++
+			}
+		}
+		revision.Sequence, err = tx.AccessSequence(caller.Organization)
+		return err
+	})
+	if err != nil {
+		return 0, Revision{}, err
+	}
+	return forgotten, revision, nil
+}
+
+// placedAt is placement with its resource at the target's version.
+func placedAt(p Placement, target Target) Placement {
+	p.Resource.Version = target.Version
+	return p
+}
+
+// refsOf are the references a placement names, whatever their versions.
+func refsOf(p Placement) []Ref {
+	refs := make([]Ref, 0, 1+len(p.Ancestors))
+	for _, n := range append([]Node{p.Resource}, p.Ancestors...) {
+		refs = append(refs, Ref{Kind: n.Kind, ResourceID: n.ResourceID})
+	}
+	return refs
 }
 
 // errNotManager refuses a caller who may not grant, revoke or list on a
@@ -364,38 +467,36 @@ func (s *Service) manager(ctx context.Context, token string, actor authority.Wor
 }
 
 // resharer holds a caller who neither owns nor administers the target to the
-// shares made to it: live grants must give share, and every one of actions,
-// on exactly the reference targeted (a grant pinned to a version shares that
-// version on, never the document), to the capability's owner and to every
-// actor of its chain, as a decision requires. It answers when the earliest of
-// those grants ends, zero when none does. It reads in the transaction that
-// writes, so a share revoked before the write shares nothing on.
-func (s *Service) resharer(tx Tx, caller authority.AccessCaller, target Target, p Placement, now time.Time, actions ...string) (time.Time, error) {
-	p.Resource.Version = target.Version
-	refs := make([]Ref, 0, 1+len(p.Ancestors))
-	for _, n := range append([]Node{p.Resource}, p.Ancestors...) {
-		refs = append(refs, Ref{Kind: n.Kind, ResourceID: n.ResourceID})
-	}
-	grants, err := tx.AccessGrantsOn(caller.Organization, refs, now)
-	if err != nil {
-		return time.Time{}, err
-	}
+// shares made to it: standing grants must give share, and every one of
+// actions, on exactly the reference placed (a grant pinned to a version shares
+// that version on, never the document), to the capability's owner and to
+// every actor of its chain, as a decision requires. It answers when the
+// earliest of those holdings ends, zero when none does, and the owner's
+// grants that give share there: what a grant the caller makes rests on.
+func resharer(l lineage, grants []domain.AccessGrant, caller authority.AccessCaller, p Placement, actions ...string) (time.Time, []domain.AccessSource, error) {
 	var until time.Time
+	var sources []domain.AccessSource
+	nodes := append([]Node{p.Resource}, p.Ancestors...)
 	for _, action := range append([]string{ShareAction}, actions...) {
 		for _, required := range append([]authority.AccessParty{caller.Owner}, caller.Actors...) {
+			isOwner := required.Principal == caller.Owner.Principal
 			// The party holds the action until the last of its grants ends.
 			held, forever := false, false
 			var last time.Time
 			for _, g := range grants {
-				if !g.Live(now) || !g.Gives(action) || !slices.Contains(required.Subjects, g.Subject) {
+				if !slices.Contains(required.Subjects, g.Subject) || !l.gives(g, action, &p) {
 					continue
 				}
-				if _, ok := covers(g, p); ok {
-					held = true
-					forever = forever || g.ExpiresAt.IsZero()
-					if g.ExpiresAt.After(last) {
-						last = g.ExpiresAt
-					}
+				if _, ok := covers(g, p); !ok {
+					continue
+				}
+				held = true
+				forever = forever || g.ExpiresAt.IsZero()
+				if g.ExpiresAt.After(last) {
+					last = g.ExpiresAt
+				}
+				if isOwner && action == ShareAction {
+					sources = append(sources, domain.AccessSource{Key: g.AccessKey, ID: g.ID})
 				}
 			}
 			if held && !forever {
@@ -403,17 +504,16 @@ func (s *Service) resharer(tx Tx, caller authority.AccessCaller, target Target, 
 			}
 			// An actor that owns the place (the installation whose collection
 			// it is) holds it without a grant, as it does in a decision.
-			owns := required.Principal != caller.Owner.Principal && required.Owns != "" &&
-				slices.ContainsFunc(append([]Node{p.Resource}, p.Ancestors...), func(n Node) bool { return n.Owner == required.Owns })
+			owns := !isOwner && required.Owns != "" && slices.ContainsFunc(nodes, func(n Node) bool { return n.Owner == required.Owns })
 			if !held && !owns {
 				if action == ShareAction {
-					return time.Time{}, errNotManager
+					return time.Time{}, nil, errNotManager
 				}
-				return time.Time{}, domain.Refuse("the caller's share gives no %s, so it shares none on", action)
+				return time.Time{}, nil, domain.Refuse("the caller's share gives no %s, so it shares none on", action)
 			}
 		}
 	}
-	return until, nil
+	return until, sources, nil
 }
 
 // Check decides one action on each placement against one snapshot of the
@@ -468,10 +568,18 @@ func (s *Service) Check(ctx context.Context, r CheckRequest) ([]Decision, Revisi
 	}
 	now := s.cfg.Clock()
 	var grants []domain.AccessGrant
+	var all map[domain.AccessKey]domain.AccessGrant
 	revision, err := s.view(ctx, caller.Organization, r.Head, mins, func(tx Tx) (err error) {
-		grants, err = tx.AccessGrantsOn(caller.Organization, refs, now)
+		if grants, err = tx.AccessGrantsOn(caller.Organization, refs, now); err != nil {
+			return err
+		}
+		all, err = sourcesOf(tx, grants)
 		return err
 	})
+	if err != nil {
+		return nil, Revision{}, err
+	}
+	l, err := s.lineageOf(ctx, caller.Organization, all, now)
 	if err != nil {
 		return nil, Revision{}, err
 	}
@@ -483,6 +591,7 @@ func (s *Service) Check(ctx context.Context, r CheckRequest) ([]Decision, Revisi
 	out := make([]Decision, len(r.Placements))
 	for i, p := range r.Placements {
 		q.Placement = p
+		q.Standing = func(g domain.AccessGrant, action string) bool { return l.gives(g, action, &p) }
 		if out[i], err = Decide(q); err != nil {
 			return nil, Revision{}, err
 		}
@@ -537,10 +646,14 @@ func (s *Service) ListViewerGrants(ctx context.Context, r ViewerGrantsRequest) (
 	}
 	now := s.cfg.Clock()
 	var held []domain.AccessGrant
+	var sources map[domain.AccessKey]domain.AccessGrant
 	var generation uint64
 	out := ViewerGrants{ValidUntil: caller.ExpiresAt}
 	out.Revision, err = s.view(ctx, caller.Organization, false, mins, func(tx Tx) (err error) {
 		if held, err = tx.AccessGrantsTo(caller.Organization, caller.Owner.Subjects, now); err != nil {
+			return err
+		}
+		if sources, err = sourcesOf(tx, held); err != nil {
 			return err
 		}
 		generation, err = tx.AccessRevision(caller.Organization)
@@ -549,10 +662,15 @@ func (s *Service) ListViewerGrants(ctx context.Context, r ViewerGrantsRequest) (
 	if err != nil {
 		return ViewerGrants{}, err
 	}
+	l, err := s.lineageOf(ctx, caller.Organization, sources, now)
+	if err != nil {
+		return ViewerGrants{}, err
+	}
 	var all []Target
 	var expiry time.Time
 	for _, g := range held {
-		if !slices.Contains(kinds, g.Kind) || !g.Gives(r.Action) {
+		// A share made on is listed while the share it rests on stands.
+		if !slices.Contains(kinds, g.Kind) || !l.gives(g, r.Action, nil) {
 			continue
 		}
 		all = append(all, Target{Kind: g.Kind, ResourceID: g.ResourceID, Version: g.Version})

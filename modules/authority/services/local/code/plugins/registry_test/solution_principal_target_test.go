@@ -31,12 +31,14 @@ func TestTheLocalAuthorityMeetsTheSolutionPrincipalTarget(t *testing.T) {
 	// team no installation is granted to, and a team nobody belongs to.
 	if err := k.State.LoadFixture(context.Background(), []byte(`teams:
   - {organization: acme, id: principal-empty-team}
+  - {organization: acme, id: principal-second-team}
 people:
   - {id: store-administrator, fixture_token: fixture-store-administrator, organization: acme, roles: [admin]}
   - {id: store-reader, fixture_token: fixture-store-reader, organization: acme, roles: []}
   - {id: principal-admin, fixture_token: fixture-principal-admin, organization: acme, roles: []}
   - {id: principal-team-member, fixture_token: fixture-principal-team-member, organization: acme, roles: [], teams: [principal-team]}
   - {id: principal-team-leaver, fixture_token: fixture-principal-team-leaver, organization: acme, roles: [], teams: [principal-team]}
+  - {id: principal-two-teams, fixture_token: fixture-principal-two-teams, organization: acme, roles: [], teams: [principal-team, principal-second-team]}
   - {id: principal-org-leaver, fixture_token: fixture-principal-org-leaver, organization: acme, roles: []}
   - {id: principal-note-reader, fixture_token: fixture-principal-note-reader, organization: acme, roles: []}
 `)); err != nil {
@@ -73,7 +75,7 @@ people:
 		Store: "principal-store", StoreCredential: k.Credential(t, "principal-store"), Kind: "principal.collection",
 		LegacyStore: "principal-legacy-store", LegacyStoreCredential: k.Credential(t, "principal-legacy-store"), LegacyKind: "principal.legacy",
 		Admin: "fixture-alex", UserHolder: "fixture-maya", Author: "fixture-remi", Member: "fixture-dev", AdminHolder: "fixture-principal-admin",
-		Team: "principal-team", EmptyTeam: "principal-empty-team", TeamMember: "fixture-principal-team-member", TeamLeaver: "fixture-principal-team-leaver", OrgLeaver: "fixture-principal-org-leaver",
+		Team: "principal-team", EmptyTeam: "principal-empty-team", SecondTeam: "principal-second-team", TwoTeamMember: "fixture-principal-two-teams", TeamMember: "fixture-principal-team-member", TeamLeaver: "fixture-principal-team-leaver", OrgLeaver: "fixture-principal-org-leaver",
 		Administrator: "fixture-store-administrator", Reader: "fixture-store-reader", NoteReader: "fixture-principal-note-reader",
 		OtherAdmin: "fixture-zoe", OtherMember: "fixture-omar", OtherTeam: "ops",
 		Existing:               "store-x",

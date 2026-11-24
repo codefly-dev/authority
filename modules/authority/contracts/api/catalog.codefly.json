@@ -43,7 +43,7 @@
       "kind": "protobuf",
       "package": "",
       "path": "contracts/api/local/grpc/contract.binpb",
-      "digest": "sha256:87c19748cedb7626818307159a0084f67578d20011a44dde21fb0175e5cfbaba",
+      "digest": "sha256:a8c5f9f914b48b28c255079de2407c3395619468f80d8b9085aea6d79245577a",
       "services": [
         {
           "name": "LocalService",
@@ -58,6 +58,7 @@
           "procedures": [
             "/host.access.v1.AccessService/Check",
             "/host.access.v1.AccessService/CheckBatch",
+            "/host.access.v1.AccessService/Forget",
             "/host.access.v1.AccessService/Grant",
             "/host.access.v1.AccessService/ListGrants",
             "/host.access.v1.AccessService/ListViewerGrants",

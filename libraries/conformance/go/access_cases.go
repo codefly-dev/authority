@@ -11,7 +11,7 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-// cases are H1 to H23. Dana (Author) owns the documents shared, in C1, which
+// cases are H1 to H24 and F1 to F4. Dana (Author) owns the documents shared, in C1, which
 // A's principal owns; Carol (UserHolder) is who they are shared with. Every
 // case names resources of its own, so none reads another's grants.
 func (as *accessSuite) cases(t *testing.T) {
@@ -560,6 +560,155 @@ func (as *accessSuite) cases(t *testing.T) {
 		if _, err := as.share(as.token(t, carol, A), v1, person(t, f.AdminHolder), 0, "read"); err != nil {
 			t.Fatalf("a pinned share shares its version on: %v", err)
 		}
+	})
+	t.Run("H24 a share made on never outlives the share it was made from: revoked or narrowed, every share below it stops deciding, and restoring it revives none", func(t *testing.T) {
+		seated(t)
+		tom := f.TeamMember
+		as.seat(t, A, "user", tom)
+		da := as.document(t, "h24-da", "", dana)
+		share := func(by, to string, actions ...string) {
+			t.Helper()
+			if _, err := as.share(as.token(t, by, A), da, person(t, to), 0, actions...); err != nil {
+				t.Fatalf("Grant: %v", err)
+			}
+		}
+		acl := func() []string {
+			t.Helper()
+			listed, err := as.acl(as.token(t, dana, A), da)
+			if err != nil {
+				t.Fatalf("ListGrants: %v", err)
+			}
+			return subjectsOf(listed)
+		}
+		// below is that neither Bob nor Tom holds the document, by a check,
+		// as a viewer or in the ACL.
+		below := func(why string) {
+			t.Helper()
+			as.denied(t, as.token(t, bob, A), da)
+			as.denied(t, as.token(t, tom, A), da)
+			if as.viewerHolds(t, as.token(t, bob, A), "h24-da") || as.viewerHolds(t, as.token(t, tom, A), "h24-da") {
+				t.Fatalf("%s: a share made on is still listed among its grantee's", why)
+			}
+			if got := acl(); slices.Contains(got, "person "+as.personID(t, bob)) || slices.Contains(got, "person "+as.personID(t, tom)) {
+				t.Fatalf("%s: the document still lists %v", why, got)
+			}
+		}
+		// Dana shares with Carol, who shares on to Bob, who shares on to Tom.
+		share(dana, carol, "read", "share")
+		share(carol, bob, "read", "share")
+		share(bob, tom, "read")
+		as.allowed(t, as.token(t, bob, A), da, "BASIS_RESOURCE_GRANT")
+		as.allowed(t, as.token(t, tom, A), da, "BASIS_RESOURCE_GRANT")
+		if !as.viewerHolds(t, as.token(t, tom, A), "h24-da") || len(acl()) != 3 {
+			t.Fatalf("the chain stands, and the document lists %v", acl())
+		}
+		if _, err := as.unshare(as.token(t, dana, A), da, person(t, carol)); err != nil {
+			t.Fatalf("Revoke: %v", err)
+		}
+		below("Carol's share revoked")
+		// What stopped standing is nothing to revoke, and shares nothing on.
+		_, err := as.unshare(as.token(t, dana, A), da, person(t, bob))
+		refused(t, err, codes.NotFound, "nothing was revoked")
+		_, err = as.share(as.token(t, bob, A), da, person(t, tom), 0, "read")
+		refused(t, err, codes.PermissionDenied, "")
+		// Restored, Carol's share is another grant: nothing that rested on
+		// the one revoked comes back until its grantor makes it again.
+		share(dana, carol, "read", "share")
+		as.allowed(t, as.token(t, carol, A), da)
+		below("Carol's share restored")
+		share(carol, bob, "read", "share")
+		as.allowed(t, as.token(t, bob, A), da)
+		as.denied(t, as.token(t, tom, A), da)
+		share(bob, tom, "read")
+		as.allowed(t, as.token(t, tom, A), da)
+		// Narrowed below share, Carol's grant still reads and gives nothing on.
+		share(dana, carol, "read")
+		as.allowed(t, as.token(t, carol, A), da)
+		below("Carol's share narrowed to read")
+		// A grantee changes the grants they made and no other.
+		share(dana, carol, "read", "share")
+		share(dana, f.AdminHolder, "read")
+		_, err = as.share(as.token(t, carol, A), da, person(t, f.AdminHolder), 0, "read")
+		refused(t, err, codes.PermissionDenied, "")
+	})
+	t.Run("F1 forgetting a reference ends the grants on exactly it: the next check is denied and the others stand", func(t *testing.T) {
+		seated(t)
+		da := as.document(t, "f1-da", "", dana)
+		v1 := atVersion(da, "v1")
+		as.shared(t, as.token(t, dana, A), da, person(t, carol))
+		as.shared(t, as.token(t, dana, A), v1, person(t, bob))
+		out, err := as.forget(as.token(t, dana, A), targetOf(v1), false)
+		if err != nil || i64(out, "forgotten") != 1 || len(field(msg(out, "revision"), "opaque").Bytes()) == 0 {
+			t.Fatalf("Forget answered %v, %v; want the one grant on the version and a revision", out, err)
+		}
+		as.denied(t, as.token(t, bob, A), v1)
+		as.allowed(t, as.token(t, carol, A), da)
+		out, err = as.forget(as.token(t, dana, A), targetOf(da), false)
+		if err != nil || i64(out, "forgotten") != 1 {
+			t.Fatalf("Forget answered %v, %v; want the one grant following versions", out, err)
+		}
+		as.denied(t, as.token(t, carol, A), da)
+		if listed, err := as.acl(as.token(t, dana, A), da); err != nil || len(subjectsOf(listed)) != 0 {
+			t.Fatalf("a forgotten document still lists %v, %v", subjectsOf(listed), err)
+		}
+	})
+	t.Run("F2 forgetting every version ends every grant on the resource, and no other resource's", func(t *testing.T) {
+		seated(t)
+		da, db := as.document(t, "f2-da", "", dana), as.document(t, "f2-db", "", dana)
+		as.shared(t, as.token(t, dana, A), da, person(t, carol))
+		as.shared(t, as.token(t, dana, A), atVersion(da, "v1"), person(t, bob))
+		as.shared(t, as.token(t, dana, A), atVersion(da, "v2"), map[string]any{"team_id": f.Team})
+		as.shared(t, as.token(t, dana, A), db, person(t, carol))
+		out, err := as.forget(as.token(t, dana, A), targetOf(da), true)
+		if err != nil || i64(out, "forgotten") != 3 {
+			t.Fatalf("Forget answered %v, %v; want the three grants on the document", out, err)
+		}
+		as.denied(t, as.token(t, carol, A), da)
+		as.denied(t, as.token(t, bob, A), atVersion(da, "v1"))
+		as.allowed(t, as.token(t, carol, A), db)
+		if as.viewerHolds(t, as.token(t, carol, A), "f2-da") || !as.viewerHolds(t, as.token(t, carol, A), "f2-db") {
+			t.Fatal("a viewer's grants still list a forgotten document, or lost its sibling")
+		}
+		// Every version is named by naming none.
+		_, err = as.forget(as.token(t, dana, A), targetOf(atVersion(da, "v1")), true)
+		refused(t, err, codes.InvalidArgument, "")
+	})
+	t.Run("F3 forgetting twice, or what was never granted, is nothing and no error", func(t *testing.T) {
+		seated(t)
+		da := as.document(t, "f3-da", "", dana)
+		as.shared(t, as.token(t, dana, A), da, person(t, carol))
+		for i, want := range []int64{1, 0, 0} {
+			out, err := as.forget(as.token(t, dana, A), targetOf(da), true)
+			if err != nil || i64(out, "forgotten") != want {
+				t.Fatalf("forget %d answered %v, %v; want %d forgotten and no error", i+1, out, err, want)
+			}
+		}
+		out, err := as.forget(as.token(t, dana, A), ref(f.Kind, "f3-never-granted", ""), true)
+		if err != nil || i64(out, "forgotten") != 0 {
+			t.Fatalf("forgetting what was never granted answered %v, %v", out, err)
+		}
+	})
+	t.Run("F4 only the kind's serving module forgets, and needs nothing of the resource to do it", func(t *testing.T) {
+		seated(t)
+		da := as.document(t, "f4-da", "", dana)
+		as.shared(t, as.token(t, dana, A), da, person(t, carol))
+		_, err := as.c.call(as.ctx, accessService, "Forget", map[string]any{"token": as.token(t, dana, A), "actor": map[string]any{"credential": A.Credential}, "target": targetOf(da), "every_version": true})
+		refused(t, err, codes.PermissionDenied, "does not serve")
+		if _, err := as.c.call(as.ctx, accessService, "Forget", map[string]any{"token": as.token(t, dana, A), "actor": map[string]any{"credential": "not-a-credential"}, "target": targetOf(da), "every_version": true}); err == nil {
+			t.Fatal("a forget with no workload credential was answered")
+		}
+		_, err = as.forget(as.token(t, dana, A), ref(A.Solution+".note", "f4-note", ""), true)
+		refused(t, err, codes.PermissionDenied, "does not serve")
+		_, err = as.forget(as.token(t, dana, A), ref(f.Kind, "*", ""), true)
+		refused(t, err, codes.InvalidArgument, "")
+		as.allowed(t, as.token(t, carol, A), da)
+		// The module asks for itself: the Work Context names the organization,
+		// and a person who neither owns nor was granted the document carries it.
+		out, err := as.forget(as.token(t, bob, A), targetOf(da), true)
+		if err != nil || i64(out, "forgotten") != 1 {
+			t.Fatalf("Forget answered %v, %v", out, err)
+		}
+		as.denied(t, as.token(t, carol, A), da)
 	})
 	t.Run("H21 a revision precondition is served or refused, never ignored", func(t *testing.T) {
 		seated(t)

@@ -1085,6 +1085,137 @@ func (x *ListGrantsResponse) GetRevision() *AccessRevision {
 	return nil
 }
 
+// ForgetRequest ends the grants on a reference that is gone.
+type ForgetRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// A Work Context addressed to the module: it names the organization.
+	Token string `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	// The module asking, proving which module it is.
+	Actor *v1.WorkloadCredential `protobuf:"bytes,2,opt,name=actor,proto3" json:"actor,omitempty"`
+	// The reference: with a version, the grants on that version; without one,
+	// the grants that follow the resource's versions.
+	Target *ResourceRef `protobuf:"bytes,3,opt,name=target,proto3" json:"target,omitempty"`
+	// Every grant on the resource, whatever its version; the target then names
+	// no version.
+	EveryVersion  bool `protobuf:"varint,4,opt,name=every_version,json=everyVersion,proto3" json:"every_version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ForgetRequest) Reset() {
+	*x = ForgetRequest{}
+	mi := &file_host_access_v1_access_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ForgetRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ForgetRequest) ProtoMessage() {}
+
+func (x *ForgetRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_host_access_v1_access_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ForgetRequest.ProtoReflect.Descriptor instead.
+func (*ForgetRequest) Descriptor() ([]byte, []int) {
+	return file_host_access_v1_access_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ForgetRequest) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
+}
+
+func (x *ForgetRequest) GetActor() *v1.WorkloadCredential {
+	if x != nil {
+		return x.Actor
+	}
+	return nil
+}
+
+func (x *ForgetRequest) GetTarget() *ResourceRef {
+	if x != nil {
+		return x.Target
+	}
+	return nil
+}
+
+func (x *ForgetRequest) GetEveryVersion() bool {
+	if x != nil {
+		return x.EveryVersion
+	}
+	return false
+}
+
+// ForgetResponse answers how many grants were ended.
+type ForgetResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The grants ended; zero when there were none.
+	Forgotten int32 `protobuf:"varint,1,opt,name=forgotten,proto3" json:"forgotten,omitempty"`
+	// The state the change is part of: a decision asked with it as a minimum
+	// sees the change.
+	Revision      *AccessRevision `protobuf:"bytes,2,opt,name=revision,proto3" json:"revision,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ForgetResponse) Reset() {
+	*x = ForgetResponse{}
+	mi := &file_host_access_v1_access_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ForgetResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ForgetResponse) ProtoMessage() {}
+
+func (x *ForgetResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_host_access_v1_access_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ForgetResponse.ProtoReflect.Descriptor instead.
+func (*ForgetResponse) Descriptor() ([]byte, []int) {
+	return file_host_access_v1_access_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ForgetResponse) GetForgotten() int32 {
+	if x != nil {
+		return x.Forgotten
+	}
+	return 0
+}
+
+func (x *ForgetResponse) GetRevision() *AccessRevision {
+	if x != nil {
+		return x.Revision
+	}
+	return nil
+}
+
 // CheckRequest asks one decision.
 type CheckRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1106,7 +1237,7 @@ type CheckRequest struct {
 
 func (x *CheckRequest) Reset() {
 	*x = CheckRequest{}
-	mi := &file_host_access_v1_access_proto_msgTypes[12]
+	mi := &file_host_access_v1_access_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1118,7 +1249,7 @@ func (x *CheckRequest) String() string {
 func (*CheckRequest) ProtoMessage() {}
 
 func (x *CheckRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_host_access_v1_access_proto_msgTypes[12]
+	mi := &file_host_access_v1_access_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1131,7 +1262,7 @@ func (x *CheckRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckRequest.ProtoReflect.Descriptor instead.
 func (*CheckRequest) Descriptor() ([]byte, []int) {
-	return file_host_access_v1_access_proto_rawDescGZIP(), []int{12}
+	return file_host_access_v1_access_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *CheckRequest) GetToken() string {
@@ -1202,7 +1333,7 @@ type CheckResponse struct {
 
 func (x *CheckResponse) Reset() {
 	*x = CheckResponse{}
-	mi := &file_host_access_v1_access_proto_msgTypes[13]
+	mi := &file_host_access_v1_access_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1214,7 +1345,7 @@ func (x *CheckResponse) String() string {
 func (*CheckResponse) ProtoMessage() {}
 
 func (x *CheckResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_host_access_v1_access_proto_msgTypes[13]
+	mi := &file_host_access_v1_access_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1227,7 +1358,7 @@ func (x *CheckResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckResponse.ProtoReflect.Descriptor instead.
 func (*CheckResponse) Descriptor() ([]byte, []int) {
-	return file_host_access_v1_access_proto_rawDescGZIP(), []int{13}
+	return file_host_access_v1_access_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *CheckResponse) GetDecision() Decision {
@@ -1290,7 +1421,7 @@ type CheckBatchRequest struct {
 
 func (x *CheckBatchRequest) Reset() {
 	*x = CheckBatchRequest{}
-	mi := &file_host_access_v1_access_proto_msgTypes[14]
+	mi := &file_host_access_v1_access_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1302,7 +1433,7 @@ func (x *CheckBatchRequest) String() string {
 func (*CheckBatchRequest) ProtoMessage() {}
 
 func (x *CheckBatchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_host_access_v1_access_proto_msgTypes[14]
+	mi := &file_host_access_v1_access_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1315,7 +1446,7 @@ func (x *CheckBatchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckBatchRequest.ProtoReflect.Descriptor instead.
 func (*CheckBatchRequest) Descriptor() ([]byte, []int) {
-	return file_host_access_v1_access_proto_rawDescGZIP(), []int{14}
+	return file_host_access_v1_access_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *CheckBatchRequest) GetToken() string {
@@ -1380,7 +1511,7 @@ type CheckBatchResponse struct {
 
 func (x *CheckBatchResponse) Reset() {
 	*x = CheckBatchResponse{}
-	mi := &file_host_access_v1_access_proto_msgTypes[15]
+	mi := &file_host_access_v1_access_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1392,7 +1523,7 @@ func (x *CheckBatchResponse) String() string {
 func (*CheckBatchResponse) ProtoMessage() {}
 
 func (x *CheckBatchResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_host_access_v1_access_proto_msgTypes[15]
+	mi := &file_host_access_v1_access_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1405,7 +1536,7 @@ func (x *CheckBatchResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckBatchResponse.ProtoReflect.Descriptor instead.
 func (*CheckBatchResponse) Descriptor() ([]byte, []int) {
-	return file_host_access_v1_access_proto_rawDescGZIP(), []int{15}
+	return file_host_access_v1_access_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *CheckBatchResponse) GetResults() []*CheckResponse {
@@ -1445,7 +1576,7 @@ type ListViewerGrantsRequest struct {
 
 func (x *ListViewerGrantsRequest) Reset() {
 	*x = ListViewerGrantsRequest{}
-	mi := &file_host_access_v1_access_proto_msgTypes[16]
+	mi := &file_host_access_v1_access_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1457,7 +1588,7 @@ func (x *ListViewerGrantsRequest) String() string {
 func (*ListViewerGrantsRequest) ProtoMessage() {}
 
 func (x *ListViewerGrantsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_host_access_v1_access_proto_msgTypes[16]
+	mi := &file_host_access_v1_access_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1470,7 +1601,7 @@ func (x *ListViewerGrantsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListViewerGrantsRequest.ProtoReflect.Descriptor instead.
 func (*ListViewerGrantsRequest) Descriptor() ([]byte, []int) {
-	return file_host_access_v1_access_proto_rawDescGZIP(), []int{16}
+	return file_host_access_v1_access_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ListViewerGrantsRequest) GetToken() string {
@@ -1539,7 +1670,7 @@ type ListViewerGrantsResponse struct {
 
 func (x *ListViewerGrantsResponse) Reset() {
 	*x = ListViewerGrantsResponse{}
-	mi := &file_host_access_v1_access_proto_msgTypes[17]
+	mi := &file_host_access_v1_access_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1551,7 +1682,7 @@ func (x *ListViewerGrantsResponse) String() string {
 func (*ListViewerGrantsResponse) ProtoMessage() {}
 
 func (x *ListViewerGrantsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_host_access_v1_access_proto_msgTypes[17]
+	mi := &file_host_access_v1_access_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1564,7 +1695,7 @@ func (x *ListViewerGrantsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListViewerGrantsResponse.ProtoReflect.Descriptor instead.
 func (*ListViewerGrantsResponse) Descriptor() ([]byte, []int) {
-	return file_host_access_v1_access_proto_rawDescGZIP(), []int{17}
+	return file_host_access_v1_access_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ListViewerGrantsResponse) GetResources() []*ResourceRef {
@@ -1657,6 +1788,14 @@ const file_host_access_v1_access_proto_rawDesc = "" +
 	"\tplacement\x18\x04 \x01(\v2\x19.host.access.v1.PlacementR\tplacement\"\x85\x01\n" +
 	"\x12ListGrantsResponse\x123\n" +
 	"\x06grants\x18\x01 \x03(\v2\x1b.host.access.v1.AccessGrantR\x06grants\x12:\n" +
+	"\brevision\x18\x02 \x01(\v2\x1e.host.access.v1.AccessRevisionR\brevision\"\xbc\x01\n" +
+	"\rForgetRequest\x12\x14\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\x12;\n" +
+	"\x05actor\x18\x02 \x01(\v2%.host.authority.v1.WorkloadCredentialR\x05actor\x123\n" +
+	"\x06target\x18\x03 \x01(\v2\x1b.host.access.v1.ResourceRefR\x06target\x12#\n" +
+	"\revery_version\x18\x04 \x01(\bR\feveryVersion\"j\n" +
+	"\x0eForgetResponse\x12\x1c\n" +
+	"\tforgotten\x18\x01 \x01(\x05R\tforgotten\x12:\n" +
 	"\brevision\x18\x02 \x01(\v2\x1e.host.access.v1.AccessRevisionR\brevision\"\xae\x02\n" +
 	"\fCheckRequest\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12;\n" +
@@ -1710,12 +1849,13 @@ const file_host_access_v1_access_proto_rawDesc = "" +
 	"\x10BASIS_ROLE_SCOPE\x10\x01\x12\x18\n" +
 	"\x14BASIS_ANCESTOR_GRANT\x10\x02\x12\x18\n" +
 	"\x14BASIS_RESOURCE_GRANT\x10\x03\x12\x17\n" +
-	"\x13BASIS_VERSION_GRANT\x10\x042\xf5\x03\n" +
+	"\x13BASIS_VERSION_GRANT\x10\x042\xbe\x04\n" +
 	"\rAccessService\x12D\n" +
 	"\x05Grant\x12\x1c.host.access.v1.GrantRequest\x1a\x1d.host.access.v1.GrantResponse\x12G\n" +
 	"\x06Revoke\x12\x1d.host.access.v1.RevokeRequest\x1a\x1e.host.access.v1.RevokeResponse\x12S\n" +
 	"\n" +
-	"ListGrants\x12!.host.access.v1.ListGrantsRequest\x1a\".host.access.v1.ListGrantsResponse\x12D\n" +
+	"ListGrants\x12!.host.access.v1.ListGrantsRequest\x1a\".host.access.v1.ListGrantsResponse\x12G\n" +
+	"\x06Forget\x12\x1d.host.access.v1.ForgetRequest\x1a\x1e.host.access.v1.ForgetResponse\x12D\n" +
 	"\x05Check\x12\x1c.host.access.v1.CheckRequest\x1a\x1d.host.access.v1.CheckResponse\x12S\n" +
 	"\n" +
 	"CheckBatch\x12!.host.access.v1.CheckBatchRequest\x1a\".host.access.v1.CheckBatchResponse\x12e\n" +
@@ -1735,7 +1875,7 @@ func file_host_access_v1_access_proto_rawDescGZIP() []byte {
 }
 
 var file_host_access_v1_access_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_host_access_v1_access_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_host_access_v1_access_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_host_access_v1_access_proto_goTypes = []any{
 	(Freshness)(0),                   // 0: host.access.v1.Freshness
 	(Decision)(0),                    // 1: host.access.v1.Decision
@@ -1752,13 +1892,15 @@ var file_host_access_v1_access_proto_goTypes = []any{
 	(*RevokeResponse)(nil),           // 12: host.access.v1.RevokeResponse
 	(*ListGrantsRequest)(nil),        // 13: host.access.v1.ListGrantsRequest
 	(*ListGrantsResponse)(nil),       // 14: host.access.v1.ListGrantsResponse
-	(*CheckRequest)(nil),             // 15: host.access.v1.CheckRequest
-	(*CheckResponse)(nil),            // 16: host.access.v1.CheckResponse
-	(*CheckBatchRequest)(nil),        // 17: host.access.v1.CheckBatchRequest
-	(*CheckBatchResponse)(nil),       // 18: host.access.v1.CheckBatchResponse
-	(*ListViewerGrantsRequest)(nil),  // 19: host.access.v1.ListViewerGrantsRequest
-	(*ListViewerGrantsResponse)(nil), // 20: host.access.v1.ListViewerGrantsResponse
-	(*v1.WorkloadCredential)(nil),    // 21: host.authority.v1.WorkloadCredential
+	(*ForgetRequest)(nil),            // 15: host.access.v1.ForgetRequest
+	(*ForgetResponse)(nil),           // 16: host.access.v1.ForgetResponse
+	(*CheckRequest)(nil),             // 17: host.access.v1.CheckRequest
+	(*CheckResponse)(nil),            // 18: host.access.v1.CheckResponse
+	(*CheckBatchRequest)(nil),        // 19: host.access.v1.CheckBatchRequest
+	(*CheckBatchResponse)(nil),       // 20: host.access.v1.CheckBatchResponse
+	(*ListViewerGrantsRequest)(nil),  // 21: host.access.v1.ListViewerGrantsRequest
+	(*ListViewerGrantsResponse)(nil), // 22: host.access.v1.ListViewerGrantsResponse
+	(*v1.WorkloadCredential)(nil),    // 23: host.authority.v1.WorkloadCredential
 }
 var file_host_access_v1_access_proto_depIdxs = []int32{
 	3,  // 0: host.access.v1.PlacedNode.ref:type_name -> host.access.v1.ResourceRef
@@ -1766,58 +1908,63 @@ var file_host_access_v1_access_proto_depIdxs = []int32{
 	5,  // 2: host.access.v1.Placement.ancestors:type_name -> host.access.v1.PlacedNode
 	3,  // 3: host.access.v1.AccessGrant.resource:type_name -> host.access.v1.ResourceRef
 	4,  // 4: host.access.v1.AccessGrant.subject:type_name -> host.access.v1.Subject
-	21, // 5: host.access.v1.GrantRequest.actor:type_name -> host.authority.v1.WorkloadCredential
+	23, // 5: host.access.v1.GrantRequest.actor:type_name -> host.authority.v1.WorkloadCredential
 	3,  // 6: host.access.v1.GrantRequest.target:type_name -> host.access.v1.ResourceRef
 	6,  // 7: host.access.v1.GrantRequest.placement:type_name -> host.access.v1.Placement
 	4,  // 8: host.access.v1.GrantRequest.subject:type_name -> host.access.v1.Subject
 	8,  // 9: host.access.v1.GrantResponse.grant:type_name -> host.access.v1.AccessGrant
 	7,  // 10: host.access.v1.GrantResponse.revision:type_name -> host.access.v1.AccessRevision
-	21, // 11: host.access.v1.RevokeRequest.actor:type_name -> host.authority.v1.WorkloadCredential
+	23, // 11: host.access.v1.RevokeRequest.actor:type_name -> host.authority.v1.WorkloadCredential
 	3,  // 12: host.access.v1.RevokeRequest.target:type_name -> host.access.v1.ResourceRef
 	6,  // 13: host.access.v1.RevokeRequest.placement:type_name -> host.access.v1.Placement
 	4,  // 14: host.access.v1.RevokeRequest.subject:type_name -> host.access.v1.Subject
 	8,  // 15: host.access.v1.RevokeResponse.revoked:type_name -> host.access.v1.AccessGrant
 	7,  // 16: host.access.v1.RevokeResponse.revision:type_name -> host.access.v1.AccessRevision
-	21, // 17: host.access.v1.ListGrantsRequest.actor:type_name -> host.authority.v1.WorkloadCredential
+	23, // 17: host.access.v1.ListGrantsRequest.actor:type_name -> host.authority.v1.WorkloadCredential
 	3,  // 18: host.access.v1.ListGrantsRequest.target:type_name -> host.access.v1.ResourceRef
 	6,  // 19: host.access.v1.ListGrantsRequest.placement:type_name -> host.access.v1.Placement
 	8,  // 20: host.access.v1.ListGrantsResponse.grants:type_name -> host.access.v1.AccessGrant
 	7,  // 21: host.access.v1.ListGrantsResponse.revision:type_name -> host.access.v1.AccessRevision
-	21, // 22: host.access.v1.CheckRequest.actor:type_name -> host.authority.v1.WorkloadCredential
-	6,  // 23: host.access.v1.CheckRequest.placement:type_name -> host.access.v1.Placement
-	7,  // 24: host.access.v1.CheckRequest.min_revision:type_name -> host.access.v1.AccessRevision
-	0,  // 25: host.access.v1.CheckRequest.freshness:type_name -> host.access.v1.Freshness
-	1,  // 26: host.access.v1.CheckResponse.decision:type_name -> host.access.v1.Decision
-	2,  // 27: host.access.v1.CheckResponse.viewer_bases:type_name -> host.access.v1.Basis
-	7,  // 28: host.access.v1.CheckResponse.revision:type_name -> host.access.v1.AccessRevision
-	21, // 29: host.access.v1.CheckBatchRequest.actor:type_name -> host.authority.v1.WorkloadCredential
-	6,  // 30: host.access.v1.CheckBatchRequest.placements:type_name -> host.access.v1.Placement
-	7,  // 31: host.access.v1.CheckBatchRequest.min_revision:type_name -> host.access.v1.AccessRevision
-	7,  // 32: host.access.v1.CheckBatchRequest.item_min_revisions:type_name -> host.access.v1.AccessRevision
-	0,  // 33: host.access.v1.CheckBatchRequest.freshness:type_name -> host.access.v1.Freshness
-	16, // 34: host.access.v1.CheckBatchResponse.results:type_name -> host.access.v1.CheckResponse
-	7,  // 35: host.access.v1.CheckBatchResponse.revision:type_name -> host.access.v1.AccessRevision
-	21, // 36: host.access.v1.ListViewerGrantsRequest.actor:type_name -> host.authority.v1.WorkloadCredential
-	7,  // 37: host.access.v1.ListViewerGrantsRequest.min_revision:type_name -> host.access.v1.AccessRevision
-	3,  // 38: host.access.v1.ListViewerGrantsResponse.resources:type_name -> host.access.v1.ResourceRef
-	7,  // 39: host.access.v1.ListViewerGrantsResponse.revision:type_name -> host.access.v1.AccessRevision
-	9,  // 40: host.access.v1.AccessService.Grant:input_type -> host.access.v1.GrantRequest
-	11, // 41: host.access.v1.AccessService.Revoke:input_type -> host.access.v1.RevokeRequest
-	13, // 42: host.access.v1.AccessService.ListGrants:input_type -> host.access.v1.ListGrantsRequest
-	15, // 43: host.access.v1.AccessService.Check:input_type -> host.access.v1.CheckRequest
-	17, // 44: host.access.v1.AccessService.CheckBatch:input_type -> host.access.v1.CheckBatchRequest
-	19, // 45: host.access.v1.AccessService.ListViewerGrants:input_type -> host.access.v1.ListViewerGrantsRequest
-	10, // 46: host.access.v1.AccessService.Grant:output_type -> host.access.v1.GrantResponse
-	12, // 47: host.access.v1.AccessService.Revoke:output_type -> host.access.v1.RevokeResponse
-	14, // 48: host.access.v1.AccessService.ListGrants:output_type -> host.access.v1.ListGrantsResponse
-	16, // 49: host.access.v1.AccessService.Check:output_type -> host.access.v1.CheckResponse
-	18, // 50: host.access.v1.AccessService.CheckBatch:output_type -> host.access.v1.CheckBatchResponse
-	20, // 51: host.access.v1.AccessService.ListViewerGrants:output_type -> host.access.v1.ListViewerGrantsResponse
-	46, // [46:52] is the sub-list for method output_type
-	40, // [40:46] is the sub-list for method input_type
-	40, // [40:40] is the sub-list for extension type_name
-	40, // [40:40] is the sub-list for extension extendee
-	0,  // [0:40] is the sub-list for field type_name
+	23, // 22: host.access.v1.ForgetRequest.actor:type_name -> host.authority.v1.WorkloadCredential
+	3,  // 23: host.access.v1.ForgetRequest.target:type_name -> host.access.v1.ResourceRef
+	7,  // 24: host.access.v1.ForgetResponse.revision:type_name -> host.access.v1.AccessRevision
+	23, // 25: host.access.v1.CheckRequest.actor:type_name -> host.authority.v1.WorkloadCredential
+	6,  // 26: host.access.v1.CheckRequest.placement:type_name -> host.access.v1.Placement
+	7,  // 27: host.access.v1.CheckRequest.min_revision:type_name -> host.access.v1.AccessRevision
+	0,  // 28: host.access.v1.CheckRequest.freshness:type_name -> host.access.v1.Freshness
+	1,  // 29: host.access.v1.CheckResponse.decision:type_name -> host.access.v1.Decision
+	2,  // 30: host.access.v1.CheckResponse.viewer_bases:type_name -> host.access.v1.Basis
+	7,  // 31: host.access.v1.CheckResponse.revision:type_name -> host.access.v1.AccessRevision
+	23, // 32: host.access.v1.CheckBatchRequest.actor:type_name -> host.authority.v1.WorkloadCredential
+	6,  // 33: host.access.v1.CheckBatchRequest.placements:type_name -> host.access.v1.Placement
+	7,  // 34: host.access.v1.CheckBatchRequest.min_revision:type_name -> host.access.v1.AccessRevision
+	7,  // 35: host.access.v1.CheckBatchRequest.item_min_revisions:type_name -> host.access.v1.AccessRevision
+	0,  // 36: host.access.v1.CheckBatchRequest.freshness:type_name -> host.access.v1.Freshness
+	18, // 37: host.access.v1.CheckBatchResponse.results:type_name -> host.access.v1.CheckResponse
+	7,  // 38: host.access.v1.CheckBatchResponse.revision:type_name -> host.access.v1.AccessRevision
+	23, // 39: host.access.v1.ListViewerGrantsRequest.actor:type_name -> host.authority.v1.WorkloadCredential
+	7,  // 40: host.access.v1.ListViewerGrantsRequest.min_revision:type_name -> host.access.v1.AccessRevision
+	3,  // 41: host.access.v1.ListViewerGrantsResponse.resources:type_name -> host.access.v1.ResourceRef
+	7,  // 42: host.access.v1.ListViewerGrantsResponse.revision:type_name -> host.access.v1.AccessRevision
+	9,  // 43: host.access.v1.AccessService.Grant:input_type -> host.access.v1.GrantRequest
+	11, // 44: host.access.v1.AccessService.Revoke:input_type -> host.access.v1.RevokeRequest
+	13, // 45: host.access.v1.AccessService.ListGrants:input_type -> host.access.v1.ListGrantsRequest
+	15, // 46: host.access.v1.AccessService.Forget:input_type -> host.access.v1.ForgetRequest
+	17, // 47: host.access.v1.AccessService.Check:input_type -> host.access.v1.CheckRequest
+	19, // 48: host.access.v1.AccessService.CheckBatch:input_type -> host.access.v1.CheckBatchRequest
+	21, // 49: host.access.v1.AccessService.ListViewerGrants:input_type -> host.access.v1.ListViewerGrantsRequest
+	10, // 50: host.access.v1.AccessService.Grant:output_type -> host.access.v1.GrantResponse
+	12, // 51: host.access.v1.AccessService.Revoke:output_type -> host.access.v1.RevokeResponse
+	14, // 52: host.access.v1.AccessService.ListGrants:output_type -> host.access.v1.ListGrantsResponse
+	16, // 53: host.access.v1.AccessService.Forget:output_type -> host.access.v1.ForgetResponse
+	18, // 54: host.access.v1.AccessService.Check:output_type -> host.access.v1.CheckResponse
+	20, // 55: host.access.v1.AccessService.CheckBatch:output_type -> host.access.v1.CheckBatchResponse
+	22, // 56: host.access.v1.AccessService.ListViewerGrants:output_type -> host.access.v1.ListViewerGrantsResponse
+	50, // [50:57] is the sub-list for method output_type
+	43, // [43:50] is the sub-list for method input_type
+	43, // [43:43] is the sub-list for extension type_name
+	43, // [43:43] is the sub-list for extension extendee
+	0,  // [0:43] is the sub-list for field type_name
 }
 
 func init() { file_host_access_v1_access_proto_init() }
@@ -1836,7 +1983,7 @@ func file_host_access_v1_access_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_host_access_v1_access_proto_rawDesc), len(file_host_access_v1_access_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   18,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

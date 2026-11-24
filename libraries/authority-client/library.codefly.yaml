@@ -20,7 +20,7 @@ sources:
       module: authority
       service: local
       endpoint: grpc
-      contract-digest: sha256:87c19748cedb7626818307159a0084f67578d20011a44dde21fb0175e5cfbaba
+      contract-digest: sha256:a8c5f9f914b48b28c255079de2407c3395619468f80d8b9085aea6d79245577a
       services:
         - LocalService
         - AccessService

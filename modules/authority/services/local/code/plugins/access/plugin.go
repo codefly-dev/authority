@@ -1,4 +1,4 @@
-// Package access serves host.access.v1: Grant, Revoke, ListGrants, Check,
+// Package access serves host.access.v1: Grant, Revoke, ListGrants, Forget, Check,
 // CheckBatch and ListViewerGrants. Every decision is the shared access
 // core's; the caller is the module its workload credential proves.
 package access
@@ -51,6 +51,12 @@ func (p *Plugin) Revoke(ctx context.Context, req *accessv1.RevokeRequest) (*acce
 // ListGrants answers the grants on one reference.
 func (p *Plugin) ListGrants(ctx context.Context, req *accessv1.ListGrantsRequest) (*accessv1.ListGrantsResponse, error) {
 	out, err := p.Issuer.AccessListGrants(ctx, req)
+	return out, authorityplugin.Status(err)
+}
+
+// Forget ends every grant on a reference the serving module removed.
+func (p *Plugin) Forget(ctx context.Context, req *accessv1.ForgetRequest) (*accessv1.ForgetResponse, error) {
+	out, err := p.Issuer.AccessForget(ctx, req)
 	return out, authorityplugin.Status(err)
 }
 

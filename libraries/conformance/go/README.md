@@ -219,6 +219,11 @@ a decision, `DECISION_DENIED`, whose reason names no resource.
 | H21 | a revision precondition (`min_revision`, `item_min_revisions`, `FRESHNESS_HEAD`) | never ignored: a host that declares `AccessCase.MinRevision` answers each with a revision; one that does not refuses each `FailedPrecondition`, on `Check`, `CheckBatch` and `ListViewerGrants` |
 | H22 | caller-supplied authority | only the kind's one serving module asks, on every method; a kind it does not serve, a malformed id, a duplicate or a ninth ancestor are refused; no decision request carries a field naming who is asking (descriptor assertion) |
 | H23 | a share that gives `share` | its grantee shares on the actions it gives, on the reference it is on (a pinned share shares its version, never the document), ending no later than it does; `delete` is never granted by anyone; the grantee revokes the shares they made, is answered `NotFound` "nothing was revoked" for anyone else's as for an absent one, never lists the ACL, and shares nothing on once their share is revoked |
+| H24 | a share made on, three deep | revoking the first share ends every share below it on the next check, in `ListViewerGrants` and in the ACL; what stopped standing is `NotFound` "nothing was revoked" and shares nothing on; restoring the revoked share revives none of them until each grantor makes theirs again; a grant narrowed below `share` still reads and gives nothing on; a grantee changes only the grants they made |
+| F1 | `Forget` of one reference | ends the grants on exactly it (a version's, or the ones following versions), answering how many and a revision; the next check is denied, the others stand, and the ACL is empty once both are forgotten |
+| F2 | `Forget` with `every_version` | ends every grant on the resource and no other resource's; the viewer's grants no longer list it; naming a version with `every_version` is `InvalidArgument` |
+| F3 | `Forget` twice, or of what was never granted | zero forgotten, no error |
+| F4 | who forgets | only the kind's one serving module, for a kind it serves and a usable id; the Work Context names the organization and need hold nothing on the resource |
 
 ### Revisions: `RunAccessRevisions`
 
@@ -232,7 +237,7 @@ stores and returns, compared only for equality.
 
 | # | Case | What it proves |
 | --- | --- | --- |
-| R1 | grant, revoke, grant | each answers a revision of the organization, none the same |
+| R1 | grant, revoke, grant, forget | each answers a revision of the organization, none the same; a check at the forget's revision is denied |
 | R2 | a check asked with a revision just returned | answered, and the revision it names is itself a minimum the host serves |
 | R3 | revoke, then a check at the revoke's revision | denied |
 | R4 | reader behind a revoke, no minimum asked | the host may still allow, and then does not name the revoke's revision |
@@ -244,6 +249,7 @@ stores and returns, compared only for equality.
 | R11 | bytes the host never issued | `FailedPrecondition` `revision_unknown` |
 | R13 | a grant with an expiry, asked at an old revision after the clock passes it | denied: expiry is by the clock |
 | R15 | a grant read back at its own revision, reader behind | allowed |
+| R16 | a share made on, reader behind, the share it rested on revoked | denied at the revoke's revision and at the publisher's |
 
 R6 (the store holding the newest state does not answer: `Unavailable`
 `stale_revision`), R12 (a sequence past the newest state) and R14 (interleaved
@@ -289,6 +295,11 @@ implements it. The model, in full, is the doc comment on
   of the installation's organization or a holder of that installation's
   admin role (`GrantRole`, `RevokeRole`, `ListRoleGrants`); a request
   naming another organization's installation is refused;
+- a member of two teams granted different roles on one installation holds
+  both roles and the union of their scopes at every audience; a session cast
+  onto one team holds that team's alone; revoking one team's role leaves the
+  other's and ends the capabilities issued while both stood (`SecondTeam` and
+  `TwoTeamMember`, required);
 - a new grant leaves existing capabilities valid; a revoke, leaving a team or
   the organization, an uninstall or a withdrawn `owner_aware` invalidates them
   permanently; an uninstall clears the installation's role grants, and an

@@ -142,6 +142,41 @@ func (s *Service) AccessSubjectExists(ctx context.Context, org string, subject d
 	return exists, err
 }
 
+// AccessSubjectsOf are whose access grants count for principal at org now: a
+// member counts themselves and the teams they belong to that the host still
+// holds; an installation's principal, or a module acting through its
+// installation there, counts that installation while it is active. A
+// principal the host no longer knows counts nothing. It is how a share made
+// on by a grantee is held to the grants its grantor still holds
+// (domain.AccessGrant.Sources).
+func (s *Service) AccessSubjectsOf(ctx context.Context, org, principal string) ([]domain.AccessSubject, error) {
+	var subjects []domain.AccessSubject
+	err := s.store.Read(ctx, func(tx Tx) error {
+		subjects = nil
+		p, err := memberRecord(tx, org, principal)
+		if errors.Is(err, domain.ErrNotFound) {
+			party, err := accessPrincipal(tx, org, principal)
+			subjects = party.Subjects
+			return err
+		}
+		if err != nil {
+			return err
+		}
+		subjects = append(subjects, domain.AccessSubject{Kind: domain.AccessPerson, ID: p.ID})
+		for _, team := range sortedTeams(p.Teams) {
+			held, err := tx.TeamExists(org, team)
+			if err != nil {
+				return err
+			}
+			if held {
+				subjects = append(subjects, domain.AccessSubject{Kind: domain.AccessTeam, ID: team})
+			}
+		}
+		return nil
+	})
+	return subjects, err
+}
+
 // accessServer is the module caller proves, which must be the one module
 // serving every kind of kinds.
 func accessServer(tx Tx, caller Workload, kinds []string) (domain.Module, error) {

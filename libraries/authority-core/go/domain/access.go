@@ -45,6 +45,21 @@ type AccessGrant struct {
 	GrantedBy string
 	// CreatedAt is when it was first made.
 	CreatedAt time.Time
+	// Sources are the grants a share made on by a grantee rests on: the
+	// grants that gave its grantor share on the reference when it was made.
+	// Empty for a grant made by the reference's owner or administrator. A
+	// grant with sources decides only while one of them still stands, is
+	// still its grantor's, and still gives share and the action asked
+	// (access.Service); a store keeps them as written.
+	Sources []AccessSource
+}
+
+// AccessSource names one grant another rests on: its natural key and its id.
+// A grant revoked and made again is another id, so what rested on the first
+// does not rest on the second.
+type AccessSource struct {
+	Key AccessKey
+	ID  string
 }
 
 // Live is whether the grant still stands at now: not past its expiry.

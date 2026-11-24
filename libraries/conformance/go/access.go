@@ -78,7 +78,9 @@ type InstalledReadCase struct {
 // the viewer and the actors are read from the verified Work Context alone.
 var accessContract = []struct{ message, element string }{
 	{accessService, "Grant"}, {accessService, "Revoke"}, {accessService, "ListGrants"},
-	{accessService, "Check"}, {accessService, "CheckBatch"}, {accessService, "ListViewerGrants"},
+	{accessService, "Check"}, {accessService, "CheckBatch"}, {accessService, "ListViewerGrants"}, {accessService, "Forget"},
+	{"host.access.v1.ForgetRequest", "target"}, {"host.access.v1.ForgetRequest", "every_version"},
+	{"host.access.v1.ForgetResponse", "forgotten"}, {"host.access.v1.ForgetResponse", "revision"},
 	{"host.access.v1.ResourceRef", "resource_kind"}, {"host.access.v1.ResourceRef", "resource_id"}, {"host.access.v1.ResourceRef", "version"},
 	{"host.access.v1.Subject", "person_id"}, {"host.access.v1.Subject", "team_id"}, {"host.access.v1.Subject", "installation_id"},
 	{"host.access.v1.PlacedNode", "ref"}, {"host.access.v1.PlacedNode", "owner_id"},
@@ -108,7 +110,7 @@ var accessDecisionRequests = map[string][]string{
 }
 
 // RunAccess proves a host serves codefly.dev/access as every host does: the
-// cases H1 to H23, each a named subtest that makes its own grants on
+// cases H1 to H24 and F1 to F4, each a named subtest that makes its own grants on
 // resources of its own and can run alone.
 func RunAccess(t *testing.T, conn grpc.ClientConnInterface, descriptors []byte, f AccessCase) {
 	t.Helper()
@@ -300,6 +302,32 @@ func (as *accessSuite) unshare(token string, placement, subject map[string]any) 
 
 func (as *accessSuite) acl(token string, placement map[string]any) (protoreflect.Message, error) {
 	return as.c.call(as.ctx, accessService, "ListGrants", map[string]any{"token": token, "actor": as.actor(), "target": targetOf(placement), "placement": placement})
+}
+
+// forget is the serving module ending the grants on a reference it removed.
+func (as *accessSuite) forget(token string, target map[string]any, everyVersion bool) (protoreflect.Message, error) {
+	return as.c.call(as.ctx, accessService, "Forget", map[string]any{"token": token, "actor": as.actor(), "target": target, "every_version": everyVersion})
+}
+
+// viewerHolds is whether ListViewerGrants lists the document id, at any
+// version, among the references token's owner is granted read on.
+func (as *accessSuite) viewerHolds(t *testing.T, token, id string) bool {
+	t.Helper()
+	for page := ""; ; {
+		out, err := as.c.call(as.ctx, accessService, "ListViewerGrants", map[string]any{"token": token, "actor": as.actor(),
+			"resource_kinds": []any{as.f.Kind}, "action": "read", "page_token": page})
+		if err != nil {
+			t.Fatalf("ListViewerGrants: %v", err)
+		}
+		for _, r := range listMsgs(out, "resources") {
+			if str(r, "resource_id") == id {
+				return true
+			}
+		}
+		if page = str(out, "next_page_token"); page == "" {
+			return false
+		}
+	}
 }
 
 func (as *accessSuite) ask(token string, placement map[string]any) (protoreflect.Message, error) {

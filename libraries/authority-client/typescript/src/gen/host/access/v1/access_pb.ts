@@ -25,7 +25,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file host/access/v1/access.proto.
  */
 export const file_host_access_v1_access: GenFile = /*@__PURE__*/
-  fileDesc("Chtob3N0L2FjY2Vzcy92MS9hY2Nlc3MucHJvdG8SDmhvc3QuYWNjZXNzLnYxIkoKC1Jlc291cmNlUmVmEhUKDXJlc291cmNlX2tpbmQYASABKAkSEwoLcmVzb3VyY2VfaWQYAiABKAkSDwoHdmVyc2lvbhgDIAEoCSJXCgdTdWJqZWN0EhMKCXBlcnNvbl9pZBgBIAEoCUgAEhEKB3RlYW1faWQYAiABKAlIABIZCg9pbnN0YWxsYXRpb25faWQYAyABKAlIAEIJCgdzdWJqZWN0IkgKClBsYWNlZE5vZGUSKAoDcmVmGAEgASgLMhsuaG9zdC5hY2Nlc3MudjEuUmVzb3VyY2VSZWYSEAoIb3duZXJfaWQYAiABKAkiaAoJUGxhY2VtZW50EiwKCHJlc291cmNlGAEgASgLMhouaG9zdC5hY2Nlc3MudjEuUGxhY2VkTm9kZRItCglhbmNlc3RvcnMYAiADKAsyGi5ob3N0LmFjY2Vzcy52MS5QbGFjZWROb2RlIjkKDkFjY2Vzc1JldmlzaW9uEhcKD29yZ2FuaXphdGlvbl9pZBgBIAEoCRIOCgZvcGFxdWUYAiABKAwi6AEKC0FjY2Vzc0dyYW50EhAKCGdyYW50X2lkGAEgASgJEhcKD29yZ2FuaXphdGlvbl9pZBgCIAEoCRItCghyZXNvdXJjZRgDIAEoCzIbLmhvc3QuYWNjZXNzLnYxLlJlc291cmNlUmVmEigKB3N1YmplY3QYBCABKAsyFy5ob3N0LmFjY2Vzcy52MS5TdWJqZWN0Eg8KB2FjdGlvbnMYBSADKAkSFwoPZXhwaXJlc19hdF91bml4GAYgASgDEhIKCmdyYW50ZWRfYnkYByABKAkSFwoPY3JlYXRlZF9hdF91bml4GAggASgDIoICCgxHcmFudFJlcXVlc3QSDQoFdG9rZW4YASABKAkSNAoFYWN0b3IYAiABKAsyJS5ob3N0LmF1dGhvcml0eS52MS5Xb3JrbG9hZENyZWRlbnRpYWwSKwoGdGFyZ2V0GAMgASgLMhsuaG9zdC5hY2Nlc3MudjEuUmVzb3VyY2VSZWYSLAoJcGxhY2VtZW50GAQgASgLMhkuaG9zdC5hY2Nlc3MudjEuUGxhY2VtZW50EigKB3N1YmplY3QYBSABKAsyFy5ob3N0LmFjY2Vzcy52MS5TdWJqZWN0Eg8KB2FjdGlvbnMYBiADKAkSFwoPZXhwaXJlc19hdF91bml4GAcgASgDIm0KDUdyYW50UmVzcG9uc2USKgoFZ3JhbnQYASABKAsyGy5ob3N0LmFjY2Vzcy52MS5BY2Nlc3NHcmFudBIwCghyZXZpc2lvbhgCIAEoCzIeLmhvc3QuYWNjZXNzLnYxLkFjY2Vzc1JldmlzaW9uItkBCg1SZXZva2VSZXF1ZXN0Eg0KBXRva2VuGAEgASgJEjQKBWFjdG9yGAIgASgLMiUuaG9zdC5hdXRob3JpdHkudjEuV29ya2xvYWRDcmVkZW50aWFsEisKBnRhcmdldBgDIAEoCzIbLmhvc3QuYWNjZXNzLnYxLlJlc291cmNlUmVmEiwKCXBsYWNlbWVudBgEIAEoCzIZLmhvc3QuYWNjZXNzLnYxLlBsYWNlbWVudBIoCgdzdWJqZWN0GAUgASgLMhcuaG9zdC5hY2Nlc3MudjEuU3ViamVjdCJwCg5SZXZva2VSZXNwb25zZRIsCgdyZXZva2VkGAEgASgLMhsuaG9zdC5hY2Nlc3MudjEuQWNjZXNzR3JhbnQSMAoIcmV2aXNpb24YAiABKAsyHi5ob3N0LmFjY2Vzcy52MS5BY2Nlc3NSZXZpc2lvbiKzAQoRTGlzdEdyYW50c1JlcXVlc3QSDQoFdG9rZW4YASABKAkSNAoFYWN0b3IYAiABKAsyJS5ob3N0LmF1dGhvcml0eS52MS5Xb3JrbG9hZENyZWRlbnRpYWwSKwoGdGFyZ2V0GAMgASgLMhsuaG9zdC5hY2Nlc3MudjEuUmVzb3VyY2VSZWYSLAoJcGxhY2VtZW50GAQgASgLMhkuaG9zdC5hY2Nlc3MudjEuUGxhY2VtZW50InMKEkxpc3RHcmFudHNSZXNwb25zZRIrCgZncmFudHMYASADKAsyGy5ob3N0LmFjY2Vzcy52MS5BY2Nlc3NHcmFudBIwCghyZXZpc2lvbhgCIAEoCzIeLmhvc3QuYWNjZXNzLnYxLkFjY2Vzc1JldmlzaW9uIvUBCgxDaGVja1JlcXVlc3QSDQoFdG9rZW4YASABKAkSNAoFYWN0b3IYAiABKAsyJS5ob3N0LmF1dGhvcml0eS52MS5Xb3JrbG9hZENyZWRlbnRpYWwSDgoGYWN0aW9uGAMgASgJEiwKCXBsYWNlbWVudBgEIAEoCzIZLmhvc3QuYWNjZXNzLnYxLlBsYWNlbWVudBI0CgxtaW5fcmV2aXNpb24YBSABKAsyHi5ob3N0LmFjY2Vzcy52MS5BY2Nlc3NSZXZpc2lvbhIsCglmcmVzaG5lc3MYBiABKA4yGS5ob3N0LmFjY2Vzcy52MS5GcmVzaG5lc3MixAEKDUNoZWNrUmVzcG9uc2USKgoIZGVjaXNpb24YASABKA4yGC5ob3N0LmFjY2Vzcy52MS5EZWNpc2lvbhIrCgx2aWV3ZXJfYmFzZXMYAiADKA4yFS5ob3N0LmFjY2Vzcy52MS5CYXNpcxIOCgZyZWFzb24YAyABKAkSMAoIcmV2aXNpb24YBCABKAsyHi5ob3N0LmFjY2Vzcy52MS5BY2Nlc3NSZXZpc2lvbhIYChB2YWxpZF91bnRpbF91bml4GAUgASgDIrcCChFDaGVja0JhdGNoUmVxdWVzdBINCgV0b2tlbhgBIAEoCRI0CgVhY3RvchgCIAEoCzIlLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtsb2FkQ3JlZGVudGlhbBIOCgZhY3Rpb24YAyABKAkSLQoKcGxhY2VtZW50cxgEIAMoCzIZLmhvc3QuYWNjZXNzLnYxLlBsYWNlbWVudBI0CgxtaW5fcmV2aXNpb24YBSABKAsyHi5ob3N0LmFjY2Vzcy52MS5BY2Nlc3NSZXZpc2lvbhI6ChJpdGVtX21pbl9yZXZpc2lvbnMYBiADKAsyHi5ob3N0LmFjY2Vzcy52MS5BY2Nlc3NSZXZpc2lvbhIsCglmcmVzaG5lc3MYByABKA4yGS5ob3N0LmFjY2Vzcy52MS5GcmVzaG5lc3MidgoSQ2hlY2tCYXRjaFJlc3BvbnNlEi4KB3Jlc3VsdHMYASADKAsyHS5ob3N0LmFjY2Vzcy52MS5DaGVja1Jlc3BvbnNlEjAKCHJldmlzaW9uGAIgASgLMh4uaG9zdC5hY2Nlc3MudjEuQWNjZXNzUmV2aXNpb24i4wEKF0xpc3RWaWV3ZXJHcmFudHNSZXF1ZXN0Eg0KBXRva2VuGAEgASgJEjQKBWFjdG9yGAIgASgLMiUuaG9zdC5hdXRob3JpdHkudjEuV29ya2xvYWRDcmVkZW50aWFsEhYKDnJlc291cmNlX2tpbmRzGAMgAygJEg4KBmFjdGlvbhgEIAEoCRIRCglwYWdlX3NpemUYBSABKAUSEgoKcGFnZV90b2tlbhgGIAEoCRI0CgxtaW5fcmV2aXNpb24YByABKAsyHi5ob3N0LmFjY2Vzcy52MS5BY2Nlc3NSZXZpc2lvbiKvAQoYTGlzdFZpZXdlckdyYW50c1Jlc3BvbnNlEi4KCXJlc291cmNlcxgBIAMoCzIbLmhvc3QuYWNjZXNzLnYxLlJlc291cmNlUmVmEhcKD25leHRfcGFnZV90b2tlbhgCIAEoCRIwCghyZXZpc2lvbhgDIAEoCzIeLmhvc3QuYWNjZXNzLnYxLkFjY2Vzc1JldmlzaW9uEhgKEHZhbGlkX3VudGlsX3VuaXgYBCABKAMqOgoJRnJlc2huZXNzEhkKFUZSRVNITkVTU19VTlNQRUNJRklFRBAAEhIKDkZSRVNITkVTU19IRUFEEAEqTwoIRGVjaXNpb24SGAoUREVDSVNJT05fVU5TUEVDSUZJRUQQABIUChBERUNJU0lPTl9BTExPV0VEEAESEwoPREVDSVNJT05fREVOSUVEEAIqgQEKBUJhc2lzEhUKEUJBU0lTX1VOU1BFQ0lGSUVEEAASFAoQQkFTSVNfUk9MRV9TQ09QRRABEhgKFEJBU0lTX0FOQ0VTVE9SX0dSQU5UEAISGAoUQkFTSVNfUkVTT1VSQ0VfR1JBTlQQAxIXChNCQVNJU19WRVJTSU9OX0dSQU5UEAQy9QMKDUFjY2Vzc1NlcnZpY2USRAoFR3JhbnQSHC5ob3N0LmFjY2Vzcy52MS5HcmFudFJlcXVlc3QaHS5ob3N0LmFjY2Vzcy52MS5HcmFudFJlc3BvbnNlEkcKBlJldm9rZRIdLmhvc3QuYWNjZXNzLnYxLlJldm9rZVJlcXVlc3QaHi5ob3N0LmFjY2Vzcy52MS5SZXZva2VSZXNwb25zZRJTCgpMaXN0R3JhbnRzEiEuaG9zdC5hY2Nlc3MudjEuTGlzdEdyYW50c1JlcXVlc3QaIi5ob3N0LmFjY2Vzcy52MS5MaXN0R3JhbnRzUmVzcG9uc2USRAoFQ2hlY2sSHC5ob3N0LmFjY2Vzcy52MS5DaGVja1JlcXVlc3QaHS5ob3N0LmFjY2Vzcy52MS5DaGVja1Jlc3BvbnNlElMKCkNoZWNrQmF0Y2gSIS5ob3N0LmFjY2Vzcy52MS5DaGVja0JhdGNoUmVxdWVzdBoiLmhvc3QuYWNjZXNzLnYxLkNoZWNrQmF0Y2hSZXNwb25zZRJlChBMaXN0Vmlld2VyR3JhbnRzEicuaG9zdC5hY2Nlc3MudjEuTGlzdFZpZXdlckdyYW50c1JlcXVlc3QaKC5ob3N0LmFjY2Vzcy52MS5MaXN0Vmlld2VyR3JhbnRzUmVzcG9uc2VCKVonZ2F0ZXdheS9wa2cvZ2VuL2hvc3QvYWNjZXNzL3YxO2FjY2Vzc3YxYgZwcm90bzM", [file_host_authority_v1_authority]);
+  fileDesc("Chtob3N0L2FjY2Vzcy92MS9hY2Nlc3MucHJvdG8SDmhvc3QuYWNjZXNzLnYxIkoKC1Jlc291cmNlUmVmEhUKDXJlc291cmNlX2tpbmQYASABKAkSEwoLcmVzb3VyY2VfaWQYAiABKAkSDwoHdmVyc2lvbhgDIAEoCSJXCgdTdWJqZWN0EhMKCXBlcnNvbl9pZBgBIAEoCUgAEhEKB3RlYW1faWQYAiABKAlIABIZCg9pbnN0YWxsYXRpb25faWQYAyABKAlIAEIJCgdzdWJqZWN0IkgKClBsYWNlZE5vZGUSKAoDcmVmGAEgASgLMhsuaG9zdC5hY2Nlc3MudjEuUmVzb3VyY2VSZWYSEAoIb3duZXJfaWQYAiABKAkiaAoJUGxhY2VtZW50EiwKCHJlc291cmNlGAEgASgLMhouaG9zdC5hY2Nlc3MudjEuUGxhY2VkTm9kZRItCglhbmNlc3RvcnMYAiADKAsyGi5ob3N0LmFjY2Vzcy52MS5QbGFjZWROb2RlIjkKDkFjY2Vzc1JldmlzaW9uEhcKD29yZ2FuaXphdGlvbl9pZBgBIAEoCRIOCgZvcGFxdWUYAiABKAwi6AEKC0FjY2Vzc0dyYW50EhAKCGdyYW50X2lkGAEgASgJEhcKD29yZ2FuaXphdGlvbl9pZBgCIAEoCRItCghyZXNvdXJjZRgDIAEoCzIbLmhvc3QuYWNjZXNzLnYxLlJlc291cmNlUmVmEigKB3N1YmplY3QYBCABKAsyFy5ob3N0LmFjY2Vzcy52MS5TdWJqZWN0Eg8KB2FjdGlvbnMYBSADKAkSFwoPZXhwaXJlc19hdF91bml4GAYgASgDEhIKCmdyYW50ZWRfYnkYByABKAkSFwoPY3JlYXRlZF9hdF91bml4GAggASgDIoICCgxHcmFudFJlcXVlc3QSDQoFdG9rZW4YASABKAkSNAoFYWN0b3IYAiABKAsyJS5ob3N0LmF1dGhvcml0eS52MS5Xb3JrbG9hZENyZWRlbnRpYWwSKwoGdGFyZ2V0GAMgASgLMhsuaG9zdC5hY2Nlc3MudjEuUmVzb3VyY2VSZWYSLAoJcGxhY2VtZW50GAQgASgLMhkuaG9zdC5hY2Nlc3MudjEuUGxhY2VtZW50EigKB3N1YmplY3QYBSABKAsyFy5ob3N0LmFjY2Vzcy52MS5TdWJqZWN0Eg8KB2FjdGlvbnMYBiADKAkSFwoPZXhwaXJlc19hdF91bml4GAcgASgDIm0KDUdyYW50UmVzcG9uc2USKgoFZ3JhbnQYASABKAsyGy5ob3N0LmFjY2Vzcy52MS5BY2Nlc3NHcmFudBIwCghyZXZpc2lvbhgCIAEoCzIeLmhvc3QuYWNjZXNzLnYxLkFjY2Vzc1JldmlzaW9uItkBCg1SZXZva2VSZXF1ZXN0Eg0KBXRva2VuGAEgASgJEjQKBWFjdG9yGAIgASgLMiUuaG9zdC5hdXRob3JpdHkudjEuV29ya2xvYWRDcmVkZW50aWFsEisKBnRhcmdldBgDIAEoCzIbLmhvc3QuYWNjZXNzLnYxLlJlc291cmNlUmVmEiwKCXBsYWNlbWVudBgEIAEoCzIZLmhvc3QuYWNjZXNzLnYxLlBsYWNlbWVudBIoCgdzdWJqZWN0GAUgASgLMhcuaG9zdC5hY2Nlc3MudjEuU3ViamVjdCJwCg5SZXZva2VSZXNwb25zZRIsCgdyZXZva2VkGAEgASgLMhsuaG9zdC5hY2Nlc3MudjEuQWNjZXNzR3JhbnQSMAoIcmV2aXNpb24YAiABKAsyHi5ob3N0LmFjY2Vzcy52MS5BY2Nlc3NSZXZpc2lvbiKzAQoRTGlzdEdyYW50c1JlcXVlc3QSDQoFdG9rZW4YASABKAkSNAoFYWN0b3IYAiABKAsyJS5ob3N0LmF1dGhvcml0eS52MS5Xb3JrbG9hZENyZWRlbnRpYWwSKwoGdGFyZ2V0GAMgASgLMhsuaG9zdC5hY2Nlc3MudjEuUmVzb3VyY2VSZWYSLAoJcGxhY2VtZW50GAQgASgLMhkuaG9zdC5hY2Nlc3MudjEuUGxhY2VtZW50InMKEkxpc3RHcmFudHNSZXNwb25zZRIrCgZncmFudHMYASADKAsyGy5ob3N0LmFjY2Vzcy52MS5BY2Nlc3NHcmFudBIwCghyZXZpc2lvbhgCIAEoCzIeLmhvc3QuYWNjZXNzLnYxLkFjY2Vzc1JldmlzaW9uIpgBCg1Gb3JnZXRSZXF1ZXN0Eg0KBXRva2VuGAEgASgJEjQKBWFjdG9yGAIgASgLMiUuaG9zdC5hdXRob3JpdHkudjEuV29ya2xvYWRDcmVkZW50aWFsEisKBnRhcmdldBgDIAEoCzIbLmhvc3QuYWNjZXNzLnYxLlJlc291cmNlUmVmEhUKDWV2ZXJ5X3ZlcnNpb24YBCABKAgiVQoORm9yZ2V0UmVzcG9uc2USEQoJZm9yZ290dGVuGAEgASgFEjAKCHJldmlzaW9uGAIgASgLMh4uaG9zdC5hY2Nlc3MudjEuQWNjZXNzUmV2aXNpb24i9QEKDENoZWNrUmVxdWVzdBINCgV0b2tlbhgBIAEoCRI0CgVhY3RvchgCIAEoCzIlLmhvc3QuYXV0aG9yaXR5LnYxLldvcmtsb2FkQ3JlZGVudGlhbBIOCgZhY3Rpb24YAyABKAkSLAoJcGxhY2VtZW50GAQgASgLMhkuaG9zdC5hY2Nlc3MudjEuUGxhY2VtZW50EjQKDG1pbl9yZXZpc2lvbhgFIAEoCzIeLmhvc3QuYWNjZXNzLnYxLkFjY2Vzc1JldmlzaW9uEiwKCWZyZXNobmVzcxgGIAEoDjIZLmhvc3QuYWNjZXNzLnYxLkZyZXNobmVzcyLEAQoNQ2hlY2tSZXNwb25zZRIqCghkZWNpc2lvbhgBIAEoDjIYLmhvc3QuYWNjZXNzLnYxLkRlY2lzaW9uEisKDHZpZXdlcl9iYXNlcxgCIAMoDjIVLmhvc3QuYWNjZXNzLnYxLkJhc2lzEg4KBnJlYXNvbhgDIAEoCRIwCghyZXZpc2lvbhgEIAEoCzIeLmhvc3QuYWNjZXNzLnYxLkFjY2Vzc1JldmlzaW9uEhgKEHZhbGlkX3VudGlsX3VuaXgYBSABKAMitwIKEUNoZWNrQmF0Y2hSZXF1ZXN0Eg0KBXRva2VuGAEgASgJEjQKBWFjdG9yGAIgASgLMiUuaG9zdC5hdXRob3JpdHkudjEuV29ya2xvYWRDcmVkZW50aWFsEg4KBmFjdGlvbhgDIAEoCRItCgpwbGFjZW1lbnRzGAQgAygLMhkuaG9zdC5hY2Nlc3MudjEuUGxhY2VtZW50EjQKDG1pbl9yZXZpc2lvbhgFIAEoCzIeLmhvc3QuYWNjZXNzLnYxLkFjY2Vzc1JldmlzaW9uEjoKEml0ZW1fbWluX3JldmlzaW9ucxgGIAMoCzIeLmhvc3QuYWNjZXNzLnYxLkFjY2Vzc1JldmlzaW9uEiwKCWZyZXNobmVzcxgHIAEoDjIZLmhvc3QuYWNjZXNzLnYxLkZyZXNobmVzcyJ2ChJDaGVja0JhdGNoUmVzcG9uc2USLgoHcmVzdWx0cxgBIAMoCzIdLmhvc3QuYWNjZXNzLnYxLkNoZWNrUmVzcG9uc2USMAoIcmV2aXNpb24YAiABKAsyHi5ob3N0LmFjY2Vzcy52MS5BY2Nlc3NSZXZpc2lvbiLjAQoXTGlzdFZpZXdlckdyYW50c1JlcXVlc3QSDQoFdG9rZW4YASABKAkSNAoFYWN0b3IYAiABKAsyJS5ob3N0LmF1dGhvcml0eS52MS5Xb3JrbG9hZENyZWRlbnRpYWwSFgoOcmVzb3VyY2Vfa2luZHMYAyADKAkSDgoGYWN0aW9uGAQgASgJEhEKCXBhZ2Vfc2l6ZRgFIAEoBRISCgpwYWdlX3Rva2VuGAYgASgJEjQKDG1pbl9yZXZpc2lvbhgHIAEoCzIeLmhvc3QuYWNjZXNzLnYxLkFjY2Vzc1JldmlzaW9uIq8BChhMaXN0Vmlld2VyR3JhbnRzUmVzcG9uc2USLgoJcmVzb3VyY2VzGAEgAygLMhsuaG9zdC5hY2Nlc3MudjEuUmVzb3VyY2VSZWYSFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJEjAKCHJldmlzaW9uGAMgASgLMh4uaG9zdC5hY2Nlc3MudjEuQWNjZXNzUmV2aXNpb24SGAoQdmFsaWRfdW50aWxfdW5peBgEIAEoAyo6CglGcmVzaG5lc3MSGQoVRlJFU0hORVNTX1VOU1BFQ0lGSUVEEAASEgoORlJFU0hORVNTX0hFQUQQASpPCghEZWNpc2lvbhIYChRERUNJU0lPTl9VTlNQRUNJRklFRBAAEhQKEERFQ0lTSU9OX0FMTE9XRUQQARITCg9ERUNJU0lPTl9ERU5JRUQQAiqBAQoFQmFzaXMSFQoRQkFTSVNfVU5TUEVDSUZJRUQQABIUChBCQVNJU19ST0xFX1NDT1BFEAESGAoUQkFTSVNfQU5DRVNUT1JfR1JBTlQQAhIYChRCQVNJU19SRVNPVVJDRV9HUkFOVBADEhcKE0JBU0lTX1ZFUlNJT05fR1JBTlQQBDK+BAoNQWNjZXNzU2VydmljZRJECgVHcmFudBIcLmhvc3QuYWNjZXNzLnYxLkdyYW50UmVxdWVzdBodLmhvc3QuYWNjZXNzLnYxLkdyYW50UmVzcG9uc2USRwoGUmV2b2tlEh0uaG9zdC5hY2Nlc3MudjEuUmV2b2tlUmVxdWVzdBoeLmhvc3QuYWNjZXNzLnYxLlJldm9rZVJlc3BvbnNlElMKCkxpc3RHcmFudHMSIS5ob3N0LmFjY2Vzcy52MS5MaXN0R3JhbnRzUmVxdWVzdBoiLmhvc3QuYWNjZXNzLnYxLkxpc3RHcmFudHNSZXNwb25zZRJHCgZGb3JnZXQSHS5ob3N0LmFjY2Vzcy52MS5Gb3JnZXRSZXF1ZXN0Gh4uaG9zdC5hY2Nlc3MudjEuRm9yZ2V0UmVzcG9uc2USRAoFQ2hlY2sSHC5ob3N0LmFjY2Vzcy52MS5DaGVja1JlcXVlc3QaHS5ob3N0LmFjY2Vzcy52MS5DaGVja1Jlc3BvbnNlElMKCkNoZWNrQmF0Y2gSIS5ob3N0LmFjY2Vzcy52MS5DaGVja0JhdGNoUmVxdWVzdBoiLmhvc3QuYWNjZXNzLnYxLkNoZWNrQmF0Y2hSZXNwb25zZRJlChBMaXN0Vmlld2VyR3JhbnRzEicuaG9zdC5hY2Nlc3MudjEuTGlzdFZpZXdlckdyYW50c1JlcXVlc3QaKC5ob3N0LmFjY2Vzcy52MS5MaXN0Vmlld2VyR3JhbnRzUmVzcG9uc2VCKVonZ2F0ZXdheS9wa2cvZ2VuL2hvc3QvYWNjZXNzL3YxO2FjY2Vzc3YxYgZwcm90bzM", [file_host_authority_v1_authority]);
 
 /**
  * ResourceRef names a collection, a document or one version of a document.
@@ -522,6 +522,79 @@ export const ListGrantsResponseSchema: GenMessage<ListGrantsResponse> = /*@__PUR
   messageDesc(file_host_access_v1_access, 11);
 
 /**
+ * ForgetRequest ends the grants on a reference that is gone.
+ *
+ * @generated from message host.access.v1.ForgetRequest
+ */
+export type ForgetRequest = Message<"host.access.v1.ForgetRequest"> & {
+  /**
+   * A Work Context addressed to the module: it names the organization.
+   *
+   * @generated from field: string token = 1;
+   */
+  token: string;
+
+  /**
+   * The module asking, proving which module it is.
+   *
+   * @generated from field: host.authority.v1.WorkloadCredential actor = 2;
+   */
+  actor?: WorkloadCredential;
+
+  /**
+   * The reference: with a version, the grants on that version; without one,
+   * the grants that follow the resource's versions.
+   *
+   * @generated from field: host.access.v1.ResourceRef target = 3;
+   */
+  target?: ResourceRef;
+
+  /**
+   * Every grant on the resource, whatever its version; the target then names
+   * no version.
+   *
+   * @generated from field: bool every_version = 4;
+   */
+  everyVersion: boolean;
+};
+
+/**
+ * Describes the message host.access.v1.ForgetRequest.
+ * Use `create(ForgetRequestSchema)` to create a new message.
+ */
+export const ForgetRequestSchema: GenMessage<ForgetRequest> = /*@__PURE__*/
+  messageDesc(file_host_access_v1_access, 12);
+
+/**
+ * ForgetResponse answers how many grants were ended.
+ *
+ * @generated from message host.access.v1.ForgetResponse
+ */
+export type ForgetResponse = Message<"host.access.v1.ForgetResponse"> & {
+  /**
+   * The grants ended; zero when there were none.
+   *
+   * @generated from field: int32 forgotten = 1;
+   */
+  forgotten: number;
+
+  /**
+   * The state the change is part of: a decision asked with it as a minimum
+   * sees the change.
+   *
+   * @generated from field: host.access.v1.AccessRevision revision = 2;
+   */
+  revision?: AccessRevision;
+};
+
+/**
+ * Describes the message host.access.v1.ForgetResponse.
+ * Use `create(ForgetResponseSchema)` to create a new message.
+ */
+export const ForgetResponseSchema: GenMessage<ForgetResponse> = /*@__PURE__*/
+  messageDesc(file_host_access_v1_access, 13);
+
+/**
  * CheckRequest asks one decision.
  *
  * @generated from message host.access.v1.CheckRequest
@@ -575,7 +648,7 @@ export type CheckRequest = Message<"host.access.v1.CheckRequest"> & {
  * Use `create(CheckRequestSchema)` to create a new message.
  */
 export const CheckRequestSchema: GenMessage<CheckRequest> = /*@__PURE__*/
-  messageDesc(file_host_access_v1_access, 12);
+  messageDesc(file_host_access_v1_access, 14);
 
 /**
  * CheckResponse is one decision.
@@ -631,7 +704,7 @@ export type CheckResponse = Message<"host.access.v1.CheckResponse"> & {
  * Use `create(CheckResponseSchema)` to create a new message.
  */
 export const CheckResponseSchema: GenMessage<CheckResponse> = /*@__PURE__*/
-  messageDesc(file_host_access_v1_access, 13);
+  messageDesc(file_host_access_v1_access, 15);
 
 /**
  * CheckBatchRequest asks one action on many resources.
@@ -696,7 +769,7 @@ export type CheckBatchRequest = Message<"host.access.v1.CheckBatchRequest"> & {
  * Use `create(CheckBatchRequestSchema)` to create a new message.
  */
 export const CheckBatchRequestSchema: GenMessage<CheckBatchRequest> = /*@__PURE__*/
-  messageDesc(file_host_access_v1_access, 14);
+  messageDesc(file_host_access_v1_access, 16);
 
 /**
  * CheckBatchResponse answers every placement.
@@ -724,7 +797,7 @@ export type CheckBatchResponse = Message<"host.access.v1.CheckBatchResponse"> & 
  * Use `create(CheckBatchResponseSchema)` to create a new message.
  */
 export const CheckBatchResponseSchema: GenMessage<CheckBatchResponse> = /*@__PURE__*/
-  messageDesc(file_host_access_v1_access, 15);
+  messageDesc(file_host_access_v1_access, 17);
 
 /**
  * ListViewerGrantsRequest pages the viewer's direct grants.
@@ -787,7 +860,7 @@ export type ListViewerGrantsRequest = Message<"host.access.v1.ListViewerGrantsRe
  * Use `create(ListViewerGrantsRequestSchema)` to create a new message.
  */
 export const ListViewerGrantsRequestSchema: GenMessage<ListViewerGrantsRequest> = /*@__PURE__*/
-  messageDesc(file_host_access_v1_access, 16);
+  messageDesc(file_host_access_v1_access, 18);
 
 /**
  * ListViewerGrantsResponse is one page.
@@ -829,7 +902,7 @@ export type ListViewerGrantsResponse = Message<"host.access.v1.ListViewerGrantsR
  * Use `create(ListViewerGrantsResponseSchema)` to create a new message.
  */
 export const ListViewerGrantsResponseSchema: GenMessage<ListViewerGrantsResponse> = /*@__PURE__*/
-  messageDesc(file_host_access_v1_access, 17);
+  messageDesc(file_host_access_v1_access, 19);
 
 /**
  * Freshness is how new a state an answer must be computed at.
@@ -951,10 +1024,22 @@ export const AccessService: GenService<{
   /**
    * Grant gives one subject actions on one reference, or refreshes the
    * actions and expiry of the grant that subject already holds on it (one
-   * grant per organization, reference and subject). The Work Context holds
-   * `share` on the target's kind and every action it grants, and its owner
-   * either owns the target as the module attests it or holds `admin` on the
-   * target or on a collection above it.
+   * grant per organization, reference and subject). A grant gives `read`,
+   * `write` or `share`, never anything else. The Work Context holds `share`
+   * on the target's kind and every action it grants, and its owner either
+   * owns the target as the module attests it or holds `admin` on the target
+   * or on a collection above it.
+   *
+   * A grantee whose share of the target gives `share` grants too: only the
+   * actions that share gives, on the reference it is on (a share of one
+   * version shares that version on, never the document), ending no later
+   * than it does; and they change only the grants they made. Nobody grants
+   * what they do not hold, and a share made on never outlives the share it
+   * was made from: once that share is revoked, expires, is narrowed below
+   * `share` or the action, or stops being its grantor's (a team left, an
+   * installation removed), every share made on from it stops deciding, and
+   * so does every share made on from those. Making the revoked share again
+   * revives none of them.
    *
    * @generated from rpc host.access.v1.AccessService.Grant
    */
@@ -964,10 +1049,12 @@ export const AccessService: GenService<{
     output: typeof GrantResponseSchema;
   },
   /**
-   * Revoke ends the grant one subject holds on one reference, for the callers
-   * Grant admits. A grant that does not exist, or has expired, answers
+   * Revoke ends the grant one subject holds on one reference. The owner and
+   * the administrators Grant admits end any grant; a grantee whose share
+   * gives `share` ends the grants they made. A grant that does not exist, has
+   * expired, no longer stands, or is not the caller's to end answers
    * NOT_FOUND "nothing was revoked", after the caller was authorized: a
-   * caller who may not revoke is answered the same whether it exists.
+   * caller who may not revoke at all is answered the same whether it exists.
    *
    * @generated from rpc host.access.v1.AccessService.Revoke
    */
@@ -977,8 +1064,8 @@ export const AccessService: GenService<{
     output: typeof RevokeResponseSchema;
   },
   /**
-   * ListGrants answers the grants on one reference, every version of it, for
-   * the callers Grant admits.
+   * ListGrants answers the grants standing on one reference, every version of
+   * it, for its owner and the administrators Grant admits; never a grantee.
    *
    * @generated from rpc host.access.v1.AccessService.ListGrants
    */
@@ -986,6 +1073,21 @@ export const AccessService: GenService<{
     methodKind: "unary";
     input: typeof ListGrantsRequestSchema;
     output: typeof ListGrantsResponseSchema;
+  },
+  /**
+   * Forget ends every grant on a reference the module removed: the grants on
+   * exactly the target, or with every_version every grant on the resource.
+   * It answers how many there were; forgetting nothing is no error, so a
+   * module sends it again until it is answered. Only the kind's one serving
+   * module asks, for itself: the Work Context names the organization and
+   * need hold nothing on the resource.
+   *
+   * @generated from rpc host.access.v1.AccessService.Forget
+   */
+  forget: {
+    methodKind: "unary";
+    input: typeof ForgetRequestSchema;
+    output: typeof ForgetResponseSchema;
   },
   /**
    * Check decides one action on one placed resource for the Work Context.
@@ -1015,7 +1117,8 @@ export const AccessService: GenService<{
   /**
    * ListViewerGrants pages the references the Work Context's owner is
    * granted the action on directly (themselves, a team of theirs, or the
-   * installation they are), ordered by kind, id and version. It answers the
+   * installation they are) by a grant that still stands, ordered by kind, id
+   * and version. It answers the
    * viewer's grants, not a decision: the module checks what it serves. A page
    * token is refused ABORTED "stale_revision" once a grant of the
    * organization changed, one of the viewer's expired, or the viewer's teams

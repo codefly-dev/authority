@@ -53,6 +53,8 @@ const (
 	// AccessServiceListGrantsProcedure is the fully-qualified name of the AccessService's ListGrants
 	// RPC.
 	AccessServiceListGrantsProcedure = "/host.access.v1.AccessService/ListGrants"
+	// AccessServiceForgetProcedure is the fully-qualified name of the AccessService's Forget RPC.
+	AccessServiceForgetProcedure = "/host.access.v1.AccessService/Forget"
 	// AccessServiceCheckProcedure is the fully-qualified name of the AccessService's Check RPC.
 	AccessServiceCheckProcedure = "/host.access.v1.AccessService/Check"
 	// AccessServiceCheckBatchProcedure is the fully-qualified name of the AccessService's CheckBatch
@@ -67,19 +69,40 @@ const (
 type AccessServiceClient interface {
 	// Grant gives one subject actions on one reference, or refreshes the
 	// actions and expiry of the grant that subject already holds on it (one
-	// grant per organization, reference and subject). The Work Context holds
-	// `share` on the target's kind and every action it grants, and its owner
-	// either owns the target as the module attests it or holds `admin` on the
-	// target or on a collection above it.
+	// grant per organization, reference and subject). A grant gives `read`,
+	// `write` or `share`, never anything else. The Work Context holds `share`
+	// on the target's kind and every action it grants, and its owner either
+	// owns the target as the module attests it or holds `admin` on the target
+	// or on a collection above it.
+	//
+	// A grantee whose share of the target gives `share` grants too: only the
+	// actions that share gives, on the reference it is on (a share of one
+	// version shares that version on, never the document), ending no later
+	// than it does; and they change only the grants they made. Nobody grants
+	// what they do not hold, and a share made on never outlives the share it
+	// was made from: once that share is revoked, expires, is narrowed below
+	// `share` or the action, or stops being its grantor's (a team left, an
+	// installation removed), every share made on from it stops deciding, and
+	// so does every share made on from those. Making the revoked share again
+	// revives none of them.
 	Grant(context.Context, *connect.Request[v1.GrantRequest]) (*connect.Response[v1.GrantResponse], error)
-	// Revoke ends the grant one subject holds on one reference, for the callers
-	// Grant admits. A grant that does not exist, or has expired, answers
+	// Revoke ends the grant one subject holds on one reference. The owner and
+	// the administrators Grant admits end any grant; a grantee whose share
+	// gives `share` ends the grants they made. A grant that does not exist, has
+	// expired, no longer stands, or is not the caller's to end answers
 	// NOT_FOUND "nothing was revoked", after the caller was authorized: a
-	// caller who may not revoke is answered the same whether it exists.
+	// caller who may not revoke at all is answered the same whether it exists.
 	Revoke(context.Context, *connect.Request[v1.RevokeRequest]) (*connect.Response[v1.RevokeResponse], error)
-	// ListGrants answers the grants on one reference, every version of it, for
-	// the callers Grant admits.
+	// ListGrants answers the grants standing on one reference, every version of
+	// it, for its owner and the administrators Grant admits; never a grantee.
 	ListGrants(context.Context, *connect.Request[v1.ListGrantsRequest]) (*connect.Response[v1.ListGrantsResponse], error)
+	// Forget ends every grant on a reference the module removed: the grants on
+	// exactly the target, or with every_version every grant on the resource.
+	// It answers how many there were; forgetting nothing is no error, so a
+	// module sends it again until it is answered. Only the kind's one serving
+	// module asks, for itself: the Work Context names the organization and
+	// need hold nothing on the resource.
+	Forget(context.Context, *connect.Request[v1.ForgetRequest]) (*connect.Response[v1.ForgetResponse], error)
 	// Check decides one action on one placed resource for the Work Context.
 	// A Work Context that does not hold the action on the resource's kind at
 	// all is refused PERMISSION_DENIED naming the kind and the action; any
@@ -91,7 +114,8 @@ type AccessServiceClient interface {
 	CheckBatch(context.Context, *connect.Request[v1.CheckBatchRequest]) (*connect.Response[v1.CheckBatchResponse], error)
 	// ListViewerGrants pages the references the Work Context's owner is
 	// granted the action on directly (themselves, a team of theirs, or the
-	// installation they are), ordered by kind, id and version. It answers the
+	// installation they are) by a grant that still stands, ordered by kind, id
+	// and version. It answers the
 	// viewer's grants, not a decision: the module checks what it serves. A page
 	// token is refused ABORTED "stale_revision" once a grant of the
 	// organization changed, one of the viewer's expired, or the viewer's teams
@@ -128,6 +152,12 @@ func NewAccessServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(accessServiceMethods.ByName("ListGrants")),
 			connect.WithClientOptions(opts...),
 		),
+		forget: connect.NewClient[v1.ForgetRequest, v1.ForgetResponse](
+			httpClient,
+			baseURL+AccessServiceForgetProcedure,
+			connect.WithSchema(accessServiceMethods.ByName("Forget")),
+			connect.WithClientOptions(opts...),
+		),
 		check: connect.NewClient[v1.CheckRequest, v1.CheckResponse](
 			httpClient,
 			baseURL+AccessServiceCheckProcedure,
@@ -154,6 +184,7 @@ type accessServiceClient struct {
 	grant            *connect.Client[v1.GrantRequest, v1.GrantResponse]
 	revoke           *connect.Client[v1.RevokeRequest, v1.RevokeResponse]
 	listGrants       *connect.Client[v1.ListGrantsRequest, v1.ListGrantsResponse]
+	forget           *connect.Client[v1.ForgetRequest, v1.ForgetResponse]
 	check            *connect.Client[v1.CheckRequest, v1.CheckResponse]
 	checkBatch       *connect.Client[v1.CheckBatchRequest, v1.CheckBatchResponse]
 	listViewerGrants *connect.Client[v1.ListViewerGrantsRequest, v1.ListViewerGrantsResponse]
@@ -172,6 +203,11 @@ func (c *accessServiceClient) Revoke(ctx context.Context, req *connect.Request[v
 // ListGrants calls host.access.v1.AccessService.ListGrants.
 func (c *accessServiceClient) ListGrants(ctx context.Context, req *connect.Request[v1.ListGrantsRequest]) (*connect.Response[v1.ListGrantsResponse], error) {
 	return c.listGrants.CallUnary(ctx, req)
+}
+
+// Forget calls host.access.v1.AccessService.Forget.
+func (c *accessServiceClient) Forget(ctx context.Context, req *connect.Request[v1.ForgetRequest]) (*connect.Response[v1.ForgetResponse], error) {
+	return c.forget.CallUnary(ctx, req)
 }
 
 // Check calls host.access.v1.AccessService.Check.
@@ -193,19 +229,40 @@ func (c *accessServiceClient) ListViewerGrants(ctx context.Context, req *connect
 type AccessServiceHandler interface {
 	// Grant gives one subject actions on one reference, or refreshes the
 	// actions and expiry of the grant that subject already holds on it (one
-	// grant per organization, reference and subject). The Work Context holds
-	// `share` on the target's kind and every action it grants, and its owner
-	// either owns the target as the module attests it or holds `admin` on the
-	// target or on a collection above it.
+	// grant per organization, reference and subject). A grant gives `read`,
+	// `write` or `share`, never anything else. The Work Context holds `share`
+	// on the target's kind and every action it grants, and its owner either
+	// owns the target as the module attests it or holds `admin` on the target
+	// or on a collection above it.
+	//
+	// A grantee whose share of the target gives `share` grants too: only the
+	// actions that share gives, on the reference it is on (a share of one
+	// version shares that version on, never the document), ending no later
+	// than it does; and they change only the grants they made. Nobody grants
+	// what they do not hold, and a share made on never outlives the share it
+	// was made from: once that share is revoked, expires, is narrowed below
+	// `share` or the action, or stops being its grantor's (a team left, an
+	// installation removed), every share made on from it stops deciding, and
+	// so does every share made on from those. Making the revoked share again
+	// revives none of them.
 	Grant(context.Context, *connect.Request[v1.GrantRequest]) (*connect.Response[v1.GrantResponse], error)
-	// Revoke ends the grant one subject holds on one reference, for the callers
-	// Grant admits. A grant that does not exist, or has expired, answers
+	// Revoke ends the grant one subject holds on one reference. The owner and
+	// the administrators Grant admits end any grant; a grantee whose share
+	// gives `share` ends the grants they made. A grant that does not exist, has
+	// expired, no longer stands, or is not the caller's to end answers
 	// NOT_FOUND "nothing was revoked", after the caller was authorized: a
-	// caller who may not revoke is answered the same whether it exists.
+	// caller who may not revoke at all is answered the same whether it exists.
 	Revoke(context.Context, *connect.Request[v1.RevokeRequest]) (*connect.Response[v1.RevokeResponse], error)
-	// ListGrants answers the grants on one reference, every version of it, for
-	// the callers Grant admits.
+	// ListGrants answers the grants standing on one reference, every version of
+	// it, for its owner and the administrators Grant admits; never a grantee.
 	ListGrants(context.Context, *connect.Request[v1.ListGrantsRequest]) (*connect.Response[v1.ListGrantsResponse], error)
+	// Forget ends every grant on a reference the module removed: the grants on
+	// exactly the target, or with every_version every grant on the resource.
+	// It answers how many there were; forgetting nothing is no error, so a
+	// module sends it again until it is answered. Only the kind's one serving
+	// module asks, for itself: the Work Context names the organization and
+	// need hold nothing on the resource.
+	Forget(context.Context, *connect.Request[v1.ForgetRequest]) (*connect.Response[v1.ForgetResponse], error)
 	// Check decides one action on one placed resource for the Work Context.
 	// A Work Context that does not hold the action on the resource's kind at
 	// all is refused PERMISSION_DENIED naming the kind and the action; any
@@ -217,7 +274,8 @@ type AccessServiceHandler interface {
 	CheckBatch(context.Context, *connect.Request[v1.CheckBatchRequest]) (*connect.Response[v1.CheckBatchResponse], error)
 	// ListViewerGrants pages the references the Work Context's owner is
 	// granted the action on directly (themselves, a team of theirs, or the
-	// installation they are), ordered by kind, id and version. It answers the
+	// installation they are) by a grant that still stands, ordered by kind, id
+	// and version. It answers the
 	// viewer's grants, not a decision: the module checks what it serves. A page
 	// token is refused ABORTED "stale_revision" once a grant of the
 	// organization changed, one of the viewer's expired, or the viewer's teams
@@ -250,6 +308,12 @@ func NewAccessServiceHandler(svc AccessServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(accessServiceMethods.ByName("ListGrants")),
 		connect.WithHandlerOptions(opts...),
 	)
+	accessServiceForgetHandler := connect.NewUnaryHandler(
+		AccessServiceForgetProcedure,
+		svc.Forget,
+		connect.WithSchema(accessServiceMethods.ByName("Forget")),
+		connect.WithHandlerOptions(opts...),
+	)
 	accessServiceCheckHandler := connect.NewUnaryHandler(
 		AccessServiceCheckProcedure,
 		svc.Check,
@@ -276,6 +340,8 @@ func NewAccessServiceHandler(svc AccessServiceHandler, opts ...connect.HandlerOp
 			accessServiceRevokeHandler.ServeHTTP(w, r)
 		case AccessServiceListGrantsProcedure:
 			accessServiceListGrantsHandler.ServeHTTP(w, r)
+		case AccessServiceForgetProcedure:
+			accessServiceForgetHandler.ServeHTTP(w, r)
 		case AccessServiceCheckProcedure:
 			accessServiceCheckHandler.ServeHTTP(w, r)
 		case AccessServiceCheckBatchProcedure:
@@ -301,6 +367,10 @@ func (UnimplementedAccessServiceHandler) Revoke(context.Context, *connect.Reques
 
 func (UnimplementedAccessServiceHandler) ListGrants(context.Context, *connect.Request[v1.ListGrantsRequest]) (*connect.Response[v1.ListGrantsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.access.v1.AccessService.ListGrants is not implemented"))
+}
+
+func (UnimplementedAccessServiceHandler) Forget(context.Context, *connect.Request[v1.ForgetRequest]) (*connect.Response[v1.ForgetResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.access.v1.AccessService.Forget is not implemented"))
 }
 
 func (UnimplementedAccessServiceHandler) Check(context.Context, *connect.Request[v1.CheckRequest]) (*connect.Response[v1.CheckResponse], error) {

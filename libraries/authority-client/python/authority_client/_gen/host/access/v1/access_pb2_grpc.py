@@ -50,6 +50,11 @@ class AccessServiceStub(object):
                 request_serializer=host_dot_access_dot_v1_dot_access__pb2.ListGrantsRequest.SerializeToString,
                 response_deserializer=host_dot_access_dot_v1_dot_access__pb2.ListGrantsResponse.FromString,
                 _registered_method=True)
+        self.Forget = channel.unary_unary(
+                '/host.access.v1.AccessService/Forget',
+                request_serializer=host_dot_access_dot_v1_dot_access__pb2.ForgetRequest.SerializeToString,
+                response_deserializer=host_dot_access_dot_v1_dot_access__pb2.ForgetResponse.FromString,
+                _registered_method=True)
         self.Check = channel.unary_unary(
                 '/host.access.v1.AccessService/Check',
                 request_serializer=host_dot_access_dot_v1_dot_access__pb2.CheckRequest.SerializeToString,
@@ -74,28 +79,54 @@ class AccessServiceServicer(object):
     def Grant(self, request, context):
         """Grant gives one subject actions on one reference, or refreshes the
         actions and expiry of the grant that subject already holds on it (one
-        grant per organization, reference and subject). The Work Context holds
-        `share` on the target's kind and every action it grants, and its owner
-        either owns the target as the module attests it or holds `admin` on the
-        target or on a collection above it.
+        grant per organization, reference and subject). A grant gives `read`,
+        `write` or `share`, never anything else. The Work Context holds `share`
+        on the target's kind and every action it grants, and its owner either
+        owns the target as the module attests it or holds `admin` on the target
+        or on a collection above it.
+
+        A grantee whose share of the target gives `share` grants too: only the
+        actions that share gives, on the reference it is on (a share of one
+        version shares that version on, never the document), ending no later
+        than it does; and they change only the grants they made. Nobody grants
+        what they do not hold, and a share made on never outlives the share it
+        was made from: once that share is revoked, expires, is narrowed below
+        `share` or the action, or stops being its grantor's (a team left, an
+        installation removed), every share made on from it stops deciding, and
+        so does every share made on from those. Making the revoked share again
+        revives none of them.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def Revoke(self, request, context):
-        """Revoke ends the grant one subject holds on one reference, for the callers
-        Grant admits. A grant that does not exist, or has expired, answers
+        """Revoke ends the grant one subject holds on one reference. The owner and
+        the administrators Grant admits end any grant; a grantee whose share
+        gives `share` ends the grants they made. A grant that does not exist, has
+        expired, no longer stands, or is not the caller's to end answers
         NOT_FOUND "nothing was revoked", after the caller was authorized: a
-        caller who may not revoke is answered the same whether it exists.
+        caller who may not revoke at all is answered the same whether it exists.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def ListGrants(self, request, context):
-        """ListGrants answers the grants on one reference, every version of it, for
-        the callers Grant admits.
+        """ListGrants answers the grants standing on one reference, every version of
+        it, for its owner and the administrators Grant admits; never a grantee.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Forget(self, request, context):
+        """Forget ends every grant on a reference the module removed: the grants on
+        exactly the target, or with every_version every grant on the resource.
+        It answers how many there were; forgetting nothing is no error, so a
+        module sends it again until it is answered. Only the kind's one serving
+        module asks, for itself: the Work Context names the organization and
+        need hold nothing on the resource.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -123,7 +154,8 @@ class AccessServiceServicer(object):
     def ListViewerGrants(self, request, context):
         """ListViewerGrants pages the references the Work Context's owner is
         granted the action on directly (themselves, a team of theirs, or the
-        installation they are), ordered by kind, id and version. It answers the
+        installation they are) by a grant that still stands, ordered by kind, id
+        and version. It answers the
         viewer's grants, not a decision: the module checks what it serves. A page
         token is refused ABORTED "stale_revision" once a grant of the
         organization changed, one of the viewer's expired, or the viewer's teams
@@ -150,6 +182,11 @@ def add_AccessServiceServicer_to_server(servicer, server):
                     servicer.ListGrants,
                     request_deserializer=host_dot_access_dot_v1_dot_access__pb2.ListGrantsRequest.FromString,
                     response_serializer=host_dot_access_dot_v1_dot_access__pb2.ListGrantsResponse.SerializeToString,
+            ),
+            'Forget': grpc.unary_unary_rpc_method_handler(
+                    servicer.Forget,
+                    request_deserializer=host_dot_access_dot_v1_dot_access__pb2.ForgetRequest.FromString,
+                    response_serializer=host_dot_access_dot_v1_dot_access__pb2.ForgetResponse.SerializeToString,
             ),
             'Check': grpc.unary_unary_rpc_method_handler(
                     servicer.Check,
@@ -249,6 +286,33 @@ class AccessService(object):
             '/host.access.v1.AccessService/ListGrants',
             host_dot_access_dot_v1_dot_access__pb2.ListGrantsRequest.SerializeToString,
             host_dot_access_dot_v1_dot_access__pb2.ListGrantsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Forget(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/host.access.v1.AccessService/Forget',
+            host_dot_access_dot_v1_dot_access__pb2.ForgetRequest.SerializeToString,
+            host_dot_access_dot_v1_dot_access__pb2.ForgetResponse.FromString,
             options,
             channel_credentials,
             insecure,

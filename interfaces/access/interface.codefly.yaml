@@ -8,4 +8,4 @@ protobuf:
     package: host.access.v1
     services:
         - name: AccessService
-          methods: [Grant, Revoke, ListGrants, Check, CheckBatch, ListViewerGrants]
+          methods: [Grant, Revoke, ListGrants, Forget, Check, CheckBatch, ListViewerGrants]

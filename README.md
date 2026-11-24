@@ -923,7 +923,7 @@ installation at its own organization; both are refused now.
 
 A sixth interface, `host.access.v1.AccessService`, published as
 `codefly.dev/access@0.1.0` (`interfaces/access`): `Grant`, `Revoke`,
-`ListGrants`, `Check`, `CheckBatch` and `ListViewerGrants`. The host writes and
+`ListGrants`, `Forget`, `Check`, `CheckBatch` and `ListViewerGrants`. The host writes and
 answers every grant; the module serving the kind asks, forwarding the caller's
 Work Context and attesting where the resource sits (its owner and the
 collections above it) from its own rows. A module stores no grant and
@@ -951,9 +951,30 @@ the document follows it.
   collection above it. A grantee whose share gives `share` shares on only
   what that share gives, on the reference it is on and for no longer than it
   lasts, and revokes the shares they made; they never list the grants. Nobody
-  grants what they do not hold, and `delete` is never granted. A share made
-  on stands until it is revoked or expires: revoking the share it rested on
-  does not end it.
+  grants what they do not hold, and `delete` is never granted.
+- **A share made on never outlives the share it was made from.** A grant a
+  grantee makes records the grants that gave them `share` there
+  (`domain.AccessGrant.Sources`), and decides only while one of them is still
+  the same grant (same key and id), still its grantor's (made to them, a team
+  they still belong to, or their installation), still covers the reference
+  where it sits now, and itself still stands for `share` and the action. So a
+  revoke, an expiry, a re-grant narrowed below `share`, a team left, an
+  uninstall, a `Forget` or a move out of the collection anywhere up the chain
+  ends every share below it, transitively, on the next decision. The rule is
+  evaluated when a decision is made (`access/lineage.go`), never by deleting:
+  the change that ends the source is the only write, so a decision asked at
+  that change's revision already sees it. Revoking a share and making it
+  again is another grant: nothing that rested on the first comes back until
+  its grantor makes it again. A grant refreshed while it stands stays the
+  same grant, so narrowing it and widening it back restores what rests on it.
+  A grant that stopped standing is not listed, is nothing to revoke, and is
+  replaced by the next grant at its key. A grantee refreshes and revokes the
+  grants they made and no other.
+- **`Forget`** ends every grant on a reference the serving module removed:
+  the grants on exactly the target, or every version's. It answers how many
+  there were and is idempotent, so a module sends it from an outbox until it
+  is answered. Only the kind's one serving module asks; the Work Context
+  names the organization and need hold nothing on the resource.
 - **Revoking nothing is not a revocation**: `Revoke` of an absent or expired
   grant is `NOT_FOUND` "nothing was revoked", after the caller was authorized.
   `InstallationService.RevokeRole` stays idempotent for its existing callers,
@@ -979,15 +1000,12 @@ the document follows it.
   epoch is new at every start, so a revision stored before a restart is
   unknown after it.
 
-`conformance.RunAccess` (`libraries/conformance/go/access.go`, cases H1 to H23,
+`conformance.RunAccess` (`libraries/conformance/go/access.go`, cases H1 to H24 and F1 to F4,
 listed in [its README](libraries/conformance/go/README.md)) is the shared
-suite both hosts run, and `conformance.RunAccessRevisions` (cases R1 to R15)
-the one a host that serves minimums also runs; the local authority runs both
+suite both hosts run, and `conformance.RunAccessRevisions`
+the one a host that serves minimums also runs (R1 to R16); the local authority runs both
 in `plugins/registry_test/access_test.go`. `storetest.RunAccess` and
 `storetest.RunAccessSequence` are the contract every `access.Store` meets.
-
-Not here yet: `Forget` (ending every grant on a deleted reference), which the
-design places with document deletion.
 
 ## The edge: the browser's origin (2026-10-23)
 

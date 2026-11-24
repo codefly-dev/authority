@@ -592,3 +592,220 @@ func TestAGranteeSharesOnOnlyWhatTheirShareGives(t *testing.T) {
 		t.Fatalf("a pinned share shares its version on: %v", err)
 	}
 }
+
+// A share made on by a grantee never outlives the power it was made from:
+// revoked, expired, narrowed or left behind anywhere up the chain, every
+// share below it stops deciding at once, and restoring the share revives
+// nothing that rested on the one revoked.
+func TestAShareMadeOnStopsDecidingWithTheShareItRestsOn(t *testing.T) {
+	w := newWorld(t)
+	da := w.doc("da", "dana")
+	target := access.Target{Kind: docKind, ResourceID: "da"}
+	grant := func(token, subject string, expires time.Time, actions ...string) error {
+		_, _, err := w.svc.Grant(w.ctx, access.GrantRequest{Token: token, Actor: serving, Target: target, Placement: da, Subject: person(subject), Actions: actions, ExpiresAt: expires})
+		return err
+	}
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	revoke := func(token, subject string) error {
+		_, _, err := w.svc.Revoke(w.ctx, access.RevokeRequest{Token: token, Actor: serving, Target: target, Placement: da, Subject: person(subject)})
+		return err
+	}
+	reads := func(who string) bool { return w.check(w.as(who, "a"), da).Allowed }
+	listed := func(who string) bool {
+		page, err := w.svc.ListViewerGrants(w.ctx, access.ViewerGrantsRequest{Token: w.as(who, "a"), Actor: serving, Kinds: []string{docKind}, Action: "read"})
+		must(err)
+		return slices.Contains(page.Resources, target)
+	}
+	acl := func() []string {
+		grants, _, err := w.svc.ListGrants(w.ctx, access.ListRequest{Token: w.as("dana", "a"), Actor: serving, Target: target, Placement: da})
+		must(err)
+		var out []string
+		for _, g := range grants {
+			out = append(out, g.Subject.ID)
+		}
+		return out
+	}
+	// Dana shares with Carol, who shares on to Bob, who shares on to Tom.
+	chain := func() {
+		t.Helper()
+		must(grant(w.as("dana", "a"), "carol", time.Time{}, "read", "share"))
+		must(grant(w.as("carol", "a"), "bob", time.Time{}, "read", "share"))
+		must(grant(w.as("bob", "a"), "tom", time.Time{}, "read"))
+		if !reads("bob") || !reads("tom") || !listed("tom") || !slices.Equal(acl(), []string{"bob", "carol", "tom"}) {
+			t.Fatalf("the chain stands: bob=%v tom=%v listed=%v acl=%v", reads("bob"), reads("tom"), listed("tom"), acl())
+		}
+	}
+	gone := func(why string) {
+		t.Helper()
+		if reads("bob") || reads("tom") || listed("bob") || listed("tom") {
+			t.Fatalf("%s: bob=%v tom=%v still hold, listed bob=%v tom=%v", why, reads("bob"), reads("tom"), listed("bob"), listed("tom"))
+		}
+		if got := acl(); slices.Contains(got, "bob") || slices.Contains(got, "tom") {
+			t.Fatalf("%s: the reference still lists %v", why, got)
+		}
+	}
+
+	chain()
+	must(revoke(w.as("dana", "a"), "carol"))
+	gone("Carol's share revoked")
+	// What stopped standing is nothing to revoke, and shares nothing on.
+	refusal(t, revoke(w.as("dana", "a"), "bob"), domain.NotFound, access.NothingRevoked)
+	refusal(t, grant(w.as("bob", "a"), "tom", time.Time{}, "read"), domain.Denied, "neither owns")
+	// Restoring Carol's share is another grant: nothing that rested on the one revoked comes back.
+	must(grant(w.as("dana", "a"), "carol", time.Time{}, "read", "share"))
+	gone("Carol's share restored")
+	if !reads("carol") {
+		t.Fatal("Carol's restored share does not read")
+	}
+	// Each link is made again by who holds it.
+	must(grant(w.as("carol", "a"), "bob", time.Time{}, "read", "share"))
+	if !reads("bob") || reads("tom") {
+		t.Fatalf("Bob shared with again: bob=%v tom=%v", reads("bob"), reads("tom"))
+	}
+	must(grant(w.as("bob", "a"), "tom", time.Time{}, "read"))
+	if !reads("tom") {
+		t.Fatal("Tom shared with again does not read")
+	}
+
+	// Narrowed: Carol's share refreshed without share keeps her reading and ends what she shared on.
+	must(grant(w.as("dana", "a"), "carol", time.Time{}, "read"))
+	if !reads("carol") {
+		t.Fatal("Carol's narrowed share does not read")
+	}
+	gone("Carol's share narrowed to read")
+	// Widened back, the same grant gives share again, and what rests on it stands again: it was never revoked.
+	must(grant(w.as("dana", "a"), "carol", time.Time{}, "read", "share"))
+	if !reads("bob") || !reads("tom") {
+		t.Fatalf("Carol's share widened back: bob=%v tom=%v", reads("bob"), reads("tom"))
+	}
+
+	// Expired: the share made on ends no later than its source, and a source re-made after it expired is another grant.
+	must(revoke(w.as("dana", "a"), "carol"))
+	until := w.now.Add(time.Hour)
+	must(grant(w.as("dana", "a"), "carol", until, "read", "share"))
+	must(grant(w.as("carol", "a"), "bob", until, "read"))
+	w.now = until.Add(time.Second)
+	if reads("carol") || reads("bob") {
+		t.Fatal("an expired share still reads")
+	}
+	must(grant(w.as("dana", "a"), "carol", time.Time{}, "read", "share"))
+	if reads("bob") {
+		t.Fatal("a share re-made after it expired revived what rested on it")
+	}
+
+	// A grantee changes only the grants they made: the owner's grant to Tom is not Carol's to narrow or take over.
+	must(grant(w.as("dana", "a"), "tom", time.Time{}, "read", "share"))
+	refusal(t, grant(w.as("carol", "a"), "tom", time.Time{}, "read"), domain.Denied, "not the caller's to change")
+}
+
+// A share made on through a team is the grantor's only while they belong to it.
+func TestAShareMadeOnThroughATeamEndsWhenItsGrantorLeavesTheTeam(t *testing.T) {
+	w := newWorld(t)
+	da := w.doc("da", "dana")
+	target := access.Target{Kind: docKind, ResourceID: "da"}
+	team := domain.AccessSubject{Kind: domain.AccessTeam, ID: "team"}
+	w.share(w.as("dana", "a"), da, team, "read", "share")
+	if _, _, err := w.svc.Grant(w.ctx, access.GrantRequest{Token: w.as("tom", "a"), Actor: serving, Target: target, Placement: da, Subject: person("bob"), Actions: []string{"read"}}); err != nil {
+		t.Fatalf("a member shares on what the team's share gives: %v", err)
+	}
+	if !w.check(w.as("bob", "a"), da).Allowed {
+		t.Fatal("Bob does not read what Tom shared on")
+	}
+	w.store.PutPerson(domain.Person{ID: "tom", Organization: acme})
+	if w.check(w.as("bob", "a"), da).Allowed {
+		t.Fatal("Bob still reads what Tom shared on from a team Tom left")
+	}
+}
+
+// A share made on from a collection's grant ends when the document leaves it.
+func TestAShareMadeOnFromACollectionEndsWhenTheDocumentMoves(t *testing.T) {
+	w := newWorld(t)
+	da := w.doc("da", "dana")
+	c1 := access.Placement{Resource: da.Ancestors[0]}
+	w.share(w.as("alex", "a"), c1, person("carol"), "read", "share")
+	w.share(w.as("carol", "a"), da, person("bob"), "read")
+	if !w.check(w.as("bob", "a"), da).Allowed {
+		t.Fatal("Bob does not read what Carol shared on from the collection")
+	}
+	moved := da
+	moved.Ancestors = []access.Node{{Kind: collectionKind, ResourceID: "c2", Owner: da.Ancestors[0].Owner}}
+	if w.check(w.as("bob", "a"), moved).Allowed {
+		t.Fatal("Bob still reads a document that left the collection Carol's share was on")
+	}
+}
+
+func TestForgetEndsEveryGrantOnAReferenceThatIsGone(t *testing.T) {
+	w := newWorld(t)
+	da, db := w.doc("da", "dana"), w.doc("db", "dana")
+	v1 := da
+	v1.Resource.Version = "v1"
+	token := w.as("dana", "a")
+	forget := func(tg access.Target, every bool) (int, error) {
+		n, rev, err := w.svc.Forget(w.ctx, access.ForgetRequest{Token: token, Actor: serving, Target: tg, EveryVersion: every})
+		if err == nil && (rev.Organization != acme || rev.Value == 0) {
+			t.Fatalf("a forget answers the revision it is part of, got %+v", rev)
+		}
+		return n, err
+	}
+	acl := func(p access.Placement) int {
+		grants, _, err := w.svc.ListGrants(w.ctx, access.ListRequest{Token: token, Actor: serving, Target: access.Target{Kind: docKind, ResourceID: p.Resource.ResourceID}, Placement: p})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(grants)
+	}
+	doc := access.Target{Kind: docKind, ResourceID: "da"}
+	w.share(token, da, person("carol"), "read", "share")
+	w.share(token, da, person("bob"), "read")
+	w.share(token, v1, person("tom"), "read")
+	w.share(token, db, person("carol"), "read")
+	// F1: one reference, exactly: the grants on the version are forgotten, the others stand.
+	if n, err := forget(access.Target{Kind: docKind, ResourceID: "da", Version: "v1"}, false); err != nil || n != 1 {
+		t.Fatalf("forgot %d, %v; want the one grant on v1", n, err)
+	}
+	if w.check(w.as("tom", "a"), v1).Allowed || !w.check(w.as("carol", "a"), da).Allowed || acl(da) != 2 {
+		t.Fatalf("after forgetting v1: acl=%d", acl(da))
+	}
+	// F2: every version of the id, an expired grant included; the sibling document keeps its own.
+	w.share(token, v1, person("tom"), "read")
+	if _, _, err := w.svc.Grant(w.ctx, access.GrantRequest{Token: token, Actor: serving, Target: doc, Placement: da, Subject: domain.AccessSubject{Kind: domain.AccessTeam, ID: "team"}, Actions: []string{"read"}, ExpiresAt: w.now.Add(time.Minute)}); err != nil {
+		t.Fatal(err)
+	}
+	w.now = w.now.Add(time.Hour)
+	token = w.as("dana", "a")
+	if n, err := forget(doc, true); err != nil || n != 4 {
+		t.Fatalf("forgot %d, %v; want every grant on the document, the expired one too", n, err)
+	}
+	if w.check(w.as("carol", "a"), da).Allowed || w.check(w.as("tom", "a"), v1).Allowed || acl(da) != 0 || !w.check(w.as("carol", "a"), db).Allowed {
+		t.Fatalf("after forgetting the document: acl=%d", acl(da))
+	}
+	// F3: twice is nothing, not an error.
+	if n, err := forget(doc, true); err != nil || n != 0 {
+		t.Fatalf("forgot %d, %v the second time", n, err)
+	}
+	// F4: only the kind's one serving module, with a capability addressed to it.
+	_, _, err := w.svc.Forget(w.ctx, access.ForgetRequest{Token: token, Actor: authority.Workload{Module: "a"}, Target: doc, EveryVersion: true})
+	refusal(t, err, domain.Denied, "does not serve")
+	_, err = forget(access.Target{Kind: docKind, ResourceID: "da", Version: "v1"}, true)
+	refusal(t, err, domain.Invalid, "naming no version")
+	_, err = forget(access.Target{Kind: docKind, ResourceID: "*"}, false)
+	refusal(t, err, domain.Invalid, "")
+	// A share made on from a forgotten grant stops deciding with it.
+	c1 := access.Placement{Resource: da.Ancestors[0]}
+	w.share(w.as("alex", "a"), c1, person("carol"), "read", "share")
+	w.share(w.as("carol", "a"), db, person("bob"), "read")
+	if !w.check(w.as("bob", "a"), db).Allowed {
+		t.Fatal("Bob does not read what Carol shared on")
+	}
+	if n, err := forget(access.Target{Kind: collectionKind, ResourceID: "c1"}, true); err != nil || n != 1 {
+		t.Fatalf("forgot %d, %v; want the collection's one grant", n, err)
+	}
+	if w.check(w.as("bob", "a"), db).Allowed {
+		t.Fatal("Bob still reads what rested on a forgotten grant")
+	}
+}

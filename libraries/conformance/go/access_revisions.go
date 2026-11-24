@@ -81,14 +81,20 @@ func RunAccessRevisions(t *testing.T, conn grpc.ClientConnInterface, descriptors
 		return revisionOf(t, out)
 	}
 
-	t.Run("R1 every change answers a revision of the organization, another than the one before it", func(t *testing.T) {
+	t.Run("R1 every change, a forget included, answers a revision of the organization, another than the one before it", func(t *testing.T) {
 		seated(t)
 		da := as.document(t, "r1-da", "", dana)
 		granted := grant(t, da, person(t, carol))
 		revoked := revoke(t, da, person(t, carol))
 		again := grant(t, da, person(t, carol))
+		out, err := as.forget(as.token(t, dana, A), targetOf(da), true)
+		if err != nil {
+			t.Fatalf("Forget: %v", err)
+		}
+		forgotten := revisionOf(t, out)
+		as.isDenied(t, check(t, as.token(t, carol, A), da, map[string]any{"min_revision": forgotten}), da)
 		seen := [][]byte{}
-		for _, r := range []map[string]any{granted, revoked, again} {
+		for _, r := range []map[string]any{granted, revoked, again, forgotten} {
 			if r["organization_id"] != f.Organization {
 				t.Fatalf("a change of %s answered a revision of %v", f.Organization, r["organization_id"])
 			}
@@ -260,6 +266,23 @@ func RunAccessRevisions(t *testing.T, conn grpc.ClientConnInterface, descriptors
 		as.isAllowed(t, check(t, as.token(t, carol, A), da, map[string]any{"min_revision": granted}))
 		as.wait(t, window+time.Second)
 		as.isDenied(t, check(t, as.token(t, carol, A), da, map[string]any{"min_revision": granted}), da)
+	})
+	t.Run("R16 a share made on is denied at the revision of the revoke of the share it rested on, while the host's reader is still behind", func(t *testing.T) {
+		seated(t)
+		as.seat(t, A, "user", f.Member)
+		bob := f.Member
+		da := as.document(t, "r16-da", "", dana)
+		if _, err := as.share(as.token(t, dana, A), da, person(t, carol), 0, "read", "share"); err != nil {
+			t.Fatalf("Grant: %v", err)
+		}
+		if _, err := as.share(as.token(t, carol, A), da, person(t, bob), 0, "read"); err != nil {
+			t.Fatalf("Grant: %v", err)
+		}
+		as.isAllowed(t, check(t, as.token(t, bob, A), da, nil), "BASIS_RESOURCE_GRANT")
+		lag(t)
+		revoked := revoke(t, da, person(t, carol))
+		as.isDenied(t, check(t, as.token(t, bob, A), da, map[string]any{"min_revision": revoked}), da)
+		as.isDenied(t, check(t, as.token(t, bob, A), da, map[string]any{"min_revision": head(t, da)}), da)
 	})
 	t.Run("R15 a grant is read back at its own revision, while the host's reader is still behind", func(t *testing.T) {
 		seated(t)

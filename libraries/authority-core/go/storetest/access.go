@@ -66,6 +66,11 @@ func RunAccess(t *testing.T, open OpenAccess) {
 	t.Run("a grant reads back as written; a missing one is ErrNotFound", func(t *testing.T) {
 		g := grant(org, kind, "read-back", "v1", person, "read", "write")
 		g.ExpiresAt = now.Add(time.Hour)
+		// The grants it rests on are kept as written, in order.
+		g.Sources = []domain.AccessSource{
+			{Key: domain.AccessKey{Organization: org, Kind: kind, ResourceID: "read-back", Subject: team}, ID: uuid.NewString()},
+			{Key: domain.AccessKey{Organization: org, Kind: collection, ResourceID: "above", Version: "v2", Subject: installation}, ID: uuid.NewString()},
+		}
 		read(t, func(tx access.Tx) error {
 			if _, err := tx.AccessGrant(g.AccessKey); !errors.Is(err, domain.ErrNotFound) {
 				t.Errorf("a missing grant answers %v, want ErrNotFound", err)
@@ -78,8 +83,15 @@ func RunAccess(t *testing.T, open OpenAccess) {
 			if err != nil {
 				return err
 			}
-			if got.ID != g.ID || got.AccessKey != g.AccessKey || !slices.Equal(got.Actions, g.Actions) || !got.ExpiresAt.Equal(g.ExpiresAt) || got.GrantedBy != g.GrantedBy || !got.CreatedAt.Equal(g.CreatedAt) {
+			if got.ID != g.ID || got.AccessKey != g.AccessKey || !slices.Equal(got.Actions, g.Actions) || !got.ExpiresAt.Equal(g.ExpiresAt) || got.GrantedBy != g.GrantedBy || !got.CreatedAt.Equal(g.CreatedAt) || !slices.Equal(got.Sources, g.Sources) {
 				t.Errorf("read back %+v, want %+v", got, g)
+			}
+			listed, err := tx.AccessGrantsOn(org, []access.Ref{{Kind: kind, ResourceID: "read-back"}}, time.Time{})
+			if err != nil {
+				return err
+			}
+			if len(listed) != 1 || !slices.Equal(listed[0].Sources, g.Sources) {
+				t.Errorf("listed %+v, want the grant with the grants it rests on", listed)
 			}
 			// The version is part of the key: the unpinned grant is another.
 			unpinned := g.AccessKey
@@ -93,7 +105,8 @@ func RunAccess(t *testing.T, open OpenAccess) {
 	t.Run("a put at the same natural key replaces the grant; one grant stands", func(t *testing.T) {
 		first := grant(org, kind, "replaced", "", person, "read")
 		second := first
-		second.Actions, second.ExpiresAt, second.GrantedBy = []string{"read", "share"}, now.Add(time.Hour), "another"
+		first.Sources = []domain.AccessSource{{Key: first.AccessKey, ID: "rested-on"}}
+		second.Actions, second.ExpiresAt, second.GrantedBy, second.Sources = []string{"read", "share"}, now.Add(time.Hour), "another", nil
 		write(t, func(tx access.Tx) error { return tx.PutAccessGrant(first) })
 		write(t, func(tx access.Tx) error { return tx.PutAccessGrant(second) })
 		read(t, func(tx access.Tx) error {
@@ -101,7 +114,7 @@ func RunAccess(t *testing.T, open OpenAccess) {
 			if err != nil {
 				return err
 			}
-			if len(listed) != 1 || !slices.Equal(listed[0].Actions, second.Actions) || listed[0].GrantedBy != "another" || !listed[0].ExpiresAt.Equal(second.ExpiresAt) {
+			if len(listed) != 1 || !slices.Equal(listed[0].Actions, second.Actions) || listed[0].GrantedBy != "another" || !listed[0].ExpiresAt.Equal(second.ExpiresAt) || len(listed[0].Sources) != 0 {
 				t.Errorf("after a replace the reference holds %+v", listed)
 			}
 			return nil

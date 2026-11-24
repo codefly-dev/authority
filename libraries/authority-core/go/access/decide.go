@@ -68,6 +68,10 @@ type Question struct {
 	// ancestors; an expired one is ignored.
 	Grants []domain.AccessGrant
 	Now    time.Time
+	// Standing, when set, is whether a grant still stands for an action: a
+	// share made on by a grantee does only while the share it rests on does
+	// (lineage.go). nil: every live grant stands.
+	Standing func(g domain.AccessGrant, action string) bool
 	// Expires is when the capability ends.
 	Expires time.Time
 }
@@ -146,6 +150,9 @@ func holds(p Party, q Question) ([]Basis, time.Time) {
 	}
 	for _, g := range q.Grants {
 		if !g.Live(q.Now) || !g.Gives(q.Action) || !slices.Contains(p.Subjects, g.Subject) {
+			continue
+		}
+		if q.Standing != nil && !q.Standing(g, q.Action) {
 			continue
 		}
 		basis, ok := covers(g, q.Placement)

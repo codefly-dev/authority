@@ -68,6 +68,19 @@ func (i *Issuer) AccessListGrants(ctx context.Context, req *accessv1.ListGrantsR
 	return out, nil
 }
 
+// AccessForget ends every grant on a reference that is gone.
+func (i *Issuer) AccessForget(ctx context.Context, req *accessv1.ForgetRequest) (*accessv1.ForgetResponse, error) {
+	w, err := i.accessActor(ctx, req.GetActor())
+	if err != nil {
+		return nil, err
+	}
+	forgotten, revision, err := i.state.Access().Forget(ctx, access.ForgetRequest{Token: req.GetToken(), Actor: w, Target: target(req.GetTarget()), EveryVersion: req.GetEveryVersion()})
+	if err != nil {
+		return nil, err
+	}
+	return &accessv1.ForgetResponse{Forgotten: int32(forgotten), Revision: wireRevision(revision)}, nil
+}
+
 // AccessCheck decides one action on one placed resource.
 func (i *Issuer) AccessCheck(ctx context.Context, req *accessv1.CheckRequest) (*accessv1.CheckResponse, error) {
 	out, err := i.accessCheck(ctx, req.GetToken(), req.GetActor(), req.GetAction(), []*accessv1.Placement{req.GetPlacement()}, req.GetMinRevision(), nil, req.GetFreshness())
