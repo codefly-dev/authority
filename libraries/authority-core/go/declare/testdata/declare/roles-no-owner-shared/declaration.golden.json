@@ -36,6 +36,20 @@
     ],
     "roles": [
       {
+        "audiences": [
+          {
+            "audience": "store",
+            "scopes": [
+              {
+                "resource_kind": "store.item",
+                "actions": [
+                  "read",
+                  "write"
+                ]
+              }
+            ]
+          }
+        ],
         "name": "admin",
         "scopes": [
           {
@@ -44,27 +58,27 @@
               "read",
               "write"
             ]
-          },
-          {
-            "resource_kind": "store.item",
-            "actions": [
-              "read",
-              "write"
-            ]
           }
         ]
       },
       {
+        "audiences": [
+          {
+            "audience": "store",
+            "scopes": [
+              {
+                "resource_kind": "store.item",
+                "actions": [
+                  "read"
+                ]
+              }
+            ]
+          }
+        ],
         "name": "user",
         "scopes": [
           {
             "resource_kind": "board.card",
-            "actions": [
-              "read"
-            ]
-          },
-          {
-            "resource_kind": "store.item",
             "actions": [
               "read"
             ]

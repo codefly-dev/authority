@@ -1,11 +1,30 @@
 # authority
 
-A role can grant a binding operation. The renderer signs the operation’s resolved
-permissions with their target audience. Local authority and SaaS Accounts select
-those grants by callee principal before applying the installation owner and binding
-ceilings. An RPC at a sibling module that uses the same kind and action receives
-no grant from that declaration. Moving a grant to a different audience narrows
-the old grant and participates in the installation’s consent review.
+A role grants on another module's kind in three spellings: a binding operation
+(`bindings`), a scope it spells out, or a bundle it includes. The renderer signs
+each one with the audience core resolved it at (`ResolvedRole.Grants`: the
+audience of the one binding that carries it), in the role's `audiences`, one
+entry per audience. The role's `scopes` keep the unit's own kinds; a scope
+named `through` a binding stays in `through`, and the host addresses it
+downstream. Local authority and SaaS Accounts select those grants by callee
+principal before applying the installation owner and binding ceilings. An RPC
+at a sibling module that uses the same kind and action receives no grant from
+that declaration, and a capability addressed to the unit itself carries none of
+a callee's kinds. Moving a grant to a different audience narrows the old grant
+and participates in the installation’s consent review; an installation
+consented on a render that carried the grant in the role's scopes re-converges
+on the addressed one without a click, and what was issued under the old one
+ends.
+
+Three things stay as declared. A scope no audience underwrites (a kind nothing
+delivered carries, or one only an optional binding the composition leaves out
+carries) stays in the role's `scopes`, and the host refuses the delivery as it
+always has. A scope whose kind a binding carries only as bare actions on a
+`resource_kind` slot is underwritten nowhere either, and stays held at every
+audience: the role names that binding in `bindings` to have it addressed. And
+`installation_owned_scopes` carry no audience: the host holds them as
+`OwnedRoles`, at every audience, cut to the resources attached to the
+installation.
 
 
 **What we are doing.** Making the interface the mapping between local development

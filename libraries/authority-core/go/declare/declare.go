@@ -10,6 +10,7 @@ package declare
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -42,15 +43,18 @@ type AuthorityDocument struct {
 	EdgeDependencies []modulecontract.EdgeDependency `json:"edge_dependencies,omitempty"`
 }
 
-// RoleAudience grants scopes at one resolved module principal.
+// RoleAudience grants scopes at one resolved module principal, and nowhere
+// else: each kind once, sorted, with its actions sorted.
 type RoleAudience struct {
 	Audience string          `json:"audience"`
 	Scopes   []DeclaredScope `json:"scopes"`
 }
 
 // DeclaredRole is one role as the authority's document carries it: the scopes
-// it grants, those it grants on what the installation owns, and those it names
-// through each of the module's bindings, per binding in the order first named.
+// it holds at the module itself, those it is granted at each other module it
+// reaches (Audiences: one entry per audience, sorted), those it grants on what
+// the installation owns, and those it names through each of the module's
+// bindings, per binding in the order first named.
 type DeclaredRole struct {
 	Audiences               []RoleAudience  `json:"audiences,omitempty"`
 	Name                    string          `json:"name"`
@@ -80,7 +84,9 @@ type DeclaredScope struct {
 // declaration verbatim but for an edge's class-resolved presence, the scopes
 // that govern its sources, its queues and namespaces, and its own kinds.
 //
-// The document carries each role in declaration order: a scope naming a
+// The document carries each role in declaration order: a scope on another
+// module's kind is carried in the role's audiences, under the one audience
+// core addressed it to (declaredRoles); a scope naming a
 // binding through is carried in the role's through, per binding in the order
 // first named, only when the composition delivers that binding (an optional
 // binding it fills none of the slots of is left out, and the role reaches
@@ -131,6 +137,22 @@ func From(contract *modulecontract.Contract, resolved *modulecontract.Resolved) 
 
 // declaredRoles are contract's roles as the document carries them, each held
 // to the one resolved addresses at the same position.
+//
+// Every grant on another module's kind is addressed to the audience core
+// resolved it at (ResolvedRole.Grants), however the contract spells it: a
+// binding operation the role names in bindings, a scope it spells out, or one
+// a bundle it includes grants. Each lands in the role's Audiences under that
+// audience, one entry per audience, sorted, each kind once with its actions
+// sorted; the host then honours it at that callee alone, never at a sibling
+// serving the same kind. A role's Scopes keep what is held at the unit itself
+// (its own kinds, and a kind a binding addressed to itself carries), and what
+// core addresses nowhere, exactly as declared: a scope no audience underwrites
+// (a kind nothing delivered carries, or one only an optional binding the
+// composition leaves out carries) is the host's to refuse, never dropped
+// here. A scope naming a binding through stays in Through: the host, which
+// knows the composition, addresses it downstream itself. What a role grants
+// on what the installation owns stays as declared: the host holds an
+// installation-owned grant with no audience (domain.Module.OwnedRoles).
 func declaredRoles(contract *modulecontract.Contract, resolved *modulecontract.Resolved) ([]DeclaredRole, error) {
 	if len(contract.Roles) == 0 {
 		return nil, nil
@@ -144,22 +166,28 @@ func declaredRoles(contract *modulecontract.Contract, resolved *modulecontract.R
 			return nil, fmt.Errorf("the module contract of %s resolves role %q where it declares %q", contract.Principal, resolved.Roles[index].Name, role.Name)
 		}
 		delivered := resolved.Roles[index].Through
+		grants := resolved.Roles[index].Grants
 		declared := DeclaredRole{Name: role.Name, InstallationOwnedScopes: declaredScopes(role.InstallationOwnedScopes)}
+		// addressed are, per audience other than the unit, the kinds and
+		// actions the role is granted there.
+		addressed := map[string]map[string][]string{}
+		address := func(audience, kind, action string) {
+			if addressed[audience] == nil {
+				addressed[audience] = map[string][]string{}
+			}
+			addressed[audience][kind] = append(addressed[audience][kind], action)
+		}
 		for _, grant := range role.Bindings {
 			for _, binding := range resolved.Bindings {
 				if binding.ID != grant.Binding && binding.ID != modulecontract.AudienceBindingID(grant.Binding, binding.Audience) {
 					continue
 				}
-				var scopes []DeclaredScope
 				for _, permission := range binding.Scopes[grant.Operation] {
 					kind, action, ok := strings.Cut(permission, ":")
 					if !ok || kind == "" || action == "" {
 						return nil, fmt.Errorf("invalid resolved permission %q", permission)
 					}
-					scopes = append(scopes, DeclaredScope{ResourceKind: kind, Actions: []string{action}})
-				}
-				if len(scopes) > 0 {
-					declared.Audiences = append(declared.Audiences, RoleAudience{Audience: binding.Audience, Scopes: scopes})
+					address(binding.Audience, kind, action)
 				}
 			}
 		}
@@ -169,7 +197,30 @@ func declaredRoles(contract *modulecontract.Contract, resolved *modulecontract.R
 		// contract's, which names an include by name only.
 		for _, scope := range resolved.Roles[index].Scopes {
 			if scope.Through == "" {
-				own = append(own, scope)
+				// Action by action: core addresses each to the one audience
+				// underwriting it, so one scope may be held at the unit for
+				// one action and at a callee for another.
+				var kept []string
+				for _, action := range scope.Actions {
+					permission := scope.ResourceKind + ":" + action
+					if slices.Contains(grants[contract.Principal], permission) {
+						kept = append(kept, action)
+						continue
+					}
+					elsewhere := false
+					for _, audience := range slices.Sorted(maps.Keys(grants)) {
+						if audience != contract.Principal && slices.Contains(grants[audience], permission) {
+							address(audience, scope.ResourceKind, action)
+							elsewhere = true
+						}
+					}
+					if !elsewhere {
+						kept = append(kept, action)
+					}
+				}
+				if len(kept) > 0 || len(scope.Actions) == 0 {
+					own = append(own, modulecontract.CeilingScope{ResourceKind: scope.ResourceKind, Actions: kept})
+				}
 				continue
 			}
 			if _, held := delivered[scope.Through]; !held {
@@ -183,6 +234,15 @@ func declaredRoles(contract *modulecontract.Contract, resolved *modulecontract.R
 			declared.Through[i].Scopes = append(declared.Through[i].Scopes, declaredScopes([]modulecontract.CeilingScope{scope})...)
 		}
 		declared.Scopes = declaredScopes(own)
+		for _, audience := range slices.Sorted(maps.Keys(addressed)) {
+			entry := RoleAudience{Audience: audience}
+			for _, kind := range slices.Sorted(maps.Keys(addressed[audience])) {
+				actions := addressed[audience][kind]
+				slices.Sort(actions)
+				entry.Scopes = append(entry.Scopes, DeclaredScope{ResourceKind: kind, Actions: slices.Compact(actions)})
+			}
+			declared.Audiences = append(declared.Audiences, entry)
+		}
 		out = append(out, declared)
 	}
 	return out, nil

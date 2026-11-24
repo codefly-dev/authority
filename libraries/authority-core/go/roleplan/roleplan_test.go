@@ -9,6 +9,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/roleplan"
+	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
 // A solution with its own kind, one binding to a store, and the two roles:
@@ -385,5 +386,36 @@ func TestAnAudienceGrantNoAllowedRowAsksForFails(t *testing.T) {
 	}
 	if slices.ContainsFunc(got, func(p string) bool { return strings.Contains(p, "unused store.item:read") }) {
 		t.Fatalf("the read the user's allowed rows ask for through the store is reported unused: %q", got)
+	}
+}
+
+// A scope a role spells out on another module's kind is addressed to the
+// audience of the binding that carries it, exactly as a bindings: grant is:
+// the plan composes it as an audience grant, an allowed row asking for it
+// through that binding uses it, and one no allowed row asks for is unused
+// authority, named with the audience it is held at.
+func TestAScopeSpelledOutOnAnotherModulesKindIsHeldAtItsAudience(t *testing.T) {
+	m, err := roleplan.Module(product(t, contract))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for role, want := range map[string][]string{domain.AdminRole: {"read", "write"}, domain.UserRole: {"read"}} {
+		if slices.ContainsFunc(m.Roles[role], func(sc *basev0.WorkScopeV1) bool { return sc.GetResourceKind() == "store.item" }) {
+			t.Fatalf("%s holds the store's kind at every audience: %v", role, m.Roles[role])
+		}
+		at := m.AudienceRoles[role]["store"]
+		if len(at) != 1 || at[0].GetResourceKind() != "store.item" || !slices.Equal(at[0].GetActions(), want) {
+			t.Fatalf("%s at the store: %v, want store.item %v", role, at, want)
+		}
+	}
+	widened := strings.Replace(contract, `          - resource_kind: store.item
+            actions: [read]`, `          - resource_kind: store.item
+            actions: [read, write]`, 1)
+	if widened == contract {
+		t.Fatal("the contract no longer declares the user's store scope as this test replaces it")
+	}
+	got := roleplan.Problems(roleplan.Plan{Product: product(t, widened), Rows: rows()})
+	if !slices.Contains(got, "role user grants unused store.item:write at store") {
+		t.Fatalf("want the unused scope named with its audience, got %q", got)
 	}
 }

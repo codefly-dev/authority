@@ -50,6 +50,11 @@ func (c composed) infos() []*basev0.ConfigurationInformation {
 // The goldens are FROZEN: the code that wrote them is deleted, so they cannot
 // be regenerated. A change to one is a change to what every module delivers
 // its host, reviewed as a contract change, never refreshed to make this pass.
+//
+// One reviewed change since: a role's scope on a kind another module serves
+// (solution and roles-no-owner-shared, store.item) is carried in the role's
+// audiences, under the audience core resolves it at, where the CLI carried it
+// in the role's scopes, held at every audience serving the kind.
 func TestDeclareRendersWhatTheCLIRendered(t *testing.T) {
 	cases, err := os.ReadDir(filepath.Join("testdata", "declare"))
 	require.NoError(t, err)
@@ -176,7 +181,10 @@ destinations: []
 	declaration, _, err := declare.Module(t.TempDir(), "ledger", unit, resolve)
 	require.NoError(t, err)
 	admin := declaration.Document.Roles[0]
-	require.Equal(t, []declare.DeclaredScope{{ResourceKind: "ledger.page", Actions: []string{"read"}}, {ResourceKind: "store.item", Actions: []string{"read"}}}, admin.Scopes)
+	// The bundle's direct scope is on the store's kind: held at the store,
+	// the audience of the binding that carries it, and nowhere else.
+	require.Equal(t, []declare.DeclaredScope{{ResourceKind: "ledger.page", Actions: []string{"read"}}}, admin.Scopes)
+	require.Equal(t, []declare.RoleAudience{{Audience: "store", Scopes: []declare.DeclaredScope{{ResourceKind: "store.item", Actions: []string{"read"}}}}}, admin.Audiences)
 	require.Equal(t, []declare.RoleThrough{{Binding: "store", Scopes: []declare.DeclaredScope{{ResourceKind: "notes", Actions: []string{"read"}}}}}, admin.Through)
 }
 
@@ -194,5 +202,5 @@ func TestRenderPreservesAnAudienceAddressedGrant(t *testing.T) {
 	require.NoError(t, err)
 	role := declaration.Document.Roles[1]
 	require.Empty(t, role.Scopes)
-	require.Equal(t, []declare.RoleAudience{{Audience: "records", Scopes: []declare.DeclaredScope{{ResourceKind: "store.item", Actions: []string{"read"}}, {ResourceKind: "store.item", Actions: []string{"write"}}}}}, role.Audiences)
+	require.Equal(t, []declare.RoleAudience{{Audience: "records", Scopes: []declare.DeclaredScope{{ResourceKind: "store.item", Actions: []string{"read", "write"}}}}}, role.Audiences)
 }

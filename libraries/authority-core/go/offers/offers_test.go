@@ -73,3 +73,38 @@ func TestProjectionShowsTheGoverningScopes(t *testing.T) {
 		t.Fatalf("a solution declaring none projects %+v", none.SourceGovernance)
 	}
 }
+
+// A grant addressed to one audience (every grant on another module's kind,
+// as a contract is rendered) is not one of the role's scopes, which are those
+// held at every audience: the projection shows it where it is held, as the
+// role's reach row at that module (its path, scopes and operations) and as
+// the operations of that module it covers, and at no sibling serving the
+// same kind.
+func TestProjectionShowsAnAddressedGrantAtItsAudienceAlone(t *testing.T) {
+	read := &basev0.WorkScopeV1{ResourceKind: "records.item", Actions: []string{"read"}}
+	own := &basev0.WorkScopeV1{ResourceKind: "solution.page", Actions: []string{"read"}}
+	policy := map[string]domain.MethodPolicy{"/records.Items/Read": {Requires: []*basev0.WorkScopeV1{read}}}
+	offer := authority.ReviewedOffer{
+		Module: domain.Module{Name: "solution", Principal: "solution",
+			Roles:         map[string][]*basev0.WorkScopeV1{"user": {own}},
+			AudienceRoles: map[string]map[string][]*basev0.WorkScopeV1{"user": {"records": {read}}}},
+		Modules: []domain.Module{{Name: "records", Principal: "records", Methods: policy}, {Name: "vault", Principal: "vault", Methods: policy}},
+		Reach: map[string][]domain.ReachRow{"user": {{Path: []string{"solution", "records"}, Module: "records", Via: "binding",
+			Scopes: []*basev0.WorkScopeV1{read}, Operations: []string{"/records.Items/Read"}}}},
+	}
+	got, err := offers.Project(offer, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	role := got.Roles[0]
+	if len(role.Scopes) != 1 || role.Scopes[0].ResourceKind != "solution.page" {
+		t.Fatalf("the role's scopes are not those held at every audience: %+v", role.Scopes)
+	}
+	if len(role.Reach) != 1 || role.Reach[0].Module != "records" || role.Reach[0].Via != "binding" || len(role.Reach[0].Scopes) != 1 ||
+		role.Reach[0].Scopes[0].ResourceKind != "records.item" || role.Reach[0].Operations[0] != "/records.Items/Read" {
+		t.Fatalf("the addressed grant is not shown as the role's reach at records: %+v", role.Reach)
+	}
+	if len(role.Capabilities) != 1 || role.Capabilities[0].Module != "records" || role.Capabilities[0].Operation != "/records.Items/Read" {
+		t.Fatalf("the addressed grant covers %+v, want the read at records alone", role.Capabilities)
+	}
+}
