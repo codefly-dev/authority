@@ -3,8 +3,8 @@ module github.com/codefly-dev/authority/libraries/conformance/hop/go
 go 1.27.4
 
 require (
-	github.com/codefly-dev/authority/libraries/authority-client/go v0.2.1-0.20261125152834-271cb628327e
-	github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261125152834-271cb628327e
+	github.com/codefly-dev/authority/libraries/authority-client/go v0.2.1-0.20261125191737-c3320c9a14d8
+	github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261125191737-c3320c9a14d8
 	github.com/codefly-dev/core v0.19.38-0.20261125185931-18555ee1d782
 	google.golang.org/grpc v1.85.0
 	google.golang.org/protobuf v1.36.12
