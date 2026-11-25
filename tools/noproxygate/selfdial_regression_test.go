@@ -325,6 +325,11 @@ var _ = new(Hidden[int])
 `, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			// One load per case, each of its own sources and its own state: the
+			// cases run beside one another. Under the race detector a load
+			// costs about 3 s against 0.5 s without, and this table's were
+			// run one after the other.
+			t.Parallel()
 			root := t.TempDir()
 			moduleDir := filepath.Join(root, "svc")
 			dials := strings.Replace(fixtureDials, `gen "svc/pkg/gen"`, `gen "svc/pkg/gen"
@@ -422,6 +427,11 @@ func TestIndirectAdapterDials(t *testing.T) {
 		"DialContext alias":        `dial := grpc.DialContext; _, _ = dial(ctx, "", gatewayDialOptions()...)`,
 	} {
 		t.Run(name, func(t *testing.T) {
+			// One load per case, each of its own sources and its own state: the
+			// cases run beside one another. Under the race detector a load
+			// costs about 3 s against 0.5 s without, and this table's were
+			// run one after the other.
+			t.Parallel()
 			source := `package adapters;` + fixtureMarker + `import ("context"; "google.golang.org/grpc"; "google.golang.org/grpc/credentials/insecure"; gen "svc/pkg/gen"); func rest(ctx context.Context) {` + code + `}; var _ = insecure.NewCredentials; var _ []grpc.DialOption; var _ = gen.Unused`
 			got := judge(t, map[string]string{"grpc_gen.go": fixtureSeam, "rest_gen.go": source})
 			if !strings.Contains(strings.Join(got, "\n"), "indirect dial function references can bypass loopback credentials") {

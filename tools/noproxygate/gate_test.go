@@ -22,6 +22,9 @@ func TestTheRepositoryHoldsTheNoProxyRule(t *testing.T) {
 	for _, module := range modules {
 		relative, _ := filepath.Rel(root, module)
 		t.Run(filepath.ToSlash(relative), func(t *testing.T) {
+			// One load per module, each of its own files and its own state:
+			// the modules are judged beside one another.
+			t.Parallel()
 			violations, err := Check(root, module, nil, "./...")
 			if err != nil {
 				t.Fatal(err)

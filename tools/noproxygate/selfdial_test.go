@@ -149,6 +149,11 @@ func other(raw []grpc.DialOption) {
 			map[string]string{"rest_gen.go": fixtureDials}, "undefined: gatewayDialOptions"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
+			// One load per case, each of its own sources and its own state: the
+			// cases run beside one another. Under the race detector a load
+			// costs about 3 s against 0.5 s without, and this table's were
+			// run one after the other.
+			t.Parallel()
 			violations := judge(t, c.sources)
 			if c.refusal == "" {
 				if len(violations) != 0 {
