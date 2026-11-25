@@ -31,7 +31,13 @@ func TestWhoReadsTheNotes(t *testing.T) {
 - **A composition is one anchor service**: a service that never runs, whose
   `service-dependencies` are what the run starts; the test process stands
   where it would. It depends on `authority/edge` (http) and `authority/local`
-  (grpc), and on whatever the scenarios call. `Main` starts it once per test
+  (grpc), and on whatever the scenarios call. A composition whose host is
+  another service names it: `Options.Host` (for SaaS Accounts,
+  `{saas, accounts, connect}`, dialled with gRPC, which its Connect endpoint
+  answers) and `Options.Edge`; the anchor then depends on those. The host
+  must serve the fixture sign-in. `Composition.Address(module, service,
+  endpoint)` is the address the run delivered for any endpoint the anchor
+  depends on. `Main` starts it once per test
   package and tears it down; `Options` says what the run leaves out, the
   workspace values of this run alone, what Codefly generates per naming scope
   before the start, and the solutions the organisation's administrator

@@ -21,9 +21,10 @@
 //			Want: scenario.Want{"dana": scenario.Allow, "bob": scenario.Deny("holds no role on wiki")}})
 //	}
 //
-// What it cannot see: a host other than the local authority (the fixture's
-// people and the sign-in by fixture token are its own), and anything outside
-// the composition, which a scenario stubs where the module that calls it lets
+// The host is the local authority unless Options.Host names another service
+// that serves the same interfaces and the fixture sign-in (SaaS Accounts in a
+// local run). What it cannot see: a host with no fixture people (the
+// scenarios sign in by fixture token), and anything outside the composition, which a scenario stubs where the module that calls it lets
 // a composition configure a stand-in.
 package scenario
 
@@ -107,19 +108,54 @@ type Options struct {
 	// on the local authority's fixture); another organisation's administrator
 	// (Outsider) is never chosen for it.
 	Administrator string
+	// Host is the endpoint that serves the host interfaces (session,
+	// installation, authority) for this composition, dialled with gRPC: the
+	// local authority's (authority/local/grpc) when empty. A composition
+	// whose host is another service names it here, as SaaS Accounts'
+	// saas/accounts/connect, whose Connect endpoint answers gRPC too. The
+	// host must serve the fixture sign-in (ListFixturePeople, SignIn by
+	// fixture token): the scenarios act as fixture people.
+	Host Endpoint
+	// Edge is the http endpoint a page's calls go through: the authority's
+	// edge (authority/edge/http) when empty.
+	Edge Endpoint
 }
+
+// Endpoint names one endpoint of a composed service, as the anchor depends
+// on it.
+type Endpoint struct{ Module, Service, Endpoint string }
+
+// or is e, or fallback when e names nothing.
+func (e Endpoint) or(fallback Endpoint) Endpoint {
+	if e == (Endpoint{}) {
+		return fallback
+	}
+	return e
+}
+
+func (e Endpoint) String() string { return e.Module + "/" + e.Service + "/" + e.Endpoint }
+
+// LocalHost and LocalEdge are the host and the edge of a composition on the
+// local authority, what Options.Host and Options.Edge are when empty.
+var (
+	LocalHost = Endpoint{Module: "authority", Service: "local", Endpoint: "grpc"}
+	LocalEdge = Endpoint{Module: "authority", Service: "edge", Endpoint: "http"}
+)
 
 // Value is one workspace configuration value: group Name, Key, Value.
 type Value struct{ Name, Key, Value string }
 
 // Composition is a started composition and the fixture people signed in to it.
 type Composition struct {
-	deps    *sdk.Dependencies
-	anchor  string
-	conn    *grpc.ClientConn
-	origin  string
-	client  *http.Client
-	started time.Duration
+	deps *sdk.Dependencies
+	// delivered is what the run delivered to the anchor, by variable name:
+	// the dependency session's environment.
+	delivered func() map[string]string
+	anchor    string
+	conn      *grpc.ClientConn
+	origin    string
+	client    *http.Client
+	started   time.Duration
 
 	mu     sync.Mutex
 	people map[string]*sessionv1.FixturePerson
@@ -184,7 +220,7 @@ func Start(ctx context.Context, options Options) (*Composition, error) {
 	if err != nil {
 		return nil, err
 	}
-	c := &Composition{deps: deps, anchor: anchor, client: &http.Client{Timeout: 2 * time.Minute, Transport: host.HTTPTransport()}, signed: map[string]*Person{}, started: time.Since(began)}
+	c := &Composition{deps: deps, delivered: deps.EnvironmentVariables, anchor: anchor, client: &http.Client{Timeout: 2 * time.Minute, Transport: host.HTTPTransport()}, signed: map[string]*Person{}, started: time.Since(began)}
 	if err := c.connect(ctx, options); err != nil {
 		c.Close()
 		return nil, err
@@ -225,11 +261,15 @@ func (c *Composition) Started() time.Duration { return c.started }
 // anchor, reads the fixture's people from the host and installs what the
 // options name.
 func (c *Composition) connect(ctx context.Context, options Options) error {
-	edge, err := c.address("authority", "edge", "http")
+	at, serving := options.Edge.or(LocalEdge), options.Host.or(LocalHost)
+	if at.Module == "" || at.Service == "" || at.Endpoint == "" || serving.Module == "" || serving.Service == "" || serving.Endpoint == "" {
+		return fmt.Errorf("the edge (%s) and the host (%s) each name a module, a service and an endpoint", at, serving)
+	}
+	edge, err := c.Address(at.Module, at.Service, at.Endpoint)
 	if err != nil {
 		return err
 	}
-	address, err := c.address("authority", "local", "grpc")
+	address, err := c.Address(serving.Module, serving.Service, serving.Endpoint)
 	if err != nil {
 		return err
 	}
@@ -239,7 +279,7 @@ func (c *Composition) connect(ctx context.Context, options Options) error {
 	}
 	listed, err := sessionv1.NewSessionServiceClient(c.conn).ListFixturePeople(ctx, &sessionv1.ListFixturePeopleRequest{})
 	if err != nil {
-		return fmt.Errorf("the host lists no fixture people: %w", err)
+		return fmt.Errorf("the host (%s) lists no fixture people: %w", serving, err)
 	}
 	c.people = map[string]*sessionv1.FixturePerson{}
 	for _, p := range listed.GetPeople() {
@@ -393,11 +433,14 @@ func (c *Composition) seatOnly(ctx context.Context, s *seating) ([]string, error
 	return withdrawn, nil
 }
 
-// address is the address the run delivered to the anchor for a dependency's
-// endpoint; the anchor declares the dependency, so the run resolves it.
-func (c *Composition) address(module, service, endpoint string) (string, error) {
+// Address is the address the run delivered to the anchor for one endpoint
+// of a composed service, host and port: where a scenario sends what the
+// harness has no verb for (a held Work Context replayed at a hop, a module's
+// own endpoint). The anchor must depend on the service; nothing else is
+// resolved, and no address is ever guessed.
+func (c *Composition) Address(module, service, endpoint string) (string, error) {
 	prefix := "CODEFLY__ENDPOINT__" + key(module) + "__" + key(service) + "__" + key(endpoint) + "__"
-	for name, value := range c.deps.EnvironmentVariables() {
+	for name, value := range c.delivered() {
 		if strings.HasPrefix(name, prefix) && value != "" {
 			return strings.TrimPrefix(strings.TrimPrefix(value, "http://"), "https://"), nil
 		}
