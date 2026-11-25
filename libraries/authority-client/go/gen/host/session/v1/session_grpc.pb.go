@@ -25,13 +25,15 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	SessionService_SignIn_FullMethodName            = "/host.session.v1.SessionService/SignIn"
-	SessionService_Current_FullMethodName           = "/host.session.v1.SessionService/Current"
-	SessionService_End_FullMethodName               = "/host.session.v1.SessionService/End"
-	SessionService_OpenRoleView_FullMethodName      = "/host.session.v1.SessionService/OpenRoleView"
-	SessionService_OpenTeamCast_FullMethodName      = "/host.session.v1.SessionService/OpenTeamCast"
-	SessionService_ListCastableTeams_FullMethodName = "/host.session.v1.SessionService/ListCastableTeams"
-	SessionService_ListFixturePeople_FullMethodName = "/host.session.v1.SessionService/ListFixturePeople"
+	SessionService_SignIn_FullMethodName                  = "/host.session.v1.SessionService/SignIn"
+	SessionService_Current_FullMethodName                 = "/host.session.v1.SessionService/Current"
+	SessionService_End_FullMethodName                     = "/host.session.v1.SessionService/End"
+	SessionService_OpenRoleView_FullMethodName            = "/host.session.v1.SessionService/OpenRoleView"
+	SessionService_OpenTeamCast_FullMethodName            = "/host.session.v1.SessionService/OpenTeamCast"
+	SessionService_ListCastableTeams_FullMethodName       = "/host.session.v1.SessionService/ListCastableTeams"
+	SessionService_ListFixturePeople_FullMethodName       = "/host.session.v1.SessionService/ListFixturePeople"
+	SessionService_AddFixtureTeamMember_FullMethodName    = "/host.session.v1.SessionService/AddFixtureTeamMember"
+	SessionService_RemoveFixtureTeamMember_FullMethodName = "/host.session.v1.SessionService/RemoveFixtureTeamMember"
 )
 
 // SessionServiceClient is the client API for SessionService service.
@@ -95,6 +97,27 @@ type SessionServiceClient interface {
 	// authority's fixture. A host that signs real people in through its identity
 	// provider has no fixture people and answers none.
 	ListFixturePeople(ctx context.Context, in *ListFixturePeopleRequest, opts ...grpc.CallOption) (*ListFixturePeopleResponse, error)
+	// AddFixtureTeamMember puts a person in a team, on a host run on its
+	// fixture: what a scenario does to a fixture's directory, where a product
+	// calls the host's own team administration. The caller's bearer is the
+	// session of a person who administers the organisation they are signed
+	// into, and that organisation is the one changed: the team is a team of it
+	// and the person a person of it, or the call is not found. From the next
+	// decision the person holds what the team is granted. Adding a member
+	// twice changes nothing. A cast, a role view and the callers OpenRoleView
+	// refuses are refused here, and so is a person who does not administer the
+	// organisation. A host that was not started on a fixture in a local run
+	// answers a failed precondition, as ListFixturePeople does; a host that
+	// signs real people in does not serve it.
+	AddFixtureTeamMember(ctx context.Context, in *AddFixtureTeamMemberRequest, opts ...grpc.CallOption) (*AddFixtureTeamMemberResponse, error)
+	// RemoveFixtureTeamMember takes a person out of a team, on a host run on
+	// its fixture, under AddFixtureTeamMember's rules for who may call and what
+	// is named. From the next decision the person holds nothing through the
+	// team: every Work Context issued to them through a role granted to it is
+	// refused when it is checked, a session cast onto it for them is issued
+	// nothing more, and what they hold otherwise is issued again, freshly.
+	// Removing a person who is no member changes nothing.
+	RemoveFixtureTeamMember(ctx context.Context, in *RemoveFixtureTeamMemberRequest, opts ...grpc.CallOption) (*RemoveFixtureTeamMemberResponse, error)
 }
 
 type sessionServiceClient struct {
@@ -175,6 +198,26 @@ func (c *sessionServiceClient) ListFixturePeople(ctx context.Context, in *ListFi
 	return out, nil
 }
 
+func (c *sessionServiceClient) AddFixtureTeamMember(ctx context.Context, in *AddFixtureTeamMemberRequest, opts ...grpc.CallOption) (*AddFixtureTeamMemberResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AddFixtureTeamMemberResponse)
+	err := c.cc.Invoke(ctx, SessionService_AddFixtureTeamMember_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sessionServiceClient) RemoveFixtureTeamMember(ctx context.Context, in *RemoveFixtureTeamMemberRequest, opts ...grpc.CallOption) (*RemoveFixtureTeamMemberResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RemoveFixtureTeamMemberResponse)
+	err := c.cc.Invoke(ctx, SessionService_RemoveFixtureTeamMember_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SessionServiceServer is the server API for SessionService service.
 // All implementations must embed UnimplementedSessionServiceServer
 // for forward compatibility.
@@ -236,6 +279,27 @@ type SessionServiceServer interface {
 	// authority's fixture. A host that signs real people in through its identity
 	// provider has no fixture people and answers none.
 	ListFixturePeople(context.Context, *ListFixturePeopleRequest) (*ListFixturePeopleResponse, error)
+	// AddFixtureTeamMember puts a person in a team, on a host run on its
+	// fixture: what a scenario does to a fixture's directory, where a product
+	// calls the host's own team administration. The caller's bearer is the
+	// session of a person who administers the organisation they are signed
+	// into, and that organisation is the one changed: the team is a team of it
+	// and the person a person of it, or the call is not found. From the next
+	// decision the person holds what the team is granted. Adding a member
+	// twice changes nothing. A cast, a role view and the callers OpenRoleView
+	// refuses are refused here, and so is a person who does not administer the
+	// organisation. A host that was not started on a fixture in a local run
+	// answers a failed precondition, as ListFixturePeople does; a host that
+	// signs real people in does not serve it.
+	AddFixtureTeamMember(context.Context, *AddFixtureTeamMemberRequest) (*AddFixtureTeamMemberResponse, error)
+	// RemoveFixtureTeamMember takes a person out of a team, on a host run on
+	// its fixture, under AddFixtureTeamMember's rules for who may call and what
+	// is named. From the next decision the person holds nothing through the
+	// team: every Work Context issued to them through a role granted to it is
+	// refused when it is checked, a session cast onto it for them is issued
+	// nothing more, and what they hold otherwise is issued again, freshly.
+	// Removing a person who is no member changes nothing.
+	RemoveFixtureTeamMember(context.Context, *RemoveFixtureTeamMemberRequest) (*RemoveFixtureTeamMemberResponse, error)
 	mustEmbedUnimplementedSessionServiceServer()
 }
 
@@ -266,6 +330,12 @@ func (UnimplementedSessionServiceServer) ListCastableTeams(context.Context, *Lis
 }
 func (UnimplementedSessionServiceServer) ListFixturePeople(context.Context, *ListFixturePeopleRequest) (*ListFixturePeopleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListFixturePeople not implemented")
+}
+func (UnimplementedSessionServiceServer) AddFixtureTeamMember(context.Context, *AddFixtureTeamMemberRequest) (*AddFixtureTeamMemberResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AddFixtureTeamMember not implemented")
+}
+func (UnimplementedSessionServiceServer) RemoveFixtureTeamMember(context.Context, *RemoveFixtureTeamMemberRequest) (*RemoveFixtureTeamMemberResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RemoveFixtureTeamMember not implemented")
 }
 func (UnimplementedSessionServiceServer) mustEmbedUnimplementedSessionServiceServer() {}
 func (UnimplementedSessionServiceServer) testEmbeddedByValue()                        {}
@@ -414,6 +484,42 @@ func _SessionService_ListFixturePeople_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SessionService_AddFixtureTeamMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddFixtureTeamMemberRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).AddFixtureTeamMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_AddFixtureTeamMember_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).AddFixtureTeamMember(ctx, req.(*AddFixtureTeamMemberRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SessionService_RemoveFixtureTeamMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveFixtureTeamMemberRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).RemoveFixtureTeamMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_RemoveFixtureTeamMember_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).RemoveFixtureTeamMember(ctx, req.(*RemoveFixtureTeamMemberRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SessionService_ServiceDesc is the grpc.ServiceDesc for SessionService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -448,6 +554,14 @@ var SessionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListFixturePeople",
 			Handler:    _SessionService_ListFixturePeople_Handler,
+		},
+		{
+			MethodName: "AddFixtureTeamMember",
+			Handler:    _SessionService_AddFixtureTeamMember_Handler,
+		},
+		{
+			MethodName: "RemoveFixtureTeamMember",
+			Handler:    _SessionService_RemoveFixtureTeamMember_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

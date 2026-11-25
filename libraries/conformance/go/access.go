@@ -134,7 +134,10 @@ func newAccessSuite(t *testing.T, conn grpc.ClientConnInterface, descriptors []b
 	if len(lacks) > 0 {
 		t.Fatalf("access: the published contract lacks %s", strings.Join(lacks, ", "))
 	}
-	if f.Uninstall == nil || f.RemoveFromTeam == nil || f.RemoveFromOrganization == nil || f.SignManifest == nil || f.SignAuthority == nil ||
+	if problem := membershipProblem(c, f.RemoveFromTeam); problem != "" {
+		t.Fatalf("required conformance fixture missing: %s", problem)
+	}
+	if f.Uninstall == nil || f.RemoveFromOrganization == nil || f.SignManifest == nil || f.SignAuthority == nil ||
 		f.DeliveryCredential == nil || f.OtherOrganization == "" || f.Team == "" || f.Kind == "" || f.CollectionKind == "" || f.CollectionKind == f.Kind ||
 		f.Store == "" || f.StoreCredential == "" || f.C.Solution == "" ||
 		slices.Contains([]string{f.Admin, f.UserHolder, f.Author, f.Member, f.AdminHolder, f.TeamMember, f.TeamLeaver, f.OrgLeaver, f.Reader, f.OtherAdmin, f.OtherMember}, "") {

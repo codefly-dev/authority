@@ -101,9 +101,7 @@ func (sp *principalSuite) heldInstallations(t *testing.T) {
 	// the team case, they have already left, and list it no more.
 	sp.grant(t, B, "user", map[string]any{"team_id": f.Team})
 	if slices.Contains(held(t, f.TeamLeaver, f.Organization), "B:[user]") {
-		if err := f.RemoveFromTeam(sp.ctx, sp.personID(t, f.TeamLeaver), f.Team); err != nil {
-			t.Fatal(err)
-		}
+		sp.removeFromTeam(t, f.TeamLeaver, f.Team)
 	}
 	is(t, "a person who left the team", held(t, f.TeamLeaver, f.Organization))
 	sp.revoke(t, B, "user", map[string]any{"team_id": f.Team})

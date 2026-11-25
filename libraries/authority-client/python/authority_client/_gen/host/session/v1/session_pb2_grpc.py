@@ -70,6 +70,16 @@ class SessionServiceStub(object):
                 request_serializer=host_dot_session_dot_v1_dot_session__pb2.ListFixturePeopleRequest.SerializeToString,
                 response_deserializer=host_dot_session_dot_v1_dot_session__pb2.ListFixturePeopleResponse.FromString,
                 _registered_method=True)
+        self.AddFixtureTeamMember = channel.unary_unary(
+                '/host.session.v1.SessionService/AddFixtureTeamMember',
+                request_serializer=host_dot_session_dot_v1_dot_session__pb2.AddFixtureTeamMemberRequest.SerializeToString,
+                response_deserializer=host_dot_session_dot_v1_dot_session__pb2.AddFixtureTeamMemberResponse.FromString,
+                _registered_method=True)
+        self.RemoveFixtureTeamMember = channel.unary_unary(
+                '/host.session.v1.SessionService/RemoveFixtureTeamMember',
+                request_serializer=host_dot_session_dot_v1_dot_session__pb2.RemoveFixtureTeamMemberRequest.SerializeToString,
+                response_deserializer=host_dot_session_dot_v1_dot_session__pb2.RemoveFixtureTeamMemberResponse.FromString,
+                _registered_method=True)
 
 
 class SessionServiceServicer(object):
@@ -166,6 +176,37 @@ class SessionServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def AddFixtureTeamMember(self, request, context):
+        """AddFixtureTeamMember puts a person in a team, on a host run on its
+        fixture: what a scenario does to a fixture's directory, where a product
+        calls the host's own team administration. The caller's bearer is the
+        session of a person who administers the organisation they are signed
+        into, and that organisation is the one changed: the team is a team of it
+        and the person a person of it, or the call is not found. From the next
+        decision the person holds what the team is granted. Adding a member
+        twice changes nothing. A cast, a role view and the callers OpenRoleView
+        refuses are refused here, and so is a person who does not administer the
+        organisation. A host that was not started on a fixture in a local run
+        answers a failed precondition, as ListFixturePeople does; a host that
+        signs real people in does not serve it.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def RemoveFixtureTeamMember(self, request, context):
+        """RemoveFixtureTeamMember takes a person out of a team, on a host run on
+        its fixture, under AddFixtureTeamMember's rules for who may call and what
+        is named. From the next decision the person holds nothing through the
+        team: every Work Context issued to them through a role granted to it is
+        refused when it is checked, a session cast onto it for them is issued
+        nothing more, and what they hold otherwise is issued again, freshly.
+        Removing a person who is no member changes nothing.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_SessionServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -203,6 +244,16 @@ def add_SessionServiceServicer_to_server(servicer, server):
                     servicer.ListFixturePeople,
                     request_deserializer=host_dot_session_dot_v1_dot_session__pb2.ListFixturePeopleRequest.FromString,
                     response_serializer=host_dot_session_dot_v1_dot_session__pb2.ListFixturePeopleResponse.SerializeToString,
+            ),
+            'AddFixtureTeamMember': grpc.unary_unary_rpc_method_handler(
+                    servicer.AddFixtureTeamMember,
+                    request_deserializer=host_dot_session_dot_v1_dot_session__pb2.AddFixtureTeamMemberRequest.FromString,
+                    response_serializer=host_dot_session_dot_v1_dot_session__pb2.AddFixtureTeamMemberResponse.SerializeToString,
+            ),
+            'RemoveFixtureTeamMember': grpc.unary_unary_rpc_method_handler(
+                    servicer.RemoveFixtureTeamMember,
+                    request_deserializer=host_dot_session_dot_v1_dot_session__pb2.RemoveFixtureTeamMemberRequest.FromString,
+                    response_serializer=host_dot_session_dot_v1_dot_session__pb2.RemoveFixtureTeamMemberResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -395,6 +446,60 @@ class SessionService(object):
             '/host.session.v1.SessionService/ListFixturePeople',
             host_dot_session_dot_v1_dot_session__pb2.ListFixturePeopleRequest.SerializeToString,
             host_dot_session_dot_v1_dot_session__pb2.ListFixturePeopleResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def AddFixtureTeamMember(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/host.session.v1.SessionService/AddFixtureTeamMember',
+            host_dot_session_dot_v1_dot_session__pb2.AddFixtureTeamMemberRequest.SerializeToString,
+            host_dot_session_dot_v1_dot_session__pb2.AddFixtureTeamMemberResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def RemoveFixtureTeamMember(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/host.session.v1.SessionService/RemoveFixtureTeamMember',
+            host_dot_session_dot_v1_dot_session__pb2.RemoveFixtureTeamMemberRequest.SerializeToString,
+            host_dot_session_dot_v1_dot_session__pb2.RemoveFixtureTeamMemberResponse.FromString,
             options,
             channel_credentials,
             insecure,

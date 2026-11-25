@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file host/session/v1/session.proto.
  */
 export const file_host_session_v1_session: GenFile = /*@__PURE__*/
-  fileDesc("Ch1ob3N0L3Nlc3Npb24vdjEvc2Vzc2lvbi5wcm90bxIPaG9zdC5zZXNzaW9uLnYxIhoKGExpc3RDYXN0YWJsZVRlYW1zUmVxdWVzdCJJChlMaXN0Q2FzdGFibGVUZWFtc1Jlc3BvbnNlEiwKBXRlYW1zGAEgAygLMh0uaG9zdC5zZXNzaW9uLnYxLkNhc3RhYmxlVGVhbSJiCgxDYXN0YWJsZVRlYW0SDwoHdGVhbV9pZBgBIAEoCRIUCgxkaXNwbGF5X25hbWUYAiABKAkSKwoFaG9sZHMYAyADKAsyHC5ob3N0LnNlc3Npb24udjEuVGVhbUhvbGRpbmciRAoLVGVhbUhvbGRpbmcSFwoPaW5zdGFsbGF0aW9uX2lkGAEgASgJEg4KBnRhcmdldBgCIAEoCRIMCgRyb2xlGAMgASgJIhoKGExpc3RGaXh0dXJlUGVvcGxlUmVxdWVzdCJLChlMaXN0Rml4dHVyZVBlb3BsZVJlc3BvbnNlEi4KBnBlb3BsZRgBIAMoCzIeLmhvc3Quc2Vzc2lvbi52MS5GaXh0dXJlUGVyc29uIqUBCg1GaXh0dXJlUGVyc29uEhEKCXBlcnNvbl9pZBgBIAEoCRINCgVlbWFpbBgCIAEoCRIXCg9vcmdhbml6YXRpb25faWQYAyABKAkSDQoFcm9sZXMYBCADKAkSEAoIdGVhbV9pZHMYBSADKAkSFQoNZml4dHVyZV90b2tlbhgGIAEoCRIhChlvcmdhbml6YXRpb25fZGlzcGxheV9uYW1lGAcgASgJIj0KE09wZW5Sb2xlVmlld1JlcXVlc3QSFwoPaW5zdGFsbGF0aW9uX2lkGAEgASgJEg0KBXJvbGVzGAIgAygJIiYKE09wZW5UZWFtQ2FzdFJlcXVlc3QSDwoHdGVhbV9pZBgBIAEoCSI3Cg1Sb2xlVmlld0VudHJ5EhcKD2luc3RhbGxhdGlvbl9pZBgBIAEoCRINCgVyb2xlcxgCIAMoCSIQCg5DdXJyZW50UmVxdWVzdCIMCgpFbmRSZXF1ZXN0Ig0KC0VuZFJlc3BvbnNlIiYKDVNpZ25JblJlcXVlc3QSFQoNZml4dHVyZV90b2tlbhgBIAEoCSKxAgoHU2Vzc2lvbhISCgpzZXNzaW9uX2lkGAEgASgJEhEKCXBlcnNvbl9pZBgCIAEoCRIXCg9vcmdhbml6YXRpb25faWQYAyABKAkSDQoFcm9sZXMYBCADKAkSEAoIdGVhbV9pZHMYBSADKAkSDgoGYmVhcmVyGAYgASgJEhsKE3BlcnNvbl9kaXNwbGF5X25hbWUYByABKAkSIQoZb3JnYW5pemF0aW9uX2Rpc3BsYXlfbmFtZRgIIAEoCRIxCglyb2xlX3ZpZXcYCSADKAsyHi5ob3N0LnNlc3Npb24udjEuUm9sZVZpZXdFbnRyeRIUCgxjYXN0X3RlYW1faWQYCiABKAkSFwoPZXhwaXJlc19hdF91bml4GAsgASgDEhMKC2dyYW50X2Vwb2NoGAwgASgJMr0GCg5TZXNzaW9uU2VydmljZRJiCgZTaWduSW4SHi5ob3N0LnNlc3Npb24udjEuU2lnbkluUmVxdWVzdBoYLmhvc3Quc2Vzc2lvbi52MS5TZXNzaW9uIh6C0+STAhg6ASoiEy92MS9zZXNzaW9uOnNpZ24taW4SWQoHQ3VycmVudBIfLmhvc3Quc2Vzc2lvbi52MS5DdXJyZW50UmVxdWVzdBoYLmhvc3Quc2Vzc2lvbi52MS5TZXNzaW9uIhOC0+STAg0SCy92MS9zZXNzaW9uElwKA0VuZBIbLmhvc3Quc2Vzc2lvbi52MS5FbmRSZXF1ZXN0GhwuaG9zdC5zZXNzaW9uLnYxLkVuZFJlc3BvbnNlIhqC0+STAhQ6ASoiDy92MS9zZXNzaW9uOmVuZBJ1CgxPcGVuUm9sZVZpZXcSJC5ob3N0LnNlc3Npb24udjEuT3BlblJvbGVWaWV3UmVxdWVzdBoYLmhvc3Quc2Vzc2lvbi52MS5TZXNzaW9uIiWC0+STAh86ASoiGi92MS9zZXNzaW9uOm9wZW4tcm9sZS12aWV3EnUKDE9wZW5UZWFtQ2FzdBIkLmhvc3Quc2Vzc2lvbi52MS5PcGVuVGVhbUNhc3RSZXF1ZXN0GhguaG9zdC5zZXNzaW9uLnYxLlNlc3Npb24iJYLT5JMCHzoBKiIaL3YxL3Nlc3Npb246b3Blbi10ZWFtLWNhc3QSjgEKEUxpc3RDYXN0YWJsZVRlYW1zEikuaG9zdC5zZXNzaW9uLnYxLkxpc3RDYXN0YWJsZVRlYW1zUmVxdWVzdBoqLmhvc3Quc2Vzc2lvbi52MS5MaXN0Q2FzdGFibGVUZWFtc1Jlc3BvbnNlIiKC0+STAhwSGi92MS9zZXNzaW9uL2Nhc3RhYmxlLXRlYW1zEo4BChFMaXN0Rml4dHVyZVBlb3BsZRIpLmhvc3Quc2Vzc2lvbi52MS5MaXN0Rml4dHVyZVBlb3BsZVJlcXVlc3QaKi5ob3N0LnNlc3Npb24udjEuTGlzdEZpeHR1cmVQZW9wbGVSZXNwb25zZSIigtPkkwIcEhovdjEvc2Vzc2lvbi9maXh0dXJlLXBlb3BsZUIrWilnYXRld2F5L3BrZy9nZW4vaG9zdC9zZXNzaW9uL3YxO3Nlc3Npb252MWIGcHJvdG8z", [file_google_api_annotations]);
+  fileDesc("Ch1ob3N0L3Nlc3Npb24vdjEvc2Vzc2lvbi5wcm90bxIPaG9zdC5zZXNzaW9uLnYxIhoKGExpc3RDYXN0YWJsZVRlYW1zUmVxdWVzdCJJChlMaXN0Q2FzdGFibGVUZWFtc1Jlc3BvbnNlEiwKBXRlYW1zGAEgAygLMh0uaG9zdC5zZXNzaW9uLnYxLkNhc3RhYmxlVGVhbSJiCgxDYXN0YWJsZVRlYW0SDwoHdGVhbV9pZBgBIAEoCRIUCgxkaXNwbGF5X25hbWUYAiABKAkSKwoFaG9sZHMYAyADKAsyHC5ob3N0LnNlc3Npb24udjEuVGVhbUhvbGRpbmciRAoLVGVhbUhvbGRpbmcSFwoPaW5zdGFsbGF0aW9uX2lkGAEgASgJEg4KBnRhcmdldBgCIAEoCRIMCgRyb2xlGAMgASgJIkEKG0FkZEZpeHR1cmVUZWFtTWVtYmVyUmVxdWVzdBIPCgd0ZWFtX2lkGAEgASgJEhEKCXBlcnNvbl9pZBgCIAEoCSIeChxBZGRGaXh0dXJlVGVhbU1lbWJlclJlc3BvbnNlIkQKHlJlbW92ZUZpeHR1cmVUZWFtTWVtYmVyUmVxdWVzdBIPCgd0ZWFtX2lkGAEgASgJEhEKCXBlcnNvbl9pZBgCIAEoCSIhCh9SZW1vdmVGaXh0dXJlVGVhbU1lbWJlclJlc3BvbnNlIhoKGExpc3RGaXh0dXJlUGVvcGxlUmVxdWVzdCJLChlMaXN0Rml4dHVyZVBlb3BsZVJlc3BvbnNlEi4KBnBlb3BsZRgBIAMoCzIeLmhvc3Quc2Vzc2lvbi52MS5GaXh0dXJlUGVyc29uIqUBCg1GaXh0dXJlUGVyc29uEhEKCXBlcnNvbl9pZBgBIAEoCRINCgVlbWFpbBgCIAEoCRIXCg9vcmdhbml6YXRpb25faWQYAyABKAkSDQoFcm9sZXMYBCADKAkSEAoIdGVhbV9pZHMYBSADKAkSFQoNZml4dHVyZV90b2tlbhgGIAEoCRIhChlvcmdhbml6YXRpb25fZGlzcGxheV9uYW1lGAcgASgJIj0KE09wZW5Sb2xlVmlld1JlcXVlc3QSFwoPaW5zdGFsbGF0aW9uX2lkGAEgASgJEg0KBXJvbGVzGAIgAygJIiYKE09wZW5UZWFtQ2FzdFJlcXVlc3QSDwoHdGVhbV9pZBgBIAEoCSI3Cg1Sb2xlVmlld0VudHJ5EhcKD2luc3RhbGxhdGlvbl9pZBgBIAEoCRINCgVyb2xlcxgCIAMoCSIQCg5DdXJyZW50UmVxdWVzdCIMCgpFbmRSZXF1ZXN0Ig0KC0VuZFJlc3BvbnNlIiYKDVNpZ25JblJlcXVlc3QSFQoNZml4dHVyZV90b2tlbhgBIAEoCSKxAgoHU2Vzc2lvbhISCgpzZXNzaW9uX2lkGAEgASgJEhEKCXBlcnNvbl9pZBgCIAEoCRIXCg9vcmdhbml6YXRpb25faWQYAyABKAkSDQoFcm9sZXMYBCADKAkSEAoIdGVhbV9pZHMYBSADKAkSDgoGYmVhcmVyGAYgASgJEhsKE3BlcnNvbl9kaXNwbGF5X25hbWUYByABKAkSIQoZb3JnYW5pemF0aW9uX2Rpc3BsYXlfbmFtZRgIIAEoCRIxCglyb2xlX3ZpZXcYCSADKAsyHi5ob3N0LnNlc3Npb24udjEuUm9sZVZpZXdFbnRyeRIUCgxjYXN0X3RlYW1faWQYCiABKAkSFwoPZXhwaXJlc19hdF91bml4GAsgASgDEhMKC2dyYW50X2Vwb2NoGAwgASgJMqsJCg5TZXNzaW9uU2VydmljZRJiCgZTaWduSW4SHi5ob3N0LnNlc3Npb24udjEuU2lnbkluUmVxdWVzdBoYLmhvc3Quc2Vzc2lvbi52MS5TZXNzaW9uIh6C0+STAhg6ASoiEy92MS9zZXNzaW9uOnNpZ24taW4SWQoHQ3VycmVudBIfLmhvc3Quc2Vzc2lvbi52MS5DdXJyZW50UmVxdWVzdBoYLmhvc3Quc2Vzc2lvbi52MS5TZXNzaW9uIhOC0+STAg0SCy92MS9zZXNzaW9uElwKA0VuZBIbLmhvc3Quc2Vzc2lvbi52MS5FbmRSZXF1ZXN0GhwuaG9zdC5zZXNzaW9uLnYxLkVuZFJlc3BvbnNlIhqC0+STAhQ6ASoiDy92MS9zZXNzaW9uOmVuZBJ1CgxPcGVuUm9sZVZpZXcSJC5ob3N0LnNlc3Npb24udjEuT3BlblJvbGVWaWV3UmVxdWVzdBoYLmhvc3Quc2Vzc2lvbi52MS5TZXNzaW9uIiWC0+STAh86ASoiGi92MS9zZXNzaW9uOm9wZW4tcm9sZS12aWV3EnUKDE9wZW5UZWFtQ2FzdBIkLmhvc3Quc2Vzc2lvbi52MS5PcGVuVGVhbUNhc3RSZXF1ZXN0GhguaG9zdC5zZXNzaW9uLnYxLlNlc3Npb24iJYLT5JMCHzoBKiIaL3YxL3Nlc3Npb246b3Blbi10ZWFtLWNhc3QSjgEKEUxpc3RDYXN0YWJsZVRlYW1zEikuaG9zdC5zZXNzaW9uLnYxLkxpc3RDYXN0YWJsZVRlYW1zUmVxdWVzdBoqLmhvc3Quc2Vzc2lvbi52MS5MaXN0Q2FzdGFibGVUZWFtc1Jlc3BvbnNlIiKC0+STAhwSGi92MS9zZXNzaW9uL2Nhc3RhYmxlLXRlYW1zEo4BChFMaXN0Rml4dHVyZVBlb3BsZRIpLmhvc3Quc2Vzc2lvbi52MS5MaXN0Rml4dHVyZVBlb3BsZVJlcXVlc3QaKi5ob3N0LnNlc3Npb24udjEuTGlzdEZpeHR1cmVQZW9wbGVSZXNwb25zZSIigtPkkwIcEhovdjEvc2Vzc2lvbi9maXh0dXJlLXBlb3BsZRKrAQoUQWRkRml4dHVyZVRlYW1NZW1iZXISLC5ob3N0LnNlc3Npb24udjEuQWRkRml4dHVyZVRlYW1NZW1iZXJSZXF1ZXN0Gi0uaG9zdC5zZXNzaW9uLnYxLkFkZEZpeHR1cmVUZWFtTWVtYmVyUmVzcG9uc2UiNoLT5JMCMDoBKiIrL3YxL3Nlc3Npb24vZml4dHVyZS10ZWFtcy97dGVhbV9pZH0vbWVtYmVycxK9AQoXUmVtb3ZlRml4dHVyZVRlYW1NZW1iZXISLy5ob3N0LnNlc3Npb24udjEuUmVtb3ZlRml4dHVyZVRlYW1NZW1iZXJSZXF1ZXN0GjAuaG9zdC5zZXNzaW9uLnYxLlJlbW92ZUZpeHR1cmVUZWFtTWVtYmVyUmVzcG9uc2UiP4LT5JMCOSo3L3YxL3Nlc3Npb24vZml4dHVyZS10ZWFtcy97dGVhbV9pZH0vbWVtYmVycy97cGVyc29uX2lkfUIrWilnYXRld2F5L3BrZy9nZW4vaG9zdC9zZXNzaW9uL3YxO3Nlc3Npb252MWIGcHJvdG8z", [file_google_api_annotations]);
 
 /**
  * ListCastableTeamsRequest asks for the teams the caller may act as, at the
@@ -129,6 +129,92 @@ export const TeamHoldingSchema: GenMessage<TeamHolding> = /*@__PURE__*/
   messageDesc(file_host_session_v1_session, 3);
 
 /**
+ * AddFixtureTeamMemberRequest names the team and the person to put in it.
+ *
+ * @generated from message host.session.v1.AddFixtureTeamMemberRequest
+ */
+export type AddFixtureTeamMemberRequest = Message<"host.session.v1.AddFixtureTeamMemberRequest"> & {
+  /**
+   * The team, of the organisation the caller is signed into.
+   *
+   * @generated from field: string team_id = 1;
+   */
+  teamId: string;
+
+  /**
+   * The person, of the same organisation.
+   *
+   * @generated from field: string person_id = 2;
+   */
+  personId: string;
+};
+
+/**
+ * Describes the message host.session.v1.AddFixtureTeamMemberRequest.
+ * Use `create(AddFixtureTeamMemberRequestSchema)` to create a new message.
+ */
+export const AddFixtureTeamMemberRequestSchema: GenMessage<AddFixtureTeamMemberRequest> = /*@__PURE__*/
+  messageDesc(file_host_session_v1_session, 4);
+
+/**
+ * AddFixtureTeamMemberResponse says the person is a member of the team.
+ *
+ * @generated from message host.session.v1.AddFixtureTeamMemberResponse
+ */
+export type AddFixtureTeamMemberResponse = Message<"host.session.v1.AddFixtureTeamMemberResponse"> & {
+};
+
+/**
+ * Describes the message host.session.v1.AddFixtureTeamMemberResponse.
+ * Use `create(AddFixtureTeamMemberResponseSchema)` to create a new message.
+ */
+export const AddFixtureTeamMemberResponseSchema: GenMessage<AddFixtureTeamMemberResponse> = /*@__PURE__*/
+  messageDesc(file_host_session_v1_session, 5);
+
+/**
+ * RemoveFixtureTeamMemberRequest names the team and the person to take out of it.
+ *
+ * @generated from message host.session.v1.RemoveFixtureTeamMemberRequest
+ */
+export type RemoveFixtureTeamMemberRequest = Message<"host.session.v1.RemoveFixtureTeamMemberRequest"> & {
+  /**
+   * The team, of the organisation the caller is signed into.
+   *
+   * @generated from field: string team_id = 1;
+   */
+  teamId: string;
+
+  /**
+   * The person, of the same organisation.
+   *
+   * @generated from field: string person_id = 2;
+   */
+  personId: string;
+};
+
+/**
+ * Describes the message host.session.v1.RemoveFixtureTeamMemberRequest.
+ * Use `create(RemoveFixtureTeamMemberRequestSchema)` to create a new message.
+ */
+export const RemoveFixtureTeamMemberRequestSchema: GenMessage<RemoveFixtureTeamMemberRequest> = /*@__PURE__*/
+  messageDesc(file_host_session_v1_session, 6);
+
+/**
+ * RemoveFixtureTeamMemberResponse says the person is no member of the team.
+ *
+ * @generated from message host.session.v1.RemoveFixtureTeamMemberResponse
+ */
+export type RemoveFixtureTeamMemberResponse = Message<"host.session.v1.RemoveFixtureTeamMemberResponse"> & {
+};
+
+/**
+ * Describes the message host.session.v1.RemoveFixtureTeamMemberResponse.
+ * Use `create(RemoveFixtureTeamMemberResponseSchema)` to create a new message.
+ */
+export const RemoveFixtureTeamMemberResponseSchema: GenMessage<RemoveFixtureTeamMemberResponse> = /*@__PURE__*/
+  messageDesc(file_host_session_v1_session, 7);
+
+/**
  * ListFixturePeopleRequest asks for every fixture person.
  *
  * @generated from message host.session.v1.ListFixturePeopleRequest
@@ -141,7 +227,7 @@ export type ListFixturePeopleRequest = Message<"host.session.v1.ListFixturePeopl
  * Use `create(ListFixturePeopleRequestSchema)` to create a new message.
  */
 export const ListFixturePeopleRequestSchema: GenMessage<ListFixturePeopleRequest> = /*@__PURE__*/
-  messageDesc(file_host_session_v1_session, 4);
+  messageDesc(file_host_session_v1_session, 8);
 
 /**
  * ListFixturePeopleResponse is every fixture person, in the fixture's order.
@@ -162,7 +248,7 @@ export type ListFixturePeopleResponse = Message<"host.session.v1.ListFixturePeop
  * Use `create(ListFixturePeopleResponseSchema)` to create a new message.
  */
 export const ListFixturePeopleResponseSchema: GenMessage<ListFixturePeopleResponse> = /*@__PURE__*/
-  messageDesc(file_host_session_v1_session, 5);
+  messageDesc(file_host_session_v1_session, 9);
 
 /**
  * FixturePerson is one person a fixture run signs in.
@@ -226,7 +312,7 @@ export type FixturePerson = Message<"host.session.v1.FixturePerson"> & {
  * Use `create(FixturePersonSchema)` to create a new message.
  */
 export const FixturePersonSchema: GenMessage<FixturePerson> = /*@__PURE__*/
-  messageDesc(file_host_session_v1_session, 6);
+  messageDesc(file_host_session_v1_session, 10);
 
 /**
  * OpenRoleViewRequest names the installation and the roles to act as on it.
@@ -254,7 +340,7 @@ export type OpenRoleViewRequest = Message<"host.session.v1.OpenRoleViewRequest">
  * Use `create(OpenRoleViewRequestSchema)` to create a new message.
  */
 export const OpenRoleViewRequestSchema: GenMessage<OpenRoleViewRequest> = /*@__PURE__*/
-  messageDesc(file_host_session_v1_session, 7);
+  messageDesc(file_host_session_v1_session, 11);
 
 /**
  * OpenTeamCastRequest names the team to act as.
@@ -275,7 +361,7 @@ export type OpenTeamCastRequest = Message<"host.session.v1.OpenTeamCastRequest">
  * Use `create(OpenTeamCastRequestSchema)` to create a new message.
  */
 export const OpenTeamCastRequestSchema: GenMessage<OpenTeamCastRequest> = /*@__PURE__*/
-  messageDesc(file_host_session_v1_session, 8);
+  messageDesc(file_host_session_v1_session, 12);
 
 /**
  * RoleViewEntry is the roles a session acts as on one installation.
@@ -303,7 +389,7 @@ export type RoleViewEntry = Message<"host.session.v1.RoleViewEntry"> & {
  * Use `create(RoleViewEntrySchema)` to create a new message.
  */
 export const RoleViewEntrySchema: GenMessage<RoleViewEntry> = /*@__PURE__*/
-  messageDesc(file_host_session_v1_session, 9);
+  messageDesc(file_host_session_v1_session, 13);
 
 /**
  * CurrentRequest asks for the caller's own session; the bearer is the call's.
@@ -318,7 +404,7 @@ export type CurrentRequest = Message<"host.session.v1.CurrentRequest"> & {
  * Use `create(CurrentRequestSchema)` to create a new message.
  */
 export const CurrentRequestSchema: GenMessage<CurrentRequest> = /*@__PURE__*/
-  messageDesc(file_host_session_v1_session, 10);
+  messageDesc(file_host_session_v1_session, 14);
 
 /**
  * EndRequest ends the caller's own session; the bearer is the call's.
@@ -333,7 +419,7 @@ export type EndRequest = Message<"host.session.v1.EndRequest"> & {
  * Use `create(EndRequestSchema)` to create a new message.
  */
 export const EndRequestSchema: GenMessage<EndRequest> = /*@__PURE__*/
-  messageDesc(file_host_session_v1_session, 11);
+  messageDesc(file_host_session_v1_session, 15);
 
 /**
  * EndResponse says the session and every session opened from it ended.
@@ -348,7 +434,7 @@ export type EndResponse = Message<"host.session.v1.EndResponse"> & {
  * Use `create(EndResponseSchema)` to create a new message.
  */
 export const EndResponseSchema: GenMessage<EndResponse> = /*@__PURE__*/
-  messageDesc(file_host_session_v1_session, 12);
+  messageDesc(file_host_session_v1_session, 16);
 
 /**
  * SignInRequest presents a fixture token.
@@ -369,7 +455,7 @@ export type SignInRequest = Message<"host.session.v1.SignInRequest"> & {
  * Use `create(SignInRequestSchema)` to create a new message.
  */
 export const SignInRequestSchema: GenMessage<SignInRequest> = /*@__PURE__*/
-  messageDesc(file_host_session_v1_session, 13);
+  messageDesc(file_host_session_v1_session, 17);
 
 /**
  * Session is an open session.
@@ -485,7 +571,7 @@ export type Session = Message<"host.session.v1.Session"> & {
  * Use `create(SessionSchema)` to create a new message.
  */
 export const SessionSchema: GenMessage<Session> = /*@__PURE__*/
-  messageDesc(file_host_session_v1_session, 14);
+  messageDesc(file_host_session_v1_session, 18);
 
 /**
  * SessionService opens sessions.
@@ -603,6 +689,43 @@ export const SessionService: GenService<{
     methodKind: "unary";
     input: typeof ListFixturePeopleRequestSchema;
     output: typeof ListFixturePeopleResponseSchema;
+  },
+  /**
+   * AddFixtureTeamMember puts a person in a team, on a host run on its
+   * fixture: what a scenario does to a fixture's directory, where a product
+   * calls the host's own team administration. The caller's bearer is the
+   * session of a person who administers the organisation they are signed
+   * into, and that organisation is the one changed: the team is a team of it
+   * and the person a person of it, or the call is not found. From the next
+   * decision the person holds what the team is granted. Adding a member
+   * twice changes nothing. A cast, a role view and the callers OpenRoleView
+   * refuses are refused here, and so is a person who does not administer the
+   * organisation. A host that was not started on a fixture in a local run
+   * answers a failed precondition, as ListFixturePeople does; a host that
+   * signs real people in does not serve it.
+   *
+   * @generated from rpc host.session.v1.SessionService.AddFixtureTeamMember
+   */
+  addFixtureTeamMember: {
+    methodKind: "unary";
+    input: typeof AddFixtureTeamMemberRequestSchema;
+    output: typeof AddFixtureTeamMemberResponseSchema;
+  },
+  /**
+   * RemoveFixtureTeamMember takes a person out of a team, on a host run on
+   * its fixture, under AddFixtureTeamMember's rules for who may call and what
+   * is named. From the next decision the person holds nothing through the
+   * team: every Work Context issued to them through a role granted to it is
+   * refused when it is checked, a session cast onto it for them is issued
+   * nothing more, and what they hold otherwise is issued again, freshly.
+   * Removing a person who is no member changes nothing.
+   *
+   * @generated from rpc host.session.v1.SessionService.RemoveFixtureTeamMember
+   */
+  removeFixtureTeamMember: {
+    methodKind: "unary";
+    input: typeof RemoveFixtureTeamMemberRequestSchema;
+    output: typeof RemoveFixtureTeamMemberResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_host_session_v1_session, 0);

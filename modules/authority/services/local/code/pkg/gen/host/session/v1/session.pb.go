@@ -243,6 +243,190 @@ func (x *TeamHolding) GetRole() string {
 	return ""
 }
 
+// AddFixtureTeamMemberRequest names the team and the person to put in it.
+type AddFixtureTeamMemberRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The team, of the organisation the caller is signed into.
+	TeamId string `protobuf:"bytes,1,opt,name=team_id,json=teamId,proto3" json:"team_id,omitempty"`
+	// The person, of the same organisation.
+	PersonId      string `protobuf:"bytes,2,opt,name=person_id,json=personId,proto3" json:"person_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AddFixtureTeamMemberRequest) Reset() {
+	*x = AddFixtureTeamMemberRequest{}
+	mi := &file_host_session_v1_session_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AddFixtureTeamMemberRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AddFixtureTeamMemberRequest) ProtoMessage() {}
+
+func (x *AddFixtureTeamMemberRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_host_session_v1_session_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AddFixtureTeamMemberRequest.ProtoReflect.Descriptor instead.
+func (*AddFixtureTeamMemberRequest) Descriptor() ([]byte, []int) {
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *AddFixtureTeamMemberRequest) GetTeamId() string {
+	if x != nil {
+		return x.TeamId
+	}
+	return ""
+}
+
+func (x *AddFixtureTeamMemberRequest) GetPersonId() string {
+	if x != nil {
+		return x.PersonId
+	}
+	return ""
+}
+
+// AddFixtureTeamMemberResponse says the person is a member of the team.
+type AddFixtureTeamMemberResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AddFixtureTeamMemberResponse) Reset() {
+	*x = AddFixtureTeamMemberResponse{}
+	mi := &file_host_session_v1_session_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AddFixtureTeamMemberResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AddFixtureTeamMemberResponse) ProtoMessage() {}
+
+func (x *AddFixtureTeamMemberResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_host_session_v1_session_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AddFixtureTeamMemberResponse.ProtoReflect.Descriptor instead.
+func (*AddFixtureTeamMemberResponse) Descriptor() ([]byte, []int) {
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{5}
+}
+
+// RemoveFixtureTeamMemberRequest names the team and the person to take out of it.
+type RemoveFixtureTeamMemberRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The team, of the organisation the caller is signed into.
+	TeamId string `protobuf:"bytes,1,opt,name=team_id,json=teamId,proto3" json:"team_id,omitempty"`
+	// The person, of the same organisation.
+	PersonId      string `protobuf:"bytes,2,opt,name=person_id,json=personId,proto3" json:"person_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveFixtureTeamMemberRequest) Reset() {
+	*x = RemoveFixtureTeamMemberRequest{}
+	mi := &file_host_session_v1_session_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveFixtureTeamMemberRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveFixtureTeamMemberRequest) ProtoMessage() {}
+
+func (x *RemoveFixtureTeamMemberRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_host_session_v1_session_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveFixtureTeamMemberRequest.ProtoReflect.Descriptor instead.
+func (*RemoveFixtureTeamMemberRequest) Descriptor() ([]byte, []int) {
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *RemoveFixtureTeamMemberRequest) GetTeamId() string {
+	if x != nil {
+		return x.TeamId
+	}
+	return ""
+}
+
+func (x *RemoveFixtureTeamMemberRequest) GetPersonId() string {
+	if x != nil {
+		return x.PersonId
+	}
+	return ""
+}
+
+// RemoveFixtureTeamMemberResponse says the person is no member of the team.
+type RemoveFixtureTeamMemberResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveFixtureTeamMemberResponse) Reset() {
+	*x = RemoveFixtureTeamMemberResponse{}
+	mi := &file_host_session_v1_session_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveFixtureTeamMemberResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveFixtureTeamMemberResponse) ProtoMessage() {}
+
+func (x *RemoveFixtureTeamMemberResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_host_session_v1_session_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveFixtureTeamMemberResponse.ProtoReflect.Descriptor instead.
+func (*RemoveFixtureTeamMemberResponse) Descriptor() ([]byte, []int) {
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{7}
+}
+
 // ListFixturePeopleRequest asks for every fixture person.
 type ListFixturePeopleRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -252,7 +436,7 @@ type ListFixturePeopleRequest struct {
 
 func (x *ListFixturePeopleRequest) Reset() {
 	*x = ListFixturePeopleRequest{}
-	mi := &file_host_session_v1_session_proto_msgTypes[4]
+	mi := &file_host_session_v1_session_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -264,7 +448,7 @@ func (x *ListFixturePeopleRequest) String() string {
 func (*ListFixturePeopleRequest) ProtoMessage() {}
 
 func (x *ListFixturePeopleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_host_session_v1_session_proto_msgTypes[4]
+	mi := &file_host_session_v1_session_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -277,7 +461,7 @@ func (x *ListFixturePeopleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListFixturePeopleRequest.ProtoReflect.Descriptor instead.
 func (*ListFixturePeopleRequest) Descriptor() ([]byte, []int) {
-	return file_host_session_v1_session_proto_rawDescGZIP(), []int{4}
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{8}
 }
 
 // ListFixturePeopleResponse is every fixture person, in the fixture's order.
@@ -291,7 +475,7 @@ type ListFixturePeopleResponse struct {
 
 func (x *ListFixturePeopleResponse) Reset() {
 	*x = ListFixturePeopleResponse{}
-	mi := &file_host_session_v1_session_proto_msgTypes[5]
+	mi := &file_host_session_v1_session_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -303,7 +487,7 @@ func (x *ListFixturePeopleResponse) String() string {
 func (*ListFixturePeopleResponse) ProtoMessage() {}
 
 func (x *ListFixturePeopleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_host_session_v1_session_proto_msgTypes[5]
+	mi := &file_host_session_v1_session_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -316,7 +500,7 @@ func (x *ListFixturePeopleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListFixturePeopleResponse.ProtoReflect.Descriptor instead.
 func (*ListFixturePeopleResponse) Descriptor() ([]byte, []int) {
-	return file_host_session_v1_session_proto_rawDescGZIP(), []int{5}
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ListFixturePeopleResponse) GetPeople() []*FixturePerson {
@@ -350,7 +534,7 @@ type FixturePerson struct {
 
 func (x *FixturePerson) Reset() {
 	*x = FixturePerson{}
-	mi := &file_host_session_v1_session_proto_msgTypes[6]
+	mi := &file_host_session_v1_session_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -362,7 +546,7 @@ func (x *FixturePerson) String() string {
 func (*FixturePerson) ProtoMessage() {}
 
 func (x *FixturePerson) ProtoReflect() protoreflect.Message {
-	mi := &file_host_session_v1_session_proto_msgTypes[6]
+	mi := &file_host_session_v1_session_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -375,7 +559,7 @@ func (x *FixturePerson) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FixturePerson.ProtoReflect.Descriptor instead.
 func (*FixturePerson) Descriptor() ([]byte, []int) {
-	return file_host_session_v1_session_proto_rawDescGZIP(), []int{6}
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *FixturePerson) GetPersonId() string {
@@ -440,7 +624,7 @@ type OpenRoleViewRequest struct {
 
 func (x *OpenRoleViewRequest) Reset() {
 	*x = OpenRoleViewRequest{}
-	mi := &file_host_session_v1_session_proto_msgTypes[7]
+	mi := &file_host_session_v1_session_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -452,7 +636,7 @@ func (x *OpenRoleViewRequest) String() string {
 func (*OpenRoleViewRequest) ProtoMessage() {}
 
 func (x *OpenRoleViewRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_host_session_v1_session_proto_msgTypes[7]
+	mi := &file_host_session_v1_session_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -465,7 +649,7 @@ func (x *OpenRoleViewRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenRoleViewRequest.ProtoReflect.Descriptor instead.
 func (*OpenRoleViewRequest) Descriptor() ([]byte, []int) {
-	return file_host_session_v1_session_proto_rawDescGZIP(), []int{7}
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *OpenRoleViewRequest) GetInstallationId() string {
@@ -493,7 +677,7 @@ type OpenTeamCastRequest struct {
 
 func (x *OpenTeamCastRequest) Reset() {
 	*x = OpenTeamCastRequest{}
-	mi := &file_host_session_v1_session_proto_msgTypes[8]
+	mi := &file_host_session_v1_session_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -505,7 +689,7 @@ func (x *OpenTeamCastRequest) String() string {
 func (*OpenTeamCastRequest) ProtoMessage() {}
 
 func (x *OpenTeamCastRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_host_session_v1_session_proto_msgTypes[8]
+	mi := &file_host_session_v1_session_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -518,7 +702,7 @@ func (x *OpenTeamCastRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OpenTeamCastRequest.ProtoReflect.Descriptor instead.
 func (*OpenTeamCastRequest) Descriptor() ([]byte, []int) {
-	return file_host_session_v1_session_proto_rawDescGZIP(), []int{8}
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *OpenTeamCastRequest) GetTeamId() string {
@@ -541,7 +725,7 @@ type RoleViewEntry struct {
 
 func (x *RoleViewEntry) Reset() {
 	*x = RoleViewEntry{}
-	mi := &file_host_session_v1_session_proto_msgTypes[9]
+	mi := &file_host_session_v1_session_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -553,7 +737,7 @@ func (x *RoleViewEntry) String() string {
 func (*RoleViewEntry) ProtoMessage() {}
 
 func (x *RoleViewEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_host_session_v1_session_proto_msgTypes[9]
+	mi := &file_host_session_v1_session_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -566,7 +750,7 @@ func (x *RoleViewEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RoleViewEntry.ProtoReflect.Descriptor instead.
 func (*RoleViewEntry) Descriptor() ([]byte, []int) {
-	return file_host_session_v1_session_proto_rawDescGZIP(), []int{9}
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *RoleViewEntry) GetInstallationId() string {
@@ -592,7 +776,7 @@ type CurrentRequest struct {
 
 func (x *CurrentRequest) Reset() {
 	*x = CurrentRequest{}
-	mi := &file_host_session_v1_session_proto_msgTypes[10]
+	mi := &file_host_session_v1_session_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -604,7 +788,7 @@ func (x *CurrentRequest) String() string {
 func (*CurrentRequest) ProtoMessage() {}
 
 func (x *CurrentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_host_session_v1_session_proto_msgTypes[10]
+	mi := &file_host_session_v1_session_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -617,7 +801,7 @@ func (x *CurrentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CurrentRequest.ProtoReflect.Descriptor instead.
 func (*CurrentRequest) Descriptor() ([]byte, []int) {
-	return file_host_session_v1_session_proto_rawDescGZIP(), []int{10}
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{14}
 }
 
 // EndRequest ends the caller's own session; the bearer is the call's.
@@ -629,7 +813,7 @@ type EndRequest struct {
 
 func (x *EndRequest) Reset() {
 	*x = EndRequest{}
-	mi := &file_host_session_v1_session_proto_msgTypes[11]
+	mi := &file_host_session_v1_session_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -641,7 +825,7 @@ func (x *EndRequest) String() string {
 func (*EndRequest) ProtoMessage() {}
 
 func (x *EndRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_host_session_v1_session_proto_msgTypes[11]
+	mi := &file_host_session_v1_session_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -654,7 +838,7 @@ func (x *EndRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EndRequest.ProtoReflect.Descriptor instead.
 func (*EndRequest) Descriptor() ([]byte, []int) {
-	return file_host_session_v1_session_proto_rawDescGZIP(), []int{11}
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{15}
 }
 
 // EndResponse says the session and every session opened from it ended.
@@ -666,7 +850,7 @@ type EndResponse struct {
 
 func (x *EndResponse) Reset() {
 	*x = EndResponse{}
-	mi := &file_host_session_v1_session_proto_msgTypes[12]
+	mi := &file_host_session_v1_session_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -678,7 +862,7 @@ func (x *EndResponse) String() string {
 func (*EndResponse) ProtoMessage() {}
 
 func (x *EndResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_host_session_v1_session_proto_msgTypes[12]
+	mi := &file_host_session_v1_session_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -691,7 +875,7 @@ func (x *EndResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EndResponse.ProtoReflect.Descriptor instead.
 func (*EndResponse) Descriptor() ([]byte, []int) {
-	return file_host_session_v1_session_proto_rawDescGZIP(), []int{12}
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{16}
 }
 
 // SignInRequest presents a fixture token.
@@ -705,7 +889,7 @@ type SignInRequest struct {
 
 func (x *SignInRequest) Reset() {
 	*x = SignInRequest{}
-	mi := &file_host_session_v1_session_proto_msgTypes[13]
+	mi := &file_host_session_v1_session_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -717,7 +901,7 @@ func (x *SignInRequest) String() string {
 func (*SignInRequest) ProtoMessage() {}
 
 func (x *SignInRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_host_session_v1_session_proto_msgTypes[13]
+	mi := &file_host_session_v1_session_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -730,7 +914,7 @@ func (x *SignInRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SignInRequest.ProtoReflect.Descriptor instead.
 func (*SignInRequest) Descriptor() ([]byte, []int) {
-	return file_host_session_v1_session_proto_rawDescGZIP(), []int{13}
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *SignInRequest) GetFixtureToken() string {
@@ -791,7 +975,7 @@ type Session struct {
 
 func (x *Session) Reset() {
 	*x = Session{}
-	mi := &file_host_session_v1_session_proto_msgTypes[14]
+	mi := &file_host_session_v1_session_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -803,7 +987,7 @@ func (x *Session) String() string {
 func (*Session) ProtoMessage() {}
 
 func (x *Session) ProtoReflect() protoreflect.Message {
-	mi := &file_host_session_v1_session_proto_msgTypes[14]
+	mi := &file_host_session_v1_session_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -816,7 +1000,7 @@ func (x *Session) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Session.ProtoReflect.Descriptor instead.
 func (*Session) Descriptor() ([]byte, []int) {
-	return file_host_session_v1_session_proto_rawDescGZIP(), []int{14}
+	return file_host_session_v1_session_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *Session) GetSessionId() string {
@@ -918,7 +1102,15 @@ const file_host_session_v1_session_proto_rawDesc = "" +
 	"\vTeamHolding\x12'\n" +
 	"\x0finstallation_id\x18\x01 \x01(\tR\x0einstallationId\x12\x16\n" +
 	"\x06target\x18\x02 \x01(\tR\x06target\x12\x12\n" +
-	"\x04role\x18\x03 \x01(\tR\x04role\"\x1a\n" +
+	"\x04role\x18\x03 \x01(\tR\x04role\"S\n" +
+	"\x1bAddFixtureTeamMemberRequest\x12\x17\n" +
+	"\ateam_id\x18\x01 \x01(\tR\x06teamId\x12\x1b\n" +
+	"\tperson_id\x18\x02 \x01(\tR\bpersonId\"\x1e\n" +
+	"\x1cAddFixtureTeamMemberResponse\"V\n" +
+	"\x1eRemoveFixtureTeamMemberRequest\x12\x17\n" +
+	"\ateam_id\x18\x01 \x01(\tR\x06teamId\x12\x1b\n" +
+	"\tperson_id\x18\x02 \x01(\tR\bpersonId\"!\n" +
+	"\x1fRemoveFixtureTeamMemberResponse\"\x1a\n" +
 	"\x18ListFixturePeopleRequest\"S\n" +
 	"\x19ListFixturePeopleResponse\x126\n" +
 	"\x06people\x18\x01 \x03(\v2\x1e.host.session.v1.FixturePersonR\x06people\"\xfd\x01\n" +
@@ -960,7 +1152,7 @@ const file_host_session_v1_session_proto_rawDesc = "" +
 	"castTeamId\x12&\n" +
 	"\x0fexpires_at_unix\x18\v \x01(\x03R\rexpiresAtUnix\x12\x1f\n" +
 	"\vgrant_epoch\x18\f \x01(\tR\n" +
-	"grantEpoch2\xbd\x06\n" +
+	"grantEpoch2\xab\t\n" +
 	"\x0eSessionService\x12b\n" +
 	"\x06SignIn\x12\x1e.host.session.v1.SignInRequest\x1a\x18.host.session.v1.Session\"\x1e\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/v1/session:sign-in\x12Y\n" +
 	"\aCurrent\x12\x1f.host.session.v1.CurrentRequest\x1a\x18.host.session.v1.Session\"\x13\x82\xd3\xe4\x93\x02\r\x12\v/v1/session\x12\\\n" +
@@ -968,7 +1160,9 @@ const file_host_session_v1_session_proto_rawDesc = "" +
 	"\fOpenRoleView\x12$.host.session.v1.OpenRoleViewRequest\x1a\x18.host.session.v1.Session\"%\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v1/session:open-role-view\x12u\n" +
 	"\fOpenTeamCast\x12$.host.session.v1.OpenTeamCastRequest\x1a\x18.host.session.v1.Session\"%\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v1/session:open-team-cast\x12\x8e\x01\n" +
 	"\x11ListCastableTeams\x12).host.session.v1.ListCastableTeamsRequest\x1a*.host.session.v1.ListCastableTeamsResponse\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/v1/session/castable-teams\x12\x8e\x01\n" +
-	"\x11ListFixturePeople\x12).host.session.v1.ListFixturePeopleRequest\x1a*.host.session.v1.ListFixturePeopleResponse\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/v1/session/fixture-peopleB+Z)gateway/pkg/gen/host/session/v1;sessionv1b\x06proto3"
+	"\x11ListFixturePeople\x12).host.session.v1.ListFixturePeopleRequest\x1a*.host.session.v1.ListFixturePeopleResponse\"\"\x82\xd3\xe4\x93\x02\x1c\x12\x1a/v1/session/fixture-people\x12\xab\x01\n" +
+	"\x14AddFixtureTeamMember\x12,.host.session.v1.AddFixtureTeamMemberRequest\x1a-.host.session.v1.AddFixtureTeamMemberResponse\"6\x82\xd3\xe4\x93\x020:\x01*\"+/v1/session/fixture-teams/{team_id}/members\x12\xbd\x01\n" +
+	"\x17RemoveFixtureTeamMember\x12/.host.session.v1.RemoveFixtureTeamMemberRequest\x1a0.host.session.v1.RemoveFixtureTeamMemberResponse\"?\x82\xd3\xe4\x93\x029*7/v1/session/fixture-teams/{team_id}/members/{person_id}B+Z)gateway/pkg/gen/host/session/v1;sessionv1b\x06proto3"
 
 var (
 	file_host_session_v1_session_proto_rawDescOnce sync.Once
@@ -982,45 +1176,53 @@ func file_host_session_v1_session_proto_rawDescGZIP() []byte {
 	return file_host_session_v1_session_proto_rawDescData
 }
 
-var file_host_session_v1_session_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_host_session_v1_session_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_host_session_v1_session_proto_goTypes = []any{
-	(*ListCastableTeamsRequest)(nil),  // 0: host.session.v1.ListCastableTeamsRequest
-	(*ListCastableTeamsResponse)(nil), // 1: host.session.v1.ListCastableTeamsResponse
-	(*CastableTeam)(nil),              // 2: host.session.v1.CastableTeam
-	(*TeamHolding)(nil),               // 3: host.session.v1.TeamHolding
-	(*ListFixturePeopleRequest)(nil),  // 4: host.session.v1.ListFixturePeopleRequest
-	(*ListFixturePeopleResponse)(nil), // 5: host.session.v1.ListFixturePeopleResponse
-	(*FixturePerson)(nil),             // 6: host.session.v1.FixturePerson
-	(*OpenRoleViewRequest)(nil),       // 7: host.session.v1.OpenRoleViewRequest
-	(*OpenTeamCastRequest)(nil),       // 8: host.session.v1.OpenTeamCastRequest
-	(*RoleViewEntry)(nil),             // 9: host.session.v1.RoleViewEntry
-	(*CurrentRequest)(nil),            // 10: host.session.v1.CurrentRequest
-	(*EndRequest)(nil),                // 11: host.session.v1.EndRequest
-	(*EndResponse)(nil),               // 12: host.session.v1.EndResponse
-	(*SignInRequest)(nil),             // 13: host.session.v1.SignInRequest
-	(*Session)(nil),                   // 14: host.session.v1.Session
+	(*ListCastableTeamsRequest)(nil),        // 0: host.session.v1.ListCastableTeamsRequest
+	(*ListCastableTeamsResponse)(nil),       // 1: host.session.v1.ListCastableTeamsResponse
+	(*CastableTeam)(nil),                    // 2: host.session.v1.CastableTeam
+	(*TeamHolding)(nil),                     // 3: host.session.v1.TeamHolding
+	(*AddFixtureTeamMemberRequest)(nil),     // 4: host.session.v1.AddFixtureTeamMemberRequest
+	(*AddFixtureTeamMemberResponse)(nil),    // 5: host.session.v1.AddFixtureTeamMemberResponse
+	(*RemoveFixtureTeamMemberRequest)(nil),  // 6: host.session.v1.RemoveFixtureTeamMemberRequest
+	(*RemoveFixtureTeamMemberResponse)(nil), // 7: host.session.v1.RemoveFixtureTeamMemberResponse
+	(*ListFixturePeopleRequest)(nil),        // 8: host.session.v1.ListFixturePeopleRequest
+	(*ListFixturePeopleResponse)(nil),       // 9: host.session.v1.ListFixturePeopleResponse
+	(*FixturePerson)(nil),                   // 10: host.session.v1.FixturePerson
+	(*OpenRoleViewRequest)(nil),             // 11: host.session.v1.OpenRoleViewRequest
+	(*OpenTeamCastRequest)(nil),             // 12: host.session.v1.OpenTeamCastRequest
+	(*RoleViewEntry)(nil),                   // 13: host.session.v1.RoleViewEntry
+	(*CurrentRequest)(nil),                  // 14: host.session.v1.CurrentRequest
+	(*EndRequest)(nil),                      // 15: host.session.v1.EndRequest
+	(*EndResponse)(nil),                     // 16: host.session.v1.EndResponse
+	(*SignInRequest)(nil),                   // 17: host.session.v1.SignInRequest
+	(*Session)(nil),                         // 18: host.session.v1.Session
 }
 var file_host_session_v1_session_proto_depIdxs = []int32{
 	2,  // 0: host.session.v1.ListCastableTeamsResponse.teams:type_name -> host.session.v1.CastableTeam
 	3,  // 1: host.session.v1.CastableTeam.holds:type_name -> host.session.v1.TeamHolding
-	6,  // 2: host.session.v1.ListFixturePeopleResponse.people:type_name -> host.session.v1.FixturePerson
-	9,  // 3: host.session.v1.Session.role_view:type_name -> host.session.v1.RoleViewEntry
-	13, // 4: host.session.v1.SessionService.SignIn:input_type -> host.session.v1.SignInRequest
-	10, // 5: host.session.v1.SessionService.Current:input_type -> host.session.v1.CurrentRequest
-	11, // 6: host.session.v1.SessionService.End:input_type -> host.session.v1.EndRequest
-	7,  // 7: host.session.v1.SessionService.OpenRoleView:input_type -> host.session.v1.OpenRoleViewRequest
-	8,  // 8: host.session.v1.SessionService.OpenTeamCast:input_type -> host.session.v1.OpenTeamCastRequest
+	10, // 2: host.session.v1.ListFixturePeopleResponse.people:type_name -> host.session.v1.FixturePerson
+	13, // 3: host.session.v1.Session.role_view:type_name -> host.session.v1.RoleViewEntry
+	17, // 4: host.session.v1.SessionService.SignIn:input_type -> host.session.v1.SignInRequest
+	14, // 5: host.session.v1.SessionService.Current:input_type -> host.session.v1.CurrentRequest
+	15, // 6: host.session.v1.SessionService.End:input_type -> host.session.v1.EndRequest
+	11, // 7: host.session.v1.SessionService.OpenRoleView:input_type -> host.session.v1.OpenRoleViewRequest
+	12, // 8: host.session.v1.SessionService.OpenTeamCast:input_type -> host.session.v1.OpenTeamCastRequest
 	0,  // 9: host.session.v1.SessionService.ListCastableTeams:input_type -> host.session.v1.ListCastableTeamsRequest
-	4,  // 10: host.session.v1.SessionService.ListFixturePeople:input_type -> host.session.v1.ListFixturePeopleRequest
-	14, // 11: host.session.v1.SessionService.SignIn:output_type -> host.session.v1.Session
-	14, // 12: host.session.v1.SessionService.Current:output_type -> host.session.v1.Session
-	12, // 13: host.session.v1.SessionService.End:output_type -> host.session.v1.EndResponse
-	14, // 14: host.session.v1.SessionService.OpenRoleView:output_type -> host.session.v1.Session
-	14, // 15: host.session.v1.SessionService.OpenTeamCast:output_type -> host.session.v1.Session
-	1,  // 16: host.session.v1.SessionService.ListCastableTeams:output_type -> host.session.v1.ListCastableTeamsResponse
-	5,  // 17: host.session.v1.SessionService.ListFixturePeople:output_type -> host.session.v1.ListFixturePeopleResponse
-	11, // [11:18] is the sub-list for method output_type
-	4,  // [4:11] is the sub-list for method input_type
+	8,  // 10: host.session.v1.SessionService.ListFixturePeople:input_type -> host.session.v1.ListFixturePeopleRequest
+	4,  // 11: host.session.v1.SessionService.AddFixtureTeamMember:input_type -> host.session.v1.AddFixtureTeamMemberRequest
+	6,  // 12: host.session.v1.SessionService.RemoveFixtureTeamMember:input_type -> host.session.v1.RemoveFixtureTeamMemberRequest
+	18, // 13: host.session.v1.SessionService.SignIn:output_type -> host.session.v1.Session
+	18, // 14: host.session.v1.SessionService.Current:output_type -> host.session.v1.Session
+	16, // 15: host.session.v1.SessionService.End:output_type -> host.session.v1.EndResponse
+	18, // 16: host.session.v1.SessionService.OpenRoleView:output_type -> host.session.v1.Session
+	18, // 17: host.session.v1.SessionService.OpenTeamCast:output_type -> host.session.v1.Session
+	1,  // 18: host.session.v1.SessionService.ListCastableTeams:output_type -> host.session.v1.ListCastableTeamsResponse
+	9,  // 19: host.session.v1.SessionService.ListFixturePeople:output_type -> host.session.v1.ListFixturePeopleResponse
+	5,  // 20: host.session.v1.SessionService.AddFixtureTeamMember:output_type -> host.session.v1.AddFixtureTeamMemberResponse
+	7,  // 21: host.session.v1.SessionService.RemoveFixtureTeamMember:output_type -> host.session.v1.RemoveFixtureTeamMemberResponse
+	13, // [13:22] is the sub-list for method output_type
+	4,  // [4:13] is the sub-list for method input_type
 	4,  // [4:4] is the sub-list for extension type_name
 	4,  // [4:4] is the sub-list for extension extendee
 	0,  // [0:4] is the sub-list for field type_name
@@ -1037,7 +1239,7 @@ func file_host_session_v1_session_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_host_session_v1_session_proto_rawDesc), len(file_host_session_v1_session_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

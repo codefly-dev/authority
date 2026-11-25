@@ -75,10 +75,12 @@ is served only where that is meant, and nothing turns it on by default:
   (`CODEFLY__FIXTURE`, which the environment's `fixture:` or `--fixture`
   delivers). An environment that selects none is refused by name rather than
   handed `local`;
-- the session plugin lists fixture people and signs them in by fixture token
-  only when it was told the run is one (`wiring.SetFixtureRun`, set after the
-  checks above); otherwise `ListFixturePeople` and `SignIn` answer
-  `FailedPrecondition`;
+- the session plugin lists fixture people, signs them in by fixture token and
+  lets an organisation's administrator put a person in a team or take them
+  out (`AddFixtureTeamMember`, `RemoveFixtureTeamMember`: what a scenario
+  does where a product calls its host's team administration) only when it was
+  told the run is one (`wiring.SetFixtureRun`, set after the checks above);
+  otherwise each of those calls answers `FailedPrecondition`;
 - an advisory `Check` is answered as advice in that run alone.
 
 The edge and the hop's HTTP face bind the host the run resolved for them

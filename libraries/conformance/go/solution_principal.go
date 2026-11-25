@@ -83,8 +83,11 @@ import (
 //   - OtherAdmin and OtherMember: an administrator and a member of
 //     OtherOrganization; OtherTeam: a team of OtherOrganization.
 //   - Existing: a resource of Kind owned by Organization.
-//   - Uninstall, RemoveFromTeam, RemoveFromOrganization, DeleteTeam: the
-//     host's own paths (the interface has none). The suite removes
+//   - Uninstall, RemoveFromOrganization, DeleteTeam: the host's own paths
+//     (the interface has none). RemoveFromTeam: the host's own path to take
+//     a member out of a team, for a host that does not serve the session
+//     interface's RemoveFixtureTeamMember; a host that serves it names none,
+//     and the suite calls it as Admin. The suite removes
 //     TwoTeamMember from Team and deletes SecondTeam, nothing else. Install
 //     must converge for the suite's solutions.
 type SolutionPrincipalCase struct {
@@ -179,7 +182,10 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 	if problems := c.contractProblems(); len(problems) > 0 {
 		t.Fatalf("target: the published contract %s", strings.Join(problems, "; "))
 	}
-	if f.Uninstall == nil || f.RemoveFromTeam == nil || f.RemoveFromOrganization == nil || f.SignManifest == nil || f.SignAuthority == nil ||
+	if problem := membershipProblem(c, f.RemoveFromTeam); problem != "" {
+		t.Fatalf("required conformance fixture missing: %s", problem)
+	}
+	if f.Uninstall == nil || f.RemoveFromOrganization == nil || f.SignManifest == nil || f.SignAuthority == nil ||
 		f.DeliveryCredential == nil || f.Existing == "" || f.OtherOrganization == "" || f.LegacyStore == "" || f.Team == "" || f.EmptyTeam == "" || f.OtherTeam == "" || f.C.Solution == "" ||
 		slices.Contains([]string{f.Admin, f.UserHolder, f.Author, f.Member, f.AdminHolder, f.TeamMember, f.TeamLeaver, f.OrgLeaver, f.Administrator, f.Reader, f.NoteReader, f.OtherAdmin, f.OtherMember}, "") {
 		t.Fatal("required conformance fixture missing: solution principal case")

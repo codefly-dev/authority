@@ -80,7 +80,6 @@ people:
 		OtherAdmin: "fixture-zoe", OtherMember: "fixture-omar", OtherTeam: "ops",
 		Existing:               "store-x",
 		Uninstall:              func(_ context.Context, id string) error { return k.State.UninstallAsHost(id) },
-		RemoveFromTeam:         k.State.LeaveTeam,
 		RemoveFromOrganization: k.State.LeaveOrganization,
 		DeleteTeam:             func(ctx context.Context, team string) error { return k.State.DeleteTeam(ctx, "acme", team) },
 		SignManifest:           testkit.SignDocument,

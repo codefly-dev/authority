@@ -148,9 +148,7 @@ func RunAccessRevisions(t *testing.T, conn grpc.ClientConnInterface, descriptors
 		grant(t, da, map[string]any{"team_id": f.Team})
 		as.isAllowed(t, check(t, as.token(t, f.TeamLeaver, A), da, nil))
 		lag(t)
-		if err := f.RemoveFromTeam(as.ctx, as.personID(t, f.TeamLeaver), f.Team); err != nil {
-			t.Fatal(err)
-		}
+		as.removeFromTeam(t, f.TeamLeaver, f.Team)
 		published := head(t, da)
 		as.isDenied(t, check(t, as.token(t, f.TeamLeaver, A), da, map[string]any{"min_revision": published}), da)
 		as.isAllowed(t, check(t, as.token(t, f.TeamMember, A), da, map[string]any{"min_revision": published}))

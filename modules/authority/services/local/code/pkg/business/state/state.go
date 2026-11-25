@@ -583,6 +583,74 @@ func (s *State) LeaveTeam(ctx context.Context, person, team string) error {
 	return s.svc.PersonChanged(ctx, person)
 }
 
+// JoinTeam puts person in team, a team of their organisation's directory:
+// they hold what the team is granted from the next decision (the core moves
+// their person epoch). A person already in it is left as they are.
+func (s *State) JoinTeam(ctx context.Context, person, team string) error {
+	s.mu.RLock()
+	p, ok := s.people[person]
+	s.mu.RUnlock()
+	if !ok {
+		return fmt.Errorf("%w: person %q", ErrUnknown, person)
+	}
+	var exists bool
+	if err := s.read(func(tx authority.Tx) (err error) { exists, err = tx.TeamExists(p.Organization, team); return err }); err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("%w: team %q", ErrUnknown, team)
+	}
+	s.mu.Lock()
+	p, ok = s.people[person]
+	if !ok {
+		s.mu.Unlock()
+		return fmt.Errorf("%w: person %q", ErrUnknown, person)
+	}
+	if slices.Contains(p.Teams, team) {
+		s.mu.Unlock()
+		return nil
+	}
+	p.Teams = append(slices.Clone(p.Teams), team)
+	s.people[person] = p
+	s.store.PutPerson(domain.Person{ID: p.ID, Organization: p.Organization, Roles: slices.Clone(p.Roles), Teams: slices.Clone(p.Teams)})
+	s.mu.Unlock()
+	return s.svc.PersonChanged(ctx, person)
+}
+
+// ChangeFixtureTeam is the session interface's membership change, for a run
+// on its fixture: the person the open session administrator authenticates
+// puts person in team (join) or takes them out, in the organisation they are
+// signed into. The session is the person's own, never a cast or a role view,
+// and they administer the organisation; the person named is a person of it.
+func (s *State) ChangeFixtureTeam(ctx context.Context, administrator, team, person string, join bool) error {
+	sess, err := s.Session(administrator)
+	if err != nil {
+		return err
+	}
+	if sess.Parent != "" || sess.CastTeam != "" || len(sess.RoleView) > 0 {
+		return fmt.Errorf("%w: a team's members are changed on a person's own session, never a cast or a role view", ErrForbidden)
+	}
+	s.mu.RLock()
+	caller, signedIn := s.people[sess.Person]
+	p, known := s.people[person]
+	s.mu.RUnlock()
+	// The person's roles now, not the session's snapshot of them.
+	if !signedIn || caller.Organization != sess.Organization || !slices.Contains(caller.Roles, AdminRole) {
+		return fmt.Errorf("%w: %s does not administer %s", ErrForbidden, sess.Person, sess.Organization)
+	}
+	if team == "" || person == "" {
+		return fmt.Errorf("%w: the call names a team and a person", ErrUnknown)
+	}
+	// Another organisation's person is as unknown here as one who does not exist.
+	if !known || p.Organization != sess.Organization {
+		return fmt.Errorf("%w: person %q of %s", ErrUnknown, person, sess.Organization)
+	}
+	if join {
+		return s.JoinTeam(ctx, person, team)
+	}
+	return s.LeaveTeam(ctx, person, team)
+}
+
 // DeleteTeam removes team from organization's directory and from every
 // member: what its grants gave ends at once (the core moves each member's
 // person epoch), and it is granted nothing more. Its grants stay listed and

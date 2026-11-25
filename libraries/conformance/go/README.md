@@ -172,7 +172,9 @@ placement (its owner and the collections above it). Nothing about a document
 is registered at the host.
 
 `AccessCase` embeds `SolutionPrincipalCase` (the cast and the host's own
-`Uninstall`, `RemoveFromTeam` and `RemoveFromOrganization`) and adds
+`Uninstall`, `RemoveFromTeam` and `RemoveFromOrganization`; a host that serves
+the session interface's `RemoveFixtureTeamMember` names no `RemoveFromTeam`,
+and the suite removes its member through the call, as `Admin`) and adds
 `CollectionKind`, `Advance` (the host's clock moved forward; nil waits in real
 time) and `InstalledRead` (a host's class of installed-content read bindings;
 nil when it has none). The suite delivers its own declarations for A, B, C and
@@ -356,7 +358,7 @@ then runs these cases, each making its own grants:
 13. a child never widens the owner, the actions or the ids it narrowed to
 14. an existing resource joins the principal only by a transfer from the organization or its person, administered on that resource through the person's own grants, by a holder of write on the principal's data (fourteen named refusals)
 15. revoking a person's role stops their access at once, theirs alone; their old capabilities stay dead after a re-grant
-16. a team's role is its members' access; revoking it or leaving the team stops them at once; a direct grant survives the team's revoke. Its last step, `team_removal.go`, is the host removing a member from the team (`RemoveFromTeam`): the authority reads a person's teams from the host and ends nothing already issued unless the host tells it the person changed, so a host passes only if, by the next call, `Check` refuses with "revoked" what the member was issued through the team's role (their call through A, and the store's own hop on it, sealed to the store's installation), `ListResources` refuses it too, a fresh ask at A "holds no role", the session they had cast onto the team issues nothing and what it was issued is refused, a new cast is refused "could not grant", `ListCastableTeams` offers them the team no more, the role granted to them directly on B is issued again, and another member of the team is untouched
+16. a team's role is its members' access; revoking it or leaving the team stops them at once; a direct grant survives the team's revoke. Its last step, `team_removal.go`, is the host removing a member from the team (the session interface's `RemoveFixtureTeamMember` called by the administrator where the host serves it, which the local authority does; the host's own `RemoveFromTeam` otherwise): the authority reads a person's teams from the host and ends nothing already issued unless the host tells it the person changed, so a host passes only if, by the next call, `Check` refuses with "revoked" what the member was issued through the team's role (their call through A, and the store's own hop on it, sealed to the store's installation), `ListResources` refuses it too, a fresh ask at A "holds no role", the session they had cast onto the team issues nothing and what it was issued is refused, a new cast is refused "could not grant", `ListCastableTeams` offers them the team no more, the capability they held through the role granted to them directly on B is refused with the rest and that role is issued again, freshly, and another member of the team is untouched; where the host serves the membership calls, the member themself, another member, a member who administers nothing, another organisation's administrator and a call with no bearer are each refused and change nothing, and a person put back (`AddFixtureTeamMember`) is issued through the team's role again while nothing issued before they left is revived
 17. a person leaving the organization loses the solution's data at once
 18. uninstalling disables the principal at once and its data stays owned; old capabilities (a person's, the agent's, a parent's children) stay dead after reinstall and re-grant
 

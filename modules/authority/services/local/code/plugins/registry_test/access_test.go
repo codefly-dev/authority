@@ -94,7 +94,6 @@ func accessHost(t *testing.T) (*grpc.ClientConn, []byte, conformance.AccessCase)
 			Reader:     "fixture-access-reader",
 			OtherAdmin: "fixture-zoe", OtherMember: "fixture-omar",
 			Uninstall:              func(_ context.Context, id string) error { return k.State.UninstallAsHost(id) },
-			RemoveFromTeam:         k.State.LeaveTeam,
 			RemoveFromOrganization: k.State.LeaveOrganization,
 			SignManifest:           testkit.SignDocument,
 			SignAuthority:          testkit.SignAuthority,

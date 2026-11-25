@@ -43,7 +43,7 @@
       "kind": "protobuf",
       "package": "",
       "path": "contracts/api/local/grpc/contract.binpb",
-      "digest": "sha256:a8c5f9f914b48b28c255079de2407c3395619468f80d8b9085aea6d79245577a",
+      "digest": "sha256:8f5d2f0e0d101bbadce55f55085ad076da9680e0a56e9f06ac47a98588180937",
       "services": [
         {
           "name": "LocalService",
@@ -124,12 +124,14 @@
           "name": "SessionService",
           "fullName": "host.session.v1.SessionService",
           "procedures": [
+            "/host.session.v1.SessionService/AddFixtureTeamMember",
             "/host.session.v1.SessionService/Current",
             "/host.session.v1.SessionService/End",
             "/host.session.v1.SessionService/ListCastableTeams",
             "/host.session.v1.SessionService/ListFixturePeople",
             "/host.session.v1.SessionService/OpenRoleView",
             "/host.session.v1.SessionService/OpenTeamCast",
+            "/host.session.v1.SessionService/RemoveFixtureTeamMember",
             "/host.session.v1.SessionService/SignIn"
           ]
         }

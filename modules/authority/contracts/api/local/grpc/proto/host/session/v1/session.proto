@@ -80,6 +80,31 @@ service SessionService {
   rpc ListFixturePeople(ListFixturePeopleRequest) returns (ListFixturePeopleResponse) {
     option (google.api.http) = {get: "/v1/session/fixture-people"};
   }
+  // AddFixtureTeamMember puts a person in a team, on a host run on its
+  // fixture: what a scenario does to a fixture's directory, where a product
+  // calls the host's own team administration. The caller's bearer is the
+  // session of a person who administers the organisation they are signed
+  // into, and that organisation is the one changed: the team is a team of it
+  // and the person a person of it, or the call is not found. From the next
+  // decision the person holds what the team is granted. Adding a member
+  // twice changes nothing. A cast, a role view and the callers OpenRoleView
+  // refuses are refused here, and so is a person who does not administer the
+  // organisation. A host that was not started on a fixture in a local run
+  // answers a failed precondition, as ListFixturePeople does; a host that
+  // signs real people in does not serve it.
+  rpc AddFixtureTeamMember(AddFixtureTeamMemberRequest) returns (AddFixtureTeamMemberResponse) {
+    option (google.api.http) = {post: "/v1/session/fixture-teams/{team_id}/members" body: "*"};
+  }
+  // RemoveFixtureTeamMember takes a person out of a team, on a host run on
+  // its fixture, under AddFixtureTeamMember's rules for who may call and what
+  // is named. From the next decision the person holds nothing through the
+  // team: every Work Context issued to them through a role granted to it is
+  // refused when it is checked, a session cast onto it for them is issued
+  // nothing more, and what they hold otherwise is issued again, freshly.
+  // Removing a person who is no member changes nothing.
+  rpc RemoveFixtureTeamMember(RemoveFixtureTeamMemberRequest) returns (RemoveFixtureTeamMemberResponse) {
+    option (google.api.http) = {delete: "/v1/session/fixture-teams/{team_id}/members/{person_id}"};
+  }
 }
 
 // ListCastableTeamsRequest asks for the teams the caller may act as, at the
@@ -114,6 +139,28 @@ message TeamHolding {
   // The role.
   string role = 3;
 }
+
+// AddFixtureTeamMemberRequest names the team and the person to put in it.
+message AddFixtureTeamMemberRequest {
+  // The team, of the organisation the caller is signed into.
+  string team_id = 1;
+  // The person, of the same organisation.
+  string person_id = 2;
+}
+
+// AddFixtureTeamMemberResponse says the person is a member of the team.
+message AddFixtureTeamMemberResponse {}
+
+// RemoveFixtureTeamMemberRequest names the team and the person to take out of it.
+message RemoveFixtureTeamMemberRequest {
+  // The team, of the organisation the caller is signed into.
+  string team_id = 1;
+  // The person, of the same organisation.
+  string person_id = 2;
+}
+
+// RemoveFixtureTeamMemberResponse says the person is no member of the team.
+message RemoveFixtureTeamMemberResponse {}
 
 // ListFixturePeopleRequest asks for every fixture person.
 message ListFixturePeopleRequest {}

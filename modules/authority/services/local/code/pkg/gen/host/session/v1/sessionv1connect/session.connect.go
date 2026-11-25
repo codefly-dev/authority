@@ -56,6 +56,12 @@ const (
 	// SessionServiceListFixturePeopleProcedure is the fully-qualified name of the SessionService's
 	// ListFixturePeople RPC.
 	SessionServiceListFixturePeopleProcedure = "/host.session.v1.SessionService/ListFixturePeople"
+	// SessionServiceAddFixtureTeamMemberProcedure is the fully-qualified name of the SessionService's
+	// AddFixtureTeamMember RPC.
+	SessionServiceAddFixtureTeamMemberProcedure = "/host.session.v1.SessionService/AddFixtureTeamMember"
+	// SessionServiceRemoveFixtureTeamMemberProcedure is the fully-qualified name of the
+	// SessionService's RemoveFixtureTeamMember RPC.
+	SessionServiceRemoveFixtureTeamMemberProcedure = "/host.session.v1.SessionService/RemoveFixtureTeamMember"
 )
 
 // SessionServiceClient is a client for the host.session.v1.SessionService service.
@@ -115,6 +121,27 @@ type SessionServiceClient interface {
 	// authority's fixture. A host that signs real people in through its identity
 	// provider has no fixture people and answers none.
 	ListFixturePeople(context.Context, *connect.Request[v1.ListFixturePeopleRequest]) (*connect.Response[v1.ListFixturePeopleResponse], error)
+	// AddFixtureTeamMember puts a person in a team, on a host run on its
+	// fixture: what a scenario does to a fixture's directory, where a product
+	// calls the host's own team administration. The caller's bearer is the
+	// session of a person who administers the organisation they are signed
+	// into, and that organisation is the one changed: the team is a team of it
+	// and the person a person of it, or the call is not found. From the next
+	// decision the person holds what the team is granted. Adding a member
+	// twice changes nothing. A cast, a role view and the callers OpenRoleView
+	// refuses are refused here, and so is a person who does not administer the
+	// organisation. A host that was not started on a fixture in a local run
+	// answers a failed precondition, as ListFixturePeople does; a host that
+	// signs real people in does not serve it.
+	AddFixtureTeamMember(context.Context, *connect.Request[v1.AddFixtureTeamMemberRequest]) (*connect.Response[v1.AddFixtureTeamMemberResponse], error)
+	// RemoveFixtureTeamMember takes a person out of a team, on a host run on
+	// its fixture, under AddFixtureTeamMember's rules for who may call and what
+	// is named. From the next decision the person holds nothing through the
+	// team: every Work Context issued to them through a role granted to it is
+	// refused when it is checked, a session cast onto it for them is issued
+	// nothing more, and what they hold otherwise is issued again, freshly.
+	// Removing a person who is no member changes nothing.
+	RemoveFixtureTeamMember(context.Context, *connect.Request[v1.RemoveFixtureTeamMemberRequest]) (*connect.Response[v1.RemoveFixtureTeamMemberResponse], error)
 }
 
 // NewSessionServiceClient constructs a client for the host.session.v1.SessionService service. By
@@ -170,18 +197,32 @@ func NewSessionServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(sessionServiceMethods.ByName("ListFixturePeople")),
 			connect.WithClientOptions(opts...),
 		),
+		addFixtureTeamMember: connect.NewClient[v1.AddFixtureTeamMemberRequest, v1.AddFixtureTeamMemberResponse](
+			httpClient,
+			baseURL+SessionServiceAddFixtureTeamMemberProcedure,
+			connect.WithSchema(sessionServiceMethods.ByName("AddFixtureTeamMember")),
+			connect.WithClientOptions(opts...),
+		),
+		removeFixtureTeamMember: connect.NewClient[v1.RemoveFixtureTeamMemberRequest, v1.RemoveFixtureTeamMemberResponse](
+			httpClient,
+			baseURL+SessionServiceRemoveFixtureTeamMemberProcedure,
+			connect.WithSchema(sessionServiceMethods.ByName("RemoveFixtureTeamMember")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // sessionServiceClient implements SessionServiceClient.
 type sessionServiceClient struct {
-	signIn            *connect.Client[v1.SignInRequest, v1.Session]
-	current           *connect.Client[v1.CurrentRequest, v1.Session]
-	end               *connect.Client[v1.EndRequest, v1.EndResponse]
-	openRoleView      *connect.Client[v1.OpenRoleViewRequest, v1.Session]
-	openTeamCast      *connect.Client[v1.OpenTeamCastRequest, v1.Session]
-	listCastableTeams *connect.Client[v1.ListCastableTeamsRequest, v1.ListCastableTeamsResponse]
-	listFixturePeople *connect.Client[v1.ListFixturePeopleRequest, v1.ListFixturePeopleResponse]
+	signIn                  *connect.Client[v1.SignInRequest, v1.Session]
+	current                 *connect.Client[v1.CurrentRequest, v1.Session]
+	end                     *connect.Client[v1.EndRequest, v1.EndResponse]
+	openRoleView            *connect.Client[v1.OpenRoleViewRequest, v1.Session]
+	openTeamCast            *connect.Client[v1.OpenTeamCastRequest, v1.Session]
+	listCastableTeams       *connect.Client[v1.ListCastableTeamsRequest, v1.ListCastableTeamsResponse]
+	listFixturePeople       *connect.Client[v1.ListFixturePeopleRequest, v1.ListFixturePeopleResponse]
+	addFixtureTeamMember    *connect.Client[v1.AddFixtureTeamMemberRequest, v1.AddFixtureTeamMemberResponse]
+	removeFixtureTeamMember *connect.Client[v1.RemoveFixtureTeamMemberRequest, v1.RemoveFixtureTeamMemberResponse]
 }
 
 // SignIn calls host.session.v1.SessionService.SignIn.
@@ -217,6 +258,16 @@ func (c *sessionServiceClient) ListCastableTeams(ctx context.Context, req *conne
 // ListFixturePeople calls host.session.v1.SessionService.ListFixturePeople.
 func (c *sessionServiceClient) ListFixturePeople(ctx context.Context, req *connect.Request[v1.ListFixturePeopleRequest]) (*connect.Response[v1.ListFixturePeopleResponse], error) {
 	return c.listFixturePeople.CallUnary(ctx, req)
+}
+
+// AddFixtureTeamMember calls host.session.v1.SessionService.AddFixtureTeamMember.
+func (c *sessionServiceClient) AddFixtureTeamMember(ctx context.Context, req *connect.Request[v1.AddFixtureTeamMemberRequest]) (*connect.Response[v1.AddFixtureTeamMemberResponse], error) {
+	return c.addFixtureTeamMember.CallUnary(ctx, req)
+}
+
+// RemoveFixtureTeamMember calls host.session.v1.SessionService.RemoveFixtureTeamMember.
+func (c *sessionServiceClient) RemoveFixtureTeamMember(ctx context.Context, req *connect.Request[v1.RemoveFixtureTeamMemberRequest]) (*connect.Response[v1.RemoveFixtureTeamMemberResponse], error) {
+	return c.removeFixtureTeamMember.CallUnary(ctx, req)
 }
 
 // SessionServiceHandler is an implementation of the host.session.v1.SessionService service.
@@ -276,6 +327,27 @@ type SessionServiceHandler interface {
 	// authority's fixture. A host that signs real people in through its identity
 	// provider has no fixture people and answers none.
 	ListFixturePeople(context.Context, *connect.Request[v1.ListFixturePeopleRequest]) (*connect.Response[v1.ListFixturePeopleResponse], error)
+	// AddFixtureTeamMember puts a person in a team, on a host run on its
+	// fixture: what a scenario does to a fixture's directory, where a product
+	// calls the host's own team administration. The caller's bearer is the
+	// session of a person who administers the organisation they are signed
+	// into, and that organisation is the one changed: the team is a team of it
+	// and the person a person of it, or the call is not found. From the next
+	// decision the person holds what the team is granted. Adding a member
+	// twice changes nothing. A cast, a role view and the callers OpenRoleView
+	// refuses are refused here, and so is a person who does not administer the
+	// organisation. A host that was not started on a fixture in a local run
+	// answers a failed precondition, as ListFixturePeople does; a host that
+	// signs real people in does not serve it.
+	AddFixtureTeamMember(context.Context, *connect.Request[v1.AddFixtureTeamMemberRequest]) (*connect.Response[v1.AddFixtureTeamMemberResponse], error)
+	// RemoveFixtureTeamMember takes a person out of a team, on a host run on
+	// its fixture, under AddFixtureTeamMember's rules for who may call and what
+	// is named. From the next decision the person holds nothing through the
+	// team: every Work Context issued to them through a role granted to it is
+	// refused when it is checked, a session cast onto it for them is issued
+	// nothing more, and what they hold otherwise is issued again, freshly.
+	// Removing a person who is no member changes nothing.
+	RemoveFixtureTeamMember(context.Context, *connect.Request[v1.RemoveFixtureTeamMemberRequest]) (*connect.Response[v1.RemoveFixtureTeamMemberResponse], error)
 }
 
 // NewSessionServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -327,6 +399,18 @@ func NewSessionServiceHandler(svc SessionServiceHandler, opts ...connect.Handler
 		connect.WithSchema(sessionServiceMethods.ByName("ListFixturePeople")),
 		connect.WithHandlerOptions(opts...),
 	)
+	sessionServiceAddFixtureTeamMemberHandler := connect.NewUnaryHandler(
+		SessionServiceAddFixtureTeamMemberProcedure,
+		svc.AddFixtureTeamMember,
+		connect.WithSchema(sessionServiceMethods.ByName("AddFixtureTeamMember")),
+		connect.WithHandlerOptions(opts...),
+	)
+	sessionServiceRemoveFixtureTeamMemberHandler := connect.NewUnaryHandler(
+		SessionServiceRemoveFixtureTeamMemberProcedure,
+		svc.RemoveFixtureTeamMember,
+		connect.WithSchema(sessionServiceMethods.ByName("RemoveFixtureTeamMember")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/host.session.v1.SessionService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SessionServiceSignInProcedure:
@@ -343,6 +427,10 @@ func NewSessionServiceHandler(svc SessionServiceHandler, opts ...connect.Handler
 			sessionServiceListCastableTeamsHandler.ServeHTTP(w, r)
 		case SessionServiceListFixturePeopleProcedure:
 			sessionServiceListFixturePeopleHandler.ServeHTTP(w, r)
+		case SessionServiceAddFixtureTeamMemberProcedure:
+			sessionServiceAddFixtureTeamMemberHandler.ServeHTTP(w, r)
+		case SessionServiceRemoveFixtureTeamMemberProcedure:
+			sessionServiceRemoveFixtureTeamMemberHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -378,4 +466,12 @@ func (UnimplementedSessionServiceHandler) ListCastableTeams(context.Context, *co
 
 func (UnimplementedSessionServiceHandler) ListFixturePeople(context.Context, *connect.Request[v1.ListFixturePeopleRequest]) (*connect.Response[v1.ListFixturePeopleResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.session.v1.SessionService.ListFixturePeople is not implemented"))
+}
+
+func (UnimplementedSessionServiceHandler) AddFixtureTeamMember(context.Context, *connect.Request[v1.AddFixtureTeamMemberRequest]) (*connect.Response[v1.AddFixtureTeamMemberResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.session.v1.SessionService.AddFixtureTeamMember is not implemented"))
+}
+
+func (UnimplementedSessionServiceHandler) RemoveFixtureTeamMember(context.Context, *connect.Request[v1.RemoveFixtureTeamMemberRequest]) (*connect.Response[v1.RemoveFixtureTeamMemberResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("host.session.v1.SessionService.RemoveFixtureTeamMember is not implemented"))
 }

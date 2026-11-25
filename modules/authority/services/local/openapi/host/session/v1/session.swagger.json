@@ -86,6 +86,85 @@
         ]
       }
     },
+    "/v1/session/fixture-teams/{teamId}/members": {
+      "post": {
+        "summary": "AddFixtureTeamMember puts a person in a team, on a host run on its\nfixture: what a scenario does to a fixture's directory, where a product\ncalls the host's own team administration. The caller's bearer is the\nsession of a person who administers the organisation they are signed\ninto, and that organisation is the one changed: the team is a team of it\nand the person a person of it, or the call is not found. From the next\ndecision the person holds what the team is granted. Adding a member\ntwice changes nothing. A cast, a role view and the callers OpenRoleView\nrefuses are refused here, and so is a person who does not administer the\norganisation. A host that was not started on a fixture in a local run\nanswers a failed precondition, as ListFixturePeople does; a host that\nsigns real people in does not serve it.",
+        "operationId": "SessionService_AddFixtureTeamMember",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1AddFixtureTeamMemberResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "teamId",
+            "description": "The team, of the organisation the caller is signed into.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/SessionServiceAddFixtureTeamMemberBody"
+            }
+          }
+        ],
+        "tags": [
+          "SessionService"
+        ]
+      }
+    },
+    "/v1/session/fixture-teams/{teamId}/members/{personId}": {
+      "delete": {
+        "summary": "RemoveFixtureTeamMember takes a person out of a team, on a host run on\nits fixture, under AddFixtureTeamMember's rules for who may call and what\nis named. From the next decision the person holds nothing through the\nteam: every Work Context issued to them through a role granted to it is\nrefused when it is checked, a session cast onto it for them is issued\nnothing more, and what they hold otherwise is issued again, freshly.\nRemoving a person who is no member changes nothing.",
+        "operationId": "SessionService_RemoveFixtureTeamMember",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RemoveFixtureTeamMemberResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "teamId",
+            "description": "The team, of the organisation the caller is signed into.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "personId",
+            "description": "The person, of the same organisation.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "SessionService"
+        ]
+      }
+    },
     "/v1/session:end": {
       "post": {
         "summary": "End ends the session the caller's bearer belongs to, and with it every\nsession opened from it: its role views and casts, and theirs. From then on\neach of those bearers is unauthenticated wherever a session is read:\nCurrent, a person's Issue, and every call here. It is a sign-out, and the\nway back from a cast: a browser edge ends the cast it leaves, and the\nsession the cast was opened from is untouched. Ending is never undone, and\na bearer that names no open session is unauthenticated, as it is anywhere.\nA Work Context issued to the session before it ended lapses on its own\nexpiry. The callers OpenRoleView refuses are refused here.",
@@ -224,6 +303,16 @@
     }
   },
   "definitions": {
+    "SessionServiceAddFixtureTeamMemberBody": {
+      "type": "object",
+      "properties": {
+        "personId": {
+          "type": "string",
+          "description": "The person, of the same organisation."
+        }
+      },
+      "description": "AddFixtureTeamMemberRequest names the team and the person to put in it."
+    },
     "protobufAny": {
       "type": "object",
       "properties": {
@@ -251,6 +340,10 @@
           }
         }
       }
+    },
+    "v1AddFixtureTeamMemberResponse": {
+      "type": "object",
+      "description": "AddFixtureTeamMemberResponse says the person is a member of the team."
     },
     "v1CastableTeam": {
       "type": "object",
@@ -376,6 +469,10 @@
         }
       },
       "description": "OpenTeamCastRequest names the team to act as."
+    },
+    "v1RemoveFixtureTeamMemberResponse": {
+      "type": "object",
+      "description": "RemoveFixtureTeamMemberResponse says the person is no member of the team."
     },
     "v1RoleViewEntry": {
       "type": "object",

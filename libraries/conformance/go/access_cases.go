@@ -65,9 +65,7 @@ func (as *accessSuite) cases(t *testing.T) {
 		as.allowed(t, as.token(t, f.TeamLeaver, A), da, "BASIS_RESOURCE_GRANT")
 		as.denied(t, as.token(t, carol, A), da)
 		before := as.token(t, f.TeamLeaver, A)
-		if err := f.RemoveFromTeam(as.ctx, as.personID(t, f.TeamLeaver), f.Team); err != nil {
-			t.Fatal(err)
-		}
+		as.removeFromTeam(t, f.TeamLeaver, f.Team)
 		// What they were issued as a member decides nothing more, and a
 		// capability issued since is denied the team's grant.
 		if out, err := as.ask(before, da); err == nil && enumName(out, "decision") == "DECISION_ALLOWED" {

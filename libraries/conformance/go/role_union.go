@@ -143,9 +143,7 @@ func (sp *principalSuite) roleHeldTwice(t *testing.T) {
 		sp.grant(t, A, "user", direct)
 		before := sp.must(t)(sp.through(t, both, A, "store"))
 		sp.holds(t, before, "read")
-		if err := f.RemoveFromTeam(sp.ctx, sp.personID(t, both), f.Team); err != nil {
-			t.Fatal(err)
-		}
+		sp.removeFromTeam(t, both, f.Team)
 		sp.ended(t, before)
 		last := sp.must(t)(sp.through(t, both, A, "store"))
 		sp.holds(t, last, "read")

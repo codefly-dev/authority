@@ -1,5 +1,6 @@
 // Package session serves codefly.dev/session for fixture people: who they are,
-// SignIn, Current and End, role views and casts.
+// SignIn, Current and End, role views and casts, and, in a run on its fixture,
+// who is in a team.
 package session
 
 import (
@@ -27,7 +28,8 @@ type Plugin struct {
 	State *state.State
 	// Fixture says this run was started on a fixture it selected, in a local
 	// run: the fixture's people are listed, with the tokens they sign in by,
-	// and signed in by them. It is false unless said (wiring.FixtureRun; a
+	// signed in by them, and put in and taken out of teams by their
+	// organisation's administrator. It is false unless said (wiring.FixtureRun; a
 	// test says so itself), and then the plugin lists nobody and signs nobody
 	// in: the listing is unauthenticated, so nothing else stands between a
 	// fixture token and whoever reaches the listener.
@@ -175,6 +177,37 @@ func (p *Plugin) ListFixturePeople(context.Context, *sessionv1.ListFixturePeople
 			OrganizationDisplayName: p.State.OrganizationDisplayName(person.Organization), Roles: person.Roles, TeamIds: person.Teams, FixtureToken: person.FixtureToken})
 	}
 	return out, nil
+}
+
+// AddFixtureTeamMember puts a fixture person in a team of the organisation
+// the caller administers, in a run started on its fixture.
+func (p *Plugin) AddFixtureTeamMember(ctx context.Context, req *sessionv1.AddFixtureTeamMemberRequest) (*sessionv1.AddFixtureTeamMemberResponse, error) {
+	if err := p.changeFixtureTeam(ctx, req.GetTeamId(), req.GetPersonId(), true); err != nil {
+		return nil, err
+	}
+	return &sessionv1.AddFixtureTeamMemberResponse{}, nil
+}
+
+// RemoveFixtureTeamMember takes a fixture person out of a team of the
+// organisation the caller administers, in a run started on its fixture.
+func (p *Plugin) RemoveFixtureTeamMember(ctx context.Context, req *sessionv1.RemoveFixtureTeamMemberRequest) (*sessionv1.RemoveFixtureTeamMemberResponse, error) {
+	if err := p.changeFixtureTeam(ctx, req.GetTeamId(), req.GetPersonId(), false); err != nil {
+		return nil, err
+	}
+	return &sessionv1.RemoveFixtureTeamMemberResponse{}, nil
+}
+
+// changeFixtureTeam is both membership calls: a fixture run only, under the
+// bearer of the organisation's administrator (state.ChangeFixtureTeam).
+func (p *Plugin) changeFixtureTeam(ctx context.Context, team, person string, join bool) error {
+	if !p.Fixture {
+		return notAFixtureRun()
+	}
+	bearer := authorityplugin.Bearer(ctx)
+	if bearer == "" {
+		return status.Error(codes.Unauthenticated, "the call carries no session bearer")
+	}
+	return authorityplugin.Status(p.State.ChangeFixtureTeam(ctx, bearer, team, person, join))
 }
 
 // New is the registry's constructor: the plugin over what Configure wired.
