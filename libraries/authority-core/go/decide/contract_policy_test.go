@@ -6,7 +6,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // policySolution is a solution declaring all that core's contract reader
@@ -15,25 +15,25 @@ import (
 // addressed to the solution itself (self).
 func policySolution() domain.Module {
 	return domain.Module{Name: "notes", Principal: "notes", Kind: domain.KindSolution, Generation: 1,
-		ResourceKinds: []*basev0.WorkScopeV1{rsc("notes.page", "publish", "read", "write")},
+		ResourceKinds: []*basev1.WorkScopeV1{rsc("notes.page", "publish", "read", "write")},
 		Bindings: map[string]domain.Binding{
-			"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{rsc("store.item", "read")}},
-			"jobs":  {ID: "jobs", Audience: "jobs", HeadlessScopes: []*basev0.WorkScopeV1{rsc("jobs.run", "start")}},
-			"self":  {ID: "self", Audience: "notes", InvokeScopes: []*basev0.WorkScopeV1{rsc("notes.page", "read")}},
+			"store": {ID: "store", Audience: "store", InvokeScopes: []*basev1.WorkScopeV1{rsc("store.item", "read")}},
+			"jobs":  {ID: "jobs", Audience: "jobs", HeadlessScopes: []*basev1.WorkScopeV1{rsc("jobs.run", "start")}},
+			"self":  {ID: "self", Audience: "notes", InvokeScopes: []*basev1.WorkScopeV1{rsc("notes.page", "read")}},
 		},
-		Roles: map[string][]*basev0.WorkScopeV1{
+		Roles: map[string][]*basev1.WorkScopeV1{
 			domain.AdminRole: {rsc("notes.page", "publish", "read", "write")},
 			domain.UserRole:  {rsc("notes.page", "read"), rsc("store.item", "read")},
 		},
-		SourceGovernance: []*basev0.WorkScopeV1{rsc("notes.page", "write")},
+		SourceGovernance: []*basev1.WorkScopeV1{rsc("notes.page", "write")},
 	}
 }
 
 // through has role reach kind through binding, as a delivery reads it: the
 // scope in the role and how it is reached.
-func through(m *domain.Module, role, binding string, scope *basev0.WorkScopeV1) {
+func through(m *domain.Module, role, binding string, scope *basev1.WorkScopeV1) {
 	m.Roles[role] = append(m.Roles[role], scope)
-	m.Through = map[string]map[string][]*basev0.WorkScopeV1{role: {binding: {scope}}}
+	m.Through = map[string]map[string][]*basev1.WorkScopeV1{role: {binding: {scope}}}
 }
 
 // Every authorization rule core's contract reader held before codefly-dev/core
@@ -69,18 +69,18 @@ func TestTheHostHoldsWhatCoresReaderNoLongerDoes(t *testing.T) {
 			m.Roles[domain.UserRole] = append(m.Roles[domain.UserRole], rsc("jobs.run", "start"))
 		}, `role "user" of notes grants beyond what notes serves`},
 		"role-installation-owned-beyond-consumption": {func(m *domain.Module) {
-			m.OwnedRoles = map[string][]*basev0.WorkScopeV1{domain.UserRole: {rsc("store.item", "write")}}
+			m.OwnedRoles = map[string][]*basev1.WorkScopeV1{domain.UserRole: {rsc("store.item", "write")}}
 		}, `installation-owned role "user" grants beyond what notes serves`},
-		"source-governance-consumed-kind": {func(m *domain.Module) { m.SourceGovernance = []*basev0.WorkScopeV1{rsc("store.item", "read")} },
+		"source-governance-consumed-kind": {func(m *domain.Module) { m.SourceGovernance = []*basev1.WorkScopeV1{rsc("store.item", "read")} },
 			"governs its sources by store.item, which is not a kind it declares"},
 		"source-governance-binding-action": {func(m *domain.Module) {
-			m.ResourceKinds = []*basev0.WorkScopeV1{rsc("notes.page", "publish", "read")}
-			m.Bindings["pages"] = domain.Binding{ID: "pages", Audience: "pages", InvokeScopes: []*basev0.WorkScopeV1{rsc("notes.page", "write")}}
+			m.ResourceKinds = []*basev1.WorkScopeV1{rsc("notes.page", "publish", "read")}
+			m.Bindings["pages"] = domain.Binding{ID: "pages", Audience: "pages", InvokeScopes: []*basev1.WorkScopeV1{rsc("notes.page", "write")}}
 		}, "notes.page:write, which its own ceiling does not name on the whole kind"},
 		"source-governance-shared-kind": {func(m *domain.Module) { m.SharedKinds = []string{"notes.page"} },
 			"governs its sources by notes.page, which it declares shared"},
 		"source-governance-ungranted": {func(m *domain.Module) {
-			m.Roles[domain.AdminRole] = []*basev0.WorkScopeV1{rsc("notes.page", "publish", "read")}
+			m.Roles[domain.AdminRole] = []*basev1.WorkScopeV1{rsc("notes.page", "publish", "read")}
 		},
 			"notes.page:write, which none of its roles grants"},
 	} {
@@ -108,7 +108,7 @@ func hostRefusal(m domain.Module) error {
 // it had declared one role.
 func TestAPageDerivingNoUserIsToldToDeclareItsRoles(t *testing.T) {
 	m := domain.Module{Name: "dials", Principal: "dials", Kind: domain.KindModule, Generation: 1, Page: true,
-		ResourceKinds: []*basev0.WorkScopeV1{rsc("dials.dial", "invoke")}}
+		ResourceKinds: []*basev1.WorkScopeV1{rsc("dials.dial", "invoke")}}
 	m.Roles = decide.StandardRoles(m)
 	if err := decide.PageRoles(m); err == nil || !strings.Contains(err.Error(), `derives "user" only from a kind it serves read or write on`) {
 		t.Fatalf("a page deriving no user: %v", err)

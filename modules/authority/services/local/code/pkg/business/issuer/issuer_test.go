@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/codefly-dev/core/workcontext"
 	"github.com/codefly-dev/core/workcontext/conformance"
 	"google.golang.org/protobuf/proto"
@@ -47,7 +47,7 @@ func TestEveryCoreFixturePayloadIsByteIdenticalThroughOurMessage(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		theirs := &basev0.WorkContextV1{}
+		theirs := &basev1.WorkContextV1{}
 		if err := proto.Unmarshal(raw, theirs); err != nil {
 			continue
 		}
@@ -66,14 +66,14 @@ func TestOurDescriptorsNameTheSameFieldsAndNumbersAsCore(t *testing.T) {
 	pairs := []struct {
 		ours, theirs protoreflect.MessageDescriptor
 	}{
-		{(&authorityv1.WorkContextV1{}).ProtoReflect().Descriptor(), (&basev0.WorkContextV1{}).ProtoReflect().Descriptor()},
-		{(&authorityv1.WorkSealV1{}).ProtoReflect().Descriptor(), (&basev0.WorkSealV1{}).ProtoReflect().Descriptor()},
-		{(&authorityv1.WorkOperationBindingV1{}).ProtoReflect().Descriptor(), (&basev0.WorkOperationBindingV1{}).ProtoReflect().Descriptor()},
-		{(&authorityv1.WorkScopeV1{}).ProtoReflect().Descriptor(), (&basev0.WorkScopeV1{}).ProtoReflect().Descriptor()},
-		{(&authorityv1.WorkActorV1{}).ProtoReflect().Descriptor(), (&basev0.WorkActorV1{}).ProtoReflect().Descriptor()},
-		{(&authorityv1.WorkGrantHopV1{}).ProtoReflect().Descriptor(), (&basev0.WorkGrantHopV1{}).ProtoReflect().Descriptor()},
-		{(&authorityv1.WorkApproverV1{}).ProtoReflect().Descriptor(), (&basev0.WorkApproverV1{}).ProtoReflect().Descriptor()},
-		{(&authorityv1.ApprovalRequiredV1{}).ProtoReflect().Descriptor(), (&basev0.ApprovalRequiredV1{}).ProtoReflect().Descriptor()},
+		{(&authorityv1.WorkContextV1{}).ProtoReflect().Descriptor(), (&basev1.WorkContextV1{}).ProtoReflect().Descriptor()},
+		{(&authorityv1.WorkSealV1{}).ProtoReflect().Descriptor(), (&basev1.WorkSealV1{}).ProtoReflect().Descriptor()},
+		{(&authorityv1.WorkOperationBindingV1{}).ProtoReflect().Descriptor(), (&basev1.WorkOperationBindingV1{}).ProtoReflect().Descriptor()},
+		{(&authorityv1.WorkScopeV1{}).ProtoReflect().Descriptor(), (&basev1.WorkScopeV1{}).ProtoReflect().Descriptor()},
+		{(&authorityv1.WorkActorV1{}).ProtoReflect().Descriptor(), (&basev1.WorkActorV1{}).ProtoReflect().Descriptor()},
+		{(&authorityv1.WorkGrantHopV1{}).ProtoReflect().Descriptor(), (&basev1.WorkGrantHopV1{}).ProtoReflect().Descriptor()},
+		{(&authorityv1.WorkApproverV1{}).ProtoReflect().Descriptor(), (&basev1.WorkApproverV1{}).ProtoReflect().Descriptor()},
+		{(&authorityv1.ApprovalRequiredV1{}).ProtoReflect().Descriptor(), (&basev1.ApprovalRequiredV1{}).ProtoReflect().Descriptor()},
 	}
 	for _, p := range pairs {
 		if p.ours.Fields().Len() != p.theirs.Fields().Len() {
@@ -119,7 +119,7 @@ func person(t *testing.T, k *testkit.Kit, token string) context.Context {
 	return issuer.WithSession(context.Background(), sess.ID)
 }
 
-func scopes(sc ...*basev0.WorkScopeV1) []*authorityv1.WorkScopeV1 {
+func scopes(sc ...*basev1.WorkScopeV1) []*authorityv1.WorkScopeV1 {
 	var out []*authorityv1.WorkScopeV1
 	for _, s := range sc {
 		out = append(out, &authorityv1.WorkScopeV1{ResourceKind: s.ResourceKind, Actions: s.Actions, ResourceIds: s.ResourceIds})
@@ -514,7 +514,7 @@ func TestTheDeveloperHoldsNoGeneratedRole(t *testing.T) {
 		t.Fatalf("dev at records: %v %v", held, err)
 	}
 	if _, err := k.State.ApplyManifest(state.Manifest{Name: "probe", Principal: "probe", Kind: "module", Generation: 1,
-		ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope("probe.items", "run")}}); err != nil {
+		ResourceKinds: []*basev1.WorkScopeV1{testkit.Scope("probe.items", "run")}}); err != nil {
 		t.Fatal(err)
 	}
 	for _, token := range []string{"fixture-dev", "fixture-alex", "fixture-maya"} {

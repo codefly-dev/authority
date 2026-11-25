@@ -22,7 +22,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 	"github.com/codefly-dev/authority/libraries/solutionhost/go/workloadidentity"
 	"github.com/codefly-dev/authority/libraries/solutionhost/go/workloadidentity/native"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"gopkg.in/yaml.v3"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
@@ -100,19 +100,19 @@ func (k *Kit) HopInstanceCredential(t *testing.T, instance string) string {
 }
 
 // Scope builds one scope.
-func Scope(kind string, actions ...string) *basev0.WorkScopeV1 {
-	return &basev0.WorkScopeV1{ResourceKind: kind, Actions: actions}
+func Scope(kind string, actions ...string) *basev1.WorkScopeV1 {
+	return &basev1.WorkScopeV1{ResourceKind: kind, Actions: actions}
 }
 
 // Evaluation is a module page declaring roles: its user reads runs and
 // scores, its admin holds everything it serves. A person reaches it through
 // one of those roles on its installation and through nothing else.
 func Evaluation(generation uint64) state.Manifest {
-	served := []*basev0.WorkScopeV1{Scope("evaluation.runs", "read", "write"), Scope("evaluation.online", "read"), Scope("evaluation.definitions", "publish"),
+	served := []*basev1.WorkScopeV1{Scope("evaluation.runs", "read", "write"), Scope("evaluation.online", "read"), Scope("evaluation.definitions", "publish"),
 		Scope("evaluation.datasets", "write"), Scope("evaluation.labels", "write", "approve", "admin")}
 	return state.Manifest{Name: "evaluation", Principal: "evaluation", Kind: "module", Generation: generation,
 		Page: true, InstallationRole: domain.NoInstallationRole, ResourceKinds: served,
-		Roles: map[string][]*basev0.WorkScopeV1{
+		Roles: map[string][]*basev1.WorkScopeV1{
 			state.AdminRole: served,
 			state.UserRole:  {Scope("evaluation.runs", "read"), Scope("evaluation.online", "read")},
 		}}
@@ -124,12 +124,12 @@ func Evaluation(generation uint64) state.Manifest {
 // installation's data through its binding.
 func Documents(generation uint64) state.Manifest {
 	return state.Manifest{Name: "documents", Principal: "documents", Kind: "module", Generation: generation, OwnerAware: true,
-		ResourceKinds: []*basev0.WorkScopeV1{Scope("documents", "read", "write", "ingest"), Scope("documents.collection", "read", "transfer", "admin")},
+		ResourceKinds: []*basev1.WorkScopeV1{Scope("documents", "read", "write", "ingest"), Scope("documents.collection", "read", "transfer", "admin")},
 		Bindings: map[string]state.Binding{
 			"model": {ID: "model", Audience: "model",
-				InvokeScopes: []*basev0.WorkScopeV1{Scope("modelservice.profiles", "invoke", "read"), Scope("modelservice.datasets", "read")}, HeadlessScopes: []*basev0.WorkScopeV1{Scope("modelservice.profiles", "invoke", "read")}},
+				InvokeScopes: []*basev1.WorkScopeV1{Scope("modelservice.profiles", "invoke", "read"), Scope("modelservice.datasets", "read")}, HeadlessScopes: []*basev1.WorkScopeV1{Scope("modelservice.profiles", "invoke", "read")}},
 			"runtime-admission": {ID: "runtime-admission", Audience: "runtime",
-				InvokeScopes: []*basev0.WorkScopeV1{Scope("runtime.task", "admit", "read")}, HeadlessScopes: []*basev0.WorkScopeV1{Scope("runtime.task", "read")}},
+				InvokeScopes: []*basev1.WorkScopeV1{Scope("runtime.task", "admit", "read")}, HeadlessScopes: []*basev1.WorkScopeV1{Scope("runtime.task", "read")}},
 		},
 	}
 }
@@ -142,8 +142,8 @@ func Model(generation uint64) state.Manifest {
 	return state.Manifest{Name: "model", Principal: "model", Kind: "module", Generation: generation, OwnerAware: true,
 		Page: true, InstallationRole: domain.NoInstallationRole,
 		SharedKinds:   []string{"modelservice.profiles"},
-		ResourceKinds: []*basev0.WorkScopeV1{Scope("modelservice.profiles", "invoke", "read", "admin"), Scope("modelservice.datasets", "read")},
-		Roles: map[string][]*basev0.WorkScopeV1{
+		ResourceKinds: []*basev1.WorkScopeV1{Scope("modelservice.profiles", "invoke", "read", "admin"), Scope("modelservice.datasets", "read")},
+		Roles: map[string][]*basev1.WorkScopeV1{
 			state.AdminRole: {Scope("modelservice.profiles", "invoke", "read", "admin"), Scope("modelservice.datasets", "read")},
 			state.UserRole:  {Scope("modelservice.profiles", "read")},
 		}}
@@ -152,7 +152,7 @@ func Model(generation uint64) state.Manifest {
 // Runtime is the module documents fans work out through.
 func Runtime(generation uint64) state.Manifest {
 	return state.Manifest{Name: "runtime", Principal: "runtime", Kind: "module", Generation: generation,
-		ResourceKinds: []*basev0.WorkScopeV1{Scope("runtime.task", "admit", "read")}}
+		ResourceKinds: []*basev1.WorkScopeV1{Scope("runtime.task", "admit", "read")}}
 }
 
 // Records is a module page declaring roles, which the directory page reads.
@@ -163,8 +163,8 @@ func Runtime(generation uint64) state.Manifest {
 func Records(generation uint64) state.Manifest {
 	return state.Manifest{Name: "records", Principal: "records", Kind: "module", Generation: generation,
 		Page: true, InstallationRole: domain.NoInstallationRole,
-		ResourceKinds: []*basev0.WorkScopeV1{Scope("records.records", "read", "write"), Scope("records.types", "read"), Scope("records.collection", "read", "admin")},
-		Roles: map[string][]*basev0.WorkScopeV1{
+		ResourceKinds: []*basev1.WorkScopeV1{Scope("records.records", "read", "write"), Scope("records.types", "read"), Scope("records.collection", "read", "admin")},
+		Roles: map[string][]*basev1.WorkScopeV1{
 			state.AdminRole: {Scope("records.records", "read", "write"), Scope("records.types", "read"), Scope("records.collection", "read", "admin"),
 				Scope("modelservice.profiles", "invoke", "read"), Scope("modelservice.datasets", "read")},
 			state.UserRole: {Scope("records.records", "read"), Scope("records.types", "read"), Scope("records.collection", "read"), Scope("modelservice.profiles", "read")},
@@ -180,27 +180,27 @@ func Records(generation uint64) state.Manifest {
 func OrgDirectory(generation uint64) state.Manifest {
 	return state.Manifest{Name: "org-directory", Principal: "org-directory", Kind: "module", Generation: generation,
 		Page: true, InstallationRole: domain.NoInstallationRole,
-		ResourceKinds: []*basev0.WorkScopeV1{Scope("directory.entry", "read", "write")},
-		Roles: map[string][]*basev0.WorkScopeV1{
+		ResourceKinds: []*basev1.WorkScopeV1{Scope("directory.entry", "read", "write")},
+		Roles: map[string][]*basev1.WorkScopeV1{
 			state.AdminRole: {Scope("directory.entry", "read", "write"), Scope("records.records", "read", "write"), Scope("documents", "read", "write")},
 			state.UserRole:  {Scope("directory.entry", "read"), Scope("records.records", "read"), Scope("documents", "read")},
 		},
 		Bindings: map[string]state.Binding{
 			"records": {ID: "records", Audience: "records",
-				InvokeScopes: []*basev0.WorkScopeV1{Scope("records.records", "read", "write")}, HeadlessScopes: []*basev0.WorkScopeV1{Scope("records.records", "read")},
-				LookupScopes: []*basev0.WorkScopeV1{Scope("records.records", "read")}},
+				InvokeScopes: []*basev1.WorkScopeV1{Scope("records.records", "read", "write")}, HeadlessScopes: []*basev1.WorkScopeV1{Scope("records.records", "read")},
+				LookupScopes: []*basev1.WorkScopeV1{Scope("records.records", "read")}},
 			// The page asks documents for a person: the first hop of a delegate chain.
 			"documents": {ID: "documents", Audience: "documents",
-				InvokeScopes: []*basev0.WorkScopeV1{Scope("documents", "read", "write")}, HeadlessScopes: []*basev0.WorkScopeV1{Scope("documents", "read")},
-				LookupScopes: []*basev0.WorkScopeV1{Scope("documents", "read")}},
+				InvokeScopes: []*basev1.WorkScopeV1{Scope("documents", "read", "write")}, HeadlessScopes: []*basev1.WorkScopeV1{Scope("documents", "read")},
+				LookupScopes: []*basev1.WorkScopeV1{Scope("documents", "read")}},
 		}}
 }
 
 // Wiki is a solution.
 func Wiki(generation uint64) state.Manifest {
 	return state.Manifest{Name: "wiki", Principal: "wiki", Kind: "solution", Generation: generation, OwnerAware: true,
-		ResourceKinds: []*basev0.WorkScopeV1{Scope("wiki.page", "read", "write", "publish")},
-		Roles: map[string][]*basev0.WorkScopeV1{
+		ResourceKinds: []*basev1.WorkScopeV1{Scope("wiki.page", "read", "write", "publish")},
+		Roles: map[string][]*basev1.WorkScopeV1{
 			state.AdminRole: {Scope("wiki.page", "read", "write", "publish")},
 			state.UserRole:  {Scope("wiki.page", "read")},
 		}}
@@ -296,8 +296,8 @@ func (k *Kit) CarrierAuthority(ctx context.Context, credential, module string) e
 // Proposals is a second solution, composed by tests that install one.
 func Proposals(generation uint64) state.Manifest {
 	return state.Manifest{Name: "proposals", Principal: "proposals", Kind: "solution", Generation: generation, OwnerAware: true,
-		ResourceKinds: []*basev0.WorkScopeV1{Scope("proposals.item", "read", "write")},
-		Roles: map[string][]*basev0.WorkScopeV1{
+		ResourceKinds: []*basev1.WorkScopeV1{Scope("proposals.item", "read", "write")},
+		Roles: map[string][]*basev1.WorkScopeV1{
 			state.AdminRole: {Scope("proposals.item", "read", "write")},
 			state.UserRole:  {Scope("proposals.item", "read")},
 		}}

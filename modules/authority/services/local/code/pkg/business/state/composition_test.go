@@ -9,7 +9,7 @@ import (
 	"gateway/pkg/business/state"
 	"gateway/pkg/business/testkit"
 
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 const head = "schema: codefly.dev/authority/fixture-composition/v1\n"
@@ -28,9 +28,9 @@ func fixtureOnly(t *testing.T) *testkit.Kit {
 	}
 	ledger := state.Manifest{Name: "ledger", Principal: "ledger", Kind: "module", Generation: 1,
 		Methods: map[string]state.MethodPolicy{
-			"/ledger/Read":    {Requires: []*basev0.WorkScopeV1{testkit.Scope("ledger.entry", "read")}},
-			"/ledger/Write":   {Requires: []*basev0.WorkScopeV1{testkit.Scope("ledger.entry", "write")}},
-			"/ledger/Approve": {Requires: []*basev0.WorkScopeV1{testkit.Scope("ledger.entry", "approve")}},
+			"/ledger/Read":    {Requires: []*basev1.WorkScopeV1{testkit.Scope("ledger.entry", "read")}},
+			"/ledger/Write":   {Requires: []*basev1.WorkScopeV1{testkit.Scope("ledger.entry", "write")}},
+			"/ledger/Approve": {Requires: []*basev1.WorkScopeV1{testkit.Scope("ledger.entry", "approve")}},
 		}}
 	if _, err := k.State.ApplyManifest(ledger); err != nil {
 		t.Fatal(err)
@@ -107,8 +107,8 @@ func TestAFixtureRoleStatesNoGrant(t *testing.T) {
 func TestACompositionSeatsPeopleOnAnInstallationsRoles(t *testing.T) {
 	k := fixtureOnly(t)
 	page := state.Manifest{Name: "ledger-page", Principal: "ledger-page", Kind: "module", Generation: 1, Page: true, InstallationRole: "none",
-		ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope("ledger-page.note", "read", "write")},
-		Roles: map[string][]*basev0.WorkScopeV1{
+		ResourceKinds: []*basev1.WorkScopeV1{testkit.Scope("ledger-page.note", "read", "write")},
+		Roles: map[string][]*basev1.WorkScopeV1{
 			state.AdminRole: {testkit.Scope("ledger-page.note", "read", "write")},
 			state.UserRole:  {testkit.Scope("ledger-page.note", "read")},
 		}}
@@ -127,12 +127,12 @@ installations:
 `)); err != nil {
 		t.Fatal(err)
 	}
-	for person, want := range map[string]*basev0.WorkScopeV1{
+	for person, want := range map[string]*basev1.WorkScopeV1{
 		"maya": testkit.Scope("ledger-page.note", "read"),
 		"remi": testkit.Scope("ledger-page.note", "read", "write"),
 	} {
 		held, err := k.PersonScopes(t, person, "ledger-page")
-		if err != nil || !state.Attenuates([]*basev0.WorkScopeV1{want}, held) || !state.Attenuates(held, []*basev0.WorkScopeV1{want}) {
+		if err != nil || !state.Attenuates([]*basev1.WorkScopeV1{want}, held) || !state.Attenuates(held, []*basev1.WorkScopeV1{want}) {
 			t.Errorf("%s holds %v at the page (%v), want exactly %v", person, held, err, want)
 		}
 	}

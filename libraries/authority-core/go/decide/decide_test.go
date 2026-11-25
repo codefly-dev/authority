@@ -7,15 +7,15 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
-func sc(kind string, actions ...string) *basev0.WorkScopeV1 {
-	return &basev0.WorkScopeV1{ResourceKind: kind, Actions: actions}
+func sc(kind string, actions ...string) *basev1.WorkScopeV1 {
+	return &basev1.WorkScopeV1{ResourceKind: kind, Actions: actions}
 }
 
-func owned(kind, owner string, actions []string, ids ...string) *basev0.WorkScopeV1 {
-	return &basev0.WorkScopeV1{ResourceKind: kind, Actions: actions, ResourceIds: ids, ResourceOwnerId: owner}
+func owned(kind, owner string, actions []string, ids ...string) *basev1.WorkScopeV1 {
+	return &basev1.WorkScopeV1{ResourceKind: kind, Actions: actions, ResourceIds: ids, ResourceOwnerId: owner}
 }
 
 func refused(t *testing.T, err error, code domain.Code, reason string) {
@@ -27,9 +27,9 @@ func refused(t *testing.T, err error, code domain.Code, reason string) {
 }
 
 var solution = domain.Module{Name: "a", Principal: "a", Kind: domain.KindSolution, Generation: 1,
-	ResourceKinds: []*basev0.WorkScopeV1{sc("a.note", "read", "write")},
-	Bindings:      map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc("doc", "read", "write")}}},
-	Roles: map[string][]*basev0.WorkScopeV1{
+	ResourceKinds: []*basev1.WorkScopeV1{sc("a.note", "read", "write")},
+	Bindings:      map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: []*basev1.WorkScopeV1{sc("doc", "read", "write")}}},
+	Roles: map[string][]*basev1.WorkScopeV1{
 		domain.AdminRole: {sc("a.note", "read", "write"), sc("doc", "read", "write")},
 		"user":           {sc("a.note", "read"), sc("doc", "read")},
 	}}
@@ -68,14 +68,14 @@ func TestAnInstallationWithoutAPrincipalGrantsNothing(t *testing.T) {
 }
 
 func TestIssueNamesWhyAnAskIsRefused(t *testing.T) {
-	held := []*basev0.WorkScopeV1{owned("doc", "u", []string{"read"})}
+	held := []*basev1.WorkScopeV1{owned("doc", "u", []string{"read"})}
 	if got, err := decide.Issue(nil, held); err != nil || len(got) != 1 {
 		t.Fatalf("an empty ask is everything held: %v %v", got, err)
 	}
-	_, err := decide.Issue([]*basev0.WorkScopeV1{owned("doc", "u", []string{"admin"})}, held)
+	_, err := decide.Issue([]*basev1.WorkScopeV1{owned("doc", "u", []string{"admin"})}, held)
 	refused(t, err, domain.Denied, "beyond")
-	for _, ask := range []*basev0.WorkScopeV1{sc("doc", "read"), owned("doc", "v", []string{"read"})} {
-		_, err := decide.Issue([]*basev0.WorkScopeV1{ask}, held)
+	for _, ask := range []*basev1.WorkScopeV1{sc("doc", "read"), owned("doc", "v", []string{"read"})} {
+		_, err := decide.Issue([]*basev1.WorkScopeV1{ask}, held)
 		refused(t, err, domain.Denied, "widens")
 	}
 	_, err = decide.Issue(nil, nil)
@@ -96,12 +96,12 @@ func TestAChildRefusalNamesConfinementAndRevealsNoGrant(t *testing.T) {
 }
 
 func TestOwnerSelectedScopesNeedAnOwnerAwareAudience(t *testing.T) {
-	scopes := []*basev0.WorkScopeV1{owned("doc", "u", []string{"read"})}
+	scopes := []*basev1.WorkScopeV1{owned("doc", "u", []string{"read"})}
 	refused(t, decide.OwnerAware(domain.Module{Principal: "legacy"}, scopes), domain.Denied, "owner-aware")
 	if err := decide.OwnerAware(domain.Module{Principal: "store", OwnerAware: true}, scopes); err != nil {
 		t.Fatal(err)
 	}
-	if err := decide.OwnerAware(domain.Module{Principal: "legacy"}, []*basev0.WorkScopeV1{sc("doc", "read")}); err != nil {
+	if err := decide.OwnerAware(domain.Module{Principal: "legacy"}, []*basev1.WorkScopeV1{sc("doc", "read")}); err != nil {
 		t.Fatal("a plain scope needs no owner-aware audience")
 	}
 }
@@ -235,7 +235,7 @@ func TestATransferIsDecidedInOrder(t *testing.T) {
 }
 
 func TestOrganizationGrantsAndModules(t *testing.T) {
-	audience := domain.Module{Name: "docs", ResourceKinds: []*basev0.WorkScopeV1{sc("doc", "read", "admin")}}
+	audience := domain.Module{Name: "docs", ResourceKinds: []*basev1.WorkScopeV1{sc("doc", "read", "admin")}}
 	// An organisation role reaches no module: a person's own session at one
 	// that declares no roles is refused by name.
 	refused(t, decide.NoRoles(audience), domain.Denied, "declares no roles")
@@ -246,19 +246,19 @@ func TestOrganizationGrantsAndModules(t *testing.T) {
 		t.Fatal(err)
 	}
 	bad := solution
-	bad.Roles = map[string][]*basev0.WorkScopeV1{domain.AdminRole: {owned("doc", "u", []string{"read"})}}
+	bad.Roles = map[string][]*basev1.WorkScopeV1{domain.AdminRole: {owned("doc", "u", []string{"read"})}}
 	refused(t, decide.ValidateModule(bad), domain.Denied, "selects an owner")
 	module := domain.Module{Name: "m", Principal: "m", Kind: domain.KindModule, Generation: 1, Roles: solution.Roles}
 	refused(t, decide.ValidateModule(module), domain.Denied, "declares roles")
 	noAdmin := solution
-	noAdmin.Roles = map[string][]*basev0.WorkScopeV1{"user": solution.Roles["user"]}
+	noAdmin.Roles = map[string][]*basev1.WorkScopeV1{"user": solution.Roles["user"]}
 	if err := decide.ValidateModule(noAdmin); !errors.Is(err, domain.ErrNoAdminRole) {
 		t.Fatalf("a solution with no admin role: %v", err)
 	}
 	for name, methods := range map[string]map[string]domain.MethodPolicy{
-		"a method naming resource ids": {"/doc.Store/Read": {Requires: []*basev0.WorkScopeV1{{ResourceKind: "doc", Actions: []string{"read"}, ResourceIds: []string{"x"}}}}},
-		"a method naming an owner":     {"/doc.Store/Read": {Requires: []*basev0.WorkScopeV1{owned("doc", "u", []string{"read"})}}},
-		"a method requiring and not":   {"/doc.Store/Read": {Requires: []*basev0.WorkScopeV1{sc("doc", "read")}, AnyCheckedCaller: true}},
+		"a method naming resource ids": {"/doc.Store/Read": {Requires: []*basev1.WorkScopeV1{{ResourceKind: "doc", Actions: []string{"read"}, ResourceIds: []string{"x"}}}}},
+		"a method naming an owner":     {"/doc.Store/Read": {Requires: []*basev1.WorkScopeV1{owned("doc", "u", []string{"read"})}}},
+		"a method requiring and not":   {"/doc.Store/Read": {Requires: []*basev1.WorkScopeV1{sc("doc", "read")}, AnyCheckedCaller: true}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			m := domain.Module{Name: "m", Principal: "m", Kind: domain.KindModule, Generation: 1, Methods: methods}
@@ -266,7 +266,7 @@ func TestOrganizationGrantsAndModules(t *testing.T) {
 		})
 	}
 	served := domain.Module{Name: "m", Principal: "m", Kind: domain.KindModule, Generation: 1,
-		Methods: map[string]domain.MethodPolicy{"/doc.Store/Read": {Requires: []*basev0.WorkScopeV1{sc("doc", "read")}}, "/doc.Store/Ping": {AnyCheckedCaller: true}}}
+		Methods: map[string]domain.MethodPolicy{"/doc.Store/Read": {Requires: []*basev1.WorkScopeV1{sc("doc", "read")}}, "/doc.Store/Ping": {AnyCheckedCaller: true}}}
 	if err := decide.ValidateModule(served); err != nil {
 		t.Fatalf("a valid method policy: %v", err)
 	}

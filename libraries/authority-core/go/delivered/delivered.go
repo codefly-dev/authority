@@ -21,11 +21,11 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
 	delivery "github.com/codefly-dev/authority/libraries/delivery/go"
 	"github.com/codefly-dev/authority/libraries/solutionhost/go"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // Scopes is a scope list.
-type Scopes = []*basev0.WorkScopeV1
+type Scopes = []*basev1.WorkScopeV1
 
 // Document is the authority's own document delivered with a manifest, as a
 // host decodes it.
@@ -339,7 +339,7 @@ func FromCore(in *solutionhost.ModuleManifest) domain.Module {
 	}
 	m.SourceGovernance = scopesOf(in.Authority.SourceGovernance)
 	for _, kind := range in.Authority.ResourceKinds {
-		m.ResourceKinds = append(m.ResourceKinds, &basev0.WorkScopeV1{ResourceKind: kind, Actions: []string{scope.AnyAction}})
+		m.ResourceKinds = append(m.ResourceKinds, &basev1.WorkScopeV1{ResourceKind: kind, Actions: []string{scope.AnyAction}})
 	}
 	m.ResourceKinds = scope.Normalize(m.ResourceKinds)
 	for _, b := range in.Authority.Bindings {
@@ -366,7 +366,7 @@ func scopesOf(entries []string) Scopes {
 	}
 	var out Scopes
 	for _, kind := range kinds {
-		out = append(out, &basev0.WorkScopeV1{ResourceKind: kind, Actions: byKind[kind]})
+		out = append(out, &basev1.WorkScopeV1{ResourceKind: kind, Actions: byKind[kind]})
 	}
 	return scope.Normalize(out)
 }
@@ -406,7 +406,7 @@ func Declared(manifest *solutionhost.ModuleManifest, d *declare.Declaration, met
 func declaredScopes(in []declare.DeclaredScope) Scopes {
 	var out Scopes
 	for _, sc := range in {
-		out = append(out, &basev0.WorkScopeV1{ResourceKind: sc.ResourceKind, Actions: slices.Clone(sc.Actions)})
+		out = append(out, &basev1.WorkScopeV1{ResourceKind: sc.ResourceKind, Actions: slices.Clone(sc.Actions)})
 	}
 	return out
 }

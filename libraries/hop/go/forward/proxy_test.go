@@ -10,7 +10,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/hop/go"
 	"github.com/codefly-dev/authority/libraries/hop/go/hoptest"
 	"github.com/codefly-dev/authority/libraries/hop/go/routing"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	core "github.com/codefly-dev/core/workcontext"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -56,7 +56,7 @@ func (a *authority) Check(_ context.Context, in *authorityv1.CheckRequest, _ ...
 	return &authorityv1.CheckResponse{Context: wc}, nil
 }
 
-var identityRead = &basev0.WorkScopeV1{ResourceKind: "console.identity", Actions: []string{"read"}}
+var identityRead = &basev1.WorkScopeV1{ResourceKind: "console.identity", Actions: []string{"read"}}
 
 // module answers Version with who the call is for, authenticated by the same
 // Verifier a module runs.

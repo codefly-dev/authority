@@ -5,7 +5,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // A capability is sealed to one installation, its last actor's, and its path
@@ -112,9 +112,9 @@ func TestARoleRevokedOnAnInstallationTheCapabilityIsNotSealedToEndsIt(t *testing
 		// audience too.
 		h := newHarness(t)
 		front := domain.Module{Name: "front", Principal: "front", Kind: domain.KindSolution, Generation: 1, OwnerAware: true,
-			ResourceKinds: []*basev0.WorkScopeV1{sc("front.note", "read")},
-			Bindings:      map[string]domain.Binding{"a": {ID: "a", Audience: "a", InvokeScopes: []*basev0.WorkScopeV1{sc("a.note", "read")}}},
-			Roles: map[string][]*basev0.WorkScopeV1{domain.AdminRole: {sc("front.note", "read")},
+			ResourceKinds: []*basev1.WorkScopeV1{sc("front.note", "read")},
+			Bindings:      map[string]domain.Binding{"a": {ID: "a", Audience: "a", InvokeScopes: []*basev1.WorkScopeV1{sc("a.note", "read")}}},
+			Roles: map[string][]*basev1.WorkScopeV1{domain.AdminRole: {sc("front.note", "read")},
 				domain.UserRole: {sc("front.note", "read"), sc("a.note", "read")}}}
 		if _, err := h.svc.ApplyModule(h.ctx, front); err != nil {
 			t.Fatal(err)

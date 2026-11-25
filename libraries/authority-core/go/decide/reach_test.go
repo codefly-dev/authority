@@ -11,11 +11,11 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
-func rs(kind string, actions ...string) *basev0.WorkScopeV1 {
-	return &basev0.WorkScopeV1{ResourceKind: kind, Actions: actions}
+func rs(kind string, actions ...string) *basev1.WorkScopeV1 {
+	return &basev1.WorkScopeV1{ResourceKind: kind, Actions: actions}
 }
 
 func byPrincipal(modules ...domain.Module) map[string]domain.Module {
@@ -39,31 +39,31 @@ func rowAt(rows []domain.ReachRow, via, confinement string, path ...string) *dom
 // through its binding; docs reaches model through its own.
 func reachComposition() (domain.Module, map[string]domain.Module) {
 	app := domain.Module{Name: "app", Principal: "app", Kind: domain.KindSolution,
-		ResourceKinds: []*basev0.WorkScopeV1{rs("app.note", "read", "write")},
-		Roles: map[string][]*basev0.WorkScopeV1{
+		ResourceKinds: []*basev1.WorkScopeV1{rs("app.note", "read", "write")},
+		Roles: map[string][]*basev1.WorkScopeV1{
 			domain.AdminRole: {rs("app.note", "read", "write")},
 			"user":           {rs("app.note", "read", "write"), rs("docs.doc", "read", "write"), rs("model.profile", "read")},
 			"reader":         {rs("app.note", "read")},
 		},
-		OwnedRoles:       map[string][]*basev0.WorkScopeV1{"user": {rs("app.note", "write")}},
-		Bindings:         map[string]domain.Binding{"docs": {ID: "docs", Audience: "docs", InvokeScopes: []*basev0.WorkScopeV1{rs("docs.doc", "read", "write")}}},
+		OwnedRoles:       map[string][]*basev1.WorkScopeV1{"user": {rs("app.note", "write")}},
+		Bindings:         map[string]domain.Binding{"docs": {ID: "docs", Audience: "docs", InvokeScopes: []*basev1.WorkScopeV1{rs("docs.doc", "read", "write")}}},
 		EdgeDependencies: []domain.EdgeDependency{{Module: "directory", Presence: "required"}},
-		Methods:          map[string]domain.MethodPolicy{"/app.v1.App/Edit": {Requires: []*basev0.WorkScopeV1{rs("app.note", "write")}}}}
+		Methods:          map[string]domain.MethodPolicy{"/app.v1.App/Edit": {Requires: []*basev1.WorkScopeV1{rs("app.note", "write")}}}}
 	docs := domain.Module{Name: "docs", Principal: "docs", Kind: domain.KindModule,
-		ResourceKinds: []*basev0.WorkScopeV1{rs("docs.doc", "read", "write", "admin")},
-		Bindings:      map[string]domain.Binding{"model": {ID: "model", Audience: "model", InvokeScopes: []*basev0.WorkScopeV1{rs("model.profile", "read")}}},
+		ResourceKinds: []*basev1.WorkScopeV1{rs("docs.doc", "read", "write", "admin")},
+		Bindings:      map[string]domain.Binding{"model": {ID: "model", Audience: "model", InvokeScopes: []*basev1.WorkScopeV1{rs("model.profile", "read")}}},
 		Methods: map[string]domain.MethodPolicy{
-			"/docs.v1.Docs/Get":   {Requires: []*basev0.WorkScopeV1{rs("docs.doc", "read")}},
-			"/docs.v1.Docs/Purge": {Requires: []*basev0.WorkScopeV1{rs("docs.doc", "admin")}},
-			"GET /docs/{id}":      {Requires: []*basev0.WorkScopeV1{rs("docs.doc", "read")}},
+			"/docs.v1.Docs/Get":   {Requires: []*basev1.WorkScopeV1{rs("docs.doc", "read")}},
+			"/docs.v1.Docs/Purge": {Requires: []*basev1.WorkScopeV1{rs("docs.doc", "admin")}},
+			"GET /docs/{id}":      {Requires: []*basev1.WorkScopeV1{rs("docs.doc", "read")}},
 		}}
 	model := domain.Module{Name: "model", Principal: "model", Kind: domain.KindModule,
-		ResourceKinds: []*basev0.WorkScopeV1{rs("model.profile", "read", "write")},
-		Methods:       map[string]domain.MethodPolicy{"/model.v1.Model/Profiles": {Requires: []*basev0.WorkScopeV1{rs("model.profile", "read")}}}}
+		ResourceKinds: []*basev1.WorkScopeV1{rs("model.profile", "read", "write")},
+		Methods:       map[string]domain.MethodPolicy{"/model.v1.Model/Profiles": {Requires: []*basev1.WorkScopeV1{rs("model.profile", "read")}}}}
 	directory := domain.Module{Name: "directory", Principal: "directory", Kind: domain.KindModule, Page: true,
-		ResourceKinds: []*basev0.WorkScopeV1{rs("directory.entry", "read")}}
+		ResourceKinds: []*basev1.WorkScopeV1{rs("directory.entry", "read")}}
 	unreached := domain.Module{Name: "unreached", Principal: "unreached", Kind: domain.KindModule,
-		ResourceKinds: []*basev0.WorkScopeV1{rs("docs.doc", "read")}}
+		ResourceKinds: []*basev1.WorkScopeV1{rs("docs.doc", "read")}}
 	return app, byPrincipal(app, docs, model, directory, unreached)
 }
 
@@ -79,17 +79,17 @@ func TestReachOnTheTargetIsTheRolesOwnScopes(t *testing.T) {
 		t.Fatal(err)
 	}
 	own := rowAt(rows, decide.ReachRole, decide.ConfinedToInstallation, "app")
-	if own == nil || !sameScopes(own.Scopes, []*basev0.WorkScopeV1{rs("app.note", "read", "write")}) || !slices.Equal(own.Operations, []string{"/app.v1.App/Edit"}) {
+	if own == nil || !sameScopes(own.Scopes, []*basev1.WorkScopeV1{rs("app.note", "read", "write")}) || !slices.Equal(own.Operations, []string{"/app.v1.App/Edit"}) {
 		t.Fatalf("the user's own row is %+v", own)
 	}
-	if attached := rowAt(rows, decide.ReachRole, decide.ConfinedToAttached, "app"); attached == nil || !sameScopes(attached.Scopes, []*basev0.WorkScopeV1{rs("app.note", "write")}) {
+	if attached := rowAt(rows, decide.ReachRole, decide.ConfinedToAttached, "app"); attached == nil || !sameScopes(attached.Scopes, []*basev1.WorkScopeV1{rs("app.note", "write")}) {
 		t.Fatalf("the user's attached row is %+v", attached)
 	}
 	page := domain.Module{Name: "pages", Principal: "pages", Kind: domain.KindModule, Page: true,
-		ResourceKinds: []*basev0.WorkScopeV1{rs("pages.note", "read", "write")},
-		Roles:         map[string][]*basev0.WorkScopeV1{domain.AdminRole: {rs("pages.note", "read", "write")}, "reader": {rs("pages.note", "read")}}}
+		ResourceKinds: []*basev1.WorkScopeV1{rs("pages.note", "read", "write")},
+		Roles:         map[string][]*basev1.WorkScopeV1{domain.AdminRole: {rs("pages.note", "read", "write")}, "reader": {rs("pages.note", "read")}}}
 	rows, err = decide.Reach(page, "reader", byPrincipal(page))
-	if err != nil || len(rows) != 1 || rows[0].Via != decide.ReachRole || rows[0].Confinement != "" || !sameScopes(rows[0].Scopes, []*basev0.WorkScopeV1{rs("pages.note", "read")}) {
+	if err != nil || len(rows) != 1 || rows[0].Via != decide.ReachRole || rows[0].Confinement != "" || !sameScopes(rows[0].Scopes, []*basev1.WorkScopeV1{rs("pages.note", "read")}) {
 		t.Fatalf("a module page's reader reaches %+v (%v)", rows, err)
 	}
 	if _, err := decide.Reach(app, "nobody", modules); err == nil {
@@ -109,11 +109,11 @@ func TestReachThroughBindingsAndEdges(t *testing.T) {
 		t.Fatal(err)
 	}
 	docs := rowAt(rows, decide.ReachBinding, "", "app", "docs")
-	if docs == nil || !sameScopes(docs.Scopes, []*basev0.WorkScopeV1{rs("docs.doc", "read", "write")}) ||
+	if docs == nil || !sameScopes(docs.Scopes, []*basev1.WorkScopeV1{rs("docs.doc", "read", "write")}) ||
 		!slices.Equal(docs.Operations, []string{"/docs.v1.Docs/Get", "GET /docs/{id}"}) {
 		t.Fatalf("through app, docs is reached as %+v", docs)
 	}
-	if model := rowAt(rows, decide.ReachBinding, "", "app", "docs", "model"); model == nil || !sameScopes(model.Scopes, []*basev0.WorkScopeV1{rs("model.profile", "read")}) {
+	if model := rowAt(rows, decide.ReachBinding, "", "app", "docs", "model"); model == nil || !sameScopes(model.Scopes, []*basev1.WorkScopeV1{rs("model.profile", "read")}) {
 		t.Fatalf("through docs, model is reached as %+v", model)
 	}
 	reader, err := decide.Reach(app, "reader", modules)
@@ -133,12 +133,12 @@ func TestReachThroughBindingsAndEdges(t *testing.T) {
 func TestAModulePageRoleReachesThroughItsBinding(t *testing.T) {
 	_, modules := reachComposition()
 	page := domain.Module{Name: "people", Principal: "people", Kind: domain.KindModule, Generation: 1, Page: true, InstallationRole: domain.NoInstallationRole,
-		ResourceKinds: []*basev0.WorkScopeV1{rs("people.entry", "read", "write")},
-		Roles: map[string][]*basev0.WorkScopeV1{
+		ResourceKinds: []*basev1.WorkScopeV1{rs("people.entry", "read", "write")},
+		Roles: map[string][]*basev1.WorkScopeV1{
 			domain.AdminRole: {rs("people.entry", "read", "write"), rs("docs.doc", "read", "write")},
 			"reader":         {rs("people.entry", "read"), rs("docs.doc", "read")},
 		},
-		Bindings:         map[string]domain.Binding{"rows": {ID: "rows", Audience: "docs", InvokeScopes: []*basev0.WorkScopeV1{rs("docs.doc", "read", "write")}}},
+		Bindings:         map[string]domain.Binding{"rows": {ID: "rows", Audience: "docs", InvokeScopes: []*basev1.WorkScopeV1{rs("docs.doc", "read", "write")}}},
 		EdgeDependencies: []domain.EdgeDependency{{Module: "model", Presence: "optional"}},
 	}
 	if err := decide.ValidateModule(page); err != nil {
@@ -148,11 +148,11 @@ func TestAModulePageRoleReachesThroughItsBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if on := rowAt(rows, decide.ReachRole, "", "people"); on == nil || !sameScopes(on.Scopes, []*basev0.WorkScopeV1{rs("people.entry", "read")}) {
+	if on := rowAt(rows, decide.ReachRole, "", "people"); on == nil || !sameScopes(on.Scopes, []*basev1.WorkScopeV1{rs("people.entry", "read")}) {
 		t.Fatalf("on the page, the reader reaches %+v", on)
 	}
 	docs := rowAt(rows, decide.ReachBinding, "", "people", "docs")
-	if docs == nil || !sameScopes(docs.Scopes, []*basev0.WorkScopeV1{rs("docs.doc", "read")}) ||
+	if docs == nil || !sameScopes(docs.Scopes, []*basev1.WorkScopeV1{rs("docs.doc", "read")}) ||
 		!slices.Equal(docs.Operations, []string{"/docs.v1.Docs/Get", "GET /docs/{id}"}) || !slices.Equal(docs.Path, []string{"people", "docs"}) {
 		t.Fatalf("through the page, docs is reached as %+v", docs)
 	}
@@ -184,11 +184,11 @@ func TestOneOperationOnTwoFacesIsOneCapability(t *testing.T) {
 	app, modules := reachComposition()
 	docs := modules["docs"]
 	docs.Methods = maps.Clone(docs.Methods)
-	docs.Methods["POST /docs.v1.Docs/Get"] = domain.MethodPolicy{Requires: []*basev0.WorkScopeV1{rs("docs.doc", "write")}}
+	docs.Methods["POST /docs.v1.Docs/Get"] = domain.MethodPolicy{Requires: []*basev1.WorkScopeV1{rs("docs.doc", "write")}}
 	modules["docs"] = docs
 	app.Bindings = map[string]domain.Binding{
-		"docs-connect": {ID: "docs-connect", Audience: "docs", InvokeScopes: []*basev0.WorkScopeV1{rs("docs.doc", "read")}},
-		"docs-grpc":    {ID: "docs-grpc", Audience: "docs", InvokeScopes: []*basev0.WorkScopeV1{rs("docs.doc", "read")}},
+		"docs-connect": {ID: "docs-connect", Audience: "docs", InvokeScopes: []*basev1.WorkScopeV1{rs("docs.doc", "read")}},
+		"docs-grpc":    {ID: "docs-grpc", Audience: "docs", InvokeScopes: []*basev1.WorkScopeV1{rs("docs.doc", "read")}},
 	}
 	rows, err := decide.Reach(app, "user", modules)
 	if err != nil {
@@ -202,8 +202,8 @@ func TestOneOperationOnTwoFacesIsOneCapability(t *testing.T) {
 				t.Fatalf("docs lists %v, want the procedure once whatever face serves it", r.Operations)
 			}
 			// Each face keeps its own policy, as the module checks it.
-			if c := r.Policies["POST /docs.v1.Docs/Get"]; !sameScopes(c.Requires, []*basev0.WorkScopeV1{rs("docs.doc", "write")}) ||
-				!sameScopes(r.Policies["/docs.v1.Docs/Get"].Requires, []*basev0.WorkScopeV1{rs("docs.doc", "read")}) {
+			if c := r.Policies["POST /docs.v1.Docs/Get"]; !sameScopes(c.Requires, []*basev1.WorkScopeV1{rs("docs.doc", "write")}) ||
+				!sameScopes(r.Policies["/docs.v1.Docs/Get"].Requires, []*basev1.WorkScopeV1{rs("docs.doc", "read")}) {
 				t.Fatalf("the faces' policies are %v", r.Policies)
 			}
 		}
@@ -226,10 +226,10 @@ func TestReachTerminatesOnACycle(t *testing.T) {
 	docs, model := modules["docs"], modules["model"]
 	docs.ResourceKinds = append(docs.ResourceKinds, rs("docs.note", "read"), rs("docs.draft", "read"))
 	docs.Bindings = maps.Clone(docs.Bindings)
-	docs.Bindings["self"] = domain.Binding{ID: "self", Audience: "docs", InvokeScopes: []*basev0.WorkScopeV1{rs("docs.draft", "read")}}
+	docs.Bindings["self"] = domain.Binding{ID: "self", Audience: "docs", InvokeScopes: []*basev1.WorkScopeV1{rs("docs.draft", "read")}}
 	model.Bindings = map[string]domain.Binding{
-		"docs": {ID: "docs", Audience: "docs", InvokeScopes: []*basev0.WorkScopeV1{rs("docs.note", "read")}},
-		"app":  {ID: "app", Audience: "app", InvokeScopes: []*basev0.WorkScopeV1{rs("app.note", "read")}},
+		"docs": {ID: "docs", Audience: "docs", InvokeScopes: []*basev1.WorkScopeV1{rs("docs.note", "read")}},
+		"app":  {ID: "app", Audience: "app", InvokeScopes: []*basev1.WorkScopeV1{rs("app.note", "read")}},
 	}
 	modules["docs"], modules["model"] = docs, model
 	rows, err := decide.Reach(app, "user", modules)
@@ -237,10 +237,10 @@ func TestReachTerminatesOnACycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	row := rowAt(rows, decide.ReachBinding, "", "docs")
-	if row == nil || !sameScopes(row.Scopes, []*basev0.WorkScopeV1{rs("docs.doc", "read", "write"), rs("docs.note", "read"), rs("docs.draft", "read")}) {
+	if row == nil || !sameScopes(row.Scopes, []*basev1.WorkScopeV1{rs("docs.doc", "read", "write"), rs("docs.note", "read"), rs("docs.draft", "read")}) {
 		t.Fatalf("docs, re-entered, is reached as %+v", row)
 	}
-	if back := rowAt(rows, decide.ReachBinding, "", "app"); back == nil || !sameScopes(back.Scopes, []*basev0.WorkScopeV1{rs("app.note", "read")}) {
+	if back := rowAt(rows, decide.ReachBinding, "", "app"); back == nil || !sameScopes(back.Scopes, []*basev1.WorkScopeV1{rs("app.note", "read")}) {
 		t.Fatalf("app, re-entered through model, is reached as %+v", back)
 	}
 }
@@ -249,8 +249,8 @@ func TestReachTerminatesOnACycle(t *testing.T) {
 // random served scopes, roles and bindings, cycles included.
 func randomComposition(r *rand.Rand) (domain.Module, map[string]domain.Module) {
 	kinds, actions := []string{"k1", "k2", "k3"}, []string{"read", "write", "admin"}
-	some := func() []*basev0.WorkScopeV1 {
-		var out []*basev0.WorkScopeV1
+	some := func() []*basev1.WorkScopeV1 {
+		var out []*basev1.WorkScopeV1
 		for _, k := range kinds {
 			if r.Intn(3) == 0 {
 				continue
@@ -273,7 +273,7 @@ func randomComposition(r *rand.Rand) (domain.Module, map[string]domain.Module) {
 		m := domain.Module{Name: name, Principal: name, Kind: domain.KindModule, ResourceKinds: some(), Bindings: map[string]domain.Binding{},
 			Methods: map[string]domain.MethodPolicy{"/" + name + "/Op": {Requires: some()}}}
 		if i == 0 {
-			m.Kind, m.Roles = domain.KindSolution, map[string][]*basev0.WorkScopeV1{"r": some()}
+			m.Kind, m.Roles = domain.KindSolution, map[string][]*basev1.WorkScopeV1{"r": some()}
 		}
 		for _, other := range names {
 			if r.Intn(3) == 0 {
@@ -305,7 +305,7 @@ func TestReachThroughABindingNeverExceedsTheRoleOrAnyBindingOnThePath(t *testing
 			}
 			// Whatever path reached it, a hop's scopes come from one binding
 			// into the module.
-			var into []*basev0.WorkScopeV1
+			var into []*basev1.WorkScopeV1
 			for _, m := range modules {
 				for _, b := range m.Bindings {
 					if b.Audience == row.Module {
@@ -374,7 +374,7 @@ func TestReachEncodesCanonically(t *testing.T) {
 	}
 	docs := modules["docs"]
 	docs.Methods = maps.Clone(docs.Methods)
-	docs.Methods["/docs.v1.Docs/Purge"] = domain.MethodPolicy{Requires: []*basev0.WorkScopeV1{rs("docs.doc", "write")}}
+	docs.Methods["/docs.v1.Docs/Purge"] = domain.MethodPolicy{Requires: []*basev1.WorkScopeV1{rs("docs.doc", "write")}}
 	modules["docs"] = docs
 	wider, _ := decide.ReachOf(app, slices.Collect(maps.Values(modules)))
 	if _, d, _ := decide.EncodeReach(wider); d == digest || fmt.Sprint(decide.ReachWidens(all, wider)) != "[the roles together reach /docs.v1.Docs/Purge at app > docs operation /docs.v1.Docs/Purge at docs requires less role user reaches /docs.v1.Docs/Purge at app > docs operation /docs.v1.Docs/Purge at docs requires less]" {
@@ -383,6 +383,6 @@ func TestReachEncodesCanonically(t *testing.T) {
 }
 
 // sameScopes: each attenuates the other.
-func sameScopes(a, b []*basev0.WorkScopeV1) bool {
+func sameScopes(a, b []*basev1.WorkScopeV1) bool {
 	return scope.Attenuates(a, b) && scope.Attenuates(b, a)
 }

@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // The reference model: a scope list is the set of points (kind, owner,
@@ -22,7 +22,7 @@ var (
 
 type point struct{ kind, owner, action, id string }
 
-func points(scopes []*basev0.WorkScopeV1) map[point]bool {
+func points(scopes []*basev1.WorkScopeV1) map[point]bool {
 	out := map[point]bool{}
 	for _, sc := range scopes {
 		for _, owner := range owners {
@@ -61,10 +61,10 @@ func within(a, b map[point]bool) bool {
 	return true
 }
 
-func randomScopes(r *rand.Rand) []*basev0.WorkScopeV1 {
-	var out []*basev0.WorkScopeV1
+func randomScopes(r *rand.Rand) []*basev1.WorkScopeV1 {
+	var out []*basev1.WorkScopeV1
 	for range r.IntN(4) {
-		sc := &basev0.WorkScopeV1{ResourceKind: kinds[r.IntN(len(kinds))]}
+		sc := &basev1.WorkScopeV1{ResourceKind: kinds[r.IntN(len(kinds))]}
 		if r.IntN(2) == 0 {
 			sc.ResourceOwnerId = owners[r.IntN(2)]
 		}
@@ -125,24 +125,24 @@ func TestIntersectMatchesTheReferenceModel(t *testing.T) {
 func TestTheCasesTheModelFound(t *testing.T) {
 	read := []string{"read"}
 	// The ask equals one held row beside an owned row of the same kind.
-	if !scope.Attenuates([]*basev0.WorkScopeV1{sc("doc", "", read)}, []*basev0.WorkScopeV1{sc("doc", "", read), sc("doc", "u", read)}) {
+	if !scope.Attenuates([]*basev1.WorkScopeV1{sc("doc", "", read)}, []*basev1.WorkScopeV1{sc("doc", "", read), sc("doc", "u", read)}) {
 		t.Fatal("an ask equal to a held row is refused")
 	}
 	// An exact row does not hide a wider AnyAction row of the same kind.
-	got := scope.Intersect([]*basev0.WorkScopeV1{sc("doc", "", read)}, []*basev0.WorkScopeV1{sc("doc", "", read, "x"), sc("doc", "", []string{scope.AnyAction})})
+	got := scope.Intersect([]*basev1.WorkScopeV1{sc("doc", "", read)}, []*basev1.WorkScopeV1{sc("doc", "", read, "x"), sc("doc", "", []string{scope.AnyAction})})
 	if len(got) != 1 || len(got[0].GetResourceIds()) != 0 {
 		t.Fatalf("the exact row hid AnyAction: %v", got)
 	}
 	// A repeated row adds to the answer: ids x and y from two rows.
-	got = scope.Intersect([]*basev0.WorkScopeV1{sc("doc", "", read)}, []*basev0.WorkScopeV1{sc("doc", "", read, "x"), sc("doc", "", read, "y")})
+	got = scope.Intersect([]*basev1.WorkScopeV1{sc("doc", "", read)}, []*basev1.WorkScopeV1{sc("doc", "", read, "x"), sc("doc", "", read, "y")})
 	if len(got) != 1 || len(got[0].GetResourceIds()) != 2 {
 		t.Fatalf("repeated rows met as %v, want their union", got)
 	}
 	// Same compares owners: one row owned by u and one by v are not the same.
-	if scope.Same([]*basev0.WorkScopeV1{sc("doc", "u", read)}, []*basev0.WorkScopeV1{sc("doc", "v", read)}) {
+	if scope.Same([]*basev1.WorkScopeV1{sc("doc", "u", read)}, []*basev1.WorkScopeV1{sc("doc", "v", read)}) {
 		t.Fatal("two owners are the same")
 	}
-	if !scope.Same([]*basev0.WorkScopeV1{sc("doc", "u", read)}, []*basev0.WorkScopeV1{sc("doc", "u", read)}) {
+	if !scope.Same([]*basev1.WorkScopeV1{sc("doc", "u", read)}, []*basev1.WorkScopeV1{sc("doc", "u", read)}) {
 		t.Fatal("one owner is not the same as itself")
 	}
 }

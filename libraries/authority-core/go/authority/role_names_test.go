@@ -7,7 +7,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // The roles are admin and user, everywhere. These are the only tests that
@@ -17,7 +17,7 @@ import (
 // actions on the page's own kind.
 func twoRolePage(generation uint64, user ...string) domain.Module {
 	m := pageModule(generation, false)
-	m.Roles = map[string][]*basev0.WorkScopeV1{domain.AdminRole: {sc("pages.note", "read", "write")}, domain.UserRole: {sc("pages.note", user...)}}
+	m.Roles = map[string][]*basev1.WorkScopeV1{domain.AdminRole: {sc("pages.note", "read", "write")}, domain.UserRole: {sc("pages.note", user...)}}
 	return m
 }
 
@@ -27,7 +27,7 @@ func (h *harness) grantAs(caller, role, person string) error {
 }
 
 // withRoles is solution name at generation, declaring roles, read from source.
-func withRoles(name string, generation uint64, source string, roles map[string][]*basev0.WorkScopeV1) domain.Module {
+func withRoles(name string, generation uint64, source string, roles map[string][]*basev1.WorkScopeV1) domain.Module {
 	m := solution(name, true)
 	m.Generation, m.Source, m.Roles = generation, source, roles
 	m.InstallationRole = domain.NoInstallationRole
@@ -42,7 +42,7 @@ func withRoles(name string, generation uint64, source string, roles map[string][
 func (h *harness) oldNames() domain.Module {
 	h.t.Helper()
 	own, read := sc("old.note", "read", "write"), sc("old.note", "read")
-	m := withRoles("old", 1, "held-1", map[string][]*basev0.WorkScopeV1{
+	m := withRoles("old", 1, "held-1", map[string][]*basev1.WorkScopeV1{
 		"installer": {own, sc(kind, "admin", "create", "read", "write")}, "editor": {own, sc(kind, "read", "write")},
 		"viewer": {read, sc(kind, "read")}, "steward": {own},
 	})
@@ -75,17 +75,17 @@ func TestADeliveryDeclaringARoleThatIsNeitherAdminNorUserIsRefusedByName(t *test
 	h := newHarness(t)
 	own := sc("fresh.note", "read", "write")
 	note := sc("pages.note", "read")
-	deliveries := map[string]func(roles map[string][]*basev0.WorkScopeV1) domain.Module{
-		"a solution": func(roles map[string][]*basev0.WorkScopeV1) domain.Module {
+	deliveries := map[string]func(roles map[string][]*basev1.WorkScopeV1) domain.Module{
+		"a solution": func(roles map[string][]*basev1.WorkScopeV1) domain.Module {
 			for name := range roles {
-				roles[name] = []*basev0.WorkScopeV1{own}
+				roles[name] = []*basev1.WorkScopeV1{own}
 			}
 			return withRoles("fresh", 1, "new-1", roles)
 		},
-		"a module page": func(roles map[string][]*basev0.WorkScopeV1) domain.Module {
+		"a module page": func(roles map[string][]*basev1.WorkScopeV1) domain.Module {
 			m := pageModule(1, false)
 			for name := range roles {
-				roles[name] = []*basev0.WorkScopeV1{note}
+				roles[name] = []*basev1.WorkScopeV1{note}
 			}
 			m.Roles = roles
 			return m
@@ -101,7 +101,7 @@ func TestADeliveryDeclaringARoleThatIsNeitherAdminNorUserIsRefusedByName(t *test
 				"in place of admin":     {[]string{name, "user"}, `none is "admin"`},
 				"in place of user":      {[]string{"admin", name}, `declares role "` + name + `", which is neither "admin" nor "user"`},
 			} {
-				roles := map[string][]*basev0.WorkScopeV1{}
+				roles := map[string][]*basev1.WorkScopeV1{}
 				for _, r := range c.roles {
 					roles[r] = nil
 				}
@@ -114,7 +114,7 @@ func TestADeliveryDeclaringARoleThatIsNeitherAdminNorUserIsRefusedByName(t *test
 				}
 			}
 		}
-		m := delivery(map[string][]*basev0.WorkScopeV1{"admin": nil, "user": nil})
+		m := delivery(map[string][]*basev1.WorkScopeV1{"admin": nil, "user": nil})
 		if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
 			t.Errorf("%s declaring admin and user: %v", target, err)
 		}
@@ -172,7 +172,7 @@ func TestGrantsOfOldRoleNamesEndAndNobodyIsMovedToAdminOrUser(t *testing.T) {
 	h.oldNames()
 	svc, events := journaled(h)
 	own := sc("old.note", "read", "write")
-	next := withRoles("old", 2, "new-2", map[string][]*basev0.WorkScopeV1{domain.AdminRole: {own}, domain.UserRole: {sc("old.note", "read")}})
+	next := withRoles("old", 2, "new-2", map[string][]*basev1.WorkScopeV1{domain.AdminRole: {own}, domain.UserRole: {sc("old.note", "read")}})
 	if _, err := svc.ApplyModule(h.ctx, next); err != nil {
 		t.Fatalf("the delivery of admin and user: %v", err)
 	}
@@ -221,8 +221,8 @@ func TestAGenerationHeldUnderOldRoleNamesIsRefusedByNameWhenReadAgain(t *testing
 	h.oldNames()
 	own := sc("old.note", "read", "write")
 	// Another one held: admin and user, and a third name beside them.
-	third := withRoles("third", 1, "held-1", map[string][]*basev0.WorkScopeV1{domain.AdminRole: {own}, domain.UserRole: {own}, "viewer": {own}})
-	third.ResourceKinds = []*basev0.WorkScopeV1{own}
+	third := withRoles("third", 1, "held-1", map[string][]*basev1.WorkScopeV1{domain.AdminRole: {own}, domain.UserRole: {own}, "viewer": {own}})
+	third.ResourceKinds = []*basev1.WorkScopeV1{own}
 	old := withRoles("old", 1, "held-1", nil)
 	if err := h.store.Read(h.ctx, func(tx authority.Tx) (err error) { old, err = tx.ModuleNamed("old"); return err }); err != nil {
 		t.Fatal(err)
@@ -248,9 +248,9 @@ func TestAGenerationHeldUnderOldRoleNamesIsRefusedByNameWhenReadAgain(t *testing
 		}
 		next := c.held
 		next.Generation, next.Source = 2, "new-2"
-		next.Roles = map[string][]*basev0.WorkScopeV1{domain.AdminRole: {own}, domain.UserRole: {own}}
+		next.Roles = map[string][]*basev1.WorkScopeV1{domain.AdminRole: {own}, domain.UserRole: {own}}
 		if name == "a third name beside the two" {
-			next.ResourceKinds = []*basev0.WorkScopeV1{own}
+			next.ResourceKinds = []*basev1.WorkScopeV1{own}
 		}
 		if _, err := h.svc.ApplyModule(h.ctx, next); err != nil {
 			t.Errorf("%s: the next delivery declaring admin and user: %v", name, err)

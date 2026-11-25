@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/codefly-dev/core/workcontext"
 	"google.golang.org/protobuf/proto"
 )
@@ -122,8 +122,8 @@ func (s *Service) VerifyInstallationStep(ctx context.Context, token, audience st
 	return verified, src.revision, nil
 }
 
-func stepScope(id string) *basev0.WorkScopeV1 {
-	return &basev0.WorkScopeV1{ResourceKind: "installations", Actions: []string{"install"}, ResourceIds: []string{id}}
+func stepScope(id string) *basev1.WorkScopeV1 {
+	return &basev1.WorkScopeV1{ResourceKind: "installations", Actions: []string{"install"}, ResourceIds: []string{id}}
 }
 
 // stepSeals is private and answers only this pending attempt. Normal seals keep

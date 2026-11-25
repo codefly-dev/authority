@@ -11,14 +11,14 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/codefly-dev/core/workcontext"
 )
 
 // Present real Core-signed capabilities, including the owner-free scope shape
 // with no resource-owner selection. Attach must enforce its boundary
 // even when a valid capability was minted by another host/version.
-func attachmentToken(t *testing.T, h *harness, targets []string, scopes ...*basev0.WorkScopeV1) string {
+func attachmentToken(t *testing.T, h *harness, targets []string, scopes ...*basev1.WorkScopeV1) string {
 	t.Helper()
 	minter := workcontext.Authority{Issuer: h.cfg.Issuer, KeyID: h.cfg.KeyID, Signer: h.cfg.Signer, Seals: h.svc.Seals(), Revisions: h.svc.Revisions(), Now: h.cfg.Clock}
 	audience := "store"

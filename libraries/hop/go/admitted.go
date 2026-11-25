@@ -36,7 +36,7 @@ import (
 	hopv1 "github.com/codefly-dev/authority/libraries/hop/go/gen/authority/hop/v1"
 	"github.com/codefly-dev/authority/libraries/hop/go/policy"
 	"github.com/codefly-dev/authority/libraries/hop/go/routing"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -66,7 +66,7 @@ type Grant struct {
 // before it, or the owner's authority scopes when no one acts for them. It is
 // the scopes workcontext.Claims answers Allows from, one grant per action,
 // sorted, so the hop and the module derive the same value.
-func grantsOf(wc *basev0.WorkContextV1) []Grant {
+func grantsOf(wc *basev1.WorkContextV1) []Grant {
 	scopes := wc.GetAuthorityScopes()
 	if chain := wc.GetActorChain(); len(chain) > 0 {
 		scopes = chain[len(chain)-1].GetGrantedScopes()

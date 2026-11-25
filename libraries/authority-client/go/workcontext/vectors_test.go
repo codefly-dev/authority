@@ -15,7 +15,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-client/go/refusal"
 	"github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
 	reader "github.com/codefly-dev/authority/libraries/authority-client/go/workcontext"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	core "github.com/codefly-dev/core/workcontext"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -38,7 +38,7 @@ type vector struct {
 func vectors(t *testing.T) []vector {
 	fixturePublic, fixturePrivate := core.FixtureKeyPair()
 	own := signer.Public().(ed25519.PublicKey)
-	build := func(name, from string, change func(*basev0.WorkContextV1), key ed25519.PrivateKey, reason string) vector {
+	build := func(name, from string, change func(*basev1.WorkContextV1), key ed25519.PrivateKey, reason string) vector {
 		c := body(t, from)
 		if change != nil {
 			change(c)
@@ -54,8 +54,8 @@ func vectors(t *testing.T) []vector {
 			Now: c.GetNotBeforeUnix() + 1, Keys: map[string]string{c.GetKeyId(): base64.StdEncoding.EncodeToString(public)},
 			Accept: reason == "", Reason: reason}
 	}
-	widen := func(c *basev0.WorkContextV1) {
-		c.ActorChain[0].GrantedScopes = []*basev0.WorkScopeV1{{ResourceKind: "record", Actions: []string{"admin"}}}
+	widen := func(c *basev1.WorkContextV1) {
+		c.ActorChain[0].GrantedScopes = []*basev1.WorkScopeV1{{ResourceKind: "record", Actions: []string{"admin"}}}
 	}
 	out := []vector{
 		build("session", "session", nil, nil, ""),
@@ -63,20 +63,20 @@ func vectors(t *testing.T) []vector {
 		build("delegated operation", "delegated-operation", nil, nil, ""),
 		build("operation", "operation", nil, nil, ""),
 		build("grant", "grant", nil, nil, ""),
-		build("several rows of one kind", "session", func(c *basev0.WorkContextV1) {
-			c.AuthorityScopes = []*basev0.WorkScopeV1{{ResourceKind: "record", Actions: []string{"read"}, ResourceIds: []string{"a"}}, {ResourceKind: "record", Actions: []string{"write"}, ResourceIds: []string{"b"}}}
+		build("several rows of one kind", "session", func(c *basev1.WorkContextV1) {
+			c.AuthorityScopes = []*basev1.WorkScopeV1{{ResourceKind: "record", Actions: []string{"read"}, ResourceIds: []string{"a"}}, {ResourceKind: "record", Actions: []string{"write"}, ResourceIds: []string{"b"}}}
 		}, nil, ""),
-		build("an actor granted nothing", "delegated", func(c *basev0.WorkContextV1) { c.ActorChain[0].GrantedScopes = nil }, nil, ""),
+		build("an actor granted nothing", "delegated", func(c *basev1.WorkContextV1) { c.ActorChain[0].GrantedScopes = nil }, nil, ""),
 		build("an actor widens the owner", "delegated", widen, nil, "attenuation"),
-		build("no seal", "session", func(c *basev0.WorkContextV1) { c.Seal = nil }, nil, "malformed"),
-		build("seal epoch zero", "session", func(c *basev0.WorkContextV1) { c.Seal.PrincipalEpoch = 0 }, nil, "malformed"),
-		build("empty tenant", "session", func(c *basev0.WorkContextV1) { c.TenantId = "" }, nil, "malformed"),
-		build("wrong type", "session", func(c *basev0.WorkContextV1) { c.Typ = "codefly.work-context/v0" }, nil, "malformed"),
-		build("unknown replay policy", "session", func(c *basev0.WorkContextV1) { c.ReplayPolicy = "forever" }, nil, "malformed"),
-		build("actor without an epoch", "delegated", func(c *basev0.WorkContextV1) { c.ActorChain[0].PrincipalEpoch = 0 }, nil, "malformed"),
-		build("lifetime beyond a day", "session", func(c *basev0.WorkContextV1) { c.ExpiresAtUnix = c.NotBeforeUnix + 25*3600 }, nil, "lifetime"),
-		build("grant without single use", "grant", func(c *basev0.WorkContextV1) { c.ReplayPolicy = core.ReplayIdempotent }, nil, "grant"),
-		build("grant to another hop", "grant", func(c *basev0.WorkContextV1) { c.GrantHop.GrantId = "another-grant" }, nil, "grant"),
+		build("no seal", "session", func(c *basev1.WorkContextV1) { c.Seal = nil }, nil, "malformed"),
+		build("seal epoch zero", "session", func(c *basev1.WorkContextV1) { c.Seal.PrincipalEpoch = 0 }, nil, "malformed"),
+		build("empty tenant", "session", func(c *basev1.WorkContextV1) { c.TenantId = "" }, nil, "malformed"),
+		build("wrong type", "session", func(c *basev1.WorkContextV1) { c.Typ = "codefly.work-context/v0" }, nil, "malformed"),
+		build("unknown replay policy", "session", func(c *basev1.WorkContextV1) { c.ReplayPolicy = "forever" }, nil, "malformed"),
+		build("actor without an epoch", "delegated", func(c *basev1.WorkContextV1) { c.ActorChain[0].PrincipalEpoch = 0 }, nil, "malformed"),
+		build("lifetime beyond a day", "session", func(c *basev1.WorkContextV1) { c.ExpiresAtUnix = c.NotBeforeUnix + 25*3600 }, nil, "lifetime"),
+		build("grant without single use", "grant", func(c *basev1.WorkContextV1) { c.ReplayPolicy = core.ReplayIdempotent }, nil, "grant"),
+		build("grant to another hop", "grant", func(c *basev1.WorkContextV1) { c.GrantHop.GrantId = "another-grant" }, nil, "grant"),
 		build("signed with Core's public conformance key", "session", nil, fixturePrivate, "fixture_key"),
 	}
 	forged := build("forged signature", "session", nil, nil, "signature")
@@ -114,25 +114,25 @@ func vectors(t *testing.T) []vector {
 // clock where no other rule fires, so a reader missing that one rule accepts
 // it. The accepted and window-first cases are there so a reader cannot pass by
 // refusing every unusual issued-at, or by judging it before the window.
-func windowVectors(t *testing.T, build func(string, string, func(*basev0.WorkContextV1), ed25519.PrivateKey, string) vector) []vector {
+func windowVectors(t *testing.T, build func(string, string, func(*basev1.WorkContextV1), ed25519.PrivateKey, string) vector) []vector {
 	t.Helper()
 	session := body(t, "session")
 	notBefore, expires := session.GetNotBeforeUnix(), session.GetExpiresAtUnix()
 	skew := int64(core.DefaultSkew / time.Second)
-	at := func(name string, change func(*basev0.WorkContextV1), now int64, reason string) vector {
+	at := func(name string, change func(*basev1.WorkContextV1), now int64, reason string) vector {
 		v := build(name, "session", change, nil, reason)
 		v.Now = now
 		return v
 	}
-	issued := func(unix int64) func(*basev0.WorkContextV1) {
-		return func(c *basev0.WorkContextV1) { c.IssuedAtUnix = unix }
+	issued := func(unix int64) func(*basev1.WorkContextV1) {
+		return func(c *basev1.WorkContextV1) { c.IssuedAtUnix = unix }
 	}
 	open := notBefore + 1
 	// A window open since before the epoch is the one place an absent issued-at
 	// sits at or after not-before, so only the presence rule refuses it there;
 	// elsewhere the not-before rule refuses absence too, by accident.
-	preEpoch := func(issuedAt int64) func(*basev0.WorkContextV1) {
-		return func(c *basev0.WorkContextV1) {
+	preEpoch := func(issuedAt int64) func(*basev1.WorkContextV1) {
+		return func(c *basev1.WorkContextV1) {
 			c.NotBeforeUnix, c.IssuedAtUnix, c.ExpiresAtUnix = -3600, issuedAt, 3600
 		}
 	}
@@ -153,8 +153,8 @@ func windowVectors(t *testing.T, build func(string, string, func(*basev0.WorkCon
 		at("a sound issued-at in a window not yet open", nil, notBefore-skew-1, "not_yet_valid"),
 		at("no issued-at in a closed window", issued(0), expires+skew, "expired"),
 		at("issued in the future in a window not yet open", issued(notBefore+skew), notBefore-skew-1, "not_yet_valid"),
-		at("no not-before", func(c *basev0.WorkContextV1) { c.NotBeforeUnix = 0 }, open, "malformed"),
-		at("no expiry", func(c *basev0.WorkContextV1) { c.ExpiresAtUnix = 0 }, open, "malformed"),
+		at("no not-before", func(c *basev1.WorkContextV1) { c.NotBeforeUnix = 0 }, open, "malformed"),
+		at("no expiry", func(c *basev1.WorkContextV1) { c.ExpiresAtUnix = 0 }, open, "malformed"),
 	}
 }
 

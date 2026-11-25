@@ -8,7 +8,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/google/uuid"
 
 	"gateway/pkg/business/issuer"
@@ -37,7 +37,7 @@ func (k *Kit) PersonIssue(t *testing.T, person, audience string, scopes ...*auth
 
 // PersonScopes is what person holds at audience now: the effective scopes of
 // what they are issued, none when they hold nothing there.
-func (k *Kit) PersonScopes(t *testing.T, person, audience string) ([]*basev0.WorkScopeV1, error) {
+func (k *Kit) PersonScopes(t *testing.T, person, audience string) ([]*basev1.WorkScopeV1, error) {
 	t.Helper()
 	out, err := k.PersonIssue(t, person, audience)
 	if err != nil {

@@ -27,7 +27,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/google/uuid"
 )
 
@@ -87,7 +87,7 @@ type Config struct {
 	// that class it resolved live now, and an error when the binding names
 	// the class and is not live: the question is then refused. nil: the host
 	// has no such class, and every chain is ordinary delegation.
-	InstalledContentRead func(ctx context.Context, wc *basev0.WorkContextV1) (bool, error)
+	InstalledContentRead func(ctx context.Context, wc *basev1.WorkContextV1) (bool, error)
 	// MinRevisions says this host serves revision minimums: its store keeps
 	// the order Tx.AccessSequence answers, over every change that can alter a
 	// decision, and what Authority reads is at least as new as the store

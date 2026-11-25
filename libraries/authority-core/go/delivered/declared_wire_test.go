@@ -10,7 +10,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 	modulecontract "github.com/codefly-dev/core/contracts/module"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
@@ -81,11 +81,11 @@ func fromWire(t *testing.T, d *declare.Declaration, methods []*compositionv1.Met
 	if err := proto.Unmarshal(bytes, &read); err != nil {
 		t.Fatal(err)
 	}
-	core := func(in []*authorityv1.WorkScopeV1) []*basev0.WorkScopeV1 {
-		out := make([]*basev0.WorkScopeV1, 0, len(in))
+	core := func(in []*authorityv1.WorkScopeV1) []*basev1.WorkScopeV1 {
+		out := make([]*basev1.WorkScopeV1, 0, len(in))
 		for _, sc := range in {
 			raw, _ := proto.Marshal(sc)
-			c := &basev0.WorkScopeV1{}
+			c := &basev1.WorkScopeV1{}
 			_ = proto.Unmarshal(raw, c)
 			out = append(out, c)
 		}
@@ -126,7 +126,7 @@ func fromWire(t *testing.T, d *declare.Declaration, methods []*compositionv1.Met
 func TestDeclaredComposesWhatTheWireDelivers(t *testing.T) {
 	requires := []*authorityv1.WorkScopeV1{{ResourceKind: "notebook.page", Actions: []string{"read"}}}
 	wireMethods := []*compositionv1.MethodPolicyV1{{Method: "GET /v1/notebook/pages", Requires: requires}, {Method: "GET /v1/notebook/elsewhere", AnyCheckedCaller: true}}
-	methods := []delivered.Method{{Method: "GET /v1/notebook/pages", Requires: []*basev0.WorkScopeV1{{ResourceKind: "notebook.page", Actions: []string{"read"}}}},
+	methods := []delivered.Method{{Method: "GET /v1/notebook/pages", Requires: []*basev1.WorkScopeV1{{ResourceKind: "notebook.page", Actions: []string{"read"}}}},
 		{Method: "GET /v1/notebook/elsewhere", AnyCheckedCaller: true}}
 	declared, err := delivered.Declared(manifest(), declaration(), methods)
 	if err != nil {

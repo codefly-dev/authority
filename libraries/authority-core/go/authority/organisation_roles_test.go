@@ -6,7 +6,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/codefly-dev/core/workcontext"
 )
 
@@ -74,7 +74,7 @@ func TestACapabilityOnAPersonsOwnSessionIsRefusedAtAModuleWithNoRoles(t *testing
 		t.Fatal(err)
 	}
 	legacy.Generation++
-	legacy.Methods = map[string]domain.MethodPolicy{method: {Requires: []*basev0.WorkScopeV1{sc(legacyKind, "read")}}}
+	legacy.Methods = map[string]domain.MethodPolicy{method: {Requires: []*basev1.WorkScopeV1{sc(legacyKind, "read")}}}
 	if _, err := h.svc.ApplyModule(h.ctx, legacy); err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestACapabilityOnAPersonsOwnSessionIsRefusedAtAModuleWithNoRoles(t *testing
 	minter := workcontext.Authority{Issuer: h.cfg.Issuer, KeyID: h.cfg.KeyID, Signer: h.cfg.Signer, Seals: h.svc.Seals(), Revisions: h.svc.Revisions(), Now: h.cfg.Clock}
 	for _, person := range []string{"alex", "rob", "maya"} {
 		token, _, err := minter.Start(h.ctx, workcontext.StartInput{TenantID: acme, OrganizationID: acme, OwnerPrincipalID: person, OwnerPrincipalKind: "human",
-			TaskID: "own-session-" + person, SessionID: "session-" + person, Audience: "legacy-store", AuthorityScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")},
+			TaskID: "own-session-" + person, SessionID: "session-" + person, Audience: "legacy-store", AuthorityScopes: []*basev1.WorkScopeV1{sc(legacyKind, "read")},
 			InstallationID: h.inst(acme, "legacy-store").ID, TTL: time.Minute, ReplayPolicy: workcontext.ReplayIdempotent})
 		if err != nil {
 			t.Fatal(err)
@@ -101,7 +101,7 @@ func TestACapabilityOnAPersonsOwnSessionIsRefusedAtAModuleWithNoRoles(t *testing
 	// decided again from the person's roles on installations, and the legacy
 	// store, which declares none, holds nothing for anybody's own session.
 	token, _, err := minter.Start(h.ctx, workcontext.StartInput{TenantID: acme, OrganizationID: acme, OwnerPrincipalID: "alex", OwnerPrincipalKind: "human",
-		TaskID: "own-session-hop", SessionID: "session-alex", Audience: "ledger", AuthorityScopes: []*basev0.WorkScopeV1{sc(ledgerKind, "read"), sc(legacyKind, "read")},
+		TaskID: "own-session-hop", SessionID: "session-alex", Audience: "ledger", AuthorityScopes: []*basev1.WorkScopeV1{sc(ledgerKind, "read"), sc(legacyKind, "read")},
 		InstallationID: h.inst(acme, "ledger").ID, TTL: time.Minute, ReplayPolicy: workcontext.ReplayIdempotent})
 	if err != nil {
 		t.Fatal(err)
@@ -127,9 +127,9 @@ func TestABindingOfAModuleWithNoRolesCarriesTheRoleOnItsTargetAlone(t *testing.T
 	h := matrixHarness(t)
 	const method = "/tools.v1.Tools/List"
 	tools := domain.Module{Name: "tools", Principal: "tools", Kind: domain.KindModule, Generation: 1, OwnerAware: true,
-		ResourceKinds: []*basev0.WorkScopeV1{sc("tools.item", "read")},
-		Methods:       map[string]domain.MethodPolicy{method: {Requires: []*basev0.WorkScopeV1{sc("tools.item", "read")}}},
-		Bindings:      map[string]domain.Binding{"a": {ID: "a", Audience: "a", InvokeScopes: []*basev0.WorkScopeV1{sc("a.note", "read", "write")}}}}
+		ResourceKinds: []*basev1.WorkScopeV1{sc("tools.item", "read")},
+		Methods:       map[string]domain.MethodPolicy{method: {Requires: []*basev1.WorkScopeV1{sc("tools.item", "read")}}},
+		Bindings:      map[string]domain.Binding{"a": {ID: "a", Audience: "a", InvokeScopes: []*basev1.WorkScopeV1{sc("a.note", "read", "write")}}}}
 	if _, err := h.svc.ApplyModule(h.ctx, tools); err != nil {
 		t.Fatal(err)
 	}

@@ -11,15 +11,15 @@ import (
 
 	reader "github.com/codefly-dev/authority/libraries/authority-client/go/workcontext"
 
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 )
 
 // ownedScope is {kind, [action], resource_owner_id: owner, resource_ids: ids}.
-func ownedScope(t *testing.T, kind, action, owner string, ids ...string) *basev0.WorkScopeV1 {
+func ownedScope(t *testing.T, kind, action, owner string, ids ...string) *basev1.WorkScopeV1 {
 	t.Helper()
-	return &basev0.WorkScopeV1{ResourceKind: kind, Actions: []string{action}, ResourceIds: ids, ResourceOwnerId: owner}
+	return &basev1.WorkScopeV1{ResourceKind: kind, Actions: []string{action}, ResourceIds: ids, ResourceOwnerId: owner}
 }
 
 // The owner-selected rows (Allows refusing, AllowsOwned admitting only the
@@ -27,7 +27,7 @@ func ownedScope(t *testing.T, kind, action, owner string, ids ...string) *basev0
 // runs here and the Python and TypeScript readers run on the same rows.
 
 // ownerOf reads WorkScopeV1 field 4 from scope's encoding, known or not.
-func ownerOf(t *testing.T, scope *basev0.WorkScopeV1) string {
+func ownerOf(t *testing.T, scope *basev1.WorkScopeV1) string {
 	t.Helper()
 	raw, err := proto.Marshal(scope)
 	if err != nil {
@@ -59,7 +59,7 @@ func ownerOf(t *testing.T, scope *basev0.WorkScopeV1) string {
 // kind: each it returns keeps its resource owner.
 func TestScopesKeepTheirResourceOwner(t *testing.T) {
 	c := body(t, "session")
-	c.AuthorityScopes = []*basev0.WorkScopeV1{ownedScope(t, "record", "read", "principal-u"), {ResourceKind: "plain", Actions: []string{"read"}}}
+	c.AuthorityScopes = []*basev1.WorkScopeV1{ownedScope(t, "record", "read", "principal-u"), {ResourceKind: "plain", Actions: []string{"read"}}}
 	scopes := read(t, c).Scopes()
 	if len(scopes) != 2 {
 		t.Fatalf("Scopes() returned %d scopes, want 2", len(scopes))
@@ -76,21 +76,21 @@ func TestScopesKeepTheirResourceOwner(t *testing.T) {
 // it is refused, while a hop narrowing within the owner verifies.
 func TestAChainThatDropsOrChangesTheOwnerIsRefused(t *testing.T) {
 	for name, tc := range map[string]struct {
-		last *basev0.WorkScopeV1
+		last *basev1.WorkScopeV1
 		ok   bool
 	}{
-		"narrowed within the owner": {&basev0.WorkScopeV1{ResourceKind: "record", Actions: []string{"read"}, ResourceIds: []string{"r1"}, ResourceOwnerId: "principal-u"}, true},
-		"the owner dropped":         {&basev0.WorkScopeV1{ResourceKind: "record", Actions: []string{"read"}}, false},
-		"the owner changed":         {&basev0.WorkScopeV1{ResourceKind: "record", Actions: []string{"read"}, ResourceOwnerId: "principal-v"}, false},
+		"narrowed within the owner": {&basev1.WorkScopeV1{ResourceKind: "record", Actions: []string{"read"}, ResourceIds: []string{"r1"}, ResourceOwnerId: "principal-u"}, true},
+		"the owner dropped":         {&basev1.WorkScopeV1{ResourceKind: "record", Actions: []string{"read"}}, false},
+		"the owner changed":         {&basev1.WorkScopeV1{ResourceKind: "record", Actions: []string{"read"}, ResourceOwnerId: "principal-v"}, false},
 	} {
 		t.Run(name, func(t *testing.T) {
 			c := body(t, "delegated")
-			owned := &basev0.WorkScopeV1{ResourceKind: "record", Actions: []string{"read"}, ResourceOwnerId: "principal-u"}
-			c.AuthorityScopes = []*basev0.WorkScopeV1{owned}
+			owned := &basev1.WorkScopeV1{ResourceKind: "record", Actions: []string{"read"}, ResourceOwnerId: "principal-u"}
+			c.AuthorityScopes = []*basev1.WorkScopeV1{owned}
 			for _, actor := range c.ActorChain {
-				actor.GrantedScopes = []*basev0.WorkScopeV1{owned}
+				actor.GrantedScopes = []*basev1.WorkScopeV1{owned}
 			}
-			c.ActorChain[len(c.ActorChain)-1].GrantedScopes = []*basev0.WorkScopeV1{tc.last}
+			c.ActorChain[len(c.ActorChain)-1].GrantedScopes = []*basev1.WorkScopeV1{tc.last}
 			_, err := reader.AuthenticateToken(tokenFor(t, c), c.GetAudience(), trustFor(c))
 			if (err == nil) != tc.ok {
 				t.Fatalf("authenticate: %v", err)
@@ -137,7 +137,7 @@ func TestResourceOwnerVectorsAreCores(t *testing.T) {
 	}
 	authenticate := func(owner string) error {
 		c := body(t, "session")
-		c.AuthorityScopes = []*basev0.WorkScopeV1{ownedScope(t, "record", "read", owner)}
+		c.AuthorityScopes = []*basev1.WorkScopeV1{ownedScope(t, "record", "read", owner)}
 		_, err := reader.AuthenticateToken(tokenFor(t, c), c.GetAudience(), trustFor(c))
 		return err
 	}

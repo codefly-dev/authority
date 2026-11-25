@@ -8,7 +8,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // widenTo delivers a generation of a asking more than generation 1, so acme's
@@ -17,7 +17,7 @@ func widenTo(h *harness, generation uint64) domain.Module {
 	h.t.Helper()
 	wider := solution("a", true)
 	wider.Generation = generation
-	wider.Roles["user"] = []*basev0.WorkScopeV1{sc("a.note", "read", "write"), sc(kind, "read"), sc(legacyKind, "read")}
+	wider.Roles["user"] = []*basev1.WorkScopeV1{sc("a.note", "read", "write"), sc(kind, "read"), sc(legacyKind, "read")}
 	if _, err := h.svc.ApplyModule(h.ctx, wider); err != nil {
 		h.t.Fatal(err)
 	}
@@ -102,7 +102,7 @@ func TestAGoverningScopeAddedByARedeliveryWaitsForApproval(t *testing.T) {
 	h := newHarness(t)
 	governed := solution("a", true)
 	governed.Generation = 2
-	governed.SourceGovernance = []*basev0.WorkScopeV1{sc("a.note", "write")}
+	governed.SourceGovernance = []*basev1.WorkScopeV1{sc("a.note", "write")}
 	if _, err := h.svc.ApplyModule(h.ctx, governed); err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestALegacyConsentApprovesNoGoverningScope(t *testing.T) {
 	h := newHarness(t)
 	governed := solution("a", true)
 	governed.Generation = 2
-	governed.SourceGovernance = []*basev0.WorkScopeV1{sc("a.note", "read")}
+	governed.SourceGovernance = []*basev1.WorkScopeV1{sc("a.note", "read")}
 	if _, err := h.svc.ApplyModule(h.ctx, governed); err != nil {
 		t.Fatal(err)
 	}
@@ -169,10 +169,10 @@ func TestADeliveryGoverningByAnActionItDoesNotServeIsRefused(t *testing.T) {
 	h := newHarness(t)
 	m := solution("a", true)
 	m.Generation = 2
-	m.ResourceKinds = []*basev0.WorkScopeV1{sc("a.note", "read")}
-	m.Roles["admin"] = []*basev0.WorkScopeV1{sc("a.note", "read"), sc(kind, "create", "read", "write")}
-	m.Roles[domain.AdminRole] = []*basev0.WorkScopeV1{sc("a.note", "read"), sc(kind, "admin", "create", "read", "write")}
-	m.SourceGovernance = []*basev0.WorkScopeV1{sc("a.note", "write")}
+	m.ResourceKinds = []*basev1.WorkScopeV1{sc("a.note", "read")}
+	m.Roles["admin"] = []*basev1.WorkScopeV1{sc("a.note", "read"), sc(kind, "create", "read", "write")}
+	m.Roles[domain.AdminRole] = []*basev1.WorkScopeV1{sc("a.note", "read"), sc(kind, "admin", "create", "read", "write")}
+	m.SourceGovernance = []*basev1.WorkScopeV1{sc("a.note", "write")}
 	if _, err := h.svc.ApplyModule(h.ctx, m); err == nil || !strings.Contains(err.Error(), "which its own ceiling does not name") {
 		t.Fatalf("a governing action the solution does not serve: %v", err)
 	}

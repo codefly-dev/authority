@@ -7,7 +7,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // The issuance matrix (RBAC audit, layer 1): who is issued what, at which
@@ -107,11 +107,11 @@ func TestRBACIssuanceMatrix(t *testing.T) {
 		// it (M10, M19f, M20, M21) and through nothing else.
 		{id: "M16", principal: "person: organisation role naming the module's kind and a resource, no installation role", target: "module with no roles, not owner-aware", resource: "the named id",
 			issue: func(h *harness) (authority.Issued, error) {
-				return h.root("rob", "ledger", &basev0.WorkScopeV1{ResourceKind: ledgerKind, Actions: []string{"read"}, ResourceIds: []string{"entry-x"}})
+				return h.root("rob", "ledger", &basev1.WorkScopeV1{ResourceKind: ledgerKind, Actions: []string{"read"}, ResourceIds: []string{"entry-x"}})
 			}, refuse: "ledger declares no roles"},
 		{id: "M16b", principal: "person: organisation role naming the module's kind and a resource, no installation role", target: "module with no roles, owner-aware", resource: "the named id",
 			issue: func(h *harness) (authority.Issued, error) {
-				return h.root("rob", "store", &basev0.WorkScopeV1{ResourceKind: kind, Actions: []string{"read"}, ResourceIds: []string{"store-x"}})
+				return h.root("rob", "store", &basev1.WorkScopeV1{ResourceKind: kind, Actions: []string{"read"}, ResourceIds: []string{"store-x"}})
 			}, refuse: "store declares no roles"},
 		{id: "M17", principal: "person: organisation role naming the module's kind, no installation role", target: "module with no roles, not owner-aware", resource: "anything",
 			issue:  func(h *harness) (authority.Issued, error) { return h.root("rob", "ledger") },
@@ -223,7 +223,7 @@ func TestRBACIssuanceMatrix(t *testing.T) {
 			}, allow: &row{kind, noOwner, []string{"read"}, nil}},
 		{id: "M41", principal: "module binding: headless, wider than declared", target: "module", resource: "the kind",
 			issue: func(h *harness) (authority.Issued, error) {
-				return h.svc.IssueForWorkload(h.ctx, authority.Workload{Module: "store"}, authority.IssueRequest{Binding: "self", Operation: "headless", Organization: acme, Scopes: []*basev0.WorkScopeV1{sc(kind, "write")}})
+				return h.svc.IssueForWorkload(h.ctx, authority.Workload{Module: "store"}, authority.IssueRequest{Binding: "self", Operation: "headless", Organization: acme, Scopes: []*basev1.WorkScopeV1{sc(kind, "write")}})
 			}, refuse: "asked beyond what the owner holds"},
 		{id: "M42", principal: "module binding: credential bound to another tenant", target: "module", resource: "another tenant's data",
 			issue: func(h *harness) (authority.Issued, error) {
@@ -258,7 +258,7 @@ func TestRBACIssuanceMatrix(t *testing.T) {
 			}, refuse: ""},
 		{id: "M54", principal: "delegation: revoked", target: "module", resource: "own installation",
 			issue: func(h *harness) (authority.Issued, error) {
-				d, err := h.svc.Delegate(h.ctx, h.person("maya"), "a", []*basev0.WorkScopeV1{owned(kind, h.principal(acme, "a"), []string{"read"})}, "matrix", 0)
+				d, err := h.svc.Delegate(h.ctx, h.person("maya"), "a", []*basev1.WorkScopeV1{owned(kind, h.principal(acme, "a"), []string{"read"})}, "matrix", 0)
 				if err != nil {
 					return authority.Issued{}, err
 				}
@@ -269,7 +269,7 @@ func TestRBACIssuanceMatrix(t *testing.T) {
 			}, refuse: "is revoked"},
 		{id: "M55", principal: "delegation: granted to another module", target: "module", resource: "own installation",
 			issue: func(h *harness) (authority.Issued, error) {
-				d, err := h.svc.Delegate(h.ctx, h.person("maya"), "a", []*basev0.WorkScopeV1{owned(kind, h.principal(acme, "a"), []string{"read"})}, "matrix", 0)
+				d, err := h.svc.Delegate(h.ctx, h.person("maya"), "a", []*basev1.WorkScopeV1{owned(kind, h.principal(acme, "a"), []string{"read"})}, "matrix", 0)
 				if err != nil {
 					return authority.Issued{}, err
 				}
@@ -277,7 +277,7 @@ func TestRBACIssuanceMatrix(t *testing.T) {
 			}, refuse: "is granted to a, not b"},
 		{id: "M56", principal: "delegation: grantor's role revoked since", target: "module", resource: "own installation",
 			issue: func(h *harness) (authority.Issued, error) {
-				d, err := h.svc.Delegate(h.ctx, h.person("maya"), "a", []*basev0.WorkScopeV1{owned(kind, h.principal(acme, "a"), []string{"read"})}, "matrix", 0)
+				d, err := h.svc.Delegate(h.ctx, h.person("maya"), "a", []*basev1.WorkScopeV1{owned(kind, h.principal(acme, "a"), []string{"read"})}, "matrix", 0)
 				if err != nil {
 					return authority.Issued{}, err
 				}
@@ -323,7 +323,7 @@ func matrixHarness(t *testing.T) *harness {
 	// call there is refused whoever makes it, a person whose organisation role
 	// names its kind included.
 	elsewhere := domain.Module{Name: "store-elsewhere", Principal: "store-elsewhere", Kind: domain.KindModule, Generation: 1,
-		ResourceKinds: []*basev0.WorkScopeV1{sc(kind+".elsewhere", "read")}}
+		ResourceKinds: []*basev1.WorkScopeV1{sc(kind+".elsewhere", "read")}}
 	if _, err := h.svc.ApplyModule(h.ctx, elsewhere); err != nil {
 		t.Fatal(err)
 	}

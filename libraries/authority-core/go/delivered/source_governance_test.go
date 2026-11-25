@@ -6,7 +6,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/delivered"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
 	"github.com/codefly-dev/authority/libraries/solutionhost/go"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // The scopes that govern a module's sources ride on core's signed manifest,
@@ -20,7 +20,7 @@ func TestTheGoverningScopesAreReadFromCoresManifest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := scope.Normalize([]*basev0.WorkScopeV1{ws("notes.page", "publish", "write")}); !scope.Same(m.SourceGovernance, want) {
+	if want := scope.Normalize([]*basev1.WorkScopeV1{ws("notes.page", "publish", "write")}); !scope.Same(m.SourceGovernance, want) {
 		t.Fatalf("governing scopes %v, want %v", m.SourceGovernance, want)
 	}
 	manifest.Authority.SourceGovernance = nil

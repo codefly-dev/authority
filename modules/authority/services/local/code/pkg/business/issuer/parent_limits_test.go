@@ -8,7 +8,7 @@ import (
 	"gateway/pkg/business/state"
 	"gateway/pkg/business/testkit"
 	authorityv1 "gateway/pkg/gen/host/authority/v1"
-	base "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	base "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 func hopFrom(t *testing.T, k *testkit.Kit, parent *authorityv1.IssueResponse, actor, target, binding string, ask ...*base.WorkScopeV1) (*authorityv1.IssueResponse, error) {

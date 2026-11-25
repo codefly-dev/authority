@@ -10,7 +10,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // RoleViewRequest asks to fix a new session to act as some of the roles the
@@ -208,7 +208,7 @@ func castHolds(tx Tx, member domain.Person, v domain.RoleView, casts []string) e
 // only a cast it read as holding: a person the host no longer has is refused
 // as the member they no longer are, and a read that failed is that failure,
 // never a pass.
-func castOfClaims(tx Tx, wc *basev0.WorkContextV1) error {
+func castOfClaims(tx Tx, wc *basev1.WorkContextV1) error {
 	session := rootSession(wc)
 	if wc.GetOwnerPrincipalKind() != "human" || session == "" {
 		return nil
@@ -231,7 +231,7 @@ func castOfClaims(tx Tx, wc *basev0.WorkContextV1) error {
 
 // personOfClaims is the human a verified capability's owner is, under the
 // role view of the session the capability descends from.
-func personOfClaims(tx Tx, wc *basev0.WorkContextV1) (domain.Person, error) {
+func personOfClaims(tx Tx, wc *basev1.WorkContextV1) (domain.Person, error) {
 	return personFor(tx, wc.GetTenantId(), wc.GetOwnerPrincipalId(), rootSession(wc))
 }
 
@@ -252,7 +252,7 @@ func ownerGone(err error, owner string) error {
 // read under no view, and what it holds is bounded by the scopes the
 // delegation was made with, which Delegate cut to the view of the session that
 // made it (TestADelegationMadeUnderARoleViewHoldsWhatTheViewHolds).
-func rootSession(wc *basev0.WorkContextV1) string {
+func rootSession(wc *basev1.WorkContextV1) string {
 	if chain := wc.GetActorChain(); len(chain) > 0 {
 		return chain[0].GetDelegationId()
 	}

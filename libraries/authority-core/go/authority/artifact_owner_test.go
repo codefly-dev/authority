@@ -6,7 +6,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // An owner's artifact: a person reaching an artifact module through a
@@ -19,16 +19,16 @@ func TestAnOwnersArtifactIsInItsOwnersNamespace(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	agent := domain.Module{Name: "agent", Principal: "agent", Kind: domain.KindModule, Generation: 1, OwnerAware: true,
-		ResourceKinds: []*basev0.WorkScopeV1{sc("agent.intents", "read", "activate", "run"), sc("agent.profiles", "read")},
+		ResourceKinds: []*basev1.WorkScopeV1{sc("agent.intents", "read", "activate", "run"), sc("agent.profiles", "read")},
 		SharedKinds:   []string{"agent.profiles"}}
 	if _, err := h.svc.ApplyModule(h.ctx, agent); err != nil {
 		t.Fatal(err)
 	}
 	builder := domain.Module{Name: "builder", Principal: "builder", Kind: domain.KindSolution, Generation: 1, OwnerAware: true, Page: true,
 		InstallationRole: domain.NoInstallationRole,
-		ResourceKinds:    []*basev0.WorkScopeV1{sc("builder.note", "read", "write")},
-		Bindings:         map[string]domain.Binding{"agent": {ID: "agent", Audience: "agent", InvokeScopes: []*basev0.WorkScopeV1{sc("agent.intents", "read", "activate", "run")}}},
-		Roles: map[string][]*basev0.WorkScopeV1{
+		ResourceKinds:    []*basev1.WorkScopeV1{sc("builder.note", "read", "write")},
+		Bindings:         map[string]domain.Binding{"agent": {ID: "agent", Audience: "agent", InvokeScopes: []*basev1.WorkScopeV1{sc("agent.intents", "read", "activate", "run")}}},
+		Roles: map[string][]*basev1.WorkScopeV1{
 			domain.AdminRole: {sc("builder.note", "read", "write"), sc("agent.intents", "read", "activate", "run")},
 			"user":           {sc("builder.note", "read"), sc("agent.intents", "read", "run")},
 		}}
@@ -89,21 +89,21 @@ func TestTheParentAuthorsInItsOwnersNamespace(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	agent := domain.Module{Name: "agent", Principal: "agent", Kind: domain.KindModule, Generation: 1, OwnerAware: true,
-		ResourceKinds: []*basev0.WorkScopeV1{sc("agent.intents", "read", "activate", "run"), sc("agent.profiles", "read")},
+		ResourceKinds: []*basev1.WorkScopeV1{sc("agent.intents", "read", "activate", "run"), sc("agent.profiles", "read")},
 		SharedKinds:   []string{"agent.profiles"}}
 	if _, err := h.svc.ApplyModule(h.ctx, agent); err != nil {
 		t.Fatal(err)
 	}
 	builder := domain.Module{Name: "builder", Principal: "builder", Kind: domain.KindSolution, Generation: 1, OwnerAware: true, Page: true,
-		InstallationRole: domain.NoInstallationRole, ResourceKinds: []*basev0.WorkScopeV1{sc("builder.note", "read")},
-		Bindings: map[string]domain.Binding{"agent": {ID: "agent", Audience: "agent", InvokeScopes: []*basev0.WorkScopeV1{sc("agent.intents", "read", "run"), sc("agent.profiles", "read")}}},
-		Roles:    map[string][]*basev0.WorkScopeV1{domain.AdminRole: {sc("builder.note", "read")}, "user": {sc("builder.note", "read"), sc("agent.intents", "read", "run"), sc("agent.profiles", "read")}}}
+		InstallationRole: domain.NoInstallationRole, ResourceKinds: []*basev1.WorkScopeV1{sc("builder.note", "read")},
+		Bindings: map[string]domain.Binding{"agent": {ID: "agent", Audience: "agent", InvokeScopes: []*basev1.WorkScopeV1{sc("agent.intents", "read", "run"), sc("agent.profiles", "read")}}},
+		Roles:    map[string][]*basev1.WorkScopeV1{domain.AdminRole: {sc("builder.note", "read")}, "user": {sc("builder.note", "read"), sc("agent.intents", "read", "run"), sc("agent.profiles", "read")}}}
 	if _, err := h.svc.ApplyModule(h.ctx, builder); err != nil {
 		t.Fatal(err)
 	}
 	h.installAs(acme, "builder", "")
 	h.grant("builder", "user", "remi")
-	owned := h.must(h.page("remi", "builder", "agent", &basev0.WorkScopeV1{ResourceKind: "agent.intents", Actions: []string{"read", "run"}, ResourceOwnerId: h.principal(acme, "builder")}))
+	owned := h.must(h.page("remi", "builder", "agent", &basev1.WorkScopeV1{ResourceKind: "agent.intents", Actions: []string{"read", "run"}, ResourceOwnerId: h.principal(acme, "builder")}))
 	inst, namespace, err := h.svc.CurrentAuthoring(h.ctx, owned.Token, authority.Workload{Module: "agent"})
 	if err != nil || namespace != acme+".builder" || inst.Target != "agent" {
 		t.Fatalf("an owned parent authors in %q at %s (%v)", namespace, inst.Target, err)

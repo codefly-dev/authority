@@ -11,7 +11,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/declare"
 	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 	modulecontract "github.com/codefly-dev/core/contracts/module"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,12 +22,12 @@ type composed struct {
 	Values map[string]map[string]string `json:"values"`
 }
 
-func (c composed) infos() []*basev0.ConfigurationInformation {
-	var out []*basev0.ConfigurationInformation
+func (c composed) infos() []*basev1.ConfigurationInformation {
+	var out []*basev1.ConfigurationInformation
 	for _, group := range slices.Sorted(maps.Keys(c.Values)) {
-		info := &basev0.ConfigurationInformation{Name: group}
+		info := &basev1.ConfigurationInformation{Name: group}
 		for _, key := range slices.Sorted(maps.Keys(c.Values[group])) {
-			info.ConfigurationValues = append(info.ConfigurationValues, &basev0.ConfigurationValue{Key: key, Value: c.Values[group][key]})
+			info.ConfigurationValues = append(info.ConfigurationValues, &basev1.ConfigurationValue{Key: key, Value: c.Values[group][key]})
 		}
 		out = append(out, info)
 	}
@@ -104,9 +104,9 @@ func TestDeclareModuleRefusesWhatTheRenderRefuses(t *testing.T) {
 // Every record is handed to core's resolution as supplied: a key supplied
 // public and secret resolves as the secret, which core refuses as a slot value.
 func TestModuleRefusesASecretSlotValue(t *testing.T) {
-	infos := []*basev0.ConfigurationInformation{
-		{Name: "ledger", ConfigurationValues: []*basev0.ConfigurationValue{{Key: "store-audience", Value: "store"}}},
-		{Name: "ledger", ConfigurationValues: []*basev0.ConfigurationValue{{Key: "store-audience", Value: "store", Secret: true}}},
+	infos := []*basev1.ConfigurationInformation{
+		{Name: "ledger", ConfigurationValues: []*basev1.ConfigurationValue{{Key: "store-audience", Value: "store"}}},
+		{Name: "ledger", ConfigurationValues: []*basev1.ConfigurationValue{{Key: "store-audience", Value: "store", Secret: true}}},
 	}
 	_, _, err := declare.Module(filepath.Join("testdata", "declare", "module"), "ledger", nil, solutionhost.Resolver(infos, "", nil))
 	require.ErrorIs(t, err, modulecontract.ErrSecretSlot)

@@ -24,7 +24,7 @@ import (
 	fixturecomposition "github.com/codefly-dev/authority/libraries/fixture-composition/go"
 	"github.com/codefly-dev/authority/libraries/solutionhost/go/workloadidentity"
 	"github.com/codefly-dev/authority/libraries/solutionhost/go/workloadidentity/native"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 )
@@ -367,9 +367,9 @@ func (s *State) LoadFixture(ctx context.Context, data []byte) error {
 		if d.ID == "" || d.Grantor == "" || d.Module == "" || d.Organization == "" {
 			return fmt.Errorf("delegation %q names no id, grantor, module or organization", d.ID)
 		}
-		var scopes []*basev0.WorkScopeV1
+		var scopes []*basev1.WorkScopeV1
 		for _, sc := range d.Scopes {
-			scopes = append(scopes, &basev0.WorkScopeV1{ResourceKind: sc.Kind, Actions: slices.Clone(sc.Actions), ResourceIds: slices.Clone(sc.ResourceIDs)})
+			scopes = append(scopes, &basev1.WorkScopeV1{ResourceKind: sc.Kind, Actions: slices.Clone(sc.Actions), ResourceIds: slices.Clone(sc.ResourceIDs)})
 		}
 		stored := domain.Delegation{ID: d.ID, Organization: d.Organization, Grantor: d.Grantor, Module: d.Module, Purpose: d.Purpose, Scopes: Normalize(scopes)}
 		if err := s.write(func(tx authority.Tx) error { return tx.PutDelegation(stored) }); err != nil {
@@ -407,7 +407,7 @@ func (s *State) LoadFixture(ctx context.Context, data []byte) error {
 		}
 		m := Manifest{Name: fm.Module, Principal: fm.Module, Kind: domain.KindModule, Generation: 1, Bindings: map[string]Binding{}, StandIn: true}
 		for _, k := range fm.Kinds {
-			m.ResourceKinds = append(m.ResourceKinds, &basev0.WorkScopeV1{ResourceKind: k.Kind, Actions: slices.Clone(k.Actions)})
+			m.ResourceKinds = append(m.ResourceKinds, &basev1.WorkScopeV1{ResourceKind: k.Kind, Actions: slices.Clone(k.Actions)})
 		}
 		if _, err := s.ApplyManifest(m); err != nil {
 			return fmt.Errorf("fixture module %s: %w", m.Name, err)
@@ -921,7 +921,7 @@ func (s *State) VerifyWorkload(ctx context.Context, credential string) (Manifest
 
 // AdmitMethod applies what the module at audience declares for method to the
 // scopes a checked call holds: the core's decide.AdmitMethod.
-func (s *State) AdmitMethod(audience, method string, held []*basev0.WorkScopeV1) error {
+func (s *State) AdmitMethod(audience, method string, held []*basev1.WorkScopeV1) error {
 	m, err := s.ModuleByPrincipal(audience)
 	if err != nil {
 		return err

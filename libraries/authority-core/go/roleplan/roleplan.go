@@ -67,7 +67,7 @@ import (
 	solutionhost "github.com/codefly-dev/authority/libraries/solutionhost/go"
 	"github.com/codefly-dev/core/configurations"
 	modulecontract "github.com/codefly-dev/core/contracts/module"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/codefly-dev/core/workcontext"
 	"github.com/google/uuid"
 )
@@ -605,17 +605,17 @@ func (h *harness) carries(issued authority.Issued, row Row) (Verdict, error) {
 }
 
 // Scopes reads permissions "<kind>:<action>" as scopes, one per kind.
-func Scopes(permissions []string) []*basev0.WorkScopeV1 {
-	var out []*basev0.WorkScopeV1
+func Scopes(permissions []string) []*basev1.WorkScopeV1 {
+	var out []*basev1.WorkScopeV1
 	for _, p := range permissions {
 		kind, action, _ := strings.Cut(p, ":")
-		out = append(out, &basev0.WorkScopeV1{ResourceKind: kind, Actions: []string{action}})
+		out = append(out, &basev1.WorkScopeV1{ResourceKind: kind, Actions: []string{action}})
 	}
 	return scope.Normalize(out)
 }
 
 // permissions spells scopes as "<kind>:<action>", sorted, each once.
-func permissions(scopes []*basev0.WorkScopeV1) []string {
+func permissions(scopes []*basev1.WorkScopeV1) []string {
 	var out []string
 	for _, sc := range scope.Normalize(scopes) {
 		for _, a := range sc.GetActions() {

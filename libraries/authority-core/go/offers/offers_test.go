@@ -6,18 +6,18 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/offers"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
-	runnablev0 "github.com/codefly-dev/core/generated/go/codefly/runnable/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
+	runnablev1 "github.com/codefly-dev/core/generated/go/codefly/runnable/v1"
 )
 
 func TestProjectionPreservesMemberReadAndAttachedResources(t *testing.T) {
-	scope := &basev0.WorkScopeV1{ResourceKind: "records.item", Actions: []string{"read"}}
+	scope := &basev1.WorkScopeV1{ResourceKind: "records.item", Actions: []string{"read"}}
 	offer := authority.ReviewedOffer{
-		Module:       domain.Module{Name: "solution", Roles: map[string][]*basev0.WorkScopeV1{"user": nil}, OwnedRoles: map[string][]*basev0.WorkScopeV1{"user": {scope}}},
+		Module:       domain.Module{Name: "solution", Roles: map[string][]*basev1.WorkScopeV1{"user": nil}, OwnedRoles: map[string][]*basev1.WorkScopeV1{"user": {scope}}},
 		Installation: domain.Installation{ID: "installation", Owned: map[string][]string{"records.item": {"record-a"}}},
 		Modules: []domain.Module{{Name: "records", Methods: map[string]domain.MethodPolicy{
-			"/records.Items/Read":  {Requires: []*basev0.WorkScopeV1{scope}},
-			"/records.Items/Write": {Requires: []*basev0.WorkScopeV1{{ResourceKind: "records.item", Actions: []string{"write"}}}},
+			"/records.Items/Read":  {Requires: []*basev1.WorkScopeV1{scope}},
+			"/records.Items/Write": {Requires: []*basev1.WorkScopeV1{{ResourceKind: "records.item", Actions: []string{"write"}}}},
 		}}},
 	}
 	got, err := offers.Project(offer, nil)
@@ -41,14 +41,14 @@ func TestProjectionPreservesMemberReadAndAttachedResources(t *testing.T) {
 }
 
 func TestInvalidExposedToolFailsProjection(t *testing.T) {
-	sc := &basev0.WorkScopeV1{ResourceKind: "records.item", Actions: []string{"read"}}
-	offer := authority.ReviewedOffer{Module: domain.Module{Name: "solution", Roles: map[string][]*basev0.WorkScopeV1{"user": {sc}}}, Modules: []domain.Module{{Name: "records", Methods: map[string]domain.MethodPolicy{"/records.Items/Read": {Requires: []*basev0.WorkScopeV1{sc}}}}}}
+	sc := &basev1.WorkScopeV1{ResourceKind: "records.item", Actions: []string{"read"}}
+	offer := authority.ReviewedOffer{Module: domain.Module{Name: "solution", Roles: map[string][]*basev1.WorkScopeV1{"user": {sc}}}, Modules: []domain.Module{{Name: "records", Methods: map[string]domain.MethodPolicy{"/records.Items/Read": {Requires: []*basev1.WorkScopeV1{sc}}}}}}
 	// It names an exposed operation but lacks the prepared contract and digest;
 	// a host must show the refusal, never silently omit the broken tool.
-	bindings := map[string]*runnablev0.PreparedBinding{"BROKEN": {
-		Operation: &runnablev0.PreparedOperation{Module: "records", Spelling: "/records.Items/Read", Endpoint: "connect"},
-		Policy:    &runnablev0.Operation{Tool: &runnablev0.ToolExposure{Name: "read_items"}, InvokeScopes: []*basev0.WorkScopeV1{sc}},
-		Call:      &runnablev0.PreparedCall{Route: &runnablev0.PreparedCall_Connect{Connect: &runnablev0.ConnectProcedure{Procedure: "/records.Items/Read"}}},
+	bindings := map[string]*runnablev1.PreparedBinding{"BROKEN": {
+		Operation: &runnablev1.PreparedOperation{Module: "records", Spelling: "/records.Items/Read", Endpoint: "connect"},
+		Policy:    &runnablev1.Operation{Tool: &runnablev1.ToolExposure{Name: "read_items"}, InvokeScopes: []*basev1.WorkScopeV1{sc}},
+		Call:      &runnablev1.PreparedCall{Route: &runnablev1.PreparedCall_Connect{Connect: &runnablev1.ConnectProcedure{Procedure: "/records.Items/Read"}}},
 	}}
 	_, err := offers.Project(offer, bindings)
 	code, ok := domain.CodeOf(err)
@@ -61,7 +61,7 @@ func TestInvalidExposedToolFailsProjection(t *testing.T) {
 // administrator reviews, so the projection shows them.
 func TestProjectionShowsTheGoverningScopes(t *testing.T) {
 	offer := authority.ReviewedOffer{Module: domain.Module{Name: "solution",
-		SourceGovernance: []*basev0.WorkScopeV1{{ResourceKind: "solution.page", Actions: []string{"write"}}}}}
+		SourceGovernance: []*basev1.WorkScopeV1{{ResourceKind: "solution.page", Actions: []string{"write"}}}}}
 	got, err := offers.Project(offer, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -81,16 +81,16 @@ func TestProjectionShowsTheGoverningScopes(t *testing.T) {
 // the operations of that module it covers, and at no sibling serving the
 // same kind.
 func TestProjectionShowsAnAddressedGrantAtItsAudienceAlone(t *testing.T) {
-	read := &basev0.WorkScopeV1{ResourceKind: "records.item", Actions: []string{"read"}}
-	own := &basev0.WorkScopeV1{ResourceKind: "solution.page", Actions: []string{"read"}}
-	policy := map[string]domain.MethodPolicy{"/records.Items/Read": {Requires: []*basev0.WorkScopeV1{read}}}
+	read := &basev1.WorkScopeV1{ResourceKind: "records.item", Actions: []string{"read"}}
+	own := &basev1.WorkScopeV1{ResourceKind: "solution.page", Actions: []string{"read"}}
+	policy := map[string]domain.MethodPolicy{"/records.Items/Read": {Requires: []*basev1.WorkScopeV1{read}}}
 	offer := authority.ReviewedOffer{
 		Module: domain.Module{Name: "solution", Principal: "solution",
-			Roles:         map[string][]*basev0.WorkScopeV1{"user": {own}},
-			AudienceRoles: map[string]map[string][]*basev0.WorkScopeV1{"user": {"records": {read}}}},
+			Roles:         map[string][]*basev1.WorkScopeV1{"user": {own}},
+			AudienceRoles: map[string]map[string][]*basev1.WorkScopeV1{"user": {"records": {read}}}},
 		Modules: []domain.Module{{Name: "records", Principal: "records", Methods: policy}, {Name: "vault", Principal: "vault", Methods: policy}},
 		Reach: map[string][]domain.ReachRow{"user": {{Path: []string{"solution", "records"}, Module: "records", Via: "binding",
-			Scopes: []*basev0.WorkScopeV1{read}, Operations: []string{"/records.Items/Read"}}}},
+			Scopes: []*basev1.WorkScopeV1{read}, Operations: []string{"/records.Items/Read"}}}},
 	}
 	got, err := offers.Project(offer, nil)
 	if err != nil {

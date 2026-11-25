@@ -6,16 +6,16 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // The artifact decision every host makes: one policy is one kind, its action
 // held on the whole kind by the parent, at the asking module's own active
 // installation in the parent's organization, sourced from its namespace.
 func TestOneArtifactDecisionForEveryHost(t *testing.T) {
-	module := domain.Module{Name: "agent", Principal: "agent", ResourceKinds: []*basev0.WorkScopeV1{sc("agent.intents", "activate", "run")}}
+	module := domain.Module{Name: "agent", Principal: "agent", ResourceKinds: []*basev1.WorkScopeV1{sc("agent.intents", "activate", "run")}}
 	inst := domain.Installation{ID: "i-1", Organization: "acme", Target: "agent", Status: domain.Active}
-	present := decide.ArtifactCaller{Module: module, Audience: "agent", Tenant: "acme", OwnerKind: "human", Held: []*basev0.WorkScopeV1{sc("agent.intents", "activate", "run")}}
+	present := decide.ArtifactCaller{Module: module, Audience: "agent", Tenant: "acme", OwnerKind: "human", Held: []*basev1.WorkScopeV1{sc("agent.intents", "activate", "run")}}
 	identity := func() *decide.ArtifactIdentity {
 		return &decide.ArtifactIdentity{Schema: "s/v1", Source: "acme.agent", Subject: []byte("x")}
 	}
@@ -75,11 +75,11 @@ func TestOneArtifactDecisionForEveryHost(t *testing.T) {
 			return "agent.other", decide.ArtifactRun
 		}, domain.Denied, "not an artifact policy of agent"},
 		"run without the run action": {func(c *decide.ArtifactCaller, _ *domain.Installation, _ *bool, _ *decide.ArtifactIdentity) (string, string) {
-			c.Held = []*basev0.WorkScopeV1{sc("agent.intents", "activate")}
+			c.Held = []*basev1.WorkScopeV1{sc("agent.intents", "activate")}
 			return "agent.intents", decide.ArtifactRun
 		}, domain.Denied, "agent.intents:run"},
 		"activate held on some ids only": {func(c *decide.ArtifactCaller, _ *domain.Installation, _ *bool, _ *decide.ArtifactIdentity) (string, string) {
-			c.Held = []*basev0.WorkScopeV1{{ResourceKind: "agent.intents", Actions: []string{"activate"}, ResourceIds: []string{"i-1"}}}
+			c.Held = []*basev1.WorkScopeV1{{ResourceKind: "agent.intents", Actions: []string{"activate"}, ResourceIds: []string{"i-1"}}}
 			return "agent.intents", decide.ArtifactActivate
 		}, domain.Denied, "on the whole kind"},
 		"a source other than the namespace": {func(_ *decide.ArtifactCaller, _ *domain.Installation, _ *bool, id *decide.ArtifactIdentity) (string, string) {
@@ -117,19 +117,19 @@ func TestTheDigestCoversTheWholeIdentity(t *testing.T) {
 // module: the page hop of the page's own target, the person present on that
 // page. A module's hop, or a page hop with any hop after it, is refused.
 func TestConsentInPersonAdmitsThePagePresentPersonAlone(t *testing.T) {
-	module := domain.Module{Name: "agent", Principal: "agent", ResourceKinds: []*basev0.WorkScopeV1{sc("agent.intents", "activate", "run")}}
+	module := domain.Module{Name: "agent", Principal: "agent", ResourceKinds: []*basev1.WorkScopeV1{sc("agent.intents", "activate", "run")}}
 	inst := domain.Installation{ID: "i-1", Organization: "acme", Target: "agent", Status: domain.Active}
 	identity := &decide.ArtifactIdentity{Schema: "s/v1", Source: "acme.agent", Subject: []byte("x")}
-	caller := func(chain ...*basev0.WorkActorV1) decide.ArtifactCaller {
-		return decide.ArtifactCaller{Module: module, Audience: "agent", Tenant: "acme", OwnerKind: "human", Held: []*basev0.WorkScopeV1{sc("agent.intents", "activate", "run")},
+	caller := func(chain ...*basev1.WorkActorV1) decide.ArtifactCaller {
+		return decide.ArtifactCaller{Module: module, Audience: "agent", Tenant: "acme", OwnerKind: "human", Held: []*basev1.WorkScopeV1{sc("agent.intents", "activate", "run")},
 			Delegated: len(chain) > 0, PagePresent: decide.PresentThroughPage(chain)}
 	}
-	page := &basev0.WorkActorV1{PrincipalId: "builder", PrincipalKind: decide.PageActor}
-	service := &basev0.WorkActorV1{PrincipalId: "builder", PrincipalKind: "service"}
+	page := &basev1.WorkActorV1{PrincipalId: "builder", PrincipalKind: decide.PageActor}
+	service := &basev1.WorkActorV1{PrincipalId: "builder", PrincipalKind: "service"}
 	if err := decide.Artifact(caller(page), inst, true, "i-1", "agent.intents", decide.ArtifactActivate, identity); err != nil {
 		t.Fatalf("the person present on a page consents: %v", err)
 	}
-	for name, chain := range map[string][]*basev0.WorkActorV1{
+	for name, chain := range map[string][]*basev1.WorkActorV1{
 		"a module acting":              {service},
 		"a page hop, then a module":    {page, {PrincipalId: "agent-worker", PrincipalKind: "service"}},
 		"a module, then a page's kind": {service, page},
@@ -144,9 +144,9 @@ func TestConsentInPersonAdmitsThePagePresentPersonAlone(t *testing.T) {
 // the source its installation's namespace; scopes held for two owners name no
 // one artifact owner.
 func TestAnOwnedParentsArtifactIsItsOwners(t *testing.T) {
-	module := domain.Module{Name: "agent", Principal: "agent", ResourceKinds: []*basev0.WorkScopeV1{sc("agent.intents", "activate", "run")}}
+	module := domain.Module{Name: "agent", Principal: "agent", ResourceKinds: []*basev1.WorkScopeV1{sc("agent.intents", "activate", "run")}}
 	inst := domain.Installation{ID: "i-1", Organization: "acme", Target: "agent", Status: domain.Active}
-	held := []*basev0.WorkScopeV1{{ResourceKind: "agent.intents", Actions: []string{"activate", "run"}, ResourceOwnerId: "builder-principal"}}
+	held := []*basev1.WorkScopeV1{{ResourceKind: "agent.intents", Actions: []string{"activate", "run"}, ResourceOwnerId: "builder-principal"}}
 	owner, err := decide.ArtifactOwner(held, "agent.intents")
 	if err != nil || owner != "builder-principal" {
 		t.Fatalf("owner %q %v", owner, err)

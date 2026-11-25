@@ -13,11 +13,11 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
 	delivery "github.com/codefly-dev/authority/libraries/delivery/go"
 	"github.com/codefly-dev/authority/libraries/solutionhost/go"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
-func ws(kind string, actions ...string) *basev0.WorkScopeV1 {
-	return &basev0.WorkScopeV1{ResourceKind: kind, Actions: actions}
+func ws(kind string, actions ...string) *basev1.WorkScopeV1 {
+	return &basev1.WorkScopeV1{ResourceKind: kind, Actions: actions}
 }
 
 func code(t *testing.T, err error, want domain.Code) {
@@ -42,12 +42,12 @@ func TestCoreBindingOperationsAreReadAsScopesPerOperation(t *testing.T) {
 	if m.Name != "robin" || m.Principal != "robin-principal" || m.Kind != domain.KindModule || m.Generation != 3 {
 		t.Fatalf("module %+v", m)
 	}
-	if !scope.Same(m.ResourceKinds, scope.Normalize([]*basev0.WorkScopeV1{ws("robin.chat", scope.AnyAction)})) {
+	if !scope.Same(m.ResourceKinds, scope.Normalize([]*basev1.WorkScopeV1{ws("robin.chat", scope.AnyAction)})) {
 		t.Fatalf("a declared kind serves any action until ceiled: %v", m.ResourceKinds)
 	}
 	b := m.Bindings["model"]
-	if b.Audience != "model" || !scope.Same(b.InvokeScopes, scope.Normalize([]*basev0.WorkScopeV1{ws("modelservice.profiles", "invoke", "read")})) ||
-		!scope.Same(b.HeadlessScopes, scope.Normalize([]*basev0.WorkScopeV1{ws("modelservice.profiles", "read")})) || !scope.Same(b.LookupScopes, b.HeadlessScopes) {
+	if b.Audience != "model" || !scope.Same(b.InvokeScopes, scope.Normalize([]*basev1.WorkScopeV1{ws("modelservice.profiles", "invoke", "read")})) ||
+		!scope.Same(b.HeadlessScopes, scope.Normalize([]*basev1.WorkScopeV1{ws("modelservice.profiles", "read")})) || !scope.Same(b.LookupScopes, b.HeadlessScopes) {
 		t.Fatalf("binding %+v", b)
 	}
 	if bare := delivered.FromCore(&solutionhost.ModuleManifest{Alias: "bare", Generation: 1}); bare.Principal != "bare" || len(bare.Bindings) != 0 || bare.Page {
@@ -61,14 +61,14 @@ func TestCoreBindingOperationsAreReadAsScopesPerOperation(t *testing.T) {
 func TestScopeCeilingsGiveTheModulesKindsTheirActions(t *testing.T) {
 	m := delivered.FromCore(&solutionhost.ModuleManifest{Alias: "runtime", Kind: solutionhost.KindModule, Generation: 1,
 		Authority: &solutionhost.Authority{Principal: "runtime", ResourceKinds: []string{"runtime.tasks", "runtime.queues"}}})
-	got, err := delivered.Ceiled(m, []*basev0.WorkScopeV1{ws("runtime.tasks", "start", "execute")})
+	got, err := delivered.Ceiled(m, []*basev1.WorkScopeV1{ws("runtime.tasks", "start", "execute")})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !scope.Same(got.ResourceKinds, scope.Normalize([]*basev0.WorkScopeV1{ws("runtime.tasks", "execute", "start"), ws("runtime.queues", scope.AnyAction)})) {
+	if !scope.Same(got.ResourceKinds, scope.Normalize([]*basev1.WorkScopeV1{ws("runtime.tasks", "execute", "start"), ws("runtime.queues", scope.AnyAction)})) {
 		t.Fatalf("served %v", got.ResourceKinds)
 	}
-	for name, ceilings := range map[string][]*basev0.WorkScopeV1{
+	for name, ceilings := range map[string][]*basev1.WorkScopeV1{
 		"a kind core does not declare": {ws("records.records", "write")},
 		"a kind with no action":        {ws("runtime.tasks")},
 	} {
@@ -87,10 +87,10 @@ func solutionManifest() *solutionhost.ModuleManifest {
 
 func TestADocumentCompletesTheModule(t *testing.T) {
 	doc := &delivered.Document{Module: "pages", Generation: 2, OwnerAware: true,
-		ScopeCeilings: []*basev0.WorkScopeV1{ws("pages.page", "read", "write")},
-		Methods:       []delivered.Method{{Method: "GET /p/{id}", Requires: []*basev0.WorkScopeV1{ws("pages.page", "read")}}, {Method: "/x/Ping", AnyCheckedCaller: true}},
-		Roles: []delivered.Role{{Name: "admin", Scopes: []*basev0.WorkScopeV1{ws("pages.page", "write", "read")}},
-			{Name: "user", Scopes: []*basev0.WorkScopeV1{ws("pages.page", "read")}, InstallationOwned: []*basev0.WorkScopeV1{ws("store.item", "read")}}},
+		ScopeCeilings: []*basev1.WorkScopeV1{ws("pages.page", "read", "write")},
+		Methods:       []delivered.Method{{Method: "GET /p/{id}", Requires: []*basev1.WorkScopeV1{ws("pages.page", "read")}}, {Method: "/x/Ping", AnyCheckedCaller: true}},
+		Roles: []delivered.Role{{Name: "admin", Scopes: []*basev1.WorkScopeV1{ws("pages.page", "write", "read")}},
+			{Name: "user", Scopes: []*basev1.WorkScopeV1{ws("pages.page", "read")}, InstallationOwned: []*basev1.WorkScopeV1{ws("store.item", "read")}}},
 	}
 	m, err := delivered.Module(solutionManifest(), doc)
 	if err != nil {
@@ -100,7 +100,7 @@ func TestADocumentCompletesTheModule(t *testing.T) {
 		!slices.Equal(m.Roles["admin"][0].GetActions(), []string{"read", "write"}) || len(m.OwnedRoles["user"]) != 1 || len(m.OwnedRoles["admin"]) != 0 {
 		t.Fatalf("module %+v", m)
 	}
-	if !scope.Same(m.ResourceKinds, scope.Normalize([]*basev0.WorkScopeV1{ws("pages.page", "read", "write")})) {
+	if !scope.Same(m.ResourceKinds, scope.Normalize([]*basev1.WorkScopeV1{ws("pages.page", "read", "write")})) {
 		t.Fatalf("served %v", m.ResourceKinds)
 	}
 	plain, err := delivered.Module(solutionManifest(), nil)
@@ -122,7 +122,7 @@ func TestADocumentIsRefusedByName(t *testing.T) {
 		{"a method twice", solutionManifest(), delivered.Document{Methods: []delivered.Method{{Method: "/a"}, {Method: "/a"}}}, domain.Invalid, "twice or unnamed"},
 		{"an unnamed method", solutionManifest(), delivered.Document{Methods: []delivered.Method{{}}}, domain.Invalid, "twice or unnamed"},
 		{"a role twice", solutionManifest(), delivered.Document{Roles: []delivered.Role{{Name: "r"}, {Name: "r"}}}, domain.Invalid, "twice or unnamed"},
-		{"a ceiling naming an owner", solutionManifest(), delivered.Document{ScopeCeilings: []*basev0.WorkScopeV1{{ResourceKind: "pages.page", Actions: []string{"read"}, ResourceOwnerId: "u"}}}, domain.Denied, "never selects an owner"},
+		{"a ceiling naming an owner", solutionManifest(), delivered.Document{ScopeCeilings: []*basev1.WorkScopeV1{{ResourceKind: "pages.page", Actions: []string{"read"}, ResourceOwnerId: "u"}}}, domain.Denied, "never selects an owner"},
 		{"a withdrawal declaring roles", removed, delivered.Document{Roles: []delivered.Role{{Name: "admin"}}}, domain.Invalid, "withdrawal"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -179,16 +179,16 @@ func TestADocumentIsPairedWithItsCarrier(t *testing.T) {
 // is refused by name.
 func TestARoleNamesWhatItReachesThroughABinding(t *testing.T) {
 	doc := &delivered.Document{Module: "pages", Generation: 2, OwnerAware: true,
-		ScopeCeilings: []*basev0.WorkScopeV1{ws("pages.page", "read")},
-		Roles: []delivered.Role{{Name: "admin", Scopes: []*basev0.WorkScopeV1{ws("pages.page", "read")}},
-			{Name: "user", Scopes: []*basev0.WorkScopeV1{ws("pages.page", "read")},
+		ScopeCeilings: []*basev1.WorkScopeV1{ws("pages.page", "read")},
+		Roles: []delivered.Role{{Name: "admin", Scopes: []*basev1.WorkScopeV1{ws("pages.page", "read")}},
+			{Name: "user", Scopes: []*basev1.WorkScopeV1{ws("pages.page", "read")},
 				Through: map[string]delivered.Scopes{"agent": {ws("model.profiles", "invoke"), ws("docs.doc", "read")}}}},
 	}
 	m, err := delivered.Module(solutionManifest(), doc)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := scope.Normalize([]*basev0.WorkScopeV1{ws("pages.page", "read"), ws("model.profiles", "invoke"), ws("docs.doc", "read")})
+	want := scope.Normalize([]*basev1.WorkScopeV1{ws("pages.page", "read"), ws("model.profiles", "invoke"), ws("docs.doc", "read")})
 	if !scope.Same(m.Roles["user"], want) || len(m.Through) != 1 || len(m.Through["user"]["agent"]) != 2 {
 		t.Fatalf("roles %v through %v", m.Roles, m.Through)
 	}
@@ -210,9 +210,9 @@ func TestAPageTheHostBundlesIsAPage(t *testing.T) {
 		t.Fatal("a bundled page is not a page")
 	}
 	doc := &delivered.Document{Module: "models", Generation: 1, InstallationRole: "none",
-		ScopeCeilings: []*basev0.WorkScopeV1{ws("models.profiles", "invoke", "read")},
-		Roles: []delivered.Role{{Name: "admin", Scopes: []*basev0.WorkScopeV1{ws("models.profiles", "invoke", "read")}},
-			{Name: "user", Scopes: []*basev0.WorkScopeV1{ws("models.profiles", "read")}}}}
+		ScopeCeilings: []*basev1.WorkScopeV1{ws("models.profiles", "invoke", "read")},
+		Roles: []delivered.Role{{Name: "admin", Scopes: []*basev1.WorkScopeV1{ws("models.profiles", "invoke", "read")}},
+			{Name: "user", Scopes: []*basev1.WorkScopeV1{ws("models.profiles", "read")}}}}
 	m, err := delivered.Module(bundled, doc)
 	if err != nil {
 		t.Fatal(err)
@@ -236,23 +236,23 @@ func TestAModulePageWithoutRolesGetsTheStandardOnes(t *testing.T) {
 	page := &solutionhost.ModuleManifest{Alias: "notes", Kind: solutionhost.KindModule, Generation: 1,
 		Authority: &solutionhost.Authority{Principal: "notes", ResourceKinds: []string{"notes.entry"}, InstallationRole: "none"},
 		Frontend:  &solutionhost.Frontend{Title: "Notes", ExposedModule: "./Page", HostContract: 1}}
-	doc := &delivered.Document{Module: "notes", Generation: 1, InstallationRole: "none", ScopeCeilings: []*basev0.WorkScopeV1{ws("notes.entry", "read", "write")}}
+	doc := &delivered.Document{Module: "notes", Generation: 1, InstallationRole: "none", ScopeCeilings: []*basev1.WorkScopeV1{ws("notes.entry", "read", "write")}}
 	m, err := delivered.Module(page, doc)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(m.Roles) != 2 ||
-		!scope.Same(m.Roles[domain.UserRole], []*basev0.WorkScopeV1{ws("notes.entry", "read", "write")}) ||
-		!scope.Same(m.Roles[domain.AdminRole], []*basev0.WorkScopeV1{ws("notes.entry", "read", "write")}) {
+		!scope.Same(m.Roles[domain.UserRole], []*basev1.WorkScopeV1{ws("notes.entry", "read", "write")}) ||
+		!scope.Same(m.Roles[domain.AdminRole], []*basev1.WorkScopeV1{ws("notes.entry", "read", "write")}) {
 		t.Fatalf("derived %v", m.Roles)
 	}
 	if err := decide.ValidateModule(m); err != nil || !decide.RoleGated(m) {
 		t.Fatalf("the derived roles: %v, gated %v", err, decide.RoleGated(m))
 	}
 	declared := *doc
-	declared.Roles = []delivered.Role{{Name: "admin", Scopes: []*basev0.WorkScopeV1{ws("notes.entry", "read")}},
-		{Name: "user", Scopes: []*basev0.WorkScopeV1{ws("notes.entry", "read")}}}
-	if m, err = delivered.Module(page, &declared); err != nil || len(m.Roles) != 2 || !scope.Same(m.Roles[domain.AdminRole], []*basev0.WorkScopeV1{ws("notes.entry", "read")}) {
+	declared.Roles = []delivered.Role{{Name: "admin", Scopes: []*basev1.WorkScopeV1{ws("notes.entry", "read")}},
+		{Name: "user", Scopes: []*basev1.WorkScopeV1{ws("notes.entry", "read")}}}
+	if m, err = delivered.Module(page, &declared); err != nil || len(m.Roles) != 2 || !scope.Same(m.Roles[domain.AdminRole], []*basev1.WorkScopeV1{ws("notes.entry", "read")}) {
 		t.Fatalf("a declaration wins: %v %v", m.Roles, err)
 	}
 	headless := *page

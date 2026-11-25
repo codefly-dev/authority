@@ -7,7 +7,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/codefly-dev/core/workcontext"
 )
 
@@ -90,7 +90,7 @@ func TestTheHostIsToldEveryDecision(t *testing.T) {
 	d := newDecisions(t)
 	maya, remi := d.person("maya"), d.person("remi")
 	instA := d.inst(acme, "a")
-	read := []*basev0.WorkScopeV1{owned(kind, instA.PrincipalID, []string{"read"})}
+	read := []*basev1.WorkScopeV1{owned(kind, instA.PrincipalID, []string{"read"})}
 
 	var root, child authority.Issued
 	t.Run("a person's issue", func(t *testing.T) {
@@ -122,7 +122,7 @@ func TestTheHostIsToldEveryDecision(t *testing.T) {
 		widened := hop
 		widened.Code = authority.CodeDenied
 		d.told(t, "refused", func() error {
-			_, err := d.svc.IssueChild(d.ctx, root.Token, authority.Workload{Module: "a"}, authority.IssueRequest{Binding: "store", Scopes: []*basev0.WorkScopeV1{sc(kind, "admin")}})
+			_, err := d.svc.IssueChild(d.ctx, root.Token, authority.Workload{Module: "a"}, authority.IssueRequest{Binding: "store", Scopes: []*basev1.WorkScopeV1{sc(kind, "admin")}})
 			return err
 		}, widened, "a child widens what its owner holds", true)
 		// A parent that is no capability names nobody: the asker alone.
@@ -211,9 +211,9 @@ func TestTheHostIsToldEveryDecision(t *testing.T) {
 
 		const method = "/tools.v1.Tools/List"
 		tools := domain.Module{Name: "tools", Principal: "tools", Kind: domain.KindModule, Generation: 1, OwnerAware: true,
-			ResourceKinds: []*basev0.WorkScopeV1{sc("tools.item", "read")},
-			Methods:       map[string]domain.MethodPolicy{method: {Requires: []*basev0.WorkScopeV1{sc("tools.item", "read")}}},
-			Bindings:      map[string]domain.Binding{"a": {ID: "a", Audience: "a", InvokeScopes: []*basev0.WorkScopeV1{sc("a.note", "read", "write")}}}}
+			ResourceKinds: []*basev1.WorkScopeV1{sc("tools.item", "read")},
+			Methods:       map[string]domain.MethodPolicy{method: {Requires: []*basev1.WorkScopeV1{sc("tools.item", "read")}}},
+			Bindings:      map[string]domain.Binding{"a": {ID: "a", Audience: "a", InvokeScopes: []*basev1.WorkScopeV1{sc("a.note", "read", "write")}}}}
 		if _, err := d.svc.ApplyModule(d.ctx, tools); err != nil {
 			t.Fatal(err)
 		}

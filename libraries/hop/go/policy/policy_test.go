@@ -7,15 +7,15 @@ import (
 
 	hopv1 "github.com/codefly-dev/authority/libraries/hop/go/gen/authority/hop/v1"
 	"github.com/codefly-dev/authority/libraries/hop/go/policy"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
-func scope(kind, owner string, actions ...string) *basev0.WorkScopeV1 {
-	return &basev0.WorkScopeV1{ResourceKind: kind, ResourceOwnerId: owner, Actions: actions}
+func scope(kind, owner string, actions ...string) *basev1.WorkScopeV1 {
+	return &basev1.WorkScopeV1{ResourceKind: kind, ResourceOwnerId: owner, Actions: actions}
 }
 
 func requires(kind string, actions ...string) *hopv1.Policy {
@@ -26,9 +26,9 @@ func requires(kind string, actions ...string) *hopv1.Policy {
 // owner holds": by a scope that names that owner, never an ownerless one. It
 // is where owner selection lives: in the question the module hands the
 // evaluator, not in a rule of its own.
-func selectedTo(held []*basev0.WorkScopeV1, owner string) func(kind, action string) bool {
+func selectedTo(held []*basev1.WorkScopeV1, owner string) func(kind, action string) bool {
 	return func(kind, action string) bool {
-		return slices.ContainsFunc(held, func(h *basev0.WorkScopeV1) bool {
+		return slices.ContainsFunc(held, func(h *basev1.WorkScopeV1) bool {
 			return owner != "" && h.GetResourceOwnerId() == owner && h.GetResourceKind() == kind && slices.Contains(h.GetActions(), action)
 		})
 	}
@@ -40,13 +40,13 @@ func selectedTo(held []*basev0.WorkScopeV1, owner string) func(kind, action stri
 // module admits was refused before it, and the module adds no permission.
 func TestTheHopAndTheModuleDecideOneDeclaration(t *testing.T) {
 	m := policy.FromProto(requires("records.types", "read"))
-	atoms := []*basev0.WorkScopeV1{
+	atoms := []*basev1.WorkScopeV1{
 		scope("records.types", "a", "read"), scope("records.types", "b", "read"), scope("records.types", "", "read"),
 		scope("records.types", "a", "define"), scope("records.records", "a", "read"), scope("records.types", "", policy.AnyAction),
 	}
 	admitted := 0
 	for mask := range 1 << len(atoms) {
-		var held []*basev0.WorkScopeV1
+		var held []*basev1.WorkScopeV1
 		for i, atom := range atoms {
 			if mask&(1<<i) != 0 {
 				held = append(held, atom)
@@ -57,7 +57,7 @@ func TestTheHopAndTheModuleDecideOneDeclaration(t *testing.T) {
 		if onA && !hop {
 			t.Fatalf("the module admits %v on owner a and the hop refuses the call", held)
 		}
-		if want := slices.ContainsFunc(held, func(h *basev0.WorkScopeV1) bool { return h == atoms[0] }); onA != want {
+		if want := slices.ContainsFunc(held, func(h *basev1.WorkScopeV1) bool { return h == atoms[0] }); onA != want {
 			t.Fatalf("holding %v, the read of owner a's type is %t, want %t: only records.types:read selected to a holds it", held, onA, want)
 		}
 		if onA {
@@ -67,7 +67,7 @@ func TestTheHopAndTheModuleDecideOneDeclaration(t *testing.T) {
 	if admitted == 0 {
 		t.Fatal("no caller was admitted, so the comparison proved nothing")
 	}
-	if unmet := m.Unmet(policy.OnAnyResource([]*basev0.WorkScopeV1{scope("records.records", "a", "read")})); !slices.Equal(unmet, []string{"records.types:read"}) {
+	if unmet := m.Unmet(policy.OnAnyResource([]*basev1.WorkScopeV1{scope("records.records", "a", "read")})); !slices.Equal(unmet, []string{"records.types:read"}) {
 		t.Fatalf("a rows-only reader is refused by name; got %q", unmet)
 	}
 }
@@ -88,7 +88,7 @@ func TestADerivedCeilingIsWhatTheCallsDeclare(t *testing.T) {
 	if !slices.Equal(ceiling, []policy.Permission{policy.Of("records.types", "define"), policy.Of("records.types", "read")}) {
 		t.Fatalf("derived ceiling %q", ceiling)
 	}
-	held := []*basev0.WorkScopeV1{scope("records.types", "a", "define", "read")}
+	held := []*basev1.WorkScopeV1{scope("records.types", "a", "define", "read")}
 	if len(read.Unmet(policy.OnAnyResource(held)))+len(read.Unmet(selectedTo(held, "a"))) != 0 {
 		t.Fatal("the derived ceiling does not admit the read")
 	}
@@ -143,13 +143,13 @@ func TestAContractIsReadAndDecided(t *testing.T) {
 	if got := declared["/p.S/Write"].Requires; !slices.Equal(got, []policy.Permission{policy.Of("doc", "read"), policy.Of("doc", "write")}) {
 		t.Fatalf("/p.S/Write requires %q", got)
 	}
-	reader := []*basev0.WorkScopeV1{scope("doc", "a", "read")}
+	reader := []*basev1.WorkScopeV1{scope("doc", "a", "read")}
 	for method, want := range map[string]codes.Code{"/p.S/Write": codes.PermissionDenied, "/p.S/Open": codes.OK, "/p.S/Unmarked": codes.PermissionDenied, "/p.S/Unserved": codes.PermissionDenied} {
 		if got := status.Code(policy.Admit(declared, method, reader)); got != want {
 			t.Errorf("%s: a reader is answered %v, want %v", method, got, want)
 		}
 	}
-	if err := policy.Admit(declared, "/p.S/Write", []*basev0.WorkScopeV1{scope("doc", "a", policy.AnyAction)}); err != nil {
+	if err := policy.Admit(declared, "/p.S/Write", []*basev1.WorkScopeV1{scope("doc", "a", policy.AnyAction)}); err != nil {
 		t.Errorf("a fixture grant of every action is refused: %v", err)
 	}
 }
@@ -163,54 +163,54 @@ func TestAContractIsReadAndDecided(t *testing.T) {
 // all is common to what it requires: which resource of a shared owner is the
 // module's question still.
 func TestACallHoldingWhatAMethodRequiresOnNoOwnerInCommonIsRefused(t *testing.T) {
-	named := func(kind, owner string, ids []string, actions ...string) *basev0.WorkScopeV1 {
-		return &basev0.WorkScopeV1{ResourceKind: kind, ResourceOwnerId: owner, ResourceIds: ids, Actions: actions}
+	named := func(kind, owner string, ids []string, actions ...string) *basev1.WorkScopeV1 {
+		return &basev1.WorkScopeV1{ResourceKind: kind, ResourceOwnerId: owner, ResourceIds: ids, Actions: actions}
 	}
 	edits := policy.FromProto(requires("doc", "read", "write"))
 	typed := policy.Method{Requires: []policy.Permission{policy.Of("doc", "read"), policy.Of("doc", "write"), policy.Of("types", "read")}}
 	for _, tc := range []struct {
 		name   string
 		method policy.Method
-		held   []*basev0.WorkScopeV1
+		held   []*basev1.WorkScopeV1
 		apart  []string
 	}{
 		{"a read on one owner and a write on another", edits,
-			[]*basev0.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "b", "write")},
+			[]*basev1.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "b", "write")},
 			[]string{"doc:read on a", "doc:write on b"}},
 		{"neither owner of the read holds the write", edits,
-			[]*basev0.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "b", "read"), scope("doc", "c", "write")},
+			[]*basev1.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "b", "read"), scope("doc", "c", "write")},
 			[]string{"doc:read on a, b", "doc:write on c"}},
 		{"two of three share an owner the third is not held on", typed,
-			[]*basev0.WorkScopeV1{scope("doc", "a", "read", "write"), scope("types", "b", "read")},
+			[]*basev1.WorkScopeV1{scope("doc", "a", "read", "write"), scope("types", "b", "read")},
 			[]string{"doc:read on a", "doc:write on a", "types:read on b"}},
 		{"the whole kind beside two owners that share nothing", typed,
-			[]*basev0.WorkScopeV1{scope("doc", "", "read"), scope("doc", "a", "write"), scope("types", "b", "read")},
+			[]*basev1.WorkScopeV1{scope("doc", "", "read"), scope("doc", "a", "write"), scope("types", "b", "read")},
 			[]string{"doc:read on every owner", "doc:write on a", "types:read on b"}},
 		{"resources named on different owners", edits,
-			[]*basev0.WorkScopeV1{named("doc", "a", []string{"d-1"}, "read"), named("doc", "b", []string{"d-1"}, "write")},
+			[]*basev1.WorkScopeV1{named("doc", "a", []string{"d-1"}, "read"), named("doc", "b", []string{"d-1"}, "write")},
 			[]string{"doc:read on a", "doc:write on b"}},
 
-		{"both on one owner", edits, []*basev0.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "a", "write")}, nil},
+		{"both on one owner", edits, []*basev1.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "a", "write")}, nil},
 		{"one owner among several is common", edits,
-			[]*basev0.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "b", "read"), scope("doc", "b", "write"), scope("doc", "c", "write")}, nil},
-		{"the write on the whole kind", edits, []*basev0.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "", "write")}, nil},
-		{"both on the whole kind", edits, []*basev0.WorkScopeV1{scope("doc", "", "read", "write")}, nil},
-		{"every action on the whole kind", edits, []*basev0.WorkScopeV1{scope("doc", "", policy.AnyAction)}, nil},
-		{"every action on the owner of the read", edits, []*basev0.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "a", policy.AnyAction)}, nil},
+			[]*basev1.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "b", "read"), scope("doc", "b", "write"), scope("doc", "c", "write")}, nil},
+		{"the write on the whole kind", edits, []*basev1.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "", "write")}, nil},
+		{"both on the whole kind", edits, []*basev1.WorkScopeV1{scope("doc", "", "read", "write")}, nil},
+		{"every action on the whole kind", edits, []*basev1.WorkScopeV1{scope("doc", "", policy.AnyAction)}, nil},
+		{"every action on the owner of the read", edits, []*basev1.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "a", policy.AnyAction)}, nil},
 		{"resources named with no owner hold on any owner", edits,
-			[]*basev0.WorkScopeV1{scope("doc", "a", "read"), named("doc", "", []string{"d-1"}, "write")}, nil},
+			[]*basev1.WorkScopeV1{scope("doc", "a", "read"), named("doc", "", []string{"d-1"}, "write")}, nil},
 		{"one owner, resources named apart: the module's question", edits,
-			[]*basev0.WorkScopeV1{named("doc", "a", []string{"d-1"}, "read"), named("doc", "a", []string{"d-2"}, "write")}, nil},
+			[]*basev1.WorkScopeV1{named("doc", "a", []string{"d-1"}, "read"), named("doc", "a", []string{"d-2"}, "write")}, nil},
 		{"a whole kind and a kind on one owner", typed,
-			[]*basev0.WorkScopeV1{scope("doc", "a", "read", "write"), scope("types", "", "read")}, nil},
+			[]*basev1.WorkScopeV1{scope("doc", "a", "read", "write"), scope("types", "", "read")}, nil},
 		{"one permission required", policy.FromProto(requires("doc", "read")),
-			[]*basev0.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "b", "write")}, nil},
-		{"a permission held nowhere is unmet, not apart", edits, []*basev0.WorkScopeV1{scope("doc", "a", "read"), scope("types", "b", "write")}, nil},
+			[]*basev1.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "b", "write")}, nil},
+		{"a permission held nowhere is unmet, not apart", edits, []*basev1.WorkScopeV1{scope("doc", "a", "read"), scope("types", "b", "write")}, nil},
 		{"a permission required twice", policy.Method{Requires: []policy.Permission{policy.Of("doc", "read"), policy.Of("doc", "read")}},
-			[]*basev0.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "b", "read")}, nil},
+			[]*basev1.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "b", "read")}, nil},
 		{"what a method carries is not required together", policy.Method{Requires: []policy.Permission{policy.Of("doc", "read")}, Carries: []policy.Permission{policy.Of("doc", "write")}},
-			[]*basev0.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "b", "write")}, nil},
-		{"any checked caller", policy.Method{AnyCheckedCaller: true}, []*basev0.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "b", "write")}, nil},
+			[]*basev1.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "b", "write")}, nil},
+		{"any checked caller", policy.Method{AnyCheckedCaller: true}, []*basev1.WorkScopeV1{scope("doc", "a", "read"), scope("doc", "b", "write")}, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := tc.method.Apart(tc.held); !slices.Equal(got, tc.apart) {
@@ -244,13 +244,13 @@ func TestACallHoldingWhatAMethodRequiresOnNoOwnerInCommonIsRefused(t *testing.T)
 // required, a call that holds both selected to one owner is never apart.
 func TestTheHopRefusesAsApartNothingTheModuleAdmitsOnAnOwner(t *testing.T) {
 	m := policy.FromProto(requires("doc", "read", "write"))
-	atoms := []*basev0.WorkScopeV1{
+	atoms := []*basev1.WorkScopeV1{
 		scope("doc", "a", "read"), scope("doc", "b", "read"), scope("doc", "", "read"),
 		scope("doc", "a", "write"), scope("doc", "b", "write"), scope("doc", "", "write"), scope("doc", "c", policy.AnyAction),
 	}
 	refused, admitted := 0, 0
 	for mask := range 1 << len(atoms) {
-		var held []*basev0.WorkScopeV1
+		var held []*basev1.WorkScopeV1
 		for i, atom := range atoms {
 			if mask&(1<<i) != 0 {
 				held = append(held, atom)

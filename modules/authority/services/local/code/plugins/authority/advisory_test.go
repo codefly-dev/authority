@@ -10,7 +10,7 @@ import (
 	"gateway/pkg/business/testkit"
 	authorityv1 "gateway/pkg/gen/host/authority/v1"
 	authorityplugin "gateway/plugins/authority"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
@@ -24,8 +24,8 @@ func TestGeneratedCheckReportsAdvisoryWithoutChangingIdentity(t *testing.T) {
 	k := testkit.New(t)
 	manifest := testkit.Records(2)
 	manifest.Methods = map[string]state.MethodPolicy{
-		"/records.v1.Records/Read":  {Requires: []*basev0.WorkScopeV1{testkit.Scope("records.records", "read")}},
-		"/records.v1.Records/Write": {Requires: []*basev0.WorkScopeV1{testkit.Scope("records.records", "write")}},
+		"/records.v1.Records/Read":  {Requires: []*basev1.WorkScopeV1{testkit.Scope("records.records", "read")}},
+		"/records.v1.Records/Write": {Requires: []*basev1.WorkScopeV1{testkit.Scope("records.records", "write")}},
 	}
 	if _, err := k.State.ApplyManifest(manifest); err != nil {
 		t.Fatal(err)

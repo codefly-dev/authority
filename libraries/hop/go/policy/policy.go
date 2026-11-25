@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	hopv1 "github.com/codefly-dev/authority/libraries/hop/go/gen/authority/hop/v1"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -113,7 +113,7 @@ const EveryOwner = "every owner"
 // question (hop.Admission.Required), so a call the module could serve on some
 // resource is never refused here. A permission held nowhere is Unmet's
 // refusal, and what a method carries is never required together.
-func (m Method) Apart(held []*basev0.WorkScopeV1) []string {
+func (m Method) Apart(held []*basev1.WorkScopeV1) []string {
 	var common map[string]bool
 	var where []string
 	seen := map[Permission]bool{}
@@ -165,9 +165,9 @@ func (m Method) Ceiling() []Permission {
 
 // OnAnyResource answers holds for the hop: the call carries action on some
 // resource of kind, whatever its ids or owner. Which resource is the module's.
-func OnAnyResource(held []*basev0.WorkScopeV1) func(kind, action string) bool {
+func OnAnyResource(held []*basev1.WorkScopeV1) func(kind, action string) bool {
 	return func(kind, action string) bool {
-		return slices.ContainsFunc(held, func(h *basev0.WorkScopeV1) bool {
+		return slices.ContainsFunc(held, func(h *basev1.WorkScopeV1) bool {
 			return h.GetResourceKind() == kind && (slices.Contains(h.GetActions(), action) || slices.Contains(h.GetActions(), AnyAction))
 		})
 	}
@@ -202,7 +202,7 @@ func Contract(descriptorSet []byte) (map[string]Method, error) {
 // Admit is the hop's decision for a module's own tests, on the contract the
 // module publishes: the evaluator the authority decides with, so a test hop
 // keeps no copy of it. A refusal is PermissionDenied and names what is unmet.
-func Admit(contract map[string]Method, method string, held []*basev0.WorkScopeV1) error {
+func Admit(contract map[string]Method, method string, held []*basev1.WorkScopeV1) error {
 	m, served := contract[method]
 	switch {
 	case !served || !m.Declares():

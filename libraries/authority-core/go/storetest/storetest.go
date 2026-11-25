@@ -21,7 +21,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/google/uuid"
 )
 
@@ -267,7 +267,7 @@ func Run(t *testing.T, open Open) {
 		first.Name, first.Principal = f.name("approved"), f.name("approved-principal")
 		second := first
 		second.Generation = 2
-		second.Roles = map[string][]*basev0.WorkScopeV1{domain.AdminRole: first.Roles[domain.AdminRole]}
+		second.Roles = map[string][]*basev1.WorkScopeV1{domain.AdminRole: first.Roles[domain.AdminRole]}
 		write(t, func(tx authority.Tx) error {
 			if err := tx.PutApprovedModule(first); err != nil {
 				return err
@@ -301,7 +301,7 @@ func Run(t *testing.T, open Open) {
 		kept := f.module(domain.KindSolution)
 		kept.Name, kept.Principal = f.name("kept"), f.name("kept-principal")
 		reread := kept // the same generation read again (Service.RereadModule)
-		reread.Roles = map[string][]*basev0.WorkScopeV1{domain.AdminRole: kept.Roles[domain.AdminRole]}
+		reread.Roles = map[string][]*basev1.WorkScopeV1{domain.AdminRole: kept.Roles[domain.AdminRole]}
 		// Each one's offer digest is of the declaration as this store answers it.
 		digest := func(m domain.Module) string {
 			t.Helper()
@@ -497,7 +497,7 @@ func Run(t *testing.T, open Open) {
 
 	t.Run("a delegation reads back as written", func(t *testing.T) {
 		d := domain.Delegation{ID: uuid.NewString(), Organization: f.orgA, Grantor: f.onlyA, Module: f.name("module"), Purpose: "a purpose",
-			Scopes:    []*basev0.WorkScopeV1{{ResourceKind: "k", Actions: []string{"read"}, ResourceIds: []string{"a"}}},
+			Scopes:    []*basev1.WorkScopeV1{{ResourceKind: "k", Actions: []string{"read"}, ResourceIds: []string{"a"}}},
 			ExpiresAt: time.Date(2026, 11, 4, 9, 30, 0, 0, time.UTC)}
 		write(t, func(tx authority.Tx) error { return tx.PutDelegation(d) })
 		d.Revoked = true
@@ -632,21 +632,21 @@ func newFixture() *fixture {
 func (f *fixture) name(what string) string { return "storetest-" + what + "-" + f.run }
 
 func (f *fixture) module(kind string) domain.Module {
-	read := []*basev0.WorkScopeV1{{ResourceKind: "storetest.item", Actions: []string{"read"}}}
+	read := []*basev1.WorkScopeV1{{ResourceKind: "storetest.item", Actions: []string{"read"}}}
 	m := domain.Module{Name: f.name(kind), Principal: f.name(kind + "-principal"), Kind: kind, Generation: 1, OwnerAware: true,
-		ResourceKinds: []*basev0.WorkScopeV1{{ResourceKind: "storetest.item", Actions: []string{"read", "write"}}},
+		ResourceKinds: []*basev1.WorkScopeV1{{ResourceKind: "storetest.item", Actions: []string{"read", "write"}}},
 		Bindings:      map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: read, HeadlessScopes: read, LookupScopes: read}},
 		Methods:       map[string]domain.MethodPolicy{"/s.S/Read": {Requires: read}, "GET /open": {AnyCheckedCaller: true}}}
 	if kind == domain.KindSolution {
-		onward := []*basev0.WorkScopeV1{{ResourceKind: "storetest.onward", Actions: []string{"read"}}}
-		m.Roles = map[string][]*basev0.WorkScopeV1{domain.AdminRole: read, "reader": append(slices.Clone(read), onward...)}
-		m.OwnedRoles = map[string][]*basev0.WorkScopeV1{"reader": {{ResourceKind: "store.item", Actions: []string{"read"}}}}
-		m.Through = map[string]map[string][]*basev0.WorkScopeV1{"reader": {"store": onward}}
-		m.AudienceRoles = map[string]map[string][]*basev0.WorkScopeV1{"reader": {"store": read}}
+		onward := []*basev1.WorkScopeV1{{ResourceKind: "storetest.onward", Actions: []string{"read"}}}
+		m.Roles = map[string][]*basev1.WorkScopeV1{domain.AdminRole: read, "reader": append(slices.Clone(read), onward...)}
+		m.OwnedRoles = map[string][]*basev1.WorkScopeV1{"reader": {{ResourceKind: "store.item", Actions: []string{"read"}}}}
+		m.Through = map[string]map[string][]*basev1.WorkScopeV1{"reader": {"store": onward}}
+		m.AudienceRoles = map[string]map[string][]*basev1.WorkScopeV1{"reader": {"store": read}}
 		// The admin's write on the solution's own, unshared page kind.
-		m.ResourceKinds = append(m.ResourceKinds, &basev0.WorkScopeV1{ResourceKind: "storetest.page", Actions: []string{"read", "write"}})
-		m.Roles[domain.AdminRole] = append(slices.Clone(read), &basev0.WorkScopeV1{ResourceKind: "storetest.page", Actions: []string{"write"}})
-		m.SourceGovernance = []*basev0.WorkScopeV1{{ResourceKind: "storetest.page", Actions: []string{"write"}}}
+		m.ResourceKinds = append(m.ResourceKinds, &basev1.WorkScopeV1{ResourceKind: "storetest.page", Actions: []string{"read", "write"}})
+		m.Roles[domain.AdminRole] = append(slices.Clone(read), &basev1.WorkScopeV1{ResourceKind: "storetest.page", Actions: []string{"write"}})
+		m.SourceGovernance = []*basev1.WorkScopeV1{{ResourceKind: "storetest.page", Actions: []string{"write"}}}
 	}
 	m.SharedKinds = []string{"storetest.item"}
 	m.Source = "sha256:storetest-delivery"
@@ -659,7 +659,7 @@ func sameSet(a, b []string) bool {
 	return slices.Equal(slices.Sorted(slices.Values(slices.Clone(a))), slices.Sorted(slices.Values(slices.Clone(b))))
 }
 
-func sameScopes(a, b []*basev0.WorkScopeV1) bool {
+func sameScopes(a, b []*basev1.WorkScopeV1) bool {
 	return scope.Same(scope.Normalize(a), scope.Normalize(b))
 }
 

@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/codefly-dev/core/workcontext"
 )
 
@@ -108,7 +108,7 @@ func (d Decision) AdmittedCheck() bool {
 
 // of reads what a capability names: the one signed for an admitted issue,
 // the one a check verified.
-func (d *Decision) of(wc *basev0.WorkContextV1) {
+func (d *Decision) of(wc *basev1.WorkContextV1) {
 	d.Organization = wc.GetOrganizationId()
 	if d.Organization == "" {
 		d.Organization = wc.GetTenantId()
@@ -133,7 +133,7 @@ func (d *Decision) resolved(organization, owner, audience string) {
 
 // onParent is a hop whose parent verified: the work is its owner's, in its
 // organization, on its task, whatever the hop is then refused for.
-func (d *Decision) onParent(parent *basev0.WorkContextV1) {
+func (d *Decision) onParent(parent *basev1.WorkContextV1) {
 	d.Organization = parent.GetOrganizationId()
 	if d.Organization == "" {
 		d.Organization = parent.GetTenantId()

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // AccessParty is one principal an access decision must hold the resource
@@ -42,7 +42,7 @@ type AccessCaller struct {
 	// Organization is the capability's tenant.
 	Organization string
 	// Claims are the verified capability's.
-	Claims *basev0.WorkContextV1
+	Claims *basev1.WorkContextV1
 	// Effective are its effective scopes, after every hop.
 	Effective Scopes
 	// Owner is the capability's owner, Actors its chain in order.
@@ -202,7 +202,7 @@ func accessServer(tx Tx, caller Workload, kinds []string) (domain.Module, error)
 
 // accessOwner is the capability's owner as a party: a person under the role
 // view or cast of the session the capability descends from, or a principal.
-func accessOwner(tx Tx, wc *basev0.WorkContextV1) (AccessParty, error) {
+func accessOwner(tx Tx, wc *basev1.WorkContextV1) (AccessParty, error) {
 	if wc.GetOwnerPrincipalKind() != "human" {
 		return accessPrincipal(tx, wc.GetTenantId(), wc.GetOwnerPrincipalId())
 	}

@@ -5,7 +5,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // The installation_role rules core's contract schema used to carry: the
@@ -27,7 +27,7 @@ func TestTheInstallationRoleNamesADeclaredRole(t *testing.T) {
 	spaced.InstallationRole = " none "
 	refused(t, decide.ValidateModule(spaced), domain.Denied, "surrounding whitespace")
 	reserved := solution
-	reserved.Roles = map[string][]*basev0.WorkScopeV1{}
+	reserved.Roles = map[string][]*basev1.WorkScopeV1{}
 	for name, scopes := range solution.Roles {
 		reserved.Roles[name] = scopes
 	}

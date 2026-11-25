@@ -6,7 +6,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // A child is the owner's current grants intersected with the binding it is
@@ -15,11 +15,11 @@ import (
 func TestAChildHoldsOnlyWhatTheBindingAndTheOwnersGrantsShare(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	wide := []*basev0.WorkScopeV1{sc("page.entry", "read"), sc(ledgerKind, "read", "write"), sc("profiles", "read")}
+	wide := []*basev1.WorkScopeV1{sc("page.entry", "read"), sc(ledgerKind, "read", "write"), sc("profiles", "read")}
 	page := domain.Module{Name: "page", Principal: "page", Kind: domain.KindModule, Generation: 1, Page: true, InstallationRole: domain.NoInstallationRole,
 		ResourceKinds: wide,
-		Roles:         map[string][]*basev0.WorkScopeV1{domain.AdminRole: wide, domain.UserRole: wide},
-		Bindings:      map[string]domain.Binding{"ledger": {ID: "ledger", Audience: "ledger", InvokeScopes: []*basev0.WorkScopeV1{sc(ledgerKind, "read", "write")}}}}
+		Roles:         map[string][]*basev1.WorkScopeV1{domain.AdminRole: wide, domain.UserRole: wide},
+		Bindings:      map[string]domain.Binding{"ledger": {ID: "ledger", Audience: "ledger", InvokeScopes: []*basev1.WorkScopeV1{sc(ledgerKind, "read", "write")}}}}
 	if _, err := h.svc.ApplyModule(h.ctx, page); err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,7 @@ func TestAChildHoldsOnlyWhatTheBindingAndTheOwnersGrantsShare(t *testing.T) {
 	if kinds := kindsOf(effective(parent)); !slices.Equal(kinds, []string{ledgerKind, "page.entry", "profiles"}) {
 		t.Fatalf("the parent holds %v; the test needs scopes outside the binding", kinds)
 	}
-	for name, ask := range map[string][]*basev0.WorkScopeV1{"everything held": nil, "the binding's kind": {sc(ledgerKind, "read", "write")}} {
+	for name, ask := range map[string][]*basev1.WorkScopeV1{"everything held": nil, "the binding's kind": {sc(ledgerKind, "read", "write")}} {
 		t.Run(name, func(t *testing.T) {
 			child := h.must(h.svc.IssueChild(h.ctx, parent.Token, authority.Workload{Module: "page"}, authority.IssueRequest{Binding: "ledger", Scopes: ask}))
 			exactly(t, child, ledgerKind, "", []string{"read", "write"})
@@ -44,12 +44,12 @@ func TestAChildHoldsOnlyWhatTheBindingAndTheOwnersGrantsShare(t *testing.T) {
 		})
 	}
 	t.Run("a scope outside the binding", func(t *testing.T) {
-		_, err := h.svc.IssueChild(h.ctx, parent.Token, authority.Workload{Module: "page"}, authority.IssueRequest{Binding: "ledger", Scopes: []*basev0.WorkScopeV1{sc("profiles", "read")}})
+		_, err := h.svc.IssueChild(h.ctx, parent.Token, authority.Workload{Module: "page"}, authority.IssueRequest{Binding: "ledger", Scopes: []*basev1.WorkScopeV1{sc("profiles", "read")}})
 		refused(t, err, "widens")
 	})
 }
 
-func kindsOf(scopes []*basev0.WorkScopeV1) []string {
+func kindsOf(scopes []*basev1.WorkScopeV1) []string {
 	var out []string
 	for _, s := range scopes {
 		if len(s.GetActions()) > 0 && !slices.Contains(out, s.GetResourceKind()) {

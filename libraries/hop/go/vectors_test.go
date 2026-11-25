@@ -21,7 +21,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
 	"github.com/codefly-dev/authority/libraries/authority-client/go/workcontext"
 	"github.com/codefly-dev/authority/libraries/hop/go/policy"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -290,8 +290,8 @@ func stampVectors(t *testing.T) []stampVector {
 		return out
 	}
 	// A Work Context derived from the fixture's, signed by key.
-	derived := func(key ed25519.PrivateKey, change func(*basev0.WorkContextV1)) string {
-		body := proto.Clone(mustDecode(t, token)).(*basev0.WorkContextV1)
+	derived := func(key ed25519.PrivateKey, change func(*basev1.WorkContextV1)) string {
+		body := proto.Clone(mustDecode(t, token)).(*basev1.WorkContextV1)
 		change(body)
 		payload, err := (proto.MarshalOptions{Deterministic: true}).Marshal(body)
 		if err != nil {
@@ -300,17 +300,17 @@ func stampVectors(t *testing.T) []stampVector {
 		return base64.RawURLEncoding.EncodeToString(payload) + "." + base64.RawURLEncoding.EncodeToString(ed25519.Sign(key, payload))
 	}
 	// Another genuine Work Context, for the same owner.
-	other := derived(fixture.key, func(c *basev0.WorkContextV1) { c.TaskId = "task-other" })
-	owned := derived(fixture.key, func(c *basev0.WorkContextV1) {
-		c.AuthorityScopes = []*basev0.WorkScopeV1{{ResourceKind: "documents", Actions: []string{"read"}, ResourceOwnerId: "principal-u"}}
+	other := derived(fixture.key, func(c *basev1.WorkContextV1) { c.TaskId = "task-other" })
+	owned := derived(fixture.key, func(c *basev1.WorkContextV1) {
+		c.AuthorityScopes = []*basev1.WorkScopeV1{{ResourceKind: "documents", Actions: []string{"read"}, ResourceOwnerId: "principal-u"}}
 	})
-	expired := derived(fixture.key, func(c *basev0.WorkContextV1) {
+	expired := derived(fixture.key, func(c *basev1.WorkContextV1) {
 		c.IssuedAtUnix, c.NotBeforeUnix, c.ExpiresAtUnix = now-7200, now-7200, now-3600
 	})
-	elsewhere := derived(fixture.key, func(c *basev0.WorkContextV1) { c.Audience = "records" })
+	elsewhere := derived(fixture.key, func(c *basev1.WorkContextV1) { c.Audience = "records" })
 	hopSeed := sha256.Sum256([]byte(hopLabel))
-	hopSigned := derived(ed25519.NewKeyFromSeed(hopSeed[:]), func(c *basev0.WorkContextV1) { c.KeyId = publishedHop(hopLabel).GetKeyId() })
-	rotated := derived(newSigner("rotated").key, func(c *basev0.WorkContextV1) { c.KeyId = "hop-rotated" })
+	hopSigned := derived(ed25519.NewKeyFromSeed(hopSeed[:]), func(c *basev1.WorkContextV1) { c.KeyId = publishedHop(hopLabel).GetKeyId() })
+	rotated := derived(newSigner("rotated").key, func(c *basev1.WorkContextV1) { c.KeyId = "hop-rotated" })
 	payload, _, _ := strings.Cut(token, ".")
 	forged := payload + "." + base64.RawURLEncoding.EncodeToString(make([]byte, 64))
 	admitted := func(name string, change func(*stampCase)) stampCase {
@@ -423,8 +423,8 @@ func stampVectors(t *testing.T) []stampVector {
 			c.carried, c.proofToken = forged, forged
 		}),
 	}
-	cases = append(cases, admissionCases(admitted, refused, set, func(scopes []*basev0.WorkScopeV1, actors ...*basev0.WorkActorV1) string {
-		return derived(fixture.key, func(c *basev0.WorkContextV1) { c.AuthorityScopes, c.ActorChain = scopes, actors })
+	cases = append(cases, admissionCases(admitted, refused, set, func(scopes []*basev1.WorkScopeV1, actors ...*basev1.WorkActorV1) string {
+		return derived(fixture.key, func(c *basev1.WorkContextV1) { c.AuthorityScopes, c.ActorChain = scopes, actors })
 	})...)
 	out := make([]stampVector, 0, len(cases))
 	for _, c := range cases {
@@ -618,9 +618,9 @@ func TestTheStampVectorsAreGosVerdicts(t *testing.T) {
 			// the calls the contract says are.
 			if v.Admission != nil {
 				declared, _ := (&Verifier{declared: declaredAs(v.Declared)}).declaration(v.Method)
-				var held []*basev0.WorkScopeV1
+				var held []*basev1.WorkScopeV1
 				for _, g := range id.Grants {
-					held = append(held, &basev0.WorkScopeV1{ResourceKind: g.Kind, Actions: []string{g.Action}, ResourceOwnerId: g.Owner, ResourceIds: g.Resources})
+					held = append(held, &basev1.WorkScopeV1{ResourceKind: g.Kind, Actions: []string{g.Action}, ResourceOwnerId: g.Owner, ResourceIds: g.Resources})
 				}
 				refused := declared.Validate() == nil && declared.Apart(held) != nil
 				if err := policy.Admit(map[string]policy.Method{v.Method: declared}, v.Method, held); refused != (err != nil && strings.Contains(err.Error(), "no owner in common")) {
@@ -645,10 +645,10 @@ func must(b []byte, err error) []byte {
 // stamp held to the authenticated Work Context, and every reading a handler is
 // handed over the declaration of the method the call arrived on.
 func admissionCases(admitted func(string, func(*stampCase)) stampCase, refused func(string, string, func(*stampCase)) stampCase,
-	set func(string, string) func(*stampCase), holding func([]*basev0.WorkScopeV1, ...*basev0.WorkActorV1) string) []stampCase {
+	set func(string, string) func(*stampCase), holding func([]*basev1.WorkScopeV1, ...*basev1.WorkActorV1) string) []stampCase {
 	const method, kind = "/test.Service/Read", "documents.collection"
-	scope := func(kind, owner string, ids []string, actions ...string) *basev0.WorkScopeV1 {
-		return &basev0.WorkScopeV1{ResourceKind: kind, Actions: actions, ResourceOwnerId: owner, ResourceIds: ids}
+	scope := func(kind, owner string, ids []string, actions ...string) *basev1.WorkScopeV1 {
+		return &basev1.WorkScopeV1{ResourceKind: kind, Actions: actions, ResourceOwnerId: owner, ResourceIds: ids}
 	}
 	on := func(method string, m policy.Method) map[string]policy.Method {
 		return map[string]policy.Method{method: m}
@@ -657,7 +657,7 @@ func admissionCases(admitted func(string, func(*stampCase)) stampCase, refused f
 	content := policy.Method{Requires: []policy.Permission{policy.Of(kind, "read")}, Carries: []policy.Permission{policy.Of(kind, "read_content")}}
 	readsAndWrites := policy.Method{Requires: []policy.Permission{policy.Of(kind, "read"), policy.Of(kind, "write")}}
 	// Two owners' metadata, one owner's content, and grants no declaration here names.
-	twoOwners := holding([]*basev0.WorkScopeV1{
+	twoOwners := holding([]*basev1.WorkScopeV1{
 		scope(kind, "installation-b", nil, "read"),
 		scope(kind, "installation-a", nil, "read", "read_content"),
 		scope(kind, "installation-c", nil, "write"),
@@ -690,26 +690,26 @@ func admissionCases(admitted func(string, func(*stampCase)) stampCase, refused f
 		admitted("what admitted the call: the owners a list is narrowed to", declaring(twoOwners, on(method, reads))),
 		admitted("what admitted the call: content carried on one owner of the two that hold metadata", declaring(twoOwners, on(method, content))),
 		admitted("what admitted the call: only what the method requires is held, so nothing is carried",
-			declaring(holding([]*basev0.WorkScopeV1{scope(kind, "installation-a", nil, "read")}), on(method, content))),
+			declaring(holding([]*basev1.WorkScopeV1{scope(kind, "installation-a", nil, "read")}), on(method, content))),
 		admitted("what admitted the call: carried named resources within the required owner",
-			declaring(holding([]*basev0.WorkScopeV1{
+			declaring(holding([]*basev1.WorkScopeV1{
 				scope(kind, "installation-a", nil, "read"),
 				scope(kind, "installation-a", []string{"c-2", "c-1", "c-2"}, "read_content"),
 				scope(kind, "installation-b", []string{"c-9"}, "read_content"),
 				scope(kind, "", []string{"c-1", "c-7"}, "read_content"),
 			}), on(method, content))),
 		admitted("what admitted the call: the last actor's narrower grant, not the owner's authority",
-			declaring(holding([]*basev0.WorkScopeV1{scope(kind, "", nil, "read", "write")},
-				&basev0.WorkActorV1{PrincipalId: "wiki", PrincipalKind: "service", DelegationId: "delegation-wiki", PrincipalEpoch: 1, GrantedScopes: []*basev0.WorkScopeV1{scope(kind, "installation-a", nil, "read", "write")}},
-				&basev0.WorkActorV1{PrincipalId: "reader", PrincipalKind: "service", DelegationId: "delegation-reader", PrincipalEpoch: 1, GrantedScopes: []*basev0.WorkScopeV1{scope(kind, "installation-a", []string{"c-2", "c-1"}, "read")}},
+			declaring(holding([]*basev1.WorkScopeV1{scope(kind, "", nil, "read", "write")},
+				&basev1.WorkActorV1{PrincipalId: "wiki", PrincipalKind: "service", DelegationId: "delegation-wiki", PrincipalEpoch: 1, GrantedScopes: []*basev1.WorkScopeV1{scope(kind, "installation-a", nil, "read", "write")}},
+				&basev1.WorkActorV1{PrincipalId: "reader", PrincipalKind: "service", DelegationId: "delegation-reader", PrincipalEpoch: 1, GrantedScopes: []*basev1.WorkScopeV1{scope(kind, "installation-a", []string{"c-2", "c-1"}, "read")}},
 			), on(method, reads))),
 		admitted("what admitted the call: an actor granted nothing holds nothing",
-			declaring(holding([]*basev0.WorkScopeV1{scope(kind, "", nil, "read")},
-				&basev0.WorkActorV1{PrincipalId: "wiki", PrincipalKind: "service", DelegationId: "delegation-wiki", PrincipalEpoch: 1}), on(method, reads))),
+			declaring(holding([]*basev1.WorkScopeV1{scope(kind, "", nil, "read")},
+				&basev1.WorkActorV1{PrincipalId: "wiki", PrincipalKind: "service", DelegationId: "delegation-wiki", PrincipalEpoch: 1}), on(method, reads))),
 		admitted("what admitted the call: every action holds each permission of the kind",
-			declaring(holding([]*basev0.WorkScopeV1{scope(kind, "installation-a", nil, policy.AnyAction), scope(kind, "installation-b", nil, "read")}), on(method, content))),
+			declaring(holding([]*basev1.WorkScopeV1{scope(kind, "installation-a", nil, policy.AnyAction), scope(kind, "installation-b", nil, "read")}), on(method, content))),
 		admitted("what admitted the call: two required permissions are held together where both reach",
-			declaring(holding([]*basev0.WorkScopeV1{
+			declaring(holding([]*basev1.WorkScopeV1{
 				scope(kind, "installation-a", nil, "read"), scope(kind, "installation-b", []string{"c-1", "c-2"}, "read"), scope(kind, "", []string{"c-5"}, "read"),
 				scope("documents.types", "", nil, "read"), scope("documents.types", "installation-b", []string{"c-2", "c-3"}, "read"), scope("documents.types", "installation-c", nil, "read"),
 				scope(kind, "installation-b", nil, "write"), scope(kind, "installation-a", []string{"c-4"}, "write"),
@@ -720,55 +720,55 @@ func admissionCases(admitted func(string, func(*stampCase)) stampCase, refused f
 		// together, and what a grant that selects no owner lends (nothing, once
 		// the reading is cut to owner-selected grants).
 		admitted("what admitted the call: two required permissions held on different owners reach nothing",
-			declaring(holding([]*basev0.WorkScopeV1{scope(kind, "installation-a", nil, "read"), scope(kind, "installation-b", nil, "write")}), on(method, readsAndWrites))),
+			declaring(holding([]*basev1.WorkScopeV1{scope(kind, "installation-a", nil, "read"), scope(kind, "installation-b", nil, "write")}), on(method, readsAndWrites))),
 		// What the hop refuses itself: every required permission held, on no
 		// owner in common. Only owners are compared, and a grant that selects
 		// none is held together with anything.
 		admitted("what admitted the call: two kinds required and held on different owners are apart",
-			declaring(holding([]*basev0.WorkScopeV1{scope(kind, "installation-a", nil, "read"), scope("documents.types", "installation-b", nil, "read")}),
+			declaring(holding([]*basev1.WorkScopeV1{scope(kind, "installation-a", nil, "read"), scope("documents.types", "installation-b", nil, "read")}),
 				on(method, policy.Method{Requires: []policy.Permission{policy.Of(kind, "read"), policy.Of("documents.types", "read")}}))),
 		admitted("what admitted the call: resources named on different owners are apart",
-			declaring(holding([]*basev0.WorkScopeV1{scope(kind, "installation-a", []string{"c-1"}, "read"), scope(kind, "installation-b", []string{"c-1"}, "write")}), on(method, readsAndWrites))),
+			declaring(holding([]*basev1.WorkScopeV1{scope(kind, "installation-a", []string{"c-1"}, "read"), scope(kind, "installation-b", []string{"c-1"}, "write")}), on(method, readsAndWrites))),
 		admitted("what admitted the call: the whole kind beside two owners that share nothing is apart",
-			declaring(holding([]*basev0.WorkScopeV1{
+			declaring(holding([]*basev1.WorkScopeV1{
 				scope(kind, "", nil, "read"), scope(kind, "installation-a", nil, "write"), scope("documents.types", "installation-b", nil, "read"), scope("documents.types", "installation-c", []string{"t-1"}, "read"),
 			}), on(method, policy.Method{Requires: []policy.Permission{policy.Of(kind, "read"), policy.Of(kind, "write"), policy.Of("documents.types", "read")}}))),
 		admitted("what admitted the call: one owner with resources named apart reaches nothing and is not apart",
-			declaring(holding([]*basev0.WorkScopeV1{scope(kind, "installation-a", []string{"c-1"}, "read"), scope(kind, "installation-a", []string{"c-2"}, "write")}), on(method, readsAndWrites))),
+			declaring(holding([]*basev1.WorkScopeV1{scope(kind, "installation-a", []string{"c-1"}, "read"), scope(kind, "installation-a", []string{"c-2"}, "write")}), on(method, readsAndWrites))),
 		admitted("what admitted the call: an owner in common among several is not apart",
-			declaring(holding([]*basev0.WorkScopeV1{
+			declaring(holding([]*basev1.WorkScopeV1{
 				scope(kind, "installation-a", nil, "read"), scope(kind, "installation-b", nil, "read"), scope(kind, "installation-b", nil, "write"), scope(kind, "installation-c", nil, "write"),
 			}), on(method, readsAndWrites))),
 		admitted("what admitted the call: what is carried on another owner is not required there, so not apart",
-			declaring(holding([]*basev0.WorkScopeV1{scope(kind, "installation-a", nil, "read"), scope(kind, "installation-b", nil, "read_content")}), on(method, content))),
+			declaring(holding([]*basev1.WorkScopeV1{scope(kind, "installation-a", nil, "read"), scope(kind, "installation-b", nil, "read_content")}), on(method, content))),
 		admitted("what admitted the call: one required permission on the whole kind lends an owner nothing owner-selected",
-			declaring(holding([]*basev0.WorkScopeV1{scope(kind, "installation-a", nil, "read"), scope(kind, "", nil, "write")}), on(method, readsAndWrites))),
+			declaring(holding([]*basev1.WorkScopeV1{scope(kind, "installation-a", nil, "read"), scope(kind, "", nil, "write")}), on(method, readsAndWrites))),
 		admitted("what admitted the call: a required permission held on the whole kind and on the owner is owner-selected there",
-			declaring(holding([]*basev0.WorkScopeV1{
+			declaring(holding([]*basev1.WorkScopeV1{
 				scope(kind, "installation-a", nil, "read"), scope(kind, "installation-b", nil, "read"),
 				scope(kind, "", nil, "write"), scope(kind, "installation-a", nil, "write"),
 			}), on(method, readsAndWrites))),
 		admitted("what admitted the call: both required permissions on the whole kind are the whole kind, and nothing owner-selected",
-			declaring(holding([]*basev0.WorkScopeV1{scope(kind, "", nil, "read", "write")}), on(method, readsAndWrites))),
+			declaring(holding([]*basev1.WorkScopeV1{scope(kind, "", nil, "read", "write")}), on(method, readsAndWrites))),
 		admitted("what admitted the call: one required permission on an owner, the other on resources named within it",
-			declaring(holding([]*basev0.WorkScopeV1{
+			declaring(holding([]*basev1.WorkScopeV1{
 				scope(kind, "installation-a", nil, "read"), scope(kind, "installation-a", []string{"c-1", "c-2"}, "write"), scope(kind, "installation-b", []string{"c-3"}, "write"),
 			}), on(method, readsAndWrites))),
 		admitted("what admitted the call: resources named with no owner lend an owner nothing owner-selected",
-			declaring(holding([]*basev0.WorkScopeV1{
+			declaring(holding([]*basev1.WorkScopeV1{
 				scope(kind, "installation-a", nil, "read"), scope(kind, "", []string{"c-1"}, "write"), scope(kind, "installation-a", []string{"c-2"}, "write"),
 			}), on(method, readsAndWrites))),
 		admitted("what admitted the call: one of two required permissions held on nothing reaches nothing",
-			declaring(holding([]*basev0.WorkScopeV1{scope(kind, "", nil, "write"), scope(kind, "installation-a", nil, "write"), scope("documents.types", "installation-a", nil, "read")}), on(method, readsAndWrites))),
+			declaring(holding([]*basev1.WorkScopeV1{scope(kind, "", nil, "write"), scope(kind, "installation-a", nil, "write"), scope("documents.types", "installation-a", nil, "read")}), on(method, readsAndWrites))),
 		admitted("what admitted the call: two kinds required, one on the whole kind and one on an owner",
-			declaring(holding([]*basev0.WorkScopeV1{
+			declaring(holding([]*basev1.WorkScopeV1{
 				scope(kind, "installation-a", nil, "read"), scope(kind, "installation-b", nil, "read"),
 				scope("documents.types", "", nil, "read"), scope("documents.types", "installation-b", nil, "read"), scope("documents.types", "installation-c", nil, "read"),
 			}), on(method, policy.Method{Requires: []policy.Permission{policy.Of(kind, "read"), policy.Of("documents.types", "read")}}))),
 		admitted("what admitted the call: required on the whole kind lends what is carried on an owner nothing owner-selected",
-			declaring(holding([]*basev0.WorkScopeV1{scope(kind, "", nil, "read"), scope(kind, "installation-a", nil, "read_content")}), on(method, content))),
+			declaring(holding([]*basev1.WorkScopeV1{scope(kind, "", nil, "read"), scope(kind, "installation-a", nil, "read_content")}), on(method, content))),
 		admitted("what admitted the call: carried on the whole kind lends what is required on an owner nothing owner-selected",
-			declaring(holding([]*basev0.WorkScopeV1{
+			declaring(holding([]*basev1.WorkScopeV1{
 				scope(kind, "installation-a", nil, "read"), scope(kind, "installation-b", nil, "read"),
 				scope(kind, "", nil, "read_content"), scope(kind, "installation-b", nil, "read_content"),
 			}), on(method, content))),
@@ -779,7 +779,7 @@ func admissionCases(admitted func(string, func(*stampCase)) stampCase, refused f
 			declaring(twoOwners, on(method, policy.Method{Carries: content.Carries}))),
 		admitted("what admitted the call: a method the module does not declare selects nothing", declaring(twoOwners, on("/test.Service/Write", reads))),
 		admitted("what admitted the call: ids are ordered by their bytes and escaped as the hop escapes them",
-			declaring(holding([]*basev0.WorkScopeV1{
+			declaring(holding([]*basev1.WorkScopeV1{
 				scope(kind, "installation-a", []string{"\uff5e", "\U0001F600", "<&>", "\u00e9", "\u2028", "\u2029", "say \"c\\1\"", "\x01", "\x7f", "\b\f\n\r\t", " c", "c"}, "read", "r<e>&d"),
 			}), on(method, reads))),
 		admitted("what admitted the call: an http request is read on the one route template it is an instance of",

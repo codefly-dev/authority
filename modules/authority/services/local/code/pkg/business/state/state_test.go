@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/solutionhost/go/workloadidentity/native"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/codefly-dev/core/workcontext"
 
 	"gateway/pkg/business/state"
@@ -57,7 +57,7 @@ func TestAManifestWithSomeBindingsIsNotAllOrNothing(t *testing.T) {
 	k := testkit.New(t)
 	m := testkit.Documents(2)
 	m.Bindings["tracing"] = state.Binding{ID: "tracing", Audience: "tracing",
-		InvokeScopes: []*basev0.WorkScopeV1{testkit.Scope("trace.span", "write")}}
+		InvokeScopes: []*basev1.WorkScopeV1{testkit.Scope("trace.span", "write")}}
 	if _, err := k.State.ApplyManifest(m); err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestHeadlessScopesMayNotExceedInvokeScopes(t *testing.T) {
 	}
 	// A binding only for the module's own work declares no invoke scopes.
 	m = testkit.Documents(3)
-	m.Bindings["tracing"] = state.Binding{ID: "tracing", Audience: "tracing", HeadlessScopes: []*basev0.WorkScopeV1{testkit.Scope("tracing.spans", "export")}}
+	m.Bindings["tracing"] = state.Binding{ID: "tracing", Audience: "tracing", HeadlessScopes: []*basev1.WorkScopeV1{testkit.Scope("tracing.spans", "export")}}
 	if _, err := k.State.ApplyManifest(m); err != nil {
 		t.Fatalf("a headless-only binding stands alone: %v", err)
 	}
@@ -147,12 +147,12 @@ func TestASolutionDeclaresAnInstallerAndRolesWithinWhatItServes(t *testing.T) {
 		t.Fatalf("no admin: %v", err)
 	}
 	beyond := testkit.Proposals(1)
-	beyond.Roles["auditor"] = []*basev0.WorkScopeV1{testkit.Scope("proposals.item", "read", "delete")}
+	beyond.Roles["auditor"] = []*basev1.WorkScopeV1{testkit.Scope("proposals.item", "read", "delete")}
 	if _, err := k.State.ApplyManifest(beyond); !errors.Is(err, state.ErrForbidden) {
 		t.Fatalf("a role beyond what the solution serves: %v", err)
 	}
 	module := testkit.Records(2)
-	module.Roles = map[string][]*basev0.WorkScopeV1{"user": {testkit.Scope("records.records", "read")}}
+	module.Roles = map[string][]*basev1.WorkScopeV1{"user": {testkit.Scope("records.records", "read")}}
 	if _, err := k.State.ApplyManifest(module); !errors.Is(err, state.ErrForbidden) {
 		t.Fatalf("a module declaring roles: %v", err)
 	}
@@ -182,12 +182,12 @@ func TestWorkloadCredentialIsTheLaunchersNativeOneAndNothingElse(t *testing.T) {
 }
 
 func TestScopeAlgebra(t *testing.T) {
-	a := []*basev0.WorkScopeV1{testkit.Scope("documents", "write", "read"), testkit.Scope("documents", "ingest")}
+	a := []*basev1.WorkScopeV1{testkit.Scope("documents", "write", "read"), testkit.Scope("documents", "ingest")}
 	n := state.Normalize(a)
 	if len(n) != 1 || len(n[0].Actions) != 3 || n[0].Actions[0] != "ingest" {
 		t.Fatalf("normalize = %v", n)
 	}
-	ceiling := []*basev0.WorkScopeV1{testkit.Scope("documents", "read")}
+	ceiling := []*basev1.WorkScopeV1{testkit.Scope("documents", "read")}
 	if got := state.Intersect(a, ceiling); len(got) != 1 || len(got[0].Actions) != 1 || got[0].Actions[0] != "read" {
 		t.Fatalf("intersect = %v", got)
 	}

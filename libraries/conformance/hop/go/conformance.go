@@ -40,7 +40,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-client/go/workcontext"
 	hop "github.com/codefly-dev/authority/libraries/hop/go"
 	"github.com/codefly-dev/authority/libraries/hop/go/hoptest"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/codefly-dev/core/resources"
 	core "github.com/codefly-dev/core/workcontext"
 	"google.golang.org/grpc"
@@ -94,7 +94,7 @@ const (
 
 // read is the scope every issued Work Context carries, unless a case says
 // otherwise.
-var read = &basev0.WorkScopeV1{ResourceKind: "documents", Actions: []string{"read"}}
+var read = &basev1.WorkScopeV1{ResourceKind: "documents", Actions: []string{"read"}}
 
 // Run drives every case against the target.
 //

@@ -6,13 +6,13 @@ import (
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/hop/go/hoptest"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // ownedScope is {kind, [action], resource_owner_id: owner, resource_ids: ids}.
-func ownedScope(t *testing.T, kind, action, owner string, ids ...string) *basev0.WorkScopeV1 {
+func ownedScope(t *testing.T, kind, action, owner string, ids ...string) *basev1.WorkScopeV1 {
 	t.Helper()
-	return &basev0.WorkScopeV1{ResourceKind: kind, Actions: []string{action}, ResourceIds: ids, ResourceOwnerId: owner}
+	return &basev1.WorkScopeV1{ResourceKind: kind, Actions: []string{action}, ResourceIds: ids, ResourceOwnerId: owner}
 }
 
 // The solution principal (conformance RunSolutionPrincipalTarget): A module fronted by the hop must

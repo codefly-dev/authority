@@ -11,7 +11,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/hop/go/hoptest"
 	"github.com/codefly-dev/authority/libraries/hop/go/policy"
 	"github.com/codefly-dev/authority/libraries/hop/go/routing"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -88,10 +88,10 @@ func TestTheHopHandsTheModuleWhatAdmittedTheCall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	owned := func(owner string) *basev0.WorkScopeV1 {
-		return &basev0.WorkScopeV1{ResourceKind: "console.identity", Actions: []string{"read"}, ResourceOwnerId: owner}
+	owned := func(owner string) *basev1.WorkScopeV1 {
+		return &basev1.WorkScopeV1{ResourceKind: "console.identity", Actions: []string{"read"}, ResourceOwnerId: owner}
 	}
-	calling := func(scopes ...*basev0.WorkScopeV1) context.Context {
+	calling := func(scopes ...*basev1.WorkScopeV1) context.Context {
 		return metadata.AppendToOutgoingContext(context.Background(), hop.WorkContextKey, a.Issue(t, "console", scopes...), hop.AdmittedKey, forged)
 	}
 

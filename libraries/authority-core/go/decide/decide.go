@@ -9,12 +9,12 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"google.golang.org/protobuf/proto"
 )
 
 // Scopes is a scope list.
-type Scopes = []*basev0.WorkScopeV1
+type Scopes = []*basev1.WorkScopeV1
 
 // IsAdministrator: an organization's administrators hold "admin". It is the
 // one organisation role the core reads, and no other name administers:
@@ -89,7 +89,7 @@ func RoleScopesAt(solution domain.Module, inst domain.Installation, roles []stri
 		literal = append(literal, solution.AudienceRoles[role][audience]...)
 		for _, sc := range solution.OwnedRoles[role] {
 			if ids := inst.Owned[sc.GetResourceKind()]; len(ids) > 0 {
-				attached = append(attached, &basev0.WorkScopeV1{ResourceKind: sc.GetResourceKind(), Actions: slices.Clone(sc.GetActions()), ResourceIds: slices.Clone(ids)})
+				attached = append(attached, &basev1.WorkScopeV1{ResourceKind: sc.GetResourceKind(), Actions: slices.Clone(sc.GetActions()), ResourceIds: slices.Clone(ids)})
 			}
 		}
 	}

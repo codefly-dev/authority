@@ -9,7 +9,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // The artifact interface (codefly.dev/artifact): a person's consent to an exact
@@ -96,7 +96,7 @@ const PageActor = "page"
 
 // PresentThroughPage reports whether chain is exactly one page hop: a person
 // present on a page, and nothing acting after it.
-func PresentThroughPage(chain []*basev0.WorkActorV1) bool {
+func PresentThroughPage(chain []*basev1.WorkActorV1) bool {
 	return len(chain) == 1 && chain[0].GetPrincipalKind() == PageActor
 }
 
@@ -126,7 +126,7 @@ func Artifact(caller ArtifactCaller, inst domain.Installation, found bool, reque
 		return ForeignInstallation(requested, caller.Tenant)
 	case inst.Target != caller.Module.Name || inst.Status != domain.Active:
 		return domain.Refuse("installation %s is not %s's active installation at %s", requested, caller.Module.Name, caller.Tenant)
-	case !slices.ContainsFunc(caller.Module.ResourceKinds, func(k *basev0.WorkScopeV1) bool { return k.GetResourceKind() == policy }):
+	case !slices.ContainsFunc(caller.Module.ResourceKinds, func(k *basev1.WorkScopeV1) bool { return k.GetResourceKind() == policy }):
 		return domain.Refuse("%s is not an artifact policy of %s: it serves no such kind", policy, caller.Module.Name)
 	}
 	// The identity establishes no resource id of the policy kind, so the

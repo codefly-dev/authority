@@ -8,7 +8,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // TransferRequest asks whether an existing resource may join a solution
@@ -146,7 +146,7 @@ func servingModules(tx Tx, kind string) ([]string, error) {
 	}
 	var out []string
 	for _, m := range all {
-		if slices.ContainsFunc(m.ResourceKinds, func(sc *basev0.WorkScopeV1) bool { return sc.GetResourceKind() == kind }) {
+		if slices.ContainsFunc(m.ResourceKinds, func(sc *basev1.WorkScopeV1) bool { return sc.GetResourceKind() == kind }) {
 			out = append(out, m.Name)
 		}
 	}

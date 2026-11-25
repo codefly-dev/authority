@@ -7,7 +7,7 @@ import (
 	"gateway/pkg/business/state"
 	"gateway/pkg/business/testkit"
 
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // The permission report covers a method by the module's own roles alone. A
@@ -19,14 +19,14 @@ func TestThePermissionReportCoversAMethodByInstallationRolesAlone(t *testing.T) 
 	k := testkit.New(t)
 	m := state.Manifest{Name: "ledger", Principal: "ledger", Kind: "module", Generation: 1,
 		Methods: map[string]state.MethodPolicy{
-			"/ledger/Write":   {Requires: []*basev0.WorkScopeV1{testkit.Scope("ledger.entry", "write")}},
+			"/ledger/Write":   {Requires: []*basev1.WorkScopeV1{testkit.Scope("ledger.entry", "write")}},
 			"/ledger/Version": {AnyCheckedCaller: true},
 		}}
 	if _, err := k.State.ApplyManifest(m); err != nil {
 		t.Fatal(err)
 	}
 	page := testkit.Records(2)
-	page.Methods = map[string]state.MethodPolicy{"/records/Write": {Requires: []*basev0.WorkScopeV1{testkit.Scope("records.records", "write")}}}
+	page.Methods = map[string]state.MethodPolicy{"/records/Write": {Requires: []*basev1.WorkScopeV1{testkit.Scope("records.records", "write")}}}
 	if _, err := k.State.ApplyManifest(page); err != nil {
 		t.Fatal(err)
 	}
@@ -55,8 +55,8 @@ func TestThePermissionReportCoversAMethodByInstallationRolesAlone(t *testing.T) 
 func TestThePermissionReportNamesAWildcardCeiling(t *testing.T) {
 	k := testkit.New(t)
 	m := state.Manifest{Name: "unresolved", Principal: "unresolved", Kind: "module", Generation: 1,
-		ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope("unresolved.entry", "*")},
-		Methods:       map[string]state.MethodPolicy{"/unresolved/Read": {Requires: []*basev0.WorkScopeV1{testkit.Scope("unresolved.entry", "read")}}}}
+		ResourceKinds: []*basev1.WorkScopeV1{testkit.Scope("unresolved.entry", "*")},
+		Methods:       map[string]state.MethodPolicy{"/unresolved/Read": {Requires: []*basev1.WorkScopeV1{testkit.Scope("unresolved.entry", "read")}}}}
 	if _, err := k.State.ApplyManifest(m); err != nil {
 		t.Fatal(err)
 	}

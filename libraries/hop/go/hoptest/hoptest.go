@@ -19,7 +19,7 @@ import (
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
 	hop "github.com/codefly-dev/authority/libraries/hop/go"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	core "github.com/codefly-dev/core/workcontext"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -115,26 +115,26 @@ func (a *Authority) Keys(context.Context, *authorityv1.KeysRequest, ...grpc.Call
 
 // Issue signs a ten-minute Work Context for Core's fixture owner, addressed to
 // audience, carrying scopes.
-func (a *Authority) Issue(t testing.TB, audience string, scopes ...*basev0.WorkScopeV1) string {
+func (a *Authority) Issue(t testing.TB, audience string, scopes ...*basev1.WorkScopeV1) string {
 	return a.issue(t, audience, core.ReplayIdempotent, scopes...)
 }
 
 // IssueSingleUse reproduces admission probes with a genuine single-use capability.
-func (a *Authority) IssueSingleUse(t testing.TB, audience string, scopes ...*basev0.WorkScopeV1) string {
+func (a *Authority) IssueSingleUse(t testing.TB, audience string, scopes ...*basev1.WorkScopeV1) string {
 	return a.issue(t, audience, core.ReplaySingleUse, scopes...)
 }
 
 // IssueFor is Issue for a Work Context that lives ttl, for a test of what
 // ends at its expiry.
-func (a *Authority) IssueFor(t testing.TB, audience string, ttl time.Duration, scopes ...*basev0.WorkScopeV1) string {
+func (a *Authority) IssueFor(t testing.TB, audience string, ttl time.Duration, scopes ...*basev1.WorkScopeV1) string {
 	return a.issueFor(t, audience, core.ReplayIdempotent, ttl, scopes...)
 }
 
-func (a *Authority) issue(t testing.TB, audience, replay string, scopes ...*basev0.WorkScopeV1) string {
+func (a *Authority) issue(t testing.TB, audience, replay string, scopes ...*basev1.WorkScopeV1) string {
 	return a.issueFor(t, audience, replay, 10*time.Minute, scopes...)
 }
 
-func (a *Authority) issueFor(t testing.TB, audience, replay string, ttl time.Duration, scopes ...*basev0.WorkScopeV1) string {
+func (a *Authority) issueFor(t testing.TB, audience, replay string, ttl time.Duration, scopes ...*basev1.WorkScopeV1) string {
 	t.Helper()
 	token, _, err := a.signer.Start(context.Background(), core.StartInput{
 		TenantID: core.FixtureTenant, OwnerPrincipalID: core.FixturePrincipal, OwnerPrincipalKind: "human",

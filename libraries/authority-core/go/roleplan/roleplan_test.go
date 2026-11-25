@@ -9,7 +9,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/roleplan"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // A solution with its own kind, one binding to a store, and the two roles:
@@ -400,7 +400,7 @@ func TestAScopeSpelledOutOnAnotherModulesKindIsHeldAtItsAudience(t *testing.T) {
 		t.Fatal(err)
 	}
 	for role, want := range map[string][]string{domain.AdminRole: {"read", "write"}, domain.UserRole: {"read"}} {
-		if slices.ContainsFunc(m.Roles[role], func(sc *basev0.WorkScopeV1) bool { return sc.GetResourceKind() == "store.item" }) {
+		if slices.ContainsFunc(m.Roles[role], func(sc *basev1.WorkScopeV1) bool { return sc.GetResourceKind() == "store.item" }) {
 			t.Fatalf("%s holds the store's kind at every audience: %v", role, m.Roles[role])
 		}
 		at := m.AudienceRoles[role]["store"]

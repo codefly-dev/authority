@@ -7,7 +7,7 @@ import (
 	"gateway/pkg/business/state"
 	"gateway/pkg/business/testkit"
 	authorityv1 "gateway/pkg/gen/host/authority/v1"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"strings"
 	"testing"
 )
@@ -20,8 +20,8 @@ func TestInstallationToolRequiresTargetSolutionConsent(t *testing.T) {
 	testkit.SolutionTools(t, k)
 	a := testkit.Wiki(2)
 	a.Bindings = map[string]state.Binding{
-		"assistant": {ID: "assistant", Audience: "robin", InvokeScopes: []*basev0.WorkScopeV1{testkit.Scope("robin.conversations", "read")}},
-		"tools":     {ID: "tools", Audience: "proposals", InvokeScopes: []*basev0.WorkScopeV1{testkit.Scope("proposals.item", "read")}},
+		"assistant": {ID: "assistant", Audience: "robin", InvokeScopes: []*basev1.WorkScopeV1{testkit.Scope("robin.conversations", "read")}},
+		"tools":     {ID: "tools", Audience: "proposals", InvokeScopes: []*basev1.WorkScopeV1{testkit.Scope("proposals.item", "read")}},
 	}
 	a.Roles["user"] = append(a.Roles["user"], testkit.Scope("robin.conversations", "read"), testkit.Scope("proposals.item", "read"))
 	if _, err := k.State.ApplyManifest(a); err != nil {

@@ -17,7 +17,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/hop/go/hoptest"
 	"github.com/codefly-dev/authority/libraries/hop/go/policy/probe"
 	"github.com/codefly-dev/core/composition"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/codefly-dev/core/workcontext"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -80,7 +80,7 @@ func agrees(string, func(string) bool) error { return nil }
 
 // module serves health behind rule and is probed with cases for all three
 // procedures; carry mints the Work Context each call carries.
-func module(t *testing.T, contract []byte, decide rule, carry func(scopes []*basev0.WorkScopeV1) []*basev0.WorkScopeV1) probe.Module {
+func module(t *testing.T, contract []byte, decide rule, carry func(scopes []*basev1.WorkScopeV1) []*basev1.WorkScopeV1) probe.Module {
 	t.Helper()
 	// admitted is the module's verifier: a call that carries no Work Context
 	// never reaches a handler. reads is false for a server that skips it.
@@ -97,7 +97,7 @@ func module(t *testing.T, contract []byte, decide rule, carry func(scopes []*bas
 	}
 	held := func(ctx context.Context) func(string) bool {
 		md, _ := metadata.FromIncomingContext(ctx)
-		var scopes []*basev0.WorkScopeV1
+		var scopes []*basev1.WorkScopeV1
 		if tokens := md.Get(hop.WorkContextKey); len(tokens) == 1 {
 			if decoded, err := workcontext.Decode(tokens[0]); err == nil {
 				scopes = decoded.Context().GetAuthorityScopes()
@@ -111,7 +111,7 @@ func module(t *testing.T, contract []byte, decide rule, carry func(scopes []*bas
 			if a, o, selected := strings.Cut(action, "@"); selected {
 				action, owner = a, o
 			}
-			return slices.ContainsFunc(scopes, func(s *basev0.WorkScopeV1) bool {
+			return slices.ContainsFunc(scopes, func(s *basev1.WorkScopeV1) bool {
 				return s.GetResourceKind() == kind && s.GetResourceOwnerId() == owner && slices.Contains(s.GetActions(), action)
 			})
 		}
@@ -163,7 +163,7 @@ func module(t *testing.T, contract []byte, decide rule, carry func(scopes []*bas
 	return probe.Module{
 		Dir: packaged(t, contract, check, watch, list), Service: "health", Endpoint: "grpc",
 		Server: server, Conn: conn, Owner: "installation",
-		Carry: func(ctx context.Context, _ string, scopes []*basev0.WorkScopeV1) (context.Context, error) {
+		Carry: func(ctx context.Context, _ string, scopes []*basev1.WorkScopeV1) (context.Context, error) {
 			return metadata.AppendToOutgoingContext(ctx, hop.WorkContextKey, authority.Issue(t, "module", carry(scopes)...)), nil
 		},
 		Cases: map[string]probe.Case{
@@ -209,7 +209,7 @@ func packaged(t *testing.T, contract []byte, procedures ...string) string {
 // errAbsent is a handler's decision to answer OK with nothing rather than refuse.
 var errAbsent = status.Error(codes.Unknown, "answer as though nothing were there")
 
-func asGiven(scopes []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 { return scopes }
+func asGiven(scopes []*basev1.WorkScopeV1) []*basev1.WorkScopeV1 { return scopes }
 
 func refusing(method string, code codes.Code, unless ...string) rule {
 	return func(called string, holds func(string) bool) error {
@@ -234,7 +234,7 @@ func TestEachDisagreementIsAFinding(t *testing.T) {
 	for name, c := range map[string]struct {
 		declared map[string]*hopv1.Policy
 		decide   rule
-		carry    func([]*basev0.WorkScopeV1) []*basev0.WorkScopeV1
+		carry    func([]*basev1.WorkScopeV1) []*basev1.WorkScopeV1
 		drop     string
 		want     string
 	}{
@@ -243,17 +243,17 @@ func TestEachDisagreementIsAFinding(t *testing.T) {
 		"the same refusal rendered as an empty answer":                       {decide: refusing(list, codes.OK, "records.types:read"), want: list + ": holding exactly what it declares (nothing), the call is answered OK without what was asked for"},
 		"a handler that wants more than its declaration":                     {decide: refusing(check, codes.PermissionDenied, "doc:admin"), want: check + ": holding exactly what it declares (doc:read@installation), the call is answered PermissionDenied"},
 		"a streaming handler with a rule of its own":                         {decide: refusing(watch, codes.PermissionDenied, "doc:read"), want: watch + ": holding exactly what it declares (nothing)"},
-		"a fixture that grants every action": {decide: refusing(check, codes.PermissionDenied, "doc:admin"), carry: func(scopes []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 {
+		"a fixture that grants every action": {decide: refusing(check, codes.PermissionDenied, "doc:admin"), carry: func(scopes []*basev1.WorkScopeV1) []*basev1.WorkScopeV1 {
 			if len(scopes) == 0 {
 				return nil
 			}
-			return []*basev0.WorkScopeV1{{ResourceKind: "doc", Actions: []string{"*"}, ResourceOwnerId: "installation"}}
+			return []*basev1.WorkScopeV1{{ResourceKind: "doc", Actions: []string{"*"}, ResourceOwnerId: "installation"}}
 		}, want: check + ": the call carries doc:*@installation, and the declaration is exactly doc:read@installation"},
-		"a fixture that holds a second permission": {decide: agrees, carry: func(scopes []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 {
+		"a fixture that holds a second permission": {decide: agrees, carry: func(scopes []*basev1.WorkScopeV1) []*basev1.WorkScopeV1 {
 			if len(scopes) == 0 {
 				return nil
 			}
-			return append(scopes, &basev0.WorkScopeV1{ResourceKind: "doc", Actions: []string{"admin"}, ResourceOwnerId: "installation"})
+			return append(scopes, &basev1.WorkScopeV1{ResourceKind: "doc", Actions: []string{"admin"}, ResourceOwnerId: "installation"})
 		}, want: check + ": the call carries doc:admin@installation, doc:read@installation"},
 		"a served procedure with no case":                 {decide: agrees, drop: watch, want: watch + ": has no case"},
 		"a server that does not read what a call carries": {decide: nil, want: "three"},

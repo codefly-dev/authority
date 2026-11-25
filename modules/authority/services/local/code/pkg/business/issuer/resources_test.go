@@ -8,7 +8,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 
 	resources "github.com/codefly-dev/authority/libraries/resources/go"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 
 	"gateway/pkg/business/issuer"
 	"gateway/pkg/business/testkit"
@@ -103,4 +103,4 @@ func TestANarrowedContextCoversOnlyTheIDsItNames(t *testing.T) {
 	}
 }
 
-var _ = basev0.WorkScopeV1{}
+var _ = basev1.WorkScopeV1{}

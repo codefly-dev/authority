@@ -11,7 +11,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // journaled wraps the harness core with a journal that records every event.
@@ -74,7 +74,7 @@ func TestARedeliveryAskingNothingNewReconvergesAnActiveInstallation(t *testing.T
 	// admin's role is as approved.
 	narrowed := solution("a", true)
 	narrowed.Generation = 2
-	narrowed.Roles["user"] = []*basev0.WorkScopeV1{sc("a.note", "read")}
+	narrowed.Roles["user"] = []*basev1.WorkScopeV1{sc("a.note", "read")}
 	if _, err := svc.ApplyModule(h.ctx, narrowed); err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +142,7 @@ func TestARedeliveryAskingMoreOffersAnUpgradeThatKeepsGrants(t *testing.T) {
 
 	wider := solution("a", true)
 	wider.Generation = 2
-	wider.Roles["user"] = []*basev0.WorkScopeV1{sc("a.note", "read", "write"), sc(kind, "read"), sc(legacyKind, "read")}
+	wider.Roles["user"] = []*basev1.WorkScopeV1{sc("a.note", "read", "write"), sc(kind, "read"), sc(legacyKind, "read")}
 	if _, err := svc.ApplyModule(h.ctx, wider); err != nil {
 		t.Fatal(err)
 	}
@@ -352,7 +352,7 @@ func TestGrantsEndOnlyByRevokeAndUninstall(t *testing.T) {
 // addressed is a person's root at target naming binding, then target's hop
 // over it: how a role's audience-addressed grant is exercised, since a token
 // addressed to target never carries what the role holds at the callee alone.
-func (h *harness) addressed(person, target, binding string, scopes ...*basev0.WorkScopeV1) (authority.Issued, error) {
+func (h *harness) addressed(person, target, binding string, scopes ...*basev1.WorkScopeV1) (authority.Issued, error) {
 	r, err := h.svc.IssueForPerson(h.ctx, h.person(person), authority.IssueRequest{Audience: target, Binding: binding})
 	if err != nil {
 		return r, err
@@ -372,7 +372,7 @@ func TestARedeliveryAddingAnAudienceGrantOffersAnUpgrade(t *testing.T) {
 	d := func(generation uint64) domain.Module {
 		m := solution("d", true)
 		m.Generation = generation
-		m.Roles = map[string][]*basev0.WorkScopeV1{domain.AdminRole: {sc("d.note", "read", "write")}, domain.UserRole: {sc("d.note", "read")}}
+		m.Roles = map[string][]*basev1.WorkScopeV1{domain.AdminRole: {sc("d.note", "read", "write")}, domain.UserRole: {sc("d.note", "read")}}
 		return m
 	}
 	for _, legacy := range []bool{false, true} {
@@ -402,7 +402,7 @@ func TestARedeliveryAddingAnAudienceGrantOffersAnUpgrade(t *testing.T) {
 			}
 			before := h.stored(acme, "d")
 			wider := d(2)
-			wider.AudienceRoles = map[string]map[string][]*basev0.WorkScopeV1{"user": {"store": {sc(kind, "read")}}}
+			wider.AudienceRoles = map[string]map[string][]*basev1.WorkScopeV1{"user": {"store": {sc(kind, "read")}}}
 			if _, err := svc.ApplyModule(h.ctx, wider); err != nil {
 				t.Fatal(err)
 			}
@@ -451,8 +451,8 @@ func TestARedeliveryAddressingAHeldScopeToItsAudienceReconverges(t *testing.T) {
 	before := h.stored(acme, "a")
 	moved := solution("a", true)
 	moved.Generation = 2
-	moved.Roles["user"] = []*basev0.WorkScopeV1{sc("a.note", "read"), sc(legacyKind, "read")}
-	moved.AudienceRoles = map[string]map[string][]*basev0.WorkScopeV1{"user": {"store": {sc(kind, "read")}}}
+	moved.Roles["user"] = []*basev1.WorkScopeV1{sc("a.note", "read"), sc(legacyKind, "read")}
+	moved.AudienceRoles = map[string]map[string][]*basev1.WorkScopeV1{"user": {"store": {sc(kind, "read")}}}
 	if _, err := svc.ApplyModule(h.ctx, moved); err != nil {
 		t.Fatal(err)
 	}

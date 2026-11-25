@@ -8,7 +8,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // Every change of authority is journaled in the transaction that makes it,
@@ -45,7 +45,7 @@ func TestEveryChangeIsJournaledInItsOwnTransaction(t *testing.T) {
 		{"a role revoked", func() error { _, err := svc.RevokeRole(h.ctx, alex, user); return err },
 			domain.Event{Kind: domain.RoleRevoked, Organization: acme, Actor: "alex", Subject: inst}},
 		{"a delegation granted", func() error {
-			_, err := svc.Delegate(h.ctx, h.person("rob"), "b", []*basev0.WorkScopeV1{owned(kind, h.principal(acme, "b"), []string{"read"})}, "a purpose", 0)
+			_, err := svc.Delegate(h.ctx, h.person("rob"), "b", []*basev1.WorkScopeV1{owned(kind, h.principal(acme, "b"), []string{"read"})}, "a purpose", 0)
 			return err
 		}, domain.Event{Kind: domain.DelegationGranted, Organization: acme, Actor: "rob"}},
 		{"an installation uninstalled", func() error { return svc.Uninstall(h.ctx, alex, acme, inst) },

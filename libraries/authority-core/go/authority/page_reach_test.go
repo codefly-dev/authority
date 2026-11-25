@@ -8,7 +8,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/google/uuid"
 )
 
@@ -17,9 +17,9 @@ import (
 // readerAtStore and its admin role reading it.
 func pageReachingStore(generation uint64, readerAtStore ...string) domain.Module {
 	m := pageModule(generation, true)
-	m.Bindings = map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write")}}}
-	m.Roles[domain.AdminRole] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(kind, "read")}
-	m.Roles["user"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, readerAtStore...)}
+	m.Bindings = map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: []*basev1.WorkScopeV1{sc(kind, "read", "write")}}}
+	m.Roles[domain.AdminRole] = []*basev1.WorkScopeV1{sc("pages.note", "read", "write"), sc(kind, "read")}
+	m.Roles["user"] = []*basev1.WorkScopeV1{sc("pages.note", "read"), sc(kind, readerAtStore...)}
 	return m
 }
 
@@ -105,7 +105,7 @@ func TestADeliveryWideningAPageRolesReachHoldsItsInstallationAtTheApprovedReach(
 	_, err = h.approvePage(svc, "maya")
 	refused(t, err, "requires an administrator")
 	nine := pageReachingStore(9, "read", "write")
-	nine.Roles[domain.AdminRole] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(kind, "read", "write")}
+	nine.Roles[domain.AdminRole] = []*basev1.WorkScopeV1{sc("pages.note", "read", "write"), sc(kind, "read", "write")}
 	if _, err := svc.ApplyModule(h.ctx, nine); err != nil {
 		t.Fatal(err)
 	}
@@ -211,7 +211,7 @@ const recordsKind = "records.row"
 
 func records(generation uint64) domain.Module {
 	return domain.Module{Name: "records", Principal: "records", Kind: domain.KindModule, Generation: generation,
-		ResourceKinds: []*basev0.WorkScopeV1{sc(recordsKind, "read", "write")}}
+		ResourceKinds: []*basev1.WorkScopeV1{sc(recordsKind, "read", "write")}}
 }
 
 // pageReachingRecords is the module page with a binding "records-rows" to
@@ -219,9 +219,9 @@ func records(generation uint64) domain.Module {
 // admin reading and writing.
 func pageReachingRecords(generation uint64) domain.Module {
 	m := pageModule(generation, true)
-	m.Bindings = map[string]domain.Binding{"records-rows": {ID: "records-rows", Audience: "records", InvokeScopes: []*basev0.WorkScopeV1{sc(recordsKind, "read", "write")}}}
-	m.Roles[domain.AdminRole] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(recordsKind, "read", "write")}
-	m.Roles["user"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(recordsKind, "read")}
+	m.Bindings = map[string]domain.Binding{"records-rows": {ID: "records-rows", Audience: "records", InvokeScopes: []*basev1.WorkScopeV1{sc(recordsKind, "read", "write")}}}
+	m.Roles[domain.AdminRole] = []*basev1.WorkScopeV1{sc("pages.note", "read", "write"), sc(recordsKind, "read", "write")}
+	m.Roles["user"] = []*basev1.WorkScopeV1{sc("pages.note", "read"), sc(recordsKind, "read")}
 	return m
 }
 
@@ -319,7 +319,7 @@ func TestAModuleComposedForTheFirstTimeApprovesNoUpgradePending(t *testing.T) {
 	h := newHarness(t)
 	svc, _ := journaled(h)
 	page := pageReachingRecords(1)
-	page.Bindings["tally-rows"] = domain.Binding{ID: "tally-rows", Audience: "tally", InvokeScopes: []*basev0.WorkScopeV1{sc("tally.row", "read")}}
+	page.Bindings["tally-rows"] = domain.Binding{ID: "tally-rows", Audience: "tally", InvokeScopes: []*basev1.WorkScopeV1{sc("tally.row", "read")}}
 	page.Roles["user"] = append(page.Roles["user"], sc("tally.row", "read"))
 	page.Roles[domain.AdminRole] = append(page.Roles[domain.AdminRole], sc("tally.row", "read"))
 	if _, err := svc.ApplyModule(h.ctx, page); err != nil {
@@ -336,7 +336,7 @@ func TestAModuleComposedForTheFirstTimeApprovesNoUpgradePending(t *testing.T) {
 		t.Fatal(err)
 	}
 	pending := h.pagesAt(acme).Consent
-	tally := domain.Module{Name: "tally", Principal: "tally", Kind: domain.KindModule, Generation: 1, ResourceKinds: []*basev0.WorkScopeV1{sc("tally.row", "read", "write")}}
+	tally := domain.Module{Name: "tally", Principal: "tally", Kind: domain.KindModule, Generation: 1, ResourceKinds: []*basev1.WorkScopeV1{sc("tally.row", "read", "write")}}
 	if _, err := svc.ApplyModule(h.ctx, tally); err != nil {
 		t.Fatal(err)
 	}
@@ -418,7 +418,7 @@ func TestAStandInReplacedByItsDeliveryHoldsThePageAtTheDeliveredModule(t *testin
 	}
 	h.grant("pages", "user", "maya")
 	delivered := records(1)
-	delivered.Methods = map[string]domain.MethodPolicy{"/records.v1.Rows/List": {Requires: []*basev0.WorkScopeV1{sc(recordsKind, "read")}}}
+	delivered.Methods = map[string]domain.MethodPolicy{"/records.v1.Rows/List": {Requires: []*basev1.WorkScopeV1{sc(recordsKind, "read")}}}
 	if _, err := svc.ApplyModule(h.ctx, delivered); err != nil {
 		t.Fatal(err)
 	}
@@ -472,7 +472,7 @@ func TestACastOntoAPageReaderTeamReachesThePagesBindingInEitherOrder(t *testing.
 				t.Fatalf("page first %v: %s's cast at records: %v", pageFirst, who, err)
 			}
 			exactly(t, read, recordsKind, "", []string{"read"})
-			_, err = svc.IssueChild(h.ctx, root.Token, hop, authority.IssueRequest{Binding: "records-rows", Scopes: []*basev0.WorkScopeV1{sc(recordsKind, "write")}})
+			_, err = svc.IssueChild(h.ctx, root.Token, hop, authority.IssueRequest{Binding: "records-rows", Scopes: []*basev1.WorkScopeV1{sc(recordsKind, "write")}})
 			refused(t, err, `binding "records-rows"`)
 		}
 	}

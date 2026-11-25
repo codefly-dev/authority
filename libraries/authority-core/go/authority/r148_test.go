@@ -7,12 +7,12 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 func storeModule(generation uint64) domain.Module {
 	return domain.Module{Name: "store", Principal: "store", Kind: domain.KindModule, Generation: generation, OwnerAware: true,
-		ResourceKinds: []*basev0.WorkScopeV1{sc(kind, "admin", "create", "read", "write")}}
+		ResourceKinds: []*basev1.WorkScopeV1{sc(kind, "admin", "create", "read", "write")}}
 }
 
 // M1: a module's installation is never uninstalled by an administrator (it is

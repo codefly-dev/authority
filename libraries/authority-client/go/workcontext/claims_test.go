@@ -15,14 +15,14 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
 	reader "github.com/codefly-dev/authority/libraries/authority-client/go/workcontext"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	core "github.com/codefly-dev/core/workcontext"
 	"google.golang.org/protobuf/proto"
 )
 
 type fixture struct {
 	Name, Token, Audience string
-	Scopes                []*basev0.WorkScopeV1
+	Scopes                []*basev1.WorkScopeV1
 	Probes                []struct {
 		Kind, Action string
 		ResourceID   string `json:"resource_id"`
@@ -44,7 +44,7 @@ func fixtures(t *testing.T) []fixture {
 	}
 	return out
 }
-func body(t *testing.T, name string) *basev0.WorkContextV1 {
+func body(t *testing.T, name string) *basev1.WorkContextV1 {
 	t.Helper()
 	for _, f := range fixtures(t) {
 		if f.Name == name {
@@ -62,12 +62,12 @@ func body(t *testing.T, name string) *basev0.WorkContextV1 {
 // The test authority: a key of the test's own, never Core's public fixture key.
 var signer = ed25519.NewKeyFromSeed(make([]byte, ed25519.SeedSize))
 
-func trustFor(c *basev0.WorkContextV1) reader.Trust {
+func trustFor(c *basev1.WorkContextV1) reader.Trust {
 	at := time.Unix(c.GetNotBeforeUnix(), 0).Add(time.Second)
 	return reader.Trust{Issuer: c.GetIssuer(), Keys: map[string]ed25519.PublicKey{c.GetKeyId(): signer.Public().(ed25519.PublicKey)}, Now: func() time.Time { return at }}
 }
 
-func signWith(t *testing.T, key ed25519.PrivateKey, c *basev0.WorkContextV1) string {
+func signWith(t *testing.T, key ed25519.PrivateKey, c *basev1.WorkContextV1) string {
 	t.Helper()
 	b, err := (proto.MarshalOptions{Deterministic: true}).Marshal(c)
 	if err != nil {
@@ -76,9 +76,9 @@ func signWith(t *testing.T, key ed25519.PrivateKey, c *basev0.WorkContextV1) str
 	return base64.RawURLEncoding.EncodeToString(b) + "." + base64.RawURLEncoding.EncodeToString(ed25519.Sign(key, b))
 }
 
-func tokenFor(t *testing.T, c *basev0.WorkContextV1) string { return signWith(t, signer, c) }
+func tokenFor(t *testing.T, c *basev1.WorkContextV1) string { return signWith(t, signer, c) }
 
-func read(t *testing.T, c *basev0.WorkContextV1) *reader.Claims {
+func read(t *testing.T, c *basev1.WorkContextV1) *reader.Claims {
 	t.Helper()
 	out, err := reader.AuthenticateToken(tokenFor(t, c), c.GetAudience(), trustFor(c))
 	if err != nil {
@@ -116,7 +116,7 @@ func TestCoreFixtures(t *testing.T) {
 }
 func TestSeparateGrantsAndWholeKind(t *testing.T) {
 	c := body(t, "session")
-	c.AuthorityScopes = []*basev0.WorkScopeV1{
+	c.AuthorityScopes = []*basev1.WorkScopeV1{
 		{ResourceKind: "record", Actions: []string{"read"}, ResourceIds: []string{"a"}},
 		{ResourceKind: "record", Actions: []string{"invoke"}, ResourceIds: []string{"b"}},
 	}
@@ -135,7 +135,7 @@ func TestSeparateGrantsAndWholeKind(t *testing.T) {
 	if claims.Allows("record", "invoke", "a") {
 		t.Fatal("mutable scope escaped")
 	}
-	c.AuthorityScopes = []*basev0.WorkScopeV1{{ResourceKind: "record", Actions: []string{"read", "admin", "*"}}}
+	c.AuthorityScopes = []*basev1.WorkScopeV1{{ResourceKind: "record", Actions: []string{"read", "admin", "*"}}}
 	claims = read(t, c)
 	if !claims.Allows("record", "read", "") || !claims.Allows("record", "read", "a") || claims.Allows("record", "invoke", "a") || claims.Allows("", "read", "") || claims.Allows("record", "", "") {
 		t.Fatal("literal scope semantics changed")
@@ -198,7 +198,7 @@ func TestAForgedOrMisaddressedContextIsRefusedByName(t *testing.T) {
 	trust := trustFor(session)
 	_, other, _ := ed25519.GenerateKey(nil)
 	payload, _, _ := strings.Cut(tokenFor(t, session), ".")
-	foreign := proto.Clone(session).(*basev0.WorkContextV1)
+	foreign := proto.Clone(session).(*basev1.WorkContextV1)
 	foreign.Issuer = "https://forger.example"
 	for name, c := range map[string]struct {
 		token, audience, reason string

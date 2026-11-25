@@ -3,7 +3,7 @@ package authority
 import (
 	"context"
 	"errors"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"slices"
 	"strings"
 
@@ -191,7 +191,7 @@ func attachmentServer(tx Tx, caller Workload, kind string) (domain.Module, error
 }
 
 func mayAttach(scopes Scopes, kind, installationPrincipal string) bool {
-	return slices.ContainsFunc(scopes, func(sc *basev0.WorkScopeV1) bool {
+	return slices.ContainsFunc(scopes, func(sc *basev1.WorkScopeV1) bool {
 		if sc.GetResourceKind() != kind {
 			return false
 		}
@@ -208,13 +208,13 @@ func ownCreate(scopes Scopes, kind, principal string) bool {
 	if principal == "" {
 		return false
 	}
-	return mayAttach(slices.DeleteFunc(slices.Clone(scopes), func(sc *basev0.WorkScopeV1) bool {
+	return mayAttach(slices.DeleteFunc(slices.Clone(scopes), func(sc *basev1.WorkScopeV1) bool {
 		return sc.GetResourceOwnerId() != principal
 	}), kind, principal)
 }
 
 // attachmentFresh fences verification against changes before the write snapshot.
-func (s *Service) attachmentFresh(tx Tx, wc *basev0.WorkContextV1) error {
+func (s *Service) attachmentFresh(tx Tx, wc *basev1.WorkContextV1) error {
 	revision, err := tx.AuthorizationRevision(wc.GetTenantId())
 	if err != nil {
 		return err

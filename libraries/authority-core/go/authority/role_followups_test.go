@@ -7,11 +7,11 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // at is solution name redelivered at generation, with the roles given.
-func at(name string, generation uint64, roles map[string][]*basev0.WorkScopeV1) domain.Module {
+func at(name string, generation uint64, roles map[string][]*basev1.WorkScopeV1) domain.Module {
 	m := solution(name, true)
 	m.Generation, m.Roles = generation, roles
 	return m
@@ -62,7 +62,7 @@ func TestARedeliveryDroppingARoleDropsItsGrants(t *testing.T) {
 	// Declared again, and wider: the old holders hold nothing, before the
 	// upgrade is approved and after it, until granted.
 	wider := pageModule(3, true)
-	wider.Roles["user"] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}
+	wider.Roles["user"] = []*basev1.WorkScopeV1{sc("pages.note", "read", "write")}
 	if _, err := svc.ApplyModule(h.ctx, wider); err != nil {
 		t.Fatal(err)
 	}
@@ -93,22 +93,22 @@ func TestAModulePageRoleNamesWhatItServesOrConsumes(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	m := pageModule(1, true)
-	m.Bindings = map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read")}}}
-	m.Roles["user"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read")}
+	m.Bindings = map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: []*basev1.WorkScopeV1{sc(kind, "read")}}}
+	m.Roles["user"] = []*basev1.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read")}
 	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
 		t.Fatalf("a page role naming what its binding consumes is accepted: %v", err)
 	}
 	m.Generation = 2
-	m.Roles["user"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read", "write")}
+	m.Roles["user"] = []*basev1.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read", "write")}
 	_, err := h.svc.ApplyModule(h.ctx, m)
 	refused(t, err, "grants beyond what pages serves or explicitly consumes")
-	m.Through = map[string]map[string][]*basev0.WorkScopeV1{"user": {"store": {sc(kind, "write")}}}
+	m.Through = map[string]map[string][]*basev1.WorkScopeV1{"user": {"store": {sc(kind, "write")}}}
 	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
 		t.Fatalf("the store's own binding reaches the kind's write, so a role may name it through the binding: %v", err)
 	}
 	m.Generation = 3
-	m.Roles["user"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read"), sc("unreached.kind", "read")}
-	m.Through = map[string]map[string][]*basev0.WorkScopeV1{"user": {"store": {sc("unreached.kind", "read")}}}
+	m.Roles["user"] = []*basev1.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read"), sc("unreached.kind", "read")}
+	m.Through = map[string]map[string][]*basev1.WorkScopeV1{"user": {"store": {sc("unreached.kind", "read")}}}
 	_, err = h.svc.ApplyModule(h.ctx, m)
 	refused(t, err, `names unreached.kind:read through binding "store", which reaches it nowhere`)
 }

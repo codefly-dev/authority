@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // A host composes one delivery on more than one path at once (its delivery
@@ -23,8 +23,8 @@ func TestARedeliveryOfTheHeldGenerationIsAReplay(t *testing.T) {
 	// order, an empty set spelled as absent.
 	again := solution("a", true)
 	user := again.Roles["user"]
-	again.Roles["user"] = []*basev0.WorkScopeV1{user[2], user[0], user[1]}
-	again.OwnedRoles = map[string][]*basev0.WorkScopeV1{}
+	again.Roles["user"] = []*basev1.WorkScopeV1{user[2], user[0], user[1]}
+	again.OwnedRoles = map[string][]*basev1.WorkScopeV1{}
 	ids, err := h.svc.ApplyModule(h.ctx, again)
 	if err != nil {
 		t.Fatalf("the held generation, delivered again, was refused: %v", err)

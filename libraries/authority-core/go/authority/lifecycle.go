@@ -11,7 +11,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // composition is every composed module by principal.
@@ -117,23 +117,23 @@ func asStored(m domain.Module) domain.Module {
 			InvokeScopes: scope.Normalize(b.InvokeScopes), HeadlessScopes: scope.Normalize(b.HeadlessScopes), LookupScopes: scope.Normalize(b.LookupScopes)}
 	}
 	m.Bindings = bindings
-	roles := func(in map[string][]*basev0.WorkScopeV1, keepEmpty bool) map[string][]*basev0.WorkScopeV1 {
+	roles := func(in map[string][]*basev1.WorkScopeV1, keepEmpty bool) map[string][]*basev1.WorkScopeV1 {
 		if len(in) == 0 && !(keepEmpty && in != nil) {
 			return nil
 		}
-		out := make(map[string][]*basev0.WorkScopeV1, len(in))
+		out := make(map[string][]*basev1.WorkScopeV1, len(in))
 		for name, s := range in {
 			out[name] = scope.Normalize(s)
 		}
 		return out
 	}
 	m.Roles, m.OwnedRoles = roles(m.Roles, true), roles(m.OwnedRoles, false)
-	normalizeAddressed := func(in map[string]map[string][]*basev0.WorkScopeV1) map[string]map[string][]*basev0.WorkScopeV1 {
-		var out map[string]map[string][]*basev0.WorkScopeV1
+	normalizeAddressed := func(in map[string]map[string][]*basev1.WorkScopeV1) map[string]map[string][]*basev1.WorkScopeV1 {
+		var out map[string]map[string][]*basev1.WorkScopeV1
 		for role, byKey := range in {
 			if kept := roles(byKey, false); kept != nil {
 				if out == nil {
-					out = map[string]map[string][]*basev0.WorkScopeV1{}
+					out = map[string]map[string][]*basev1.WorkScopeV1{}
 				}
 				out[role] = kept
 			}

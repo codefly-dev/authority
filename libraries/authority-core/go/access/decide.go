@@ -6,7 +6,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // Node is one resource as the serving module records it: a collection, a
@@ -49,7 +49,7 @@ type Party struct {
 	// Owns is the installation principal whose data is the party's own.
 	Owns string
 	// Scopes are the scopes the party contributes to the capability.
-	Scopes []*basev0.WorkScopeV1
+	Scopes []*basev1.WorkScopeV1
 }
 
 // Question is one decision's inputs, all read already: Decide reads nothing.
@@ -57,7 +57,7 @@ type Question struct {
 	Action    string
 	Placement Placement
 	// Effective are the capability's effective scopes, after every hop.
-	Effective []*basev0.WorkScopeV1
+	Effective []*basev1.WorkScopeV1
 	// Owner is the capability's owner; Actors its chain.
 	Owner  Party
 	Actors []Party
@@ -93,7 +93,7 @@ type Decision struct {
 // Ceiling refuses a capability whose effective scopes do not hold action on
 // kind at all, whatever resources they select: no grant widens what a
 // capability may do at a kind, only which of its resources it reaches.
-func Ceiling(effective []*basev0.WorkScopeV1, kind, action string) error {
+func Ceiling(effective []*basev1.WorkScopeV1, kind, action string) error {
 	if !scope.HoldsAction(effective, kind, action) {
 		return domain.Refuse("the capability holds no %s:%s", kind, action)
 	}
@@ -193,8 +193,8 @@ func covers(g domain.AccessGrant, p Placement) (Basis, bool) {
 // Selects is whether a scope of scopes selects node for action: of the
 // node's kind, holding the action, naming the node's id when it names ids and
 // the node's attested owner when it names an owner.
-func Selects(scopes []*basev0.WorkScopeV1, n Node, action string) bool {
-	return slices.ContainsFunc(scopes, func(sc *basev0.WorkScopeV1) bool {
+func Selects(scopes []*basev1.WorkScopeV1, n Node, action string) bool {
+	return slices.ContainsFunc(scopes, func(sc *basev1.WorkScopeV1) bool {
 		if sc.GetResourceKind() != n.Kind {
 			return false
 		}

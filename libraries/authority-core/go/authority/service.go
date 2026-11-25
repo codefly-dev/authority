@@ -17,7 +17,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/codefly-dev/core/workcontext"
 	"github.com/google/uuid"
 )
@@ -382,7 +382,7 @@ func (src sources) fenceIn(tx Tx, organization, owner, installationID string) (f
 	return fence{revision, seal.InstallationRevision, epoch}, nil
 }
 
-func (f fence) holds(signed *basev0.WorkContextV1) error {
+func (f fence) holds(signed *basev1.WorkContextV1) error {
 	if signed.GetAuthorizationRevision() != f.revision || signed.GetSeal().GetInstallationRevision() != f.seal || signed.GetSeal().GetPrincipalEpoch() != f.epoch {
 		return domain.Refuse("permissions changed during issuance")
 	}
@@ -505,4 +505,4 @@ func sortedTeams(teams []string) []string {
 }
 
 // Scopes is a scope list.
-type Scopes = []*basev0.WorkScopeV1
+type Scopes = []*basev1.WorkScopeV1

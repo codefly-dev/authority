@@ -18,7 +18,7 @@ import (
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
 	"github.com/codefly-dev/authority/libraries/authority-client/go/workcontext"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	core "github.com/codefly-dev/core/workcontext"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -45,7 +45,7 @@ func (s signer) published() *authorityv1.PublicKey {
 	return &authorityv1.PublicKey{KeyId: s.id, Algorithm: core.Algorithm, PublicKey: s.key.Public().(ed25519.PublicKey), Purpose: workContextPurpose}
 }
 
-func (s signer) issue(t *testing.T, at time.Time, audience string, scopes ...*basev0.WorkScopeV1) string {
+func (s signer) issue(t *testing.T, at time.Time, audience string, scopes ...*basev1.WorkScopeV1) string {
 	t.Helper()
 	a := &core.Authority{Issuer: s.issuer, KeyID: s.id, Key: s.key, Revisions: core.FixtureRevisions(), Seals: core.FixtureSeals(), Now: func() time.Time { return at }}
 	token, _, err := a.Start(context.Background(), core.StartInput{
@@ -161,7 +161,7 @@ func TestTheStampFixtureAuthenticatesAsTheHopWroteIt(t *testing.T) {
 	s := newSigner("fixture")
 	if *updateFixture {
 		at := time.Unix(1792818000, 0)
-		token := s.issue(t, at, "documents", &basev0.WorkScopeV1{ResourceKind: "documents.collection", Actions: []string{"read"}}, &basev0.WorkScopeV1{ResourceKind: "documents.collection", Actions: []string{"write"}, ResourceIds: []string{"c-1"}})
+		token := s.issue(t, at, "documents", &basev1.WorkScopeV1{ResourceKind: "documents.collection", Actions: []string{"read"}}, &basev1.WorkScopeV1{ResourceKind: "documents.collection", Actions: []string{"write"}, ResourceIds: []string{"c-1"}})
 		md := forwarded(t, token, "fixture-proof", "")
 		published, _ := protojson.Marshal(&authorityv1.KeysResponse{Issuer: s.issuer, Keys: []*authorityv1.PublicKey{s.published()}, AdmissionKeys: []*authorityv1.PublicKey{publishedHop("fixture-proof")}})
 		f := stampFixture{Audience: "documents", Now: at.Unix(), Keys: published, Headers: map[string]string{}}
@@ -206,7 +206,7 @@ func TestTheStampFixtureAuthenticatesAsTheHopWroteIt(t *testing.T) {
 	}
 }
 
-func mustDecode(t *testing.T, token string) *basev0.WorkContextV1 {
+func mustDecode(t *testing.T, token string) *basev1.WorkContextV1 {
 	t.Helper()
 	d, err := core.Decode(token)
 	if err != nil {
@@ -446,9 +446,9 @@ func TestAReadIsBoundedByItsOwnTimeout(t *testing.T) {
 // An actor granted nothing narrows the identity to nothing, as Core's
 // EffectiveScopes does (review r44 m1).
 func TestAnActorGrantedNothingNarrowsToNothing(t *testing.T) {
-	id := IdentityOf(&basev0.WorkContextV1{
-		AuthorityScopes: []*basev0.WorkScopeV1{{ResourceKind: "documents", Actions: []string{"read"}}},
-		ActorChain:      []*basev0.WorkActorV1{{PrincipalId: "robin"}},
+	id := IdentityOf(&basev1.WorkContextV1{
+		AuthorityScopes: []*basev1.WorkScopeV1{{ResourceKind: "documents", Actions: []string{"read"}}},
+		ActorChain:      []*basev1.WorkActorV1{{PrincipalId: "robin"}},
 	})
 	if len(id.Scopes) != 0 || id.Has("documents", "read") {
 		t.Fatalf("identity: %+v", id)

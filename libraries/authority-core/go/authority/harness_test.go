@@ -15,7 +15,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/memstore"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // The fixture mirrors the conformance target (RunSolutionPrincipalTarget): two
@@ -48,26 +48,26 @@ type harness struct {
 	ctx   context.Context
 }
 
-func sc(k string, actions ...string) *basev0.WorkScopeV1 {
-	return &basev0.WorkScopeV1{ResourceKind: k, Actions: actions}
+func sc(k string, actions ...string) *basev1.WorkScopeV1 {
+	return &basev1.WorkScopeV1{ResourceKind: k, Actions: actions}
 }
 
-func owned(k, owner string, actions []string, ids ...string) *basev0.WorkScopeV1 {
-	return &basev0.WorkScopeV1{ResourceKind: k, Actions: actions, ResourceIds: ids, ResourceOwnerId: owner}
+func owned(k, owner string, actions []string, ids ...string) *basev1.WorkScopeV1 {
+	return &basev1.WorkScopeV1{ResourceKind: k, Actions: actions, ResourceIds: ids, ResourceOwnerId: owner}
 }
 
 func solution(name string, ownerAware bool) domain.Module {
 	own := name + ".note"
 	return domain.Module{Name: name, Principal: name, Kind: domain.KindSolution, Generation: 1, OwnerAware: ownerAware,
-		ResourceKinds: []*basev0.WorkScopeV1{sc(own, "read", "write")},
+		ResourceKinds: []*basev1.WorkScopeV1{sc(own, "read", "write")},
 		Bindings: map[string]domain.Binding{
-			"store":  {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "admin", "create", "read", "write")}},
-			"legacy": {ID: "legacy", Audience: "legacy-store", InvokeScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}},
+			"store":  {ID: "store", Audience: "store", InvokeScopes: []*basev1.WorkScopeV1{sc(kind, "admin", "create", "read", "write")}},
+			"legacy": {ID: "legacy", Audience: "legacy-store", InvokeScopes: []*basev1.WorkScopeV1{sc(legacyKind, "read")}},
 		},
 		// The two roles a solution declares. Neither holds the store's admin
 		// action, which the store binding offers: what no role names is
 		// beyond every person and the installation's agent.
-		Roles: map[string][]*basev0.WorkScopeV1{
+		Roles: map[string][]*basev1.WorkScopeV1{
 			domain.AdminRole: {sc(own, "read", "write"), sc(kind, "create", "read", "write")},
 			domain.UserRole:  {sc(own, "read"), sc(kind, "read"), sc(legacyKind, "read")},
 		}}
@@ -80,12 +80,12 @@ func newHarness(t *testing.T) *harness {
 	h := bareHarness(t)
 	for _, m := range []domain.Module{
 		{Name: "store", Principal: "store", Kind: domain.KindModule, Generation: 1, OwnerAware: true,
-			ResourceKinds: []*basev0.WorkScopeV1{sc(kind, "admin", "create", "read", "write")},
+			ResourceKinds: []*basev1.WorkScopeV1{sc(kind, "admin", "create", "read", "write")},
 			Bindings: map[string]domain.Binding{
-				"self":   {ID: "self", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write")}, HeadlessScopes: []*basev0.WorkScopeV1{sc(kind, "read")}},
-				"legacy": {ID: "legacy", Audience: "legacy-store", InvokeScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}},
+				"self":   {ID: "self", Audience: "store", InvokeScopes: []*basev1.WorkScopeV1{sc(kind, "read", "write")}, HeadlessScopes: []*basev1.WorkScopeV1{sc(kind, "read")}},
+				"legacy": {ID: "legacy", Audience: "legacy-store", InvokeScopes: []*basev1.WorkScopeV1{sc(legacyKind, "read")}},
 			}},
-		{Name: "legacy-store", Principal: "legacy-store", Kind: domain.KindModule, Generation: 1, ResourceKinds: []*basev0.WorkScopeV1{sc(legacyKind, "read")}},
+		{Name: "legacy-store", Principal: "legacy-store", Kind: domain.KindModule, Generation: 1, ResourceKinds: []*basev1.WorkScopeV1{sc(legacyKind, "read")}},
 		ledger(),
 		solution("a", true), solution("b", true), solution("c", false),
 	} {
@@ -203,12 +203,12 @@ func (h *harness) revoke(target, role, person, team string) {
 	}
 }
 
-func (h *harness) root(person, target string, scopes ...*basev0.WorkScopeV1) (authority.Issued, error) {
+func (h *harness) root(person, target string, scopes ...*basev1.WorkScopeV1) (authority.Issued, error) {
 	return h.svc.IssueForPerson(h.ctx, h.person(person), authority.IssueRequest{Audience: target, Scopes: scopes})
 }
 
 // through is a person at target, then target's hop to the store (or binding).
-func (h *harness) through(person, target, binding string, scopes ...*basev0.WorkScopeV1) (authority.Issued, error) {
+func (h *harness) through(person, target, binding string, scopes ...*basev1.WorkScopeV1) (authority.Issued, error) {
 	r, err := h.root(person, target)
 	if err != nil {
 		return r, err
@@ -216,11 +216,11 @@ func (h *harness) through(person, target, binding string, scopes ...*basev0.Work
 	return h.svc.IssueChild(h.ctx, r.Token, authority.Workload{Module: target}, authority.IssueRequest{Binding: binding, Scopes: scopes})
 }
 
-func (h *harness) hop(parent authority.Issued, binding string, scopes ...*basev0.WorkScopeV1) (authority.Issued, error) {
+func (h *harness) hop(parent authority.Issued, binding string, scopes ...*basev1.WorkScopeV1) (authority.Issued, error) {
 	return h.svc.IssueChild(h.ctx, parent.Token, authority.Workload{Module: "store"}, authority.IssueRequest{Binding: binding, Scopes: scopes})
 }
 
-func (h *harness) agent(target, binding string, scopes ...*basev0.WorkScopeV1) (authority.Issued, error) {
+func (h *harness) agent(target, binding string, scopes ...*basev1.WorkScopeV1) (authority.Issued, error) {
 	audience := target
 	if binding != "" {
 		audience = map[string]string{"store": "store", "legacy": "legacy-store"}[binding]
@@ -257,7 +257,7 @@ func code(t *testing.T, err error, want domain.Code) {
 }
 
 // effective is a capability's effective scopes.
-func effective(i authority.Issued) []*basev0.WorkScopeV1 {
+func effective(i authority.Issued) []*basev1.WorkScopeV1 {
 	if chain := i.Context.GetActorChain(); len(chain) > 0 {
 		return chain[len(chain)-1].GetGrantedScopes()
 	}
@@ -268,7 +268,7 @@ func effective(i authority.Issued) []*basev0.WorkScopeV1 {
 // actions, owner and ids.
 func exactly(t *testing.T, i authority.Issued, k, owner string, actions []string, ids ...string) {
 	t.Helper()
-	var rows []*basev0.WorkScopeV1
+	var rows []*basev1.WorkScopeV1
 	for _, s := range effective(i) {
 		if len(s.GetActions()) > 0 {
 			rows = append(rows, s)

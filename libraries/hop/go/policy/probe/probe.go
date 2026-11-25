@@ -51,7 +51,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/hop/go"
 	"github.com/codefly-dev/authority/libraries/hop/go/policy"
 	"github.com/codefly-dev/core/composition"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/codefly-dev/core/workcontext"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -95,7 +95,7 @@ type Module struct {
 	// method. The probe has already decided the call as the hop does
 	// (policy.Admit); it reads the Work Context back and refuses one that
 	// holds anything else.
-	Carry func(ctx context.Context, method string, scopes []*basev0.WorkScopeV1) (context.Context, error)
+	Carry func(ctx context.Context, method string, scopes []*basev1.WorkScopeV1) (context.Context, error)
 	// Cases is one call per registered procedure, by "/package.Service/Method".
 	Cases map[string]Case
 }
@@ -294,13 +294,13 @@ func (m Module) invoke(ctx context.Context, method string, descriptor protorefle
 
 // exactly is one scope per declared permission, selected to owner, and nothing
 // else: no wildcard action, no second kind, no unselected scope.
-func exactly(requires []policy.Permission, owner string) []*basev0.WorkScopeV1 {
-	var scopes []*basev0.WorkScopeV1
+func exactly(requires []policy.Permission, owner string) []*basev1.WorkScopeV1 {
+	var scopes []*basev1.WorkScopeV1
 	for _, p := range requires {
-		if !slices.ContainsFunc(scopes, func(s *basev0.WorkScopeV1) bool {
+		if !slices.ContainsFunc(scopes, func(s *basev1.WorkScopeV1) bool {
 			return s.GetResourceKind() == p.Kind && s.GetActions()[0] == p.Action
 		}) {
-			scopes = append(scopes, &basev0.WorkScopeV1{ResourceKind: p.Kind, Actions: []string{p.Action}, ResourceOwnerId: owner})
+			scopes = append(scopes, &basev1.WorkScopeV1{ResourceKind: p.Kind, Actions: []string{p.Action}, ResourceOwnerId: owner})
 		}
 	}
 	return scopes
@@ -309,7 +309,7 @@ func exactly(requires []policy.Permission, owner string) []*basev0.WorkScopeV1 {
 // holdsExactly reads the Work Context the call carries and answers why it is
 // not exactly scopes: a fixture that grants more would hide a handler that
 // wants more than the method declares.
-func holdsExactly(ctx context.Context, scopes []*basev0.WorkScopeV1) string {
+func holdsExactly(ctx context.Context, scopes []*basev1.WorkScopeV1) string {
 	md, _ := metadata.FromOutgoingContext(ctx)
 	tokens := md.Get(hop.WorkContextKey)
 	if len(tokens) != 1 {
@@ -330,7 +330,7 @@ func holdsExactly(ctx context.Context, scopes []*basev0.WorkScopeV1) string {
 }
 
 // describe spells scopes canonically, one "kind:action@owner[ids]" per action.
-func describe(scopes []*basev0.WorkScopeV1) string {
+func describe(scopes []*basev1.WorkScopeV1) string {
 	points := map[string]bool{}
 	for _, s := range scopes {
 		for _, action := range s.GetActions() {

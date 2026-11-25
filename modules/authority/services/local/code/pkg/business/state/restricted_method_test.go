@@ -7,7 +7,7 @@ import (
 
 	"gateway/pkg/business/state"
 	"gateway/pkg/business/testkit"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 func TestMethodAdmissionNeverWidensResourceRestrictedScopes(t *testing.T) {
@@ -15,7 +15,7 @@ func TestMethodAdmissionNeverWidensResourceRestrictedScopes(t *testing.T) {
 	m := state.Manifest{Name: "gauge", Principal: "gauge", Kind: "module", Generation: 1,
 		Methods: map[string]state.MethodPolicy{
 			"/gauge.Service/List": reads("gauge.items"),
-			"/gauge.Service/Edit": {Requires: []*basev0.WorkScopeV1{scope("gauge.items", nil, "read", "write")}},
+			"/gauge.Service/Edit": {Requires: []*basev1.WorkScopeV1{scope("gauge.items", nil, "read", "write")}},
 			"/gauge.Service/Ping": {AnyCheckedCaller: true},
 		}}
 	if _, err := k.State.ApplyManifest(m); err != nil {
@@ -23,19 +23,19 @@ func TestMethodAdmissionNeverWidensResourceRestrictedScopes(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		name, method string
-		held         []*basev0.WorkScopeV1
+		held         []*basev1.WorkScopeV1
 		allow        bool
 	}{
-		{"one resource", "List", []*basev0.WorkScopeV1{scope("gauge.items", []string{"one"}, "read")}, true},
-		{"several resource scopes", "List", []*basev0.WorkScopeV1{scope("gauge.items", []string{"one"}, "read"), scope("gauge.items", []string{"two"}, "read")}, true},
-		{"restricted wildcard", "List", []*basev0.WorkScopeV1{scope("gauge.items", []string{"one"}, state.AnyAction)}, true},
-		{"whole kind", "List", []*basev0.WorkScopeV1{scope("gauge.items", nil, "read")}, true},
-		{"whole wildcard", "Edit", []*basev0.WorkScopeV1{scope("gauge.items", nil, state.AnyAction)}, true},
-		{"whole wildcard alongside restricted action", "List", []*basev0.WorkScopeV1{scope("gauge.items", nil, state.AnyAction), scope("gauge.items", []string{"one"}, "read")}, true},
-		{"whole read restricted write", "Edit", []*basev0.WorkScopeV1{scope("gauge.items", nil, "read"), scope("gauge.items", []string{"one"}, "write")}, true},
-		{"whole grant alongside restricted", "List", []*basev0.WorkScopeV1{scope("gauge.items", []string{"one"}, "read"), scope("gauge.items", nil, "read")}, true},
-		{"checked caller", "Ping", []*basev0.WorkScopeV1{scope("gauge.items", []string{"one"}, "read")}, true},
-		{"missing write", "Edit", []*basev0.WorkScopeV1{scope("gauge.items", []string{"one"}, "read")}, false},
+		{"one resource", "List", []*basev1.WorkScopeV1{scope("gauge.items", []string{"one"}, "read")}, true},
+		{"several resource scopes", "List", []*basev1.WorkScopeV1{scope("gauge.items", []string{"one"}, "read"), scope("gauge.items", []string{"two"}, "read")}, true},
+		{"restricted wildcard", "List", []*basev1.WorkScopeV1{scope("gauge.items", []string{"one"}, state.AnyAction)}, true},
+		{"whole kind", "List", []*basev1.WorkScopeV1{scope("gauge.items", nil, "read")}, true},
+		{"whole wildcard", "Edit", []*basev1.WorkScopeV1{scope("gauge.items", nil, state.AnyAction)}, true},
+		{"whole wildcard alongside restricted action", "List", []*basev1.WorkScopeV1{scope("gauge.items", nil, state.AnyAction), scope("gauge.items", []string{"one"}, "read")}, true},
+		{"whole read restricted write", "Edit", []*basev1.WorkScopeV1{scope("gauge.items", nil, "read"), scope("gauge.items", []string{"one"}, "write")}, true},
+		{"whole grant alongside restricted", "List", []*basev1.WorkScopeV1{scope("gauge.items", []string{"one"}, "read"), scope("gauge.items", nil, "read")}, true},
+		{"checked caller", "Ping", []*basev1.WorkScopeV1{scope("gauge.items", []string{"one"}, "read")}, true},
+		{"missing write", "Edit", []*basev1.WorkScopeV1{scope("gauge.items", []string{"one"}, "read")}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := k.State.AdmitMethod("gauge", "/gauge.Service/"+tc.method, tc.held)

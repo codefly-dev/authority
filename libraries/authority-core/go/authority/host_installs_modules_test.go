@@ -7,7 +7,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/memstore"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // hostInstalled is a core whose host decides which organizations hold each
@@ -34,15 +34,15 @@ func newHostInstalled(t *testing.T) *hostInstalled {
 	}
 	store.PutPerson(domain.Person{ID: "alex", Organization: acme, Roles: []string{"admin"}})
 	if _, err := svc.ApplyModule(h.ctx, domain.Module{Name: "relay", Principal: "relay", Kind: domain.KindModule, Generation: 1,
-		ResourceKinds: []*basev0.WorkScopeV1{sc(legacyKind, "read")}}); err != nil {
+		ResourceKinds: []*basev1.WorkScopeV1{sc(legacyKind, "read")}}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := svc.ApplyModule(h.ctx, domain.Module{Name: "store", Principal: "store", Kind: domain.KindModule, Generation: 1,
-		ResourceKinds: []*basev0.WorkScopeV1{sc(kind, "read", "write")},
+		ResourceKinds: []*basev1.WorkScopeV1{sc(kind, "read", "write")},
 		Bindings: map[string]domain.Binding{
 			"self": {ID: "self", Audience: "store",
-				InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write")}, HeadlessScopes: []*basev0.WorkScopeV1{sc(kind, "read")}},
-			"relay": {ID: "relay", Audience: "relay", InvokeScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}},
+				InvokeScopes: []*basev1.WorkScopeV1{sc(kind, "read", "write")}, HeadlessScopes: []*basev1.WorkScopeV1{sc(kind, "read")}},
+			"relay": {ID: "relay", Audience: "relay", InvokeScopes: []*basev1.WorkScopeV1{sc(legacyKind, "read")}},
 		},
 	}); err != nil {
 		t.Fatal(err)
@@ -103,9 +103,9 @@ func TestAHostThatInstallsModulesIsTheOnlyOneThatDoes(t *testing.T) {
 	// A redelivery that narrows the module raises the host's record's
 	// revision, so what was issued under the wider module ends.
 	if _, err := h.svc.ApplyModule(h.ctx, domain.Module{Name: "store", Principal: "store", Kind: domain.KindModule, Generation: 2,
-		ResourceKinds: []*basev0.WorkScopeV1{sc(kind, "read")},
+		ResourceKinds: []*basev1.WorkScopeV1{sc(kind, "read")},
 		Bindings: map[string]domain.Binding{"self": {ID: "self", Audience: "store",
-			InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read")}, HeadlessScopes: []*basev0.WorkScopeV1{sc(kind, "read")}}},
+			InvokeScopes: []*basev1.WorkScopeV1{sc(kind, "read")}, HeadlessScopes: []*basev1.WorkScopeV1{sc(kind, "read")}}},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -211,15 +211,15 @@ func (h *hostInstalled) storeUser(id, person string) {
 	h.t.Helper()
 	if _, err := h.svc.ApplyModule(h.ctx, domain.Module{Name: "store", Principal: "store", Kind: domain.KindModule, Generation: 2,
 		Page: true, InstallationRole: domain.NoInstallationRole,
-		ResourceKinds: []*basev0.WorkScopeV1{sc(kind, "read", "write")},
-		Roles: map[string][]*basev0.WorkScopeV1{
+		ResourceKinds: []*basev1.WorkScopeV1{sc(kind, "read", "write")},
+		Roles: map[string][]*basev1.WorkScopeV1{
 			domain.AdminRole: {sc(kind, "read", "write"), sc(legacyKind, "read")},
 			domain.UserRole:  {sc(kind, "read"), sc(legacyKind, "read")},
 		},
 		Bindings: map[string]domain.Binding{
 			"self": {ID: "self", Audience: "store",
-				InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write")}, HeadlessScopes: []*basev0.WorkScopeV1{sc(kind, "read")}},
-			"relay": {ID: "relay", Audience: "relay", InvokeScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}},
+				InvokeScopes: []*basev1.WorkScopeV1{sc(kind, "read", "write")}, HeadlessScopes: []*basev1.WorkScopeV1{sc(kind, "read")}},
+			"relay": {ID: "relay", Audience: "relay", InvokeScopes: []*basev1.WorkScopeV1{sc(legacyKind, "read")}},
 		},
 	}); err != nil {
 		h.t.Fatal(err)
@@ -236,7 +236,7 @@ func (h *hostInstalled) storeUser(id, person string) {
 // consented.
 func TestAnInstallationsConsentBoundsItsModulesBindings(t *testing.T) {
 	t.Parallel()
-	read, readWrite := []*basev0.WorkScopeV1{sc(kind, "read")}, []*basev0.WorkScopeV1{sc(kind, "read", "write")}
+	read, readWrite := []*basev1.WorkScopeV1{sc(kind, "read")}, []*basev1.WorkScopeV1{sc(kind, "read", "write")}
 	for _, tc := range []struct {
 		name     string
 		consent  map[string]domain.Binding

@@ -19,7 +19,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
 	hop "github.com/codefly-dev/authority/libraries/hop/go"
 	"github.com/codefly-dev/authority/libraries/hop/go/hoptest"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/codefly-dev/core/resources"
 	core "github.com/codefly-dev/core/workcontext"
 	"google.golang.org/grpc/metadata"
@@ -101,7 +101,7 @@ func (s suite) keys(t *testing.T) {
 		forged, _, err := forger.Start(ctx, core.StartInput{
 			TenantID: core.FixtureTenant, OwnerPrincipalID: core.FixturePrincipal, OwnerPrincipalKind: "human",
 			OrganizationID: core.FixtureOrganization, TaskID: core.FixtureTask, Audience: Audience,
-			ReplayPolicy: core.ReplayIdempotent, AuthorityScopes: []*basev0.WorkScopeV1{read}, InstallationID: core.FixtureInstallation, TTL: 10 * time.Minute,
+			ReplayPolicy: core.ReplayIdempotent, AuthorityScopes: []*basev1.WorkScopeV1{read}, InstallationID: core.FixtureInstallation, TTL: 10 * time.Minute,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -415,7 +415,7 @@ func (s suite) identity(t *testing.T) {
 	})
 	t.Run("an owner-selected scope never reads as the whole kind", func(t *testing.T) {
 		a := authority(t)
-		owned := &basev0.WorkScopeV1{ResourceKind: "documents", Actions: []string{"read"}, ResourceOwnerId: "principal-u"}
+		owned := &basev1.WorkScopeV1{ResourceKind: "documents", Actions: []string{"read"}, ResourceOwnerId: "principal-u"}
 		id := admitted(t)(s.verifier(t, a, Audience, newReservations()).Verify(ctx, forward(t, a.Issue(t, Audience, owned), Hop, Method), Method))
 		if id.Has("documents", "read") || slices.Contains(id.Scopes, "documents:read") {
 			t.Fatalf("an owner-selected scope was stamped as the whole kind: %v", id.Scopes)
@@ -429,7 +429,7 @@ func (s suite) identity(t *testing.T) {
 	})
 	t.Run("a resource-limited scope is read from the claims, never widened to its kind", func(t *testing.T) {
 		a := authority(t)
-		limited := &basev0.WorkScopeV1{ResourceKind: "documents", Actions: []string{"write"}, ResourceIds: []string{"d-1"}}
+		limited := &basev1.WorkScopeV1{ResourceKind: "documents", Actions: []string{"write"}, ResourceIds: []string{"d-1"}}
 		id := admitted(t)(s.verifier(t, a, Audience, newReservations()).Verify(ctx, forward(t, a.Issue(t, Audience, read, limited), Hop, Method), Method))
 		if !id.Has("documents", "read") || id.Has("documents", "write") {
 			t.Fatalf("scopes: %v", id.Scopes)

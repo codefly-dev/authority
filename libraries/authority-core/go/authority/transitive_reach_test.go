@@ -8,7 +8,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // The chain a solution's page reaches through an agent: wiki or builder →
@@ -17,23 +17,23 @@ import (
 func reachComposition(t *testing.T, h *harness, modelShared bool) {
 	t.Helper()
 	model := domain.Module{Name: "model", Principal: "model", Kind: domain.KindModule, Generation: 1,
-		ResourceKinds: []*basev0.WorkScopeV1{sc("model.profiles", "read", "invoke")}}
+		ResourceKinds: []*basev1.WorkScopeV1{sc("model.profiles", "read", "invoke")}}
 	if modelShared {
 		model.SharedKinds = []string{"model.profiles"}
 	}
 	docs := domain.Module{Name: "docs", Principal: "docs", Kind: domain.KindModule, Generation: 1, OwnerAware: true,
-		ResourceKinds: []*basev0.WorkScopeV1{sc("docs.doc", "read", "write")}}
+		ResourceKinds: []*basev1.WorkScopeV1{sc("docs.doc", "read", "write")}}
 	agent := domain.Module{Name: "agent", Principal: "agent", Kind: domain.KindModule, Generation: 1, OwnerAware: true,
-		ResourceKinds: []*basev0.WorkScopeV1{sc("agent.intents", "read", "configure", "activate", "run"), sc("agent.tasks", "execute")},
+		ResourceKinds: []*basev1.WorkScopeV1{sc("agent.intents", "read", "configure", "activate", "run"), sc("agent.tasks", "execute")},
 		Bindings: map[string]domain.Binding{
-			"model":               {ID: "model", Audience: "model", InvokeScopes: []*basev0.WorkScopeV1{sc("model.profiles", "read", "invoke")}},
-			"evidence":            {ID: "evidence", Audience: "docs", InvokeScopes: []*basev0.WorkScopeV1{sc("docs.doc", "read")}},
-			"configuration-write": {ID: "configuration-write", Audience: "docs", InvokeScopes: []*basev0.WorkScopeV1{sc("docs.doc", "write")}},
+			"model":               {ID: "model", Audience: "model", InvokeScopes: []*basev1.WorkScopeV1{sc("model.profiles", "read", "invoke")}},
+			"evidence":            {ID: "evidence", Audience: "docs", InvokeScopes: []*basev1.WorkScopeV1{sc("docs.doc", "read")}},
+			"configuration-write": {ID: "configuration-write", Audience: "docs", InvokeScopes: []*basev1.WorkScopeV1{sc("docs.doc", "write")}},
 			// A runnable operation's prepared binding (one per operation, its
 			// invoke scopes the operation's own), and one of the agent's own
 			// operations as a runnable, addressed to the agent itself.
-			"DOCS__SEARCH": {ID: "DOCS__SEARCH", Audience: "docs", InvokeScopes: []*basev0.WorkScopeV1{sc("docs.doc", "read")}},
-			"AGENT__READ":  {ID: "AGENT__READ", Audience: "agent", InvokeScopes: []*basev0.WorkScopeV1{sc("agent.intents", "read")}},
+			"DOCS__SEARCH": {ID: "DOCS__SEARCH", Audience: "docs", InvokeScopes: []*basev1.WorkScopeV1{sc("docs.doc", "read")}},
+			"AGENT__READ":  {ID: "AGENT__READ", Audience: "agent", InvokeScopes: []*basev1.WorkScopeV1{sc("agent.intents", "read")}},
 		}}
 	for _, m := range []domain.Module{model, docs, agent} {
 		if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
@@ -54,21 +54,21 @@ func reachComposition(t *testing.T, h *harness, modelShared bool) {
 // profiles and the evidence for a chat; the configuration write for an
 // user alone.
 func reachSolutions() (wiki, builder domain.Module) {
-	chat := []*basev0.WorkScopeV1{sc("agent.intents", "read", "run"), sc("agent.tasks", "execute")}
-	chatThrough := []*basev0.WorkScopeV1{sc("model.profiles", "read", "invoke"), sc("docs.doc", "read")}
+	chat := []*basev1.WorkScopeV1{sc("agent.intents", "read", "run"), sc("agent.tasks", "execute")}
+	chatThrough := []*basev1.WorkScopeV1{sc("model.profiles", "read", "invoke"), sc("docs.doc", "read")}
 	wiki = domain.Module{Name: "wiki", Principal: "wiki", Kind: domain.KindSolution, Generation: 1, OwnerAware: true, Page: true,
-		InstallationRole: domain.NoInstallationRole, ResourceKinds: []*basev0.WorkScopeV1{sc("wiki.page", "read")},
-		Bindings: map[string]domain.Binding{"agent": {ID: "agent", Audience: "agent", InvokeScopes: []*basev0.WorkScopeV1{sc("agent.intents", "read", "run"), sc("agent.tasks", "execute")}}},
-		Roles:    map[string][]*basev0.WorkScopeV1{domain.AdminRole: {sc("wiki.page", "read")}, "user": append([]*basev0.WorkScopeV1{sc("wiki.page", "read")}, chat...)}}
+		InstallationRole: domain.NoInstallationRole, ResourceKinds: []*basev1.WorkScopeV1{sc("wiki.page", "read")},
+		Bindings: map[string]domain.Binding{"agent": {ID: "agent", Audience: "agent", InvokeScopes: []*basev1.WorkScopeV1{sc("agent.intents", "read", "run"), sc("agent.tasks", "execute")}}},
+		Roles:    map[string][]*basev1.WorkScopeV1{domain.AdminRole: {sc("wiki.page", "read")}, "user": append([]*basev1.WorkScopeV1{sc("wiki.page", "read")}, chat...)}}
 	through(&wiki, "user", "agent", chatThrough...)
-	admin := []*basev0.WorkScopeV1{sc("builder.assistant", "read", "write"), sc("agent.intents", "read", "configure", "activate", "run"), sc("agent.tasks", "execute")}
-	authorThrough := []*basev0.WorkScopeV1{sc("model.profiles", "read", "invoke"), sc("docs.doc", "read", "write")}
+	admin := []*basev1.WorkScopeV1{sc("builder.assistant", "read", "write"), sc("agent.intents", "read", "configure", "activate", "run"), sc("agent.tasks", "execute")}
+	authorThrough := []*basev1.WorkScopeV1{sc("model.profiles", "read", "invoke"), sc("docs.doc", "read", "write")}
 	builder = domain.Module{Name: "builder", Principal: "builder", Kind: domain.KindSolution, Generation: 1, OwnerAware: true, Page: true,
-		InstallationRole: domain.NoInstallationRole, ResourceKinds: []*basev0.WorkScopeV1{sc("builder.assistant", "read", "write")},
-		Bindings: map[string]domain.Binding{"agent": {ID: "agent", Audience: "agent", InvokeScopes: []*basev0.WorkScopeV1{
+		InstallationRole: domain.NoInstallationRole, ResourceKinds: []*basev1.WorkScopeV1{sc("builder.assistant", "read", "write")},
+		Bindings: map[string]domain.Binding{"agent": {ID: "agent", Audience: "agent", InvokeScopes: []*basev1.WorkScopeV1{
 			sc("agent.intents", "read", "configure", "activate", "run"), sc("agent.tasks", "execute")}}},
-		Roles: map[string][]*basev0.WorkScopeV1{domain.AdminRole: slices.Clone(admin),
-			"user": append([]*basev0.WorkScopeV1{sc("builder.assistant", "read")}, chat...)}}
+		Roles: map[string][]*basev1.WorkScopeV1{domain.AdminRole: slices.Clone(admin),
+			"user": append([]*basev1.WorkScopeV1{sc("builder.assistant", "read")}, chat...)}}
 	through(&builder, domain.AdminRole, "agent", authorThrough...)
 	through(&builder, "user", "agent", chatThrough...)
 	return wiki, builder
@@ -76,18 +76,18 @@ func reachSolutions() (wiki, builder domain.Module) {
 
 // through declares scopes role names through binding, part of its grant, as
 // a delivered document reads them.
-func through(m *domain.Module, role, binding string, scopes ...*basev0.WorkScopeV1) {
+func through(m *domain.Module, role, binding string, scopes ...*basev1.WorkScopeV1) {
 	if m.Through == nil {
-		m.Through = map[string]map[string][]*basev0.WorkScopeV1{}
+		m.Through = map[string]map[string][]*basev1.WorkScopeV1{}
 	}
 	if m.Through[role] == nil {
-		m.Through[role] = map[string][]*basev0.WorkScopeV1{}
+		m.Through[role] = map[string][]*basev1.WorkScopeV1{}
 	}
 	m.Through[role][binding] = append(m.Through[role][binding], scopes...)
 	m.Roles[role] = append(m.Roles[role], scopes...)
 }
 
-func (h *harness) onward(parent authority.Issued, binding string, scopes ...*basev0.WorkScopeV1) (authority.Issued, error) {
+func (h *harness) onward(parent authority.Issued, binding string, scopes ...*basev1.WorkScopeV1) (authority.Issued, error) {
 	return h.svc.IssueChild(h.ctx, parent.Token, authority.Workload{Module: "agent"}, authority.IssueRequest{Binding: binding, Scopes: scopes})
 }
 
@@ -156,7 +156,7 @@ func TestASharedKindIsServed(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	_, err := h.svc.ApplyModule(h.ctx, domain.Module{Name: "model", Principal: "model", Kind: domain.KindModule, Generation: 1,
-		ResourceKinds: []*basev0.WorkScopeV1{sc("model.profiles", "read")}, SharedKinds: []string{"other.kind"}})
+		ResourceKinds: []*basev1.WorkScopeV1{sc("model.profiles", "read")}, SharedKinds: []string{"other.kind"}})
 	refused(t, err, "a kind it does not serve")
 }
 
@@ -181,7 +181,7 @@ func TestReachIsDeclaredThroughABinding(t *testing.T) {
 
 	wiki, _ = reachSolutions()
 	wiki.Generation = 2
-	wiki.Bindings["jobs"] = domain.Binding{ID: "jobs", Audience: "agent", HeadlessScopes: []*basev0.WorkScopeV1{sc("agent.tasks", "execute")}}
+	wiki.Bindings["jobs"] = domain.Binding{ID: "jobs", Audience: "agent", HeadlessScopes: []*basev1.WorkScopeV1{sc("agent.tasks", "execute")}}
 	through(&wiki, "user", "jobs", sc("docs.doc", "read"))
 	_, err = h.svc.ApplyModule(h.ctx, wiki)
 	refused(t, err, `through binding "jobs", which carries nothing for a person`)
@@ -314,14 +314,14 @@ func TestARunnableAsksItsOperationsScopesThroughTheSolution(t *testing.T) {
 	reachComposition(t, h, true)
 	h.grant("wiki", "user", "maya")
 	wiki := h.principal(acme, "wiki")
-	owned := func(kind, owner string, actions ...string) *basev0.WorkScopeV1 {
-		return &basev0.WorkScopeV1{ResourceKind: kind, Actions: actions, ResourceOwnerId: owner}
+	owned := func(kind, owner string, actions ...string) *basev1.WorkScopeV1 {
+		return &basev1.WorkScopeV1{ResourceKind: kind, Actions: actions, ResourceOwnerId: owner}
 	}
 	atAgent := h.must(h.page("maya", "wiki", "agent"))
 	exactly(t, h.must(h.onward(atAgent, "DOCS__SEARCH", owned("docs.doc", wiki, "read"))), "docs.doc", wiki, []string{"read"})
 	exactly(t, h.must(h.onward(atAgent, "AGENT__READ", owned("agent.intents", wiki, "read"))), "agent.intents", wiki, []string{"read"})
 	exactly(t, h.must(h.onward(atAgent, "model", owned("model.profiles", wiki, "invoke"))), "model.profiles", "", []string{"invoke"})
-	for name, ask := range map[string]*basev0.WorkScopeV1{
+	for name, ask := range map[string]*basev1.WorkScopeV1{
 		"the whole kind": sc("docs.doc", "read"), "another owner": owned("docs.doc", "someone-else", "read"), "beyond the role": owned("docs.doc", wiki, "write"),
 	} {
 		t.Run(name, func(t *testing.T) {

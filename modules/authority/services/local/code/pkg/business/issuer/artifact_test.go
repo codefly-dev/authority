@@ -10,7 +10,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"google.golang.org/protobuf/proto"
 
 	"gateway/pkg/business/state"
@@ -30,20 +30,20 @@ func composeRobin(t *testing.T, k *testkit.Kit) {
 	onward := testkit.Scope("robin.intents", "activate", "run")
 	for _, m := range []state.Manifest{
 		{Name: "robin", Principal: "robin", Kind: "module", Generation: 1, Page: true, InstallationRole: "none",
-			ResourceKinds: []*basev0.WorkScopeV1{intents, tasks},
-			Roles: map[string][]*basev0.WorkScopeV1{
+			ResourceKinds: []*basev1.WorkScopeV1{intents, tasks},
+			Roles: map[string][]*basev1.WorkScopeV1{
 				state.AdminRole: {intents, tasks},
 				state.UserRole:  {testkit.Scope("robin.intents", "read", "run"), tasks},
 			},
 			Bindings: map[string]state.Binding{}},
 		{Name: "assistant", Principal: "assistant", Kind: "module", Generation: 1, Page: true, InstallationRole: "none",
-			ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope("assistant.task", "run")},
-			Roles: map[string][]*basev0.WorkScopeV1{
+			ResourceKinds: []*basev1.WorkScopeV1{testkit.Scope("assistant.task", "run")},
+			Roles: map[string][]*basev1.WorkScopeV1{
 				state.AdminRole: {testkit.Scope("assistant.task", "run"), onward},
 				state.UserRole:  {testkit.Scope("assistant.task", "run"), onward},
 			},
 			Bindings: map[string]state.Binding{"robin": {ID: "robin", Audience: "robin",
-				InvokeScopes: []*basev0.WorkScopeV1{onward}}}},
+				InvokeScopes: []*basev1.WorkScopeV1{onward}}}},
 	} {
 		if _, err := k.State.ApplyManifest(m); err != nil {
 			t.Fatal(err)

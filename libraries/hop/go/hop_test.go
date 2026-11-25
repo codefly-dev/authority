@@ -14,7 +14,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-client/go/workcontext"
 	hop "github.com/codefly-dev/authority/libraries/hop/go"
 	"github.com/codefly-dev/authority/libraries/hop/go/hoptest"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -23,7 +23,7 @@ import (
 
 const proof = "run-proof"
 
-var read = &basev0.WorkScopeV1{ResourceKind: "documents", Actions: []string{"read"}}
+var read = &basev1.WorkScopeV1{ResourceKind: "documents", Actions: []string{"read"}}
 
 func verifier(t *testing.T, a *hoptest.Authority, audience string) *hop.Verifier {
 	t.Helper()

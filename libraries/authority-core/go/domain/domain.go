@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // Module kinds.
@@ -81,7 +81,7 @@ type RoleView struct {
 // Binding is a module's declared call towards another module.
 type Binding struct {
 	ID, Audience                               string
-	InvokeScopes, HeadlessScopes, LookupScopes []*basev0.WorkScopeV1
+	InvokeScopes, HeadlessScopes, LookupScopes []*basev1.WorkScopeV1
 }
 
 // Module is what a delivery composed for one module or solution: its
@@ -98,22 +98,22 @@ type Module struct {
 	// module is applied; decisions read Roles, so it is not part of the
 	// review digest and a store need not keep it.
 	Page          bool `json:"-"`
-	ResourceKinds []*basev0.WorkScopeV1
+	ResourceKinds []*basev1.WorkScopeV1
 	Bindings      map[string]Binding
 	// Roles are a solution's roles, levels on the data its principal owns, or
 	// a module page's, levels on what it serves at its organization.
-	Roles map[string][]*basev0.WorkScopeV1
+	Roles map[string][]*basev1.WorkScopeV1
 	// AudienceRoles confines a role grant to its resolved callee principal.
-	AudienceRoles map[string]map[string][]*basev0.WorkScopeV1 `json:",omitempty"`
+	AudienceRoles map[string]map[string][]*basev1.WorkScopeV1 `json:",omitempty"`
 	// OwnedRoles resolve only to the exact ids attached to this installation.
-	OwnedRoles map[string][]*basev0.WorkScopeV1
+	OwnedRoles map[string][]*basev1.WorkScopeV1
 	// Through are, per role and per binding of the module's own, the scopes
 	// the role names downstream of that binding: kinds a module it reaches
 	// serves or consumes, carried onward at each hop and cut to each binding
 	// there. They are part of the role (Roles holds them too); Through says
 	// how each is reached, which delivery holds reachable in the composition
 	// (decide.ValidateModuleIn).
-	Through map[string]map[string][]*basev0.WorkScopeV1 `json:",omitempty"`
+	Through map[string]map[string][]*basev1.WorkScopeV1 `json:",omitempty"`
 	// InstallationRole is the signed selector: absent leaves selection to the
 	// caller; "none" selects no standing authority; otherwise it names a role.
 	// Omit absent fields from the existing review digest's JSON representation.
@@ -127,7 +127,7 @@ type Module struct {
 	// signed manifest, so an administrator's approval covers it; empty, the
 	// module governs no source. It grants nothing: a host asks whether the
 	// person is issued the scope there.
-	SourceGovernance []*basev0.WorkScopeV1 `json:",omitempty"`
+	SourceGovernance []*basev1.WorkScopeV1 `json:",omitempty"`
 	// OwnerAware: the module compares a resource's owner with an
 	// owner-selected scope, so it may receive one.
 	OwnerAware bool
@@ -160,7 +160,7 @@ type EdgeDependency struct {
 
 // MethodPolicy is one method's declaration: exactly one of its fields is set.
 type MethodPolicy struct {
-	Requires         []*basev0.WorkScopeV1
+	Requires         []*basev1.WorkScopeV1
 	AnyCheckedCaller bool
 }
 
@@ -229,7 +229,7 @@ type Delegation struct {
 	// A client delegation names exactly one solution audience and its declared
 	// public resource. Module and ClientID are mutually exclusive.
 	ClientID, Audience, Resource string
-	Scopes                       []*basev0.WorkScopeV1
+	Scopes                       []*basev1.WorkScopeV1
 	Revoked                      bool
 	// ExpiresAt ends the delegation by itself; zero stands until revoked.
 	ExpiresAt time.Time
@@ -325,7 +325,7 @@ type ConsentApproval struct {
 type ReachRow struct {
 	Path                     []string
 	Module, Via, Confinement string
-	Scopes                   []*basev0.WorkScopeV1
+	Scopes                   []*basev1.WorkScopeV1
 	Operations               []string
 	Policies                 map[string]MethodPolicy
 }

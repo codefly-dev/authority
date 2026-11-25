@@ -12,7 +12,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/codefly-dev/core/workcontext"
 )
 
@@ -37,7 +37,7 @@ type IssueRequest struct {
 // Issued is a signed capability and its claims.
 type Issued struct {
 	Token   string
-	Context *basev0.WorkContextV1
+	Context *basev1.WorkContextV1
 }
 
 // held is what a person holds at an audience, and it is their roles on its
@@ -171,7 +171,7 @@ func throughSolutions(tx Tx, p domain.Person, audience domain.Module, principals
 }
 
 // solutionPrincipals are the current actor and the services of a verified chain.
-func solutionPrincipals(wc *basev0.WorkContextV1, current string) []string {
+func solutionPrincipals(wc *basev1.WorkContextV1, current string) []string {
 	out := []string{current}
 	for _, actor := range wc.GetActorChain() {
 		if kind := actor.GetPrincipalKind(); kind == "service" || kind == decide.PageActor {
@@ -670,7 +670,7 @@ func (s *Service) issueChild(ctx context.Context, parent string, actor Workload,
 	var am, audience domain.Module
 	var binding domain.Binding
 	var through, scopes, authorityScopes Scopes
-	var claims *basev0.WorkContextV1
+	var claims *basev1.WorkContextV1
 	var verified *workcontext.Verified
 	var sealTo, viewing string
 	err := s.store.Read(ctx, func(tx Tx) error {
@@ -881,7 +881,7 @@ func (s *Service) derive(ctx context.Context, verified *workcontext.Verified, am
 			}
 			in.OperationBindingID = tenant + "/" + am.Name + "/" + r.Binding
 		}
-		var signed *basev0.WorkContextV1
+		var signed *basev1.WorkContextV1
 		if token, signed, err = s.authority.Child(ctx, current, in); err != nil {
 			return Issued{}, err
 		}
@@ -906,7 +906,7 @@ func (s *Service) derive(ctx context.Context, verified *workcontext.Verified, am
 }
 
 // delegationCeiling reads stored delegations named on the parent's hops.
-func delegationCeiling(tx Tx, parent *basev0.WorkContextV1, ceiling Scopes) (Scopes, error) {
+func delegationCeiling(tx Tx, parent *basev1.WorkContextV1, ceiling Scopes) (Scopes, error) {
 	for _, hop := range parent.GetActorChain() {
 		d, err := tx.Delegation(hop.GetDelegationId())
 		if errors.Is(err, domain.ErrNotFound) {

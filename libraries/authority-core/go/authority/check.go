@@ -10,7 +10,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
 	resources "github.com/codefly-dev/authority/libraries/resources/go"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/codefly-dev/core/workcontext"
 )
 
@@ -235,7 +235,7 @@ func (s *Service) listResources(ctx context.Context, token, audience, kind, acti
 	return out, err
 }
 
-func holds(sc *basev0.WorkScopeV1, kind, action string) bool {
+func holds(sc *basev1.WorkScopeV1, kind, action string) bool {
 	return sc.GetResourceKind() == kind && (slices.Contains(sc.GetActions(), action) || slices.Contains(sc.GetActions(), scope.AnyAction))
 }
 
@@ -259,7 +259,7 @@ func grantsOf(rows Scopes, kind, action string) []Grant {
 }
 
 // effectiveOf is a context's effective scopes: its last actor's, else its own.
-func effectiveOf(wc *basev0.WorkContextV1) Scopes {
+func effectiveOf(wc *basev1.WorkContextV1) Scopes {
 	if chain := wc.GetActorChain(); len(chain) > 0 {
 		return chain[len(chain)-1].GetGrantedScopes()
 	}
@@ -278,7 +278,7 @@ func effectiveOf(wc *basev0.WorkContextV1) Scopes {
 // It fails closed: an owner kind it does not know is refused, and a lookup it
 // cannot make (approvedReach) is that failure, returned as the error. Only a
 // call it read as bounded by no consented installation passes unbounded.
-func (s *Service) withinApprovedReach(tx Tx, wc *basev0.WorkContextV1, effective Scopes, m domain.Module, method string) (error, error) {
+func (s *Service) withinApprovedReach(tx Tx, wc *basev1.WorkContextV1, effective Scopes, m domain.Module, method string) (error, error) {
 	owner := reachOwner{}
 	switch wc.GetOwnerPrincipalKind() {
 	case "agent":
@@ -319,7 +319,7 @@ func (s *Service) withinApprovedReach(tx Tx, wc *basev0.WorkContextV1, effective
 // person's own root at module, their client's call there, or a hop from a
 // module declaring no roles) holds module's own roles when it is a page, so
 // module's installation's consent bounds it.
-func reachedThrough(tx Tx, wc *basev0.WorkContextV1, module string) []string {
+func reachedThrough(tx Tx, wc *basev1.WorkContextV1, module string) []string {
 	principals := solutionPrincipals(wc, module)
 	if through := principals[1:]; anyRoleGated(tx, through) {
 		return through
@@ -336,7 +336,7 @@ func reachedThrough(tx Tx, wc *basev0.WorkContextV1, module string) []string {
 // capability carrying only what one of m's bindings reaches (the person's
 // role on the binding's target, for m's hop there) holds nothing of m and is
 // not refused: m's methods that require a scope refuse it themselves.
-func ownSession(tx Tx, wc *basev0.WorkContextV1, effective Scopes, m domain.Module) error {
+func ownSession(tx Tx, wc *basev1.WorkContextV1, effective Scopes, m domain.Module) error {
 	if wc.GetOwnerPrincipalKind() != "human" || anyRoleGated(tx, reachedThrough(tx, wc, m.Principal)) {
 		return nil
 	}

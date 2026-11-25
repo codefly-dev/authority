@@ -5,7 +5,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // pageReachingTheStore is a module page whose roles reach the owner-aware
@@ -14,19 +14,19 @@ import (
 func pageReachingTheStore(t *testing.T, h *harness) {
 	t.Helper()
 	shared := domain.Module{Name: "profiles", Principal: "profiles", Kind: domain.KindModule, Generation: 1, OwnerAware: true,
-		SharedKinds: []string{"profiles.profile"}, ResourceKinds: []*basev0.WorkScopeV1{sc("profiles.profile", "read"), sc("profiles.secret", "read")}}
+		SharedKinds: []string{"profiles.profile"}, ResourceKinds: []*basev1.WorkScopeV1{sc("profiles.profile", "read"), sc("profiles.secret", "read")}}
 	if _, err := h.svc.ApplyModule(h.ctx, shared); err != nil {
 		t.Fatal(err)
 	}
 	m := pageModule(1, true)
 	m.Bindings = map[string]domain.Binding{
-		"store":    {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write")}},
-		"legacy":   {ID: "legacy", Audience: "legacy-store", InvokeScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}},
-		"profiles": {ID: "profiles", Audience: "profiles", InvokeScopes: []*basev0.WorkScopeV1{sc("profiles.profile", "read"), sc("profiles.secret", "read")}},
+		"store":    {ID: "store", Audience: "store", InvokeScopes: []*basev1.WorkScopeV1{sc(kind, "read", "write")}},
+		"legacy":   {ID: "legacy", Audience: "legacy-store", InvokeScopes: []*basev1.WorkScopeV1{sc(legacyKind, "read")}},
+		"profiles": {ID: "profiles", Audience: "profiles", InvokeScopes: []*basev1.WorkScopeV1{sc("profiles.profile", "read"), sc("profiles.secret", "read")}},
 	}
-	reach := []*basev0.WorkScopeV1{sc(kind, "read"), sc(legacyKind, "read"), sc("profiles.profile", "read"), sc("profiles.secret", "read")}
-	m.Roles[domain.AdminRole] = append([]*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(kind, "read", "write")}, reach[1:]...)
-	m.Roles["user"] = append([]*basev0.WorkScopeV1{sc("pages.note", "read")}, reach...)
+	reach := []*basev1.WorkScopeV1{sc(kind, "read"), sc(legacyKind, "read"), sc("profiles.profile", "read"), sc("profiles.secret", "read")}
+	m.Roles[domain.AdminRole] = append([]*basev1.WorkScopeV1{sc("pages.note", "read", "write"), sc(kind, "read", "write")}, reach[1:]...)
+	m.Roles["user"] = append([]*basev1.WorkScopeV1{sc("pages.note", "read")}, reach...)
 	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
 		t.Fatal(err)
 	}
@@ -198,10 +198,10 @@ const ledgerKind = "ledger.entry"
 
 func ledger() domain.Module {
 	return domain.Module{Name: "ledger", Principal: "ledger", Kind: domain.KindModule, Generation: 1,
-		ResourceKinds: []*basev0.WorkScopeV1{sc(ledgerKind, "read", "write")},
+		ResourceKinds: []*basev1.WorkScopeV1{sc(ledgerKind, "read", "write")},
 		Bindings: map[string]domain.Binding{
-			"self":   {ID: "self", Audience: "ledger", InvokeScopes: []*basev0.WorkScopeV1{sc(ledgerKind, "read", "write")}, HeadlessScopes: []*basev0.WorkScopeV1{sc(ledgerKind, "read")}},
-			"legacy": {ID: "legacy", Audience: "legacy-store", InvokeScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}},
+			"self":   {ID: "self", Audience: "ledger", InvokeScopes: []*basev1.WorkScopeV1{sc(ledgerKind, "read", "write")}, HeadlessScopes: []*basev1.WorkScopeV1{sc(ledgerKind, "read")}},
+			"legacy": {ID: "legacy", Audience: "legacy-store", InvokeScopes: []*basev1.WorkScopeV1{sc(legacyKind, "read")}},
 		}}
 }
 
@@ -221,7 +221,7 @@ func ledgerWithRoles(t *testing.T, h *harness, users ...string) {
 // writes, each reaching the legacy store's read.
 func ledgerRoles(m *domain.Module) {
 	m.Page, m.InstallationRole = true, domain.NoInstallationRole
-	m.Roles = map[string][]*basev0.WorkScopeV1{
+	m.Roles = map[string][]*basev1.WorkScopeV1{
 		domain.AdminRole: {sc(ledgerKind, "read", "write"), sc(legacyKind, "read")},
 		domain.UserRole:  {sc(ledgerKind, "read"), sc(legacyKind, "read")},
 	}
@@ -244,11 +244,11 @@ func ledgerPage(t *testing.T, h *harness) {
 	t.Helper()
 	m := pageModule(1, true)
 	m.Bindings = map[string]domain.Binding{
-		"ledger": {ID: "ledger", Audience: "ledger", InvokeScopes: []*basev0.WorkScopeV1{sc(ledgerKind, "read", "write")}},
-		"store":  {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write")}},
+		"ledger": {ID: "ledger", Audience: "ledger", InvokeScopes: []*basev1.WorkScopeV1{sc(ledgerKind, "read", "write")}},
+		"store":  {ID: "store", Audience: "store", InvokeScopes: []*basev1.WorkScopeV1{sc(kind, "read", "write")}},
 	}
-	m.Roles[domain.AdminRole] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(ledgerKind, "read", "write"), sc(kind, "read", "write")}
-	m.Roles["user"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(ledgerKind, "read"), sc(kind, "read")}
+	m.Roles[domain.AdminRole] = []*basev1.WorkScopeV1{sc("pages.note", "read", "write"), sc(ledgerKind, "read", "write"), sc(kind, "read", "write")}
+	m.Roles["user"] = []*basev1.WorkScopeV1{sc("pages.note", "read"), sc(ledgerKind, "read"), sc(kind, "read")}
 	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
 		t.Fatal(err)
 	}
@@ -263,7 +263,7 @@ func TestRBAC1ACompositionPrincipalAnotherIdentityHoldsIsNotTaken(t *testing.T) 
 	h := newHarness(t)
 	squatted := h.principal(acme, "pages")
 	if _, err := h.svc.ApplyModule(h.ctx, domain.Module{Name: "squatter", Principal: squatted, Kind: domain.KindModule, Generation: 1,
-		ResourceKinds: []*basev0.WorkScopeV1{sc("squatter.item", "read")}}); err != nil {
+		ResourceKinds: []*basev1.WorkScopeV1{sc("squatter.item", "read")}}); err != nil {
 		t.Fatal(err)
 	}
 	pageReachingTheStore(t, h)
@@ -298,7 +298,7 @@ func TestRBAC1AWithdrawnModuleDeliveredAgainIsActiveWithItsPrincipal(t *testing.
 		t.Fatal(err)
 	}
 	m := pageModule(2, true)
-	m.Bindings = map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read")}}}
+	m.Bindings = map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: []*basev1.WorkScopeV1{sc(kind, "read")}}}
 	m.Roles["user"] = append(m.Roles["user"], sc(kind, "read"))
 	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
 		t.Fatal(err)
@@ -345,10 +345,10 @@ func TestRBAC1AModulePageAttachesWhatItCreatesToItsInstallation(t *testing.T) {
 	h := newHarness(t)
 	m := pageModule(1, true)
 	m.Bindings = map[string]domain.Binding{
-		"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write", "create")}},
+		"store": {ID: "store", Audience: "store", InvokeScopes: []*basev1.WorkScopeV1{sc(kind, "read", "write", "create")}},
 	}
-	m.Roles[domain.AdminRole] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(kind, "read", "write", "create")}
-	m.Roles["user"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read")}
+	m.Roles[domain.AdminRole] = []*basev1.WorkScopeV1{sc("pages.note", "read", "write"), sc(kind, "read", "write", "create")}
+	m.Roles["user"] = []*basev1.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read")}
 	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
 		t.Fatal(err)
 	}
@@ -376,7 +376,7 @@ func TestRBAC1AModulePageAttachesWhatItCreatesToItsInstallation(t *testing.T) {
 	}
 	store.Generation++
 	store.Page, store.InstallationRole = true, domain.NoInstallationRole
-	store.Roles = map[string][]*basev0.WorkScopeV1{domain.AdminRole: {sc(kind, "read")}, "user": {sc(kind, "read")}}
+	store.Roles = map[string][]*basev1.WorkScopeV1{domain.AdminRole: {sc(kind, "read")}, "user": {sc(kind, "read")}}
 	if _, err := h.svc.ApplyModule(h.ctx, store); err != nil {
 		t.Fatal(err)
 	}
@@ -414,7 +414,7 @@ func TestAStorePagesOwnRoleReachesItsOwnInstallationsData(t *testing.T) {
 	}
 	store.Generation++
 	store.Page, store.InstallationRole = true, domain.NoInstallationRole
-	store.Roles = map[string][]*basev0.WorkScopeV1{
+	store.Roles = map[string][]*basev1.WorkScopeV1{
 		domain.AdminRole: {sc(kind, "read", "write", "create")},
 		"user":           {sc(kind, "read")},
 	}
@@ -466,17 +466,17 @@ func TestAPageReachesARoleGatedStoreAsItsInstallationsData(t *testing.T) {
 	}
 	store.Generation++
 	store.Page, store.InstallationRole = true, domain.NoInstallationRole
-	store.Roles = map[string][]*basev0.WorkScopeV1{domain.AdminRole: {sc(kind, "read", "write", "create")}, "user": {sc(kind, "read")}}
-	store.Methods = map[string]domain.MethodPolicy{storeRead: {Requires: []*basev0.WorkScopeV1{sc(kind, "read")}}}
+	store.Roles = map[string][]*basev1.WorkScopeV1{domain.AdminRole: {sc(kind, "read", "write", "create")}, "user": {sc(kind, "read")}}
+	store.Methods = map[string]domain.MethodPolicy{storeRead: {Requires: []*basev1.WorkScopeV1{sc(kind, "read")}}}
 	if _, err := h.svc.ApplyModule(h.ctx, store); err != nil {
 		t.Fatal(err)
 	}
 	m := pageModule(1, true)
 	m.Bindings = map[string]domain.Binding{
-		"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write", "create")}},
+		"store": {ID: "store", Audience: "store", InvokeScopes: []*basev1.WorkScopeV1{sc(kind, "read", "write", "create")}},
 	}
-	m.Roles[domain.AdminRole] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write"), sc(kind, "read", "write", "create")}
-	m.Roles["user"] = []*basev0.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read")}
+	m.Roles[domain.AdminRole] = []*basev1.WorkScopeV1{sc("pages.note", "read", "write"), sc(kind, "read", "write", "create")}
+	m.Roles["user"] = []*basev1.WorkScopeV1{sc("pages.note", "read"), sc(kind, "read")}
 	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
 		t.Fatal(err)
 	}

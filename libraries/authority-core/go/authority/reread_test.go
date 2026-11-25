@@ -10,7 +10,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/memstore"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // A host that learns to read a declaration field reads the delivery it holds
@@ -27,7 +27,7 @@ const deliveryOfA = "sha256:the-signed-documents-of-a-at-1"
 func readWithThrough(source string) domain.Module {
 	m := solution("a", true)
 	m.Roles["user"] = append(m.Roles["user"], sc(kind, "write"))
-	m.Through = map[string]map[string][]*basev0.WorkScopeV1{"user": {"store": {sc(kind, "write")}}}
+	m.Through = map[string]map[string][]*basev1.WorkScopeV1{"user": {"store": {sc(kind, "write")}}}
 	m.Source = source
 	return m
 }
@@ -73,7 +73,7 @@ func TestARereadOfTheHeldGenerationWidensNothingUntilTheUpgradeIsApproved(t *tes
 		t.Fatalf("the re-read offers no upgrade: %t, %v", up, err)
 	}
 	approved, err := svc.ApprovedDeclaration(h.ctx, inst)
-	if err != nil || slices.ContainsFunc(approved.Roles["user"], func(s *basev0.WorkScopeV1) bool {
+	if err != nil || slices.ContainsFunc(approved.Roles["user"], func(s *basev1.WorkScopeV1) bool {
 		return slices.Contains(s.GetActions(), "write") && s.GetResourceKind() == kind
 	}) {
 		t.Fatalf("the approved declaration is the re-read, not what was approved: %v, %v", approved.Roles["user"], err)
@@ -195,16 +195,16 @@ func TestAModulePageReadAgainWiderHoldsItsHoldersAtItsReceipt(t *testing.T) {
 		t.Fatal(err)
 	}
 	wider := pageModule(1, true)
-	wider.Roles["user"] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}
+	wider.Roles["user"] = []*basev1.WorkScopeV1{sc("pages.note", "read", "write")}
 	wider.Source = "sha256:the-signed-documents-of-pages-at-1"
 	if reread, err := svc.RereadModule(h.ctx, wider); err != nil || !reread {
 		t.Fatalf("the page read again: reread %t, %v", reread, err)
 	}
-	write := authority.IssueRequest{Audience: "pages", Scopes: []*basev0.WorkScopeV1{sc("pages.note", "write")}}
+	write := authority.IssueRequest{Audience: "pages", Scopes: []*basev1.WorkScopeV1{sc("pages.note", "write")}}
 	if _, err := svc.IssueForPerson(h.ctx, h.person("maya"), write); err == nil {
 		t.Fatal("a user granted read holds write after the page was read again wider")
 	}
-	if _, err := svc.IssueForPerson(h.ctx, h.person("maya"), authority.IssueRequest{Audience: "pages", Scopes: []*basev0.WorkScopeV1{sc("pages.note", "read")}}); err != nil {
+	if _, err := svc.IssueForPerson(h.ctx, h.person("maya"), authority.IssueRequest{Audience: "pages", Scopes: []*basev1.WorkScopeV1{sc("pages.note", "read")}}); err != nil {
 		t.Fatalf("the user's grant no longer answers at its receipt: %v", err)
 	}
 	if up, err := svc.UpgradeAvailable(h.ctx, h.pagesAt(acme)); err != nil || !up {
@@ -272,14 +272,14 @@ func TestARereadWidensNothingForAConsentWhoseApprovedReadingIsNotKeptYet(t *test
 		t.Fatal(err)
 	}
 	writes := func() error {
-		_, err := svc.IssueForPerson(h.ctx, h.person("maya"), authority.IssueRequest{Audience: "a", Scopes: []*basev0.WorkScopeV1{owned("a.note", h.principal(acme, "a"), []string{"write"})}})
+		_, err := svc.IssueForPerson(h.ctx, h.person("maya"), authority.IssueRequest{Audience: "a", Scopes: []*basev1.WorkScopeV1{owned("a.note", h.principal(acme, "a"), []string{"write"})}})
 		return err
 	}
 	if writes() == nil {
 		t.Fatal("the user writes a.note before any re-read")
 	}
 	wider := solution("a", true)
-	wider.Roles["user"] = []*basev0.WorkScopeV1{sc("a.note", "read", "write"), sc(kind, "read")}
+	wider.Roles["user"] = []*basev1.WorkScopeV1{sc("a.note", "read", "write"), sc(kind, "read")}
 	wider.Source = deliveryOfA
 	if reread, err := svc.RereadModule(h.ctx, wider); err != nil || !reread {
 		t.Fatalf("the held generation read again wider: reread %t, %v", reread, err)
@@ -287,7 +287,7 @@ func TestARereadWidensNothingForAConsentWhoseApprovedReadingIsNotKeptYet(t *test
 	if writes() == nil {
 		t.Fatal("the re-read widened the user without an approval: the reading its consent approved was not kept")
 	}
-	if _, err := svc.IssueForPerson(h.ctx, h.person("maya"), authority.IssueRequest{Audience: "a", Scopes: []*basev0.WorkScopeV1{owned("a.note", h.principal(acme, "a"), []string{"read"})}}); err != nil {
+	if _, err := svc.IssueForPerson(h.ctx, h.person("maya"), authority.IssueRequest{Audience: "a", Scopes: []*basev1.WorkScopeV1{owned("a.note", h.principal(acme, "a"), []string{"read"})}}); err != nil {
 		t.Fatalf("the user lost what was approved: %v", err)
 	}
 	if up, err := svc.UpgradeAvailable(h.ctx, h.stored(acme, "a")); err != nil || !up {

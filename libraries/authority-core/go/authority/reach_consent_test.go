@@ -8,7 +8,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 const (
@@ -21,16 +21,16 @@ const (
 // relaxed), and its binding to the legacy store unless cut.
 func storeAt(generation uint64, purge string, legacy bool) domain.Module {
 	m := domain.Module{Name: "store", Principal: "store", Kind: domain.KindModule, Generation: generation, OwnerAware: true,
-		ResourceKinds: []*basev0.WorkScopeV1{sc(kind, "admin", "create", "read", "write")},
+		ResourceKinds: []*basev1.WorkScopeV1{sc(kind, "admin", "create", "read", "write")},
 		Bindings: map[string]domain.Binding{
-			"self": {ID: "self", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write")}, HeadlessScopes: []*basev0.WorkScopeV1{sc(kind, "read")}},
+			"self": {ID: "self", Audience: "store", InvokeScopes: []*basev1.WorkScopeV1{sc(kind, "read", "write")}, HeadlessScopes: []*basev1.WorkScopeV1{sc(kind, "read")}},
 		},
 		Methods: map[string]domain.MethodPolicy{
-			storeRead:  {Requires: []*basev0.WorkScopeV1{sc(kind, "read")}},
-			storePurge: {Requires: []*basev0.WorkScopeV1{sc(kind, purge)}},
+			storeRead:  {Requires: []*basev1.WorkScopeV1{sc(kind, "read")}},
+			storePurge: {Requires: []*basev1.WorkScopeV1{sc(kind, purge)}},
 		}}
 	if legacy {
-		m.Bindings["legacy"] = domain.Binding{ID: "legacy", Audience: "legacy-store", InvokeScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}}
+		m.Bindings["legacy"] = domain.Binding{ID: "legacy", Audience: "legacy-store", InvokeScopes: []*basev1.WorkScopeV1{sc(legacyKind, "read")}}
 	}
 	return m
 }
@@ -73,7 +73,7 @@ func TestAModulesRedeliveryThatWidensASolutionsReachOffersAnUpgrade(t *testing.T
 	refused(t, h.callStore(at, storePurge), "requires "+kind+":admin")
 
 	replica := domain.Module{Name: "replica", Principal: "replica", Kind: domain.KindModule, Generation: 1, OwnerAware: true,
-		ResourceKinds: []*basev0.WorkScopeV1{sc(kind, "read", "write")}}
+		ResourceKinds: []*basev1.WorkScopeV1{sc(kind, "read", "write")}}
 	if _, err := h.svc.ApplyModule(h.ctx, replica); err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestAModulesRedeliveryThatWidensASolutionsReachOffersAnUpgrade(t *testing.T
 		t.Fatalf("a module nothing reaches widened a's reach: %v %v", up, err)
 	}
 	wider := storeAt(3, "write", true)
-	wider.Bindings["replica"] = domain.Binding{ID: "replica", Audience: "replica", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write")}}
+	wider.Bindings["replica"] = domain.Binding{ID: "replica", Audience: "replica", InvokeScopes: []*basev1.WorkScopeV1{sc(kind, "read", "write")}}
 	if _, err := h.svc.ApplyModule(h.ctx, wider); err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +151,7 @@ func TestAModulesRedeliveryThatNarrowsASolutionsReachReconverges(t *testing.T) {
 	before := h.stored(acme, "a")
 	issued := h.must(h.root("remi", "a"))
 	stricter := storeAt(3, "admin", true)
-	stricter.Methods[storeRead] = domain.MethodPolicy{Requires: []*basev0.WorkScopeV1{sc(kind, "read", "write")}}
+	stricter.Methods[storeRead] = domain.MethodPolicy{Requires: []*basev1.WorkScopeV1{sc(kind, "read", "write")}}
 	if _, err := h.svc.ApplyModule(h.ctx, stricter); err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +232,7 @@ func TestACallThroughASolutionIsNotHeldToTheReachOfTheModulesOwnPage(t *testing.
 	}
 	paged := storeAt(3, "admin", true)
 	paged.Page, paged.InstallationRole = true, domain.NoInstallationRole
-	paged.Roles = map[string][]*basev0.WorkScopeV1{
+	paged.Roles = map[string][]*basev1.WorkScopeV1{
 		domain.AdminRole: {sc(kind, "admin", "read", "write")},
 		"user":           {sc(kind, "read")},
 	}
@@ -271,8 +271,8 @@ func TestAClientsCallAtASolutionIsHeldToItsApprovedReach(t *testing.T) {
 		m := solution("a", true)
 		m.Generation = generation
 		m.Methods = map[string]domain.MethodPolicy{
-			aRead:  {Requires: []*basev0.WorkScopeV1{sc("a.note", "read")}},
-			aErase: {Requires: []*basev0.WorkScopeV1{sc("a.note", erase)}},
+			aRead:  {Requires: []*basev1.WorkScopeV1{sc("a.note", "read")}},
+			aErase: {Requires: []*basev1.WorkScopeV1{sc("a.note", erase)}},
 		}
 		return m
 	}
@@ -316,16 +316,16 @@ func TestAPersonsOwnCallAtAModulePageIsHeldToItsApprovedReach(t *testing.T) {
 	paged := func(generation uint64, purge string) domain.Module {
 		m := storeAt(generation, purge, true)
 		m.Page, m.InstallationRole = true, domain.NoInstallationRole
-		m.Roles = map[string][]*basev0.WorkScopeV1{
+		m.Roles = map[string][]*basev1.WorkScopeV1{
 			domain.AdminRole: {sc(kind, "admin", "read", "write")},
 			"user":           {sc(kind, "read")},
 		}
 		return m
 	}
 	relay := domain.Module{Name: "relay", Principal: "relay", Kind: domain.KindModule, Generation: 1,
-		ResourceKinds: []*basev0.WorkScopeV1{sc(ledgerKind, "read")},
+		ResourceKinds: []*basev1.WorkScopeV1{sc(ledgerKind, "read")},
 		Bindings: map[string]domain.Binding{
-			"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "admin", "read", "write")}},
+			"store": {ID: "store", Audience: "store", InvokeScopes: []*basev1.WorkScopeV1{sc(kind, "admin", "read", "write")}},
 		}}
 	for _, m := range []domain.Module{paged(2, "admin"), relay} {
 		if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {

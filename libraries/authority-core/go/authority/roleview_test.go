@@ -13,7 +13,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // viewing opens a role view for person on installation target, as a new session
@@ -31,7 +31,7 @@ func (h *harness) viewing(person, target string, roles ...string) (authority.Per
 	return parent, err
 }
 
-func (h *harness) rootAs(who authority.Person, target string, scopes ...*basev0.WorkScopeV1) (authority.Issued, error) {
+func (h *harness) rootAs(who authority.Person, target string, scopes ...*basev1.WorkScopeV1) (authority.Issued, error) {
 	return h.svc.IssueForPerson(h.ctx, who, authority.IssueRequest{Audience: target, Scopes: scopes})
 }
 
@@ -64,7 +64,7 @@ func TestARoleViewHoldsAtEveryHopWhatTheViewedRolesHold(t *testing.T) {
 	if holds(root, "a.note", "write") {
 		t.Fatalf("a user's root at the solution writes: %v", effective(root))
 	}
-	_, err = h.svc.IssueChild(h.ctx, root.Token, authority.Workload{Module: "a"}, authority.IssueRequest{Binding: "store", Scopes: []*basev0.WorkScopeV1{sc(kind, "write")}})
+	_, err = h.svc.IssueChild(h.ctx, root.Token, authority.Workload{Module: "a"}, authority.IssueRequest{Binding: "store", Scopes: []*basev1.WorkScopeV1{sc(kind, "write")}})
 	refused(t, err, "widens")
 
 	hop := h.must(h.svc.IssueChild(h.ctx, root.Token, authority.Workload{Module: "a"}, authority.IssueRequest{Binding: "store"}))
@@ -344,7 +344,7 @@ func TestARoleViewRefusalNamesTheView(t *testing.T) {
 	h.grant("a", "user", "maya")
 	user, _ := h.viewing("maya", "a", "user")
 	root := h.must(h.rootAs(user, "a"))
-	_, err := h.svc.IssueChild(h.ctx, root.Token, authority.Workload{Module: "a"}, authority.IssueRequest{Binding: "store", Scopes: []*basev0.WorkScopeV1{sc(kind, "write")}})
+	_, err := h.svc.IssueChild(h.ctx, root.Token, authority.Workload{Module: "a"}, authority.IssueRequest{Binding: "store", Scopes: []*basev1.WorkScopeV1{sc(kind, "write")}})
 	refused(t, err, "this session views as user on a")
 	_, err = h.rootAs(user, "a", sc("a.note", "write"))
 	refused(t, err, "this session views as user on a")

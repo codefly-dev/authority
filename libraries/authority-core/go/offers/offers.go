@@ -11,8 +11,8 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
-	runnablev0 "github.com/codefly-dev/core/generated/go/codefly/runnable/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
+	runnablev1 "github.com/codefly-dev/core/generated/go/codefly/runnable/v1"
 	"github.com/codefly-dev/core/runnable"
 )
 
@@ -80,7 +80,7 @@ type Scope struct {
 // Project joins the reviewed declaration to composed tool bindings. It does
 // not read host state or authorize callers: Service.ReviewOffer owns that read.
 // Invalid exposed bindings fail with a domain refusal.
-func Project(offer authority.ReviewedOffer, bindings map[string]*runnablev0.PreparedBinding) (*Review, error) {
+func Project(offer authority.ReviewedOffer, bindings map[string]*runnablev1.PreparedBinding) (*Review, error) {
 	m, inst := offer.Module, offer.Installation
 	a := offer.Approval
 	out := &Review{Target: m.Name, ToolsComposed: len(bindings) > 0,
@@ -135,7 +135,7 @@ func Project(offer authority.ReviewedOffer, bindings map[string]*runnablev0.Prep
 // and lookup scopes the role covers: the exposures a tool caller lists. The
 // same tool composed from the operation's Connect and gRPC endpoints is one
 // tool, named by its Connect binding, as a tool caller lists it.
-func toolsOf(module, method string, held []*basev0.WorkScopeV1, bindings map[string]*runnablev0.PreparedBinding) ([]*Tool, error) {
+func toolsOf(module, method string, held []*basev1.WorkScopeV1, bindings map[string]*runnablev1.PreparedBinding) ([]*Tool, error) {
 	var out []*Tool
 	keys := slices.Sorted(maps.Keys(bindings))
 	connectFirst := func(key string) int {
@@ -161,12 +161,12 @@ func toolsOf(module, method string, held []*basev0.WorkScopeV1, bindings map[str
 		if slices.ContainsFunc(out, func(t *Tool) bool { return t.Name == tool.GetName() }) {
 			continue
 		}
-		out = append(out, &Tool{Name: tool.GetName(), Binding: key, Write: tool.GetEffect() != runnablev0.ToolExposure_EFFECT_READ_ONLY})
+		out = append(out, &Tool{Name: tool.GetName(), Binding: key, Write: tool.GetEffect() != runnablev1.ToolExposure_EFFECT_READ_ONLY})
 	}
 	return out, nil
 }
 
-func offerScopes(in []*basev0.WorkScopeV1, attached bool, owned map[string][]string) []*Scope {
+func offerScopes(in []*basev1.WorkScopeV1, attached bool, owned map[string][]string) []*Scope {
 	var out []*Scope
 	for _, sc := range scope.Normalize(in) {
 		s := &Scope{ResourceKind: sc.GetResourceKind(), Actions: sc.GetActions(), AttachedOnly: attached}

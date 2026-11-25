@@ -13,7 +13,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/offers"
-	runnablev0 "github.com/codefly-dev/core/generated/go/codefly/runnable/v0"
+	runnablev1 "github.com/codefly-dev/core/generated/go/codefly/runnable/v1"
 	"github.com/codefly-dev/core/runnable"
 	codefly "github.com/codefly-dev/sdk-go"
 	"google.golang.org/grpc/codes"
@@ -27,10 +27,10 @@ const runnableBindings = "runnable-bindings"
 
 // RunnableReader reads the run's prepared Runnable bindings by key; nil when the
 // run composes none.
-type RunnableReader func(context.Context) (map[string]*runnablev0.PreparedBinding, error)
+type RunnableReader func(context.Context) (map[string]*runnablev1.PreparedBinding, error)
 
 // composedRunnables reads the group through the SDK, as every tool caller does.
-func composedRunnables(ctx context.Context) (map[string]*runnablev0.PreparedBinding, error) {
+func composedRunnables(ctx context.Context) (map[string]*runnablev1.PreparedBinding, error) {
 	sdk := codefly.For(ctx)
 	keys, err := sdk.WorkspaceConfigurationKeys(runnableBindings)
 	if errors.Is(err, codefly.ErrWorkspaceConfigurationAbsent) {
@@ -39,7 +39,7 @@ func composedRunnables(ctx context.Context) (map[string]*runnablev0.PreparedBind
 	if err != nil {
 		return nil, err
 	}
-	out := map[string]*runnablev0.PreparedBinding{}
+	out := map[string]*runnablev1.PreparedBinding{}
 	for _, key := range keys {
 		raw, err := sdk.WorkspaceConfiguration(runnableBindings, key)
 		if err != nil {
@@ -91,7 +91,7 @@ func (o *Offers) ReviewOffer(ctx context.Context, req *installationv1.ReviewRequ
 	if err != nil {
 		return nil, authorityplugin.Status(err)
 	}
-	var bindings map[string]*runnablev0.PreparedBinding
+	var bindings map[string]*runnablev1.PreparedBinding
 	if o.runnables != nil {
 		if bindings, err = o.runnables(ctx); err != nil {
 			return nil, status.Errorf(codes.Unavailable, "the run's tool bindings cannot be read: %v", err)
@@ -101,7 +101,7 @@ func (o *Offers) ReviewOffer(ctx context.Context, req *installationv1.ReviewRequ
 }
 
 // review adapts the shared projection to this host's generated wire types.
-func (p *Plugin) review(offer authority.ReviewedOffer, bindings map[string]*runnablev0.PreparedBinding) (*installationv1.ReviewedOffer, error) {
+func (p *Plugin) review(offer authority.ReviewedOffer, bindings map[string]*runnablev1.PreparedBinding) (*installationv1.ReviewedOffer, error) {
 	projected, err := offers.Project(offer, bindings)
 	if err != nil {
 		return nil, authorityplugin.Status(err)

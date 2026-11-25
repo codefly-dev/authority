@@ -7,7 +7,7 @@
 # (codefly/<module>); the version is the package's and moves when what it
 # publishes moves. Each service's api-contracts is written by codefly generate
 # contracts.
-schema: codefly/module-package/v2
+schema: codefly/module-package/v1
 kind: module-package
 id: codefly/authority
 version: 0.1.0

@@ -11,7 +11,7 @@ import (
 	hopv1 "github.com/codefly-dev/authority/libraries/hop/go/gen/authority/hop/v1"
 	"github.com/codefly-dev/authority/libraries/hop/go/hoptest"
 	"github.com/codefly-dev/authority/libraries/hop/go/policy"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -48,8 +48,8 @@ func declaring(t *testing.T, a *hoptest.Authority, audience string) *hop.Verifie
 	return v
 }
 
-func scope(kind, owner string, ids []string, actions ...string) *basev0.WorkScopeV1 {
-	return &basev0.WorkScopeV1{ResourceKind: kind, Actions: actions, ResourceOwnerId: owner, ResourceIds: ids}
+func scope(kind, owner string, ids []string, actions ...string) *basev1.WorkScopeV1 {
+	return &basev1.WorkScopeV1{ResourceKind: kind, Actions: actions, ResourceOwnerId: owner, ResourceIds: ids}
 }
 
 // Decision 2: the hop hands the module what admitted the call. A handler reads
@@ -86,12 +86,12 @@ func TestAHandlerReadsTheOwnersThatAdmittedTheCallAndNamesNoPermission(t *testin
 // them was granted one installation's resources. The hop stamps what the call
 // holds after every actor narrowed it, so the module reads the narrower.
 func TestACallAdmittedByANarrowerScopeStampsTheNarrowerSelection(t *testing.T) {
-	wc := &basev0.WorkContextV1{
+	wc := &basev1.WorkContextV1{
 		OwnerPrincipalId: "maya", TenantId: "acme", ExpiresAtUnix: time.Now().Add(time.Minute).Unix(),
-		AuthorityScopes: []*basev0.WorkScopeV1{scope("records.records", "", nil, "read", "write")},
-		ActorChain: []*basev0.WorkActorV1{
-			{PrincipalId: "wiki", GrantedScopes: []*basev0.WorkScopeV1{scope("records.records", "installation-a", nil, "read", "write")}},
-			{PrincipalId: "reader", GrantedScopes: []*basev0.WorkScopeV1{scope("records.records", "installation-a", []string{"r-2", "r-1"}, "read")}},
+		AuthorityScopes: []*basev1.WorkScopeV1{scope("records.records", "", nil, "read", "write")},
+		ActorChain: []*basev1.WorkActorV1{
+			{PrincipalId: "wiki", GrantedScopes: []*basev1.WorkScopeV1{scope("records.records", "installation-a", nil, "read", "write")}},
+			{PrincipalId: "reader", GrantedScopes: []*basev1.WorkScopeV1{scope("records.records", "installation-a", []string{"r-2", "r-1"}, "read")}},
 		},
 	}
 	md := metadata.Pairs(hop.WorkContextKey, "the-token")
@@ -118,7 +118,7 @@ func TestWhatAMethodCarriesIsReadAsItsOwnNarrowerSelection(t *testing.T) {
 	a := hoptest.New(t)
 	v := declaring(t, a, "records")
 	var stamped []hop.Grant
-	read := func(scopes ...*basev0.WorkScopeV1) *hop.Admission {
+	read := func(scopes ...*basev1.WorkScopeV1) *hop.Admission {
 		t.Helper()
 		md := hoptest.Forward(t, a.Issue(t, "records", scopes...), proof, readContent)
 		var err error

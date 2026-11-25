@@ -7,7 +7,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // racing is a store that, once armed, runs a change right after the first
@@ -92,7 +92,7 @@ func TestARevokeRacingAnIssueYieldsNoCapability(t *testing.T) {
 		t.Run(name+" racing a delegation", func(t *testing.T) {
 			h := newHarness(t)
 			setup.grant(h)
-			d, err := h.svc.Delegate(h.ctx, h.person("maya"), "a", []*basev0.WorkScopeV1{owned(kind, h.principal(acme, "a"), read)}, "x", 0)
+			d, err := h.svc.Delegate(h.ctx, h.person("maya"), "a", []*basev1.WorkScopeV1{owned(kind, h.principal(acme, "a"), read)}, "x", 0)
 			if err != nil {
 				t.Fatal(err)
 			}

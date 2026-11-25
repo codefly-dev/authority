@@ -5,7 +5,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // sourceGovernance holds what m declares governs its sources to its approved
@@ -30,7 +30,7 @@ func sourceGovernance(m domain.Module) error {
 		if len(governing.GetResourceIds()) > 0 || governing.GetResourceOwnerId() != "" {
 			return domain.Refuse("%s governs its sources by %s with resource ids or an owner; a governing scope names a whole kind", m.Name, kind)
 		}
-		if !slices.ContainsFunc(m.ResourceKinds, func(sc *basev0.WorkScopeV1) bool { return sc.GetResourceKind() == kind }) {
+		if !slices.ContainsFunc(m.ResourceKinds, func(sc *basev1.WorkScopeV1) bool { return sc.GetResourceKind() == kind }) {
 			return domain.Refuse("%s governs its sources by %s, which is not a kind it declares", m.Name, kind)
 		}
 		if slices.Contains(m.SharedKinds, kind) {
@@ -61,7 +61,7 @@ func sourceGovernance(m domain.Module) error {
 // carries, and not on some of its ids only. A ceiling a later delivery widens
 // is no review's, so a governing scope must be whole already where approved.
 func servedWhole(m domain.Module, kind, action string) bool {
-	return slices.ContainsFunc(m.ResourceKinds, func(sc *basev0.WorkScopeV1) bool {
+	return slices.ContainsFunc(m.ResourceKinds, func(sc *basev1.WorkScopeV1) bool {
 		return sc.GetResourceKind() == kind && len(sc.GetResourceIds()) == 0 && sc.GetResourceOwnerId() == "" && slices.Contains(sc.GetActions(), action)
 	})
 }
@@ -69,7 +69,7 @@ func servedWhole(m domain.Module, kind, action string) bool {
 // GrantedByARole reports whether one of m's roles grants action on the whole
 // of kind: what a person holding that role is issued on an installation.
 func GrantedByARole(m domain.Module, kind, action string) bool {
-	asked := []*basev0.WorkScopeV1{{ResourceKind: kind, Actions: []string{action}}}
+	asked := []*basev1.WorkScopeV1{{ResourceKind: kind, Actions: []string{action}}}
 	for _, scopes := range m.Roles {
 		if scope.Attenuates(asked, scopes) {
 			return true
@@ -81,7 +81,7 @@ func GrantedByARole(m domain.Module, kind, action string) bool {
 // Governs reports whether m declares kind:action among the scopes that govern
 // its sources.
 func Governs(m domain.Module, kind, action string) bool {
-	return slices.ContainsFunc(m.SourceGovernance, func(sc *basev0.WorkScopeV1) bool {
+	return slices.ContainsFunc(m.SourceGovernance, func(sc *basev1.WorkScopeV1) bool {
 		return sc.GetResourceKind() == kind && slices.Contains(sc.GetActions(), action)
 	})
 }

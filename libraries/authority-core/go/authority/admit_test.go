@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // pageNamingBeyondReach is the page at generation reaching the store as
@@ -15,9 +15,9 @@ import (
 // core refuses by name (decide.Unreached).
 func pageNamingBeyondReach(generation uint64) domain.Module {
 	m := pageReachingStore(generation, "read")
-	m.Bindings["legacy"] = domain.Binding{ID: "legacy", Audience: "legacy-store", InvokeScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}}
+	m.Bindings["legacy"] = domain.Binding{ID: "legacy", Audience: "legacy-store", InvokeScopes: []*basev1.WorkScopeV1{sc(legacyKind, "read")}}
 	m.Roles["user"] = append(m.Roles["user"], sc(legacyKind, "write"))
-	m.Through = map[string]map[string][]*basev0.WorkScopeV1{"user": {"legacy": {sc(legacyKind, "write")}}}
+	m.Through = map[string]map[string][]*basev1.WorkScopeV1{"user": {"legacy": {sc(legacyKind, "write")}}}
 	return m
 }
 

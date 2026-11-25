@@ -6,15 +6,15 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 func ownedModule() domain.Module {
-	sc := &basev0.WorkScopeV1{ResourceKind: "collection", Actions: []string{"read"}}
+	sc := &basev1.WorkScopeV1{ResourceKind: "collection", Actions: []string{"read"}}
 	return domain.Module{Name: "solution", Principal: "solution", Kind: domain.KindSolution, Generation: 1,
-		Bindings:   map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc}}},
-		Roles:      map[string][]*basev0.WorkScopeV1{domain.AdminRole: nil},
-		OwnedRoles: map[string][]*basev0.WorkScopeV1{domain.AdminRole: {sc}},
+		Bindings:   map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: []*basev1.WorkScopeV1{sc}}},
+		Roles:      map[string][]*basev1.WorkScopeV1{domain.AdminRole: nil},
+		OwnedRoles: map[string][]*basev1.WorkScopeV1{domain.AdminRole: {sc}},
 	}
 }
 
@@ -60,7 +60,7 @@ func TestInstallationOwnedResolutionNeverEmitsAnEmptyIDGrant(t *testing.T) {
 	if inst.Owned["collection"][0] != "x" {
 		t.Fatal("resolution mutated the installation")
 	}
-	m.Roles[domain.AdminRole] = []*basev0.WorkScopeV1{{ResourceKind: "note", Actions: []string{"read"}}}
+	m.Roles[domain.AdminRole] = []*basev1.WorkScopeV1{{ResourceKind: "note", Actions: []string{"read"}}}
 	got, err = decide.RoleScopes(m, inst, []string{domain.AdminRole})
 	if err != nil {
 		t.Fatal(err)

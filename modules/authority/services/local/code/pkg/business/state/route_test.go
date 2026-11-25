@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 
 	"gateway/pkg/business/state"
 	"gateway/pkg/business/testkit"
@@ -12,7 +12,7 @@ import (
 )
 
 func reads(kind string) state.MethodPolicy {
-	return state.MethodPolicy{Requires: []*basev0.WorkScopeV1{{ResourceKind: kind, Actions: []string{"read"}}}}
+	return state.MethodPolicy{Requires: []*basev1.WorkScopeV1{{ResourceKind: kind, Actions: []string{"read"}}}}
 }
 
 // A module serving HTTP declares routes, "<VERB> <template>"; a request
@@ -25,7 +25,7 @@ func TestAnHTTPRequestIsAdmittedUnderTheRouteItsPathMatches(t *testing.T) {
 		Methods: map[string]state.MethodPolicy{
 			"GET /v1/gauge/profiles":                   reads("gauge.profiles"),
 			"GET /v1/gauge/profiles/{ref}":             reads("gauge.profiles"),
-			"POST /v1/gauge/matches/{match_id}:settle": {Requires: []*basev0.WorkScopeV1{{ResourceKind: "gauge.profiles", Actions: []string{"write"}}}},
+			"POST /v1/gauge/matches/{match_id}:settle": {Requires: []*basev1.WorkScopeV1{{ResourceKind: "gauge.profiles", Actions: []string{"write"}}}},
 			"GET /v1/gauge/{a}/x":                      {AnyCheckedCaller: true},
 			"GET /v1/gauge/{b}/x":                      {AnyCheckedCaller: true},
 			"GET /v1/gauge/sources/{repo=**}":          reads("gauge.profiles"),
@@ -35,7 +35,7 @@ func TestAnHTTPRequestIsAdmittedUnderTheRouteItsPathMatches(t *testing.T) {
 	if _, err := k.State.ApplyManifest(m); err != nil {
 		t.Fatal(err)
 	}
-	read := []*basev0.WorkScopeV1{{ResourceKind: "gauge.profiles", Actions: []string{"read"}}}
+	read := []*basev1.WorkScopeV1{{ResourceKind: "gauge.profiles", Actions: []string{"read"}}}
 	for request, want := range map[string]error{
 		"GET /v1/gauge/profiles":                             nil,
 		"GET /v1/gauge/profiles/pro-1":                       nil,
@@ -85,10 +85,10 @@ func TestConcreteInventorySelectionPreservesManifestPolicy(t *testing.T) {
 	k := testkit.New(t)
 	m := state.Manifest{Name: "gauge", Principal: "gauge", Kind: "module", Generation: 1, Methods: map[string]state.MethodPolicy{
 		"GET /things/{id}":            {AnyCheckedCaller: true},
-		"GET /things/export":          {Requires: []*basev0.WorkScopeV1{{ResourceKind: "gauge.items", Actions: []string{"write"}}}},
+		"GET /things/export":          {Requires: []*basev1.WorkScopeV1{{ResourceKind: "gauge.items", Actions: []string{"write"}}}},
 		"GET /things/{name}":          {AnyCheckedCaller: true},
 		"/gauge.Service/Call":         {AnyCheckedCaller: true},
-		"POST /{service}/{operation}": {Requires: []*basev0.WorkScopeV1{{ResourceKind: "gauge.items", Actions: []string{"write"}}}},
+		"POST /{service}/{operation}": {Requires: []*basev1.WorkScopeV1{{ResourceKind: "gauge.items", Actions: []string{"write"}}}},
 	}}
 	if _, err := k.State.ApplyManifest(m); err != nil {
 		t.Fatal(err)

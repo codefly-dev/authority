@@ -14,8 +14,8 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/google/uuid"
 
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
-	runnablev0 "github.com/codefly-dev/core/generated/go/codefly/runnable/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
+	runnablev1 "github.com/codefly-dev/core/generated/go/codefly/runnable/v1"
 	"github.com/codefly-dev/core/resources"
 	"github.com/codefly-dev/core/runnable"
 	"google.golang.org/grpc/codes"
@@ -31,33 +31,33 @@ const (
 
 // prepared is one composed Connect operation as `codefly generate
 // runnable-bindings` delivers it; an empty tool uses Core's default exposure.
-func prepared(method, tool string, effect runnablev0.ToolExposure_Effect, actions ...string) *runnablev0.PreparedBinding {
-	scopes := []*basev0.WorkScopeV1{{ResourceKind: "proposals.item", Actions: actions}}
-	p := &runnablev0.PreparedBinding{
-		Operation: &runnablev0.PreparedOperation{Module: "proposals", Service: "api", Endpoint: "connect", Spelling: method},
-		Call:      &runnablev0.PreparedCall{Address: "https://proposals.invalid", Route: &runnablev0.PreparedCall_Connect{Connect: &runnablev0.ConnectProcedure{Procedure: method}}},
-		Contract: &basev0.RunnableContract{Protocol: resources.RunnableServiceProtocolV1,
-			Input:  &basev0.RunnableSchema{Fields: []*basev0.RunnableField{{Name: "id", Type: basev0.RunnableField_STRING}}},
-			Output: &basev0.RunnableSchema{Fields: []*basev0.RunnableField{{Name: "title", Type: basev0.RunnableField_STRING}}}},
-		Policy: &runnablev0.Operation{AttemptTimeout: durationpb.New(10 * time.Second), TotalTimeout: durationpb.New(30 * time.Second), MaxAttempts: 1,
-			Backoff: durationpb.New(time.Second), Audience: "proposals", InvokeScopes: scopes, Completion: basev0.RunnableExecution_COMPLETION_CALL},
+func prepared(method, tool string, effect runnablev1.ToolExposure_Effect, actions ...string) *runnablev1.PreparedBinding {
+	scopes := []*basev1.WorkScopeV1{{ResourceKind: "proposals.item", Actions: actions}}
+	p := &runnablev1.PreparedBinding{
+		Operation: &runnablev1.PreparedOperation{Module: "proposals", Service: "api", Endpoint: "connect", Spelling: method},
+		Call:      &runnablev1.PreparedCall{Address: "https://proposals.invalid", Route: &runnablev1.PreparedCall_Connect{Connect: &runnablev1.ConnectProcedure{Procedure: method}}},
+		Contract: &basev1.RunnableContract{Protocol: resources.RunnableServiceProtocolV1,
+			Input:  &basev1.RunnableSchema{Fields: []*basev1.RunnableField{{Name: "id", Type: basev1.RunnableField_STRING}}},
+			Output: &basev1.RunnableSchema{Fields: []*basev1.RunnableField{{Name: "title", Type: basev1.RunnableField_STRING}}}},
+		Policy: &runnablev1.Operation{AttemptTimeout: durationpb.New(10 * time.Second), TotalTimeout: durationpb.New(30 * time.Second), MaxAttempts: 1,
+			Backoff: durationpb.New(time.Second), Audience: "proposals", InvokeScopes: scopes, Completion: basev1.RunnableExecution_COMPLETION_CALL},
 	}
 	if tool != "" {
-		p.Policy.Tool = &runnablev0.ToolExposure{Name: tool, Description: "A proposals tool.", Effect: effect}
+		p.Policy.Tool = &runnablev1.ToolExposure{Name: tool, Description: "A proposals tool.", Effect: effect}
 	}
 	return composed(p)
 }
 
 // grpcEndpoint is the same operation composed from its gRPC endpoint, which a
 // tool caller reaches over Connect all the same.
-func grpcEndpoint(p *runnablev0.PreparedBinding) *runnablev0.PreparedBinding {
+func grpcEndpoint(p *runnablev1.PreparedBinding) *runnablev1.PreparedBinding {
 	p.Operation.Endpoint = "grpc"
 	return composed(p)
 }
 
 // composed round-trips a binding through the generator's encoding, as the run
 // delivers it: schema and contract digest stamped.
-func composed(p *runnablev0.PreparedBinding) *runnablev0.PreparedBinding {
+func composed(p *runnablev1.PreparedBinding) *runnablev1.PreparedBinding {
 	raw, err := runnable.EncodePrepared(p)
 	if err != nil {
 		panic(err)
@@ -84,22 +84,22 @@ func TestReviewOfferShowsEachRolesOperationsAndTools(t *testing.T) {
 	k := testkit.New(t)
 	solution := testkit.Proposals(1)
 	solution.Methods = map[string]state.MethodPolicy{
-		readItems:  {Requires: []*basev0.WorkScopeV1{testkit.Scope("proposals.item", "read")}},
-		writeItems: {Requires: []*basev0.WorkScopeV1{testkit.Scope("proposals.item", "write")}},
+		readItems:  {Requires: []*basev1.WorkScopeV1{testkit.Scope("proposals.item", "read")}},
+		writeItems: {Requires: []*basev1.WorkScopeV1{testkit.Scope("proposals.item", "write")}},
 	}
 	if _, err := k.State.ApplyManifest(solution); err != nil {
 		t.Fatal(err)
 	}
-	lookupRestricted := prepared(readItems, "read_with_private_lookup", runnablev0.ToolExposure_EFFECT_READ_ONLY, "read")
-	lookupRestricted.Policy.LookupScopes = []*basev0.WorkScopeV1{testkit.Scope("proposals.private-outcome", "read")}
+	lookupRestricted := prepared(readItems, "read_with_private_lookup", runnablev1.ToolExposure_EFFECT_READ_ONLY, "read")
+	lookupRestricted.Policy.LookupScopes = []*basev1.WorkScopeV1{testkit.Scope("proposals.private-outcome", "read")}
 	lookupRestricted.Policy.InvokeScopes = append(lookupRestricted.Policy.InvokeScopes, lookupRestricted.Policy.LookupScopes...)
 	lookupRestricted = composed(lookupRestricted)
-	offers := &Offers{plugin: &Plugin{State: k.State}, runnables: func(context.Context) (map[string]*runnablev0.PreparedBinding, error) {
-		return map[string]*runnablev0.PreparedBinding{
-			"PROPOSALS__API_CONNECT_READ":       prepared(readItems, "read_item", runnablev0.ToolExposure_EFFECT_READ_ONLY, "read"),
-			"PROPOSALS__API_CONNECT_READ_AGAIN": prepared(readItems, "", runnablev0.ToolExposure_EFFECT_READ_ONLY, "read"),
-			"PROPOSALS__API_ALT_GRPC_READ":      grpcEndpoint(prepared(readItems, "read_item", runnablev0.ToolExposure_EFFECT_READ_ONLY, "read")),
-			"PROPOSALS__API_CONNECT_WRITE":      prepared(writeItems, "write_item", runnablev0.ToolExposure_EFFECT_MUTATION, "write"),
+	offers := &Offers{plugin: &Plugin{State: k.State}, runnables: func(context.Context) (map[string]*runnablev1.PreparedBinding, error) {
+		return map[string]*runnablev1.PreparedBinding{
+			"PROPOSALS__API_CONNECT_READ":       prepared(readItems, "read_item", runnablev1.ToolExposure_EFFECT_READ_ONLY, "read"),
+			"PROPOSALS__API_CONNECT_READ_AGAIN": prepared(readItems, "", runnablev1.ToolExposure_EFFECT_READ_ONLY, "read"),
+			"PROPOSALS__API_ALT_GRPC_READ":      grpcEndpoint(prepared(readItems, "read_item", runnablev1.ToolExposure_EFFECT_READ_ONLY, "read")),
+			"PROPOSALS__API_CONNECT_WRITE":      prepared(writeItems, "write_item", runnablev1.ToolExposure_EFFECT_MUTATION, "write"),
 			"PROPOSALS__API_CONNECT_LOOKUP":     lookupRestricted,
 		}, nil
 	}}
@@ -249,7 +249,7 @@ func TestReviewedInstallationRolesStayInTheReviewedSnapshot(t *testing.T) {
 	// A delivery declares exactly admin and user, so the later one widens
 	// user rather than dropping it.
 	redelivered := testkit.Wiki(2)
-	redelivered.Roles[state.UserRole] = []*basev0.WorkScopeV1{testkit.Scope("wiki.page", "read", "write")}
+	redelivered.Roles[state.UserRole] = []*basev1.WorkScopeV1{testkit.Scope("wiki.page", "read", "write")}
 	if _, err := k.State.ApplyManifest(redelivered); err != nil {
 		t.Fatal(err)
 	}

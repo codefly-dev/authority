@@ -11,7 +11,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // denseComposition is the review's synthetic shape: a solution and
@@ -21,8 +21,8 @@ import (
 func denseComposition(seed int64, modules, kinds int) (domain.Module, []domain.Module) {
 	r := rand.New(rand.NewSource(seed))
 	actions := []string{"read", "write", "admin"}
-	some := func() []*basev0.WorkScopeV1 {
-		var out []*basev0.WorkScopeV1
+	some := func() []*basev1.WorkScopeV1 {
+		var out []*basev1.WorkScopeV1
 		for k := 0; k < kinds; k++ {
 			var acts []string
 			for _, a := range actions {
@@ -54,7 +54,7 @@ func denseComposition(seed int64, modules, kinds int) (domain.Module, []domain.M
 			}
 		}
 		if i == 0 {
-			m.Kind, m.Roles = domain.KindSolution, map[string][]*basev0.WorkScopeV1{"user": some(), "reader": some()}
+			m.Kind, m.Roles = domain.KindSolution, map[string][]*basev1.WorkScopeV1{"user": some(), "reader": some()}
 		}
 		out = append(out, m)
 	}

@@ -10,7 +10,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // The ways a holder reaches a module (domain.ReachRow.Via).
@@ -132,7 +132,7 @@ func reach(target domain.Module, literal, owned Scopes, addressed map[string]Sco
 		}
 	}
 	rootAt := func(scopes Scopes) scope.Limits {
-		return scope.ParentLimits(&basev0.WorkContextV1{AuthorityScopes: scope.Limits{}.Project(scopes, scopes)})
+		return scope.ParentLimits(&basev1.WorkContextV1{AuthorityScopes: scope.Limits{}.Project(scopes, scopes)})
 	}
 	// hops are what each hop over b from a capability with limits carries
 	// at next, and the child's limits, as IssueChild mints the child: the
@@ -148,9 +148,9 @@ func reach(target domain.Module, literal, owned Scopes, addressed map[string]Sco
 				continue
 			}
 			add(next, path, ReachBinding, "", carried)
-			arrive(next, path, scope.ParentLimits(&basev0.WorkContextV1{
+			arrive(next, path, scope.ParentLimits(&basev1.WorkContextV1{
 				AuthorityScopes: maps.Clone(limits).Project(through, carried),
-				ActorChain:      []*basev0.WorkActorV1{{GrantedScopes: carried}},
+				ActorChain:      []*basev1.WorkActorV1{{GrantedScopes: carried}},
 			}))
 		}
 	}
@@ -342,13 +342,13 @@ type scopeLine struct {
 	Owner   string   `json:"owner,omitempty"`
 }
 
-func scopeText(sc *basev0.WorkScopeV1) scopeLine {
+func scopeText(sc *basev1.WorkScopeV1) scopeLine {
 	return scopeLine{Kind: sc.GetResourceKind(), Actions: slices.Sorted(slices.Values(sc.GetActions())),
 		IDs: slices.Sorted(slices.Values(sc.GetResourceIds())), Owner: sc.GetResourceOwnerId()}
 }
 
-func (l scopeLine) scope() *basev0.WorkScopeV1 {
-	return &basev0.WorkScopeV1{ResourceKind: l.Kind, Actions: l.Actions, ResourceIds: l.IDs, ResourceOwnerId: l.Owner}
+func (l scopeLine) scope() *basev1.WorkScopeV1 {
+	return &basev1.WorkScopeV1{ResourceKind: l.Kind, Actions: l.Actions, ResourceIds: l.IDs, ResourceOwnerId: l.Owner}
 }
 
 func (l scopeLine) key() string {

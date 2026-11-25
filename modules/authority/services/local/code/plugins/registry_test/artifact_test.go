@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"testing"
 
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
@@ -40,8 +40,8 @@ func TestTheLocalAuthorityDecidesArtifactsAsEveryHostMust(t *testing.T) {
 	// role reaches it.
 	if _, err := k.State.ApplyManifest(state.Manifest{Name: module, Principal: module, Kind: "module", Generation: 1,
 		Page: true, InstallationRole: "none",
-		ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope(policy, "activate", "run")},
-		Roles: map[string][]*basev0.WorkScopeV1{
+		ResourceKinds: []*basev1.WorkScopeV1{testkit.Scope(policy, "activate", "run")},
+		Roles: map[string][]*basev1.WorkScopeV1{
 			state.AdminRole: {testkit.Scope(policy, "activate", "run")},
 			state.UserRole:  {testkit.Scope(policy, "run")},
 		},

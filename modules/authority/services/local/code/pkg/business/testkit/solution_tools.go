@@ -5,7 +5,7 @@ import (
 	"gateway/pkg/business/state"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"testing"
 )
 
@@ -26,7 +26,7 @@ const SolutionToolBinding = "PROPOSALS__TOOLS_SOLUTION_READ"
 // operation's.
 func SolutionTools(t *testing.T, k *Kit) {
 	t.Helper()
-	read := []*basev0.WorkScopeV1{Scope("proposals.item", "read")}
+	read := []*basev1.WorkScopeV1{Scope("proposals.item", "read")}
 	target := Proposals(1)
 	target.Methods = map[string]state.MethodPolicy{SolutionToolMethod: {Requires: read}}
 	// The module declares no roles: nobody's own session holds anything of
@@ -36,7 +36,7 @@ func SolutionTools(t *testing.T, k *Kit) {
 	// conversations kind is shared here (a fixture choice, not robin's
 	// contract, where a conversation is its owner's).
 	actor := state.Manifest{Name: "robin", Principal: "robin", Kind: "module", Generation: 1, OwnerAware: true, SharedKinds: []string{"robin.conversations"},
-		ResourceKinds: []*basev0.WorkScopeV1{Scope("robin.conversations", "read")},
+		ResourceKinds: []*basev1.WorkScopeV1{Scope("robin.conversations", "read")},
 		Bindings:      map[string]state.Binding{SolutionToolBinding: {ID: SolutionToolBinding, Audience: "proposals", InvokeScopes: read}},
 	}
 	for _, m := range []state.Manifest{target, actor} {

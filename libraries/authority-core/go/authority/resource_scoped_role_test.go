@@ -5,7 +5,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // Rob is a user of the ledger's page and asks for entry-x alone. What he is
@@ -17,7 +17,7 @@ func TestACapabilityNarrowedToIDsCarriesThemAlone(t *testing.T) {
 	h := newHarness(t)
 	ledgerWithRoles(t, h, "rob")
 	read := []string{"read"}
-	ids := func(of ...string) *basev0.WorkScopeV1 { return owned(ledgerKind, "", read, of...) }
+	ids := func(of ...string) *basev1.WorkScopeV1 { return owned(ledgerKind, "", read, of...) }
 
 	root := h.must(h.root("rob", "ledger", ids("entry-x")))
 	exactly(t, root, ledgerKind, "", read, "entry-x")
@@ -29,13 +29,13 @@ func TestACapabilityNarrowedToIDsCarriesThemAlone(t *testing.T) {
 		t.Fatalf("listed %v %v", grants, err)
 	}
 
-	for name, ask := range map[string]*basev0.WorkScopeV1{
+	for name, ask := range map[string]*basev1.WorkScopeV1{
 		"another id":         ids("entry-y"),
 		"a held and another": ids("entry-x", "entry-y"),
 		"the whole kind":     sc(ledgerKind, "read"),
 	} {
 		t.Run("a child naming "+name+" is refused", func(t *testing.T) {
-			_, err := h.svc.IssueChild(h.ctx, root.Token, authority.Workload{Module: "ledger"}, authority.IssueRequest{Binding: "self", Scopes: []*basev0.WorkScopeV1{ask}})
+			_, err := h.svc.IssueChild(h.ctx, root.Token, authority.Workload{Module: "ledger"}, authority.IssueRequest{Binding: "self", Scopes: []*basev1.WorkScopeV1{ask}})
 			refused(t, err, "widens")
 		})
 	}

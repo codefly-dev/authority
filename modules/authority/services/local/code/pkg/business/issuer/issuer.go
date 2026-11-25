@@ -16,7 +16,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/codefly-dev/core/workcontext"
 	"google.golang.org/protobuf/proto"
 
@@ -262,12 +262,12 @@ func (i *Issuer) authorizeTransfer(ctx context.Context, req *authorityv1.Authori
 // Delegate records the signed-in person's grant to a module; a positive
 // ttlSeconds ends it by itself after that many seconds, and zero keeps it
 // until it is revoked.
-func (i *Issuer) Delegate(ctx context.Context, module string, scopes []*basev0.WorkScopeV1, purpose string, ttlSeconds int64) (state.Delegation, error) {
+func (i *Issuer) Delegate(ctx context.Context, module string, scopes []*basev1.WorkScopeV1, purpose string, ttlSeconds int64) (state.Delegation, error) {
 	out, err := i.delegate(ctx, module, scopes, purpose, ttlSeconds)
 	return out, classify(err)
 }
 
-func (i *Issuer) delegate(ctx context.Context, module string, scopes []*basev0.WorkScopeV1, purpose string, ttlSeconds int64) (state.Delegation, error) {
+func (i *Issuer) delegate(ctx context.Context, module string, scopes []*basev1.WorkScopeV1, purpose string, ttlSeconds int64) (state.Delegation, error) {
 	person, err := i.signedIn(ctx)
 	if err != nil {
 		return state.Delegation{}, err
@@ -323,7 +323,7 @@ func (i *Issuer) signedIn(ctx context.Context) (authority.Person, error) {
 }
 
 // ToWire converts core's message to the interface's, byte for byte.
-func ToWire(in *basev0.WorkContextV1) (*authorityv1.WorkContextV1, error) {
+func ToWire(in *basev1.WorkContextV1) (*authorityv1.WorkContextV1, error) {
 	raw, err := proto.MarshalOptions{Deterministic: true}.Marshal(in)
 	if err != nil {
 		return nil, err
@@ -333,11 +333,11 @@ func ToWire(in *basev0.WorkContextV1) (*authorityv1.WorkContextV1, error) {
 }
 
 // FromWire converts interface scopes to core's, byte for byte.
-func FromWire(in []*authorityv1.WorkScopeV1) []*basev0.WorkScopeV1 {
-	out := make([]*basev0.WorkScopeV1, 0, len(in))
+func FromWire(in []*authorityv1.WorkScopeV1) []*basev1.WorkScopeV1 {
+	out := make([]*basev1.WorkScopeV1, 0, len(in))
 	for _, sc := range in {
 		raw, _ := proto.Marshal(sc)
-		c := &basev0.WorkScopeV1{}
+		c := &basev1.WorkScopeV1{}
 		_ = proto.Unmarshal(raw, c)
 		out = append(out, c)
 	}

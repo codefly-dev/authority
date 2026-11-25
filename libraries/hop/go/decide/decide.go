@@ -12,7 +12,7 @@ import (
 
 	authorityv1 "github.com/codefly-dev/authority/libraries/authority-client/go/gen/host/authority/v1"
 	"github.com/codefly-dev/authority/libraries/hop/go"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/codefly-dev/core/workcontext"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
@@ -167,7 +167,7 @@ func IdentityOf(wc *authorityv1.WorkContextV1) hop.Identity {
 	if err != nil {
 		return hop.Identity{}
 	}
-	claims := &basev0.WorkContextV1{}
+	claims := &basev1.WorkContextV1{}
 	if err := proto.Unmarshal(wire, claims); err != nil {
 		return hop.Identity{}
 	}

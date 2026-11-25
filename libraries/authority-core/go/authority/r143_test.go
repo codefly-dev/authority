@@ -8,7 +8,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/memstore"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/codefly-dev/core/workcontext"
 )
 
@@ -55,7 +55,7 @@ func TestAWithdrawnModuleDeliveredAgainIsInstalledAgain(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := domain.Module{Name: "store", Principal: "store", Kind: domain.KindModule, Generation: 2, OwnerAware: true,
-		ResourceKinds: []*basev0.WorkScopeV1{sc(kind, "admin", "create", "read", "write")}}
+		ResourceKinds: []*basev1.WorkScopeV1{sc(kind, "admin", "create", "read", "write")}}
 	if _, err := h.svc.ApplyModule(h.ctx, store); err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +185,7 @@ func TestApplyModuleIsSafeToRetry(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := domain.Module{Name: "store", Principal: "store", Kind: domain.KindModule, Generation: 5, OwnerAware: true,
-		ResourceKinds: []*basev0.WorkScopeV1{sc(kind, "admin", "create", "read", "write")}}
+		ResourceKinds: []*basev1.WorkScopeV1{sc(kind, "admin", "create", "read", "write")}}
 	ids, err := svc.ApplyModule(h.ctx, store)
 	if err != nil || len(ids) != 2 {
 		t.Fatalf("a retried apply answers %v (%v) for two organizations", ids, err)

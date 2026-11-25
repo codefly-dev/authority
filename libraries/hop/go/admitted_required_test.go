@@ -7,7 +7,7 @@ import (
 
 	hop "github.com/codefly-dev/authority/libraries/hop/go"
 	"github.com/codefly-dev/authority/libraries/hop/go/policy"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // A method that requires more than one permission: a row write requires
@@ -255,12 +255,12 @@ func TestApartIsWhatTheHopRefusesAndReachesNothing(t *testing.T) {
 	for _, reads := range choices {
 		for _, writes := range choices {
 			var grants []hop.Grant
-			var scopes []*basev0.WorkScopeV1
+			var scopes []*basev1.WorkScopeV1
 			hold := func(action string, chosen []int) {
 				for _, i := range chosen {
 					owner, ids := terms[i][0].(string), terms[i][1].([]string)
 					grants = append(grants, holds(records, action, owner, ids...))
-					scopes = append(scopes, &basev0.WorkScopeV1{ResourceKind: records, Actions: []string{action}, ResourceOwnerId: owner, ResourceIds: ids})
+					scopes = append(scopes, &basev1.WorkScopeV1{ResourceKind: records, Actions: []string{action}, ResourceOwnerId: owner, ResourceIds: ids})
 				}
 			}
 			hold("read", reads)

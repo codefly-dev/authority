@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	core "github.com/codefly-dev/core/workcontext"
 	"google.golang.org/protobuf/proto"
 )
@@ -38,8 +38,8 @@ type Trust struct {
 // concurrently. Its zero value grants nothing.
 type Claims struct {
 	audience string
-	scopes   []*basev0.WorkScopeV1
-	context  *basev0.WorkContextV1
+	scopes   []*basev1.WorkScopeV1
+	context  *basev1.WorkContextV1
 }
 
 // AuthenticateToken authenticates one Work Context with Core's Inspector:
@@ -94,21 +94,21 @@ func (c *Claims) Audience() string {
 }
 
 // Context returns a deep copy of the authenticated claims.
-func (c *Claims) Context() *basev0.WorkContextV1 {
+func (c *Claims) Context() *basev1.WorkContextV1 {
 	if c == nil || c.context == nil {
 		return nil
 	}
-	return proto.Clone(c.context).(*basev0.WorkContextV1)
+	return proto.Clone(c.context).(*basev1.WorkContextV1)
 }
 
 // Scopes returns deep copies; changing them cannot change later Allows results.
-func (c *Claims) Scopes() []*basev0.WorkScopeV1 {
+func (c *Claims) Scopes() []*basev1.WorkScopeV1 {
 	if c == nil {
 		return nil
 	}
-	out := make([]*basev0.WorkScopeV1, len(c.scopes))
+	out := make([]*basev1.WorkScopeV1, len(c.scopes))
 	for n, scope := range c.scopes {
-		out[n] = proto.Clone(scope).(*basev0.WorkScopeV1)
+		out[n] = proto.Clone(scope).(*basev1.WorkScopeV1)
 	}
 	return out
 }
@@ -131,12 +131,12 @@ func (c *Claims) AllowsOwned(kind, action, resourceID, ownerID string) bool {
 	if c == nil || kind == "" || action == "" {
 		return false
 	}
-	ask := &basev0.WorkScopeV1{ResourceKind: kind, Actions: []string{action}, ResourceOwnerId: ownerID}
+	ask := &basev1.WorkScopeV1{ResourceKind: kind, Actions: []string{action}, ResourceOwnerId: ownerID}
 	if resourceID != "" {
 		ask.ResourceIds = []string{resourceID}
 	}
 	for _, scope := range c.scopes {
-		if core.ScopeContained(ask, []*basev0.WorkScopeV1{scope}) {
+		if core.ScopeContained(ask, []*basev1.WorkScopeV1{scope}) {
 			return true
 		}
 	}

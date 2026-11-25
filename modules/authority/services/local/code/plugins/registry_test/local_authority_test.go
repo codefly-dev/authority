@@ -37,7 +37,7 @@ import (
 
 	"gateway/pkg/business/state"
 	compositionv1 "gateway/pkg/gen/host/composition/v1"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 func TestTheLocalAuthorityPassesTheSuiteEveryImplementationMustPass(t *testing.T) {
@@ -150,8 +150,8 @@ func localConformanceFixture(t *testing.T, clock *conformance.Clock) (grpc.Clien
 	owned := map[string]string{}
 	for _, solution := range []string{"conformance-owner-a", "conformance-owner-b"} {
 		note := testkit.Scope(solution+".note", "read")
-		m := state.Manifest{Name: solution, Principal: solution, Kind: "solution", OwnerAware: true, Generation: 1, ResourceKinds: []*basev0.WorkScopeV1{note},
-			Roles: map[string][]*basev0.WorkScopeV1{state.AdminRole: {note}, "user": {note}}}
+		m := state.Manifest{Name: solution, Principal: solution, Kind: "solution", OwnerAware: true, Generation: 1, ResourceKinds: []*basev1.WorkScopeV1{note},
+			Roles: map[string][]*basev1.WorkScopeV1{state.AdminRole: {note}, "user": {note}}}
 		if _, err := k.State.ApplyManifest(m); err != nil {
 			t.Fatal(err)
 		}

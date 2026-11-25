@@ -7,14 +7,14 @@ import (
 	"gateway/pkg/business/state"
 	"gateway/pkg/business/testkit"
 	authorityv1 "gateway/pkg/gen/host/authority/v1"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 func TestRestrictedCapabilityPassesMethodWithoutWidening(t *testing.T) {
 	k := testkit.New(t)
 	m := testkit.Records(2)
 	method := "/records.Service/ListCollections"
-	m.Methods = map[string]state.MethodPolicy{method: {Requires: []*basev0.WorkScopeV1{{ResourceKind: "records.collection", Actions: []string{"read"}}}}}
+	m.Methods = map[string]state.MethodPolicy{method: {Requires: []*basev1.WorkScopeV1{{ResourceKind: "records.collection", Actions: []string{"read"}}}}}
 	if _, err := k.State.ApplyManifest(m); err != nil {
 		t.Fatal(err)
 	}

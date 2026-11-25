@@ -1,7 +1,7 @@
 # The console's package identity: what a run delivers as its release. The id is
 # the identity codefly generate contracts derives (codefly/<module>); the version
 # is the package's and moves when what it publishes moves.
-schema: codefly/module-package/v2
+schema: codefly/module-package/v1
 kind: module-package
 id: codefly/console
 version: 0.1.0

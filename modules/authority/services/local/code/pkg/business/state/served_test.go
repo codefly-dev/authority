@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 
 	"gateway/pkg/business/state"
 	"gateway/pkg/business/testkit"
@@ -16,10 +16,10 @@ import (
 // manifest's other declarations named the kind.
 func TestAModuleServesWhatItsMethodsRequire(t *testing.T) {
 	k := testkit.New(t)
-	define := []*basev0.WorkScopeV1{{ResourceKind: "ledger.accounts", Actions: []string{"define"}}}
+	define := []*basev1.WorkScopeV1{{ResourceKind: "ledger.accounts", Actions: []string{"define"}}}
 	m := state.Manifest{Name: "ledger", Principal: "ledger", Kind: "module", Generation: 1, Bindings: map[string]state.Binding{},
 		Page: true, InstallationRole: "none",
-		Roles: map[string][]*basev0.WorkScopeV1{state.AdminRole: define, state.UserRole: define},
+		Roles: map[string][]*basev1.WorkScopeV1{state.AdminRole: define, state.UserRole: define},
 		Methods: map[string]state.MethodPolicy{
 			"/ledger.v1.Ledger/DefineAccount": {Requires: define},
 		}}
@@ -33,7 +33,7 @@ func TestAModuleServesWhatItsMethodsRequire(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.ContainsFunc(held, func(s *basev0.WorkScopeV1) bool {
+	if !slices.ContainsFunc(held, func(s *basev1.WorkScopeV1) bool {
 		return s.GetResourceKind() == "ledger.accounts" && slices.Contains(s.GetActions(), "define")
 	}) {
 		t.Fatalf("a kind the module's methods require is not granted: %v", held)

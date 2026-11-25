@@ -5,7 +5,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // A person may belong to several organizations. What they hold, administer
@@ -31,14 +31,14 @@ func TestAPersonOfTwoOrganizationsActsOnlyAsTheMemberOfTheSessions(t *testing.T)
 	pamAtGlobex := authority.Person{ID: "pam", Organization: globex, SessionID: "p-globex"}
 	atAcme := authority.Person{ID: "pat", Organization: acme, SessionID: "s-acme"}
 	atGlobex := authority.Person{ID: "pat", Organization: globex, SessionID: "s-globex"}
-	read := []*basev0.WorkScopeV1{owned("a.note", h.principal(acme, "a"), []string{"read"})}
-	write := []*basev0.WorkScopeV1{owned("b.note", h.principal(globex, "b"), []string{"write"})}
+	read := []*basev1.WorkScopeV1{owned("a.note", h.principal(acme, "a"), []string{"read"})}
+	write := []*basev1.WorkScopeV1{owned("b.note", h.principal(globex, "b"), []string{"write"})}
 
 	for _, tc := range []struct {
 		name     string
 		who      authority.Person
 		audience string
-		scopes   []*basev0.WorkScopeV1
+		scopes   []*basev1.WorkScopeV1
 		allowed  bool
 	}{
 		{"acme's role at acme", atAcme, "a", read, true},

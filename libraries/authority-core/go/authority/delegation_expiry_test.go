@@ -8,7 +8,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/codefly-dev/core/workcontext"
 )
 
@@ -20,10 +20,10 @@ func TestADelegationWithALifetimeEndsByItself(t *testing.T) {
 	t.Parallel()
 	// Maya views module a's own collection and delegates that read to a,
 	// which issues through its "store" binding (as race_test does).
-	setup := func(t *testing.T) (*harness, []*basev0.WorkScopeV1) {
+	setup := func(t *testing.T) (*harness, []*basev1.WorkScopeV1) {
 		h := newHarness(t)
 		h.grant("a", "user", "maya")
-		return h, []*basev0.WorkScopeV1{owned(kind, h.principal(acme, "a"), []string{"read"})}
+		return h, []*basev1.WorkScopeV1{owned(kind, h.principal(acme, "a"), []string{"read"})}
 	}
 	issue := func(h *harness, d domain.Delegation) error {
 		_, err := h.svc.IssueForDelegation(h.ctx, d.ID, authority.Workload{Module: "a"}, authority.IssueRequest{Binding: "store"})
@@ -107,7 +107,7 @@ func TestDelegatedCapabilitiesDoNotOutliveTheirDelegation(t *testing.T) {
 			h := newHarness(t)
 			h.grant("a", "user", "maya")
 			d, err := h.svc.Delegate(h.ctx, h.person("maya"), "a",
-				[]*basev0.WorkScopeV1{owned(kind, h.principal(acme, "a"), []string{"read"})}, "one bounded run", 60)
+				[]*basev1.WorkScopeV1{owned(kind, h.principal(acme, "a"), []string{"read"})}, "one bounded run", 60)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -151,7 +151,7 @@ func TestDelegationEndIsRereadAfterSigning(t *testing.T) {
 	h := newHarness(t)
 	h.grant("a", "user", "maya")
 	d, err := h.svc.Delegate(h.ctx, h.person("maya"), "a",
-		[]*basev0.WorkScopeV1{owned(kind, h.principal(acme, "a"), []string{"read"})}, "one bounded run", 60)
+		[]*basev1.WorkScopeV1{owned(kind, h.principal(acme, "a"), []string{"read"})}, "one bounded run", 60)
 	if err != nil {
 		t.Fatal(err)
 	}

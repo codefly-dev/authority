@@ -9,7 +9,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/memstore"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // hookStore runs after once, right after the Read that finds it armed
@@ -57,14 +57,14 @@ func TestANarrowingBetweenDecisionAndMintIsNeverHandedOut(t *testing.T) {
 			}
 			mem.PutOrganization(domain.Organization{ID: acme, Name: acme})
 			mem.PutPerson(domain.Person{ID: "alex", Organization: acme, Roles: []string{"admin"}})
-			relayScopes := []*basev0.WorkScopeV1{sc(legacyKind, "read", "write")}
+			relayScopes := []*basev1.WorkScopeV1{sc(legacyKind, "read", "write")}
 			for _, m := range []domain.Module{
 				{Name: "relay", Principal: "relay", Kind: domain.KindModule, Generation: 1, ResourceKinds: relayScopes},
 				// The store is a module page declaring roles: alex reaches the
 				// relay through it as its user.
-				{Name: "store", Principal: "store", Kind: domain.KindModule, Generation: 1, ResourceKinds: []*basev0.WorkScopeV1{sc(kind, "read")},
+				{Name: "store", Principal: "store", Kind: domain.KindModule, Generation: 1, ResourceKinds: []*basev1.WorkScopeV1{sc(kind, "read")},
 					Page: true, InstallationRole: domain.NoInstallationRole,
-					Roles:    map[string][]*basev0.WorkScopeV1{domain.AdminRole: {sc(kind, "read"), sc(legacyKind, "read", "write")}, domain.UserRole: {sc(kind, "read"), sc(legacyKind, "read", "write")}},
+					Roles:    map[string][]*basev1.WorkScopeV1{domain.AdminRole: {sc(kind, "read"), sc(legacyKind, "read", "write")}, domain.UserRole: {sc(kind, "read"), sc(legacyKind, "read", "write")}},
 					Bindings: map[string]domain.Binding{"relay": {ID: "relay", Audience: "relay", InvokeScopes: relayScopes, HeadlessScopes: relayScopes}}},
 			} {
 				if _, err := svc.ApplyModule(h.ctx, m); err != nil {
@@ -136,19 +136,19 @@ func TestTheConsentBoundsInstallationAndDelegationIssues(t *testing.T) {
 	t.Run("an installation acting for itself", func(t *testing.T) {
 		h := newHarness(t)
 		h.must(h.agent("a", "store"))
-		h.consented(acme, "a", map[string]domain.Binding{"legacy": {ID: "legacy", InvokeScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}}})
+		h.consented(acme, "a", map[string]domain.Binding{"legacy": {ID: "legacy", InvokeScopes: []*basev1.WorkScopeV1{sc(legacyKind, "read")}}})
 		_, err := h.agent("a", "store")
 		refusedByConsent(t, err)
 	})
 	t.Run("an issue from a delegation", func(t *testing.T) {
 		h := newHarness(t)
 		h.grant("a", "user", "maya")
-		d, err := h.svc.Delegate(h.ctx, h.person("maya"), "a", []*basev0.WorkScopeV1{owned(kind, h.principal(acme, "a"), []string{"read"})}, "a job", 0)
+		d, err := h.svc.Delegate(h.ctx, h.person("maya"), "a", []*basev1.WorkScopeV1{owned(kind, h.principal(acme, "a"), []string{"read"})}, "a job", 0)
 		if err != nil {
 			t.Fatal(err)
 		}
 		h.must(h.svc.IssueForDelegation(h.ctx, d.ID, authority.Workload{Module: "a"}, authority.IssueRequest{Binding: "store"}))
-		h.consented(acme, "a", map[string]domain.Binding{"legacy": {ID: "legacy", InvokeScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}}})
+		h.consented(acme, "a", map[string]domain.Binding{"legacy": {ID: "legacy", InvokeScopes: []*basev1.WorkScopeV1{sc(legacyKind, "read")}}})
 		_, err = h.svc.IssueForDelegation(h.ctx, d.ID, authority.Workload{Module: "a"}, authority.IssueRequest{Binding: "store"})
 		refusedByConsent(t, err)
 	})

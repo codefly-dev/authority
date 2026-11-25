@@ -36,7 +36,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	delivery "github.com/codefly-dev/authority/libraries/delivery/go"
 	"github.com/codefly-dev/authority/libraries/solutionhost/go"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 )
@@ -260,7 +260,7 @@ func TestReviewArtifactCannotEscapeScopeOwner(t *testing.T) {
 				k := testkit.New(t)
 				m := testkit.Proposals(1)
 				m.ResourceKinds = append(m.ResourceKinds, testkit.Scope("proposals.item", "activate", "run"))
-				m.Roles["user"] = []*basev0.WorkScopeV1{testkit.Scope("proposals.item", "read", "activate", "run")}
+				m.Roles["user"] = []*basev1.WorkScopeV1{testkit.Scope("proposals.item", "read", "activate", "run")}
 				if _, err := k.State.ApplyManifest(m); err != nil {
 					t.Fatal(err)
 				}
@@ -457,7 +457,7 @@ func TestReviewRevokeFenceThroughWrapper(t *testing.T) {
 			k.State = st
 			k.Issuer = issuer.New(st, testkit.Audience, "review", key.Public().(ed25519.PublicKey))
 			wiki := testkit.Wiki(1)
-			wiki.Bindings = map[string]state.Binding{"documents": {ID: "documents", Audience: "documents", InvokeScopes: []*basev0.WorkScopeV1{testkit.Scope("documents", "read")}}}
+			wiki.Bindings = map[string]state.Binding{"documents": {ID: "documents", Audience: "documents", InvokeScopes: []*basev1.WorkScopeV1{testkit.Scope("documents", "read")}}}
 			wiki.Roles["user"] = append(wiki.Roles["user"], testkit.Scope("documents", "read"))
 			for _, m := range []state.Manifest{testkit.Model(1), testkit.Documents(1), wiki} {
 				if _, err := st.ApplyManifest(m); err != nil {

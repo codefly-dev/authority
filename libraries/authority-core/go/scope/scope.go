@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/codefly-dev/authority/libraries/hop/go/policy"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -30,7 +30,7 @@ type key struct{ kind, owner string }
 // resource the row selects.
 type coverage map[key]map[string]map[string]bool
 
-func coverageOf(in []*basev0.WorkScopeV1) coverage {
+func coverageOf(in []*basev1.WorkScopeV1) coverage {
 	c := coverage{}
 	for _, sc := range in {
 		if sc == nil || sc.GetResourceKind() == "" {
@@ -61,7 +61,7 @@ func coverageOf(in []*basev0.WorkScopeV1) coverage {
 }
 
 // scopes renders coverage sorted: kinds, then owners, then id sets.
-func (c coverage) scopes() []*basev0.WorkScopeV1 {
+func (c coverage) scopes() []*basev1.WorkScopeV1 {
 	keys := make([]key, 0, len(c))
 	for k := range c {
 		keys = append(keys, k)
@@ -72,7 +72,7 @@ func (c coverage) scopes() []*basev0.WorkScopeV1 {
 		}
 		return keys[a].owner < keys[b].owner
 	})
-	var out []*basev0.WorkScopeV1
+	var out []*basev1.WorkScopeV1
 	for _, k := range keys {
 		bySet := map[string][]string{}
 		sets := map[string][]string{}
@@ -97,14 +97,14 @@ func (c coverage) scopes() []*basev0.WorkScopeV1 {
 		for _, set := range names {
 			actions := bySet[set]
 			sort.Strings(actions)
-			out = append(out, &basev0.WorkScopeV1{ResourceKind: k.kind, Actions: actions, ResourceIds: sets[set], ResourceOwnerId: k.owner})
+			out = append(out, &basev1.WorkScopeV1{ResourceKind: k.kind, Actions: actions, ResourceIds: sets[set], ResourceOwnerId: k.owner})
 		}
 	}
 	return out
 }
 
 // Normalize merges duplicate rows and sorts actions, the shape core requires.
-func Normalize(in []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 { return coverageOf(in).scopes() }
+func Normalize(in []*basev1.WorkScopeV1) []*basev1.WorkScopeV1 { return coverageOf(in).scopes() }
 
 // Intersect keeps what a holds that b allows, the narrower side winning: a
 // whole kind meets named ids as those ids, two id sets meet as their common
@@ -113,7 +113,7 @@ func Normalize(in []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 { return coverage
 // kind; AnyAction in a takes every action b allows on that kind. Where several
 // rows of b allow the same (kind, owner, action), the result is the union of
 // what each allows: a repeated row adds to the answer, never replaces it.
-func Intersect(a, b []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 {
+func Intersect(a, b []*basev1.WorkScopeV1) []*basev1.WorkScopeV1 {
 	allowed, asked := coverageOf(b), coverageOf(a)
 	out := coverage{}
 	put := func(k key, act string, ids map[string]bool) {
@@ -196,7 +196,7 @@ func union(a, b map[string]bool) map[string]bool {
 // same owner or none. A whole kind is within only a whole kind; an owner-blind
 // row is within only an owner-blind row; AnyAction in narrow is within only
 // AnyAction in wide.
-func Attenuates(narrow, wide []*basev0.WorkScopeV1) bool {
+func Attenuates(narrow, wide []*basev1.WorkScopeV1) bool {
 	held := coverageOf(wide)
 	for k, acts := range coverageOf(narrow) {
 		for act, ids := range acts {
@@ -244,18 +244,18 @@ func covered(held coverage, k key, act string, ids map[string]bool) bool {
 
 // Same reports whether two normalized scope lists are equal row for row,
 // owners included: two rows differing only in their owner are not the same.
-func Same(a, b []*basev0.WorkScopeV1) bool {
-	return slices.EqualFunc(a, b, func(x, y *basev0.WorkScopeV1) bool { return proto.Equal(x, y) })
+func Same(a, b []*basev1.WorkScopeV1) bool {
+	return slices.EqualFunc(a, b, func(x, y *basev1.WorkScopeV1) bool { return proto.Equal(x, y) })
 }
 
 // Owned is scopes selecting only owner's resources: the shape every scope a
 // solution's role grants takes, on the data its principal owns. An empty owner
 // would select every owner's resources, so it is refused, never rendered.
-func Owned(scopes []*basev0.WorkScopeV1, owner string) ([]*basev0.WorkScopeV1, error) {
+func Owned(scopes []*basev1.WorkScopeV1, owner string) ([]*basev1.WorkScopeV1, error) {
 	if owner == "" {
 		return nil, errors.New("scope: an owner-selected scope names its owner; an empty owner would select every owner's resources")
 	}
-	out := make([]*basev0.WorkScopeV1, 0, len(scopes))
+	out := make([]*basev1.WorkScopeV1, 0, len(scopes))
 	for _, sc := range scopes {
 		c := proto.CloneOf(sc)
 		c.ResourceOwnerId = owner
@@ -266,21 +266,21 @@ func Owned(scopes []*basev0.WorkScopeV1, owner string) ([]*basev0.WorkScopeV1, e
 
 // HoldsAction reports whether held carries action on any resource of kind,
 // whatever its ids or owner: a vocabulary check, never resource admission.
-func HoldsAction(held []*basev0.WorkScopeV1, kind, action string) bool {
+func HoldsAction(held []*basev1.WorkScopeV1, kind, action string) bool {
 	return policy.OnAnyResource(held)(kind, action)
 }
 
 // HasOwner reports whether any scope selects a resource owner.
-func HasOwner(scopes []*basev0.WorkScopeV1) bool {
-	return slices.ContainsFunc(scopes, func(s *basev0.WorkScopeV1) bool { return s.GetResourceOwnerId() != "" })
+func HasOwner(scopes []*basev1.WorkScopeV1) bool {
+	return slices.ContainsFunc(scopes, func(s *basev1.WorkScopeV1) bool { return s.GetResourceOwnerId() != "" })
 }
 
 // Unowned is scopes with their owner dropped: what a kind and its actions
 // look like whatever owns them, for a vocabulary comparison only.
-func Unowned(scopes []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 {
-	out := make([]*basev0.WorkScopeV1, 0, len(scopes))
+func Unowned(scopes []*basev1.WorkScopeV1) []*basev1.WorkScopeV1 {
+	out := make([]*basev1.WorkScopeV1, 0, len(scopes))
 	for _, sc := range scopes {
-		out = append(out, &basev0.WorkScopeV1{ResourceKind: sc.GetResourceKind(), Actions: slices.Clone(sc.GetActions())})
+		out = append(out, &basev1.WorkScopeV1{ResourceKind: sc.GetResourceKind(), Actions: slices.Clone(sc.GetActions())})
 	}
 	return Normalize(out)
 }

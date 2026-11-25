@@ -6,7 +6,7 @@ import (
 	"gateway/pkg/business/state"
 	"gateway/pkg/business/testkit"
 	authorityv1 "gateway/pkg/gen/host/authority/v1"
-	base "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	base "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 func TestMalformedAskDoesNotGainAuthority(t *testing.T) {

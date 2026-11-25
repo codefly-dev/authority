@@ -13,7 +13,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
 	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 	modulecontract "github.com/codefly-dev/core/contracts/module"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // The desk is a solution whose roles mix every spelling of a grant: its own
@@ -90,7 +90,7 @@ func desk(t *testing.T, generation uint64, literal bool) domain.Module {
 		}
 		return contract
 	}
-	infos := []*basev0.ConfigurationInformation{{Name: "desk", ConfigurationValues: []*basev0.ConfigurationValue{
+	infos := []*basev1.ConfigurationInformation{{Name: "desk", ConfigurationValues: []*basev1.ConfigurationValue{
 		{Key: "store-audience", Value: "store"}, {Key: "archive-audience", Value: "archive"},
 		{Key: "vault-audience", Value: "vault"}, {Key: "vault-resource-kind", Value: kind},
 	}}}
@@ -123,8 +123,8 @@ func deskHarness(t *testing.T, literal bool) *harness {
 	t.Helper()
 	h := newHarness(t)
 	for _, m := range []domain.Module{
-		{Name: "archive", Principal: "archive", Kind: domain.KindModule, Generation: 1, OwnerAware: true, ResourceKinds: []*basev0.WorkScopeV1{sc("archive.entry", "read")}},
-		{Name: "vault", Principal: "vault", Kind: domain.KindModule, Generation: 1, OwnerAware: true, ResourceKinds: []*basev0.WorkScopeV1{sc(kind, "read")}},
+		{Name: "archive", Principal: "archive", Kind: domain.KindModule, Generation: 1, OwnerAware: true, ResourceKinds: []*basev1.WorkScopeV1{sc("archive.entry", "read")}},
+		{Name: "vault", Principal: "vault", Kind: domain.KindModule, Generation: 1, OwnerAware: true, ResourceKinds: []*basev1.WorkScopeV1{sc(kind, "read")}},
 		desk(t, 1, literal),
 	} {
 		if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
@@ -250,7 +250,7 @@ func TestAnAddressedRoleIsRefusedAtASiblingAndAtTheUnitItself(t *testing.T) {
 			}
 			for _, binding := range []string{"", "store", "vault"} {
 				if got, err := h.svc.IssueForPerson(h.ctx, h.person(person), authority.IssueRequest{Audience: "desk", Binding: binding,
-					Scopes: []*basev0.WorkScopeV1{owned(kind, h.principal(acme, "desk"), []string{"read"})}}); err == nil {
+					Scopes: []*basev1.WorkScopeV1{owned(kind, h.principal(acme, "desk"), []string{"read"})}}); err == nil {
 					t.Fatalf("%s asked the store's kind on a capability addressed to the desk (binding %q) and got %s", person, binding, scopeText(effective(got)))
 				}
 			}

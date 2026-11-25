@@ -8,14 +8,14 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // modulePage is a module declaring a page and roles on what it serves.
 func modulePage() domain.Module {
 	return domain.Module{Name: "pages", Principal: "pages", Kind: domain.KindModule, Generation: 1, Page: true,
-		ResourceKinds: []*basev0.WorkScopeV1{sc("pages.note", "read", "write")},
-		Roles: map[string][]*basev0.WorkScopeV1{
+		ResourceKinds: []*basev1.WorkScopeV1{sc("pages.note", "read", "write")},
+		Roles: map[string][]*basev1.WorkScopeV1{
 			domain.AdminRole: {sc("pages.note", "read", "write")},
 			"user":           {sc("pages.note", "read")},
 		}}
@@ -42,10 +42,10 @@ func TestAModulePageDeclaresRolesLikeASolution(t *testing.T) {
 		t.Fatalf("a module page with no admin role: %v", err)
 	}
 	beyond := modulePage()
-	beyond.Roles["user"] = []*basev0.WorkScopeV1{sc("pages.note", "delete")}
+	beyond.Roles["user"] = []*basev1.WorkScopeV1{sc("pages.note", "delete")}
 	refused(t, decide.ValidateModule(beyond), domain.Denied, "grants beyond")
 	owner := modulePage()
-	owner.OwnedRoles = map[string][]*basev0.WorkScopeV1{"user": {sc("pages.note", "read")}}
+	owner.OwnedRoles = map[string][]*basev1.WorkScopeV1{"user": {sc("pages.note", "read")}}
 	refused(t, decide.ValidateModule(owner), domain.Denied, "only a solution")
 	bare := modulePage()
 	bare.Roles = nil
@@ -61,7 +61,7 @@ func TestAModulePageDeclaresRolesLikeASolution(t *testing.T) {
 func TestAModulePageRoleSelectsNoOwner(t *testing.T) {
 	inst := domain.Installation{ID: "acme-pages", Organization: "acme"}
 	got, err := decide.RoleScopes(modulePage(), inst, []string{"user"})
-	if err != nil || !scope.Same(got, []*basev0.WorkScopeV1{sc("pages.note", "read")}) {
+	if err != nil || !scope.Same(got, []*basev1.WorkScopeV1{sc("pages.note", "read")}) {
 		t.Fatalf("user holds %v, %v", got, err)
 	}
 	if got, err := decide.RoleScopes(modulePage(), inst, []string{"undeclared"}); err != nil || len(got) != 0 {
@@ -74,7 +74,7 @@ func TestAModulePageRoleSelectsNoOwner(t *testing.T) {
 func TestAModulePageRoleChangeIsANarrowing(t *testing.T) {
 	page, bare, cut := modulePage(), modulePage(), modulePage()
 	bare.Roles = nil
-	cut.Roles = map[string][]*basev0.WorkScopeV1{domain.AdminRole: page.Roles[domain.AdminRole], "user": nil}
+	cut.Roles = map[string][]*basev1.WorkScopeV1{domain.AdminRole: page.Roles[domain.AdminRole], "user": nil}
 	for name, c := range map[string]struct {
 		previous, next domain.Module
 		want           bool
@@ -93,17 +93,17 @@ func TestAModulePageRoleChangeIsANarrowing(t *testing.T) {
 
 // RBAC-1: a role-gated module's role scopes as another module receives them.
 func TestRBAC1ModuleRoleAtSelectsTheInstallationAsOwner(t *testing.T) {
-	read := func(kind string) *basev0.WorkScopeV1 {
-		return &basev0.WorkScopeV1{ResourceKind: kind, Actions: []string{"read"}}
+	read := func(kind string) *basev1.WorkScopeV1 {
+		return &basev1.WorkScopeV1{ResourceKind: kind, Actions: []string{"read"}}
 	}
-	page := domain.Module{Name: "page", Principal: "page", Kind: domain.KindModule, Roles: map[string][]*basev0.WorkScopeV1{"user": {read("store.item")}}}
+	page := domain.Module{Name: "page", Principal: "page", Kind: domain.KindModule, Roles: map[string][]*basev1.WorkScopeV1{"user": {read("store.item")}}}
 	solution := domain.Module{Name: "sol", Principal: "sol", Kind: domain.KindSolution}
 	store := domain.Module{Name: "store", Principal: "store", Kind: domain.KindModule, OwnerAware: true, SharedKinds: []string{"store.shared"}}
 	blind := domain.Module{Name: "blind", Principal: "blind", Kind: domain.KindModule}
 	selfAware := page
 	selfAware.OwnerAware = true
 	selfAware.SharedKinds = []string{"store.shared"}
-	role := []*basev0.WorkScopeV1{read("store.item"), read("store.shared")}
+	role := []*basev1.WorkScopeV1{read("store.item"), read("store.shared")}
 	inst := domain.Installation{ID: "i", PrincipalID: "p-1"}
 	for _, c := range []struct {
 		name        string

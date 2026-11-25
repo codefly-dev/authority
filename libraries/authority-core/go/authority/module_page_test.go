@@ -6,7 +6,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/google/uuid"
 )
 
@@ -15,9 +15,9 @@ import (
 // installation. It is installed by composition like any module, roles or not.
 func pageModule(generation uint64, roles bool) domain.Module {
 	m := domain.Module{Name: "pages", Principal: "pages", Kind: domain.KindModule, Generation: generation, Page: true,
-		InstallationRole: domain.NoInstallationRole, ResourceKinds: []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}}
+		InstallationRole: domain.NoInstallationRole, ResourceKinds: []*basev1.WorkScopeV1{sc("pages.note", "read", "write")}}
 	if roles {
-		m.Roles = map[string][]*basev0.WorkScopeV1{
+		m.Roles = map[string][]*basev1.WorkScopeV1{
 			domain.AdminRole: {sc("pages.note", "read", "write")},
 			"user":           {sc("pages.note", "read")},
 		}
@@ -174,7 +174,7 @@ func TestAModuleThatGainsOrLosesRolesKeepsItsInstallation(t *testing.T) {
 	// role holds what was approved until the upgrade is, and a name that is
 	// no role of the page is granted to nobody.
 	widened := pageModule(3, true)
-	widened.Roles["user"] = []*basev0.WorkScopeV1{sc("pages.note", "read", "write")}
+	widened.Roles["user"] = []*basev1.WorkScopeV1{sc("pages.note", "read", "write")}
 	if _, err := h.svc.ApplyModule(h.ctx, widened); err != nil {
 		t.Fatal(err)
 	}
@@ -384,7 +384,7 @@ func TestACompositionInstallationGovernsNoSourceAfterItsTargetBecomesASolution(t
 	solution := pageModule(2, true)
 	solution.Kind, solution.OwnerAware = domain.KindSolution, true
 	solution.InstallationRole = ""
-	solution.SourceGovernance = []*basev0.WorkScopeV1{sc("pages.note", "write")}
+	solution.SourceGovernance = []*basev1.WorkScopeV1{sc("pages.note", "write")}
 	if _, err := h.svc.ApplyModule(h.ctx, solution); err != nil {
 		t.Fatalf("the kind change is refused (which would close this path too; update the test): %v", err)
 	}

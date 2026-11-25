@@ -9,7 +9,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 
 	"gateway/pkg/business/state"
 	"gateway/pkg/business/testkit"
@@ -50,7 +50,7 @@ func TestEveryRoleGatedTargetSeatsTheAdminAndUserTeams(t *testing.T) {
 	ctx := context.Background()
 	page := testkit.OrgDirectory(2)
 	page.Page = true
-	page.Roles = map[string][]*basev0.WorkScopeV1{
+	page.Roles = map[string][]*basev1.WorkScopeV1{
 		state.AdminRole: {testkit.Scope("directory.entry", "read", "write")},
 		state.UserRole:  {testkit.Scope("directory.entry", "read", "write")},
 	}

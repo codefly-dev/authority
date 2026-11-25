@@ -9,7 +9,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
 	delivery "github.com/codefly-dev/authority/libraries/delivery/go"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -26,7 +26,7 @@ func ValidateModule(m domain.Module) error {
 		return err
 	}
 	for _, kind := range m.SharedKinds {
-		if !slices.ContainsFunc(Served(m), func(sc *basev0.WorkScopeV1) bool { return sc.GetResourceKind() == kind }) {
+		if !slices.ContainsFunc(Served(m), func(sc *basev1.WorkScopeV1) bool { return sc.GetResourceKind() == kind }) {
 			return domain.Refuse("%s declares %s shared, a kind it does not serve", m.Name, kind)
 		}
 	}
@@ -246,7 +246,7 @@ func validateModule(m domain.Module) error {
 				return domain.Refuse("role %q of %s names scopes through binding %q, which is addressed to %s itself; a scope on it is granted directly", name, m.Name, id, m.Name)
 			}
 			for _, sc := range m.Through[name][id] {
-				if slices.ContainsFunc(Served(m), func(own *basev0.WorkScopeV1) bool { return own.GetResourceKind() == sc.GetResourceKind() }) {
+				if slices.ContainsFunc(Served(m), func(own *basev1.WorkScopeV1) bool { return own.GetResourceKind() == sc.GetResourceKind() }) {
 					return domain.Refuse("role %q of %s names %s through binding %q, a kind %s serves itself; it is granted directly", name, m.Name, sc.GetResourceKind(), id, m.Name)
 				}
 			}
@@ -333,11 +333,11 @@ func StandardRoles(m domain.Module) map[string]Scopes {
 				}
 			}
 			if len(held) > 0 {
-				out[role] = append(out[role], &basev0.WorkScopeV1{ResourceKind: kind.GetResourceKind(), Actions: held})
+				out[role] = append(out[role], &basev1.WorkScopeV1{ResourceKind: kind.GetResourceKind(), Actions: held})
 			}
 		}
 		grant(domain.UserRole, "read", "write")
-		out[domain.AdminRole] = append(out[domain.AdminRole], &basev0.WorkScopeV1{ResourceKind: kind.GetResourceKind(), Actions: slices.Clone(served)})
+		out[domain.AdminRole] = append(out[domain.AdminRole], &basev1.WorkScopeV1{ResourceKind: kind.GetResourceKind(), Actions: slices.Clone(served)})
 	}
 	for role, scopes := range out {
 		out[role] = scope.Normalize(scopes)
@@ -453,7 +453,7 @@ func Served(m domain.Module) Scopes {
 	served := slices.Clone(m.ResourceKinds)
 	for _, method := range slices.Sorted(maps.Keys(m.Methods)) {
 		for _, required := range m.Methods[method].Requires {
-			served = append(served, &basev0.WorkScopeV1{ResourceKind: required.GetResourceKind(), Actions: slices.Clone(required.GetActions())})
+			served = append(served, &basev1.WorkScopeV1{ResourceKind: required.GetResourceKind(), Actions: slices.Clone(required.GetActions())})
 		}
 	}
 	return scope.Normalize(served)
@@ -480,7 +480,7 @@ func Unselect(audience domain.Module, scopes Scopes) Scopes {
 	out := make(Scopes, 0, len(scopes))
 	for _, sc := range scopes {
 		if sc.GetResourceOwnerId() != "" && slices.Contains(audience.SharedKinds, sc.GetResourceKind()) {
-			sc = proto.Clone(sc).(*basev0.WorkScopeV1)
+			sc = proto.Clone(sc).(*basev1.WorkScopeV1)
 			sc.ResourceOwnerId = ""
 		}
 		out = append(out, sc)

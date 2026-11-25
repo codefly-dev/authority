@@ -7,7 +7,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 var read, write, create, admin = []string{"read"}, []string{"write"}, []string{"create"}, []string{"admin"}
@@ -44,7 +44,7 @@ func TestAReaderReadsOnlyThePrincipalsData(t *testing.T) {
 	exactly(t, h.must(h.root("maya", "a")), "a.note", u, read)
 	exactly(t, h.must(h.through("maya", "a", "store")), kind, u, read)
 	exactly(t, h.must(h.through("maya", "a", "store", owned(kind, u, read, "u-doc"))), kind, u, read, "u-doc")
-	for name, ask := range map[string]*basev0.WorkScopeV1{
+	for name, ask := range map[string]*basev1.WorkScopeV1{
 		"another principal":         owned(kind, v, read),
 		"another organization's":    owned(kind, h.principal(globex, "a"), read),
 		"the whole kind":            sc(kind, "read"),
@@ -78,7 +78,7 @@ func TestTheAgentIsThePrincipalConfinedToItsData(t *testing.T) {
 	refused(t, err, "beyond")
 	_, err = h.svc.IssueForInstallation(h.ctx, authority.Workload{Module: "a"}, h.inst(acme, "a").ID, authority.IssueRequest{Audience: "store"})
 	refused(t, err, "binding")
-	for _, ask := range []*basev0.WorkScopeV1{sc(kind, "read"), owned(kind, h.principal(acme, "b"), read), {ResourceKind: kind, Actions: read, ResourceIds: []string{"x"}}} {
+	for _, ask := range []*basev1.WorkScopeV1{sc(kind, "read"), owned(kind, h.principal(acme, "b"), read), {ResourceKind: kind, Actions: read, ResourceIds: []string{"x"}}} {
 		_, err := h.agent("a", "store", ask)
 		refused(t, err, "widens")
 	}
@@ -90,9 +90,9 @@ func TestASolutionCapabilityIsConfined(t *testing.T) {
 	h.grant("a", "user", "rob")
 	h.grant("a", "user", "ada")
 	exactly(t, h.must(h.through("rob", "a", "store")), kind, h.principal(acme, "a"), read)
-	_, err := h.through("rob", "a", "store", &basev0.WorkScopeV1{ResourceKind: kind, Actions: read, ResourceIds: []string{"store-x"}})
+	_, err := h.through("rob", "a", "store", &basev1.WorkScopeV1{ResourceKind: kind, Actions: read, ResourceIds: []string{"store-x"}})
 	refused(t, err, "confined")
-	_, err = h.through("ada", "a", "store", &basev0.WorkScopeV1{ResourceKind: kind, Actions: admin, ResourceIds: []string{"store-x"}})
+	_, err = h.through("ada", "a", "store", &basev1.WorkScopeV1{ResourceKind: kind, Actions: admin, ResourceIds: []string{"store-x"}})
 	refused(t, err, "confined")
 }
 
@@ -118,9 +118,9 @@ func TestWithdrawingOwnerAwareRefusesEarlierCapabilitiesForGood(t *testing.T) {
 	before := h.must(h.through("maya", "a", "store"))
 	store := func(gen uint64, aware bool) {
 		if _, err := h.svc.ApplyModule(h.ctx, domain.Module{Name: "store", Principal: "store", Kind: domain.KindModule, Generation: gen, OwnerAware: aware,
-			ResourceKinds: []*basev0.WorkScopeV1{sc(kind, "admin", "create", "read", "write")},
-			Bindings: map[string]domain.Binding{"self": {ID: "self", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write")}, HeadlessScopes: []*basev0.WorkScopeV1{sc(kind, "read")}},
-				"legacy": {ID: "legacy", Audience: "legacy-store", InvokeScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}}}}); err != nil {
+			ResourceKinds: []*basev1.WorkScopeV1{sc(kind, "admin", "create", "read", "write")},
+			Bindings: map[string]domain.Binding{"self": {ID: "self", Audience: "store", InvokeScopes: []*basev1.WorkScopeV1{sc(kind, "read", "write")}, HeadlessScopes: []*basev1.WorkScopeV1{sc(kind, "read")}},
+				"legacy": {ID: "legacy", Audience: "legacy-store", InvokeScopes: []*basev1.WorkScopeV1{sc(legacyKind, "read")}}}}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -161,7 +161,7 @@ func TestAChildNeverWidens(t *testing.T) {
 	exactly(t, h.must(h.hop(oneDoc, "self")), kind, u, read, "u-doc")
 	for name, c := range map[string]struct {
 		parent authority.Issued
-		ask    *basev0.WorkScopeV1
+		ask    *basev1.WorkScopeV1
 	}{
 		"another owner": {narrowed, owned(kind, v, read)}, "the whole kind": {narrowed, sc(kind, "read")},
 		"a dropped action": {readOnly, owned(kind, u, write)}, "the narrowed ids": {oneDoc, owned(kind, u, read)},

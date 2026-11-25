@@ -11,7 +11,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
 	"github.com/codefly-dev/authority/libraries/solutionhost/go"
 	modulecontract "github.com/codefly-dev/core/contracts/module"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/stretchr/testify/require"
 )
 
@@ -53,15 +53,15 @@ func rendered(t *testing.T, unit *modulecontract.Contract, values map[string]map
 	return declaration, m
 }
 
-func held(t *testing.T, m domain.Module, role, audience string) []*basev0.WorkScopeV1 {
+func held(t *testing.T, m domain.Module, role, audience string) []*basev1.WorkScopeV1 {
 	t.Helper()
 	scopes, err := decide.RoleScopesAt(m, domain.Installation{ID: "i", PrincipalID: "owner"}, []string{role}, audience)
 	require.NoError(t, err)
 	return scope.Unowned(scopes)
 }
 
-func ws(kind string, actions ...string) *basev0.WorkScopeV1 {
-	return &basev0.WorkScopeV1{ResourceKind: kind, Actions: actions}
+func ws(kind string, actions ...string) *basev1.WorkScopeV1 {
+	return &basev1.WorkScopeV1{ResourceKind: kind, Actions: actions}
 }
 
 const storeContract = `schema: codefly/module-contract/v1
@@ -145,8 +145,8 @@ destinations: []
 	require.NoError(t, decide.ValidateModule(m))
 	// Held at the callee, and at no other audience: not at the unit itself,
 	// not at a sibling, not at a module that would serve the same kind.
-	require.True(t, scope.Attenuates([]*basev0.WorkScopeV1{ws("store.item", "read", "write")}, held(t, m, "admin", "store")))
-	require.True(t, scope.Attenuates([]*basev0.WorkScopeV1{ws("archive.entry", "read")}, held(t, m, "admin", "archive")))
+	require.True(t, scope.Attenuates([]*basev1.WorkScopeV1{ws("store.item", "read", "write")}, held(t, m, "admin", "store")))
+	require.True(t, scope.Attenuates([]*basev1.WorkScopeV1{ws("archive.entry", "read")}, held(t, m, "admin", "archive")))
 	for _, audience := range []string{"ledger", "archive", "vault"} {
 		require.False(t, scope.HoldsAction(held(t, m, "admin", audience), "store.item", "read"), audience)
 		require.False(t, scope.HoldsAction(held(t, m, "user", audience), "store.item", "read"), audience)

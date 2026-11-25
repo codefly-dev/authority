@@ -6,10 +6,10 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
-func (h *harness) page(person, target, audience string, scopes ...*basev0.WorkScopeV1) (authority.Issued, error) {
+func (h *harness) page(person, target, audience string, scopes ...*basev1.WorkScopeV1) (authority.Issued, error) {
 	return h.svc.IssueForPage(h.ctx, h.person(person), target, authority.IssueRequest{Audience: audience, Scopes: scopes})
 }
 

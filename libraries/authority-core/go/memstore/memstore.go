@@ -15,7 +15,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -511,11 +511,11 @@ func clonePerson(p domain.Person) domain.Person {
 	return p
 }
 
-func cloneScopes(in []*basev0.WorkScopeV1) []*basev0.WorkScopeV1 {
+func cloneScopes(in []*basev1.WorkScopeV1) []*basev1.WorkScopeV1 {
 	if in == nil {
 		return nil
 	}
-	out := make([]*basev0.WorkScopeV1, len(in))
+	out := make([]*basev1.WorkScopeV1, len(in))
 	for i, s := range in {
 		out[i] = proto.CloneOf(s)
 	}
@@ -533,23 +533,23 @@ func cloneModule(m domain.Module) domain.Module {
 	}
 	m.Bindings = bindings
 	if m.Roles != nil {
-		roles := make(map[string][]*basev0.WorkScopeV1, len(m.Roles))
+		roles := make(map[string][]*basev1.WorkScopeV1, len(m.Roles))
 		for name, scopes := range m.Roles {
 			roles[name] = cloneScopes(scopes)
 		}
 		m.Roles = roles
 	}
 	if m.AudienceRoles != nil {
-		addressed := make(map[string]map[string][]*basev0.WorkScopeV1, len(m.AudienceRoles))
+		addressed := make(map[string]map[string][]*basev1.WorkScopeV1, len(m.AudienceRoles))
 		for role, audiences := range m.AudienceRoles {
-			addressed[role] = make(map[string][]*basev0.WorkScopeV1, len(audiences))
+			addressed[role] = make(map[string][]*basev1.WorkScopeV1, len(audiences))
 			for audience, grants := range audiences {
 				addressed[role][audience] = cloneScopes(grants)
 			}
 		}
 		m.AudienceRoles = addressed
 	}
-	owned := make(map[string][]*basev0.WorkScopeV1, len(m.OwnedRoles))
+	owned := make(map[string][]*basev1.WorkScopeV1, len(m.OwnedRoles))
 	for role, scopes := range m.OwnedRoles {
 		owned[role] = cloneScopes(scopes)
 	}

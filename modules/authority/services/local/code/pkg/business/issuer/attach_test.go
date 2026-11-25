@@ -13,7 +13,7 @@ import (
 	"gateway/pkg/business/state"
 	"gateway/pkg/business/testkit"
 	authorityv1 "gateway/pkg/gen/host/authority/v1"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // A kind two composed modules declare has no one module trusted to say what
@@ -21,7 +21,7 @@ import (
 func TestAttachmentNeedsTheKindsOneServingModule(t *testing.T) {
 	k := testkit.New(t)
 	decoy := state.Manifest{Name: "robin", Principal: "robin", Kind: "module", Generation: 1,
-		ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope("documents.collection", "read")}}
+		ResourceKinds: []*basev1.WorkScopeV1{testkit.Scope("documents.collection", "read")}}
 	if _, err := k.State.ApplyManifest(decoy); err != nil {
 		t.Fatal(err)
 	}
@@ -39,14 +39,14 @@ func TestAttachmentNeedsTheKindsOneServingModule(t *testing.T) {
 func ownKindSolution(t *testing.T, k *testkit.Kit) string {
 	t.Helper()
 	m := state.Manifest{Name: "proposals", Principal: "proposals", Kind: "solution", OwnerAware: true, Generation: 1,
-		ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope("proposals.item", "create", "read")},
+		ResourceKinds: []*basev1.WorkScopeV1{testkit.Scope("proposals.item", "create", "read")},
 		Bindings: map[string]state.Binding{"documents": {ID: "documents", Audience: "documents",
-			InvokeScopes: []*basev0.WorkScopeV1{testkit.Scope("documents.collection", "read", "admin")}}},
-		Roles: map[string][]*basev0.WorkScopeV1{
+			InvokeScopes: []*basev1.WorkScopeV1{testkit.Scope("documents.collection", "read", "admin")}}},
+		Roles: map[string][]*basev1.WorkScopeV1{
 			state.AdminRole: {testkit.Scope("proposals.item", "create")},
 			"user":          {testkit.Scope("documents.collection", "admin")},
 		},
-		OwnedRoles: map[string][]*basev0.WorkScopeV1{
+		OwnedRoles: map[string][]*basev1.WorkScopeV1{
 			state.AdminRole: {testkit.Scope("proposals.item", "read")},
 			"user":          {testkit.Scope("proposals.item", "read"), testkit.Scope("documents.collection", "read")},
 		}}
@@ -66,7 +66,7 @@ func ownKindSolution(t *testing.T, k *testkit.Kit) string {
 	return inst.ID
 }
 
-func ownedRead(scopes []*basev0.WorkScopeV1, kind string) []string {
+func ownedRead(scopes []*basev1.WorkScopeV1, kind string) []string {
 	for _, scope := range scopes {
 		if scope.GetResourceKind() == kind && slices.Contains(scope.GetActions(), "read") {
 			return scope.GetResourceIds()

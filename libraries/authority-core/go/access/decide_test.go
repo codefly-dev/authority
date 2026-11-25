@@ -8,7 +8,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/access"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 const (
@@ -31,8 +31,8 @@ var (
 	daV1 = access.Placement{Resource: access.Node{Kind: docKind, ResourceID: "da", Version: "v1", Owner: "dana"}, Ancestors: []access.Node{c1}}
 )
 
-func owned(kind, owner string, actions ...string) *basev0.WorkScopeV1 {
-	return &basev0.WorkScopeV1{ResourceKind: kind, Actions: actions, ResourceOwnerId: owner}
+func owned(kind, owner string, actions ...string) *basev1.WorkScopeV1 {
+	return &basev1.WorkScopeV1{ResourceKind: kind, Actions: actions, ResourceOwnerId: owner}
 }
 
 func grant(subject domain.AccessSubject, kind, id, version string, actions ...string) domain.AccessGrant {
@@ -54,7 +54,7 @@ func under(p access.Placement, ancestors ...access.Node) access.Placement {
 // A's collection is reached by the installation and by nobody's role.
 func throughA(q access.Question) access.Question {
 	q.Action = "read"
-	q.Effective = []*basev0.WorkScopeV1{owned(docKind, principalA, "read")}
+	q.Effective = []*basev1.WorkScopeV1{owned(docKind, principalA, "read")}
 	q.Owner = access.Party{Subjects: []domain.AccessSubject{carol}, Scopes: q.Effective}
 	q.Actors = []access.Party{{Subjects: []domain.AccessSubject{instA}, Owns: principalA, Scopes: q.Effective}}
 	q.Now, q.Expires = now, expires
@@ -65,10 +65,10 @@ func throughA(q access.Question) access.Question {
 }
 
 func TestRoleScopesAndGrantsCombine(t *testing.T) {
-	collectionReader := []*basev0.WorkScopeV1{owned(docKind, principalA, "read"), owned(collectionKind, principalA, "read")}
+	collectionReader := []*basev1.WorkScopeV1{owned(docKind, principalA, "read"), owned(collectionKind, principalA, "read")}
 	throughB := func(q access.Question) access.Question {
 		q = throughA(q)
-		scopes := []*basev0.WorkScopeV1{owned(docKind, principalB, "read"), owned(collectionKind, principalB, "read")}
+		scopes := []*basev1.WorkScopeV1{owned(docKind, principalB, "read"), owned(collectionKind, principalB, "read")}
 		q.Effective, q.Owner.Scopes = scopes, scopes
 		q.Actors = []access.Party{{Subjects: []domain.AccessSubject{instB}, Owns: principalB, Scopes: scopes}}
 		return q
@@ -83,7 +83,7 @@ func TestRoleScopesAndGrantsCombine(t *testing.T) {
 		"the ceiling: a capability without the action on the kind is refused naming kind and action, whatever is granted": {
 			q: func() access.Question {
 				q := throughA(access.Question{Grants: []domain.AccessGrant{grant(carol, docKind, "da", "", "read")}})
-				q.Effective = []*basev0.WorkScopeV1{owned(docKind, principalA, "write")}
+				q.Effective = []*basev1.WorkScopeV1{owned(docKind, principalA, "write")}
 				return q
 			}(), refusal: "holds no documents:read"},
 		"the ceiling ignores the resource selection: a scope selecting another owner still holds the kind": {
@@ -99,14 +99,14 @@ func TestRoleScopesAndGrantsCombine(t *testing.T) {
 		"a role scope naming ids selects only those ids": {
 			q: func() access.Question {
 				q := throughA(access.Question{})
-				scopes := []*basev0.WorkScopeV1{{ResourceKind: docKind, Actions: []string{"read"}, ResourceIds: []string{"other"}}}
+				scopes := []*basev1.WorkScopeV1{{ResourceKind: docKind, Actions: []string{"read"}, ResourceIds: []string{"other"}}}
 				q.Effective, q.Owner.Scopes = scopes, scopes
 				return q
 			}(), reason: "the viewer"},
 		"a role scope naming the document's id selects it": {
 			q: func() access.Question {
 				q := throughA(access.Question{})
-				scopes := []*basev0.WorkScopeV1{{ResourceKind: docKind, Actions: []string{"read"}, ResourceIds: []string{"da"}}}
+				scopes := []*basev1.WorkScopeV1{{ResourceKind: docKind, Actions: []string{"read"}, ResourceIds: []string{"da"}}}
 				q.Effective, q.Owner.Scopes = scopes, scopes
 				return q
 			}(), allowed: true, bases: []access.Basis{access.RoleScope}},

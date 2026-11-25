@@ -7,7 +7,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // The verdicts of one link of a traced call. Only Admitted lets the call
@@ -211,7 +211,7 @@ func ownerLink(c Call, policy domain.MethodPolicy, decidable bool, received Scop
 		link.Verdict = Unproven
 		link.Reason = fmt.Sprintf("%s checks owners and declares %s open to any checked caller: its handler decides each resource, and no declaration states what it asks of the call", c.Audience.Name, c.Method)
 	default:
-		selected := slices.DeleteFunc(slices.Clone(received), func(sc *basev0.WorkScopeV1) bool { return sc.GetResourceOwnerId() == "" })
+		selected := slices.DeleteFunc(slices.Clone(received), func(sc *basev1.WorkScopeV1) bool { return sc.GetResourceOwnerId() == "" })
 		var absent, unselected []string
 		for _, r := range policy.Requires {
 			for _, action := range r.GetActions() {

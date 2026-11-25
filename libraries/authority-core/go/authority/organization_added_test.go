@@ -6,7 +6,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // An organization created after the modules were delivered holds each of
@@ -22,7 +22,7 @@ func TestAnOrganizationAddedLaterHoldsEveryComposedModule(t *testing.T) {
 	h.store.PutOrganization(domain.Organization{ID: initech, Name: initech})
 	h.store.PutPerson(domain.Person{ID: "ivy", Organization: initech})
 	ivy := authority.Person{ID: "ivy", Organization: initech, SessionID: "s-ivy"}
-	_, err := h.svc.IssueForPerson(h.ctx, ivy, authority.IssueRequest{Audience: "ledger", Scopes: []*basev0.WorkScopeV1{sc(ledgerKind, "read")}})
+	_, err := h.svc.IssueForPerson(h.ctx, ivy, authority.IssueRequest{Audience: "ledger", Scopes: []*basev1.WorkScopeV1{sc(ledgerKind, "read")}})
 	code(t, err, domain.Precondition)
 
 	ids, err := h.svc.OrganizationAdded(h.ctx, initech)
@@ -35,7 +35,7 @@ func TestAnOrganizationAddedLaterHoldsEveryComposedModule(t *testing.T) {
 	if _, err := h.svc.GrantRoleAsHost(h.ctx, authority.RoleRequest{Organization: initech, InstallationID: authority.StableInstallationID(initech, "ledger"), Role: domain.UserRole, PersonID: "ivy"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.svc.IssueForPerson(h.ctx, ivy, authority.IssueRequest{Audience: "ledger", Scopes: []*basev0.WorkScopeV1{sc(ledgerKind, "read")}}); err != nil {
+	if _, err := h.svc.IssueForPerson(h.ctx, ivy, authority.IssueRequest{Audience: "ledger", Scopes: []*basev1.WorkScopeV1{sc(ledgerKind, "read")}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := h.svc.UninstallAsHost(h.ctx, initech, authority.StableInstallationID(initech, "ledger")); err != nil {
@@ -44,7 +44,7 @@ func TestAnOrganizationAddedLaterHoldsEveryComposedModule(t *testing.T) {
 	if _, err := h.svc.OrganizationAdded(h.ctx, initech); err != nil {
 		t.Fatal(err)
 	}
-	_, err = h.svc.IssueForPerson(h.ctx, ivy, authority.IssueRequest{Audience: "ledger", Scopes: []*basev0.WorkScopeV1{sc(ledgerKind, "read")}})
+	_, err = h.svc.IssueForPerson(h.ctx, ivy, authority.IssueRequest{Audience: "ledger", Scopes: []*basev1.WorkScopeV1{sc(ledgerKind, "read")}})
 	code(t, err, domain.Precondition)
 	_, err = h.svc.OrganizationAdded(h.ctx, "nobody")
 	code(t, err, domain.NotFound)
@@ -59,7 +59,7 @@ func TestAnOrganizationAddedLaterHoldsEveryComposedModule(t *testing.T) {
 	if err != nil || len(ids) != 3 {
 		t.Fatalf("reconciled module installations %v %v", ids, err)
 	}
-	_, err = h.svc.IssueForPerson(h.ctx, ivy, authority.IssueRequest{Audience: "ledger", Scopes: []*basev0.WorkScopeV1{sc(ledgerKind, "read")}})
+	_, err = h.svc.IssueForPerson(h.ctx, ivy, authority.IssueRequest{Audience: "ledger", Scopes: []*basev1.WorkScopeV1{sc(ledgerKind, "read")}})
 	code(t, err, domain.Precondition)
 }
 

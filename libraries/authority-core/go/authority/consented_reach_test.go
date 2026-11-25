@@ -5,7 +5,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 const (
@@ -19,11 +19,11 @@ const (
 // served of its kind and declaring methods.
 func vaultAt(generation uint64, served []string, methods map[string]domain.MethodPolicy) domain.Module {
 	return domain.Module{Name: "vault", Principal: "vault", Kind: domain.KindModule, Generation: generation,
-		ResourceKinds: []*basev0.WorkScopeV1{sc(vaultKind, served...)}, Methods: methods}
+		ResourceKinds: []*basev1.WorkScopeV1{sc(vaultKind, served...)}, Methods: methods}
 }
 
 func requires(actions ...string) domain.MethodPolicy {
-	return domain.MethodPolicy{Requires: []*basev0.WorkScopeV1{sc(vaultKind, actions...)}}
+	return domain.MethodPolicy{Requires: []*basev1.WorkScopeV1{sc(vaultKind, actions...)}}
 }
 
 // vaultMethods is the vault's first generation: Read requires read, Purge
@@ -36,9 +36,9 @@ func vaultMethods() map[string]domain.MethodPolicy {
 // the vault when it does.
 func relayAt(generation uint64, toVault bool) domain.Module {
 	m := domain.Module{Name: "relay", Principal: "relay", Kind: domain.KindModule, Generation: generation,
-		ResourceKinds: []*basev0.WorkScopeV1{sc("relay.turn", "run")}, Bindings: map[string]domain.Binding{}}
+		ResourceKinds: []*basev1.WorkScopeV1{sc("relay.turn", "run")}, Bindings: map[string]domain.Binding{}}
 	if toVault {
-		m.Bindings["vault"] = domain.Binding{ID: "vault", Audience: "vault", InvokeScopes: []*basev0.WorkScopeV1{sc(vaultKind, "read", "write")}}
+		m.Bindings["vault"] = domain.Binding{ID: "vault", Audience: "vault", InvokeScopes: []*basev1.WorkScopeV1{sc(vaultKind, "read", "write")}}
 	}
 	return m
 }
@@ -48,13 +48,13 @@ func relayAt(generation uint64, toVault bool) domain.Module {
 // a declaration consented to before the vault serves write.
 func relayConsumer(page bool) domain.Module {
 	m := domain.Module{Name: "app", Principal: "app", Kind: domain.KindSolution, Generation: 1, OwnerAware: true, Page: true,
-		InstallationRole: domain.NoInstallationRole, ResourceKinds: []*basev0.WorkScopeV1{sc("app.note", "read")}}
+		InstallationRole: domain.NoInstallationRole, ResourceKinds: []*basev1.WorkScopeV1{sc("app.note", "read")}}
 	if page {
 		m = pageModule(1, true)
 	}
-	m.Bindings = map[string]domain.Binding{"relay": {ID: "relay", Audience: "relay", InvokeScopes: []*basev0.WorkScopeV1{sc("relay.turn", "run")}}}
+	m.Bindings = map[string]domain.Binding{"relay": {ID: "relay", Audience: "relay", InvokeScopes: []*basev1.WorkScopeV1{sc("relay.turn", "run")}}}
 	own := m.ResourceKinds[0].GetResourceKind()
-	m.Roles = map[string][]*basev0.WorkScopeV1{domain.AdminRole: {sc(own, "read")}, "user": {sc(own, "read"), sc("relay.turn", "run")}}
+	m.Roles = map[string][]*basev1.WorkScopeV1{domain.AdminRole: {sc(own, "read")}, "user": {sc(own, "read"), sc("relay.turn", "run")}}
 	through(&m, "user", "relay", sc(vaultKind, "read", "write"))
 	return m
 }
@@ -177,7 +177,7 @@ func TestAPersonNamingAPagesBindingIsHeldToTheApprovedReach(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	page := pageModule(1, true)
-	page.Bindings = map[string]domain.Binding{"vault": {ID: "vault", Audience: "vault", InvokeScopes: []*basev0.WorkScopeV1{sc(vaultKind, "read", "write")}}}
+	page.Bindings = map[string]domain.Binding{"vault": {ID: "vault", Audience: "vault", InvokeScopes: []*basev1.WorkScopeV1{sc(vaultKind, "read", "write")}}}
 	page.Roles["user"] = append(page.Roles["user"], sc(vaultKind, "read", "write"))
 	for _, m := range []domain.Module{vaultAt(1, []string{"read"}, vaultMethods()), page} {
 		if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
@@ -189,7 +189,7 @@ func TestAPersonNamingAPagesBindingIsHeldToTheApprovedReach(t *testing.T) {
 		t.Fatal(err)
 	}
 	ask := func(actions ...string) (authority.Issued, error) {
-		return h.svc.IssueForPerson(h.ctx, h.person("maya"), authority.IssueRequest{Audience: "pages", Binding: "vault", Scopes: []*basev0.WorkScopeV1{sc(vaultKind, actions...)}})
+		return h.svc.IssueForPerson(h.ctx, h.person("maya"), authority.IssueRequest{Audience: "pages", Binding: "vault", Scopes: []*basev1.WorkScopeV1{sc(vaultKind, actions...)}})
 	}
 	h.must(ask("read"))
 	if _, err := h.svc.ApplyModule(h.ctx, vaultAt(2, []string{"read", "write"}, map[string]domain.MethodPolicy{vaultRead: requires("read"), vaultWrite: requires("write")})); err != nil {
@@ -217,7 +217,7 @@ func TestAPersonNamingAPagesBindingIsHeldToTheConsentedBinding(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	page := pageModule(1, true)
-	page.Bindings = map[string]domain.Binding{"vault": {ID: "vault", Audience: "vault", InvokeScopes: []*basev0.WorkScopeV1{sc(vaultKind, "read", "write")}}}
+	page.Bindings = map[string]domain.Binding{"vault": {ID: "vault", Audience: "vault", InvokeScopes: []*basev1.WorkScopeV1{sc(vaultKind, "read", "write")}}}
 	page.Roles["user"] = append(page.Roles["user"], sc(vaultKind, "read", "write"))
 	for _, m := range []domain.Module{vaultAt(1, []string{"read", "write"}, map[string]domain.MethodPolicy{vaultRead: requires("read"), vaultWrite: requires("write")}), page} {
 		if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
@@ -226,10 +226,10 @@ func TestAPersonNamingAPagesBindingIsHeldToTheConsentedBinding(t *testing.T) {
 	}
 	h.grant("pages", "user", "maya")
 	ask := func(actions ...string) (authority.Issued, error) {
-		return h.svc.IssueForPerson(h.ctx, h.person("maya"), authority.IssueRequest{Audience: "pages", Binding: "vault", Scopes: []*basev0.WorkScopeV1{sc(vaultKind, actions...)}})
+		return h.svc.IssueForPerson(h.ctx, h.person("maya"), authority.IssueRequest{Audience: "pages", Binding: "vault", Scopes: []*basev1.WorkScopeV1{sc(vaultKind, actions...)}})
 	}
 	h.must(ask("write"))
-	h.consented(acme, "pages", map[string]domain.Binding{"vault": {ID: "vault", Audience: "vault", InvokeScopes: []*basev0.WorkScopeV1{sc(vaultKind, "read")}}})
+	h.consented(acme, "pages", map[string]domain.Binding{"vault": {ID: "vault", Audience: "vault", InvokeScopes: []*basev1.WorkScopeV1{sc(vaultKind, "read")}}})
 	if got, err := ask("write"); err == nil {
 		t.Fatalf("a root naming the page's binding carries write the consent narrowed away: %v", got.Context.GetAuthorityScopes())
 	}
@@ -248,14 +248,14 @@ func TestRolesHeldTogetherKeepAnAudienceGrantAtAModuleWhosePrincipalIsNotItsName
 	t.Parallel()
 	h := newHarness(t)
 	const principal = "relay.principal"
-	turn := []*basev0.WorkScopeV1{sc("relay.turn", "run")}
+	turn := []*basev1.WorkScopeV1{sc("relay.turn", "run")}
 	if _, err := h.svc.ApplyModule(h.ctx, domain.Module{Name: "relay", Principal: principal, Kind: domain.KindModule, Generation: 1, OwnerAware: true, ResourceKinds: turn}); err != nil {
 		t.Fatal(err)
 	}
 	e := solution("e", true)
 	e.Bindings = map[string]domain.Binding{"relay": {ID: "relay", Audience: principal, InvokeScopes: turn}}
-	e.Roles = map[string][]*basev0.WorkScopeV1{domain.AdminRole: {sc("e.note", "read", "write")}, domain.UserRole: {sc("e.note", "read")}}
-	e.AudienceRoles = map[string]map[string][]*basev0.WorkScopeV1{domain.AdminRole: {principal: turn}, domain.UserRole: {principal: turn}}
+	e.Roles = map[string][]*basev1.WorkScopeV1{domain.AdminRole: {sc("e.note", "read", "write")}, domain.UserRole: {sc("e.note", "read")}}
+	e.AudienceRoles = map[string]map[string][]*basev1.WorkScopeV1{domain.AdminRole: {principal: turn}, domain.UserRole: {principal: turn}}
 	if _, err := h.svc.ApplyModule(h.ctx, e); err != nil {
 		t.Fatal(err)
 	}

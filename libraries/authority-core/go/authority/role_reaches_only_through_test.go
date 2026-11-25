@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // pageWhoseUserOnlyReaches is the module page reaching the store, with a role
@@ -16,7 +16,7 @@ func pageWhoseUserOnlyReaches(t *testing.T) *harness {
 	t.Helper()
 	h := newHarness(t)
 	m := pageReachingStore(1, "read")
-	m.Roles["user"] = []*basev0.WorkScopeV1{sc(kind, "write")}
+	m.Roles["user"] = []*basev1.WorkScopeV1{sc(kind, "write")}
 	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
 		t.Fatal(err)
 	}

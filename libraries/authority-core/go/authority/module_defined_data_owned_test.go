@@ -8,7 +8,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // A module that defines data at a module that checks owners through a headless
@@ -26,17 +26,17 @@ func TestAModulesHeadlessDefineAtAnOwnerAwareModuleIsBornOwnedAndItsPageReadsItB
 		t.Fatal(err)
 	}
 	m.Generation++
-	m.Bindings["define"] = domain.Binding{ID: "define", Audience: "store", HeadlessScopes: []*basev0.WorkScopeV1{sc(kind, "write")}}
-	m.Bindings["shared-define"] = domain.Binding{ID: "shared-define", Audience: "profiles", HeadlessScopes: []*basev0.WorkScopeV1{sc("profiles.profile", "write")}}
-	m.Bindings["legacy-define"] = domain.Binding{ID: "legacy-define", Audience: "legacy-store", HeadlessScopes: []*basev0.WorkScopeV1{sc(legacyKind, "write")}}
-	m.Bindings["read-kind"] = domain.Binding{ID: "read-kind", Audience: "store", HeadlessScopes: []*basev0.WorkScopeV1{sc(kind, "read")}}
-	m.Bindings["read-and-define"] = domain.Binding{ID: "read-and-define", Audience: "store", HeadlessScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write")}}
-	m.Bindings["read-then-define"] = domain.Binding{ID: "read-then-define", Audience: "store", HeadlessScopes: []*basev0.WorkScopeV1{sc(kind, "read"), sc(kind, "write")}}
+	m.Bindings["define"] = domain.Binding{ID: "define", Audience: "store", HeadlessScopes: []*basev1.WorkScopeV1{sc(kind, "write")}}
+	m.Bindings["shared-define"] = domain.Binding{ID: "shared-define", Audience: "profiles", HeadlessScopes: []*basev1.WorkScopeV1{sc("profiles.profile", "write")}}
+	m.Bindings["legacy-define"] = domain.Binding{ID: "legacy-define", Audience: "legacy-store", HeadlessScopes: []*basev1.WorkScopeV1{sc(legacyKind, "write")}}
+	m.Bindings["read-kind"] = domain.Binding{ID: "read-kind", Audience: "store", HeadlessScopes: []*basev1.WorkScopeV1{sc(kind, "read")}}
+	m.Bindings["read-and-define"] = domain.Binding{ID: "read-and-define", Audience: "store", HeadlessScopes: []*basev1.WorkScopeV1{sc(kind, "read", "write")}}
+	m.Bindings["read-then-define"] = domain.Binding{ID: "read-then-define", Audience: "store", HeadlessScopes: []*basev1.WorkScopeV1{sc(kind, "read"), sc(kind, "write")}}
 	if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
 		t.Fatal(err)
 	}
 	mine := h.principal(acme, "pages")
-	define := func(binding string, org string, scopes ...*basev0.WorkScopeV1) (authority.Issued, error) {
+	define := func(binding string, org string, scopes ...*basev1.WorkScopeV1) (authority.Issued, error) {
 		return h.svc.IssueForWorkload(h.ctx, authority.Workload{Module: "pages"}, authority.IssueRequest{Binding: binding, Operation: "headless", Organization: org, Scopes: scopes})
 	}
 

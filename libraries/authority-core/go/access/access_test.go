@@ -17,7 +17,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/memstore"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // The service over the real authority core and the in-memory store: two
@@ -41,17 +41,17 @@ type world struct {
 	svc   *access.Service
 }
 
-func sc(kind string, actions ...string) *basev0.WorkScopeV1 {
-	return &basev0.WorkScopeV1{ResourceKind: kind, Actions: actions}
+func sc(kind string, actions ...string) *basev1.WorkScopeV1 {
+	return &basev1.WorkScopeV1{ResourceKind: kind, Actions: actions}
 }
 
 func solution(name string) domain.Module {
 	note := name + ".note"
 	return domain.Module{Name: name, Principal: name, Kind: domain.KindSolution, Generation: 1, OwnerAware: true,
-		ResourceKinds: []*basev0.WorkScopeV1{sc(note, "read", "write")},
+		ResourceKinds: []*basev1.WorkScopeV1{sc(note, "read", "write")},
 		Bindings: map[string]domain.Binding{"store": {ID: "store", Audience: "store",
-			InvokeScopes: []*basev0.WorkScopeV1{sc(docKind, "admin", "read", "share", "write"), sc(collectionKind, "admin", "read", "share")}}},
-		Roles: map[string][]*basev0.WorkScopeV1{
+			InvokeScopes: []*basev1.WorkScopeV1{sc(docKind, "admin", "read", "share", "write"), sc(collectionKind, "admin", "read", "share")}}},
+		Roles: map[string][]*basev1.WorkScopeV1{
 			domain.AdminRole: {sc(note, "read", "write"), sc(docKind, "admin", "read", "share", "write"), sc(collectionKind, "admin", "read", "share")},
 			domain.UserRole:  {sc(note, "read"), sc(docKind, "read", "share")},
 		}}
@@ -90,7 +90,7 @@ func newWorld(t *testing.T) *world {
 	}
 	for _, m := range []domain.Module{
 		{Name: "store", Principal: "store", Kind: domain.KindModule, Generation: 1, OwnerAware: true,
-			ResourceKinds: []*basev0.WorkScopeV1{sc(docKind, "admin", "read", "share", "write"), sc(collectionKind, "admin", "read", "share")}},
+			ResourceKinds: []*basev1.WorkScopeV1{sc(docKind, "admin", "read", "share", "write"), sc(collectionKind, "admin", "read", "share")}},
 		solution("a"), solution("b"),
 	} {
 		if _, err := w.auth.ApplyModule(w.ctx, m); err != nil {

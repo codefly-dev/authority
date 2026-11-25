@@ -6,7 +6,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // A delegation is to a module installed at the grantor's organization, with a
@@ -15,7 +15,7 @@ import (
 func TestDelegationRules(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	read := []*basev0.WorkScopeV1{sc(kind, "read")}
+	read := []*basev1.WorkScopeV1{sc(kind, "read")}
 	rob := h.person("rob")
 
 	t.Run("a purpose past its bound is malformed", func(t *testing.T) {
@@ -37,7 +37,7 @@ func TestADelegationIsEndedByItsGrantorOrAnAdministratorAlone(t *testing.T) {
 	h := newHarness(t)
 	// Rob is a user of solution a: he delegates what that role reads at the store.
 	h.grant("a", "user", "rob")
-	read := []*basev0.WorkScopeV1{owned(kind, h.principal(acme, "a"), []string{"read"})}
+	read := []*basev1.WorkScopeV1{owned(kind, h.principal(acme, "a"), []string{"read"})}
 	rob, maya, alex, zoe := h.person("rob"), h.person("maya"), h.person("alex"), h.person("zoe")
 	for _, tc := range []struct {
 		name   string

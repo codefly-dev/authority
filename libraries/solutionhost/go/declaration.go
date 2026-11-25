@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 
 	modulecontract "github.com/codefly-dev/core/contracts/module"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // What a module's contract declares to its host — the authority block of its
@@ -44,7 +44,7 @@ func RefuseRetiredRoles(dir string) error {
 // information as supplied, ConfigurationValues), for the environment class
 // being delivered to, reading a callee's method declarations from callees
 // when a binding names calls (nil when none does).
-func Resolver(infos []*basev0.ConfigurationInformation, class string, callees modulecontract.Callees) func(*modulecontract.Contract) (*modulecontract.Resolved, error) {
+func Resolver(infos []*basev1.ConfigurationInformation, class string, callees modulecontract.Callees) func(*modulecontract.Contract) (*modulecontract.Resolved, error) {
 	return func(contract *modulecontract.Contract) (*modulecontract.Resolved, error) {
 		options := []modulecontract.ResolveOption{modulecontract.WithEnvironmentClass(class)}
 		if callees != nil {
@@ -60,11 +60,11 @@ func Resolver(infos []*basev0.ConfigurationInformation, class string, callees mo
 // spellings of a key, a key supplied twice, a key classified public here and
 // secret there — and nothing decided, since selecting among them is core's
 // resolution, never a provider's (modulecontract.Values).
-func ConfigurationValues(infos []*basev0.ConfigurationInformation) modulecontract.Values {
+func ConfigurationValues(infos []*basev1.ConfigurationInformation) modulecontract.Values {
 	return configurationValues(infos)
 }
 
-type configurationValues []*basev0.ConfigurationInformation
+type configurationValues []*basev1.ConfigurationInformation
 
 // Records implements modulecontract.Values.
 func (infos configurationValues) Records(group string) ([]modulecontract.Record, error) {

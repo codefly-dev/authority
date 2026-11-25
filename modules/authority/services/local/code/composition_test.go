@@ -11,7 +11,7 @@ import (
 	"gateway/pkg/business/testkit"
 
 	"github.com/codefly-dev/core/configurations"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/codefly-dev/core/resources"
 	codefly "github.com/codefly-dev/sdk-go"
 )
@@ -56,12 +56,12 @@ func TestCompositionReachesBootThroughCodefly(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if err := codefly.InjectConfigurations(&basev0.Configuration{Origin: resources.ConfigurationWorkspace, Infos: infos}); err != nil {
+				if err := codefly.InjectConfigurations(&basev1.Configuration{Origin: resources.ConfigurationWorkspace, Infos: infos}); err != nil {
 					t.Fatal(err)
 				}
 			}
 			k := testkit.New(t)
-			ledger := state.Manifest{Name: "ledger", Principal: "ledger", Kind: "module", Generation: 1, ResourceKinds: []*basev0.WorkScopeV1{testkit.Scope("ledger.entry", "write")}}
+			ledger := state.Manifest{Name: "ledger", Principal: "ledger", Kind: "module", Generation: 1, ResourceKinds: []*basev1.WorkScopeV1{testkit.Scope("ledger.entry", "write")}}
 			if _, err := k.State.ApplyManifest(ledger); err != nil {
 				t.Fatal(err)
 			}

@@ -7,7 +7,7 @@ import (
 
 	"github.com/codefly-dev/authority/libraries/authority-core/go/authority"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 func (s *State) modules() []Manifest {
@@ -40,7 +40,7 @@ func (s *State) PermissionReport() []string {
 				lines = append(lines, fmt.Sprintf("WARN %s@%d %s: wildcard ceiling is unresolved", m.Name, m.Generation, sc.GetResourceKind()))
 			}
 		}
-		roles := map[string][]*basev0.WorkScopeV1{}
+		roles := map[string][]*basev1.WorkScopeV1{}
 		for name, scopes := range m.Roles {
 			// Statically an installation-owned scope covers its kind; which
 			// ids is each installation's, decided at issue.

@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/codefly-dev/core/workcontext"
 	"google.golang.org/protobuf/proto"
 )
@@ -34,7 +34,7 @@ type claimProjection struct {
 	Name     string                `json:"name"`
 	Token    string                `json:"token"`
 	Audience string                `json:"audience"`
-	Scopes   []*basev0.WorkScopeV1 `json:"scopes"`
+	Scopes   []*basev1.WorkScopeV1 `json:"scopes"`
 	Probes   []claimProbe          `json:"probes"`
 }
 
@@ -109,18 +109,18 @@ func coreProjection(t *testing.T, now time.Time, name, token string) claimProjec
 		t.Fatalf("%s: %v", name, err)
 	}
 	scopes := verified.EffectiveScopes()
-	owned := slices.ContainsFunc(scopes, func(s *basev0.WorkScopeV1) bool { return s.GetResourceOwnerId() != "" })
+	owned := slices.ContainsFunc(scopes, func(s *basev1.WorkScopeV1) bool { return s.GetResourceOwnerId() != "" })
 	projection := claimProjection{Name: name, Token: token, Audience: workcontext.FixtureAudience, Scopes: scopes}
 	for _, scope := range scopes {
 		for _, action := range append(append([]string{}, scope.GetActions()...), "undeclared") {
 			for _, id := range append(append([]string{"", "other-resource"}, scope.GetResourceIds()...), "record-conformance") {
-				ask := &basev0.WorkScopeV1{ResourceKind: scope.GetResourceKind(), Actions: []string{action}}
+				ask := &basev1.WorkScopeV1{ResourceKind: scope.GetResourceKind(), Actions: []string{action}}
 				if id != "" {
 					ask.ResourceIds = []string{id}
 				}
 				allowed := false
 				for _, candidate := range scopes {
-					if workcontext.ScopeContained(ask, []*basev0.WorkScopeV1{candidate}) {
+					if workcontext.ScopeContained(ask, []*basev1.WorkScopeV1{candidate}) {
 						allowed = true
 						break
 					}
@@ -132,7 +132,7 @@ func coreProjection(t *testing.T, now time.Time, name, token string) claimProjec
 				for _, owner := range []string{fixtureOwner, "principal-other", ""} {
 					ask := proto.CloneOf(ask)
 					ask.ResourceOwnerId = owner
-					allowed := slices.ContainsFunc(scopes, func(c *basev0.WorkScopeV1) bool { return workcontext.ScopeContained(ask, []*basev0.WorkScopeV1{c}) })
+					allowed := slices.ContainsFunc(scopes, func(c *basev1.WorkScopeV1) bool { return workcontext.ScopeContained(ask, []*basev1.WorkScopeV1{c}) })
 					projection.Probes = append(projection.Probes, claimProbe{scope.GetResourceKind(), action, id, &owner, allowed})
 				}
 			}
@@ -154,7 +154,7 @@ func ownerSelected(t *testing.T, session string) string {
 		t.Fatal(err)
 	}
 	c := decoded.Context()
-	c.AuthorityScopes = []*basev0.WorkScopeV1{
+	c.AuthorityScopes = []*basev1.WorkScopeV1{
 		{ResourceKind: "record", Actions: []string{"read"}, ResourceOwnerId: fixtureOwner},
 		{ResourceKind: "note", Actions: []string{"read"}, ResourceIds: []string{"n1"}, ResourceOwnerId: fixtureOwner},
 		{ResourceKind: "plain", Actions: []string{"read"}},

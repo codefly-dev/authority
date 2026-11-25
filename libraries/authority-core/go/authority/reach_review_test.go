@@ -13,7 +13,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-core/go/decide"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/domain"
 	"github.com/codefly-dev/authority/libraries/authority-core/go/scope"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 )
 
 // widenDownstream relaxes the store's Purge to what a's admin holds and
@@ -21,12 +21,12 @@ import (
 func widenDownstream(t *testing.T, h *harness) {
 	t.Helper()
 	replica := domain.Module{Name: "replica", Principal: "replica", Kind: domain.KindModule, Generation: 1, OwnerAware: true,
-		ResourceKinds: []*basev0.WorkScopeV1{sc(kind, "read", "write")}}
+		ResourceKinds: []*basev1.WorkScopeV1{sc(kind, "read", "write")}}
 	if _, err := h.svc.ApplyModule(h.ctx, replica); err != nil {
 		t.Fatal(err)
 	}
 	wider := storeAt(3, "write", true)
-	wider.Bindings["replica"] = domain.Binding{ID: "replica", Audience: "replica", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write")}}
+	wider.Bindings["replica"] = domain.Binding{ID: "replica", Audience: "replica", InvokeScopes: []*basev1.WorkScopeV1{sc(kind, "read", "write")}}
 	if _, err := h.svc.ApplyModule(h.ctx, wider); err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestADelegationThroughASolutionIsHeldToTheApprovedReach(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	readOnly := storeAt(2, "admin", true)
-	readOnly.ResourceKinds = []*basev0.WorkScopeV1{sc(kind, "read")}
+	readOnly.ResourceKinds = []*basev1.WorkScopeV1{sc(kind, "read")}
 	if _, err := h.svc.ApplyModule(h.ctx, readOnly); err != nil {
 		t.Fatal(err)
 	}
@@ -136,13 +136,13 @@ func TestADelegationThroughASolutionIsHeldToTheApprovedReach(t *testing.T) {
 	if up, err := h.svc.UpgradeAvailable(h.ctx, h.stored(acme, "a")); err != nil || !up {
 		t.Fatalf("the store serving write offers a no upgrade: %v %v", up, err)
 	}
-	d, err := h.svc.Delegate(h.ctx, h.person("maya"), "a", []*basev0.WorkScopeV1{owned(kind, h.principal(acme, "a"), []string{"read", "write"})}, "a run", 3600)
+	d, err := h.svc.Delegate(h.ctx, h.person("maya"), "a", []*basev1.WorkScopeV1{owned(kind, h.principal(acme, "a"), []string{"read", "write"})}, "a run", 3600)
 	if err != nil {
 		t.Fatal(err)
 	}
 	issue := func(actions ...string) (authority.Issued, error) {
 		return h.svc.IssueForDelegation(h.ctx, d.ID, authority.Workload{Module: "a"}, authority.IssueRequest{Binding: "store",
-			Scopes: []*basev0.WorkScopeV1{owned(kind, h.principal(acme, "a"), actions)}})
+			Scopes: []*basev1.WorkScopeV1{owned(kind, h.principal(acme, "a"), actions)}})
 	}
 	if _, err := issue("read"); err != nil {
 		t.Fatalf("the approved reach is refused to the delegation: %v", err)
@@ -164,7 +164,7 @@ func TestAHeadlessHopForAPersonIsRefused(t *testing.T) {
 	// rob is a user of the ledger's page, whose role reads the legacy store.
 	m := ledger()
 	m.Generation = 2
-	m.Bindings["quiet"] = domain.Binding{ID: "quiet", Audience: "legacy-store", HeadlessScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}}
+	m.Bindings["quiet"] = domain.Binding{ID: "quiet", Audience: "legacy-store", HeadlessScopes: []*basev1.WorkScopeV1{sc(legacyKind, "read")}}
 	ledgerRoles(&m)
 	seatLedgerUsers(t, h, m, "rob")
 	at := h.must(h.root("rob", "ledger"))
@@ -218,9 +218,9 @@ func TestAModuleDeliveredAgainAfterAWithdrawalHoldsNoGrants(t *testing.T) {
 // role names is one the solution serves or consumes, as delivery requires.
 func soundComposition(r *rand.Rand) []domain.Module {
 	kinds, actions := []string{"data.one", "data.two", "data.three"}, []string{"read", "write", "admin"}
-	some := func(min int) []*basev0.WorkScopeV1 {
+	some := func(min int) []*basev1.WorkScopeV1 {
 		for {
-			var out []*basev0.WorkScopeV1
+			var out []*basev1.WorkScopeV1
 			for _, k := range kinds {
 				var acts []string
 				for _, a := range actions {
@@ -252,7 +252,7 @@ func soundComposition(r *rand.Rand) []domain.Module {
 			if r.Intn(2) == 0 {
 				id := "to-" + other
 				invoke := some(1)
-				var lookup []*basev0.WorkScopeV1
+				var lookup []*basev1.WorkScopeV1
 				if r.Intn(2) == 0 {
 					lookup = scope.Intersect(some(1), invoke)
 				}
@@ -264,13 +264,13 @@ func soundComposition(r *rand.Rand) []domain.Module {
 			for _, b := range m.Bindings {
 				grantable = append(grantable, b.InvokeScopes...)
 			}
-			role := func() []*basev0.WorkScopeV1 {
+			role := func() []*basev1.WorkScopeV1 {
 				if role := scope.Intersect(some(1), grantable); len(role) > 0 {
 					return role
 				}
 				return slices.Clone(m.ResourceKinds)
 			}
-			m.Kind, m.Roles = domain.KindSolution, map[string][]*basev0.WorkScopeV1{domain.AdminRole: role(), domain.UserRole: role()}
+			m.Kind, m.Roles = domain.KindSolution, map[string][]*basev1.WorkScopeV1{domain.AdminRole: role(), domain.UserRole: role()}
 		}
 		out = append(out, m)
 	}
@@ -345,11 +345,11 @@ func TestTheRuntimeNeverAdmitsBeyondReach(t *testing.T) {
 				t.Fatal(err)
 			}
 			type bound struct {
-				cells map[string][]*basev0.WorkScopeV1
+				cells map[string][]*basev1.WorkScopeV1
 				ops   map[string]map[string]bool
 			}
-			boundOf := func(key string, within []*basev0.WorkScopeV1) bound {
-				b := bound{map[string][]*basev0.WorkScopeV1{}, map[string]map[string]bool{}}
+			boundOf := func(key string, within []*basev1.WorkScopeV1) bound {
+				b := bound{map[string][]*basev1.WorkScopeV1{}, map[string]map[string]bool{}}
 				for _, row := range reach[key] {
 					if row.Via != decide.ReachPerson {
 						b.cells[row.Module] = append(b.cells[row.Module], row.Scopes...)
@@ -475,7 +475,7 @@ func TestTheRuntimeNeverAdmitsBeyondReach(t *testing.T) {
 var errNothing = errors.New("nothing to start from")
 
 // sameScopes: each attenuates the other.
-func sameScopes(a, b []*basev0.WorkScopeV1) bool {
+func sameScopes(a, b []*basev1.WorkScopeV1) bool {
 	return scope.Attenuates(a, b) && scope.Attenuates(b, a)
 }
 
@@ -487,7 +487,7 @@ func TestEachFaceOfAnOperationIsHeldToItsOwnApprovedPolicy(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	store := storeAt(2, "admin", true)
-	store.Methods["POST "+storePurge] = domain.MethodPolicy{Requires: []*basev0.WorkScopeV1{sc(kind, "write")}}
+	store.Methods["POST "+storePurge] = domain.MethodPolicy{Requires: []*basev1.WorkScopeV1{sc(kind, "write")}}
 	if _, err := h.svc.ApplyModule(h.ctx, store); err != nil {
 		t.Fatal(err)
 	}
@@ -533,7 +533,7 @@ func TestALegacyConsentWhoseApprovedGenerationIsNotKeptNeverRefusesADelivery(t *
 	}
 	h.legacy("b")
 	unrelated := domain.Module{Name: "replica", Principal: "replica", Kind: domain.KindModule, Generation: 1, OwnerAware: true,
-		ResourceKinds: []*basev0.WorkScopeV1{sc(kind, "read")}}
+		ResourceKinds: []*basev1.WorkScopeV1{sc(kind, "read")}}
 	if _, err := h.svc.ApplyModule(h.ctx, unrelated); err != nil {
 		t.Fatalf("a delivery of an unrelated module is refused by one installation's state: %v", err)
 	}
@@ -575,7 +575,7 @@ func TestAWideningIsJournaledOnce(t *testing.T) {
 	}
 	for _, name := range []string{"unrelated-one", "unrelated-two"} {
 		if _, err := h.svc.ApplyModule(h.ctx, domain.Module{Name: name, Principal: name, Kind: domain.KindModule, Generation: 1,
-			ResourceKinds: []*basev0.WorkScopeV1{sc(name+".item", "read")}}); err != nil {
+			ResourceKinds: []*basev1.WorkScopeV1{sc(name+".item", "read")}}); err != nil {
 			t.Fatal(err)
 		}
 	}

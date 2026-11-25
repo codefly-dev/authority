@@ -45,7 +45,7 @@ import (
 	"github.com/codefly-dev/authority/libraries/authority-client/go/stamp"
 	"github.com/codefly-dev/authority/libraries/authority-client/go/workcontext"
 	"github.com/codefly-dev/authority/libraries/hop/go/policy"
-	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
+	basev1 "github.com/codefly-dev/core/generated/go/codefly/base/v1"
 	"github.com/codefly-dev/core/resources"
 	core "github.com/codefly-dev/core/workcontext"
 	"google.golang.org/grpc"
@@ -202,7 +202,7 @@ func Stamp(md metadata.MD, id Identity, signer *stamp.Signer, method, audience s
 // kind; Claims.Allows answers those. It is the one derivation: the hop stamps
 // it from the authority's checked context and the module derives it from the
 // token it authenticated, so the two agree or the call is refused.
-func IdentityOf(wc *basev0.WorkContextV1) Identity {
+func IdentityOf(wc *basev1.WorkContextV1) Identity {
 	id := Identity{
 		Owner:     wc.GetOwnerPrincipalId(),
 		OwnerKind: wc.GetOwnerPrincipalKind(),
@@ -225,7 +225,7 @@ func IdentityOf(wc *basev0.WorkContextV1) Identity {
 // flatten stamps only kind-wide scopes. A resource-limited or owner-selected
 // scope is never a kind-wide one; the module reads it from the claims
 // (AllowsOwned), which keep its ids and owner.
-func flatten(scopes []*basev0.WorkScopeV1) []string {
+func flatten(scopes []*basev1.WorkScopeV1) []string {
 	var out []string
 	for _, s := range scopes {
 		if len(s.GetResourceIds()) > 0 || s.GetResourceOwnerId() != "" {
