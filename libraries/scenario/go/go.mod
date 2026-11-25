@@ -3,7 +3,7 @@ module github.com/codefly-dev/authority/libraries/scenario/go
 go 1.27.4
 
 require (
-	github.com/codefly-dev/authority/libraries/authority-client/go v0.2.1-0.20261125152834-271cb628327e
+	github.com/codefly-dev/authority/libraries/authority-client/go v0.2.1-0.20261125180051-bf1d50894d03
 	github.com/codefly-dev/authority/libraries/authority-core/go v0.1.2-0.20261125152834-271cb628327e
 	github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261125152834-271cb628327e
 	github.com/codefly-dev/core v0.19.36-0.20261121094328-95a426c5096f

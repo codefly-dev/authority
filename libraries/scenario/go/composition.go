@@ -501,6 +501,61 @@ func (c *Composition) Install(t testing.TB, administrator, target string) {
 	}
 }
 
+// Leave takes person out of team, as administrator: the organisation's
+// administrator, signed in for the call. From the host's next decision the
+// person holds nothing through the team, and what they were issued through
+// it is refused. The test's cleanup puts them back, so a scenario leaves the
+// composition's teams as it found them.
+//
+// It is the session interface's RemoveFixtureTeamMember, which a host run on
+// its fixture serves (the local authority). A host that changes membership
+// only through its own product surface answers unimplemented, and the
+// scenario fails saying so rather than passing on a member who never left.
+func (c *Composition) Leave(t testing.TB, administrator, team, person string) {
+	t.Helper()
+	if err := c.member(administrator, team, person, false); err != nil {
+		t.Fatalf("take %s out of %s as %s: %v", person, team, administrator, err)
+	}
+	t.Cleanup(func() {
+		if err := c.member(administrator, team, person, true); err != nil {
+			t.Errorf("put %s back in %s as %s: %v", person, team, administrator, err)
+		}
+	})
+}
+
+// Join puts person in team, as administrator (AddFixtureTeamMember, under
+// Leave's conditions): from the host's next decision they hold what the team
+// is granted. The test's cleanup takes them out again.
+func (c *Composition) Join(t testing.TB, administrator, team, person string) {
+	t.Helper()
+	if err := c.member(administrator, team, person, true); err != nil {
+		t.Fatalf("put %s in %s as %s: %v", person, team, administrator, err)
+	}
+	t.Cleanup(func() {
+		if err := c.member(administrator, team, person, false); err != nil {
+			t.Errorf("take %s out of %s again as %s: %v", person, team, administrator, err)
+		}
+	})
+}
+
+// member changes one membership on the host, as administrator.
+func (c *Composition) member(administrator, team, person string, join bool) error {
+	ctx, _, err := c.administer(context.Background(), administrator)
+	if err != nil {
+		return err
+	}
+	sessions := sessionv1.NewSessionServiceClient(c.conn)
+	if join {
+		_, err = sessions.AddFixtureTeamMember(ctx, &sessionv1.AddFixtureTeamMemberRequest{TeamId: team, PersonId: person})
+	} else {
+		_, err = sessions.RemoveFixtureTeamMember(ctx, &sessionv1.RemoveFixtureTeamMemberRequest{TeamId: team, PersonId: person})
+	}
+	if status.Code(err) == codes.Unimplemented {
+		return fmt.Errorf("the host does not serve the session interface's fixture membership calls, so this composition cannot change a team's members: %w", err)
+	}
+	return err
+}
+
 // Grant grants role on target's installation to person, as administrator. On
 // a target the run does not seat (Options.Seated), the grant is the
 // scenario's own and is kept.

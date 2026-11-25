@@ -68,6 +68,14 @@ func TestWhoReadsTheNotes(t *testing.T) {
   expectation is `Allow`, `Admit` or `Deny("part of the reason")`, with
   `.And(func(Outcome) error)` for what the answer must hold. A refusal that
   names no reason fails whatever was expected.
+- **A person leaves a team, or joins one.** `composed.Leave(t, administrator,
+  team, person)` takes a person out of a team on the host, as the
+  organisation's administrator, and puts them back when the test ends;
+  `composed.Join` is the reverse. From the host's next decision the person
+  holds nothing through the team, so the call they made a moment ago is
+  refused. It is the session interface's `RemoveFixtureTeamMember` and
+  `AddFixtureTeamMember`, which a host run on its fixture serves (the local
+  authority); on a host that does not, the scenario fails saying so.
 - **The outsider** is the administrator of another organisation, who holds no
   role on any installation of the composition's own: on the local authority's
   fixture, Zoë of Globex. `scenario.Cast` names the shipped fixture by seat
