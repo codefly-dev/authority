@@ -28,6 +28,9 @@ import (
 )
 
 func TestTheLocalAuthorityPassesTheAccessSuite(t *testing.T) {
+	// A host of its own, on a clock of its own: it runs beside the other
+	// suites of this package, which each build theirs.
+	t.Parallel()
 	conn, descriptors, f := accessHost(t)
 	conformance.RunAccess(t, conn, descriptors, f)
 }
@@ -35,6 +38,9 @@ func TestTheLocalAuthorityPassesTheAccessSuite(t *testing.T) {
 // The local authority serves revision minimums: a decision asked with one is
 // never read from an earlier state, even while its reader is held behind.
 func TestTheLocalAuthorityPassesTheAccessRevisionSuite(t *testing.T) {
+	// A host of its own, on a clock of its own: it runs beside the other
+	// suites of this package, which each build theirs.
+	t.Parallel()
 	conn, descriptors, f := accessHost(t)
 	conformance.RunAccessRevisions(t, conn, descriptors, f)
 }

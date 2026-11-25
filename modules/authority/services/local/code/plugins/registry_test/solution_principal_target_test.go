@@ -25,6 +25,9 @@ import (
 )
 
 func TestTheLocalAuthorityMeetsTheSolutionPrincipalTarget(t *testing.T) {
+	// A host of its own, on a clock of its own: it runs beside the other
+	// suites of this package, which each build theirs.
+	t.Parallel()
 	k := testkit.New(t)
 	// Two people whose own organisation grants reach one existing resource of
 	// the store's kind (one administers it, one reads it), and a member of a

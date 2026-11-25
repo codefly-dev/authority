@@ -13,6 +13,9 @@ import (
 // or leaves behind what a later case trips on, passes RunParallel's fresh
 // hosts and is red only here.
 func TestTheLocalAuthorityPassesTheSuiteOnOneSharedHost(t *testing.T) {
+	// A host of its own, on a clock of its own: it runs beside the other
+	// suites of this package, which each build theirs.
+	t.Parallel()
 	clock := conformance.NewClock(time.Now().UTC())
 	conn, descriptors, fixture := localConformanceFixture(t, clock)
 	fixture.Clock = clock
