@@ -195,19 +195,22 @@ type FixtureInstallation = fixturecomposition.Installation
 
 // State is the host; every method is safe for concurrent use.
 type State struct {
-	mu         sync.RWMutex
-	store      *memstore.Store
-	svc        *authority.Service
-	access     *access.Service
-	accessLag  *memstore.Lagged
-	attester   *native.Attester
-	audience   string
-	orgs       map[string]string // id → display name
-	people     map[string]Person
-	order      []string // people's ids, in the fixture's order
-	byToken    map[string]string
-	roles      map[string]Role // org/name: the organisation roles the fixture defines
-	sessions   map[string]Session
+	mu        sync.RWMutex
+	store     *memstore.Store
+	svc       *authority.Service
+	access    *access.Service
+	accessLag *memstore.Lagged
+	attester  *native.Attester
+	audience  string
+	orgs      map[string]string // id → display name
+	people    map[string]Person
+	order     []string // people's ids, in the fixture's order
+	byToken   map[string]string
+	roles     map[string]Role // org/name: the organisation roles the fixture defines
+	sessions  map[string]Session
+	// admitted is the session each platform token opened, by token id
+	// (admitted.go); empty in a host that admits none.
+	admitted   map[string]string
 	deliveries map[string]*appliedDelivery // binding → verified record, including withdrawals
 	// trustDomain is the run's: the one trust domain the launcher's anchor
 	// declares its workloads under when the host starts, or empty when it
@@ -273,7 +276,7 @@ func New(anchor native.Anchor, audience string, cfg authority.Config) (*State, e
 	}
 	state = &State{store: store, svc: svc, access: grants, accessLag: lag, attester: attester, audience: audience, trustDomain: runTrustDomain(anchor),
 		orgs: map[string]string{}, people: map[string]Person{}, byToken: map[string]string{}, roles: map[string]Role{},
-		sessions: map[string]Session{}, deliveries: map[string]*appliedDelivery{}, Approvals: &MemoryApprovals{}}
+		sessions: map[string]Session{}, admitted: map[string]string{}, deliveries: map[string]*appliedDelivery{}, Approvals: &MemoryApprovals{}}
 	return state, nil
 }
 
