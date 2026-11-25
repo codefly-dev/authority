@@ -83,8 +83,10 @@ import (
 //   - OtherAdmin and OtherMember: an administrator and a member of
 //     OtherOrganization; OtherTeam: a team of OtherOrganization.
 //   - Existing: a resource of Kind owned by Organization.
-//   - Uninstall, RemoveFromTeam, RemoveFromOrganization: the host's own paths
-//     (the interface has none). Install must converge for the suite's solutions.
+//   - Uninstall, RemoveFromTeam, RemoveFromOrganization, DeleteTeam: the
+//     host's own paths (the interface has none). The suite removes
+//     TwoTeamMember from Team and deletes SecondTeam, nothing else. Install
+//     must converge for the suite's solutions.
 type SolutionPrincipalCase struct {
 	Organization, OtherOrganization                string
 	A, B, C                                        SolutionUnderTest
@@ -101,8 +103,11 @@ type SolutionPrincipalCase struct {
 	Uninstall                                      func(ctx context.Context, installationID string) error
 	RemoveFromTeam                                 func(ctx context.Context, personID, team string) error
 	RemoveFromOrganization                         func(ctx context.Context, personID string) error
-	SignManifest, SignAuthority                    func(document []byte) ([]byte, error)
-	DeliveryCredential                             func(module string) string
+	// DeleteTeam deletes a team of Organization as the host does: nobody is
+	// a member of it afterwards and it is granted nothing more.
+	DeleteTeam                  func(ctx context.Context, team string) error
+	SignManifest, SignAuthority func(document []byte) ([]byte, error)
+	DeliveryCredential          func(module string) string
 	// InstallModule is Fixture.InstallModule, for the modules this suite delivers.
 	InstallModule              func(ctx context.Context, module string) error
 	HostCoordinate, HostDomain string
@@ -602,6 +607,15 @@ func RunSolutionPrincipalTarget(t *testing.T, conn grpc.ClientConnInterface, des
 		}
 		_, err = sp.cast(t, both, f.SecondTeam)
 		refused(t, err, codes.NotFound, "nothing to act as")
+	})
+	t.Run("two teams' roles on one installation, either revoked: the member holds exactly the other's, at the store and at each of its methods, and what was issued before is refused there too", func(t *testing.T) {
+		sp.eitherTeamsRole(t)
+	})
+	t.Run("a role held directly and through a team survives losing either, the direct grant revoked or the member removed from the team: what was issued before is refused at the store and at its methods, and a fresh capability holds the role", func(t *testing.T) {
+		sp.roleHeldTwice(t)
+	})
+	t.Run("deleting a team ends, by the next check, what its role gave its members; it is granted nothing more, and its grant stays revocable", func(t *testing.T) {
+		sp.teamDeleted(t)
 	})
 	t.Run("a team nobody belongs to yet is granted a role, listed and revoked", func(t *testing.T) {
 		empty := map[string]any{"team_id": f.EmptyTeam}

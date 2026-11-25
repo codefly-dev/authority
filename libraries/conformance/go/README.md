@@ -300,6 +300,27 @@ implements it. The model, in full, is the doc comment on
   onto one team holds that team's alone; revoking one team's role leaves the
   other's and ends the capabilities issued while both stood (`SecondTeam` and
   `TwoTeamMember`, required);
+- the role union, `role_union.go`, each case asserted through a capability
+  the member was issued, at the store (`Check` answers exactly the actions
+  still held) and at the hop in front of it (`Check` naming the store's Read
+  and Write methods); a capability issued before the change is refused
+  "revoked" in both places and when the store hops on it, never only when the
+  member asks again:
+  - "two teams' roles on one installation, either revoked": whichever team's
+    role is revoked, the member holds exactly the other's;
+  - "a role held directly and through a team survives losing either": the
+    direct grant revoked while the team's stands, then the member removed
+    from the team (`RemoveFromTeam`) while the direct grant stands; the role
+    ends only with its last source;
+  - "deleting a team ends, by the next check, what its role gave its
+    members" (`DeleteTeam`, required: the host's own path): the member's
+    capabilities and the session cast onto the team are refused, the team is
+    cast onto and granted no more, and its grant stays revocable.
+  The suite removes `TwoTeamMember` from `Team` and deletes `SecondTeam`;
+- already pinned, not repeated there: a session cast onto one team holds only
+  that team's (the two-team case above and `team_cast.go`), a direct grant
+  survives the team's revoke and a member removed from a team loses what only
+  the team gave (case 16, `team_removal.go`);
 - a new grant leaves existing capabilities valid; a revoke, leaving a team or
   the organization, an uninstall or a withdrawn `owner_aware` invalidates them
   permanently; an uninstall clears the installation's role grants, and an

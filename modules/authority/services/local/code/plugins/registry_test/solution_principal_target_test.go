@@ -82,6 +82,7 @@ people:
 		Uninstall:              func(_ context.Context, id string) error { return k.State.UninstallAsHost(id) },
 		RemoveFromTeam:         k.State.LeaveTeam,
 		RemoveFromOrganization: k.State.LeaveOrganization,
+		DeleteTeam:             func(ctx context.Context, team string) error { return k.State.DeleteTeam(ctx, "acme", team) },
 		SignManifest:           testkit.SignDocument,
 		SignAuthority:          testkit.SignAuthority,
 		DeliveryCredential:     func(module string) string { return k.Credential(t, module) },

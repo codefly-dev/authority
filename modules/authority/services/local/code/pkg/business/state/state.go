@@ -583,6 +583,33 @@ func (s *State) LeaveTeam(ctx context.Context, person, team string) error {
 	return s.svc.PersonChanged(ctx, person)
 }
 
+// DeleteTeam removes team from organization's directory and from every
+// member: what its grants gave ends at once (the core moves each member's
+// person epoch), and it is granted nothing more. Its grants stay listed and
+// revocable.
+func (s *State) DeleteTeam(ctx context.Context, organization, team string) error {
+	s.mu.Lock()
+	var members []string
+	for _, id := range s.order {
+		p := s.people[id]
+		if p.Organization != organization || !slices.Contains(p.Teams, team) {
+			continue
+		}
+		p.Teams = slices.DeleteFunc(slices.Clone(p.Teams), func(t string) bool { return t == team })
+		s.people[id] = p
+		s.store.PutPerson(domain.Person{ID: p.ID, Organization: p.Organization, Roles: slices.Clone(p.Roles), Teams: slices.Clone(p.Teams)})
+		members = append(members, id)
+	}
+	s.store.DeleteTeam(organization, team)
+	s.mu.Unlock()
+	for _, id := range members {
+		if err := s.svc.PersonChanged(ctx, id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // LeaveOrganization removes person: they sign in no more, and every
 // capability they hold ends at once.
 func (s *State) LeaveOrganization(ctx context.Context, person string) error {
