@@ -3,4 +3,4 @@
 # it adds nothing. Every composed module ships its own fragment next to its
 # code, and the run merges them into the workspace's document
 # (services/local/README.md, "What a composition adds to the fixture").
-schema: codefly.dev/authority/fixture-composition/v2
+schema: codefly.dev/authority/fixture-composition/v1

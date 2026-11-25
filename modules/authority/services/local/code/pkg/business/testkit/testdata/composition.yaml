@@ -4,7 +4,7 @@
 # composing workspace supplies (state.ApplyComposition). The embedded fixture
 # names none of it. The document grants no organisation role anything: who
 # reaches a module is who holds a role on an installation that reaches it.
-schema: codefly.dev/authority/fixture-composition/v2
+schema: codefly.dev/authority/fixture-composition/v1
 installations:
   # Acme's wiki reaches finance and engineering as users; its owner installs.
   - organization: acme

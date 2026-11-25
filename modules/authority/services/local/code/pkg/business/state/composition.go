@@ -17,9 +17,9 @@ import (
 // merges the fragments into this document (libraries/fixture-composition).
 const CompositionDocument = fixturecomposition.Name
 
-// CompositionSchema versions the document. Its sections and the fixture's
+// CompositionSchema names the document's one schema. Its sections and the fixture's
 // organisation and person ids it names are a contract with every composing
-// repository: a breaking change is a new schema, never an edit.
+// repository.
 const CompositionSchema = fixturecomposition.Schema
 
 // ApplyComposition adds a composition's document to the loaded fixture.

@@ -9,24 +9,25 @@ import (
 	fixturecomposition "github.com/codefly-dev/authority/libraries/fixture-composition/go"
 )
 
-const head = "schema: codefly.dev/authority/fixture-composition/v2\n"
+const head = "schema: codefly.dev/authority/fixture-composition/v1\n"
 
 // The document grants no organisation role anything: organisation roles decide
 // administration only, and a person reaches a module through a role on an
 // installation. A document that still carries a roles section is refused by
-// name, with what to write instead, and so is the schema that had one. A
+// name, with what to write instead, whatever schema it states and wherever
+// the section is written. A
 // refusal, never a section read as "grants nothing": a fixture person who
 // reached a module through such a grant no longer does, and the document says
 // why.
 func TestTheDocumentGrantsNoOrganisationRoleAModulesKinds(t *testing.T) {
 	const grant = "roles: [{organization: acme, name: admin, scopes: [{kind: evaluation.labels, actions: [approve]}]}]\n"
 	for name, tc := range map[string]struct{ doc, reason string }{
-		"a roles section":           {head + grant, "roles: a composition grants no organisation role a module's kinds"},
-		"an empty roles section":    {head + "roles: []\n", "roles: a composition grants no organisation role a module's kinds"},
-		"a null roles section":      {head + "roles: null\n", "roles: a composition grants no organisation role a module's kinds"},
-		"the schema that had one":   {"schema: codefly.dev/authority/fixture-composition/v1\n" + grant, "fixture-composition/v1 is retired"},
-		"that schema, granting nil": {"schema: codefly.dev/authority/fixture-composition/v1\n", "fixture-composition/v1 is retired"},
-		"that schema, stated last":  {grant + "schema: codefly.dev/authority/fixture-composition/v1\n", "fixture-composition/v1 is retired"},
+		"a roles section":         {head + grant, "roles: a composition grants no organisation role a module's kinds"},
+		"an empty roles section":  {head + "roles: []\n", "roles: a composition grants no organisation role a module's kinds"},
+		"a null roles section":    {head + "roles: null\n", "roles: a composition grants no organisation role a module's kinds"},
+		"the section first":       {grant + head, "roles: a composition grants no organisation role a module's kinds"},
+		"under an unknown schema": {"schema: codefly.dev/authority/fixture-composition/v2\n" + grant, "roles: a composition grants no organisation role a module's kinds"},
+		"under no schema":         {grant, "roles: a composition grants no organisation role a module's kinds"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := fixturecomposition.Decode([]byte(tc.doc))
@@ -150,7 +151,7 @@ func TestMergeNamesTheFragmentThatDoesNotRead(t *testing.T) {
 	for name, tc := range map[string]struct{ doc, reason string }{
 		"empty":             {"", "the document is empty"},
 		"null":              {"null", "not a mapping"},
-		"other schema":      {"schema: codefly.dev/authority/fixture-composition/v3\n", "this authority reads"},
+		"other schema":      {"schema: codefly.dev/authority/fixture-composition/v999-not-a-schema\n", "this authority reads"},
 		"null section":      {head + "installations: null\n", "installations is null"},
 		"misspelt":          {head + "grants: []\n", "field grants not found"},
 		"no target":         {head + `installations: [{organization: acme, role: user, owner: alex}]`, "names no target"},
@@ -255,5 +256,43 @@ func TestARowStandingForEveryTargetNamesOnlyOwnerAndMembers(t *testing.T) {
 				t.Fatalf("got %v, want a refusal naming %q", err, tc.reason)
 			}
 		})
+	}
+}
+
+// There is one schema, v1, and it is the current format. A v1 document as it
+// was once written, with a roles section, is refused for the section; one
+// with the current sections and none is read; and a document stating any
+// other schema (the v2 this format was briefly called) is refused as unknown,
+// telling its author to state v1.
+func TestThereIsOneSchema(t *testing.T) {
+	if fixturecomposition.Schema != "codefly.dev/authority/fixture-composition/v1" {
+		t.Fatalf("the schema is %s", fixturecomposition.Schema)
+	}
+	const current = `installations:
+  - organization: acme
+    target: wiki
+    owner: alex
+    members: {user: [maya]}
+modules:
+  - module: oracle
+    kinds: [{kind: oracle.answers, actions: [read]}]
+`
+	const v1 = "schema: codefly.dev/authority/fixture-composition/v1\n"
+	_, err := fixturecomposition.Decode([]byte(v1 + "roles: [{organization: acme, name: admin, scopes: [{kind: ledger.entry, actions: [write]}]}]\n" + current))
+	if err == nil || !strings.Contains(err.Error(), "roles: a composition grants no organisation role a module's kinds") || !strings.Contains(err.Error(), "remove the roles section") {
+		t.Fatalf("a v1 document with a roles section: %v", err)
+	}
+	doc, err := fixturecomposition.Decode([]byte(v1 + current))
+	if err != nil {
+		t.Fatalf("a v1 document with the current sections: %v", err)
+	}
+	if len(doc.Installations) != 1 || len(doc.Modules) != 1 || doc.Schema != fixturecomposition.Schema {
+		t.Fatalf("read %+v", doc)
+	}
+	for _, other := range []string{"codefly.dev/authority/fixture-composition/v2", "codefly.dev/authority/fixture-composition/v999-not-a-schema", ""} {
+		_, err := fixturecomposition.Decode([]byte("schema: \"" + other + "\"\n" + current))
+		if err == nil || !strings.Contains(err.Error(), "which is unknown") || !strings.Contains(err.Error(), "state the schema as codefly.dev/authority/fixture-composition/v1") {
+			t.Fatalf("schema %q: %v", other, err)
+		}
 	}
 }

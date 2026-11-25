@@ -33,16 +33,10 @@ import (
 // Name is the workspace configuration document the local authority reads.
 const Name = "fixture-composition"
 
-// Schema versions the document. Its sections and the fixture's organisation
-// and person ids it names are a contract with every composing repository: a
-// breaking change is a new schema, never an edit.
-const Schema = "codefly.dev/authority/fixture-composition/v2"
-
-// RetiredSchema is the version before: it carried a roles section granting a
-// module's kinds to an organisation role, which no organisation role holds
-// any more. A document stating it is refused by name (Decode), whatever it
-// carries, so that no fragment is read as granting what it no longer grants.
-const RetiredSchema = "codefly.dev/authority/fixture-composition/v1"
+// Schema names the document. There is one schema: its sections and the
+// fixture's organisation and person ids it names are a contract with every
+// composing repository. A document stating any other is refused (Decode).
+const Schema = "codefly.dev/authority/fixture-composition/v1"
 
 // noRoles is what a document that still tries to grant an organisation role
 // is told.
@@ -119,14 +113,15 @@ type Module struct {
 	Kinds  []Scope `yaml:"kinds"`
 }
 
-// Decode reads exactly one versioned mapping and checks everything that does
+// Decode reads exactly one mapping stating the schema and checks everything that does
 // not depend on the fixture. An empty or null document, a section spelled
 // null and an unknown field are each refused, so a mistake never reads as
 // "states nothing"; so are a wildcard, a kind or action outside the grammar,
 // a stand-in module with no kind, and an installation with no target. A roles
-// section, and the retired schema that had one, are refused saying where a
+// section is refused, whatever schema the document states, saying where a
 // person's reach is stated now: a document that granted an organisation role
-// a module's kinds is never read as one that grants nothing.
+// a module's kinds is never read as one that grants nothing. A document
+// stating another schema is refused telling its author to state Schema.
 func Decode(data []byte) (Document, error) {
 	var doc Document
 	var node yaml.Node
@@ -140,13 +135,9 @@ func Decode(data []byte) (Document, error) {
 		return doc, errors.New("the document is not a mapping")
 	}
 	mapping := node.Content[0]
-	// The retired schema first, whatever order the keys arrive in: its
-	// refusal names the version to move to.
-	for i := 0; i+1 < len(mapping.Content); i += 2 {
-		if mapping.Content[i].Value == "schema" && mapping.Content[i+1].Value == RetiredSchema {
-			return doc, fmt.Errorf("schema %s is retired; this authority reads %s, which has no roles section: %s, then state the schema as %s", RetiredSchema, Schema, noRoles, Schema)
-		}
-	}
+	// A roles section first, whatever schema the document states: a document
+	// that granted an organisation role a module's kinds is refused saying
+	// so, never for its label alone.
 	for i := 0; i+1 < len(mapping.Content); i += 2 {
 		if mapping.Content[i].Value == "roles" {
 			return doc, fmt.Errorf("roles: a composition grants no organisation role a module's kinds: %s", noRoles)
@@ -163,7 +154,7 @@ func Decode(data []byte) (Document, error) {
 		return doc, err
 	}
 	if doc.Schema != Schema {
-		return doc, fmt.Errorf("schema is %q; this authority reads %s", doc.Schema, Schema)
+		return doc, fmt.Errorf("schema is %q, which is unknown; this authority reads %s and no other: state the schema as %s", doc.Schema, Schema, Schema)
 	}
 	return doc, doc.validate()
 }

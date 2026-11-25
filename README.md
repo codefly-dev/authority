@@ -561,8 +561,8 @@ The fixture names only the authority's own vocabulary: who exists and who
 administers each organisation. A module or a composition states what is its
 own (an installation of its solution, who is seated on a role-gated target, a
 module the run supervises itself) in a fragment next to its code, and the run
-merges the fragments into the versioned `fixture-composition` document, which
-at schema v2 grants no organisation role anything
+merges the fragments into the `fixture-composition` document, which
+grants no organisation role anything
 ([what a composition adds to the fixture](modules/authority/services/local/README.md#what-a-composition-adds-to-the-fixture)).
 The local authority also logs a delivery-time role × method report. See
 [local permission diagnostics](modules/authority/services/local/README.md#permission-diagnostics-during-local-development)

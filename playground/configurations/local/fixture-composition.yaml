@@ -4,5 +4,5 @@
 # organisation directory are reached through a role on an installation that
 # reaches them; the fixture's own row seats Carol as user and Dana as admin on
 # every role-gated target the run composes. No organisation role is granted a
-# module's kinds (fixture-composition v2 has no roles section).
-schema: codefly.dev/authority/fixture-composition/v2
+# module's kinds (the document has no roles section).
+schema: codefly.dev/authority/fixture-composition/v1

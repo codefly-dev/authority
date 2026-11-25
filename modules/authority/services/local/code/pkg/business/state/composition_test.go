@@ -12,7 +12,7 @@ import (
 	basev0 "github.com/codefly-dev/core/generated/go/codefly/base/v0"
 )
 
-const head = "schema: codefly.dev/authority/fixture-composition/v2\n"
+const head = "schema: codefly.dev/authority/fixture-composition/v1\n"
 
 // fixtureOnly is a state holding the embedded fixture and one synthetic
 // module, ledger, that the fixture never names.
@@ -64,13 +64,16 @@ roles:
     scopes:
       - {kind: ledger.entry, actions: [read, write, approve]}
 `, "a composition grants no organisation role a module's kinds"},
-		"the retired schema": {`schema: codefly.dev/authority/fixture-composition/v1
+		"a roles section under an unknown schema": {`schema: codefly.dev/authority/fixture-composition/v2
 roles:
   - organization: acme
     name: admin
     scopes:
       - {kind: ledger.entry, actions: [approve]}
-`, "fixture-composition/v1 is retired"},
+`, "a composition grants no organisation role a module's kinds"},
+		"an unknown schema": {`schema: codefly.dev/authority/fixture-composition/v2
+installations: []
+`, "state the schema as codefly.dev/authority/fixture-composition/v1"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := k.State.ApplyComposition(context.Background(), []byte(tc.doc))
@@ -163,7 +166,7 @@ func TestCompositionRefusesByName(t *testing.T) {
 		"empty":             {"", "the document is empty"},
 		"null":              {"null", "not a mapping"},
 		"empty mapping":     {"{}", "schema is \"\""},
-		"other schema":      {"schema: codefly.dev/authority/fixture-composition/v3\n", "this authority reads"},
+		"other schema":      {"schema: codefly.dev/authority/fixture-composition/v999-not-a-schema\n", "this authority reads"},
 		"null installs":     {head + "installations:\n", "installations is null"},
 		"misspelt":          {head + "grants: []\n", "field grants not found"},
 		"stranger owner":    {head + `installations: [{organization: acme, target: atlas, role: user, owner: zoe}]`, "not a person of acme"},

@@ -237,7 +237,7 @@ part is a **fragment** of the workspace configuration document
   roles of its page.
 
 ```yaml
-schema: codefly.dev/authority/fixture-composition/v2
+schema: codefly.dev/authority/fixture-composition/v1
 installations:  # installations of a solution the run composes, the fixture's own path
   # role: the installation's own (its agent's) role, omitted for a target that
   # declares it (installation_role, `none` included: the authority refuses a
@@ -292,20 +292,18 @@ naming a target is kept, and that target is seated the same way; its own
 `members` join too. The boot log names each: `seats wiki at acme:
 wiki-admin [dana] wiki-user [carol]`.
 
-**The contract.** The `schema` line versions the document. Its sections, and
+**The contract.** The `schema` line names the document's one schema. Its sections, and
 the shipped fixture's organisation and person ids (`acme`, `dana`, `carol`,
 `bob`), are a contract with every composing repository. The larger matrix
 exists only in the test kit; a fragment naming a person or organisation absent
-from the shipped fixture is refused at boot. A breaking change is a new
-schema version, never an edit. Schema v1 carried a `roles` section granting a
-module's kinds to an organisation role; v2 has none
-([moving a fragment from v1](../../../../libraries/fixture-composition/go/README.md)).
+from the shipped fixture is refused at boot. The document has no `roles` section
+([a fragment that still has one](../../../../libraries/fixture-composition/go/README.md)).
 
 **What is refused.** Each of these refuses the merge or the boot by name and
 changes nothing:
 - an empty or null document, a section spelled `null`, an unknown field, or a
-  schema other than v2;
-- a `roles` section, and schema v1 whatever it carries: no organisation role
+  schema other than the one above (the refusal says which to state);
+- a `roles` section, whatever schema the document states: no organisation role
   is granted a module's kinds, and the refusal says where a person's reach is
   stated now (`installations: members`);
 - a stand-in module with no kind, a kind with no action, a wildcard kind or

@@ -28,11 +28,11 @@ func TestCompositionReachesBootThroughCodefly(t *testing.T) {
 	}{
 		{name: "absent", reason: "no fixture-composition document was delivered"},
 		{name: "shipped default", path: testkit.DefaultCompositionPath()},
-		{name: "composition", document: "schema: codefly.dev/authority/fixture-composition/v2\nmodules:\n  - module: oracle\n    kinds: [{kind: oracle.answers, actions: [read]}]\n", standsIn: true},
+		{name: "composition", document: "schema: codefly.dev/authority/fixture-composition/v1\nmodules:\n  - module: oracle\n    kinds: [{kind: oracle.answers, actions: [read]}]\n", standsIn: true},
 		// A document that grants an organisation role a module's kinds never
 		// boots: no organisation role reaches a module.
-		{name: "a roles section", document: "schema: codefly.dev/authority/fixture-composition/v2\nroles: [{organization: acme, name: admin, scopes: [{kind: ledger.entry, actions: [write]}]}]", reason: "a composition grants no organisation role a module's kinds"},
-		{name: "the retired schema", document: "schema: codefly.dev/authority/fixture-composition/v1\nroles: [{organization: acme, name: admin, scopes: [{kind: ledger.entry, actions: [write]}]}]", reason: "fixture-composition/v1 is retired"},
+		{name: "a roles section", document: "schema: codefly.dev/authority/fixture-composition/v1\nroles: [{organization: acme, name: admin, scopes: [{kind: ledger.entry, actions: [write]}]}]", reason: "a composition grants no organisation role a module's kinds"},
+		{name: "an unknown schema", document: "schema: codefly.dev/authority/fixture-composition/v2\nmodules:\n  - module: oracle\n    kinds: [{kind: oracle.answers, actions: [read]}]\n", reason: "state the schema as codefly.dev/authority/fixture-composition/v1"},
 		{name: "null", document: "null", reason: "not a mapping"},
 		{name: "unversioned", document: "{}", reason: "schema is"},
 	} {
