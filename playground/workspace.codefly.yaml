@@ -19,20 +19,20 @@ modules:
     - name: documents
       source: obin-ai/module-document-store
       module: modules/documents
-      version: "0.1.13"
+      version: "7861be32366da2d7f19f9a5ed4ea804345d1d331"
     # Records at the commit the directory's page requires (rows born owned by
     # the directory's installation).
     - name: records
       source: obin-ai/module-record-store
       module: modules/record-store
-      version: d4b121092fb8f876dec884e5911c60cbce423409
+      version: b5b101b999c9afa847e30b3d04cf8b1c4f671d35
     # The directory's module page, the first page run against the authority:
     # a role-gated target (a page declaring its own roles), so this run
     # seats the fixture's teams on it and proves "act as this team" here.
     - name: org-directory
       source: obin-ai/module-directory
       module: modules/org-directory
-      version: 231bdc5529c4d3e23e2d91c6d497e918637419f0
+      version: c4b6d4e7906a7eebc2ae85817795093ddd9a5c11
 environments:
     - name: local
       description: The local authority on a laptop, the authority of its own run
