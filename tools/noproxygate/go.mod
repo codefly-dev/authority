@@ -18,7 +18,7 @@ require (
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/codefly-dev/core v0.19.38-0.20261125185931-18555ee1d782 // indirect
+	github.com/codefly-dev/core v0.19.38-0.20261125201822-50c2b2ab29a4 // indirect
 	github.com/codefly-dev/sdk-go v0.4.5-0.20261125191637-e78571827fe5 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect

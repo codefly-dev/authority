@@ -48,8 +48,8 @@ github.com/codefly-dev/authority/libraries/resources/go v0.0.0-20261125191737-c3
 github.com/codefly-dev/authority/libraries/resources/go v0.0.0-20261125191737-c3320c9a14d8/go.mod h1:1rmjrVyr0h7zOuwOHS9i+BoeS9dr3XNvtupLZFwY6As=
 github.com/codefly-dev/authority/libraries/solutionhost/go v0.0.0-20261125191737-c3320c9a14d8 h1:IfSjUbsCoLZe45U6KD0REcgZiB84sYc8uWxHTLOyGug=
 github.com/codefly-dev/authority/libraries/solutionhost/go v0.0.0-20261125191737-c3320c9a14d8/go.mod h1:GOz3RPrm/5RDln70CzYU3x/A7ZSyh+2A57PNEspoIo8=
-github.com/codefly-dev/core v0.19.38-0.20261125185931-18555ee1d782 h1:LyNBD+APp2r4VNLkBYESf6sUgyE40ONsDK7toSM3f/E=
-github.com/codefly-dev/core v0.19.38-0.20261125185931-18555ee1d782/go.mod h1:o1QL2R07T7loFtNmf4LgYFVTzR5OPWKwvmTE09iob6k=
+github.com/codefly-dev/core v0.19.38-0.20261125201822-50c2b2ab29a4 h1:xY22z5Oz8huK8iQg+WILA1d2y4atPrlq6Gw9WrYBuTk=
+github.com/codefly-dev/core v0.19.38-0.20261125201822-50c2b2ab29a4/go.mod h1:o1QL2R07T7loFtNmf4LgYFVTzR5OPWKwvmTE09iob6k=
 github.com/codefly-dev/gortk v0.2.0 h1:7bOlS5valYz2zil+fZctQNcPCYBcPj86abcw9N8h1hQ=
 github.com/codefly-dev/gortk v0.2.0/go.mod h1:dDWUMFgAP063OCGhTEpV7FFUj9+zTcxxO/nV80VKEwg=
 github.com/codefly-dev/sdk-go v0.4.5-0.20261125191637-e78571827fe5 h1:ouaYYBG7PoXvKfPROc6vJkGK4N1pmpUsKK38kttsde4=

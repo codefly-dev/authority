@@ -6,7 +6,7 @@ require (
 	github.com/codefly-dev/authority/libraries/authority-client/go v0.2.1-0.20261125191737-c3320c9a14d8
 	github.com/codefly-dev/authority/libraries/authority-core/go v0.1.2-0.20261125191737-c3320c9a14d8
 	github.com/codefly-dev/authority/libraries/hop/go v0.2.1-0.20261125191737-c3320c9a14d8
-	github.com/codefly-dev/core v0.19.38-0.20261125185931-18555ee1d782
+	github.com/codefly-dev/core v0.19.38-0.20261125201822-50c2b2ab29a4
 	github.com/google/uuid v1.6.0
 	google.golang.org/grpc v1.85.0
 	google.golang.org/protobuf v1.36.12

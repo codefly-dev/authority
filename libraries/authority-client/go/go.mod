@@ -4,7 +4,7 @@ go 1.27.4
 
 require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.12-20260825204119-511051f7f437.2
-	github.com/codefly-dev/core v0.19.38-0.20261125185931-18555ee1d782
+	github.com/codefly-dev/core v0.19.38-0.20261125201822-50c2b2ab29a4
 	github.com/codefly-dev/sdk-go v0.4.5-0.20261125191637-e78571827fe5
 	google.golang.org/genproto/googleapis/api v0.0.0-20261123191846-1e707ab9fbc2
 	google.golang.org/grpc v1.85.0
