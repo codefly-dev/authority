@@ -13,6 +13,7 @@ import (
 // role it declares, `<target>-<role>`, and the same people seated in them
 // everywhere. Solution "a" declares admin and user.
 func TestEveryDeclaredRoleGoesToItsConventionalTeam(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	want := map[string]string{"admin": "a-admin", "user": "a-user"}
 	teams, err := h.svc.RoleTeamsOf(h.ctx, h.inst(acme, "a").ID)
@@ -58,6 +59,7 @@ func TestEveryDeclaredRoleGoesToItsConventionalTeam(t *testing.T) {
 // session it was opened from keeps every role of the person's own: that is
 // what "act as this team" promises, and what "back" restores.
 func TestACastHoldsTheTeamsReachAndTheOwnSessionKeepsItsOwn(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	for _, team := range []string{"a-admin", "a-user"} {
 		h.store.PutTeam(acme, team)

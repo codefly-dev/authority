@@ -63,6 +63,7 @@ func (h *harness) callStore(parent authority.Issued, method string) error {
 // the holder's review lists the approved reach); once approved, Purge is
 // admitted.
 func TestAModulesRedeliveryThatWidensASolutionsReachOffersAnUpgrade(t *testing.T) {
+	t.Parallel()
 	h := reachHarness(t)
 	before := h.stored(acme, "a")
 	at := h.must(h.through("maya", "a", "store"))
@@ -144,6 +145,7 @@ func TestAModulesRedeliveryThatWidensASolutionsReachOffersAnUpgrade(t *testing.T
 // revision moves (what was issued under the wider reach ends), no upgrade
 // is offered, and the grants are kept.
 func TestAModulesRedeliveryThatNarrowsASolutionsReachReconverges(t *testing.T) {
+	t.Parallel()
 	h := reachHarness(t)
 	h.grant("a", "user", "remi")
 	before := h.stored(acme, "a")
@@ -181,6 +183,7 @@ func TestAModulesRedeliveryThatNarrowsASolutionsReachReconverges(t *testing.T) {
 // (read and write) satisfies the approved policy. Once approved, it is
 // admitted.
 func TestANarrowedCallIsHeldToTheApprovedPolicyOnItsOwnScopes(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	if _, err := h.svc.ApplyModule(h.ctx, storeAt(2, "write", true)); err != nil {
 		t.Fatal(err)
@@ -221,6 +224,7 @@ func TestANarrowedCallIsHeldToTheApprovedPolicyOnItsOwnScopes(t *testing.T) {
 // solution. The store becomes a role-gated page; maya, a's admin, holds no
 // role on it, and still reads through a, as the store's own user does.
 func TestACallThroughASolutionIsNotHeldToTheReachOfTheModulesOwnPage(t *testing.T) {
+	t.Parallel()
 	h := reachHarness(t)
 	at := h.must(h.through("maya", "a", "store"))
 	if err := h.callStore(at, storeRead); err != nil {
@@ -261,6 +265,7 @@ func TestACallThroughASolutionIsNotHeldToTheReachOfTheModulesOwnPage(t *testing.
 // administrator approves it, maya's Erase at a is refused on her own session
 // and through her client alike, and Read is admitted to both.
 func TestAClientsCallAtASolutionIsHeldToItsApprovedReach(t *testing.T) {
+	t.Parallel()
 	const aRead, aErase = "/a.v1.A/Read", "/a.v1.A/Erase"
 	at := func(generation uint64, erase string) domain.Module {
 		m := solution("a", true)
@@ -306,6 +311,7 @@ func TestAClientsCallAtASolutionIsHeldToItsApprovedReach(t *testing.T) {
 // on his own session. A relay that declares no roles is no second way there:
 // his own session holds nothing at it, so nothing hops from it.
 func TestAPersonsOwnCallAtAModulePageIsHeldToItsApprovedReach(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	paged := func(generation uint64, purge string) domain.Module {
 		m := storeAt(generation, purge, true)

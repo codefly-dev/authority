@@ -13,6 +13,7 @@ import (
 // them as an organization that existed then does; a retired installation
 // stays retired, and asking twice changes nothing.
 func TestAnOrganizationAddedLaterHoldsEveryComposedModule(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	// The ledger is a module page declaring roles: ivy reaches it as its user
 	// once initech holds it and the host seats her.
@@ -66,6 +67,7 @@ func TestAnOrganizationAddedLaterHoldsEveryComposedModule(t *testing.T) {
 // would: on an active installation of that organization, a declared role, to
 // a member or a team of it.
 func TestTheHostGrantsARoleAsTheAdministratorWould(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	inst := h.inst(acme, "a").ID
 	for _, tc := range []struct {
@@ -99,6 +101,7 @@ func TestTheHostGrantsARoleAsTheAdministratorWould(t *testing.T) {
 }
 
 func TestAComposedModuleReadsAsDelivered(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	m, err := h.svc.Composed(h.ctx, "a")
 	if err != nil || m.Principal != "a" || m.Kind != domain.KindSolution || len(m.Roles) != 2 {
@@ -109,6 +112,7 @@ func TestAComposedModuleReadsAsDelivered(t *testing.T) {
 }
 
 func TestInstallingAnInstalledTargetNamesIt(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	_, err := h.svc.InstallAsHost(h.ctx, acme, "a", "admin", "alex", nil)
 	code(t, err, domain.Denied)

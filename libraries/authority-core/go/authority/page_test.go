@@ -18,6 +18,7 @@ func (h *harness) page(person, target, audience string, scopes ...*basev0.WorkSc
 // the person's role on the target cut to it; to a module its target declares
 // no binding to, it is refused, whoever asks.
 func TestAPagesCallGoesThroughItsTargetsBinding(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	ledgerPage(t, h)
 	h.grant("pages", "user", "maya")
@@ -63,6 +64,7 @@ func TestAPagesCallGoesThroughItsTargetsBinding(t *testing.T) {
 // Consent in person admits the page hop alone: not a module's hop, not a
 // page hop with a further hop after it.
 func TestAPageHopIsThePersonPresent(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	ledgerPage(t, h)
 	h.grant("pages", "user", "maya")

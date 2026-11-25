@@ -59,6 +59,7 @@ func (h *harness) stored(org, target string) domain.Installation {
 // a role no longer declared end where a module page stops declaring roles,
 // TestARedeliveryDroppingARoleDropsItsGrants.)
 func TestARedeliveryAskingNothingNewReconvergesAnActiveInstallation(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	svc, events := journaled(h)
 	h.grant("a", "user", "maya")
@@ -132,6 +133,7 @@ func TestARedeliveryAskingNothingNewReconvergesAnActiveInstallation(t *testing.T
 // in place: its step runs, the installation is active throughout, grants are
 // kept, the installer stays, consent and revision move, no uninstall.
 func TestARedeliveryAskingMoreOffersAnUpgradeThatKeepsGrants(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	svc, events := journaled(h)
 	h.grant("a", "user", "maya")
@@ -242,6 +244,7 @@ func TestARedeliveryAskingMoreOffersAnUpgradeThatKeepsGrants(t *testing.T) {
 // proven to cover the next one, whatever that one narrows: it keeps offering
 // its upgrade until an administrator approves.
 func TestAnInstallationBehindTheDeliveryStaysBehindUntilUpgraded(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	svc, events := journaled(h)
 	wider := solution("a", true)
@@ -272,6 +275,7 @@ func TestAnInstallationBehindTheDeliveryStaysBehindUntilUpgraded(t *testing.T) {
 // hold the delivered roles meanwhile, since nothing older is kept; one review
 // settles it.
 func TestAConsentOfUnknownGenerationOffersOneUpgrade(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	svc, events := journaled(h)
 	h.grant("a", "user", "maya")
@@ -312,6 +316,7 @@ func TestAConsentOfUnknownGenerationOffersOneUpgrade(t *testing.T) {
 // cleared, and a pending attempt superseded by a fresh approval keeps what it
 // holds.
 func TestGrantsEndOnlyByRevokeAndUninstall(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "user", "maya")
 	h.grant("a", "user", "remi")
@@ -361,6 +366,7 @@ func (h *harness) addressed(person, target, binding string, scopes ...*basev0.Wo
 // approved role meanwhile. The declaration alone decides it, so a consent
 // recorded before reach was kept (no ReachDigest) offers it too.
 func TestARedeliveryAddingAnAudienceGrantOffersAnUpgrade(t *testing.T) {
+	t.Parallel()
 	// d's roles hold nothing of the store's kind, which its approved store
 	// binding offers.
 	d := func(generation uint64) domain.Module {
@@ -438,6 +444,7 @@ func TestARedeliveryAddingAnAudienceGrantOffersAnUpgrade(t *testing.T) {
 // of its one binding asks nothing new: the role holds there what it held and
 // no longer holds it anywhere else, so the installation re-converges.
 func TestARedeliveryAddressingAHeldScopeToItsAudienceReconverges(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	svc, events := journaled(h)
 	h.grant("a", "user", "maya")

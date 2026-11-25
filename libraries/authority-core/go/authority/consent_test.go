@@ -10,6 +10,7 @@ import (
 )
 
 func TestInstallationConsentBindsReviewedStateAndOperation(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	admin := h.admin(globex)
 	a := h.approval(globex, "b")
@@ -69,6 +70,7 @@ func TestInstallationConsentBindsReviewedStateAndOperation(t *testing.T) {
 }
 
 func TestInstallationConsentIsRecheckedAtAcknowledgement(t *testing.T) {
+	t.Parallel()
 	for _, change := range []string{"delivery", "revocation", "administrator"} {
 		t.Run(change, func(t *testing.T) {
 			h := newHarness(t)
@@ -109,6 +111,7 @@ func TestInstallationConsentIsRecheckedAtAcknowledgement(t *testing.T) {
 // operation is refused for the changed generation, a fresh review supersedes it,
 // and the superseded operation can no longer resume it.
 func TestAFreshApprovalSupersedesAPendingAttemptAfterRedelivery(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	admin := h.admin(globex)
 	stale := h.approval(globex, "b")

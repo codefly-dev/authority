@@ -29,6 +29,7 @@ func pageWhoseUserOnlyReaches(t *testing.T) *harness {
 // no role on pages", for a team's grant and a person's alike: what a role
 // names of the page's own kinds was read as whether the role is held at all.
 func TestATeamsRoleReachingOnlyThroughABindingIsIssued(t *testing.T) {
+	t.Parallel()
 	for name, grant := range map[string]func(*harness){
 		"granted to the person's team": func(h *harness) { h.grantTeam("pages", "user", "team") },
 		"granted to the person":        func(h *harness) { h.grant("pages", "user", "tam") },
@@ -51,6 +52,7 @@ func TestATeamsRoleReachingOnlyThroughABindingIsIssued(t *testing.T) {
 // The other team member holds it too, and someone outside the team does not:
 // membership decides, read when the call is issued.
 func TestATeamsRoleReachingOnlyThroughABindingFollowsMembership(t *testing.T) {
+	t.Parallel()
 	h := pageWhoseUserOnlyReaches(t)
 	h.grantTeam("pages", "user", "team")
 	exactly(t, h.must(h.page("tal", "pages", "store")), kind, h.principal(acme, "pages"), []string{"write"})
@@ -67,6 +69,7 @@ func TestATeamsRoleReachingOnlyThroughABindingFollowsMembership(t *testing.T) {
 // No capability with no scope is handed to anyone: the root that carries
 // nothing is the page hop's own step.
 func TestARoleReachingOnlyThroughABindingHoldsNothingAtThePageItself(t *testing.T) {
+	t.Parallel()
 	h := pageWhoseUserOnlyReaches(t)
 	h.grantTeam("pages", "user", "team")
 	_, err := h.root("tam", "pages")
@@ -90,6 +93,7 @@ func TestARoleReachingOnlyThroughABindingHoldsNothingAtThePageItself(t *testing.
 // reads the team's grants through the same rule, so it was refused the same
 // way, and is issued the same reach now.
 func TestACastOntoATeamHoldsItsRoleReachingOnlyThroughABinding(t *testing.T) {
+	t.Parallel()
 	h := pageWhoseUserOnlyReaches(t)
 	h.grantTeam("pages", "user", "team")
 	cast, err := h.casting("alex", "team")

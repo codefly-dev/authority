@@ -52,6 +52,7 @@ func (r removal) leave(told bool) {
 // team's role gave them, wherever the capability is sealed; acting as the
 // team is refused; what a grant of their own gives is issued again.
 func TestAMemberRemovedFromATeamLosesWhatOnlyTheTeamGave(t *testing.T) {
+	t.Parallel()
 	r := newRemoval(t)
 	h := r.h
 	r.leave(true)
@@ -100,6 +101,7 @@ func TestAMemberRemovedFromATeamLosesWhatOnlyTheTeamGave(t *testing.T) {
 // admits it until it expires. PersonChanged is the host's to call, and the
 // conformance suite holds every host to the result.
 func TestARemovalTheHostNeverAnnouncedNarrowsEveryDecisionButNoIssuedCapability(t *testing.T) {
+	t.Parallel()
 	r := newRemoval(t)
 	h := r.h
 	r.leave(false)

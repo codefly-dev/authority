@@ -54,6 +54,7 @@ func (h *harness) raced(change func()) *authority.Service {
 // its mint never yields a capability: the mint is refused, in each path that
 // decides from current grants.
 func TestARevokeRacingAnIssueYieldsNoCapability(t *testing.T) {
+	t.Parallel()
 	revoke := func(h *harness) func() { return func() { h.revoke("a", "user", "maya", "") } }
 	leave := func(h *harness) func() {
 		return func() {
@@ -116,6 +117,7 @@ func noCapability(t *testing.T, h *harness, out authority.Issued, err error) {
 // once it is uninstalled, stays refused after a reinstall, even one holding a
 // narrower role.
 func TestAnUninstalledAgentsHopStaysDeadAfterReinstall(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	agent := h.must(h.agent("a", "store"))
 	deeper := h.must(h.hop(agent, "self"))
@@ -140,6 +142,7 @@ func TestAnUninstalledAgentsHopStaysDeadAfterReinstall(t *testing.T) {
 // M1: a person's hop through the solution, sealed to another module's
 // installation, ends with the uninstall.
 func TestAnUninstallEndsEveryHopThroughTheSolution(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "user", "maya")
 	deeper := h.must(h.hop(h.must(h.through("maya", "a", "store")), "self"))
@@ -157,6 +160,7 @@ func TestAnUninstallEndsEveryHopThroughTheSolution(t *testing.T) {
 // m1: an installation issue naming another organization's installation and
 // one naming none answer alike, with the id as asked.
 func TestAnInstallationIssueAnswersForeignAsAbsent(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	foreign := h.inst(globex, "a").ID
 	_, errForeign := h.svc.IssueForInstallation(h.ctx, authority.Workload{Module: "a"}, foreign, authority.IssueRequest{Organization: acme, Audience: "a"})
@@ -172,6 +176,7 @@ func TestAnInstallationIssueAnswersForeignAsAbsent(t *testing.T) {
 // m4: Check verifies before it reads anything: a forged capability naming an
 // owner and a binding is refused as unverified, never answered from the store.
 func TestCheckVerifiesBeforeItReads(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "user", "maya")
 	out := h.must(h.through("maya", "a", "store"))

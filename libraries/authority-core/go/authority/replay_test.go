@@ -15,6 +15,7 @@ import (
 // declaration at that generation is refused, naming both; an older generation
 // is refused as before.
 func TestARedeliveryOfTheHeldGenerationIsAReplay(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	before := h.seal("maya", "a")
 

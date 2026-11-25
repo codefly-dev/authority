@@ -86,6 +86,7 @@ func (d *decisions) told(t *testing.T, name string, do func() error, want author
 // with where, who, what was asked and why it was refused: a refused ask still
 // names its organisation and its asker, which the error alone does not.
 func TestTheHostIsToldEveryDecision(t *testing.T) {
+	t.Parallel()
 	d := newDecisions(t)
 	maya, remi := d.person("maya"), d.person("remi")
 	instA := d.inst(acme, "a")
@@ -257,6 +258,7 @@ func TestTheHostIsToldEveryDecision(t *testing.T) {
 // handed out and no check is answered on a decision nobody recorded. A
 // refusal stays the refusal it was.
 func TestADecisionTheHostCannotRecordFailsTheOperation(t *testing.T) {
+	t.Parallel()
 	d := newDecisions(t)
 	maya := d.person("maya")
 	root := d.must(d.svc.IssueForPerson(d.ctx, maya, authority.IssueRequest{Audience: "a"}))
@@ -288,6 +290,7 @@ func TestADecisionTheHostCannotRecordFailsTheOperation(t *testing.T) {
 // rest of this package's tests run that way. A host that keeps refusals and
 // issuances skips an admitted check on one comparison.
 func TestAHostSkipsAdmittedChecksOnOneComparison(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "user", "maya")
 	var kept []authority.Decision
@@ -320,6 +323,7 @@ func TestAHostSkipsAdmittedChecksOnOneComparison(t *testing.T) {
 // A client's issue from a person's delegation is told as the grantor's work,
 // the client its actor; refused, it still names whose delegation was asked.
 func TestAClientsIssueFromADelegationIsToldAsItsGrantors(t *testing.T) {
+	t.Parallel()
 	h, c, granted := clientGrant(t)
 	var seen []authority.Decision
 	cfg := h.cfg

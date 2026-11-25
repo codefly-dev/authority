@@ -38,6 +38,7 @@ func heldIs(t *testing.T, who string, got []string, want ...string) {
 // list, not a refusal. A revoke, leaving the team, an uninstall drop it at
 // once, and no other organization's installation is ever listed.
 func TestHeldInstallationsAreTheCallersOwnRoles(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	maya, tam, tal := h.person("maya"), h.person("tam"), h.person("tal")
 
@@ -94,6 +95,7 @@ func TestHeldInstallationsAreTheCallersOwnRoles(t *testing.T) {
 // it grants nothing (the person's own session at an owner-aware module is still
 // refused).
 func TestComposedInstallationsAreTheRolelessModulesOfTheOrganization(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	maya := h.person("maya")
 	composed, err := h.svc.ComposedInstallations(h.ctx, maya, acme)

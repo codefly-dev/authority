@@ -44,6 +44,7 @@ func pageReachingTheStore(t *testing.T, h *harness) {
 // a host records without a principal owns nothing, so its roles carry nothing
 // of an owner-aware module's kinds.
 func TestRBAC1AModulePageRoleReachesAnOwnerAwareModuleAsItsInstallationsData(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	pageReachingTheStore(t, h)
 	mine := h.principal(acme, "pages")
@@ -118,6 +119,7 @@ func TestRBAC1AModulePageRoleReachesAnOwnerAwareModuleAsItsInstallationsData(t *
 // at a revision above every capability sealed to it, so a capability that
 // carried the page's roles across every owner ends.
 func TestRBAC1AnInstallationWithoutAPrincipalIsGivenOneAndItsOldCapabilitiesEnd(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	pageReachingTheStore(t, h)
 	inst := h.pagesAt(acme)
@@ -158,6 +160,7 @@ func TestRBAC1AnInstallationWithoutAPrincipalIsGivenOneAndItsOldCapabilitiesEnd(
 // selects exactly that owner, so the row is visible again. Nobody else's
 // principal is a target, and a user (no write) cannot attach.
 func TestRBAC1AModulePageAttachesWhatItWroteBeforeItHeldAPrincipal(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	pageReachingTheStore(t, h)
 	mine := h.principal(acme, "pages")
@@ -256,6 +259,7 @@ func ledgerPage(t *testing.T, h *harness) {
 // page's installation would take (squatting it) leaves the installation
 // without one, owning nothing, rather than sharing an identity with it.
 func TestRBAC1ACompositionPrincipalAnotherIdentityHoldsIsNotTaken(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	squatted := h.principal(acme, "pages")
 	if _, err := h.svc.ApplyModule(h.ctx, domain.Module{Name: "squatter", Principal: squatted, Kind: domain.KindModule, Generation: 1,
@@ -278,6 +282,7 @@ func TestRBAC1ACompositionPrincipalAnotherIdentityHoldsIsNotTaken(t *testing.T) 
 // principal, and delivered again, is installed again AND given its
 // principal, at one raised revision.
 func TestRBAC1AWithdrawnModuleDeliveredAgainIsActiveWithItsPrincipal(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	pageReachingTheStore(t, h)
 	inst := h.pagesAt(acme)
@@ -311,6 +316,7 @@ func TestRBAC1AWithdrawnModuleDeliveredAgainIsActiveWithItsPrincipal(t *testing.
 // installation recorded without a principal its principal, without waiting
 // for its module to be delivered again.
 func TestRBAC1ReconcilingGivesARecordedInstallationItsPrincipal(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	pageReachingTheStore(t, h)
 	inst := h.pagesAt(acme)
@@ -335,6 +341,7 @@ func TestRBAC1ReconcilingGivesARecordedInstallationItsPrincipal(t *testing.T) {
 // installation recorded without a principal owns nothing, so nothing attaches
 // through it.
 func TestRBAC1AModulePageAttachesWhatItCreatesToItsInstallation(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	m := pageModule(1, true)
 	m.Bindings = map[string]domain.Binding{
@@ -399,6 +406,7 @@ func TestRBAC1AModulePageAttachesWhatItCreatesToItsInstallation(t *testing.T) {
 // capability another page's role brought is still attached to that page's
 // installation, never the store's.
 func TestAStorePagesOwnRoleReachesItsOwnInstallationsData(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	var store domain.Module
 	if err := h.store.Read(h.ctx, func(tx authority.Tx) (err error) { store, err = tx.ModuleNamed("store"); return err }); err != nil {
@@ -450,6 +458,7 @@ func TestAStorePagesOwnRoleReachesItsOwnInstallationsData(t *testing.T) {
 // nor read what the page created, and a person with no role on the store was
 // refused as beyond its installation's approved reach.
 func TestAPageReachesARoleGatedStoreAsItsInstallationsData(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	var store domain.Module
 	if err := h.store.Read(h.ctx, func(tx authority.Tx) (err error) { store, err = tx.ModuleNamed("store"); return err }); err != nil {

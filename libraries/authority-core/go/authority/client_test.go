@@ -28,6 +28,7 @@ func clientGrant(t *testing.T) (*harness, domain.Client, domain.Delegation) {
 }
 
 func TestClientActsAsItselfThroughThePersonsDelegation(t *testing.T) {
+	t.Parallel()
 	h, c, d := clientGrant(t)
 	if d.Module != "" || d.ClientID != c.ID || d.Audience != "a" {
 		t.Fatalf("wrong grantee: %+v", d)
@@ -69,6 +70,7 @@ func TestClientActsAsItselfThroughThePersonsDelegation(t *testing.T) {
 }
 
 func TestClientDelegationRefusesChangesAndRechecksLiveAuthority(t *testing.T) {
+	t.Parallel()
 	for name, change := range map[string]func(*harness, *domain.Client, *domain.Delegation, *authority.IssueRequest){
 		"another client":   func(_ *harness, c *domain.Client, _ *domain.Delegation, _ *authority.IssueRequest) { c.ID += "x" },
 		"another resource": func(_ *harness, _ *domain.Client, d *domain.Delegation, _ *authority.IssueRequest) { d.Resource += "/" },
@@ -112,6 +114,7 @@ func TestClientDelegationRefusesChangesAndRechecksLiveAuthority(t *testing.T) {
 }
 
 func TestClientDelegationCannotGrowAtRefresh(t *testing.T) {
+	t.Parallel()
 	h, c, d := clientGrant(t)
 	first := h.must(h.svc.IssueForClientDelegation(h.ctx, d.ID, c.ID, d.Resource, authority.IssueRequest{}))
 	if first.Context.GetExpiresAtUnix() != h.now.Add(15*time.Minute).Unix() {
@@ -131,6 +134,7 @@ func TestClientDelegationCannotGrowAtRefresh(t *testing.T) {
 }
 
 func TestClientDelegationChangesDuringSigningRefuse(t *testing.T) {
+	t.Parallel()
 	for _, change := range []string{"revoke", "narrow", "expire", "disable client"} {
 		t.Run(change, func(t *testing.T) {
 			h, c, d := clientGrant(t)
@@ -164,6 +168,7 @@ func TestClientDelegationChangesDuringSigningRefuse(t *testing.T) {
 }
 
 func TestClientAndModulePrincipalsCannotCollide(t *testing.T) {
+	t.Parallel()
 	h, c, _ := clientGrant(t)
 	m := domain.Module{Name: "pretender", Principal: c.ID, Kind: domain.KindModule, Generation: 1, ResourceKinds: authority.Scopes{sc("pretender", "read")}}
 	if _, err := h.svc.ApplyModule(h.ctx, m); err == nil {
@@ -184,6 +189,7 @@ func TestClientAndModulePrincipalsCannotCollide(t *testing.T) {
 }
 
 func TestClientStoreUsesTheAuthorityTransactionAndClonesMetadata(t *testing.T) {
+	t.Parallel()
 	h, c, _ := clientGrant(t)
 	c.RedirectURIs[0] = "https://modified.invalid/callback"
 	stored, err := h.svc.Client(h.ctx, c.ID)

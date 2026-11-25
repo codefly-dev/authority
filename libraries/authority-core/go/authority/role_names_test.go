@@ -71,6 +71,7 @@ func (h *harness) oldNames() domain.Module {
 // or in place of one. "installer" is no admin role: a declaration naming it
 // in admin's place declares none.
 func TestADeliveryDeclaringARoleThatIsNeitherAdminNorUserIsRefusedByName(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	own := sc("fresh.note", "read", "write")
 	note := sc("pages.note", "read")
@@ -125,6 +126,7 @@ func TestADeliveryDeclaringARoleThatIsNeitherAdminNorUserIsRefusedByName(t *test
 // it and a grant of it is still in the store: its holder is issued nothing,
 // grants nothing, may act as no team, and nobody is granted it.
 func TestAStoredGrantOfAnOldRoleNameHoldsAndAdministersNothing(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.oldNames()
 	inst := h.inst(acme, "old").ID
@@ -165,6 +167,7 @@ func TestAStoredGrantOfAnOldRoleNameHoldsAndAdministersNothing(t *testing.T) {
 // the upgrader, and nobody is granted admin or user for having held one. An
 // administrator grants the two roles afresh.
 func TestGrantsOfOldRoleNamesEndAndNobodyIsMovedToAdminOrUser(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.oldNames()
 	svc, events := journaled(h)
@@ -213,6 +216,7 @@ func TestGrantsOfOldRoleNamesEndAndNobodyIsMovedToAdminOrUser(t *testing.T) {
 // or admitted again, is refused by the name it declares, as a new generation
 // is; the host is delivered admin and user, which composes.
 func TestAGenerationHeldUnderOldRoleNamesIsRefusedByNameWhenReadAgain(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.oldNames()
 	own := sc("old.note", "read", "write")
@@ -256,6 +260,7 @@ func TestAGenerationHeldUnderOldRoleNamesIsRefusedByNameWhenReadAgain(t *testing
 
 // A user approves no page update and administers no grant; the admin does.
 func TestAUserNeitherApprovesNorAdministersAPage(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	if _, err := h.svc.ApplyModule(h.ctx, twoRolePage(1, "read")); err != nil {
 		t.Fatal(err)

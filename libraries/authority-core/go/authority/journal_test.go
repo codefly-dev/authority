@@ -15,6 +15,7 @@ import (
 // naming where it happened, who acted and what changed; a journal that
 // refuses aborts the change.
 func TestEveryChangeIsJournaledInItsOwnTransaction(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	var events []domain.Event
 	refuse := false

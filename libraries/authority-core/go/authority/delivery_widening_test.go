@@ -54,6 +54,7 @@ func kinds(events []domain.Event) []domain.EventKind {
 // meaning waits for the upgrade's approval, and the approval is the
 // administrator's review of the delivered offer, never a regrant.
 func TestModulePageRoleWidenedOnItsOwnKindHoldsItsHoldersAtTheApprovedRole(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	svc, events := journalingService(h)
 	if _, err := svc.ApplyModule(h.ctx, pageModule(1, true)); err != nil {
@@ -87,6 +88,7 @@ func TestModulePageRoleWidenedOnItsOwnKindHoldsItsHoldersAtTheApprovedRole(t *te
 }
 
 func TestGrantDoesNotSurviveTheWithdrawalOfItsModule(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	cfg := h.cfg
 	cfg.HostInstallsModules = true
@@ -140,6 +142,7 @@ func TestGrantDoesNotSurviveTheWithdrawalOfItsModule(t *testing.T) {
 // the Work Context library defaults to is what a revoked scope grant used to
 // outlive.
 func TestCapabilityLifetimeCeilingIsFifteenMinutes(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	cfg := h.cfg
 	cfg.MaxTTL = 0

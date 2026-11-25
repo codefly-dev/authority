@@ -16,6 +16,7 @@ import (
 // through any hop; the artifact module's own namespace is refused to such a
 // parent, as another owner's would be.
 func TestAnOwnersArtifactIsInItsOwnersNamespace(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	agent := domain.Module{Name: "agent", Principal: "agent", Kind: domain.KindModule, Generation: 1, OwnerAware: true,
 		ResourceKinds: []*basev0.WorkScopeV1{sc("agent.intents", "read", "activate", "run"), sc("agent.profiles", "read")},
@@ -85,6 +86,7 @@ func TestAnOwnersArtifactIsInItsOwnersNamespace(t *testing.T) {
 // declares shared is held unselected through the builder's binding, so the
 // unowned parent reads the agent's shared profiles.
 func TestTheParentAuthorsInItsOwnersNamespace(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	agent := domain.Module{Name: "agent", Principal: "agent", Kind: domain.KindModule, Generation: 1, OwnerAware: true,
 		ResourceKinds: []*basev0.WorkScopeV1{sc("agent.intents", "read", "activate", "run"), sc("agent.profiles", "read")},

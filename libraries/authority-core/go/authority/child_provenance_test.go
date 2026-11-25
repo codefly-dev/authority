@@ -15,6 +15,7 @@ import (
 // Arrange an already verified parent using the host's production Core minter
 // and live seal/revision sources; exercise only the public child and Check APIs.
 func TestChildPreservesVerifiedTaskAndActorProvenance(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		populated bool

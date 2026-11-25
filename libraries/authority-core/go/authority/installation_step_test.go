@@ -33,6 +33,7 @@ func issueStep(t *testing.T, h *harness, a authority.InstallationStepAttempt) au
 	return issued
 }
 func TestInstallationStepOnlyAdmitsExactSetupMethods(t *testing.T) {
+	t.Parallel()
 	h, a, approval := pendingStep(t)
 	issued := issueStep(t, h, a)
 	wc := issued.Context
@@ -87,6 +88,7 @@ func TestInstallationStepOnlyAdmitsExactSetupMethods(t *testing.T) {
 	}
 }
 func TestInstallationStepRejectsEveryChangedAttemptField(t *testing.T) {
+	t.Parallel()
 	cases := map[string]func(*authority.InstallationStepAttempt){
 		"id":               func(a *authority.InstallationStepAttempt) { a.InstallationID = "missing" },
 		"organization":     func(a *authority.InstallationStepAttempt) { a.Organization = acme },
@@ -110,6 +112,7 @@ func TestInstallationStepRejectsEveryChangedAttemptField(t *testing.T) {
 	}
 }
 func TestInstallationStepRevocationAndReplacement(t *testing.T) {
+	t.Parallel()
 	for _, change := range []string{"uninstall", "approval", "delivery", "authorization", "receipt", "activation"} {
 		t.Run(change, func(t *testing.T) {
 			h, a, approval := pendingStep(t)
@@ -157,6 +160,7 @@ func TestInstallationStepRevocationAndReplacement(t *testing.T) {
 	}
 }
 func TestInstallationStepLeaseBoundAndExactExpiry(t *testing.T) {
+	t.Parallel()
 	h, a, _ := pendingStep(t)
 	for _, ttl := range []time.Duration{0, -time.Second} {
 		if _, err := h.svc.IssueInstallationStep(h.ctx, a, ttl); err == nil {
@@ -197,6 +201,7 @@ func (s *stepRaceStore) Read(ctx context.Context, fn func(authority.Tx) error) e
 	return err
 }
 func TestInstallationStepFencesEveryReadBoundary(t *testing.T) {
+	t.Parallel()
 	for _, verify := range []bool{false, true} {
 		for at := 1; at <= 8; at++ {
 			t.Run(fmt.Sprintf("verify=%v/read=%d", verify, at), func(t *testing.T) {
@@ -226,6 +231,7 @@ func TestInstallationStepFencesEveryReadBoundary(t *testing.T) {
 	}
 }
 func TestInstallationStepNormalActiveTokenCannotSetup(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	inst := h.install(globex, "b")
 	token, err := h.svc.IssueForInstallation(h.ctx, authority.Workload{Module: "b"}, inst.ID, authority.IssueRequest{Audience: "b"})
@@ -238,6 +244,7 @@ func TestInstallationStepNormalActiveTokenCannotSetup(t *testing.T) {
 }
 
 func TestInstallationStepAuthenticatesBeforeStateReads(t *testing.T) {
+	t.Parallel()
 	h, a, _ := pendingStep(t)
 	store := &stepRaceStore{Store: h.store, at: 100, change: func() {}}
 	svc, err := authority.New(store, h.cfg)
@@ -252,6 +259,7 @@ func TestInstallationStepAuthenticatesBeforeStateReads(t *testing.T) {
 	}
 }
 func TestInstallationStepClockDelayCannotExtendLease(t *testing.T) {
+	t.Parallel()
 	for _, verify := range []bool{false, true} {
 		for _, delay := range []time.Duration{100 * time.Millisecond, 31 * time.Second} {
 			t.Run(fmt.Sprintf("verify=%v/delay=%s", verify, delay), func(t *testing.T) {

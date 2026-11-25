@@ -16,6 +16,7 @@ import (
 // reinstall, so a capability sealed at an earlier incarnation never verifies
 // again, whatever role the reinstall holds.
 func TestAReinstallNeverRepeatsThePrincipalsEpoch(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	u := h.principal(acme, "a")
 	before, err := h.svc.Seals().PrincipalEpoch(h.ctx, u)
@@ -41,6 +42,7 @@ func TestAReinstallNeverRepeatsThePrincipalsEpoch(t *testing.T) {
 // M1: an uninstall moves its organization's authorization revision, so a
 // hop through the solution sealed to another installation ends too.
 func TestAnUninstallMovesItsOrganizationsRevision(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	rev := func(org string) uint64 {
 		r, err := h.svc.Revisions().AuthorizationRevision(h.ctx, org)
@@ -62,6 +64,7 @@ func TestAnUninstallMovesItsOrganizationsRevision(t *testing.T) {
 // organization; another organization's installation answers as an absent
 // one, and nothing changes.
 func TestAnUninstallIsTheOrganizationsAdministrators(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	id := h.inst(acme, "a").ID
 	maya, zoe := h.person("maya"), h.person("zoe")
@@ -103,6 +106,7 @@ func activeIn(all []domain.Installation, id string) bool {
 // capability sealed to an installation: a revoke, a narrowing, an
 // owner-aware withdrawal, an uninstall and a reinstall.
 func TestTheSealRevisionNeverRepeats(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	id := h.inst(acme, "a").ID
 	last := uint64(0)
@@ -148,6 +152,7 @@ func TestTheSealRevisionNeverRepeats(t *testing.T) {
 // m6: a module's principal is its own: never a person's, never an installed
 // solution's, and never renamed by a later delivery.
 func TestAModulePrincipalIsItsOwnForLife(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	for name, m := range map[string]domain.Module{
 		"a person's id":          {Name: "impostor", Principal: "maya", Kind: domain.KindModule, Generation: 1},
@@ -163,6 +168,7 @@ func TestAModulePrincipalIsItsOwnForLife(t *testing.T) {
 
 // m7: the replay store is required; nothing defaults to memory.
 func TestTheReplayStoreIsRequired(t *testing.T) {
+	t.Parallel()
 	_, err := authority.New(memstore.New(), authority.Config{Issuer: "i", KeyID: "k", Signer: signerForTest(t), Keys: keys{}})
 	if err == nil {
 		t.Fatal("a service started with no replay store")
@@ -171,6 +177,7 @@ func TestTheReplayStoreIsRequired(t *testing.T) {
 
 // m2: a write whose fn fails leaves nothing behind.
 func TestAFailedWriteLeavesNothing(t *testing.T) {
+	t.Parallel()
 	store := memstore.New()
 	store.PutOrganization(domain.Organization{ID: acme})
 	boom := errors.New("boom")
@@ -221,6 +228,7 @@ func (h *harness) seal(person, target string) uint64 {
 // installation: the same person's on another installation, and another
 // person's on this one, stay as they were.
 func TestARevokeMovesOnlyItsSubjectsSealOnThatInstallation(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	mayaA, mayaB, remiA := h.seal("maya", "a"), h.seal("maya", "b"), h.seal("remi", "a")
 	h.grant("a", "user", "maya")
@@ -241,6 +249,7 @@ func TestARevokeMovesOnlyItsSubjectsSealOnThatInstallation(t *testing.T) {
 // A team's revoke moves every member's seal on the installation; a person
 // leaving a team or the organization moves their person epoch.
 func TestATeamRevokeAndALeaveMoveTheirMembers(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	tam, tal := h.seal("tam", "a"), h.seal("tal", "a")
 	h.grantTeam("a", "user", "team")
@@ -263,6 +272,7 @@ func TestATeamRevokeAndALeaveMoveTheirMembers(t *testing.T) {
 // A revoke on an uninstalled installation and on a retired role succeeds,
 // and neither a reinstall nor the role declared again brings the grant back.
 func TestARevokedGrantStaysGone(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	id := h.inst(acme, "a").ID
 	grants := func() int {

@@ -73,6 +73,7 @@ func (t lookupOutageTx) Member(organization, id string) (domain.Person, error) {
 // answering: it is never read as "nothing bounds this call", which admitted a
 // method the installation's consent does not reach.
 func TestTheApprovedReachGateFailsClosedOnALookupItCannotMake(t *testing.T) {
+	t.Parallel()
 	for name, tc := range map[string]struct {
 		agent bool
 		call  string

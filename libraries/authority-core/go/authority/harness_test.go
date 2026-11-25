@@ -73,7 +73,37 @@ func solution(name string, ownerAware bool) domain.Module {
 		}}
 }
 
+// newHarness is the fixture: bareHarness, the fixture's modules delivered and
+// its solutions installed.
 func newHarness(t *testing.T) *harness {
+	t.Helper()
+	h := bareHarness(t)
+	for _, m := range []domain.Module{
+		{Name: "store", Principal: "store", Kind: domain.KindModule, Generation: 1, OwnerAware: true,
+			ResourceKinds: []*basev0.WorkScopeV1{sc(kind, "admin", "create", "read", "write")},
+			Bindings: map[string]domain.Binding{
+				"self":   {ID: "self", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write")}, HeadlessScopes: []*basev0.WorkScopeV1{sc(kind, "read")}},
+				"legacy": {ID: "legacy", Audience: "legacy-store", InvokeScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}},
+			}},
+		{Name: "legacy-store", Principal: "legacy-store", Kind: domain.KindModule, Generation: 1, ResourceKinds: []*basev0.WorkScopeV1{sc(legacyKind, "read")}},
+		ledger(),
+		solution("a", true), solution("b", true), solution("c", false),
+	} {
+		if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h.install(acme, "a")
+	h.install(acme, "b")
+	h.install(acme, "c")
+	h.install(globex, "a")
+	return h
+}
+
+// bareHarness is a service over a store of its own holding the fixture's
+// organisations, teams and people, and no module: for a test that delivers a
+// composition of its own.
+func bareHarness(t *testing.T) *harness {
 	t.Helper()
 	public, private, err := ed25519.GenerateKey(nil)
 	if err != nil {
@@ -106,25 +136,6 @@ func newHarness(t *testing.T) *harness {
 	} {
 		h.store.PutPerson(p)
 	}
-	for _, m := range []domain.Module{
-		{Name: "store", Principal: "store", Kind: domain.KindModule, Generation: 1, OwnerAware: true,
-			ResourceKinds: []*basev0.WorkScopeV1{sc(kind, "admin", "create", "read", "write")},
-			Bindings: map[string]domain.Binding{
-				"self":   {ID: "self", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read", "write")}, HeadlessScopes: []*basev0.WorkScopeV1{sc(kind, "read")}},
-				"legacy": {ID: "legacy", Audience: "legacy-store", InvokeScopes: []*basev0.WorkScopeV1{sc(legacyKind, "read")}},
-			}},
-		{Name: "legacy-store", Principal: "legacy-store", Kind: domain.KindModule, Generation: 1, ResourceKinds: []*basev0.WorkScopeV1{sc(legacyKind, "read")}},
-		ledger(),
-		solution("a", true), solution("b", true), solution("c", false),
-	} {
-		if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
-			t.Fatal(err)
-		}
-	}
-	h.install(acme, "a")
-	h.install(acme, "b")
-	h.install(acme, "c")
-	h.install(globex, "a")
 	return h
 }
 

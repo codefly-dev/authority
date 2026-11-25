@@ -13,6 +13,7 @@ import (
 // bounded purpose; its grantor or an administrator of its organization ends
 // it, and anyone else learns nothing of it.
 func TestDelegationRules(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	read := []*basev0.WorkScopeV1{sc(kind, "read")}
 	rob := h.person("rob")
@@ -32,6 +33,7 @@ func TestDelegationRules(t *testing.T) {
 }
 
 func TestADelegationIsEndedByItsGrantorOrAnAdministratorAlone(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	// Rob is a user of solution a: he delegates what that role reads at the store.
 	h.grant("a", "user", "rob")

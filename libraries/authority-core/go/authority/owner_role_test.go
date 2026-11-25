@@ -11,6 +11,7 @@ import (
 // person whose only organisation role is called "owner" administers nothing:
 // no inventory, no review, no install, no uninstall, no grant.
 func TestARoleNamedOwnerAdministersNothing(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.store.PutPerson(domain.Person{ID: "olga", Organization: acme, Roles: []string{"owner"}})
 	olga, inst := h.person("olga"), h.inst(acme, "a").ID

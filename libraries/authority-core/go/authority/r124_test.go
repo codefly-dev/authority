@@ -10,6 +10,7 @@ import (
 // A grant stays revocable after its person left the organization, and the
 // revoke ends their access for good if they return.
 func TestAGrantWhosePersonLeftIsStillRevoked(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "user", "maya")
 	h.store.DeletePerson("maya")
@@ -22,6 +23,7 @@ func TestAGrantWhosePersonLeftIsStillRevoked(t *testing.T) {
 // Another organization's installation and an installation nobody has answer
 // a role change with the same words.
 func TestAForeignAndAnAbsentInstallationAnswerAlike(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	foreign := h.inst(globex, "a").ID
 	_, errForeign := h.svc.GrantRole(h.ctx, h.person("alex"), authority.RoleRequest{Organization: acme, InstallationID: foreign, Role: "user", PersonID: "maya"})
@@ -40,6 +42,7 @@ func TestAForeignAndAnAbsentInstallationAnswerAlike(t *testing.T) {
 // declares its two roles, so the role retired is a module page's, which
 // stops declaring roles and declares them again.
 func TestARevokeOutlivesUninstallAndARetiredRole(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	id := h.inst(acme, "a").ID
 	h.grant("a", "user", "maya")

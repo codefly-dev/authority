@@ -11,6 +11,7 @@ import (
 // opened at is refused, naming it — never issued one in the session's own
 // organization, which would answer an ask nobody made.
 func TestAPersonAskingForAnotherOrganizationIsRefused(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	zoe := h.person("zoe") // globex's administrator, and a user of its solution a
 	if _, err := h.svc.GrantRole(h.ctx, zoe, authority.RoleRequest{Organization: globex, InstallationID: h.inst(globex, "a").ID, Role: "user", PersonID: "zoe"}); err != nil {

@@ -13,6 +13,7 @@ import (
 var read, write, create, admin = []string{"read"}, []string{"write"}, []string{"create"}, []string{"admin"}
 
 func TestThePrincipalIsStableDistinctAndPerOrganization(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	u := h.principal(acme, "a")
 	if u == h.inst(acme, "a").ID || u == h.principal(acme, "b") || u == h.principal(globex, "a") {
@@ -27,6 +28,7 @@ func TestThePrincipalIsStableDistinctAndPerOrganization(t *testing.T) {
 }
 
 func TestNobodyHoldsARoleUntilGranted(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	for _, person := range []string{"maya", "alex"} {
 		_, err := h.root(person, "a")
@@ -35,6 +37,7 @@ func TestNobodyHoldsARoleUntilGranted(t *testing.T) {
 }
 
 func TestAReaderReadsOnlyThePrincipalsData(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "user", "maya")
 	u, v := h.principal(acme, "a"), h.principal(acme, "b")
@@ -63,6 +66,7 @@ func TestAReaderReadsOnlyThePrincipalsData(t *testing.T) {
 }
 
 func TestTheAgentIsThePrincipalConfinedToItsData(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	u := h.principal(acme, "a")
 	agent := h.must(h.agent("a", "store"))
@@ -81,6 +85,7 @@ func TestTheAgentIsThePrincipalConfinedToItsData(t *testing.T) {
 }
 
 func TestASolutionCapabilityIsConfined(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "user", "rob")
 	h.grant("a", "user", "ada")
@@ -92,6 +97,7 @@ func TestASolutionCapabilityIsConfined(t *testing.T) {
 }
 
 func TestOwnerSelectedScopesGoOnlyToOwnerAwareAudiences(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "user", "maya")
 	h.grant("c", "user", "maya")
@@ -106,6 +112,7 @@ func TestOwnerSelectedScopesGoOnlyToOwnerAwareAudiences(t *testing.T) {
 }
 
 func TestWithdrawingOwnerAwareRefusesEarlierCapabilitiesForGood(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "user", "maya")
 	before := h.must(h.through("maya", "a", "store"))
@@ -127,6 +134,7 @@ func TestWithdrawingOwnerAwareRefusesEarlierCapabilitiesForGood(t *testing.T) {
 }
 
 func TestARoleWritesByItsScopesNotItsName(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "admin", "remi")
 	h.grant("a", "user", "dev")
@@ -141,6 +149,7 @@ func TestARoleWritesByItsScopesNotItsName(t *testing.T) {
 }
 
 func TestAChildNeverWidens(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "user", "maya")
 	h.grant("a", "admin", "remi")
@@ -165,6 +174,7 @@ func TestAChildNeverWidens(t *testing.T) {
 }
 
 func TestOtherInstallationsAndOrganizationsNeverReach(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("b", "user", "dev")
 	_, err := h.root("dev", "a")
@@ -179,6 +189,7 @@ func TestOtherInstallationsAndOrganizationsNeverReach(t *testing.T) {
 }
 
 func TestWhoMayGrantAndEveryMalformedGrant(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "user", "maya")
 	h.grant("a", "admin", "ines")
@@ -223,6 +234,7 @@ func TestWhoMayGrantAndEveryMalformedGrant(t *testing.T) {
 // reason, and learns nothing by it: their organization's installation, another
 // organization's and one nobody has answer alike but for the id they named.
 func TestAMemberRefusedARoleChangeIsToldWhyAndLearnsNothing(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	maya := h.person("maya")
 	answers := map[string]string{}

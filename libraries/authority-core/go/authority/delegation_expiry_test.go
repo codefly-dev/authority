@@ -17,6 +17,7 @@ import (
 // from it and its module reads it as ended. The lifetime is clamped to the
 // host's ceiling; none asked keeps a delegation until it is revoked.
 func TestADelegationWithALifetimeEndsByItself(t *testing.T) {
+	t.Parallel()
 	// Maya views module a's own collection and delegates that read to a,
 	// which issues through its "store" binding (as race_test does).
 	setup := func(t *testing.T) (*harness, []*basev0.WorkScopeV1) {
@@ -100,6 +101,7 @@ func TestADelegationWithALifetimeEndsByItself(t *testing.T) {
 // access. The signed expiry, not just OAuth's expires_in, carries the bound.
 // Core verification still applies its documented clock-skew tolerance.
 func TestDelegatedCapabilitiesDoNotOutliveTheirDelegation(t *testing.T) {
+	t.Parallel()
 	for _, requested := range []time.Duration{0, time.Hour, 10 * time.Second} {
 		t.Run(requested.String(), func(t *testing.T) {
 			h := newHarness(t)
@@ -145,6 +147,7 @@ func (s *changeAfterSigning) Sign(random io.Reader, digest []byte, opts crypto.S
 }
 
 func TestDelegationEndIsRereadAfterSigning(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "user", "maya")
 	d, err := h.svc.Delegate(h.ctx, h.person("maya"), "a",

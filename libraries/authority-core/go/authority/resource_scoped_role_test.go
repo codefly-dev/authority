@@ -13,6 +13,7 @@ import (
 // a module deciding from the token's claims never sees the whole kind, and no
 // hop widens back to what his role holds.
 func TestACapabilityNarrowedToIDsCarriesThemAlone(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	ledgerWithRoles(t, h, "rob")
 	read := []string{"read"}

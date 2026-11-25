@@ -18,6 +18,7 @@ import (
 // once they hold a role on an installation that reaches the module, and
 // through that installation's binding alone.
 func TestAnOrganisationRoleReachesNoModule(t *testing.T) {
+	t.Parallel()
 	h := matrixHarness(t)
 	// alex is the organisation's administrator; boss holds an organisation
 	// role named for nothing the core knows; rob holds organisation roles
@@ -65,6 +66,7 @@ func TestAnOrganisationRoleReachesNoModule(t *testing.T) {
 // One minted elsewhere (another host, an earlier version) is refused when it
 // is checked, with or without a method, and answers no resource.
 func TestACapabilityOnAPersonsOwnSessionIsRefusedAtAModuleWithNoRoles(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	const method = "/legacy.v1.Store/Read"
 	var legacy domain.Module
@@ -121,6 +123,7 @@ func TestACapabilityOnAPersonsOwnSessionIsRefusedAtAModuleWithNoRoles(t *testing
 // whatever their organisation role, and the module's own methods stay closed
 // to the capability.
 func TestABindingOfAModuleWithNoRolesCarriesTheRoleOnItsTargetAlone(t *testing.T) {
+	t.Parallel()
 	h := matrixHarness(t)
 	const method = "/tools.v1.Tools/List"
 	tools := domain.Module{Name: "tools", Principal: "tools", Kind: domain.KindModule, Generation: 1, OwnerAware: true,

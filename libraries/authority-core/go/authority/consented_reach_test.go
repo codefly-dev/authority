@@ -89,6 +89,7 @@ func consentedConsumer(t *testing.T, h *harness, svc *authority.Service, page bo
 // the installation at its approved reach and offers the upgrade, for a
 // solution and a module page alike.
 func TestAConsentedReachThroughABindingIsHeldWhenARedeliveryOpensAnOperation(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name    string
 		served  []string
@@ -143,6 +144,7 @@ func TestAConsentedReachThroughABindingIsHeldWhenARedeliveryOpensAnOperation(t *
 // its operations only through an approved upgrade, for a solution and a
 // module page alike.
 func TestAReachReachedAgainWithOperationsTheReceiptDoesNotHoldOffersTheUpgrade(t *testing.T) {
+	t.Parallel()
 	for _, consumer := range []struct {
 		name string
 		page bool
@@ -172,6 +174,7 @@ func TestAReachReachedAgainWithOperationsTheReceiptDoesNotHoldOffersTheUpgrade(t
 // binding reaches than the page's approved reach holds there: a delivery
 // widening the reach, held at the approved one, widens no root either.
 func TestAPersonNamingAPagesBindingIsHeldToTheApprovedReach(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	page := pageModule(1, true)
 	page.Bindings = map[string]domain.Binding{"vault": {ID: "vault", Audience: "vault", InvokeScopes: []*basev0.WorkScopeV1{sc(vaultKind, "read", "write")}}}
@@ -211,6 +214,7 @@ func TestAPersonNamingAPagesBindingIsHeldToTheApprovedReach(t *testing.T) {
 // issue from a delegation through it are: a binding the consent narrowed
 // carries only what it allows, and one it dropped carries nothing.
 func TestAPersonNamingAPagesBindingIsHeldToTheConsentedBinding(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	page := pageModule(1, true)
 	page.Bindings = map[string]domain.Binding{"vault": {ID: "vault", Audience: "vault", InvokeScopes: []*basev0.WorkScopeV1{sc(vaultKind, "read", "write")}}}
@@ -241,6 +245,7 @@ func TestAPersonNamingAPagesBindingIsHeldToTheConsentedBinding(t *testing.T) {
 // solution, each addressed to a relay whose principal differs from its name,
 // reaches the relay as a holder of either does.
 func TestRolesHeldTogetherKeepAnAudienceGrantAtAModuleWhosePrincipalIsNotItsName(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	const principal = "relay.principal"
 	turn := []*basev0.WorkScopeV1{sc("relay.turn", "run")}

@@ -10,6 +10,7 @@ import (
 // depth: the root's own, else the first hop's delegation. The last hop's
 // delegation is its parent's session, which carries no view.
 func TestTheRootSessionIsRecoveredAtEveryDepth(t *testing.T) {
+	t.Parallel()
 	hop := func(delegation string) *basev0.WorkActorV1 { return &basev0.WorkActorV1{DelegationId: delegation} }
 	for name, tc := range map[string]struct {
 		wc   *basev0.WorkContextV1

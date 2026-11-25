@@ -81,6 +81,7 @@ func (h *hostInstalled) installations() []domain.Installation {
 // organization, not when reconciling; and the host's record is never retired
 // by the core, by withdrawal or by host setup.
 func TestAHostThatInstallsModulesIsTheOnlyOneThatDoes(t *testing.T) {
+	t.Parallel()
 	h := newHostInstalled(t)
 	if all := h.installations(); len(all) != 0 {
 		t.Fatalf("delivery installed %v", all)
@@ -126,6 +127,7 @@ func TestAHostThatInstallsModulesIsTheOnlyOneThatDoes(t *testing.T) {
 // past the organization its credential is bound to, and nothing once the host
 // retires the installation: its capabilities fail their next check.
 func TestAWorkloadIsIssuedOnlyWhereItsHostInstalledIt(t *testing.T) {
+	t.Parallel()
 	store := authority.Workload{Module: "store"}
 	for _, tc := range []struct {
 		name   string
@@ -233,6 +235,7 @@ func (h *hostInstalled) storeUser(id, person string) {
 // narrowing, and a redelivery that widens the binding issues no more than was
 // consented.
 func TestAnInstallationsConsentBoundsItsModulesBindings(t *testing.T) {
+	t.Parallel()
 	read, readWrite := []*basev0.WorkScopeV1{sc(kind, "read")}, []*basev0.WorkScopeV1{sc(kind, "read", "write")}
 	for _, tc := range []struct {
 		name     string

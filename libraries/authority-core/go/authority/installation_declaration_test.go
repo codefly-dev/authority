@@ -25,6 +25,7 @@ func declaration(t *testing.T, h *harness, selector string) domain.Module {
 }
 
 func TestInstallationDeclarationSelection(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name, selector, requested, want string
 		refused                         bool
@@ -61,6 +62,7 @@ func TestInstallationDeclarationSelection(t *testing.T) {
 // A declaration naming a role it does not declare never reaches an install:
 // the manifest itself is refused when it is applied.
 func TestAnInstallationRoleNamingNoDeclaredRoleIsRefusedOnApply(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	m := solution("b", true)
 	m.Generation++
@@ -71,6 +73,7 @@ func TestAnInstallationRoleNamingNoDeclaredRoleIsRefusedOnApply(t *testing.T) {
 }
 
 func TestNoStandingAuthorityStillHasFencedSetup(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	m := declaration(t, h, "none")
 	if _, exists := m.Roles["none"]; exists {
@@ -122,6 +125,7 @@ func TestNoStandingAuthorityStillHasFencedSetup(t *testing.T) {
 }
 
 func TestInstallationDeclarationDoesNotRelaxRoles(t *testing.T) {
+	t.Parallel()
 	for _, fault := range []string{"empty role", "missing admin"} {
 		t.Run(fault, func(t *testing.T) {
 			h := newHarness(t)
@@ -141,6 +145,7 @@ func TestInstallationDeclarationDoesNotRelaxRoles(t *testing.T) {
 }
 
 func TestInstallationDeclarationDigestAndStaleApproval(t *testing.T) {
+	t.Parallel()
 	for _, field := range []string{"selector", "edges"} {
 		t.Run(field, func(t *testing.T) {
 			h := newHarness(t)
@@ -170,6 +175,7 @@ func TestInstallationDeclarationDigestAndStaleApproval(t *testing.T) {
 }
 
 func TestInstallationDeclarationLegacyDigestBytes(t *testing.T) {
+	t.Parallel()
 	// Captured field order/representation from Module at parent 940ddd642b55.
 	const legacy = `{"Name":"legacy","Principal":"principal","Kind":"solution","Generation":1,"StandIn":false,"ResourceKinds":null,"Bindings":null,"Roles":null,"OwnedRoles":null,"OwnerAware":false,"Methods":null}`
 	m := domain.Module{Name: "legacy", Principal: "principal", Kind: domain.KindSolution, Generation: 1}
@@ -199,6 +205,7 @@ func TestInstallationDeclarationLegacyDigestBytes(t *testing.T) {
 }
 
 func TestNamedInstallationDeclarationRetryPreservesOriginalRequest(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	declaration(t, h, "user")
 	admin := h.admin(globex)
@@ -219,6 +226,7 @@ func TestNamedInstallationDeclarationRetryPreservesOriginalRequest(t *testing.T)
 }
 
 func TestInstallationDeclarationStoreSnapshotsDoNotAlias(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	m := solution("b", true)
 	m.Generation++

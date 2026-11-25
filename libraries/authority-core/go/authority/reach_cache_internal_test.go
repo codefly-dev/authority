@@ -8,6 +8,7 @@ import (
 // The reach cache keeps at most its size, evicting the oldest first; an
 // entry put again is not duplicated and keeps its place.
 func TestTheReachCacheIsBounded(t *testing.T) {
+	t.Parallel()
 	c := reachCache{size: 3}
 	for i := 0; i < 5; i++ {
 		c.put(fmt.Sprint(i), reachIndex{fmt.Sprint(i): nil})

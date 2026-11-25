@@ -97,6 +97,7 @@ func (h *harness) onward(parent authority.Issued, binding string, scopes ...*bas
 // to the agent's binding, owned by the solution's installation — except a kind
 // the module declares shared (the model's profiles), held unselected.
 func TestAPagesPersonReachesThroughTheAgentWhatTheirRoleNames(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	reachComposition(t, h, true)
 	h.grant("wiki", "user", "maya")
@@ -141,6 +142,7 @@ func TestAPagesPersonReachesThroughTheAgentWhatTheirRoleNames(t *testing.T) {
 // A selector is never silently dropped: a module that declares no kind
 // shared and checks no owner receives no owner-selected scope, as before.
 func TestAModelThatDeclaresNoSharedKindReceivesNoOwnedScope(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	reachComposition(t, h, false)
 	h.grant("wiki", "user", "maya")
@@ -151,6 +153,7 @@ func TestAModelThatDeclaresNoSharedKindReceivesNoOwnedScope(t *testing.T) {
 
 // A shared kind is one the module serves.
 func TestASharedKindIsServed(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	_, err := h.svc.ApplyModule(h.ctx, domain.Module{Name: "model", Principal: "model", Kind: domain.KindModule, Generation: 1,
 		ResourceKinds: []*basev0.WorkScopeV1{sc("model.profiles", "read")}, SharedKinds: []string{"other.kind"}})
@@ -161,6 +164,7 @@ func TestASharedKindIsServed(t *testing.T) {
 // binding through that binding, never by inference, and the binding is one
 // it declares that carries a person's capability.
 func TestReachIsDeclaredThroughABinding(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	reachComposition(t, h, true)
 	wiki, _ := reachSolutions()
@@ -196,6 +200,7 @@ func TestReachIsDeclaredThroughABinding(t *testing.T) {
 // on its installation (journaled once) and a turn's hop there refused by
 // name; the agent redelivered with it re-converges the reach by itself.
 func TestAnUnreachedReachIsReportedAndReconverges(t *testing.T) {
+	t.Parallel()
 	t.Run("a reach through a module not yet composed waits for it", func(t *testing.T) {
 		h := newHarness(t)
 		wiki, _ := reachSolutions()
@@ -268,6 +273,7 @@ func TestAnUnreachedReachIsReportedAndReconverges(t *testing.T) {
 // The install review shows a kind reached through the agent where it is
 // held: in the agent, then in the model, on the path from the solution.
 func TestTheReviewShowsAReachThroughTheAgent(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	reachComposition(t, h, true)
 	wiki, _ := reachSolutions()
@@ -303,6 +309,7 @@ func TestTheReviewShowsAReachThroughTheAgent(t *testing.T) {
 // is asked and issued unselected. Owner-blind, the ask is the whole kind and
 // is refused as a widening; another owner's too.
 func TestARunnableAsksItsOperationsScopesThroughTheSolution(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	reachComposition(t, h, true)
 	h.grant("wiki", "user", "maya")

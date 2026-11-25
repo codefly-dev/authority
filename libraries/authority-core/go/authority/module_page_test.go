@@ -46,6 +46,7 @@ func (h *harness) pagesAt(org string) domain.Installation {
 // them through a review. Its principal owns what its page creates in a module
 // that checks owners, as a solution installation's does (RBAC-1).
 func TestAModuleIsInstalledByCompositionInEveryOrganisation(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	if _, err := h.svc.ApplyModule(h.ctx, pageModule(1, true)); err != nil {
 		t.Fatal(err)
@@ -97,6 +98,7 @@ func TestAModuleIsInstalledByCompositionInEveryOrganisation(t *testing.T) {
 // tuple an administrator or its admin approves through Install, which
 // is a replay of what stands when nothing widened.
 func TestAModuleIsNeverOfferedOrInstalledByAnAdministrator(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	if _, err := h.svc.ApplyModule(h.ctx, pageModule(1, true)); err != nil {
 		t.Fatal(err)
@@ -139,6 +141,7 @@ func TestAModuleIsNeverOfferedOrInstalledByAnAdministrator(t *testing.T) {
 // session, whatever their organisation role; with roles again, nobody holds
 // one until the upgrade is approved and the role granted.
 func TestAModuleThatGainsOrLosesRolesKeepsItsInstallation(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.store.PutPerson(domain.Person{ID: "ines", Organization: acme, Roles: []string{"page-reader"}})
 	if _, err := h.svc.ApplyModule(h.ctx, pageModule(1, false)); err != nil {
@@ -243,6 +246,7 @@ func TestAModuleThatGainsOrLosesRolesKeepsItsInstallation(t *testing.T) {
 // covers the kind included, holds nothing; another organization's
 // installation is its own; an undeclared role is refused; a revoke ends it.
 func TestAModulePagesRolesDecideWhoIsListedAndWhoMayUseIt(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.store.PutPerson(domain.Person{ID: "ines", Organization: acme, Roles: []string{"page-reader"}})
 	if _, err := h.svc.ApplyModule(h.ctx, pageModule(1, true)); err != nil {
@@ -301,6 +305,7 @@ func TestAModulePagesRolesDecideWhoIsListedAndWhoMayUseIt(t *testing.T) {
 // solution and at a module page exactly as any member is, and holds what a
 // grant gives them once granted. An administrator's power is to grant.
 func TestNobodyHoldsARoleWithoutAGrant(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	if _, err := h.svc.ApplyModule(h.ctx, pageModule(1, true)); err != nil {
 		t.Fatal(err)
@@ -325,6 +330,7 @@ func TestNobodyHoldsARoleWithoutAGrant(t *testing.T) {
 // its page's data and acts for nobody), and nothing is issued as that
 // installation acting for itself.
 func TestAModulePageHoldsNoStandingAuthority(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	selecting := pageModule(1, true)
 	selecting.InstallationRole = "user"
@@ -341,6 +347,7 @@ func TestAModulePageHoldsNoStandingAuthority(t *testing.T) {
 
 // A module declaring roles and no page is refused, and nothing of it composes.
 func TestAModuleWithoutAPageDeclaresNoRoles(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	headless := pageModule(1, true)
 	headless.Page = false
@@ -369,6 +376,7 @@ func (h *harness) offers(org string) []string {
 // governs nothing there: no administrator has seen who would manage its
 // sources. Only an installation someone installed as a solution governs.
 func TestACompositionInstallationGovernsNoSourceAfterItsTargetBecomesASolution(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	if _, err := h.svc.ApplyModule(h.ctx, pageModule(1, true)); err != nil {
 		t.Fatal(err)

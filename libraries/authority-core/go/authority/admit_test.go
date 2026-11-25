@@ -32,6 +32,7 @@ func pageNamingBeyondReach(generation uint64) domain.Module {
 // reach, a generation 9 identical to 8). A later admissible generation is
 // admitted, then applied.
 func TestAdmitAnswersWhatApplyModuleWouldRefuse(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	if _, err := h.svc.ApplyModule(h.ctx, pageReachingStore(7, "read")); err != nil {
 		t.Fatal(err)

@@ -33,6 +33,7 @@ func (h *harness) roleGrants(target string) []domain.RoleGrant {
 // the target that drops them is a module page, which stops declaring roles
 // and declares them again.
 func TestARedeliveryDroppingARoleDropsItsGrants(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	svc, events := journaled(h)
 	if _, err := svc.ApplyModule(h.ctx, pageModule(1, true)); err != nil {
@@ -89,6 +90,7 @@ func TestARedeliveryDroppingARoleDropsItsGrants(t *testing.T) {
 // binding carries the kind's write); never what nothing reaches, nor a kind
 // reached downstream it does not declare through its binding.
 func TestAModulePageRoleNamesWhatItServesOrConsumes(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	m := pageModule(1, true)
 	m.Bindings = map[string]domain.Binding{"store": {ID: "store", Audience: "store", InvokeScopes: []*basev0.WorkScopeV1{sc(kind, "read")}}}
@@ -119,6 +121,7 @@ func TestAModulePageRoleNamesWhatItServesOrConsumes(t *testing.T) {
 // module that checks owners the role reaches only the page installation's
 // own data (RBAC-1).
 func TestAModulePageRoleReachesThroughThePagesBinding(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	ledgerPage(t, h)
 	h.grant("pages", "user", "maya")
@@ -147,6 +150,7 @@ func TestAModulePageRoleReachesThroughThePagesBinding(t *testing.T) {
 // active record, which has no principal, never at a record the core retired
 // under its own id.
 func TestAModulePageOnAHostThatInstallsModulesIsGrantedAtTheHostsRecord(t *testing.T) {
+	t.Parallel()
 	h := newHostInstalled(t)
 	h.store.PutPerson(domain.Person{ID: "maya", Organization: acme})
 	if _, err := h.svc.ApplyModule(h.ctx, pageModule(1, true)); err != nil {
@@ -191,6 +195,7 @@ func TestAModulePageOnAHostThatInstallsModulesIsGrantedAtTheHostsRecord(t *testi
 // broke its invariant. Nothing chooses between them: issuance fails closed
 // rather than letting store order decide whose grants apply.
 func TestSeveralActiveInstallationsOfOneTargetFailClosed(t *testing.T) {
+	t.Parallel()
 	h := newHostInstalled(t)
 	h.record(acme, "host-1", domain.Active, 1)
 	if _, err := h.issue(authority.Workload{Module: "store"}, acme); err != nil {

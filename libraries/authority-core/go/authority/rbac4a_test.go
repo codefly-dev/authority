@@ -11,6 +11,7 @@ import (
 // unselected while the ledger checked no owner, no longer checks once it
 // does, and a fresh one selects the page installation's data.
 func TestAModuleAdoptingOwnerChecksEndsUnselectedCapabilities(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	ledgerPage(t, h)
 	h.grant("pages", "user", "maya")
@@ -40,6 +41,7 @@ func TestAModuleAdoptingOwnerChecksEndsUnselectedCapabilities(t *testing.T) {
 // on it through the page's binding ends, and a fresh one selects the page
 // installation's data.
 func TestAKindNoLongerSharedEndsUnselectedCapabilities(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	shared := storeAt(2, "admin", true)
 	shared.SharedKinds = []string{kind}
@@ -68,6 +70,7 @@ func TestAKindNoLongerSharedEndsUnselectedCapabilities(t *testing.T) {
 // owners), still checks, and ListResources answers the kind as the roles
 // reach it now: the page installation's data and no unowned resource.
 func TestListResourcesAnswersAnOwnedKindAsTheInstallationsDataAlone(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	ledgerPage(t, h)
 	h.grant("pages", "user", "maya")

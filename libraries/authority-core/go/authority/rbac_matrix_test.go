@@ -47,6 +47,7 @@ func ownerOf(org, target string) func(h *harness) string {
 func noOwner(*harness) string { return "" }
 
 func TestRBACIssuanceMatrix(t *testing.T) {
+	t.Parallel()
 	note := func(s string) string { return s + ".note" }
 	cells := []cell{
 		// --- a person at a solution ---------------------------------------
@@ -286,6 +287,9 @@ func TestRBACIssuanceMatrix(t *testing.T) {
 	}
 	for _, c := range cells {
 		t.Run(c.id+" "+c.principal+" | "+c.target+" | "+c.resource, func(t *testing.T) {
+			// Each cell has a harness of its own, so the cells run beside
+			// one another.
+			t.Parallel()
 			h := matrixHarness(t)
 			got, err := c.issue(h)
 			if c.allow == nil {

@@ -51,6 +51,7 @@ func attach(h *harness, token, id string) (string, error) {
 }
 
 func TestAttachmentRefusalsAndExclusiveBoundedLifecycle(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	create := func(target string) string { return attachmentToken(t, h, []string{target}, sc(kind, "create")) }
 	token := create("a")
@@ -140,6 +141,7 @@ func TestAttachmentRefusalsAndExclusiveBoundedLifecycle(t *testing.T) {
 }
 
 func TestConcurrentAttachmentsHaveExactlyOneOwner(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	tokens := []string{attachmentToken(t, h, []string{"a"}, sc(kind, "create")), attachmentToken(t, h, []string{"b"}, sc(kind, "create"))}
 	var wg sync.WaitGroup
@@ -163,6 +165,7 @@ func TestConcurrentAttachmentsHaveExactlyOneOwner(t *testing.T) {
 }
 
 func TestAttachmentRechecksRevisionUnderWriteTransaction(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	token := attachmentToken(t, h, []string{"a"}, sc(kind, "create"))
 	wrapped := &beforeWriteStore{Store: h.store, change: func() {
@@ -193,6 +196,7 @@ func (s *beforeWriteStore) Write(ctx context.Context, f func(authority.Tx) error
 }
 
 func TestPublicIssuanceTransfersOnlyAfterLiveAuthorization(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.administrator("ada")
 	h.grant("a", "admin", "ada")
@@ -239,6 +243,7 @@ func TestPublicIssuanceTransfersOnlyAfterLiveAuthorization(t *testing.T) {
 }
 
 func TestTransferUsesTheAttachmentBoundAndWriteFence(t *testing.T) {
+	t.Parallel()
 	for _, test := range []string{"cap", "revision", "exclusive"} {
 		t.Run(test, func(t *testing.T) {
 			h := newHarness(t)
@@ -284,6 +289,7 @@ func TestTransferUsesTheAttachmentBoundAndWriteFence(t *testing.T) {
 }
 
 func TestPublicCreationIsTenantBoundAndSupportsInstallationAgents(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	if _, err := h.svc.GrantRole(h.ctx, h.person("zoe"), authority.RoleRequest{Organization: globex, InstallationID: h.inst(globex, "a").ID, Role: "admin", PersonID: "zoe"}); err != nil {
 		t.Fatal(err)

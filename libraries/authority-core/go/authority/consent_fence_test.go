@@ -43,6 +43,7 @@ func (h *hookStore) arm(f func()) {
 // never handed out: the capability decided under the withdrawn consent is
 // refused at issuance, on every path, by the revision fence.
 func TestANarrowingBetweenDecisionAndMintIsNeverHandedOut(t *testing.T) {
+	t.Parallel()
 	for _, path := range []string{"workload", "child"} {
 		t.Run(path, func(t *testing.T) {
 			h := newHarness(t)
@@ -131,6 +132,7 @@ func refusedByConsent(t *testing.T, err error) {
 // The consent bounds an installation acting for itself through its
 // solution's binding, and an issue from a delegation through the module's.
 func TestTheConsentBoundsInstallationAndDelegationIssues(t *testing.T) {
+	t.Parallel()
 	t.Run("an installation acting for itself", func(t *testing.T) {
 		h := newHarness(t)
 		h.must(h.agent("a", "store"))

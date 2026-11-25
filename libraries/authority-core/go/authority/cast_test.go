@@ -24,6 +24,7 @@ func (h *harness) casting(person, team string) (authority.Person, error) {
 // permission and can assume any team membership to test, without their user
 // being in that team. "alex" administers acme and belongs to no team here.
 func TestAnAdministratorCastsOntoATeamTheyDoNotBelongTo(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grantTeam("a", "user", "team")
 
@@ -46,6 +47,7 @@ func TestAnAdministratorCastsOntoATeamTheyDoNotBelongTo(t *testing.T) {
 // A cast onto a team that is granted nothing says so, rather than handing
 // back a session that silently sees nothing.
 func TestACastOntoATeamThatHoldsNothingIsRefusedByName(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 
 	_, err := h.casting("alex", "nobody-granted-this")
@@ -59,6 +61,7 @@ func TestACastOntoATeamThatHoldsNothingIsRefusedByName(t *testing.T) {
 
 // A cast is never changed or widened: a session already cast cannot cast again.
 func TestACastIsNeverRecast(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grantTeam("a", "user", "team")
 
@@ -80,6 +83,7 @@ func TestACastIsNeverRecast(t *testing.T) {
 // roles nor grant them cannot act as it. Without this the cast is a
 // privilege escalation — anyone could be any team.
 func TestAPersonWhoCannotGrantCannotActAsTheTeam(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grantTeam("a", "user", "team")
 
@@ -99,6 +103,7 @@ func TestAPersonWhoCannotGrantCannotActAsTheTeam(t *testing.T) {
 // on a too. Acting as it would attribute her work to a team she is not in and
 // could not have seated, so she is refused, and the team is not listed to her.
 func TestAPersonHoldingTheTeamsRolesDirectlyButNotAMemberCannotActAsIt(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grantTeam("a", "user", "team")
 	h.grant("a", "user", "maya")
@@ -119,6 +124,7 @@ func TestAPersonHoldingTheTeamsRolesDirectlyButNotAMemberCannotActAsIt(t *testin
 // The positive twin: a member acts as their own team, though they could grant
 // nothing, and the work is attributed to that team alone.
 func TestAMemberActsAsTheirOwnTeam(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grantTeam("a", "user", "team")
 
@@ -149,6 +155,7 @@ func TestAMemberActsAsTheirOwnTeam(t *testing.T) {
 // but it exceeded the CAST, which is the whole point of casting: "view as a
 // user" would then answer from reach a user does not have, and pass.
 func TestARoleViewOpenedFromACastStaysInTheCast(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grantTeam("a", "user", "team")
 	// tam belongs to `team`, and separately holds admin on both a and b.
@@ -186,6 +193,7 @@ func TestARoleViewOpenedFromACastStaysInTheCast(t *testing.T) {
 // holds; a person who could not grant a team's roles does not list it; a team
 // granted nothing is not listed; a cast lists the one team it acts as.
 func TestCastableTeamsListsWhatOpenTeamCastWouldOpen(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grantTeam("a", "user", "team")
 	h.grantTeam("b", "user", "team")
@@ -242,6 +250,7 @@ func TestCastableTeamsListsWhatOpenTeamCastWouldOpen(t *testing.T) {
 // onto a team holding admin there, and loses the admin: the cast is refused by
 // name, and it cannot grant the admin back to the person behind it.
 func TestACastEndsWhenThePersonCouldNoLongerGrantTheTeamsRoles(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "admin", "remi")
 	h.grantTeam("a", "admin", "team")
@@ -273,6 +282,7 @@ func TestACastEndsWhenThePersonCouldNoLongerGrantTheTeamsRoles(t *testing.T) {
 // capability issued at b is refused once the person could no longer grant the
 // team's role on a.
 func TestACapabilityIssuedInACastIsRefusedOnceTheCastEnds(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "admin", "remi")
 	h.grant("b", "admin", "remi")
@@ -299,6 +309,7 @@ func TestACapabilityIssuedInACastIsRefusedOnceTheCastEnds(t *testing.T) {
 // so the whole cast is refused (as a fresh cast is), on b and on a alike; it
 // is never issued the new role, and never grants with it.
 func TestACastEndsWhenTheTeamGainsARoleThePersonCouldNotGrant(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "admin", "ines")
 	h.grantTeam("a", "user", "team")
@@ -328,6 +339,7 @@ func TestACastEndsWhenTheTeamGainsARoleThePersonCouldNotGrant(t *testing.T) {
 // member's, and a cast's, whose person is by design not a member. Nobody
 // else's are touched.
 func TestRevokingATeamsRoleEndsACapabilityHeldThroughACast(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grantTeam("a", "user", "team")
 	h.grant("a", "admin", "remi")

@@ -9,6 +9,7 @@ import (
 )
 
 func TestCurrentInstallationIsConfinedToTheAuthenticatedAudience(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	// rob at acme and omar at globex are users of the ledger's page: each
 	// holds its role on their own organisation's installation.
@@ -37,6 +38,7 @@ func TestCurrentInstallationIsConfinedToTheAuthenticatedAudience(t *testing.T) {
 }
 
 func TestCurrentInstallationRechecksRevokedAuthority(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "user", "maya")
 	parent := h.must(h.root("maya", "a"))
@@ -50,6 +52,7 @@ func TestCurrentInstallationRechecksRevokedAuthority(t *testing.T) {
 }
 
 func TestCurrentInstallationForAChildIsTheDestinationNotTheSource(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "user", "maya")
 	child := h.must(h.through("maya", "a", "store"))

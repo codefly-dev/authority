@@ -12,6 +12,7 @@ import (
 // enforces an advisory check as any other: the method's refusal is the
 // answer, and no capability comes back with it.
 func TestAnAdvisoryCheckIsEnforcedUnlessTheHostServesAdvice(t *testing.T) {
+	t.Parallel()
 	h := reachHarness(t)
 	at := h.must(h.through("maya", "a", "store"))
 	verified, _, refusal, err := h.svc.CheckMethod(h.ctx, at.Token, "store", storePurge, true)

@@ -33,6 +33,7 @@ func readWithThrough(source string) domain.Module {
 }
 
 func TestARereadOfTheHeldGenerationWidensNothingUntilTheUpgradeIsApproved(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	svc, events := journalingService(h)
 	h.grant("a", "user", "maya")
@@ -105,6 +106,7 @@ func TestARereadOfTheHeldGenerationWidensNothingUntilTheUpgradeIsApproved(t *tes
 }
 
 func TestARereadFromAnotherDeliveryOrOfAGenerationNotHeldIsRefused(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	if _, err := h.svc.RereadModule(h.ctx, readWithThrough("")); err == nil {
 		t.Fatal("a re-read naming no source was taken")
@@ -137,6 +139,7 @@ func TestARereadFromAnotherDeliveryOrOfAGenerationNotHeldIsRefused(t *testing.T)
 }
 
 func TestARereadReadingTheSameRecordsItsSourceAndANarrowingAppliesAtOnce(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "user", "maya")
 	same := solution("a", true)
@@ -181,6 +184,7 @@ func TestARereadReadingTheSameRecordsItsSourceAndANarrowingAppliesAtOnce(t *test
 // offers the upgrade; composition did not grow, so the receipt is not
 // re-taken.
 func TestAModulePageReadAgainWiderHoldsItsHoldersAtItsReceipt(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	svc, events := journalingService(h)
 	if _, err := svc.ApplyModule(h.ctx, pageModule(1, true)); err != nil {
@@ -259,6 +263,7 @@ func (s *unkeptApproved) Write(ctx context.Context, fn func(authority.Tx) error)
 // that: the core keeps the reading the consent approved when it holds the
 // consent there.
 func TestARereadWidensNothingForAConsentWhoseApprovedReadingIsNotKeptYet(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "user", "maya")
 	store := &unkeptApproved{Store: h.store, module: "a", kept: map[string]bool{}}

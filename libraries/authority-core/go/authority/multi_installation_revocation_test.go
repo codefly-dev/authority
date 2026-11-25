@@ -30,6 +30,7 @@ func (h *harness) deeper(person string) authority.Issued {
 }
 
 func TestARoleRevokedOnAnInstallationTheCapabilityIsNotSealedToEndsIt(t *testing.T) {
+	t.Parallel()
 	t.Run("a person's role", func(t *testing.T) {
 		h := newHarness(t)
 		h.grant("a", "user", "maya")
@@ -142,6 +143,7 @@ func TestARoleRevokedOnAnInstallationTheCapabilityIsNotSealedToEndsIt(t *testing
 // authorization revision, which every capability of the organisation carries:
 // they end a hop sealed elsewhere already.
 func TestAnInstallationChangedOnThePathEndsAHopSealedElsewhere(t *testing.T) {
+	t.Parallel()
 	t.Run("a resource of the path's installation detached", func(t *testing.T) {
 		h := newHarness(t)
 		h.grant("a", "admin", "maya")

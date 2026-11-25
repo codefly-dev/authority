@@ -16,6 +16,7 @@ import (
 // an installation it has and one it has not answer alike, in Uninstall and
 // in every role call, before anything is read.
 func TestAnOutsiderCannotTellInstalledFromAbsent(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	zoe := h.person("zoe")
 	present, absent := h.inst(acme, "a").ID, authority.StableInstallationID(acme, "never-installed")
@@ -43,6 +44,7 @@ func TestAnOutsiderCannotTellInstalledFromAbsent(t *testing.T) {
 // M-b: a module withdrawn and delivered again is installed again at every
 // organization, at a revision above the one it was revoked at.
 func TestAWithdrawnModuleDeliveredAgainIsInstalledAgain(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	id := h.inst(acme, "store").ID
 	before, err := h.svc.Seals().Seal(h.ctx, "maya", id)
@@ -69,6 +71,7 @@ func TestAWithdrawnModuleDeliveredAgainIsInstalledAgain(t *testing.T) {
 // m-a: across withdrawal and redelivery, a module keeps its principal, its
 // generation never rewinds, and the seal never goes back.
 func TestAWithdrawnModuleKeepsItsPrincipalAndGeneration(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	gen := uint64(1)
 	apply := func(aware bool) {
@@ -108,6 +111,7 @@ func TestAWithdrawnModuleKeepsItsPrincipalAndGeneration(t *testing.T) {
 // m-b: an operation binding revoked by an uninstall stays revoked: the
 // reinstalled installation's binding is another incarnation.
 func TestARevokedBindingIsNeverRevived(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	id := acme + "/a/store"
 	before, err := h.svc.Seals().OperationBinding(h.ctx, id)
@@ -129,6 +133,7 @@ func TestARevokedBindingIsNeverRevived(t *testing.T) {
 
 // m-c: a transaction that panics leaves nothing behind.
 func TestAPanickingWriteLeavesNothing(t *testing.T) {
+	t.Parallel()
 	store := memstore.New()
 	store.PutOrganization(domain.Organization{ID: acme})
 	func() {
@@ -173,6 +178,7 @@ func (r retrying) Write(ctx context.Context, fn func(authority.Tx) error) error 
 
 // m-d: a retried ApplyModule answers each installation once.
 func TestApplyModuleIsSafeToRetry(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	svc, err := authority.New(retrying{h.store}, h.cfg)
 	if err != nil {
@@ -189,6 +195,7 @@ func TestApplyModuleIsSafeToRetry(t *testing.T) {
 // m-e: a failed install step can be retried, and a different install of a
 // pending target is refused naming the pending state.
 func TestAFailedInstallStepCanBeRetried(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	admin := h.admin(globex)
 	down := func(context.Context, domain.Installation) error { return errors.New("step down") }
@@ -207,6 +214,7 @@ func TestAFailedInstallStepCanBeRetried(t *testing.T) {
 // m-f: an installation's principal names no module, person or other
 // installation, whatever principal source the host injects.
 func TestAnInstallPrincipalIsItsOwn(t *testing.T) {
+	t.Parallel()
 	for _, taken := range []string{"store", "maya"} {
 		t.Run(taken, func(t *testing.T) {
 			h := newHarness(t)
@@ -238,6 +246,7 @@ func (f failing) Read(ctx context.Context, fn func(authority.Tx) error) error {
 
 // m-g: a store outage is reported as one, never as a missing installation.
 func TestAStoreOutageIsNotANoSeal(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	svc, err := authority.New(failing{h.store}, h.cfg)
 	if err != nil {

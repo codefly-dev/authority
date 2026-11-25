@@ -60,6 +60,7 @@ func readerGranted(grants []domain.RoleGrant, person string) bool {
 // wider reach is issued and the grants are the same grants. A narrowing
 // re-converges by itself and keeps every grant.
 func TestADeliveryWideningAPageRolesReachHoldsItsInstallationAtTheApprovedReach(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	svc, events := journaled(h)
 	if _, err := svc.ApplyModule(h.ctx, pageReachingStore(7, "read")); err != nil {
@@ -166,6 +167,7 @@ func TestADeliveryWideningAPageRolesReachHoldsItsInstallationAtTheApprovedReach(
 // when the host starts (AdoptLegacyReach) or before the next delivery, and
 // a widening after that offers an upgrade instead of ending grants.
 func TestAPageInstallationRecordedByItsHostIsHeldAtTheReachItHad(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	cfg := h.cfg
 	cfg.HostInstallsModules = true
@@ -229,6 +231,7 @@ func pageReachingRecords(generation uint64) domain.Module {
 // the page's receipt again when the composition grows, as it took it first.
 // Only a redelivery that widens a declaration offers an upgrade.
 func TestAPageComposedBeforeAModuleItReachesHoldsItOnceComposed(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	svc, events := journaled(h)
 	if _, err := svc.ApplyModule(h.ctx, pageReachingRecords(1)); err != nil {
@@ -278,6 +281,7 @@ func TestAPageComposedBeforeAModuleItReachesHoldsItOnceComposed(t *testing.T) {
 // composition takes its receipt when the host starts (AdoptLegacyReach): a
 // module the page reaches composed after that is held the same way.
 func TestAPageInstallationRecordedByItsHostHoldsAModuleComposedLater(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	cfg := h.cfg
 	cfg.HostInstallsModules = true
@@ -311,6 +315,7 @@ func TestAPageInstallationRecordedByItsHostHoldsAModuleComposedLater(t *testing.
 // leaves the receipt where it was. The upgrade stays offered, the new
 // module's reach waits for it, and the approval holds both.
 func TestAModuleComposedForTheFirstTimeApprovesNoUpgradePending(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	svc, _ := journaled(h)
 	page := pageReachingRecords(1)
@@ -356,6 +361,7 @@ func TestAModuleComposedForTheFirstTimeApprovesNoUpgradePending(t *testing.T) {
 // redelivery wider than it was offers the page the upgrade, and its reach
 // waits for the approval, whatever moved the page's receipt in between.
 func TestAModuleWithdrawnAndDeliveredWiderOffersThePageAnUpgrade(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	svc, _ := journaled(h)
 	if _, err := svc.ApplyModule(h.ctx, pageReachingRecords(1)); err != nil {
@@ -399,6 +405,7 @@ func TestAModuleWithdrawnAndDeliveredWiderOffersThePageAnUpgrade(t *testing.T) {
 // receipt is taken again at what the delivered module serves, with no
 // upgrade to approve, as for a module composed for the first time.
 func TestAStandInReplacedByItsDeliveryHoldsThePageAtTheDeliveredModule(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	svc, events := journaled(h)
 	standIn := records(1)
@@ -437,6 +444,7 @@ func TestAStandInReplacedByItsDeliveryHoldsThePageAtTheDeliveredModule(t *testin
 // refused even the read: "<who> holds nothing at records through binding
 // "records-rows"".
 func TestACastOntoAPageReaderTeamReachesThePagesBindingInEitherOrder(t *testing.T) {
+	t.Parallel()
 	for _, pageFirst := range []bool{false, true} {
 		h := newHarness(t)
 		svc, _ := journaled(h)

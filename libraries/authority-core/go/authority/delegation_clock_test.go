@@ -35,6 +35,7 @@ func (tx mintDelayTx) AuthorizationRevision(org string) (uint64, error) {
 }
 
 func TestDelegationDeadlineSurvivesMintReadLatency(t *testing.T) {
+	t.Parallel()
 	for _, client := range []bool{false, true} {
 		for _, delay := range []time.Duration{0, 100 * time.Millisecond, 1500 * time.Millisecond, 61 * time.Second} {
 			for _, requested := range []time.Duration{0, 10 * time.Second} {

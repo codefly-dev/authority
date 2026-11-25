@@ -8,6 +8,7 @@ import (
 )
 
 func TestChildDeadlineDoesNotSlideWhileIssuanceReadsState(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	ledgerWithRoles(t, h, "rob")
 	parent := h.must(h.root("rob", "ledger", sc(ledgerKind, "read")))

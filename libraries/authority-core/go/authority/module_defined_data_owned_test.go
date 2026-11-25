@@ -18,6 +18,7 @@ import (
 // A whole-kind headless scope defined unowned data that no owner-scoped read
 // could ever reach.
 func TestAModulesHeadlessDefineAtAnOwnerAwareModuleIsBornOwnedAndItsPageReadsItBack(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	pageReachingTheStore(t, h)
 	var m domain.Module

@@ -30,6 +30,7 @@ func widenTo(h *harness, generation uint64) domain.Module {
 // approved one once a redelivery asked more, and the composed one again after
 // the upgrade.
 func TestTheExportedApprovedDeclarationIsIssuancesChoice(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "user", "maya")
 	declared := func() domain.Module {
@@ -65,6 +66,7 @@ func TestTheExportedApprovedDeclarationIsIssuancesChoice(t *testing.T) {
 // refused by name, and the exported rule answers the same refusal, so no host
 // lists roles from it either.
 func TestAnApprovedDeclarationThatIsNotTheConsentedOfferRefusesIssuance(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "user", "maya")
 	widenTo(h, 2)
@@ -96,6 +98,7 @@ func TestAnApprovedDeclarationThatIsNotTheConsentedOfferRefusesIssuance(t *testi
 // approved declaration governs no source, and a host reading it admits nobody
 // by the new scope. Approved, it governs.
 func TestAGoverningScopeAddedByARedeliveryWaitsForApproval(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	governed := solution("a", true)
 	governed.Generation = 2
@@ -127,6 +130,7 @@ func TestAGoverningScopeAddedByARedeliveryWaitsForApproval(t *testing.T) {
 // approved baseline: the declaration it answers governs no source, whatever
 // a delivery since names, until its review records one.
 func TestALegacyConsentApprovesNoGoverningScope(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	governed := solution("a", true)
 	governed.Generation = 2
@@ -161,6 +165,7 @@ func TestALegacyConsentApprovesNoGoverningScope(t *testing.T) {
 // refused where it is applied: a role's grant of it would be held at a
 // binding's audience, or widened in by a later ceiling no review covers.
 func TestADeliveryGoverningByAnActionItDoesNotServeIsRefused(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	m := solution("a", true)
 	m.Generation = 2

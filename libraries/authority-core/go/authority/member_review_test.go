@@ -11,6 +11,7 @@ import (
 // a member holding nothing there, or naming a target their organization has
 // not installed, is refused by one reason that discloses neither.
 func TestAMemberHoldingARoleReviewsTheOfferWithoutItsConsent(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	maya, tam := h.person("maya"), h.person("tam")
 

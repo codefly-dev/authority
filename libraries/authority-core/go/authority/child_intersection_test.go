@@ -13,6 +13,7 @@ import (
 // issued through: a scope the parent holds outside the binding never reaches
 // the child, whatever the parent carried (rule A, r122 on runtime #311).
 func TestAChildHoldsOnlyWhatTheBindingAndTheOwnersGrantsShare(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	wide := []*basev0.WorkScopeV1{sc("page.entry", "read"), sc(ledgerKind, "read", "write"), sc("profiles", "read")}
 	page := domain.Module{Name: "page", Principal: "page", Kind: domain.KindModule, Generation: 1, Page: true, InstallationRole: domain.NoInstallationRole,

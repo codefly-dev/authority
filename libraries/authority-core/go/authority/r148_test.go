@@ -18,6 +18,7 @@ func storeModule(generation uint64) domain.Module {
 // M1: a module's installation is never uninstalled by an administrator (it is
 // withdrawn); a routine delivery reactivates nothing an administrator cut.
 func TestAModuleInstallationIsNeverUninstalled(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	alex := h.admin(acme)
 	refused(t, h.svc.Uninstall(h.ctx, alex, acme, h.inst(acme, "store").ID), "never uninstalled")
@@ -49,6 +50,7 @@ func TestAModuleInstallationIsNeverUninstalled(t *testing.T) {
 // m1: a withdrawn module's principal is its own for life: no other module
 // claims it, and no installation is given it.
 func TestATombstonedPrincipalIsNeverClaimed(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	if err := h.svc.WithdrawModule(h.ctx, "store"); err != nil {
 		t.Fatal(err)
@@ -79,6 +81,7 @@ func TestATombstonedPrincipalIsNeverClaimed(t *testing.T) {
 // member is told what is true of them, the same for both; the caller the
 // organization no longer has is answered as an outsider is.
 func TestNoOneButAnAdministratorTellsPresentFromAbsent(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	present, absent := h.inst(acme, "a").ID, authority.StableInstallationID(acme, "never-installed")
 	remi := h.person("remi")
@@ -118,6 +121,7 @@ func (o outage) Read(ctx context.Context, fn func(authority.Tx) error) error {
 // m3: a store failure during issuance is reported as itself, not as a
 // refusal.
 func TestAnIssueReportsAStoreOutage(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "user", "maya")
 	svc, err := authority.New(outage{h.store}, h.cfg)

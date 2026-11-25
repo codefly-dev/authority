@@ -140,6 +140,7 @@ func deskHarness(t *testing.T, literal bool) *harness {
 // The render addresses every grant on another module's kind, so the desk's
 // roles hold literally only the desk's own kind.
 func TestTheRenderedDeskHoldsLiterallyOnlyItsOwnKind(t *testing.T) {
+	t.Parallel()
 	m := desk(t, 1, false)
 	for role, want := range map[string]string{domain.AdminRole: "desk.note:read+write", domain.UserRole: "desk.note:read"} {
 		if got := scopeText(m.Roles[role]); got != want {
@@ -165,6 +166,7 @@ func TestTheRenderedDeskHoldsLiterallyOnlyItsOwnKind(t *testing.T) {
 // naming the binding and the desk's hop, the desk's page, the desk's backend
 // relaying a person's capability, and the installation acting for itself.
 func TestAnAddressedRoleReachesEachCalleeThroughEachBinding(t *testing.T) {
+	t.Parallel()
 	h := deskHarness(t, false)
 	owner := h.principal(acme, "desk")
 	t.Run("a root naming the binding, then the hop", func(t *testing.T) {
@@ -203,6 +205,7 @@ func TestAnAddressedRoleReachesEachCalleeThroughEachBinding(t *testing.T) {
 // on a capability addressed to the desk itself. Rendered as it was before
 // (the grant in the role's scopes), each of those was issued.
 func TestAnAddressedRoleIsRefusedAtASiblingAndAtTheUnitItself(t *testing.T) {
+	t.Parallel()
 	sibling := func(h *harness, person string) map[string]func() (authority.Issued, error) {
 		return map[string]func() (authority.Issued, error){
 			"a root naming the binding, then the hop": func() (authority.Issued, error) { return h.addressed(person, "desk", "vault") },
@@ -275,6 +278,7 @@ func TestAnAddressedRoleIsRefusedAtASiblingAndAtTheUnitItself(t *testing.T) {
 // render was approved) asks for consent, and the addressed role is held
 // meanwhile. Both hold for a consent recorded before reach was kept.
 func TestAnInstallationConsentedOnTheLiteralRenderReconvergesOnTheAddressedOne(t *testing.T) {
+	t.Parallel()
 	for _, legacy := range []bool{false, true} {
 		name := "a consent that kept its reach"
 		if legacy {
@@ -374,6 +378,7 @@ func TestAnInstallationConsentedOnTheLiteralRenderReconvergesOnTheAddressedOne(t
 // callee is the role's reach row at that callee, with the binding's path, the
 // scopes and the operations. The sibling has no row.
 func TestTheReviewedOfferShowsAnAddressedGrantAsTheRolesReachAtItsCallee(t *testing.T) {
+	t.Parallel()
 	h := deskHarness(t, false)
 	offer, err := h.svc.ReviewOffer(h.ctx, h.admin(acme), acme, "desk")
 	if err != nil {

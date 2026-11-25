@@ -11,6 +11,7 @@ import (
 // to carry it: a team created a moment ago has nobody in it yet, and its role
 // is granted before activation hands anyone access.
 func TestARoleIsGrantedToATeamTheDirectoryHolds(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.store.PutTeam(acme, "reviewers") // created inline, no member yet
 	h.store.PutTeam(globex, "auditors")

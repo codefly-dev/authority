@@ -10,6 +10,7 @@ import (
 )
 
 func TestSessionLedgerFailureRefusesIssueVerifyAndChild(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	ledgerWithRoles(t, h, "rob")
 	cfg := h.cfg
@@ -56,6 +57,7 @@ func TestSessionLedgerFailureRefusesIssueVerifyAndChild(t *testing.T) {
 // Hold issuance after its session lookup has observed the live session. Ending
 // the session in that window must fence even a token signed after sign-out.
 func TestSignOutDuringPersonIssuance(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	ledgerWithRoles(t, h, "rob")
 	var ended atomic.Bool

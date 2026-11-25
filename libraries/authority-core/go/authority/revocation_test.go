@@ -9,6 +9,7 @@ import (
 )
 
 func TestAGrantLeavesCapabilitiesValidAndARevokeEndsOnlyItsOwn(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "user", "maya")
 	h.grant("b", "user", "maya")
@@ -47,6 +48,7 @@ func TestAGrantLeavesCapabilitiesValidAndARevokeEndsOnlyItsOwn(t *testing.T) {
 }
 
 func TestATeamGrantIsItsMembersAccess(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grantTeam("a", "user", "team")
 	before := h.must(h.through("tam", "a", "store"))
@@ -68,6 +70,7 @@ func TestATeamGrantIsItsMembersAccess(t *testing.T) {
 }
 
 func TestUninstallDisablesThePrincipalAndClearsGrants(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "user", "maya")
 	h.grant("a", "admin", "ada")
@@ -106,6 +109,7 @@ func TestUninstallDisablesThePrincipalAndClearsGrants(t *testing.T) {
 }
 
 func TestATransferIsAPersonsActOnWhatTheyAdminister(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	u, v := h.principal(acme, "a"), h.principal(acme, "b")
 	h.administrator("ada")

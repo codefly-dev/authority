@@ -16,6 +16,7 @@ func owned(kind, id string) *basev0.WorkContextV1 {
 // agent, and a module's own work, which no installation's consent bounds. A
 // capability owned by any other kind is refused, never passed unbounded.
 func TestTheApprovedReachGateRefusesAnOwnerKindItDoesNotKnow(t *testing.T) {
+	t.Parallel()
 	s, m := &Service{}, domain.Module{Name: "store", Principal: "store"}
 	refusal, err := s.withinApprovedReach(nil, owned("service", "store"), nil, m, "/store.v1.Store/Read")
 	if refusal != nil || err != nil {

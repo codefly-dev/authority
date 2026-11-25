@@ -19,6 +19,7 @@ func (t lookupOutageTx) RoleView(session string) (domain.RoleView, error) {
 // longer has, cannot say the cast still holds, so the check refuses or fails;
 // only a denial used to stop it, and any other error passed the capability.
 func TestACastCapabilityIsNotAdmittedWhenTheCastCannotBeReadAgain(t *testing.T) {
+	t.Parallel()
 	t.Run("the person is gone from the host", func(t *testing.T) {
 		r := newRemoval(t)
 		if err := r.h.check(r.asCast); err != nil {

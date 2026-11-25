@@ -12,6 +12,7 @@ import (
 // and may be granted is read from their membership of the organization the
 // session was opened at, never from another one.
 func TestAPersonOfTwoOrganizationsActsOnlyAsTheMemberOfTheSessions(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	// pat is a member of both: a user of solution a at acme, an admin of
 	// solution b at globex. Each role is held on one organization's

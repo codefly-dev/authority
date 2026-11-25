@@ -46,6 +46,7 @@ func holds(i authority.Issued, kind, action string) bool {
 // proves the session a view is recorded under is recoverable from the
 // capability at the first, second and third hop.
 func TestARoleViewHoldsAtEveryHopWhatTheViewedRolesHold(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "admin", "maya")
 	h.grant("a", "user", "maya")
@@ -92,6 +93,7 @@ func shape(i authority.Issued) string {
 // first hop's delegation, at any depth: a hop reads it back from its parent token,
 // so a view cannot be shed by hopping.
 func TestARoleViewSessionIsCarriedBelowTheFirstHop(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "admin", "maya")
 	h.grant("a", "user", "maya")
@@ -114,6 +116,7 @@ func TestARoleViewSessionIsCarriedBelowTheFirstHop(t *testing.T) {
 // beside it: a delegation names no session, so the grantor is read in full
 // then.
 func TestADelegationMadeUnderARoleViewHoldsWhatTheViewHolds(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "admin", "maya")
 	h.grant("a", "user", "maya")
@@ -147,6 +150,7 @@ func TestADelegationMadeUnderARoleViewHoldsWhatTheViewHolds(t *testing.T) {
 // T1, T2, T5: a view names roles the caller holds on that installation now,
 // through the view they call from, and nothing else.
 func TestARoleViewOnlyNarrows(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "user", "maya")
 	h.grant("b", "admin", "maya")
@@ -209,6 +213,7 @@ func TestARoleViewOnlyNarrows(t *testing.T) {
 // T3, T4: a view is re-intersected with the live grants at every issue, never
 // copied at selection.
 func TestARoleViewDiesWithItsGrant(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grantTeam("b", "user", "team")
 	h.grant("b", "admin", "tam")
@@ -242,6 +247,7 @@ func TestARoleViewDiesWithItsGrant(t *testing.T) {
 // T8, T9, T10, T11, T14: the view is what a person holding only those roles
 // holds, at the root and at a hop; nothing else of theirs changes.
 func TestARoleViewIsWhatTheViewedRolesHold(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "admin", "maya")
 	h.grant("a", "user", "maya")
@@ -293,6 +299,7 @@ func TestARoleViewIsWhatTheViewedRolesHold(t *testing.T) {
 // T15: the navigation under a view lists what the view issues; another session
 // of the person still lists all of theirs.
 func TestTheMenuUnderARoleViewIsWhatItIssues(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "admin", "maya")
 	h.grant("a", "user", "maya")
@@ -331,6 +338,7 @@ func TestTheMenuUnderARoleViewIsWhatItIssues(t *testing.T) {
 
 // T16: a refusal under a view says so, and what to do.
 func TestARoleViewRefusalNamesTheView(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "admin", "maya")
 	h.grant("a", "user", "maya")
@@ -346,6 +354,7 @@ func TestARoleViewRefusalNamesTheView(t *testing.T) {
 // T13: nothing a caller sends picks the view; the record is the session's.
 // A view that belongs to another person is refused, never ignored.
 func TestARoleViewBelongsToItsSession(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "admin", "maya")
 	h.grant("a", "user", "maya")
@@ -360,6 +369,7 @@ func TestARoleViewBelongsToItsSession(t *testing.T) {
 // apply the session's role view. A direct tx.Member in the package, outside
 // view.go, would act as every role the person holds.
 func TestEveryActingPersonIsReadThroughTheirView(t *testing.T) {
+	t.Parallel()
 	fset := token.NewFileSet()
 	pkgs, err := parser.ParseDir(fset, ".", func(fi fs.FileInfo) bool { return !strings.HasSuffix(fi.Name(), "_test.go") }, 0)
 	if err != nil {
@@ -393,6 +403,7 @@ func (h *harness) hopOf(parent authority.Issued, module, binding string) (author
 // administration, granting a role to themselves), so a pass through the view
 // proved nothing about what a user sees.
 func TestARoleViewHoldsNoOrganizationRole(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "user", "alex") // alex is an organization administrator who also holds user
 

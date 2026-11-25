@@ -9,6 +9,7 @@ import (
 // RevokeRole is idempotent, so its success is no proof a grant was removed:
 // RevokeRoleReporting says whether one was.
 func TestRevokingARoleReportsWhetherAGrantWasRemoved(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	r := authority.RoleRequest{Organization: acme, InstallationID: h.inst(acme, "a").ID, Role: "user", PersonID: "maya"}
 	revoke := func() bool {

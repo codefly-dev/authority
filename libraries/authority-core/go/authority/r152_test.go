@@ -11,6 +11,7 @@ import (
 )
 
 func TestWithdrawnModuleCannotBeUninstalledByAPerson(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	id := h.inst(acme, "store").ID
 	if err := h.svc.WithdrawModule(h.ctx, "store"); err != nil {
@@ -27,6 +28,7 @@ func TestWithdrawnModuleCannotBeUninstalledByAPerson(t *testing.T) {
 // installation of their organization and for an absent one: what is true of
 // them, never that the installation is another organization's.
 func TestRolelessMemberGetsOneTrueAnswerFromEveryRoleCall(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	for _, id := range []string{h.inst(acme, "a").ID, authority.StableInstallationID(acme, "absent")} {
 		r := authority.RoleRequest{Organization: acme, InstallationID: id, Role: "user", PersonID: "maya"}
@@ -43,6 +45,7 @@ func TestRolelessMemberGetsOneTrueAnswerFromEveryRoleCall(t *testing.T) {
 }
 
 func TestMissingCallerCannotSelectHostPower(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	before := h.inst(acme, "store")
 	code(t, h.svc.Uninstall(h.ctx, authority.Person{}, acme, before.ID), domain.Denied)
@@ -109,6 +112,7 @@ func (t lifecycleOutageTx) ModuleNamed(name string) (domain.Module, error) {
 }
 
 func TestLifecycleStoreFailuresAreReturnedWithoutMutation(t *testing.T) {
+	t.Parallel()
 	for _, fail := range []string{"person", "installation", "module"} {
 		t.Run(fail, func(t *testing.T) {
 			h := newHarness(t)

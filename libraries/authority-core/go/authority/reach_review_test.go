@@ -38,6 +38,7 @@ func widenDownstream(t *testing.T, h *harness) {
 // the agent's call to the relaxed method and its hop onward are refused;
 // once approved, both are admitted.
 func TestTheInstallationsAgentIsHeldToTheApprovedReach(t *testing.T) {
+	t.Parallel()
 	h := reachHarness(t)
 	widenDownstream(h.t, h)
 	inst := h.stored(acme, "a")
@@ -79,6 +80,7 @@ func (h *harness) legacy(target string) {
 // widening is then measured against it, offered as an upgrade, and refused
 // until approved.
 func TestALegacyConsentAdoptsItsReachOnce(t *testing.T) {
+	t.Parallel()
 	h := reachHarness(t)
 	h.legacy("a")
 	if up, err := h.svc.UpgradeAvailable(h.ctx, h.stored(acme, "a")); err != nil || up {
@@ -119,6 +121,7 @@ func TestALegacyConsentAdoptsItsReachOnce(t *testing.T) {
 // the store serving write only after a's consent, maya's delegation to a
 // issues read through it, never write, until an administrator approves.
 func TestADelegationThroughASolutionIsHeldToTheApprovedReach(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	readOnly := storeAt(2, "admin", true)
 	readOnly.ResourceKinds = []*basev0.WorkScopeV1{sc(kind, "read")}
@@ -156,6 +159,7 @@ func TestADelegationThroughASolutionIsHeldToTheApprovedReach(t *testing.T) {
 // its module acting for nobody: through a headless-only binding, rob's hop
 // from the ledger is refused by name.
 func TestAHeadlessHopForAPersonIsRefused(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	// rob is a user of the ledger's page, whose role reads the legacy store.
 	m := ledger()
@@ -176,6 +180,7 @@ func TestAHeadlessHopForAPersonIsRefused(t *testing.T) {
 // with the withdrawal, so a redelivery cannot give a grant a meaning nobody
 // approved (delivery_widening_test.go proves the widening it prevents).
 func TestAModuleDeliveredAgainAfterAWithdrawalHoldsNoGrants(t *testing.T) {
+	t.Parallel()
 	h := newHostInstalled(t)
 	h.store.PutPerson(domain.Person{ID: "maya", Organization: acme})
 	if _, err := h.svc.ApplyModule(h.ctx, pageModule(1, true)); err != nil {
@@ -295,6 +300,7 @@ func fmtMethod(module string, n int) string {
 // a delegation to the solution; the installation's agent, from its root.
 // Hops invoke or look up. Seeded, so deterministic.
 func TestTheRuntimeNeverAdmitsBeyondReach(t *testing.T) {
+	t.Parallel()
 	for seed := int64(0); seed < 120; seed++ {
 		// Each seed is a composition of its own on two hosts of its own, so
 		// the seeds run beside one another.
@@ -303,7 +309,11 @@ func TestTheRuntimeNeverAdmitsBeyondReach(t *testing.T) {
 			r := rand.New(rand.NewSource(seed))
 			modules := soundComposition(r)
 			build := func(consented bool) (*harness, domain.Installation) {
-				h := newHarness(t)
+				// The composition under test is the whole composition: the
+				// fixture's own modules reach none of it and are reached by
+				// none of it, and delivering beside them only re-derives their
+				// installations' reach at every delivery.
+				h := bareHarness(t)
 				for _, m := range append(slices.Clone(modules[1:]), modules[0]) {
 					if _, err := h.svc.ApplyModule(h.ctx, m); err != nil {
 						t.Fatalf("seed %d: %v", seed, err)
@@ -474,6 +484,7 @@ func sameScopes(a, b []*basev0.WorkScopeV1) bool {
 // admin (write, no admin), through a, is admitted on the Connect face and
 // refused on the gRPC one by the store's own policy, never by the cap.
 func TestEachFaceOfAnOperationIsHeldToItsOwnApprovedPolicy(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	store := storeAt(2, "admin", true)
 	store.Methods["POST "+storePurge] = domain.MethodPolicy{Requires: []*basev0.WorkScopeV1{sc(kind, "write")}}
@@ -495,6 +506,7 @@ func TestEachFaceOfAnOperationIsHeldToItsOwnApprovedPolicy(t *testing.T) {
 // its holders refused by name; another legacy consent is adopted; a delivery
 // of an unrelated module and a host's start both succeed.
 func TestALegacyConsentWhoseApprovedGenerationIsNotKeptNeverRefusesADelivery(t *testing.T) {
+	t.Parallel()
 	h := newHarness(t)
 	h.grant("a", "user", "maya")
 	widened := solution("a", true).Roles
@@ -542,6 +554,7 @@ func TestALegacyConsentWhoseApprovedGenerationIsNotKeptNeverRefusesADelivery(t *
 // A widening is journaled once: two unrelated deliveries after it, which
 // change nothing a's roles reach, journal nothing for a's installation.
 func TestAWideningIsJournaledOnce(t *testing.T) {
+	t.Parallel()
 	h := reachHarness(t)
 	offered := 0
 	cfg := h.cfg
