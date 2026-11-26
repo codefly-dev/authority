@@ -25,7 +25,7 @@ modules:
     - name: records
       source: obin-ai/module-record-store
       module: modules/record-store
-      version: b5b101b999c9afa847e30b3d04cf8b1c4f671d35
+      version: 37f363a15fe259063d9f54b6d3ae1261e9fecf8c
     # The directory's module page, the first page run against the authority:
     # a role-gated target (a page declaring its own roles), so this run
     # seats the fixture's teams on it and proves "act as this team" here.
