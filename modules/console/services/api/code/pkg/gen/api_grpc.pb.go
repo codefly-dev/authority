@@ -20,8 +20,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ApiService_Version_FullMethodName = "/api.ApiService/Version"
-	ApiService_WhoAmI_FullMethodName  = "/api.ApiService/WhoAmI"
+	ApiService_Version_FullMethodName = "/console.api.v1.ApiService/Version"
+	ApiService_WhoAmI_FullMethodName  = "/console.api.v1.ApiService/WhoAmI"
 )
 
 // ApiServiceClient is the client API for ApiService service.
@@ -149,7 +149,7 @@ func _ApiService_WhoAmI_Handler(srv interface{}, ctx context.Context, dec func(i
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var ApiService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "api.ApiService",
+	ServiceName: "console.api.v1.ApiService",
 	HandlerType: (*ApiServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

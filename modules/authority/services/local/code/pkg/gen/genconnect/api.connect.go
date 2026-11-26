@@ -23,7 +23,7 @@ const _ = connect.IsAtLeastVersion1_13_0
 
 const (
 	// LocalServiceName is the fully-qualified name of the LocalService service.
-	LocalServiceName = "api.LocalService"
+	LocalServiceName = "authority.local.v1.LocalService"
 )
 
 // These constants are the fully-qualified names of the RPCs defined in this package. They're
@@ -35,18 +35,18 @@ const (
 // period.
 const (
 	// LocalServiceVersionProcedure is the fully-qualified name of the LocalService's Version RPC.
-	LocalServiceVersionProcedure = "/api.LocalService/Version"
+	LocalServiceVersionProcedure = "/authority.local.v1.LocalService/Version"
 )
 
-// LocalServiceClient is a client for the api.LocalService service.
+// LocalServiceClient is a client for the authority.local.v1.LocalService service.
 type LocalServiceClient interface {
 	Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error)
 }
 
-// NewLocalServiceClient constructs a client for the api.LocalService service. By default, it uses
-// the Connect protocol with the binary Protobuf Codec, asks for gzipped responses, and sends
-// uncompressed requests. To use the gRPC or gRPC-Web protocols, supply the connect.WithGRPC() or
-// connect.WithGRPCWeb() options.
+// NewLocalServiceClient constructs a client for the authority.local.v1.LocalService service. By
+// default, it uses the Connect protocol with the binary Protobuf Codec, asks for gzipped responses,
+// and sends uncompressed requests. To use the gRPC or gRPC-Web protocols, supply the
+// connect.WithGRPC() or connect.WithGRPCWeb() options.
 //
 // The URL supplied here should be the base URL for the Connect or gRPC server (for example,
 // http://api.acme.com or https://acme.com/grpc).
@@ -68,12 +68,12 @@ type localServiceClient struct {
 	version *connect.Client[gen.VersionRequest, gen.VersionResponse]
 }
 
-// Version calls api.LocalService.Version.
+// Version calls authority.local.v1.LocalService.Version.
 func (c *localServiceClient) Version(ctx context.Context, req *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error) {
 	return c.version.CallUnary(ctx, req)
 }
 
-// LocalServiceHandler is an implementation of the api.LocalService service.
+// LocalServiceHandler is an implementation of the authority.local.v1.LocalService service.
 type LocalServiceHandler interface {
 	Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error)
 }
@@ -91,7 +91,7 @@ func NewLocalServiceHandler(svc LocalServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(localServiceMethods.ByName("Version")),
 		connect.WithHandlerOptions(opts...),
 	)
-	return "/api.LocalService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return "/authority.local.v1.LocalService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case LocalServiceVersionProcedure:
 			localServiceVersionHandler.ServeHTTP(w, r)
@@ -105,5 +105,5 @@ func NewLocalServiceHandler(svc LocalServiceHandler, opts ...connect.HandlerOpti
 type UnimplementedLocalServiceHandler struct{}
 
 func (UnimplementedLocalServiceHandler) Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.LocalService.Version is not implemented"))
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("authority.local.v1.LocalService.Version is not implemented"))
 }

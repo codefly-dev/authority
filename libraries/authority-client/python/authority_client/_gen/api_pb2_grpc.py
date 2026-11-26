@@ -35,7 +35,7 @@ class LocalServiceStub(object):
             channel: A grpc.Channel.
         """
         self.Version = channel.unary_unary(
-                '/api.LocalService/Version',
+                '/authority.local.v1.LocalService/Version',
                 request_serializer=api__pb2.VersionRequest.SerializeToString,
                 response_deserializer=api__pb2.VersionResponse.FromString,
                 _registered_method=True)
@@ -60,9 +60,9 @@ def add_LocalServiceServicer_to_server(servicer, server):
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'api.LocalService', rpc_method_handlers)
+            'authority.local.v1.LocalService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('api.LocalService', rpc_method_handlers)
+    server.add_registered_method_handlers('authority.local.v1.LocalService', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
@@ -83,7 +83,7 @@ class LocalService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/api.LocalService/Version',
+            '/authority.local.v1.LocalService/Version',
             api__pb2.VersionRequest.SerializeToString,
             api__pb2.VersionResponse.FromString,
             options,

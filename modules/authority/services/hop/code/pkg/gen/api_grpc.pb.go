@@ -20,7 +20,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	HopService_Version_FullMethodName = "/api.HopService/Version"
+	HopService_Version_FullMethodName = "/authority.hop.v1.HopService/Version"
 )
 
 // HopServiceClient is the client API for HopService service.
@@ -113,7 +113,7 @@ func _HopService_Version_Handler(srv interface{}, ctx context.Context, dec func(
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var HopService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "api.HopService",
+	ServiceName: "authority.hop.v1.HopService",
 	HandlerType: (*HopServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

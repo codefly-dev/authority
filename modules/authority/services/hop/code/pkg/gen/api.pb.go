@@ -108,13 +108,13 @@ var File_api_proto protoreflect.FileDescriptor
 
 const file_api_proto_rawDesc = "" +
 	"\n" +
-	"\tapi.proto\x12\x03api\x1a\x1dauthority/hop/v1/policy.proto\x1a\x1cgoogle/api/annotations.proto\"\x10\n" +
+	"\tapi.proto\x12\x10authority.hop.v1\x1a\x1dauthority/hop/v1/policy.proto\x1a\x1cgoogle/api/annotations.proto\"\x10\n" +
 	"\x0eVersionRequest\"+\n" +
 	"\x0fVersionResponse\x12\x18\n" +
-	"\aversion\x18\x01 \x01(\tR\aversion2Z\n" +
+	"\aversion\x18\x01 \x01(\tR\aversion2t\n" +
 	"\n" +
-	"HopService\x12L\n" +
-	"\aVersion\x12\x13.api.VersionRequest\x1a\x14.api.VersionResponse\"\x16\xe2\xf9\x18\x02\x10\x01\x82\xd3\xe4\x93\x02\n" +
+	"HopService\x12f\n" +
+	"\aVersion\x12 .authority.hop.v1.VersionRequest\x1a!.authority.hop.v1.VersionResponse\"\x16\xe2\xf9\x18\x02\x10\x01\x82\xd3\xe4\x93\x02\n" +
 	"\x12\b/versionB\x11Z\x0fhop/pkg/gen;genb\x06proto3"
 
 var (
@@ -131,12 +131,12 @@ func file_api_proto_rawDescGZIP() []byte {
 
 var file_api_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_api_proto_goTypes = []any{
-	(*VersionRequest)(nil),  // 0: api.VersionRequest
-	(*VersionResponse)(nil), // 1: api.VersionResponse
+	(*VersionRequest)(nil),  // 0: authority.hop.v1.VersionRequest
+	(*VersionResponse)(nil), // 1: authority.hop.v1.VersionResponse
 }
 var file_api_proto_depIdxs = []int32{
-	0, // 0: api.HopService.Version:input_type -> api.VersionRequest
-	1, // 1: api.HopService.Version:output_type -> api.VersionResponse
+	0, // 0: authority.hop.v1.HopService.Version:input_type -> authority.hop.v1.VersionRequest
+	1, // 1: authority.hop.v1.HopService.Version:output_type -> authority.hop.v1.VersionResponse
 	1, // [1:2] is the sub-list for method output_type
 	0, // [0:1] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name

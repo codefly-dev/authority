@@ -2,9 +2,9 @@
   "grpc": [
     {
       "name": "LocalService",
-      "fullName": "api.LocalService",
+      "fullName": "authority.local.v1.LocalService",
       "procedures": [
-        "/api.LocalService/Version"
+        "/authority.local.v1.LocalService/Version"
       ]
     },
     {

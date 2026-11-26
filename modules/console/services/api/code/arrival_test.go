@@ -25,7 +25,7 @@ import (
 	gen "api/pkg/gen"
 )
 
-const versionMethod = "/api.ApiService/Version"
+const versionMethod = "/console.api.v1.ApiService/Version"
 
 // counting is the console's API with its handler runs counted.
 type counting struct {

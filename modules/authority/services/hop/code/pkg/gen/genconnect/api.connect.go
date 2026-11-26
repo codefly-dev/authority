@@ -23,7 +23,7 @@ const _ = connect.IsAtLeastVersion1_13_0
 
 const (
 	// HopServiceName is the fully-qualified name of the HopService service.
-	HopServiceName = "api.HopService"
+	HopServiceName = "authority.hop.v1.HopService"
 )
 
 // These constants are the fully-qualified names of the RPCs defined in this package. They're
@@ -35,20 +35,20 @@ const (
 // period.
 const (
 	// HopServiceVersionProcedure is the fully-qualified name of the HopService's Version RPC.
-	HopServiceVersionProcedure = "/api.HopService/Version"
+	HopServiceVersionProcedure = "/authority.hop.v1.HopService/Version"
 )
 
-// HopServiceClient is a client for the api.HopService service.
+// HopServiceClient is a client for the authority.hop.v1.HopService service.
 type HopServiceClient interface {
 	// Version is the hop's own method. A caller the authority checked may read
 	// it; the hop serves it without a scope, as the console serves its Version.
 	Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error)
 }
 
-// NewHopServiceClient constructs a client for the api.HopService service. By default, it uses the
-// Connect protocol with the binary Protobuf Codec, asks for gzipped responses, and sends
-// uncompressed requests. To use the gRPC or gRPC-Web protocols, supply the connect.WithGRPC() or
-// connect.WithGRPCWeb() options.
+// NewHopServiceClient constructs a client for the authority.hop.v1.HopService service. By default,
+// it uses the Connect protocol with the binary Protobuf Codec, asks for gzipped responses, and
+// sends uncompressed requests. To use the gRPC or gRPC-Web protocols, supply the connect.WithGRPC()
+// or connect.WithGRPCWeb() options.
 //
 // The URL supplied here should be the base URL for the Connect or gRPC server (for example,
 // http://api.acme.com or https://acme.com/grpc).
@@ -70,12 +70,12 @@ type hopServiceClient struct {
 	version *connect.Client[gen.VersionRequest, gen.VersionResponse]
 }
 
-// Version calls api.HopService.Version.
+// Version calls authority.hop.v1.HopService.Version.
 func (c *hopServiceClient) Version(ctx context.Context, req *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error) {
 	return c.version.CallUnary(ctx, req)
 }
 
-// HopServiceHandler is an implementation of the api.HopService service.
+// HopServiceHandler is an implementation of the authority.hop.v1.HopService service.
 type HopServiceHandler interface {
 	// Version is the hop's own method. A caller the authority checked may read
 	// it; the hop serves it without a scope, as the console serves its Version.
@@ -95,7 +95,7 @@ func NewHopServiceHandler(svc HopServiceHandler, opts ...connect.HandlerOption) 
 		connect.WithSchema(hopServiceMethods.ByName("Version")),
 		connect.WithHandlerOptions(opts...),
 	)
-	return "/api.HopService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return "/authority.hop.v1.HopService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case HopServiceVersionProcedure:
 			hopServiceVersionHandler.ServeHTTP(w, r)
@@ -109,5 +109,5 @@ func NewHopServiceHandler(svc HopServiceHandler, opts ...connect.HandlerOption) 
 type UnimplementedHopServiceHandler struct{}
 
 func (UnimplementedHopServiceHandler) Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.HopService.Version is not implemented"))
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("authority.hop.v1.HopService.Version is not implemented"))
 }

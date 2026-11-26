@@ -10,13 +10,13 @@
       "kind": "protobuf",
       "package": "",
       "path": "contract.binpb",
-      "digest": "sha256:8f5d2f0e0d101bbadce55f55085ad076da9680e0a56e9f06ac47a98588180937",
+      "digest": "sha256:77cd6b833e61327f721623d20d8a4873b1560bb4de27616763aca8da415ef896",
       "services": [
         {
           "name": "LocalService",
-          "fullName": "api.LocalService",
+          "fullName": "authority.local.v1.LocalService",
           "procedures": [
-            "/api.LocalService/Version"
+            "/authority.local.v1.LocalService/Version"
           ]
         },
         {

@@ -92,7 +92,7 @@ func TestRefusals(t *testing.T) {
 				}
 				redigest(t, dir, contract, unmarked)
 			},
-			want: "hop: /api.HopService/Version",
+			want: "hop: /authority.hop.v1.HopService/Version",
 		},
 		"a route no proto method binds, unmarked": {
 			mutate: func(t *testing.T, dir string) {

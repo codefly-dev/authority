@@ -23,7 +23,7 @@ const _ = connect.IsAtLeastVersion1_13_0
 
 const (
 	// ApiServiceName is the fully-qualified name of the ApiService service.
-	ApiServiceName = "api.ApiService"
+	ApiServiceName = "console.api.v1.ApiService"
 )
 
 // These constants are the fully-qualified names of the RPCs defined in this package. They're
@@ -35,12 +35,12 @@ const (
 // period.
 const (
 	// ApiServiceVersionProcedure is the fully-qualified name of the ApiService's Version RPC.
-	ApiServiceVersionProcedure = "/api.ApiService/Version"
+	ApiServiceVersionProcedure = "/console.api.v1.ApiService/Version"
 	// ApiServiceWhoAmIProcedure is the fully-qualified name of the ApiService's WhoAmI RPC.
-	ApiServiceWhoAmIProcedure = "/api.ApiService/WhoAmI"
+	ApiServiceWhoAmIProcedure = "/console.api.v1.ApiService/WhoAmI"
 )
 
-// ApiServiceClient is a client for the api.ApiService service.
+// ApiServiceClient is a client for the console.api.v1.ApiService service.
 type ApiServiceClient interface {
 	Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error)
 	// WhoAmI answers who the call is for. A call that did not come through the
@@ -49,8 +49,8 @@ type ApiServiceClient interface {
 	WhoAmI(context.Context, *connect.Request[gen.WhoAmIRequest]) (*connect.Response[gen.WhoAmIResponse], error)
 }
 
-// NewApiServiceClient constructs a client for the api.ApiService service. By default, it uses the
-// Connect protocol with the binary Protobuf Codec, asks for gzipped responses, and sends
+// NewApiServiceClient constructs a client for the console.api.v1.ApiService service. By default, it
+// uses the Connect protocol with the binary Protobuf Codec, asks for gzipped responses, and sends
 // uncompressed requests. To use the gRPC or gRPC-Web protocols, supply the connect.WithGRPC() or
 // connect.WithGRPCWeb() options.
 //
@@ -81,17 +81,17 @@ type apiServiceClient struct {
 	whoAmI  *connect.Client[gen.WhoAmIRequest, gen.WhoAmIResponse]
 }
 
-// Version calls api.ApiService.Version.
+// Version calls console.api.v1.ApiService.Version.
 func (c *apiServiceClient) Version(ctx context.Context, req *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error) {
 	return c.version.CallUnary(ctx, req)
 }
 
-// WhoAmI calls api.ApiService.WhoAmI.
+// WhoAmI calls console.api.v1.ApiService.WhoAmI.
 func (c *apiServiceClient) WhoAmI(ctx context.Context, req *connect.Request[gen.WhoAmIRequest]) (*connect.Response[gen.WhoAmIResponse], error) {
 	return c.whoAmI.CallUnary(ctx, req)
 }
 
-// ApiServiceHandler is an implementation of the api.ApiService service.
+// ApiServiceHandler is an implementation of the console.api.v1.ApiService service.
 type ApiServiceHandler interface {
 	Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error)
 	// WhoAmI answers who the call is for. A call that did not come through the
@@ -119,7 +119,7 @@ func NewApiServiceHandler(svc ApiServiceHandler, opts ...connect.HandlerOption) 
 		connect.WithSchema(apiServiceMethods.ByName("WhoAmI")),
 		connect.WithHandlerOptions(opts...),
 	)
-	return "/api.ApiService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return "/console.api.v1.ApiService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ApiServiceVersionProcedure:
 			apiServiceVersionHandler.ServeHTTP(w, r)
@@ -135,9 +135,9 @@ func NewApiServiceHandler(svc ApiServiceHandler, opts ...connect.HandlerOption) 
 type UnimplementedApiServiceHandler struct{}
 
 func (UnimplementedApiServiceHandler) Version(context.Context, *connect.Request[gen.VersionRequest]) (*connect.Response[gen.VersionResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.ApiService.Version is not implemented"))
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("console.api.v1.ApiService.Version is not implemented"))
 }
 
 func (UnimplementedApiServiceHandler) WhoAmI(context.Context, *connect.Request[gen.WhoAmIRequest]) (*connect.Response[gen.WhoAmIResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("api.ApiService.WhoAmI is not implemented"))
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("console.api.v1.ApiService.WhoAmI is not implemented"))
 }

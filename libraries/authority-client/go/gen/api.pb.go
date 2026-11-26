@@ -4,7 +4,7 @@
 // 	protoc        (unknown)
 // source: api.proto
 
-package api
+package localv1
 
 import (
 	reflect "reflect"
@@ -107,14 +107,14 @@ var File_api_proto protoreflect.FileDescriptor
 
 const file_api_proto_rawDesc = "" +
 	"\n" +
-	"\tapi.proto\x12\x03api\x1a\x1cgoogle/api/annotations.proto\"\x10\n" +
+	"\tapi.proto\x12\x12authority.local.v1\x1a\x1cgoogle/api/annotations.proto\"\x10\n" +
 	"\x0eVersionRequest\"+\n" +
 	"\x0fVersionResponse\x12\x18\n" +
-	"\aversion\x18\x01 \x01(\tR\aversion2V\n" +
-	"\fLocalService\x12F\n" +
-	"\aVersion\x12\x13.api.VersionRequest\x1a\x14.api.VersionResponse\"\x10\x82\xd3\xe4\x93\x02\n" +
-	"\x12\b/versionBs\n" +
-	"\acom.apiB\bApiProtoP\x01Z2github.com/codefly-dev/cli/pkg/builder/clients/api\xa2\x02\x03AXX\xaa\x02\x03Api\xca\x02\x03Api\xe2\x02\x0fApi\\GPBMetadata\xea\x02\x03Apib\x06proto3"
+	"\aversion\x18\x01 \x01(\tR\aversion2t\n" +
+	"\fLocalService\x12d\n" +
+	"\aVersion\x12\".authority.local.v1.VersionRequest\x1a#.authority.local.v1.VersionResponse\"\x10\x82\xd3\xe4\x93\x02\n" +
+	"\x12\b/versionB\xc8\x01\n" +
+	"\x16com.authority.local.v1B\bApiProtoP\x01Z:github.com/codefly-dev/cli/pkg/builder/clients/api;localv1\xa2\x02\x03ALX\xaa\x02\x12Authority.Local.V1\xca\x02\x12Authority\\Local\\V1\xe2\x02\x1eAuthority\\Local\\V1\\GPBMetadata\xea\x02\x14Authority::Local::V1b\x06proto3"
 
 var (
 	file_api_proto_rawDescOnce sync.Once
@@ -130,12 +130,12 @@ func file_api_proto_rawDescGZIP() []byte {
 
 var file_api_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_api_proto_goTypes = []any{
-	(*VersionRequest)(nil),  // 0: api.VersionRequest
-	(*VersionResponse)(nil), // 1: api.VersionResponse
+	(*VersionRequest)(nil),  // 0: authority.local.v1.VersionRequest
+	(*VersionResponse)(nil), // 1: authority.local.v1.VersionResponse
 }
 var file_api_proto_depIdxs = []int32{
-	0, // 0: api.LocalService.Version:input_type -> api.VersionRequest
-	1, // 1: api.LocalService.Version:output_type -> api.VersionResponse
+	0, // 0: authority.local.v1.LocalService.Version:input_type -> authority.local.v1.VersionRequest
+	1, // 1: authority.local.v1.LocalService.Version:output_type -> authority.local.v1.VersionResponse
 	1, // [1:2] is the sub-list for method output_type
 	0, // [0:1] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name

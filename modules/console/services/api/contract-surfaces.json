@@ -2,20 +2,20 @@
   "connect": [
     {
       "name": "ApiService",
-      "fullName": "api.ApiService",
+      "fullName": "console.api.v1.ApiService",
       "procedures": [
-        "/api.ApiService/Version",
-        "/api.ApiService/WhoAmI"
+        "/console.api.v1.ApiService/Version",
+        "/console.api.v1.ApiService/WhoAmI"
       ]
     }
   ],
   "grpc": [
     {
       "name": "ApiService",
-      "fullName": "api.ApiService",
+      "fullName": "console.api.v1.ApiService",
       "procedures": [
-        "/api.ApiService/Version",
-        "/api.ApiService/WhoAmI"
+        "/console.api.v1.ApiService/Version",
+        "/console.api.v1.ApiService/WhoAmI"
       ]
     }
   ]

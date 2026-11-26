@@ -4,7 +4,7 @@
 // - protoc             (unknown)
 // source: api.proto
 
-package api
+package localv1
 
 import (
 	context "context"
@@ -20,7 +20,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	LocalService_Version_FullMethodName = "/api.LocalService/Version"
+	LocalService_Version_FullMethodName = "/authority.local.v1.LocalService/Version"
 )
 
 // LocalServiceClient is the client API for LocalService service.
@@ -109,7 +109,7 @@ func _LocalService_Version_Handler(srv interface{}, ctx context.Context, dec fun
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var LocalService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "api.LocalService",
+	ServiceName: "authority.local.v1.LocalService",
 	HandlerType: (*LocalServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

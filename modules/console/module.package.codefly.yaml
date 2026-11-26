@@ -5,7 +5,7 @@ schema: codefly/module-package/v1
 kind: module-package
 id: codefly/console
 version: 0.1.0
-minimum-codefly-version: ">=0.3.32 <1.0.0"
+minimum-codefly-version: ">=0.1.261-0 <1.0.0"
 artifact-roots:
   - contracts
   - services
@@ -15,13 +15,13 @@ services:
     api-contracts:
       - endpoint: grpc
         kind: protobuf
-        package: api
+        package: console.api.v1
         path: contracts/api/api/grpc/contract.binpb
-        digest: sha256:2ff3a330f0d092c04010c80c7190faf517fbb03c14a2dcaf7d4487dd19242996
+        digest: sha256:bbba08bd9842456ab2095c64351363520d91c294337e19486e12d0a23fd8ee54
       - endpoint: connect
         kind: protobuf
-        package: api
+        package: console.api.v1
         path: contracts/api/api/connect/contract.binpb
-        digest: sha256:2ff3a330f0d092c04010c80c7190faf517fbb03c14a2dcaf7d4487dd19242996
+        digest: sha256:bbba08bd9842456ab2095c64351363520d91c294337e19486e12d0a23fd8ee54
 contracts:
   composition: ">=1.0.0 <2.0.0"

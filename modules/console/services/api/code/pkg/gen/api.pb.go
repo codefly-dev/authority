@@ -229,7 +229,7 @@ var File_api_proto protoreflect.FileDescriptor
 
 const file_api_proto_rawDesc = "" +
 	"\n" +
-	"\tapi.proto\x12\x03api\x1a\x1dauthority/hop/v1/policy.proto\x1a\x1cgoogle/api/annotations.proto\"\x10\n" +
+	"\tapi.proto\x12\x0econsole.api.v1\x1a\x1dauthority/hop/v1/policy.proto\x1a\x1cgoogle/api/annotations.proto\"\x10\n" +
 	"\x0eVersionRequest\"+\n" +
 	"\x0fVersionResponse\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\tR\aversion\"\x0f\n" +
@@ -240,12 +240,12 @@ const file_api_proto_rawDesc = "" +
 	"owner_kind\x18\x02 \x01(\tR\townerKind\x12\x16\n" +
 	"\x06tenant\x18\x03 \x01(\tR\x06tenant\x12\x16\n" +
 	"\x06actors\x18\x04 \x03(\tR\x06actors\x12\x16\n" +
-	"\x06scopes\x18\x05 \x03(\tR\x06scopes2\xbc\x01\n" +
+	"\x06scopes\x18\x05 \x03(\tR\x06scopes2\xe8\x01\n" +
 	"\n" +
-	"ApiService\x12L\n" +
-	"\aVersion\x12\x13.api.VersionRequest\x1a\x14.api.VersionResponse\"\x16\xe2\xf9\x18\x02\x10\x01\x82\xd3\xe4\x93\x02\n" +
-	"\x12\b/version\x12`\n" +
-	"\x06WhoAmI\x12\x12.api.WhoAmIRequest\x1a\x13.api.WhoAmIResponse\"-\xe2\xf9\x18\x1a\n" +
+	"ApiService\x12b\n" +
+	"\aVersion\x12\x1e.console.api.v1.VersionRequest\x1a\x1f.console.api.v1.VersionResponse\"\x16\xe2\xf9\x18\x02\x10\x01\x82\xd3\xe4\x93\x02\n" +
+	"\x12\b/version\x12v\n" +
+	"\x06WhoAmI\x12\x1d.console.api.v1.WhoAmIRequest\x1a\x1e.console.api.v1.WhoAmIResponse\"-\xe2\xf9\x18\x1a\n" +
 	"\x18\n" +
 	"\x10console.identity\x12\x04read\x82\xd3\xe4\x93\x02\t\x12\a/whoamiB\x11Z\x0fapi/pkg/gen;genb\x06proto3"
 
@@ -263,16 +263,16 @@ func file_api_proto_rawDescGZIP() []byte {
 
 var file_api_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_api_proto_goTypes = []any{
-	(*VersionRequest)(nil),  // 0: api.VersionRequest
-	(*VersionResponse)(nil), // 1: api.VersionResponse
-	(*WhoAmIRequest)(nil),   // 2: api.WhoAmIRequest
-	(*WhoAmIResponse)(nil),  // 3: api.WhoAmIResponse
+	(*VersionRequest)(nil),  // 0: console.api.v1.VersionRequest
+	(*VersionResponse)(nil), // 1: console.api.v1.VersionResponse
+	(*WhoAmIRequest)(nil),   // 2: console.api.v1.WhoAmIRequest
+	(*WhoAmIResponse)(nil),  // 3: console.api.v1.WhoAmIResponse
 }
 var file_api_proto_depIdxs = []int32{
-	0, // 0: api.ApiService.Version:input_type -> api.VersionRequest
-	2, // 1: api.ApiService.WhoAmI:input_type -> api.WhoAmIRequest
-	1, // 2: api.ApiService.Version:output_type -> api.VersionResponse
-	3, // 3: api.ApiService.WhoAmI:output_type -> api.WhoAmIResponse
+	0, // 0: console.api.v1.ApiService.Version:input_type -> console.api.v1.VersionRequest
+	2, // 1: console.api.v1.ApiService.WhoAmI:input_type -> console.api.v1.WhoAmIRequest
+	1, // 2: console.api.v1.ApiService.Version:output_type -> console.api.v1.VersionResponse
+	3, // 3: console.api.v1.ApiService.WhoAmI:output_type -> console.api.v1.WhoAmIResponse
 	2, // [2:4] is the sub-list for method output_type
 	0, // [0:2] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name

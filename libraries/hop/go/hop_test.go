@@ -117,10 +117,10 @@ func TestTheInterceptorRefusesByNameAndLetsHealthThrough(t *testing.T) {
 	call := func(md metadata.MD, method string) (any, error) {
 		return intercept(metadata.NewIncomingContext(context.Background(), md), nil, &grpc.UnaryServerInfo{FullMethod: method}, handler)
 	}
-	if _, err := call(metadata.MD{}, "/api.ApiService/WhoAmI"); status.Code(err) != codes.Unauthenticated || !strings.Contains(err.Error(), "proof") {
+	if _, err := call(metadata.MD{}, "/console.api.v1.ApiService/WhoAmI"); status.Code(err) != codes.Unauthenticated || !strings.Contains(err.Error(), "proof") {
 		t.Fatalf("no stamp: %v", err)
 	}
-	if got, err := call(hoptest.Forward(t, a.Issue(t, "console", read), proof, "/api.ApiService/WhoAmI"), "/api.ApiService/WhoAmI"); err != nil || got != "principal-owner" {
+	if got, err := call(hoptest.Forward(t, a.Issue(t, "console", read), proof, "/console.api.v1.ApiService/WhoAmI"), "/console.api.v1.ApiService/WhoAmI"); err != nil || got != "principal-owner" {
 		t.Fatalf("forwarded: %v %v", got, err)
 	}
 	if _, err := call(metadata.MD{}, "/grpc.health.v1.Health/Check"); err != nil {

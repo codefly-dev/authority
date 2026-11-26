@@ -28,9 +28,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        apiVersionResponse: {
-            version?: string;
-        };
         protobufAny: {
             "@type"?: string;
         } & {
@@ -41,6 +38,9 @@ export interface components {
             code?: number;
             message?: string;
             details?: components["schemas"]["protobufAny"][];
+        };
+        v1VersionResponse: {
+            version?: string;
         };
     };
     responses: never;
@@ -66,7 +66,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["apiVersionResponse"];
+                    "application/json": components["schemas"]["v1VersionResponse"];
                 };
             };
             /** @description An unexpected error response. */

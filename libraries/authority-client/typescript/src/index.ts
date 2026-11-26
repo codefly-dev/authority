@@ -8,7 +8,7 @@
 //   CheckResponseSchema: host_access_v1_pb.CheckResponseSchema, host_authority_v1_pb.CheckResponseSchema
 //   RevokeRequest: host_access_v1_pb.RevokeRequest, host_artifact_v1_pb.RevokeRequest
 //   RevokeRequestSchema: host_access_v1_pb.RevokeRequestSchema, host_artifact_v1_pb.RevokeRequestSchema
-export * as api_pb from "./packages/api.js";
+export * as authority_local_v1_pb from "./packages/authority.local.v1.js";
 export * as buf_validate_pb from "./packages/buf.validate.js";
 export * as google_api_pb from "./packages/google.api.js";
 export * as host_access_v1_pb from "./packages/host.access.v1.js";
