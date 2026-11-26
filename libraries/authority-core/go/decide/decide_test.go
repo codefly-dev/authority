@@ -321,3 +321,20 @@ func TestAudienceGrantOwnershipAndRevocation(t *testing.T) {
 		t.Fatal("moving an unchanged scope to another audience must revoke the old grant")
 	}
 }
+
+func TestValidateRoleGrantsOnHeldGeneration(t *testing.T) {
+	module := domain.Module{
+		Name: "page", Principal: "page", Kind: domain.KindSolution, Generation: 1,
+		Roles:         map[string]decide.Scopes{"former-role": nil},
+		AudienceRoles: map[string]map[string]decide.Scopes{"former-role": {"tools": {sc("item", "read")}}},
+		Bindings:      map[string]domain.Binding{"call": {ID: "call", Audience: "tools", InvokeScopes: decide.Scopes{sc("item", "read")}}},
+	}
+	if err := decide.ValidateRoleGrants(module); err != nil {
+		t.Fatalf("read the held role's addressed grant: %v", err)
+	}
+	if err := decide.ValidateModule(module); !errors.Is(err, domain.ErrNoAdminRole) {
+		t.Fatalf("admit a new generation without admin: %v", err)
+	}
+	module.AudienceRoles["former-role"]["other"] = decide.Scopes{sc("item", "read")}
+	refused(t, decide.ValidateRoleGrants(module), domain.Denied, "other")
+}

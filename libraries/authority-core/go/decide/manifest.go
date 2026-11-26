@@ -220,6 +220,14 @@ func validateModule(m domain.Module) error {
 		return &domain.Refusal{Code: domain.Denied, Cause: domain.ErrNoAdminRole,
 			Reason: fmt.Sprintf("%s declares %d role(s) and none is %q: a solution, or a module page declaring roles, declares an admin role", m.Name, len(m.Roles), domain.AdminRole)}
 	}
+	return ValidateRoleGrants(m)
+}
+
+// ValidateRoleGrants checks declared role scopes against the module's served
+// kinds and person bindings. A host reading an existing signed generation can
+// use this check without admitting its role names or page shape as a new
+// generation. Admission uses ValidateModule and PageRoles.
+func ValidateRoleGrants(m domain.Module) error {
 	// A role reaches through its target's bindings, a solution's and a
 	// module page's alike (a person's capability through either carries the
 	// role at each module it invokes, cut to the binding at each hop), so a
