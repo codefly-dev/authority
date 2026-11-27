@@ -29,13 +29,6 @@ func shipped(t *testing.T) *testkit.Kit {
 	return k
 }
 
-// The fixture a run is given is the cast a walk needs and nobody else: at
-// Acme, Dana the admin, Carol the user, Bob refused (handbook: a page has two
-// roles, admin and user); at Globex, Zoë, its one administrator, the outsider
-// every composed suite holds Acme's rows against. The sign-in page lists
-// FixturePeople unless a composition chooses, so a person added here is a
-// person an unconfigured edge offers; the test kit's matrix of other people
-// and refusal cases lives in testkit/fixture.yaml instead.
 func TestTheShippedFixtureIsTheCastAndNobodyElse(t *testing.T) {
 	k := shipped(t)
 	var ids []string
@@ -47,17 +40,21 @@ func TestTheShippedFixtureIsTheCastAndNobodyElse(t *testing.T) {
 			t.Errorf("%s is seated on %v by hand: the `*` rows seat the target teams", person.ID, person.Teams)
 		}
 	}
-	if !slices.Equal(ids, []string{"dana", "carol", "bob", "zoe"}) {
-		t.Fatalf("the shipped fixture lists %v; a walk needs dana, carol and bob, a cross-organisation refusal zoe, and nobody else", ids)
+	if !slices.Equal(ids, []string{"sarah", "alice", "dana", "carol", "bob", "zoe"}) {
+		t.Fatalf("unexpected shipped fixture cast %v", ids)
 	}
-	for id, org := range map[string]string{"dana": "acme", "carol": "acme", "bob": "acme", "zoe": "globex"} {
+	for id, org := range map[string]string{"sarah": "acme", "alice": "acme", "dana": "acme", "carol": "acme", "bob": "acme", "zoe": "globex"} {
 		if byID[id].Organization != org {
-			t.Errorf("%s belongs to %q, want %s: the shipped fixture is Acme's three people and Globex's one", id, byID[id].Organization, org)
+			t.Errorf("%s belongs to %q, want %s", id, byID[id].Organization, org)
 		}
 	}
-	if !slices.Equal(byID["dana"].Roles, []string{"admin"}) || len(byID["carol"].Roles) != 0 || len(byID["bob"].Roles) != 0 || !slices.Equal(byID["zoe"].Roles, []string{"admin"}) {
-		t.Fatalf("organisation roles: dana %v, carol %v, bob %v, zoe %v; only Dana administers Acme and only Zoë Globex",
-			byID["dana"].Roles, byID["carol"].Roles, byID["bob"].Roles, byID["zoe"].Roles)
+	for id, want := range map[string][]string{
+		"sarah": {"admin", "platform_admin"}, "alice": {"admin"}, "dana": nil,
+		"carol": nil, "bob": nil, "zoe": {"admin"},
+	} {
+		if !slices.Equal(byID[id].Roles, want) {
+			t.Errorf("%s: roles %v, want %v", id, byID[id].Roles, want)
+		}
 	}
 	if zoe := byID["zoe"]; zoe.Email != "zoe@globex.test" || zoe.FixtureToken != "fixture-zoe" {
 		t.Fatalf("zoe is %s by %s; the host's fixture and every composed suite sign her in as zoe@globex.test by fixture-zoe", zoe.Email, zoe.FixtureToken)
@@ -65,12 +62,12 @@ func TestTheShippedFixtureIsTheCastAndNobodyElse(t *testing.T) {
 	if k.State.OrganizationDisplayName("acme") != "Acme" || k.State.OrganizationDisplayName("globex") != "Globex" {
 		t.Fatalf("the organisations are %q and %q, want Acme and Globex", k.State.OrganizationDisplayName("acme"), k.State.OrganizationDisplayName("globex"))
 	}
-	for _, token := range []string{"dev-dana", "dev-carol", "dev-bob", "fixture-zoe"} {
+	for _, token := range []string{"dev-alice", "dev-admin", "dev-dana", "dev-carol", "dev-bob", "fixture-zoe"} {
 		if _, err := k.State.SignIn(token); err != nil {
 			t.Errorf("%s cannot sign in: %v", token, err)
 		}
 	}
-	for _, gone := range []string{"dev-admin", "dev-alice", "dev-zoe", "fixture-dev", "fixture-maya", "fixture-no-roles", "fixture-omar"} {
+	for _, gone := range []string{"dev-zoe", "fixture-dev", "fixture-maya", "fixture-no-roles", "fixture-omar"} {
 		if _, err := k.State.SignIn(gone); err == nil {
 			t.Errorf("%s still signs in from the shipped fixture", gone)
 		}
@@ -115,7 +112,7 @@ func eachOrganisationKeepsItsOwn(t *testing.T, fragment string) {
 		t.Fatal(err)
 	}
 	admin, user := authority.ConventionalTeamName(page.Name, state.AdminRole), authority.ConventionalTeamName(page.Name, state.UserRole)
-	for id, want := range map[string][]string{"dana": {admin}, "carol": {user}, "bob": nil, "zoe": {admin}} {
+	for id, want := range map[string][]string{"alice": nil, "sarah": nil, "dana": {admin}, "carol": {user}, "bob": nil, "zoe": {admin}} {
 		if got := person(k, id).Teams; !slices.Equal(got, want) {
 			t.Errorf("%s is seated in %v, want %v", id, got, want)
 		}
@@ -147,6 +144,18 @@ func eachOrganisationKeepsItsOwn(t *testing.T, fragment string) {
 		// Named as her own organisation's, the other's installation does not exist.
 		if _, err = k.State.Service().ListRoleGrants(ctx, tc.who, tc.own, tc.other); err == nil {
 			t.Fatalf("%s read %s's installation by naming it as %s's", tc.who.ID, tc.foreign, tc.own)
+		}
+	}
+	// A page administrator can manage this installation's grants. Listing the
+	// organisation's installations requires separate administrator authority.
+	if _, err := k.State.Service().Installations(ctx, dana, "acme"); err == nil {
+		t.Fatal("Dana's page role admitted her to installation administration")
+	} else if code, ok := domain.CodeOf(err); !ok || code != domain.Denied {
+		t.Fatalf("Dana: want Denied, got %v", err)
+	}
+	for _, token := range []string{"dev-admin", "dev-alice"} {
+		if _, err := k.State.Service().Installations(ctx, caller(k, t, token), "acme"); err != nil {
+			t.Fatalf("%s cannot administer Acme: %v", token, err)
 		}
 	}
 	grants, err := k.State.Service().ListRoleGrants(ctx, dana, "acme", acme)

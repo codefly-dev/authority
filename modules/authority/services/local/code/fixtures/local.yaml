@@ -1,44 +1,5 @@
-# The local authority's fixture: who exists and who administers each
-# organisation, in the authority's own vocabulary only. Which solutions are
-# installed, who is seated on them and which modules a run supervises itself
-# belong to the composition that composes them: each composing workspace adds
-# them through its fixture-composition document (services/local/README.md,
-# "What a composition adds to the fixture"). The organisation and person ids
-# below are that document's contract with every composing repository.
-#
-# A page has two roles, admin and user (handbook: decisions/
-# a-page-has-two-roles-admin-and-user.md), and a walk needs three people, all
-# of Acme:
-#
-#   dana@example.com Dana Lee      the admin: of Acme, and of every target
-#   carol@acme.com   Carol Davis   the user of every target
-#   bob@acme.com     Bob Williams  a member holding no role on any target: refused
-#
-# Every role-gated target the run composes (a solution, a module page
-# declaring roles) gets one team per role, `<target>-admin` and
-# `<target>-user`. Dana and Carol join the team of their role (`installations`,
-# below); Bob joins none, so every page refuses him. Dana administers Acme, so
-# she installs a solution and may "Act as this team" at the edge's sign-in page:
-# a session that is that team and nothing else.
-#
-# A second organisation, Globex, has one person, so that every composed suite
-# can prove an organisation's rows stay its own:
-#
-#   zoe@globex.test  Zoë           the outsider: administers Globex, and is the
-#                                  admin of every target at Globex
-#
-# Zoë is a person of Globex and of nothing else: she holds no role on any
-# installation of Acme's and administers nothing there, so Acme's
-# installations refuse her and her own answer none of Acme's rows. A module
-# page is installed at every organisation by composition, so Globex holds its
-# own installation of each page the run composes, where Zoë's rows are hers
-# and invisible to Dana. A solution is installed at Globex only where a
-# composition's row names it or Zoë installs it. Her token is `fixture-zoe`,
-# the one the host's fixture and every composed suite already sign her in by.
-#
-# Nobody else. The edge's sign-in page lists every fixture person unless the
-# composition chooses (SIGN_IN_CHOICES): a playground that offers Dana, Carol
-# and Bob keeps offering those three.
+# Canonical development cast. SaaS projects the Acme people and installation seats
+# with scripts/render-authority-fixture.rb. Pickers are composition-specific.
 organizations:
   - id: acme
     name: Acme
@@ -49,13 +10,29 @@ roles:
     name: admin
   - organization: globex
     name: admin
+  - organization: acme
+    name: platform_admin
 people:
+  - id: sarah
+    name: Sarah Chen
+    email: admin@acme.com
+    fixture_token: dev-admin
+    organization: acme
+    roles: [admin, platform_admin]
+    teams: []
+  - id: alice
+    name: Alice Johnson
+    email: alice@acme.com
+    fixture_token: dev-alice
+    organization: acme
+    roles: [admin]
+    teams: []
   - id: dana
     name: Dana Lee
     email: dana@example.com
     fixture_token: dev-dana
     organization: acme
-    roles: [admin]
+    roles: []
     teams: []
   - id: carol
     name: Carol Davis
@@ -86,13 +63,13 @@ people:
 # nothing: a module page is installed by composition; a solution by a composing
 # workspace's row naming it (its agent role, its owner, its teams), or by an
 # administrator at the edge's setup page; each is seated the moment it is
-# active. Dana is the administrator the row stands for at Acme, and Zoë at
+# active. Alice is the installer the row stands for at Acme, and Zoë at
 # Globex: a row seats the people of its own organisation only, so neither
 # organisation's row reaches the other's installations.
 installations:
   - organization: acme
     target: "*"
-    owner: dana
+    owner: alice
     members:
       user: [carol]
       admin: [dana]
