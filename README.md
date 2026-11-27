@@ -643,8 +643,6 @@ repository's modules with the platform's stores and the directory's page:
 
 ```bash
 cd playground
-codefly config generate hop-signing SEED --service authority/hop
-codefly config generate internal-auth CODEFLY_INTERNAL_TOKEN
 codefly run service console/api authority/edge authority/hop org-directory/directory records/records \
   --env local --local-agents --headless \
   --exclude-dependency documents/docx --exclude-dependency documents/pdf \
@@ -1833,3 +1831,19 @@ Interactive session roots are checked against the host session ledger at
 verification and before issuance returns. Ended rows must remain recognizable
 until their issued capabilities expire. Noninteractive roots do not name a
 host session. The local host keeps ended sessions as tombstones.
+
+## Verify the authority
+
+Run `make verify` with Go, Node 24, uv, Docker, Codefly and access to the
+playground's pinned modules and native agents. The edge UI package requires
+GitHub Packages read access through `NODE_AUTH_TOKEN`. Set `HOP_TEST_POSTGRES` to a
+disposable PostgreSQL connection URI usable by both pgx and asyncpg. The Go
+and Python replay-store suites create their test state there, as in CI.
+
+The gate checks every tracked Go module with vet and the race detector, the
+ordinary-build reach performance guard, both language clients, the role plan
+and the embedded sign-in bundle. It runs Codefly's workspace doctor and then
+uses the playground's local authority, edge and hop to check which fixture
+people can see and read the Directory page. Each of `make unit`,
+`make role-plan`, `make playground-check` and `make scenarios` also runs
+independently.

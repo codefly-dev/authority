@@ -6,12 +6,7 @@ the repository root, because a module's checkout root provides its groups to
 every workspace that composes it. The authority module provides none, so a
 workspace composing it owns its edge and hop groups whole.
 
-The hop's service-only signing seed and internal token are generated, never committed:
-
-```bash
-codefly config generate hop-signing SEED --service authority/hop
-codefly config generate internal-auth CODEFLY_INTERNAL_TOKEN
-```
+The local environment generates the hop's service-only signing seed, the workspace internal token and the Documents cursor signing key on first use. The workspace has no document publication producer. Its publication slots stay empty.
 
 Nothing else about the hop is configured here. The hop registers the public
 half of that seed with the local authority under its own workload credential,

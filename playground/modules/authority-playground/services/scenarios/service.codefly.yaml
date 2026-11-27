@@ -1,0 +1,27 @@
+name: scenarios
+version: 0.0.0
+description: The verification process signs fixture people in at the edge and calls the services this playground composes.
+agent:
+    kind: codefly:service
+    name: go
+    version: 0.0.76
+    publisher: codefly.dev
+service-dependencies:
+    - module: authority
+      name: local
+      endpoints: [{name: grpc}]
+    - module: authority
+      name: edge
+      endpoints: [{name: http}]
+    - module: authority
+      name: hop
+      endpoints: [{name: http}, {name: grpc}]
+    - module: console
+      name: api
+      endpoints: [{name: connect}]
+    - module: records
+      name: records
+      endpoints: [{name: connect}]
+    - module: org-directory
+      name: directory
+      endpoints: [{name: connect}]

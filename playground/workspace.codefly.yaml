@@ -9,6 +9,7 @@ module-resolution:
     records: git
     org-directory: git
 modules:
+    - name: authority-playground
     - name: authority
       path: ../modules/authority
     - name: console
@@ -50,6 +51,16 @@ environments:
       # start, as the directory's own playground declares them, never written.
       service-secrets:
           generate:
+              - scope: service
+                configuration: hop-signing
+                services: [authority/hop]
+                keys: [SEED]
+              - scope: workspace
+                configuration: documents-collection-cursor
+                keys: [SIGNING_KEY]
+              - scope: workspace
+                configuration: internal-auth
+                keys: [CODEFLY_INTERNAL_TOKEN]
               - scope: service
                 configuration: postgres
                 services: [org-directory/store]
